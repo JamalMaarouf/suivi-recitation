@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
-import { calcEtatEleve, calcPosition, calcUnite, formatDate, getInitiales } from '../lib/helpers';
+import { calcEtatEleve, positionApres, calcUnite, formatDate, getInitiales } from '../lib/helpers';
 
 export default function EnregistrerRecitation({ user, eleve: eleveInitial, navigate }) {
   const [step, setStep] = useState(eleveInitial ? 2 : 1);
@@ -16,7 +16,7 @@ export default function EnregistrerRecitation({ user, eleve: eleveInitial, navig
 
   useEffect(() => {
     loadEleves();
-    if (eleveInitial) loadValidations(eleveInitial.id);
+    if (eleveInitial) loadValidations(eleveInitial);
   }, []);
 
   const loadEleves = async () => {
@@ -24,25 +24,19 @@ export default function EnregistrerRecitation({ user, eleve: eleveInitial, navig
     setEleves(data || []);
   };
 
-  const loadValidations = async (eleveId) => {
-    const { data } = await supabase.from('validations').select('*').eq('eleve_id', eleveId);
-    setValidations(data || []);
-    if (selectedEleve || eleveInitial) {
-      const el = selectedEleve || eleveInitial;
-      const e = calcEtatEleve(data || [], el.hizb_depart, el.tomon_depart);
-      setEtat(e);
-    }
+  const loadValidations = async (el) => {
+    const { data } = await supabase.from('validations').select('*').eq('eleve_id', el.id);
+    const vals = data || [];
+    setValidations(vals);
+    const e = calcEtatEleve(vals, el.hizb_depart, el.tomon_depart);
+    setEtat(e);
   };
 
   const selectEleve = async (el) => {
     setSelectedEleve(el);
     setNombreTomon(null);
     setTypeValidation('tomon');
-    const { data } = await supabase.from('validations').select('*').eq('eleve_id', el.id);
-    const vals = data || [];
-    setValidations(vals);
-    const e = calcEtatEleve(vals, el.hizb_depart, el.tomon_depart);
-    setEtat(e);
+    await loadValidations(el);
     setStep(2);
   };
 
@@ -63,8 +57,9 @@ export default function EnregistrerRecitation({ user, eleve: eleveInitial, navig
     if (!error) setDone(true);
   };
 
+  // Position après validation des nouveaux tomon
   const posNouvelle = selectedEleve && etat && nombreTomon && typeValidation === 'tomon'
-    ? calcPosition(selectedEleve.hizb_depart, selectedEleve.tomon_depart, etat.tomonCumul + nombreTomon)
+    ? positionApres(selectedEleve.hizb_depart, selectedEleve.tomon_depart, etat.tomonCumul, nombreTomon)
     : null;
 
   const elevesFiltre = eleves.filter(e =>
@@ -114,6 +109,7 @@ export default function EnregistrerRecitation({ user, eleve: eleveInitial, navig
         ))}
       </div>
 
+      {/* STEP 1 — Sélection élève */}
       {step === 1 && (
         <div>
           <div className="section-label">Sélectionner l'élève</div>
@@ -139,6 +135,7 @@ export default function EnregistrerRecitation({ user, eleve: eleveInitial, navig
         </div>
       )}
 
+      {/* STEP 2 — Validation */}
       {step === 2 && selectedEleve && etat && (
         <div>
           {/* Élève sélectionné */}
@@ -146,9 +143,34 @@ export default function EnregistrerRecitation({ user, eleve: eleveInitial, navig
             <div className="avatar" style={{ width: 36, height: 36, fontSize: 12 }}>{getInitiales(selectedEleve.prenom, selectedEleve.nom)}</div>
             <div style={{ flex: 1 }}>
               <div style={{ fontSize: 14, fontWeight: 500, color: '#085041' }}>{selectedEleve.prenom} {selectedEleve.nom}</div>
-              <div style={{ fontSize: 12, color: '#0F6E56' }}>Hizb {etat.hizbEnCours} · {etat.tomonDansHizbActuel}/8 Tomon validés</div>
+              <div style={{ fontSize: 12, color: '#0F6E56' }}>
+                Hizb {etat.hizbEnCours} · {etat.tomonDansHizbActuel}/8 Tomon validés
+              </div>
             </div>
             <button className="action-btn" onClick={() => setStep(1)}>Changer</button>
+          </div>
+
+          {/* Barre visuelle des 8 tomon */}
+          <div className="card" style={{ padding: '1rem 1.25rem', marginBottom: '1rem' }}>
+            <div style={{ fontSize: 12, color: '#888', marginBottom: 10 }}>
+              Tomon du Hizb {etat.hizbEnCours}
+            </div>
+            <div style={{ display: 'flex', gap: 4, marginBottom: 8 }}>
+              {[1,2,3,4,5,6,7,8].map(n => {
+                const dejaFait = n <= etat.tomonDansHizbActuel;
+                const selectionne = nombreTomon && n > etat.tomonDansHizbActuel && n <= etat.tomonDansHizbActuel + nombreTomon;
+                return (
+                  <div key={n} style={{
+                    flex: 1, height: 12, borderRadius: 4,
+                    background: dejaFait ? '#1D9E75' : selectionne ? '#9FE1CB' : '#e8e8e0'
+                  }}></div>
+                );
+              })}
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: '#999' }}>
+              <span>Déjà validés : {etat.tomonDansHizbActuel}</span>
+              <span>Restants : {etat.tomonRestants}</span>
+            </div>
           </div>
 
           {/* Cas : en attente validation Hizb complet */}
@@ -157,43 +179,56 @@ export default function EnregistrerRecitation({ user, eleve: eleveInitial, navig
               <div style={{ padding: '12px 14px', background: '#FAEEDA', borderRadius: 8, fontSize: 13, color: '#633806', marginBottom: '1rem' }}>
                 Les 8 Tomon du Hizb {etat.hizbEnCours} sont validés. L'élève doit réciter le Hizb complet avant de passer au Hizb {etat.hizbEnCours + 1}.
               </div>
-              <div className="section-label">Type de validation</div>
-              <div style={{ display: 'flex', gap: 10, marginBottom: '1rem' }}>
-                <div className={`card ${typeValidation === 'hizb_complet' ? '' : ''}`}
-                  style={{ flex: 1, cursor: 'pointer', border: typeValidation === 'hizb_complet' ? '2px solid #1D9E75' : '0.5px solid #e0e0d8', textAlign: 'center', padding: '1rem' }}
-                  onClick={() => setTypeValidation('hizb_complet')}>
-                  <div style={{ fontSize: 15, fontWeight: 500, color: typeValidation === 'hizb_complet' ? '#1D9E75' : '#1a1a1a', marginBottom: 4 }}>Hizb {etat.hizbEnCours} complet</div>
-                  <div style={{ fontSize: 12, color: '#888' }}>L'élève a récité le Hizb entier</div>
+              <div className="card" style={{ cursor: 'pointer', border: '2px solid #1D9E75', textAlign: 'center', padding: '1.25rem' }}
+                onClick={() => setTypeValidation('hizb_complet')}>
+                <div style={{ fontSize: 15, fontWeight: 500, color: '#1D9E75', marginBottom: 4 }}>
+                  Valider le Hizb {etat.hizbEnCours} complet
                 </div>
+                <div style={{ fontSize: 12, color: '#888' }}>L'élève a récité le Hizb entier avec succès</div>
               </div>
-              <button className="btn-primary" disabled={typeValidation !== 'hizb_complet'} onClick={() => setStep(3)}>Continuer</button>
+              <button className="btn-primary" style={{ marginTop: '1rem' }} onClick={() => setStep(3)}>Continuer</button>
             </div>
           )}
 
-          {/* Cas normal : enregistrer des Tomon */}
+          {/* Cas normal : sélection du nombre de Tomon */}
           {!etat.enAttenteHizbComplet && (
             <div>
               <div className="section-label">Nombre de Tomon récités</div>
               <div className="card">
                 <div className="tomon-grid">
                   {[1,2,3,4,5,6,7,8].map(n => {
-                    const tomonRestants = 8 - etat.tomonDansHizbActuel;
-                    const disabled = n > tomonRestants;
+                    const dejaFait = n <= etat.tomonDansHizbActuel;
+                    const depasse = n > etat.tomonRestants;
+                    const disabled = dejaFait || depasse;
                     return (
                       <div key={n}
-                        className={`tomon-btn ${nombreTomon === n ? 'selected' : ''} ${disabled ? 'disabled' : ''}`}
-                        style={{ opacity: disabled ? 0.35 : 1, cursor: disabled ? 'not-allowed' : 'pointer' }}
-                        onClick={() => !disabled && setNombreTomon(n)}>{n}</div>
+                        className={`tomon-btn ${!disabled && nombreTomon === n ? 'selected' : ''}`}
+                        style={{
+                          opacity: disabled ? 0.3 : 1,
+                          cursor: disabled ? 'not-allowed' : 'pointer',
+                          background: dejaFait ? '#e8e8e0' : (!disabled && nombreTomon === n ? '#1D9E75' : ''),
+                          color: dejaFait ? '#aaa' : (!disabled && nombreTomon === n ? '#fff' : ''),
+                          position: 'relative'
+                        }}
+                        onClick={() => !disabled && setNombreTomon(n)}>
+                        {n}
+                        {dejaFait && (
+                          <div style={{ position: 'absolute', top: 4, right: 6, fontSize: 10, color: '#bbb' }}>✓</div>
+                        )}
+                      </div>
                     );
                   })}
                 </div>
+
                 {posNouvelle && (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px', background: '#f9f9f6', borderRadius: 8, fontSize: 13, color: '#888' }}>
-                    Nouvelle position → <strong style={{ color: '#1a1a1a' }}>Hizb {posNouvelle.hizb}, T.{posNouvelle.tomon}</strong>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px', background: '#f9f9f6', borderRadius: 8, fontSize: 13, color: '#888', marginTop: 8 }}>
+                    Nouvelle position →
+                    <strong style={{ color: '#1a1a1a' }}>Hizb {posNouvelle.hizb}, T.{posNouvelle.tomon}</strong>
                     <span className="badge badge-green" style={{ marginLeft: 4 }}>{calcUnite(posNouvelle.tomon)}</span>
                   </div>
                 )}
-                {nombreTomon === 8 - etat.tomonDansHizbActuel && (
+
+                {nombreTomon === etat.tomonRestants && etat.tomonRestants > 0 && (
                   <div style={{ marginTop: 10, padding: '8px 12px', background: '#E1F5EE', borderRadius: 8, fontSize: 12, color: '#085041' }}>
                     Les 8 Tomon seront complétés — une validation Hizb complet sera ensuite nécessaire.
                   </div>
@@ -205,11 +240,15 @@ export default function EnregistrerRecitation({ user, eleve: eleveInitial, navig
         </div>
       )}
 
+      {/* STEP 3 — Confirmation */}
       {step === 3 && selectedEleve && etat && (
         <div>
           <div className="section-label">Récapitulatif</div>
           <div className="recap-card">
-            <div className="recap-row"><span className="recap-lbl">Élève</span><span className="recap-val">{selectedEleve.prenom} {selectedEleve.nom}</span></div>
+            <div className="recap-row">
+              <span className="recap-lbl">Élève</span>
+              <span className="recap-val">{selectedEleve.prenom} {selectedEleve.nom}</span>
+            </div>
             <div className="recap-row">
               <span className="recap-lbl">Type</span>
               <span className="recap-val green">
@@ -217,13 +256,25 @@ export default function EnregistrerRecitation({ user, eleve: eleveInitial, navig
               </span>
             </div>
             {typeValidation === 'tomon' && posNouvelle && (
-              <div className="recap-row"><span className="recap-lbl">Position atteinte</span><span className="recap-val">Hizb {posNouvelle.hizb}, T.{posNouvelle.tomon}</span></div>
+              <div className="recap-row">
+                <span className="recap-lbl">Position atteinte</span>
+                <span className="recap-val">Hizb {posNouvelle.hizb}, T.{posNouvelle.tomon}</span>
+              </div>
             )}
             {typeValidation === 'hizb_complet' && (
-              <div className="recap-row"><span className="recap-lbl">Hizb suivant</span><span className="recap-val">Hizb {etat.hizbEnCours + 1} s'ouvre</span></div>
+              <div className="recap-row">
+                <span className="recap-lbl">Hizb suivant</span>
+                <span className="recap-val">Hizb {etat.hizbEnCours + 1} s'ouvre</span>
+              </div>
             )}
-            <div className="recap-row"><span className="recap-lbl">Validé par</span><span className="recap-val">{user.prenom} {user.nom}</span></div>
-            <div className="recap-row"><span className="recap-lbl">Date</span><span className="recap-val">{formatDate(new Date().toISOString())}</span></div>
+            <div className="recap-row">
+              <span className="recap-lbl">Validé par</span>
+              <span className="recap-val">{user.prenom} {user.nom}</span>
+            </div>
+            <div className="recap-row">
+              <span className="recap-lbl">Date</span>
+              <span className="recap-val">{formatDate(new Date().toISOString())}</span>
+            </div>
           </div>
           <button className="btn-primary" disabled={loading} onClick={confirmer}>
             {loading ? 'Enregistrement...' : 'Confirmer la validation'}

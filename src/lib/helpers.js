@@ -1,9 +1,18 @@
+// Position = hizb_depart + tomon_depart + tomon validés
+// Tomon 1 du Hizb 1 = position de départ, le premier tomon validé amène à T.2
 export function calcPosition(hizbDepart, tomonDepart, totalTomonValides) {
-  const tomonAbsoluDepart = (hizbDepart - 1) * 8 + (tomonDepart - 1);
-  const tomonAbsoluActuel = tomonAbsoluDepart + totalTomonValides;
-  const hizb = Math.floor(tomonAbsoluActuel / 8) + 1;
-  const tomon = (tomonAbsoluActuel % 8) + 1;
+  // On convertit en index absolu 0-based
+  const indexDepart = (hizbDepart - 1) * 8 + (tomonDepart - 1);
+  // Chaque tomon validé avance d'un cran
+  const indexActuel = indexDepart + totalTomonValides;
+  const hizb = Math.floor(indexActuel / 8) + 1;
+  const tomon = (indexActuel % 8) + 1;
   return { hizb: Math.min(hizb, 60), tomon };
+}
+
+// Retourne la position APRÈS avoir validé N tomon depuis la position actuelle
+export function positionApres(hizbDepart, tomonDepart, tomonCumulActuel, nombreNouveaux) {
+  return calcPosition(hizbDepart, tomonDepart, tomonCumulActuel + nombreNouveaux);
 }
 
 export function calcUnite(tomon) {
@@ -20,19 +29,31 @@ export function formatDate(dateStr) {
   return d.toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' });
 }
 
+export function formatDateCourt(dateStr) {
+  if (!dateStr) return '—';
+  const d = new Date(dateStr);
+  return d.toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' });
+}
+
 export function isInactif(dateStr, jours = 14) {
   if (!dateStr) return true;
   const d = new Date(dateStr);
   const now = new Date();
-  const diff = (now - d) / (1000 * 60 * 60 * 24);
-  return diff > jours;
+  return (now - d) / (1000 * 60 * 60 * 24) > jours;
+}
+
+export function joursDepuis(dateStr) {
+  if (!dateStr) return null;
+  const d = new Date(dateStr);
+  const now = new Date();
+  return Math.floor((now - d) / (1000 * 60 * 60 * 24));
 }
 
 export function getInitiales(prenom, nom) {
   return ((prenom?.[0] || '') + (nom?.[0] || '')).toUpperCase();
 }
 
-// Calcule l'état complet d'un élève à partir de ses validations
+// Calcule l'état complet d'un élève
 export function calcEtatEleve(validations, hizbDepart, tomonDepart) {
   const valsChron = [...validations].sort((a, b) => new Date(a.date_validation) - new Date(b.date_validation));
 
@@ -47,31 +68,32 @@ export function calcEtatEleve(validations, hizbDepart, tomonDepart) {
     }
   }
 
+  // Position actuelle = départ + cumul des tomon validés
   const pos = calcPosition(hizbDepart, tomonDepart, tomonCumul);
 
-  // Tomon validés dans le hizb actuel (pos.tomon - 1 car tomon est 1-based)
+  // Tomon validés dans le hizb en cours
+  // pos.tomon représente le PROCHAIN tomon à réciter (1-based)
+  // donc les tomon déjà faits dans ce hizb = pos.tomon - 1
   const tomonDansHizbActuel = pos.tomon - 1;
 
-  // Les 8 tomon du hizb actuel sont-ils tous faits ?
-  // Si pos.tomon === 1 et tomonCumul > 0, c'est qu'on a débordé sur le hizb suivant
-  const hizbEnCours = pos.tomon === 1 && tomonCumul > 0 ? pos.hizb - 1 : pos.hizb;
+  // Tous les 8 tomon du hizb actuel sont-ils faits ?
+  // Oui si pos.tomon === 1 ET tomonCumul > 0 (on a débordé sur hizb suivant)
+  const hizbEnCours = (pos.tomon === 1 && tomonCumul > 0) ? pos.hizb - 1 : pos.hizb;
   const tous8Faits = pos.tomon === 1 && tomonCumul > 0;
   const tomonAffiche = tous8Faits ? 8 : tomonDansHizbActuel;
 
-  // Le hizb en cours est-il validé complet ?
   const hizbCompletValide = hizbsComplets.has(hizbEnCours);
-
-  // Peut-on enregistrer un nouveau tomon ?
-  // Oui si : on n'a pas encore fait les 8 tomon OU si le hizb complet est déjà validé
+  const enAttenteHizbComplet = tous8Faits && !hizbCompletValide;
   const peutEnregistrerTomon = !tous8Faits || hizbCompletValide;
 
-  // Doit-on valider le hizb complet ?
-  const enAttenteHizbComplet = tous8Faits && !hizbCompletValide;
+  // Tomon restants dans le hizb actuel
+  const tomonRestants = tous8Faits ? 0 : 8 - tomonDansHizbActuel;
 
   return {
     hizbEnCours,
     tomonActuel: pos.tomon,
     tomonDansHizbActuel: tomonAffiche,
+    tomonRestants,
     tous8Faits,
     hizbCompletValide,
     enAttenteHizbComplet,
@@ -100,5 +122,9 @@ export function calcStats(validations) {
     new Date(v.date_validation) >= debutMois
   ).length;
 
-  return { hizbsCompletsMois, tomonSemaine, recitationsMois };
+  const recitationsSemaine = validations.filter(v =>
+    new Date(v.date_validation) >= debutSemaine
+  ).length;
+
+  return { hizbsCompletsMois, tomonSemaine, recitationsMois, recitationsSemaine };
 }
