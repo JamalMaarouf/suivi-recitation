@@ -1,6 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
-import { calcEtatEleve, calcPosition, calcPositionAtteinte, calcUnite, formatDate, getInitiales } from '../lib/helpers';
+import { calcEtatEleve, calcPositionAtteinte, calcUnite, formatDate, getInitiales, motivationMsg } from '../lib/helpers';
+
+function Avatar({ prenom, nom, size = 36, bg = '#E1F5EE', color = '#085041' }) {
+  return (
+    <div style={{ width: size, height: size, borderRadius: '50%', background: bg, color, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 600, fontSize: size * 0.33, flexShrink: 0 }}>
+      {getInitiales(prenom, nom)}
+    </div>
+  );
+}
 
 export default function EnregistrerRecitation({ user, eleve: eleveInitial, navigate }) {
   const [step, setStep] = useState(eleveInitial ? 2 : 1);
@@ -12,6 +20,7 @@ export default function EnregistrerRecitation({ user, eleve: eleveInitial, navig
   const [typeValidation, setTypeValidation] = useState('tomon');
   const [loading, setLoading] = useState(false);
   const [done, setDone] = useState(false);
+  const [motivMsg, setMotivMsg] = useState(null);
 
   useEffect(() => {
     loadEleves();
@@ -37,19 +46,13 @@ export default function EnregistrerRecitation({ user, eleve: eleveInitial, navig
     setStep(2);
   };
 
-  // Cliquer sur un tomon : toggle consécutif
-  // On peut sélectionner uniquement les tomon consécutifs à partir du prochain
   const toggleTomon = (n) => {
     if (!etat || etat.enAttenteHizbComplet) return;
     const prochain = etat.prochainTomon;
-    if (n < prochain) return; // déjà validé, non cliquable
-
-    // Règle consécutive : on peut cocher n seulement si n === prochain + nb déjà sélectionnés
+    if (n < prochain) return;
     const maxSelectionnable = prochain + tomonSelectionnes.length;
-    if (n > maxSelectionnable) return; // on ne peut pas sauter
-
+    if (n > maxSelectionnable) return;
     if (tomonSelectionnes.includes(n)) {
-      // Décocher — on décoche aussi tout ce qui est après
       setTomonSelectionnes(tomonSelectionnes.filter(t => t < n));
     } else {
       setTomonSelectionnes([...tomonSelectionnes, n]);
@@ -57,8 +60,6 @@ export default function EnregistrerRecitation({ user, eleve: eleveInitial, navig
   };
 
   const nombreTomonSelectionnes = tomonSelectionnes.length;
-
-  // Position après validation
   const posNouvelle = selectedEleve && etat && nombreTomonSelectionnes > 0
     ? calcPositionAtteinte(selectedEleve.hizb_depart, selectedEleve.tomon_depart, etat.tomonCumul + nombreTomonSelectionnes)
     : null;
@@ -74,12 +75,14 @@ export default function EnregistrerRecitation({ user, eleve: eleveInitial, navig
       tomon_debut: typeValidation === 'tomon' ? etat.prochainTomon : null,
       hizb_validation: typeValidation === 'tomon' ? etat.hizbEnCours : null
     };
-    if (typeValidation === 'hizb_complet') {
-      insertData.hizb_valide = etat.hizbEnCours;
-    }
+    if (typeValidation === 'hizb_complet') insertData.hizb_valide = etat.hizbEnCours;
     const { error } = await supabase.from('validations').insert(insertData);
     setLoading(false);
-    if (!error) setDone(true);
+    if (!error) {
+      const msg = motivationMsg(nombreTomonSelectionnes, etat, typeValidation === 'hizb_complet');
+      setMotivMsg(msg);
+      setDone(true);
+    }
   };
 
   const elevesFiltre = eleves.filter(e =>
@@ -88,21 +91,37 @@ export default function EnregistrerRecitation({ user, eleve: eleveInitial, navig
 
   if (done) {
     return (
-      <div className="success-screen">
-        <div className="success-circle"><div className="checkmark"></div></div>
-        <div style={{ fontSize: 17, fontWeight: 500, marginBottom: 8 }}>
-          {typeValidation === 'hizb_complet' ? 'Hizb complet validé !' : 'Récitation enregistrée'}
+      <div style={{ textAlign: 'center', padding: '2rem 1rem' }}>
+        {/* Animation succès */}
+        <div style={{ width: 80, height: 80, borderRadius: '50%', background: '#E1F5EE', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 1rem', fontSize: 36 }}>
+          {typeValidation === 'hizb_complet' ? '🎉' : '✅'}
         </div>
+
+        <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 8 }}>
+          {typeValidation === 'hizb_complet' ? 'Hizb complet validé !' : 'Récitation enregistrée !'}
+        </div>
+
+        {/* Message de motivation */}
+        {motivMsg && (
+          <div style={{ background: motivMsg.color + '15', border: `1px solid ${motivMsg.color}30`, borderRadius: 12, padding: '12px 20px', margin: '0 auto 1.5rem', maxWidth: 400, fontSize: 14, color: motivMsg.color, fontWeight: 500 }}>
+            {motivMsg.msg}
+          </div>
+        )}
+
         <div style={{ fontSize: 13, color: '#888', marginBottom: '1.5rem' }}>
           {selectedEleve?.prenom} {selectedEleve?.nom} —
           {typeValidation === 'hizb_complet'
-            ? ` Hizb ${etat?.hizbEnCours} validé complet`
-            : ` Tomon ${tomonSelectionnes.join(', ')} du Hizb ${etat?.hizbEnCours}`}
+            ? ` Hizb ${etat?.hizbEnCours} validé complet (+100 pts)`
+            : ` Tomon ${tomonSelectionnes.join(', ')} du Hizb ${etat?.hizbEnCours} (+${nombreTomonSelectionnes * 10} pts)`}
         </div>
-        <button className="btn-primary" style={{ maxWidth: 260, margin: '0 auto' }}
-          onClick={() => { setDone(false); setStep(1); setSelectedEleve(null); setTomonSelectionnes([]); setEtat(null); setTypeValidation('tomon'); }}>
-          + Nouvelle récitation
-        </button>
+
+        <div style={{ display: 'flex', gap: 10, justifyContent: 'center', flexWrap: 'wrap' }}>
+          <button className="btn-primary" style={{ maxWidth: 220 }}
+            onClick={() => { setDone(false); setStep(1); setSelectedEleve(null); setTomonSelectionnes([]); setEtat(null); setTypeValidation('tomon'); setMotivMsg(null); }}>
+            + Nouvelle récitation
+          </button>
+          <button className="btn-secondary" onClick={() => navigate('fiche', selectedEleve)}>Voir la fiche</button>
+        </div>
         <div style={{ marginTop: 12 }}>
           <button className="back-link" style={{ margin: '0 auto' }} onClick={() => navigate('dashboard')}>Retour au tableau de bord</button>
         </div>
@@ -115,14 +134,13 @@ export default function EnregistrerRecitation({ user, eleve: eleveInitial, navig
       <button className="back-link" onClick={() => navigate(selectedEleve ? 'fiche' : 'dashboard', selectedEleve)}>← Retour</button>
       <div className="page-title">Enregistrer une récitation</div>
 
+      {/* Steps */}
       <div className="steps-row">
         {[['Élève', 1], ['Validation', 2], ['Confirmer', 3]].map(([label, n], i) => (
           <React.Fragment key={n}>
             {i > 0 && <div className={`step-line ${step > n - 1 ? 'done' : ''}`}></div>}
             <div className="step-item">
-              <div className={`step-circle ${step > n ? 'done' : step === n ? 'active' : 'pending'}`}>
-                {step > n ? '✓' : n}
-              </div>
+              <div className={`step-circle ${step > n ? 'done' : step === n ? 'active' : 'pending'}`}>{step > n ? '✓' : n}</div>
               <div className={`step-label ${step === n ? 'active' : ''}`}>{label}</div>
             </div>
           </React.Fragment>
@@ -143,12 +161,11 @@ export default function EnregistrerRecitation({ user, eleve: eleveInitial, navig
                   style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', border: '0.5px solid #e0e0d8', borderRadius: 8, cursor: 'pointer' }}
                   onMouseEnter={ev => ev.currentTarget.style.borderColor = '#1D9E75'}
                   onMouseLeave={ev => ev.currentTarget.style.borderColor = '#e0e0d8'}>
-                  <div className="avatar" style={{ width: 32, height: 32, fontSize: 11 }}>{getInitiales(e.prenom, e.nom)}</div>
+                  <Avatar prenom={e.prenom} nom={e.nom} size={32} />
                   <div style={{ flex: 1 }}>
                     <div style={{ fontSize: 13, fontWeight: 500 }}>{e.prenom} {e.nom}</div>
                     <div style={{ fontSize: 11, color: '#888' }}>{e.niveau}</div>
                   </div>
-                  <div style={{ fontSize: 11, color: '#bbb' }}>›</div>
                 </div>
               ))}
             </div>
@@ -159,33 +176,46 @@ export default function EnregistrerRecitation({ user, eleve: eleveInitial, navig
       {/* STEP 2 */}
       {step === 2 && selectedEleve && etat && (
         <div>
-          {/* Élève sélectionné */}
+          {/* Élève */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px', border: '0.5px solid #1D9E75', borderRadius: 8, background: '#E1F5EE', marginBottom: '1rem' }}>
-            <div className="avatar" style={{ width: 36, height: 36, fontSize: 12 }}>{getInitiales(selectedEleve.prenom, selectedEleve.nom)}</div>
+            <Avatar prenom={selectedEleve.prenom} nom={selectedEleve.nom} size={36} />
             <div style={{ flex: 1 }}>
               <div style={{ fontSize: 14, fontWeight: 500, color: '#085041' }}>{selectedEleve.prenom} {selectedEleve.nom}</div>
               <div style={{ fontSize: 12, color: '#0F6E56' }}>
                 Hizb {etat.hizbEnCours} · {etat.tomonDansHizbActuel}/8 Tomon validés
-                {etat.prochainTomon && ` · Prochain : Tomon ${etat.prochainTomon}`}
+                {etat.prochainTomon && ` · Prochain : T.${etat.prochainTomon}`}
               </div>
             </div>
             <button className="action-btn" onClick={() => setStep(1)}>Changer</button>
           </div>
 
-          {/* Attente Hizb complet */}
+          {/* Barre visuelle */}
+          <div className="card" style={{ padding: '1rem', marginBottom: '1rem' }}>
+            <div style={{ fontSize: 12, color: '#888', marginBottom: 10 }}>Tomon du Hizb {etat.hizbEnCours}</div>
+            <div style={{ display: 'flex', gap: 4, marginBottom: 8 }}>
+              {[1,2,3,4,5,6,7,8].map(n => (
+                <div key={n} style={{ flex: 1, height: 12, borderRadius: 4, background: n < etat.prochainTomon ? '#1D9E75' : tomonSelectionnes.includes(n) ? '#9FE1CB' : '#e8e8e0' }} />
+              ))}
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: '#999' }}>
+              <span>Déjà validés : {etat.tomonDansHizbActuel}</span>
+              {nombreTomonSelectionnes > 0 && <span style={{ color: '#1D9E75', fontWeight: 500 }}>+ {nombreTomonSelectionnes} aujourd'hui</span>}
+              <span>Restants : {etat.tomonRestants - nombreTomonSelectionnes}</span>
+            </div>
+          </div>
+
+          {/* Attente Hizb */}
           {etat.enAttenteHizbComplet && (
             <div>
               <div style={{ padding: '12px 14px', background: '#FAEEDA', borderRadius: 8, fontSize: 13, color: '#633806', marginBottom: '1rem', lineHeight: 1.6 }}>
                 Les 8 Tomon du Hizb <strong>{etat.hizbEnCours}</strong> sont validés.<br />
                 L'élève doit réciter le Hizb complet avant d'ouvrir le Hizb <strong>{etat.hizbEnCours + 1}</strong>.
               </div>
-              <div className="card"
-                style={{ cursor: 'pointer', border: '2px solid #1D9E75', textAlign: 'center', padding: '1.5rem' }}
+              <div className="card" style={{ cursor: 'pointer', border: '2px solid #1D9E75', textAlign: 'center', padding: '1.5rem' }}
                 onClick={() => setTypeValidation('hizb_complet')}>
-                <div style={{ fontSize: 15, fontWeight: 500, color: '#1D9E75', marginBottom: 6 }}>
-                  Valider le Hizb {etat.hizbEnCours} complet
-                </div>
-                <div style={{ fontSize: 12, color: '#888' }}>L'élève a récité les 8 Tomon du Hizb entier</div>
+                <div style={{ fontSize: 32, marginBottom: 8 }}>📖</div>
+                <div style={{ fontSize: 15, fontWeight: 600, color: '#1D9E75', marginBottom: 4 }}>Valider le Hizb {etat.hizbEnCours} complet</div>
+                <div style={{ fontSize: 12, color: '#888' }}>L'élève a récité les 8 Tomon du Hizb entier · +100 pts bonus</div>
               </div>
               <button className="btn-primary" style={{ marginTop: '1rem' }} onClick={() => setStep(3)}>Continuer</button>
             </div>
@@ -194,101 +224,53 @@ export default function EnregistrerRecitation({ user, eleve: eleveInitial, navig
           {/* Sélecteur Tomon */}
           {!etat.enAttenteHizbComplet && (
             <div>
-              <div className="section-label">
-                Tomon récités aujourd'hui — Hizb {etat.hizbEnCours}
-              </div>
-
+              <div className="section-label">Tomon récités aujourd'hui — Hizb {etat.hizbEnCours}</div>
               <div className="card">
-                {/* Grille des 8 Tomon */}
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(8, minmax(0,1fr))', gap: 6, marginBottom: 12 }}>
                   {[1,2,3,4,5,6,7,8].map(n => {
                     const dejaValide = n < etat.prochainTomon;
                     const selectionne = tomonSelectionnes.includes(n);
-                    const disponible = n >= etat.prochainTomon && n <= (etat.prochainTomon - 1 + tomonSelectionnes.length + 1);
                     const inaccessible = n > (etat.prochainTomon + tomonSelectionnes.length);
-
-                    let bg = '#f9f9f6';
-                    let border = '0.5px solid #d0d0c8';
-                    let color = '#1a1a1a';
-                    let cursor = 'pointer';
-
-                    if (dejaValide) { bg = '#e8e8e0'; color = '#bbb'; cursor = 'not-allowed'; border = '0.5px solid #e0e0d8'; }
-                    else if (selectionne) { bg = '#1D9E75'; color = '#fff'; border = '0.5px solid #1D9E75'; }
-                    else if (inaccessible) { bg = '#f9f9f6'; color = '#ccc'; cursor = 'not-allowed'; }
-
+                    let bg = '#f9f9f6', border = '0.5px solid #d0d0c8', color = '#1a1a1a', cursor = 'pointer';
+                    if (dejaValide) { bg='#e8e8e0'; color='#bbb'; cursor='not-allowed'; border='0.5px solid #e0e0d8'; }
+                    else if (selectionne) { bg='#1D9E75'; color='#fff'; border='0.5px solid #1D9E75'; }
+                    else if (inaccessible) { color='#ccc'; cursor='not-allowed'; }
                     return (
-                      <div key={n}
-                        onClick={() => !dejaValide && !inaccessible && toggleTomon(n)}
-                        style={{
-                          padding: '12px 4px', borderRadius: 8,
-                          background: bg, border, color,
-                          fontSize: 15, fontWeight: 500,
-                          textAlign: 'center', cursor,
-                          transition: 'all 0.15s',
-                          position: 'relative'
-                        }}>
+                      <div key={n} onClick={() => !dejaValide && !inaccessible && toggleTomon(n)}
+                        style={{ padding:'12px 4px', borderRadius:8, background:bg, border, color, fontSize:15, fontWeight:500, textAlign:'center', cursor, transition:'all 0.15s', position:'relative' }}>
                         {n}
-                        {dejaValide && (
-                          <div style={{ position: 'absolute', top: 3, right: 4, fontSize: 9, color: '#bbb' }}>✓</div>
-                        )}
+                        {dejaValide && <div style={{ position:'absolute', top:3, right:4, fontSize:9, color:'#bbb' }}>✓</div>}
                       </div>
                     );
                   })}
                 </div>
 
                 {/* Légende */}
-                <div style={{ display: 'flex', gap: 12, fontSize: 11, color: '#999', marginBottom: 12 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                    <div style={{ width: 10, height: 10, borderRadius: 2, background: '#e8e8e0' }}></div>
-                    Déjà validé
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                    <div style={{ width: 10, height: 10, borderRadius: 2, background: '#1D9E75' }}></div>
-                    Récité aujourd'hui
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                    <div style={{ width: 10, height: 10, borderRadius: 2, background: '#f9f9f6', border: '0.5px solid #d0d0c8' }}></div>
-                    À venir
-                  </div>
-                </div>
-
-                {/* Barre de progression */}
-                <div style={{ display: 'flex', gap: 3, marginBottom: 8 }}>
-                  {[1,2,3,4,5,6,7,8].map(n => (
-                    <div key={n} style={{
-                      flex: 1, height: 6, borderRadius: 3,
-                      background: n < etat.prochainTomon ? '#1D9E75'
-                        : tomonSelectionnes.includes(n) ? '#9FE1CB'
-                        : '#e8e8e0'
-                    }}></div>
+                <div style={{ display:'flex', gap:12, fontSize:11, color:'#999', marginBottom:12, flexWrap:'wrap' }}>
+                  {[['#e8e8e0','Déjà validé'],['#1D9E75','Récité aujourd\'hui'],['#f9f9f6','À venir']].map(([c,l])=>(
+                    <div key={l} style={{display:'flex',alignItems:'center',gap:4}}>
+                      <div style={{width:10,height:10,borderRadius:2,background:c,border:'0.5px solid #d0d0c8'}}/>
+                      {l}
+                    </div>
                   ))}
                 </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: '#999' }}>
-                  <span>Validés avant : {etat.tomonDansHizbActuel}</span>
-                  {nombreTomonSelectionnes > 0 && <span style={{ color: '#1D9E75', fontWeight: 500 }}>+ {nombreTomonSelectionnes} aujourd'hui</span>}
-                  <span>Restants : {etat.tomonRestants - nombreTomonSelectionnes}</span>
-                </div>
 
-                {/* Nouvelle position */}
                 {posNouvelle && (
-                  <div style={{ marginTop: 12, display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px', background: '#f0faf6', borderRadius: 8, fontSize: 13 }}>
-                    <span style={{ color: '#888' }}>Nouvelle position →</span>
+                  <div style={{ display:'flex', alignItems:'center', gap:8, padding:'10px 14px', background:'#f0faf6', borderRadius:8, fontSize:13, marginBottom:8 }}>
+                    <span style={{color:'#888'}}>Position atteinte →</span>
                     <strong>Hizb {posNouvelle.hizb}, T.{posNouvelle.tomon}</strong>
                     <span className="badge badge-green">{calcUnite(posNouvelle.tomon)}</span>
+                    <span style={{marginLeft:'auto',fontWeight:600,color:'#1D9E75'}}>+{nombreTomonSelectionnes * 10} pts</span>
                   </div>
                 )}
 
-                {/* Avertissement si on complète les 8 */}
                 {etat.tomonDansHizbActuel + nombreTomonSelectionnes === 8 && (
-                  <div style={{ marginTop: 10, padding: '8px 12px', background: '#E1F5EE', borderRadius: 8, fontSize: 12, color: '#085041' }}>
-                    Les 8 Tomon seront complétés — une validation Hizb complet sera nécessaire ensuite.
+                  <div style={{ padding:'8px 12px', background:'#E1F5EE', borderRadius:8, fontSize:12, color:'#085041' }}>
+                    🎯 Les 8 Tomon seront complétés — validation Hizb complet nécessaire ensuite.
                   </div>
                 )}
               </div>
-
-              <button className="btn-primary" disabled={nombreTomonSelectionnes === 0} onClick={() => setStep(3)}>
-                Continuer
-              </button>
+              <button className="btn-primary" disabled={nombreTomonSelectionnes === 0} onClick={() => setStep(3)}>Continuer</button>
             </div>
           )}
         </div>
@@ -299,50 +281,33 @@ export default function EnregistrerRecitation({ user, eleve: eleveInitial, navig
         <div>
           <div className="section-label">Récapitulatif</div>
           <div className="recap-card">
-            <div className="recap-row">
-              <span className="recap-lbl">Élève</span>
-              <span className="recap-val">{selectedEleve.prenom} {selectedEleve.nom}</span>
-            </div>
-            <div className="recap-row">
-              <span className="recap-lbl">Hizb</span>
-              <span className="recap-val">Hizb {etat.hizbEnCours}</span>
-            </div>
+            <div className="recap-row"><span className="recap-lbl">Élève</span><span className="recap-val">{selectedEleve.prenom} {selectedEleve.nom}</span></div>
+            <div className="recap-row"><span className="recap-lbl">Hizb</span><span className="recap-val">Hizb {etat.hizbEnCours}</span></div>
             {typeValidation === 'tomon' && (
               <>
                 <div className="recap-row">
                   <span className="recap-lbl">Tomon récités</span>
-                  <span className="recap-val green">
-                    Tomon {tomonSelectionnes.join(', ')} ({nombreTomonSelectionnes} Tomon)
-                  </span>
+                  <span className="recap-val green">T.{tomonSelectionnes[0]} à T.{tomonSelectionnes[tomonSelectionnes.length-1]} ({nombreTomonSelectionnes} Tomon)</span>
                 </div>
-                {posNouvelle && (
-                  <div className="recap-row">
-                    <span className="recap-lbl">Position atteinte</span>
-                    <span className="recap-val">Hizb {posNouvelle.hizb}, T.{posNouvelle.tomon}</span>
-                  </div>
-                )}
+                {posNouvelle && <div className="recap-row"><span className="recap-lbl">Position atteinte</span><span className="recap-val">Hizb {posNouvelle.hizb}, T.{posNouvelle.tomon}</span></div>}
+                <div className="recap-row"><span className="recap-lbl">Points gagnés</span><span className="recap-val green">+{nombreTomonSelectionnes * 10} pts</span></div>
               </>
             )}
             {typeValidation === 'hizb_complet' && (
-              <div className="recap-row">
-                <span className="recap-lbl">Validation</span>
-                <span className="recap-val green">Hizb {etat.hizbEnCours} complet → Hizb {etat.hizbEnCours + 1} s'ouvre</span>
-              </div>
+              <>
+                <div className="recap-row"><span className="recap-lbl">Validation</span><span className="recap-val green">Hizb {etat.hizbEnCours} complet</span></div>
+                <div className="recap-row"><span className="recap-lbl">Points gagnés</span><span className="recap-val green">+100 pts</span></div>
+                <div className="recap-row"><span className="recap-lbl">Hizb suivant</span><span className="recap-val">Hizb {etat.hizbEnCours + 1} s'ouvre</span></div>
+              </>
             )}
-            <div className="recap-row">
-              <span className="recap-lbl">Validé par</span>
-              <span className="recap-val">{user.prenom} {user.nom}</span>
-            </div>
-            <div className="recap-row">
-              <span className="recap-lbl">Date</span>
-              <span className="recap-val">{formatDate(new Date().toISOString())}</span>
-            </div>
+            <div className="recap-row"><span className="recap-lbl">Validé par</span><span className="recap-val">{user.prenom} {user.nom}</span></div>
+            <div className="recap-row"><span className="recap-lbl">Date & heure</span><span className="recap-val">{new Date().toLocaleString('fr-FR',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'})}</span></div>
           </div>
           <button className="btn-primary" disabled={loading} onClick={confirmer}>
-            {loading ? 'Enregistrement...' : 'Confirmer la validation'}
+            {loading ? 'Enregistrement...' : '✓ Confirmer la validation'}
           </button>
-          <div style={{ textAlign: 'center', marginTop: 12 }}>
-            <button className="back-link" style={{ margin: '0 auto' }} onClick={() => setStep(2)}>← Modifier</button>
+          <div style={{ textAlign:'center', marginTop:12 }}>
+            <button className="back-link" style={{ margin:'0 auto' }} onClick={() => setStep(2)}>← Modifier</button>
           </div>
         </div>
       )}
