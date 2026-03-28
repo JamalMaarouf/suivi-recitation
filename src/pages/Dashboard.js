@@ -66,11 +66,7 @@ export default function Dashboard({ user, navigate }) {
   const urgenceColor = (j) => j > 30 ? '#A32D2D' : j > 21 ? '#854F0B' : '#633806';
   const urgenceBg = (j) => j > 30 ? '#FCEBEB' : '#FAEEDA';
 
-  const MedailleIcon = ({ idx }) => {
-    const colors = ['#EF9F27', '#B0B0B0', '#CD7F32'];
-    if (idx > 2) return <span style={{ fontSize: 12, color: '#bbb', minWidth: 20, textAlign: 'center' }}>{idx + 1}</span>;
-    return <div style={{ width: 20, height: 20, borderRadius: '50%', background: colors[idx], display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, color: '#fff', fontWeight: 500, flexShrink: 0 }}>{idx + 1}</div>;
-  };
+
 
   return (
     <div>
@@ -428,9 +424,10 @@ export default function Dashboard({ user, navigate }) {
     </div>
   );
 
-  function MedailleIcon({ idx }) {
-    const colors = ['#EF9F27', '#B0B0B0', '#CD7F32'];
-    if (idx > 2) return <span style={{ fontSize: 12, color: '#bbb', display: 'block', textAlign: 'center' }}>{idx + 1}</span>;
-    return <div style={{ width: 22, height: 22, borderRadius: '50%', background: colors[idx], display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, color: '#fff', fontWeight: 500 }}>{idx + 1}</div>;
-  }
+}
+
+function MedailleIcon({ idx }) {
+  const colors = ['#EF9F27', '#B0B0B0', '#CD7F32'];
+  if (idx > 2) return <span style={{ fontSize: 12, color: '#bbb', display: 'block', textAlign: 'center' }}>{idx + 1}</span>;
+  return <div style={{ width: 22, height: 22, borderRadius: '50%', background: colors[idx], display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, color: '#fff', fontWeight: 500 }}>{idx + 1}</div>;
 }
