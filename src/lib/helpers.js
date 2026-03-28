@@ -1,4 +1,3 @@
-// calcPosition retourne le PROCHAIN tomon a reciter (usage interne)
 export function calcPosition(hizbDepart, tomonDepart, totalTomonValides) {
   const indexDepart = (hizbDepart - 1) * 8 + (tomonDepart - 1);
   const indexActuel = indexDepart + totalTomonValides;
@@ -7,7 +6,6 @@ export function calcPosition(hizbDepart, tomonDepart, totalTomonValides) {
   return { hizb: Math.min(hizb, 60), tomon };
 }
 
-// calcPositionAtteinte retourne le DERNIER tomon recite (pour affichage)
 export function calcPositionAtteinte(hizbDepart, tomonDepart, totalTomonValides) {
   if (totalTomonValides === 0) return null;
   const indexDepart = (hizbDepart - 1) * 8 + (tomonDepart - 1);
@@ -27,20 +25,17 @@ export function calcUnite(tomon) {
 
 export function formatDate(dateStr) {
   if (!dateStr) return 'Jamais';
-  const d = new Date(dateStr);
-  return d.toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' });
+  return new Date(dateStr).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' });
 }
 
 export function formatDateCourt(dateStr) {
   if (!dateStr) return 'Jamais';
-  const d = new Date(dateStr);
-  return d.toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' });
+  return new Date(dateStr).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' });
 }
 
 export function isInactif(dateStr, jours = 14) {
   if (!dateStr) return true;
-  const d = new Date(dateStr);
-  return (new Date() - d) / (1000 * 60 * 60 * 24) > jours;
+  return (new Date() - new Date(dateStr)) / (1000 * 60 * 60 * 24) > jours;
 }
 
 export function joursDepuis(dateStr) {
@@ -52,9 +47,30 @@ export function getInitiales(prenom, nom) {
   return ((prenom?.[0] || '') + (nom?.[0] || '')).toUpperCase();
 }
 
+// Calcul des points
+// 10 pts par Tomon
+// 25 pts bonus par Roboe (2 Tomon)
+// 60 pts bonus par Nisf (4 Tomon)
+// 100 pts bonus par Hizb complet validé
+export function calcPoints(tomonCumul, hizbsCompletsCount, validations) {
+  const ptsTomon = tomonCumul * 10;
+  const nbRoboe = Math.floor(tomonCumul / 2);
+  const nbNisf = Math.floor(tomonCumul / 4);
+  const ptsRoboe = nbRoboe * 25;
+  const ptsNisf = nbNisf * 60;
+  const ptsHizb = hizbsCompletsCount * 100;
+  return {
+    total: ptsTomon + ptsRoboe + ptsNisf + ptsHizb,
+    ptsTomon,
+    ptsRoboe,
+    ptsNisf,
+    ptsHizb,
+    details: { nbRoboe, nbNisf, nbHizb: hizbsCompletsCount }
+  };
+}
+
 export function calcEtatEleve(validations, hizbDepart, tomonDepart) {
   const valsChron = [...validations].sort((a, b) => new Date(a.date_validation) - new Date(b.date_validation));
-
   let tomonCumul = 0;
   const hizbsComplets = new Set();
 
@@ -66,22 +82,16 @@ export function calcEtatEleve(validations, hizbDepart, tomonDepart) {
     }
   }
 
-  // Position = prochain tomon a reciter
   const pos = calcPosition(hizbDepart, tomonDepart, tomonCumul);
-
-  // Hizb en cours et tomon deja faits
-  // Si pos.tomon === 1 et tomonCumul > 0 : on a depasse un hizb
   const hizbBrut = (pos.tomon === 1 && tomonCumul > 0) ? pos.hizb - 1 : pos.hizb;
   const tous8Faits = pos.tomon === 1 && tomonCumul > 0;
   const hizbCompletValide = hizbsComplets.has(hizbBrut);
 
-  // Si hizb complet valide ET tous les 8 tomon faits => on est sur le hizb SUIVANT
-  // L'eleve commence le hizb suivant depuis le Tomon 1
+  const points = calcPoints(tomonCumul, hizbsComplets.size, validations);
+
   if (tous8Faits && hizbCompletValide) {
-    const hizbSuivant = hizbBrut + 1;
-    // Le prochain tomon a reciter est Tomon 1 du hizb suivant
     return {
-      hizbEnCours: hizbSuivant,
+      hizbEnCours: hizbBrut + 1,
       prochainTomon: 1,
       tomonDansHizbActuel: 0,
       tomonRestants: 8,
@@ -90,18 +100,17 @@ export function calcEtatEleve(validations, hizbDepart, tomonDepart) {
       enAttenteHizbComplet: false,
       hizbsComplets,
       tomonCumul,
+      points,
       positionReelle: pos
     };
   }
 
-  // Cas normal : en cours sur hizbBrut
   const tomonDansHizbActuel = tous8Faits ? 8 : pos.tomon - 1;
-  const prochainTomon = tous8Faits ? null : pos.tomon;
   const enAttenteHizbComplet = tous8Faits && !hizbCompletValide;
 
   return {
     hizbEnCours: hizbBrut,
-    prochainTomon,
+    prochainTomon: tous8Faits ? null : pos.tomon,
     tomonDansHizbActuel,
     tomonRestants: tous8Faits ? 0 : 8 - tomonDansHizbActuel,
     tous8Faits,
@@ -109,6 +118,7 @@ export function calcEtatEleve(validations, hizbDepart, tomonDepart) {
     enAttenteHizbComplet,
     hizbsComplets,
     tomonCumul,
+    points,
     positionReelle: pos
   };
 }
@@ -119,21 +129,18 @@ export function calcStats(validations) {
   const debutSemaine = new Date(maintenant);
   debutSemaine.setDate(maintenant.getDate() - 7);
 
-  const hizbsCompletsMois = validations.filter(v =>
-    v.type_validation === 'hizb_complet' && new Date(v.date_validation) >= debutMois
-  ).length;
+  return {
+    hizbsCompletsMois: validations.filter(v => v.type_validation === 'hizb_complet' && new Date(v.date_validation) >= debutMois).length,
+    tomonSemaine: validations.filter(v => v.type_validation === 'tomon' && new Date(v.date_validation) >= debutSemaine).reduce((s, v) => s + v.nombre_tomon, 0),
+    recitationsMois: validations.filter(v => new Date(v.date_validation) >= debutMois).length,
+    recitationsSemaine: validations.filter(v => new Date(v.date_validation) >= debutSemaine).length,
+  };
+}
 
-  const tomonSemaine = validations.filter(v =>
-    v.type_validation === 'tomon' && new Date(v.date_validation) >= debutSemaine
-  ).reduce((s, v) => s + v.nombre_tomon, 0);
-
-  const recitationsMois = validations.filter(v =>
-    new Date(v.date_validation) >= debutMois
-  ).length;
-
-  const recitationsSemaine = validations.filter(v =>
-    new Date(v.date_validation) >= debutSemaine
-  ).length;
-
-  return { hizbsCompletsMois, tomonSemaine, recitationsMois, recitationsSemaine };
+export function scoreLabel(points) {
+  if (points >= 3000) return { label: 'Excellence', color: '#EF9F27', bg: '#FAEEDA' };
+  if (points >= 1500) return { label: 'Avancé', color: '#1D9E75', bg: '#E1F5EE' };
+  if (points >= 600) return { label: 'Intermédiaire', color: '#378ADD', bg: '#E6F1FB' };
+  if (points >= 200) return { label: 'Débutant+', color: '#888', bg: '#f0f0ec' };
+  return { label: 'Débutant', color: '#bbb', bg: '#f9f9f6' };
 }
