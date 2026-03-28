@@ -3,7 +3,10 @@ import { t } from '../lib/i18n';
 import { supabase } from '../lib/supabase';
 import { calcEtatEleve, niveauTraduit, getInitiales, scoreLabel, formatDate } from '../lib/helpers';
 
-const MOIS_NOMS = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
+const MOIS_FR = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
+const MOIS_AR = ['يناير','فبراير','مارس','أبريل','مايو','يونيو','يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر'];
+const MOIS_EN = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+const getMoisNom = (idx, lang) => lang === 'ar' ? MOIS_AR[idx] : lang === 'en' ? MOIS_EN[idx] : MOIS_FR[idx];
 
 function Avatar({ prenom, nom, size = 32 }) {
   return (
@@ -90,38 +93,53 @@ export default function RapportMensuel({  user, navigate , lang="fr" }) {
   const imprimerRapport = () => {
     const w = window.open('', '', 'width=900,height=1000');
     const medals = ['🥇', '🥈', '🥉'];
-    w.document.write(`<html><head><title>Rapport ${MOIS_NOMS[mois]} ${annee}</title>
+    const dir = lang === 'ar' ? 'rtl' : 'ltr';
+    const arabicFont = lang === 'ar' ? "'Tajawal', Arial, sans-serif" : "Arial, sans-serif";
+    const dateLocale = lang === 'ar' ? 'ar-MA' : lang === 'en' ? 'en-GB' : 'fr-FR';
+    const thAlign = lang === 'ar' ? 'right' : 'left';
+    const moisLabel = getMoisNom(mois, lang);
+    w.document.write(`<html dir="${dir}" lang="${lang}"><head>
+    <title>${t(lang,'rapport_mensuel')} — ${moisLabel} ${annee}</title>
     <style>
-      body{font-family:Arial,sans-serif;color:#1a1a1a;padding:30px;font-size:13px}
+      @import url('https://fonts.googleapis.com/css2?family=Tajawal:wght@400;700&display=swap');
+      body{font-family:${arabicFont};color:#1a1a1a;padding:30px;font-size:13px;direction:${dir}}
       h1{font-size:24px;color:#1D9E75;margin-bottom:4px}
       h2{font-size:15px;margin:24px 0 10px;color:#1a1a1a;border-bottom:2px solid #1D9E75;padding-bottom:6px}
-      .kpi{display:flex;gap:16px;margin-bottom:24px}
-      .kpi-box{flex:1;border:1px solid #e0e0d8;border-radius:8px;padding:14px;text-align:center}
+      .kpi{display:flex;gap:16px;margin-bottom:24px;flex-wrap:wrap}
+      .kpi-box{flex:1;min-width:120px;border:1px solid #e0e0d8;border-radius:8px;padding:14px;text-align:center}
       .kpi-val{font-size:26px;font-weight:700;color:#1D9E75}
       .kpi-lbl{font-size:11px;color:#888;margin-top:2px}
       table{width:100%;border-collapse:collapse;font-size:12px;margin-bottom:24px}
-      th{background:#f5f5f0;text-align:left;padding:8px 10px;border-bottom:2px solid #e0e0d8;font-size:11px;text-transform:uppercase}
-      td{padding:8px 10px;border-bottom:1px solid #f0f0ec}
+      th{background:#f5f5f0;text-align:${thAlign};padding:8px 10px;border-bottom:2px solid #e0e0d8;font-size:11px;text-transform:uppercase}
+      td{padding:8px 10px;border-bottom:1px solid #f0f0ec;text-align:${thAlign}}
       tr:nth-child(even) td{background:#fafafa}
       .badge-green{background:#E1F5EE;color:#085041;padding:2px 8px;border-radius:20px;font-size:10px;font-weight:600}
       .badge-red{background:#FCEBEB;color:#A32D2D;padding:2px 8px;border-radius:20px;font-size:10px;font-weight:600}
       .badge-amber{background:#FAEEDA;color:#633806;padding:2px 8px;border-radius:20px;font-size:10px;font-weight:600}
       .pts{font-weight:700;color:#1D9E75}
       .footer{margin-top:30px;font-size:10px;color:#bbb;border-top:1px solid #e0e0d8;padding-top:12px;text-align:center}
-      .progress{height:8px;background:#e8e8e0;border-radius:4px;overflow:hidden;margin-top:4px}
-      .progress-fill{height:100%;border-radius:4px}
     </style></head><body>
-    <h1>Rapport mensuel — ${MOIS_NOMS[mois]} ${annee}</h1>
-    <p style="color:#888;font-size:12px">Généré le ${new Date().toLocaleDateString('fr-FR')} · Suivi Récitation</p>
+    <h1>${t(lang,'rapport_mensuel')} — ${moisLabel} ${annee}</h1>
+    <p style="color:#888;font-size:12px">${t(lang,'genere_le')} ${new Date().toLocaleDateString(dateLocale)} · ${t(lang,'app_name')}</p>
     <div class="kpi">
-      <div class="kpi-box"><div class="kpi-val">${elevesActifsMois}</div><div class="kpi-lbl">Élèves actifs</div></div>
-      <div class="kpi-box"><div class="kpi-val">${totalTomonMois}</div><div class="kpi-lbl">Tomon récités</div></div>
-      <div class="kpi-box"><div class="kpi-val">${totalHizbMois}</div><div class="kpi-lbl">Hizb complets</div></div>
-      <div class="kpi-box"><div class="kpi-val">${totalPtsMois.toLocaleString()}</div><div class="kpi-lbl">Points générés</div></div>
+      <div class="kpi-box"><div class="kpi-val">${elevesActifsMois}</div><div class="kpi-lbl">${t(lang,'eleves_actifs')}</div></div>
+      <div class="kpi-box"><div class="kpi-val">${totalTomonMois}</div><div class="kpi-lbl">${t(lang,'tomon_recites')}</div></div>
+      <div class="kpi-box"><div class="kpi-val">${totalHizbMois}</div><div class="kpi-lbl">${t(lang,'hizb_complets')}</div></div>
+      <div class="kpi-box"><div class="kpi-val">${totalPtsMois.toLocaleString()}</div><div class="kpi-lbl">${t(lang,'pts_generes')}</div></div>
     </div>
-    <h2>Classement des élèves</h2>
+    <h2>${t(lang,'classement')}</h2>
     <table>
-      <thead><tr><th>#</th><th>Élève</th><th>Instituteur</th><th>Tomon</th><th>Hizb cplt</th><th>Séances</th><th>Objectif</th><th>Atteinte</th><th>Score mois</th></tr></thead>
+      <thead><tr>
+        <th>#</th>
+        <th>${t(lang,'eleve')}</th>
+        <th>${t(lang,'referent')}</th>
+        <th>${t(lang,'tomon_abrev')}</th>
+        <th>${t(lang,'hizb_abrev')}</th>
+        <th>${t(lang,'nb_seances')||'Séances'}</th>
+        <th>${t(lang,'objectif_label')}</th>
+        <th>${t(lang,'atteinte')}</th>
+        <th>${t(lang,'score_mois')}</th>
+      </tr></thead>
       <tbody>
         ${statsEleves.map((e, idx) => `
           <tr>
@@ -129,21 +147,20 @@ export default function RapportMensuel({  user, navigate , lang="fr" }) {
             <td><strong>${e.prenom} ${e.nom}</strong></td>
             <td style="color:#888">${e.instituteurNom}</td>
             <td class="pts">${e.tomonMois}</td>
-            <td>${e.hizbMois > 0 ? `<span class="badge-green">${e.hizbMois} Hizb</span>` : '—'}</td>
+            <td>${e.hizbMois > 0 ? \`<span class="badge-green">\${e.hizbMois} \${t(lang,'hizb_abrev')}</span>\` : '—'}</td>
             <td>${e.seances}</td>
-            <td>${e.objectif ? e.objectif + ' T' : '—'}</td>
-            <td>${e.pctObj !== null ? `<span class="${e.pctObj >= 100 ? 'badge-green' : e.pctObj >= 60 ? 'badge-amber' : 'badge-red'}">${e.pctObj}%</span>` : '—'}</td>
-            <td class="pts">${e.ptsMois.toLocaleString()}</td>
+            <td>${e.objectif ? e.objectif + ' ' + t(lang,'tomon_abrev') : '—'}</td>
+            <td>${e.pctObj !== null ? \`<span class="\${e.pctObj >= 100 ? 'badge-green' : e.pctObj >= 60 ? 'badge-amber' : 'badge-red'}">\${e.pctObj}%</span>\` : '—'}</td>
+            <td class="pts">${e.ptsMois.toLocaleString()} ${t(lang,'pts_abrev')}</td>
           </tr>
         `).join('')}
       </tbody>
     </table>
-    <div class="footer">Suivi Récitation · ${MOIS_NOMS[mois]} ${annee}</div>
+    <div class="footer">${t(lang,'app_name')} · ${moisLabel} ${annee}</div>
     </body></html>`);
     w.document.close();
-    setTimeout(() => { w.print(); w.close(); }, 500);
+    setTimeout(() => { w.print(); w.close(); }, 600);
   };
-
   const prevMois = () => { if (mois === 0) { setMois(11); setAnnee(a => a - 1); } else setMois(m => m - 1); };
   const nextMois = () => { if (mois === 11) { setMois(0); setAnnee(a => a + 1); } else setMois(m => m + 1); };
   const medals = ['🥇', '🥈', '🥉'];
@@ -157,7 +174,7 @@ export default function RapportMensuel({  user, navigate , lang="fr" }) {
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.5rem', flexWrap: 'wrap', gap: 8 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           <button onClick={prevMois} style={{ padding: '6px 14px', border: '0.5px solid #e0e0d8', borderRadius: 8, background: '#fff', cursor: 'pointer', fontSize: 16 }}>‹</button>
-          <div style={{ fontSize: 20, fontWeight: 700 }}>{MOIS_NOMS[mois]} {annee}</div>
+          <div style={{ fontSize: 20, fontWeight: 700 }}>{getMoisNom(mois, lang)} {annee}</div>
           <button onClick={nextMois} style={{ padding: '6px 14px', border: '0.5px solid #e0e0d8', borderRadius: 8, background: '#fff', cursor: 'pointer', fontSize: 16 }}>›</button>
         </div>
         <button onClick={imprimerRapport} style={{ padding: '8px 18px', background: '#1D9E75', color: '#fff', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
@@ -183,7 +200,7 @@ export default function RapportMensuel({  user, navigate , lang="fr" }) {
           </div>
 
           {/* Tableau élèves avec objectifs */}
-          <div className="section-label">Performance et objectifs — {MOIS_NOMS[mois]} {annee}</div>
+          <div className="section-label">Performance et objectifs — {getMoisNom(mois, lang)} {annee}</div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             {statsEleves.map((e, idx) => (
               <div key={e.id} style={{ background: '#fff', border: '0.5px solid #e0e0d8', borderRadius: 12, padding: '14px' }}>

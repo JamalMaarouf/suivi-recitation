@@ -103,38 +103,73 @@ export default function FicheEleve({  eleve, user, navigate , lang="fr" }) {
   const handlePrint = () => {
     const w = window.open('', '', 'width=800,height=900');
     const pts = etat?.points;
-    w.document.write(`<html><head><title>Fiche - ${eleve.prenom} ${eleve.nom}</title>
-    <style>body{font-family:Arial,sans-serif;color:#1a1a1a;padding:30px}h1{font-size:22px}h2{font-size:14px;margin:20px 0 10px}
-    .grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:20px}.box{border:1px solid #e0e0d8;border-radius:8px;padding:12px;text-align:center}
-    .box-title{font-size:10px;text-transform:uppercase;color:#888;margin-bottom:4px}.box-val{font-size:22px;font-weight:700;color:#1D9E75}
-    table{width:100%;border-collapse:collapse;font-size:12px}th{background:#f9f9f6;text-align:left;padding:8px;border-bottom:1px solid #e0e0d8;font-size:10px;text-transform:uppercase}
-    td{padding:8px;border-bottom:1px solid #f0f0ec}.pts{color:#1D9E75;font-weight:600}.footer{margin-top:30px;font-size:11px;color:#bbb;border-top:1px solid #e0e0d8;padding-top:12px}
+    const dir = lang === 'ar' ? 'rtl' : 'ltr';
+    const arabicFont = lang === 'ar' ? "'Tajawal', 'Arial', sans-serif" : "Arial, sans-serif";
+    const dateLocale = lang === 'ar' ? 'ar-MA' : lang === 'en' ? 'en-GB' : 'fr-FR';
+    const thAlign = lang === 'ar' ? 'right' : 'left';
+    w.document.write(`<html dir="${dir}" lang="${lang}"><head><title>${eleve.prenom} ${eleve.nom}</title>
+    <style>
+      @import url('https://fonts.googleapis.com/css2?family=Tajawal:wght@400;700&display=swap');
+      body{font-family:${arabicFont};color:#1a1a1a;padding:30px;direction:${dir}}
+      h1{font-size:22px;color:#085041}h2{font-size:14px;margin:20px 0 10px;border-bottom:2px solid #1D9E75;padding-bottom:6px}
+      .grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:20px}
+      .box{border:1px solid #e0e0d8;border-radius:8px;padding:12px;text-align:center}
+      .box-title{font-size:10px;text-transform:uppercase;color:#888;margin-bottom:4px}
+      .box-val{font-size:22px;font-weight:700;color:#1D9E75}
+      table{width:100%;border-collapse:collapse;font-size:12px}
+      th{background:#f9f9f6;text-align:${thAlign};padding:8px;border-bottom:1px solid #e0e0d8;font-size:10px;text-transform:uppercase}
+      td{padding:8px;border-bottom:1px solid #f0f0ec;text-align:${thAlign}}
+      .pts{color:#1D9E75;font-weight:600}
+      .footer{margin-top:30px;font-size:11px;color:#bbb;border-top:1px solid #e0e0d8;padding-top:12px}
+      .header-sub{color:#888;font-size:13px;margin-bottom:20px}
+      .badge{padding:2px 8px;border-radius:20px;font-size:10px;font-weight:600}
+      .badge-green{background:#E1F5EE;color:#085041}
+      .badge-amber{background:#FAEEDA;color:#633806}
     </style></head><body>
     <h1>${eleve.prenom} ${eleve.nom}</h1>
-    <p style="color:#888;font-size:13px">${niveauTraduit(eleve.niveau, lang, t)} · ${instituteurNom} · Départ : Hizb ${eleve.hizb_depart}, T.${eleve.tomon_depart}</p>
+    <p class="header-sub">
+      ${niveauTraduit(eleve.niveau, lang, t)} · ${instituteurNom} · 
+      ${t(lang,'hizb_depart')}: Hizb ${eleve.hizb_depart}, T.${eleve.tomon_depart}
+    </p>
     <div class="grid">
-      <div class="box"><div class="box-title">Score total</div><div class="box-val">${pts?.total.toLocaleString()} pts</div></div>
-      <div class="box"><div class="box-title">Position</div><div class="box-val">Hizb ${etat?.hizbEnCours}</div></div>
-      <div class="box"><div class="box-title">Tomon total</div><div class="box-val">${etat?.tomonCumul}</div></div>
-      <div class="box"><div class="box-title">Hizb complets</div><div class="box-val">${etat?.hizbsComplets.size}</div></div>
+      <div class="box"><div class="box-title">${t(lang,'score_total')}</div><div class="box-val">${pts?.total.toLocaleString()} ${t(lang,'pts_abrev')}</div></div>
+      <div class="box"><div class="box-title">${t(lang,'hizb_en_cours')}</div><div class="box-val">Hizb ${etat?.hizbEnCours}</div></div>
+      <div class="box"><div class="box-title">${t(lang,'tomon_valides')}</div><div class="box-val">${etat?.tomonCumul}</div></div>
+      <div class="box"><div class="box-title">${t(lang,'hizb_complets')}</div><div class="box-val">${etat?.hizbsComplets.size}</div></div>
     </div>
-    <h2>Historique des récitations</h2>
-    <table><thead><tr><th>Date</th><th>Type</th><th>Détail</th><th>Durée apprentissage</th><th>Points</th><th>Validé par</th></tr></thead><tbody>
+    <h2>${t(lang,'historique')}</h2>
+    <table><thead><tr>
+      <th>${t(lang,'date_heure')}</th>
+      <th>${t(lang,'statut')}</th>
+      <th>${t(lang,'detail')}</th>
+      <th>${t(lang,'duree_apprentissage_col')}</th>
+      <th>${t(lang,'points_gagnes')}</th>
+      <th>${t(lang,'valide_par')}</th>
+    </tr></thead><tbody>
     ${validations.map(v => {
       const appr = apprentissages.find(a => a.hizb === v.hizb_validation && a.tomon === v.tomon_debut);
       const joursAppr = appr ? Math.round((new Date(v.date_validation) - new Date(appr.date_debut)) / (1000 * 60 * 60 * 24)) : null;
-      return `<tr><td>${formatDate(v.date_validation)}</td>
-      <td>${v.type_validation === 'hizb_complet' ? t(lang,'hizb_complets_label') : v.nombre_tomon + ' Tomon'}</td>
-      <td>${v.type_validation === 'hizb_complet' ? 'Hizb ' + v.hizb_valide : (v.tomon_debut ? 'T.' + v.tomon_debut + '→T.' + (v.tomon_debut + v.nombre_tomon - 1) : v.nombre_tomon + ' Tomon')}</td>
-      <td>${joursAppr !== null ? joursAppr + ' jour(s)' : '—'}</td>
-      <td class="pts">+${v.type_validation === 'hizb_complet' ? 100 : v.nombre_tomon * 10} pts</td>
-      <td>${v.valideur ? v.valideur.prenom + ' ' + v.valideur.nom : '—'}</td></tr>`;
+      const typeLabel = v.type_validation === 'hizb_complet' ? t(lang,'hizb_complets_label') : v.nombre_tomon + ' ' + t(lang,'tomon_abrev');
+      const detailLabel = v.type_validation === 'hizb_complet'
+        ? 'Hizb ' + v.hizb_valide
+        : (v.tomon_debut ? 'T.' + v.tomon_debut + '→T.' + (v.tomon_debut + v.nombre_tomon - 1) : v.nombre_tomon + ' ' + t(lang,'tomon_abrev'));
+      const dureeLabel = joursAppr !== null ? joursAppr + ' ' + t(lang,'jours') : '—';
+      return \`<tr>
+        <td>\${new Date(v.date_validation).toLocaleDateString(dateLocale)}</td>
+        <td>\${typeLabel}</td>
+        <td>\${detailLabel}</td>
+        <td>\${dureeLabel}</td>
+        <td class="pts">+\${v.type_validation === 'hizb_complet' ? 100 : v.nombre_tomon * 10} \${t(lang,'pts_abrev')}</td>
+        <td>\${v.valideur ? v.valideur.prenom + ' ' + v.valideur.nom : '—'}</td>
+      </tr>\`;
     }).join('')}
     </tbody></table>
-    <div class="footer">Imprimé le ${new Date().toLocaleDateString('fr-FR')} · Suivi Récitation</div>
+    <div class="footer">
+      ${t(lang,'genere_le')} ${new Date().toLocaleDateString(dateLocale)} · ${t(lang,'app_name')}
+    </div>
     </body></html>`);
     w.document.close();
-    setTimeout(() => { w.print(); w.close(); }, 500);
+    setTimeout(() => { w.print(); w.close(); }, 600);
   };
 
   const sl = etat ? scoreLabel(etat.points.total) : { color: '#888', bg: '#f0f0ec', label: '—' };
