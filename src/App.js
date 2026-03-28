@@ -9,6 +9,8 @@ import Seance from './pages/Seance';
 import Calendrier from './pages/Calendrier';
 import ProfilInstituteur from './pages/ProfilInstituteur';
 import Comparaison from './pages/Comparaison';
+import RapportMensuel from './pages/RapportMensuel';
+import ValidationRapide from './pages/ValidationRapide';
 import './App.css';
 
 export default function App() {
@@ -17,22 +19,18 @@ export default function App() {
   const [selectedEleve, setSelectedEleve] = useState(null);
   const [selectedInstituteur, setSelectedInstituteur] = useState(null);
   const [compareEleves, setCompareEleves] = useState([]);
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
 
   useEffect(() => {
     const saved = localStorage.getItem('suivi_user');
     if (saved) setUser(JSON.parse(saved));
+    const handleResize = () => setIsMobile(window.innerWidth < 768);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  const handleLogin = (u) => {
-    setUser(u);
-    localStorage.setItem('suivi_user', JSON.stringify(u));
-  };
-
-  const handleLogout = () => {
-    setUser(null);
-    localStorage.removeItem('suivi_user');
-    setPage('dashboard');
-  };
+  const handleLogin = (u) => { setUser(u); localStorage.setItem('suivi_user', JSON.stringify(u)); };
+  const handleLogout = () => { setUser(null); localStorage.removeItem('suivi_user'); setPage('dashboard'); };
 
   const navigate = (p, data = null) => {
     setPage(p);
@@ -44,11 +42,8 @@ export default function App() {
 
   if (!user) return <Login onLogin={handleLogin} />;
 
-  const isMobile = window.innerWidth < 768;
-
   return (
     <div className="app-container">
-      {/* Top nav — desktop only */}
       {!isMobile && (
         <nav className="top-nav">
           <div className="nav-brand" onClick={() => navigate('dashboard')}>
@@ -57,11 +52,13 @@ export default function App() {
           </div>
           <div className="nav-right">
             <span className="nav-user">{user.prenom} · <em>{user.role}</em></span>
-            <button className="nav-btn" onClick={() => navigate('seance')}>Ma séance</button>
-            <button className="nav-btn" onClick={() => navigate('calendrier')}>Calendrier</button>
-            {user.role === 'surveillant' && (
-              <button className="nav-btn" onClick={() => navigate('gestion')}>Gestion</button>
-            )}
+            <button className="nav-btn" onClick={() => navigate('validation_rapide')}>⚡ Express</button>
+            <button className="nav-btn" onClick={() => navigate('seance')}>📋 Séance</button>
+            <button className="nav-btn" onClick={() => navigate('calendrier')}>📅 Calendrier</button>
+            {user.role === 'surveillant' && <>
+              <button className="nav-btn" onClick={() => navigate('rapport_mensuel')}>📊 Rapport</button>
+              <button className="nav-btn" onClick={() => navigate('gestion')}>⚙️ Gestion</button>
+            </>}
             <button className="nav-btn nav-btn-logout" onClick={handleLogout}>Déconnexion</button>
           </div>
         </nav>
@@ -71,20 +68,21 @@ export default function App() {
         {page === 'dashboard' && <Dashboard user={user} navigate={navigate} />}
         {page === 'fiche' && selectedEleve && <FicheEleve eleve={selectedEleve} user={user} navigate={navigate} />}
         {page === 'enregistrer' && <EnregistrerRecitation user={user} eleve={selectedEleve} navigate={navigate} />}
+        {page === 'validation_rapide' && <ValidationRapide user={user} navigate={navigate} />}
         {page === 'gestion' && user.role === 'surveillant' && <Gestion user={user} navigate={navigate} />}
         {page === 'honneur' && <TableauHonneur navigate={navigate} />}
         {page === 'seance' && <Seance user={user} navigate={navigate} />}
         {page === 'calendrier' && <Calendrier user={user} navigate={navigate} />}
         {page === 'profil_instituteur' && selectedInstituteur && <ProfilInstituteur instituteur={selectedInstituteur} user={user} navigate={navigate} />}
         {page === 'comparaison' && <Comparaison eleves={compareEleves} user={user} navigate={navigate} />}
+        {page === 'rapport_mensuel' && <RapportMensuel user={user} navigate={navigate} />}
       </main>
 
-      {/* Bottom nav — mobile */}
       {isMobile && (
         <nav className="bottom-nav">
           {[
             { key: 'dashboard', icon: '🏠', label: 'Accueil' },
-            { key: 'enregistrer', icon: '✍️', label: 'Valider' },
+            { key: 'validation_rapide', icon: '⚡', label: 'Express' },
             { key: 'seance', icon: '📋', label: 'Séance' },
             { key: 'calendrier', icon: '📅', label: 'Calendrier' },
             { key: 'honneur', icon: '🏆', label: 'Honneur' },
