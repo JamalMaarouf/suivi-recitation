@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
-import { calcEtatEleve, calcStats, formatDate, formatDateCourt, isInactif, joursDepuis, getInitiales } from '../lib/helpers';
+import { calcEtatEleve, calcStats, formatDate, formatDateCourt, isInactif, joursDepuis, getInitiales, calcUnite } from '../lib/helpers';
 
 export default function Dashboard({ user, navigate }) {
   const [eleves, setEleves] = useState([]);
@@ -24,8 +24,7 @@ export default function Dashboard({ user, navigate }) {
       const etat = calcEtatEleve(vals, eleve.hizb_depart, eleve.tomon_depart);
       const derniere = vals[0]?.date_validation || null;
       const inst = (instData || []).find(i => i.id === eleve.instituteur_referent_id);
-      const jours = joursDepuis(derniere);
-      return { ...eleve, etat, derniere, jours, instituteurNom: inst ? `${inst.prenom} ${inst.nom}` : '—', instituteur: inst, inactif: isInactif(derniere) };
+      return { ...eleve, etat, derniere, jours: joursDepuis(derniere), instituteurNom: inst ? `${inst.prenom} ${inst.nom}` : '—', instituteur: inst, inactif: isInactif(derniere) };
     });
 
     setEleves(elevesAvecStats);
@@ -35,6 +34,10 @@ export default function Dashboard({ user, navigate }) {
     setLoading(false);
   };
 
+  const nbInactifs = eleves.filter(e => e.inactif).length;
+  const nbAttente = eleves.filter(e => e.etat.enAttenteHizbComplet).length;
+  const nbActifs = eleves.filter(e => !e.inactif).length;
+
   const elevesFiltres = eleves.filter(e => {
     if (filtre === 'inactifs') return e.inactif;
     if (filtre === 'attente') return e.etat.enAttenteHizbComplet;
@@ -43,49 +46,40 @@ export default function Dashboard({ user, navigate }) {
     return true;
   });
 
-  const nbInactifs = eleves.filter(e => e.inactif).length;
-  const nbAttente = eleves.filter(e => e.etat.enAttenteHizbComplet).length;
-  const nbActifs = eleves.filter(e => !e.inactif).length;
-
-  // Top récitateurs — par tomon cumulé
   const topEleves = [...eleves].sort((a, b) => b.etat.tomonCumul - a.etat.tomonCumul).slice(0, 5);
+  const elevesUrgents = [...eleves].filter(e => e.inactif).sort((a, b) => (b.jours || 999) - (a.jours || 999)).slice(0, 5);
+  const activiteRecente = allValidations.slice(0, 10);
 
-  // Élèves urgents — inactifs depuis le plus longtemps
-  const elevesUrgents = [...eleves].filter(e => e.inactif).sort((a, b) => (b.jours || 0) - (a.jours || 0)).slice(0, 4);
-
-  // Activité récente — dernières validations
-  const activiteRecente = allValidations.slice(0, 8);
-
-  // Stats par instituteur
   const statsParInst = instituteurs.map(inst => {
-    const elevesInst = eleves.filter(e => e.instituteur_referent_id === inst.id);
-    const tomonTotal = elevesInst.reduce((s, e) => s + e.etat.tomonCumul, 0);
-    const enAttente = elevesInst.filter(e => e.etat.enAttenteHizbComplet).length;
-    const inactifs = elevesInst.filter(e => e.inactif).length;
-    return { ...inst, nbEleves: elevesInst.length, tomonTotal, enAttente, inactifs };
+    const ei = eleves.filter(e => e.instituteur_referent_id === inst.id);
+    return {
+      ...inst,
+      nbEleves: ei.length,
+      tomonTotal: ei.reduce((s, e) => s + e.etat.tomonCumul, 0),
+      hizbsComplets: ei.reduce((s, e) => s + e.etat.hizbsComplets.size, 0),
+      enAttente: ei.filter(e => e.etat.enAttenteHizbComplet).length,
+      inactifs: ei.filter(e => e.inactif).length,
+      actifs: ei.filter(e => !e.inactif).length,
+    };
   });
 
-  const urgenceColor = (jours) => {
-    if (jours > 30) return '#A32D2D';
-    if (jours > 21) return '#854F0B';
-    return '#633806';
-  };
+  const urgenceColor = (j) => j > 30 ? '#A32D2D' : j > 21 ? '#854F0B' : '#633806';
+  const urgenceBg = (j) => j > 30 ? '#FCEBEB' : '#FAEEDA';
 
-  const urgenceBg = (jours) => {
-    if (jours > 30) return '#FCEBEB';
-    if (jours > 21) return '#FAEEDA';
-    return '#FAEEDA';
+  const MedailleIcon = ({ idx }) => {
+    const colors = ['#EF9F27', '#B0B0B0', '#CD7F32'];
+    if (idx > 2) return <span style={{ fontSize: 12, color: '#bbb', minWidth: 20, textAlign: 'center' }}>{idx + 1}</span>;
+    return <div style={{ width: 20, height: 20, borderRadius: '50%', background: colors[idx], display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, color: '#fff', fontWeight: 500, flexShrink: 0 }}>{idx + 1}</div>;
   };
 
   return (
     <div>
-      {/* Header avec tabs */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.5rem' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.5rem', flexWrap: 'wrap', gap: 8 }}>
         <div className="page-title" style={{ marginBottom: 0 }}>
-          {vue === 'dashboard' ? 'Tableau de bord' : vue === 'eleves' ? 'Tous les élèves' : 'Rapport'}
+          {vue === 'dashboard' ? 'Vue générale' : vue === 'eleves' ? 'Élèves' : 'Rapport'}
         </div>
-        <div style={{ display: 'flex', gap: 6 }}>
-          <div className={`filter-chip ${vue === 'dashboard' ? 'active' : ''}`} onClick={() => setVue('dashboard')}>Vue générale</div>
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+          <div className={`filter-chip ${vue === 'dashboard' ? 'active' : ''}`} onClick={() => setVue('dashboard')}>Général</div>
           <div className={`filter-chip ${vue === 'eleves' ? 'active' : ''}`} onClick={() => setVue('eleves')}>Élèves</div>
           {user.role === 'surveillant' && (
             <div className={`filter-chip ${vue === 'rapport' ? 'active' : ''}`} onClick={() => setVue('rapport')}>Rapport</div>
@@ -95,64 +89,83 @@ export default function Dashboard({ user, navigate }) {
 
       {loading && <div className="loading">Chargement...</div>}
 
-      {/* ===== VUE DASHBOARD ===== */}
+      {/* ===== VUE GÉNÉRALE ===== */}
       {!loading && vue === 'dashboard' && (
         <>
-          {/* KPI row */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0,1fr))', gap: 10, marginBottom: '1.5rem' }}>
-            <div className="stat-card" style={{ borderLeft: '3px solid #1D9E75', borderRadius: '0 8px 8px 0' }}>
-              <div className="stat-val">{eleves.length}</div>
-              <div className="stat-lbl">Élèves inscrits</div>
+          {/* KPI */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0,1fr))', gap: 8, marginBottom: '1.25rem' }}>
+            {[
+              { val: eleves.length, lbl: 'Élèves inscrits', color: '#1D9E75' },
+              { val: nbActifs, lbl: 'Actifs ce mois', color: '#378ADD' },
+              { val: nbAttente, lbl: 'Attente Hizb complet', color: '#EF9F27' },
+              { val: nbInactifs, lbl: 'Inactifs +14j', color: '#E24B4A' },
+            ].map((k, i) => (
+              <div key={i} className="stat-card" style={{ borderLeft: `3px solid ${k.color}`, borderRadius: '0 8px 8px 0', padding: '12px 14px' }}>
+                <div style={{ fontSize: 24, fontWeight: 500, color: k.color }}>{k.val}</div>
+                <div style={{ fontSize: 11, color: '#888', marginTop: 2 }}>{k.lbl}</div>
+              </div>
+            ))}
+          </div>
+
+          {/* Activité semaine / mois */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0,1fr))', gap: 8, marginBottom: '1.25rem' }}>
+            <div style={{ padding: '14px', background: '#E1F5EE', border: '0.5px solid #9FE1CB', borderRadius: 10 }}>
+              <div style={{ fontSize: 10, color: '#0F6E56', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: 4 }}>Cette semaine</div>
+              <div style={{ fontSize: 26, fontWeight: 500, color: '#085041' }}>{stats.tomonSemaine}</div>
+              <div style={{ fontSize: 11, color: '#0F6E56' }}>Tomon récités</div>
             </div>
-            <div className="stat-card" style={{ borderLeft: '3px solid #378ADD', borderRadius: '0 8px 8px 0' }}>
-              <div className="stat-val">{nbActifs}</div>
-              <div className="stat-lbl">Actifs ce mois</div>
+            <div style={{ padding: '14px', background: '#E6F1FB', border: '0.5px solid #85B7EB', borderRadius: 10 }}>
+              <div style={{ fontSize: 10, color: '#185FA5', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: 4 }}>Ce mois</div>
+              <div style={{ fontSize: 26, fontWeight: 500, color: '#0C447C' }}>{stats.hizbsCompletsMois}</div>
+              <div style={{ fontSize: 11, color: '#185FA5' }}>Hizb complets validés</div>
             </div>
-            <div className="stat-card" style={{ borderLeft: '3px solid #EF9F27', borderRadius: '0 8px 8px 0' }}>
-              <div className="stat-val" style={{ color: nbAttente > 0 ? '#854F0B' : '#1a1a1a' }}>{nbAttente}</div>
-              <div className="stat-lbl">Attente Hizb complet</div>
-            </div>
-            <div className="stat-card" style={{ borderLeft: '3px solid #E24B4A', borderRadius: '0 8px 8px 0' }}>
-              <div className="stat-val alert">{nbInactifs}</div>
-              <div className="stat-lbl">Inactifs +14 jours</div>
+            <div style={{ padding: '14px', background: '#f9f9f6', border: '0.5px solid #e0e0d8', borderRadius: 10 }}>
+              <div style={{ fontSize: 10, color: '#888', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: 4 }}>Ce mois</div>
+              <div style={{ fontSize: 26, fontWeight: 500, color: '#1a1a1a' }}>{stats.recitationsMois}</div>
+              <div style={{ fontSize: 11, color: '#888' }}>Récitations totales</div>
             </div>
           </div>
 
-          {/* Activité semaine */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: '1.5rem' }}>
-            <div className="card" style={{ padding: '1rem', background: '#E1F5EE', border: '0.5px solid #9FE1CB' }}>
-              <div style={{ fontSize: 11, color: '#0F6E56', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: 6 }}>Cette semaine</div>
-              <div style={{ fontSize: 28, fontWeight: 500, color: '#085041' }}>{stats.tomonSemaine}</div>
-              <div style={{ fontSize: 12, color: '#0F6E56' }}>Tomon récités</div>
-            </div>
-            <div className="card" style={{ padding: '1rem', background: '#E6F1FB', border: '0.5px solid #85B7EB' }}>
-              <div style={{ fontSize: 11, color: '#185FA5', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: 6 }}>Ce mois</div>
-              <div style={{ fontSize: 28, fontWeight: 500, color: '#0C447C' }}>{stats.hizbsCompletsMois}</div>
-              <div style={{ fontSize: 12, color: '#185FA5' }}>Hizb complets validés</div>
-            </div>
-          </div>
+          {/* Attente Hizb complet */}
+          {nbAttente > 0 && (
+            <>
+              <div className="section-label">En attente de validation Hizb complet</div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px,1fr))', gap: 8, marginBottom: '0.5rem' }}>
+                {eleves.filter(e => e.etat.enAttenteHizbComplet).map(e => (
+                  <div key={e.id} onClick={() => navigate('enregistrer', e)}
+                    style={{ padding: '12px', background: '#FAEEDA', border: '0.5px solid #EF9F27', borderRadius: 10, cursor: 'pointer' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                      <div className="avatar" style={{ width: 28, height: 28, fontSize: 10, background: '#FAC775', color: '#412402' }}>{getInitiales(e.prenom, e.nom)}</div>
+                      <div style={{ fontSize: 13, fontWeight: 500, color: '#412402' }}>{e.prenom} {e.nom}</div>
+                    </div>
+                    <div style={{ fontSize: 11, color: '#854F0B' }}>Hizb {e.etat.hizbEnCours} complet à valider</div>
+                    <div style={{ fontSize: 11, color: '#854F0B', opacity: 0.8 }}>{e.instituteurNom}</div>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-
-            {/* Élèves à activer en urgence */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginTop: '0.5rem' }}>
+            {/* À relancer */}
             <div>
               <div className="section-label">À relancer en urgence</div>
               {elevesUrgents.length === 0 ? (
-                <div style={{ padding: '1rem', background: '#E1F5EE', borderRadius: 12, fontSize: 13, color: '#085041', textAlign: 'center' }}>
+                <div style={{ padding: '1rem', background: '#E1F5EE', borderRadius: 10, fontSize: 13, color: '#085041', textAlign: 'center' }}>
                   Tous les élèves sont actifs
                 </div>
               ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                   {elevesUrgents.map(e => (
                     <div key={e.id} onClick={() => navigate('fiche', e)}
                       style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', background: urgenceBg(e.jours), border: `0.5px solid ${urgenceColor(e.jours)}30`, borderRadius: 10, cursor: 'pointer' }}>
-                      <div className="avatar" style={{ width: 32, height: 32, fontSize: 11, background: urgenceBg(e.jours), color: urgenceColor(e.jours) }}>{getInitiales(e.prenom, e.nom)}</div>
+                      <div className="avatar" style={{ width: 32, height: 32, fontSize: 11, background: 'transparent', border: `1.5px solid ${urgenceColor(e.jours)}`, color: urgenceColor(e.jours) }}>{getInitiales(e.prenom, e.nom)}</div>
                       <div style={{ flex: 1 }}>
                         <div style={{ fontSize: 13, fontWeight: 500, color: urgenceColor(e.jours) }}>{e.prenom} {e.nom}</div>
-                        <div style={{ fontSize: 11, color: urgenceColor(e.jours), opacity: 0.8 }}>{e.instituteurNom}</div>
+                        <div style={{ fontSize: 11, color: urgenceColor(e.jours), opacity: 0.75 }}>Hizb {e.etat.hizbEnCours} · {e.instituteurNom}</div>
                       </div>
-                      <div style={{ fontSize: 12, fontWeight: 500, color: urgenceColor(e.jours) }}>
-                        {e.jours ? `${e.jours}j` : 'Jamais'}
+                      <div style={{ fontSize: 12, fontWeight: 500, color: urgenceColor(e.jours), minWidth: 32, textAlign: 'right' }}>
+                        {e.jours != null ? `${e.jours}j` : 'Jamais'}
                       </div>
                     </div>
                   ))}
@@ -163,21 +176,20 @@ export default function Dashboard({ user, navigate }) {
             {/* Top récitateurs */}
             <div>
               <div className="section-label">Meilleurs récitateurs</div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                {topEleves.length === 0 && <div className="empty">Aucune récitation enregistrée.</div>}
                 {topEleves.map((e, idx) => (
                   <div key={e.id} onClick={() => navigate('fiche', e)}
                     style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', background: '#fff', border: '0.5px solid #e0e0d8', borderRadius: 10, cursor: 'pointer' }}>
-                    <div style={{ width: 24, height: 24, borderRadius: '50%', background: idx === 0 ? '#EF9F27' : idx === 1 ? '#888' : idx === 2 ? '#BA7517' : '#f0f0ec', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 500, color: idx < 3 ? '#fff' : '#aaa', flexShrink: 0 }}>
-                      {idx + 1}
-                    </div>
+                    <MedailleIcon idx={idx} />
                     <div className="avatar" style={{ width: 28, height: 28, fontSize: 10 }}>{getInitiales(e.prenom, e.nom)}</div>
                     <div style={{ flex: 1 }}>
                       <div style={{ fontSize: 13, fontWeight: 500 }}>{e.prenom} {e.nom}</div>
-                      <div style={{ fontSize: 11, color: '#888' }}>Hizb {e.etat.hizbEnCours}</div>
+                      <div style={{ fontSize: 11, color: '#888' }}>Hizb {e.etat.hizbEnCours}, T.{e.etat.prochainTomon || 1} · {e.instituteurNom}</div>
                     </div>
-                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 2 }}>
-                      <span className="badge badge-green" style={{ fontSize: 10 }}>{e.etat.tomonCumul} Tomon</span>
-                      <span style={{ fontSize: 10, color: '#bbb' }}>{e.etat.hizbsComplets.size} Hizb</span>
+                    <div style={{ textAlign: 'right' }}>
+                      <div style={{ fontSize: 12, fontWeight: 500, color: '#1D9E75' }}>{e.etat.tomonCumul} T</div>
+                      <div style={{ fontSize: 10, color: '#bbb' }}>{e.etat.hizbsComplets.size} Hizb</div>
                     </div>
                   </div>
                 ))}
@@ -185,36 +197,16 @@ export default function Dashboard({ user, navigate }) {
             </div>
           </div>
 
-          {/* En attente Hizb complet */}
-          {nbAttente > 0 && (
-            <>
-              <div className="section-label">En attente de validation Hizb complet</div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px,1fr))', gap: 8 }}>
-                {eleves.filter(e => e.etat.enAttenteHizbComplet).map(e => (
-                  <div key={e.id} onClick={() => navigate('enregistrer', e)}
-                    style={{ padding: '12px 14px', background: '#FAEEDA', border: '0.5px solid #EF9F27', borderRadius: 10, cursor: 'pointer' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-                      <div className="avatar" style={{ width: 28, height: 28, fontSize: 10, background: '#FAC775', color: '#412402' }}>{getInitiales(e.prenom, e.nom)}</div>
-                      <div style={{ fontSize: 13, fontWeight: 500, color: '#412402' }}>{e.prenom} {e.nom}</div>
-                    </div>
-                    <div style={{ fontSize: 11, color: '#854F0B' }}>Hizb {e.etat.hizbEnCours} complet à valider</div>
-                    <div style={{ fontSize: 11, color: '#854F0B', marginTop: 2 }}>{e.instituteurNom}</div>
-                  </div>
-                ))}
-              </div>
-            </>
-          )}
-
           {/* Activité récente */}
           <div className="section-label">Activité récente</div>
           <div className="table-wrap">
             <table>
               <thead>
                 <tr>
-                  <th style={{ width: '25%' }}>Date</th>
-                  <th style={{ width: '30%' }}>Élève</th>
-                  <th style={{ width: '25%' }}>Validation</th>
-                  <th style={{ width: '20%' }}>Par</th>
+                  <th style={{ width: '18%' }}>Date</th>
+                  <th style={{ width: '28%' }}>Élève</th>
+                  <th style={{ width: '30%' }}>Validation</th>
+                  <th style={{ width: '24%' }}>Validé par</th>
                 </tr>
               </thead>
               <tbody>
@@ -230,7 +222,7 @@ export default function Dashboard({ user, navigate }) {
                           ? <span className="badge badge-green">Hizb {v.hizb_valide} complet</span>
                           : <span className="badge badge-blue">{v.nombre_tomon} Tomon</span>}
                       </td>
-                      <td style={{ fontSize: 12, color: '#888' }}>{v.valideur ? `${v.valideur.prenom}` : '—'}</td>
+                      <td style={{ fontSize: 12, color: '#888' }}>{v.valideur ? `${v.valideur.prenom} ${v.valideur.nom}` : '—'}</td>
                     </tr>
                   );
                 })}
@@ -244,14 +236,14 @@ export default function Dashboard({ user, navigate }) {
       {!loading && vue === 'eleves' && (
         <>
           <div className="filters-row">
-            <div className={`filter-chip ${filtre === 'tous' ? 'active' : ''}`} onClick={() => setFiltre('tous')}>Tous ({eleves.length})</div>
-            <div className={`filter-chip ${filtre === 'actifs' ? 'active' : ''}`} onClick={() => setFiltre('actifs')}>Actifs ({nbActifs})</div>
-            <div className={`filter-chip ${filtre === 'inactifs' ? 'active' : ''}`} onClick={() => setFiltre('inactifs')}>Inactifs ({nbInactifs})</div>
-            <div className={`filter-chip ${filtre === 'attente' ? 'active' : ''}`} onClick={() => setFiltre('attente')}>Attente Hizb ({nbAttente})</div>
-            {instituteurs.map(i => (
-              <div key={i.id} className={`filter-chip ${filtre === 'inst_' + i.id ? 'active' : ''}`} onClick={() => setFiltre('inst_' + i.id)}>
-                {i.prenom} {i.nom}
-              </div>
+            {[
+              { key: 'tous', label: `Tous (${eleves.length})` },
+              { key: 'actifs', label: `Actifs (${nbActifs})` },
+              { key: 'inactifs', label: `Inactifs (${nbInactifs})` },
+              { key: 'attente', label: `Attente Hizb (${nbAttente})` },
+              ...instituteurs.map(i => ({ key: 'inst_' + i.id, label: `${i.prenom} ${i.nom}` }))
+            ].map(f => (
+              <div key={f.key} className={`filter-chip ${filtre === f.key ? 'active' : ''}`} onClick={() => setFiltre(f.key)}>{f.label}</div>
             ))}
           </div>
 
@@ -260,12 +252,12 @@ export default function Dashboard({ user, navigate }) {
               <table>
                 <thead>
                   <tr>
-                    <th style={{ width: '22%' }}>Élève</th>
+                    <th style={{ width: '20%' }}>Élève</th>
+                    <th style={{ width: '14%' }}>Niveau</th>
                     <th style={{ width: '16%' }}>Référent</th>
-                    <th style={{ width: '18%' }}>Hizb en cours</th>
-                    <th style={{ width: '22%' }}>Progression</th>
-                    <th style={{ width: '18%' }}>Dernière récitation</th>
-                    <th style={{ width: '4%' }}></th>
+                    <th style={{ width: '16%' }}>Hizb en cours</th>
+                    <th style={{ width: '20%' }}>Progression</th>
+                    <th style={{ width: '14%' }}>Dernière récit.</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -273,9 +265,12 @@ export default function Dashboard({ user, navigate }) {
                     <tr key={eleve.id} className={`clickable ${eleve.inactif ? 'inactive' : ''}`} onClick={() => navigate('fiche', eleve)}>
                       <td>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                          <div className="avatar" style={{ width: 30, height: 30, fontSize: 11 }}>{getInitiales(eleve.prenom, eleve.nom)}</div>
+                          <div className="avatar" style={{ width: 28, height: 28, fontSize: 10 }}>{getInitiales(eleve.prenom, eleve.nom)}</div>
                           <span className={eleve.inactif ? 'name-cell' : ''}>{eleve.prenom} {eleve.nom}</span>
                         </div>
+                      </td>
+                      <td>
+                        <span className={`badge ${eleve.niveau === 'Avancé' ? 'badge-green' : eleve.niveau === 'Intermédiaire' ? 'badge-blue' : 'badge-amber'}`} style={{ fontSize: 10 }}>{eleve.niveau}</span>
                       </td>
                       <td style={{ fontSize: 12, color: '#888' }}>{eleve.instituteurNom}</td>
                       <td>
@@ -285,17 +280,16 @@ export default function Dashboard({ user, navigate }) {
                       <td>
                         <div style={{ display: 'flex', gap: 2, marginBottom: 3 }}>
                           {[1,2,3,4,5,6,7,8].map(n => (
-                            <div key={n} style={{ flex: 1, height: 6, borderRadius: 2, background: n <= eleve.etat.tomonDansHizbActuel ? (eleve.etat.enAttenteHizbComplet ? '#EF9F27' : '#1D9E75') : '#e8e8e0' }}></div>
+                            <div key={n} style={{ flex: 1, height: 5, borderRadius: 2, background: n <= eleve.etat.tomonDansHizbActuel ? (eleve.etat.enAttenteHizbComplet ? '#EF9F27' : '#1D9E75') : '#e8e8e0' }}></div>
                           ))}
                         </div>
-                        <div style={{ fontSize: 11, color: '#999' }}>{eleve.etat.tomonDansHizbActuel}/8 Tomon</div>
+                        <div style={{ fontSize: 10, color: '#999' }}>{eleve.etat.tomonDansHizbActuel}/8 · {eleve.etat.tomonCumul} total</div>
                       </td>
                       <td>
-                        <span className={`badge ${eleve.inactif ? 'badge-alert' : 'badge-green'}`}>
+                        <span className={`badge ${eleve.inactif ? 'badge-alert' : 'badge-green'}`} style={{ fontSize: 10 }}>
                           {eleve.derniere ? formatDate(eleve.derniere) : 'Jamais'}
                         </span>
                       </td>
-                      <td style={{ textAlign: 'right' }}><span style={{ fontSize: 16, color: '#ccc' }}>›</span></td>
                     </tr>
                   ))}
                 </tbody>
@@ -305,90 +299,138 @@ export default function Dashboard({ user, navigate }) {
         </>
       )}
 
-      {/* ===== VUE RAPPORT ===== */}
+      {/* ===== RAPPORT ===== */}
       {!loading && vue === 'rapport' && user.role === 'surveillant' && (
         <>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0,1fr))', gap: 10, marginBottom: '1.5rem' }}>
-            <div className="stat-card">
-              <div className="stat-val" style={{ color: '#1D9E75' }}>{stats.hizbsCompletsMois}</div>
-              <div className="stat-lbl">Hizb complets ce mois</div>
-            </div>
-            <div className="stat-card">
-              <div className="stat-val">{stats.tomonSemaine}</div>
-              <div className="stat-lbl">Tomon cette semaine</div>
-            </div>
-            <div className="stat-card">
-              <div className="stat-val">{stats.recitationsMois}</div>
-              <div className="stat-lbl">Récitations ce mois</div>
-            </div>
+          {/* Stats globales */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0,1fr))', gap: 8, marginBottom: '1.25rem' }}>
+            {[
+              { val: stats.hizbsCompletsMois, lbl: 'Hizb complets ce mois', color: '#1D9E75' },
+              { val: stats.tomonSemaine, lbl: 'Tomon cette semaine', color: '#378ADD' },
+              { val: stats.recitationsMois, lbl: 'Récitations ce mois', color: '#888' },
+              { val: stats.recitationsSemaine, lbl: 'Récitations cette semaine', color: '#854F0B' },
+            ].map((k, i) => (
+              <div key={i} className="stat-card" style={{ borderLeft: `3px solid ${k.color}`, borderRadius: '0 8px 8px 0' }}>
+                <div style={{ fontSize: 22, fontWeight: 500, color: k.color }}>{k.val}</div>
+                <div style={{ fontSize: 11, color: '#888', marginTop: 2 }}>{k.lbl}</div>
+              </div>
+            ))}
           </div>
 
+          {/* Par instituteur */}
           <div className="section-label">Performance par instituteur</div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px,1fr))', gap: 10, marginBottom: '1.5rem' }}>
+            {statsParInst.length === 0 && <div className="empty">Aucun instituteur.</div>}
+            {statsParInst.sort((a,b) => b.tomonTotal - a.tomonTotal).map(inst => (
+              <div key={inst.id} className="card" style={{ padding: '1rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
+                  <div className="avatar" style={{ width: 36, height: 36, fontSize: 13 }}>{getInitiales(inst.prenom, inst.nom)}</div>
+                  <div>
+                    <div style={{ fontSize: 14, fontWeight: 500 }}>{inst.prenom} {inst.nom}</div>
+                    <div style={{ fontSize: 11, color: '#888' }}>{inst.nbEleves} élèves</div>
+                  </div>
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
+                  <div style={{ background: '#E1F5EE', borderRadius: 6, padding: '8px', textAlign: 'center' }}>
+                    <div style={{ fontSize: 18, fontWeight: 500, color: '#085041' }}>{inst.tomonTotal}</div>
+                    <div style={{ fontSize: 10, color: '#0F6E56' }}>Tomon total</div>
+                  </div>
+                  <div style={{ background: '#E6F1FB', borderRadius: 6, padding: '8px', textAlign: 'center' }}>
+                    <div style={{ fontSize: 18, fontWeight: 500, color: '#0C447C' }}>{inst.hizbsComplets}</div>
+                    <div style={{ fontSize: 10, color: '#185FA5' }}>Hizb complets</div>
+                  </div>
+                  <div style={{ background: inst.inactifs > 0 ? '#FCEBEB' : '#f9f9f6', borderRadius: 6, padding: '8px', textAlign: 'center' }}>
+                    <div style={{ fontSize: 18, fontWeight: 500, color: inst.inactifs > 0 ? '#A32D2D' : '#bbb' }}>{inst.inactifs}</div>
+                    <div style={{ fontSize: 10, color: inst.inactifs > 0 ? '#A32D2D' : '#bbb' }}>Inactifs</div>
+                  </div>
+                  <div style={{ background: inst.enAttente > 0 ? '#FAEEDA' : '#f9f9f6', borderRadius: 6, padding: '8px', textAlign: 'center' }}>
+                    <div style={{ fontSize: 18, fontWeight: 500, color: inst.enAttente > 0 ? '#854F0B' : '#bbb' }}>{inst.enAttente}</div>
+                    <div style={{ fontSize: 10, color: inst.enAttente > 0 ? '#854F0B' : '#bbb' }}>Attente Hizb</div>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Classement élèves */}
+          <div className="section-label">Classement général des élèves</div>
           <div className="table-wrap" style={{ marginBottom: '1.5rem' }}>
             <table>
               <thead>
                 <tr>
-                  <th style={{ width: '30%' }}>Instituteur</th>
-                  <th style={{ width: '15%' }}>Élèves</th>
-                  <th style={{ width: '20%' }}>Tomon total</th>
-                  <th style={{ width: '20%' }}>En attente</th>
-                  <th style={{ width: '15%' }}>Inactifs</th>
-                </tr>
-              </thead>
-              <tbody>
-                {statsParInst.length === 0 && <tr><td colSpan={5} className="empty">Aucun instituteur.</td></tr>}
-                {statsParInst.sort((a,b) => b.tomonTotal - a.tomonTotal).map(i => (
-                  <tr key={i.id}>
-                    <td>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <div className="avatar" style={{ width: 28, height: 28, fontSize: 10 }}>{getInitiales(i.prenom, i.nom)}</div>
-                        {i.prenom} {i.nom}
-                      </div>
-                    </td>
-                    <td style={{ fontSize: 13 }}>{i.nbEleves}</td>
-                    <td><span className="badge badge-green">{i.tomonTotal} Tomon</span></td>
-                    <td>{i.enAttente > 0 ? <span className="badge badge-amber">{i.enAttente}</span> : <span style={{ color: '#bbb' }}>—</span>}</td>
-                    <td>{i.inactifs > 0 ? <span className="badge badge-alert">{i.inactifs}</span> : <span style={{ color: '#bbb' }}>—</span>}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-
-          <div className="section-label">Classement des élèves</div>
-          <div className="table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th style={{ width: '8%' }}>#</th>
-                  <th style={{ width: '32%' }}>Élève</th>
-                  <th style={{ width: '20%' }}>Position</th>
-                  <th style={{ width: '20%' }}>Tomon total</th>
-                  <th style={{ width: '20%' }}>Hizb complets</th>
+                  <th style={{ width: '6%' }}>#</th>
+                  <th style={{ width: '24%' }}>Élève</th>
+                  <th style={{ width: '14%' }}>Niveau</th>
+                  <th style={{ width: '18%' }}>Position actuelle</th>
+                  <th style={{ width: '14%' }}>Tomon total</th>
+                  <th style={{ width: '12%' }}>Hizb complets</th>
+                  <th style={{ width: '12%' }}>Statut</th>
                 </tr>
               </thead>
               <tbody>
                 {[...eleves].sort((a,b) => b.etat.tomonCumul - a.etat.tomonCumul).map((e, idx) => (
                   <tr key={e.id} className="clickable" onClick={() => navigate('fiche', e)}>
-                    <td style={{ fontWeight: idx < 3 ? 500 : 400, color: idx === 0 ? '#BA7517' : idx === 1 ? '#888' : idx === 2 ? '#854F0B' : '#bbb' }}>
-                      {idx + 1}
+                    <td>
+                      <MedailleIcon idx={idx} />
                     </td>
                     <td>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                         <div className="avatar" style={{ width: 26, height: 26, fontSize: 10 }}>{getInitiales(e.prenom, e.nom)}</div>
-                        {e.prenom} {e.nom}
+                        <div>
+                          <div style={{ fontSize: 13 }}>{e.prenom} {e.nom}</div>
+                          <div style={{ fontSize: 11, color: '#bbb' }}>{e.instituteurNom}</div>
+                        </div>
                       </div>
                     </td>
-                    <td style={{ fontSize: 12, color: '#888' }}>Hizb {e.etat.hizbEnCours}, T.{e.etat.tomonActuel}</td>
+                    <td>
+                      <span className={`badge ${e.niveau === 'Avancé' ? 'badge-green' : e.niveau === 'Intermédiaire' ? 'badge-blue' : 'badge-amber'}`} style={{ fontSize: 10 }}>{e.niveau}</span>
+                    </td>
+                    <td style={{ fontSize: 12 }}>
+                      Hizb {e.etat.hizbEnCours}
+                      {e.etat.prochainTomon && `, T.${e.etat.prochainTomon}`}
+                    </td>
                     <td><span className="badge badge-green">{e.etat.tomonCumul}</span></td>
                     <td><span className="badge badge-blue">{e.etat.hizbsComplets.size}</span></td>
+                    <td>
+                      {e.etat.enAttenteHizbComplet
+                        ? <span className="badge badge-amber" style={{ fontSize: 10 }}>Attente Hizb</span>
+                        : e.inactif
+                          ? <span className="badge badge-alert" style={{ fontSize: 10 }}>Inactif</span>
+                          : <span className="badge badge-green" style={{ fontSize: 10 }}>Actif</span>}
+                    </td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
+
+          {/* Élèves sans récitation */}
+          {eleves.filter(e => e.etat.tomonCumul === 0).length > 0 && (
+            <>
+              <div className="section-label">Élèves sans aucune récitation</div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                {eleves.filter(e => e.etat.tomonCumul === 0).map(e => (
+                  <div key={e.id} onClick={() => navigate('fiche', e)}
+                    style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', background: '#fff', border: '0.5px solid #e0e0d8', borderRadius: 8, cursor: 'pointer' }}>
+                    <div className="avatar" style={{ width: 30, height: 30, fontSize: 11 }}>{getInitiales(e.prenom, e.nom)}</div>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: 13, fontWeight: 500 }}>{e.prenom} {e.nom}</div>
+                      <div style={{ fontSize: 11, color: '#888' }}>{e.instituteurNom} · Hizb {e.hizb_depart}, T.{e.tomon_depart}</div>
+                    </div>
+                    <span className="badge badge-alert" style={{ fontSize: 10 }}>Jamais récité</span>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
         </>
       )}
     </div>
   );
+
+  function MedailleIcon({ idx }) {
+    const colors = ['#EF9F27', '#B0B0B0', '#CD7F32'];
+    if (idx > 2) return <span style={{ fontSize: 12, color: '#bbb', display: 'block', textAlign: 'center' }}>{idx + 1}</span>;
+    return <div style={{ width: 22, height: 22, borderRadius: '50%', background: colors[idx], display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, color: '#fff', fontWeight: 500 }}>{idx + 1}</div>;
+  }
 }
