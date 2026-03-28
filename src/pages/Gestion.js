@@ -84,7 +84,7 @@ function HizbTomonSelector({ hizb, tomon, onHizbChange, onTomonChange, lang }) {
               ))}
             </div>
             <div style={{fontSize:10,color:'#0F6E56',marginTop:6,opacity:0.8}}>
-              {lang==='ar'?'ستُحسب هذه النقاط تلقائياً عند إضافة الطالب':lang==='en'?'These points are automatically counted when the student is added':'Ces points sont automatiquement comptabilisés à l'ajout'}
+              {lang==='ar' ? 'ستُحسب هذه النقاط تلقائياً عند إضافة الطالب' : lang==='en' ? 'These points are automatically counted when the student is added' : "Ces points sont automatiquement comptabilisés à l'ajout"}
             </div>
           </div>
         );

@@ -152,16 +152,11 @@ export default function FicheEleve({  eleve, user, navigate , lang="fr" }) {
       const typeLabel = v.type_validation === 'hizb_complet' ? t(lang,'hizb_complets_label') : v.nombre_tomon + ' ' + t(lang,'tomon_abrev');
       const detailLabel = v.type_validation === 'hizb_complet'
         ? 'Hizb ' + v.hizb_valide
-        : (v.tomon_debut ? 'T.' + v.tomon_debut + '→T.' + (v.tomon_debut + v.nombre_tomon - 1) : v.nombre_tomon + ' ' + t(lang,'tomon_abrev'));
+        : (v.tomon_debut ? 'T.' + v.tomon_debut + '&#8594;T.' + (v.tomon_debut + v.nombre_tomon - 1) : v.nombre_tomon + ' ' + t(lang,'tomon_abrev'));
       const dureeLabel = joursAppr !== null ? joursAppr + ' ' + t(lang,'jours') : '—';
-      return \`<tr>
-        <td>\${new Date(v.date_validation).toLocaleDateString(dateLocale)}</td>
-        <td>\${typeLabel}</td>
-        <td>\${detailLabel}</td>
-        <td>\${dureeLabel}</td>
-        <td class="pts">+\${v.type_validation === 'hizb_complet' ? 100 : v.nombre_tomon * 10} \${t(lang,'pts_abrev')}</td>
-        <td>\${v.valideur ? v.valideur.prenom + ' ' + v.valideur.nom : '—'}</td>
-      </tr>\`;
+      const pts2 = v.type_validation === 'hizb_complet' ? 100 : v.nombre_tomon * 10;
+      const valideurNom = v.valideur ? v.valideur.prenom + ' ' + v.valideur.nom : '—';
+      return '<tr><td>' + new Date(v.date_validation).toLocaleDateString(dateLocale) + '</td><td>' + typeLabel + '</td><td>' + detailLabel + '</td><td>' + dureeLabel + '</td><td class="pts">+' + pts2 + ' ' + t(lang,'pts_abrev') + '</td><td>' + valideurNom + '</td></tr>';
     }).join('')}
     </tbody></table>
     <div class="footer">
@@ -318,7 +313,548 @@ export default function FicheEleve({  eleve, user, navigate , lang="fr" }) {
                   <div style={{ height: '100%', width: `${pctObj}%`, background: pctColor(pctObj), borderRadius: 5, transition: 'width 0.5s' }} />
                 </div>
                 {pctObj >= 100 && <div style={{ fontSize: 12, color: '#1D9E75', marginTop: 6 }}>🎉 Objectif atteint !</div>}
-                {pctObj < 30 && <div style={{ fontSize: 12, color: '#E24B4A', marginTop: 6 }}>⚠️ Moins de 30% de l'objectif atteint</div>}
+                {pctObj < 30 && <div style={{ fontSize: 12, color: '#E24B4A', marginTop: 6 }}>⚠️ Moins de 30% de l\'objectif atteint</div>}
+              </div>
+            ) : (
+              <div style={{ fontSize: 12, color: '#bbb', textAlign: 'center', padding: '8px 0' }}>
+                {user.role === 'surveillant' ? 'Cliquez "Définir" pour fixer un objectif' : 'Aucun objectif fixé pour ce mois'}
+              </div>
+            )}
+          </div>
+
+          {/* Tabs */}
+          <div className="tabs-row" style={{ marginBottom: '1rem' }}>
+            {[['apercu', t(lang,'apercu')], ['apprentissage', t(lang,'apprentissage')], ['graphique', t(lang,'evolution')], ['activite', t(lang,'activite')], ['historique', t(lang,'historique')]].map(([k, l]) => (
+              <div key={k} className={`tab ${onglet === k ? 'active' : ''}`} onClick={() => setOnglet(k)}>{l}</div>
+            ))}
+          </div>
+
+          {/* Aperçu */}
+          {onglet === 'apercu' && (
+            <>
+              <div className="position-card">
+                <div className="pos-block"><div className="pos-val">{etat?.hizbEnCours}</div><div className="pos-lbl">Hizb en cours</div></div>
+                <div className="pos-block"><div className="pos-val">{etat?.tomonDansHizbActuel}/8</div><div className="pos-lbl">Tomon</div></div>
+                <div className="pos-block">
+                  <div className="pos-val" style={{ fontSize: 14 }}>{etat?.enAttenteHizbComplet ? '⏳ Hizb complet' : etat?.prochainTomon ? `T.${etat.prochainTomon}` : '✓'}</div>
+                  <div className="pos-lbl">Prochain</div>
+                </div>
+              </div>
+              <div className="card">
+                <div style={{ display: 'flex', gap: 4, marginBottom: 8 }}>
+                  {[1, 2, 3, 4, 5, 6, 7, 8].map(n => (
+                    <div key={n} style={{ flex: 1, height: 14, borderRadius: 4, background: n <= (etat?.tomonDansHizbActuel || 0) ? (etat?.enAttenteHizbComplet ? '#EF9F27' : '#1D9E75') : '#e8e8e0', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      {n <= (etat?.tomonDansHizbActuel || 0) && <span style={{ fontSize: 9, color: '#fff' }}>✓</span>}
+                    </div>
+                  ))}
+                </div>
+                {etat?.enAttenteHizbComplet && <div style={{ padding: '8px 12px', background: '#FAEEDA', borderRadius: 8, fontSize: 12, color: '#633806' }}>Validation Hizb {etat?.hizbEnCours} complet requise.</div>}
+              </div>
+            </>
+          )}
+
+          {/* Apprentissage */}
+          {onglet === 'apprentissage' && (
+            <>
+              <div className="section-label">Suivi début → validation par Tomon</div>
+              {apprentissages.length === 0 ? <div className="empty">Aucun suivi d'apprentissage enregistré.</div> : (
+                <div className="table-wrap">
+                  <table>
+                    <thead><tr>
+                      <th style={{ width: '20%' }}>Tomon</th>
+                      <th style={{ width: '25%' }}>Début apprentissage</th>
+                      <th style={{ width: '25%' }}>Validation</th>
+                      <th style={{ width: '15%' }}>Durée</th>
+                      <th style={{ width: '15%' }}>Statut</th>
+                    </tr></thead>
+                    <tbody>
+                      {apprentissages.map(appr => {
+                        const validation = validations.find(v => v.type_validation === 'tomon' && v.hizb_validation === appr.hizb && v.tomon_debut <= appr.tomon && (v.tomon_debut + v.nombre_tomon - 1) >= appr.tomon);
+                        const jours = validation
+                          ? Math.round((new Date(validation.date_validation) - new Date(appr.date_debut)) / (1000 * 60 * 60 * 24))
+                          : Math.round((new Date() - new Date(appr.date_debut)) / (1000 * 60 * 60 * 24));
+                        return (
+                          <tr key={appr.id}>
+                            <td style={{ fontSize: 13, fontWeight: 500 }}>Hizb {appr.hizb}, T.{appr.tomon}</td>
+                            <td style={{ fontSize: 12, color: '#888' }}>{formatDate(appr.date_debut)}</td>
+                            <td style={{ fontSize: 12, color: '#888' }}>{validation ? formatDate(validation.date_validation) : '—'}</td>
+                            <td>
+                              <span style={{ fontSize: 12, fontWeight: 600, color: jours > 14 ? '#E24B4A' : jours > 7 ? '#EF9F27' : '#1D9E75' }}>
+                                {jours}j
+                              </span>
+                            </td>
+                            <td>
+                              {validation
+                                ? <span className="badge badge-green" style={{ fontSize: 10 }}>✓ Validé</span>
+                                : <span className="badge badge-amber" style={{ fontSize: 10 }}>En cours</span>}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              {/* Stats apprentissage */}
+              {apprentissages.length > 0 && (() => {
+                const valides = apprentissages.filter(a => validations.find(v => v.type_validation === 'tomon' && v.hizb_validation === a.hizb && v.tomon_debut <= a.tomon && (v.tomon_debut + v.nombre_tomon - 1) >= a.tomon));
+                const durees = valides.map(a => {
+                  const v = validations.find(vv => vv.type_validation === 'tomon' && vv.hizb_validation === a.hizb && vv.tomon_debut <= a.tomon && (vv.tomon_debut + vv.nombre_tomon - 1) >= a.tomon);
+                  return Math.round((new Date(v.date_validation) - new Date(a.date_debut)) / (1000 * 60 * 60 * 24));
+                });
+                const moy = durees.length > 0 ? Math.round(durees.reduce((s, d) => s + d, 0) / durees.length) : 0;
+                const max = durees.length > 0 ? Math.max(...durees) : 0;
+                const min = durees.length > 0 ? Math.min(...durees) : 0;
+                return (
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 10, marginTop: '1rem' }}>
+                    {[[t(lang,'duree_moy'), `${moy}j`, '#1D9E75', '#E1F5EE'], [t(lang,'plus_rapide'), `${min}j`, '#378ADD', '#E6F1FB'], [t(lang,'plus_long'), `${max}j`, max > 14 ? '#E24B4A' : '#EF9F27', max > 14 ? '#FCEBEB' : '#FAEEDA']].map(([l, v, c, bg]) => (
+                      <div key={l} style={{ background: bg, borderRadius: 10, padding: '12px', textAlign: 'center' }}>
+                        <div style={{ fontSize: 22, fontWeight: 700, color: c }}>{v}</div>
+                        <div style={{ fontSize: 11, color: c, opacity: 0.8 }}>{l}</div>
+                      </div>
+                    ))}
+                  </div>
+                );
+              })()}
+            </>
+          )}
+
+          {/* Graphique */}
+          {onglet === 'graphique' && (
+            <div className="card">
+              <div style={{ fontSize: 13, fontWeight: 500, marginBottom: '1rem' }}>Évolution du score</div>
+              {evolution.length < 2 ? <div className="empty">Pas encore assez de données.</div> : (
+                <div style={{ position: 'relative', height: 200 }}>
+                  {[0, 25, 50, 75, 100].map(pct => (
+                    <div key={pct} style={{ position: 'absolute', left: 0, right: 0, top: `${100 - pct}%`, borderTop: '0.5px solid #e8e8e0' }}>
+                      <span style={{ fontSize: 9, color: '#bbb', marginLeft: 2 }}>{Math.round(maxScore * pct / 100)}</span>
+                    </div>
+                  ))}
+                  <svg style={{ position: 'absolute', left: 36, top: 0, width: 'calc(100% - 36px)', height: '90%' }}>
+                    <defs><linearGradient id="g" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#1D9E75" stopOpacity="0.3" /><stop offset="100%" stopColor="#1D9E75" stopOpacity="0.02" /></linearGradient></defs>
+                    {(() => {
+                      const w = 100 / (evolution.length - 1);
+                      const pts = evolution.map((p, i) => `${i * w}%,${100 - (p.score / maxScore) * 90}%`).join(' ');
+                      return (<>
+                        <polygon points={`0%,100% ${pts} 100%,100%`} fill="url(#g)" />
+                        <polyline points={pts} fill="none" stroke="#1D9E75" strokeWidth="2.5" strokeLinejoin="round" />
+                        {evolution.map((p, i) => <circle key={i} cx={`${i * w}%`} cy={`${100 - (p.score / maxScore) * 90}%`} r="3" fill="#1D9E75" />)}
+                      </>);
+                    })()}
+                  </svg>
+                </div>
+              )}
+              <div style={{ marginTop: 12, display: 'flex', gap: 16, fontSize: 12, color: '#888', flexWrap: 'wrap' }}>
+                <span>Score : <strong style={{ color: '#1D9E75' }}>{etat?.points.total.toLocaleString()} pts</strong></span>
+                <span>Vitesse : <strong style={{ color: vitesse.tendance === 'hausse' ? '#1D9E75' : vitesse.tendance === 'baisse' ? '#E24B4A' : '#888' }}>{vitesse.moyenne} T/sem {vitesse.tendance === 'hausse' ? '📈' : vitesse.tendance === 'baisse' ? '📉' : '➡️'}</strong></span>
+              </div>
+            </div>
+          )}
+
+          {/* Activité */}
+          {onglet === 'activite' && (
+            <>
+              <div className="card">
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                  <div style={{ fontSize: 13, fontWeight: 500 }}>Activité — 90 jours</div>
+                  <div style={{ display: 'flex', gap: 3, alignItems: 'center', fontSize: 10, color: '#888' }}>
+                    <span>Faible</span>
+                    {['#e8e8e0', '#9FE1CB', '#5DCAA5', '#1D9E75', '#085041'].map(c => <div key={c} style={{ width: 10, height: 10, borderRadius: 2, background: c }} />)}
+                    <span>Fort</span>
+                  </div>
+                </div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3 }}>
+                  {last90.map(day => (
+                    <div key={day} title={`${day}: ${heatmap[day] || 0}`}
+                      style={{ width: 12, height: 12, borderRadius: 2, background: heatColor(heatmap[day] || 0) }} />
+                  ))}
+                </div>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,minmax(0,1fr))', gap: 10 }}>
+                {[
+                  { lbl: 'Streak', val: `${streak} sem.`, icon: '🔥', color: '#EF9F27', bg: '#FAEEDA' },
+                  { lbl: t(lang,'jours_actifs'), val: Object.keys(heatmap).filter(d => { const p = d.split('/'); return (new Date() - new Date(p[2], p[1] - 1, p[0])) / (1000 * 60 * 60 * 24) <= 90; }).length, icon: '📅', color: '#1D9E75', bg: '#E1F5EE' },
+                  { lbl: t(lang,'moy_seance'), val: validations.filter(v => v.type_validation === 'tomon').length > 0 ? (etat?.tomonCumul / validations.filter(v => v.type_validation === 'tomon').length).toFixed(1) : '0', icon: '📊', color: '#378ADD', bg: '#E6F1FB' },
+                ].map(s => (
+                  <div key={s.lbl} style={{ background: s.bg, borderRadius: 12, padding: '1rem', textAlign: 'center' }}>
+                    <div style={{ fontSize: 22, marginBottom: 4 }}>{s.icon}</div>
+                    <div style={{ fontSize: 22, fontWeight: 700, color: s.color }}>{s.val}</div>
+                    <div style={{ fontSize: 11, color: s.color, opacity: 0.8 }}>{s.lbl}</div>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
+
+          {/* Historique */}
+          {onglet === 'historique' && (
+            validations.length === 0 ? <div className="empty">Aucune récitation.</div> : (
+              <div className="table-wrap">
+                <table>
+                  <thead><tr>
+                    <th style={{ width: '18%' }}>Date</th>
+                    <th style={{ width: '18%' }}>Type</th>
+                    <th style={{ width: '24%' }}>Détail</th>
+                    <th style={{ width: '14%' }}>Durée appr.</th>
+                    <th style={{ width: '12%' }}>Points</th>
+                    <th style={{ width: '14%' }}>Validé par</th>
+                  </tr></thead>
+                  <tbody>
+                    {validations.map(v => {
+                      const appr = apprentissages.find(a => a.hizb === v.hizb_validation && a.tomon === v.tomon_debut);
+                      const joursAppr = appr ? Math.round((new Date(v.date_validation) - new Date(appr.date_debut)) / (1000 * 60 * 60 * 24)) : null;
+                      return (
+                        <tr key={v.id}>
+                          <td style={{ fontSize: 12, color: '#888' }}>{formatDate(v.date_validation)}</td>
+                          <td>{v.type_validation === 'hizb_complet' ? <span className="badge badge-green">Hizb complet</span> : <span className="badge badge-blue">{v.nombre_tomon} Tomon</span>}</td>
+                          <td style={{ fontSize: 12, color: '#888' }}>
+                            {v.type_validation === 'hizb_complet'
+                              ? `Hizb ${v.hizb_valide} validé`
+                              : v.tomon_debut ? `T.${v.tomon_debut}→T.${v.tomon_debut + v.nombre_tomon - 1} · H.${v.hizb_validation}` : `${v.nombre_tomon} Tomon`}
+                          </td>
+                          <td>
+                            {joursAppr !== null
+                              ? <span style={{ fontSize: 12, fontWeight: 600, color: joursAppr > 14 ? '#E24B4A' : joursAppr > 7 ? '#EF9F27' : '#1D9E75' }}>{joursAppr}j</span>
+                              : <span style={{ color: '#bbb', fontSize: 12 }}>—</span>}
+                          </td>
+                          <td><span style={{ fontSize: 12, fontWeight: 600, color: '#1D9E75' }}>+{v.type_validation === 'hizb_complet' ? 100 : v.nombre_tomon * 10} pts</span></td>
+                          <td style={{ fontSize: 12, color: '#888' }}>{v.valideur ? `${v.valideur.prenom} ${v.valideur.nom}` : '—'}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )
+          )}
+        </>
+      )}
+    </div>
+  );
+}return '<tr>' +
+        '<td>' + new Date(v.date_validation).toLocaleDateString(dateLocale) + '</td>' +
+        '<td>' + typeLabel + '</td>' +
+        '<td>' + detailLabel + '</td>' +
+        '<td>' + dureeLabel + '</td>' +
+        '<td class="pts">+' + (v.type_validation === 'hizb_complet' ? 100 : v.nombre_tomon * 10) + ' ' + t(lang,'pts_abrev') + '</td>' +
+        '<td>' + (v.valideur ? v.valideur.prenom + ' ' + v.valideur.nom : '—') + '</td>' +
+        '</tr>';React, { useState, useEffect } from 'react';
+import { t } from '../lib/i18n';
+import { supabase } from '../lib/supabase';
+import { calcEtatEleve, niveauTraduit, calcPositionAtteinte, calcUnite, formatDate, formatDateCourt, getInitiales, scoreLabel, calcBadges, calcVitesse } from '../lib/helpers';
+
+function Avatar({ prenom, nom, size = 44, bg = '#E1F5EE', color = '#085041' }) {
+  return (
+    <div style={{ width: size, height: size, borderRadius: '50%', background: bg, color, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 600, fontSize: size * 0.33, flexShrink: 0 }}>
+      {getInitiales(prenom, nom)}
+    </div>
+  );
+}
+
+function calcStreak(validations) {
+  if (!validations.length) return 0;
+  const weeks = new Set(validations.map(v => {
+    const d = new Date(v.date_validation);
+    const start = new Date(d.getFullYear(), 0, 1);
+    return `${d.getFullYear()}-${Math.floor((d - start) / (7 * 24 * 60 * 60 * 1000))}`;
+  }));
+  const sorted = [...weeks].sort().reverse();
+  let streak = 1;
+  for (let i = 0; i < sorted.length - 1; i++) {
+    const [y1, w1] = sorted[i].split('-').map(Number);
+    const [y2, w2] = sorted[i + 1].split('-').map(Number);
+    if ((y1 - y2) * 52 + (w1 - w2) === 1) streak++;
+    else break;
+  }
+  return streak;
+}
+
+function calcHeatmap(validations) {
+  const map = {};
+  validations.forEach(v => {
+    const d = new Date(v.date_validation).toLocaleDateString('fr-FR');
+    map[d] = (map[d] || 0) + (v.type_validation === 'hizb_complet' ? 3 : v.nombre_tomon);
+  });
+  return map;
+}
+
+function calcEvolution(validations) {
+  const vals = [...validations].sort((a, b) => new Date(a.date_validation) - new Date(b.date_validation));
+  let cumul = 0, hizbsComplets = new Set();
+  const points = [{ date: null, score: 0, label: t(lang,'debut_suivi') }];
+  vals.forEach(v => {
+    if (v.type_validation === 'hizb_complet') hizbsComplets.add(v.hizb_valide);
+    else cumul += v.nombre_tomon;
+    const score = cumul * 10 + Math.floor(cumul / 2) * 25 + Math.floor(cumul / 4) * 60 + hizbsComplets.size * 100;
+    points.push({ date: v.date_validation, score, label: formatDateCourt(v.date_validation) });
+  });
+  return points;
+}
+
+const MOIS_NOMS = ['Jan','Fév','Mar','Avr','Mai','Jun','Jul','Aoû','Sep','Oct','Nov','Déc'];
+
+export default function FicheEleve({  eleve, user, navigate , lang="fr" }) {
+  const [validations, setValidations] = useState([]);
+  const [apprentissages, setApprentissages] = useState([]);
+  const [objectifs, setObjectifs] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [instituteurNom, setInstituteurNom] = useState('—');
+  const [etat, setEtat] = useState(null);
+  const [onglet, setOnglet] = useState('apercu');
+  const [editObj, setEditObj] = useState(false);
+  const [newObjVal, setNewObjVal] = useState('');
+  const now = new Date();
+  const [selectedMoisObj, setSelectedMoisObj] = useState(now.getMonth());
+  const [selectedAnneeObj, setSelectedAnneeObj] = useState(now.getFullYear());
+
+  useEffect(() => { loadData(); }, [eleve.id]);
+
+  const loadData = async () => {
+    setLoading(true);
+    const [{ data: vals }, { data: appr }, { data: objs }] = await Promise.all([
+      supabase.from('validations').select('*, valideur:valide_par(prenom,nom)').eq('eleve_id', eleve.id).order('date_validation', { ascending: false }),
+      supabase.from('apprentissages').select('*').eq('eleve_id', eleve.id).order('date_debut', { ascending: false }),
+      supabase.from('objectifs').select('*').eq('eleve_id', eleve.id)
+    ]);
+    if (eleve.instituteur_referent_id) {
+      const { data: inst } = await supabase.from('utilisateurs').select('prenom,nom').eq('id', eleve.instituteur_referent_id).single();
+      if (inst) setInstituteurNom(`${inst.prenom} ${inst.nom}`);
+    }
+    const e = calcEtatEleve(vals || [], eleve.hizb_depart, eleve.tomon_depart);
+    setEtat(e);
+    setValidations(vals || []);
+    setApprentissages(appr || []);
+    setObjectifs(objs || []);
+    setLoading(false);
+  };
+
+  const saveObjectif = async () => {
+    if (!newObjVal || isNaN(newObjVal)) return;
+    const existing = objectifs.find(o => o.mois === selectedMoisObj + 1 && o.annee === selectedAnneeObj);
+    if (existing) {
+      await supabase.from('objectifs').update({ nombre_tomon: parseInt(newObjVal) }).eq('id', existing.id);
+    } else {
+      await supabase.from('objectifs').insert({ eleve_id: eleve.id, mois: selectedMoisObj + 1, annee: selectedAnneeObj, nombre_tomon: parseInt(newObjVal), created_by: user.id });
+    }
+    setEditObj(false);
+    await loadData();
+  };
+
+  const handlePrint = () => {
+    const w = window.open('', '', 'width=800,height=900');
+    const pts = etat?.points;
+    const dir = lang === 'ar' ? 'rtl' : 'ltr';
+    const arabicFont = lang === 'ar' ? "'Tajawal', 'Arial', sans-serif" : "Arial, sans-serif";
+    const dateLocale = lang === 'ar' ? 'ar-MA' : lang === 'en' ? 'en-GB' : 'fr-FR';
+    const thAlign = lang === 'ar' ? 'right' : 'left';
+    w.document.write(`<html dir="${dir}" lang="${lang}"><head><title>${eleve.prenom} ${eleve.nom}</title>
+    <style>
+      @import url('https://fonts.googleapis.com/css2?family=Tajawal:wght@400;700&display=swap');
+      body{font-family:${arabicFont};color:#1a1a1a;padding:30px;direction:${dir}}
+      h1{font-size:22px;color:#085041}h2{font-size:14px;margin:20px 0 10px;border-bottom:2px solid #1D9E75;padding-bottom:6px}
+      .grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:20px}
+      .box{border:1px solid #e0e0d8;border-radius:8px;padding:12px;text-align:center}
+      .box-title{font-size:10px;text-transform:uppercase;color:#888;margin-bottom:4px}
+      .box-val{font-size:22px;font-weight:700;color:#1D9E75}
+      table{width:100%;border-collapse:collapse;font-size:12px}
+      th{background:#f9f9f6;text-align:${thAlign};padding:8px;border-bottom:1px solid #e0e0d8;font-size:10px;text-transform:uppercase}
+      td{padding:8px;border-bottom:1px solid #f0f0ec;text-align:${thAlign}}
+      .pts{color:#1D9E75;font-weight:600}
+      .footer{margin-top:30px;font-size:11px;color:#bbb;border-top:1px solid #e0e0d8;padding-top:12px}
+      .header-sub{color:#888;font-size:13px;margin-bottom:20px}
+      .badge{padding:2px 8px;border-radius:20px;font-size:10px;font-weight:600}
+      .badge-green{background:#E1F5EE;color:#085041}
+      .badge-amber{background:#FAEEDA;color:#633806}
+    </style></head><body>
+    <h1>${eleve.prenom} ${eleve.nom}</h1>
+    <p class="header-sub">
+      ${niveauTraduit(eleve.niveau, lang, t)} · ${instituteurNom} · 
+      ${t(lang,'hizb_depart')}: Hizb ${eleve.hizb_depart}, T.${eleve.tomon_depart}
+    </p>
+    <div class="grid">
+      <div class="box"><div class="box-title">${t(lang,'score_total')}</div><div class="box-val">${pts?.total.toLocaleString()} ${t(lang,'pts_abrev')}</div></div>
+      <div class="box"><div class="box-title">${t(lang,'hizb_en_cours')}</div><div class="box-val">Hizb ${etat?.hizbEnCours}</div></div>
+      <div class="box"><div class="box-title">${t(lang,'tomon_valides')}</div><div class="box-val">${etat?.tomonCumul}</div></div>
+      <div class="box"><div class="box-title">${t(lang,'hizb_complets')}</div><div class="box-val">${etat?.hizbsComplets.size}</div></div>
+    </div>
+    <h2>${t(lang,'historique')}</h2>
+    <table><thead><tr>
+      <th>${t(lang,'date_heure')}</th>
+      <th>${t(lang,'statut')}</th>
+      <th>${t(lang,'detail')}</th>
+      <th>${t(lang,'duree_apprentissage_col')}</th>
+      <th>${t(lang,'points_gagnes')}</th>
+      <th>${t(lang,'valide_par')}</th>
+    </tr></thead><tbody>
+    ${validations.map(v => {
+      const appr = apprentissages.find(a => a.hizb === v.hizb_validation && a.tomon === v.tomon_debut);
+      const joursAppr = appr ? Math.round((new Date(v.date_validation) - new Date(appr.date_debut)) / (1000 * 60 * 60 * 24)) : null;
+      const typeLabel = v.type_validation === 'hizb_complet' ? t(lang,'hizb_complets_label') : v.nombre_tomon + ' ' + t(lang,'tomon_abrev');
+      const detailLabel = v.type_validation === 'hizb_complet'
+        ? 'Hizb ' + v.hizb_valide
+        : (v.tomon_debut ? 'T.' + v.tomon_debut + '→T.' + (v.tomon_debut + v.nombre_tomon - 1) : v.nombre_tomon + ' ' + t(lang,'tomon_abrev'));
+      const dureeLabel = joursAppr !== null ? joursAppr + ' ' + t(lang,'jours') : '—';
+      const pts2 = v.type_validation === 'hizb_complet' ? 100 : v.nombre_tomon * 10;
+      const valideurNom = v.valideur ? v.valideur.prenom + ' ' + v.valideur.nom : '—';
+      return '<tr><td>' + new Date(v.date_validation).toLocaleDateString(dateLocale) + '</td><td>' + typeLabel + '</td><td>' + detailLabel + '</td><td>' + dureeLabel + '</td><td class="pts">+' + pts2 + ' ' + t(lang,'pts_abrev') + '</td><td>' + valideurNom + '</td></tr>';
+    }).join('')}
+    </tbody></table>
+    <div class="footer">
+      ${t(lang,'genere_le')} ${new Date().toLocaleDateString(dateLocale)} · ${t(lang,'app_name')}
+    </div>
+    </body></html>`);
+    w.document.close();
+    setTimeout(() => { w.print(); w.close(); }, 600);
+  };
+
+  const sl = etat ? scoreLabel(etat.points.total) : { color: '#888', bg: '#f0f0ec', label: '—' };
+  const badges = etat ? calcBadges(validations, etat) : [];
+  const vitesse = calcVitesse(validations);
+  const streak = calcStreak(validations);
+  const heatmap = calcHeatmap(validations);
+  const evolution = calcEvolution(validations);
+  const maxScore = Math.max(...evolution.map(p => p.score), 1);
+  const last90 = Array.from({ length: 90 }, (_, i) => { const d = new Date(); d.setDate(d.getDate() - (89 - i)); return d.toLocaleDateString('fr-FR'); });
+  const heatColor = (c) => !c ? '#e8e8e0' : c >= 6 ? '#085041' : c >= 4 ? '#1D9E75' : c >= 2 ? '#5DCAA5' : '#9FE1CB';
+
+  // Objectif du mois sélectionné
+  const objActuel = objectifs.find(o => o.mois === selectedMoisObj + 1 && o.annee === selectedAnneeObj);
+  const debutMoisSel = new Date(selectedAnneeObj, selectedMoisObj, 1);
+  const finMoisSel = new Date(selectedAnneeObj, selectedMoisObj + 1, 0, 23, 59, 59);
+  const tomonMoisSel = validations.filter(v => v.type_validation === 'tomon' && new Date(v.date_validation) >= debutMoisSel && new Date(v.date_validation) <= finMoisSel).reduce((s, v) => s + v.nombre_tomon, 0);
+  const pctObj = objActuel ? Math.min(100, Math.round(tomonMoisSel / objActuel.nombre_tomon * 100)) : null;
+  const pctColor = (p) => p >= 100 ? '#1D9E75' : p >= 60 ? '#EF9F27' : '#E24B4A';
+
+  return (
+    <div>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.25rem', flexWrap: 'wrap', gap: 8 }}>
+        <button className="back-link" onClick={() => navigate('dashboard')}>{t(lang,'retour')}</button>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button className="btn-secondary" onClick={handlePrint} style={{ fontSize: 12, padding: '6px 14px' }}>🖨️ PDF</button>
+          <button className="btn-primary" style={{ width: 'auto', padding: '6px 14px', fontSize: 12 }} onClick={() => navigate('enregistrer', eleve)}>+ Récitation</button>
+        </div>
+      </div>
+
+      {loading ? <div className="loading">Chargement...</div> : (
+        <>
+          {/* Hero */}
+          <div style={{ background: '#fff', border: '0.5px solid #e0e0d8', borderRadius: 16, padding: '1.5rem', marginBottom: '1rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 16 }}>
+              <Avatar prenom={eleve.prenom} nom={eleve.nom} size={60} bg={sl.bg} color={sl.color} />
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 20, fontWeight: 700 }}>{eleve.prenom} {eleve.nom}</div>
+                <div style={{ fontSize: 13, color: '#888' }}>{niveauTraduit(eleve.niveau, lang, t)} · {instituteurNom}</div>
+                <div style={{ display: 'flex', gap: 6, marginTop: 4, flexWrap: 'wrap' }}>
+                  <span style={{ padding: '2px 10px', borderRadius: 20, fontSize: 11, fontWeight: 500, background: sl.bg, color: sl.color }}>{sl.label}</span>
+                  {streak > 0 && <span style={{ padding: '2px 10px', borderRadius: 20, fontSize: 11, background: '#E6F1FB', color: '#0C447C' }}>🔥 {streak} sem.</span>}
+                  {vitesse.moyenne > 0 && <span style={{ padding: '2px 10px', borderRadius: 20, fontSize: 11, background: '#f5f5f0', color: '#666' }}>{vitesse.tendance === 'hausse' ? '📈' : vitesse.tendance === 'baisse' ? '📉' : '➡️'} {vitesse.moyenne}T/sem</span>}
+                </div>
+              </div>
+              <div style={{ textAlign: 'right' }}>
+                <div style={{ fontSize: 38, fontWeight: 800, color: sl.color, letterSpacing: '-2px' }}>{etat?.points.total.toLocaleString()}</div>
+                <div style={{ fontSize: 11, color: '#888' }}>points</div>
+              </div>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 8, marginBottom: 14 }}>
+              {[[t(lang,'tomon_abrev'), etat?.points.ptsTomon, `${etat?.tomonCumul}×10`], ['Roboe', etat?.points.ptsRoboe, `${etat?.points.details.nbRoboe}×25`], ['Nisf', etat?.points.ptsNisf, `${etat?.points.details.nbNisf}×60`], [t(lang,'hizb_abrev'), etat?.points.ptsHizb, `${etat?.points.details.nbHizb}×100`]].map(([l, v, s]) => (
+                <div key={l} style={{ background: '#f9f9f6', borderRadius: 8, padding: '10px', textAlign: 'center' }}>
+                  <div style={{ fontSize: 18, fontWeight: 700 }}>{v}</div>
+                  <div style={{ fontSize: 11, color: '#888' }}>{l}</div>
+                  <div style={{ fontSize: 10, color: '#bbb' }}>{s}</div>
+                </div>
+              ))}
+            </div>
+
+            {/* Acquis antérieurs */}
+            {etat?.tomonAcquis > 0 && (
+              <div style={{ background: '#f0faf6', border: '0.5px solid #9FE1CB', borderRadius: 10, padding: '10px 14px', marginTop: 10 }}>
+                <div style={{ fontSize: 11, fontWeight: 600, color: '#085041', marginBottom: 6 }}>
+                  🎓 {t(lang,'acquis_anterieurs')} — {etat.tomonAcquis} {t(lang,'tomon_abrev')} + {etat.hizbAcquisComplets} Hizb {t(lang,'hizb_complets')}
+                </div>
+                <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+                  <div style={{ flex: 1, textAlign: 'center', background: '#E1F5EE', borderRadius: 8, padding: '8px' }}>
+                    <div style={{ fontSize: 15, fontWeight: 700, color: '#1D9E75' }}>
+                      +{(etat.points.ptsAcquisTotal||0).toLocaleString()} {t(lang,'pts_abrev')}
+                    </div>
+                    <div style={{ fontSize: 10, color: '#0F6E56' }}>
+                      {lang==='ar'?'المكتسبات السابقة':lang==='en'?'Prior achievements':'Acquis antérieurs'}
+                    </div>
+                  </div>
+                  <div style={{ flex: 1, textAlign: 'center', background: '#E6F1FB', borderRadius: 8, padding: '8px' }}>
+                    <div style={{ fontSize: 15, fontWeight: 700, color: '#378ADD' }}>
+                      +{(etat.points.ptsDepuisSuivi||0).toLocaleString()} {t(lang,'pts_abrev')}
+                    </div>
+                    <div style={{ fontSize: 10, color: '#0C447C' }}>
+                      {lang==='ar'?'منذ بدء المتابعة':lang==='en'?'Since tracking started':'Depuis le suivi'}
+                    </div>
+                  </div>
+                  <div style={{ flex: 1, textAlign: 'center', background: '#EEEDFE', borderRadius: 8, padding: '8px' }}>
+                    <div style={{ fontSize: 15, fontWeight: 700, color: '#534AB7' }}>
+                      {(etat.points.total||0).toLocaleString()} {t(lang,'pts_abrev')}
+                    </div>
+                    <div style={{ fontSize: 10, color: '#3D38A0' }}>
+                      {lang==='ar'?'المجموع الكلي':lang==='en'?'Grand total':t(lang,'score_total')}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 8, borderTop: '0.5px solid #e8e8e0', paddingTop: 12 }}>
+              {[[t(lang,'hizb_abrev'), `Hizb ${etat?.hizbEnCours}`], ['Tomon/Hizb', `${etat?.tomonDansHizbActuel}/8`], [t(lang,'hizb_complets_label'), etat?.hizbsComplets.size], ['Total Tomon', etat?.tomonCumul]].map(([l, v]) => (
+                <div key={l}><div style={{ fontSize: 10, color: '#999', textTransform: 'uppercase', letterSpacing: '0.8px', marginBottom: 2 }}>{l}</div><div style={{ fontSize: 14, fontWeight: 500 }}>{v}</div></div>
+              ))}
+            </div>
+          </div>
+
+          {/* Badges */}
+          {badges.length > 0 && (
+            <div style={{ marginBottom: '1rem' }}>
+              <div className="section-label">Badges</div>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                {badges.map(b => (
+                  <div key={b.id} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', background: b.bg, border: `0.5px solid ${b.color}30`, borderRadius: 20 }}>
+                    <span style={{ fontSize: 16 }}>{b.icon}</span>
+                    <div>
+                      <div style={{ fontSize: 12, fontWeight: 600, color: b.color }}>{b.label}</div>
+                      <div style={{ fontSize: 10, color: b.color, opacity: 0.8 }}>{b.desc}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Objectif mensuel */}
+          <div className="card" style={{ marginBottom: '1rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+              <div style={{ fontSize: 13, fontWeight: 600 }}>🎯 Objectif mensuel</div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <button onClick={() => { if (selectedMoisObj === 0) { setSelectedMoisObj(11); setSelectedAnneeObj(y => y - 1); } else setSelectedMoisObj(m => m - 1); }} style={{ padding: '2px 8px', border: '0.5px solid #e0e0d8', borderRadius: 4, background: '#fff', cursor: 'pointer' }}>‹</button>
+                <span style={{ fontSize: 12, color: '#888', minWidth: 80, textAlign: 'center' }}>{MOIS_NOMS[selectedMoisObj]} {selectedAnneeObj}</span>
+                <button onClick={() => { if (selectedMoisObj === 11) { setSelectedMoisObj(0); setSelectedAnneeObj(y => y + 1); } else setSelectedMoisObj(m => m + 1); }} style={{ padding: '2px 8px', border: '0.5px solid #e0e0d8', borderRadius: 4, background: '#fff', cursor: 'pointer' }}>›</button>
+                {user.role === 'surveillant' && <button className="action-btn" onClick={() => { setEditObj(!editObj); setNewObjVal(objActuel?.nombre_tomon || ''); }}>{editObj ? t(lang,'annuler') : t(lang,'definir')}</button>}
+              </div>
+            </div>
+
+            {editObj && user.role === 'surveillant' && (
+              <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
+                <input className="field-input" type="number" min="1" max="80" placeholder="Nb Tomon objectif" value={newObjVal} onChange={e => setNewObjVal(e.target.value)} style={{ flex: 1 }} />
+                <button className="btn-primary" style={{ width: 'auto', padding: '8px 14px', fontSize: 12 }} onClick={saveObjectif}>✓ Enregistrer</button>
+              </div>
+            )}
+
+            {objActuel ? (
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: '#888', marginBottom: 6 }}>
+                  <span>{tomonMoisSel} / {objActuel.nombre_tomon} Tomon ce mois</span>
+                  <span style={{ fontWeight: 700, color: pctColor(pctObj) }}>{pctObj}%</span>
+                </div>
+                <div style={{ height: 10, background: '#e8e8e0', borderRadius: 5, overflow: 'hidden' }}>
+                  <div style={{ height: '100%', width: `${pctObj}%`, background: pctColor(pctObj), borderRadius: 5, transition: 'width 0.5s' }} />
+                </div>
+                {pctObj >= 100 && <div style={{ fontSize: 12, color: '#1D9E75', marginTop: 6 }}>🎉 Objectif atteint !</div>}
+                {pctObj < 30 && <div style={{ fontSize: 12, color: '#E24B4A', marginTop: 6 }}>⚠️ Moins de 30% de l\'objectif atteint</div>}
               </div>
             ) : (
               <div style={{ fontSize: 12, color: '#bbb', textAlign: 'center', padding: '8px 0' }}>

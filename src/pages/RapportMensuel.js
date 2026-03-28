@@ -147,11 +147,11 @@ export default function RapportMensuel({  user, navigate , lang="fr" }) {
             <td><strong>${e.prenom} ${e.nom}</strong></td>
             <td style="color:#888">${e.instituteurNom}</td>
             <td class="pts">${e.tomonMois}</td>
-            <td>${e.hizbMois > 0 ? \`<span class="badge-green">\${e.hizbMois} \${t(lang,'hizb_abrev')}</span>\` : '—'}</td>
+            <td>${e.hizbMois > 0 ? "<span class='badge-green'>" + e.hizbMois + " " + t(lang,"hizb_abrev") + "</span>" : "—"}</td>
             <td>${e.seances}</td>
             <td>${e.objectif ? e.objectif + ' ' + t(lang,'tomon_abrev') : '—'}</td>
-            <td>${e.pctObj !== null ? \`<span class="\${e.pctObj >= 100 ? 'badge-green' : e.pctObj >= 60 ? 'badge-amber' : 'badge-red'}">\${e.pctObj}%</span>\` : '—'}</td>
-            <td class="pts">${e.ptsMois.toLocaleString()} ${t(lang,'pts_abrev')}</td>
+            <td>${e.pctObj !== null ? "<span class='" + (e.pctObj >= 100 ? "badge-green" : e.pctObj >= 60 ? "badge-amber" : "badge-red") + "'>" + e.pctObj + "%</span>" : "—"}</td>
+            <td class="pts">${e.ptsMois.toLocaleString()} ${t(lang,"pts_abrev")}</td>
           </tr>
         `).join('')}
       </tbody>
@@ -254,7 +254,7 @@ export default function RapportMensuel({  user, navigate , lang="fr" }) {
                       <div style={{ height: '100%', width: `${e.pctObj}%`, background: pctColor(e.pctObj), borderRadius: 4, transition: 'width 0.5s' }} />
                     </div>
                     {e.pctObj >= 100 && <div style={{ fontSize: 11, color: '#1D9E75', marginTop: 4 }}>🎯 Objectif atteint !</div>}
-                    {e.pctObj < 50 && e.objectif && <div style={{ fontSize: 11, color: '#E24B4A', marginTop: 4 }}>⚠️ Moins de 50% de l'objectif</div>}
+                    {e.pctObj < 50 && e.objectif && <div style={{ fontSize: 11, color: '#E24B4A', marginTop: 4 }}>⚠️ Moins de 50% de l\'objectif</div>}
                   </div>
                 )}
               </div>
