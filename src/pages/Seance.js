@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { t } from '../lib/i18n';
 import { supabase } from '../lib/supabase';
-import { calcEtatEleve, formatDate, getInitiales, joursDepuis, isInactif, scoreLabel } from '../lib/helpers';
+import { calcEtatEleve, niveauTraduit, formatDate, getInitiales, joursDepuis, isInactif, scoreLabel } from '../lib/helpers';
 
 function Avatar({ prenom, nom, size = 36, bg = '#E1F5EE', color = '#085041' }) {
   return (

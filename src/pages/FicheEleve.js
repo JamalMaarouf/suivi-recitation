@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { t } from '../lib/i18n';
 import { supabase } from '../lib/supabase';
-import { calcEtatEleve, calcPositionAtteinte, calcUnite, formatDate, formatDateCourt, getInitiales, scoreLabel, calcBadges, calcVitesse } from '../lib/helpers';
+import { calcEtatEleve, niveauTraduit, calcPositionAtteinte, calcUnite, formatDate, formatDateCourt, getInitiales, scoreLabel, calcBadges, calcVitesse } from '../lib/helpers';
 
 function Avatar({ prenom, nom, size = 44, bg = '#E1F5EE', color = '#085041' }) {
   return (
@@ -111,7 +111,7 @@ export default function FicheEleve({  eleve, user, navigate , lang="fr" }) {
     td{padding:8px;border-bottom:1px solid #f0f0ec}.pts{color:#1D9E75;font-weight:600}.footer{margin-top:30px;font-size:11px;color:#bbb;border-top:1px solid #e0e0d8;padding-top:12px}
     </style></head><body>
     <h1>${eleve.prenom} ${eleve.nom}</h1>
-    <p style="color:#888;font-size:13px">${eleve.niveau} · ${instituteurNom} · Départ : Hizb ${eleve.hizb_depart}, T.${eleve.tomon_depart}</p>
+    <p style="color:#888;font-size:13px">${niveauTraduit(eleve.niveau, lang, t)} · ${instituteurNom} · Départ : Hizb ${eleve.hizb_depart}, T.${eleve.tomon_depart}</p>
     <div class="grid">
       <div class="box"><div class="box-title">Score total</div><div class="box-val">${pts?.total.toLocaleString()} pts</div></div>
       <div class="box"><div class="box-title">Position</div><div class="box-val">Hizb ${etat?.hizbEnCours}</div></div>
@@ -173,7 +173,7 @@ export default function FicheEleve({  eleve, user, navigate , lang="fr" }) {
               <Avatar prenom={eleve.prenom} nom={eleve.nom} size={60} bg={sl.bg} color={sl.color} />
               <div style={{ flex: 1 }}>
                 <div style={{ fontSize: 20, fontWeight: 700 }}>{eleve.prenom} {eleve.nom}</div>
-                <div style={{ fontSize: 13, color: '#888' }}>{eleve.niveau} · {instituteurNom}</div>
+                <div style={{ fontSize: 13, color: '#888' }}>{niveauTraduit(eleve.niveau, lang, t)} · {instituteurNom}</div>
                 <div style={{ display: 'flex', gap: 6, marginTop: 4, flexWrap: 'wrap' }}>
                   <span style={{ padding: '2px 10px', borderRadius: 20, fontSize: 11, fontWeight: 500, background: sl.bg, color: sl.color }}>{sl.label}</span>
                   {streak > 0 && <span style={{ padding: '2px 10px', borderRadius: 20, fontSize: 11, background: '#E6F1FB', color: '#0C447C' }}>🔥 {streak} sem.</span>}

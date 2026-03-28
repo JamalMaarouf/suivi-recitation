@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { t } from '../lib/i18n';
 import { supabase } from '../lib/supabase';
-import { calcEtatEleve, getInitiales, scoreLabel, formatDate } from '../lib/helpers';
+import { calcEtatEleve, niveauTraduit, getInitiales, scoreLabel, formatDate } from '../lib/helpers';
 
 const MOIS_NOMS = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
 

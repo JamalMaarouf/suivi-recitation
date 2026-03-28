@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { t } from '../lib/i18n';
 import { supabase } from '../lib/supabase';
-import { calcEtatEleve, getInitiales, scoreLabel, formatDateCourt } from '../lib/helpers';
+import { calcEtatEleve, niveauTraduit, getInitiales, scoreLabel, formatDateCourt } from '../lib/helpers';
 
 const PALETTE = ['#1D9E75','#378ADD','#EF9F27','#E24B4A','#534AB7','#D85A30'];
 

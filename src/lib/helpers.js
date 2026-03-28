@@ -220,3 +220,15 @@ export function calcVitesse(validations) {
   const tendance = recente > precedente ? 'hausse' : recente < precedente ? 'baisse' : 'stable';
   return { moyenne: Math.round(moyenne*10)/10, tendance, recente, precedente };
 }
+
+
+// Normalize niveau to display in current language
+export function niveauTraduit(niveau, lang, tFn) {
+  const deb = ['Débutant','Beginner','مبتدئ','debutant','beginner'];
+  const mid = ['Intermédiaire','Intermediate','متوسط','intermediaire','intermediate'];
+  const adv = ['Avancé','Advanced','متقدم','avance','advanced'];
+  if (deb.some(v => niveau?.toLowerCase() === v.toLowerCase())) return tFn(lang, 'debutant');
+  if (mid.some(v => niveau?.toLowerCase() === v.toLowerCase())) return tFn(lang, 'intermediaire');
+  if (adv.some(v => niveau?.toLowerCase() === v.toLowerCase())) return tFn(lang, 'avance');
+  return niveau || '—';
+}

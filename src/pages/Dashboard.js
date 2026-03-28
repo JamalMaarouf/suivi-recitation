@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { supabase } from '../lib/supabase';
-import { calcEtatEleve, calcStats, formatDate, formatDateCourt, isInactif, joursDepuis, getInitiales, scoreLabel } from '../lib/helpers';
+import { calcEtatEleve, niveauTraduit, calcStats, formatDate, formatDateCourt, isInactif, joursDepuis, getInitiales, scoreLabel } from '../lib/helpers';
 import { t } from '../lib/i18n';
 
 const C = { green:'#1D9E75',greenBg:'#E1F5EE',blue:'#378ADD',blueBg:'#E6F1FB',amber:'#EF9F27',amberBg:'#FAEEDA',red:'#E24B4A',redBg:'#FCEBEB',border:'#e0e0d8',muted:'#888',dark:'#1a1a1a' };
@@ -388,7 +388,7 @@ export default function Dashboard({ user, navigate, lang='fr' }) {
                 return(<tr key={e.id} className="clickable" onClick={()=>navigate('fiche',e)}>
                   <td><Medaille idx={idx}/></td>
                   <td><div style={{display:'flex',alignItems:'center',gap:6}}><Avatar prenom={e.prenom} nom={e.nom} size={24}/><span style={{fontSize:13}}>{e.prenom} {e.nom}</span></div></td>
-                  <td><span className={`badge ${e.niveau==='Avancé'||e.niveau==='متقدم'||e.niveau==='Advanced'?'badge-green':e.niveau==='Intermédiaire'||e.niveau==='متوسط'||e.niveau==='Intermediate'?'badge-blue':'badge-amber'}`} style={{fontSize:10}}>{e.niveau}</span></td>
+                  <td><span className={`badge ${['Avancé','Advanced','متقدم'].some(v=>v.toLowerCase()===e.niveau?.toLowerCase())?'badge-green':['Intermédiaire','Intermediate','متوسط'].some(v=>v.toLowerCase()===e.niveau?.toLowerCase())?'badge-blue':'badge-amber'}`} style={{fontSize:10}}>{niveauTraduit(e.niveau, lang, t)}</span></td>
                   <td style={{fontSize:11,color:C.muted}}>{e.instituteurNom}</td>
                   <td style={{fontSize:12}}>Hizb {e.etat.hizbEnCours}</td>
                   <td><span className="badge badge-blue" style={{fontSize:10}}>{e.etat.tomonCumul}</span></td>

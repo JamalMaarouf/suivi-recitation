@@ -143,7 +143,11 @@ export default function Gestion({ user, navigate, lang = 'fr' }) {
   };
 
   const instNom = (id) => { const i = instituteurs.find(x => x.id === id); return i ? `${i.prenom} ${i.nom}` : '—'; };
-  const niveaux = [t(lang, 'debutant'), t(lang, 'intermediaire'), t(lang, 'avance')];
+  const niveaux = [
+    { value: 'Débutant', label: t(lang, 'debutant') },
+    { value: 'Intermédiaire', label: t(lang, 'intermediaire') },
+    { value: 'Avancé', label: t(lang, 'avance') },
+  ];
 
   return (
     <div>
@@ -174,7 +178,7 @@ export default function Gestion({ user, navigate, lang = 'fr' }) {
                   <div className="field-group">
                     <label className="field-lbl">{t(lang, 'niveau')}</label>
                     <select className="field-select" value={newEleve.niveau} onChange={e => setNewEleve({ ...newEleve, niveau: e.target.value })}>
-                      {niveaux.map(n => <option key={n}>{n}</option>)}
+                      {niveaux.map(n => <option key={n.value} value={n.value}>{n.label}</option>)}
                     </select>
                   </div>
                   <div className="field-group">
@@ -223,7 +227,7 @@ export default function Gestion({ user, navigate, lang = 'fr' }) {
                   <div className="field-group">
                     <label className="field-lbl">{t(lang, 'niveau')}</label>
                     <select className="field-select" value={editEleve.niveau} onChange={e => setEditEleve({ ...editEleve, niveau: e.target.value })}>
-                      {niveaux.map(n => <option key={n}>{n}</option>)}
+                      {niveaux.map(n => <option key={n.value} value={n.value}>{n.label}</option>)}
                     </select>
                   </div>
                   <div className="field-group">
