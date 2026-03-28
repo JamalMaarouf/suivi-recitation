@@ -229,6 +229,41 @@ export default function FicheEleve({  eleve, user, navigate , lang="fr" }) {
                 </div>
               ))}
             </div>
+
+            {/* Acquis antérieurs */}
+            {etat?.tomonAcquis > 0 && (
+              <div style={{ background: '#f0faf6', border: '0.5px solid #9FE1CB', borderRadius: 10, padding: '10px 14px', marginTop: 10 }}>
+                <div style={{ fontSize: 11, fontWeight: 600, color: '#085041', marginBottom: 6 }}>
+                  🎓 {t(lang,'acquis_anterieurs')} — {etat.tomonAcquis} {t(lang,'tomon_abrev')} + {etat.hizbAcquisComplets} Hizb {t(lang,'hizb_complets')}
+                </div>
+                <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+                  <div style={{ flex: 1, textAlign: 'center', background: '#E1F5EE', borderRadius: 8, padding: '8px' }}>
+                    <div style={{ fontSize: 15, fontWeight: 700, color: '#1D9E75' }}>
+                      +{(etat.points.ptsAcquisTotal||0).toLocaleString()} {t(lang,'pts_abrev')}
+                    </div>
+                    <div style={{ fontSize: 10, color: '#0F6E56' }}>
+                      {lang==='ar'?'المكتسبات السابقة':lang==='en'?'Prior achievements':'Acquis antérieurs'}
+                    </div>
+                  </div>
+                  <div style={{ flex: 1, textAlign: 'center', background: '#E6F1FB', borderRadius: 8, padding: '8px' }}>
+                    <div style={{ fontSize: 15, fontWeight: 700, color: '#378ADD' }}>
+                      +{(etat.points.ptsDepuisSuivi||0).toLocaleString()} {t(lang,'pts_abrev')}
+                    </div>
+                    <div style={{ fontSize: 10, color: '#0C447C' }}>
+                      {lang==='ar'?'منذ بدء المتابعة':lang==='en'?'Since tracking started':'Depuis le suivi'}
+                    </div>
+                  </div>
+                  <div style={{ flex: 1, textAlign: 'center', background: '#EEEDFE', borderRadius: 8, padding: '8px' }}>
+                    <div style={{ fontSize: 15, fontWeight: 700, color: '#534AB7' }}>
+                      {(etat.points.total||0).toLocaleString()} {t(lang,'pts_abrev')}
+                    </div>
+                    <div style={{ fontSize: 10, color: '#3D38A0' }}>
+                      {lang==='ar'?'المجموع الكلي':lang==='en'?'Grand total':t(lang,'score_total')}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 8, borderTop: '0.5px solid #e8e8e0', paddingTop: 12 }}>
               {[[t(lang,'hizb_abrev'), `Hizb ${etat?.hizbEnCours}`], ['Tomon/Hizb', `${etat?.tomonDansHizbActuel}/8`], [t(lang,'hizb_complets_label'), etat?.hizbsComplets.size], ['Total Tomon', etat?.tomonCumul]].map(([l, v]) => (
                 <div key={l}><div style={{ fontSize: 10, color: '#999', textTransform: 'uppercase', letterSpacing: '0.8px', marginBottom: 2 }}>{l}</div><div style={{ fontSize: 14, fontWeight: 500 }}>{v}</div></div>

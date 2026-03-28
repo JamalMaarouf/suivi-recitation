@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
-import { getInitiales, calcEtatEleve } from '../lib/helpers';
+import { getInitiales, calcEtatEleve, calcPoints } from '../lib/helpers';
 import { t } from '../lib/i18n';
 
 function Avatar({ prenom, nom, size = 28 }) {
@@ -49,9 +49,46 @@ function HizbTomonSelector({ hizb, tomon, onHizbChange, onTomonChange, lang }) {
           ))}
         </div>
         <div style={{ textAlign: 'center', marginTop: 6, fontSize: 12, color: '#888' }}>
-          Tomon {tomon} du Hizb {hizb} · <span style={{ color: '#1D9E75', fontWeight: 600 }}>{(hizb - 1) * 8 + (tomon - 1)} Tomon acquis</span>
+          
+          {hizb > 1 || tomon > 1
+            ? <><span style={{color:'#1D9E75',fontWeight:600}}>{(hizb-1)*8+(tomon-1)} {t(lang,'tomon_abrev')}</span> + <span style={{color:'#EF9F27',fontWeight:600}}>{hizb-1} Hizb {t(lang,'hizb_complets')}</span></>
+            : <span>{t(lang,'hizb_depart')}: 1, {t(lang,'tomon_depart')}: 1</span>}
         </div>
       </div>
+
+      {/* Aperçu des points correspondants aux acquis */}
+      {(hizb > 1 || tomon > 1) && (() => {
+        const tomonAcquis = (hizb - 1) * 8 + (tomon - 1);
+        const hizbComplets = hizb - 1;
+        const pts = calcPoints(tomonAcquis, hizbComplets, [], tomonAcquis, hizbComplets);
+        return (
+          <div style={{marginTop:10,background:'#E1F5EE',borderRadius:10,padding:'12px',textAlign:'center',border:'0.5px solid #9FE1CB'}}>
+            <div style={{fontSize:11,color:'#0F6E56',marginBottom:4,fontWeight:600}}>
+              🎓 {lang==='ar'?'النقاط المقابلة للمكتسبات السابقة':lang==='en'?'Points for prior achievements':'Points correspondants aux acquis antérieurs'}
+            </div>
+            <div style={{fontSize:26,fontWeight:800,color:'#085041',letterSpacing:'-1px'}}>
+              {pts.total.toLocaleString()} {t(lang,'pts_abrev')}
+            </div>
+            <div style={{display:'flex',gap:6,justifyContent:'center',marginTop:8,flexWrap:'wrap'}}>
+              {[
+                {l:t(lang,'tomon_abrev'),v:pts.ptsTomon,sub:`${tomonAcquis}×10`},
+                {l:'Roboe',v:pts.ptsRoboe,sub:`${pts.details.nbRoboe}×25`},
+                {l:'Nisf',v:pts.ptsNisf,sub:`${pts.details.nbNisf}×60`},
+                {l:t(lang,'hizb_abrev'),v:pts.ptsHizb,sub:`${hizbComplets}×100`},
+              ].map(k=>(
+                <div key={k.l} style={{background:'#fff',borderRadius:8,padding:'6px 10px',minWidth:55,textAlign:'center'}}>
+                  <div style={{fontSize:13,fontWeight:700,color:'#1D9E75'}}>{k.v}</div>
+                  <div style={{fontSize:10,color:'#888'}}>{k.l}</div>
+                  <div style={{fontSize:9,color:'#bbb'}}>{k.sub}</div>
+                </div>
+              ))}
+            </div>
+            <div style={{fontSize:10,color:'#0F6E56',marginTop:6,opacity:0.8}}>
+              {lang==='ar'?'ستُحسب هذه النقاط تلقائياً عند إضافة الطالب':lang==='en'?'These points are automatically counted when the student is added':'Ces points sont automatiquement comptabilisés à l'ajout'}
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }
@@ -285,7 +322,7 @@ export default function Gestion({ user, navigate, lang = 'fr' }) {
                       <td style={{fontSize:12,color:'#888'}}>{instNom(e.instituteur_referent_id)}</td>
                       <td>
                         <div style={{fontSize:12,fontWeight:600,color:'#1D9E75'}}>Hizb {e.hizb_depart}, T.{e.tomon_depart}</div>
-                        <div style={{fontSize:10,color:'#bbb'}}>{(e.hizb_depart-1)*8+(e.tomon_depart-1)} Tomon acquis</div>
+                        <div style={{fontSize:10,color:'#bbb'}}>{(e.hizb_depart-1)*8+(e.tomon_depart-1)} {t(lang,'tomon_abrev')} · {(() => { const ta=(e.hizb_depart-1)*8+(e.tomon_depart-1); const hc=e.hizb_depart-1; const pts=calcPoints(ta,hc,[],ta,hc); return pts.total.toLocaleString(); })()} {t(lang,'pts_abrev')}</div>
                       </td>
                       <td>
                         <div style={{display:'flex',gap:4}}>

@@ -52,19 +52,41 @@ export function getInitiales(prenom, nom) {
 // 25 pts bonus par Roboe (2 Tomon)
 // 60 pts bonus par Nisf (4 Tomon)
 // 100 pts bonus par Hizb complet validé
-export function calcPoints(tomonCumul, hizbsCompletsCount, validations) {
+export function calcPoints(tomonCumul, hizbsCompletsCount, validations, tomonAcquis=0, hizbAcquisComplets=0) {
+  // tomonCumul = total Tomon (acquis + nouveaux)
+  // hizbsCompletsCount = total Hizb complets (acquis + nouveaux)
   const ptsTomon = tomonCumul * 10;
   const nbRoboe = Math.floor(tomonCumul / 2);
   const nbNisf = Math.floor(tomonCumul / 4);
   const ptsRoboe = nbRoboe * 25;
   const ptsNisf = nbNisf * 60;
   const ptsHizb = hizbsCompletsCount * 100;
+
+  // Points acquis antérieurs séparément (pour affichage informatif)
+  const ptsAcquisTomon = tomonAcquis * 10;
+  const ptsAcquisRoboe = Math.floor(tomonAcquis / 2) * 25;
+  const ptsAcquisNisf = Math.floor(tomonAcquis / 4) * 60;
+  const ptsAcquisHizb = hizbAcquisComplets * 100;
+  const ptsAcquisTotal = ptsAcquisTomon + ptsAcquisRoboe + ptsAcquisNisf + ptsAcquisHizb;
+
+  // Points gagnés depuis le début du suivi
+  const tomonNouveaux = tomonCumul - tomonAcquis;
+  const hizbNouveaux = hizbsCompletsCount - hizbAcquisComplets;
+  const ptsSuiviTomon = tomonNouveaux * 10;
+  const ptsSuiviRoboe = (Math.floor(tomonCumul / 2) - Math.floor(tomonAcquis / 2)) * 25;
+  const ptsSuiviNisf = (Math.floor(tomonCumul / 4) - Math.floor(tomonAcquis / 4)) * 60;
+  const ptsSuiviHizb = hizbNouveaux * 100;
+
   return {
     total: ptsTomon + ptsRoboe + ptsNisf + ptsHizb,
     ptsTomon,
     ptsRoboe,
     ptsNisf,
     ptsHizb,
+    ptsAcquisTotal,    // Points provenant des acquis antérieurs
+    ptsDepuisSuivi: ptsSuiviTomon + ptsSuiviRoboe + ptsSuiviNisf + ptsSuiviHizb, // Gagnés depuis le suivi
+    tomonAcquis,
+    hizbAcquisComplets,
     details: { nbRoboe, nbNisf, nbHizb: hizbsCompletsCount }
   };
 }
@@ -87,7 +109,14 @@ export function calcEtatEleve(validations, hizbDepart, tomonDepart) {
   const tous8Faits = pos.tomon === 1 && tomonCumul > 0;
   const hizbCompletValide = hizbsComplets.has(hizbBrut);
 
-  const points = calcPoints(tomonCumul, hizbsComplets.size, validations);
+  // Acquis antérieurs : Tomon et Hizb complets déjà validés avant le début du suivi
+  // hizb_depart=15, tomon_depart=3 → 14 Hizb complets + 2 Tomon déjà acquis
+  const tomonAcquis = (hizbDepart - 1) * 8 + (tomonDepart - 1);
+  const hizbAcquisComplets = hizbDepart - 1; // Hizb 1 à (hizbDepart-1) = complets
+  // Points totaux = acquis antérieurs + nouveaux validés depuis le suivi
+  const tomonTotal = tomonAcquis + tomonCumul;
+  const hizbCompletsTotal = hizbAcquisComplets + hizbsComplets.size;
+  const points = calcPoints(tomonTotal, hizbCompletsTotal, validations, tomonAcquis, hizbAcquisComplets);
 
   if (tous8Faits && hizbCompletValide) {
     return {
@@ -100,6 +129,9 @@ export function calcEtatEleve(validations, hizbDepart, tomonDepart) {
       enAttenteHizbComplet: false,
       hizbsComplets,
       tomonCumul,
+      tomonTotal,
+      tomonAcquis,
+      hizbAcquisComplets,
       points,
       positionReelle: pos
     };
@@ -118,6 +150,9 @@ export function calcEtatEleve(validations, hizbDepart, tomonDepart) {
     enAttenteHizbComplet,
     hizbsComplets,
     tomonCumul,
+    tomonTotal,
+    tomonAcquis,
+    hizbAcquisComplets,
     points,
     positionReelle: pos
   };
