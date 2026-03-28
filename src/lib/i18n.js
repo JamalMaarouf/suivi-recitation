@@ -1,6 +1,18 @@
-// Static translations (fallback) + dynamic translation support
-// The app uses static translations for instant render,
-// then Claude API translates any missing/new strings dynamically
+// Complete static translations — FR / AR / EN
+// No API needed — instant switching, works offline forever
+
+const cache = {};
+
+export function t(lang, key) {
+  if (!lang || lang === 'fr') return translations.fr[key] ?? key;
+  const val = translations[lang]?.[key];
+  if (val !== undefined) return val;
+  return translations.fr[key] ?? key;
+}
+
+export function getDir(lang) {
+  return lang === 'ar' ? 'rtl' : 'ltr';
+}
 
 export const translations = {
   fr: {
@@ -66,7 +78,7 @@ export const translations = {
     inactif: 'Inactif',
     jamais: 'Jamais',
     derniere_recitation: 'Dernière récitation',
-    badges: 'Badges',
+    badges: 'Badges obtenus',
     objectif_mensuel: 'Objectif mensuel',
     definir: 'Définir',
     annuler: 'Annuler',
@@ -184,10 +196,6 @@ export const translations = {
     jours_actifs: 'Jours actifs',
     moy_seance: 'Moy/séance',
     score_total: 'Score total',
-    nb_eleves: 'élèves',
-    hizb: 'Hizb',
-    tomon: 'Tomon',
-    pts: 'pts',
     pts_abrev: 'pts',
     hizb_abrev: 'Hizb',
     tomon_abrev: 'Tomon',
@@ -215,127 +223,482 @@ export const translations = {
     jours: 'j',
     classement_complet: 'Classement complet',
     eleves_actifs: 'Élèves actifs',
-    traduction_en_cours: 'Traduction en cours...',
-    traduction_ok: 'Traduction appliquée ✓',
-    effacer_cache: 'Effacer le cache',
+    recitations_ce_mois: 'Récitations ce mois',
     comparer_eleves: 'Comparaison des élèves',
     selectionner_comparer: "Sélectionnez jusqu'à 6 élèves",
     evolution_score: 'Évolution du score',
     tableau_comparatif: 'Tableau comparatif',
     classement_entre_eux: 'Classement entre eux',
+    detail: 'Détail',
+    duree_apprentissage_col: 'Durée appr.',
+    debut_suivi: 'Début du suivi',
+    total_recitations: 'Total récitations',
+    progression_hizb: 'Progression Hizb',
+    validation_hizb_requise: 'Validation Hizb complet requise.',
+    hizb_complet_a_valider: 'Hizb complet à valider',
+    score_mois_label: 'Score ce mois',
+    genere_le: 'Généré le',
+    aucune_recitation: 'Aucune récitation ce jour.',
+    prochain_tomon: 'prochain',
+    jours_label: 'jours',
+    semaines: 'sem.',
+  },
+
+  ar: {
+    dir: 'rtl', lang: 'ar', flag: '🇸🇦', name: 'العربية',
+    app_name: 'متابعة التحفيظ',
+    login_title: 'متابعة التحفيظ',
+    login_subtitle: 'فضاء الأساتذة والمراقب العام',
+    identifiant: 'المعرّف',
+    mot_de_passe: 'كلمة السر',
+    se_connecter: 'تسجيل الدخول',
+    connexion_en_cours: 'جارٍ الدخول...',
+    identifiant_incorrect: 'المعرّف أو كلمة السر غير صحيحة.',
+    remplir_champs: 'يرجى ملء جميع الحقول.',
+    role_surveillant: 'المراقب العام',
+    role_instituteur: 'الأستاذ',
+    acces_complet: 'صلاحية كاملة',
+    validation_suivi: 'تصحيح ومتابعة',
+    express: 'سريع',
+    seance: 'الحصة',
+    calendrier: 'التقويم',
+    rapport: 'التقرير',
+    gestion: 'الإدارة',
+    deconnexion: 'خروج',
+    honneur: 'لوح الشرف',
+    comparer: 'مقارنة',
+    tableau_de_bord: 'لوحة القيادة',
+    vue_generale: 'النظرة العامة',
+    eleves: 'الطلاب',
+    instituteurs: 'الأساتذة',
+    rapport_tab: 'التقرير',
+    score_ecole: 'المجموع العام للمدرسة',
+    points_cumules: 'نقطة مجموعة',
+    tomon_recites: 'ثُمن مُسمَّع',
+    hizb_complets: 'أحزاب مكتملة',
+    tomon_semaine: 'ثُمن هذا الأسبوع',
+    hizb_ce_mois: 'أحزاب هذا الشهر',
+    attente_hizb: 'انتظار تصحيح الحزب',
+    inactifs: 'غير نشطين +14 يوم',
+    podium: 'منصة التتويج',
+    a_relancer: 'يجب التواصل معهم',
+    tous_actifs: 'جميعهم نشطون ✓',
+    aucun_attente: 'لا أحد في الانتظار ✓',
+    activite_recente: 'النشاط الأخير',
+    aucune_activite: 'لا يوجد نشاط.',
+    valider: 'تصحيح',
+    classement: 'الترتيب',
+    score_groupe: 'مجموع المجموعة',
+    meilleur_eleve: 'أفضل طالب ⭐',
+    alertes: 'تنبيهات ذكية',
+    eleve: 'الطالب',
+    niveau: 'المستوى',
+    referent: 'الأستاذ المرجع',
+    acquis_anterieurs: 'المكتسبات السابقة',
+    hizb_depart: 'الحزب الابتدائي',
+    tomon_depart: 'الثُّمن الابتدائي',
+    inscrit_le: 'تاريخ التسجيل',
+    position_actuelle: 'الموقع الحالي',
+    hizb_en_cours: 'الحزب الحالي',
+    tomon_valides: 'الثُّمن المصحَّح',
+    prochain: 'التالي',
+    statut: 'الحالة',
+    actif: 'نشط',
+    inactif: 'غير نشط',
+    jamais: 'لم يُسمِّع بعد',
+    derniere_recitation: 'آخر تسميع',
+    badges: 'الأوسمة',
+    objectif_mensuel: 'الهدف الشهري',
+    definir: 'تحديد',
+    annuler: 'إلغاء',
+    enregistrer: 'حفظ',
+    objectif_atteint: '🎉 تم تحقيق الهدف!',
+    aucun_objectif: 'لم يُحدَّد هدف',
+    apercu: 'لمحة عامة',
+    apprentissage: 'الحفظ',
+    evolution: 'التطور',
+    activite: 'النشاط',
+    historique: 'السجل',
+    retour: 'رجوع →',
+    imprimer_pdf: '🖨️ طباعة',
+    enregistrer_recitation: '+ تسميع',
+    voir_fiche: 'عرض الملف',
+    retour_dashboard: 'العودة للوحة القيادة',
+    enregistrer_recitation_titre: 'تسجيل تسميع',
+    selectionner_eleve: 'اختيار الطالب',
+    rechercher_eleve: 'البحث عن طالب...',
+    changer: 'تغيير',
+    tomon_recites_aujourd_hui: 'الثُّمن المُسمَّع اليوم',
+    valider_hizb_complet: 'تصحيح الحزب كاملاً',
+    bonus_pts: '+100 نقطة إضافية',
+    deja_valide: 'مُصحَّح',
+    recite_aujourd_hui: 'مُسمَّع اليوم',
+    a_venir: 'قادم',
+    position_atteinte: 'الموقع المُحقَّق →',
+    continuer: 'متابعة',
+    confirmer: '✓ تأكيد التصحيح',
+    modifier: 'تعديل →',
+    recapitulatif: 'ملخص',
+    tomon_recites_label: 'الثُّمن المُسمَّع',
+    points_gagnes: 'النقاط المكتسبة',
+    valide_par: 'صحَّحه',
+    date_heure: 'التاريخ والوقت',
+    hizb_suivant_ouvre: 'الحزب التالي مفتوح',
+    nouvelle_recitation: '+ تسميع جديد',
+    enregistrement: 'جارٍ الحفظ...',
+    recitation_enregistree: 'تم تسجيل التسميع!',
+    hizb_valide_titre: 'تم تصحيح الحزب كاملاً!',
+    durees_apprentissage: 'مدة الحفظ',
+    ajouter_eleve: 'إضافة طالب',
+    modifier_eleve: 'تعديل بيانات الطالب',
+    eleves_inscrits: 'الطلاب المسجلون',
+    ajouter_instituteur: 'إضافة أستاذ',
+    instituteurs_actifs: 'الأساتذة النشطون',
+    prenom: 'الاسم',
+    nom_label: 'اللقب',
+    identifiant_label: 'المعرّف',
+    ajouter_eleve_btn: '+ إضافة الطالب',
+    ajouter_instituteur_btn: '+ إضافة الأستاذ',
+    modifier_btn: 'تعديل',
+    retirer: 'حذف',
+    enregistrer_modifications: 'حفظ التعديلات',
+    acquis_aide: 'موقع الطالب في القرآن قبل بدء المتابعة',
+    hizb_1_60: 'الحزب (1-60)',
+    tomon_1_8: 'الثُّمن (1-8)',
+    debutant: 'مبتدئ',
+    intermediaire: 'متوسط',
+    avance: 'متقدم',
+    choisir: '— اختيار —',
+    eleve_ajoute: 'تم إضافة الطالب بنجاح.',
+    eleve_modifie: 'تم تعديل بيانات الطالب بنجاح.',
+    eleve_retire: 'تم حذف الطالب.',
+    instituteur_ajoute: 'تم إضافة الأستاذ بنجاح.',
+    instituteur_retire: 'تم حذف الأستاذ.',
+    erreur_ajout: 'حدث خطأ أثناء الإضافة.',
+    prenom_nom_obligatoires: 'الاسم واللقب إلزاميان.',
+    tous_champs_obligatoires: 'جميع الحقول إلزامية.',
+    identifiant_utilise: 'هذا المعرّف مستخدم مسبقاً.',
+    supprimer_eleve_confirm: 'حذف هذا الطالب وكل سجله؟',
+    supprimer_instituteur_confirm: 'حذف هذا الأستاذ؟',
+    ma_seance: 'حصتي اليوم',
+    cette_semaine: 'هذا الأسبوع',
+    eleves_vus: 'طلاب تمت متابعتهم',
+    tomon_valides_label: 'ثُمن مُصحَّح',
+    hizb_complets_label: 'حزب مكتمل',
+    pts_generes: 'نقاط مكتسبة',
+    classement_seance: 'ترتيب الحصة',
+    detail_validations: 'تفاصيل التسميعات',
+    a_voir_aujourd_hui: 'للمتابعة اليوم',
+    classement_semaine: 'ترتيب الأسبوع',
+    activite_par_jour: 'النشاط اليومي',
+    rapport_mensuel: 'التقرير الشهري',
+    imprimer_rapport: '🖨️ طباعة التقرير',
+    performance_objectifs: 'الأداء والأهداف',
+    performance_instituteurs: 'أداء الأساتذة',
+    objectif_label: 'الهدف',
+    atteinte: 'النسبة',
+    score_mois: 'نقاط الشهر',
+    aucun_instituteur: 'لا يوجد أساتذة.',
+    aucun_eleve: 'لا يوجد طلاب.',
+    tableau_honneur: 'لوح الشرف',
+    gardiens_coran: 'حفّاظ القرآن الكريم',
+    classement_score: 'الترتيب حسب نقاط التسميع',
+    validation_express: '⚡ تسجيل سريع',
+    validation_express_aide: 'ابحث عن طالب وسجّل تسميعه بنقرتين',
+    rechercher: 'بحث...',
+    combien_tomon: 'كم ثُمناً تمّ تسميعه؟',
+    log_session: 'سجل الحصة',
+    rechercher_commencer: 'ابحث عن طالب للبدء',
+    suivi_apprentissage: 'متابعة بداية الحفظ ← التسميع',
+    debut_apprentissage: 'بداية الحفظ',
+    validation_label: 'التسميع',
+    duree: 'المدة',
+    en_cours: 'قيد الحفظ',
+    duree_moy: 'متوسط المدة',
+    plus_rapide: 'الأسرع',
+    plus_long: 'الأطول',
+    aucun_suivi: 'لا يوجد متابعة مسجلة.',
+    activite_90: 'النشاط — آخر 90 يوماً',
+    faible: 'ضعيف',
+    fort: 'قوي',
+    streak_actuel: 'الاستمرارية',
+    jours_actifs: 'أيام نشطة',
+    moy_seance: 'متوسط/حصة',
+    score_total: 'المجموع الكلي',
+    pts_abrev: 'ن',
+    hizb_abrev: 'حزب',
+    tomon_abrev: 'ثُمن',
+    hizb_complets_abrev: 'أحزاب مكتملة',
+    actifs: 'نشطون',
+    inactifs_filter: 'غير نشطين',
+    attente_filter: 'انتظار الحزب',
+    tous: 'الكل',
+    tous_instituteurs: 'جميع الأساتذة',
+    tous_statuts: 'جميع الحالات',
+    tous_niveaux: 'جميع المستويات',
+    tri_score_desc: 'النقاط ↓',
+    tri_score_asc: 'النقاط ↑',
+    tri_hizb_desc: 'الحزب ↓',
+    tri_hizb_asc: 'الحزب ↑',
+    tri_nom: 'الاسم أ→ي',
+    tri_recente: 'الأحدث',
+    tri_inactif: 'غير نشطين',
+    eleves_referents: 'طلاب مرجعيون',
+    voir_profil: 'عرض الملف ←',
+    pas_assez_donnees: 'لا توجد بيانات كافية بعد.',
+    aucune_recitation_label: 'لا يوجد تسميع.',
+    en_attente: 'في الانتظار',
+    jour: 'ي',
+    jours: 'أيام',
+    classement_complet: 'الترتيب الكامل',
+    eleves_actifs: 'طلاب نشطون',
+    recitations_ce_mois: 'تسميعات هذا الشهر',
+    comparer_eleves: 'مقارنة الطلاب',
+    selectionner_comparer: 'اختر حتى 6 طلاب للمقارنة',
+    evolution_score: 'تطور النقاط',
+    tableau_comparatif: 'جدول المقارنة',
+    classement_entre_eux: 'الترتيب بينهم',
+    detail: 'تفصيل',
+    duree_apprentissage_col: 'مدة الحفظ',
+    debut_suivi: 'بداية المتابعة',
+    total_recitations: 'إجمالي التسميعات',
+    progression_hizb: 'تقدم الحزب',
+    validation_hizb_requise: 'يجب تصحيح الحزب كاملاً.',
+    hizb_complet_a_valider: 'الحزب يحتاج تصحيحاً',
+    score_mois_label: 'نقاط الشهر',
+    genere_le: 'أُنشئ بتاريخ',
+    aucune_recitation: 'لا يوجد تسميع هذا اليوم.',
+    prochain_tomon: 'التالي',
+    jours_label: 'يوم',
+    semaines: 'أسبوع',
+  },
+
+  en: {
+    dir: 'ltr', lang: 'en', flag: '🇬🇧', name: 'English',
+    app_name: 'Quran Tracking',
+    login_title: 'Quran Tracking',
+    login_subtitle: 'Teachers & Supervisor Portal',
+    identifiant: 'Username',
+    mot_de_passe: 'Password',
+    se_connecter: 'Sign In',
+    connexion_en_cours: 'Signing in...',
+    identifiant_incorrect: 'Invalid username or password.',
+    remplir_champs: 'Please fill in all fields.',
+    role_surveillant: 'Supervisor',
+    role_instituteur: 'Teacher',
+    acces_complet: 'Full access',
+    validation_suivi: 'Validation & tracking',
+    express: 'Express',
+    seance: 'Session',
+    calendrier: 'Calendar',
+    rapport: 'Report',
+    gestion: 'Management',
+    deconnexion: 'Logout',
+    honneur: 'Hall of Fame',
+    comparer: 'Compare',
+    tableau_de_bord: 'Dashboard',
+    vue_generale: 'Overview',
+    eleves: 'Students',
+    instituteurs: 'Teachers',
+    rapport_tab: 'Report',
+    score_ecole: 'School Total Score',
+    points_cumules: 'cumulated points',
+    tomon_recites: 'Tomon recited',
+    hizb_complets: 'Complete Hizb',
+    tomon_semaine: 'Tomon this week',
+    hizb_ce_mois: 'Hizb this month',
+    attente_hizb: 'Awaiting Hizb validation',
+    inactifs: 'Inactive +14 days',
+    podium: 'Podium',
+    a_relancer: 'To follow up',
+    tous_actifs: 'All active ✓',
+    aucun_attente: 'None waiting ✓',
+    activite_recente: 'Recent activity',
+    aucune_activite: 'No activity.',
+    valider: 'Validate',
+    classement: 'Ranking',
+    score_groupe: 'Group score',
+    meilleur_eleve: 'Top student ⭐',
+    alertes: 'Smart alerts',
+    eleve: 'Student',
+    niveau: 'Level',
+    referent: 'Assigned teacher',
+    acquis_anterieurs: 'Prior achievements',
+    hizb_depart: 'Starting Hizb',
+    tomon_depart: 'Starting Tomon',
+    inscrit_le: 'Enrolled on',
+    position_actuelle: 'Current position',
+    hizb_en_cours: 'Current Hizb',
+    tomon_valides: 'Tomon validated',
+    prochain: 'Next',
+    statut: 'Status',
+    actif: 'Active',
+    inactif: 'Inactive',
+    jamais: 'Never',
+    derniere_recitation: 'Last recitation',
+    badges: 'Badges',
+    objectif_mensuel: 'Monthly goal',
+    definir: 'Set goal',
+    annuler: 'Cancel',
+    enregistrer: 'Save',
+    objectif_atteint: '🎉 Goal achieved!',
+    aucun_objectif: 'No goal set',
+    apercu: 'Overview',
+    apprentissage: 'Learning',
+    evolution: 'Progress',
+    activite: 'Activity',
+    historique: 'History',
+    retour: '← Back',
+    imprimer_pdf: '🖨️ PDF',
+    enregistrer_recitation: '+ Recitation',
+    voir_fiche: 'View profile',
+    retour_dashboard: 'Back to dashboard',
+    enregistrer_recitation_titre: 'Record a recitation',
+    selectionner_eleve: 'Select student',
+    rechercher_eleve: 'Search student...',
+    changer: 'Change',
+    tomon_recites_aujourd_hui: 'Tomon recited today',
+    valider_hizb_complet: 'Validate complete Hizb',
+    bonus_pts: '+100 bonus pts',
+    deja_valide: 'Already validated',
+    recite_aujourd_hui: 'Recited today',
+    a_venir: 'Upcoming',
+    position_atteinte: 'Position reached →',
+    continuer: 'Continue',
+    confirmer: '✓ Confirm validation',
+    modifier: '← Edit',
+    recapitulatif: 'Summary',
+    tomon_recites_label: 'Tomon recited',
+    points_gagnes: 'Points earned',
+    valide_par: 'Validated by',
+    date_heure: 'Date & time',
+    hizb_suivant_ouvre: 'Next Hizb opens',
+    nouvelle_recitation: '+ New recitation',
+    enregistrement: 'Saving...',
+    recitation_enregistree: 'Recitation recorded!',
+    hizb_valide_titre: 'Complete Hizb validated!',
+    durees_apprentissage: 'Learning durations',
+    ajouter_eleve: 'Add student',
+    modifier_eleve: 'Edit student',
+    eleves_inscrits: 'Enrolled students',
+    ajouter_instituteur: 'Add teacher',
+    instituteurs_actifs: 'Active teachers',
+    prenom: 'First name',
+    nom_label: 'Last name',
+    identifiant_label: 'Username',
+    ajouter_eleve_btn: '+ Add student',
+    ajouter_instituteur_btn: '+ Add teacher',
+    modifier_btn: 'Edit',
+    retirer: 'Remove',
+    enregistrer_modifications: 'Save changes',
+    acquis_aide: 'Position in the Quran before tracking begins',
+    hizb_1_60: 'Hizb (1-60)',
+    tomon_1_8: 'Tomon (1-8)',
+    debutant: 'Beginner',
+    intermediaire: 'Intermediate',
+    avance: 'Advanced',
+    choisir: '— Choose —',
+    eleve_ajoute: 'Student added successfully.',
+    eleve_modifie: 'Student updated successfully.',
+    eleve_retire: 'Student removed.',
+    instituteur_ajoute: 'Teacher added successfully.',
+    instituteur_retire: 'Teacher removed.',
+    erreur_ajout: 'Error while adding.',
+    prenom_nom_obligatoires: 'First name and last name required.',
+    tous_champs_obligatoires: 'All fields are required.',
+    identifiant_utilise: 'Username already taken.',
+    supprimer_eleve_confirm: 'Delete this student and all their records?',
+    supprimer_instituteur_confirm: 'Delete this teacher?',
+    ma_seance: "Today's session",
+    cette_semaine: 'This week',
+    eleves_vus: 'Students seen',
+    tomon_valides_label: 'Tomon validated',
+    hizb_complets_label: 'Complete Hizb',
+    pts_generes: 'Points generated',
+    classement_seance: 'Session ranking',
+    detail_validations: 'Validation details',
+    a_voir_aujourd_hui: 'To see today',
+    classement_semaine: 'Weekly ranking',
+    activite_par_jour: 'Daily activity',
+    rapport_mensuel: 'Monthly report',
+    imprimer_rapport: '🖨️ Print PDF report',
+    performance_objectifs: 'Performance & goals',
+    performance_instituteurs: 'Teacher performance',
+    objectif_label: 'Goal',
+    atteinte: 'Achievement',
+    score_mois: 'Month score',
+    aucun_instituteur: 'No teachers.',
+    aucun_eleve: 'No students.',
+    tableau_honneur: 'Hall of Fame',
+    gardiens_coran: 'Guardians of the Quran',
+    classement_score: 'Ranked by recitation score',
+    validation_express: '⚡ Express Validation',
+    validation_express_aide: 'Search a student and validate in 2 clicks',
+    rechercher: 'Search...',
+    combien_tomon: 'How many Tomon recited?',
+    log_session: 'Session log',
+    rechercher_commencer: 'Search a student to begin',
+    suivi_apprentissage: 'Learning: start → validation per Tomon',
+    debut_apprentissage: 'Learning start',
+    validation_label: 'Validation',
+    duree: 'Duration',
+    en_cours: 'In progress',
+    duree_moy: 'Avg duration',
+    plus_rapide: 'Fastest',
+    plus_long: 'Longest',
+    aucun_suivi: 'No learning records yet.',
+    activite_90: 'Activity — last 90 days',
+    faible: 'Low',
+    fort: 'High',
+    streak_actuel: 'Current streak',
+    jours_actifs: 'Active days',
+    moy_seance: 'Avg/session',
+    score_total: 'Total score',
+    pts_abrev: 'pts',
+    hizb_abrev: 'Hizb',
+    tomon_abrev: 'Tomon',
+    hizb_complets_abrev: 'Complete Hizb',
+    actifs: 'Active',
+    inactifs_filter: 'Inactive',
+    attente_filter: 'Awaiting Hizb',
+    tous: 'All',
+    tous_instituteurs: 'All teachers',
+    tous_statuts: 'All statuses',
+    tous_niveaux: 'All levels',
+    tri_score_desc: 'Score ↓',
+    tri_score_asc: 'Score ↑',
+    tri_hizb_desc: 'Hizb ↓',
+    tri_hizb_asc: 'Hizb ↑',
+    tri_nom: 'Name A→Z',
+    tri_recente: 'Recent',
+    tri_inactif: 'Inactive',
+    eleves_referents: 'assigned students',
+    voir_profil: 'View profile →',
+    pas_assez_donnees: 'Not enough data yet.',
+    aucune_recitation_label: 'No recitations.',
+    en_attente: 'Waiting',
+    jour: 'd',
+    jours: 'days',
+    classement_complet: 'Full ranking',
+    eleves_actifs: 'Active students',
+    recitations_ce_mois: 'Recitations this month',
+    comparer_eleves: 'Student comparison',
+    selectionner_comparer: 'Select up to 6 students',
+    evolution_score: 'Score evolution',
+    tableau_comparatif: 'Comparison table',
+    classement_entre_eux: 'Ranking between them',
+    detail: 'Detail',
+    duree_apprentissage_col: 'Learn. time',
+    debut_suivi: 'Tracking start',
+    total_recitations: 'Total recitations',
+    progression_hizb: 'Hizb progress',
+    validation_hizb_requise: 'Complete Hizb validation required.',
+    hizb_complet_a_valider: 'Hizb to validate',
+    score_mois_label: 'Month score',
+    genere_le: 'Generated on',
+    aucune_recitation: 'No recitation this day.',
+    prochain_tomon: 'next',
+    jours_label: 'day',
+    semaines: 'wks',
   }
 };
-
-// Dynamic translation function
-// Uses cache first, falls back to static, then requests from Claude
-const dynamicCache = {};
-
-export function t(lang, key) {
-  if (lang === 'fr') return translations.fr[key] || key;
-  // Check dynamic cache
-  if (dynamicCache[lang]?.[key]) return dynamicCache[lang][key];
-  // Check localStorage cache
-  try {
-    const stored = JSON.parse(localStorage.getItem('suivi_trans_cache') || '{}');
-    if (stored[lang]?.[key]) {
-      if (!dynamicCache[lang]) dynamicCache[lang] = {};
-      dynamicCache[lang][key] = stored[lang][key];
-      return stored[lang][key];
-    }
-  } catch {}
-  // Fallback to French
-  return translations.fr[key] || key;
-}
-
-export function loadCacheIntoMemory(lang) {
-  try {
-    const stored = JSON.parse(localStorage.getItem('suivi_trans_cache') || '{}');
-    if (stored[lang]) {
-      dynamicCache[lang] = stored[lang];
-      return Object.keys(stored[lang]).length;
-    }
-  } catch {}
-  return 0;
-}
-
-export function getDir(lang) {
-  if (lang === 'ar') return 'rtl';
-  return 'ltr';
-}
-
-export function getCachedLangs() {
-  try {
-    const stored = JSON.parse(localStorage.getItem('suivi_trans_cache') || '{}');
-    return Object.keys(stored);
-  } catch { return []; }
-}
-
-// Translate all keys for a language using Claude API
-export async function translateAllKeys(targetLang) {
-  if (targetLang === 'fr') return true;
-  const langNames = {
-    ar: 'Arabic (formal Islamic/Quranic Modern Standard Arabic, RTL)',
-    en: 'English'
-  };
-
-  const frStrings = translations.fr;
-  const existing = dynamicCache[targetLang] || {};
-
-  // Find keys not yet translated
-  const missing = Object.entries(frStrings)
-    .filter(([k]) => !['dir','lang','flag','name'].includes(k) && !existing[k])
-    .map(([k, v]) => ({ key: k, text: String(v) }));
-
-  if (missing.length === 0) return true;
-
-  const toTranslate = missing.map(({ key, text }) => `${key}|||${text}`).join('\n');
-
-  try {
-    const response = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
-        max_tokens: 6000,
-        system: `You are a professional translator for a Quran memorization tracking application.
-Translate UI strings from French to ${langNames[targetLang]}.
-Rules:
-- Keep unchanged: Hizb, Tomon, Roboe, Nisf, Jouz — these are Quranic terms
-- For Arabic: use formal Modern Standard Arabic (فصحى المعاصرة)
-- Keep emojis as-is
-- Keep symbols: → ← ↑ ↓ ✓ ✕ ⭐ 🔥 + unchanged
-- Keep numbers and % unchanged
-- Short UI strings — be concise and natural
-- Return ONLY lines in format: key|||translation
-- One translation per line, nothing else, no preamble`,
-        messages: [{ role: 'user', content: `Translate to ${langNames[targetLang]}:\n\n${toTranslate}` }]
-      })
-    });
-
-    const data = await response.json();
-    const rawText = data.content?.[0]?.text || '';
-    const result = { ...existing };
-
-    rawText.split('\n').forEach(line => {
-      const idx = line.indexOf('|||');
-      if (idx > 0) {
-        const key = line.substring(0, idx).trim();
-        const val = line.substring(idx + 3).trim();
-        if (key && val && frStrings[key] !== undefined) result[key] = val;
-      }
-    });
-
-    // Save to memory and localStorage
-    dynamicCache[targetLang] = result;
-    try {
-      const stored = JSON.parse(localStorage.getItem('suivi_trans_cache') || '{}');
-      stored[targetLang] = result;
-      localStorage.setItem('suivi_trans_cache', JSON.stringify(stored));
-    } catch {}
-
-    return true;
-  } catch (err) {
-    console.error('Translation API error:', err);
-    return false;
-  }
-}

@@ -47,7 +47,7 @@ export default function TableauHonneur({  navigate , lang="fr" }) {
         <button onClick={() => navigate('dashboard')} style={{ background: 'rgba(255,255,255,0.1)', border: '0.5px solid rgba(255,255,255,0.2)', color: '#fff', borderRadius: 8, padding: '6px 14px', fontSize: 12, cursor: 'pointer', marginBottom: '1.5rem' }}>{t(lang,'retour')}</button>
         <div style={{ fontSize: 11, color: '#1D9E75', textTransform: 'uppercase', letterSpacing: '4px', marginBottom: 8 }}>Tableau d'honneur</div>
         <div style={{ fontSize: 36, fontWeight: 700, color: '#fff', letterSpacing: '-1px' }}>Les Gardiens du Coran</div>
-        <div style={{ fontSize: 14, color: 'rgba(255,255,255,0.5)', marginTop: 8 }}>Classement par score de récitation</div>
+        <div style={{ fontSize: 14, color: 'rgba(255,255,255,0.5)', marginTop: 8 }}>{t(lang,'classement_score')}</div>
       </div>
 
       {loading ? (

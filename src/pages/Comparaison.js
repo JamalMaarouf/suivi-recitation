@@ -68,13 +68,13 @@ export default function Comparaison({  navigate , lang="fr" }) {
   return (
     <div>
       <button className="back-link" onClick={() => navigate('dashboard')}>{t(lang,'retour')}</button>
-      <div style={{ fontSize: 20, fontWeight: 600, marginBottom: '1.5rem' }}>Comparaison des élèves</div>
+      <div style={{ fontSize: 20, fontWeight: 600, marginBottom: '1.5rem' }}>{t(lang,'comparer_eleves')}</div>
 
       {loading ? <div className="loading">Chargement...</div> : (
         <>
           {/* Sélecteur */}
           <div style={{ background: '#fff', border: '0.5px solid #e0e0d8', borderRadius: 12, padding: '1rem', marginBottom: '1.25rem' }}>
-            <div style={{ fontSize: 12, color: '#888', marginBottom: 8 }}>Sélectionnez jusqu'à 6 élèves à comparer :</div>
+            <div style={{ fontSize: 12, color: '#888', marginBottom: 8 }}>{t(lang,'selectionner_comparer')}</div>
             <input className="field-input" style={{ marginBottom: 10 }} placeholder="Rechercher..." value={search} onChange={e => setSearch(e.target.value)} />
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
               {filteredEleves.map((e, idx) => {
@@ -93,7 +93,7 @@ export default function Comparaison({  navigate , lang="fr" }) {
           </div>
 
           {selected.length === 0 ? (
-            <div className="empty">Sélectionnez des élèves pour commencer la comparaison.</div>
+            <div className="empty">{t(lang,'rechercher_commencer')}</div>
           ) : (
             <>
               {/* Légende */}

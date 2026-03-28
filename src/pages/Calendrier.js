@@ -77,7 +77,7 @@ export default function Calendrier({  user, navigate , lang="fr" }) {
       {/* Stats mois */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,minmax(0,1fr))', gap: 8, marginBottom: '1.25rem' }}>
         {[
-          { val: tomonMois, lbl: 'Tomon ce mois', color: '#1D9E75', bg: '#E1F5EE' },
+          { val: tomonMois, lbl: t(lang,'tomon_recites'), color: '#1D9E75', bg: '#E1F5EE' },
           { val: hizbMois, lbl: t(lang,'hizb_complets_label'), color: '#378ADD', bg: '#E6F1FB' },
           { val: joursActifsMois, lbl: t(lang,'jours_actifs'), color: '#EF9F27', bg: '#FAEEDA' },
         ].map((k,i) => (

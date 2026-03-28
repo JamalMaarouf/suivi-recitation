@@ -62,7 +62,7 @@ export default function ProfilInstituteur({  instituteur, user, navigate , lang=
             { lbl: 'Score groupe', val: totalPoints.toLocaleString(), color: '#1D9E75', bg: '#E1F5EE' },
             { lbl: 'Tomon total', val: totalTomon, color: '#378ADD', bg: '#E6F1FB' },
             { lbl: 'Validations', val: validations.length, color: '#888', bg: '#f5f5f0' },
-            { lbl: 'Inactifs', val: nbInactifs, color: nbInactifs>0?'#A32D2D':'#bbb', bg: nbInactifs>0?'#FCEBEB':'#f9f9f6' },
+            { lbl: t(lang,'inactifs_filter'), val: nbInactifs, color: nbInactifs>0?'#A32D2D':'#bbb', bg: nbInactifs>0?'#FCEBEB':'#f9f9f6' },
           ].map(k => (
             <div key={k.lbl} style={{ background: k.bg, borderRadius: 8, padding: '10px', textAlign: 'center' }}>
               <div style={{ fontSize: 18, fontWeight: 700, color: k.color }}>{k.val}</div>

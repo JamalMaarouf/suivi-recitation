@@ -170,8 +170,8 @@ export default function RapportMensuel({  user, navigate , lang="fr" }) {
           {/* KPI mois */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0,1fr))', gap: 8, marginBottom: '1.5rem' }}>
             {[
-              { val: elevesActifsMois, lbl: 'Élèves actifs', color: '#1D9E75', bg: '#E1F5EE' },
-              { val: totalTomonMois, lbl: 'Tomon récités', color: '#378ADD', bg: '#E6F1FB' },
+              { val: elevesActifsMois, lbl: t(lang,'eleves_actifs'), color: '#1D9E75', bg: '#E1F5EE' },
+              { val: totalTomonMois, lbl: t(lang,'tomon_recites'), color: '#378ADD', bg: '#E6F1FB' },
               { val: totalHizbMois, lbl: t(lang,'hizb_complets_label'), color: '#EF9F27', bg: '#FAEEDA' },
               { val: totalPtsMois.toLocaleString(), lbl: t(lang,'pts_generes'), color: '#534AB7', bg: '#EEEDFE' },
             ].map((k, i) => (
@@ -220,7 +220,7 @@ export default function RapportMensuel({  user, navigate , lang="fr" }) {
                     ) : (
                       <button onClick={() => setEditObj(prev => ({ ...prev, [e.id]: true }))}
                         style={{ padding: '4px 10px', border: '0.5px solid #e0e0d8', borderRadius: 6, background: '#f9f9f6', fontSize: 11, cursor: 'pointer', color: '#888' }}>
-                        {e.objectif ? `🎯 ${e.objectif}T` : '+ Objectif'}
+                        {e.objectif ? `🎯 ${e.objectif}T` : ('+ ' + t(lang,'objectif_label'))}
                       </button>
                     )}
                   </div>
@@ -263,7 +263,7 @@ export default function RapportMensuel({  user, navigate , lang="fr" }) {
                     </div>
                   </div>
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 4 }}>
-                    {[['Tomon', tomon, '#E6F1FB', '#0C447C'], ['Hizb', hizb, '#E1F5EE', '#085041'], ['Pts', pts, '#EEEDFE', '#534AB7']].map(([l, v, bg, c]) => (
+                    {[[t(lang,'tomon_abrev'), tomon, '#E6F1FB', '#0C447C'], [t(lang,'hizb_abrev'), hizb, '#E1F5EE', '#085041'], [t(lang,'pts_abrev'), pts, '#EEEDFE', '#534AB7']].map(([l, v, bg, c]) => (
                       <div key={l} style={{ background: bg, borderRadius: 6, padding: '6px', textAlign: 'center' }}>
                         <div style={{ fontSize: 15, fontWeight: 700, color: c }}>{v}</div>
                         <div style={{ fontSize: 9, color: c, opacity: 0.8 }}>{l}</div>

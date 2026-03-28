@@ -41,7 +41,7 @@ function calcHeatmap(validations) {
 function calcEvolution(validations) {
   const vals = [...validations].sort((a, b) => new Date(a.date_validation) - new Date(b.date_validation));
   let cumul = 0, hizbsComplets = new Set();
-  const points = [{ date: null, score: 0, label: 'Départ' }];
+  const points = [{ date: null, score: 0, label: t(lang,'debut_suivi') }];
   vals.forEach(v => {
     if (v.type_validation === 'hizb_complet') hizbsComplets.add(v.hizb_valide);
     else cumul += v.nombre_tomon;
@@ -124,7 +124,7 @@ export default function FicheEleve({  eleve, user, navigate , lang="fr" }) {
       const appr = apprentissages.find(a => a.hizb === v.hizb_validation && a.tomon === v.tomon_debut);
       const joursAppr = appr ? Math.round((new Date(v.date_validation) - new Date(appr.date_debut)) / (1000 * 60 * 60 * 24)) : null;
       return `<tr><td>${formatDate(v.date_validation)}</td>
-      <td>${v.type_validation === 'hizb_complet' ? 'Hizb complet' : v.nombre_tomon + ' Tomon'}</td>
+      <td>${v.type_validation === 'hizb_complet' ? t(lang,'hizb_complets_label') : v.nombre_tomon + ' Tomon'}</td>
       <td>${v.type_validation === 'hizb_complet' ? 'Hizb ' + v.hizb_valide : (v.tomon_debut ? 'T.' + v.tomon_debut + '→T.' + (v.tomon_debut + v.nombre_tomon - 1) : v.nombre_tomon + ' Tomon')}</td>
       <td>${joursAppr !== null ? joursAppr + ' jour(s)' : '—'}</td>
       <td class="pts">+${v.type_validation === 'hizb_complet' ? 100 : v.nombre_tomon * 10} pts</td>
@@ -186,7 +186,7 @@ export default function FicheEleve({  eleve, user, navigate , lang="fr" }) {
               </div>
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 8, marginBottom: 14 }}>
-              {[['Tomon', etat?.points.ptsTomon, `${etat?.tomonCumul}×10`], ['Roboe', etat?.points.ptsRoboe, `${etat?.points.details.nbRoboe}×25`], ['Nisf', etat?.points.ptsNisf, `${etat?.points.details.nbNisf}×60`], ['Hizb', etat?.points.ptsHizb, `${etat?.points.details.nbHizb}×100`]].map(([l, v, s]) => (
+              {[[t(lang,'tomon_abrev'), etat?.points.ptsTomon, `${etat?.tomonCumul}×10`], ['Roboe', etat?.points.ptsRoboe, `${etat?.points.details.nbRoboe}×25`], ['Nisf', etat?.points.ptsNisf, `${etat?.points.details.nbNisf}×60`], [t(lang,'hizb_abrev'), etat?.points.ptsHizb, `${etat?.points.details.nbHizb}×100`]].map(([l, v, s]) => (
                 <div key={l} style={{ background: '#f9f9f6', borderRadius: 8, padding: '10px', textAlign: 'center' }}>
                   <div style={{ fontSize: 18, fontWeight: 700 }}>{v}</div>
                   <div style={{ fontSize: 11, color: '#888' }}>{l}</div>
@@ -195,7 +195,7 @@ export default function FicheEleve({  eleve, user, navigate , lang="fr" }) {
               ))}
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 8, borderTop: '0.5px solid #e8e8e0', paddingTop: 12 }}>
-              {[['Hizb', `Hizb ${etat?.hizbEnCours}`], ['Tomon/Hizb', `${etat?.tomonDansHizbActuel}/8`], [t(lang,'hizb_complets_label'), etat?.hizbsComplets.size], ['Total Tomon', etat?.tomonCumul]].map(([l, v]) => (
+              {[[t(lang,'hizb_abrev'), `Hizb ${etat?.hizbEnCours}`], ['Tomon/Hizb', `${etat?.tomonDansHizbActuel}/8`], [t(lang,'hizb_complets_label'), etat?.hizbsComplets.size], ['Total Tomon', etat?.tomonCumul]].map(([l, v]) => (
                 <div key={l}><div style={{ fontSize: 10, color: '#999', textTransform: 'uppercase', letterSpacing: '0.8px', marginBottom: 2 }}>{l}</div><div style={{ fontSize: 14, fontWeight: 500 }}>{v}</div></div>
               ))}
             </div>
@@ -343,7 +343,7 @@ export default function FicheEleve({  eleve, user, navigate , lang="fr" }) {
                 const min = durees.length > 0 ? Math.min(...durees) : 0;
                 return (
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 10, marginTop: '1rem' }}>
-                    {[['Durée moy.', `${moy}j`, '#1D9E75', '#E1F5EE'], ['Plus rapide', `${min}j`, '#378ADD', '#E6F1FB'], ['Plus long', `${max}j`, max > 14 ? '#E24B4A' : '#EF9F27', max > 14 ? '#FCEBEB' : '#FAEEDA']].map(([l, v, c, bg]) => (
+                    {[[t(lang,'duree_moy'), `${moy}j`, '#1D9E75', '#E1F5EE'], [t(lang,'plus_rapide'), `${min}j`, '#378ADD', '#E6F1FB'], [t(lang,'plus_long'), `${max}j`, max > 14 ? '#E24B4A' : '#EF9F27', max > 14 ? '#FCEBEB' : '#FAEEDA']].map(([l, v, c, bg]) => (
                       <div key={l} style={{ background: bg, borderRadius: 10, padding: '12px', textAlign: 'center' }}>
                         <div style={{ fontSize: 22, fontWeight: 700, color: c }}>{v}</div>
                         <div style={{ fontSize: 11, color: c, opacity: 0.8 }}>{l}</div>

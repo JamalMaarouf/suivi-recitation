@@ -116,7 +116,7 @@ export default function ValidationRapide({  user, navigate , lang="fr" }) {
     <div>
       <button className="back-link" onClick={() => navigate('dashboard')}>{t(lang,'retour')}</button>
       <div style={{ fontSize: 20, fontWeight: 700, marginBottom: 4 }}>⚡ Validation Express</div>
-      <div style={{ fontSize: 13, color: '#888', marginBottom: '1.5rem' }}>Recherchez un élève et validez en 2 clics</div>
+      <div style={{ fontSize: 13, color: '#888', marginBottom: '1.5rem' }}>{t(lang,'validation_express_aide')}</div>
 
       {/* Flash message */}
       {flash && (
@@ -229,7 +229,7 @@ export default function ValidationRapide({  user, navigate , lang="fr" }) {
       {!selectedEleve && !loading && (
         <div style={{ textAlign: 'center', padding: '2rem', color: '#bbb' }}>
           <div style={{ fontSize: 40, marginBottom: 8 }}>⚡</div>
-          <div style={{ fontSize: 14 }}>Recherchez un élève pour commencer</div>
+          <div style={{ fontSize: 14 }}>{t(lang,'rechercher_commencer')}</div>
         </div>
       )}
     </div>

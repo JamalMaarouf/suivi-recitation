@@ -124,7 +124,7 @@ export default function Seance({  user, navigate , lang="fr" }) {
               {/* Classement séance */}
               {elevesVusAujourdhui.length > 0 && (
                 <>
-                  <div className="section-label">Classement de la séance</div>
+                  <div className="section-label">{t(lang,'classement_seance')}</div>
                   <div style={{ display:'flex', flexDirection:'column', gap:8, marginBottom:'1.5rem' }}>
                     {elevesVusAujourdhui.map((e, idx) => {
                       const sl = scoreLabel(e.etat.points.total);
@@ -148,13 +148,13 @@ export default function Seance({  user, navigate , lang="fr" }) {
                               {' — '}Hizb {e.etat.hizbEnCours}
                             </div>
                             <div style={{ fontSize:11, color:'#bbb' }}>
-                              Dernière validation : {derniereHeure}
+                              {t(lang,'derniere_recitation')} : {derniereHeure}
                               {e.valsAujourdhui[0]?.valideur ? ` · ${e.valsAujourdhui[0].valideur.prenom} ${e.valsAujourdhui[0].valideur.nom}` : ''}
                             </div>
                           </div>
                           <div style={{ textAlign:'right' }}>
                             <div style={{ fontSize:18, fontWeight:800, color:'#1D9E75' }}>+{ptsSeance}</div>
-                            <div style={{ fontSize:10, color:'#888' }}>pts séance</div>
+                            <div style={{ fontSize:10, color:'#888' }}>{t(lang,'pts_abrev')} séance</div>
                             <div style={{ fontSize:11, color:'#888', marginTop:2 }}>{e.etat.points.total.toLocaleString()} total</div>
                           </div>
                         </div>
@@ -172,9 +172,9 @@ export default function Seance({  user, navigate , lang="fr" }) {
                     <table>
                       <thead><tr>
                         <th style={{width:'15%'}}>Heure</th>
-                        <th style={{width:'25%'}}>Élève</th>
+                        <th style={{width:'25%'}}>{t(lang,'eleve')}</th>
                         <th style={{width:'30%'}}>Validation</th>
-                        <th style={{width:'20%'}}>Validé par</th>
+                        <th style={{width:'20%'}}>{t(lang,'valide_par')}</th>
                         <th style={{width:'10%'}}>Pts</th>
                       </tr></thead>
                       <tbody>
@@ -236,7 +236,7 @@ export default function Seance({  user, navigate , lang="fr" }) {
               </div>
 
               {/* Activité par jour */}
-              <div className="section-label">Activité par jour</div>
+              <div className="section-label">{t(lang,'activite_par_jour')}</div>
               <div style={{ display:'flex', gap:6, marginBottom:'1.5rem', flexWrap:'wrap' }}>
                 {Object.entries(joursActifs).reverse().map(([jour, data]) => (
                   <div key={jour} style={{ background:'#fff', border:'0.5px solid #e0e0d8', borderRadius:10, padding:'10px 14px', minWidth:80, textAlign:'center' }}>
@@ -245,12 +245,12 @@ export default function Seance({  user, navigate , lang="fr" }) {
                     {data.hizb > 0 && <div style={{ fontSize:11, color:'#EF9F27' }}>{data.hizb} Hizb</div>}
                   </div>
                 ))}
-                {Object.keys(joursActifs).length === 0 && <div className="empty">Aucune activité cette semaine.</div>}
+                {Object.keys(joursActifs).length === 0 && <div className="empty">{t(lang,'aucune_activite')}</div>}
               </div>
 
               {/* Classement semaine */}
               <div className="section-label">Classement de la semaine</div>
-              {elevesSemaine.length === 0 ? <div className="empty">Aucune récitation cette semaine.</div> : (
+              {elevesSemaine.length === 0 ? <div className="empty">{t(lang,'aucune_activite')}</div> : (
                 <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
                   {elevesSemaine.map((e, idx) => {
                     const sl = scoreLabel(e.etat.points.total);

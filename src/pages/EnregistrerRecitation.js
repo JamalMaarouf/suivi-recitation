@@ -136,7 +136,7 @@ export default function EnregistrerRecitation({  user, eleve: eleveInitial, navi
         )}
         {dureesApprentissage.length > 0 && (
           <div style={{ background: '#E6F1FB', border: '0.5px solid #85B7EB', borderRadius: 10, padding: '10px 16px', margin: '0 auto 1.5rem', maxWidth: 400, fontSize: 13 }}>
-            <div style={{ fontWeight: 600, color: '#0C447C', marginBottom: 4 }}>⏱ Durées d'apprentissage</div>
+            <div style={{ fontWeight: 600, color: '#0C447C', marginBottom: 4 }}>{t(lang,'durees_apprentissage')}</div>
             {dureesApprentissage.map(d => (
               <div key={d.tomon} style={{ color: '#185FA5' }}>Tomon {d.tomon} : {d.jours} jour{d.jours > 1 ? 's' : ''}</div>
             ))}
@@ -165,7 +165,7 @@ export default function EnregistrerRecitation({  user, eleve: eleveInitial, navi
   return (
     <div>
       <button className="back-link" onClick={() => navigate(selectedEleve ? 'fiche' : 'dashboard', selectedEleve)}>t(lang,'retour')</button>
-      <div className="page-title">Enregistrer une récitation</div>
+      <div className="page-title">{t(lang,'enregistrer_recitation_titre')}</div>
 
       <div className="steps-row">
         {[['Élève', 1], ['Validation', 2], ['Confirmer', 3]].map(([label, n], i) => (
@@ -181,12 +181,12 @@ export default function EnregistrerRecitation({  user, eleve: eleveInitial, navi
 
       {step === 1 && (
         <div>
-          <div className="section-label">Sélectionner l'élève</div>
+          <div className="section-label">{t(lang,'selectionner_eleve')}</div>
           <div className="card">
             <input className="field-input" style={{ marginBottom: 12 }} type="text"
               placeholder={t(lang,'rechercher_eleve')} value={search} onChange={e => setSearch(e.target.value)} />
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-              {elevesFiltre.length === 0 && <div className="empty">Aucun élève.</div>}
+              {elevesFiltre.length === 0 && <div className="empty">{t(lang,'aucun_eleve')}</div>}
               {elevesFiltre.map(e => (
                 <div key={e.id} onClick={() => selectEleve(e)}
                   style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', border: '0.5px solid #e0e0d8', borderRadius: 8, cursor: 'pointer' }}
@@ -323,28 +323,28 @@ export default function EnregistrerRecitation({  user, eleve: eleveInitial, navi
             {typeValidation === 'tomon' ? (
               <>
                 <div className="recap-row">
-                  <span className="recap-lbl">Tomon récités</span>
+                  <span className="recap-lbl">{t(lang,'tomon_recites_label')}</span>
                   <span className="recap-val green">T.{tomonSelectionnes[0]} à T.{tomonSelectionnes[tomonSelectionnes.length - 1]} ({nombreTomon} Tomon)</span>
                 </div>
                 {dureesApprentissage.length > 0 && (
                   <div className="recap-row">
-                    <span className="recap-lbl">Durées apprentissage</span>
+                    <span className="recap-lbl">{t(lang,'durees_apprentissage')}</span>
                     <span className="recap-val" style={{ fontSize: 12 }}>
                       {dureesApprentissage.map(d => `T.${d.tomon}: ${d.jours}j`).join(' · ')}
                     </span>
                   </div>
                 )}
                 {posNouvelle && <div className="recap-row"><span className="recap-lbl">Position atteinte</span><span className="recap-val">Hizb {posNouvelle.hizb}, T.{posNouvelle.tomon}</span></div>}
-                <div className="recap-row"><span className="recap-lbl">Points gagnés</span><span className="recap-val green">+{nombreTomon * 10} pts</span></div>
+                <div className="recap-row"><span className="recap-lbl">{t(lang,'points_gagnes')}</span><span className="recap-val green">+{nombreTomon * 10} pts</span></div>
               </>
             ) : (
               <>
                 <div className="recap-row"><span className="recap-lbl">Validation</span><span className="recap-val green">Hizb {etat.hizbEnCours} complet</span></div>
-                <div className="recap-row"><span className="recap-lbl">Points gagnés</span><span className="recap-val green">+100 pts</span></div>
+                <div className="recap-row"><span className="recap-lbl">{t(lang,'points_gagnes')}</span><span className="recap-val green">+100 pts</span></div>
                 <div className="recap-row"><span className="recap-lbl">Hizb suivant</span><span className="recap-val">Hizb {etat.hizbEnCours + 1} s'ouvre</span></div>
               </>
             )}
-            <div className="recap-row"><span className="recap-lbl">Validé par</span><span className="recap-val">{user.prenom} {user.nom}</span></div>
+            <div className="recap-row"><span className="recap-lbl">{t(lang,'valide_par')}</span><span className="recap-val">{user.prenom} {user.nom}</span></div>
             <div className="recap-row"><span className="recap-lbl">Date & heure</span><span className="recap-val">{new Date().toLocaleString('fr-FR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}</span></div>
           </div>
           <button className="btn-primary" disabled={loading} onClick={confirmer}>
