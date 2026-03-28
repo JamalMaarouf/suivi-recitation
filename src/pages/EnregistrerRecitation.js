@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
-import { calcEtatEleve, calcPosition, calcUnite, formatDate, getInitiales } from '../lib/helpers';
+import { calcEtatEleve, calcPosition, calcPositionAtteinte, calcUnite, formatDate, getInitiales } from '../lib/helpers';
 
 export default function EnregistrerRecitation({ user, eleve: eleveInitial, navigate }) {
   const [step, setStep] = useState(eleveInitial ? 2 : 1);
@@ -60,7 +60,7 @@ export default function EnregistrerRecitation({ user, eleve: eleveInitial, navig
 
   // Position après validation
   const posNouvelle = selectedEleve && etat && nombreTomonSelectionnes > 0
-    ? calcPosition(selectedEleve.hizb_depart, selectedEleve.tomon_depart, etat.tomonCumul + nombreTomonSelectionnes)
+    ? calcPositionAtteinte(selectedEleve.hizb_depart, selectedEleve.tomon_depart, etat.tomonCumul + nombreTomonSelectionnes)
     : null;
 
   const confirmer = async () => {

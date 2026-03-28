@@ -1,11 +1,21 @@
-// Position actuelle = départ + tomon validés
-// Ex: départ Hizb 1 T.1, 0 validés → position Hizb 1 T.1 (premier tomon à réciter)
-// Ex: départ Hizb 1 T.1, 1 validé → position Hizb 1 T.2 (deuxième tomon à réciter)
+// calcPosition retourne le PROCHAIN tomon a reciter (usage interne)
+// Ex: depart Hizb 1 T.1, 3 valides => prochain = T.4
 export function calcPosition(hizbDepart, tomonDepart, totalTomonValides) {
   const indexDepart = (hizbDepart - 1) * 8 + (tomonDepart - 1);
   const indexActuel = indexDepart + totalTomonValides;
   const hizb = Math.floor(indexActuel / 8) + 1;
   const tomon = (indexActuel % 8) + 1;
+  return { hizb: Math.min(hizb, 60), tomon };
+}
+
+// calcPositionAtteinte retourne le DERNIER tomon recite (pour affichage)
+// Ex: depart Hizb 1 T.1, 3 valides => atteint = T.3 (pas T.4)
+export function calcPositionAtteinte(hizbDepart, tomonDepart, totalTomonValides) {
+  if (totalTomonValides === 0) return null;
+  const indexDepart = (hizbDepart - 1) * 8 + (tomonDepart - 1);
+  const indexAtteint = indexDepart + totalTomonValides - 1;
+  const hizb = Math.floor(indexAtteint / 8) + 1;
+  const tomon = (indexAtteint % 8) + 1;
   return { hizb: Math.min(hizb, 60), tomon };
 }
 
@@ -44,7 +54,6 @@ export function getInitiales(prenom, nom) {
   return ((prenom?.[0] || '') + (nom?.[0] || '')).toUpperCase();
 }
 
-// Calcule l'état complet d'un élève
 export function calcEtatEleve(validations, hizbDepart, tomonDepart) {
   const valsChron = [...validations].sort((a, b) => new Date(a.date_validation) - new Date(b.date_validation));
 
@@ -59,19 +68,11 @@ export function calcEtatEleve(validations, hizbDepart, tomonDepart) {
     }
   }
 
-  // Position = prochain tomon à réciter
   const pos = calcPosition(hizbDepart, tomonDepart, tomonCumul);
 
-  // Hizb en cours et tomon déjà validés dans ce hizb
-  // pos.tomon = prochain tomon à réciter (1-based)
-  // donc tomon déjà faits dans ce hizb = pos.tomon - 1
   const hizbEnCours = (pos.tomon === 1 && tomonCumul > 0) ? pos.hizb - 1 : pos.hizb;
   const tous8Faits = pos.tomon === 1 && tomonCumul > 0;
-
-  // Tomon déjà validés dans le hizb en cours (0 à 8)
   const tomonDansHizbActuel = tous8Faits ? 8 : pos.tomon - 1;
-
-  // Prochain tomon à réciter dans le hizb en cours (1 à 8)
   const prochainTomon = tous8Faits ? null : pos.tomon;
 
   const hizbCompletValide = hizbsComplets.has(hizbEnCours);
@@ -79,8 +80,8 @@ export function calcEtatEleve(validations, hizbDepart, tomonDepart) {
 
   return {
     hizbEnCours,
-    prochainTomon,        // numéro du prochain tomon à réciter (1-8), null si tous faits
-    tomonDansHizbActuel,  // combien de tomon déjà validés dans ce hizb (0-8)
+    prochainTomon,
+    tomonDansHizbActuel,
     tomonRestants: tous8Faits ? 0 : 8 - tomonDansHizbActuel,
     tous8Faits,
     hizbCompletValide,
