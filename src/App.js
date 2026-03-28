@@ -4,6 +4,7 @@ import Dashboard from './pages/Dashboard';
 import FicheEleve from './pages/FicheEleve';
 import EnregistrerRecitation from './pages/EnregistrerRecitation';
 import Gestion from './pages/Gestion';
+import TableauHonneur from './pages/TableauHonneur';
 import './App.css';
 
 export default function App() {
@@ -62,6 +63,9 @@ export default function App() {
         )}
         {page === 'gestion' && user.role === 'surveillant' && (
           <Gestion user={user} navigate={navigate} />
+        )}
+        {page === 'honneur' && (
+          <TableauHonneur navigate={navigate} />
         )}
       </main>
     </div>
