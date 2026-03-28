@@ -14,10 +14,6 @@ export function calcUnite(tomon) {
   return '';
 }
 
-export function positionApresValidation(hizbDepart, tomonDepart, totalActuel, nombreNouveau) {
-  return calcPosition(hizbDepart, tomonDepart, totalActuel + nombreNouveau);
-}
-
 export function formatDate(dateStr) {
   if (!dateStr) return '—';
   const d = new Date(dateStr);
@@ -34,4 +30,75 @@ export function isInactif(dateStr, jours = 14) {
 
 export function getInitiales(prenom, nom) {
   return ((prenom?.[0] || '') + (nom?.[0] || '')).toUpperCase();
+}
+
+// Calcule l'état complet d'un élève à partir de ses validations
+export function calcEtatEleve(validations, hizbDepart, tomonDepart) {
+  const valsChron = [...validations].sort((a, b) => new Date(a.date_validation) - new Date(b.date_validation));
+
+  let tomonCumul = 0;
+  const hizbsComplets = new Set();
+
+  for (const v of valsChron) {
+    if (v.type_validation === 'hizb_complet') {
+      hizbsComplets.add(v.hizb_valide);
+    } else {
+      tomonCumul += v.nombre_tomon;
+    }
+  }
+
+  const pos = calcPosition(hizbDepart, tomonDepart, tomonCumul);
+
+  // Tomon validés dans le hizb actuel (pos.tomon - 1 car tomon est 1-based)
+  const tomonDansHizbActuel = pos.tomon - 1;
+
+  // Les 8 tomon du hizb actuel sont-ils tous faits ?
+  // Si pos.tomon === 1 et tomonCumul > 0, c'est qu'on a débordé sur le hizb suivant
+  const hizbEnCours = pos.tomon === 1 && tomonCumul > 0 ? pos.hizb - 1 : pos.hizb;
+  const tous8Faits = pos.tomon === 1 && tomonCumul > 0;
+  const tomonAffiche = tous8Faits ? 8 : tomonDansHizbActuel;
+
+  // Le hizb en cours est-il validé complet ?
+  const hizbCompletValide = hizbsComplets.has(hizbEnCours);
+
+  // Peut-on enregistrer un nouveau tomon ?
+  // Oui si : on n'a pas encore fait les 8 tomon OU si le hizb complet est déjà validé
+  const peutEnregistrerTomon = !tous8Faits || hizbCompletValide;
+
+  // Doit-on valider le hizb complet ?
+  const enAttenteHizbComplet = tous8Faits && !hizbCompletValide;
+
+  return {
+    hizbEnCours,
+    tomonActuel: pos.tomon,
+    tomonDansHizbActuel: tomonAffiche,
+    tous8Faits,
+    hizbCompletValide,
+    enAttenteHizbComplet,
+    peutEnregistrerTomon,
+    hizbsComplets,
+    tomonCumul,
+    positionReelle: pos
+  };
+}
+
+export function calcStats(validations) {
+  const maintenant = new Date();
+  const debutMois = new Date(maintenant.getFullYear(), maintenant.getMonth(), 1);
+  const debutSemaine = new Date(maintenant);
+  debutSemaine.setDate(maintenant.getDate() - 7);
+
+  const hizbsCompletsMois = validations.filter(v =>
+    v.type_validation === 'hizb_complet' && new Date(v.date_validation) >= debutMois
+  ).length;
+
+  const tomonSemaine = validations.filter(v =>
+    v.type_validation === 'tomon' && new Date(v.date_validation) >= debutSemaine
+  ).reduce((s, v) => s + v.nombre_tomon, 0);
+
+  const recitationsMois = validations.filter(v =>
+    new Date(v.date_validation) >= debutMois
+  ).length;
+
+  return { hizbsCompletsMois, tomonSemaine, recitationsMois };
 }

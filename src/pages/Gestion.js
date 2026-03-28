@@ -8,6 +8,7 @@ export default function Gestion({ user, navigate }) {
   const [instituteurs, setInstituteurs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [msg, setMsg] = useState({ type: '', text: '' });
+  const [editEleve, setEditEleve] = useState(null);
 
   const [newEleve, setNewEleve] = useState({ prenom: '', nom: '', niveau: 'Débutant', instituteur_referent_id: '', hizb_depart: 1, tomon_depart: 1 });
   const [newInst, setNewInst] = useState({ prenom: '', nom: '', identifiant: '', mot_de_passe: '' });
@@ -23,7 +24,10 @@ export default function Gestion({ user, navigate }) {
     setLoading(false);
   };
 
-  const showMsg = (type, text) => { setMsg({ type, text }); setTimeout(() => setMsg({ type: '', text: '' }), 3000); };
+  const showMsg = (type, text) => {
+    setMsg({ type, text });
+    setTimeout(() => setMsg({ type: '', text: '' }), 3000);
+  };
 
   const ajouterEleve = async () => {
     if (!newEleve.prenom || !newEleve.nom) return showMsg('error', 'Prénom et nom obligatoires.');
@@ -36,6 +40,20 @@ export default function Gestion({ user, navigate }) {
     if (error) return showMsg('error', 'Erreur lors de l\'ajout.');
     showMsg('success', 'Élève ajouté avec succès.');
     setNewEleve({ prenom: '', nom: '', niveau: 'Débutant', instituteur_referent_id: '', hizb_depart: 1, tomon_depart: 1 });
+    loadData();
+  };
+
+  const modifierEleve = async () => {
+    if (!editEleve.prenom || !editEleve.nom) return showMsg('error', 'Prénom et nom obligatoires.');
+    const { error } = await supabase.from('eleves').update({
+      prenom: editEleve.prenom, nom: editEleve.nom, niveau: editEleve.niveau,
+      instituteur_referent_id: editEleve.instituteur_referent_id || null,
+      hizb_depart: parseInt(editEleve.hizb_depart) || 1,
+      tomon_depart: parseInt(editEleve.tomon_depart) || 1
+    }).eq('id', editEleve.id);
+    if (error) return showMsg('error', 'Erreur lors de la modification.');
+    showMsg('success', 'Élève modifié avec succès.');
+    setEditEleve(null);
     loadData();
   };
 
@@ -63,7 +81,6 @@ export default function Gestion({ user, navigate }) {
 
   const supprimerInstituteur = async (id) => {
     if (!window.confirm('Supprimer cet instituteur ?')) return;
-    await supabase.from('instituteurs').delete().eq('id', id);
     await supabase.from('utilisateurs').delete().eq('id', id);
     showMsg('success', 'Instituteur retiré.');
     loadData();
@@ -73,6 +90,48 @@ export default function Gestion({ user, navigate }) {
     const i = instituteurs.find(x => x.id === id);
     return i ? `${i.prenom} ${i.nom}` : '—';
   };
+
+  const FormEleve = ({ data, setData, onSave, onCancel, saveLabel }) => (
+    <div className="card">
+      <div className="form-grid">
+        <div className="field-group">
+          <label className="field-lbl">Prénom</label>
+          <input className="field-input" value={data.prenom} onChange={e => setData({ ...data, prenom: e.target.value })} placeholder="Prénom" />
+        </div>
+        <div className="field-group">
+          <label className="field-lbl">Nom</label>
+          <input className="field-input" value={data.nom} onChange={e => setData({ ...data, nom: e.target.value })} placeholder="Nom" />
+        </div>
+        <div className="field-group">
+          <label className="field-lbl">Niveau</label>
+          <select className="field-select" value={data.niveau} onChange={e => setData({ ...data, niveau: e.target.value })}>
+            <option>Débutant</option><option>Intermédiaire</option><option>Avancé</option>
+          </select>
+        </div>
+        <div className="field-group">
+          <label className="field-lbl">Instituteur référent</label>
+          <select className="field-select" value={data.instituteur_referent_id || ''} onChange={e => setData({ ...data, instituteur_referent_id: e.target.value })}>
+            <option value="">— Choisir —</option>
+            {instituteurs.map(i => <option key={i.id} value={i.id}>{i.prenom} {i.nom}</option>)}
+          </select>
+        </div>
+        <div className="field-group">
+          <label className="field-lbl">Hizb de départ (1-60)</label>
+          <input className="field-input" type="number" min="1" max="60" value={data.hizb_depart} onChange={e => setData({ ...data, hizb_depart: e.target.value })} />
+        </div>
+        <div className="field-group">
+          <label className="field-lbl">Tomon de départ</label>
+          <select className="field-select" value={data.tomon_depart} onChange={e => setData({ ...data, tomon_depart: e.target.value })}>
+            {[1,2,3,4,5,6,7,8].map(n => <option key={n} value={n}>{n}</option>)}
+          </select>
+        </div>
+      </div>
+      <div style={{ display: 'flex', gap: 8 }}>
+        <button className="btn-primary" onClick={onSave}>{saveLabel}</button>
+        {onCancel && <button className="btn-secondary" onClick={onCancel}>Annuler</button>}
+      </div>
+    </div>
+  );
 
   return (
     <div>
@@ -86,45 +145,19 @@ export default function Gestion({ user, navigate }) {
 
       {tab === 'eleves' && (
         <div>
-          <div className="section-label">Ajouter un élève</div>
-          <div className="card">
-            <div className="form-grid">
-              <div className="field-group">
-                <label className="field-lbl">Prénom</label>
-                <input className="field-input" value={newEleve.prenom} onChange={e => setNewEleve({ ...newEleve, prenom: e.target.value })} placeholder="Prénom" />
-              </div>
-              <div className="field-group">
-                <label className="field-lbl">Nom</label>
-                <input className="field-input" value={newEleve.nom} onChange={e => setNewEleve({ ...newEleve, nom: e.target.value })} placeholder="Nom" />
-              </div>
-              <div className="field-group">
-                <label className="field-lbl">Niveau</label>
-                <select className="field-select" value={newEleve.niveau} onChange={e => setNewEleve({ ...newEleve, niveau: e.target.value })}>
-                  <option>Débutant</option>
-                  <option>Intermédiaire</option>
-                  <option>Avancé</option>
-                </select>
-              </div>
-              <div className="field-group">
-                <label className="field-lbl">Instituteur référent</label>
-                <select className="field-select" value={newEleve.instituteur_referent_id} onChange={e => setNewEleve({ ...newEleve, instituteur_referent_id: e.target.value })}>
-                  <option value="">— Choisir —</option>
-                  {instituteurs.map(i => <option key={i.id} value={i.id}>{i.prenom} {i.nom}</option>)}
-                </select>
-              </div>
-              <div className="field-group">
-                <label className="field-lbl">Hizb de départ (1-60)</label>
-                <input className="field-input" type="number" min="1" max="60" value={newEleve.hizb_depart} onChange={e => setNewEleve({ ...newEleve, hizb_depart: e.target.value })} />
-              </div>
-              <div className="field-group">
-                <label className="field-lbl">Tomon de départ</label>
-                <select className="field-select" value={newEleve.tomon_depart} onChange={e => setNewEleve({ ...newEleve, tomon_depart: e.target.value })}>
-                  {[1,2,3,4,5,6,7,8].map(n => <option key={n} value={n}>{n}</option>)}
-                </select>
-              </div>
-            </div>
-            <button className="btn-primary" onClick={ajouterEleve}>+ Ajouter l'élève</button>
-          </div>
+          {!editEleve && (
+            <>
+              <div className="section-label">Ajouter un élève</div>
+              <FormEleve data={newEleve} setData={setNewEleve} onSave={ajouterEleve} saveLabel="+ Ajouter l'élève" />
+            </>
+          )}
+
+          {editEleve && (
+            <>
+              <div className="section-label">Modifier l'élève</div>
+              <FormEleve data={editEleve} setData={setEditEleve} onSave={modifierEleve} onCancel={() => setEditEleve(null)} saveLabel="Enregistrer les modifications" />
+            </>
+          )}
 
           <div className="section-label">Élèves inscrits ({eleves.length})</div>
           {loading ? <div className="loading">Chargement...</div> : (
@@ -132,17 +165,17 @@ export default function Gestion({ user, navigate }) {
               <table>
                 <thead>
                   <tr>
-                    <th style={{ width: '30%' }}>Élève</th>
-                    <th style={{ width: '18%' }}>Niveau</th>
-                    <th style={{ width: '22%' }}>Référent</th>
+                    <th style={{ width: '28%' }}>Élève</th>
+                    <th style={{ width: '16%' }}>Niveau</th>
+                    <th style={{ width: '20%' }}>Référent</th>
                     <th style={{ width: '18%' }}>Départ</th>
-                    <th style={{ width: '12%' }}>Actions</th>
+                    <th style={{ width: '18%' }}>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
                   {eleves.length === 0 && <tr><td colSpan={5} className="empty">Aucun élève.</td></tr>}
                   {eleves.map(e => (
-                    <tr key={e.id}>
+                    <tr key={e.id} style={{ background: editEleve?.id === e.id ? '#E1F5EE' : '' }}>
                       <td>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                           <div className="avatar" style={{ width: 28, height: 28, fontSize: 10 }}>{getInitiales(e.prenom, e.nom)}</div>
@@ -155,7 +188,10 @@ export default function Gestion({ user, navigate }) {
                       <td style={{ fontSize: 12, color: '#888' }}>{instNom(e.instituteur_referent_id)}</td>
                       <td style={{ fontSize: 12, color: '#888' }}>Hizb {e.hizb_depart}, T.{e.tomon_depart}</td>
                       <td>
-                        <button className="action-btn danger" onClick={() => supprimerEleve(e.id)}>Retirer</button>
+                        <div style={{ display: 'flex', gap: 4 }}>
+                          <button className="action-btn" onClick={() => setEditEleve({ ...e })}>Modifier</button>
+                          <button className="action-btn danger" onClick={() => supprimerEleve(e.id)}>Retirer</button>
+                        </div>
                       </td>
                     </tr>
                   ))}
