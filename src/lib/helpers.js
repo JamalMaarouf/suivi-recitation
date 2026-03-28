@@ -1,5 +1,4 @@
 // calcPosition retourne le PROCHAIN tomon a reciter (usage interne)
-// Ex: depart Hizb 1 T.1, 3 valides => prochain = T.4
 export function calcPosition(hizbDepart, tomonDepart, totalTomonValides) {
   const indexDepart = (hizbDepart - 1) * 8 + (tomonDepart - 1);
   const indexActuel = indexDepart + totalTomonValides;
@@ -9,7 +8,6 @@ export function calcPosition(hizbDepart, tomonDepart, totalTomonValides) {
 }
 
 // calcPositionAtteinte retourne le DERNIER tomon recite (pour affichage)
-// Ex: depart Hizb 1 T.1, 3 valides => atteint = T.3 (pas T.4)
 export function calcPositionAtteinte(hizbDepart, tomonDepart, totalTomonValides) {
   if (totalTomonValides === 0) return null;
   const indexDepart = (hizbDepart - 1) * 8 + (tomonDepart - 1);
@@ -28,13 +26,13 @@ export function calcUnite(tomon) {
 }
 
 export function formatDate(dateStr) {
-  if (!dateStr) return '—';
+  if (!dateStr) return 'Jamais';
   const d = new Date(dateStr);
   return d.toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' });
 }
 
 export function formatDateCourt(dateStr) {
-  if (!dateStr) return '—';
+  if (!dateStr) return 'Jamais';
   const d = new Date(dateStr);
   return d.toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' });
 }
@@ -68,18 +66,41 @@ export function calcEtatEleve(validations, hizbDepart, tomonDepart) {
     }
   }
 
+  // Position = prochain tomon a reciter
   const pos = calcPosition(hizbDepart, tomonDepart, tomonCumul);
 
-  const hizbEnCours = (pos.tomon === 1 && tomonCumul > 0) ? pos.hizb - 1 : pos.hizb;
+  // Hizb en cours et tomon deja faits
+  // Si pos.tomon === 1 et tomonCumul > 0 : on a depasse un hizb
+  const hizbBrut = (pos.tomon === 1 && tomonCumul > 0) ? pos.hizb - 1 : pos.hizb;
   const tous8Faits = pos.tomon === 1 && tomonCumul > 0;
+  const hizbCompletValide = hizbsComplets.has(hizbBrut);
+
+  // Si hizb complet valide ET tous les 8 tomon faits => on est sur le hizb SUIVANT
+  // L'eleve commence le hizb suivant depuis le Tomon 1
+  if (tous8Faits && hizbCompletValide) {
+    const hizbSuivant = hizbBrut + 1;
+    // Le prochain tomon a reciter est Tomon 1 du hizb suivant
+    return {
+      hizbEnCours: hizbSuivant,
+      prochainTomon: 1,
+      tomonDansHizbActuel: 0,
+      tomonRestants: 8,
+      tous8Faits: false,
+      hizbCompletValide: false,
+      enAttenteHizbComplet: false,
+      hizbsComplets,
+      tomonCumul,
+      positionReelle: pos
+    };
+  }
+
+  // Cas normal : en cours sur hizbBrut
   const tomonDansHizbActuel = tous8Faits ? 8 : pos.tomon - 1;
   const prochainTomon = tous8Faits ? null : pos.tomon;
-
-  const hizbCompletValide = hizbsComplets.has(hizbEnCours);
   const enAttenteHizbComplet = tous8Faits && !hizbCompletValide;
 
   return {
-    hizbEnCours,
+    hizbEnCours: hizbBrut,
     prochainTomon,
     tomonDansHizbActuel,
     tomonRestants: tous8Faits ? 0 : 8 - tomonDansHizbActuel,
