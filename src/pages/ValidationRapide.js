@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { t } from '../lib/i18n';
 import { supabase } from '../lib/supabase';
 import { calcEtatEleve, getInitiales, scoreLabel, motivationMsg } from '../lib/helpers';
 
@@ -10,7 +11,7 @@ function Avatar({ prenom, nom, size = 40, bg = '#E1F5EE', color = '#085041' }) {
   );
 }
 
-export default function ValidationRapide({ user, navigate }) {
+export default function ValidationRapide({  user, navigate , lang="fr" }) {
   const [eleves, setEleves] = useState([]);
   const [allValidations, setAllValidations] = useState([]);
   const [search, setSearch] = useState('');
@@ -113,7 +114,7 @@ export default function ValidationRapide({ user, navigate }) {
 
   return (
     <div>
-      <button className="back-link" onClick={() => navigate('dashboard')}>← Retour</button>
+      <button className="back-link" onClick={() => navigate('dashboard')}>{t(lang,'retour')}</button>
       <div style={{ fontSize: 20, fontWeight: 700, marginBottom: 4 }}>⚡ Validation Express</div>
       <div style={{ fontSize: 13, color: '#888', marginBottom: '1.5rem' }}>Recherchez un élève et validez en 2 clics</div>
 
@@ -128,7 +129,7 @@ export default function ValidationRapide({ user, navigate }) {
       {/* Recherche */}
       <div style={{ position: 'relative', marginBottom: '1.5rem' }}>
         <input ref={searchRef} className="field-input" style={{ fontSize: 16, padding: '12px 16px' }}
-          placeholder="🔍 Nom de l'élève..." value={search} onChange={e => setSearch(e.target.value)} autoComplete="off" />
+          placeholder={t(lang,'rechercher_eleve')} value={search} onChange={e => setSearch(e.target.value)} autoComplete="off" />
         {filteredEleves.length > 0 && (
           <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: '#fff', border: '0.5px solid #e0e0d8', borderRadius: '0 0 12px 12px', zIndex: 100, boxShadow: '0 4px 12px rgba(0,0,0,0.08)' }}>
             {filteredEleves.map(e => {

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { t } from '../lib/i18n';
 import { supabase } from '../lib/supabase';
 import { calcEtatEleve, getInitiales, formatDate } from '../lib/helpers';
 
@@ -10,7 +11,7 @@ function Avatar({ prenom, nom, size = 28 }) {
   );
 }
 
-export default function Calendrier({ user, navigate }) {
+export default function Calendrier({  user, navigate , lang="fr" }) {
   const [validations, setValidations] = useState([]);
   const [eleves, setEleves] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -71,14 +72,14 @@ export default function Calendrier({ user, navigate }) {
 
   return (
     <div>
-      <button className="back-link" onClick={() => navigate('dashboard')}>← Retour</button>
+      <button className="back-link" onClick={() => navigate('dashboard')}>{t(lang,'retour')}</button>
 
       {/* Stats mois */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,minmax(0,1fr))', gap: 8, marginBottom: '1.25rem' }}>
         {[
           { val: tomonMois, lbl: 'Tomon ce mois', color: '#1D9E75', bg: '#E1F5EE' },
-          { val: hizbMois, lbl: 'Hizb complets', color: '#378ADD', bg: '#E6F1FB' },
-          { val: joursActifsMois, lbl: 'Jours actifs', color: '#EF9F27', bg: '#FAEEDA' },
+          { val: hizbMois, lbl: t(lang,'hizb_complets_label'), color: '#378ADD', bg: '#E6F1FB' },
+          { val: joursActifsMois, lbl: t(lang,'jours_actifs'), color: '#EF9F27', bg: '#FAEEDA' },
         ].map((k,i) => (
           <div key={i} style={{ background: k.bg, borderRadius: 10, padding: '12px', textAlign: 'center' }}>
             <div style={{ fontSize: 24, fontWeight: 700, color: k.color }}>{k.val}</div>

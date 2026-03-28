@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { t } from '../lib/i18n';
 import { supabase } from '../lib/supabase';
 import { calcEtatEleve, calcPositionAtteinte, calcUnite, formatDate, formatDateCourt, getInitiales, scoreLabel, calcBadges, calcVitesse } from '../lib/helpers';
 
@@ -52,7 +53,7 @@ function calcEvolution(validations) {
 
 const MOIS_NOMS = ['Jan','Fév','Mar','Avr','Mai','Jun','Jul','Aoû','Sep','Oct','Nov','Déc'];
 
-export default function FicheEleve({ eleve, user, navigate }) {
+export default function FicheEleve({  eleve, user, navigate , lang="fr" }) {
   const [validations, setValidations] = useState([]);
   const [apprentissages, setApprentissages] = useState([]);
   const [objectifs, setObjectifs] = useState([]);
@@ -157,7 +158,7 @@ export default function FicheEleve({ eleve, user, navigate }) {
   return (
     <div>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.25rem', flexWrap: 'wrap', gap: 8 }}>
-        <button className="back-link" onClick={() => navigate('dashboard')}>← Retour</button>
+        <button className="back-link" onClick={() => navigate('dashboard')}>{t(lang,'retour')}</button>
         <div style={{ display: 'flex', gap: 8 }}>
           <button className="btn-secondary" onClick={handlePrint} style={{ fontSize: 12, padding: '6px 14px' }}>🖨️ PDF</button>
           <button className="btn-primary" style={{ width: 'auto', padding: '6px 14px', fontSize: 12 }} onClick={() => navigate('enregistrer', eleve)}>+ Récitation</button>
@@ -194,7 +195,7 @@ export default function FicheEleve({ eleve, user, navigate }) {
               ))}
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 8, borderTop: '0.5px solid #e8e8e0', paddingTop: 12 }}>
-              {[['Hizb', `Hizb ${etat?.hizbEnCours}`], ['Tomon/Hizb', `${etat?.tomonDansHizbActuel}/8`], ['Hizb complets', etat?.hizbsComplets.size], ['Total Tomon', etat?.tomonCumul]].map(([l, v]) => (
+              {[['Hizb', `Hizb ${etat?.hizbEnCours}`], ['Tomon/Hizb', `${etat?.tomonDansHizbActuel}/8`], [t(lang,'hizb_complets_label'), etat?.hizbsComplets.size], ['Total Tomon', etat?.tomonCumul]].map(([l, v]) => (
                 <div key={l}><div style={{ fontSize: 10, color: '#999', textTransform: 'uppercase', letterSpacing: '0.8px', marginBottom: 2 }}>{l}</div><div style={{ fontSize: 14, fontWeight: 500 }}>{v}</div></div>
               ))}
             </div>
@@ -226,7 +227,7 @@ export default function FicheEleve({ eleve, user, navigate }) {
                 <button onClick={() => { if (selectedMoisObj === 0) { setSelectedMoisObj(11); setSelectedAnneeObj(y => y - 1); } else setSelectedMoisObj(m => m - 1); }} style={{ padding: '2px 8px', border: '0.5px solid #e0e0d8', borderRadius: 4, background: '#fff', cursor: 'pointer' }}>‹</button>
                 <span style={{ fontSize: 12, color: '#888', minWidth: 80, textAlign: 'center' }}>{MOIS_NOMS[selectedMoisObj]} {selectedAnneeObj}</span>
                 <button onClick={() => { if (selectedMoisObj === 11) { setSelectedMoisObj(0); setSelectedAnneeObj(y => y + 1); } else setSelectedMoisObj(m => m + 1); }} style={{ padding: '2px 8px', border: '0.5px solid #e0e0d8', borderRadius: 4, background: '#fff', cursor: 'pointer' }}>›</button>
-                {user.role === 'surveillant' && <button className="action-btn" onClick={() => { setEditObj(!editObj); setNewObjVal(objActuel?.nombre_tomon || ''); }}>{editObj ? 'Annuler' : 'Définir'}</button>}
+                {user.role === 'surveillant' && <button className="action-btn" onClick={() => { setEditObj(!editObj); setNewObjVal(objActuel?.nombre_tomon || ''); }}>{editObj ? t(lang,'annuler') : t(lang,'definir')}</button>}
               </div>
             </div>
 
@@ -258,7 +259,7 @@ export default function FicheEleve({ eleve, user, navigate }) {
 
           {/* Tabs */}
           <div className="tabs-row" style={{ marginBottom: '1rem' }}>
-            {[['apercu', 'Aperçu'], ['apprentissage', 'Apprentissage'], ['graphique', 'Évolution'], ['activite', 'Activité'], ['historique', 'Historique']].map(([k, l]) => (
+            {[['apercu', t(lang,'apercu')], ['apprentissage', t(lang,'apprentissage')], ['graphique', t(lang,'evolution')], ['activite', t(lang,'activite')], ['historique', t(lang,'historique')]].map(([k, l]) => (
               <div key={k} className={`tab ${onglet === k ? 'active' : ''}`} onClick={() => setOnglet(k)}>{l}</div>
             ))}
           </div>
@@ -408,8 +409,8 @@ export default function FicheEleve({ eleve, user, navigate }) {
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,minmax(0,1fr))', gap: 10 }}>
                 {[
                   { lbl: 'Streak', val: `${streak} sem.`, icon: '🔥', color: '#EF9F27', bg: '#FAEEDA' },
-                  { lbl: 'Jours actifs', val: Object.keys(heatmap).filter(d => { const p = d.split('/'); return (new Date() - new Date(p[2], p[1] - 1, p[0])) / (1000 * 60 * 60 * 24) <= 90; }).length, icon: '📅', color: '#1D9E75', bg: '#E1F5EE' },
-                  { lbl: 'Moy/séance', val: validations.filter(v => v.type_validation === 'tomon').length > 0 ? (etat?.tomonCumul / validations.filter(v => v.type_validation === 'tomon').length).toFixed(1) : '0', icon: '📊', color: '#378ADD', bg: '#E6F1FB' },
+                  { lbl: t(lang,'jours_actifs'), val: Object.keys(heatmap).filter(d => { const p = d.split('/'); return (new Date() - new Date(p[2], p[1] - 1, p[0])) / (1000 * 60 * 60 * 24) <= 90; }).length, icon: '📅', color: '#1D9E75', bg: '#E1F5EE' },
+                  { lbl: t(lang,'moy_seance'), val: validations.filter(v => v.type_validation === 'tomon').length > 0 ? (etat?.tomonCumul / validations.filter(v => v.type_validation === 'tomon').length).toFixed(1) : '0', icon: '📊', color: '#378ADD', bg: '#E6F1FB' },
                 ].map(s => (
                   <div key={s.lbl} style={{ background: s.bg, borderRadius: 12, padding: '1rem', textAlign: 'center' }}>
                     <div style={{ fontSize: 22, marginBottom: 4 }}>{s.icon}</div>

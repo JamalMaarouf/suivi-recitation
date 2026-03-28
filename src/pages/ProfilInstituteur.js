@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { t } from '../lib/i18n';
 import { supabase } from '../lib/supabase';
 import { calcEtatEleve, formatDate, formatDateCourt, getInitiales, scoreLabel, joursDepuis, isInactif } from '../lib/helpers';
 
@@ -10,7 +11,7 @@ function Avatar({ prenom, nom, size = 44, bg = '#E1F5EE', color = '#085041' }) {
   );
 }
 
-export default function ProfilInstituteur({ instituteur, user, navigate }) {
+export default function ProfilInstituteur({  instituteur, user, navigate , lang="fr" }) {
   const [eleves, setEleves] = useState([]);
   const [validations, setValidations] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -45,7 +46,7 @@ export default function ProfilInstituteur({ instituteur, user, navigate }) {
 
   return (
     <div>
-      <button className="back-link" onClick={() => navigate('dashboard')}>← Retour</button>
+      <button className="back-link" onClick={() => navigate('dashboard')}>{t(lang,'retour')}</button>
 
       {/* Header */}
       <div style={{ background: '#fff', border: '0.5px solid #e0e0d8', borderRadius: 16, padding: '1.5rem', marginBottom: '1rem' }}>

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { t } from '../lib/i18n';
 import { supabase } from '../lib/supabase';
 import { calcEtatEleve, formatDate, getInitiales, joursDepuis, isInactif, scoreLabel } from '../lib/helpers';
 
@@ -10,7 +11,7 @@ function Avatar({ prenom, nom, size = 36, bg = '#E1F5EE', color = '#085041' }) {
   );
 }
 
-export default function Seance({ user, navigate }) {
+export default function Seance({  user, navigate , lang="fr" }) {
   const [eleves, setEleves] = useState([]);
   const [validationsAujourdhui, setValidationsAujourdhui] = useState([]);
   const [allValidations, setAllValidations] = useState([]);
@@ -87,7 +88,7 @@ export default function Seance({ user, navigate }) {
 
   return (
     <div>
-      <button className="back-link" onClick={() => navigate('dashboard')}>← Retour</button>
+      <button className="back-link" onClick={() => navigate('dashboard')}>{t(lang,'retour')}</button>
 
       {/* Tabs */}
       <div style={{ display:'flex', gap:0, background:'#f0f0ec', borderRadius:10, padding:3, marginBottom:'1.25rem', width:'fit-content' }}>
@@ -108,10 +109,10 @@ export default function Seance({ user, navigate }) {
               {/* KPI séance */}
               <div style={{ display:'grid', gridTemplateColumns:'repeat(4,minmax(0,1fr))', gap:8, marginBottom:'1.5rem' }}>
                 {[
-                  { val: elevesVusAujourdhui.length, lbl: 'Élèves vus', color:'#1D9E75', bg:'#E1F5EE' },
-                  { val: tomonTotal, lbl: 'Tomon validés', color:'#378ADD', bg:'#E6F1FB' },
-                  { val: hizbTotal, lbl: 'Hizb complets', color:'#EF9F27', bg:'#FAEEDA' },
-                  { val: ptsTotal.toLocaleString(), lbl: 'Points générés', color:'#534AB7', bg:'#EEEDFE' },
+                  { val: elevesVusAujourdhui.length, lbl: t(lang,'eleves_vus'), color:'#1D9E75', bg:'#E1F5EE' },
+                  { val: tomonTotal, lbl: t(lang,'tomon_valides_label'), color:'#378ADD', bg:'#E6F1FB' },
+                  { val: hizbTotal, lbl: t(lang,'hizb_complets_label'), color:'#EF9F27', bg:'#FAEEDA' },
+                  { val: ptsTotal.toLocaleString(), lbl: t(lang,'pts_generes'), color:'#534AB7', bg:'#EEEDFE' },
                 ].map((k,i)=>(
                   <div key={i} style={{ background:k.bg, borderRadius:12, padding:'12px', textAlign:'center' }}>
                     <div style={{ fontSize:24, fontWeight:800, color:k.color }}>{k.val}</div>

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { t } from '../lib/i18n';
 import { supabase } from '../lib/supabase';
 import { calcEtatEleve, getInitiales, scoreLabel, formatDate } from '../lib/helpers';
 
@@ -12,7 +13,7 @@ function Avatar({ prenom, nom, size = 32 }) {
   );
 }
 
-export default function RapportMensuel({ user, navigate }) {
+export default function RapportMensuel({  user, navigate , lang="fr" }) {
   const now = new Date();
   const [mois, setMois] = useState(now.getMonth());
   const [annee, setAnnee] = useState(now.getFullYear());
@@ -150,7 +151,7 @@ export default function RapportMensuel({ user, navigate }) {
 
   return (
     <div>
-      <button className="back-link" onClick={() => navigate('dashboard')}>← Retour</button>
+      <button className="back-link" onClick={() => navigate('dashboard')}>{t(lang,'retour')}</button>
 
       {/* Header navigation mois */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.5rem', flexWrap: 'wrap', gap: 8 }}>
@@ -171,8 +172,8 @@ export default function RapportMensuel({ user, navigate }) {
             {[
               { val: elevesActifsMois, lbl: 'Élèves actifs', color: '#1D9E75', bg: '#E1F5EE' },
               { val: totalTomonMois, lbl: 'Tomon récités', color: '#378ADD', bg: '#E6F1FB' },
-              { val: totalHizbMois, lbl: 'Hizb complets', color: '#EF9F27', bg: '#FAEEDA' },
-              { val: totalPtsMois.toLocaleString(), lbl: 'Points générés', color: '#534AB7', bg: '#EEEDFE' },
+              { val: totalHizbMois, lbl: t(lang,'hizb_complets_label'), color: '#EF9F27', bg: '#FAEEDA' },
+              { val: totalPtsMois.toLocaleString(), lbl: t(lang,'pts_generes'), color: '#534AB7', bg: '#EEEDFE' },
             ].map((k, i) => (
               <div key={i} style={{ background: k.bg, borderRadius: 12, padding: '14px', textAlign: 'center' }}>
                 <div style={{ fontSize: 24, fontWeight: 800, color: k.color }}>{k.val}</div>

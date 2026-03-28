@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { t } from '../lib/i18n';
 import { supabase } from '../lib/supabase';
 import { calcEtatEleve, calcPositionAtteinte, calcUnite, formatDate, getInitiales, motivationMsg } from '../lib/helpers';
 
@@ -10,7 +11,7 @@ function Avatar({ prenom, nom, size = 36, bg = '#E1F5EE', color = '#085041' }) {
   );
 }
 
-export default function EnregistrerRecitation({ user, eleve: eleveInitial, navigate }) {
+export default function EnregistrerRecitation({  user, eleve: eleveInitial, navigate , lang="fr" }) {
   const [step, setStep] = useState(eleveInitial ? 2 : 1);
   const [eleves, setEleves] = useState([]);
   const [search, setSearch] = useState('');
@@ -126,7 +127,7 @@ export default function EnregistrerRecitation({ user, eleve: eleveInitial, navig
           {typeValidation === 'hizb_complet' ? '🎉' : '✅'}
         </div>
         <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 8 }}>
-          {typeValidation === 'hizb_complet' ? 'Hizb complet validé !' : 'Récitation enregistrée !'}
+          {typeValidation === 'hizb_complet' ? t(lang,'hizb_valide_titre') : t(lang,'recitation_enregistree')}
         </div>
         {motivMsg && (
           <div style={{ background: motivMsg.color + '15', border: `1px solid ${motivMsg.color}30`, borderRadius: 12, padding: '12px 20px', margin: '0 auto 1.5rem', maxWidth: 400, fontSize: 14, color: motivMsg.color, fontWeight: 500 }}>
@@ -163,7 +164,7 @@ export default function EnregistrerRecitation({ user, eleve: eleveInitial, navig
 
   return (
     <div>
-      <button className="back-link" onClick={() => navigate(selectedEleve ? 'fiche' : 'dashboard', selectedEleve)}>← Retour</button>
+      <button className="back-link" onClick={() => navigate(selectedEleve ? 'fiche' : 'dashboard', selectedEleve)}>t(lang,'retour')</button>
       <div className="page-title">Enregistrer une récitation</div>
 
       <div className="steps-row">
@@ -183,7 +184,7 @@ export default function EnregistrerRecitation({ user, eleve: eleveInitial, navig
           <div className="section-label">Sélectionner l'élève</div>
           <div className="card">
             <input className="field-input" style={{ marginBottom: 12 }} type="text"
-              placeholder="Rechercher un élève..." value={search} onChange={e => setSearch(e.target.value)} />
+              placeholder={t(lang,'rechercher_eleve')} value={search} onChange={e => setSearch(e.target.value)} />
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
               {elevesFiltre.length === 0 && <div className="empty">Aucun élève.</div>}
               {elevesFiltre.map(e => (
@@ -347,7 +348,7 @@ export default function EnregistrerRecitation({ user, eleve: eleveInitial, navig
             <div className="recap-row"><span className="recap-lbl">Date & heure</span><span className="recap-val">{new Date().toLocaleString('fr-FR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}</span></div>
           </div>
           <button className="btn-primary" disabled={loading} onClick={confirmer}>
-            {loading ? 'Enregistrement...' : '✓ Confirmer la validation'}
+            {loading ? t(lang,'enregistrement') : t(lang,'confirmer')}
           </button>
           <div style={{ textAlign: 'center', marginTop: 12 }}>
             <button className="back-link" style={{ margin: '0 auto' }} onClick={() => setStep(2)}>← Modifier</button>

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { t } from '../lib/i18n';
 import { supabase } from '../lib/supabase';
 import { calcEtatEleve, getInitiales, scoreLabel, formatDateCourt } from '../lib/helpers';
 
@@ -12,7 +13,7 @@ function Avatar({ prenom, nom, size = 28, bg, color }) {
   );
 }
 
-export default function Comparaison({ navigate }) {
+export default function Comparaison({  navigate , lang="fr" }) {
   const [allEleves, setAllEleves] = useState([]);
   const [allValidations, setAllValidations] = useState([]);
   const [selected, setSelected] = useState([]);
@@ -66,7 +67,7 @@ export default function Comparaison({ navigate }) {
 
   return (
     <div>
-      <button className="back-link" onClick={() => navigate('dashboard')}>← Retour</button>
+      <button className="back-link" onClick={() => navigate('dashboard')}>{t(lang,'retour')}</button>
       <div style={{ fontSize: 20, fontWeight: 600, marginBottom: '1.5rem' }}>Comparaison des élèves</div>
 
       {loading ? <div className="loading">Chargement...</div> : (
