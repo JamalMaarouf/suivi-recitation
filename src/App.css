@@ -287,3 +287,94 @@ tr.inactive td.name-cell { color: #A32D2D; font-weight: 500; }
   .nav-user { display: none; }
   .stats-grid { grid-template-columns: repeat(2, minmax(0,1fr)); }
 }
+
+/* Mobile layout */
+.main-content-mobile {
+  flex: 1;
+  padding: 1rem;
+  padding-bottom: 80px;
+  width: 100%;
+  max-width: 100%;
+  margin: 0;
+  overflow-x: hidden;
+}
+
+/* Bottom nav */
+.bottom-nav {
+  position: fixed;
+  bottom: 0; left: 0; right: 0;
+  height: 64px;
+  background: #fff;
+  border-top: 0.5px solid #e0e0d8;
+  display: flex;
+  z-index: 200;
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+.bottom-nav-item {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  gap: 2px;
+  transition: all 0.15s;
+}
+
+.bottom-nav-item.active .bottom-nav-icon { transform: scale(1.2); }
+.bottom-nav-item.active .bottom-nav-label { color: #1D9E75; font-weight: 500; }
+
+.bottom-nav-icon { font-size: 20px; }
+.bottom-nav-label { font-size: 10px; color: #888; }
+
+/* Mobile cards */
+@media (max-width: 767px) {
+  .top-nav { display: none; }
+  .stats-grid { grid-template-columns: repeat(2, minmax(0,1fr)); }
+  .form-grid { grid-template-columns: 1fr; }
+  .position-card { grid-template-columns: repeat(3, minmax(0,1fr)); }
+  table { font-size: 12px; }
+  th, td { padding: 8px 10px; }
+}
+
+/* Alert cards */
+.alert-card {
+  border-left: 4px solid;
+  border-radius: 0 10px 10px 0;
+  padding: 10px 14px;
+  margin-bottom: 8px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+}
+
+/* Calendrier */
+.cal-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0,1fr));
+  gap: 4px;
+}
+
+.cal-day {
+  aspect-ratio: 1;
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  border: 0.5px solid #e0e0d8;
+  background: #fff;
+  transition: all 0.15s;
+  padding: 4px;
+}
+
+.cal-day:hover { border-color: #1D9E75; }
+.cal-day.has-activity { background: #E1F5EE; border-color: #1D9E75; }
+.cal-day.today { border: 2px solid #1D9E75; }
+.cal-day.inactive { background: #f9f9f6; color: #ccc; }
+
+.cal-day-num { font-size: 13px; font-weight: 500; }
+.cal-dot { width: 6px; height: 6px; border-radius: 50%; background: #1D9E75; }

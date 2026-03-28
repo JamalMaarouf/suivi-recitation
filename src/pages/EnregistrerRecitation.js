@@ -70,7 +70,9 @@ export default function EnregistrerRecitation({ user, eleve: eleveInitial, navig
       valide_par: user.id,
       nombre_tomon: typeValidation === 'hizb_complet' ? 0 : nombreTomonSelectionnes,
       type_validation: typeValidation,
-      date_validation: new Date().toISOString()
+      date_validation: new Date().toISOString(),
+      tomon_debut: typeValidation === 'tomon' ? etat.prochainTomon : null,
+      hizb_validation: typeValidation === 'tomon' ? etat.hizbEnCours : null
     };
     if (typeValidation === 'hizb_complet') {
       insertData.hizb_valide = etat.hizbEnCours;
