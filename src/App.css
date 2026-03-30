@@ -422,3 +422,10 @@ tr.inactive td.name-cell { color: #A32D2D; font-weight: 500; }
   right: auto;
   left: 16px;
 }
+
+/* Required field highlight */
+.field-input:required:invalid,
+.field-input.required-empty {
+  border-color: #E24B4A;
+  background: #fff8f8;
+}

@@ -40,16 +40,23 @@ function AcquisSelector({ codeNiveau, hizb, tomon, onHizbChange, onTomonChange, 
         </div>
 
         {/* Visual grid of surahs */}
-        <div style={{display:'grid',gridTemplateColumns:'repeat(6,1fr)',gap:3,marginBottom:10}}>
+        <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:4,marginBottom:10}}>
           {souratesOrdonnees.map((s,idx)=>{
             const isAcquis = idx < nbAcquis;
             return(
               <div key={s.numero} onClick={()=>onSouratesChange(isAcquis?idx:idx+1)}
-                style={{height:28,borderRadius:4,display:'flex',alignItems:'center',justifyContent:'center',fontSize:10,cursor:'pointer',
-                  background:isAcquis?'#1D9E75':'#f0f0ec',color:isAcquis?'#fff':'#999',fontWeight:isAcquis?600:400,
-                  border:`0.5px solid ${isAcquis?'#1D9E75':'#e0e0d8'}`}}
-                title={s.nom_ar}>
-                {s.numero}
+                style={{borderRadius:6,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',
+                  padding:'6px 4px',cursor:'pointer',gap:2,
+                  background:isAcquis?'#1D9E75':'#f0f0ec',
+                  color:isAcquis?'#fff':'#999',
+                  border:`0.5px solid ${isAcquis?'#1D9E75':'#e0e0d8'}`,
+                  transition:'all 0.1s'}}>
+                <div style={{fontSize:11,fontWeight:700}}>{s.numero}</div>
+                <div style={{fontSize:9,fontFamily:"'Tajawal',Arial,sans-serif",direction:'rtl',
+                  textAlign:'center',lineHeight:1.2,opacity:isAcquis?0.9:0.7,
+                  maxWidth:'100%',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>
+                  {s.nom_ar.replace('سورة ','')}
+                </div>
               </div>
             );
           })}
@@ -160,7 +167,10 @@ export default function Gestion({ user, navigate, lang = 'fr' }) {
   const showMsg = (type, text) => { setMsg({ type, text }); setTimeout(() => setMsg({ type: '', text: '' }), 3000); };
 
   const ajouterEleve = async () => {
-    if (!newEleve.prenom || !newEleve.nom) return showMsg('error', t(lang, 'prenom_nom_obligatoires'));
+    if (!newEleve.prenom?.trim()) return showMsg('error', t(lang, 'prenom_nom_obligatoires'));
+    if (!newEleve.nom?.trim()) return showMsg('error', t(lang, 'prenom_nom_obligatoires'));
+    if (!newEleve.code_niveau) return showMsg('error', t(lang, 'tous_champs_obligatoires'));
+    if (!newEleve.instituteur_referent_id) return showMsg('error', lang==='ar'?'يجب اختيار الأستاذ المرجع':lang==='en'?'Please select a teacher':'Veuillez sélectionner un instituteur référent');
     const { error } = await supabase.from('eleves').insert({
       prenom: newEleve.prenom, nom: newEleve.nom, niveau: newEleve.niveau,
       code_niveau: newEleve.code_niveau || '1',
@@ -178,7 +188,10 @@ export default function Gestion({ user, navigate, lang = 'fr' }) {
   };
 
   const modifierEleve = async () => {
-    if (!editEleve.prenom || !editEleve.nom) return showMsg('error', t(lang, 'prenom_nom_obligatoires'));
+    if (!editEleve.prenom?.trim()) return showMsg('error', t(lang, 'prenom_nom_obligatoires'));
+    if (!editEleve.nom?.trim()) return showMsg('error', t(lang, 'prenom_nom_obligatoires'));
+    if (!editEleve.code_niveau) return showMsg('error', t(lang, 'tous_champs_obligatoires'));
+    if (!editEleve.instituteur_referent_id) return showMsg('error', lang==='ar'?'يجب اختيار الأستاذ المرجع':lang==='en'?'Please select a teacher':'Veuillez sélectionner un instituteur référent');
     const { error } = await supabase.from('eleves').update({
       prenom: editEleve.prenom, nom: editEleve.nom, niveau: editEleve.niveau,
       code_niveau: editEleve.code_niveau || '1',
@@ -251,11 +264,11 @@ export default function Gestion({ user, navigate, lang = 'fr' }) {
               <div className="card">
                 <div className="form-grid">
                   <div className="field-group">
-                    <label className="field-lbl">{t(lang, 'prenom')}</label>
+                    <label className="field-lbl">{t(lang, 'prenom')} <span style={{color:'#E24B4A'}}>*</span></label>
                     <input className="field-input" value={newEleve.prenom} onChange={e => setNewEleve({ ...newEleve, prenom: e.target.value })} placeholder={t(lang, 'prenom')} />
                   </div>
                   <div className="field-group">
-                    <label className="field-lbl">{t(lang, 'nom_label')}</label>
+                    <label className="field-lbl">{t(lang, 'nom_label')} <span style={{color:'#E24B4A'}}>*</span></label>
                     <input className="field-input" value={newEleve.nom} onChange={e => setNewEleve({ ...newEleve, nom: e.target.value })} placeholder={t(lang, 'nom_label')} />
                   </div>
                   <div className="field-group">
@@ -279,7 +292,7 @@ export default function Gestion({ user, navigate, lang = 'fr' }) {
                     <input className="field-input" value={newEleve.eleve_id_ecole} onChange={e => setNewEleve({ ...newEleve, eleve_id_ecole: e.target.value })} placeholder={lang==='ar'?'رقم التعريف (اختياري)':lang==='en'?'Student ID (optional)':'ID défini par la direction (optionnel)'}/>
                   </div>
                   <div className="field-group">
-                    <label className="field-lbl">{t(lang, 'referent')}</label>
+                    <label className="field-lbl">{t(lang, 'referent')} <span style={{color:'#E24B4A'}}>*</span></label>
                     <select className="field-select" value={newEleve.instituteur_referent_id} onChange={e => setNewEleve({ ...newEleve, instituteur_referent_id: e.target.value })}>
                       <option value="">{t(lang, 'choisir')}</option>
                       {instituteurs.map(i => <option key={i.id} value={i.id}>{i.prenom} {i.nom}</option>)}
@@ -308,6 +321,9 @@ export default function Gestion({ user, navigate, lang = 'fr' }) {
                   )}
                 </div>
 
+                <div style={{fontSize:11,color:'#888',marginBottom:8}}>
+                  <span style={{color:'#E24B4A'}}>*</span> {lang==='ar'?'حقول إلزامية':lang==='en'?'Required fields':'Champs obligatoires'}
+                </div>
                 <button className="btn-primary" onClick={ajouterEleve}>{t(lang, 'ajouter_eleve_btn')}</button>
               </div>
             </>
@@ -317,11 +333,11 @@ export default function Gestion({ user, navigate, lang = 'fr' }) {
               <div className="card">
                 <div className="form-grid">
                   <div className="field-group">
-                    <label className="field-lbl">{t(lang, 'prenom')}</label>
+                    <label className="field-lbl">{t(lang, 'prenom')} <span style={{color:'#E24B4A'}}>*</span></label>
                     <input className="field-input" value={editEleve.prenom} onChange={e => setEditEleve({ ...editEleve, prenom: e.target.value })} />
                   </div>
                   <div className="field-group">
-                    <label className="field-lbl">{t(lang, 'nom_label')}</label>
+                    <label className="field-lbl">{t(lang, 'nom_label')} <span style={{color:'#E24B4A'}}>*</span></label>
                     <input className="field-input" value={editEleve.nom} onChange={e => setEditEleve({ ...editEleve, nom: e.target.value })} />
                   </div>
                   <div className="field-group">
@@ -358,7 +374,7 @@ export default function Gestion({ user, navigate, lang = 'fr' }) {
                     <input className="field-input" value={editEleve.eleve_id_ecole||''} onChange={e => setEditEleve({ ...editEleve, eleve_id_ecole: e.target.value })} placeholder={lang==='ar'?'رقم التعريف':lang==='en'?'Student ID':'ID défini par la direction'}/>
                   </div>
                   <div className="field-group">
-                    <label className="field-lbl">{t(lang, 'referent')}</label>
+                    <label className="field-lbl">{t(lang, 'referent')} <span style={{color:'#E24B4A'}}>*</span></label>
                     <select className="field-select" value={editEleve.instituteur_referent_id || ''} onChange={e => setEditEleve({ ...editEleve, instituteur_referent_id: e.target.value })}>
                       <option value="">{t(lang, 'choisir')}</option>
                       {instituteurs.map(i => <option key={i.id} value={i.id}>{i.prenom} {i.nom}</option>)}
