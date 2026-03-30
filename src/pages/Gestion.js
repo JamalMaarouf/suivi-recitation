@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { getInitiales, calcEtatEleve, calcPoints } from '../lib/helpers';
+import { SOURATES_5B, SOURATES_5A } from '../lib/sourates';
 import { t } from '../lib/i18n';
 
 function Avatar({ prenom, nom, size = 28 }) {
@@ -11,80 +12,118 @@ function Avatar({ prenom, nom, size = 28 }) {
   );
 }
 
-// Sélecteur visuel Hizb + Tomon pour les acquis antérieurs
-function HizbTomonSelector({ hizb, tomon, onHizbChange, onTomonChange, lang }) {
-  return (
-    <div style={{ background: '#f9f9f6', borderRadius: 12, padding: '1rem', border: '0.5px solid #e0e0d8' }}>
-      <div style={{ fontSize: 11, color: '#888', marginBottom: 10, textAlign: 'center' }}>{t(lang, 'acquis_aide')}</div>
+// Sélecteur acquis antérieurs — adapté selon le niveau
+function AcquisSelector({ codeNiveau, hizb, tomon, onHizbChange, onTomonChange, souratesAcquises, onSouratesChange, lang }) {
+  const isSourate = ['5B','5A'].includes(codeNiveau);
 
-      {/* Hizb selector */}
-      <div style={{ marginBottom: 12 }}>
-        <div style={{ fontSize: 12, color: '#888', marginBottom: 6, fontWeight: 500 }}>{t(lang, 'hizb_1_60')}</div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <button onClick={() => onHizbChange(Math.max(1, hizb - 1))}
-            style={{ width: 32, height: 32, border: '0.5px solid #e0e0d8', borderRadius: 6, background: '#fff', cursor: 'pointer', fontSize: 16 }}>-</button>
-          <div style={{ flex: 1, display: 'grid', gridTemplateColumns: 'repeat(10, 1fr)', gap: 3 }}>
-            {Array.from({ length: 60 }, (_, i) => i + 1).map(n => (
-              <div key={n} onClick={() => onHizbChange(n)}
-                style={{ height: 28, borderRadius: 4, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: n === hizb ? 700 : 400, cursor: 'pointer', background: n === hizb ? '#1D9E75' : n < hizb ? '#E1F5EE' : '#f0f0ec', color: n === hizb ? '#fff' : n < hizb ? '#085041' : '#999', transition: 'all 0.1s' }}>
+  if (isSourate) {
+    const souratesNiveau = codeNiveau === '5B' ? SOURATES_5B : SOURATES_5A;
+    const souratesOrdonnees = [...souratesNiveau].sort((a,b) => b.numero - a.numero);
+    const nbAcquis = souratesAcquises || 0;
+    // Sourates acquired = last N sourates (from 114 downward)
+    const ptsAcquis = nbAcquis * 30; // 30 pts per complete sourate
+
+    return (
+      <div style={{background:'#f9f9f6',borderRadius:12,padding:'1rem',border:'0.5px solid #e0e0d8'}}>
+        <div style={{fontSize:11,color:'#888',marginBottom:10,textAlign:'center'}}>
+          {lang==='ar'?'عدد السور المحفوظة قبل بدء المتابعة':lang==='en'?'Surahs memorized before tracking':'Sourates mémorisées avant le début du suivi'}
+        </div>
+        <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:12}}>
+          <button onClick={()=>onSouratesChange(Math.max(0,nbAcquis-1))}
+            style={{width:36,height:36,border:'0.5px solid #e0e0d8',borderRadius:6,background:'#fff',cursor:'pointer',fontSize:18}}>−</button>
+          <div style={{flex:1,textAlign:'center'}}>
+            <div style={{fontSize:32,fontWeight:800,color:'#1D9E75'}}>{nbAcquis}</div>
+            <div style={{fontSize:11,color:'#888'}}>/ {souratesNiveau.length} {lang==='ar'?'سورة':lang==='en'?'surahs':'sourates'}</div>
+          </div>
+          <button onClick={()=>onSouratesChange(Math.min(souratesNiveau.length, nbAcquis+1))}
+            style={{width:36,height:36,border:'0.5px solid #e0e0d8',borderRadius:6,background:'#fff',cursor:'pointer',fontSize:18}}>+</button>
+        </div>
+
+        {/* Visual grid of surahs */}
+        <div style={{display:'grid',gridTemplateColumns:'repeat(6,1fr)',gap:3,marginBottom:10}}>
+          {souratesOrdonnees.map((s,idx)=>{
+            const isAcquis = idx < nbAcquis;
+            return(
+              <div key={s.numero} onClick={()=>onSouratesChange(isAcquis?idx:idx+1)}
+                style={{height:28,borderRadius:4,display:'flex',alignItems:'center',justifyContent:'center',fontSize:10,cursor:'pointer',
+                  background:isAcquis?'#1D9E75':'#f0f0ec',color:isAcquis?'#fff':'#999',fontWeight:isAcquis?600:400,
+                  border:`0.5px solid ${isAcquis?'#1D9E75':'#e0e0d8'}`}}
+                title={s.nom_ar}>
+                {s.numero}
+              </div>
+            );
+          })}
+        </div>
+
+        {nbAcquis > 0 && (
+          <div style={{background:'#E1F5EE',borderRadius:10,padding:'10px',textAlign:'center',border:'0.5px solid #9FE1CB'}}>
+            <div style={{fontSize:11,color:'#085041',fontWeight:600,marginBottom:2}}>
+              🎓 {nbAcquis} {lang==='ar'?'سورة محفوظة':lang==='en'?'surahs memorized':'sourates mémorisées'}
+            </div>
+            <div style={{fontSize:22,fontWeight:800,color:'#085041'}}>{ptsAcquis.toLocaleString()} {lang==='ar'?'ن':'pts'}</div>
+            <div style={{fontSize:10,color:'#0F6E56',marginTop:2}}>
+              {lang==='ar'?'ستُحسب تلقائياً':lang==='en'?'Auto-calculated':'Calculés automatiquement'}
+            </div>
+            {nbAcquis > 0 && (
+              <div style={{fontSize:11,color:'#085041',marginTop:4,direction:'rtl'}}>
+                {lang==='ar'?'آخر سورة:':lang==='en'?'Last surah:':'Dernière sourate :'} {souratesOrdonnees[nbAcquis-1]?.nom_ar}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // Hizb/Tomon selector for 2M, 2, 1
+  return (
+    <div style={{background:'#f9f9f6',borderRadius:12,padding:'1rem',border:'0.5px solid #e0e0d8'}}>
+      <div style={{fontSize:11,color:'#888',marginBottom:10,textAlign:'center'}}>{lang==='ar'?'موقع الطالب في القرآن قبل بدء المتابعة':lang==='en'?'Position in Quran before tracking':'Position dans le Coran avant de commencer le suivi'}</div>
+      <div style={{marginBottom:12}}>
+        <div style={{fontSize:12,color:'#888',marginBottom:6,fontWeight:500}}>{lang==='ar'?'الحزب (1-60)':lang==='en'?'Hizb (1-60)':'Hizb (1-60)'}</div>
+        <div style={{display:'flex',alignItems:'center',gap:8}}>
+          <button onClick={()=>onHizbChange(Math.max(1,hizb-1))} style={{width:32,height:32,border:'0.5px solid #e0e0d8',borderRadius:6,background:'#fff',cursor:'pointer',fontSize:16}}>-</button>
+          <div style={{flex:1,display:'grid',gridTemplateColumns:'repeat(10,1fr)',gap:3}}>
+            {Array.from({length:60},(_,i)=>i+1).map(n=>(
+              <div key={n} onClick={()=>onHizbChange(n)} style={{height:28,borderRadius:4,display:'flex',alignItems:'center',justifyContent:'center',fontSize:11,fontWeight:n===hizb?700:400,cursor:'pointer',background:n===hizb?'#1D9E75':n<hizb?'#E1F5EE':'#f0f0ec',color:n===hizb?'#fff':n<hizb?'#085041':'#999',transition:'all 0.1s'}}>
                 {n}
               </div>
             ))}
           </div>
-          <button onClick={() => onHizbChange(Math.min(60, hizb + 1))}
-            style={{ width: 32, height: 32, border: '0.5px solid #e0e0d8', borderRadius: 6, background: '#fff', cursor: 'pointer', fontSize: 16 }}>+</button>
+          <button onClick={()=>onHizbChange(Math.min(60,hizb+1))} style={{width:32,height:32,border:'0.5px solid #e0e0d8',borderRadius:6,background:'#fff',cursor:'pointer',fontSize:16}}>+</button>
         </div>
-        <div style={{ textAlign: 'center', marginTop: 6, fontSize: 14, fontWeight: 700, color: '#1D9E75' }}>Hizb {hizb}</div>
+        <div style={{textAlign:'center',marginTop:6,fontSize:14,fontWeight:700,color:'#1D9E75'}}>Hizb {hizb}</div>
       </div>
-
-      {/* Tomon selector */}
       <div>
-        <div style={{ fontSize: 12, color: '#888', marginBottom: 6, fontWeight: 500 }}>{t(lang, 'tomon_1_8')}</div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(8, 1fr)', gap: 4 }}>
-          {[1,2,3,4,5,6,7,8].map(n => (
-            <div key={n} onClick={() => onTomonChange(n)}
-              style={{ height: 36, borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, fontWeight: n === tomon ? 700 : 400, cursor: 'pointer', background: n === tomon ? '#1D9E75' : n < tomon ? '#E1F5EE' : '#f0f0ec', color: n === tomon ? '#fff' : n < tomon ? '#085041' : '#999', border: `0.5px solid ${n === tomon ? '#1D9E75' : '#e0e0d8'}`, transition: 'all 0.1s' }}>
+        <div style={{fontSize:12,color:'#888',marginBottom:6,fontWeight:500}}>{lang==='ar'?'الثُّمن (1-8)':lang==='en'?'Tomon (1-8)':'Tomon (1-8)'}</div>
+        <div style={{display:'grid',gridTemplateColumns:'repeat(8,1fr)',gap:4}}>
+          {[1,2,3,4,5,6,7,8].map(n=>(
+            <div key={n} onClick={()=>onTomonChange(n)} style={{height:36,borderRadius:6,display:'flex',alignItems:'center',justifyContent:'center',fontSize:14,fontWeight:n===tomon?700:400,cursor:'pointer',background:n===tomon?'#1D9E75':n<tomon?'#E1F5EE':'#f0f0ec',color:n===tomon?'#fff':n<tomon?'#085041':'#999',border:`0.5px solid ${n===tomon?'#1D9E75':'#e0e0d8'}`,transition:'all 0.1s'}}>
               {n}
             </div>
           ))}
         </div>
-        <div style={{ textAlign: 'center', marginTop: 6, fontSize: 12, color: '#888' }}>
-          
-          {hizb > 1 || tomon > 1
-            ? <><span style={{color:'#1D9E75',fontWeight:600}}>{(hizb-1)*8+(tomon-1)} {t(lang,'tomon_abrev')}</span> + <span style={{color:'#EF9F27',fontWeight:600}}>{hizb-1} Hizb {t(lang,'hizb_complets')}</span></>
-            : <span>{t(lang,'hizb_depart')}: 1, {t(lang,'tomon_depart')}: 1</span>}
+        <div style={{textAlign:'center',marginTop:6,fontSize:12,color:'#888'}}>
+          T.{tomon} du Hizb {hizb} · <span style={{color:'#1D9E75',fontWeight:600}}>{(hizb-1)*8+(tomon-1)} {lang==='ar'?'ثُمن':lang==='en'?'Tomon':'Tomon'} acquis</span>
         </div>
       </div>
 
-      {/* Aperçu des points correspondants aux acquis */}
-      {(hizb > 1 || tomon > 1) && (() => {
-        const tomonAcquis = (hizb - 1) * 8 + (tomon - 1);
-        const hizbComplets = hizb - 1;
-        const pts = calcPoints(tomonAcquis, hizbComplets, [], tomonAcquis, hizbComplets);
-        return (
+      {(hizb > 1 || tomon > 1) && (()=>{
+        const ta=(hizb-1)*8+(tomon-1); const hc=hizb-1;
+        const pts=calcPoints(ta,hc,[],ta,hc);
+        return(
           <div style={{marginTop:10,background:'#E1F5EE',borderRadius:10,padding:'12px',textAlign:'center',border:'0.5px solid #9FE1CB'}}>
             <div style={{fontSize:11,color:'#0F6E56',marginBottom:4,fontWeight:600}}>
-              🎓 {lang==='ar'?'النقاط المقابلة للمكتسبات السابقة':lang==='en'?'Points for prior achievements':'Points correspondants aux acquis antérieurs'}
+              🎓 {lang==='ar'?'النقاط المقابلة للمكتسبات السابقة':lang==='en'?'Points for prior achievements':'Points correspondants aux acquis'}
             </div>
-            <div style={{fontSize:26,fontWeight:800,color:'#085041',letterSpacing:'-1px'}}>
-              {pts.total.toLocaleString()} {t(lang,'pts_abrev')}
-            </div>
-            <div style={{display:'flex',gap:6,justifyContent:'center',marginTop:8,flexWrap:'wrap'}}>
-              {[
-                {l:t(lang,'tomon_abrev'),v:pts.ptsTomon,sub:`${tomonAcquis}×10`},
-                {l:'Roboe',v:pts.ptsRoboe,sub:`${pts.details.nbRoboe}×25`},
-                {l:'Nisf',v:pts.ptsNisf,sub:`${pts.details.nbNisf}×60`},
-                {l:t(lang,'hizb_abrev'),v:pts.ptsHizb,sub:`${hizbComplets}×100`},
-              ].map(k=>(
-                <div key={k.l} style={{background:'#fff',borderRadius:8,padding:'6px 10px',minWidth:55,textAlign:'center'}}>
-                  <div style={{fontSize:13,fontWeight:700,color:'#1D9E75'}}>{k.v}</div>
-                  <div style={{fontSize:10,color:'#888'}}>{k.l}</div>
-                  <div style={{fontSize:9,color:'#bbb'}}>{k.sub}</div>
+            <div style={{fontSize:24,fontWeight:800,color:'#085041'}}>{pts.total.toLocaleString()} {lang==='ar'?'ن':'pts'}</div>
+            <div style={{display:'flex',gap:6,justifyContent:'center',marginTop:6,flexWrap:'wrap'}}>
+              {[{l:'T',v:pts.ptsTomon},{l:'R',v:pts.ptsRoboe},{l:'N',v:pts.ptsNisf},{l:'H',v:pts.ptsHizb}].map(k=>(
+                <div key={k.l} style={{background:'#fff',borderRadius:6,padding:'4px 8px',textAlign:'center',minWidth:45}}>
+                  <div style={{fontSize:12,fontWeight:700,color:'#1D9E75'}}>{k.v}</div>
+                  <div style={{fontSize:9,color:'#888'}}>{k.l}</div>
                 </div>
               ))}
-            </div>
-            <div style={{fontSize:10,color:'#0F6E56',marginTop:6,opacity:0.8}}>
-              {lang==='ar' ? 'ستُحسب هذه النقاط تلقائياً عند إضافة الطالب' : lang==='en' ? 'These points are automatically counted when the student is added' : "Ces points sont automatiquement comptabilisés à l'ajout"}
             </div>
           </div>
         );
@@ -92,6 +131,7 @@ function HizbTomonSelector({ hizb, tomon, onHizbChange, onTomonChange, lang }) {
     </div>
   );
 }
+
 
 export default function Gestion({ user, navigate, lang = 'fr' }) {
   const [tab, setTab] = useState('eleves');
@@ -103,7 +143,7 @@ export default function Gestion({ user, navigate, lang = 'fr' }) {
   const [showAcquisSelector, setShowAcquisSelector] = useState(false);
   const [editShowAcquisSelector, setEditShowAcquisSelector] = useState(false);
 
-  const [newEleve, setNewEleve] = useState({ prenom: '', nom: '', niveau: 'Débutant', code_niveau: '1', eleve_id_ecole: '', instituteur_referent_id: '', hizb_depart: 1, tomon_depart: 1 });
+  const [newEleve, setNewEleve] = useState({ prenom: '', nom: '', niveau: 'Débutant', code_niveau: '1', eleve_id_ecole: '', instituteur_referent_id: '', hizb_depart: 1, tomon_depart: 1, sourates_acquises: 0 });
   const [newInst, setNewInst] = useState({ prenom: '', nom: '', identifiant: '', mot_de_passe: '' });
 
   useEffect(() => { loadData(); }, []);
@@ -127,7 +167,8 @@ export default function Gestion({ user, navigate, lang = 'fr' }) {
       eleve_id_ecole: newEleve.eleve_id_ecole || null,
       instituteur_referent_id: newEleve.instituteur_referent_id || null,
       hizb_depart: parseInt(newEleve.hizb_depart) || 1,
-      tomon_depart: parseInt(newEleve.tomon_depart) || 1
+      tomon_depart: parseInt(newEleve.tomon_depart) || 1,
+      sourates_acquises: parseInt(newEleve.sourates_acquises) || 0
     });
     if (error) return showMsg('error', t(lang, 'erreur_ajout'));
     showMsg('success', t(lang, 'eleve_ajoute'));
@@ -144,7 +185,8 @@ export default function Gestion({ user, navigate, lang = 'fr' }) {
       eleve_id_ecole: editEleve.eleve_id_ecole || null,
       instituteur_referent_id: editEleve.instituteur_referent_id || null,
       hizb_depart: parseInt(editEleve.hizb_depart) || 1,
-      tomon_depart: parseInt(editEleve.tomon_depart) || 1
+      tomon_depart: parseInt(editEleve.tomon_depart) || 1,
+      sourates_acquises: parseInt(editEleve.sourates_acquises) || 0
     }).eq('id', editEleve.id);
     if (error) return showMsg('error', t(lang, 'erreur_ajout'));
     showMsg('success', t(lang, 'eleve_modifie'));
@@ -255,10 +297,13 @@ export default function Gestion({ user, navigate, lang = 'fr' }) {
                     </button>
                   </div>
                   {showAcquisSelector && (
-                    <HizbTomonSelector
+                    <AcquisSelector
+                      codeNiveau={newEleve.code_niveau}
                       hizb={newEleve.hizb_depart} tomon={newEleve.tomon_depart} lang={lang}
                       onHizbChange={h => setNewEleve({ ...newEleve, hizb_depart: h })}
-                      onTomonChange={t => setNewEleve({ ...newEleve, tomon_depart: t })}
+                      onTomonChange={tv => setNewEleve({ ...newEleve, tomon_depart: tv })}
+                      souratesAcquises={newEleve.sourates_acquises}
+                      onSouratesChange={n => setNewEleve({ ...newEleve, sourates_acquises: n })}
                     />
                   )}
                 </div>
@@ -287,7 +332,20 @@ export default function Gestion({ user, navigate, lang = 'fr' }) {
                   </div>
                   <div className="field-group">
                     <label className="field-lbl">{lang==='ar'?'المستوى الدراسي':lang==='en'?'Class level':'Niveau scolaire'}</label>
-                    <select className="field-select" value={editEleve.code_niveau||'1'} onChange={e => setEditEleve({ ...editEleve, code_niveau: e.target.value })}>
+                    <select className="field-select" value={editEleve.code_niveau||'1'} onChange={e => {
+                      const oldNiv = editEleve.code_niveau||'1';
+                      const newNiv = e.target.value;
+                      const wasSourate = ['5B','5A'].includes(oldNiv);
+                      const isNowHizb = ['2M','2','1'].includes(newNiv);
+                      if (wasSourate && isNowHizb) {
+                        if (window.confirm(lang==='ar'?'هذا الطالب ينتقل من نظام السور إلى نظام الحزب والثُّمن. يجب تحديد المكتسبات بالحزب والثُّمن. هل تريد المتابعة؟':lang==='en'?'This student is moving from surah-based to Hizb/Tomon system. Prior achievements must be redefined. Continue?':'Cet élève passe du système Sourates au système Hizb/Tomon. Les acquis doivent être redéfinis. Continuer?')) {
+                          setEditEleve({ ...editEleve, code_niveau: newNiv, hizb_depart: 1, tomon_depart: 1, sourates_acquises: 0 });
+                          setEditShowAcquisSelector(true);
+                        }
+                      } else {
+                        setEditEleve({ ...editEleve, code_niveau: newNiv });
+                      }
+                    }}>
                       <option value="5B">5B — {lang==='ar'?'تمهيدي':lang==='en'?'Preschool':'Préscolaire'}</option>
                       <option value="5A">5A — {lang==='ar'?'ابتدائي 1-2':lang==='en'?'Primary 1-2':'Primaire 1-2'}</option>
                       <option value="2M">2M — {lang==='ar'?'ابتدائي 3-4':lang==='en'?'Primary 3-4':'Primaire 3-4'}</option>
@@ -317,10 +375,13 @@ export default function Gestion({ user, navigate, lang = 'fr' }) {
                     </button>
                   </div>
                   {editShowAcquisSelector && (
-                    <HizbTomonSelector
+                    <AcquisSelector
+                      codeNiveau={editEleve.code_niveau||'1'}
                       hizb={editEleve.hizb_depart} tomon={editEleve.tomon_depart} lang={lang}
                       onHizbChange={h => setEditEleve({ ...editEleve, hizb_depart: h })}
-                      onTomonChange={t => setEditEleve({ ...editEleve, tomon_depart: t })}
+                      onTomonChange={tv => setEditEleve({ ...editEleve, tomon_depart: tv })}
+                      souratesAcquises={editEleve.sourates_acquises||0}
+                      onSouratesChange={n => setEditEleve({ ...editEleve, sourates_acquises: n })}
                     />
                   )}
                 </div>

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { calcEtatEleve, calcPositionAtteinte, calcUnite, calcPoints, formatDate, formatDateCourt, getInitiales, scoreLabel, calcBadges, calcVitesse, niveauTraduit } from '../lib/helpers';
 import { t } from '../lib/i18n';
+import FicheSourate from './FicheSourate';
 
 function Avatar({ prenom, nom, size=44, bg='#E1F5EE', color='#085041' }) {
   return <div style={{width:size,height:size,borderRadius:'50%',background:bg,color,display:'flex',alignItems:'center',justifyContent:'center',fontWeight:600,fontSize:size*0.33,flexShrink:0}}>{getInitiales(prenom,nom)}</div>;
@@ -51,6 +52,11 @@ const MOIS_EN=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov'
 const getMoisCourt=(i,lang)=>lang==='ar'?MOIS_AR[i]:lang==='en'?MOIS_EN[i]:MOIS_FR[i];
 
 export default function FicheEleve({ eleve, user, navigate, lang='fr' }) {
+  // Redirect 5B/5A to FicheSourate
+  if (['5B','5A'].includes(eleve.code_niveau)) {
+    return <FicheSourate eleve={eleve} user={user} navigate={navigate} lang={lang} />;
+  }
+
   const [validations, setValidations] = useState([]);
   const [apprentissages, setApprentissages] = useState([]);
   const [objectifs, setObjectifs] = useState([]);

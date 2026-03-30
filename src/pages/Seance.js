@@ -173,7 +173,11 @@ export default function Seance({ user, navigate, lang='fr' }) {
                       <Avatar prenom={e.prenom} nom={e.nom} size={34} bg={urgence?'#FCEBEB':'#E1F5EE'} color={urgence?'#A32D2D':'#085041'}/>
                       <div style={{flex:1}}>
                         <div style={{fontSize:13,fontWeight:500,color:urgence?'#A32D2D':'#1a1a1a'}}>{e.prenom} {e.nom}</div>
-                        <div style={{fontSize:11,color:'#888'}}>Hizb {e.etat.hizbEnCours} · T.{e.etat.prochainTomon||1} {t(lang,'prochain')}{e.etat.enAttenteHizbComplet?' · ⏳ Hizb':''}</div>
+                        <div style={{fontSize:11,color:'#888'}}>
+                          {['5B','5A'].includes(e.code_niveau)
+                            ? <span style={{padding:'1px 6px',borderRadius:10,fontSize:10,fontWeight:700,background:'#534AB7',color:'#fff'}}>{e.code_niveau}</span>
+                            : `Hizb ${e.etat.hizbEnCours} · T.${e.etat.prochainTomon||1} ${t(lang,'prochain')}${e.etat.enAttenteHizbComplet?' · ⏳ Hizb':''}`}
+                        </div>
                       </div>
                       <div style={{display:'flex',flexDirection:'column',alignItems:'flex-end',gap:3}}>
                         <span style={{fontSize:12,fontWeight:600,color:urgence?'#A32D2D':'#888'}}>{e.jours!=null?`${e.jours}${t(lang,'jour')}`:t(lang,'jamais')}</span>
