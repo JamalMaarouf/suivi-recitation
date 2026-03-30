@@ -170,6 +170,7 @@ export default function Gestion({ user, navigate, lang = 'fr' }) {
     if (!newEleve.prenom?.trim()) return showMsg('error', t(lang, 'prenom_nom_obligatoires'));
     if (!newEleve.nom?.trim()) return showMsg('error', t(lang, 'prenom_nom_obligatoires'));
     if (!newEleve.code_niveau) return showMsg('error', t(lang, 'tous_champs_obligatoires'));
+    if (!newEleve.eleve_id_ecole?.trim()) return showMsg('error', lang==='ar'?'رقم تعريف الطالب إلزامي':lang==='en'?'Student ID is required':'L'ID élève est obligatoire');
     if (!newEleve.instituteur_referent_id) return showMsg('error', lang==='ar'?'يجب اختيار الأستاذ المرجع':lang==='en'?'Please select a teacher':'Veuillez sélectionner un instituteur référent');
     const { error } = await supabase.from('eleves').insert({
       prenom: newEleve.prenom, nom: newEleve.nom, niveau: newEleve.niveau,
@@ -191,6 +192,7 @@ export default function Gestion({ user, navigate, lang = 'fr' }) {
     if (!editEleve.prenom?.trim()) return showMsg('error', t(lang, 'prenom_nom_obligatoires'));
     if (!editEleve.nom?.trim()) return showMsg('error', t(lang, 'prenom_nom_obligatoires'));
     if (!editEleve.code_niveau) return showMsg('error', t(lang, 'tous_champs_obligatoires'));
+    if (!editEleve.eleve_id_ecole?.trim()) return showMsg('error', lang==='ar'?'رقم تعريف الطالب إلزامي':lang==='en'?'Student ID is required':'L'ID élève est obligatoire');
     if (!editEleve.instituteur_referent_id) return showMsg('error', lang==='ar'?'يجب اختيار الأستاذ المرجع':lang==='en'?'Please select a teacher':'Veuillez sélectionner un instituteur référent');
     const { error } = await supabase.from('eleves').update({
       prenom: editEleve.prenom, nom: editEleve.nom, niveau: editEleve.niveau,
@@ -272,13 +274,13 @@ export default function Gestion({ user, navigate, lang = 'fr' }) {
                     <input className="field-input" value={newEleve.nom} onChange={e => setNewEleve({ ...newEleve, nom: e.target.value })} placeholder={t(lang, 'nom_label')} />
                   </div>
                   <div className="field-group">
-                    <label className="field-lbl">{t(lang, 'niveau')}</label>
+                    <label className="field-lbl">{t(lang, 'niveau')} <span style={{color:'#E24B4A'}}>*</span></label>
                     <select className="field-select" value={newEleve.niveau} onChange={e => setNewEleve({ ...newEleve, niveau: e.target.value })}>
                       {niveaux.map(n => <option key={n.value} value={n.value}>{n.label}</option>)}
                     </select>
                   </div>
                   <div className="field-group">
-                    <label className="field-lbl">{lang==='ar'?'المستوى الدراسي':lang==='en'?'Class level':'Niveau scolaire'}</label>
+                    <label className="field-lbl">{lang==='ar'?'المستوى الدراسي':lang==='en'?'Class level':'Niveau scolaire'} <span style={{color:'#E24B4A'}}>*</span></label>
                     <select className="field-select" value={newEleve.code_niveau} onChange={e => setNewEleve({ ...newEleve, code_niveau: e.target.value })}>
                       <option value="5B">5B — {lang==='ar'?'تمهيدي':lang==='en'?'Preschool':'Préscolaire'}</option>
                       <option value="5A">5A — {lang==='ar'?'ابتدائي 1-2':lang==='en'?'Primary 1-2':'Primaire 1-2'}</option>
@@ -288,8 +290,8 @@ export default function Gestion({ user, navigate, lang = 'fr' }) {
                     </select>
                   </div>
                   <div className="field-group">
-                    <label className="field-lbl">{lang==='ar'?'رقم تعريف الطالب':lang==='en'?'Student ID':'ID Élève'}</label>
-                    <input className="field-input" value={newEleve.eleve_id_ecole} onChange={e => setNewEleve({ ...newEleve, eleve_id_ecole: e.target.value })} placeholder={lang==='ar'?'رقم التعريف (اختياري)':lang==='en'?'Student ID (optional)':'ID défini par la direction (optionnel)'}/>
+                    <label className="field-lbl">{lang==='ar'?'رقم تعريف الطالب':lang==='en'?'Student ID':'ID Élève'} <span style={{color:'#E24B4A'}}>*</span></label>
+                    <input className="field-input" value={newEleve.eleve_id_ecole} onChange={e => setNewEleve({ ...newEleve, eleve_id_ecole: e.target.value })} placeholder={lang==='ar'?'رقم التعريف':lang==='en'?'Student ID':'ID défini par la direction'}/>
                   </div>
                   <div className="field-group">
                     <label className="field-lbl">{t(lang, 'referent')} <span style={{color:'#E24B4A'}}>*</span></label>
@@ -341,13 +343,13 @@ export default function Gestion({ user, navigate, lang = 'fr' }) {
                     <input className="field-input" value={editEleve.nom} onChange={e => setEditEleve({ ...editEleve, nom: e.target.value })} />
                   </div>
                   <div className="field-group">
-                    <label className="field-lbl">{t(lang, 'niveau')}</label>
+                    <label className="field-lbl">{t(lang, 'niveau')} <span style={{color:'#E24B4A'}}>*</span></label>
                     <select className="field-select" value={editEleve.niveau} onChange={e => setEditEleve({ ...editEleve, niveau: e.target.value })}>
                       {niveaux.map(n => <option key={n.value} value={n.value}>{n.label}</option>)}
                     </select>
                   </div>
                   <div className="field-group">
-                    <label className="field-lbl">{lang==='ar'?'المستوى الدراسي':lang==='en'?'Class level':'Niveau scolaire'}</label>
+                    <label className="field-lbl">{lang==='ar'?'المستوى الدراسي':lang==='en'?'Class level':'Niveau scolaire'} <span style={{color:'#E24B4A'}}>*</span></label>
                     <select className="field-select" value={editEleve.code_niveau||'1'} onChange={e => {
                       const oldNiv = editEleve.code_niveau||'1';
                       const newNiv = e.target.value;
@@ -370,7 +372,7 @@ export default function Gestion({ user, navigate, lang = 'fr' }) {
                     </select>
                   </div>
                   <div className="field-group">
-                    <label className="field-lbl">{lang==='ar'?'رقم تعريف الطالب':lang==='en'?'Student ID':'ID Élève'}</label>
+                    <label className="field-lbl">{lang==='ar'?'رقم تعريف الطالب':lang==='en'?'Student ID':'ID Élève'} <span style={{color:'#E24B4A'}}>*</span></label>
                     <input className="field-input" value={editEleve.eleve_id_ecole||''} onChange={e => setEditEleve({ ...editEleve, eleve_id_ecole: e.target.value })} placeholder={lang==='ar'?'رقم التعريف':lang==='en'?'Student ID':'ID défini par la direction'}/>
                   </div>
                   <div className="field-group">

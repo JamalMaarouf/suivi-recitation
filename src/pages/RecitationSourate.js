@@ -74,7 +74,16 @@ export default function RecitationSourate({ user, eleve, navigate, lang='fr' }) 
 
   const confirmer = async () => {
     if (!selectedSourate || saving) return;
-    if (typeRecitation === 'sequence' && (!versetDebut || !versetFin)) return;
+    if (typeRecitation === 'sequence') {
+      if (!versetDebut || !versetFin) {
+        alert(lang==='ar'?'يجب تحديد رقم الآية الأولى والآخيرة':lang==='en'?'Please enter start and end verse numbers':'Veuillez saisir les versets de début et de fin');
+        return;
+      }
+      if (parseInt(versetFin) < parseInt(versetDebut)) {
+        alert(lang==='ar'?'الآية الأخيرة يجب أن تكون أكبر من الآية الأولى':lang==='en'?'End verse must be greater than start verse':'Le verset de fin doit être supérieur au verset de début');
+        return;
+      }
+    }
     setSaving(true);
 
     const pts = typeRecitation === 'complete' ? 30 : 10; // 10 seq + 20 bonus complete = 30 direct
@@ -241,12 +250,21 @@ export default function RecitationSourate({ user, eleve, navigate, lang='fr' }) 
               )}
 
               {/* Type de validation */}
-              {!isSourateComplete(selectedSourate.id_db) && (
+              {!isSourateComplete(selectedSourate.id_db) && (() => {
+                const nbSeqActuel = nbSequences(selectedSourate.id_db);
+                const maxSeqAtteint = nbSeqActuel >= 3;
+                return (
                 <>
                   <div className="section-label">{lang==='ar'?'نوع التسميع':lang==='en'?'Recitation type':'Type de récitation'}</div>
+                  {/* Progress indicator */}
+                  <div style={{display:'flex',gap:4,marginBottom:12,alignItems:'center'}}>
+                    {[1,2,3].map(n=>(
+                      <div key={n} style={{flex:1,height:6,borderRadius:3,background:n<=nbSeqActuel?'#1D9E75':'#e8e8e0'}}/>
+                    ))}
+                    <span style={{fontSize:11,color:'#888',marginLeft:6,whiteSpace:'nowrap'}}>{nbSeqActuel}/3 {lang==='ar'?'مقاطع':lang==='en'?'seq.':'séq.'}</span>
+                  </div>
                   <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:'1.25rem'}}>
-                    <div onClick={()=>setTypeRecitation('sequence')}
-                      style={{padding:'16px',border:`2px solid ${typeRecitation==='sequence'?'#1D9E75':'#e0e0d8'}`,borderRadius:12,textAlign:'center',cursor:'pointer',background:typeRecitation==='sequence'?'#E1F5EE':'#fff',transition:'all 0.15s'}}>
+                    <div onClick={()=>!maxSeqAtteint&&setTypeRecitation('sequence')}
                       <div style={{fontSize:24,marginBottom:6}}>📍</div>
                       <div style={{fontSize:13,fontWeight:600,color:typeRecitation==='sequence'?'#085041':'#1a1a1a'}}>
                         {lang==='ar'?'مقطع':lang==='en'?'Sequence':'Séquence'}
@@ -269,29 +287,45 @@ export default function RecitationSourate({ user, eleve, navigate, lang='fr' }) 
                     </div>
                   </div>
 
-                  {typeRecitation === 'sequence' && (
+                  {/* Max 3 sequences warning */}
+                  {maxSeqAtteint && typeRecitation === 'sequence' && (
+                    <div style={{padding:'10px 14px',background:'#FAEEDA',border:'0.5px solid #EF9F27',borderRadius:10,marginBottom:'1rem',fontSize:13,color:'#633806'}}>
+                      ⚠️ {lang==='ar'?'تم تسجيل 3 مقاطع. يجب الآن تسميع السورة كاملة':lang==='en'?'3 sequences recorded. The full surah recitation is now required':'3 séquences enregistrées. La récitation complète de la sourate est maintenant requise'}
+                    </div>
+                  )}
+
+                  {typeRecitation === 'sequence' && !maxSeqAtteint && (
                     <div className="card" style={{marginBottom:'1rem'}}>
                       <div style={{fontSize:13,fontWeight:500,marginBottom:12}}>
                         {lang==='ar'?'تحديد الآيات':lang==='en'?'Verse range':'Versets récités'}
+                        <span style={{fontSize:11,color:'#888',marginRight:8,marginLeft:8}}>({lang==='ar'?`المقطع ${nbSeqActuel+1} من 3`:lang==='en'?`Sequence ${nbSeqActuel+1} of 3`:`Séquence ${nbSeqActuel+1}/3`})</span>
                       </div>
                       <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
                         <div className="field-group">
-                          <label className="field-lbl">{lang==='ar'?'من الآية':lang==='en'?'From verse':'Verset début'}</label>
-                          <input className="field-input" type="number" min="1" value={versetDebut} onChange={e=>setVersetDebut(e.target.value)} placeholder="1"/>
+                          <label className="field-lbl">{lang==='ar'?'من الآية':lang==='en'?'From verse':'Verset début'} <span style={{color:'#E24B4A'}}>*</span></label>
+                          <input className="field-input" type="number" min="1" value={versetDebut} onChange={e=>setVersetDebut(e.target.value)} placeholder="1"
+                            style={{borderColor: versetDebut?'':'#E24B4A'}}/>
                         </div>
                         <div className="field-group">
-                          <label className="field-lbl">{lang==='ar'?'إلى الآية':lang==='en'?'To verse':'Verset fin'}</label>
-                          <input className="field-input" type="number" min="1" value={versetFin} onChange={e=>setVersetFin(e.target.value)} placeholder="10"/>
+                          <label className="field-lbl">{lang==='ar'?'إلى الآية':lang==='en'?'To verse':'Verset fin'} <span style={{color:'#E24B4A'}}>*</span></label>
+                          <input className="field-input" type="number" min="1" value={versetFin} onChange={e=>setVersetFin(e.target.value)} placeholder="10"
+                            style={{borderColor: versetFin?'':'#E24B4A'}}/>
                         </div>
+                      </div>
+                      <div style={{fontSize:11,color:'#bbb',marginTop:6}}>
+                        <span style={{color:'#E24B4A'}}>*</span> {lang==='ar'?'حقول إلزامية':lang==='en'?'Required fields':'Champs obligatoires'}
                       </div>
                     </div>
                   )}
 
-                  <button className="btn-primary" disabled={saving||(typeRecitation==='sequence'&&(!versetDebut||!versetFin))} onClick={confirmer}>
+                  <button className="btn-primary"
+                    disabled={saving || (typeRecitation==='sequence' && (maxSeqAtteint || !versetDebut || !versetFin))}
+                    onClick={confirmer}>
                     {saving?'...':`✓ ${lang==='ar'?'تأكيد التسميع':lang==='en'?'Confirm recitation':'Confirmer la récitation'}`}
                   </button>
                 </>
-              )}
+                );
+              })()}
 
               {isSourateComplete(selectedSourate.id_db) && (
                 <div style={{padding:'1.5rem',background:'#FAEEDA',border:'1px solid #EF9F27',borderRadius:12,textAlign:'center'}}>
