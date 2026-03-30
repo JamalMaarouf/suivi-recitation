@@ -312,7 +312,14 @@ export default function Dashboard({ user, navigate, lang='fr' }) {
                         <span style={{fontSize:28,fontWeight:800,color:sl.color,letterSpacing:'-1px'}}>{eleve.etat.points.total.toLocaleString()}</span>
                         <span style={{fontSize:12,color:C.muted}}>{t(lang,'pts_abrev')}</span>
                       </div>
-                      <div style={{fontSize:11,color:C.muted,marginBottom:6}}>Hizb {eleve.etat.hizbEnCours} · {eleve.etat.tomonCumul} {t(lang,'tomon_abrev')} · {eleve.etat.hizbsComplets.size} {t(lang,'hizb_abrev')}</div>
+                      {['5B','5A'].includes(eleve.code_niveau) ? (
+                <div style={{fontSize:11,color:C.muted,marginBottom:6}}>
+                  <span style={{padding:'1px 6px',borderRadius:10,fontSize:10,fontWeight:700,background:'#534AB7',color:'#fff',marginRight:4}}>{eleve.code_niveau}</span>
+                  {lang==='ar'?'سور':lang==='en'?'Surahs':'Sourates'}
+                </div>
+              ) : (
+                <div style={{fontSize:11,color:C.muted,marginBottom:6}}>Hizb {eleve.etat.hizbEnCours} · {eleve.etat.tomonCumul} {t(lang,'tomon_abrev')} · {eleve.etat.hizbsComplets.size} {t(lang,'hizb_abrev')}</div>
+              )}
                       <Bar8 done={eleve.etat.tomonDansHizbActuel} color={eleve.etat.enAttenteHizbComplet?C.amber:C.green}/>
                       <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginTop:8}}>
                         <div style={{fontSize:11,color:C.muted}}>{eleve.derniere?formatDateCourt(eleve.derniere):t(lang,'jamais')}</div>

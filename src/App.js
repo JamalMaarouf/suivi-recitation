@@ -10,8 +10,11 @@ import Calendrier from './pages/Calendrier';
 import ProfilInstituteur from './pages/ProfilInstituteur';
 import Comparaison from './pages/Comparaison';
 import RapportMensuel from './pages/RapportMensuel';
+import RecitationSourate from './pages/RecitationSourate';
 import ValidationRapide from './pages/ValidationRapide';
 import { t, getDir } from './lib/i18n';
+import { setSouratesDB } from './lib/sourates';
+import { supabase } from './lib/supabase';
 import './App.css';
 
 export const LangContext = React.createContext({ lang: 'fr', setLang: () => {} });
@@ -30,6 +33,10 @@ export default function App() {
     if (saved) setUser(JSON.parse(saved));
     const handleResize = () => setIsMobile(window.innerWidth < 768);
     window.addEventListener('resize', handleResize);
+    // Load sourates from DB for 5B/5A levels
+    supabase.from('sourates').select('*').then(({ data }) => {
+      if (data) setSouratesDB(data);
+    });
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
@@ -114,7 +121,11 @@ export default function App() {
         <main className={isMobile ? 'main-content-mobile' : 'main-content'}>
           {page === 'dashboard'         && <Dashboard {...pageProps} />}
           {page === 'fiche'             && selectedEleve   && <FicheEleve eleve={selectedEleve} {...pageProps} />}
-          {page === 'enregistrer'       && <EnregistrerRecitation eleve={selectedEleve} {...pageProps} />}
+          {page === 'enregistrer'       && (
+            ['5B','5A'].includes(selectedEleve?.code_niveau)
+              ? <RecitationSourate eleve={selectedEleve} {...pageProps} />
+              : <EnregistrerRecitation eleve={selectedEleve} {...pageProps} />
+          )}
           {page === 'validation_rapide' && <ValidationRapide {...pageProps} />}
           {page === 'gestion'           && user.role === 'surveillant' && <Gestion {...pageProps} />}
           {page === 'honneur'           && <TableauHonneur {...pageProps} />}

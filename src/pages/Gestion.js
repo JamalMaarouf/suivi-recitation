@@ -103,7 +103,7 @@ export default function Gestion({ user, navigate, lang = 'fr' }) {
   const [showAcquisSelector, setShowAcquisSelector] = useState(false);
   const [editShowAcquisSelector, setEditShowAcquisSelector] = useState(false);
 
-  const [newEleve, setNewEleve] = useState({ prenom: '', nom: '', niveau: 'Débutant', instituteur_referent_id: '', hizb_depart: 1, tomon_depart: 1 });
+  const [newEleve, setNewEleve] = useState({ prenom: '', nom: '', niveau: 'Débutant', code_niveau: '1', eleve_id_ecole: '', instituteur_referent_id: '', hizb_depart: 1, tomon_depart: 1 });
   const [newInst, setNewInst] = useState({ prenom: '', nom: '', identifiant: '', mot_de_passe: '' });
 
   useEffect(() => { loadData(); }, []);
@@ -123,6 +123,8 @@ export default function Gestion({ user, navigate, lang = 'fr' }) {
     if (!newEleve.prenom || !newEleve.nom) return showMsg('error', t(lang, 'prenom_nom_obligatoires'));
     const { error } = await supabase.from('eleves').insert({
       prenom: newEleve.prenom, nom: newEleve.nom, niveau: newEleve.niveau,
+      code_niveau: newEleve.code_niveau || '1',
+      eleve_id_ecole: newEleve.eleve_id_ecole || null,
       instituteur_referent_id: newEleve.instituteur_referent_id || null,
       hizb_depart: parseInt(newEleve.hizb_depart) || 1,
       tomon_depart: parseInt(newEleve.tomon_depart) || 1
@@ -138,6 +140,8 @@ export default function Gestion({ user, navigate, lang = 'fr' }) {
     if (!editEleve.prenom || !editEleve.nom) return showMsg('error', t(lang, 'prenom_nom_obligatoires'));
     const { error } = await supabase.from('eleves').update({
       prenom: editEleve.prenom, nom: editEleve.nom, niveau: editEleve.niveau,
+      code_niveau: editEleve.code_niveau || '1',
+      eleve_id_ecole: editEleve.eleve_id_ecole || null,
       instituteur_referent_id: editEleve.instituteur_referent_id || null,
       hizb_depart: parseInt(editEleve.hizb_depart) || 1,
       tomon_depart: parseInt(editEleve.tomon_depart) || 1
@@ -219,6 +223,20 @@ export default function Gestion({ user, navigate, lang = 'fr' }) {
                     </select>
                   </div>
                   <div className="field-group">
+                    <label className="field-lbl">{lang==='ar'?'المستوى الدراسي':lang==='en'?'Class level':'Niveau scolaire'}</label>
+                    <select className="field-select" value={newEleve.code_niveau} onChange={e => setNewEleve({ ...newEleve, code_niveau: e.target.value })}>
+                      <option value="5B">5B — {lang==='ar'?'تمهيدي':lang==='en'?'Preschool':'Préscolaire'}</option>
+                      <option value="5A">5A — {lang==='ar'?'ابتدائي 1-2':lang==='en'?'Primary 1-2':'Primaire 1-2'}</option>
+                      <option value="2M">2M — {lang==='ar'?'ابتدائي 3-4':lang==='en'?'Primary 3-4':'Primaire 3-4'}</option>
+                      <option value="2">2 — {lang==='ar'?'ابتدائي 5-6':lang==='en'?'Primary 5-6':'Primaire 5-6'}</option>
+                      <option value="1">1 — {lang==='ar'?'إعدادي/ثانوي':lang==='en'?'Middle/High school':'Collège/Lycée'}</option>
+                    </select>
+                  </div>
+                  <div className="field-group">
+                    <label className="field-lbl">{lang==='ar'?'رقم تعريف الطالب':lang==='en'?'Student ID':'ID Élève'}</label>
+                    <input className="field-input" value={newEleve.eleve_id_ecole} onChange={e => setNewEleve({ ...newEleve, eleve_id_ecole: e.target.value })} placeholder={lang==='ar'?'رقم التعريف (اختياري)':lang==='en'?'Student ID (optional)':'ID défini par la direction (optionnel)'}/>
+                  </div>
+                  <div className="field-group">
                     <label className="field-lbl">{t(lang, 'referent')}</label>
                     <select className="field-select" value={newEleve.instituteur_referent_id} onChange={e => setNewEleve({ ...newEleve, instituteur_referent_id: e.target.value })}>
                       <option value="">{t(lang, 'choisir')}</option>
@@ -266,6 +284,20 @@ export default function Gestion({ user, navigate, lang = 'fr' }) {
                     <select className="field-select" value={editEleve.niveau} onChange={e => setEditEleve({ ...editEleve, niveau: e.target.value })}>
                       {niveaux.map(n => <option key={n.value} value={n.value}>{n.label}</option>)}
                     </select>
+                  </div>
+                  <div className="field-group">
+                    <label className="field-lbl">{lang==='ar'?'المستوى الدراسي':lang==='en'?'Class level':'Niveau scolaire'}</label>
+                    <select className="field-select" value={editEleve.code_niveau||'1'} onChange={e => setEditEleve({ ...editEleve, code_niveau: e.target.value })}>
+                      <option value="5B">5B — {lang==='ar'?'تمهيدي':lang==='en'?'Preschool':'Préscolaire'}</option>
+                      <option value="5A">5A — {lang==='ar'?'ابتدائي 1-2':lang==='en'?'Primary 1-2':'Primaire 1-2'}</option>
+                      <option value="2M">2M — {lang==='ar'?'ابتدائي 3-4':lang==='en'?'Primary 3-4':'Primaire 3-4'}</option>
+                      <option value="2">2 — {lang==='ar'?'ابتدائي 5-6':lang==='en'?'Primary 5-6':'Primaire 5-6'}</option>
+                      <option value="1">1 — {lang==='ar'?'إعدادي/ثانوي':lang==='en'?'Middle/High school':'Collège/Lycée'}</option>
+                    </select>
+                  </div>
+                  <div className="field-group">
+                    <label className="field-lbl">{lang==='ar'?'رقم تعريف الطالب':lang==='en'?'Student ID':'ID Élève'}</label>
+                    <input className="field-input" value={editEleve.eleve_id_ecole||''} onChange={e => setEditEleve({ ...editEleve, eleve_id_ecole: e.target.value })} placeholder={lang==='ar'?'رقم التعريف':lang==='en'?'Student ID':'ID défini par la direction'}/>
                   </div>
                   <div className="field-group">
                     <label className="field-lbl">{t(lang, 'referent')}</label>
@@ -321,8 +353,11 @@ export default function Gestion({ user, navigate, lang = 'fr' }) {
                       <td><span className={`badge ${e.niveau==='Avancé'||e.niveau==='متقدم'||e.niveau==='Advanced'?'badge-green':e.niveau==='Intermédiaire'||e.niveau==='متوسط'||e.niveau==='Intermediate'?'badge-blue':'badge-amber'}`} style={{fontSize:10}}>{e.niveau}</span></td>
                       <td style={{fontSize:12,color:'#888'}}>{instNom(e.instituteur_referent_id)}</td>
                       <td>
-                        <div style={{fontSize:12,fontWeight:600,color:'#1D9E75'}}>Hizb {e.hizb_depart}, T.{e.tomon_depart}</div>
-                        <div style={{fontSize:10,color:'#bbb'}}>{(e.hizb_depart-1)*8+(e.tomon_depart-1)} {t(lang,'tomon_abrev')} · {(() => { const ta=(e.hizb_depart-1)*8+(e.tomon_depart-1); const hc=e.hizb_depart-1; const pts=calcPoints(ta,hc,[],ta,hc); return pts.total.toLocaleString(); })()} {t(lang,'pts_abrev')}</div>
+                        <div style={{display:'flex',gap:6,alignItems:'center',flexWrap:'wrap'}}>
+                          <span style={{padding:'2px 8px',borderRadius:20,fontSize:11,fontWeight:700,background:'#E1F5EE',color:'#085041'}}>{e.code_niveau||'1'}</span>
+                          {e.eleve_id_ecole&&<span style={{fontSize:11,color:'#888'}}>#{e.eleve_id_ecole}</span>}
+                        </div>
+                        {['1','2','2M'].includes(e.code_niveau||'1')&&<div style={{fontSize:10,color:'#bbb',marginTop:2}}>Hizb {e.hizb_depart}, T.{e.tomon_depart}</div>}
                       </td>
                       <td>
                         <div style={{display:'flex',gap:4}}>
