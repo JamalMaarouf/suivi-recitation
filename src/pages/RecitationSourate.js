@@ -265,6 +265,7 @@ export default function RecitationSourate({ user, eleve, navigate, lang='fr' }) 
                   </div>
                   <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:'1.25rem'}}>
                     <div onClick={()=>!maxSeqAtteint&&setTypeRecitation('sequence')}
+                      style={{padding:'16px',border:`2px solid ${typeRecitation==='sequence'&&!maxSeqAtteint?'#1D9E75':'#e0e0d8'}`,borderRadius:12,textAlign:'center',cursor:maxSeqAtteint?'not-allowed':'pointer',opacity:maxSeqAtteint?0.4:1,background:typeRecitation==='sequence'&&!maxSeqAtteint?'#E1F5EE':'#fff',transition:'all 0.15s'}}>
                       <div style={{fontSize:24,marginBottom:6}}>📍</div>
                       <div style={{fontSize:13,fontWeight:600,color:typeRecitation==='sequence'?'#085041':'#1a1a1a'}}>
                         {lang==='ar'?'مقطع':lang==='en'?'Sequence':'Séquence'}
