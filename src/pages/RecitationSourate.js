@@ -98,11 +98,17 @@ export default function RecitationSourate({ user, eleve, navigate, lang='fr' }) 
 
   const loadData = async () => {
     setLoading(true);
-    const [{ data: sdb }, { data: rd }, { data: ex }] = await Promise.all([
+    const [{ data: sdb }, { data: rd }] = await Promise.all([
       supabase.from('sourates').select('*'),
       supabase.from('recitations_sourates').select('*, valideur:valide_par(prenom,nom)').eq('eleve_id', eleve.id).order('date_validation', { ascending: false }),
-      supabase.from('exceptions_recitation').select('*').eq('eleve_id', eleve.id).eq('active', true)
     ]);
+    // Safe load for exceptions (table may not exist)
+    let ex = [];
+    try {
+      const { data: exData, error: exErr } = await supabase
+        .from('exceptions_recitation').select('*').eq('eleve_id', eleve.id).eq('active', true);
+      if (!exErr) ex = exData || [];
+    } catch(e) { /* table not yet created */ }
     const sdbData = sdb || [];
     const rdData = rd || [];
     const exData = ex || [];

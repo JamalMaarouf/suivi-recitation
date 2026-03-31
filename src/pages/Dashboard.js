@@ -312,7 +312,7 @@ export default function Dashboard({ user, navigate, lang='fr' }) {
                         <span style={{fontSize:28,fontWeight:800,color:sl.color,letterSpacing:'-1px'}}>{eleve.etat.points.total.toLocaleString()}</span>
                         <span style={{fontSize:12,color:C.muted}}>{t(lang,'pts_abrev')}</span>
                       </div>
-                      {['5B','5A'].includes(eleve.code_niveau) ? (
+                      {['5B','5A'].includes(eleve.code_niveau||'') ? (
                 <div style={{fontSize:11,color:C.muted,marginBottom:6}}>
                   <span style={{padding:'1px 6px',borderRadius:10,fontSize:10,fontWeight:700,background:'#534AB7',color:'#fff',marginRight:4}}>{eleve.code_niveau}</span>
                   {lang==='ar'?'سور':lang==='en'?'Surahs':'Sourates'}

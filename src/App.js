@@ -122,7 +122,7 @@ export default function App() {
           {page === 'dashboard'         && <Dashboard {...pageProps} />}
           {page === 'fiche'             && selectedEleve   && <FicheEleve eleve={selectedEleve} {...pageProps} />}
           {page === 'enregistrer'       && (
-            ['5B','5A'].includes(selectedEleve?.code_niveau)
+            ['5B','5A'].includes(selectedEleve?.code_niveau||'')
               ? <RecitationSourate eleve={selectedEleve} {...pageProps} />
               : <EnregistrerRecitation eleve={selectedEleve} {...pageProps} />
           )}

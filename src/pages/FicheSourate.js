@@ -37,7 +37,7 @@ export default function FicheSourate({ eleve, user, navigate, lang='fr' }) {
       supabase.from('sourates').select('*')
     ]);
     if (eleve.instituteur_referent_id) {
-      const { data: inst } = await supabase.from('utilisateurs').select('prenom,nom').eq('id', eleve.instituteur_referent_id).single();
+      const { data: inst, error: instErr } = await supabase.from('utilisateurs').select('prenom,nom').eq('id', eleve.instituteur_referent_id).single(); if(instErr) console.warn('inst not found');
       if (inst) setInstituteurNom(`${inst.prenom} ${inst.nom}`);
     }
     setRecitations(rd || []);
@@ -65,7 +65,7 @@ export default function FicheSourate({ eleve, user, navigate, lang='fr' }) {
   const totalPoints = recitations.reduce((s,r) => s + (r.points||0), 0);
 
   // Acquis antérieurs points
-  const souratesAcquises = eleve.sourates_acquises || 0;
+  const souratesAcquises = parseInt(eleve.sourates_acquises)||0;
   const ptsAcquis = souratesAcquises * 30;
   const ptsSuivi = totalPoints;
   const ptsTotal = ptsAcquis + ptsSuivi;

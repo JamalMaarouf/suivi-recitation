@@ -129,7 +129,7 @@ export default function FicheEleve({ eleve, user, navigate, lang='fr' }) {
       const {data:inst}=await supabase.from('utilisateurs').select('prenom,nom').eq('id',eleve.instituteur_referent_id).single();
       if(inst) setInstituteurNom(`${inst.prenom} ${inst.nom}`);
     }
-    const e = calcEtatEleve(vals||[],eleve.hizb_depart,eleve.tomon_depart);
+    const e = calcEtatEleve(vals||[],eleve.hizb_depart||1,eleve.tomon_depart||1);
     setEtat(e);
     setValidations(vals||[]);
     setApprentissages(appr||[]);
