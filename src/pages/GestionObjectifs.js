@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { t } from '../lib/i18n';
-import { SOURATES_5B, SOURATES_5A } from '../lib/sourates';
+import { SOURATES_5B, SOURATES_5A, SOURATES_2M } from '../lib/sourates';
 
 const PERIODES = [
   { val: 'semaine',    label_fr: 'Semaine',    label_ar: 'أسبوع',       label_en: 'Week',      jours: 7   },
@@ -583,7 +583,7 @@ export default function GestionObjectifs({ user, navigate, goBack, lang='fr' }) 
               {form.cible_specifique
                 ? <span style={{fontWeight:700,color:'#085041'}}>
                     {form.cible_specifique.startsWith('sourate_')
-                      ? (()=>{const n=parseInt(form.cible_specifique.replace('sourate_',''));const s=[...SOURATES_5B,...SOURATES_5A].find(x=>x.numero===n);return `${lang==='ar'?'سورة':'Sourate'} ${n} — ${s?.nom_ar||''}`;})()
+                      ? (()=>{const n=parseInt(form.cible_specifique.replace('sourate_',''));const s=[...SOURATES_5B,...SOURATES_5A,...SOURATES_2M].find(x=>x.numero===n);return (lang==='ar'?'سورة':'Sourate')+' '+n+' — '+(s?.nom_ar||'');})()
                       : form.cible_specifique.startsWith('hizb_')
                       ? `Hizb ${form.cible_specifique.replace('hizb_','')}`
                       : form.cible_specifique.replace('hizb','H').replace('_tomon',' T.')}

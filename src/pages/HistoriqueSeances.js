@@ -324,7 +324,7 @@ export default function HistoriqueSeances({ user, navigate, goBack, lang='fr' })
             new Date(item.date_validation).toLocaleDateString('fr-FR'),
             new Date(item.date_validation).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'}),
             isSR?(item.type_recitation==='complete'?'Sourate complète':'Séquence'):(item.type_validation==='hizb_complet'?'Hizb complet':'Tomon'),
-            isSR?(item.type_recitation==='complete'?'✓':`V.${item.verset_debut}→V.${item.verset_fin}`):(item.type_validation==='hizb_complet'?`Hizb ${item.hizb_valide}`:`${item.nombre_tomon} Tomon`),
+            isSR?(item.type_recitation==='complete'?'✓':'V.'+item.verset_debut+'→V.'+item.verset_fin):(item.type_validation==='hizb_complet'?'Hizb '+item.hizb_valide:`${item.nombre_tomon} Tomon`),
             sourate?sourate.nom_ar:(item.hizb_validation?`Hizb ${item.hizb_validation}`:'—'),
             item.valideur?`${item.valideur.prenom} ${item.valideur.nom}`:'—',
             `+${pts}`,
@@ -425,7 +425,7 @@ export default function HistoriqueSeances({ user, navigate, goBack, lang='fr' })
     <div class="header">
       <div>
         <h1>📊 ${lang==='ar'?'تحليل الحصص':lang==='en'?'Session Analysis':'Analyse des Séances'}</h1>
-        <div class="meta">${dateDebut} → ${dateFin}${filteredName?` · ${filteredName}`:''}${filterNiveau!=='tous'?` · ${lang==='ar'?'المستوى':'Niveau'} ${filterNiveau}`:''}${filterInstituteur!=='tous'?` · ${instituteurs.find(i=>i.id===filterInstituteur)?.prenom||''} ${instituteurs.find(i=>i.id===filterInstituteur)?.nom||''}`:''}
+        <div class="meta">${dateDebut} &rarr; ${dateFin}${filteredName?' · '+filteredName:''}${filterNiveau!=='tous'?' · Niveau '+filterNiveau:''}${filterInstituteur!=='tous'?' · '+(instituteurs.find(i=>i.id===filterInstituteur)?.prenom||'')+' '+(instituteurs.find(i=>i.id===filterInstituteur)?.nom||''):''}
         </div>
       </div>
       <div style="text-align:${dir==='rtl'?'left':'right'};font-size:11px;opacity:0.8">${new Date().toLocaleDateString(lang==='ar'?'ar-MA':'fr-FR',{day:'2-digit',month:'long',year:'numeric'})}</div>
@@ -530,9 +530,9 @@ export default function HistoriqueSeances({ user, navigate, goBack, lang='fr' })
             return `<tr>
               <td>${new Date(item.date_validation).toLocaleDateString('fr-FR',{day:'2-digit',month:'short'})}</td>
               <td>${new Date(item.date_validation).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'})}</td>
-              <td>${isSR?(item.type_recitation==='complete'?`<span class="badge" style="background:#E1F5EE;color:#085041">${lang==='ar'?'سورة كاملة':'Complète'}</span>`:`<span class="badge" style="background:#E6F1FB;color:#378ADD">${lang==='ar'?'مقطع':'Séquence'}</span>`):(item.type_validation==='hizb_complet'?`<span class="badge" style="background:#FAEEDA;color:#EF9F27">Hizb ✓</span>`:`<span class="badge" style="background:#E6F1FB;color:#378ADD">Tomon</span>`)}</td>
-              <td>${isSR?(item.type_recitation==='complete'?'✓':`V.${item.verset_debut}→${item.verset_fin}`):(item.type_validation==='hizb_complet'?`Hizb ${item.hizb_valide}`:`${item.nombre_tomon} T.${item.tomon_debut||''}`)}</td>
-              <td style="font-family:'Tajawal',Arial;direction:rtl">${sourate?sourate.nom_ar:(item.hizb_validation?`Hizb ${item.hizb_validation}`:'—')}</td>
+              <td>${(()=>{if(isSR){const lbl=lang==='ar'?'سورة كاملة':'Complète';const lbl2=lang==='ar'?'مقطع':'Séquence';return item.type_recitation==='complete'?'<span class=\"badge\" style=\"background:#E1F5EE;color:#085041\">'+lbl+'</span>':'<span class=\"badge\" style=\"background:#E6F1FB;color:#378ADD\">'+lbl2+'</span>';}return item.type_validation==='hizb_complet'?'<span class=\"badge\" style=\"background:#FAEEDA;color:#EF9F27\">Hizb ✓</span>':'<span class=\"badge\" style=\"background:#E6F1FB;color:#378ADD\">Tomon</span>';})()}</td>
+              <td>${isSR?(item.type_recitation==='complete'?'✓':'V.'+item.verset_debut+'→'+item.verset_fin):(item.type_validation==='hizb_complet'?'Hizb '+item.hizb_valide:item.nombre_tomon+' T.'+(item.tomon_debut||''))}</td>
+              <td style="font-family:'Tajawal',Arial;direction:rtl">${sourate?sourate.nom_ar:(item.hizb_validation?'Hizb '+item.hizb_validation:'—')}</td>
               <td style="color:#888">${item.valideur?`${item.valideur.prenom} ${item.valideur.nom}`:'—'}</td>
               <td><strong style="color:#1D9E75">+${pts}</strong></td>
             </tr>`;

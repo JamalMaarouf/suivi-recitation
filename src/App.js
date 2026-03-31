@@ -138,8 +138,8 @@ export default function App() {
         <main className={isMobile ? 'main-content-mobile' : 'main-content'}>
           {page === 'dashboard'         && <Dashboard {...pageProps} />}
           {page === 'fiche'             && selectedEleve   && <FicheEleve eleve={selectedEleve} {...pageProps} />}
-          {page === 'objectifs'          && <GestionObjectifs user={user} navigate={navigate} lang={lang} />}
-          {page === 'historique_seances'   && <HistoriqueSeances user={user} navigate={navigate} lang={lang} />}
+          {page === 'objectifs'          && <GestionObjectifs user={user} navigate={navigate} goBack={goBack} lang={lang} />}
+          {page === 'historique_seances'   && <HistoriqueSeances user={user} navigate={navigate} goBack={goBack} lang={lang} />}
           {page === 'enregistrer'       && (
             ['5B','5A','2M'].includes(selectedEleve?.code_niveau||'')
               ? <RecitationSourate eleve={selectedEleve} {...pageProps} />
