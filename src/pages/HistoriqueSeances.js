@@ -341,472 +341,211 @@ export default function HistoriqueSeances({ user, navigate, goBack, lang='fr' })
     XLSX.writeFile(wb, `seances_${dateDebut}_${dateFin}_${suffix}.xlsx`);
   };
 
-  const exportCSV_REMOVED = () => {
-    const dataToExport = filterEleve !== 'tous'
-      ? actifs.filter(s => s.eleve.id === filterEleve)
-      : actifs;
-    const rows = [
-      [lang==='ar'?'الاسم':lang==='en'?'Name':'Nom',
-       lang==='ar'?'المستوى':lang==='en'?'Level':'Niveau',
-       lang==='ar'?'الأستاذ':lang==='en'?'Teacher':'Instituteur',
-       'Tomon', 'Hizb',
-       lang==='ar'?'سور كاملة':lang==='en'?'Surahs':'Sourates',
-       lang==='ar'?'مقاطع':lang==='en'?'Sequences':'Séquences',
-       lang==='ar'?'النقاط':lang==='en'?'Points':'Points',
-       lang==='ar'?'الحصص':lang==='en'?'Sessions':'Séances',
-       lang==='ar'?'هدف %':lang==='en'?'Obj %':'Obj %',
-      ],
-      ...dataToExport.map(s=>[
-        `${s.eleve.prenom} ${s.eleve.nom}`,
-        s.eleve.code_niveau||'?',
-        s.instituteurNom,
-        s.tomon, s.hizb, s.sourates, s.seqs, s.pts, s.nbSeances,
-        s.pctObj!==null?`${s.pctObj}%`:'—',
-      ])
-    ];
-    // If single student is selected, add detail rows
-    if (filterEleve !== 'tous' && allDrill.length > 0) {
-      rows.push([]); // empty line separator
-      rows.push([lang==='ar'?'--- تفاصيل التسميع ---':lang==='en'?'--- Recitation details ---':'--- Détail récitations ---']);
-      rows.push([
-        lang==='ar'?'التاريخ':'Date',
-        lang==='ar'?'الوقت':'Heure',
-        lang==='ar'?'النوع':'Type',
-        lang==='ar'?'التفاصيل':'Détails',
-        lang==='ar'?'السورة/الحزب':'Sourate/Hizb',
-        lang==='ar'?'النقاط':'Points',
-      ]);
-      allDrill.forEach(item => {
-        const isSR = !!item.type_recitation;
-        const sourate = souratesDB.find(s=>s.id===item.sourate_id);
-        const pts = isSR ? (item.points||10) : (item.type_validation==='hizb_complet'?100:item.nombre_tomon*10);
-        rows.push([
-          new Date(item.date_validation).toLocaleDateString('fr-FR'),
-          new Date(item.date_validation).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'}),
-          isSR?(item.type_recitation==='complete'?'Sourate complète':'Séquence'):(item.type_validation==='hizb_complet'?'Hizb complet':'Tomon'),
-          isSR?(item.type_recitation==='complete'?'✓':`V.${item.verset_debut}→V.${item.verset_fin}`):(item.type_validation==='hizb_complet'?`Hizb ${item.hizb_valide}`:`${item.nombre_tomon} Tomon`),
-          sourate?sourate.nom_ar:(item.hizb_validation?`Hizb ${item.hizb_validation}`:'—'),
-          `+${pts}`,
-        ]);
-      });
-    }
-    const csv = rows.map(r=>r.map(c=>`"${c}"`).join(',')).join('\n');
-    const blob = new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8'});
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a'); a.href=url;
-    const suffix = filterEleve!=='tous'?(eleves.find(e=>e.id===filterEleve)?.nom||'eleve'):filterNiveau!=='tous'?filterNiveau:'tous';
-    a.download=`seances_${dateDebut}_${dateFin}_${suffix}.csv`; a.click();
-    URL.revokeObjectURL(url);
-  };
 
-  // Export PDF with charts using html2canvas + jsPDF
-  const exportPDF = async () => {
-    // Load html2canvas and jsPDF dynamically
-    if (!window.html2canvas) {
-      await new Promise((resolve, reject) => {
-        const s = document.createElement('script');
-        s.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
-        s.onload = resolve; s.onerror = reject;
-        document.head.appendChild(s);
-      });
-    }
-    if (!window.jspdf) {
-      await new Promise((resolve, reject) => {
-        const s = document.createElement('script');
-        s.src = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
-        s.onload = resolve; s.onerror = reject;
-        document.head.appendChild(s);
-      });
-    }
 
-    const element = document.getElementById('analyse-seances-content');
-    if (!element) return;
+  // Export PDF - generates a print-ready HTML page with charts
+  const exportPDF = () => {
+    const w = window.open('', '', 'width=1100,height=900');
+    if (!w) return;
+    const dir = lang==='ar'?'rtl':'ltr';
+    const font = lang==='ar'?"'Tajawal',Arial":"Arial";
+    const dataToExport = filterEleve!=='tous' ? actifs.filter(s=>s.eleve.id===filterEleve) : actifs;
+    const filteredName = filterEleve!=='tous' ? `${eleves.find(e=>e.id===filterEleve)?.prenom||''} ${eleves.find(e=>e.id===filterEleve)?.nom||''}` : '';
 
-    // Show loading indicator
-    const loadingDiv = document.createElement('div');
-    loadingDiv.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:rgba(0,0,0,0.7);color:#fff;padding:20px 30px;borderRadius:12px;zIndex:9999;fontSize:14px;fontWeight:600';
-    loadingDiv.textContent = lang==='ar'?'جارٍ إنشاء PDF...':lang==='en'?'Generating PDF...':'Génération du PDF...';
-    document.body.appendChild(loadingDiv);
+    // Build timeline SVG
+    const maxPts = Math.max(...timelineArr.map(d=>d.pts), 1);
+    const tlWidth = 700, tlHeight = 80;
+    const barW = timelineArr.length > 0 ? Math.max(4, Math.floor((tlWidth-20)/timelineArr.length)-2) : 10;
+    const timelineSVG = timelineArr.length > 0 ? `
+      <svg width="${tlWidth}" height="${tlHeight+30}" style="display:block;margin:0 auto">
+        <defs><linearGradient id="g1" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="#1D9E75"/><stop offset="100%" stop-color="#5DCAA5"/>
+        </linearGradient></defs>
+        ${timelineArr.map((d,i)=>{
+          const bh = Math.max(4, Math.round((d.pts/maxPts)*tlHeight));
+          const x = 10 + i*(barW+2);
+          const y = tlHeight - bh;
+          return `<rect x="${x}" y="${y}" width="${barW}" height="${bh}" fill="url(#g1)" rx="2"/>`;
+        }).join('')}
+        ${timelineArr.filter((_,i)=>i===0||i===Math.floor(timelineArr.length/2)||i===timelineArr.length-1).map((d,_,arr)=>{
+          const origIdx = timelineArr.indexOf(d);
+          const x = 10 + origIdx*(barW+2) + barW/2;
+          return `<text x="${x}" y="${tlHeight+14}" text-anchor="middle" font-size="9" fill="#888">${new Date(d.date).toLocaleDateString('fr-FR',{day:'2-digit',month:'2-digit'})}</text>`;
+        }).join('')}
+      </svg>` : '<div style="color:#bbb;text-align:center;padding:20px">Aucune activité</div>';
 
-    try {
-      const canvas = await window.html2canvas(element, {
-        scale: 1.5,
-        useCORS: true,
-        allowTaint: true,
-        backgroundColor: '#f5f5f0',
-        logging: false,
-        onclone: (doc) => {
-          // Make sure Arabic fonts render
-          doc.documentElement.style.fontFamily = "'Tajawal', Arial, sans-serif";
-        }
-      });
+    // Build performance bars SVG
+    const top5 = dataToExport.slice(0,8);
+    const maxPtsEleve = Math.max(...top5.map(s=>s.pts), 1);
+    const perfSVG = top5.length > 0 ? `
+      <svg width="680" height="${top5.length*28+10}" style="display:block">
+        ${top5.map((s,i)=>{
+          const bw = Math.max(4, Math.round((s.pts/maxPtsEleve)*400));
+          const nc = {'5B':'#534AB7','5A':'#378ADD','2M':'#1D9E75','2':'#EF9F27','1':'#E24B4A'}[s.eleve.code_niveau||'1']||'#888';
+          const y = i*28+4;
+          const name = `${s.eleve.prenom} ${s.eleve.nom}`.substring(0,20);
+          return `
+            <text x="140" y="${y+14}" text-anchor="end" font-size="10" fill="#444">${name}</text>
+            <rect x="145" y="${y+2}" width="${bw}" height="18" fill="${nc}" rx="3" opacity="0.85"/>
+            <text x="${145+bw+6}" y="${y+14}" font-size="10" fill="${nc}" font-weight="bold">${s.pts} pts${s.pctObj!==null?` · ${s.pctObj}%`:''}</text>
+          `;
+        }).join('')}
+      </svg>` : '';
 
-      const imgData = canvas.toDataURL('image/jpeg', 0.85);
-      const { jsPDF } = window.jspdf;
-      const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
-      
-      const pageWidth = pdf.internal.pageSize.getWidth();
-      const pageHeight = pdf.internal.pageSize.getHeight();
-      const margin = 10;
-      const imgWidth = pageWidth - 2 * margin;
-      const imgHeight = (canvas.height * imgWidth) / canvas.width;
-      
-      // Add header
-      pdf.setFillColor(8, 80, 65);
-      pdf.rect(0, 0, pageWidth, 14, 'F');
-      pdf.setTextColor(255, 255, 255);
-      pdf.setFontSize(11);
-      pdf.setFont('helvetica', 'bold');
-      const title = lang==='ar'?'تحليل الحصص':lang==='en'?'Session Analysis':'Analyse des Séances';
-      pdf.text(title, pageWidth/2, 9, { align: 'center' });
-      pdf.setFontSize(8);
-      pdf.setFont('helvetica', 'normal');
-      pdf.text(`${dateDebut} → ${dateFin}`, pageWidth/2, 13, { align: 'center' });
+    w.document.write(`<!DOCTYPE html><html dir="${dir}"><head>
+    <meta charset="UTF-8">
+    <title>تحليل الحصص</title>
+    <style>
+      @import url('https://fonts.googleapis.com/css2?family=Tajawal:wght@400;700&display=swap');
+      *{box-sizing:border-box;margin:0;padding:0}
+      body{font-family:${font},sans-serif;background:#fff;color:#1a1a1a;padding:20px;font-size:12px;direction:${dir}}
+      .header{background:linear-gradient(135deg,#085041,#1D9E75);color:#fff;padding:16px 20px;border-radius:12px;margin-bottom:16px;display:flex;justify-content:space-between;align-items:center}
+      .header h1{font-size:18px;font-weight:800}
+      .header .meta{font-size:11px;opacity:0.8;margin-top:4px}
+      .kpi-row{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:16px}
+      .kpi{border-radius:10px;padding:12px;text-align:center}
+      .kpi-val{font-size:24px;font-weight:800}
+      .kpi-lbl{font-size:10px;opacity:0.8;margin-top:2px}
+      .kpi2-row{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:16px}
+      .kpi2{background:#f5f5f0;border-radius:8px;padding:8px;text-align:center}
+      .kpi2-val{font-size:18px;font-weight:700;color:#1D9E75}
+      .kpi2-lbl{font-size:10px;color:#888}
+      .section{background:#fff;border:0.5px solid #e0e0d8;border-radius:12px;padding:14px;margin-bottom:14px}
+      .section h2{font-size:13px;font-weight:600;color:#085041;margin-bottom:10px;border-bottom:2px solid #1D9E75;padding-bottom:6px}
+      table{width:100%;border-collapse:collapse;font-size:11px}
+      th{background:#085041;color:#fff;padding:7px 8px;text-align:${dir==='rtl'?'right':'left'};font-size:10px}
+      td{padding:6px 8px;border-bottom:1px solid #f0f0ec}
+      tr:nth-child(even) td{background:#f9f9f6}
+      .badge{padding:2px 6px;border-radius:10px;font-size:9px;font-weight:700;display:inline-block}
+      .up{color:#1D9E75} .down{color:#E24B4A} .stable{color:#888}
+      .footer{margin-top:16px;font-size:9px;color:#bbb;border-top:1px solid #e0e0d8;padding-top:8px;text-align:center}
+      @media print{body{padding:10px}.section{break-inside:avoid}}
+    </style></head><body>
 
-      // Add screenshot content across pages
-      let yOffset = 16;
-      let remainingHeight = imgHeight;
-      let sourceY = 0;
-
-      while (remainingHeight > 0) {
-        const availableHeight = pageHeight - yOffset - 8;
-        const sliceHeight = Math.min(remainingHeight, availableHeight);
-        const sourceHeight = (sliceHeight / imgWidth) * canvas.width;
-
-        // Create a slice canvas
-        const sliceCanvas = document.createElement('canvas');
-        sliceCanvas.width = canvas.width;
-        sliceCanvas.height = sourceHeight;
-        const ctx = sliceCanvas.getContext('2d');
-        ctx.drawImage(canvas, 0, sourceY, canvas.width, sourceHeight, 0, 0, canvas.width, sourceHeight);
-        const sliceData = sliceCanvas.toDataURL('image/jpeg', 0.85);
-
-        pdf.addImage(sliceData, 'JPEG', margin, yOffset, imgWidth, sliceHeight);
-        remainingHeight -= sliceHeight;
-        sourceY += sourceHeight;
-
-        if (remainingHeight > 0) {
-          pdf.addPage();
-          // Add header on new page
-          pdf.setFillColor(8, 80, 65);
-          pdf.rect(0, 0, pageWidth, 10, 'F');
-          pdf.setTextColor(255, 255, 255);
-          pdf.setFontSize(8);
-          pdf.text(title, pageWidth/2, 7, { align: 'center' });
-          yOffset = 12;
-        }
-      }
-
-      // Footer on last page
-      const totalPages = pdf.internal.getNumberOfPages();
-      for (let i = 1; i <= totalPages; i++) {
-        pdf.setPage(i);
-        pdf.setFontSize(7);
-        pdf.setTextColor(150, 150, 150);
-        pdf.text(
-          `${lang==='ar'?'صفحة':lang==='en'?'Page':'Page'} ${i}/${totalPages} · ${new Date().toLocaleDateString('fr-FR')} · متابعة التحفيظ`,
-          pageWidth/2, pageHeight - 4, { align: 'center' }
-        );
-      }
-
-      const suffix = filterEleve!=='tous'?(eleves.find(e=>e.id===filterEleve)?.nom||'eleve'):filterNiveau!=='tous'?filterNiveau:'rapport';
-      pdf.save(`seances_${dateDebut}_${dateFin}_${suffix}.pdf`);
-    } finally {
-      document.body.removeChild(loadingDiv);
-    }
-  };
-
-  return (
-    <div>
-      {/* Header */}
-      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'1.25rem',flexWrap:'wrap',gap:8}}>
-        <button className="back-link" onClick={()=>goBack?goBack():navigate('dashboard')} style={{display:'flex',alignItems:'center',gap:4}}>← {t(lang,'retour')}</button>
-        <div style={{fontSize:18,fontWeight:700,color:'#085041'}}>
-          📊 {lang==='ar'?'تحليل الحصص':lang==='en'?'Session Analysis':'Analyse des Séances'}
-        </div>
-        <div style={{display:'flex',gap:6,alignItems:'center'}}>
-          <span style={{fontSize:12,color:'#888'}}>{elevesVisibles.length} {lang==='ar'?'طالب':lang==='en'?'students':'élèves'}</span>
-          <button onClick={exportExcel}
-            style={{padding:'6px 12px',background:'#1D9E75',color:'#fff',border:'none',borderRadius:8,fontSize:11,fontWeight:600,cursor:'pointer',display:'flex',alignItems:'center',gap:4}}>
-            📥 Excel (.xlsx)
-          </button>
-          <button onClick={exportPDF}
-            style={{padding:'6px 12px',background:'#534AB7',color:'#fff',border:'none',borderRadius:8,fontSize:11,fontWeight:600,cursor:'pointer',display:'flex',alignItems:'center',gap:4}}>
-            🖨️ PDF
-          </button>
+    <div class="header">
+      <div>
+        <h1>📊 ${lang==='ar'?'تحليل الحصص':lang==='en'?'Session Analysis':'Analyse des Séances'}</h1>
+        <div class="meta">${dateDebut} → ${dateFin}${filteredName?` · ${filteredName}`:''}${filterNiveau!=='tous'?` · ${lang==='ar'?'المستوى':'Niveau'} ${filterNiveau}`:''}${filterInstituteur!=='tous'?` · ${instituteurs.find(i=>i.id===filterInstituteur)?.prenom||''} ${instituteurs.find(i=>i.id===filterInstituteur)?.nom||''}`:''}
         </div>
       </div>
-
-      {/* FILTRES */}
-      <div style={{background:'#fff',border:'0.5px solid #e0e0d8',borderRadius:16,padding:'1.25rem',marginBottom:'1.25rem'}}>
-        {/* Périodes rapides */}
-        <div style={{display:'flex',gap:6,flexWrap:'wrap',marginBottom:12}}>
-          {PERIODES_RAPIDES(lang).map((p,i)=>(
-            <button key={i} onClick={()=>setPeriodeRapide(i)}
-              style={{padding:'5px 12px',borderRadius:20,fontSize:11,fontWeight:periodeActive===i?700:400,cursor:'pointer',border:`1.5px solid ${periodeActive===i?'#1D9E75':'#e0e0d8'}`,background:periodeActive===i?'#1D9E75':'#fff',color:periodeActive===i?'#fff':'#666',transition:'all 0.15s'}}>
-              {p.label}
-            </button>
-          ))}
-          <button onClick={()=>setPeriodeActive(-1)}
-            style={{padding:'5px 12px',borderRadius:20,fontSize:11,fontWeight:periodeActive===-1?700:400,cursor:'pointer',border:`1.5px solid ${periodeActive===-1?'#534AB7':'#e0e0d8'}`,background:periodeActive===-1?'#534AB7':'#fff',color:periodeActive===-1?'#fff':'#666'}}>
-            {lang==='ar'?'فترة مخصصة':lang==='en'?'Custom':'Personnalisé'}
-          </button>
-        </div>
-
-        {/* Dates */}
-        <div style={{display:'grid',gridTemplateColumns:'repeat(2,1fr)',gap:8,marginBottom:10}}>
-          <div className="field-group">
-            <label className="field-lbl">{lang==='ar'?'من':lang==='en'?'From':'Du'}</label>
-            <input className="field-input" type="date" value={dateDebut} onChange={e=>{setDateDebut(e.target.value);setPeriodeActive(-1);}}/>
-          </div>
-          <div className="field-group">
-            <label className="field-lbl">{lang==='ar'?'إلى':lang==='en'?'To':'Au'}</label>
-            <input className="field-input" type="date" value={dateFin} onChange={e=>{setDateFin(e.target.value);setPeriodeActive(-1);}}/>
-          </div>
-        </div>
-
-        {/* Filtres */}
-        <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:8}}>
-          {/* Niveau */}
-          <div className="field-group">
-            <label className="field-lbl">{lang==='ar'?'المستوى':lang==='en'?'Level':'Niveau'}</label>
-            <select className="field-select" value={filterNiveau} onChange={e=>setFilterNiveau(e.target.value)}>
-              <option value="tous">{lang==='ar'?'الكل':lang==='en'?'All':'Tous'}</option>
-              {['5B','5A','2M','2','1'].map(n=><option key={n} value={n}>{n}</option>)}
-            </select>
-          </div>
-          {/* Instituteur (surveillant seulement) */}
-          {user.role==='surveillant'&&(
-            <div className="field-group">
-              <label className="field-lbl">{lang==='ar'?'الأستاذ':lang==='en'?'Teacher':'Instituteur'}</label>
-              <select className="field-select" value={filterInstituteur} onChange={e=>setFilterInstituteur(e.target.value)}>
-                <option value="tous">{lang==='ar'?'الكل':lang==='en'?'All':'Tous'}</option>
-                {instituteurs.map(i=><option key={i.id} value={i.id}>{i.prenom} {i.nom}</option>)}
-              </select>
-            </div>
-          )}
-          {/* Type */}
-          <div className="field-group">
-            <label className="field-lbl">{lang==='ar'?'نوع التسميع':lang==='en'?'Type':'Type'}</label>
-            <select className="field-select" value={filterType} onChange={e=>setFilterType(e.target.value)}>
-              <option value="tous">{lang==='ar'?'الكل':lang==='en'?'All':'Tous'}</option>
-              <option value="sourate">{lang==='ar'?'سور مكتملة':lang==='en'?'Complete surahs':'Sourates complètes'}</option>
-              <option value="sequence">{lang==='ar'?'مقاطع':lang==='en'?'Sequences':'Séquences'}</option>
-              <option value="tomon">{lang==='ar'?'أثمان':lang==='en'?'Tomon':'Tomon'}</option>
-              <option value="hizb">{lang==='ar'?'أحزاب مكتملة':lang==='en'?'Complete Hizb':'Hizb complets'}</option>
-            </select>
-          </div>
-          {/* Élève */}
-          <div className="field-group">
-            <label className="field-lbl">{lang==='ar'?'الطالب':lang==='en'?'Student':'Élève'}</label>
-            <select className="field-select" value={filterEleve} onChange={e=>setFilterEleve(e.target.value)}>
-              <option value="tous">{lang==='ar'?'الكل':lang==='en'?'All':'Tous'}</option>
-              {elevesVisibles.map(e=><option key={e.id} value={e.id}>{e.prenom} {e.nom} ({e.code_niveau||'?'})</option>)}
-            </select>
-          </div>
-        </div>
-      </div>
-
-      {loading ? <div className="loading">...</div> : (
-        <>
-          {/* KPI GLOBAUX */}
-          <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:10,marginBottom:'1.25rem'}}>
-            <StatCard val={filterEleve!=='tous'
-                ? (actifs.find(s=>s.eleve.id===filterEleve)?.pts||0)
-                : elevesActifs.size}
-              lbl={filterEleve!=='tous'
-                ? (lang==='ar'?'نقاط الطالب':lang==='en'?'Student points':'Points élève')
-                : (lang==='ar'?'طلاب نشطون':lang==='en'?'Active students':'Élèves actifs')}
-              color="#1D9E75" bg="#E1F5EE" icon={filterEleve!=='tous'?'👤':'👥'}
-              sub={filterEleve!=='tous'
-                ? `${eleves.find(e=>e.id===filterEleve)?.prenom||''} ${eleves.find(e=>e.id===filterEleve)?.nom||''}`
-                : `${lang==='ar'?'من':lang==='en'?'of':'sur'} ${elevesVisibles.length} · ${lang==='ar'?'غير نشطين':lang==='en'?'inactive':'inactifs'}: ${inactifs.length}`}/>
-            <StatCard val={ptsTotal.toLocaleString()} lbl={lang==='ar'?'نقاط مكتسبة':lang==='en'?'Points earned':'Points générés'} color="#534AB7" bg="#EEEDFE" icon="⭐"
-              sub={ptsDelta!==0?`${ptsDelta>0?'▲':'▼'} ${Math.abs(ptsDelta).toLocaleString()} ${lang==='ar'?'مقارنة بالفترة السابقة':lang==='en'?'vs previous period':'vs période préc.'}`:lang==='ar'?'مستقر':lang==='en'?'Stable':'Stable'}/>
-            <StatCard val={joursActifs} lbl={lang==='ar'?'أيام نشطة':lang==='en'?'Active days':'Jours actifs'} color="#EF9F27" bg="#FAEEDA" icon="📅"
-              sub={`${lang==='ar'?'على':lang==='en'?'out of':'sur'} ${duree} ${lang==='ar'?'يوم':lang==='en'?'days':'jours'}`}/>
-          </div>
-          <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:8,marginBottom:'1.25rem'}}>
-            {[
-              {val:tomonTotal,lbl:t(lang,'tomon_abrev'),color:'#378ADD',bg:'#E6F1FB'},
-              {val:hizbTotal,lbl:'Hizb',color:'#EF9F27',bg:'#FAEEDA'},
-              {val:souratesTotal,lbl:lang==='ar'?'سور كاملة':lang==='en'?'Surahs':'Sourates',color:'#085041',bg:'#E1F5EE'},
-              {val:sequencesTotal,lbl:lang==='ar'?'مقاطع':lang==='en'?'Seq.':'Séq.',color:'#888',bg:'#f5f5f0'},
-            ].map(k=>(
-              <div key={k.lbl} style={{background:k.bg,borderRadius:10,padding:'10px',textAlign:'center'}}>
-                <div style={{fontSize:20,fontWeight:700,color:k.color}}>{k.val}</div>
-                <div style={{fontSize:11,color:k.color,opacity:0.8}}>{k.lbl}</div>
-              </div>
-            ))}
-          </div>
-
-          {/* TIMELINE */}
-          {timelineArr.length>0&&(
-            <div style={{background:'#fff',border:'0.5px solid #e0e0d8',borderRadius:16,padding:'1.25rem',marginBottom:'1.25rem'}}>
-              <div style={{fontSize:13,fontWeight:600,marginBottom:12,color:'#1a1a1a'}}>
-                {lang==='ar'?'النشاط اليومي':lang==='en'?'Daily activity':'Activité quotidienne'}
-              </div>
-              <div style={{display:'flex',gap:3,alignItems:'flex-end',height:80}}>
-                {timelineArr.map(d=>(
-                  <div key={d.date} style={{flex:1,display:'flex',flexDirection:'column',alignItems:'center',gap:3}}>
-                    <div style={{width:'100%',background:'linear-gradient(180deg,#1D9E75,#5DCAA5)',borderRadius:'3px 3px 0 0',height:`${Math.max(4,(d.pts/maxPtsDay)*70)}px`,transition:'height 0.3s'}}
-                      title={`${d.date}: ${d.pts} pts`}/>
-                    <div style={{fontSize:8,color:'#bbb',writing:'vertical',textAlign:'center'}}>{new Date(d.date).toLocaleDateString(lang==='ar'?'ar-MA':'fr-FR',{day:'numeric',month:'numeric'})}</div>
-                  </div>
-                ))}
-              </div>
-              {timelineArr.length>0&&(
-                <div style={{display:'flex',justifyContent:'space-between',fontSize:11,color:'#888',marginTop:6}}>
-                  <span>{lang==='ar'?'الأكثر نشاطاً':lang==='en'?'Most active':'Jour le plus actif'}: <strong style={{color:'#1D9E75'}}>{timelineArr.reduce((m,d)=>d.pts>m.pts?d:m,timelineArr[0])?.date}</strong></span>
-                  <span>{lang==='ar'?'متوسط يومي':lang==='en'?'Daily avg':'Moy./jour'}: <strong style={{color:'#1D9E75'}}>{Math.round(ptsTotal/(joursActifs||1))} {t(lang,'pts_abrev')}</strong></span>
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* PERFORMANCE PAR ÉLÈVE */}
-          {(!drillDown||filterEleve==='tous')&&(
-            <div style={{background:'#fff',border:'0.5px solid #e0e0d8',borderRadius:16,padding:'1.25rem',marginBottom:'1.25rem'}}>
-              <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:12,flexWrap:'wrap',gap:8}}>
-                <div style={{fontSize:13,fontWeight:600,color:'#1a1a1a'}}>
-                  {lang==='ar'?'أداء الطلاب':lang==='en'?'Student performance':'Performance par élève'}
-                  <span style={{fontSize:11,color:'#888',marginRight:6,marginLeft:6}}>({actifs.length} {lang==='ar'?'نشط':lang==='en'?'active':'actifs'})</span>
-                </div>
-                <input style={{padding:'5px 10px',border:'0.5px solid #e0e0d8',borderRadius:8,fontSize:12,width:160}} placeholder={`🔍 ${lang==='ar'?'بحث':lang==='en'?'Search':'Rechercher'}`} value={searchEleve} onChange={e=>setSearchEleve(e.target.value)}/>
-              </div>
-
-              {actifs.filter(s=>!searchEleve||`${s.eleve.prenom} ${s.eleve.nom}`.toLowerCase().includes(searchEleve.toLowerCase())).map((s,idx)=>{
-                const nc = NIVEAU_COLORS[s.eleve.code_niveau||'1']||'#888';
-                const sl = scoreLabel(s.pts);
-                return(
-                  <div key={s.eleve.id}
-                    onClick={()=>{setSelectedEleve(s.eleve.id);setDrillDown(true);}}
-                    style={{display:'flex',alignItems:'center',gap:10,padding:'11px 12px',borderRadius:10,cursor:'pointer',marginBottom:6,border:'0.5px solid #e0e0d8',background:'#fff',transition:'all 0.15s'}}
-                    onMouseEnter={ev=>ev.currentTarget.style.background='#f9f9f6'}
-                    onMouseLeave={ev=>ev.currentTarget.style.background='#fff'}>
-                    <div style={{fontSize:13,fontWeight:600,color:'#bbb',minWidth:22}}>{idx+1}</div>
-                    <Avatar prenom={s.eleve.prenom} nom={s.eleve.nom} size={34} bg={nc+'18'} color={nc}/>
-                    <div style={{flex:1,minWidth:0}}>
-                      <div style={{display:'flex',alignItems:'center',gap:6,flexWrap:'wrap'}}>
-                        <span style={{fontSize:13,fontWeight:600}}>{s.eleve.prenom} {s.eleve.nom}</span>
-                        <NiveauBadge code={s.eleve.code_niveau}/>
-                        <span style={{fontSize:10,color:'#bbb'}}>{s.instituteurNom}</span>
-                        {s.trend==='up'&&<span style={{fontSize:11,color:'#1D9E75'}}>📈</span>}
-                        {s.trend==='down'&&<span style={{fontSize:11,color:'#E24B4A'}}>📉</span>}
-                      </div>
-                      <div style={{display:'flex',gap:8,marginTop:4,flexWrap:'wrap'}}>
-                        {s.isSourate?(
-                          <>
-                            {s.sourates>0&&<span style={{fontSize:11,color:'#085041',fontWeight:500}}>{s.sourates} {lang==='ar'?'سور':lang==='en'?'surahs':'sur.'} ✓</span>}
-                            {s.seqs>0&&<span style={{fontSize:11,color:'#888'}}>{s.seqs} {lang==='ar'?'مقاطع':lang==='en'?'seq.':'séq.'}</span>}
-                          </>
-                        ):(
-                          <>
-                            {s.tomon>0&&<span style={{fontSize:11,color:'#378ADD',fontWeight:500}}>{s.tomon} {t(lang,'tomon_abrev')}</span>}
-                            {s.hizb>0&&<span style={{fontSize:11,color:'#EF9F27',fontWeight:500}}>{s.hizb} Hizb</span>}
-                          </>
-                        )}
-                        <span style={{fontSize:11,color:'#bbb'}}>{s.nbSeances} {lang==='ar'?'حصص':lang==='en'?'sessions':'séances'}</span>
-                      </div>
-                      {/* Barre de progression objectif */}
-                      {s.pctObj!==null&&(
-                        <div style={{marginTop:4}}>
-                          <div style={{height:4,background:'#e8e8e0',borderRadius:2,overflow:'hidden',width:120}}>
-                            <div style={{height:'100%',width:`${s.pctObj}%`,background:s.pctObj>=100?'#1D9E75':s.pctObj>=60?'#EF9F27':'#E24B4A',borderRadius:2}}/>
-                          </div>
-                          <div style={{fontSize:9,color:'#888',marginTop:1}}>
-                            {lang==='ar'?'الهدف':lang==='en'?'Obj.':'Obj.'}: {s.pctObj}% {s.pctObj>=100?'✓':''}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                    <div style={{textAlign:'right',flexShrink:0}}>
-                      <div style={{fontSize:16,fontWeight:800,color:nc}}>{s.pts}</div>
-                      <div style={{fontSize:9,color:'#888'}}>{t(lang,'pts_abrev')}</div>
-                    </div>
-                    <div style={{color:'#bbb',fontSize:14}}>›</div>
-                  </div>
-                );
-              })}
-
-              {/* Inactifs */}
-              {inactifs.length>0&&(
-                <details style={{marginTop:10}}>
-                  <summary style={{fontSize:12,color:'#E24B4A',cursor:'pointer',fontWeight:500,padding:'8px 0'}}>
-                    ⚠️ {inactifs.length} {lang==='ar'?'طالب غير نشط خلال هذه الفترة':lang==='en'?'inactive students in this period':'élève(s) sans activité sur la période'}
-                  </summary>
-                  <div style={{display:'flex',flexDirection:'column',gap:4,marginTop:8}}>
-                    {inactifs.map(s=>(
-                      <div key={s.eleve.id} onClick={()=>{setSelectedEleve(s.eleve.id);setDrillDown(true);}}
-                        style={{display:'flex',alignItems:'center',gap:10,padding:'8px 12px',borderRadius:8,cursor:'pointer',background:'#fff8f8',border:'0.5px solid #E24B4A20'}}>
-                        <Avatar prenom={s.eleve.prenom} nom={s.eleve.nom} size={30} bg="#FCEBEB" color="#A32D2D"/>
-                        <div style={{flex:1}}>
-                          <span style={{fontSize:12,fontWeight:500,color:'#A32D2D'}}>{s.eleve.prenom} {s.eleve.nom}</span>
-                          <NiveauBadge code={s.eleve.code_niveau}/>
-                        </div>
-                        <span style={{fontSize:11,color:'#E24B4A'}}>{s.eleve.derniere?`${joursDepuis(s.eleve.derniere)}${t(lang,'jour')}`:t(lang,'jamais')}</span>
-                      </div>
-                    ))}
-                  </div>
-                </details>
-              )}
-            </div>
-          )}
-
-          {/* DRILL-DOWN élève */}
-          {drillDown&&eleveDrillDown&&(
-            <div style={{background:'#fff',border:'1.5px solid #1D9E75',borderRadius:16,padding:'1.25rem',marginBottom:'1.25rem'}}>
-              <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:'1.25rem'}}>
-                <button onClick={()=>{setDrillDown(false);setSelectedEleve(null);setFilterEleve('tous');}} style={{padding:'4px 10px',border:'0.5px solid #e0e0d8',borderRadius:6,background:'#fff',fontSize:11,cursor:'pointer'}}>← {t(lang,'retour')}</button>
-                <Avatar prenom={eleveDrillDown.prenom} nom={eleveDrillDown.nom} size={40} bg={NIVEAU_COLORS[eleveDrillDown.code_niveau||'1']+'18'} color={NIVEAU_COLORS[eleveDrillDown.code_niveau||'1']||'#888'}/>
-                <div style={{flex:1}}>
-                  <div style={{fontSize:16,fontWeight:700}}>{eleveDrillDown.prenom} {eleveDrillDown.nom}</div>
-                  <div style={{display:'flex',gap:6,alignItems:'center',marginTop:2}}>
-                    <NiveauBadge code={eleveDrillDown.code_niveau}/>
-                    <span style={{fontSize:11,color:'#888'}}>{instituteurs.find(i=>i.id===eleveDrillDown.instituteur_referent_id)?.prenom||''}</span>
-                    {eleveDrillDown.eleve_id_ecole&&<span style={{fontSize:11,color:'#bbb'}}>#{eleveDrillDown.eleve_id_ecole}</span>}
-                  </div>
-                </div>
-                <button onClick={()=>navigate('fiche',eleveDrillDown)} style={{padding:'6px 12px',background:'#1D9E75',color:'#fff',border:'none',borderRadius:8,fontSize:11,cursor:'pointer'}}>
-                  {lang==='ar'?'الملف الكامل':lang==='en'?'Full profile':'Fiche complète'} →
-                </button>
-              </div>
-
-              {allDrill.length===0?(
-                <div className="empty">{lang==='ar'?'لا نشاط في هذه الفترة':lang==='en'?'No activity in this period':'Aucune activité sur la période'}</div>
-              ):(
-                <div className="table-wrap">
-                  <table><thead><tr>
-                    <th style={{width:'14%'}}>{lang==='ar'?'التاريخ':'Date'}</th>
-                    <th style={{width:'12%'}}>{lang==='ar'?'الوقت':'Heure'}</th>
-                    <th style={{width:'30%'}}>{lang==='ar'?'التفاصيل':'Détails'}</th>
-                    <th style={{width:'24%'}}>{lang==='ar'?'السورة/الحزب':'Sourate / Hizb'}</th>
-                    <th style={{width:'10%'}}>{t(lang,'valide_par')}</th>
-                    <th style={{width:'10%'}}>{t(lang,'pts_abrev')}</th>
-                  </tr></thead>
-                  <tbody>
-                    {allDrill.map((item,i)=>{
-                      const isSourateItem = !!item.type_recitation;
-                      const sourate = isSourateItem ? souratesDB.find(s=>s.id===item.sourate_id) : null;
-                      const pts = isSourateItem ? (item.points||10) : (item.type_validation==='hizb_complet'?100:item.nombre_tomon*10);
-                      return(
-                        <tr key={i}>
-                          <td style={{fontSize:12,color:'#888'}}>{formatDateCourt(item.date_validation)}</td>
-                          <td style={{fontSize:12,color:'#888'}}>{new Date(item.date_validation).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'})}</td>
-                          <td>{isSourateItem?(item.type_recitation==='complete'?<span className="badge badge-green">{lang==='ar'?'سورة كاملة':lang==='en'?'Complete surah':'Sourate complète'}</span>:<span className="badge badge-blue">V.{item.verset_debut}→V.{item.verset_fin}</span>):(item.type_validation==='hizb_complet'?<span className="badge badge-green">Hizb {item.hizb_valide} ✓</span>:<span className="badge badge-blue">{item.nombre_tomon} {t(lang,'tomon_abrev')}{item.tomon_debut?` (T.${item.tomon_debut}→T.${item.tomon_debut+item.nombre_tomon-1})`:''}</span>)}</td>
-                          <td style={{fontFamily:"'Tajawal',Arial",direction:'rtl',fontSize:13}}>{sourate?sourate.nom_ar:(item.hizb_validation?`Hizb ${item.hizb_validation}`:'—')}</td>
-                          <td style={{fontSize:11,color:'#888'}}>{item.valideur?`${item.valideur.prenom[0]}. ${item.valideur.nom}`:'—'}</td>
-                          <td><span style={{fontSize:12,fontWeight:700,color:'#1D9E75'}}>+{pts}</span></td>
-                        </tr>
-                      );
-                    })}
-                  </tbody></table>
-                </div>
-              )}
-            </div>
-          )}
-        </>
-      )}
+      <div style="text-align:${dir==='rtl'?'left':'right'};font-size:11px;opacity:0.8">${new Date().toLocaleDateString(lang==='ar'?'ar-MA':'fr-FR',{day:'2-digit',month:'long',year:'numeric'})}</div>
     </div>
-  );
+
+    <div class="kpi-row">
+      <div class="kpi" style="background:#E1F5EE">
+        <div class="kpi-val" style="color:#1D9E75">${filterEleve!=='tous'?1:elevesActifs.size}</div>
+        <div class="kpi-lbl" style="color:#1D9E75">${lang==='ar'?'طلاب نشطون':lang==='en'?'Active':'Élèves actifs'}</div>
+      </div>
+      <div class="kpi" style="background:#EEEDFE">
+        <div class="kpi-val" style="color:#534AB7">${(filterEleve!=='tous'?actifs.find(s=>s.eleve.id===filterEleve)?.pts||0:ptsTotal).toLocaleString()}</div>
+        <div class="kpi-lbl" style="color:#534AB7">${lang==='ar'?'نقاط':lang==='en'?'Points':'Points'}</div>
+      </div>
+      <div class="kpi" style="background:#FAEEDA">
+        <div class="kpi-val" style="color:#EF9F27">${joursActifs}</div>
+        <div class="kpi-lbl" style="color:#EF9F27">${lang==='ar'?'أيام نشطة':lang==='en'?'Active days':'Jours actifs'}</div>
+      </div>
+      <div class="kpi" style="background:#E6F1FB">
+        <div class="kpi-val" style="color:#378ADD">${tomonTotal+souratesTotal}</div>
+        <div class="kpi-lbl" style="color:#378ADD">${lang==='ar'?'تسميعات':lang==='en'?'Recitations':'Récitations'}</div>
+      </div>
+    </div>
+
+    <div class="kpi2-row">
+      <div class="kpi2"><div class="kpi2-val" style="color:#378ADD">${tomonTotal}</div><div class="kpi2-lbl">Tomon</div></div>
+      <div class="kpi2"><div class="kpi2-val" style="color:#EF9F27">${hizbTotal}</div><div class="kpi2-lbl">Hizb</div></div>
+      <div class="kpi2"><div class="kpi2-val" style="color:#085041">${souratesTotal}</div><div class="kpi2-lbl">${lang==='ar'?'سور كاملة':lang==='en'?'Surahs':'Sourates'}</div></div>
+      <div class="kpi2"><div class="kpi2-val" style="color:#888">${sequencesTotal}</div><div class="kpi2-lbl">${lang==='ar'?'مقاطع':lang==='en'?'Seq.':'Séq.'}</div></div>
+    </div>
+
+    ${timelineArr.length>0?`
+    <div class="section">
+      <h2>📈 ${lang==='ar'?'النشاط اليومي':lang==='en'?'Daily Activity':'Activité quotidienne'}</h2>
+      ${timelineSVG}
+      <div style="display:flex;justify-content:space-between;font-size:10px;color:#888;margin-top:6px">
+        <span>${lang==='ar'?'الأكثر نشاطاً':lang==='en'?'Most active':'Plus actif'}: <strong style="color:#1D9E75">${timelineArr.reduce((m,d)=>d.pts>m.pts?d:m,timelineArr[0]).date}</strong></span>
+        <span>${lang==='ar'?'متوسط يومي':lang==='en'?'Daily avg':'Moy./jour'}: <strong style="color:#1D9E75">${Math.round(ptsTotal/(joursActifs||1))} pts</strong></span>
+      </div>
+    </div>`:''}
+
+    ${top5.length>0?`
+    <div class="section">
+      <h2>🏆 ${lang==='ar'?'أداء الطلاب':lang==='en'?'Student Performance':'Performance par élève'}</h2>
+      ${perfSVG}
+    </div>`:''}
+
+    <div class="section">
+      <h2>📋 ${lang==='ar'?'تفاصيل الطلاب':lang==='en'?'Student details':'Détail par élève'}</h2>
+      <table>
+        <thead><tr>
+          <th>#</th>
+          <th>${lang==='ar'?'الاسم':lang==='en'?'Name':'Nom'}</th>
+          <th>${lang==='ar'?'المستوى':'Niv.'}</th>
+          <th>${lang==='ar'?'الأستاذ':lang==='en'?'Teacher':'Instituteur'}</th>
+          <th>Tomon</th><th>Hizb</th>
+          <th>${lang==='ar'?'سور':lang==='en'?'Sur.':'Sur.'}</th>
+          <th>${lang==='ar'?'مق.':lang==='en'?'Seq.':'Séq.'}</th>
+          <th>${lang==='ar'?'النقاط':lang==='en'?'Points':'Points'}</th>
+          <th>${lang==='ar'?'الحصص':lang==='en'?'Sessions':'Séances'}</th>
+          <th>${lang==='ar'?'الهدف %':lang==='en'?'Obj %':'Obj %'}</th>
+        </tr></thead>
+        <tbody>
+          ${dataToExport.map((s,i)=>{
+            const nc={'5B':'#534AB7','5A':'#378ADD','2M':'#1D9E75','2':'#EF9F27','1':'#E24B4A'}[s.eleve.code_niveau||'1']||'#888';
+            const pctColor=s.pctObj!==null?(s.pctObj>=100?'#1D9E75':s.pctObj>=60?'#EF9F27':'#E24B4A'):'#888';
+            return `<tr>
+              <td>${i+1}</td>
+              <td><strong>${s.eleve.prenom} ${s.eleve.nom}</strong></td>
+              <td><span class="badge" style="background:${nc}20;color:${nc}">${s.eleve.code_niveau||'?'}</span></td>
+              <td style="color:#888">${s.instituteurNom}</td>
+              <td>${s.tomon}</td><td>${s.hizb}</td>
+              <td>${s.sourates}</td><td>${s.seqs}</td>
+              <td><strong style="color:#1D9E75">${s.pts}</strong></td>
+              <td>${s.nbSeances}</td>
+              <td><strong style="color:${pctColor}">${s.pctObj!==null?s.pctObj+'%':'—'}</strong></td>
+            </tr>`;
+          }).join('')}
+          ${filterEleve==='tous'&&inactifs.length>0?`<tr><td colspan="11" style="text-align:center;color:#E24B4A;padding:8px">⚠️ ${inactifs.length} ${lang==='ar'?'طالب غير نشط':lang==='en'?'inactive':'élève(s) inactif(s)'}</td></tr>`:''}
+        </tbody>
+      </table>
+    </div>
+
+    ${filterEleve!=='tous'&&allDrill.length>0?`
+    <div class="section">
+      <h2>📖 ${lang==='ar'?'تفاصيل التسميع':lang==='en'?'Recitation details':'Détail des récitations'}</h2>
+      <table>
+        <thead><tr>
+          <th>${lang==='ar'?'التاريخ':'Date'}</th>
+          <th>${lang==='ar'?'الوقت':'Heure'}</th>
+          <th>${lang==='ar'?'النوع':'Type'}</th>
+          <th>${lang==='ar'?'التفاصيل':'Détails'}</th>
+          <th>${lang==='ar'?'السورة/الحزب':'Sourate/Hizb'}</th>
+          <th>${lang==='ar'?'صحح بواسطة':'Validé par'}</th>
+          <th>${lang==='ar'?'النقاط':'Points'}</th>
+        </tr></thead>
+        <tbody>
+          ${allDrill.map(item=>{
+            const isSR=!!item.type_recitation;
+            const sourate=souratesDB.find(s=>s.id===item.sourate_id);
+            const pts=isSR?(item.points||10):(item.type_validation==='hizb_complet'?100:item.nombre_tomon*10);
+            return `<tr>
+              <td>${new Date(item.date_validation).toLocaleDateString('fr-FR',{day:'2-digit',month:'short'})}</td>
+              <td>${new Date(item.date_validation).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'})}</td>
+              <td>${isSR?(item.type_recitation==='complete'?`<span class="badge" style="background:#E1F5EE;color:#085041">${lang==='ar'?'سورة كاملة':'Complète'}</span>`:`<span class="badge" style="background:#E6F1FB;color:#378ADD">${lang==='ar'?'مقطع':'Séquence'}</span>`):(item.type_validation==='hizb_complet'?`<span class="badge" style="background:#FAEEDA;color:#EF9F27">Hizb ✓</span>`:`<span class="badge" style="background:#E6F1FB;color:#378ADD">Tomon</span>`)}</td>
+              <td>${isSR?(item.type_recitation==='complete'?'✓':`V.${item.verset_debut}→${item.verset_fin}`):(item.type_validation==='hizb_complet'?`Hizb ${item.hizb_valide}`:`${item.nombre_tomon} T.${item.tomon_debut||''}`)}</td>
+              <td style="font-family:'Tajawal',Arial;direction:rtl">${sourate?sourate.nom_ar:(item.hizb_validation?`Hizb ${item.hizb_validation}`:'—')}</td>
+              <td style="color:#888">${item.valideur?`${item.valideur.prenom} ${item.valideur.nom}`:'—'}</td>
+              <td><strong style="color:#1D9E75">+${pts}</strong></td>
+            </tr>`;
+          }).join('')}
+        </tbody>
+      </table>
+    </div>`:''}
+
+    <div class="footer">
+      ${lang==='ar'?'أُنشئ بتاريخ':lang==='en'?'Generated on':'Généré le'} ${new Date().toLocaleDateString(lang==='ar'?'ar-MA':lang==='en'?'en-GB':'fr-FR',{day:'2-digit',month:'long',year:'numeric'})} · متابعة التحفيظ
+    </div>
+    </body></html>`);
+    w.document.close();
+    setTimeout(()=>{w.print();w.close();},800);
+  };
 }
