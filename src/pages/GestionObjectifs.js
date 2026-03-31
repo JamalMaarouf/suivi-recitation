@@ -110,7 +110,7 @@ export default function GestionObjectifs({ user, navigate, lang='fr' }) {
   const [form, setForm] = useState({
     type_cible: 'niveau', eleve_id: '', code_niveau: '5B', instituteur_id: '',
     periode: 'mois', date_debut: new Date().toISOString().split('T')[0],
-    date_fin: '', metrique: 'sourate', valeur_cible: '', cible_specifique: null, titre: '', notes: ''
+    date_fin: '', metrique: 'sourate', valeur_cible: '', cible_specifique: null, cibles_selectionnees: [], hizbSelected: null, titre: '', notes: ''
   });
 
   useEffect(() => { loadData(); }, []);
@@ -174,7 +174,7 @@ export default function GestionObjectifs({ user, navigate, lang='fr' }) {
       valeur_cible: parseInt(form.valeur_cible),
       titre: form.titre || null,
       notes: form.notes || null,
-      cible_specifique: form.cible_specifique || null,
+      cible_specifique: form.cibles_selectionnees.length>0 ? JSON.stringify(form.cibles_selectionnees) : (form.cible_specifique||null),
       created_by: user.id,
     };
     const { error } = await supabase.from('objectifs_globaux').insert(insert);
@@ -184,7 +184,7 @@ export default function GestionObjectifs({ user, navigate, lang='fr' }) {
     setShowForm(false);
     setForm({ type_cible:'niveau', eleve_id:'', code_niveau:'5B', instituteur_id:'',
       periode:'mois', date_debut:new Date().toISOString().split('T')[0],
-      date_fin:'', metrique:'sourate', valeur_cible:'', cible_specifique:null, titre:'', notes:'' });
+      date_fin:'', metrique:'sourate', valeur_cible:'', cible_specifique:null, cibles_selectionnees:[], hizbSelected:null, titre:'', notes:'' });
     await loadData();
   };
 
@@ -318,11 +318,11 @@ export default function GestionObjectifs({ user, navigate, lang='fr' }) {
             <input className="field-input" value={form.titre} onChange={e=>setForm(f=>({...f,titre:e.target.value}))} placeholder={lang==='ar'?'مثال: هدف الفصل الأول':lang==='en'?'e.g. Q1 target':'Ex: Objectif T1 2025'}/>
           </div>
 
+          {/* Ligne 1 : Type de cible */}
           <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12,marginBottom:12}}>
-            {/* Type de cible */}
             <div className="field-group">
               <label className="field-lbl">{lang==='ar'?'نوع الهدف':lang==='en'?'Target type':'Type de cible'} *</label>
-              <select className="field-select" value={form.type_cible} onChange={e=>setForm(f=>({...f,type_cible:e.target.value}))}>
+              <select className="field-select" value={form.type_cible} onChange={e=>setForm(f=>({...f,type_cible:e.target.value,eleve_id:'',code_niveau:'5B',instituteur_id:'',metrique:'sourate',cible_specifique:null,valeur_cible:'',cibles_selectionnees:[]}))}>
                 <option value="niveau">{lang==='ar'?'بالمستوى':lang==='en'?'By level':'Par niveau'}</option>
                 <option value="eleve">{lang==='ar'?'بالطالب':lang==='en'?'By student':'Par élève'}</option>
                 <option value="instituteur">{lang==='ar'?'بالأستاذ':lang==='en'?'By teacher':'Par instituteur'}</option>
@@ -330,55 +330,72 @@ export default function GestionObjectifs({ user, navigate, lang='fr' }) {
               </select>
             </div>
 
-            {/* Cible spécifique */}
-            {form.type_cible==='niveau'&&(
+            {/* Cible spécifique selon type */}
+            {form.type_cible==='niveau' && (
               <div className="field-group">
                 <label className="field-lbl">{lang==='ar'?'المستوى':lang==='en'?'Level':'Niveau'} *</label>
-                <select className="field-select" value={form.code_niveau} onChange={e=>setForm(f=>({...f,code_niveau:e.target.value}))}>
+                <select className="field-select" value={form.code_niveau} onChange={e=>setForm(f=>({...f,code_niveau:e.target.value,metrique:['5B','5A'].includes(e.target.value)?'sourate':'tomon',cible_specifique:null,valeur_cible:'',cibles_selectionnees:[]}))}>
                   {NIVEAUX.map(n=><option key={n} value={n}>{n} — {NIVEAU_LABELS[n]}</option>)}
                 </select>
               </div>
             )}
-            {form.type_cible==='eleve'&&(
+
+            {form.type_cible==='eleve' && (
               <div className="field-group">
                 <label className="field-lbl">{lang==='ar'?'الطالب':lang==='en'?'Student':'Élève'} *</label>
-                <select className="field-select" value={form.eleve_id} onChange={e=>setForm(f=>({...f,eleve_id:e.target.value,metrique:['5B','5A'].includes(eleves.find(el=>el.id===e.target.value)?.code_niveau||'')?'sourate':'tomon'}))}>
-                  <option value="">— {lang==='ar'?'اختر':lang==='en'?'Select':'Sélectionner'} —</option>
-                  {eleves.map(e=><option key={e.id} value={e.id}>{e.prenom} {e.nom} ({e.code_niveau||'?'})</option>)}
+                <select className="field-select" value={form.eleve_id}
+                  onChange={e=>{
+                    const el=eleves.find(x=>x.id===e.target.value);
+                    const niv=el?.code_niveau||'1';
+                    setForm(f=>({...f,eleve_id:e.target.value,metrique:['5B','5A'].includes(niv)?'sourate':'tomon',cible_specifique:null,valeur_cible:'',cibles_selectionnees:[]}));
+                  }}>
+                  <option value="">— {lang==='ar'?'اختر طالباً':lang==='en'?'Select a student':'Sélectionner un élève'} —</option>
+                  {eleves.map(e=>(
+                    <option key={e.id} value={e.id}>{e.prenom} {e.nom} · {e.code_niveau||'?'}{e.eleve_id_ecole?` #${e.eleve_id_ecole}`:''}</option>
+                  ))}
                 </select>
-                {form.eleve_id&&(()=>{
+                {form.eleve_id && (()=>{
                   const el=eleves.find(e=>e.id===form.eleve_id);
                   if(!el) return null;
-                  const nc={'5B':'#534AB7','5A':'#378ADD','2M':'#1D9E75','2':'#EF9F27','1':'#E24B4A'}[el.code_niveau||'1']||'#888';
-                  return <div style={{marginTop:6,display:'flex',alignItems:'center',gap:6,fontSize:12,color:'#888'}}>
-                    <span style={{padding:'2px 8px',borderRadius:20,fontSize:11,fontWeight:700,background:nc+'15',color:nc}}>{el.code_niveau||'?'}</span>
-                    <span>{el.eleve_id_ecole?`#${el.eleve_id_ecole}`:''}</span>
+                  const nc=NIVEAU_COLORS[el.code_niveau||'1']||'#888';
+                  return <div style={{marginTop:5,display:'flex',alignItems:'center',gap:6,fontSize:12}}>
+                    <span style={{padding:'2px 8px',borderRadius:20,fontSize:11,fontWeight:700,background:nc+'20',color:nc,border:`0.5px solid ${nc}40`}}>{el.code_niveau||'?'}</span>
+                    <span style={{color:'#888'}}>{NIVEAU_LABELS[el.code_niveau||'1']||''}</span>
                   </div>;
                 })()}
               </div>
             )}
-            {form.type_cible==='instituteur'&&(
+
+            {form.type_cible==='instituteur' && (
               <div className="field-group">
                 <label className="field-lbl">{lang==='ar'?'الأستاذ':lang==='en'?'Teacher':'Instituteur'} *</label>
-                <select className="field-select" value={form.instituteur_id} onChange={e=>setForm(f=>({...f,instituteur_id:e.target.value}))}>
-                  <option value="">— {lang==='ar'?'اختر':lang==='en'?'Select':'Sélectionner'} —</option>
+                <select className="field-select" value={form.instituteur_id} onChange={e=>setForm(f=>({...f,instituteur_id:e.target.value,cible_specifique:null,valeur_cible:'',cibles_selectionnees:[]}))}>
+                  <option value="">— {lang==='ar'?'اختر أستاذاً':lang==='en'?'Select a teacher':'Sélectionner un instituteur'} —</option>
                   {instituteurs.map(i=>{
-                    const nbEleves=eleves.filter(e=>e.instituteur_referent_id===i.id).length;
-                    return <option key={i.id} value={i.id}>{i.prenom} {i.nom} ({nbEleves} {lang==='ar'?'طالب':lang==='en'?'students':'élèves'})</option>;
+                    const nb=eleves.filter(e=>e.instituteur_referent_id===i.id).length;
+                    return <option key={i.id} value={i.id}>{i.prenom} {i.nom} ({nb} {lang==='ar'?'طالب':lang==='en'?'students':'élèves'})</option>;
                   })}
                 </select>
-                {form.instituteur_id&&(()=>{
-                  const inst=instituteurs.find(i=>i.id===form.instituteur_id);
+                {form.instituteur_id && (()=>{
                   const elevesInst=eleves.filter(e=>e.instituteur_referent_id===form.instituteur_id);
                   const niveaux=[...new Set(elevesInst.map(e=>e.code_niveau||'?'))];
-                  return inst ? <div style={{marginTop:6,fontSize:12,color:'#888',display:'flex',gap:4,flexWrap:'wrap'}}>
-                    {niveaux.map(n=><span key={n} style={{padding:'2px 6px',borderRadius:10,background:'#f0f0ec',fontSize:11}}>{n}</span>)}
-                    <span>· {elevesInst.length} {lang==='ar'?'طالب':lang==='en'?'students':'élèves'}</span>
-                  </div> : null;
+                  return <div style={{marginTop:5,display:'flex',gap:4,flexWrap:'wrap'}}>
+                    {niveaux.map(n=><span key={n} style={{padding:'2px 6px',borderRadius:10,background:'#f0f0ec',fontSize:11,color:'#666'}}>{n}</span>)}
+                    <span style={{fontSize:11,color:'#888'}}>· {elevesInst.length} {lang==='ar'?'طالب':lang==='en'?'students':'élèves'}</span>
+                  </div>;
                 })()}
               </div>
             )}
+
+            {form.type_cible==='global' && (
+              <div className="field-group" style={{display:'flex',alignItems:'center',paddingTop:24}}>
+                <div style={{padding:'10px 14px',background:'#f0faf6',borderRadius:8,fontSize:12,color:'#085041',width:'100%'}}>
+                  🌐 {lang==='ar'?'يشمل جميع الطلاب':lang==='en'?'Covers all students':'Concerne tous les élèves'}
+                </div>
+              </div>
+            )}
           </div>
+
 
           <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:12,marginBottom:12}}>
             {/* Période */}
@@ -402,86 +419,150 @@ export default function GestionObjectifs({ user, navigate, lang='fr' }) {
             </div>
           </div>
 
-          {/* Métrique + Cible intelligente */}
+          {/* ÉTAPE 1 : Métrique + nombre */}
           <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12,marginBottom:12}}>
             <div className="field-group">
               <label className="field-lbl">{lang==='ar'?'مؤشر القياس':lang==='en'?'Metric':'Métrique'} *</label>
-              <select className="field-select" value={form.metrique} onChange={e=>setForm(f=>({...f,metrique:e.target.value,valeur_cible:'',cible_specifique:null}))}>
+              <select className="field-select" value={form.metrique}
+                onChange={e=>setForm(f=>({...f,metrique:e.target.value,valeur_cible:'',cibles_selectionnees:[],hizbSelected:null}))}>
                 {metriquesDisponibles().map(m=><option key={m.val} value={m.val}>{lang==='ar'?m.label_ar:lang==='en'?m.label_en:m.label_fr}</option>)}
               </select>
             </div>
-
-            {/* Valeur cible — intelligente selon la métrique */}
             <div className="field-group">
-              <label className="field-lbl">{lang==='ar'?'القيمة المستهدفة':lang==='en'?'Target value':'Valeur cible'} *</label>
-              {form.metrique === 'sourate' ? (
-                <div>
-                  <div style={{fontSize:11,color:'#888',marginBottom:6}}>
-                    {lang==='ar'?'اختر سورة محددة أو عدداً':lang==='en'?'Pick a specific surah or a count':'Choisir une sourate précise ou un nombre'}
-                  </div>
-                  <div style={{display:'flex',gap:6}}>
-                    <select className="field-select" style={{flex:2}}
-                      value={form.cible_specifique||''}
-                      onChange={e=>{
-                        const val=e.target.value;
-                        setForm(f=>({...f,cible_specifique:val||null,valeur_cible:val?'1':f.valeur_cible}));
-                      }}>
-                      <option value="">{lang==='ar'?'— عدد سور (حر)':lang==='en'?'— Number of surahs':'— Nombre de sourates'}</option>
-                      {(()=>{
-                        const niv = form.type_cible==='niveau' ? form.code_niveau :
-                                    form.type_cible==='eleve' ? (eleves.find(e=>e.id===form.eleve_id)?.code_niveau||'5B') : '5A';
-                        const list = ['5B'].includes(niv) ? SOURATES_5B : SOURATES_5A;
-                        return [...list].sort((a,b)=>b.numero-a.numero).map(s=>(
-                          <option key={s.numero} value={`sourate_${s.numero}`}>{s.numero} — {s.nom_ar}</option>
-                        ));
-                      })()}
-                    </select>
-                    {!form.cible_specifique&&<input className="field-input" style={{flex:1}} type="number" min="1" value={form.valeur_cible} onChange={e=>setForm(f=>({...f,valeur_cible:e.target.value}))} placeholder="5"/>}
-                  </div>
-                </div>
-              ) : form.metrique === 'hizb' ? (
-                <div>
-                  <div style={{fontSize:11,color:'#888',marginBottom:6}}>
-                    {lang==='ar'?'اختر حزباً محدداً أو عدداً':lang==='en'?'Pick a specific Hizb or a count':'Choisir un Hizb précis ou un nombre'}
-                  </div>
-                  <div style={{display:'flex',gap:6}}>
-                    <select className="field-select" style={{flex:2}}
-                      value={form.cible_specifique||''}
-                      onChange={e=>setForm(f=>({...f,cible_specifique:e.target.value||null,valeur_cible:e.target.value?'1':f.valeur_cible}))}>
-                      <option value="">{lang==='ar'?'— عدد أحزاب (حر)':lang==='en'?'— Number of Hizb':'— Nombre de Hizb'}</option>
-                      {Array.from({length:60},(_,i)=>i+1).map(h=>(
-                        <option key={h} value={`hizb_${h}`}>Hizb {h}</option>
-                      ))}
-                    </select>
-                    {!form.cible_specifique&&<input className="field-input" style={{flex:1}} type="number" min="1" value={form.valeur_cible} onChange={e=>setForm(f=>({...f,valeur_cible:e.target.value}))} placeholder="2"/>}
-                  </div>
-                </div>
-              ) : form.metrique === 'tomon' ? (
-                <div>
-                  <div style={{fontSize:11,color:'#888',marginBottom:6}}>
-                    {lang==='ar'?'اختر ثُمناً محدداً أو عدداً':lang==='en'?'Pick a specific Tomon or a count':'Choisir un Tomon précis ou un nombre'}
-                  </div>
-                  <div style={{display:'flex',gap:6}}>
-                    <select className="field-select" style={{flex:2}}
-                      value={form.cible_specifique||''}
-                      onChange={e=>setForm(f=>({...f,cible_specifique:e.target.value||null,valeur_cible:e.target.value?'1':f.valeur_cible}))}>
-                      <option value="">{lang==='ar'?'— عدد أثمان (حر)':lang==='en'?'— Number of Tomon':'— Nombre de Tomon'}</option>
-                      {Array.from({length:60},(_,hi)=>hi+1).map(h=>(
-                        [1,2,3,4,5,6,7,8].map(ti=>(
-                          <option key={`${h}_${ti}`} value={`hizb${h}_tomon${ti}`}>Hizb {h} — T.{ti}</option>
-                        ))
-                      ))}
-                    </select>
-                    {!form.cible_specifique&&<input className="field-input" style={{flex:1}} type="number" min="1" value={form.valeur_cible} onChange={e=>setForm(f=>({...f,valeur_cible:e.target.value}))} placeholder="10"/>}
-                  </div>
-                </div>
-              ) : (
-                <input className="field-input" type="number" min="1" value={form.valeur_cible}
-                  onChange={e=>setForm(f=>({...f,valeur_cible:e.target.value}))}
-                  placeholder={form.metrique==='points'?'1000':form.metrique==='seances'?'12':'20'}/>
-              )}
+              <label className="field-lbl">
+                {form.metrique==='sourate'?(lang==='ar'?'عدد السور المستهدفة':lang==='en'?'Number of target surahs':'Nombre de sourates cibles')
+                :form.metrique==='hizb'?(lang==='ar'?'عدد الأحزاب المستهدفة':lang==='en'?'Number of target Hizb':'Nombre de Hizb cibles')
+                :form.metrique==='tomon'?(lang==='ar'?'عدد الأثمان المستهدفة':lang==='en'?'Number of target Tomon':'Nombre de Tomon cibles')
+                :form.metrique==='points'?(lang==='ar'?'النقاط المستهدفة':lang==='en'?'Target points':'Points cibles')
+                :(lang==='ar'?'عدد الحصص':lang==='en'?'Target sessions':'Nombre de séances')} *
+              </label>
+              <input className="field-input" type="number" min="1"
+                value={form.valeur_cible}
+                onChange={e=>setForm(f=>({...f,valeur_cible:e.target.value,cibles_selectionnees:[]}))}
+                placeholder={form.metrique==='points'?'500':form.metrique==='seances'?'12':'5'}/>
             </div>
           </div>
+
+          {/* ÉTAPE 2 : Sélection visuelle des éléments (si sourate/hizb/tomon) */}
+          {parseInt(form.valeur_cible)>0 && ['sourate','hizb','tomon'].includes(form.metrique) && (
+            <div style={{marginBottom:12,border:'1.5px solid #1D9E75',borderRadius:12,padding:'1rem',background:'#f0faf6'}}>
+              <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:10}}>
+                <div style={{fontSize:13,fontWeight:600,color:'#085041'}}>
+                  {lang==='ar'?'اختر العناصر المستهدفة':lang==='en'?'Select target items':'Sélectionnez les éléments cibles'}
+                  <span style={{fontSize:11,color:'#888',marginRight:8,marginLeft:8}}>({form.cibles_selectionnees.length}/{parseInt(form.valeur_cible)||0})</span>
+                </div>
+                {form.cibles_selectionnees.length>0&&<button onClick={()=>setForm(f=>({...f,cibles_selectionnees:[]}))} style={{fontSize:11,color:'#E24B4A',background:'none',border:'none',cursor:'pointer'}}>✕ {lang==='ar'?'إلغاء الكل':lang==='en'?'Clear all':'Tout effacer'}</button>}
+              </div>
+
+              {/* Barre de progression de sélection */}
+              <div style={{height:6,background:'#e8e8e0',borderRadius:3,overflow:'hidden',marginBottom:10}}>
+                <div style={{height:'100%',width:`${Math.min(100,form.cibles_selectionnees.length/(parseInt(form.valeur_cible)||1)*100)}%`,background:form.cibles_selectionnees.length>=(parseInt(form.valeur_cible)||1)?'#1D9E75':'#EF9F27',borderRadius:3,transition:'width 0.3s'}}/>
+              </div>
+
+              {form.metrique==='sourate' && (()=>{
+                const niv = form.type_cible==='niveau' ? form.code_niveau :
+                            form.type_cible==='eleve' ? (eleves.find(e=>e.id===form.eleve_id)?.code_niveau||'5B') : '5A';
+                const list = ['5B'].includes(niv) ? SOURATES_5B : SOURATES_5A;
+                const sorted = [...list].sort((a,b)=>b.numero-a.numero);
+                const maxSel = parseInt(form.valeur_cible)||0;
+                return(
+                  <div style={{display:'flex',flexDirection:'column',gap:4,maxHeight:220,overflowY:'auto'}}>
+                    {sorted.map(s=>{
+                      const key=`sourate_${s.numero}`;
+                      const isSel=form.cibles_selectionnees.includes(key);
+                      const isDisabled=!isSel&&form.cibles_selectionnees.length>=maxSel;
+                      return(
+                        <div key={s.numero} onClick={()=>{if(isDisabled)return;setForm(f=>({...f,cibles_selectionnees:isSel?f.cibles_selectionnees.filter(x=>x!==key):[...f.cibles_selectionnees,key]}));}}
+                          style={{display:'flex',alignItems:'center',gap:10,padding:'7px 10px',borderRadius:8,cursor:isDisabled?'not-allowed':'pointer',opacity:isDisabled?0.4:1,background:isSel?'#E1F5EE':'#fff',border:`0.5px solid ${isSel?'#1D9E75':'#e0e0d8'}`,transition:'all 0.15s'}}>
+                          <div style={{width:18,height:18,borderRadius:4,border:`1.5px solid ${isSel?'#1D9E75':'#ccc'}`,background:isSel?'#1D9E75':'#fff',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
+                            {isSel&&<span style={{color:'#fff',fontSize:11,fontWeight:700}}>✓</span>}
+                          </div>
+                          <span style={{fontSize:11,color:'#bbb',minWidth:24}}>{s.numero}</span>
+                          <span style={{fontSize:14,fontFamily:"'Tajawal',Arial",direction:'rtl',color:isSel?'#085041':'#333',fontWeight:isSel?600:400}}>{s.nom_ar}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                );
+              })()}
+
+              {form.metrique==='hizb' && (()=>{
+                const maxSel=parseInt(form.valeur_cible)||0;
+                return(
+                  <div style={{display:'grid',gridTemplateColumns:'repeat(6,1fr)',gap:4}}>
+                    {Array.from({length:60},(_,i)=>i+1).map(h=>{
+                      const key=`hizb_${h}`;
+                      const isSel=form.cibles_selectionnees.includes(key);
+                      const isDisabled=!isSel&&form.cibles_selectionnees.length>=maxSel;
+                      return(
+                        <div key={h} onClick={()=>{if(isDisabled)return;setForm(f=>({...f,cibles_selectionnees:isSel?f.cibles_selectionnees.filter(x=>x!==key):[...f.cibles_selectionnees,key]}));}}
+                          style={{height:36,borderRadius:6,display:'flex',alignItems:'center',justifyContent:'center',fontSize:12,fontWeight:isSel?700:400,cursor:isDisabled?'not-allowed':'pointer',opacity:isDisabled?0.35:1,background:isSel?'#1D9E75':'#fff',color:isSel?'#fff':'#666',border:`0.5px solid ${isSel?'#1D9E75':'#e0e0d8'}`,transition:'all 0.1s'}}>
+                          {h}
+                        </div>
+                      );
+                    })}
+                  </div>
+                );
+              })()}
+
+              {form.metrique==='tomon' && (()=>{
+                const maxSel=parseInt(form.valeur_cible)||0;
+                // First pick a Hizb, then pick Tomon within it
+                return(
+                  <div>
+                    <div style={{fontSize:11,color:'#085041',fontWeight:600,marginBottom:6}}>
+                      1️⃣ {lang==='ar'?'اختر الحزب أولاً':lang==='en'?'First select a Hizb':'Sélectionnez d'abord un Hizb'}
+                    </div>
+                    <div style={{display:'grid',gridTemplateColumns:'repeat(10,1fr)',gap:3,marginBottom:10}}>
+                      {Array.from({length:60},(_,i)=>i+1).map(h=>{
+                        const hasSelected=form.cibles_selectionnees.some(k=>k.startsWith(`h${h}_t`));
+                        return(
+                          <div key={h} onClick={()=>setForm(f=>({...f,hizbSelected:f.hizbSelected===h?null:h}))}
+                            style={{height:28,borderRadius:4,display:'flex',alignItems:'center',justifyContent:'center',fontSize:11,cursor:'pointer',
+                              background:form.hizbSelected===h?'#085041':hasSelected?'#E1F5EE':'#f5f5f0',
+                              color:form.hizbSelected===h?'#fff':hasSelected?'#085041':'#888',
+                              border:`0.5px solid ${form.hizbSelected===h?'#085041':hasSelected?'#9FE1CB':'#e0e0d8'}`,
+                              fontWeight:form.hizbSelected===h||hasSelected?600:400}}>
+                            {h}
+                          </div>
+                        );
+                      })}
+                    </div>
+                    {form.hizbSelected && (
+                      <div>
+                        <div style={{fontSize:11,color:'#085041',fontWeight:600,marginBottom:6}}>
+                          2️⃣ {lang==='ar'?`الأثمان - الحزب ${form.hizbSelected}`:lang==='en'?`Tomon - Hizb ${form.hizbSelected}`:`Tomon du Hizb ${form.hizbSelected}`}
+                        </div>
+                        <div style={{display:'grid',gridTemplateColumns:'repeat(8,1fr)',gap:6}}>
+                          {[1,2,3,4,5,6,7,8].map(t=>{
+                            const key=`h${form.hizbSelected}_t${t}`;
+                            const isSel=form.cibles_selectionnees.includes(key);
+                            const isDisabled=!isSel&&form.cibles_selectionnees.length>=maxSel;
+                            return(
+                              <div key={t} onClick={()=>{if(isDisabled)return;setForm(f=>({...f,cibles_selectionnees:isSel?f.cibles_selectionnees.filter(x=>x!==key):[...f.cibles_selectionnees,key]}));}}
+                                style={{padding:'10px',borderRadius:8,textAlign:'center',cursor:isDisabled?'not-allowed':'pointer',opacity:isDisabled?0.35:1,
+                                  background:isSel?'#1D9E75':'#fff',color:isSel?'#fff':'#555',border:`1.5px solid ${isSel?'#1D9E75':'#e0e0d8'}`,transition:'all 0.15s'}}>
+                                <div style={{fontSize:14,fontWeight:700}}>T.{t}</div>
+                                <div style={{fontSize:9,color:isSel?'#9FE1CB':'#bbb',marginTop:2}}>H{form.hizbSelected}</div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+                    {form.cibles_selectionnees.length>0 && (
+                      <div style={{marginTop:8,display:'flex',gap:4,flexWrap:'wrap'}}>
+                        {form.cibles_selectionnees.map(k=>{
+                          const [h,t]=k.replace('h','').split('_t');
+                          return <span key={k} style={{padding:'2px 8px',background:'#E1F5EE',borderRadius:20,fontSize:11,color:'#085041'}}>Hizb {h} T.{t}</span>;
+                        })}
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
+            </div>
+          )}
 
           {/* Notes */}
           <div className="field-group" style={{marginBottom:14}}>
