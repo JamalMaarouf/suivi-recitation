@@ -88,6 +88,14 @@ export default function RecitationSourate({ user, eleve, navigate, lang='fr' }) 
 
   useEffect(() => { loadData(); }, [eleve.id]);
 
+  // Auto-select current sourate when arriving from outside (e.g. from FicheSourate)
+  useEffect(() => {
+    if (!loading && currentSourate && !selectedSourate && step === 'liste') {
+      // Don't auto-navigate, let user see the list first
+      // But highlight the current sourate clearly
+    }
+  }, [loading]);
+
   const loadData = async () => {
     setLoading(true);
     const [{ data: sdb }, { data: rd }, { data: ex }] = await Promise.all([
@@ -95,10 +103,36 @@ export default function RecitationSourate({ user, eleve, navigate, lang='fr' }) 
       supabase.from('recitations_sourates').select('*, valideur:valide_par(prenom,nom)').eq('eleve_id', eleve.id).order('date_validation', { ascending: false }),
       supabase.from('exceptions_recitation').select('*').eq('eleve_id', eleve.id).eq('active', true)
     ]);
-    setSouratesDB(sdb || []);
-    setRecitations(rd || []);
-    setExceptions(ex || []);
+    const sdbData = sdb || [];
+    const rdData = rd || [];
+    const exData = ex || [];
+    setSouratesDB(sdbData);
+    setRecitations(rdData);
+    setExceptions(exData);
     setLoading(false);
+    
+    // Auto-navigate to current sourate after loading
+    // Only if we're still on liste (not already on a specific sourate)
+    // Find the current sourate based on acquis and completions
+    const souratesAcq = eleve.sourates_acquises || 0;
+    const souratesNiv = getSouratesForNiveau(eleve.code_niveau || '5B');
+    const souratesOrd = [...souratesNiv].sort((a,b) => b.numero - a.numero);
+    
+    const getDbIdLocal = (numero) => sdbData.find(s => s.numero === numero)?.id;
+    const isCompleteLocal = (numero) => {
+      const dbId = getDbIdLocal(numero);
+      return dbId ? rdData.some(r => r.sourate_id === dbId && r.type_recitation === 'complete') : false;
+    };
+    
+    const currentIdxLocal = souratesOrd.findIndex((sr, i) => {
+      if (i < souratesAcq) return false;
+      return !isCompleteLocal(sr.numero);
+    });
+    
+    if (currentIdxLocal >= 0) {
+      setSelectedSourate(souratesOrd[currentIdxLocal]);
+      setStep('valider');
+    }
   };
 
   const getDbId = (numero) => souratesDB.find(s => s.numero === numero)?.id;
@@ -305,7 +339,7 @@ export default function RecitationSourate({ user, eleve, navigate, lang='fr' }) 
 
                   return (
                     <div key={s.numero}
-                      onClick={() => accessible && setSelectedSourate(s) && setStep('valider')}
+                      onClick={() => { if(accessible){ setSelectedSourate(s); setStep('valider'); } }}
                       style={{display:'flex',alignItems:'center',gap:12,padding:'12px 14px',background:bg,border:`${isCurrent?'2px':'0.5px'} solid ${border}`,borderRadius:12,cursor,opacity,transition:'all 0.15s'}}
                       onMouseEnter={ev => accessible && (ev.currentTarget.style.borderColor='#1D9E75')}
                       onMouseLeave={ev => accessible && (ev.currentTarget.style.borderColor=border)}>
