@@ -136,18 +136,21 @@ export default function GestionObjectifs({ user, navigate, lang='fr' }) {
 
   const loadData = async () => {
     setLoading(true);
-    const [{ data: objs }, { data: ed }, { data: inst }, { data: vd }, { data: rd }] = await Promise.all([
-      supabase.from('objectifs_globaux').select('*').order('created_at', { ascending: false }),
-      supabase.from('eleves').select('*').order('nom'),
-      supabase.from('utilisateurs').select('*').eq('role', 'instituteur'),
-      supabase.from('validations').select('*'),
-      supabase.from('recitations_sourates').select('*').catch(() => ({ data: [] })),
+    // Load each table safely — some may not exist yet
+    const safeQuery = async (q) => { try { const r = await q; return r.data || []; } catch(e) { return []; } };
+    
+    const [objs, ed, inst, vd, rd] = await Promise.all([
+      safeQuery(supabase.from('objectifs_globaux').select('*').order('created_at', { ascending: false })),
+      safeQuery(supabase.from('eleves').select('*').order('nom')),
+      safeQuery(supabase.from('utilisateurs').select('*').eq('role', 'instituteur')),
+      safeQuery(supabase.from('validations').select('*')),
+      safeQuery(supabase.from('recitations_sourates').select('*')),
     ]);
-    setObjectifs(objs || []);
-    setEleves(ed || []);
-    setInstituteurs(inst || []);
-    setValidations(vd || []);
-    setRecitationsSourates(rd || []);
+    setObjectifs(objs);
+    setEleves(ed);
+    setInstituteurs(inst);
+    setValidations(vd);
+    setRecitationsSourates(rd);
     setLoading(false);
   };
 
@@ -598,25 +601,47 @@ export default function GestionObjectifs({ user, navigate, lang='fr' }) {
       )}
 
       {/* Filtres */}
-      <div style={{display:'flex',gap:8,flexWrap:'wrap',marginBottom:'1rem'}}>
-        <select className="field-select" style={{flex:1,minWidth:120}} value={filterType} onChange={e=>setFilterType(e.target.value)}>
-          <option value="tous">{lang==='ar'?'جميع الأنواع':lang==='en'?'All types':'Tous les types'}</option>
-          <option value="eleve">{lang==='ar'?'بالطالب':lang==='en'?'By student':'Par élève'}</option>
-          <option value="niveau">{lang==='ar'?'بالمستوى':lang==='en'?'By level':'Par niveau'}</option>
-          <option value="instituteur">{lang==='ar'?'بالأستاذ':lang==='en'?'By teacher':'Par instituteur'}</option>
-          <option value="global">{lang==='ar'?'عام':lang==='en'?'Global':'Global'}</option>
-        </select>
-        <select className="field-select" style={{flex:1,minWidth:120}} value={filterNiveau} onChange={e=>setFilterNiveau(e.target.value)}>
-          <option value="tous">{lang==='ar'?'جميع المستويات':lang==='en'?'All levels':'Tous les niveaux'}</option>
-          {NIVEAUX.map(n=><option key={n} value={n}>{n}</option>)}
-        </select>
-        <select className="field-select" style={{flex:1,minWidth:120}} value={filterStatut} onChange={e=>setFilterStatut(e.target.value)}>
-          <option value="tous">{lang==='ar'?'جميع الحالات':lang==='en'?'All statuses':'Tous les statuts'}</option>
-          <option value="en_cours">{lang==='ar'?'جارية':lang==='en'?'In progress':'En cours'}</option>
-          <option value="atteint">{lang==='ar'?'محققة':lang==='en'?'Achieved':'Atteints'}</option>
-          <option value="expire">{lang==='ar'?'منتهية':lang==='en'?'Expired':'Expirés'}</option>
-          <option value="futur">{lang==='ar'?'قادمة':lang==='en'?'Upcoming':'À venir'}</option>
-        </select>
+      <div style={{background:'#fff',border:'0.5px solid #e0e0d8',borderRadius:12,padding:'1rem',marginBottom:'1rem'}}>
+        <div style={{fontSize:12,fontWeight:600,color:'#888',marginBottom:8}}>
+          🔍 {lang==='ar'?'تصفية الأهداف':lang==='en'?'Filter objectives':'Filtrer les objectifs'}
+        </div>
+        <div style={{display:'flex',gap:8,flexWrap:'wrap',marginBottom:10}}>
+          <select className="field-select" style={{flex:1,minWidth:130}} value={filterType} onChange={e=>setFilterType(e.target.value)}>
+            <option value="tous">{lang==='ar'?'جميع الأنواع':lang==='en'?'All types':'Tous les types'}</option>
+            <option value="eleve">{lang==='ar'?'بالطالب':lang==='en'?'By student':'Par élève'}</option>
+            <option value="niveau">{lang==='ar'?'بالمستوى':lang==='en'?'By level':'Par niveau'}</option>
+            <option value="instituteur">{lang==='ar'?'بالأستاذ':lang==='en'?'By teacher':'Par instituteur'}</option>
+            <option value="global">{lang==='ar'?'عام':lang==='en'?'Global':'Global'}</option>
+          </select>
+          <select className="field-select" style={{flex:1,minWidth:130}} value={filterNiveau} onChange={e=>setFilterNiveau(e.target.value)}>
+            <option value="tous">{lang==='ar'?'جميع المستويات':lang==='en'?'All levels':'Tous les niveaux'}</option>
+            {NIVEAUX.map(n=><option key={n} value={n}>{n} — {NIVEAU_LABELS[n]}</option>)}
+          </select>
+          <select className="field-select" style={{flex:1,minWidth:130}} value={filterStatut} onChange={e=>setFilterStatut(e.target.value)}>
+            <option value="tous">{lang==='ar'?'جميع الحالات':lang==='en'?'All statuses':'Tous les statuts'}</option>
+            <option value="en_cours">{lang==='ar'?'جارية':lang==='en'?'In progress':'En cours'}</option>
+            <option value="atteint">{lang==='ar'?'محققة':lang==='en'?'Achieved':'Atteints'}</option>
+            <option value="expire">{lang==='ar'?'منتهية':lang==='en'?'Expired':'Expirés'}</option>
+            <option value="futur">{lang==='ar'?'قادمة':lang==='en'?'Upcoming':'À venir'}</option>
+          </select>
+        </div>
+        <div style={{display:'flex',gap:8,alignItems:'center',justifyContent:'space-between'}}>
+          <div style={{fontSize:12,color:'#888'}}>
+            {objFiltres.length} {lang==='ar'?'هدف':lang==='en'?'objective(s)':'objectif(s)'} {filterType!=='tous'||filterNiveau!=='tous'||filterStatut!=='tous'?`(${lang==='ar'?'مصفّى':lang==='en'?'filtered':'filtré'})`:''}
+          </div>
+          <div style={{display:'flex',gap:6}}>
+            {(filterType!=='tous'||filterNiveau!=='tous'||filterStatut!=='tous')&&(
+              <button onClick={()=>{setFilterType('tous');setFilterNiveau('tous');setFilterStatut('tous');}}
+                style={{padding:'6px 12px',border:'0.5px solid #e0e0d8',borderRadius:8,background:'#fff',fontSize:12,cursor:'pointer',color:'#888'}}>
+                ✕ {lang==='ar'?'إلغاء التصفية':lang==='en'?'Clear filters':'Effacer les filtres'}
+              </button>
+            )}
+            <button onClick={loadData}
+              style={{padding:'6px 16px',background:'#1D9E75',color:'#fff',border:'none',borderRadius:8,fontSize:12,fontWeight:600,cursor:'pointer',display:'flex',alignItems:'center',gap:4}}>
+              🔄 {lang==='ar'?'تحديث':lang==='en'?'Refresh':'Actualiser'}
+            </button>
+          </div>
+        </div>
       </div>
 
       {/* Liste des objectifs */}
