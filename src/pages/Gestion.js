@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { getInitiales, calcEtatEleve, calcPoints } from '../lib/helpers';
-import { SOURATES_5B, SOURATES_5A } from '../lib/sourates';
+import { SOURATES_5B, SOURATES_5A, SOURATES_2M, isSourateNiveau } from '../lib/sourates';
 import { t } from '../lib/i18n';
 
 function Avatar({ prenom, nom, size = 28 }) {
@@ -14,10 +14,10 @@ function Avatar({ prenom, nom, size = 28 }) {
 
 // Sélecteur acquis antérieurs — adapté selon le niveau
 function AcquisSelector({ codeNiveau, hizb, tomon, onHizbChange, onTomonChange, souratesAcquises, onSouratesChange, lang }) {
-  const isSourate = ['5B','5A'].includes(codeNiveau);
+  const isSourate = ['5B','5A','2M'].includes(codeNiveau);
 
   if (isSourate) {
-    const souratesNiveau = codeNiveau === '5B' ? SOURATES_5B : SOURATES_5A;
+    const souratesNiveau = codeNiveau === '5B' ? SOURATES_5B : codeNiveau === '5A' ? SOURATES_5A : SOURATES_2M;
     const souratesOrdonnees = [...souratesNiveau].sort((a,b) => b.numero - a.numero);
     const nbAcquis = souratesAcquises || 0;
     // Sourates acquired = last N sourates (from 114 downward)
@@ -353,7 +353,7 @@ export default function Gestion({ user, navigate, lang = 'fr' }) {
                     <select className="field-select" value={editEleve.code_niveau||'1'} onChange={e => {
                       const oldNiv = editEleve.code_niveau||'1';
                       const newNiv = e.target.value;
-                      const wasSourate = ['5B','5A'].includes(oldNiv);
+                      const wasSourate = ['5B','5A','2M'].includes(oldNiv);
                       const isNowHizb = ['2M','2','1'].includes(newNiv);
                       if (wasSourate && isNowHizb) {
                         if (window.confirm(lang==='ar'?'هذا الطالب ينتقل من نظام السور إلى نظام الحزب والثُّمن. يجب تحديد المكتسبات بالحزب والثُّمن. هل تريد المتابعة؟':lang==='en'?'This student is moving from surah-based to Hizb/Tomon system. Prior achievements must be redefined. Continue?':'Cet élève passe du système Sourates au système Hizb/Tomon. Les acquis doivent être redéfinis. Continuer?')) {

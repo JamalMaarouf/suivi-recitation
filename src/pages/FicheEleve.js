@@ -224,7 +224,7 @@ export default function FicheEleve({ eleve, user, navigate, lang='fr' }) {
   const pctColor=(p)=>p>=100?'#1D9E75':p>=60?'#EF9F27':'#E24B4A';
 
   // Redirect 5B/5A AFTER all hooks are declared (React rules of hooks)
-  if (['5B','5A'].includes(eleve.code_niveau)) {
+  if (['5B','5A','2M'].includes(eleve.code_niveau)) {
     return <FicheSourate eleve={eleve} user={user} navigate={navigate} lang={lang} />;
   }
 

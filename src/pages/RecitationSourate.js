@@ -2,14 +2,14 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { getInitiales, scoreLabel } from '../lib/helpers';
 import { t } from '../lib/i18n';
-import { getSouratesForNiveau } from '../lib/sourates';
+import { getSouratesForNiveau, isSourateNiveau } from '../lib/sourates';
 
 function Avatar({ prenom, nom, size=36, bg='#E1F5EE', color='#085041' }) {
   return <div style={{width:size,height:size,borderRadius:'50%',background:bg,color,display:'flex',alignItems:'center',justifyContent:'center',fontWeight:600,fontSize:size*0.33,flexShrink:0}}>{getInitiales(prenom,nom)}</div>;
 }
 
 function NiveauBadge({ code }) {
-  const colors = { '5B':'#534AB7', '5A':'#378ADD' };
+  const colors = { '5B':'#534AB7', '5A':'#378ADD', '2M':'#1D9E75' };
   const c = colors[code] || '#888';
   return <span style={{padding:'2px 8px',borderRadius:20,fontSize:11,fontWeight:700,background:c+'15',color:c,border:`0.5px solid ${c}30`}}>{code}</span>;
 }

@@ -174,7 +174,7 @@ export default function Seance({ user, navigate, lang='fr' }) {
                       <div style={{flex:1}}>
                         <div style={{fontSize:13,fontWeight:500,color:urgence?'#A32D2D':'#1a1a1a'}}>{e.prenom} {e.nom}</div>
                         <div style={{fontSize:11,color:'#888'}}>
-                          {['5B','5A'].includes(e.code_niveau)
+                          {['5B','5A','2M'].includes(e.code_niveau)
                             ? <span style={{padding:'1px 6px',borderRadius:10,fontSize:10,fontWeight:700,background:'#534AB7',color:'#fff'}}>{e.code_niveau}</span>
                             : `Hizb ${e.etat.hizbEnCours} · T.${e.etat.prochainTomon||1} ${t(lang,'prochain')}${e.etat.enAttenteHizbComplet?' · ⏳ Hizb':''}`}
                         </div>

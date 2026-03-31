@@ -13,10 +13,10 @@ const PERIODES = [
 ];
 
 const METRIQUES = [
-  { val: 'tomon',    label_fr: 'Tomon récités',       label_ar: 'أثمان مُسمَّعة',    label_en: 'Tomon recited',    niveaux: ['2M','2','1'] },
-  { val: 'hizb',     label_fr: 'Hizb complets',       label_ar: 'أحزاب مكتملة',     label_en: 'Complete Hizb',   niveaux: ['2M','2','1'] },
-  { val: 'sourate',  label_fr: 'Sourates complètes',  label_ar: 'سور مكتملة',       label_en: 'Complete surahs', niveaux: ['5B','5A']    },
-  { val: 'sequence', label_fr: 'Séquences',           label_ar: 'مقاطع',            label_en: 'Sequences',       niveaux: ['5B','5A']    },
+  { val: 'tomon',    label_fr: 'Tomon récités',       label_ar: 'أثمان مُسمَّعة',    label_en: 'Tomon recited',    niveaux: ['2','1'] },
+  { val: 'hizb',     label_fr: 'Hizb complets',       label_ar: 'أحزاب مكتملة',     label_en: 'Complete Hizb',   niveaux: ['2','1'] },
+  { val: 'sourate',  label_fr: 'Sourates complètes',  label_ar: 'سور مكتملة',       label_en: 'Complete surahs', niveaux: ['5B','5A','2M'] },
+  { val: 'sequence', label_fr: 'Séquences',           label_ar: 'مقاطع',            label_en: 'Sequences',       niveaux: ['5B','5A','2M'] },
   { val: 'points',   label_fr: 'Points gagnés',       label_ar: 'نقاط مكتسبة',     label_en: 'Points earned',   niveaux: ['5B','5A','2M','2','1'] },
   { val: 'seances',  label_fr: 'Séances actives',     label_ar: 'حصص نشطة',        label_en: 'Active sessions', niveaux: ['5B','5A','2M','2','1'] },
 ];
@@ -127,7 +127,7 @@ export default function GestionObjectifs({ user, navigate, lang='fr' }) {
   useEffect(() => {
     const niveau = form.type_cible === 'niveau' ? form.code_niveau : 
                    form.type_cible === 'eleve' ? eleves.find(e=>e.id===form.eleve_id)?.code_niveau : null;
-    if (niveau && ['5B','5A'].includes(niveau) && ['tomon','hizb'].includes(form.metrique)) {
+    if (niveau && ['5B','5A','2M'].includes(niveau) && ['tomon','hizb'].includes(form.metrique)) {
       setForm(f => ({ ...f, metrique: 'sourate' }));
     } else if (niveau && ['2M','2','1'].includes(niveau) && ['sourate','sequence'].includes(form.metrique)) {
       setForm(f => ({ ...f, metrique: 'tomon' }));
@@ -327,7 +327,7 @@ export default function GestionObjectifs({ user, navigate, lang='fr' }) {
             {form.type_cible==='niveau' && (
               <div className="field-group">
                 <label className="field-lbl">{lang==='ar'?'المستوى':lang==='en'?'Level':'Niveau'} *</label>
-                <select className="field-select" value={form.code_niveau} onChange={e=>setForm(f=>({...f,code_niveau:e.target.value,metrique:['5B','5A'].includes(e.target.value)?'sourate':'tomon',cible_specifique:null,valeur_cible:'',cibles_selectionnees:[]}))}>
+                <select className="field-select" value={form.code_niveau} onChange={e=>setForm(f=>({...f,code_niveau:e.target.value,metrique:['5B','5A','2M'].includes(e.target.value)?'sourate':'tomon',cible_specifique:null,valeur_cible:'',cibles_selectionnees:[]}))}>
                   {NIVEAUX.map(n=><option key={n} value={n}>{n} — {NIVEAU_LABELS[n]}</option>)}
                 </select>
               </div>
@@ -340,7 +340,7 @@ export default function GestionObjectifs({ user, navigate, lang='fr' }) {
                   onChange={e=>{
                     const el=eleves.find(x=>x.id===e.target.value);
                     const niv=el?.code_niveau||'1';
-                    setForm(f=>({...f,eleve_id:e.target.value,metrique:['5B','5A'].includes(niv)?'sourate':'tomon',cible_specifique:null,valeur_cible:'',cibles_selectionnees:[]}));
+                    setForm(f=>({...f,eleve_id:e.target.value,metrique:['5B','5A','2M'].includes(niv)?'sourate':'tomon',cible_specifique:null,valeur_cible:'',cibles_selectionnees:[]}));
                   }}>
                   <option value="">— {lang==='ar'?'اختر طالباً':lang==='en'?'Select a student':`Sélectionner un élève`} —</option>
                   {eleves.map(e=>(
