@@ -318,19 +318,9 @@ export default function GestionObjectifs({ user, navigate, lang='fr' }) {
             <input className="field-input" value={form.titre} onChange={e=>setForm(f=>({...f,titre:e.target.value}))} placeholder={lang==='ar'?'مثال: هدف الفصل الأول':lang==='en'?'e.g. Q1 target':'Ex: Objectif T1 2025'}/>
           </div>
 
-          {/* Ligne 1 : Type de cible */}
+          {/* Ligne 1 : Type de cible — direction forcée LTR pour cohérence visuelle */}
           <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12,marginBottom:12}}>
-            <div className="field-group">
-              <label className="field-lbl">{lang==='ar'?'نوع الهدف':lang==='en'?'Target type':'Type de cible'} *</label>
-              <select className="field-select" value={form.type_cible} onChange={e=>setForm(f=>({...f,type_cible:e.target.value,eleve_id:'',code_niveau:'5B',instituteur_id:'',metrique:'sourate',cible_specifique:null,valeur_cible:'',cibles_selectionnees:[]}))}>
-                <option value="niveau">{lang==='ar'?'بالمستوى':lang==='en'?'By level':'Par niveau'}</option>
-                <option value="eleve">{lang==='ar'?'بالطالب':lang==='en'?'By student':'Par élève'}</option>
-                <option value="instituteur">{lang==='ar'?'بالأستاذ':lang==='en'?'By teacher':'Par instituteur'}</option>
-                <option value="global">{lang==='ar'?'عام':lang==='en'?'Global':'Global'}</option>
-              </select>
-            </div>
-
-            {/* Cible spécifique selon type */}
+            {/* Cible spécifique selon type — affiché en PREMIER pour RTL */}
             {form.type_cible==='niveau' && (
               <div className="field-group">
                 <label className="field-lbl">{lang==='ar'?'المستوى':lang==='en'?'Level':'Niveau'} *</label>
@@ -394,6 +384,17 @@ export default function GestionObjectifs({ user, navigate, lang='fr' }) {
                 </div>
               </div>
             )}
+
+            {/* Type de cible — en SECOND pour apparaître à droite en RTL */}
+            <div className="field-group" style={{order: lang==='ar'?-1:0}}>
+              <label className="field-lbl">{lang==='ar'?'نوع الهدف':lang==='en'?'Target type':'Type de cible'} *</label>
+              <select className="field-select" value={form.type_cible} onChange={e=>setForm(f=>({...f,type_cible:e.target.value,eleve_id:'',code_niveau:'5B',instituteur_id:'',metrique:'sourate',cible_specifique:null,valeur_cible:'',cibles_selectionnees:[]}))}>
+                <option value="niveau">{lang==='ar'?'بالمستوى':lang==='en'?'By level':'Par niveau'}</option>
+                <option value="eleve">{lang==='ar'?'بالطالب':lang==='en'?'By student':'Par élève'}</option>
+                <option value="instituteur">{lang==='ar'?'بالأستاذ':lang==='en'?'By teacher':'Par instituteur'}</option>
+                <option value="global">{lang==='ar'?'عام':lang==='en'?'Global':'Global'}</option>
+              </select>
+            </div>
           </div>
 
 
