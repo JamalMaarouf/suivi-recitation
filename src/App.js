@@ -11,6 +11,7 @@ import ProfilInstituteur from './pages/ProfilInstituteur';
 import Comparaison from './pages/Comparaison';
 import RapportMensuel from './pages/RapportMensuel';
 import RecitationSourate from './pages/RecitationSourate';
+import GestionObjectifs from './pages/GestionObjectifs';
 import ValidationRapide from './pages/ValidationRapide';
 import { t, getDir } from './lib/i18n';
 import { setSouratesDB } from './lib/sourates';
@@ -121,6 +122,7 @@ export default function App() {
         <main className={isMobile ? 'main-content-mobile' : 'main-content'}>
           {page === 'dashboard'         && <Dashboard {...pageProps} />}
           {page === 'fiche'             && selectedEleve   && <FicheEleve eleve={selectedEleve} {...pageProps} />}
+          {page === 'objectifs'          && <GestionObjectifs user={user} navigate={navigate} lang={lang} />}
           {page === 'enregistrer'       && (
             ['5B','5A'].includes(selectedEleve?.code_niveau||'')
               ? <RecitationSourate eleve={selectedEleve} {...pageProps} />
