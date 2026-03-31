@@ -283,7 +283,8 @@ export default function FicheSourate({ eleve, user, navigate, lang='fr' }) {
                     const comp = isComplete(s.numero);
                     const seqs = getSequences(s.numero);
                     const pts = recs.reduce((acc,r)=>acc+(r.points||0),0);
-                    const isAcquis = idx >= souratesOrdonnees.length - souratesAcquises;
+                    // Acquis = FIRST N (indices 0 to N-1), list is 114→78 descending
+                    const isAcquis = idx < souratesAcquises;
                     return (
                       <div key={s.numero} onClick={()=>!isAcquis&&setSelectedSourate(s)}
                         style={{display:'flex',alignItems:'center',gap:12,padding:'12px 14px',

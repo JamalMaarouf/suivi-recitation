@@ -113,32 +113,39 @@ export default function RecitationSourate({ user, eleve, navigate, lang='fr' }) 
   // Sourates accessible = after acquis
   // First accessible = index souratesAcquises in souratesOrdonnees
   const getSourateStatus = (s, idx) => {
-    // If in acquis antérieurs (last N sourates in list)
-    if (idx >= souratesOrdonnees.length - souratesAcquises) return 'acquis';
-    // If exception unlocked
+    // Acquis antérieurs = FIRST N sourates (114→111 if N=4)
+    // List is sorted descending: [114,113,112,111,110,109,...]
+    // So acquis = indices 0 to N-1
+    if (idx < souratesAcquises) return 'acquis';
+    // If exception unlocked by surveillant
     if (isUnlocked(s.numero)) return 'unlocked';
-    // Current sourate = first non-complete after acquis
+    // Current sourate = first non-complete after acquis block
+    // Find the first sourate at index >= souratesAcquises that is not complete
     const firstNonComplete = souratesOrdonnees.findIndex((sr, i) => {
-      if (i >= souratesOrdonnees.length - souratesAcquises) return false;
+      if (i < souratesAcquises) return false; // skip acquis
       return !isComplete(sr.numero);
     });
+    if (firstNonComplete === -1) return 'complete'; // all done!
     if (idx === firstNonComplete) return 'current';
-    // Complete
+    // Already completed (between acquis and current)
     if (isComplete(s.numero)) return 'complete';
     // Locked (after current)
-    if (idx > firstNonComplete) return 'locked';
-    // Should not happen
-    return 'complete';
+    return 'locked';
   };
 
   // Can the user access this sourate?
   const canAccess = (s, idx) => {
     const status = getSourateStatus(s, idx);
-    return ['current', 'complete', 'unlocked', 'acquis'].includes(status);
+    // acquis = grisé, not clickable
+    // locked = bloqué
+    return ['current', 'complete', 'unlocked'].includes(status);
   };
 
   const totalPoints = recitations.reduce((s,r) => s + (r.points||0), 0) + (souratesAcquises * 30);
   const souratesCompletes = souratesOrdonnees.filter(s => isComplete(s.numero)).length + souratesAcquises;
+  // The current sourate index
+  const currentIdx = souratesOrdonnees.findIndex((sr, i) => i >= souratesAcquises && !isComplete(sr.numero));
+  const currentSourate = currentIdx >= 0 ? souratesOrdonnees[currentIdx] : null;
   const sl = scoreLabel(totalPoints);
 
   const confirmer = async () => {
