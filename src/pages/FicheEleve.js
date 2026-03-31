@@ -51,6 +51,57 @@ const MOIS_AR=['يناير','فبراير','مارس','أبريل','مايو','�
 const MOIS_EN=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 const getMoisCourt=(i,lang)=>lang==='ar'?MOIS_AR[i]:lang==='en'?MOIS_EN[i]:MOIS_FR[i];
 
+
+// Modal pour exception Hizb/Tomon
+function ExceptionHizbModal({ etat, eleve, user, onConfirm, onCancel, lang }) {
+  const [selected, setSelected] = React.useState([]);
+  if (!etat) return null;
+
+  // Show Hizb range: from hizb_depart to current hizb
+  const hizbDepart = eleve.hizb_depart || 1;
+  const hizbCurrent = etat.hizbEnCours || 1;
+  const hizbList = [];
+  for (let h = hizbDepart; h <= hizbCurrent; h++) hizbList.push(h);
+
+  const toggle = (h) => setSelected(prev => prev.includes(h) ? prev.filter(x=>x!==h) : [...prev, h]);
+
+  return (
+    <div style={{position:'fixed',top:0,left:0,right:0,bottom:0,background:'rgba(0,0,0,0.5)',zIndex:1000,display:'flex',alignItems:'center',justifyContent:'center',padding:'1rem'}}>
+      <div style={{background:'#fff',borderRadius:16,padding:'1.5rem',maxWidth:460,width:'100%',maxHeight:'80vh',overflow:'auto'}}>
+        <div style={{fontSize:15,fontWeight:700,color:'#A32D2D',marginBottom:4}}>🔓 {lang==='ar'?'فتح استثنائي':lang==='en'?'Exceptional unlock':'Déverrouillage exceptionnel'}</div>
+        <div style={{fontSize:12,color:'#888',marginBottom:'1rem'}}>
+          {lang==='ar'?'اختر الأحزاب التي تريد فتحها. هذا الإجراء مسجّل.':lang==='en'?'Select Hizb to unlock. This action is logged.':'Sélectionnez les Hizb à débloquer. Action enregistrée.'}
+        </div>
+        <div style={{display:'grid',gridTemplateColumns:'repeat(6,1fr)',gap:6,marginBottom:'1rem'}}>
+          {hizbList.map(h=>{
+            const isSel = selected.includes(h);
+            return(
+              <div key={h} onClick={()=>toggle(h)}
+                style={{height:40,borderRadius:8,display:'flex',alignItems:'center',justifyContent:'center',fontSize:13,fontWeight:isSel?700:400,cursor:'pointer',border:`1.5px solid ${isSel?'#E24B4A':'#e0e0d8'}`,background:isSel?'#FCEBEB':'#fff',color:isSel?'#A32D2D':'#666',transition:'all 0.1s'}}>
+                {h}
+              </div>
+            );
+          })}
+        </div>
+        {selected.length>0&&(
+          <div style={{padding:'8px 12px',background:'#FCEBEB',borderRadius:8,fontSize:12,color:'#A32D2D',marginBottom:'1rem'}}>
+            ⚠️ Hizb {selected.sort((a,b)=>a-b).join(', ')} {lang==='ar'?'سيُفتح':lang==='en'?'will be unlocked':'sera(ont) débloqué(s)'}
+          </div>
+        )}
+        <div style={{display:'flex',gap:8}}>
+          <button onClick={()=>selected.length>0&&onConfirm(selected)} disabled={selected.length===0}
+            style={{flex:1,padding:'10px',background:selected.length>0?'#E24B4A':'#f0f0ec',color:selected.length>0?'#fff':'#bbb',border:'none',borderRadius:8,fontSize:13,fontWeight:600,cursor:selected.length>0?'pointer':'default'}}>
+            {lang==='ar'?'تأكيد':lang==='en'?'Confirm':'Confirmer'}
+          </button>
+          <button onClick={onCancel} style={{flex:1,padding:'10px',border:'0.5px solid #e0e0d8',borderRadius:8,fontSize:13,cursor:'pointer'}}>
+            {lang==='ar'?'إلغاء':lang==='en'?'Cancel':'Annuler'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function FicheEleve({ eleve, user, navigate, lang='fr' }) {
   // Redirect 5B/5A to FicheSourate
   if (['5B','5A'].includes(eleve.code_niveau)) {
@@ -219,26 +270,94 @@ export default function FicheEleve({ eleve, user, navigate, lang='fr' }) {
               ))}
             </div>
 
-            {/* Acquis antérieurs */}
+            {/* Acquis antérieurs — bouton visualisation */}
             {etat?.tomonAcquis>0&&(
-              <div style={{background:'#f0faf6',border:'0.5px solid #9FE1CB',borderRadius:10,padding:'10px 14px',marginBottom:14}}>
-                <div style={{fontSize:11,fontWeight:600,color:'#085041',marginBottom:6}}>
-                  🎓 {t(lang,'acquis_anterieurs')} — {etat.tomonAcquis} {t(lang,'tomon_abrev')} + {etat.hizbAcquisComplets} Hizb
-                </div>
-                <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
-                  {[
-                    {lbl:lang==='ar'?'المكتسبات السابقة':lang==='en'?'Prior points':'Acquis antérieurs',val:etat.points.ptsAcquisTotal||0,color:'#1D9E75',bg:'#E1F5EE'},
-                    {lbl:lang==='ar'?'منذ بدء المتابعة':lang==='en'?'Since tracking':'Depuis le suivi',val:etat.points.ptsDepuisSuivi||0,color:'#378ADD',bg:'#E6F1FB'},
-                    {lbl:t(lang,'score_total'),val:etat.points.total,color:'#534AB7',bg:'#EEEDFE'},
-                  ].map(k=>(
-                    <div key={k.lbl} style={{flex:1,minWidth:80,background:k.bg,borderRadius:8,padding:'8px',textAlign:'center'}}>
-                      <div style={{fontSize:14,fontWeight:700,color:k.color}}>+{k.val.toLocaleString()} {t(lang,'pts_abrev')}</div>
-                      <div style={{fontSize:10,color:k.color,opacity:0.8}}>{k.lbl}</div>
+              <div style={{marginBottom:8}}>
+                <button onClick={()=>setShowAcquis(v=>!v)}
+                  style={{display:'flex',alignItems:'center',gap:8,padding:'8px 14px',border:'0.5px solid #9FE1CB',borderRadius:8,background:showAcquis?'#E1F5EE':'#fff',cursor:'pointer',fontSize:12,color:'#085041',width:'100%',justifyContent:'space-between'}}>
+                  <span>🎓 {lang==='ar'?'المكتسبات السابقة':lang==='en'?'View prior achievements':'Voir les acquis antérieurs'}</span>
+                  <span style={{fontSize:10,color:'#888'}}>{showAcquis?'▲':'▼'} {etat.tomonAcquis} {t(lang,'tomon_abrev')} · {etat.hizbAcquisComplets} Hizb · {(etat.points.ptsAcquisTotal||0).toLocaleString()} {t(lang,'pts_abrev')}</span>
+                </button>
+                {showAcquis&&(
+                  <div style={{background:'#f0faf6',border:'0.5px solid #9FE1CB',borderRadius:'0 0 10px 10px',padding:'1rem',marginTop:-1}}>
+                    <div style={{fontSize:12,fontWeight:600,color:'#085041',marginBottom:10}}>
+                      {lang==='ar'?'تفاصيل المكتسبات السابقة':lang==='en'?'Prior achievements detail':'Détail des acquis antérieurs'}
                     </div>
-                  ))}
-                </div>
+                    <div style={{display:'grid',gridTemplateColumns:'repeat(2,1fr)',gap:8,marginBottom:10}}>
+                      {[
+                        {lbl:lang==='ar'?'من الحزب':lang==='en'?'From Hizb':'Depuis Hizb',val:`Hizb ${eleve.hizb_depart}`,color:'#085041'},
+                        {lbl:lang==='ar'?'الثُّمن الابتدائي':lang==='en'?'Starting Tomon':'Tomon départ',val:`T.${eleve.tomon_depart}`,color:'#085041'},
+                        {lbl:lang==='ar'?'ثُمن مكتسب':lang==='en'?'Tomon acquired':'Tomon acquis',val:etat.tomonAcquis,color:'#1D9E75'},
+                        {lbl:lang==='ar'?'حزب مكتمل':lang==='en'?'Complete Hizb':'Hizb complets',val:etat.hizbAcquisComplets,color:'#EF9F27'},
+                      ].map(k=>(
+                        <div key={k.lbl} style={{background:'#fff',borderRadius:8,padding:'10px',border:'0.5px solid #e0e0d8'}}>
+                          <div style={{fontSize:10,color:'#888',marginBottom:2}}>{k.lbl}</div>
+                          <div style={{fontSize:16,fontWeight:700,color:k.color}}>{k.val}</div>
+                        </div>
+                      ))}
+                    </div>
+                    <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:6}}>
+                      {[
+                        {lbl:t(lang,'tomon_abrev'),val:etat.points.ptsTomon-((etat.tomonCumul)*10),pts:etat.tomonAcquis+'×10'},
+                        {lbl:'Roboe',val:Math.floor(etat.tomonAcquis/2)*25,pts:Math.floor(etat.tomonAcquis/2)+'×25'},
+                        {lbl:'Nisf',val:Math.floor(etat.tomonAcquis/4)*60,pts:Math.floor(etat.tomonAcquis/4)+'×60'},
+                        {lbl:'Hizb',val:etat.hizbAcquisComplets*100,pts:etat.hizbAcquisComplets+'×100'},
+                      ].map(k=>(
+                        <div key={k.lbl} style={{background:'#fff',borderRadius:6,padding:'6px',textAlign:'center',border:'0.5px solid #e0e0d8'}}>
+                          <div style={{fontSize:13,fontWeight:700,color:'#1D9E75'}}>{k.val}</div>
+                          <div style={{fontSize:10,color:'#888'}}>{k.lbl}</div>
+                          <div style={{fontSize:9,color:'#bbb'}}>{k.pts}</div>
+                        </div>
+                      ))}
+                    </div>
+                    <div style={{marginTop:8,textAlign:'center',fontSize:13,fontWeight:700,color:'#085041',borderTop:'0.5px solid #9FE1CB',paddingTop:8}}>
+                      {lang==='ar'?'مجموع نقاط المكتسبات':lang==='en'?'Total prior points':'Total acquis'} : {(etat.points.ptsAcquisTotal||0).toLocaleString()} {t(lang,'pts_abrev')}
+                    </div>
+                  </div>
+                )}
               </div>
             )}
+
+            {/* Exception Hizb/Tomon — Surveillant uniquement */}
+            {user.role==='surveillant'&&(
+              <div style={{marginBottom:8}}>
+                <button onClick={()=>setShowExceptionModal(true)}
+                  style={{padding:'6px 12px',border:'1px solid #E24B4A',borderRadius:8,background:'#fff',color:'#E24B4A',fontSize:11,cursor:'pointer',fontWeight:500}}>
+                  🔓 {lang==='ar'?'فتح استثنائي (Hizb/Tomon)':lang==='en'?'Unlock Hizb/Tomon (exception)':'Exception Hizb/Tomon'}
+                </button>
+                {exceptionsHizb.length>0&&(
+                  <div style={{marginTop:6,padding:'8px 12px',background:'#FCEBEB',border:'1px solid #E24B4A',borderRadius:8}}>
+                    <div style={{fontSize:11,fontWeight:600,color:'#A32D2D',marginBottom:4}}>
+                      🔓 {lang==='ar'?'استثناءات نشطة':lang==='en'?'Active exceptions':'Exceptions actives'}
+                    </div>
+                    <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>
+                      {exceptionsHizb.map(ex=>(
+                        <div key={ex.id} style={{display:'flex',alignItems:'center',gap:4,padding:'2px 8px',background:'#fff',borderRadius:20,border:'1px solid #E24B4A',fontSize:12}}>
+                          Hizb {ex.hizb_numero}
+                          <span onClick={async()=>{await supabase.from('exceptions_hizb').update({active:false}).eq('id',ex.id);await loadData();}} style={{cursor:'pointer',color:'#E24B4A',fontSize:14,fontWeight:700,marginLeft:2}}>×</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Exception modal */}
+            {showExceptionModal&&user.role==='surveillant'&&(
+              <ExceptionHizbModal
+                etat={etat} eleve={eleve} user={user}
+                onConfirm={async(hizbs)=>{
+                  await supabase.from('exceptions_hizb').insert(hizbs.map(h=>({eleve_id:eleve.id,hizb_numero:h,active:true,cree_par:user.id,date_creation:new Date().toISOString()})));
+                  setShowExceptionModal(false);
+                  await loadData();
+                }}
+                onCancel={()=>setShowExceptionModal(false)}
+                lang={lang}
+              />
+            )}
+
+
 
             {/* KPI */}
             <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:8,borderTop:'0.5px solid #e8e8e0',paddingTop:12}}>

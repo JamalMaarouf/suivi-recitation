@@ -22,6 +22,7 @@ export default function FicheSourate({ eleve, user, navigate, lang='fr' }) {
   const [onglet, setOnglet] = useState('progression');
   const [selectedSourate, setSelectedSourate] = useState(null);
 
+  const [showAcquis, setShowAcquis] = useState(false);
   const codeNiveau = eleve.code_niveau || '5B';
   const souratesNiveau = getSouratesForNiveau(codeNiveau);
   // Order: 114 → 72 (start from shortest)
