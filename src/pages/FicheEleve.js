@@ -103,11 +103,6 @@ function ExceptionHizbModal({ etat, eleve, user, onConfirm, onCancel, lang }) {
 }
 
 export default function FicheEleve({ eleve, user, navigate, lang='fr' }) {
-  // Redirect 5B/5A to FicheSourate
-  if (['5B','5A'].includes(eleve.code_niveau)) {
-    return <FicheSourate eleve={eleve} user={user} navigate={navigate} lang={lang} />;
-  }
-
   const [validations, setValidations] = useState([]);
   const [apprentissages, setApprentissages] = useState([]);
   const [objectifs, setObjectifs] = useState([]);
@@ -228,6 +223,11 @@ export default function FicheEleve({ eleve, user, navigate, lang='fr' }) {
   const pctObj = objActuel?Math.min(100,Math.round(tomonMoisSel/objActuel.nombre_tomon*100)):null;
   const pctColor=(p)=>p>=100?'#1D9E75':p>=60?'#EF9F27':'#E24B4A';
 
+  // Redirect 5B/5A AFTER all hooks are declared (React rules of hooks)
+  if (['5B','5A'].includes(eleve.code_niveau)) {
+    return <FicheSourate eleve={eleve} user={user} navigate={navigate} lang={lang} />;
+  }
+
   return (
     <div>
       <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'1.25rem',flexWrap:'wrap',gap:8}}>
@@ -270,48 +270,59 @@ export default function FicheEleve({ eleve, user, navigate, lang='fr' }) {
               ))}
             </div>
 
-            {/* Acquis antérieurs — bouton visualisation */}
+            {/* Acquis antérieurs — bouton accordéon */}
             {etat?.tomonAcquis>0&&(
               <div style={{marginBottom:8}}>
                 <button onClick={()=>setShowAcquis(v=>!v)}
-                  style={{display:'flex',alignItems:'center',gap:8,padding:'8px 14px',border:'0.5px solid #9FE1CB',borderRadius:8,background:showAcquis?'#E1F5EE':'#fff',cursor:'pointer',fontSize:12,color:'#085041',width:'100%',justifyContent:'space-between'}}>
-                  <span>🎓 {lang==='ar'?'المكتسبات السابقة':lang==='en'?'View prior achievements':'Voir les acquis antérieurs'}</span>
-                  <span style={{fontSize:10,color:'#888'}}>{showAcquis?'▲':'▼'} {etat.tomonAcquis} {t(lang,'tomon_abrev')} · {etat.hizbAcquisComplets} Hizb · {(etat.points.ptsAcquisTotal||0).toLocaleString()} {t(lang,'pts_abrev')}</span>
+                  style={{display:'flex',alignItems:'center',justifyContent:'space-between',width:'100%',padding:'10px 14px',border:`1.5px solid ${showAcquis?'#1D9E75':'#9FE1CB'}`,borderRadius:showAcquis?'10px 10px 0 0':'10px',background:showAcquis?'#E1F5EE':'#f0faf6',cursor:'pointer',transition:'all 0.2s'}}>
+                  <div style={{display:'flex',alignItems:'center',gap:8}}>
+                    <span style={{fontSize:18}}>🎓</span>
+                    <div style={{textAlign:'left'}}>
+                      <div style={{fontSize:13,fontWeight:600,color:'#085041'}}>{lang==='ar'?'المكتسبات السابقة':lang==='en'?'Prior achievements':'Acquis antérieurs'}</div>
+                      <div style={{fontSize:11,color:'#0F6E56'}}>{etat.tomonAcquis} {t(lang,'tomon_abrev')} · {etat.hizbAcquisComplets} Hizb · <strong>{(etat.points.ptsAcquisTotal||0).toLocaleString()} {t(lang,'pts_abrev')}</strong></div>
+                    </div>
+                  </div>
+                  <span style={{fontSize:16,color:'#1D9E75',fontWeight:700,transition:'transform 0.2s',display:'inline-block',transform:showAcquis?'rotate(180deg)':'rotate(0deg)'}}>{showAcquis?'▲':'▼'}</span>
                 </button>
                 {showAcquis&&(
-                  <div style={{background:'#f0faf6',border:'0.5px solid #9FE1CB',borderRadius:'0 0 10px 10px',padding:'1rem',marginTop:-1}}>
-                    <div style={{fontSize:12,fontWeight:600,color:'#085041',marginBottom:10}}>
-                      {lang==='ar'?'تفاصيل المكتسبات السابقة':lang==='en'?'Prior achievements detail':'Détail des acquis antérieurs'}
-                    </div>
-                    <div style={{display:'grid',gridTemplateColumns:'repeat(2,1fr)',gap:8,marginBottom:10}}>
+                  <div style={{background:'#f0faf6',border:'1.5px solid #1D9E75',borderTop:'none',borderRadius:'0 0 10px 10px',padding:'1rem'}}>
+                    {/* Position de départ */}
+                    <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:12}}>
                       {[
-                        {lbl:lang==='ar'?'من الحزب':lang==='en'?'From Hizb':'Depuis Hizb',val:`Hizb ${eleve.hizb_depart}`,color:'#085041'},
-                        {lbl:lang==='ar'?'الثُّمن الابتدائي':lang==='en'?'Starting Tomon':'Tomon départ',val:`T.${eleve.tomon_depart}`,color:'#085041'},
-                        {lbl:lang==='ar'?'ثُمن مكتسب':lang==='en'?'Tomon acquired':'Tomon acquis',val:etat.tomonAcquis,color:'#1D9E75'},
-                        {lbl:lang==='ar'?'حزب مكتمل':lang==='en'?'Complete Hizb':'Hizb complets',val:etat.hizbAcquisComplets,color:'#EF9F27'},
+                        {lbl:lang==='ar'?'حزب الانطلاق':lang==='en'?'Starting Hizb':'Hizb de départ',val:`Hizb ${eleve.hizb_depart}`,icon:'📍',color:'#085041',bg:'#E1F5EE'},
+                        {lbl:lang==='ar'?'ثُمن الانطلاق':lang==='en'?'Starting Tomon':'Tomon de départ',val:`T.${eleve.tomon_depart}`,icon:'📍',color:'#085041',bg:'#E1F5EE'},
+                        {lbl:lang==='ar'?'ثُمن مكتسب':lang==='en'?'Acquired Tomon':'Tomon acquis',val:etat.tomonAcquis,icon:'✓',color:'#1D9E75',bg:'#fff'},
+                        {lbl:lang==='ar'?'حزب مكتمل':lang==='en'?'Complete Hizb':'Hizb complets',val:etat.hizbAcquisComplets,icon:'✓',color:'#EF9F27',bg:'#fff'},
                       ].map(k=>(
-                        <div key={k.lbl} style={{background:'#fff',borderRadius:8,padding:'10px',border:'0.5px solid #e0e0d8'}}>
-                          <div style={{fontSize:10,color:'#888',marginBottom:2}}>{k.lbl}</div>
-                          <div style={{fontSize:16,fontWeight:700,color:k.color}}>{k.val}</div>
+                        <div key={k.lbl} style={{background:k.bg,borderRadius:8,padding:'10px 12px',border:'0.5px solid #d0ede4',display:'flex',alignItems:'center',gap:8}}>
+                          <span style={{fontSize:16}}>{k.icon}</span>
+                          <div>
+                            <div style={{fontSize:10,color:'#888'}}>{k.lbl}</div>
+                            <div style={{fontSize:15,fontWeight:700,color:k.color}}>{k.val}</div>
+                          </div>
                         </div>
                       ))}
                     </div>
-                    <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:6}}>
+                    {/* Détail des points */}
+                    <div style={{fontSize:11,color:'#085041',fontWeight:600,marginBottom:6}}>{lang==='ar'?'توزيع النقاط':lang==='en'?'Points breakdown':'Détail des points'}</div>
+                    <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:6,marginBottom:10}}>
                       {[
-                        {lbl:t(lang,'tomon_abrev'),val:etat.points.ptsTomon-((etat.tomonCumul)*10),pts:etat.tomonAcquis+'×10'},
-                        {lbl:'Roboe',val:Math.floor(etat.tomonAcquis/2)*25,pts:Math.floor(etat.tomonAcquis/2)+'×25'},
-                        {lbl:'Nisf',val:Math.floor(etat.tomonAcquis/4)*60,pts:Math.floor(etat.tomonAcquis/4)+'×60'},
-                        {lbl:'Hizb',val:etat.hizbAcquisComplets*100,pts:etat.hizbAcquisComplets+'×100'},
+                        {lbl:t(lang,'tomon_abrev'),val:etat.tomonAcquis*10,sub:`${etat.tomonAcquis}×10`,color:'#1D9E75'},
+                        {lbl:'Roboe',val:Math.floor(etat.tomonAcquis/2)*25,sub:`${Math.floor(etat.tomonAcquis/2)}×25`,color:'#378ADD'},
+                        {lbl:'Nisf',val:Math.floor(etat.tomonAcquis/4)*60,sub:`${Math.floor(etat.tomonAcquis/4)}×60`,color:'#534AB7'},
+                        {lbl:'Hizb',val:etat.hizbAcquisComplets*100,sub:`${etat.hizbAcquisComplets}×100`,color:'#EF9F27'},
                       ].map(k=>(
-                        <div key={k.lbl} style={{background:'#fff',borderRadius:6,padding:'6px',textAlign:'center',border:'0.5px solid #e0e0d8'}}>
-                          <div style={{fontSize:13,fontWeight:700,color:'#1D9E75'}}>{k.val}</div>
+                        <div key={k.lbl} style={{background:'#fff',borderRadius:8,padding:'8px',textAlign:'center',border:'0.5px solid #d0ede4'}}>
+                          <div style={{fontSize:14,fontWeight:700,color:k.color}}>{k.val}</div>
                           <div style={{fontSize:10,color:'#888'}}>{k.lbl}</div>
-                          <div style={{fontSize:9,color:'#bbb'}}>{k.pts}</div>
+                          <div style={{fontSize:9,color:'#bbb'}}>{k.sub}</div>
                         </div>
                       ))}
                     </div>
-                    <div style={{marginTop:8,textAlign:'center',fontSize:13,fontWeight:700,color:'#085041',borderTop:'0.5px solid #9FE1CB',paddingTop:8}}>
-                      {lang==='ar'?'مجموع نقاط المكتسبات':lang==='en'?'Total prior points':'Total acquis'} : {(etat.points.ptsAcquisTotal||0).toLocaleString()} {t(lang,'pts_abrev')}
+                    {/* Total */}
+                    <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',background:'#085041',borderRadius:8,padding:'10px 14px'}}>
+                      <span style={{fontSize:12,color:'#9FE1CB'}}>{lang==='ar'?'مجموع نقاط المكتسبات':lang==='en'?'Total prior points':'Total points acquis antérieurs'}</span>
+                      <span style={{fontSize:18,fontWeight:800,color:'#fff'}}>{(etat.points.ptsAcquisTotal||0).toLocaleString()} {t(lang,'pts_abrev')}</span>
                     </div>
                   </div>
                 )}
