@@ -19,6 +19,29 @@ import { setSouratesDB } from './lib/sourates';
 import { supabase } from './lib/supabase';
 import './App.css';
 
+class ErrorBoundary extends React.Component {
+  constructor(props) { super(props); this.state = { error: null }; }
+  static getDerivedStateFromError(error) { return { error }; }
+  componentDidCatch(error, info) { console.error('App Error:', error, info); }
+  render() {
+    if (this.state.error) {
+      return (
+        <div style={{padding:20,background:'#fff',color:'#E24B4A',fontFamily:'Arial'}}>
+          <h2>🚨 Erreur de rendu</h2>
+          <pre style={{fontSize:12,background:'#f5f5f5',padding:10,borderRadius:8,overflowX:'auto'}}>
+            {this.state.error.toString()}
+          </pre>
+          <button onClick={()=>this.setState({error:null})} style={{marginTop:10,padding:'6px 12px',cursor:'pointer'}}>
+            Réessayer
+          </button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
+
 export const LangContext = React.createContext({ lang: 'fr', setLang: () => {} });
 
 export default function App() {
@@ -138,8 +161,8 @@ export default function App() {
         <main className={isMobile ? 'main-content-mobile' : 'main-content'}>
           {page === 'dashboard'         && <Dashboard {...pageProps} />}
           {page === 'fiche'             && selectedEleve   && <FicheEleve eleve={selectedEleve} {...pageProps} />}
-          {page === 'objectifs'          && <GestionObjectifs user={user} navigate={navigate} goBack={goBack} lang={lang} />}
-          {page === 'historique_seances'   && <HistoriqueSeances user={user} navigate={navigate} goBack={goBack} lang={lang} />}
+          {page === 'objectifs'          && <ErrorBoundary><GestionObjectifs user={user} navigate={navigate} goBack={goBack} lang={lang} /></ErrorBoundary>}
+          {page === 'historique_seances'   && <ErrorBoundary><HistoriqueSeances user={user} navigate={navigate} goBack={goBack} lang={lang} /></ErrorBoundary>}
           {page === 'enregistrer'       && (
             ['5B','5A','2M'].includes(selectedEleve?.code_niveau||'')
               ? <RecitationSourate eleve={selectedEleve} {...pageProps} />
