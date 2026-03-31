@@ -157,9 +157,9 @@ export default function GestionObjectifs({ user, navigate, lang='fr' }) {
     if (!form.valeur_cible || isNaN(form.valeur_cible) || parseInt(form.valeur_cible) <= 0)
       return showMsg('error', lang==='ar'?'يجب تحديد قيمة الهدف':lang==='en'?'Please set a target value':'Veuillez définir une valeur cible');
     if (form.type_cible === 'eleve' && !form.eleve_id)
-      return showMsg('error', lang==='ar'?'اختر طالباً':lang==='en'?'Select a student':'Sélectionnez un élève');
+      return showMsg('error', lang==='ar'?'اختر طالباً':lang==='en'?'Select a student':`Sélectionnez un élève`);
     if (form.type_cible === 'instituteur' && !form.instituteur_id)
-      return showMsg('error', lang==='ar'?'اختر أستاذاً':lang==='en'?'Select a teacher':'Sélectionnez un instituteur');
+      return showMsg('error', lang==='ar'?'اختر أستاذاً':lang==='en'?'Select a teacher':`Sélectionnez un instituteur`);
 
     setSaving(true);
     const insert = {
@@ -349,7 +349,7 @@ export default function GestionObjectifs({ user, navigate, lang='fr' }) {
                     const niv=el?.code_niveau||'1';
                     setForm(f=>({...f,eleve_id:e.target.value,metrique:['5B','5A'].includes(niv)?'sourate':'tomon',cible_specifique:null,valeur_cible:'',cibles_selectionnees:[]}));
                   }}>
-                  <option value="">— {lang==='ar'?'اختر طالباً':lang==='en'?'Select a student':'Sélectionner un élève'} —</option>
+                  <option value="">— {lang==='ar'?'اختر طالباً':lang==='en'?'Select a student':`Sélectionner un élève`} —</option>
                   {eleves.map(e=>(
                     <option key={e.id} value={e.id}>{e.prenom} {e.nom} · {e.code_niveau||'?'}{e.eleve_id_ecole?` #${e.eleve_id_ecole}`:''}</option>
                   ))}
@@ -370,7 +370,7 @@ export default function GestionObjectifs({ user, navigate, lang='fr' }) {
               <div className="field-group">
                 <label className="field-lbl">{lang==='ar'?'الأستاذ':lang==='en'?'Teacher':'Instituteur'} *</label>
                 <select className="field-select" value={form.instituteur_id} onChange={e=>setForm(f=>({...f,instituteur_id:e.target.value,cible_specifique:null,valeur_cible:'',cibles_selectionnees:[]}))}>
-                  <option value="">— {lang==='ar'?'اختر أستاذاً':lang==='en'?'Select a teacher':'Sélectionner un instituteur'} —</option>
+                  <option value="">— {lang==='ar'?'اختر أستاذاً':lang==='en'?'Select a teacher':`Sélectionner un instituteur`} —</option>
                   {instituteurs.map(i=>{
                     const nb=eleves.filter(e=>e.instituteur_referent_id===i.id).length;
                     return <option key={i.id} value={i.id}>{i.prenom} {i.nom} ({nb} {lang==='ar'?'طالب':lang==='en'?'students':'élèves'})</option>;
@@ -448,10 +448,10 @@ export default function GestionObjectifs({ user, navigate, lang='fr' }) {
             <div style={{marginBottom:12,border:'1.5px solid #1D9E75',borderRadius:12,padding:'1rem',background:'#f0faf6'}}>
               <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:10}}>
                 <div style={{fontSize:13,fontWeight:600,color:'#085041'}}>
-                  {lang==='ar'?'اختر العناصر المستهدفة':lang==='en'?'Select target items':'Sélectionnez les éléments cibles'}
+                  {lang==='ar'?'اختر العناصر المستهدفة':lang==='en'?'Select target items':`Sélectionnez les éléments cibles`}
                   <span style={{fontSize:11,color:'#888',marginRight:8,marginLeft:8}}>({form.cibles_selectionnees.length}/{parseInt(form.valeur_cible)||0})</span>
                 </div>
-                {form.cibles_selectionnees.length>0&&<button onClick={()=>setForm(f=>({...f,cibles_selectionnees:[]}))} style={{fontSize:11,color:'#E24B4A',background:'none',border:'none',cursor:'pointer'}}>✕ {lang==='ar'?'إلغاء الكل':lang==='en'?'Clear all':'Tout effacer'}</button>}
+                {form.cibles_selectionnees.length>0&&<button onClick={()=>setForm(f=>({...f,cibles_selectionnees:[]}))} style={{fontSize:11,color:'#E24B4A',background:'none',border:'none',cursor:'pointer'}}>✕ {lang==='ar'?'إلغاء الكل':lang==='en'?'Clear all':`Tout effacer`}</button>}
               </div>
 
               {/* Barre de progression de sélection */}
@@ -511,7 +511,7 @@ export default function GestionObjectifs({ user, navigate, lang='fr' }) {
                 return(
                   <div>
                     <div style={{fontSize:11,color:'#085041',fontWeight:600,marginBottom:6}}>
-                      1️⃣ {lang==='ar'?'اختر الحزب أولاً':lang==='en'?'First select a Hizb':'Sélectionnez d'abord un Hizb'}
+                      {'1️⃣'} {lang==='ar'?'اختر الحزب أولاً':lang==='en'?'First select a Hizb':`Sélectionnez d'abord un Hizb`}
                     </div>
                     <div style={{display:'grid',gridTemplateColumns:'repeat(10,1fr)',gap:3,marginBottom:10}}>
                       {Array.from({length:60},(_,i)=>i+1).map(h=>{
@@ -531,7 +531,7 @@ export default function GestionObjectifs({ user, navigate, lang='fr' }) {
                     {form.hizbSelected && (
                       <div>
                         <div style={{fontSize:11,color:'#085041',fontWeight:600,marginBottom:6}}>
-                          2️⃣ {lang==='ar'?`الأثمان - الحزب ${form.hizbSelected}`:lang==='en'?`Tomon - Hizb ${form.hizbSelected}`:`Tomon du Hizb ${form.hizbSelected}`}
+                          {'2️⃣'} {lang==='ar'?`الأثمان - الحزب ${form.hizbSelected}`:lang==='en'?`Tomon - Hizb ${form.hizbSelected}`:`Tomon du Hizb ${form.hizbSelected}`}
                         </div>
                         <div style={{display:'grid',gridTemplateColumns:'repeat(8,1fr)',gap:6}}>
                           {[1,2,3,4,5,6,7,8].map(t=>{
