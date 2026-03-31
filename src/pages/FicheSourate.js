@@ -189,26 +189,49 @@ export default function FicheSourate({ eleve, user, navigate, lang='fr' }) {
           ))}
         </div>
 
-        {/* Acquis antérieurs */}
+        {/* Acquis antérieurs — bouton accordéon cliquable */}
         {souratesAcquises > 0 && (
-          <div style={{marginTop:12,background:'#f0faf6',border:'0.5px solid #9FE1CB',borderRadius:10,padding:'10px 14px'}}>
-            <div style={{fontSize:11,fontWeight:600,color:'#085041',marginBottom:4}}>
-              🎓 {t(lang,'acquis_anterieurs')} — {souratesAcquises} {lang==='ar'?'سورة محفوظة':lang==='en'?'surahs memorized':'sourates mémorisées'}
-            </div>
-            <div style={{display:'flex',gap:8}}>
-              <div style={{flex:1,textAlign:'center',background:'#E1F5EE',borderRadius:6,padding:'6px'}}>
-                <div style={{fontSize:14,fontWeight:700,color:'#1D9E75'}}>+{ptsAcquis} {t(lang,'pts_abrev')}</div>
-                <div style={{fontSize:10,color:'#0F6E56'}}>{lang==='ar'?'المكتسبات':lang==='en'?'Prior':'Antérieurs'}</div>
+          <div style={{marginTop:10}}>
+            <button onClick={()=>setShowAcquis(v=>!v)}
+              style={{display:'flex',alignItems:'center',justifyContent:'space-between',width:'100%',padding:'10px 14px',border:`1.5px solid ${showAcquis?'#1D9E75':'#9FE1CB'}`,borderRadius:showAcquis?'10px 10px 0 0':'10px',background:showAcquis?'#E1F5EE':'#f0faf6',cursor:'pointer',transition:'all 0.2s'}}>
+              <div style={{display:'flex',alignItems:'center',gap:8}}>
+                <span style={{fontSize:18}}>🎓</span>
+                <div style={{textAlign:'left'}}>
+                  <div style={{fontSize:13,fontWeight:600,color:'#085041'}}>{lang==='ar'?'المكتسبات السابقة':lang==='en'?'Prior achievements':'Acquis antérieurs'}</div>
+                  <div style={{fontSize:11,color:'#0F6E56'}}>{souratesAcquises} {lang==='ar'?'سورة محفوظة':lang==='en'?'surahs':'sourates'} · <strong>+{ptsAcquis} {t(lang,'pts_abrev')}</strong></div>
+                </div>
               </div>
-              <div style={{flex:1,textAlign:'center',background:'#E6F1FB',borderRadius:6,padding:'6px'}}>
-                <div style={{fontSize:14,fontWeight:700,color:'#378ADD'}}>+{ptsSuivi} {t(lang,'pts_abrev')}</div>
-                <div style={{fontSize:10,color:'#0C447C'}}>{lang==='ar'?'منذ المتابعة':lang==='en'?'Since tracking':'Depuis suivi'}</div>
+              <span style={{fontSize:16,color:'#1D9E75',fontWeight:700,display:'inline-block',transform:showAcquis?'rotate(180deg)':'rotate(0deg)',transition:'transform 0.2s'}}>▼</span>
+            </button>
+            {showAcquis && (
+              <div style={{background:'#f0faf6',border:'1.5px solid #1D9E75',borderTop:'none',borderRadius:'0 0 10px 10px',padding:'1rem'}}>
+                <div style={{fontSize:11,color:'#085041',fontWeight:600,marginBottom:8}}>
+                  {lang==='ar'?'السور المحفوظة قبل بدء المتابعة':lang==='en'?'Surahs memorized before tracking':'Sourates mémorisées avant le suivi'}
+                </div>
+                <div style={{display:'flex',flexWrap:'wrap',gap:4,marginBottom:12}}>
+                  {souratesOrdonnees.slice(0, souratesAcquises).map(s=>(
+                    <div key={s.numero} style={{padding:'4px 10px',background:'#fff',borderRadius:20,border:'0.5px solid #9FE1CB',fontSize:13,fontFamily:"'Tajawal',Arial",direction:'rtl',display:'flex',alignItems:'center',gap:4}}>
+                      <span style={{fontSize:10,color:'#bbb'}}>{s.numero}</span>
+                      <span style={{color:'#085041',fontWeight:500}}>{s.nom_ar}</span>
+                    </div>
+                  ))}
+                </div>
+                <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:6}}>
+                  <div style={{background:'#E1F5EE',borderRadius:8,padding:'8px',textAlign:'center',border:'0.5px solid #9FE1CB'}}>
+                    <div style={{fontSize:15,fontWeight:700,color:'#1D9E75'}}>+{ptsAcquis} {t(lang,'pts_abrev')}</div>
+                    <div style={{fontSize:10,color:'#0F6E56'}}>{lang==='ar'?'نقاط المكتسبات':lang==='en'?'Prior points':'Points antérieurs'}</div>
+                  </div>
+                  <div style={{background:'#E6F1FB',borderRadius:8,padding:'8px',textAlign:'center',border:'0.5px solid #85B7EB'}}>
+                    <div style={{fontSize:15,fontWeight:700,color:'#378ADD'}}>+{ptsSuivi} {t(lang,'pts_abrev')}</div>
+                    <div style={{fontSize:10,color:'#0C447C'}}>{lang==='ar'?'منذ المتابعة':lang==='en'?'Since tracking':'Depuis le suivi'}</div>
+                  </div>
+                  <div style={{background:'#085041',borderRadius:8,padding:'8px',textAlign:'center'}}>
+                    <div style={{fontSize:15,fontWeight:700,color:'#fff'}}>{ptsTotal} {t(lang,'pts_abrev')}</div>
+                    <div style={{fontSize:10,color:'#9FE1CB'}}>{t(lang,'score_total')}</div>
+                  </div>
+                </div>
               </div>
-              <div style={{flex:1,textAlign:'center',background:'#EEEDFE',borderRadius:6,padding:'6px'}}>
-                <div style={{fontSize:14,fontWeight:700,color:'#534AB7'}}>{ptsTotal} {t(lang,'pts_abrev')}</div>
-                <div style={{fontSize:10,color:'#3D38A0'}}>{t(lang,'score_total')}</div>
-              </div>
-            </div>
+            )}
           </div>
         )}
       </div>
