@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { t } from '../lib/i18n';
+import { SOURATES_5B, SOURATES_5A } from '../lib/sourates';
 
 const PERIODES = [
   { val: 'semaine',    label_fr: 'Semaine',    label_ar: 'أسبوع',       label_en: 'Week',      jours: 7   },
@@ -109,7 +110,7 @@ export default function GestionObjectifs({ user, navigate, lang='fr' }) {
   const [form, setForm] = useState({
     type_cible: 'niveau', eleve_id: '', code_niveau: '5B', instituteur_id: '',
     periode: 'mois', date_debut: new Date().toISOString().split('T')[0],
-    date_fin: '', metrique: 'sourate', valeur_cible: '', titre: '', notes: ''
+    date_fin: '', metrique: 'sourate', valeur_cible: '', cible_specifique: null, titre: '', notes: ''
   });
 
   useEffect(() => { loadData(); }, []);
@@ -173,6 +174,7 @@ export default function GestionObjectifs({ user, navigate, lang='fr' }) {
       valeur_cible: parseInt(form.valeur_cible),
       titre: form.titre || null,
       notes: form.notes || null,
+      cible_specifique: form.cible_specifique || null,
       created_by: user.id,
     };
     const { error } = await supabase.from('objectifs_globaux').insert(insert);
@@ -182,7 +184,7 @@ export default function GestionObjectifs({ user, navigate, lang='fr' }) {
     setShowForm(false);
     setForm({ type_cible:'niveau', eleve_id:'', code_niveau:'5B', instituteur_id:'',
       periode:'mois', date_debut:new Date().toISOString().split('T')[0],
-      date_fin:'', metrique:'sourate', valeur_cible:'', titre:'', notes:'' });
+      date_fin:'', metrique:'sourate', valeur_cible:'', cible_specifique:null, titre:'', notes:'' });
     await loadData();
   };
 
@@ -340,10 +342,19 @@ export default function GestionObjectifs({ user, navigate, lang='fr' }) {
             {form.type_cible==='eleve'&&(
               <div className="field-group">
                 <label className="field-lbl">{lang==='ar'?'الطالب':lang==='en'?'Student':'Élève'} *</label>
-                <select className="field-select" value={form.eleve_id} onChange={e=>setForm(f=>({...f,eleve_id:e.target.value}))}>
+                <select className="field-select" value={form.eleve_id} onChange={e=>setForm(f=>({...f,eleve_id:e.target.value,metrique:['5B','5A'].includes(eleves.find(el=>el.id===e.target.value)?.code_niveau||'')?'sourate':'tomon'}))}>
                   <option value="">— {lang==='ar'?'اختر':lang==='en'?'Select':'Sélectionner'} —</option>
                   {eleves.map(e=><option key={e.id} value={e.id}>{e.prenom} {e.nom} ({e.code_niveau||'?'})</option>)}
                 </select>
+                {form.eleve_id&&(()=>{
+                  const el=eleves.find(e=>e.id===form.eleve_id);
+                  if(!el) return null;
+                  const nc={'5B':'#534AB7','5A':'#378ADD','2M':'#1D9E75','2':'#EF9F27','1':'#E24B4A'}[el.code_niveau||'1']||'#888';
+                  return <div style={{marginTop:6,display:'flex',alignItems:'center',gap:6,fontSize:12,color:'#888'}}>
+                    <span style={{padding:'2px 8px',borderRadius:20,fontSize:11,fontWeight:700,background:nc+'15',color:nc}}>{el.code_niveau||'?'}</span>
+                    <span>{el.eleve_id_ecole?`#${el.eleve_id_ecole}`:''}</span>
+                  </div>;
+                })()}
               </div>
             )}
             {form.type_cible==='instituteur'&&(
@@ -351,8 +362,20 @@ export default function GestionObjectifs({ user, navigate, lang='fr' }) {
                 <label className="field-lbl">{lang==='ar'?'الأستاذ':lang==='en'?'Teacher':'Instituteur'} *</label>
                 <select className="field-select" value={form.instituteur_id} onChange={e=>setForm(f=>({...f,instituteur_id:e.target.value}))}>
                   <option value="">— {lang==='ar'?'اختر':lang==='en'?'Select':'Sélectionner'} —</option>
-                  {instituteurs.map(i=><option key={i.id} value={i.id}>{i.prenom} {i.nom}</option>)}
+                  {instituteurs.map(i=>{
+                    const nbEleves=eleves.filter(e=>e.instituteur_referent_id===i.id).length;
+                    return <option key={i.id} value={i.id}>{i.prenom} {i.nom} ({nbEleves} {lang==='ar'?'طالب':lang==='en'?'students':'élèves'})</option>;
+                  })}
                 </select>
+                {form.instituteur_id&&(()=>{
+                  const inst=instituteurs.find(i=>i.id===form.instituteur_id);
+                  const elevesInst=eleves.filter(e=>e.instituteur_referent_id===form.instituteur_id);
+                  const niveaux=[...new Set(elevesInst.map(e=>e.code_niveau||'?'))];
+                  return inst ? <div style={{marginTop:6,fontSize:12,color:'#888',display:'flex',gap:4,flexWrap:'wrap'}}>
+                    {niveaux.map(n=><span key={n} style={{padding:'2px 6px',borderRadius:10,background:'#f0f0ec',fontSize:11}}>{n}</span>)}
+                    <span>· {elevesInst.length} {lang==='ar'?'طالب':lang==='en'?'students':'élèves'}</span>
+                  </div> : null;
+                })()}
               </div>
             )}
           </div>
@@ -379,19 +402,84 @@ export default function GestionObjectifs({ user, navigate, lang='fr' }) {
             </div>
           </div>
 
+          {/* Métrique + Cible intelligente */}
           <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12,marginBottom:12}}>
-            {/* Métrique */}
             <div className="field-group">
               <label className="field-lbl">{lang==='ar'?'مؤشر القياس':lang==='en'?'Metric':'Métrique'} *</label>
-              <select className="field-select" value={form.metrique} onChange={e=>setForm(f=>({...f,metrique:e.target.value}))}>
+              <select className="field-select" value={form.metrique} onChange={e=>setForm(f=>({...f,metrique:e.target.value,valeur_cible:'',cible_specifique:null}))}>
                 {metriquesDisponibles().map(m=><option key={m.val} value={m.val}>{lang==='ar'?m.label_ar:lang==='en'?m.label_en:m.label_fr}</option>)}
               </select>
             </div>
 
-            {/* Valeur cible */}
+            {/* Valeur cible — intelligente selon la métrique */}
             <div className="field-group">
               <label className="field-lbl">{lang==='ar'?'القيمة المستهدفة':lang==='en'?'Target value':'Valeur cible'} *</label>
-              <input className="field-input" type="number" min="1" value={form.valeur_cible} onChange={e=>setForm(f=>({...f,valeur_cible:e.target.value}))} placeholder={lang==='ar'?'مثال: 20':lang==='en'?'e.g. 20':'Ex: 20'}/>
+              {form.metrique === 'sourate' ? (
+                <div>
+                  <div style={{fontSize:11,color:'#888',marginBottom:6}}>
+                    {lang==='ar'?'اختر سورة محددة أو عدداً':lang==='en'?'Pick a specific surah or a count':'Choisir une sourate précise ou un nombre'}
+                  </div>
+                  <div style={{display:'flex',gap:6}}>
+                    <select className="field-select" style={{flex:2}}
+                      value={form.cible_specifique||''}
+                      onChange={e=>{
+                        const val=e.target.value;
+                        setForm(f=>({...f,cible_specifique:val||null,valeur_cible:val?'1':f.valeur_cible}));
+                      }}>
+                      <option value="">{lang==='ar'?'— عدد سور (حر)':lang==='en'?'— Number of surahs':'— Nombre de sourates'}</option>
+                      {(()=>{
+                        const niv = form.type_cible==='niveau' ? form.code_niveau :
+                                    form.type_cible==='eleve' ? (eleves.find(e=>e.id===form.eleve_id)?.code_niveau||'5B') : '5A';
+                        const list = ['5B'].includes(niv) ? SOURATES_5B : SOURATES_5A;
+                        return [...list].sort((a,b)=>b.numero-a.numero).map(s=>(
+                          <option key={s.numero} value={`sourate_${s.numero}`}>{s.numero} — {s.nom_ar}</option>
+                        ));
+                      })()}
+                    </select>
+                    {!form.cible_specifique&&<input className="field-input" style={{flex:1}} type="number" min="1" value={form.valeur_cible} onChange={e=>setForm(f=>({...f,valeur_cible:e.target.value}))} placeholder="5"/>}
+                  </div>
+                </div>
+              ) : form.metrique === 'hizb' ? (
+                <div>
+                  <div style={{fontSize:11,color:'#888',marginBottom:6}}>
+                    {lang==='ar'?'اختر حزباً محدداً أو عدداً':lang==='en'?'Pick a specific Hizb or a count':'Choisir un Hizb précis ou un nombre'}
+                  </div>
+                  <div style={{display:'flex',gap:6}}>
+                    <select className="field-select" style={{flex:2}}
+                      value={form.cible_specifique||''}
+                      onChange={e=>setForm(f=>({...f,cible_specifique:e.target.value||null,valeur_cible:e.target.value?'1':f.valeur_cible}))}>
+                      <option value="">{lang==='ar'?'— عدد أحزاب (حر)':lang==='en'?'— Number of Hizb':'— Nombre de Hizb'}</option>
+                      {Array.from({length:60},(_,i)=>i+1).map(h=>(
+                        <option key={h} value={`hizb_${h}`}>Hizb {h}</option>
+                      ))}
+                    </select>
+                    {!form.cible_specifique&&<input className="field-input" style={{flex:1}} type="number" min="1" value={form.valeur_cible} onChange={e=>setForm(f=>({...f,valeur_cible:e.target.value}))} placeholder="2"/>}
+                  </div>
+                </div>
+              ) : form.metrique === 'tomon' ? (
+                <div>
+                  <div style={{fontSize:11,color:'#888',marginBottom:6}}>
+                    {lang==='ar'?'اختر ثُمناً محدداً أو عدداً':lang==='en'?'Pick a specific Tomon or a count':'Choisir un Tomon précis ou un nombre'}
+                  </div>
+                  <div style={{display:'flex',gap:6}}>
+                    <select className="field-select" style={{flex:2}}
+                      value={form.cible_specifique||''}
+                      onChange={e=>setForm(f=>({...f,cible_specifique:e.target.value||null,valeur_cible:e.target.value?'1':f.valeur_cible}))}>
+                      <option value="">{lang==='ar'?'— عدد أثمان (حر)':lang==='en'?'— Number of Tomon':'— Nombre de Tomon'}</option>
+                      {Array.from({length:60},(_,hi)=>hi+1).map(h=>(
+                        [1,2,3,4,5,6,7,8].map(ti=>(
+                          <option key={`${h}_${ti}`} value={`hizb${h}_tomon${ti}`}>Hizb {h} — T.{ti}</option>
+                        ))
+                      ))}
+                    </select>
+                    {!form.cible_specifique&&<input className="field-input" style={{flex:1}} type="number" min="1" value={form.valeur_cible} onChange={e=>setForm(f=>({...f,valeur_cible:e.target.value}))} placeholder="10"/>}
+                  </div>
+                </div>
+              ) : (
+                <input className="field-input" type="number" min="1" value={form.valeur_cible}
+                  onChange={e=>setForm(f=>({...f,valeur_cible:e.target.value}))}
+                  placeholder={form.metrique==='points'?'1000':form.metrique==='seances'?'12':'20'}/>
+              )}
             </div>
           </div>
 
@@ -402,9 +490,22 @@ export default function GestionObjectifs({ user, navigate, lang='fr' }) {
           </div>
 
           {/* Preview */}
-          {form.valeur_cible>0&&(
+          {(form.valeur_cible>0||form.cible_specifique)&&(
             <div style={{background:'#f0faf6',border:'0.5px solid #9FE1CB',borderRadius:10,padding:'10px 14px',marginBottom:14,fontSize:12,color:'#085041'}}>
-              📋 <strong>{form.titre||'Objectif'}</strong> — {getObjLabel({type_cible:form.type_cible,eleve_id:form.eleve_id,code_niveau:form.code_niveau,instituteur_id:form.instituteur_id})} — {form.valeur_cible} {getMetriqueLabel(form.metrique,lang)} / {getPeriodeLabel(form.periode,lang)} ({formatDate(form.date_debut)} → {formatDate(form.date_fin)})
+              📋 <strong>{form.titre||lang==='ar'?'هدف':'Objectif'}</strong>
+              {' → '}{getObjLabel({type_cible:form.type_cible,eleve_id:form.eleve_id,code_niveau:form.code_niveau,instituteur_id:form.instituteur_id})}
+              {' → '}
+              {form.cible_specifique
+                ? <span style={{fontWeight:700,color:'#085041'}}>
+                    {form.cible_specifique.startsWith('sourate_')
+                      ? (()=>{const n=parseInt(form.cible_specifique.replace('sourate_',''));const s=[...SOURATES_5B,...SOURATES_5A].find(x=>x.numero===n);return `${lang==='ar'?'سورة':'Sourate'} ${n} — ${s?.nom_ar||''}`;})()
+                      : form.cible_specifique.startsWith('hizb_')
+                      ? `Hizb ${form.cible_specifique.replace('hizb_','')}`
+                      : form.cible_specifique.replace('hizb','H').replace('_tomon',' T.')}
+                  </span>
+                : <span>{form.valeur_cible} {getMetriqueLabel(form.metrique,lang)}</span>}
+              {' / '}{getPeriodeLabel(form.periode,lang)}
+              {' ('}{formatDate(form.date_debut)} → {formatDate(form.date_fin)}{')'}
             </div>
           )}
 
