@@ -225,8 +225,123 @@ export default function HistoriqueSeances({ user, navigate, goBack, lang='fr' })
   const elevesSearch = eleves.filter(e=>`${e.prenom} ${e.nom}`.toLowerCase().includes(searchEleve.toLowerCase())&&elevesVisiblesIds.has(e.id));
 
   // Export to CSV/Excel
-  const exportCSV = () => {
+  const exportExcel = async () => {
+    // Dynamically load SheetJS
+    if (!window.XLSX) {
+      await new Promise((resolve, reject) => {
+        const script = document.createElement('script');
+        script.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+        script.onload = resolve;
+        script.onerror = reject;
+        document.head.appendChild(script);
+      });
+    }
+    const XLSX = window.XLSX;
+    const wb = XLSX.utils.book_new();
+    
     // Only export what's currently visible (filtered actifs)
+    const dataToExport = filterEleve !== 'tous'
+      ? actifs.filter(s => s.eleve.id === filterEleve)
+      : actifs;
+    
+    // === SHEET 1: Résumé ===
+    const summaryData = [
+      [lang==='ar'?'تحليل الحصص':lang==='en'?'Session Analysis':'Analyse des Séances'],
+      [`${lang==='ar'?'الفترة':lang==='en'?'Period':'Période'}: ${dateDebut} → ${dateFin}`],
+      filterEleve!=='tous'?[`${lang==='ar'?'الطالب':lang==='en'?'Student':'Élève'}: ${eleves.find(e=>e.id===filterEleve)?.prenom||''} ${eleves.find(e=>e.id===filterEleve)?.nom||''}`]:[],
+      filterNiveau!=='tous'?[`${lang==='ar'?'المستوى':lang==='en'?'Level':'Niveau'}: ${filterNiveau}`]:[],
+      [],
+      // KPI row
+      [lang==='ar'?'طلاب نشطون':lang==='en'?'Active students':'Élèves actifs',
+       lang==='ar'?'نقاط':lang==='en'?'Points':'Points',
+       lang==='ar'?'أثمان':lang==='en'?'Tomon':'Tomon',
+       'Hizb',
+       lang==='ar'?'سور':lang==='en'?'Surahs':'Sourates',
+       lang==='ar'?'مقاطع':lang==='en'?'Seq.':'Séq.',
+       lang==='ar'?'أيام نشطة':lang==='en'?'Active days':'Jours actifs'],
+      [filterEleve!=='tous'?1:elevesActifs.size,
+       filterEleve!=='tous'?actifs.find(s=>s.eleve.id===filterEleve)?.pts||0:ptsTotal,
+       tomonTotal, hizbTotal, souratesTotal, sequencesTotal, joursActifs],
+      [],
+      // Headers for student table
+      ['#',
+       lang==='ar'?'الاسم':lang==='en'?'Name':'Nom',
+       lang==='ar'?'المستوى':lang==='en'?'Level':'Niveau',
+       lang==='ar'?'الأستاذ':lang==='en'?'Teacher':'Instituteur',
+       'Tomon', 'Hizb',
+       lang==='ar'?'سور كاملة':lang==='en'?'Surahs':'Sourates',
+       lang==='ar'?'مقاطع':lang==='en'?'Seq.':'Séq.',
+       lang==='ar'?'النقاط':lang==='en'?'Points':'Points',
+       lang==='ar'?'الحصص':lang==='en'?'Sessions':'Séances',
+       lang==='ar'?'هدف %':lang==='en'?'Obj %':'Obj %',
+       lang==='ar'?'الاتجاه':lang==='en'?'Trend':'Tendance'],
+      ...dataToExport.map((s,i)=>[
+        i+1,
+        `${s.eleve.prenom} ${s.eleve.nom}`,
+        s.eleve.code_niveau||'?',
+        s.instituteurNom,
+        s.tomon, s.hizb, s.sourates, s.seqs, s.pts, s.nbSeances,
+        s.pctObj!==null?`${s.pctObj}%`:'—',
+        s.trend==='up'?'↑':s.trend==='down'?'↓':'=',
+      ]),
+    ].filter(r=>r.length>0);
+
+    const ws1 = XLSX.utils.aoa_to_sheet(summaryData);
+    // Column widths
+    ws1['!cols'] = [{wch:4},{wch:22},{wch:8},{wch:20},{wch:8},{wch:8},{wch:10},{wch:8},{wch:10},{wch:8},{wch:8},{wch:10}];
+    XLSX.utils.book_append_sheet(wb, ws1, lang==='ar'?'ملخص':lang==='en'?'Summary':'Résumé');
+
+    // === SHEET 2: Timeline ===
+    if (timelineArr.length > 0) {
+      const timelineData = [
+        [lang==='ar'?'التاريخ':'Date', 'Tomon', 'Hizb',
+         lang==='ar'?'سور':'Surahs', lang==='ar'?'مقاطع':'Séq.', lang==='ar'?'النقاط':'Points'],
+        ...timelineArr.map(d=>[d.date, d.tomon, d.hizb, d.sourate, d.seq, d.pts])
+      ];
+      const ws2 = XLSX.utils.aoa_to_sheet(timelineData);
+      ws2['!cols'] = [{wch:14},{wch:10},{wch:8},{wch:8},{wch:8},{wch:10}];
+      XLSX.utils.book_append_sheet(wb, ws2, lang==='ar'?'النشاط اليومي':lang==='en'?'Daily activity':'Activité');
+    }
+
+    // === SHEET 3: Détail récitations (if student selected) ===
+    if (filterEleve !== 'tous' && allDrill.length > 0) {
+      const eleveName = `${eleves.find(e=>e.id===filterEleve)?.prenom||''} ${eleves.find(e=>e.id===filterEleve)?.nom||''}`;
+      const detailData = [
+        [eleveName],
+        [],
+        [lang==='ar'?'التاريخ':'Date',
+         lang==='ar'?'الوقت':'Heure',
+         lang==='ar'?'النوع':'Type',
+         lang==='ar'?'التفاصيل':'Détails',
+         lang==='ar'?'السورة/الحزب':'Sourate/Hizb',
+         lang==='ar'?'صحح بواسطة':'Validé par',
+         lang==='ar'?'النقاط':'Points'],
+        ...allDrill.map(item => {
+          const isSR = !!item.type_recitation;
+          const sourate = souratesDB.find(s=>s.id===item.sourate_id);
+          const pts = isSR ? (item.points||10) : (item.type_validation==='hizb_complet'?100:item.nombre_tomon*10);
+          return [
+            new Date(item.date_validation).toLocaleDateString('fr-FR'),
+            new Date(item.date_validation).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'}),
+            isSR?(item.type_recitation==='complete'?'Sourate complète':'Séquence'):(item.type_validation==='hizb_complet'?'Hizb complet':'Tomon'),
+            isSR?(item.type_recitation==='complete'?'✓':`V.${item.verset_debut}→V.${item.verset_fin}`):(item.type_validation==='hizb_complet'?`Hizb ${item.hizb_valide}`:`${item.nombre_tomon} Tomon`),
+            sourate?sourate.nom_ar:(item.hizb_validation?`Hizb ${item.hizb_validation}`:'—'),
+            item.valideur?`${item.valideur.prenom} ${item.valideur.nom}`:'—',
+            `+${pts}`,
+          ];
+        })
+      ];
+      const ws3 = XLSX.utils.aoa_to_sheet(detailData);
+      ws3['!cols'] = [{wch:14},{wch:8},{wch:16},{wch:20},{wch:22},{wch:18},{wch:8}];
+      XLSX.utils.book_append_sheet(wb, ws3, lang==='ar'?'تفاصيل':'Détail');
+    }
+
+    // Save file
+    const suffix = filterEleve!=='tous'?(eleves.find(e=>e.id===filterEleve)?.nom||'eleve'):filterNiveau!=='tous'?filterNiveau:'tous';
+    XLSX.writeFile(wb, `seances_${dateDebut}_${dateFin}_${suffix}.xlsx`);
+  };
+
+  const exportCSV_REMOVED = () => {
     const dataToExport = filterEleve !== 'tous'
       ? actifs.filter(s => s.eleve.id === filterEleve)
       : actifs;
@@ -284,102 +399,121 @@ export default function HistoriqueSeances({ user, navigate, goBack, lang='fr' })
     URL.revokeObjectURL(url);
   };
 
-  // Export to PDF via print
-  const exportPDF = () => {
-    const w = window.open('','','width=1000,height=800');
-    if (!w) return;
-    const dir = lang==='ar'?'rtl':'ltr';
-    const font = lang==='ar'?"'Tajawal',Arial":"Arial";
-    w.document.write(`<!DOCTYPE html><html dir="${dir}"><head>
-    <meta charset="UTF-8">
-    <title>${lang==='ar'?'تحليل الحصص':lang==='en'?'Session Analysis':'Analyse des Séances'}</title>
-    <style>
-      body{font-family:${font},sans-serif;color:#1a1a1a;padding:24px;font-size:12px;direction:${dir}}
-      h1{font-size:18px;color:#085041;margin-bottom:4px}
-      .period{color:#888;font-size:12px;margin-bottom:16px}
-      .kpi-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:16px}
-      .kpi{background:#f5f5f0;border-radius:8px;padding:10px;text-align:center}
-      .kpi-val{font-size:22px;font-weight:800;color:#1D9E75}
-      .kpi-lbl{font-size:10px;color:#888;margin-top:2px}
-      table{width:100%;border-collapse:collapse;margin-top:16px}
-      th{background:#085041;color:#fff;padding:8px;text-align:${dir==='rtl'?'right':'left'};font-size:11px}
-      td{padding:7px 8px;border-bottom:1px solid #e8e8e0;font-size:11px}
-      tr:nth-child(even) td{background:#f9f9f6}
-      .badge{padding:2px 6px;border-radius:10px;font-size:10px;font-weight:700}
-      .footer{margin-top:20px;font-size:10px;color:#bbb;border-top:1px solid #e0e0d8;padding-top:10px;text-align:center}
-    </style></head><body>
-    <h1>📊 ${lang==='ar'?'تحليل الحصص':lang==='en'?'Session Analysis':'Analyse des Séances'}</h1>
-    <div class="period">${dateDebut} → ${dateFin} · 
-      ${filterEleve!=='tous'
-        ? (eleves.find(e=>e.id===filterEleve)?`${eleves.find(e=>e.id===filterEleve).prenom} ${eleves.find(e=>e.id===filterEleve).nom}`:'')
-        : `${filterEleve==='tous'?actifs.length:1} ${lang==='ar'?'طالب نشط':lang==='en'?'active students':'élève(s) actif(s)'}`}
-      ${filterNiveau!=='tous'?`· ${lang==='ar'?'المستوى':'Niveau'} ${filterNiveau}`:''}
-      ${filterInstituteur!=='tous'?`· ${instituteurs.find(i=>i.id===filterInstituteur)?.prenom||''} ${instituteurs.find(i=>i.id===filterInstituteur)?.nom||''}`:''}
-    </div>
-    <div class="kpi-grid">
-      <div class="kpi"><div class="kpi-val">${filterEleve!=='tous'?1:elevesActifs.size}</div><div class="kpi-lbl">${lang==='ar'?'طلاب نشطون':lang==='en'?'Active':'Élèves actifs'}</div></div>
-      <div class="kpi"><div class="kpi-val">${(filterEleve!=='tous'?actifs.find(s=>s.eleve.id===filterEleve)?.pts||0:ptsTotal).toLocaleString()}</div><div class="kpi-lbl">${lang==='ar'?'نقاط':lang==='en'?'Points':'Points'}</div></div>
-      <div class="kpi"><div class="kpi-val">${filterEleve!=='tous'?((actifs.find(s=>s.eleve.id===filterEleve)?.tomon||0)+(actifs.find(s=>s.eleve.id===filterEleve)?.sourates||0)):tomonTotal+souratesTotal}</div><div class="kpi-lbl">${lang==='ar'?'تسميعات':lang==='en'?'Recitations':'Récitations'}</div></div>
-      <div class="kpi"><div class="kpi-val">${filterEleve!=='tous'?actifs.find(s=>s.eleve.id===filterEleve)?.nbSeances||0:joursActifs}</div><div class="kpi-lbl">${lang==='ar'?'حصص':lang==='en'?'Sessions':'Séances'}</div></div>
-    </div>
-    <table>
-      <thead><tr>
-        <th>#</th>
-        <th>${lang==='ar'?'الطالب':lang==='en'?'Student':'Élève'}</th>
-        <th>${lang==='ar'?'المستوى':lang==='en'?'Level':'Niv.'}</th>
-        <th>${lang==='ar'?'الأستاذ':lang==='en'?'Teacher':'Instituteur'}</th>
-        <th>${lang==='ar'?'أثمان':lang==='en'?'Tomon':'Tomon'}</th>
-        <th>${lang==='ar'?'سور':lang==='en'?'Surahs':'Sourates'}</th>
-        <th>${lang==='ar'?'النقاط':lang==='en'?'Points':'Points'}</th>
-        <th>${lang==='ar'?'الحصص':lang==='en'?'Sessions':'Séances'}</th>
-        <th>${lang==='ar'?'الهدف %':lang==='en'?'Obj %':'Obj %'}</th>
-      </tr></thead>
-      <tbody>
-        ${(filterEleve !== 'tous' ? actifs.filter(s=>s.eleve.id===filterEleve) : actifs).map((s,i)=>`<tr>
-          <td>${i+1}</td>
-          <td><strong>${s.eleve.prenom} ${s.eleve.nom}</strong></td>
-          <td><span class="badge" style="background:${(NIVEAU_COLORS[s.eleve.code_niveau||'1']||'#888')+'20'};color:${NIVEAU_COLORS[s.eleve.code_niveau||'1']||'#888'}">${s.eleve.code_niveau||'?'}</span></td>
-          <td>${s.instituteurNom}</td>
-          <td>${s.tomon}</td>
-          <td>${s.sourates}</td>
-          <td><strong style="color:#1D9E75">${s.pts}</strong></td>
-          <td>${s.nbSeances}</td>
-          <td>${s.pctObj!==null?`<strong style="color:${s.pctObj>=100?'#1D9E75':s.pctObj>=60?'#EF9F27':'#E24B4A'}">${s.pctObj}%</strong>`:'—'}</td>
-        </tr>`).join('')}
-        ${filterEleve==='tous'&&inactifs.length>0?`<tr><td colspan="9" style="text-align:center;color:#E24B4A;padding:10px">⚠️ ${inactifs.length} ${lang==='ar'?'طالب غير نشط':lang==='en'?'inactive students':'élève(s) inactif(s)'}</td></tr>`:''}
-      </tbody>
-    </table>
-    ${filterEleve!=='tous'&&allDrill.length>0?`
-    <h2 style="font-size:14px;margin:20px 0 10px;border-bottom:2px solid #1D9E75;padding-bottom:6px">
-      ${lang==='ar'?'تفاصيل التسميع':lang==='en'?'Recitation details':'Détail des récitations'}
-    </h2>
-    <table>
-      <thead><tr>
-        <th>${lang==='ar'?'التاريخ':'Date'}</th>
-        <th>${lang==='ar'?'الوقت':'Heure'}</th>
-        <th>${lang==='ar'?'التفاصيل':'Détails'}</th>
-        <th>${lang==='ar'?'السورة/الحزب':'Sourate / Hizb'}</th>
-        <th>${lang==='ar'?'النقاط':'Points'}</th>
-      </tr></thead>
-      <tbody>
-        ${allDrill.map(item=>{
-          const isSR=!!item.type_recitation;
-          const sourate=souratesDB.find(s=>s.id===item.sourate_id);
-          const pts=isSR?(item.points||10):(item.type_validation==='hizb_complet'?100:item.nombre_tomon*10);
-          return `<tr>
-            <td>${new Date(item.date_validation).toLocaleDateString(lang==='ar'?'ar-MA':'fr-FR',{day:'2-digit',month:'short'})}</td>
-            <td>${new Date(item.date_validation).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'})}</td>
-            <td>${isSR?(item.type_recitation==='complete'?'✓ Complète':`V.${item.verset_debut}→V.${item.verset_fin}`):(item.type_validation==='hizb_complet'?`Hizb ${item.hizb_valide} ✓`:`${item.nombre_tomon} T.${item.tomon_debut||''}`)}</td>
-            <td>${sourate?sourate.nom_ar:(item.hizb_validation?'Hizb '+item.hizb_validation:'—')}</td>
-            <td style="color:#1D9E75;font-weight:700">+${pts}</td>
-          </tr>`;
-        }).join('')}
-      </tbody>
-    </table>`:''}
-    <div class="footer">${lang==='ar'?'أُنشئ بتاريخ':lang==='en'?'Generated on':'Généré le'} ${new Date().toLocaleDateString(lang==='ar'?'ar-MA':lang==='en'?'en-GB':'fr-FR')} · متابعة التحفيظ</div>
-    </body></html>`);
-    w.document.close();
-    setTimeout(()=>{w.print();w.close();},600);
+  // Export PDF with charts using html2canvas + jsPDF
+  const exportPDF = async () => {
+    // Load html2canvas and jsPDF dynamically
+    if (!window.html2canvas) {
+      await new Promise((resolve, reject) => {
+        const s = document.createElement('script');
+        s.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
+        s.onload = resolve; s.onerror = reject;
+        document.head.appendChild(s);
+      });
+    }
+    if (!window.jspdf) {
+      await new Promise((resolve, reject) => {
+        const s = document.createElement('script');
+        s.src = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
+        s.onload = resolve; s.onerror = reject;
+        document.head.appendChild(s);
+      });
+    }
+
+    const element = document.getElementById('analyse-seances-content');
+    if (!element) return;
+
+    // Show loading indicator
+    const loadingDiv = document.createElement('div');
+    loadingDiv.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:rgba(0,0,0,0.7);color:#fff;padding:20px 30px;borderRadius:12px;zIndex:9999;fontSize:14px;fontWeight:600';
+    loadingDiv.textContent = lang==='ar'?'جارٍ إنشاء PDF...':lang==='en'?'Generating PDF...':'Génération du PDF...';
+    document.body.appendChild(loadingDiv);
+
+    try {
+      const canvas = await window.html2canvas(element, {
+        scale: 1.5,
+        useCORS: true,
+        allowTaint: true,
+        backgroundColor: '#f5f5f0',
+        logging: false,
+        onclone: (doc) => {
+          // Make sure Arabic fonts render
+          doc.documentElement.style.fontFamily = "'Tajawal', Arial, sans-serif";
+        }
+      });
+
+      const imgData = canvas.toDataURL('image/jpeg', 0.85);
+      const { jsPDF } = window.jspdf;
+      const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+      
+      const pageWidth = pdf.internal.pageSize.getWidth();
+      const pageHeight = pdf.internal.pageSize.getHeight();
+      const margin = 10;
+      const imgWidth = pageWidth - 2 * margin;
+      const imgHeight = (canvas.height * imgWidth) / canvas.width;
+      
+      // Add header
+      pdf.setFillColor(8, 80, 65);
+      pdf.rect(0, 0, pageWidth, 14, 'F');
+      pdf.setTextColor(255, 255, 255);
+      pdf.setFontSize(11);
+      pdf.setFont('helvetica', 'bold');
+      const title = lang==='ar'?'تحليل الحصص':lang==='en'?'Session Analysis':'Analyse des Séances';
+      pdf.text(title, pageWidth/2, 9, { align: 'center' });
+      pdf.setFontSize(8);
+      pdf.setFont('helvetica', 'normal');
+      pdf.text(`${dateDebut} → ${dateFin}`, pageWidth/2, 13, { align: 'center' });
+
+      // Add screenshot content across pages
+      let yOffset = 16;
+      let remainingHeight = imgHeight;
+      let sourceY = 0;
+
+      while (remainingHeight > 0) {
+        const availableHeight = pageHeight - yOffset - 8;
+        const sliceHeight = Math.min(remainingHeight, availableHeight);
+        const sourceHeight = (sliceHeight / imgWidth) * canvas.width;
+
+        // Create a slice canvas
+        const sliceCanvas = document.createElement('canvas');
+        sliceCanvas.width = canvas.width;
+        sliceCanvas.height = sourceHeight;
+        const ctx = sliceCanvas.getContext('2d');
+        ctx.drawImage(canvas, 0, sourceY, canvas.width, sourceHeight, 0, 0, canvas.width, sourceHeight);
+        const sliceData = sliceCanvas.toDataURL('image/jpeg', 0.85);
+
+        pdf.addImage(sliceData, 'JPEG', margin, yOffset, imgWidth, sliceHeight);
+        remainingHeight -= sliceHeight;
+        sourceY += sourceHeight;
+
+        if (remainingHeight > 0) {
+          pdf.addPage();
+          // Add header on new page
+          pdf.setFillColor(8, 80, 65);
+          pdf.rect(0, 0, pageWidth, 10, 'F');
+          pdf.setTextColor(255, 255, 255);
+          pdf.setFontSize(8);
+          pdf.text(title, pageWidth/2, 7, { align: 'center' });
+          yOffset = 12;
+        }
+      }
+
+      // Footer on last page
+      const totalPages = pdf.internal.getNumberOfPages();
+      for (let i = 1; i <= totalPages; i++) {
+        pdf.setPage(i);
+        pdf.setFontSize(7);
+        pdf.setTextColor(150, 150, 150);
+        pdf.text(
+          `${lang==='ar'?'صفحة':lang==='en'?'Page':'Page'} ${i}/${totalPages} · ${new Date().toLocaleDateString('fr-FR')} · متابعة التحفيظ`,
+          pageWidth/2, pageHeight - 4, { align: 'center' }
+        );
+      }
+
+      const suffix = filterEleve!=='tous'?(eleves.find(e=>e.id===filterEleve)?.nom||'eleve'):filterNiveau!=='tous'?filterNiveau:'rapport';
+      pdf.save(`seances_${dateDebut}_${dateFin}_${suffix}.pdf`);
+    } finally {
+      document.body.removeChild(loadingDiv);
+    }
   };
 
   return (
@@ -392,9 +526,9 @@ export default function HistoriqueSeances({ user, navigate, goBack, lang='fr' })
         </div>
         <div style={{display:'flex',gap:6,alignItems:'center'}}>
           <span style={{fontSize:12,color:'#888'}}>{elevesVisibles.length} {lang==='ar'?'طالب':lang==='en'?'students':'élèves'}</span>
-          <button onClick={exportCSV}
+          <button onClick={exportExcel}
             style={{padding:'6px 12px',background:'#1D9E75',color:'#fff',border:'none',borderRadius:8,fontSize:11,fontWeight:600,cursor:'pointer',display:'flex',alignItems:'center',gap:4}}>
-            📥 Excel
+            📥 Excel (.xlsx)
           </button>
           <button onClick={exportPDF}
             style={{padding:'6px 12px',background:'#534AB7',color:'#fff',border:'none',borderRadius:8,fontSize:11,fontWeight:600,cursor:'pointer',display:'flex',alignItems:'center',gap:4}}>
@@ -531,7 +665,7 @@ export default function HistoriqueSeances({ user, navigate, goBack, lang='fr' })
           )}
 
           {/* PERFORMANCE PAR ÉLÈVE */}
-          {!drillDown&&(
+          {(!drillDown||filterEleve==='tous')&&(
             <div style={{background:'#fff',border:'0.5px solid #e0e0d8',borderRadius:16,padding:'1.25rem',marginBottom:'1.25rem'}}>
               <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:12,flexWrap:'wrap',gap:8}}>
                 <div style={{fontSize:13,fontWeight:600,color:'#1a1a1a'}}>
