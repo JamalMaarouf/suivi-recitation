@@ -226,6 +226,10 @@ export default function HistoriqueSeances({ user, navigate, goBack, lang='fr' })
 
   // Export to CSV/Excel
   const exportCSV = () => {
+    // Only export what's currently visible (filtered actifs)
+    const dataToExport = filterEleve !== 'tous'
+      ? actifs.filter(s => s.eleve.id === filterEleve)
+      : actifs;
     const rows = [
       [lang==='ar'?'الاسم':lang==='en'?'Name':'Nom',
        lang==='ar'?'المستوى':lang==='en'?'Level':'Niveau',
@@ -237,7 +241,7 @@ export default function HistoriqueSeances({ user, navigate, goBack, lang='fr' })
        lang==='ar'?'الحصص':lang==='en'?'Sessions':'Séances',
        lang==='ar'?'هدف %':lang==='en'?'Obj %':'Obj %',
       ],
-      ...statsParEleve.map(s=>[
+      ...dataToExport.map(s=>[
         `${s.eleve.prenom} ${s.eleve.nom}`,
         s.eleve.code_niveau||'?',
         s.instituteurNom,
@@ -245,11 +249,38 @@ export default function HistoriqueSeances({ user, navigate, goBack, lang='fr' })
         s.pctObj!==null?`${s.pctObj}%`:'—',
       ])
     ];
+    // If single student is selected, add detail rows
+    if (filterEleve !== 'tous' && allDrill.length > 0) {
+      rows.push([]); // empty line separator
+      rows.push([lang==='ar'?'--- تفاصيل التسميع ---':lang==='en'?'--- Recitation details ---':'--- Détail récitations ---']);
+      rows.push([
+        lang==='ar'?'التاريخ':'Date',
+        lang==='ar'?'الوقت':'Heure',
+        lang==='ar'?'النوع':'Type',
+        lang==='ar'?'التفاصيل':'Détails',
+        lang==='ar'?'السورة/الحزب':'Sourate/Hizb',
+        lang==='ar'?'النقاط':'Points',
+      ]);
+      allDrill.forEach(item => {
+        const isSR = !!item.type_recitation;
+        const sourate = souratesDB.find(s=>s.id===item.sourate_id);
+        const pts = isSR ? (item.points||10) : (item.type_validation==='hizb_complet'?100:item.nombre_tomon*10);
+        rows.push([
+          new Date(item.date_validation).toLocaleDateString('fr-FR'),
+          new Date(item.date_validation).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'}),
+          isSR?(item.type_recitation==='complete'?'Sourate complète':'Séquence'):(item.type_validation==='hizb_complet'?'Hizb complet':'Tomon'),
+          isSR?(item.type_recitation==='complete'?'✓':`V.${item.verset_debut}→V.${item.verset_fin}`):(item.type_validation==='hizb_complet'?`Hizb ${item.hizb_valide}`:`${item.nombre_tomon} Tomon`),
+          sourate?sourate.nom_ar:(item.hizb_validation?`Hizb ${item.hizb_validation}`:'—'),
+          `+${pts}`,
+        ]);
+      });
+    }
     const csv = rows.map(r=>r.map(c=>`"${c}"`).join(',')).join('\n');
     const blob = new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8'});
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a'); a.href=url;
-    a.download=`seances_${dateDebut}_${dateFin}.csv`; a.click();
+    const suffix = filterEleve!=='tous'?(eleves.find(e=>e.id===filterEleve)?.nom||'eleve'):filterNiveau!=='tous'?filterNiveau:'tous';
+    a.download=`seances_${dateDebut}_${dateFin}_${suffix}.csv`; a.click();
     URL.revokeObjectURL(url);
   };
 
@@ -278,12 +309,18 @@ export default function HistoriqueSeances({ user, navigate, goBack, lang='fr' })
       .footer{margin-top:20px;font-size:10px;color:#bbb;border-top:1px solid #e0e0d8;padding-top:10px;text-align:center}
     </style></head><body>
     <h1>📊 ${lang==='ar'?'تحليل الحصص':lang==='en'?'Session Analysis':'Analyse des Séances'}</h1>
-    <div class="period">${dateDebut} → ${dateFin} · ${elevesVisibles.length} ${lang==='ar'?'طالب':lang==='en'?'students':'élèves'}</div>
+    <div class="period">${dateDebut} → ${dateFin} · 
+      ${filterEleve!=='tous'
+        ? (eleves.find(e=>e.id===filterEleve)?`${eleves.find(e=>e.id===filterEleve).prenom} ${eleves.find(e=>e.id===filterEleve).nom}`:'')
+        : `${filterEleve==='tous'?actifs.length:1} ${lang==='ar'?'طالب نشط':lang==='en'?'active students':'élève(s) actif(s)'}`}
+      ${filterNiveau!=='tous'?`· ${lang==='ar'?'المستوى':'Niveau'} ${filterNiveau}`:''}
+      ${filterInstituteur!=='tous'?`· ${instituteurs.find(i=>i.id===filterInstituteur)?.prenom||''} ${instituteurs.find(i=>i.id===filterInstituteur)?.nom||''}`:''}
+    </div>
     <div class="kpi-grid">
-      <div class="kpi"><div class="kpi-val">${elevesActifs.size}</div><div class="kpi-lbl">${lang==='ar'?'طلاب نشطون':lang==='en'?'Active':'Élèves actifs'}</div></div>
-      <div class="kpi"><div class="kpi-val">${ptsTotal.toLocaleString()}</div><div class="kpi-lbl">${lang==='ar'?'نقاط':lang==='en'?'Points':'Points'}</div></div>
-      <div class="kpi"><div class="kpi-val">${tomonTotal+souratesTotal}</div><div class="kpi-lbl">${lang==='ar'?'تسميعات':lang==='en'?'Recitations':'Récitations'}</div></div>
-      <div class="kpi"><div class="kpi-val">${joursActifs}</div><div class="kpi-lbl">${lang==='ar'?'أيام نشطة':lang==='en'?'Active days':'Jours actifs'}</div></div>
+      <div class="kpi"><div class="kpi-val">${filterEleve!=='tous'?1:elevesActifs.size}</div><div class="kpi-lbl">${lang==='ar'?'طلاب نشطون':lang==='en'?'Active':'Élèves actifs'}</div></div>
+      <div class="kpi"><div class="kpi-val">${(filterEleve!=='tous'?actifs.find(s=>s.eleve.id===filterEleve)?.pts||0:ptsTotal).toLocaleString()}</div><div class="kpi-lbl">${lang==='ar'?'نقاط':lang==='en'?'Points':'Points'}</div></div>
+      <div class="kpi"><div class="kpi-val">${filterEleve!=='tous'?((actifs.find(s=>s.eleve.id===filterEleve)?.tomon||0)+(actifs.find(s=>s.eleve.id===filterEleve)?.sourates||0)):tomonTotal+souratesTotal}</div><div class="kpi-lbl">${lang==='ar'?'تسميعات':lang==='en'?'Recitations':'Récitations'}</div></div>
+      <div class="kpi"><div class="kpi-val">${filterEleve!=='tous'?actifs.find(s=>s.eleve.id===filterEleve)?.nbSeances||0:joursActifs}</div><div class="kpi-lbl">${lang==='ar'?'حصص':lang==='en'?'Sessions':'Séances'}</div></div>
     </div>
     <table>
       <thead><tr>
@@ -298,7 +335,7 @@ export default function HistoriqueSeances({ user, navigate, goBack, lang='fr' })
         <th>${lang==='ar'?'الهدف %':lang==='en'?'Obj %':'Obj %'}</th>
       </tr></thead>
       <tbody>
-        ${actifs.map((s,i)=>`<tr>
+        ${(filterEleve !== 'tous' ? actifs.filter(s=>s.eleve.id===filterEleve) : actifs).map((s,i)=>`<tr>
           <td>${i+1}</td>
           <td><strong>${s.eleve.prenom} ${s.eleve.nom}</strong></td>
           <td><span class="badge" style="background:${(NIVEAU_COLORS[s.eleve.code_niveau||'1']||'#888')+'20'};color:${NIVEAU_COLORS[s.eleve.code_niveau||'1']||'#888'}">${s.eleve.code_niveau||'?'}</span></td>
@@ -309,9 +346,36 @@ export default function HistoriqueSeances({ user, navigate, goBack, lang='fr' })
           <td>${s.nbSeances}</td>
           <td>${s.pctObj!==null?`<strong style="color:${s.pctObj>=100?'#1D9E75':s.pctObj>=60?'#EF9F27':'#E24B4A'}">${s.pctObj}%</strong>`:'—'}</td>
         </tr>`).join('')}
-        ${inactifs.length>0?`<tr><td colspan="9" style="text-align:center;color:#E24B4A;padding:10px">⚠️ ${inactifs.length} ${lang==='ar'?'طالب غير نشط':lang==='en'?'inactive students':'élève(s) inactif(s)'}</td></tr>`:''}
+        ${filterEleve==='tous'&&inactifs.length>0?`<tr><td colspan="9" style="text-align:center;color:#E24B4A;padding:10px">⚠️ ${inactifs.length} ${lang==='ar'?'طالب غير نشط':lang==='en'?'inactive students':'élève(s) inactif(s)'}</td></tr>`:''}
       </tbody>
     </table>
+    ${filterEleve!=='tous'&&allDrill.length>0?`
+    <h2 style="font-size:14px;margin:20px 0 10px;border-bottom:2px solid #1D9E75;padding-bottom:6px">
+      ${lang==='ar'?'تفاصيل التسميع':lang==='en'?'Recitation details':'Détail des récitations'}
+    </h2>
+    <table>
+      <thead><tr>
+        <th>${lang==='ar'?'التاريخ':'Date'}</th>
+        <th>${lang==='ar'?'الوقت':'Heure'}</th>
+        <th>${lang==='ar'?'التفاصيل':'Détails'}</th>
+        <th>${lang==='ar'?'السورة/الحزب':'Sourate / Hizb'}</th>
+        <th>${lang==='ar'?'النقاط':'Points'}</th>
+      </tr></thead>
+      <tbody>
+        ${allDrill.map(item=>{
+          const isSR=!!item.type_recitation;
+          const sourate=souratesDB.find(s=>s.id===item.sourate_id);
+          const pts=isSR?(item.points||10):(item.type_validation==='hizb_complet'?100:item.nombre_tomon*10);
+          return `<tr>
+            <td>${new Date(item.date_validation).toLocaleDateString(lang==='ar'?'ar-MA':'fr-FR',{day:'2-digit',month:'short'})}</td>
+            <td>${new Date(item.date_validation).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'})}</td>
+            <td>${isSR?(item.type_recitation==='complete'?'✓ Complète':`V.${item.verset_debut}→V.${item.verset_fin}`):(item.type_validation==='hizb_complet'?`Hizb ${item.hizb_valide} ✓`:`${item.nombre_tomon} T.${item.tomon_debut||''}`)}</td>
+            <td>${sourate?sourate.nom_ar:(item.hizb_validation?'Hizb '+item.hizb_validation:'—')}</td>
+            <td style="color:#1D9E75;font-weight:700">+${pts}</td>
+          </tr>`;
+        }).join('')}
+      </tbody>
+    </table>`:''}
     <div class="footer">${lang==='ar'?'أُنشئ بتاريخ':lang==='en'?'Generated on':'Généré le'} ${new Date().toLocaleDateString(lang==='ar'?'ar-MA':lang==='en'?'en-GB':'fr-FR')} · متابعة التحفيظ</div>
     </body></html>`);
     w.document.close();
