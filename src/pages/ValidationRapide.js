@@ -7,7 +7,7 @@ function Avatar({ prenom, nom, size=40, bg='#E1F5EE', color='#085041' }) {
   return <div style={{width:size,height:size,borderRadius:'50%',background:bg,color,display:'flex',alignItems:'center',justifyContent:'center',fontWeight:600,fontSize:size*0.33,flexShrink:0}}>{getInitiales(prenom,nom)}</div>;
 }
 
-export default function ValidationRapide({ user, navigate, lang='fr' }) {
+export default function ValidationRapide({ user, navigate, goBack, lang='fr' }) {
   const [eleves, setEleves] = useState([]);
   const [allValidations, setAllValidations] = useState([]);
   const [search, setSearch] = useState('');
@@ -66,7 +66,7 @@ export default function ValidationRapide({ user, navigate, lang='fr' }) {
 
   return (
     <div>
-      <button className="back-link" onClick={()=>navigate('dashboard')}>{t(lang,'retour')}</button>
+      <button className="back-link" onClick={()=>goBack?goBack():navigate('dashboard')}>{t(lang,'retour')}</button>
       <div style={{fontSize:20,fontWeight:700,marginBottom:4}}>{t(lang,'validation_express')}</div>
       <div style={{fontSize:13,color:'#888',marginBottom:'1.5rem'}}>{t(lang,'validation_express_aide')}</div>
 

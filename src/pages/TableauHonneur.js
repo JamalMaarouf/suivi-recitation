@@ -3,7 +3,7 @@ import { supabase } from '../lib/supabase';
 import { calcEtatEleve, getInitiales, scoreLabel } from '../lib/helpers';
 import { t } from '../lib/i18n';
 
-export default function TableauHonneur({ navigate, lang='fr' }) {
+export default function TableauHonneur({ navigate, goBack, lang='fr' }) {
   const [eleves, setEleves] = useState([]);
   const [loading, setLoading] = useState(true);
 

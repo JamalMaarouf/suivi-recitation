@@ -57,11 +57,25 @@ export default function App() {
   const handleLogin = (u) => { setUser(u); localStorage.setItem('suivi_user', JSON.stringify(u)); };
   const handleLogout = () => { setUser(null); localStorage.removeItem('suivi_user'); setPage('dashboard'); };
 
+  const [navHistory, setNavHistory] = useState([]);
+
   const navigate = (p, data = null) => {
+    // Save current page to history before navigating
+    setNavHistory(h => [...h.slice(-19), { page, selectedEleve, selectedInstituteur }]);
     setPage(p);
     if (p === 'fiche' || p === 'enregistrer') setSelectedEleve(data);
     if (p === 'profil_instituteur') setSelectedInstituteur(data);
     if (p === 'comparaison') setCompareEleves(data || []);
+    window.scrollTo(0, 0);
+  };
+
+  const goBack = () => {
+    if (navHistory.length === 0) { setPage('dashboard'); return; }
+    const prev = navHistory[navHistory.length - 1];
+    setNavHistory(h => h.slice(0, -1));
+    setPage(prev.page);
+    if (prev.selectedEleve !== undefined) setSelectedEleve(prev.selectedEleve);
+    if (prev.selectedInstituteur !== undefined) setSelectedInstituteur(prev.selectedInstituteur);
     window.scrollTo(0, 0);
   };
 
@@ -91,7 +105,7 @@ export default function App() {
     </LangContext.Provider>
   );
 
-  const pageProps = { user, navigate, lang };
+  const pageProps = { user, navigate, goBack, lang };
 
   return (
     <LangContext.Provider value={{ lang, setLang }}>

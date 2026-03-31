@@ -5,7 +5,7 @@ import { t } from '../lib/i18n';
 
 const PALETTE = ['#1D9E75','#378ADD','#EF9F27','#E24B4A','#534AB7','#D85A30'];
 
-export default function Comparaison({ navigate, lang='fr' }) {
+export default function Comparaison({ navigate, goBack, lang='fr' }) {
   const [allEleves, setAllEleves] = useState([]);
   const [selected, setSelected] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -46,7 +46,7 @@ export default function Comparaison({ navigate, lang='fr' }) {
 
   return (
     <div>
-      <button className="back-link" onClick={()=>navigate('dashboard')}>{t(lang,'retour')}</button>
+      <button className="back-link" onClick={()=>goBack?goBack():navigate('dashboard')}>{t(lang,'retour')}</button>
       <div style={{fontSize:20,fontWeight:600,marginBottom:'1.5rem'}}>{t(lang,'comparer_eleves')}</div>
       {loading?<div className="loading">...</div>:(
         <>

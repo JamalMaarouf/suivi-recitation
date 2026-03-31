@@ -66,7 +66,7 @@ function ExceptionModal({ sourates, recitations, souratesDB, onConfirm, onCancel
   );
 }
 
-export default function RecitationSourate({ user, eleve, navigate, lang='fr' }) {
+export default function RecitationSourate({ user, eleve, navigate, goBack, lang='fr' }) {
   const [souratesDB, setSouratesDB] = useState([]);
   const [recitations, setRecitations] = useState([]);
   const [exceptions, setExceptions] = useState([]); // unlocked sourates
@@ -253,7 +253,7 @@ export default function RecitationSourate({ user, eleve, navigate, lang='fr' }) 
       )}
 
       <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'1.25rem',flexWrap:'wrap',gap:8}}>
-        <button className="back-link" onClick={()=>navigate('dashboard')}>{t(lang,'retour')}</button>
+        <button className="back-link" onClick={()=>goBack?goBack():navigate('dashboard')}>{t(lang,'retour')}</button>
         <div style={{display:'flex',gap:6,alignItems:'center'}}>
           <NiveauBadge code={codeNiveau}/>
           {isPrivilegied && (

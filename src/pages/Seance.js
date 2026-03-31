@@ -16,7 +16,7 @@ function NiveauBadge({ code }) {
   return <span style={{padding:'1px 7px',borderRadius:10,fontSize:10,fontWeight:700,background:c+'18',color:c,border:`0.5px solid ${c}30`}}>{code}</span>;
 }
 
-export default function Seance({ user, navigate, lang='fr' }) {
+export default function Seance({ user, navigate, goBack, lang='fr' }) {
   const [eleves, setEleves] = useState([]);
   const [validationsAujourdhui, setValidationsAujourdhui] = useState([]);
   const [recitationsAujourdhui, setRecitationsAujourdhui] = useState([]);
@@ -138,7 +138,7 @@ export default function Seance({ user, navigate, lang='fr' }) {
   return (
     <div>
       <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'0.75rem'}}>
-        <button className="back-link" onClick={()=>navigate('dashboard')}>{t(lang,'retour')}</button>
+        <button className="back-link" onClick={()=>goBack?goBack():navigate('dashboard')}>{t(lang,'retour')}</button>
         <button onClick={()=>navigate('historique_seances')}
           style={{padding:'6px 14px',background:'#085041',color:'#fff',border:'none',borderRadius:8,fontSize:12,fontWeight:600,cursor:'pointer',display:'flex',alignItems:'center',gap:4}}>
           📊 {lang==='ar'?'تحليل الحصص':lang==='en'?'Session analysis':'Analyse des séances'}

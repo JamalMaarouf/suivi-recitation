@@ -90,7 +90,7 @@ const statusConfig = {
   futur:    { color:'#888',    bg:'#f5f5f0', label_fr:'À venir',     label_ar:'قادم',      label_en:'Upcoming'   },
 };
 
-export default function GestionObjectifs({ user, navigate, lang='fr' }) {
+export default function GestionObjectifs({ user, navigate, goBack, lang='fr' }) {
   const [objectifs, setObjectifs] = useState([]);
   const [eleves, setEleves] = useState([]);
   const [instituteurs, setInstituteurs] = useState([]);
@@ -282,7 +282,7 @@ export default function GestionObjectifs({ user, navigate, lang='fr' }) {
   return (
     <div>
       <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'1.25rem',flexWrap:'wrap',gap:8}}>
-        <button className="back-link" onClick={()=>navigate('dashboard')}>{t(lang,'retour')}</button>
+        <button className="back-link" onClick={()=>goBack?goBack():navigate('dashboard')}>{t(lang,'retour')}</button>
         <div style={{fontSize:20,fontWeight:700}}>🎯 {lang==='ar'?'إدارة الأهداف':lang==='en'?'Objectives':'Gestion des objectifs'}</div>
         {user.role==='surveillant'&&(
           <button className="btn-primary" style={{width:'auto',padding:'8px 16px',fontSize:13}} onClick={()=>setShowForm(v=>!v)}>

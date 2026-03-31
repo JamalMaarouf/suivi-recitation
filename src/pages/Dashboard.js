@@ -36,7 +36,7 @@ function calcAlertes(eleves, allValidations, lang) {
   return alertes.sort((a,b)=>({stagnation:0,hizb_bloque:1,rapide:2}[a.type]||3)-({stagnation:0,hizb_bloque:1,rapide:2}[b.type]||3));
 }
 
-export default function Dashboard({ user, navigate, lang='fr' }) {
+export default function Dashboard({ user, navigate, goBack, lang='fr' }) {
   const [eleves, setEleves] = useState([]);
   const [instituteurs, setInstituteurs] = useState([]);
   const [allValidations, setAllValidations] = useState([]);

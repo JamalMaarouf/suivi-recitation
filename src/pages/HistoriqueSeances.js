@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { calcEtatEleve, getInitiales, scoreLabel, formatDate, formatDateCourt, joursDepuis } from '../lib/helpers';
 import { t } from '../lib/i18n';
@@ -36,7 +36,7 @@ const PERIODES_RAPIDES = (lang) => [
   { label: lang==='ar'?'فصل':lang==='en'?'Quarter':'Trimestre', jours:90 },
 ];
 
-export default function HistoriqueSeances({ user, navigate, lang='fr' }) {
+export default function HistoriqueSeances({ user, navigate, goBack, lang='fr' }) {
   // Data
   const [eleves, setEleves] = useState([]);
   const [instituteurs, setInstituteurs] = useState([]);
@@ -53,6 +53,17 @@ export default function HistoriqueSeances({ user, navigate, lang='fr' }) {
   const [filterInstituteur, setFilterInstituteur] = useState('tous');
   const [filterEleve, setFilterEleve] = useState('tous');
   const [filterType, setFilterType] = useState('tous');
+
+  // Auto drill-down when specific student selected
+  useEffect(() => {
+    if (filterEleve !== 'tous') {
+      setSelectedEleve(filterEleve);
+      setDrillDown(true);
+    } else {
+      setDrillDown(false);
+      setSelectedEleve(null);
+    }
+  }, [filterEleve]);
   const [periodeActive, setPeriodeActive] = useState(1); // index in PERIODES_RAPIDES
 
   // UI
@@ -213,15 +224,119 @@ export default function HistoriqueSeances({ user, navigate, lang='fr' }) {
 
   const elevesSearch = eleves.filter(e=>`${e.prenom} ${e.nom}`.toLowerCase().includes(searchEleve.toLowerCase())&&elevesVisiblesIds.has(e.id));
 
+  // Export to CSV/Excel
+  const exportCSV = () => {
+    const rows = [
+      [lang==='ar'?'الاسم':lang==='en'?'Name':'Nom',
+       lang==='ar'?'المستوى':lang==='en'?'Level':'Niveau',
+       lang==='ar'?'الأستاذ':lang==='en'?'Teacher':'Instituteur',
+       'Tomon', 'Hizb',
+       lang==='ar'?'سور كاملة':lang==='en'?'Surahs':'Sourates',
+       lang==='ar'?'مقاطع':lang==='en'?'Sequences':'Séquences',
+       lang==='ar'?'النقاط':lang==='en'?'Points':'Points',
+       lang==='ar'?'الحصص':lang==='en'?'Sessions':'Séances',
+       lang==='ar'?'هدف %':lang==='en'?'Obj %':'Obj %',
+      ],
+      ...statsParEleve.map(s=>[
+        `${s.eleve.prenom} ${s.eleve.nom}`,
+        s.eleve.code_niveau||'?',
+        s.instituteurNom,
+        s.tomon, s.hizb, s.sourates, s.seqs, s.pts, s.nbSeances,
+        s.pctObj!==null?`${s.pctObj}%`:'—',
+      ])
+    ];
+    const csv = rows.map(r=>r.map(c=>`"${c}"`).join(',')).join('\n');
+    const blob = new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href=url;
+    a.download=`seances_${dateDebut}_${dateFin}.csv`; a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  // Export to PDF via print
+  const exportPDF = () => {
+    const w = window.open('','','width=1000,height=800');
+    if (!w) return;
+    const dir = lang==='ar'?'rtl':'ltr';
+    const font = lang==='ar'?"'Tajawal',Arial":"Arial";
+    w.document.write(`<!DOCTYPE html><html dir="${dir}"><head>
+    <meta charset="UTF-8">
+    <title>${lang==='ar'?'تحليل الحصص':lang==='en'?'Session Analysis':'Analyse des Séances'}</title>
+    <style>
+      body{font-family:${font},sans-serif;color:#1a1a1a;padding:24px;font-size:12px;direction:${dir}}
+      h1{font-size:18px;color:#085041;margin-bottom:4px}
+      .period{color:#888;font-size:12px;margin-bottom:16px}
+      .kpi-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:16px}
+      .kpi{background:#f5f5f0;border-radius:8px;padding:10px;text-align:center}
+      .kpi-val{font-size:22px;font-weight:800;color:#1D9E75}
+      .kpi-lbl{font-size:10px;color:#888;margin-top:2px}
+      table{width:100%;border-collapse:collapse;margin-top:16px}
+      th{background:#085041;color:#fff;padding:8px;text-align:${dir==='rtl'?'right':'left'};font-size:11px}
+      td{padding:7px 8px;border-bottom:1px solid #e8e8e0;font-size:11px}
+      tr:nth-child(even) td{background:#f9f9f6}
+      .badge{padding:2px 6px;border-radius:10px;font-size:10px;font-weight:700}
+      .footer{margin-top:20px;font-size:10px;color:#bbb;border-top:1px solid #e0e0d8;padding-top:10px;text-align:center}
+    </style></head><body>
+    <h1>📊 ${lang==='ar'?'تحليل الحصص':lang==='en'?'Session Analysis':'Analyse des Séances'}</h1>
+    <div class="period">${dateDebut} → ${dateFin} · ${elevesVisibles.length} ${lang==='ar'?'طالب':lang==='en'?'students':'élèves'}</div>
+    <div class="kpi-grid">
+      <div class="kpi"><div class="kpi-val">${elevesActifs.size}</div><div class="kpi-lbl">${lang==='ar'?'طلاب نشطون':lang==='en'?'Active':'Élèves actifs'}</div></div>
+      <div class="kpi"><div class="kpi-val">${ptsTotal.toLocaleString()}</div><div class="kpi-lbl">${lang==='ar'?'نقاط':lang==='en'?'Points':'Points'}</div></div>
+      <div class="kpi"><div class="kpi-val">${tomonTotal+souratesTotal}</div><div class="kpi-lbl">${lang==='ar'?'تسميعات':lang==='en'?'Recitations':'Récitations'}</div></div>
+      <div class="kpi"><div class="kpi-val">${joursActifs}</div><div class="kpi-lbl">${lang==='ar'?'أيام نشطة':lang==='en'?'Active days':'Jours actifs'}</div></div>
+    </div>
+    <table>
+      <thead><tr>
+        <th>#</th>
+        <th>${lang==='ar'?'الطالب':lang==='en'?'Student':'Élève'}</th>
+        <th>${lang==='ar'?'المستوى':lang==='en'?'Level':'Niv.'}</th>
+        <th>${lang==='ar'?'الأستاذ':lang==='en'?'Teacher':'Instituteur'}</th>
+        <th>${lang==='ar'?'أثمان':lang==='en'?'Tomon':'Tomon'}</th>
+        <th>${lang==='ar'?'سور':lang==='en'?'Surahs':'Sourates'}</th>
+        <th>${lang==='ar'?'النقاط':lang==='en'?'Points':'Points'}</th>
+        <th>${lang==='ar'?'الحصص':lang==='en'?'Sessions':'Séances'}</th>
+        <th>${lang==='ar'?'الهدف %':lang==='en'?'Obj %':'Obj %'}</th>
+      </tr></thead>
+      <tbody>
+        ${actifs.map((s,i)=>`<tr>
+          <td>${i+1}</td>
+          <td><strong>${s.eleve.prenom} ${s.eleve.nom}</strong></td>
+          <td><span class="badge" style="background:${(NIVEAU_COLORS[s.eleve.code_niveau||'1']||'#888')+'20'};color:${NIVEAU_COLORS[s.eleve.code_niveau||'1']||'#888'}">${s.eleve.code_niveau||'?'}</span></td>
+          <td>${s.instituteurNom}</td>
+          <td>${s.tomon}</td>
+          <td>${s.sourates}</td>
+          <td><strong style="color:#1D9E75">${s.pts}</strong></td>
+          <td>${s.nbSeances}</td>
+          <td>${s.pctObj!==null?`<strong style="color:${s.pctObj>=100?'#1D9E75':s.pctObj>=60?'#EF9F27':'#E24B4A'}">${s.pctObj}%</strong>`:'—'}</td>
+        </tr>`).join('')}
+        ${inactifs.length>0?`<tr><td colspan="9" style="text-align:center;color:#E24B4A;padding:10px">⚠️ ${inactifs.length} ${lang==='ar'?'طالب غير نشط':lang==='en'?'inactive students':'élève(s) inactif(s)'}</td></tr>`:''}
+      </tbody>
+    </table>
+    <div class="footer">${lang==='ar'?'أُنشئ بتاريخ':lang==='en'?'Generated on':'Généré le'} ${new Date().toLocaleDateString(lang==='ar'?'ar-MA':lang==='en'?'en-GB':'fr-FR')} · متابعة التحفيظ</div>
+    </body></html>`);
+    w.document.close();
+    setTimeout(()=>{w.print();w.close();},600);
+  };
+
   return (
     <div>
       {/* Header */}
       <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'1.25rem',flexWrap:'wrap',gap:8}}>
-        <button className="back-link" onClick={()=>navigate('seance')}>{t(lang,'retour')}</button>
+        <button className="back-link" onClick={()=>goBack?goBack():navigate('dashboard')} style={{display:'flex',alignItems:'center',gap:4}}>← {t(lang,'retour')}</button>
         <div style={{fontSize:18,fontWeight:700,color:'#085041'}}>
           📊 {lang==='ar'?'تحليل الحصص':lang==='en'?'Session Analysis':'Analyse des Séances'}
         </div>
-        <div style={{fontSize:12,color:'#888'}}>{elevesVisibles.length} {lang==='ar'?'طالب':lang==='en'?'students':'élèves'}</div>
+        <div style={{display:'flex',gap:6,alignItems:'center'}}>
+          <span style={{fontSize:12,color:'#888'}}>{elevesVisibles.length} {lang==='ar'?'طالب':lang==='en'?'students':'élèves'}</span>
+          <button onClick={exportCSV}
+            style={{padding:'6px 12px',background:'#1D9E75',color:'#fff',border:'none',borderRadius:8,fontSize:11,fontWeight:600,cursor:'pointer',display:'flex',alignItems:'center',gap:4}}>
+            📥 Excel
+          </button>
+          <button onClick={exportPDF}
+            style={{padding:'6px 12px',background:'#534AB7',color:'#fff',border:'none',borderRadius:8,fontSize:11,fontWeight:600,cursor:'pointer',display:'flex',alignItems:'center',gap:4}}>
+            🖨️ PDF
+          </button>
+        </div>
       </div>
 
       {/* FILTRES */}
@@ -298,8 +413,16 @@ export default function HistoriqueSeances({ user, navigate, lang='fr' }) {
         <>
           {/* KPI GLOBAUX */}
           <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:10,marginBottom:'1.25rem'}}>
-            <StatCard val={elevesActifs.size} lbl={lang==='ar'?'طلاب نشطون':lang==='en'?'Active students':'Élèves actifs'} color="#1D9E75" bg="#E1F5EE" icon="👥"
-              sub={`${lang==='ar'?'من':lang==='en'?'of':'sur'} ${elevesVisibles.length} · ${lang==='ar'?'غير نشطين':lang==='en'?'inactive':'inactifs'}: ${inactifs.length}`}/>
+            <StatCard val={filterEleve!=='tous'
+                ? (actifs.find(s=>s.eleve.id===filterEleve)?.pts||0)
+                : elevesActifs.size}
+              lbl={filterEleve!=='tous'
+                ? (lang==='ar'?'نقاط الطالب':lang==='en'?'Student points':'Points élève')
+                : (lang==='ar'?'طلاب نشطون':lang==='en'?'Active students':'Élèves actifs')}
+              color="#1D9E75" bg="#E1F5EE" icon={filterEleve!=='tous'?'👤':'👥'}
+              sub={filterEleve!=='tous'
+                ? `${eleves.find(e=>e.id===filterEleve)?.prenom||''} ${eleves.find(e=>e.id===filterEleve)?.nom||''}`
+                : `${lang==='ar'?'من':lang==='en'?'of':'sur'} ${elevesVisibles.length} · ${lang==='ar'?'غير نشطين':lang==='en'?'inactive':'inactifs'}: ${inactifs.length}`}/>
             <StatCard val={ptsTotal.toLocaleString()} lbl={lang==='ar'?'نقاط مكتسبة':lang==='en'?'Points earned':'Points générés'} color="#534AB7" bg="#EEEDFE" icon="⭐"
               sub={ptsDelta!==0?`${ptsDelta>0?'▲':'▼'} ${Math.abs(ptsDelta).toLocaleString()} ${lang==='ar'?'مقارنة بالفترة السابقة':lang==='en'?'vs previous period':'vs période préc.'}`:lang==='ar'?'مستقر':lang==='en'?'Stable':'Stable'}/>
             <StatCard val={joursActifs} lbl={lang==='ar'?'أيام نشطة':lang==='en'?'Active days':'Jours actifs'} color="#EF9F27" bg="#FAEEDA" icon="📅"
@@ -436,7 +559,7 @@ export default function HistoriqueSeances({ user, navigate, lang='fr' }) {
           {drillDown&&eleveDrillDown&&(
             <div style={{background:'#fff',border:'1.5px solid #1D9E75',borderRadius:16,padding:'1.25rem',marginBottom:'1.25rem'}}>
               <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:'1.25rem'}}>
-                <button onClick={()=>{setDrillDown(false);setSelectedEleve(null);}} style={{padding:'4px 10px',border:'0.5px solid #e0e0d8',borderRadius:6,background:'#fff',fontSize:11,cursor:'pointer'}}>← {t(lang,'retour')}</button>
+                <button onClick={()=>{setDrillDown(false);setSelectedEleve(null);setFilterEleve('tous');}} style={{padding:'4px 10px',border:'0.5px solid #e0e0d8',borderRadius:6,background:'#fff',fontSize:11,cursor:'pointer'}}>← {t(lang,'retour')}</button>
                 <Avatar prenom={eleveDrillDown.prenom} nom={eleveDrillDown.nom} size={40} bg={NIVEAU_COLORS[eleveDrillDown.code_niveau||'1']+'18'} color={NIVEAU_COLORS[eleveDrillDown.code_niveau||'1']||'#888'}/>
                 <div style={{flex:1}}>
                   <div style={{fontSize:16,fontWeight:700}}>{eleveDrillDown.prenom} {eleveDrillDown.nom}</div>

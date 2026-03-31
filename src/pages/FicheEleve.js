@@ -102,7 +102,7 @@ function ExceptionHizbModal({ etat, eleve, user, onConfirm, onCancel, lang }) {
   );
 }
 
-export default function FicheEleve({ eleve, user, navigate, lang='fr' }) {
+export default function FicheEleve({ eleve, user, navigate, goBack, lang='fr' }) {
   const [validations, setValidations] = useState([]);
   const [apprentissages, setApprentissages] = useState([]);
   const [objectifs, setObjectifs] = useState([]);
@@ -231,7 +231,7 @@ export default function FicheEleve({ eleve, user, navigate, lang='fr' }) {
   return (
     <div>
       <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'1.25rem',flexWrap:'wrap',gap:8}}>
-        <button className="back-link" onClick={()=>navigate('dashboard')}>{t(lang,'retour')}</button>
+        <button className="back-link" onClick={()=>goBack?goBack():navigate('dashboard')}>{t(lang,'retour')}</button>
         <div style={{display:'flex',gap:8}}>
           <button className="btn-secondary" onClick={handlePrint} style={{fontSize:12,padding:'6px 14px'}}>{t(lang,'imprimer_pdf')}</button>
           <button className="btn-primary" style={{width:'auto',padding:'6px 14px',fontSize:12}} onClick={()=>navigate('enregistrer',eleve)}>{t(lang,'enregistrer_recitation')}</button>

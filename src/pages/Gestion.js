@@ -140,7 +140,7 @@ function AcquisSelector({ codeNiveau, hizb, tomon, onHizbChange, onTomonChange, 
 }
 
 
-export default function Gestion({ user, navigate, lang = 'fr' }) {
+export default function Gestion({ user, navigate, goBack, lang = 'fr' }) {
   const [tab, setTab] = useState('eleves');
   const [eleves, setEleves] = useState([]);
   const [instituteurs, setInstituteurs] = useState([]);

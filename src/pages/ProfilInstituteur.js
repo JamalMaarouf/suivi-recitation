@@ -7,7 +7,7 @@ function Avatar({ prenom, nom, size=44, bg='#E1F5EE', color='#085041' }) {
   return <div style={{width:size,height:size,borderRadius:'50%',background:bg,color,display:'flex',alignItems:'center',justifyContent:'center',fontWeight:600,fontSize:size*0.33,flexShrink:0}}>{getInitiales(prenom,nom)}</div>;
 }
 
-export default function ProfilInstituteur({ instituteur, user, navigate, lang='fr' }) {
+export default function ProfilInstituteur({ instituteur, user, navigate, goBack, lang='fr' }) {
   const [eleves, setEleves] = useState([]);
   const [validations, setValidations] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -37,7 +37,7 @@ export default function ProfilInstituteur({ instituteur, user, navigate, lang='f
 
   return (
     <div>
-      <button className="back-link" onClick={()=>navigate('dashboard')}>{t(lang,'retour')}</button>
+      <button className="back-link" onClick={()=>goBack?goBack():navigate('dashboard')}>{t(lang,'retour')}</button>
       <div style={{background:'#fff',border:'0.5px solid #e0e0d8',borderRadius:16,padding:'1.5rem',marginBottom:'1rem'}}>
         <div style={{display:'flex',alignItems:'center',gap:14,marginBottom:16}}>
           <Avatar prenom={instituteur.prenom} nom={instituteur.nom} size={60}/>
