@@ -137,7 +137,13 @@ export default function Seance({ user, navigate, lang='fr' }) {
 
   return (
     <div>
-      <button className="back-link" onClick={()=>navigate('dashboard')}>{t(lang,'retour')}</button>
+      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'0.75rem'}}>
+        <button className="back-link" onClick={()=>navigate('dashboard')}>{t(lang,'retour')}</button>
+        <button onClick={()=>navigate('historique_seances')}
+          style={{padding:'6px 14px',background:'#085041',color:'#fff',border:'none',borderRadius:8,fontSize:12,fontWeight:600,cursor:'pointer',display:'flex',alignItems:'center',gap:4}}>
+          📊 {lang==='ar'?'تحليل الحصص':lang==='en'?'Session analysis':'Analyse des séances'}
+        </button>
+      </div>
       <div style={{display:'flex',gap:0,background:'#f0f0ec',borderRadius:10,padding:3,marginBottom:'1.25rem',width:'fit-content'}}>
         {[['seance',t(lang,'ma_seance')],['semaine',t(lang,'cette_semaine')]].map(([k,l])=>(
           <div key={k} onClick={()=>setVue(k)} style={{padding:'7px 16px',borderRadius:8,fontSize:12,fontWeight:vue===k?600:400,cursor:'pointer',background:vue===k?'#fff':'transparent',color:vue===k?'#1a1a1a':'#888',border:vue===k?'0.5px solid #e0e0d8':'none',whiteSpace:'nowrap'}}>{l}</div>

@@ -12,6 +12,7 @@ import Comparaison from './pages/Comparaison';
 import RapportMensuel from './pages/RapportMensuel';
 import RecitationSourate from './pages/RecitationSourate';
 import GestionObjectifs from './pages/GestionObjectifs';
+import HistoriqueSeances from './pages/HistoriqueSeances';
 import ValidationRapide from './pages/ValidationRapide';
 import { t, getDir } from './lib/i18n';
 import { setSouratesDB } from './lib/sourates';
@@ -124,6 +125,7 @@ export default function App() {
           {page === 'dashboard'         && <Dashboard {...pageProps} />}
           {page === 'fiche'             && selectedEleve   && <FicheEleve eleve={selectedEleve} {...pageProps} />}
           {page === 'objectifs'          && <GestionObjectifs user={user} navigate={navigate} lang={lang} />}
+          {page === 'historique_seances'   && <HistoriqueSeances user={user} navigate={navigate} lang={lang} />}
           {page === 'enregistrer'       && (
             ['5B','5A','2M'].includes(selectedEleve?.code_niveau||'')
               ? <RecitationSourate eleve={selectedEleve} {...pageProps} />
