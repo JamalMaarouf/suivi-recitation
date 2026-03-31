@@ -112,6 +112,7 @@ export default function App() {
               <button className="nav-btn" onClick={() => navigate('calendrier')}>📅 {t(lang, 'calendrier')}</button>
               {user.role === 'surveillant' && <>
                 <button className="nav-btn" onClick={() => navigate('rapport_mensuel')}>📊 {t(lang, 'rapport')}</button>
+                {user.role==='surveillant' && <button className="nav-btn" onClick={() => navigate('objectifs')} style={{background:'#085041',color:'#fff',fontWeight:600}}>🎯 {lang==='ar'?'الأهداف':lang==='en'?'Objectives':'Objectifs'}</button>}
                 <button className="nav-btn" onClick={() => navigate('gestion')}>⚙️ {t(lang, 'gestion')}</button>
               </>}
               <button className="nav-btn nav-btn-logout" onClick={handleLogout}>{t(lang, 'deconnexion')}</button>
