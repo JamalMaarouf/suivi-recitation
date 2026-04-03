@@ -24,15 +24,19 @@ export default function RapportMensuel({  user, navigate, goBack , lang="fr" }) 
   const [instituteurs, setInstituteurs] = useState([]);
   const [allValidations, setAllValidations] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [recitations, setRecitations] = useState([]);
+  const [objectifsGlobaux, setObjectifsGlobaux] = useState([]);
 
   useEffect(() => { loadData(); }, []);
 
   const loadData = async () => {
     setLoading(true);
-    const [{ data: ed }, { data: id }, { data: vd }, { data: od }] = await Promise.all([
+    const [{ data: ed }, { data: id }, { data: vd }, { data: recs }, { data: objd }] = await Promise.all([
       supabase.from('eleves').select('*').order('nom'),
       supabase.from('utilisateurs').select('*').eq('role', 'instituteur'),
       supabase.from('validations').select('*'),
+      supabase.from('recitations_sourates').select('*'),
+      supabase.from('objectifs_globaux').select('*'),
     ]);
     const elevesData = (ed || []).map(e => {
       const vals = (vd || []).filter(v => v.eleve_id === e.id);
@@ -43,6 +47,8 @@ export default function RapportMensuel({  user, navigate, goBack , lang="fr" }) 
     setEleves(elevesData);
     setInstituteurs(id || []);
     setAllValidations(vd || []);
+    setRecitations(recs||[]);
+    setObjectifsGlobaux(objd||[]);
     setLoading(false);
   };
 
@@ -61,8 +67,56 @@ export default function RapportMensuel({  user, navigate, goBack , lang="fr" }) 
     const hizbMois = vEleve.filter(v => v.type_validation === 'hizb_complet').length;
     const ptsMois = tomonMois * 10 + Math.floor(tomonMois / 2) * 25 + Math.floor(tomonMois / 4) * 60 + hizbMois * 100;
     const seances = new Set(vEleve.map(v => new Date(v.date_validation).toDateString())).size;
-    const pctObj = obj ? Math.min(100, Math.round(tomonMois / obj.nombre_tomon * 100)) : null;
-    return { ...e, tomonMois, hizbMois, ptsMois, seances, objectif: null, pctObj: null };
+    // Période du rapport (début et fin du mois)
+    const debutMois = new Date(annee, mois, 1);
+    const finMois = new Date(annee, mois + 1, 0, 23, 59, 59);
+    const isSourate = ['5B','5A','2M'].includes(e.code_niveau||'');
+
+    // Récitations sourates ce mois
+    const recsEleve = (recitations||[]).filter(r => {
+      const d = new Date(r.date_validation);
+      return r.eleve_id === e.id && d >= debutMois && d <= finMois;
+    });
+    const souratesMois = recsEleve.filter(r=>r.type_recitation==='complete').length;
+    const seqMois = recsEleve.filter(r=>r.type_recitation==='sequence').length;
+    const ptsSourates = recsEleve.reduce((s,r)=>s+(r.points||0),0);
+    const ptsTotal = isSourate ? ptsSourates : ptsMois;
+
+    // Objectif NIVEAU (partagé avec tous les élèves du même niveau)
+    const objNiveau = (objectifsGlobaux||[]).find(o =>
+      o.type_cible==='niveau' &&
+      o.code_niveau===(e.code_niveau||'1') &&
+      new Date(o.date_debut) <= finMois &&
+      new Date(o.date_fin) >= debutMois
+    );
+
+    // Objectif PERSONNEL (propre à cet élève, prioritaire)
+    const objPersonnel = (objectifsGlobaux||[]).find(o =>
+      o.type_cible==='eleve' &&
+      o.eleve_id===e.id &&
+      new Date(o.date_debut) <= finMois &&
+      new Date(o.date_fin) >= debutMois
+    );
+
+    // Calculer atteinte pour un objectif
+    const calcAtteinte = (obj) => {
+      if (!obj) return null;
+      let realise = 0;
+      if (obj.metrique==='tomon') realise=tomonMois;
+      else if (obj.metrique==='hizb') realise=hizbMois;
+      else if (obj.metrique==='sourate') realise=souratesMois;
+      else if (obj.metrique==='sequence') realise=seqMois;
+      else if (obj.metrique==='points') realise=ptsTotal;
+      else if (obj.metrique==='seances') realise=seances;
+      return { realise, pct: Math.min(100, Math.round(realise/obj.valeur_cible*100)), obj };
+    };
+
+    const atteinteNiveau = calcAtteinte(objNiveau);
+    const atteintePersonnel = calcAtteinte(objPersonnel);
+
+    const pctObj = atteintePersonnel?.pct ?? atteinteNiveau?.pct ?? null;
+    return { ...e, tomonMois, hizbMois, ptsMois, souratesMois, seqMois, ptsTotal, seances,
+      isSourate, atteinteNiveau, atteintePersonnel, objectif: null, pctObj };
   }).sort((a, b) => b.ptsMois - a.ptsMois);
 
   const totalTomonMois = vMois.filter(v => v.type_validation === 'tomon').reduce((s, v) => s + v.nombre_tomon, 0);
@@ -201,13 +255,51 @@ export default function RapportMensuel({  user, navigate, goBack , lang="fr" }) 
                     {e.seances > 0 && <span style={{ fontSize: 11, color: '#888' }}>{e.seances} séance{e.seances > 1 ? 's' : ''}</span>}
                     <span style={{ fontSize: 14, fontWeight: 700, color: '#1D9E75', minWidth: 60, textAlign: 'right' }}>{e.ptsMois.toLocaleString()} pts</span>
 
-                    {/* Lien vers module Objectifs */}
-                    <button onClick={() => navigate('objectifs')}
-                      style={{ padding: '4px 10px', border: '0.5px solid #1D9E75', borderRadius: 6, background: '#f0faf6', color: '#085041', fontSize: 11, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}>
-                      🎯 {t(lang,'objectif_label')}
-                    </button>
                   </div>
                 </div>
+                {/* Objectifs — niveau + personnel */}
+                {(e.atteinteNiveau || e.atteintePersonnel) && (
+                  <div style={{ paddingLeft: 76, marginTop: 8, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    {e.atteinteNiveau && (
+                      <div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: '#888', marginBottom: 3 }}>
+                          <span>🎯 {lang==='ar'?'هدف المستوى':'Objectif niveau'} {e.code_niveau} — {e.atteinteNiveau.obj.valeur_cible} {e.atteinteNiveau.obj.metrique}</span>
+                          <span style={{ fontWeight: 700, color: e.atteinteNiveau.pct>=100?'#1D9E75':e.atteinteNiveau.pct>=60?'#EF9F27':'#E24B4A' }}>
+                            {e.atteinteNiveau.realise}/{e.atteinteNiveau.obj.valeur_cible} · {e.atteinteNiveau.pct}%
+                          </span>
+                        </div>
+                        <div style={{ height: 6, background: '#e8e8e0', borderRadius: 3, overflow: 'hidden' }}>
+                          <div style={{ height: '100%', width: e.atteinteNiveau.pct+'%', borderRadius: 3,
+                            background: e.atteinteNiveau.pct>=100?'#1D9E75':e.atteinteNiveau.pct>=60?'#EF9F27':'#E24B4A', transition: 'width 0.4s' }}/>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                    {e.atteintePersonnel && (
+                      <div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: '#534AB7', marginBottom: 3 }}>
+                          <span>👤 {lang==='ar'?'هدف شخصي':'Objectif personnel'}{e.atteintePersonnel.obj.titre?' — '+e.atteintePersonnel.obj.titre:''} — {e.atteintePersonnel.obj.valeur_cible} {e.atteintePersonnel.obj.metrique}</span>
+                          <span style={{ fontWeight: 700, color: e.atteintePersonnel.pct>=100?'#1D9E75':e.atteintePersonnel.pct>=60?'#EF9F27':'#E24B4A' }}>
+                            {e.atteintePersonnel.realise}/{e.atteintePersonnel.obj.valeur_cible} · {e.atteintePersonnel.pct}%
+                          </span>
+                        </div>
+                        <div style={{ height: 6, background: '#e8e8e0', borderRadius: 3, overflow: 'hidden' }}>
+                          <div style={{ height: '100%', width: e.atteintePersonnel.pct+'%', borderRadius: 3,
+                            background: e.atteintePersonnel.pct>=100?'#1D9E75':e.atteintePersonnel.pct>=60?'#EF9F27':'#E24B4A', transition: 'width 0.4s' }}/>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+                {!e.atteinteNiveau && !e.atteintePersonnel && (
+                  <div style={{ paddingLeft: 76, marginTop: 4 }}>
+                    <button onClick={() => navigate('objectifs')}
+                      style={{ padding: '3px 10px', border: '0.5px solid #e0e0d8', borderRadius: 6, background: '#f5f5f0', color: '#888', fontSize: 11, cursor: 'pointer' }}>
+                      🎯 {lang==='ar'?'تحديد هدف':'Définir un objectif'}
+                    </button>
+                  </div>
+                )}
               </div>
             ))}
           </div>
