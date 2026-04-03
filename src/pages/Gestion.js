@@ -247,14 +247,147 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr' }) {
     { value: 'Avancé', label: t(lang, 'avance') },
   ];
 
+
+  const NIVEAU_LABELS = {'5B':'Préscolaire','5A':'Primaire 1-2','2M':'Primaire 3-4','2':'Primaire 5-6','1':'Collège/Lycée'};
+
+  // Export élèves Excel
+  const exportElevesExcel = async () => {
+    if (!window.XLSX) {
+      await new Promise((res,rej)=>{ const s=document.createElement('script'); s.src='https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js'; s.onload=res; s.onerror=rej; document.head.appendChild(s); });
+    }
+    const XLSX = window.XLSX;
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.aoa_to_sheet([
+      ['#', lang==='ar'?'الاسم':'Prénom', lang==='ar'?'اللقب':'Nom', lang==='ar'?'رقم التعريف':'N° Élève', lang==='ar'?'المستوى':'Niveau', lang==='ar'?'الصف':'Classe', lang==='ar'?'الأستاذ المرجع':'Instituteur'],
+      ...eleves.map((e,i) => {
+        const inst = instituteurs.find(x=>x.id===e.instituteur_referent_id);
+        return [i+1, e.prenom, e.nom, e.eleve_id_ecole||'—', e.code_niveau||'?', NIVEAU_LABELS[e.code_niveau||'']||'—', inst?inst.prenom+' '+inst.nom:'—'];
+      })
+    ]);
+    ws['!cols'] = [{wch:4},{wch:16},{wch:16},{wch:12},{wch:8},{wch:20},{wch:22}];
+    XLSX.utils.book_append_sheet(wb, ws, lang==='ar'?'الطلاب':'Élèves');
+    XLSX.writeFile(wb, 'eleves_'+new Date().toISOString().split('T')[0]+'.xlsx');
+  };
+
+  // Export instituteurs Excel
+  const exportInstituteursExcel = async () => {
+    if (!window.XLSX) {
+      await new Promise((res,rej)=>{ const s=document.createElement('script'); s.src='https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js'; s.onload=res; s.onerror=rej; document.head.appendChild(s); });
+    }
+    const XLSX = window.XLSX;
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.aoa_to_sheet([
+      ['#', lang==='ar'?'الاسم':'Prénom', lang==='ar'?'اللقب':'Nom', lang==='ar'?'المعرف':'Identifiant', lang==='ar'?'عدد الطلاب':'Nb élèves'],
+      ...instituteurs.map((inst,i) => {
+        const nbEleves = eleves.filter(e=>e.instituteur_referent_id===inst.id).length;
+        return [i+1, inst.prenom, inst.nom, inst.identifiant||'—', nbEleves];
+      })
+    ]);
+    ws['!cols'] = [{wch:4},{wch:16},{wch:16},{wch:18},{wch:12}];
+    XLSX.utils.book_append_sheet(wb, ws, lang==='ar'?'الأساتذة':'Instituteurs');
+    XLSX.writeFile(wb, 'instituteurs_'+new Date().toISOString().split('T')[0]+'.xlsx');
+  };
+
+  // Export PDF élèves
+  const exportElevesPDF = () => {
+    const w = window.open('','_blank','width=1000,height=800');
+    if (!w) { alert('Autorisez les popups'); return; }
+    const rows = eleves.map((e,i) => {
+      const inst = instituteurs.find(x=>x.id===e.instituteur_referent_id);
+      const nc = {'5B':'#534AB7','5A':'#378ADD','2M':'#1D9E75','2':'#EF9F27','1':'#E24B4A'}[e.code_niveau||'']||'#888';
+      const bg = i%2===0?'#fff':'#f9f9f6';
+      return '<tr style="background:'+bg+'">'
+        +'<td>'+(i+1)+'</td>'
+        +'<td><strong>'+e.prenom+' '+e.nom+'</strong></td>'
+        +'<td style="color:#888">'+(e.eleve_id_ecole?'#'+e.eleve_id_ecole:'—')+'</td>'
+        +'<td><span style="padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;background:'+nc+'18;color:'+nc+'">'+(e.code_niveau||'?')+'</span></td>'
+        +'<td style="color:#555">'+(NIVEAU_LABELS[e.code_niveau||'']||'—')+'</td>'
+        +'<td style="color:#888">'+(inst?inst.prenom+' '+inst.nom:'—')+'</td>'
+        +'</tr>';
+    }).join('');
+
+    const html = '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Liste Élèves</title>'
+      +'<style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:Arial,sans-serif;padding:20px;font-size:12px}'
+      +'.header{background:linear-gradient(135deg,#085041,#1D9E75);color:#fff;padding:16px 20px;border-radius:10px;margin-bottom:16px}'
+      +'h1{font-size:18px;font-weight:800;margin-bottom:4px}'
+      +'table{width:100%;border-collapse:collapse;margin-top:10px}'
+      +'th{background:#085041;color:#fff;padding:8px;text-align:left;font-size:11px}'
+      +'td{padding:7px 8px;border-bottom:1px solid #f0f0ec;font-size:11px}'
+      +'.footer{margin-top:16px;font-size:9px;color:#bbb;border-top:1px solid #e0e0d8;padding-top:8px;text-align:center}'
+      +'@media print{body{padding:10px}}</style></head><body>'
+      +'<div class="header"><h1>👥 '+(lang==='ar'?'قائمة الطلاب':'Liste des Élèves')+'</h1>'
+      +'<div style="font-size:11px;opacity:0.8">'+eleves.length+' '+(lang==='ar'?'طالب':'élève(s)')+' · '+new Date().toLocaleDateString('fr-FR')+'</div></div>'
+      +'<table><thead><tr>'
+      +'<th>#</th><th>'+(lang==='ar'?'الاسم':'Nom complet')+'</th><th>'+(lang==='ar'?'رقم التعريف':'N° Élève')+'</th>'
+      +'<th>'+(lang==='ar'?'المستوى':'Niv.')+'</th><th>'+(lang==='ar'?'الصف':'Classe')+'</th><th>'+(lang==='ar'?'الأستاذ':'Instituteur')+'</th>'
+      +'</tr></thead><tbody>'+rows+'</tbody></table>'
+      +'<div class="footer">Généré le '+new Date().toLocaleDateString('fr-FR',{day:'2-digit',month:'long',year:'numeric'})+' · متابعة التحفيظ</div>'
+      +'</body></html>';
+    w.document.write(html);
+    w.document.close();
+    setTimeout(function(){ w.print(); }, 600);
+  };
+
+  // Export PDF instituteurs
+  const exportInstituteursPDF = () => {
+    const w = window.open('','_blank','width=1000,height=800');
+    if (!w) { alert('Autorisez les popups'); return; }
+    const rows = instituteurs.map((inst,i) => {
+      const nbEleves = eleves.filter(e=>e.instituteur_referent_id===inst.id).length;
+      const elevesInst = eleves.filter(e=>e.instituteur_referent_id===inst.id);
+      const niveaux = [...new Set(elevesInst.map(e=>e.code_niveau||'?'))].join(', ');
+      const bg = i%2===0?'#fff':'#f9f9f6';
+      return '<tr style="background:'+bg+'">'
+        +'<td>'+(i+1)+'</td>'
+        +'<td><strong>'+inst.prenom+' '+inst.nom+'</strong></td>'
+        +'<td style="color:#888">'+(inst.identifiant||'—')+'</td>'
+        +'<td style="color:#1D9E75;font-weight:700">'+nbEleves+'</td>'
+        +'<td style="color:#555">'+niveaux+'</td>'
+        +'</tr>';
+    }).join('');
+
+    const html = '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Liste Instituteurs</title>'
+      +'<style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:Arial,sans-serif;padding:20px;font-size:12px}'
+      +'.header{background:linear-gradient(135deg,#085041,#1D9E75);color:#fff;padding:16px 20px;border-radius:10px;margin-bottom:16px}'
+      +'h1{font-size:18px;font-weight:800;margin-bottom:4px}'
+      +'table{width:100%;border-collapse:collapse;margin-top:10px}'
+      +'th{background:#085041;color:#fff;padding:8px;text-align:left;font-size:11px}'
+      +'td{padding:7px 8px;border-bottom:1px solid #f0f0ec;font-size:11px}'
+      +'.footer{margin-top:16px;font-size:9px;color:#bbb;border-top:1px solid #e0e0d8;padding-top:8px;text-align:center}'
+      +'</style></head><body>'
+      +'<div class="header"><h1>👨‍🏫 '+(lang==='ar'?'قائمة الأساتذة':'Liste des Instituteurs')+'</h1>'
+      +'<div style="font-size:11px;opacity:0.8">'+instituteurs.length+' '+(lang==='ar'?'أستاذ':'instituteur(s)')+' · '+new Date().toLocaleDateString('fr-FR')+'</div></div>'
+      +'<table><thead><tr>'
+      +'<th>#</th><th>'+(lang==='ar'?'الاسم':'Nom complet')+'</th><th>'+(lang==='ar'?'المعرف':'Identifiant')+'</th>'
+      +'<th>'+(lang==='ar'?'عدد الطلاب':'Nb élèves')+'</th><th>'+(lang==='ar'?'المستويات':'Niveaux')+'</th>'
+      +'</tr></thead><tbody>'+rows+'</tbody></table>'
+      +'<div class="footer">Généré le '+new Date().toLocaleDateString('fr-FR',{day:'2-digit',month:'long',year:'numeric'})+' · متابعة التحفيظ</div>'
+      +'</body></html>';
+    w.document.write(html);
+    w.document.close();
+    setTimeout(function(){ w.print(); }, 600);
+  };
+
   return (
     <div>
       <div className="page-title">{t(lang, 'gestion')}</div>
       {msg.text && <div className={msg.type === 'error' ? 'error-box' : 'success-box'}>{msg.text}</div>}
 
-      <div className="tabs-row">
-        <div className={`tab ${tab === 'eleves' ? 'active' : ''}`} onClick={() => setTab('eleves')}>{t(lang, 'eleves')}</div>
-        <div className={`tab ${tab === 'instituteurs' ? 'active' : ''}`} onClick={() => setTab('instituteurs')}>{t(lang, 'instituteurs')}</div>
+      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:0,flexWrap:'wrap',gap:8}}>
+        <div className="tabs-row" style={{marginBottom:0}}>
+          <div className={`tab ${tab === 'eleves' ? 'active' : ''}`} onClick={() => setTab('eleves')}>{t(lang, 'eleves')}</div>
+          <div className={`tab ${tab === 'instituteurs' ? 'active' : ''}`} onClick={() => setTab('instituteurs')}>{t(lang, 'instituteurs')}</div>
+        </div>
+        <div style={{display:'flex',gap:6}}>
+          {tab==='eleves'&&<>
+            <button onClick={exportElevesExcel} style={{padding:'6px 12px',background:'#1D9E75',color:'#fff',border:'none',borderRadius:8,fontSize:11,fontWeight:600,cursor:'pointer'}}>📥 Excel</button>
+            <button onClick={exportElevesPDF} style={{padding:'6px 12px',background:'#534AB7',color:'#fff',border:'none',borderRadius:8,fontSize:11,fontWeight:600,cursor:'pointer'}}>🖨️ PDF</button>
+          </>}
+          {tab==='instituteurs'&&<>
+            <button onClick={exportInstituteursExcel} style={{padding:'6px 12px',background:'#1D9E75',color:'#fff',border:'none',borderRadius:8,fontSize:11,fontWeight:600,cursor:'pointer'}}>📥 Excel</button>
+            <button onClick={exportInstituteursPDF} style={{padding:'6px 12px',background:'#534AB7',color:'#fff',border:'none',borderRadius:8,fontSize:11,fontWeight:600,cursor:'pointer'}}>🖨️ PDF</button>
+          </>}
+        </div>
       </div>
 
       {tab === 'eleves' && (
