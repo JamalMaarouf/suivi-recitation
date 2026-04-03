@@ -341,7 +341,7 @@ export default function GestionObjectifs({ user, navigate, goBack, lang='fr' }) 
       {showForm&&user.role==='surveillant'&&(
         <div style={{background:'#fff',border:'1.5px solid #1D9E75',borderRadius:16,padding:'1.5rem',marginBottom:'1.5rem'}}>
           <div style={{fontSize:15,fontWeight:600,color:'#085041',marginBottom:'1rem'}}>
-            {editingId?'✏️':'🎯'} {editingId?(lang==='ar'?'تعديل الهدف':lang==='en'?'Edit objective':'Modifier l'objectif'):(lang==='ar'?'تعريف هدف جديد':lang==='en'?'Define new objective':'Définir un nouvel objectif')}
+            {editingId?'✏️':'🎯'} {editingId?(lang==='ar'?'تعديل الهدف':lang==='en'?'Edit objective':'Modifier objectif'):(lang==='ar'?'تعريف هدف جديد':lang==='en'?'Define new objective':'Definir nouvel objectif')}
           </div>
 
           {/* Titre optionnel */}
@@ -624,7 +624,7 @@ export default function GestionObjectifs({ user, navigate, goBack, lang='fr' }) 
           )}
 
           <button className="btn-primary" onClick={saveObjectif} disabled={saving}>
-            {saving?'...':(editingId?('✓ '+(lang==='ar'?'تحديث':lang==='en'?'Update':'Mettre à jour')):('✓ '+(lang==='ar'?'حفظ الهدف':lang==='en'?'Save objective':'Enregistrer l\'objectif')))}
+            {saving?'...':(editingId?('✓ '+(lang==='ar'?'تحديث':lang==='en'?'Update':'Mettre à jour')):('✓ '+(lang==='ar'?'حفظ الهدف':lang==='en'?'Save objective':'Enregistrer objectif')))}
           </button>
         </div>
       )}

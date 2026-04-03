@@ -644,7 +644,7 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr' }) {
             </div>
           )}
         </div>
-      )
+      )}
 
       {tab === 'parents' && (
         <div>
@@ -728,7 +728,7 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr' }) {
             {parents.length===0&&<div className="empty">{lang==='ar'?'لا أولياء أمور مسجلون':'Aucun parent enregistré'}</div>}
           </div>
         </div>
-      )}}
+      )}
     </div>
   );
 }
