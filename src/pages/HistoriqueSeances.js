@@ -217,23 +217,23 @@ export default function HistoriqueSeances({ user, navigate, goBack, lang='fr' })
     const filtreNom = filterEleve!=='tous' ? (eleves.find(e=>e.id===filterEleve)||{prenom:'',nom:''}) : null;
 
     const ws1 = XLSX.utils.aoa_to_sheet([
-      [lang==='ar'?'تحليل الحصص':lang==='ar'?'تحليل الحصص':lang==='ar'?'تحليل الحصص':'Analyse des Séances'],
+      [lang==='ar'?'تحليل الحصص':lang==='ar'?'تحليل الحصص':lang==='ar'?'تحليل الحصص':(lang==='ar'?'تحليل الحصص':(lang==='ar'?'تحليل الحصص':'Analyse des Séances'))],
       [(lang==='ar'?'الفترة: ':'Période: ')+dateDebut+' → '+dateFin],
       filtreNom ? [(lang==='ar'?'الطالب: ':'Élève: ')+filtreNom.prenom+' '+filtreNom.nom] : [],
       filterNiveau!=='tous' ? [(lang==='ar'?'المستوى: ':'Niveau: ')+filterNiveau] : [],
       [],
-      [lang==='ar'?'الطلاب النشطون':'Élèves actifs',lang==='ar'?'النقاط':lang==='ar'?'النقاط':'Points','Tomon','Hizb',lang==='ar'?'السور':'Sourates',lang==='ar'?'المقاطع':'Séquences',lang==='ar'?'أيام النشاط':'Jours actifs'],
+      [lang==='ar'?'الطلاب النشطون':(lang==='ar'?'الطلاب النشطون':'Élèves actifs'),lang==='ar'?'النقاط':lang==='ar'?'النقاط':(lang==='ar'?'النقاط':'Points'),(lang==='ar'?'الثُّمن':'Tomon'),'Hizb',lang==='ar'?'السور':'Sourates',lang==='ar'?'المقاطع':(lang==='ar'?'المقاطع':'Séquences'),lang==='ar'?'أيام النشاط':(lang==='ar'?'أيام النشاط':'Jours actifs')],
       [(filterEleve!=='tous'?1:elevesActifs.size),(filterEleve!=='tous'?(actifs.find(s=>s.eleve.id===filterEleve)||{pts:0}).pts:ptsTotal),tomonTotal,hizbTotal,souratesTotal,sequencesTotal,joursActifs],
       [],
-      ['#',lang==='ar'?'الاسم':'Nom',lang==='ar'?'المستوى':'Niveau',lang==='ar'?'الأستاذ':'Instituteur','Tomon','Hizb',lang==='ar'?'السور':'Sourates',lang==='ar'?'مقاطع':'Séq.',lang==='ar'?'النقاط':'Points','Séances','Obj %',(lang==='ar'?'التوجه':'Tendance')],
+      ['#',lang==='ar'?'الاسم':'Nom',lang==='ar'?'المستوى':'Niveau',lang==='ar'?'الأستاذ':(lang==='ar'?'الأستاذ':'Instituteur'),(lang==='ar'?'الثُّمن':'Tomon'),'Hizb',lang==='ar'?'السور':'Sourates',lang==='ar'?'مقاطع':'Séq.',lang==='ar'?'النقاط':(lang==='ar'?'النقاط':'Points'),(lang==='ar'?'الحصص':'Séances'),'Obj %',(lang==='ar'?'التوجه':(lang==='ar'?'التوجه':'Tendance'))],
       ...dataToExport.map((s,i)=>[i+1,s.eleve.prenom+' '+s.eleve.nom,s.eleve.code_niveau||'?',s.instituteurNom,s.tomon,s.hizb,s.sourates,s.seqs,s.pts,s.nbSeances,s.pctObj!==null?s.pctObj+'%':'—',s.trend==='up'?'↑':s.trend==='down'?'↓':'=']),
     ].filter(r=>r.length>0));
     ws1['!cols']=[{wch:4},{wch:24},{wch:8},{wch:20},{wch:8},{wch:8},{wch:10},{wch:8},{wch:10},{wch:8},{wch:8},{wch:10}];
-    XLSX.utils.book_append_sheet(wb,ws1,lang==='ar'?'ملخص':'Résumé');
+    XLSX.utils.book_append_sheet(wb,ws1,lang==='ar'?'ملخص':(lang==='ar'?'ملخص':'Résumé'));
 
     if (timelineArr.length>0) {
       const ws2 = XLSX.utils.aoa_to_sheet([
-        [lang==='ar'?'التاريخ':'Date','Tomon','Hizb','Sourates','Séquences',lang==='ar'?'النقاط':'Points'],
+        [lang==='ar'?'التاريخ':'Date',(lang==='ar'?'الثُّمن':'Tomon'),'Hizb','Sourates',(lang==='ar'?'المقاطع':'Séquences'),lang==='ar'?'النقاط':(lang==='ar'?'النقاط':'Points')],
         ...timelineArr.map(d=>[d.date,d.tomon,d.hizb,d.sourate,d.seq,d.pts])
       ]);
       ws2['!cols']=[{wch:14},{wch:10},{wch:8},{wch:10},{wch:10},{wch:10}];
@@ -244,12 +244,12 @@ export default function HistoriqueSeances({ user, navigate, goBack, lang='fr' })
       const ws3 = XLSX.utils.aoa_to_sheet([
         [eleveDrillDown?eleveDrillDown.prenom+' '+eleveDrillDown.nom:''],
         [],
-        [lang==='ar'?'التاريخ':'Date',lang==='ar'?'الوقت':'Heure',lang==='ar'?'النوع':'Type',lang==='ar'?'التفاصيل':'Détails',lang==='ar'?'السورة/الحزب':'Sourate/Hizb','Validé par',lang==='ar'?'النقاط':'Points'],
+        [lang==='ar'?'التاريخ':'Date',lang==='ar'?'الوقت':'Heure',lang==='ar'?'النوع':'Type',lang==='ar'?'التفاصيل':'Détails',lang==='ar'?'السورة/الحزب':'Sourate/Hizb',(lang==='ar'?'صحَّح بواسطة':'Validé par'),lang==='ar'?'النقاط':(lang==='ar'?'النقاط':'Points')],
         ...allDrill.map(item=>{
           const isSR=!!item.type_recitation;
           const sourate=souratesDB.find(s=>s.id===item.sourate_id);
           const pts=isSR?(item.points||10):(item.type_validation==='hizb_complet'?100:item.nombre_tomon*10);
-          const type=isSR?(item.type_recitation==='complete'?lang==='ar'?'سورة كاملة':'Sourate complète':'Séquence'):(item.type_validation==='hizb_complet'?lang==='ar'?'حزب كامل':'Hizb complet':'Tomon');
+          const type=isSR?(item.type_recitation==='complete'?lang==='ar'?'سورة كاملة':(lang==='ar'?'سورة كاملة':'Sourate complète'):(lang==='ar'?'مقطع':'Séquence')):(item.type_validation==='hizb_complet'?lang==='ar'?'حزب كامل':(lang==='ar'?'حزب كامل':'Hizb complet'):(lang==='ar'?'الثُّمن':'Tomon'));
           const detail=isSR?(item.type_recitation==='complete'?'✓':'V.'+item.verset_debut+'→V.'+item.verset_fin):(item.type_validation==='hizb_complet'?'Hizb '+item.hizb_valide:item.nombre_tomon+' Tomon');
           const surateNom=sourate?sourate.nom_ar:(item.hizb_validation?'Hizb '+item.hizb_validation:'—');
           const valideur=item.valideur?item.valideur.prenom+' '+item.valideur.nom:'—';
@@ -378,7 +378,7 @@ export default function HistoriqueSeances({ user, navigate, goBack, lang='fr' })
       +(timelineArr.length>0?'<div class="sec"><h2>📈 Activité quotidienne</h2>'+timelineSVG+'</div>':'')
       +(dataToExport.length>0?'<div class="sec"><h2>🏆 Performance par élève</h2>'+perfSVG+'</div>':'')
       +'<div class="sec"><h2>📋 Détail par élève</h2>'
-      +'<table><thead><tr><th>#</th><th>'+(lang==='ar'?'الاسم':'Nom')+'</th><th>'+(lang==='ar'?'المستوى':'Niv.')+'</th><th>'+(lang==='ar'?'الأستاذ':'Instituteur')+'</th><th>'+(lang==='ar'?'ثُمن':'Tomon')+'</th><th>Hizb</th><th>'+(lang==='ar'?'السور':'Sourates')+'</th><th>'+(lang==='ar'?'مقاطع':'Séq.')+'</th><th>'+(lang==='ar'?'النقاط':'Points')+'</th><th>'+(lang==='ar'?'حصص':'Séances')+'</th><th>'+(lang==='ar'?'%الهدف':'Obj %')+'</th></tr></thead>'
+      +'<table><thead><tr><th>#</th><th>'+(lang==='ar'?'الاسم':'Nom')+'</th><th>'+(lang==='ar'?'المستوى':'Niv.')+'</th><th>'+(lang==='ar'?'الأستاذ':(lang==='ar'?'الأستاذ':'Instituteur'))+'</th><th>'+(lang==='ar'?'ثُمن':(lang==='ar'?'الثُّمن':'Tomon'))+'</th><th>Hizb</th><th>'+(lang==='ar'?'السور':'Sourates')+'</th><th>'+(lang==='ar'?'مقاطع':'Séq.')+'</th><th>'+(lang==='ar'?'النقاط':(lang==='ar'?'النقاط':'Points'))+'</th><th>'+(lang==='ar'?'حصص':(lang==='ar'?'الحصص':'Séances'))+'</th><th>'+(lang==='ar'?'%الهدف':'Obj %')+'</th></tr></thead>'
       +'<tbody>'+lignesTableau+(inactifs.length>0&&filterEleve==='tous'?'<tr><td colspan="11" style="text-align:center;color:#E24B4A;padding:8px">⚠️ '+inactifs.length+' élève(s) inactif(s)</td></tr>':'')+'</tbody></table></div>'
       +(filterEleve!=='tous'&&allDrill.length>0?'<div class="sec"><h2>📖 Détail des récitations</h2>'
         +'<table><thead><tr><th>Date</th><th>Heure</th><th>Type</th><th>Détails</th><th>Sourate/Hizb</th><th>Validé par</th><th>Points</th></tr></thead>'
@@ -397,7 +397,7 @@ export default function HistoriqueSeances({ user, navigate, goBack, lang='fr' })
     <div>
       <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'1.25rem',flexWrap:'wrap',gap:8}}>
         <button className="back-link" onClick={()=>goBack?goBack():navigate('dashboard')}>← {t(lang,'retour')}</button>
-        <div style={{fontSize:18,fontWeight:700,color:'#085041'}}>📊 {lang==='ar'?'تحليل الحصص':lang==='en'?'Session Analysis':lang==='ar'?'تحليل الحصص':lang==='ar'?'تحليل الحصص':'Analyse des Séances'}</div>
+        <div style={{fontSize:18,fontWeight:700,color:'#085041'}}>📊 {lang==='ar'?'تحليل الحصص':lang==='en'?'Session Analysis':lang==='ar'?'تحليل الحصص':lang==='ar'?'تحليل الحصص':(lang==='ar'?'تحليل الحصص':(lang==='ar'?'تحليل الحصص':'Analyse des Séances'))}</div>
         <div style={{display:'flex',gap:6,alignItems:'center'}}>
           <span style={{fontSize:12,color:'#888'}}>{elevesVisibles.length} {lang==='ar'?'طالب':lang==='en'?'students':'élèves'}</span>
           <button onClick={exportExcel} style={{padding:'6px 12px',background:'#1D9E75',color:'#fff',border:'none',borderRadius:8,fontSize:11,fontWeight:600,cursor:'pointer'}}>📥 Excel</button>
@@ -428,17 +428,17 @@ export default function HistoriqueSeances({ user, navigate, goBack, lang='fr' })
               {['5B','5A','2M','2','1'].map(n=><option key={n} value={n}>{n}</option>)}
             </select>
           </div>
-          {user.role==='surveillant'&&<div className="field-group"><label className="field-lbl">{lang==='ar'?'الأستاذ':'Instituteur'}</label>
+          {user.role==='surveillant'&&<div className="field-group"><label className="field-lbl">{lang==='ar'?'الأستاذ':(lang==='ar'?'الأستاذ':'Instituteur')}</label>
             <select className="field-select" value={filterInstituteur} onChange={e=>setFilterInstituteur(e.target.value)}>
               <option value="tous">{lang==='ar'?'الكل':'Tous'}</option>
               {instituteurs.map(i=><option key={i.id} value={i.id}>{i.prenom} {i.nom}</option>)}
             </select>
           </div>}
-          <div className="field-group"><label className="field-lbl">{lang==='ar'?'نوع التسميع':lang==='ar'?'النوع':'Type'}</label>
+          <div className="field-group"><label className="field-lbl">{lang==='ar'?'نوع الاستظهار':lang==='ar'?'النوع':'Type'}</label>
             <select className="field-select" value={filterType} onChange={e=>setFilterType(e.target.value)}>
               <option value="tous">{lang==='ar'?'الكل':'Tous'}</option>
               <option value="sourate">{lang==='ar'?'سور مكتملة':'Sourates'}</option>
-              <option value="sequence">{lang==='ar'?'مقاطع':'Séquences'}</option>
+              <option value="sequence">{lang==='ar'?'مقاطع':(lang==='ar'?'المقاطع':'Séquences')}</option>
               <option value="tomon">Tomon</option>
               <option value="hizb">Hizb</option>
             </select>
@@ -455,14 +455,14 @@ export default function HistoriqueSeances({ user, navigate, goBack, lang='fr' })
       {loading ? <div className="loading">...</div> : (<>
         {/* KPI */}
         <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:10,marginBottom:'1rem'}}>
-          <StatCard icon="👥" val={filterEleve!=='tous'?1:elevesActifs.size} lbl={lang==='ar'?'طلاب نشطون':'Élèves actifs'} color="#1D9E75" bg="#E1F5EE"
+          <StatCard icon="👥" val={filterEleve!=='tous'?1:elevesActifs.size} lbl={lang==='ar'?'طلاب نشطون':(lang==='ar'?'الطلاب النشطون':'Élèves actifs')} color="#1D9E75" bg="#E1F5EE"
             sub={filterEleve!=='tous'?(eleves.find(e=>e.id===filterEleve)||{prenom:'',nom:''}).prenom+' '+(eleves.find(e=>e.id===filterEleve)||{nom:''}).nom:(elevesActifs.size+'/'+elevesVisibles.length+' · inactifs: '+inactifs.length)}/>
-          <StatCard icon="⭐" val={(filterEleve!=='tous'?(actifs.find(s=>s.eleve.id===filterEleve)||{pts:0}).pts:ptsTotal).toLocaleString()} lbl={lang==='ar'?'نقاط':lang==='ar'?'النقاط':'Points'} color="#534AB7" bg="#EEEDFE"
+          <StatCard icon="⭐" val={(filterEleve!=='tous'?(actifs.find(s=>s.eleve.id===filterEleve)||{pts:0}).pts:ptsTotal).toLocaleString()} lbl={lang==='ar'?'نقاط':lang==='ar'?'النقاط':(lang==='ar'?'النقاط':'Points')} color="#534AB7" bg="#EEEDFE"
             sub={ptsDelta!==0?(ptsDelta>0?'▲ ':'▼ ')+Math.abs(ptsDelta)+' vs période préc.':'Stable'}/>
-          <StatCard icon="📅" val={joursActifs} lbl={lang==='ar'?'أيام نشطة':'Jours actifs'} color="#EF9F27" bg="#FAEEDA" sub={joursActifs+'/'+duree+' jours'}/>
+          <StatCard icon="📅" val={joursActifs} lbl={lang==='ar'?'أيام نشطة':(lang==='ar'?'أيام النشاط':'Jours actifs')} color="#EF9F27" bg="#FAEEDA" sub={joursActifs+'/'+duree+' jours'}/>
         </div>
         <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:8,marginBottom:'1rem'}}>
-          {[{val:tomonTotal,lbl:'Tomon',color:'#378ADD',bg:'#E6F1FB'},{val:hizbTotal,lbl:'Hizb',color:'#EF9F27',bg:'#FAEEDA'},{val:souratesTotal,lbl:lang==='ar'?'سور':'Sourates',color:'#085041',bg:'#E1F5EE'},{val:sequencesTotal,lbl:lang==='ar'?'مقاطع':'Séq.',color:'#888',bg:'#f5f5f0'}].map(k=>(
+          {[{val:tomonTotal,lbl:(lang==='ar'?'الثُّمن':'Tomon'),color:'#378ADD',bg:'#E6F1FB'},{val:hizbTotal,lbl:'Hizb',color:'#EF9F27',bg:'#FAEEDA'},{val:souratesTotal,lbl:lang==='ar'?'سور':'Sourates',color:'#085041',bg:'#E1F5EE'},{val:sequencesTotal,lbl:lang==='ar'?'مقاطع':'Séq.',color:'#888',bg:'#f5f5f0'}].map(k=>(
             <div key={k.lbl} style={{background:k.bg,borderRadius:10,padding:'10px',textAlign:'center'}}>
               <div style={{fontSize:20,fontWeight:700,color:k.color}}>{k.val}</div>
               <div style={{fontSize:11,color:k.color,opacity:0.8}}>{k.lbl}</div>
@@ -473,7 +473,7 @@ export default function HistoriqueSeances({ user, navigate, goBack, lang='fr' })
         {/* Timeline */}
         {timelineArr.length>0&&(
           <div style={{background:'#fff',border:'0.5px solid #e0e0d8',borderRadius:16,padding:'1.25rem',marginBottom:'1rem'}}>
-            <div style={{fontSize:13,fontWeight:600,marginBottom:10}}>{lang==='ar'?'النشاط اليومي':'Activité quotidienne'}</div>
+            <div style={{fontSize:13,fontWeight:600,marginBottom:10}}>{lang==='ar'?'النشاط اليومي':(lang==='ar'?'النشاط اليومي':(lang==='ar'?'النشاط اليومي':'Activité quotidienne'))}</div>
             <div style={{display:'flex',gap:2,alignItems:'flex-end',height:80,padding:'0 4px'}}>
               {timelineArr.map(d=>(
                 <div key={d.date} style={{flex:1,display:'flex',flexDirection:'column',alignItems:'center',gap:2}} title={d.date+': '+d.pts+' pts'}>
@@ -493,7 +493,7 @@ export default function HistoriqueSeances({ user, navigate, goBack, lang='fr' })
         {(!drillDown||filterEleve==='tous')&&(
           <div style={{background:'#fff',border:'0.5px solid #e0e0d8',borderRadius:16,padding:'1.25rem',marginBottom:'1rem'}}>
             <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:10,flexWrap:'wrap',gap:8}}>
-              <div style={{fontSize:13,fontWeight:600}}>{lang==='ar'?'أداء الطلاب':'Performance par élève'} <span style={{fontSize:11,color:'#888'}}>({actifs.length})</span></div>
+              <div style={{fontSize:13,fontWeight:600}}>{lang==='ar'?'أداء الطلاب':(lang==='ar'?'الأداء حسب الطالب':(lang==='ar'?'الأداء حسب الطالب':'Performance par élève'))} <span style={{fontSize:11,color:'#888'}}>({actifs.length})</span></div>
               <input style={{padding:'5px 10px',border:'0.5px solid #e0e0d8',borderRadius:8,fontSize:12,width:160}} placeholder="🔍 Rechercher" value={searchEleve} onChange={e=>setSearchEleve(e.target.value)}/>
             </div>
             {actifs.filter(s=>!searchEleve||((s.eleve.prenom+' '+s.eleve.nom).toLowerCase().includes(searchEleve.toLowerCase()))).map((s,idx)=>{

@@ -123,7 +123,7 @@ export default function PortailParent({ parent, navigate, goBack, lang='fr' }) {
 
   const onglets = [
     { key:'progression', label:'Progression',     labelAr:'التقدم',        icon:'📈' },
-    { key:'recitations', label:'Récitations',      labelAr:'التسميعات',     icon:'📖' },
+    { key:'recitations', label:'Récitations',      labelAr:'الاستظهارات',     icon:'📖' },
     { key:'objectifs',   label:'Objectifs',        labelAr:'الأهداف',       icon:'🎯' },
     { key:'cotisations', label:'Cotisations',      labelAr:'الاشتراكات',    icon:'💰' },
   ];
@@ -173,7 +173,7 @@ export default function PortailParent({ parent, navigate, goBack, lang='fr' }) {
           </div>
           <div style={{fontSize:11,color:joursInactif>14?'#E24B4A':'#888',marginTop:2}}>
             {derniere
-              ? (lang==='ar'?'آخر تسميع: ':'Dernière récitation: ')+new Date(derniere).toLocaleDateString(lang==='ar'?'ar-MA':'fr-FR',{day:'numeric',month:'long',year:'numeric'})
+              ? (lang==='ar'?'آخر استظهار: ':'Dernière récitation: ')+new Date(derniere).toLocaleDateString(lang==='ar'?'ar-MA':'fr-FR',{day:'numeric',month:'long',year:'numeric'})
               : (lang==='ar'?'لم يبدأ بعد':'Pas encore commencé')}
           </div>
         </div>
@@ -287,8 +287,8 @@ export default function PortailParent({ parent, navigate, goBack, lang='fr' }) {
       {/* RÉCITATIONS */}
       {onglet==='recitations'&&(
         <div style={{background:'#fff',border:'0.5px solid #e0e0d8',borderRadius:14,padding:'1.25rem'}}>
-          <div style={{fontSize:13,fontWeight:600,marginBottom:10}}>{lang==='ar'?'سجل التسميعات':'Historique des récitations'} ({allActivity.length})</div>
-          {allActivity.length===0?<div className="empty">{lang==='ar'?'لا تسميعات بعد':'Aucune récitation'}</div>:(
+          <div style={{fontSize:13,fontWeight:600,marginBottom:10}}>{lang==='ar'?'سجل الاستظهارات':'Historique des récitations'} ({allActivity.length})</div>
+          {allActivity.length===0?<div className="empty">{lang==='ar'?'لا استظهارات بعد':'Aucune récitation'}</div>:(
             <div className="table-wrap">
               <table><thead><tr>
                 <th>{lang==='ar'?'التاريخ':'Date'}</th>

@@ -168,7 +168,7 @@ export default function EnregistrerRecitation({  user, eleve: eleveInitial, navi
       <div className="page-title">{t(lang,'enregistrer_recitation_titre')}</div>
 
       <div className="steps-row">
-        {[[lang==='ar'?'الطالب':'Élève', 1], [lang==='ar'?'التسميع':'Validation', 2], [lang==='ar'?'تأكيد':'Confirmer', 3]].map(([label, n], i) => (
+        {[[lang==='ar'?'الطالب':'Élève', 1], [lang==='ar'?'الاستظهار':'Validation', 2], [lang==='ar'?'تأكيد':'Confirmer', 3]].map(([label, n], i) => (
           <React.Fragment key={n}>
             {i > 0 && <div className={`step-line ${step > n - 1 ? 'done' : ''}`} />}
             <div className="step-item">

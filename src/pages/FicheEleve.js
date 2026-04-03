@@ -189,7 +189,7 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang='fr' })
     </div>
     <h2>${t(lang,'historique')}</h2>
     <table><thead><tr>
-      <th>${t(lang,'date_heure')}</th><th>${lang==='ar'?'النوع':'Type'}</th><th>${t(lang,'detail')}</th>
+      <th>${t(lang,'date_heure')}</th><th>${lang==='ar'?'النوع':(lang==='ar'?'النوع':'Type')}</th><th>${t(lang,'detail')}</th>
       <th>${t(lang,'duree_apprentissage_col')}</th><th>${t(lang,'points_gagnes')}</th><th>${t(lang,'valide_par')}</th>
     </tr></thead><tbody>
     ${validations.map(v=>{
@@ -257,8 +257,8 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang='fr' })
                 <div style={{fontSize:13,color:'#888'}}>{niveauTraduit(eleve.niveau,lang,t)} · {instituteurNom}</div>
                 <div style={{display:'flex',gap:6,marginTop:4,flexWrap:'wrap'}}>
                   <span style={{padding:'2px 10px',borderRadius:20,fontSize:11,fontWeight:500,background:sl.bg,color:sl.color}}>{sl.label}</span>
-                  {streak>0&&<span style={{padding:'2px 10px',borderRadius:20,fontSize:11,background:'#E6F1FB',color:'#0C447C'}}>🔥 {streak} {t(lang,'semaines')}</span>}
-                  {vitesse.moyenne>0&&<span style={{padding:'2px 10px',borderRadius:20,fontSize:11,background:'#f5f5f0',color:'#666'}}>{vitesse.tendance==='hausse'?'📈':vitesse.tendance==='baisse'?'📉':'➡️'} {vitesse.moyenne}T/{t(lang,'semaines')}</span>}
+                  {streak>0&&<span style={{padding:'2px 10px',borderRadius:20,fontSize:11,background:'#E6F1FB',color:'#0C447C'}}>🔥 {streak} {t(lang,+(lang==='ar'?' أسابيع':' semaines'))}</span>}
+                  {vitesse.moyenne>0&&<span style={{padding:'2px 10px',borderRadius:20,fontSize:11,background:'#f5f5f0',color:'#666'}}>{vitesse.tendance==='hausse'?'📈':vitesse.tendance==='baisse'?'📉':'➡️'} {vitesse.moyenne}T/{t(lang,+(lang==='ar'?' أسابيع':' semaines'))}</span>}
                 </div>
               </div>
               <div style={{textAlign:'right'}}>
@@ -286,7 +286,7 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang='fr' })
                   <div style={{display:'flex',alignItems:'center',gap:8}}>
                     <span style={{fontSize:18}}>🎓</span>
                     <div style={{textAlign:'left'}}>
-                      <div style={{fontSize:13,fontWeight:600,color:'#085041'}}>{lang==='ar'?'المكتسبات السابقة':lang==='en'?'Prior achievements':'Acquis antérieurs'}</div>
+                      <div style={{fontSize:13,fontWeight:600,color:'#085041'}}>{lang==='ar'?'المكتسبات السابقة':lang==='en'?'Prior achievements':(lang==='ar'?'المكتسبات السابقة':'Acquis antérieurs')}</div>
                       <div style={{fontSize:11,color:'#0F6E56'}}>{etat.tomonAcquis} {t(lang,'tomon_abrev')} · {etat.hizbAcquisComplets} Hizb · <strong>{(etat.points.ptsAcquisTotal||0).toLocaleString()} {t(lang,'pts_abrev')}</strong></div>
                     </div>
                   </div>
@@ -300,7 +300,7 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang='fr' })
                         {lbl:lang==='ar'?'حزب الانطلاق':lang==='en'?'Starting Hizb':'Hizb de départ',val:`Hizb ${eleve.hizb_depart}`,icon:'📍',color:'#085041',bg:'#E1F5EE'},
                         {lbl:lang==='ar'?'ثُمن الانطلاق':lang==='en'?'Starting Tomon':'Tomon de départ',val:`T.${eleve.tomon_depart}`,icon:'📍',color:'#085041',bg:'#E1F5EE'},
                         {lbl:lang==='ar'?'ثُمن مكتسب':lang==='en'?'Acquired Tomon':'Tomon acquis',val:etat.tomonAcquis,icon:'✓',color:'#1D9E75',bg:'#fff'},
-                        {lbl:lang==='ar'?'حزب مكتمل':lang==='en'?'Complete Hizb':'Hizb complets',val:etat.hizbAcquisComplets,icon:'✓',color:'#EF9F27',bg:'#fff'},
+                        {lbl:lang==='ar'?'حزب مكتمل':lang==='en'?'Complete Hizb':(lang==='ar'?'الأحزاب المكتملة':(lang==='ar'?'أحزاب مكتملة':'Hizb complets')),val:etat.hizbAcquisComplets,icon:'✓',color:'#EF9F27',bg:'#fff'},
                       ].map(k=>(
                         <div key={k.lbl} style={{background:k.bg,borderRadius:8,padding:'10px 12px',border:'0.5px solid #d0ede4',display:'flex',alignItems:'center',gap:8}}>
                           <span style={{fontSize:16}}>{k.icon}</span>
@@ -529,7 +529,7 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang='fr' })
               )}
               <div style={{marginTop:12,display:'flex',gap:16,fontSize:12,color:'#888',flexWrap:'wrap'}}>
                 <span>{t(lang,'score_total')}: <strong style={{color:'#1D9E75'}}>{etat?.points.total.toLocaleString()} {t(lang,'pts_abrev')}</strong></span>
-                <span>{lang==='ar'?'السرعة':lang==='en'?'Speed':'Vitesse'}: <strong style={{color:vitesse.tendance==='hausse'?'#1D9E75':vitesse.tendance==='baisse'?'#E24B4A':'#888'}}>{vitesse.moyenne} T/{t(lang,'semaines')} {vitesse.tendance==='hausse'?'📈':vitesse.tendance==='baisse'?'📉':'➡️'}</strong></span>
+                <span>{lang==='ar'?'السرعة':lang==='en'?'Speed':(lang==='ar'?'الوتيرة':'Vitesse')}: <strong style={{color:vitesse.tendance==='hausse'?'#1D9E75':vitesse.tendance==='baisse'?'#E24B4A':'#888'}}>{vitesse.moyenne} T/{t(lang,+(lang==='ar'?' أسابيع':' semaines'))} {vitesse.tendance==='hausse'?'📈':vitesse.tendance==='baisse'?'📉':'➡️'}</strong></span>
               </div>
             </div>
           )}
@@ -551,7 +551,7 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang='fr' })
                 </div>
               </div>
               <div style={{display:'grid',gridTemplateColumns:'repeat(3,minmax(0,1fr))',gap:10}}>
-                {[{lbl:t(lang,'streak_actuel'),val:`${streak} ${t(lang,'semaines')}`,icon:'🔥',color:'#EF9F27',bg:'#FAEEDA'},{lbl:t(lang,'jours_actifs'),val:Object.keys(heatmap).filter(d=>{const p=d.split('/');return(new Date()-new Date(p[2],p[1]-1,p[0]))/(1000*60*60*24)<=90;}).length,icon:'📅',color:'#1D9E75',bg:'#E1F5EE'},{lbl:t(lang,'moy_seance'),val:validations.filter(v=>v.type_validation==='tomon').length>0?(etat?.tomonCumul/validations.filter(v=>v.type_validation==='tomon').length).toFixed(1):'0',icon:'📊',color:'#378ADD',bg:'#E6F1FB'}].map(s=>(
+                {[{lbl:t(lang,'streak_actuel'),val:`${streak} ${t(lang,+(lang==='ar'?' أسابيع':' semaines'))}`,icon:'🔥',color:'#EF9F27',bg:'#FAEEDA'},{lbl:t(lang,'jours_actifs'),val:Object.keys(heatmap).filter(d=>{const p=d.split('/');return(new Date()-new Date(p[2],p[1]-1,p[0]))/(1000*60*60*24)<=90;}).length,icon:'📅',color:'#1D9E75',bg:'#E1F5EE'},{lbl:t(lang,'moy_seance'),val:validations.filter(v=>v.type_validation==='tomon').length>0?(etat?.tomonCumul/validations.filter(v=>v.type_validation==='tomon').length).toFixed(1):'0',icon:'📊',color:'#378ADD',bg:'#E6F1FB'}].map(s=>(
                   <div key={s.lbl} style={{background:s.bg,borderRadius:12,padding:'1rem',textAlign:'center'}}>
                     <div style={{fontSize:22,marginBottom:4}}>{s.icon}</div>
                     <div style={{fontSize:22,fontWeight:700,color:s.color}}>{s.val}</div>

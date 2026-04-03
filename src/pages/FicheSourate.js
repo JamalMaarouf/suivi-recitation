@@ -98,19 +98,19 @@ export default function FicheSourate({ eleve, user, navigate, goBack, lang='fr' 
     <h1>${eleve.prenom} ${eleve.nom}</h1>
     <p style="color:#888;font-size:13px">${codeNiveau} · ${instituteurNom}${eleve.eleve_id_ecole ? ' · #'+eleve.eleve_id_ecole : ''}</p>
     <div class="grid">
-      <div class="box"><div class="box-title">${lang==='ar'?'المجموع':lang==='en'?'Total score':(lang==='ar'?'مجموع النقاط':'Score total')}</div><div class="box-val">${ptsTotal.toLocaleString()} ${lang==='ar'?'ن':'pts'}</div></div>
-      <div class="box"><div class="box-title">${lang==='ar'?'سور مكتملة':lang==='en'?'Complete surahs':(lang==='ar'?'السور المكتملة':'Sourates complètes')}</div><div class="box-val">${souratesCompletes + souratesAcquises}/${souratesOrdonnees.length}</div></div>
-      <div class="box"><div class="box-title">${lang==='ar'?'التقدم':lang==='en'?'Progress':'Progression'}</div><div class="box-val">${pctProgression}%</div></div>
+      <div class="box"><div class="box-title">${lang==='ar'?'المجموع':lang==='en'?'Total score':(lang==='ar'?'مجموع النقاط':(lang==='ar'?'مجموع النقاط':'Score total'))}</div><div class="box-val">${ptsTotal.toLocaleString()} ${lang==='ar'?'ن':'pts'}</div></div>
+      <div class="box"><div class="box-title">${lang==='ar'?'سور مكتملة':lang==='en'?'Complete surahs':(lang==='ar'?'السور المكتملة':(lang==='ar'?'السور المكتملة':'Sourates complètes'))}</div><div class="box-val">${souratesCompletes + souratesAcquises}/${souratesOrdonnees.length}</div></div>
+      <div class="box"><div class="box-title">${lang==='ar'?'التقدم':lang==='en'?'Progress':(lang==='ar'?'التقدم':(lang==='ar'?'التقدم':'Progression'))}</div><div class="box-val">${pctProgression}%</div></div>
     </div>
     ${souratesAcquises > 0 ? `<div style="background:#E1F5EE;border:1px solid #9FE1CB;border-radius:8px;padding:12px;margin-bottom:16px">
       <strong>🎓 ${lang==='ar'?'المكتسبات السابقة':lang==='en'?'Prior achievements':lang==='ar'?'المكتسبات السابقة':(lang==='ar'?'المكتسبات السابقة':'Acquis antérieurs')} : ${souratesAcquises} ${lang==='ar'?'سورة':lang==='en'?'surahs':'sourates'} (+${ptsAcquis} ${lang==='ar'?'ن':'pts'})</strong>
     </div>` : ''}
-    <h2>${lang==='ar'?'تفاصيل السور':lang==='en'?'Surah details':(lang==='ar'?'تفصيل السور':'Détail par sourate')}</h2>
+    <h2>${lang==='ar'?'تفاصيل السور':lang==='en'?'Surah details':(lang==='ar'?'تفصيل السور':(lang==='ar'?'تفصيل السور':'Détail par sourate'))}</h2>
     <table><thead><tr>
       <th>${lang==='ar'?'السورة':lang==='en'?'Surah':'Sourate'}</th>
       <th>${lang==='ar'?'الحالة':lang==='en'?'Status':'Statut'}</th>
-      <th>${lang==='ar'?'المقاطع':lang==='en'?'Sequences':(lang==='ar'?'المقاطع':'Séquences')}</th>
-      <th>${lang==='ar'?'النقاط':lang==='en'?'Points':'Points'}</th>
+      <th>${lang==='ar'?'المقاطع':lang==='en'?'Sequences':(lang==='ar'?'المقاطع':(lang==='ar'?'المقاطع':(lang==='ar'?'المقاطع':'Séquences')))}</th>
+      <th>${lang==='ar'?'النقاط':lang==='en'?(lang==='ar'?'النقاط':(lang==='ar'?'النقاط':'Points')):(lang==='ar'?'النقاط':(lang==='ar'?'النقاط':'Points'))}</th>
     </tr></thead><tbody>
     ${souratesOrdonnees.map(s => {
       const recs = getRecsSourate(s.numero);
@@ -119,7 +119,7 @@ export default function FicheSourate({ eleve, user, navigate, goBack, lang='fr' 
       const pts = recs.reduce((acc,r)=>acc+(r.points||0),0);
       return `<tr>
         <td class="surah-name">${s.nom_ar}</td>
-        <td class="${comp?'complete':'seq'}">${comp?(lang==='ar'?'مكتملة':lang==='en'?'Complete':'Complète'):seqs.length>0?(lang==='ar'?'جارية':lang==='en'?'In progress':(lang==='ar'?'جارية':'En cours')):(lang==='ar'?'لم تبدأ':lang==='en'?'Not started':(lang==='ar'?'لم تبدأ':'Pas commencée'))}</td>
+        <td class="${comp?'complete':'seq'}">${comp?(lang==='ar'?'مكتملة':lang==='en'?'Complete':(lang==='ar'?'مكتملة':'Complète')):seqs.length>0?(lang==='ar'?'جارية':lang==='en'?'In progress':(lang==='ar'?'جارية':(lang==='ar'?'جارية':(lang==='ar'?'جارية':'En cours')))):(lang==='ar'?'لم تبدأ':lang==='en'?'Not started':(lang==='ar'?'لم تبدأ':(lang==='ar'?'لم تبدأ':(lang==='ar'?'لم تبدأ':'Pas commencée'))))}</td>
         <td>${seqs.length}</td>
         <td class="pts">${pts > 0 ? '+'+pts : '—'}</td>
       </tr>`;
@@ -142,7 +142,7 @@ export default function FicheSourate({ eleve, user, navigate, goBack, lang='fr' 
         <div style={{display:'flex',gap:8}}>
           <button className="btn-secondary" onClick={handlePrint} style={{fontSize:12,padding:'6px 14px'}}>{t(lang,'imprimer_pdf')}</button>
           <button className="btn-primary" style={{width:'auto',padding:'6px 14px',fontSize:12}} onClick={() => navigate('enregistrer', eleve)}>
-            {lang==='ar'?'+ تسميع':lang==='en'?'+ Recitation':'+ Récitation'}
+            {lang==='ar'?'+ استظهار':lang==='en'?'+ Recitation':'+ Récitation'}
           </button>
         </div>
       </div>
@@ -180,8 +180,8 @@ export default function FicheSourate({ eleve, user, navigate, goBack, lang='fr' 
         <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:8}}>
           {[
             {l:lang==='ar'?'مكتملة':lang==='en'?'Complete':'Complètes', v:souratesCompletes+souratesAcquises, c:'#EF9F27', bg:'#FAEEDA'},
-            {l:lang==='ar'?'جارية':lang==='en'?'In progress':(lang==='ar'?'جارية':'En cours'), v:souratesEnCours, c:'#1D9E75', bg:'#E1F5EE'},
-            {l:lang==='ar'?'مقاطع':lang==='en'?'Sequences':(lang==='ar'?'المقاطع':'Séquences'), v:totalSequences, c:'#378ADD', bg:'#E6F1FB'},
+            {l:lang==='ar'?'جارية':lang==='en'?'In progress':(lang==='ar'?'جارية':(lang==='ar'?'جارية':(lang==='ar'?'جارية':'En cours'))), v:souratesEnCours, c:'#1D9E75', bg:'#E1F5EE'},
+            {l:lang==='ar'?'مقاطع':lang==='en'?'Sequences':(lang==='ar'?'المقاطع':(lang==='ar'?'المقاطع':(lang==='ar'?'المقاطع':'Séquences'))), v:totalSequences, c:'#378ADD', bg:'#E6F1FB'},
             {l:lang==='ar'?'منذ المتابعة':lang==='en'?'Since tracking':'Depuis suivi', v:`+${ptsSuivi}`, c:'#534AB7', bg:'#EEEDFE'},
           ].map(k=>(
             <div key={k.l} style={{background:k.bg,borderRadius:8,padding:'10px',textAlign:'center'}}>
@@ -241,7 +241,7 @@ export default function FicheSourate({ eleve, user, navigate, goBack, lang='fr' 
       {/* Tabs */}
       <div className="tabs-row" style={{marginBottom:'1rem'}}>
         {[
-          ['progression', lang==='ar'?'التقدم':lang==='en'?'Progress':'Progression'],
+          ['progression', lang==='ar'?'التقدم':lang==='en'?'Progress':(lang==='ar'?'التقدم':(lang==='ar'?'التقدم':'Progression'))],
           ['historique', t(lang,'historique')],
         ].map(([k,l])=>(
           <div key={k} className={`tab ${onglet===k?'active':''}`} onClick={()=>{setOnglet(k);setSelectedSourate(null);}}>{l}</div>
@@ -262,7 +262,7 @@ export default function FicheSourate({ eleve, user, navigate, goBack, lang='fr' 
                     <div style={{fontSize:12,opacity:0.7,marginTop:4}}>Sourate {selectedSourate.numero}</div>
                     <div style={{fontSize:13,marginTop:6}}>
                       {isComplete(selectedSourate.numero)
-                        ? '✓ '+(lang==='ar'?'مكتملة':lang==='en'?'Complete':'Complète')
+                        ? '✓ '+(lang==='ar'?'مكتملة':lang==='en'?'Complete':(lang==='ar'?'مكتملة':'Complète'))
                         : `${getSequences(selectedSourate.numero).length} ${lang==='ar'?'مقطع':lang==='en'?'seq.':'séq.'}`}
                     </div>
                   </div>
@@ -270,7 +270,7 @@ export default function FicheSourate({ eleve, user, navigate, goBack, lang='fr' 
                   {/* Sequences detail */}
                   <div className="section-label">{lang==='ar'?'المقاطع المسجلة':lang==='en'?'Recorded sequences':'Séquences enregistrées'}</div>
                   {getRecsSourate(selectedSourate.numero).length === 0
-                    ? <div className="empty">{lang==='ar'?'لا يوجد تسميع بعد':lang==='en'?'No recitation yet':'Aucune récitation encore'}</div>
+                    ? <div className="empty">{lang==='ar'?'لا يوجد استظهار بعد':lang==='en'?'No recitation yet':'Aucune récitation encore'}</div>
                     : (
                       <div style={{display:'flex',flexDirection:'column',gap:8}}>
                         {getRecsSourate(selectedSourate.numero).map((r,idx)=>(
@@ -298,7 +298,7 @@ export default function FicheSourate({ eleve, user, navigate, goBack, lang='fr' 
                     )}
 
                   <button className="btn-primary" style={{marginTop:'1rem'}} onClick={()=>navigate('enregistrer',eleve)}>
-                    {lang==='ar'?'+ تسميع جديد':lang==='en'?'+ New recitation':'+ Nouvelle récitation'}
+                    {lang==='ar'?'+ استظهار جديد':lang==='en'?'+ New recitation':'+ Nouvelle récitation'}
                   </button>
                 </div>
               ) : (
@@ -334,7 +334,7 @@ export default function FicheSourate({ eleve, user, navigate, goBack, lang='fr' 
                             {isAcquis
                               ? (lang==='ar'?'مكتسب سابق':lang==='en'?'Prior achievement':'Acquis antérieur')
                               : comp
-                              ? `✓ ${lang==='ar'?'مكتملة':lang==='en'?'Complete':'Complète'} · ${seqs.length} ${lang==='ar'?'مقاطع':lang==='en'?'seq.':'séq.'}`
+                              ? `✓ ${lang==='ar'?'مكتملة':lang==='en'?'Complete':(lang==='ar'?'مكتملة':'Complète')} · ${seqs.length} ${lang==='ar'?'مقاطع':lang==='en'?'seq.':'séq.'}`
                               : seqs.length > 0
                               ? `${seqs.length} ${lang==='ar'?'مقطع':lang==='en'?'seq.':'séq.'} — ${lang==='ar'?'جارية':lang==='en'?'in progress':'en cours'}`
                               : lang==='ar'?'لم تبدأ بعد':lang==='en'?'Not started':'Pas encore commencée'}
@@ -382,7 +382,7 @@ export default function FicheSourate({ eleve, user, navigate, goBack, lang='fr' 
                           <td style={{fontSize:14,fontFamily:"'Amiri','Traditional Arabic',serif",direction:'rtl',textAlign:'right'}}>{sourate?.nom_ar||'—'}</td>
                           <td>
                             {r.type_recitation==='complete'
-                              ?<span className="badge badge-green">{lang==='ar'?'سورة كاملة':lang==='en'?'Complete':'Complète'}</span>
+                              ?<span className="badge badge-green">{lang==='ar'?'سورة كاملة':lang==='en'?'Complete':(lang==='ar'?'مكتملة':'Complète')}</span>
                               :<span className="badge badge-blue">V.{r.verset_debut} → V.{r.verset_fin} <span style={{opacity:0.7}}>({r.verset_fin-r.verset_debut+1} {lang==='ar'?'آية':lang==='en'?'v.':'v.'})</span></span>}
                           </td>
                           <td><span style={{fontSize:12,fontWeight:600,color:'#1D9E75'}}>+{r.points} {t(lang,'pts_abrev')}</span></td>

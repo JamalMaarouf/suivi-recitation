@@ -431,11 +431,11 @@ export default function RecitationSourate({ user, eleve, navigate, goBack, lang=
                   </div>
                 ) : (
                   <>
-                    <div className="section-label">{lang==='ar'?'نوع التسميع':lang==='en'?'Recitation type':'Type de récitation'}</div>
+                    <div className="section-label">{lang==='ar'?'نوع الاستظهار':lang==='en'?'Recitation type':'Type de récitation'}</div>
 
                     {maxSeqAtteint && (
                       <div style={{padding:'10px 14px',background:'#FAEEDA',border:'0.5px solid #EF9F27',borderRadius:10,marginBottom:'1rem',fontSize:13,color:'#633806'}}>
-                        ⚠️ {lang==='ar'?'تم تسجيل 3 مقاطع — يجب الآن تسميع السورة كاملاً للانتقال للسورة التالية':lang==='en'?'3 sequences done — Full surah recitation required to advance':'3 séquences — La récitation complète est maintenant requise pour avancer'}
+                        ⚠️ {lang==='ar'?'تم تسجيل 3 مقاطع — يجب الآن استظهار السورة كاملاً للانتقال للسورة التالية':lang==='en'?'3 sequences done — Full surah recitation required to advance':'3 séquences — La récitation complète est maintenant requise pour avancer'}
                       </div>
                     )}
 
@@ -477,7 +477,7 @@ export default function RecitationSourate({ user, eleve, navigate, goBack, lang=
                     <button className="btn-primary"
                       disabled={saving||(typeRecitation==='sequence'&&(maxSeqAtteint||!versetDebut||!versetFin))}
                       onClick={confirmer}>
-                      {saving?'...':`✓ ${lang==='ar'?'تأكيد التسميع':lang==='en'?'Confirm':'Confirmer'}`}
+                      {saving?'...':`✓ ${lang==='ar'?'تأكيد الاستظهار':lang==='en'?'Confirm':'Confirmer'}`}
                     </button>
                   </>
                 )}

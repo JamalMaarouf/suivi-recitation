@@ -29,7 +29,7 @@ function calcAlertes(eleves, allValidations, lang) {
     const tomonS = valsSemaine.filter(v=>v.type_validation==='tomon').reduce((s,v)=>s+v.nombre_tomon,0);
     const tomonP = valsPrec.filter(v=>v.type_validation==='tomon').reduce((s,v)=>s+v.nombre_tomon,0);
     const joursSans = joursDepuis(vals[0]?.date_validation);
-    if (tomonS===0 && tomonP>0) alertes.push({ type:'stagnation', eleve:e, msg:`${e.prenom} ${e.nom} — ${lang==='ar'?'لا تسميع هذا الأسبوع':lang==='en'?`No recitation this week (${tomonP} last week)`:`Aucune récitation cette semaine (${tomonP} Tomon la semaine dernière)`}`, color:C.red, bg:C.redBg, icon:'📉' });
+    if (tomonS===0 && tomonP>0) alertes.push({ type:'stagnation', eleve:e, msg:`${e.prenom} ${e.nom} — ${lang==='ar'?'لا استظهار هذا الأسبوع':lang==='en'?`No recitation this week (${tomonP} last week)`:`Aucune récitation cette semaine (${tomonP} Tomon la semaine dernière)`}`, color:C.red, bg:C.redBg, icon:'📉' });
     if (tomonS>=6) alertes.push({ type:'rapide', eleve:e, msg:`${e.prenom} ${e.nom} — ${lang==='ar'?`أداء ممتاز: ${tomonS} أثمان`:lang==='en'?`Excellent week — ${tomonS} Tomon`:`Excellente semaine — ${tomonS} Tomon`}`, color:C.green, bg:C.greenBg, icon:'🚀' });
     if (e.etat.enAttenteHizbComplet && joursSans>7) alertes.push({ type:'hizb_bloque', eleve:e, msg:`${e.prenom} ${e.nom} — ${lang==='ar'?`الحزب ${e.etat.hizbEnCours} في انتظار التصحيح منذ ${joursSans} يوم`:lang==='en'?`Hizb ${e.etat.hizbEnCours} awaiting validation for ${joursSans} days`:`Hizb ${e.etat.hizbEnCours} en attente depuis ${joursSans} jours`}`, color:C.amber, bg:C.amberBg, icon:'⏳' });
   });
@@ -105,7 +105,7 @@ export default function Dashboard({ user, navigate, goBack, lang='fr' }) {
 
   const exportExcel = () => {
     const rang=[...eleves].sort((a,b)=>b.etat.points.total-a.etat.points.total);
-    const rows=[['#',t(lang,'prenom'),t(lang,'nom_label'),t(lang,'niveau'),t(lang,'referent'),t(lang,'hizb_en_cours'),t(lang,'tomon_valides'),'Total Tomon','Hizb complets',t(lang,'pts_label'),t(lang,'statut')],
+    const rows=[['#',t(lang,'prenom'),t(lang,'nom_label'),t(lang,'niveau'),t(lang,'referent'),t(lang,'hizb_en_cours'),t(lang,'tomon_valides'),lang==='ar'?'مجموع الثُّمن':'Total Tomon',lang==='ar'?'الأحزاب المكتملة':'Hizb complets',t(lang,'pts_label'),t(lang,'statut')],
       ...rang.map((e,idx)=>[idx+1,e.prenom,e.nom,e.niveau,e.instituteurNom,e.etat.hizbEnCours,e.etat.tomonDansHizbActuel,e.etat.tomonCumul,e.etat.hizbsComplets.size,e.etat.points.total,e.etat.enAttenteHizbComplet?t(lang,'attente_hizb'):e.inactif?t(lang,'inactif'):t(lang,'actif')])];
     const csv='\uFEFF'+rows.map(r=>r.map(v=>`"${String(v).replace(/"/g,'""')}"`).join(';')).join('\n');
     const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8;'})); a.download=`suivi-${new Date().toLocaleDateString('fr-FR').replace(/\//g,'-')}.csv`; a.click();
@@ -235,7 +235,7 @@ export default function Dashboard({ user, navigate, goBack, lang='fr' }) {
             <table><thead><tr>
               <th style={{width:'18%'}}>{lang==='ar'?'التاريخ':'Date'}</th>
               <th style={{width:'28%'}}>{t(lang,'eleve')}</th>
-              <th style={{width:'30%'}}>{lang==='ar'?'التسميع':'Validation'}</th>
+              <th style={{width:'30%'}}>{lang==='ar'?'الاستظهار':'Validation'}</th>
               <th style={{width:'24%'}}>{t(lang,'valide_par')}</th>
             </tr></thead>
             <tbody>

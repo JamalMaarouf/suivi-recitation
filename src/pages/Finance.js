@@ -310,15 +310,15 @@ export default function Finance({ user, navigate, goBack, lang='fr' }) {
 
     // Tableau de bord
     const ws1 = XLSX.utils.aoa_to_sheet([
-      ['Gestion Financière — متابعة التحفيظ'],
-      ['Période: '+dateDebut+' → '+dateFin],
+      [(lang==='ar'?'الإدارة المالية — متابعة التحفيظ':(lang==='ar'?'الإدارة المالية — متابعة التحفيظ':'Gestion Financière — متابعة التحفيظ'))],
+      [(lang==='ar'?'الفترة: ':'Période: ')+dateDebut+' → '+dateFin],
       [],
       ['',lang==='ar'?'المبلغ':'Montant'],
-      [lang==='ar'?'إجمالي الاشتراكات':'Total Cotisations', totalCotisations],
-      [lang==='ar'?'إجمالي المصاريف':'Total Dépenses', totalDepenses],
-      [lang==='ar'?'الرصيد':'Solde', solde],
+      [lang==='ar'?'إجمالي الاشتراكات':(lang==='ar'?'إجمالي الاشتراكات':'Total Cotisations'), totalCotisations],
+      [lang==='ar'?'إجمالي المصاريف':(lang==='ar'?'إجمالي المصاريف':'Total Dépenses'), totalDepenses],
+      [lang==='ar'?'الرصيد':(lang==='ar'?'الرصيد':'Solde'), solde],
       [],
-      [lang==='ar'?'الطلاب المدفوعون':'Élèves payés', nbElevesPayes],
+      [lang==='ar'?'الطلاب المدفوعون':(lang==='ar'?'طلاب مدفوعون':(lang==='ar'?'الطلاب المدفوعون':'Élèves payés')), nbElevesPayes],
       [(lang==='ar'?'الطلاب الجزئيون':'Élèves partiel'), nbElevesPartiel],
       [lang==='ar'?'الطلاب المعفيون':'Élèves exonérés', nbElevesExoneres],
     ]);
@@ -429,7 +429,7 @@ export default function Finance({ user, navigate, goBack, lang='fr' }) {
         const cat=CATEGORIES.find(c=>c.val===d.categorie)||CATEGORIES[5];
         const bg=i%2===0?'#fff':'#f9f9f6';
         return '<tr style="background:'+bg+'"><td>'+(i+1)+'</td>'
-          +'<td>'+cat.icon+' '+cat.label+'</td>'
+          +'<td>'+cat.icon+' '+(lang==='ar'?cat.labelAr:cat.label)+'</td>'
           +'<td>'+d.description+'</td>'
           +'<td>'+(d.beneficiaire?d.beneficiaire.prenom+' '+d.beneficiaire.nom:'—')+'</td>'
           +'<td><strong style="color:#E24B4A">'+parseFloat(d.montant||0).toLocaleString()+' MAD</strong></td>'
@@ -498,7 +498,7 @@ export default function Finance({ user, navigate, goBack, lang='fr' }) {
       const cat = CATEGORIES.find(c=>c.val===d.categorie)||CATEGORIES[5];
       const bg = i%2===0?'#fff':'#f9f9f6';
       return '<tr style="background:'+bg+'"><td>'+(i+1)+'</td>'
-        +'<td>'+cat.icon+' '+cat.label+'</td>'
+        +'<td>'+cat.icon+' '+(lang==='ar'?cat.labelAr:cat.label)+'</td>'
         +'<td>'+d.description+'</td>'
         +'<td>'+(d.beneficiaire?d.beneficiaire.prenom+' '+d.beneficiaire.nom:'—')+'</td>'
         +'<td><strong style="color:#E24B4A">'+parseFloat(d.montant||0).toLocaleString()+' MAD</strong></td>'
@@ -607,15 +607,15 @@ export default function Finance({ user, navigate, goBack, lang='fr' }) {
         {onglet==='dashboard'&&(
           <>
             <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:10,marginBottom:'1rem'}}>
-              <StatCard icon="📥" val={fmtMAD(totalCotisations)} lbl={lang==='ar'?'إجمالي الاشتراكات':'Total cotisations'} color="#1D9E75" bg="#E1F5EE" sub={cotPeriode.length+' versements'}/>
-              <StatCard icon="📤" val={fmtMAD(totalDepenses)} lbl={lang==='ar'?'إجمالي المصاريف':'Total dépenses'} color="#E24B4A" bg="#FCEBEB" sub={depPeriode.length+' opérations'}/>
-              <StatCard icon={solde>=0?'✅':'⚠️'} val={fmtMAD(Math.abs(solde))} lbl={lang==='ar'?'الرصيد':'Solde'} color={solde>=0?'#085041':'#E24B4A'} bg={solde>=0?'#E1F5EE':'#FCEBEB'} sub={solde>=0?'Excédent':'Déficit'}/>
+              <StatCard icon="📥" val={fmtMAD(totalCotisations)} lbl={lang==='ar'?'إجمالي الاشتراكات':(lang==='ar'?'إجمالي الاشتراكات':(lang==='ar'?'إجمالي الاشتراكات':'Total cotisations'))} color="#1D9E75" bg="#E1F5EE" sub={cotPeriode.length++(lang==='ar'?' دفعة':(lang==='ar'?' دفعة':' versements'))}/>
+              <StatCard icon="📤" val={fmtMAD(totalDepenses)} lbl={lang==='ar'?'إجمالي المصاريف':(lang==='ar'?'إجمالي المصاريف':(lang==='ar'?'إجمالي المصاريف':'Total dépenses'))} color="#E24B4A" bg="#FCEBEB" sub={depPeriode.length++(lang==='ar'?' عملية':(lang==='ar'?' عملية':' opérations'))}/>
+              <StatCard icon={solde>=0?'✅':'⚠️'} val={fmtMAD(Math.abs(solde))} lbl={lang==='ar'?'الرصيد':(lang==='ar'?'الرصيد':'Solde')} color={solde>=0?'#085041':'#E24B4A'} bg={solde>=0?'#E1F5EE':'#FCEBEB'} sub={solde>=0?(lang==='ar'?'فائض':(lang==='ar'?'فائض':'Excédent')):(lang==='ar'?'عجز':(lang==='ar'?'عجز':'Déficit'))}/>
             </div>
             <div style={{display:'grid',gridTemplateColumns:'repeat(5,1fr)',gap:8,marginBottom:'1rem'}}>
               {[
                 {val:cotPeriode.length, lbl:lang==='ar'?'اشتراك في الفترة':'Cotisations période', color:'#1D9E75', bg:'#E1F5EE'},
                 {val:depPeriode.length, lbl:lang==='ar'?'مصروف في الفترة':'Dépenses période', color:'#E24B4A', bg:'#FCEBEB'},
-                {val:nbElevesPayes, lbl:lang==='ar'?'طالب مدفوع':'Élèves payés', color:'#378ADD', bg:'#E6F1FB'},
+                {val:nbElevesPayes, lbl:lang==='ar'?'طالب مدفوع':(lang==='ar'?'طلاب مدفوعون':(lang==='ar'?'الطلاب المدفوعون':'Élèves payés')), color:'#378ADD', bg:'#E6F1FB'},
                 {val:nbElevesPartiel, lbl:lang==='ar'?'جزئي':'Partiels', color:'#EF9F27', bg:'#FAEEDA'},
                 {val:nbElevesExoneres, lbl:lang==='ar'?'معفى':'Exonérés', color:'#888', bg:'#f5f5f0'},
               ].map(k=>(

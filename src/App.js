@@ -16,6 +16,7 @@ import HistoriqueSeances from './pages/HistoriqueSeances';
 import Finance from './pages/Finance';
 import PortailParent from './pages/PortailParent';
 import ValidationRapide from './pages/ValidationRapide';
+import ValidationCollective from './pages/ValidationCollective';
 import { t, getDir } from './lib/i18n';
 import { setSouratesDB } from './lib/sourates';
 import { supabase } from './lib/supabase';
@@ -151,6 +152,7 @@ export default function App() {
               <LangSelector />
               {[
                 {p:'validation_rapide', label:'⚡ '+t(lang,'express'), roles:['surveillant','instituteur']},
+                {p:'muraja', label:'📖 '+(lang==='ar'?'مراجعة جماعية':'Muraja\'a'), roles:['surveillant','instituteur']},
                 {p:'seance', label:'📋 '+t(lang,'seance'), roles:['surveillant','instituteur']},
                 {p:'calendrier', label:'📅 '+t(lang,'calendrier'), roles:['surveillant','instituteur']},
                 {p:'rapport_mensuel', label:'📊 '+t(lang,'rapport'), roles:['surveillant']},
@@ -183,6 +185,7 @@ export default function App() {
               ? <RecitationSourate eleve={selectedEleve} {...pageProps} />
               : <EnregistrerRecitation eleve={selectedEleve} {...pageProps} />
           )}
+          {page === 'muraja'            && <ValidationCollective {...pageProps} />}
           {page === 'validation_rapide' && <ValidationRapide {...pageProps} />}
           {page === 'gestion'           && user.role === 'surveillant' && <Gestion {...pageProps} />}
           {page === 'honneur'           && <TableauHonneur {...pageProps} />}

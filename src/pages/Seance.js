@@ -148,11 +148,11 @@ export default function Seance({ user, navigate, goBack, lang='fr' }) {
       return [i+1, e.prenom+' '+e.nom, e.code_niveau||'?', e.isSourate?(e.souratesCompletesAujourdhui+'S / '+e.sequencesAujourdhui+'seq'):(e.tomonAujourdhui||0)+'T / '+((e.valsAujourdhui||[]).filter(v=>v.type_validation==='hizb_complet').length)+'H', pts, e.jours!=null?e.jours+' j':'—'];
     });
     const ws = XLSX.utils.aoa_to_sheet([
-      [lang==='ar'?'#':'#',lang==='ar'?'الطالب':'Élève',lang==='ar'?'المستوى':'Niveau',lang==='ar'?'الإنجاز':'Réalisé',lang==='ar'?'النقاط':'Points',lang==='ar'?'آخر نشاط':'Dernière activité'],
+      [lang==='ar'?'#':'#',lang==='ar'?'الطالب':'Élève',lang==='ar'?'المستوى':'Niveau',lang==='ar'?'الإنجاز':'Réalisé',lang==='ar'?'النقاط':(lang==='ar'?'النقاط':'Points'),lang==='ar'?'آخر نشاط':'Dernière activité'],
       ...rows
     ]);
     ws['!cols']=[{wch:4},{wch:22},{wch:8},{wch:20},{wch:10},{wch:16}];
-    XLSX.utils.book_append_sheet(wb,ws,lang==='ar'?'حصة اليوم':'Séance du jour');
+    XLSX.utils.book_append_sheet(wb,ws,lang==='ar'?'حصة اليوم':(lang==='ar'?'حصة اليوم':(lang==='ar'?'حصة اليوم':'Séance du jour')));
     XLSX.writeFile(wb,'seance_'+new Date().toISOString().split('T')[0]+'.xlsx');
   };
 
@@ -182,7 +182,7 @@ export default function Seance({ user, navigate, goBack, lang='fr' }) {
       +'td{padding:7px 8px;border-bottom:1px solid #f0f0ec;font-size:11px}'
       +'.footer{margin-top:14px;font-size:9px;color:#bbb;border-top:1px solid #e0e0d8;padding-top:8px;text-align:center}'
       +'</style></head><body>'
-      +'<div class="header"><h1 style="font-size:18px;font-weight:800;margin-bottom:4px">📋 '+(lang==='ar'?'حصة اليوم':'Séance du jour')+'</h1>'
+      +'<div class="header"><h1 style="font-size:18px;font-weight:800;margin-bottom:4px">📋 '+(lang==='ar'?'حصة اليوم':(lang==='ar'?'حصة اليوم':(lang==='ar'?'حصة اليوم':'Séance du jour')))+'</h1>'
       +'<div style="font-size:11px;opacity:0.8">'+dateStr+'</div></div>'
       +'<table><thead><tr><th>#</th><th>'+(lang==='ar'?'الطالب':'Élève')+'</th><th>Niv.</th><th>'+(lang==='ar'?'الإنجاز':'Réalisé')+'</th><th>Pts</th><th>'+(lang==='ar'?'النشاط':'Activité')+'</th></tr></thead>'
       +'<tbody>'+rows+'</tbody></table>'
@@ -200,7 +200,7 @@ export default function Seance({ user, navigate, goBack, lang='fr' }) {
         <button className="back-link" onClick={()=>goBack?goBack():navigate('dashboard')}>{t(lang,'retour')}</button>
         <button onClick={()=>navigate('historique_seances')}
           style={{padding:'6px 14px',background:'#085041',color:'#fff',border:'none',borderRadius:8,fontSize:12,fontWeight:600,cursor:'pointer',display:'flex',alignItems:'center',gap:4}}>
-          📊 {lang==='ar'?'تحليل الحصص':lang==='en'?'Session analysis':lang==='ar'?'تحليل الحصص':'Analyse des séances'}
+          📊 {lang==='ar'?'تحليل الحصص':lang==='en'?'Session analysis':lang==='ar'?'تحليل الحصص':(lang==='ar'?'تحليل الحصص':(lang==='ar'?'تحليل الحصص':'Analyse des séances'))}
         </button>
         <button onClick={exportSeanceExcel} style={{padding:'6px 12px',background:'#1D9E75',color:'#fff',border:'none',borderRadius:8,fontSize:11,fontWeight:600,cursor:'pointer'}}>📥 Excel</button>
         <button onClick={exportSeancePDF} style={{padding:'6px 12px',background:'#534AB7',color:'#fff',border:'none',borderRadius:8,fontSize:11,fontWeight:600,cursor:'pointer'}}>🖨️ PDF</button>
@@ -236,7 +236,7 @@ export default function Seance({ user, navigate, goBack, lang='fr' }) {
                   {val:ptsTotal.toLocaleString(),lbl:t(lang,'pts_generes'),color:'#534AB7',bg:'#EEEDFE'},
                   {val:tomonTotal,lbl:t(lang,'tomon_abrev'),color:'#378ADD',bg:'#E6F1FB'},
                   {val:hizbTotal,lbl:'Hizb',color:'#EF9F27',bg:'#FAEEDA'},
-                  {val:souratesTotal,lbl:lang==='ar'?'سور كاملة':lang==='en'?'Surahs':'Sourates',color:'#085041',bg:'#E1F5EE'},
+                  {val:souratesTotal,lbl:lang==='ar'?'سور كاملة':lang==='en'?'Surahs':(lang==='ar'?'السور':'Sourates'),color:'#085041',bg:'#E1F5EE'},
                   {val:sequencesTotal,lbl:lang==='ar'?'مقاطع':lang==='en'?'Sequences':'Séquences',color:'#888',bg:'#f5f5f0'},
                 ].map((k,i)=>(
                   <div key={i} style={{background:k.bg,borderRadius:10,padding:'10px 6px',textAlign:'center'}}>
@@ -305,7 +305,7 @@ export default function Seance({ user, navigate, goBack, lang='fr' }) {
                       <th style={{width:'12%'}}>{lang==='ar'?'الوقت':'Heure'}</th>
                       <th style={{width:'24%'}}>{t(lang,'eleve')}</th>
                       <th style={{width:'10%'}}>Niv.</th>
-                      <th style={{width:'32%'}}>{lang==='ar'?'التسميع':'Validation'}</th>
+                      <th style={{width:'32%'}}>{lang==='ar'?'الاستظهار':'Validation'}</th>
                       <th style={{width:'12%'}}>{t(lang,'valide_par')}</th>
                       <th style={{width:'10%'}}>{t(lang,'pts_abrev')}</th>
                     </tr></thead>

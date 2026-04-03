@@ -171,7 +171,7 @@ export default function RapportMensuel({  user, navigate, goBack , lang="fr" }) 
         <th>${t(lang,'referent')}</th>
         <th>${t(lang,'tomon_abrev')}</th>
         <th>${t(lang,'hizb_abrev')}</th>
-        <th>${t(lang,'nb_seances')||'Séances'}</th>
+        <th>${t(lang,'nb_seances')||(lang==='ar'?'الحصص':'Séances')}</th>
         <th>${t(lang,'objectif_label')}</th>
         <th>${t(lang,'atteinte')}</th>
         <th>${t(lang,'score_mois')}</th>
@@ -236,7 +236,7 @@ export default function RapportMensuel({  user, navigate, goBack , lang="fr" }) 
           </div>
 
           {/* Tableau élèves avec objectifs */}
-          <div className="section-label">{lang==='ar'?'الأداء والأهداف':'Performance et objectifs'} — {getMoisNom(mois, lang)} {annee}</div>
+          <div className="section-label">{lang==='ar'?'الأداء والأهداف':(lang==='ar'?'الأداء والأهداف':'Performance et objectifs')} — {getMoisNom(mois, lang)} {annee}</div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             {statsEleves.map((e, idx) => (
               <div key={e.id} style={{ background: '#fff', border: '0.5px solid #e0e0d8', borderRadius: 12, padding: '14px' }}>
@@ -263,7 +263,7 @@ export default function RapportMensuel({  user, navigate, goBack , lang="fr" }) 
                     {e.atteinteNiveau && (
                       <div>
                         <div style={{display:'flex',justifyContent:'space-between',fontSize:11,color:'#888',marginBottom:3}}>
-                          <span>🎯 {lang==='ar'?'هدف المستوى':'Objectif niveau'} {e.code_niveau} — {e.atteinteNiveau.obj.valeur_cible} {e.atteinteNiveau.obj.metrique}</span>
+                          <span>🎯 {lang==='ar'?'هدف المستوى':(lang==='ar'?'هدف المستوى':'Objectif niveau')} {e.code_niveau} — {e.atteinteNiveau.obj.valeur_cible} {e.atteinteNiveau.obj.metrique}</span>
                           <span style={{fontWeight:700,color:e.atteinteNiveau.pct>=100?'#1D9E75':e.atteinteNiveau.pct>=60?'#EF9F27':'#E24B4A'}}>{e.atteinteNiveau.realise}/{e.atteinteNiveau.obj.valeur_cible} · {e.atteinteNiveau.pct}%</span>
                         </div>
                         <div style={{height:6,background:'#e8e8e0',borderRadius:3,overflow:'hidden'}}>
@@ -274,7 +274,7 @@ export default function RapportMensuel({  user, navigate, goBack , lang="fr" }) 
                     {e.atteintePersonnel && (
                       <div>
                         <div style={{display:'flex',justifyContent:'space-between',fontSize:11,color:'#534AB7',marginBottom:3}}>
-                          <span>👤 {lang==='ar'?'هدف شخصي':'Objectif personnel'}{e.atteintePersonnel.obj.titre?' — '+e.atteintePersonnel.obj.titre:''} — {e.atteintePersonnel.obj.valeur_cible} {e.atteintePersonnel.obj.metrique}</span>
+                          <span>👤 {lang==='ar'?'هدف شخصي':(lang==='ar'?'هدف شخصي':'Objectif personnel')}{e.atteintePersonnel.obj.titre?' — '+e.atteintePersonnel.obj.titre:''} — {e.atteintePersonnel.obj.valeur_cible} {e.atteintePersonnel.obj.metrique}</span>
                           <span style={{fontWeight:700,color:e.atteintePersonnel.pct>=100?'#1D9E75':e.atteintePersonnel.pct>=60?'#EF9F27':'#E24B4A'}}>{e.atteintePersonnel.realise}/{e.atteintePersonnel.obj.valeur_cible} · {e.atteintePersonnel.pct}%</span>
                         </div>
                         <div style={{height:6,background:'#e8e8e0',borderRadius:3,overflow:'hidden'}}>
@@ -295,7 +295,7 @@ export default function RapportMensuel({  user, navigate, goBack , lang="fr" }) 
           </div>
 
           {/* Stats par instituteur */}
-          <div className="section-label" style={{ marginTop: '1.5rem' }}>{lang==='ar'?'الأداء حسب الأستاذ':'Performance par instituteur'}</div>
+          <div className="section-label" style={{ marginTop: '1.5rem' }}>{lang==='ar'?'الأداء حسب الأستاذ':(lang==='ar'?'الأداء حسب الأستاذ':'Performance par instituteur')}</div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px,1fr))', gap: 10 }}>
             {instituteurs.map(inst => {
               const ei = statsEleves.filter(e => e.instituteur_referent_id === inst.id);

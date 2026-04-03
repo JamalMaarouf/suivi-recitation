@@ -100,7 +100,7 @@ export default function ProfilInstituteur({ instituteur, user, navigate, goBack,
               <table><thead><tr>
                 <th style={{width:'20%'}}>{lang==='ar'?'التاريخ':'Date'}</th>
                 <th style={{width:'28%'}}>{t(lang,'eleve')}</th>
-                <th style={{width:'32%'}}>{lang==='ar'?'التسميع':'Validation'}</th>
+                <th style={{width:'32%'}}>{lang==='ar'?'الاستظهار':'Validation'}</th>
                 <th style={{width:'20%'}}>{t(lang,'pts_abrev')}</th>
               </tr></thead>
               <tbody>
