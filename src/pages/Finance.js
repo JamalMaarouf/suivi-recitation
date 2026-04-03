@@ -697,7 +697,7 @@ export default function Finance({ user, navigate, goBack, lang='fr' }) {
               </div>
             )}
 
-            {/* Filtres */
+            {/* Filtres */}
             <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:8}}>
               <div className="field-group">
                 <label className="field-lbl">{lang==='ar'?'بحث بالاسم أو رقم التعريف':'Nom ou N° élève'}</label>
