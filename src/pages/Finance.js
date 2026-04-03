@@ -112,6 +112,8 @@ export default function Finance({ user, navigate, goBack, lang='fr' }) {
   const [filterPeriode, setFilterPeriode] = useState('');
   const [filterCat, setFilterCat] = useState('tous');
   const [searchEleve, setSearchEleve] = useState('');
+  const [filterSuiviStatut, setFilterSuiviStatut] = useState('tous');
+  const [filterSuiviApplied, setFilterSuiviApplied] = useState({search:'',statut:'tous'});
   const [dateDebut, setDateDebut] = useState(() => { const d=new Date(); d.setMonth(d.getMonth()-3); return d.toISOString().split('T')[0]; });
   const [dateFin, setDateFin] = useState(() => new Date().toISOString().split('T')[0]);
 
@@ -280,14 +282,17 @@ export default function Finance({ user, navigate, goBack, lang='fr' }) {
   });
 
   // Par élève (pour tableau de suivi)
-  const parEleve = eleves.filter(e => !searchEleve || (e.prenom+' '+e.nom).toLowerCase().includes(searchEleve.toLowerCase())).map(e => {
+  const parEleve = eleves.filter(e => {
+    if(filterSuiviApplied.search && !(e.prenom+' '+e.nom).toLowerCase().includes(filterSuiviApplied.search.toLowerCase()) && !String(e.eleve_id_ecole||'').includes(filterSuiviApplied.search)) return false;
+    return true;
+  }).map(e => {
     const cotE = cotisations.filter(c=>c.eleve_id===e.id);
     const cotEPeriode = cotPeriode.filter(c=>c.eleve_id===e.id);
     const totalVerse = cotE.filter(c=>c.statut!=='exonere').reduce((s,c)=>s+parseFloat(c.montant||0),0);
     const dernierPaiement = cotE[0]?.date_paiement||null;
     const statutDernier = cotE[0]?.statut||'non_paye';
     return { eleve:e, cotisations:cotE, cotEPeriode, totalVerse, dernierPaiement, statutDernier };
-  });
+  }).filter(p => filterSuiviApplied.statut==='tous' || p.statutDernier===filterSuiviApplied.statut);
 
   // Depenses filtrées
   const depFiltrees = depenses.filter(d => {
@@ -392,8 +397,76 @@ export default function Finance({ user, navigate, goBack, lang='fr' }) {
   };
 
 
-  // Export PDF
+  // Export PDF - tab aware
   const exportPDF = () => {
+    if (onglet === 'cotisations') {
+      const w = window.open('','_blank','width=1000,height=800');
+      if (!w) { alert('Autorisez les popups'); return; }
+      const rows = cotFiltrees.slice(0,50).map((c,i)=>{
+        const st=STATUTS.find(s=>s.val===c.statut)||STATUTS[0];
+        const bg=i%2===0?'#fff':'#f9f9f6';
+        return '<tr style="background:'+bg+'"><td>'+(i+1)+'</td>'
+          +'<td><strong>'+(c.eleve?c.eleve.prenom+' '+c.eleve.nom:'—')+'</strong></td>'
+          +'<td style="color:#888">'+(c.eleve?.eleve_id_ecole?'#'+c.eleve.eleve_id_ecole:'—')+'</td>'
+          +'<td><strong style="color:#1D9E75">'+parseFloat(c.montant||0).toLocaleString()+' MAD</strong></td>'
+          +'<td>'+(c.periode||'—')+'</td>'
+          +'<td><span style="padding:2px 7px;border-radius:10px;font-size:9px;font-weight:700;background:'+st.bg+';color:'+st.color+'">'+st.label+'</span></td>'
+          +'<td style="color:#888">'+c.date_paiement+'</td></tr>';
+      }).join('');
+      const total = cotFiltrees.filter(c=>c.statut!=='exonere').reduce((s,c)=>s+parseFloat(c.montant||0),0);
+      const html = '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Cotisations</title>'
+        +'<style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:Arial,sans-serif;padding:20px;font-size:12px}.header{background:linear-gradient(135deg,#085041,#1D9E75);color:#fff;padding:16px 20px;border-radius:10px;margin-bottom:16px}table{width:100%;border-collapse:collapse}th{background:#085041;color:#fff;padding:8px;text-align:left;font-size:11px}td{padding:6px 8px;border-bottom:1px solid #f0f0ec}.footer{margin-top:14px;font-size:9px;color:#bbb;border-top:1px solid #e0e0d8;padding-top:8px;text-align:center}</style></head><body>'
+        +'<div class="header"><h1 style="font-size:18px;font-weight:800">📥 '+(lang==='ar'?'الاشتراكات':'Cotisations')+'</h1><div style="font-size:11px;opacity:0.8">'+dateDebut+' → '+dateFin+' · '+cotFiltrees.length+' entrées · Total: '+total.toLocaleString()+' MAD</div></div>'
+        +'<table><thead><tr><th>#</th><th>Élève</th><th>ID</th><th>Montant</th><th>Période</th><th>Statut</th><th>Date</th></tr></thead><tbody>'+rows+'</tbody></table>'
+        +'<div class="footer">Généré le '+new Date().toLocaleDateString('fr-FR',{day:'2-digit',month:'long',year:'numeric'})+' · متابعة التحفيظ</div></body></html>';
+      w.document.write(html); w.document.close(); setTimeout(()=>w.print(),600);
+      return;
+    }
+    if (onglet === 'depenses') {
+      const w = window.open('','_blank','width=1000,height=800');
+      if (!w) { alert('Autorisez les popups'); return; }
+      const rows = depFiltrees.slice(0,50).map((d,i)=>{
+        const cat=CATEGORIES.find(c=>c.val===d.categorie)||CATEGORIES[5];
+        const bg=i%2===0?'#fff':'#f9f9f6';
+        return '<tr style="background:'+bg+'"><td>'+(i+1)+'</td>'
+          +'<td>'+cat.icon+' '+cat.label+'</td>'
+          +'<td>'+d.description+'</td>'
+          +'<td>'+(d.beneficiaire?d.beneficiaire.prenom+' '+d.beneficiaire.nom:'—')+'</td>'
+          +'<td><strong style="color:#E24B4A">'+parseFloat(d.montant||0).toLocaleString()+' MAD</strong></td>'
+          +'<td style="color:#888">'+d.date_depense+'</td></tr>';
+      }).join('');
+      const total = depFiltrees.reduce((s,d)=>s+parseFloat(d.montant||0),0);
+      const html = '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Dépenses</title>'
+        +'<style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:Arial,sans-serif;padding:20px;font-size:12px}.header{background:linear-gradient(135deg,#A32D2D,#E24B4A);color:#fff;padding:16px 20px;border-radius:10px;margin-bottom:16px}table{width:100%;border-collapse:collapse}th{background:#A32D2D;color:#fff;padding:8px;text-align:left;font-size:11px}td{padding:6px 8px;border-bottom:1px solid #f0f0ec}.footer{margin-top:14px;font-size:9px;color:#bbb;border-top:1px solid #e0e0d8;padding-top:8px;text-align:center}</style></head><body>'
+        +'<div class="header"><h1 style="font-size:18px;font-weight:800">📤 '+(lang==='ar'?'المصاريف':'Dépenses')+'</h1><div style="font-size:11px;opacity:0.8">'+dateDebut+' → '+dateFin+' · '+depFiltrees.length+' entrées · Total: '+total.toLocaleString()+' MAD</div></div>'
+        +'<table><thead><tr><th>#</th><th>Catégorie</th><th>Description</th><th>Bénéficiaire</th><th>Montant</th><th>Date</th></tr></thead><tbody>'+rows+'</tbody></table>'
+        +'<div class="footer">Généré le '+new Date().toLocaleDateString('fr-FR',{day:'2-digit',month:'long',year:'numeric'})+' · متابعة التحفيظ</div></body></html>';
+      w.document.write(html); w.document.close(); setTimeout(()=>w.print(),600);
+      return;
+    }
+    if (onglet === 'suivi') {
+      const w = window.open('','_blank','width=1000,height=800');
+      if (!w) { alert('Autorisez les popups'); return; }
+      const rows = parEleve.map((p,i)=>{
+        const st=STATUTS.find(s=>s.val===p.statutDernier)||STATUTS[2];
+        const bg=i%2===0?'#fff':'#f9f9f6';
+        return '<tr style="background:'+bg+'"><td>'+p.eleve.prenom+' '+p.eleve.nom+'</td>'
+          +'<td style="color:#888">'+(p.eleve.eleve_id_ecole?'#'+p.eleve.eleve_id_ecole:'—')+'</td>'
+          +'<td>'+(p.eleve.code_niveau||'?')+'</td>'
+          +'<td style="font-weight:700;color:#1D9E75">'+p.totalVerse.toLocaleString()+' MAD</td>'
+          +'<td>'+p.cotisations.length+'</td>'
+          +'<td><span style="padding:2px 7px;border-radius:10px;font-size:9px;font-weight:700;background:'+st.bg+';color:'+st.color+'">'+st.label+'</span></td>'
+          +'<td style="color:#888">'+(p.dernierPaiement||'—')+'</td></tr>';
+      }).join('');
+      const html = '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Suivi élèves</title>'
+        +'<style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:Arial,sans-serif;padding:20px;font-size:12px}.header{background:linear-gradient(135deg,#085041,#1D9E75);color:#fff;padding:16px 20px;border-radius:10px;margin-bottom:16px}table{width:100%;border-collapse:collapse}th{background:#085041;color:#fff;padding:8px;text-align:left;font-size:11px}td{padding:6px 8px;border-bottom:1px solid #f0f0ec}.footer{margin-top:14px;font-size:9px;color:#bbb;border-top:1px solid #e0e0d8;padding-top:8px;text-align:center}</style></head><body>'
+        +'<div class="header"><h1 style="font-size:18px;font-weight:800">👥 '+(lang==='ar'?'متابعة الطلاب':'Suivi élèves')+'</h1><div style="font-size:11px;opacity:0.8">'+parEleve.length+' élèves</div></div>'
+        +'<table><thead><tr><th>Élève</th><th>ID</th><th>Niv.</th><th>Total versé</th><th>Versements</th><th>Statut</th><th>Dernier paiement</th></tr></thead><tbody>'+rows+'</tbody></table>'
+        +'<div class="footer">Généré le '+new Date().toLocaleDateString('fr-FR',{day:'2-digit',month:'long',year:'numeric'})+' · متابعة التحفيظ</div></body></html>';
+      w.document.write(html); w.document.close(); setTimeout(()=>w.print(),600);
+      return;
+    }
+    // Dashboard PDF (default)
     const w = window.open('','_blank','width=1100,height=900');
     if (!w) { alert('Autorisez les popups'); return; }
 
@@ -538,9 +611,11 @@ export default function Finance({ user, navigate, goBack, lang='fr' }) {
               <StatCard icon="📤" val={fmtMAD(totalDepenses)} lbl={lang==='ar'?'إجمالي المصاريف':'Total dépenses'} color="#E24B4A" bg="#FCEBEB" sub={depPeriode.length+' opérations'}/>
               <StatCard icon={solde>=0?'✅':'⚠️'} val={fmtMAD(Math.abs(solde))} lbl={lang==='ar'?'الرصيد':'Solde'} color={solde>=0?'#085041':'#E24B4A'} bg={solde>=0?'#E1F5EE':'#FCEBEB'} sub={solde>=0?'Excédent':'Déficit'}/>
             </div>
-            <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:8,marginBottom:'1rem'}}>
+            <div style={{display:'grid',gridTemplateColumns:'repeat(5,1fr)',gap:8,marginBottom:'1rem'}}>
               {[
-                {val:nbElevesPayes, lbl:lang==='ar'?'مدفوع':'Payés', color:'#1D9E75', bg:'#E1F5EE'},
+                {val:cotPeriode.length, lbl:lang==='ar'?'اشتراك في الفترة':'Cotisations période', color:'#1D9E75', bg:'#E1F5EE'},
+                {val:depPeriode.length, lbl:lang==='ar'?'مصروف في الفترة':'Dépenses période', color:'#E24B4A', bg:'#FCEBEB'},
+                {val:nbElevesPayes, lbl:lang==='ar'?'طالب مدفوع':'Élèves payés', color:'#378ADD', bg:'#E6F1FB'},
                 {val:nbElevesPartiel, lbl:lang==='ar'?'جزئي':'Partiels', color:'#EF9F27', bg:'#FAEEDA'},
                 {val:nbElevesExoneres, lbl:lang==='ar'?'معفى':'Exonérés', color:'#888', bg:'#f5f5f0'},
               ].map(k=>(
@@ -868,7 +943,31 @@ export default function Finance({ user, navigate, goBack, lang='fr' }) {
         {/* ═══ SUIVI ÉLÈVES ═══ */}
         {onglet==='suivi'&&(
           <>
-            <input style={{width:'100%',padding:'8px 12px',border:'0.5px solid #e0e0d8',borderRadius:10,fontSize:13,marginBottom:'1rem'}} placeholder={'🔍 '+(lang==='ar'?'بحث عن طالب...':'Rechercher un élève...')} value={searchEleve} onChange={e=>setSearchEleve(e.target.value)}/>
+            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:8}}>
+            <div className="field-group">
+              <label className="field-lbl">{lang==='ar'?'بحث':'Recherche'}</label>
+              <input className="field-input" placeholder={'🔍 '+(lang==='ar'?'اسم أو رقم التعريف...':'Nom ou #ID...')} value={searchEleve} onChange={e=>setSearchEleve(e.target.value)}/>
+            </div>
+            <div className="field-group">
+              <label className="field-lbl">{lang==='ar'?'الحالة':'Statut'}</label>
+              <select className="field-select" value={filterSuiviStatut} onChange={e=>setFilterSuiviStatut(e.target.value)}>
+                <option value="tous">{lang==='ar'?'جميع الحالات':'Tous les statuts'}</option>
+                {STATUTS.map(s=><option key={s.val} value={s.val}>{lang==='ar'?s.labelAr:s.label}</option>)}
+              </select>
+            </div>
+          </div>
+          <button className="btn-primary" style={{width:'auto',padding:'8px 20px',fontSize:13,marginBottom:'1rem'}}
+            onClick={()=>setFilterSuiviApplied({search:searchEleve,statut:filterSuiviStatut})}>
+            🔍 {lang==='ar'?'بحث':'Rechercher'}
+          </button>
+          {(filterSuiviApplied.search||filterSuiviApplied.statut!=='tous')&&(
+            <div style={{fontSize:11,color:'#888',marginBottom:8,display:'flex',alignItems:'center',gap:8}}>
+              <span>{lang==='ar'?'فلتر نشط:':'Filtre actif:'}</span>
+              {filterSuiviApplied.search&&<span style={{padding:'2px 8px',borderRadius:10,background:'#E6F1FB',color:'#378ADD'}}>🔍 {filterSuiviApplied.search}</span>}
+              {filterSuiviApplied.statut!=='tous'&&<span style={{padding:'2px 8px',borderRadius:10,background:'#FAEEDA',color:'#EF9F27'}}>{STATUTS.find(s=>s.val===filterSuiviApplied.statut)?.label}</span>}
+              <button onClick={()=>{setSearchEleve('');setFilterSuiviStatut('tous');setFilterSuiviApplied({search:'',statut:'tous'});}} style={{fontSize:10,color:'#E24B4A',background:'none',border:'none',cursor:'pointer'}}>✕ {lang==='ar'?'مسح':'Effacer'}</button>
+            </div>
+          )}
             <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:8,marginBottom:'1rem'}}>
               {STATUTS.map(st=>(
                 <div key={st.val} style={{background:st.bg,borderRadius:10,padding:'10px',textAlign:'center'}}>
