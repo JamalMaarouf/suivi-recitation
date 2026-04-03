@@ -683,7 +683,7 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr' }) {
 
           <div className="section-label">{t(lang, 'instituteurs_actifs')} ({instituteurs.length})</div>
           {loading ? <div className="loading">...</div> : (
-            {editInstituteur && (
+            <>{editInstituteur && (
               <div style={{background:'#fff',border:'1.5px solid #378ADD',borderRadius:12,padding:'1rem',marginBottom:'1rem'}}>
                 <div style={{fontSize:13,fontWeight:600,color:'#378ADD',marginBottom:'0.75rem'}}>✏️ {lang==='ar'?'تعديل الأستاذ':'Modifier instituteur'}</div>
                 <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:10}}>
@@ -728,6 +728,7 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr' }) {
                 </tbody>
               </table>
             </div>
+            </>
           )}
         </div>
       )}
