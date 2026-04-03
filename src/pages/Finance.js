@@ -417,7 +417,7 @@ export default function Finance({ user, navigate, goBack, lang='fr' }) {
       const html = '<!DOCTYPE html><html dir="'+(lang==='ar'?'rtl':'ltr')+'" lang="'+(lang==='ar'?'ar':'fr')+'"><head><meta charset="UTF-8"><title>Cotisations</title>'
         +'<style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:Tajawal,Arial,sans-serif;padding:20px;font-size:12px}.header{background:linear-gradient(135deg,#085041,#1D9E75);color:#fff;padding:16px 20px;border-radius:10px;margin-bottom:16px}table{width:100%;border-collapse:collapse}th{background:#085041;color:#fff;padding:8px;text-align:start;font-size:11px}td{padding:6px 8px;border-bottom:1px solid #f0f0ec}.footer{margin-top:14px;font-size:9px;color:#bbb;border-top:1px solid #e0e0d8;padding-top:8px;text-align:center}</style></head><body>'
         +'<div class="header"><h1 style="font-size:18px;font-weight:800">📥 '+(lang==='ar'?'الاشتراكات':'Cotisations')+'</h1><div style="font-size:11px;opacity:0.8">'+dateDebut+' → '+dateFin+' · '+cotFiltrees.length+' entrées · Total: '+total.toLocaleString()+' MAD</div></div>'
-        +'<table><thead><tr><th>#</th><th>Élève</th><th>ID</th><th>Montant</th><th>Période</th><th>Statut</th><th>Date</th></tr></thead><tbody>'+rows+'</tbody></table>'
+        +'<table><thead><tr><th>#</th><th>'+(lang==='ar'?'الطالب':'Élève')+'</th><th>ID</th><th>'+(lang==='ar'?'المبلغ':'Montant')+'</th><th>'+(lang==='ar'?'الفترة':'Période')+'</th><th>'+(lang==='ar'?'الحالة':'Statut')+'</th><th>'+(lang==='ar'?'التاريخ':'Date')+'</th></tr></thead><tbody>'+rows+'</tbody></table>'
         +'<div class="footer">Généré le '+new Date().toLocaleDateString('fr-FR',{day:'2-digit',month:'long',year:'numeric'})+' · متابعة التحفيظ</div></body></html>';
       w.document.write(html); w.document.close(); setTimeout(()=>w.print(),600);
       return;
@@ -439,7 +439,7 @@ export default function Finance({ user, navigate, goBack, lang='fr' }) {
       const html = '<!DOCTYPE html><html dir="'+(lang==='ar'?'rtl':'ltr')+'" lang="'+(lang==='ar'?'ar':'fr')+'"><head><meta charset="UTF-8"><title>Dépenses</title>'
         +'<style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:Tajawal,Arial,sans-serif;padding:20px;font-size:12px}.header{background:linear-gradient(135deg,#A32D2D,#E24B4A);color:#fff;padding:16px 20px;border-radius:10px;margin-bottom:16px}table{width:100%;border-collapse:collapse}th{background:#A32D2D;color:#fff;padding:8px;text-align:start;font-size:11px}td{padding:6px 8px;border-bottom:1px solid #f0f0ec}.footer{margin-top:14px;font-size:9px;color:#bbb;border-top:1px solid #e0e0d8;padding-top:8px;text-align:center}</style></head><body>'
         +'<div class="header"><h1 style="font-size:18px;font-weight:800">📤 '+(lang==='ar'?'المصاريف':'Dépenses')+'</h1><div style="font-size:11px;opacity:0.8">'+dateDebut+' → '+dateFin+' · '+depFiltrees.length+' entrées · Total: '+total.toLocaleString()+' MAD</div></div>'
-        +'<table><thead><tr><th>#</th><th>Catégorie</th><th>Description</th><th>Bénéficiaire</th><th>Montant</th><th>Date</th></tr></thead><tbody>'+rows+'</tbody></table>'
+        +'<table><thead><tr><th>#</th><th>'+(lang==='ar'?'الفئة':'Catégorie')+'</th><th>'+(lang==='ar'?'الوصف':'Description')+'</th><th>'+(lang==='ar'?'المستفيد':'Bénéficiaire')+'</th><th>'+(lang==='ar'?'المبلغ':'Montant')+'</th><th>'+(lang==='ar'?'التاريخ':'Date')+'</th></tr></thead><tbody>'+rows+'</tbody></table>'
         +'<div class="footer">Généré le '+new Date().toLocaleDateString('fr-FR',{day:'2-digit',month:'long',year:'numeric'})+' · متابعة التحفيظ</div></body></html>';
       w.document.write(html); w.document.close(); setTimeout(()=>w.print(),600);
       return;
@@ -461,7 +461,7 @@ export default function Finance({ user, navigate, goBack, lang='fr' }) {
       const html = '<!DOCTYPE html><html dir="'+(lang==='ar'?'rtl':'ltr')+'" lang="'+(lang==='ar'?'ar':'fr')+'"><head><meta charset="UTF-8"><title>Suivi élèves</title>'
         +'<style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:Tajawal,Arial,sans-serif;padding:20px;font-size:12px}.header{background:linear-gradient(135deg,#085041,#1D9E75);color:#fff;padding:16px 20px;border-radius:10px;margin-bottom:16px}table{width:100%;border-collapse:collapse}th{background:#085041;color:#fff;padding:8px;text-align:start;font-size:11px}td{padding:6px 8px;border-bottom:1px solid #f0f0ec}.footer{margin-top:14px;font-size:9px;color:#bbb;border-top:1px solid #e0e0d8;padding-top:8px;text-align:center}</style></head><body>'
         +'<div class="header"><h1 style="font-size:18px;font-weight:800">👥 '+(lang==='ar'?'متابعة الطلاب':lang==='ar'?'متابعة الطلاب':'Suivi élèves')+'</h1><div style="font-size:11px;opacity:0.8">'+parEleve.length+' élèves</div></div>'
-        +'<table><thead><tr><th>Élève</th><th>ID</th><th>Niv.</th><th>Total versé</th><th>Versements</th><th>Statut</th><th>Dernier paiement</th></tr></thead><tbody>'+rows+'</tbody></table>'
+        +'<table><thead><tr><th>'+(lang==='ar'?'الطالب':'Élève')+'</th><th>ID</th><th>'+(lang==='ar'?'المستوى':'Niv.')+'</th><th>'+(lang==='ar'?'إجمالي المدفوع':'Total versé')+'</th><th>'+(lang==='ar'?'الدفعات':'Versements')+'</th><th>'+(lang==='ar'?'الحالة':'Statut')+'</th><th>'+(lang==='ar'?'آخر دفعة':'Dernier paiement')+'</th></tr></thead><tbody>'+rows+'</tbody></table>'
         +'<div class="footer">Généré le '+new Date().toLocaleDateString('fr-FR',{day:'2-digit',month:'long',year:'numeric'})+' · متابعة التحفيظ</div></body></html>';
       w.document.write(html); w.document.close(); setTimeout(()=>w.print(),600);
       return;
@@ -528,10 +528,10 @@ export default function Finance({ user, navigate, goBack, lang='fr' }) {
       +'</div>'
       +(parCategorie.length>0?'<div class="sec"><h2>📊 Dépenses par catégorie</h2>'+depSVG+'</div>':'')
       +'<div class="sec"><h2>📥 Cotisations ('+cotisations.length+')</h2>'
-      +'<table><thead><tr><th>#</th><th>Élève</th><th>ID</th><th>Montant</th><th>Période</th><th>Statut</th><th>Date</th></tr></thead>'
+      +'<table><thead><tr><th>#</th><th>'+(lang==='ar'?'الطالب':'Élève')+'</th><th>ID</th><th>'+(lang==='ar'?'المبلغ':'Montant')+'</th><th>'+(lang==='ar'?'الفترة':'Période')+'</th><th>'+(lang==='ar'?'الحالة':'Statut')+'</th><th>'+(lang==='ar'?'التاريخ':'Date')+'</th></tr></thead>'
       +'<tbody>'+lignesCot+'</tbody></table></div>'
       +'<div class="sec"><h2>📤 Dépenses ('+depenses.length+')</h2>'
-      +'<table><thead><tr><th>#</th><th>Catégorie</th><th>Description</th><th>Bénéficiaire</th><th>Montant</th><th>Date</th></tr></thead>'
+      +'<table><thead><tr><th>#</th><th>'+(lang==='ar'?'الفئة':'Catégorie')+'</th><th>'+(lang==='ar'?'الوصف':'Description')+'</th><th>'+(lang==='ar'?'المستفيد':'Bénéficiaire')+'</th><th>'+(lang==='ar'?'المبلغ':'Montant')+'</th><th>'+(lang==='ar'?'التاريخ':'Date')+'</th></tr></thead>'
       +'<tbody>'+lignesDep+'</tbody></table></div>'
       +'<div class="footer">Généré le '+new Date().toLocaleDateString('fr-FR',{day:'2-digit',month:'long',year:'numeric'})+' · متابعة التحفيظ</div>'
       +'</body></html>';

@@ -24,6 +24,7 @@ export default function Seance({ user, navigate, goBack, lang='fr' }) {
   const [allRecitations, setAllRecitations] = useState([]);
   const [souratesDB, setSouratesDB] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [elevesDataState, setElevesDataState] = useState([]);
   const [vue, setVue] = useState('seance');
   const [filterNiveau, setFilterNiveau] = useState('tous');
 
@@ -106,6 +107,7 @@ export default function Seance({ user, navigate, goBack, lang='fr' }) {
     setAllValidations(vd||[]);
     setAllRecitations(rd);
     setSouratesDB(sdb||[]);
+    setElevesDataState(elevesData);
     setLoading(false);
   };
 
@@ -140,7 +142,8 @@ export default function Seance({ user, navigate, goBack, lang='fr' }) {
     const XLSX = window.XLSX;
     const wb = XLSX.utils.book_new();
     // Classement du jour
-    const rows = elevesData.map((e,i)=>{
+    const data = elevesDataState.length > 0 ? elevesDataState : [];
+    const rows = data.map((e,i)=>{
       const pts = e.isSourate ? e.ptsAujourdhui : (e.valsAujourdhui||[]).reduce((s,v)=>s+(v.type_validation==='hizb_complet'?100:v.nombre_tomon*10),0);
       return [i+1, e.prenom+' '+e.nom, e.code_niveau||'?', e.isSourate?(e.souratesCompletesAujourdhui+'S / '+e.sequencesAujourdhui+'seq'):(e.tomonAujourdhui||0)+'T / '+((e.valsAujourdhui||[]).filter(v=>v.type_validation==='hizb_complet').length)+'H', pts, e.jours!=null?e.jours+' j':'—'];
     });
@@ -157,7 +160,8 @@ export default function Seance({ user, navigate, goBack, lang='fr' }) {
     const w = window.open('','_blank','width=1000,height=800');
     if (!w) { alert((lang==='ar'?'يرجى السماح بالنوافذ المنبثقة':'Autorisez les popups')); return; }
     const dateStr = new Date().toLocaleDateString(lang==='ar'?'ar-MA':'fr-FR',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
-    const rows = elevesData.slice(0,30).map((e,i)=>{
+    const data2 = elevesDataState.length > 0 ? elevesDataState : [];
+    const rows = data2.slice(0,30).map((e,i)=>{
       const pts = e.isSourate ? e.ptsAujourdhui : (e.valsAujourdhui||[]).reduce((s,v)=>s+(v.type_validation==='hizb_complet'?100:v.nombre_tomon*10),0);
       const nc={'5B':'#534AB7','5A':'#378ADD','2M':'#1D9E75','2':'#EF9F27','1':'#E24B4A'}[e.code_niveau||'1']||'#888';
       const bg = i%2===0?'#fff':'#f9f9f6';

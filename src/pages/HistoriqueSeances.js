@@ -378,7 +378,7 @@ export default function HistoriqueSeances({ user, navigate, goBack, lang='fr' })
       +(timelineArr.length>0?'<div class="sec"><h2>📈 Activité quotidienne</h2>'+timelineSVG+'</div>':'')
       +(dataToExport.length>0?'<div class="sec"><h2>🏆 Performance par élève</h2>'+perfSVG+'</div>':'')
       +'<div class="sec"><h2>📋 Détail par élève</h2>'
-      +'<table><thead><tr><th>#</th><th>Nom</th><th>Niv.</th><th>Instituteur</th><th>Tomon</th><th>Hizb</th><th>Sourates</th><th>Séq.</th><th>Points</th><th>Séances</th><th>Obj %</th></tr></thead>'
+      +'<table><thead><tr><th>#</th><th>'+(lang==='ar'?'الاسم':'Nom')+'</th><th>'+(lang==='ar'?'المستوى':'Niv.')+'</th><th>'+(lang==='ar'?'الأستاذ':'Instituteur')+'</th><th>'+(lang==='ar'?'ثُمن':'Tomon')+'</th><th>Hizb</th><th>'+(lang==='ar'?'السور':'Sourates')+'</th><th>'+(lang==='ar'?'مقاطع':'Séq.')+'</th><th>'+(lang==='ar'?'النقاط':'Points')+'</th><th>'+(lang==='ar'?'حصص':'Séances')+'</th><th>'+(lang==='ar'?'%الهدف':'Obj %')+'</th></tr></thead>'
       +'<tbody>'+lignesTableau+(inactifs.length>0&&filterEleve==='tous'?'<tr><td colspan="11" style="text-align:center;color:#E24B4A;padding:8px">⚠️ '+inactifs.length+' élève(s) inactif(s)</td></tr>':'')+'</tbody></table></div>'
       +(filterEleve!=='tous'&&allDrill.length>0?'<div class="sec"><h2>📖 Détail des récitations</h2>'
         +'<table><thead><tr><th>Date</th><th>Heure</th><th>Type</th><th>Détails</th><th>Sourate/Hizb</th><th>Validé par</th><th>Points</th></tr></thead>'
