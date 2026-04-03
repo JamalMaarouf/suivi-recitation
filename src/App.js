@@ -17,6 +17,7 @@ import Finance from './pages/Finance';
 import PortailParent from './pages/PortailParent';
 import ValidationRapide from './pages/ValidationRapide';
 import ValidationCollective from './pages/ValidationCollective';
+import MurajaDashboard from './pages/MurajaDashboard';
 import { t, getDir } from './lib/i18n';
 import { setSouratesDB } from './lib/sourates';
 import { supabase } from './lib/supabase';
@@ -186,6 +187,7 @@ export default function App() {
               : <EnregistrerRecitation eleve={selectedEleve} {...pageProps} />
           )}
           {page === 'muraja'            && <ValidationCollective {...pageProps} />}
+          {page === 'muraja_dashboard'  && <MurajaDashboard {...pageProps} />}
           {page === 'validation_rapide' && <ValidationRapide {...pageProps} />}
           {page === 'gestion'           && user.role === 'surveillant' && <Gestion {...pageProps} />}
           {page === 'honneur'           && <TableauHonneur {...pageProps} />}
