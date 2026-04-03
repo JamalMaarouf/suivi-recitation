@@ -50,7 +50,7 @@ export default function App() {
   const [user, setUser] = useState(null);
   const [page, setPage] = useState('dashboard');
   const pageRef = React.useRef('dashboard');
-  const setPageWithRef = (p) => { pageRef.current = p; setPageWithRef(p); };
+  const setPageWithRef = (p) => { pageRef.current = p; setPage(p); };
   const [selectedEleve, setSelectedEleve] = useState(null);
   const [selectedInstituteur, setSelectedInstituteur] = useState(null);
   const [compareEleves, setCompareEleves] = useState([]);
