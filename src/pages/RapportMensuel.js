@@ -258,44 +258,34 @@ export default function RapportMensuel({  user, navigate, goBack , lang="fr" }) 
                   </div>
                 </div>
                 {/* Objectifs — niveau + personnel */}
-                {(e.atteinteNiveau || e.atteintePersonnel) && (
-                  <div style={{ paddingLeft: 76, marginTop: 8, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                {(e.atteinteNiveau || e.atteintePersonnel) ? (
+                  <div style={{paddingLeft:76,marginTop:8,display:'flex',flexDirection:'column',gap:6}}>
                     {e.atteinteNiveau && (
                       <div>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: '#888', marginBottom: 3 }}>
+                        <div style={{display:'flex',justifyContent:'space-between',fontSize:11,color:'#888',marginBottom:3}}>
                           <span>🎯 {lang==='ar'?'هدف المستوى':'Objectif niveau'} {e.code_niveau} — {e.atteinteNiveau.obj.valeur_cible} {e.atteinteNiveau.obj.metrique}</span>
-                          <span style={{ fontWeight: 700, color: e.atteinteNiveau.pct>=100?'#1D9E75':e.atteinteNiveau.pct>=60?'#EF9F27':'#E24B4A' }}>
-                            {e.atteinteNiveau.realise}/{e.atteinteNiveau.obj.valeur_cible} · {e.atteinteNiveau.pct}%
-                          </span>
+                          <span style={{fontWeight:700,color:e.atteinteNiveau.pct>=100?'#1D9E75':e.atteinteNiveau.pct>=60?'#EF9F27':'#E24B4A'}}>{e.atteinteNiveau.realise}/{e.atteinteNiveau.obj.valeur_cible} · {e.atteinteNiveau.pct}%</span>
                         </div>
-                        <div style={{ height: 6, background: '#e8e8e0', borderRadius: 3, overflow: 'hidden' }}>
-                          <div style={{ height: '100%', width: e.atteinteNiveau.pct+'%', borderRadius: 3,
-                            background: e.atteinteNiveau.pct>=100?'#1D9E75':e.atteinteNiveau.pct>=60?'#EF9F27':'#E24B4A', transition: 'width 0.4s' }}/>
-                          </div>
+                        <div style={{height:6,background:'#e8e8e0',borderRadius:3,overflow:'hidden'}}>
+                          <div style={{height:'100%',borderRadius:3,transition:'width 0.4s',width:e.atteinteNiveau.pct+'%',background:e.atteinteNiveau.pct>=100?'#1D9E75':e.atteinteNiveau.pct>=60?'#EF9F27':'#E24B4A'}}></div>
                         </div>
                       </div>
                     )}
                     {e.atteintePersonnel && (
                       <div>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: '#534AB7', marginBottom: 3 }}>
+                        <div style={{display:'flex',justifyContent:'space-between',fontSize:11,color:'#534AB7',marginBottom:3}}>
                           <span>👤 {lang==='ar'?'هدف شخصي':'Objectif personnel'}{e.atteintePersonnel.obj.titre?' — '+e.atteintePersonnel.obj.titre:''} — {e.atteintePersonnel.obj.valeur_cible} {e.atteintePersonnel.obj.metrique}</span>
-                          <span style={{ fontWeight: 700, color: e.atteintePersonnel.pct>=100?'#1D9E75':e.atteintePersonnel.pct>=60?'#EF9F27':'#E24B4A' }}>
-                            {e.atteintePersonnel.realise}/{e.atteintePersonnel.obj.valeur_cible} · {e.atteintePersonnel.pct}%
-                          </span>
+                          <span style={{fontWeight:700,color:e.atteintePersonnel.pct>=100?'#1D9E75':e.atteintePersonnel.pct>=60?'#EF9F27':'#E24B4A'}}>{e.atteintePersonnel.realise}/{e.atteintePersonnel.obj.valeur_cible} · {e.atteintePersonnel.pct}%</span>
                         </div>
-                        <div style={{ height: 6, background: '#e8e8e0', borderRadius: 3, overflow: 'hidden' }}>
-                          <div style={{ height: '100%', width: e.atteintePersonnel.pct+'%', borderRadius: 3,
-                            background: e.atteintePersonnel.pct>=100?'#1D9E75':e.atteintePersonnel.pct>=60?'#EF9F27':'#E24B4A', transition: 'width 0.4s' }}/>
-                          </div>
+                        <div style={{height:6,background:'#e8e8e0',borderRadius:3,overflow:'hidden'}}>
+                          <div style={{height:'100%',borderRadius:3,transition:'width 0.4s',width:e.atteintePersonnel.pct+'%',background:e.atteintePersonnel.pct>=100?'#1D9E75':e.atteintePersonnel.pct>=60?'#EF9F27':'#E24B4A'}}></div>
                         </div>
                       </div>
                     )}
                   </div>
-                )}
-                {!e.atteinteNiveau && !e.atteintePersonnel && (
-                  <div style={{ paddingLeft: 76, marginTop: 4 }}>
-                    <button onClick={() => navigate('objectifs')}
-                      style={{ padding: '3px 10px', border: '0.5px solid #e0e0d8', borderRadius: 6, background: '#f5f5f0', color: '#888', fontSize: 11, cursor: 'pointer' }}>
+                ) : (
+                  <div style={{paddingLeft:76,marginTop:4}}>
+                    <button onClick={()=>navigate('objectifs')} style={{padding:'3px 10px',border:'0.5px solid #e0e0d8',borderRadius:6,background:'#f5f5f0',color:'#888',fontSize:11,cursor:'pointer'}}>
                       🎯 {lang==='ar'?'تحديد هدف':'Définir un objectif'}
                     </button>
                   </div>
