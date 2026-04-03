@@ -138,17 +138,20 @@ export default function Finance({ user, navigate, goBack, lang='fr' }) {
     if (!formCot.eleve_id || !formCot.montant || !formCot.date_paiement)
       return showMsg('error', lang==='ar'?'يرجى ملء الحقول المطلوبة':'Remplissez les champs obligatoires');
     setSaving(true);
-    const { error } = await supabase.from('cotisations').insert({
-      eleve_id: formCot.eleve_id,
-      montant: parseFloat(formCot.montant),
-      date_paiement: formCot.date_paiement,
-      periode: buildPeriodeStr(formCot.typePeriode, formCot.valPeriode, formCot.annee) || formCot.periode || null,
-      statut: formCot.statut,
-      note: formCot.note||null,
-      created_by: user.id,
-    });
+    let error;
+    try {
+      ({ error } = await supabase.from('cotisations').insert({
+        eleve_id: formCot.eleve_id,
+        montant: parseFloat(formCot.montant),
+        date_paiement: formCot.date_paiement,
+        periode: buildPeriodeStr(formCot.typePeriode, formCot.valPeriode, formCot.annee) || formCot.periode || null,
+        statut: formCot.statut,
+        note: formCot.note||null,
+        created_by: user.id,
+      }));
+    } catch(e) { error = e; }
     setSaving(false);
-    if (error) return showMsg('error', error.message);
+    if (error) return showMsg('error', error.message||'Erreur');
     showMsg('success', lang==='ar'?'تم تسجيل الاشتراك':'Cotisation enregistrée');
     setShowFormCot(false);
     setFormCot({ eleve_id:'', montant:'', date_paiement:new Date().toISOString().split('T')[0], periode:'', typePeriode:'mois', valPeriode:'', annee:String(new Date().getFullYear()), statut:'paye', note:'' });
@@ -160,28 +163,35 @@ export default function Finance({ user, navigate, goBack, lang='fr' }) {
     if (!formDep.montant || !formDep.date_depense || !formDep.description)
       return showMsg('error', lang==='ar'?'يرجى ملء الحقول المطلوبة':'Remplissez les champs obligatoires');
     setSaving(true);
-    const { error } = await supabase.from('depenses').insert({
-      montant: parseFloat(formDep.montant),
-      date_depense: formDep.date_depense,
-      categorie: formDep.categorie,
-      beneficiaire_id: formDep.beneficiaire_id||null,
-      description: formDep.description,
-      reference: formDep.reference||null,
-      created_by: user.id,
-    });
+    let error;
+    try {
+      ({ error } = await supabase.from('depenses').insert({
+        montant: parseFloat(formDep.montant),
+        date_depense: formDep.date_depense,
+        categorie: formDep.categorie,
+        beneficiaire_id: formDep.beneficiaire_id||null,
+        description: formDep.description,
+        reference: formDep.reference||null,
+        created_by: user.id,
+      }));
+    } catch(e) { error = e; }
     setSaving(false);
-    if (error) return showMsg('error', error.message);
+    if (error) return showMsg('error', error.message||'Erreur');
     showMsg('success', lang==='ar'?'تم تسجيل المصروف':'Dépense enregistrée');
     setShowFormDep(false);
     setFormDep({ montant:'', date_depense:new Date().toISOString().split('T')[0], categorie:'salaire', beneficiaire_id:'', description:'', reference:'' });
     await loadData();
   };
 
-  const deleteCotisation = (id) => { const c2=cotisations.find(x=>x.id===id); const nom=c2?.eleve?(c2.eleve.prenom+' '+c2.eleve.nom):''; showConfirm(
-    lang==='ar'?'حذف الاشتراك':'Supprimer la cotisation',
-    (lang==='ar'?'حذف اشتراك ':'Supprimer le versement de ')+nom+(c2?.periode?' ('+c2.periode+')':'')+' ?',
-    async()=>{ await supabase.from('cotisations').delete().eq('id',id); await loadData(); hideConfirm(); }
-  );};
+  const deleteCotisation = (id) => {
+    const c2 = cotisations.find(x=>x.id===id);
+    const nom = c2?.eleve ? (c2.eleve.prenom+' '+c2.eleve.nom) : '';
+    showConfirm(
+      lang==='ar'?'حذف الاشتراك':'Supprimer cotisation',
+      (lang==='ar'?'حذف اشتراك ':'Supprimer le versement de ')+nom+(c2?.periode?' ('+c2.periode+')':'')+' ?',
+      async()=>{ await supabase.from('cotisations').delete().eq('id',id); await loadData(); hideConfirm(); }
+    );
+  };
 
   const deleteDepense = (id) => showConfirm(
     lang==='ar'?'حذف المصروف':'Supprimer la dépense',
@@ -671,7 +681,7 @@ export default function Finance({ user, navigate, goBack, lang='fr' }) {
                   <label className="field-lbl">{lang==='ar'?'الفئة':'Catégorie'} *</label>
                   <div style={{display:'flex',gap:6,flexWrap:'wrap',marginTop:6}}>
                     {CATEGORIES.map(cat=>(
-                      <div key={cat.val} onClick={()=>setFormDep(f=>({...f,categorie:cat.val}))}
+                      <div key={cat.val} onClick={()=>setFormDep(f=>({...f,categorie:cat.val,beneficiaire_id:cat.val==='salaire'?f.beneficiaire_id:''}))}
                         style={{padding:'6px 12px',borderRadius:20,fontSize:12,fontWeight:formDep.categorie===cat.val?700:400,cursor:'pointer',display:'flex',alignItems:'center',gap:4,
                           background:formDep.categorie===cat.val?cat.color+'18':'#f5f5f0',color:formDep.categorie===cat.val?cat.color:'#888',
                           border:'1.5px solid '+(formDep.categorie===cat.val?cat.color:'#e0e0d8')}}>
