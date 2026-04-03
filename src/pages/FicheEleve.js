@@ -113,8 +113,6 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang='fr' })
   const [showAcquis, setShowAcquis] = useState(false);
   const [exceptionsHizb, setExceptionsHizb] = useState([]);
   const [showExceptionModal, setShowExceptionModal] = useState(false);
-  const [editObj, setEditObj] = useState(false);
-  const [newObjVal, setNewObjVal] = useState('');
   const now = new Date();
   const [selectedMoisObj, setSelectedMoisObj] = useState(now.getMonth());
   const [selectedAnneeObj, setSelectedAnneeObj] = useState(now.getFullYear());
@@ -414,15 +412,10 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang='fr' })
                 <button onClick={()=>{if(selectedMoisObj===0){setSelectedMoisObj(11);setSelectedAnneeObj(y=>y-1);}else setSelectedMoisObj(m=>m-1);}} style={{padding:'2px 8px',border:'0.5px solid #e0e0d8',borderRadius:4,background:'#fff',cursor:'pointer'}}>‹</button>
                 <span style={{fontSize:12,color:'#888',minWidth:70,textAlign:'center'}}>{getMoisCourt(selectedMoisObj,lang)} {selectedAnneeObj}</span>
                 <button onClick={()=>{if(selectedMoisObj===11){setSelectedMoisObj(0);setSelectedAnneeObj(y=>y+1);}else setSelectedMoisObj(m=>m+1);}} style={{padding:'2px 8px',border:'0.5px solid #e0e0d8',borderRadius:4,background:'#fff',cursor:'pointer'}}>›</button>
-                {user.role==='surveillant'&&<button className="action-btn" onClick={()=>{setEditObj(!editObj);setNewObjVal(objActuel?.nombre_tomon||'');}}>{editObj?t(lang,'annuler'):t(lang,'definir')}</button>}
+                {user.role==='surveillant'&&<button className="action-btn" onClick={()=>navigate('objectifs')}>🎯 {t(lang,'definir')}</button>}
               </div>
             </div>
-            {editObj&&user.role==='surveillant'&&(
-              <div style={{display:'flex',gap:8,marginBottom:10}}>
-                <input className="field-input" type="number" min="1" max="80" placeholder="Nb Tomon" value={newObjVal} onChange={e=>setNewObjVal(e.target.value)} style={{flex:1}}/>
-                <button className="btn-primary" style={{width:'auto',padding:'8px 14px',fontSize:12}} onClick={saveObjectif}>✓</button>
-              </div>
-            )}
+            
             {objActuel?(
               <div>
                 <div style={{display:'flex',justifyContent:'space-between',fontSize:12,color:'#888',marginBottom:6}}>
