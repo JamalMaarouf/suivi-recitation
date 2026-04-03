@@ -176,9 +176,9 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang='fr' })
     ${etat.tomonAcquis>0?`<div class="acquis">
       <div><div style="font-size:11px;color:#085041;font-weight:600">🎓 ${t(lang,'acquis_anterieurs')}</div>
       <div style="font-size:13px;color:#0F6E56">${etat.tomonAcquis} ${t(lang,'tomon_abrev')} + ${etat.hizbAcquisComplets} Hizb</div></div>
-      <div><div style="font-size:11px;color:#888">${lang==='ar'?'النقاط المقابلة':lang==='en'?'Prior points':'Points antérieurs'}</div>
+      <div><div style="font-size:11px;color:#888">${lang==='ar'?'النقاط المقابلة':lang==='en'?lang==='ar'?'النقاط السابقة':'Prior points':lang==='ar'?'النقاط السابقة':'Points antérieurs'}</div>
       <div style="font-size:18px;font-weight:700;color:#1D9E75">+${(pts.ptsAcquisTotal||0).toLocaleString()} ${t(lang,'pts_abrev')}</div></div>
-      <div><div style="font-size:11px;color:#888">${lang==='ar'?'منذ بدء المتابعة':lang==='en'?'Since tracking':'Depuis le suivi'}</div>
+      <div><div style="font-size:11px;color:#888">${lang==='ar'?'منذ بدء المتابعة':lang==='en'?lang==='ar'?'منذ المتابعة':'Since tracking':lang==='ar'?'منذ المتابعة':'Depuis le suivi'}</div>
       <div style="font-size:18px;font-weight:700;color:#378ADD">+${(pts.ptsDepuisSuivi||0).toLocaleString()} ${t(lang,'pts_abrev')}</div></div>
     </div>`:''}
     <div class="grid">

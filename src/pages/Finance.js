@@ -313,14 +313,14 @@ export default function Finance({ user, navigate, goBack, lang='fr' }) {
       ['Gestion Financière — متابعة التحفيظ'],
       ['Période: '+dateDebut+' → '+dateFin],
       [],
-      ['','Montant'],
-      ['Total Cotisations', totalCotisations],
-      ['Total Dépenses', totalDepenses],
-      ['Solde', solde],
+      ['',lang==='ar'?'المبلغ':'Montant'],
+      [lang==='ar'?'إجمالي الاشتراكات':'Total Cotisations', totalCotisations],
+      [lang==='ar'?'إجمالي المصاريف':'Total Dépenses', totalDepenses],
+      [lang==='ar'?'الرصيد':'Solde', solde],
       [],
-      ['Élèves payés', nbElevesPayes],
-      ['Élèves partiel', nbElevesPartiel],
-      ['Élèves exonérés', nbElevesExoneres],
+      [lang==='ar'?'الطلاب المدفوعون':'Élèves payés', nbElevesPayes],
+      [(lang==='ar'?'الطلاب الجزئيون':'Élèves partiel'), nbElevesPartiel],
+      [lang==='ar'?'الطلاب المعفيون':'Élèves exonérés', nbElevesExoneres],
     ]);
     ws1['!cols']=[{wch:24},{wch:14}];
     XLSX.utils.book_append_sheet(wb,ws1,lang==='ar'?'لوحة القيادة':'Tableau de bord');
@@ -368,7 +368,7 @@ export default function Finance({ user, navigate, goBack, lang='fr' }) {
     XLSX.utils.book_append_sheet(wb,ws,lang==='ar'?'الاشتراكات':'Cotisations');
     // Summary row
     const total = cotFiltrees.filter(c=>c.statut!=='exonere').reduce((s,c)=>s+parseFloat(c.montant||0),0);
-    XLSX.utils.sheet_add_aoa(ws,[['','','','','TOTAL','','','',total]], {origin:-1});
+    XLSX.utils.sheet_add_aoa(ws,[['','','','',lang==='ar'?'الإجمالي':'TOTAL','','','',total]], {origin:-1});
     XLSX.writeFile(wb,'cotisations_'+new Date().toISOString().split('T')[0]+'.xlsx');
   };
 
@@ -392,7 +392,7 @@ export default function Finance({ user, navigate, goBack, lang='fr' }) {
       ...parEleve.map(p=>[p.eleve.prenom+' '+p.eleve.nom,p.eleve.eleve_id_ecole||'—',p.eleve.code_niveau||'—',p.totalVerse,p.cotisations.length,p.statutDernier,p.dernierPaiement||'—']),
     ]);
     ws['!cols']=[{wch:22},{wch:10},{wch:8},{wch:12},{wch:14},{wch:14},{wch:14}];
-    XLSX.utils.book_append_sheet(wb,ws,lang==='ar'?'متابعة الطلاب':'Suivi élèves');
+    XLSX.utils.book_append_sheet(wb,ws,lang==='ar'?'متابعة الطلاب':lang==='ar'?'متابعة الطلاب':'Suivi élèves');
     XLSX.writeFile(wb,'suivi_cotisations_'+new Date().toISOString().split('T')[0]+'.xlsx');
   };
 
@@ -460,7 +460,7 @@ export default function Finance({ user, navigate, goBack, lang='fr' }) {
       }).join('');
       const html = '<!DOCTYPE html><html dir="'+(lang==='ar'?'rtl':'ltr')+'" lang="'+(lang==='ar'?'ar':'fr')+'"><head><meta charset="UTF-8"><title>Suivi élèves</title>'
         +'<style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:Tajawal,Arial,sans-serif;padding:20px;font-size:12px}.header{background:linear-gradient(135deg,#085041,#1D9E75);color:#fff;padding:16px 20px;border-radius:10px;margin-bottom:16px}table{width:100%;border-collapse:collapse}th{background:#085041;color:#fff;padding:8px;text-align:start;font-size:11px}td{padding:6px 8px;border-bottom:1px solid #f0f0ec}.footer{margin-top:14px;font-size:9px;color:#bbb;border-top:1px solid #e0e0d8;padding-top:8px;text-align:center}</style></head><body>'
-        +'<div class="header"><h1 style="font-size:18px;font-weight:800">👥 '+(lang==='ar'?'متابعة الطلاب':'Suivi élèves')+'</h1><div style="font-size:11px;opacity:0.8">'+parEleve.length+' élèves</div></div>'
+        +'<div class="header"><h1 style="font-size:18px;font-weight:800">👥 '+(lang==='ar'?'متابعة الطلاب':lang==='ar'?'متابعة الطلاب':'Suivi élèves')+'</h1><div style="font-size:11px;opacity:0.8">'+parEleve.length+' élèves</div></div>'
         +'<table><thead><tr><th>Élève</th><th>ID</th><th>Niv.</th><th>Total versé</th><th>Versements</th><th>Statut</th><th>Dernier paiement</th></tr></thead><tbody>'+rows+'</tbody></table>'
         +'<div class="footer">Généré le '+new Date().toLocaleDateString('fr-FR',{day:'2-digit',month:'long',year:'numeric'})+' · متابعة التحفيظ</div></body></html>';
       w.document.write(html); w.document.close(); setTimeout(()=>w.print(),600);
@@ -542,10 +542,10 @@ export default function Finance({ user, navigate, goBack, lang='fr' }) {
   };
 
   const onglets = [
-    { key:'dashboard', label:'Vue générale',   labelAr:'النظرة العامة', icon:'📊' },
+    { key:'dashboard', label:lang==='ar'?'النظرة العامة':'Vue générale',   labelAr:'النظرة العامة', icon:'📊' },
     { key:'cotisations', label:'Cotisations',  labelAr:'الاشتراكات',    icon:'📥' },
     { key:'depenses', label:'Dépenses',        labelAr:'المصاريف',      icon:'📤' },
-    { key:'suivi', label:'Suivi élèves',       labelAr:'متابعة الطلاب', icon:'👥' },
+    { key:'suivi', label:lang==='ar'?'متابعة الطلاب':'Suivi élèves',       labelAr:'متابعة الطلاب', icon:'👥' },
   ];
 
   const fmtMAD = (n) => parseFloat(n||0).toLocaleString('fr-FR',{minimumFractionDigits:0,maximumFractionDigits:2})+' MAD';

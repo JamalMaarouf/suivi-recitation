@@ -321,7 +321,7 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr' }) {
     XLSX.writeFile(wb,'parents_'+new Date().toISOString().split('T')[0]+'.xlsx');
   };
 
-  const NIVEAU_LABELS = {'5B':'Préscolaire','5A':'Primaire 1-2','2M':'Primaire 3-4','2':'Primaire 5-6','1':'Collège/Lycée'};
+  const NIVEAU_LABELS = {'5B':(lang==='ar'?'تمهيدي':'Préscolaire'),'5A':'Primaire 1-2','2M':'Primaire 3-4','2':'Primaire 5-6','1':(lang==='ar'?'إعدادي/ثانوي':'Collège/Lycée')};
 
   // Export élèves Excel
   const exportElevesExcel = async () => {
@@ -364,7 +364,7 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr' }) {
   // Export PDF élèves
   const exportElevesPDF = () => {
     const w = window.open('','_blank','width=1000,height=800');
-    if (!w) { alert('Autorisez les popups'); return; }
+    if (!w) { alert((lang==='ar'?'يرجى السماح بالنوافذ المنبثقة':'Autorisez les popups')); return; }
     const rows = eleves.map((e,i) => {
       const inst = instituteurs.find(x=>x.id===e.instituteur_referent_id);
       const nc = {'5B':'#534AB7','5A':'#378ADD','2M':'#1D9E75','2':'#EF9F27','1':'#E24B4A'}[e.code_niveau||'']||'#888';
@@ -404,7 +404,7 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr' }) {
   // Export PDF instituteurs
   const exportInstituteursPDF = () => {
     const w = window.open('','_blank','width=1000,height=800');
-    if (!w) { alert('Autorisez les popups'); return; }
+    if (!w) { alert((lang==='ar'?'يرجى السماح بالنوافذ المنبثقة':'Autorisez les popups')); return; }
     const rows = instituteurs.map((inst,i) => {
       const nbEleves = eleves.filter(e=>e.instituteur_referent_id===inst.id).length;
       const elevesInst = eleves.filter(e=>e.instituteur_referent_id===inst.id);
@@ -490,11 +490,11 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr' }) {
                   <div className="field-group">
                     <label className="field-lbl">{lang==='ar'?'المستوى الدراسي':lang==='en'?'Class level':'Niveau scolaire'} <span style={{color:'#E24B4A'}}>*</span></label>
                     <select className="field-select" value={newEleve.code_niveau} onChange={e => setNewEleve({ ...newEleve, code_niveau: e.target.value })}>
-                      <option value="5B">5B — {lang==='ar'?'تمهيدي':lang==='en'?'Preschool':'Préscolaire'}</option>
+                      <option value="5B">5B — {lang==='ar'?'تمهيدي':lang==='en'?'Preschool':(lang==='ar'?'تمهيدي':'Préscolaire')}</option>
                       <option value="5A">5A — {lang==='ar'?'ابتدائي 1-2':lang==='en'?'Primary 1-2':'Primaire 1-2'}</option>
                       <option value="2M">2M — {lang==='ar'?'ابتدائي 3-4':lang==='en'?'Primary 3-4':'Primaire 3-4'}</option>
                       <option value="2">2 — {lang==='ar'?'ابتدائي 5-6':lang==='en'?'Primary 5-6':'Primaire 5-6'}</option>
-                      <option value="1">1 — {lang==='ar'?'إعدادي/ثانوي':lang==='en'?'Middle/High school':'Collège/Lycée'}</option>
+                      <option value="1">1 — {lang==='ar'?'إعدادي/ثانوي':lang==='en'?'Middle/High school':(lang==='ar'?'إعدادي/ثانوي':'Collège/Lycée')}</option>
                     </select>
                   </div>
                   <div className="field-group">
@@ -576,11 +576,11 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr' }) {
                         setEditEleve({ ...editEleve, code_niveau: newNiv });
                       }
                     }}>
-                      <option value="5B">5B — {lang==='ar'?'تمهيدي':lang==='en'?'Preschool':'Préscolaire'}</option>
+                      <option value="5B">5B — {lang==='ar'?'تمهيدي':lang==='en'?'Preschool':(lang==='ar'?'تمهيدي':'Préscolaire')}</option>
                       <option value="5A">5A — {lang==='ar'?'ابتدائي 1-2':lang==='en'?'Primary 1-2':'Primaire 1-2'}</option>
                       <option value="2M">2M — {lang==='ar'?'ابتدائي 3-4':lang==='en'?'Primary 3-4':'Primaire 3-4'}</option>
                       <option value="2">2 — {lang==='ar'?'ابتدائي 5-6':lang==='en'?'Primary 5-6':'Primaire 5-6'}</option>
-                      <option value="1">1 — {lang==='ar'?'إعدادي/ثانوي':lang==='en'?'Middle/High school':'Collège/Lycée'}</option>
+                      <option value="1">1 — {lang==='ar'?'إعدادي/ثانوي':lang==='en'?'Middle/High school':(lang==='ar'?'إعدادي/ثانوي':'Collège/Lycée')}</option>
                     </select>
                   </div>
                   <div className="field-group">

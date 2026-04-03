@@ -155,7 +155,7 @@ export default function Seance({ user, navigate, goBack, lang='fr' }) {
 
   const exportSeancePDF = () => {
     const w = window.open('','_blank','width=1000,height=800');
-    if (!w) { alert('Autorisez les popups'); return; }
+    if (!w) { alert((lang==='ar'?'يرجى السماح بالنوافذ المنبثقة':'Autorisez les popups')); return; }
     const dateStr = new Date().toLocaleDateString(lang==='ar'?'ar-MA':'fr-FR',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
     const rows = elevesData.slice(0,30).map((e,i)=>{
       const pts = e.isSourate ? e.ptsAujourdhui : (e.valsAujourdhui||[]).reduce((s,v)=>s+(v.type_validation==='hizb_complet'?100:v.nombre_tomon*10),0);
@@ -196,7 +196,7 @@ export default function Seance({ user, navigate, goBack, lang='fr' }) {
         <button className="back-link" onClick={()=>goBack?goBack():navigate('dashboard')}>{t(lang,'retour')}</button>
         <button onClick={()=>navigate('historique_seances')}
           style={{padding:'6px 14px',background:'#085041',color:'#fff',border:'none',borderRadius:8,fontSize:12,fontWeight:600,cursor:'pointer',display:'flex',alignItems:'center',gap:4}}>
-          📊 {lang==='ar'?'تحليل الحصص':lang==='en'?'Session analysis':'Analyse des séances'}
+          📊 {lang==='ar'?'تحليل الحصص':lang==='en'?'Session analysis':lang==='ar'?'تحليل الحصص':'Analyse des séances'}
         </button>
         <button onClick={exportSeanceExcel} style={{padding:'6px 12px',background:'#1D9E75',color:'#fff',border:'none',borderRadius:8,fontSize:11,fontWeight:600,cursor:'pointer'}}>📥 Excel</button>
         <button onClick={exportSeancePDF} style={{padding:'6px 12px',background:'#534AB7',color:'#fff',border:'none',borderRadius:8,fontSize:11,fontWeight:600,cursor:'pointer'}}>🖨️ PDF</button>

@@ -98,18 +98,18 @@ export default function FicheSourate({ eleve, user, navigate, goBack, lang='fr' 
     <h1>${eleve.prenom} ${eleve.nom}</h1>
     <p style="color:#888;font-size:13px">${codeNiveau} · ${instituteurNom}${eleve.eleve_id_ecole ? ' · #'+eleve.eleve_id_ecole : ''}</p>
     <div class="grid">
-      <div class="box"><div class="box-title">${lang==='ar'?'المجموع':lang==='en'?'Total score':'Score total'}</div><div class="box-val">${ptsTotal.toLocaleString()} ${lang==='ar'?'ن':'pts'}</div></div>
-      <div class="box"><div class="box-title">${lang==='ar'?'سور مكتملة':lang==='en'?'Complete surahs':'Sourates complètes'}</div><div class="box-val">${souratesCompletes + souratesAcquises}/${souratesOrdonnees.length}</div></div>
+      <div class="box"><div class="box-title">${lang==='ar'?'المجموع':lang==='en'?'Total score':(lang==='ar'?'مجموع النقاط':'Score total')}</div><div class="box-val">${ptsTotal.toLocaleString()} ${lang==='ar'?'ن':'pts'}</div></div>
+      <div class="box"><div class="box-title">${lang==='ar'?'سور مكتملة':lang==='en'?'Complete surahs':(lang==='ar'?'السور المكتملة':'Sourates complètes')}</div><div class="box-val">${souratesCompletes + souratesAcquises}/${souratesOrdonnees.length}</div></div>
       <div class="box"><div class="box-title">${lang==='ar'?'التقدم':lang==='en'?'Progress':'Progression'}</div><div class="box-val">${pctProgression}%</div></div>
     </div>
     ${souratesAcquises > 0 ? `<div style="background:#E1F5EE;border:1px solid #9FE1CB;border-radius:8px;padding:12px;margin-bottom:16px">
-      <strong>🎓 ${lang==='ar'?'المكتسبات السابقة':lang==='en'?'Prior achievements':'Acquis antérieurs'} : ${souratesAcquises} ${lang==='ar'?'سورة':lang==='en'?'surahs':'sourates'} (+${ptsAcquis} ${lang==='ar'?'ن':'pts'})</strong>
+      <strong>🎓 ${lang==='ar'?'المكتسبات السابقة':lang==='en'?'Prior achievements':lang==='ar'?'المكتسبات السابقة':(lang==='ar'?'المكتسبات السابقة':'Acquis antérieurs')} : ${souratesAcquises} ${lang==='ar'?'سورة':lang==='en'?'surahs':'sourates'} (+${ptsAcquis} ${lang==='ar'?'ن':'pts'})</strong>
     </div>` : ''}
-    <h2>${lang==='ar'?'تفاصيل السور':lang==='en'?'Surah details':'Détail par sourate'}</h2>
+    <h2>${lang==='ar'?'تفاصيل السور':lang==='en'?'Surah details':(lang==='ar'?'تفصيل السور':'Détail par sourate')}</h2>
     <table><thead><tr>
       <th>${lang==='ar'?'السورة':lang==='en'?'Surah':'Sourate'}</th>
       <th>${lang==='ar'?'الحالة':lang==='en'?'Status':'Statut'}</th>
-      <th>${lang==='ar'?'المقاطع':lang==='en'?'Sequences':'Séquences'}</th>
+      <th>${lang==='ar'?'المقاطع':lang==='en'?'Sequences':(lang==='ar'?'المقاطع':'Séquences')}</th>
       <th>${lang==='ar'?'النقاط':lang==='en'?'Points':'Points'}</th>
     </tr></thead><tbody>
     ${souratesOrdonnees.map(s => {
@@ -119,7 +119,7 @@ export default function FicheSourate({ eleve, user, navigate, goBack, lang='fr' 
       const pts = recs.reduce((acc,r)=>acc+(r.points||0),0);
       return `<tr>
         <td class="surah-name">${s.nom_ar}</td>
-        <td class="${comp?'complete':'seq'}">${comp?(lang==='ar'?'مكتملة':lang==='en'?'Complete':'Complète'):seqs.length>0?(lang==='ar'?'جارية':lang==='en'?'In progress':'En cours'):(lang==='ar'?'لم تبدأ':lang==='en'?'Not started':'Pas commencée')}</td>
+        <td class="${comp?'complete':'seq'}">${comp?(lang==='ar'?'مكتملة':lang==='en'?'Complete':'Complète'):seqs.length>0?(lang==='ar'?'جارية':lang==='en'?'In progress':(lang==='ar'?'جارية':'En cours')):(lang==='ar'?'لم تبدأ':lang==='en'?'Not started':(lang==='ar'?'لم تبدأ':'Pas commencée'))}</td>
         <td>${seqs.length}</td>
         <td class="pts">${pts > 0 ? '+'+pts : '—'}</td>
       </tr>`;
@@ -180,8 +180,8 @@ export default function FicheSourate({ eleve, user, navigate, goBack, lang='fr' 
         <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:8}}>
           {[
             {l:lang==='ar'?'مكتملة':lang==='en'?'Complete':'Complètes', v:souratesCompletes+souratesAcquises, c:'#EF9F27', bg:'#FAEEDA'},
-            {l:lang==='ar'?'جارية':lang==='en'?'In progress':'En cours', v:souratesEnCours, c:'#1D9E75', bg:'#E1F5EE'},
-            {l:lang==='ar'?'مقاطع':lang==='en'?'Sequences':'Séquences', v:totalSequences, c:'#378ADD', bg:'#E6F1FB'},
+            {l:lang==='ar'?'جارية':lang==='en'?'In progress':(lang==='ar'?'جارية':'En cours'), v:souratesEnCours, c:'#1D9E75', bg:'#E1F5EE'},
+            {l:lang==='ar'?'مقاطع':lang==='en'?'Sequences':(lang==='ar'?'المقاطع':'Séquences'), v:totalSequences, c:'#378ADD', bg:'#E6F1FB'},
             {l:lang==='ar'?'منذ المتابعة':lang==='en'?'Since tracking':'Depuis suivi', v:`+${ptsSuivi}`, c:'#534AB7', bg:'#EEEDFE'},
           ].map(k=>(
             <div key={k.l} style={{background:k.bg,borderRadius:8,padding:'10px',textAlign:'center'}}>
@@ -199,7 +199,7 @@ export default function FicheSourate({ eleve, user, navigate, goBack, lang='fr' 
               <div style={{display:'flex',alignItems:'center',gap:8}}>
                 <span style={{fontSize:18}}>🎓</span>
                 <div style={{textAlign:'left'}}>
-                  <div style={{fontSize:13,fontWeight:600,color:'#085041'}}>{lang==='ar'?'المكتسبات السابقة':lang==='en'?'Prior achievements':'Acquis antérieurs'}</div>
+                  <div style={{fontSize:13,fontWeight:600,color:'#085041'}}>{lang==='ar'?'المكتسبات السابقة':lang==='en'?'Prior achievements':lang==='ar'?'المكتسبات السابقة':(lang==='ar'?'المكتسبات السابقة':'Acquis antérieurs')}</div>
                   <div style={{fontSize:11,color:'#0F6E56'}}>{souratesAcquises} {lang==='ar'?'سورة محفوظة':lang==='en'?'surahs':'sourates'} · <strong>+{ptsAcquis} {t(lang,'pts_abrev')}</strong></div>
                 </div>
               </div>

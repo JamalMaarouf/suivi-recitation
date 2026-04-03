@@ -217,39 +217,39 @@ export default function HistoriqueSeances({ user, navigate, goBack, lang='fr' })
     const filtreNom = filterEleve!=='tous' ? (eleves.find(e=>e.id===filterEleve)||{prenom:'',nom:''}) : null;
 
     const ws1 = XLSX.utils.aoa_to_sheet([
-      [lang==='ar'?'تحليل الحصص':lang==='ar'?'تحليل الحصص':'Analyse des Séances'],
+      [lang==='ar'?'تحليل الحصص':lang==='ar'?'تحليل الحصص':lang==='ar'?'تحليل الحصص':'Analyse des Séances'],
       [(lang==='ar'?'الفترة: ':'Période: ')+dateDebut+' → '+dateFin],
       filtreNom ? [(lang==='ar'?'الطالب: ':'Élève: ')+filtreNom.prenom+' '+filtreNom.nom] : [],
       filterNiveau!=='tous' ? [(lang==='ar'?'المستوى: ':'Niveau: ')+filterNiveau] : [],
       [],
-      [lang==='ar'?'الطلاب النشطون':'Élèves actifs',lang==='ar'?'النقاط':'Points','Tomon','Hizb',lang==='ar'?'السور':'Sourates',lang==='ar'?'المقاطع':'Séquences',lang==='ar'?'أيام النشاط':'Jours actifs'],
+      [lang==='ar'?'الطلاب النشطون':'Élèves actifs',lang==='ar'?'النقاط':lang==='ar'?'النقاط':'Points','Tomon','Hizb',lang==='ar'?'السور':'Sourates',lang==='ar'?'المقاطع':'Séquences',lang==='ar'?'أيام النشاط':'Jours actifs'],
       [(filterEleve!=='tous'?1:elevesActifs.size),(filterEleve!=='tous'?(actifs.find(s=>s.eleve.id===filterEleve)||{pts:0}).pts:ptsTotal),tomonTotal,hizbTotal,souratesTotal,sequencesTotal,joursActifs],
       [],
-      ['#',lang==='ar'?'الاسم':'Nom',lang==='ar'?'المستوى':'Niveau',lang==='ar'?'الأستاذ':'Instituteur','Tomon','Hizb',lang==='ar'?'السور':'Sourates',lang==='ar'?'مقاطع':'Séq.','Points','Séances','Obj %','Tendance'],
+      ['#',lang==='ar'?'الاسم':'Nom',lang==='ar'?'المستوى':'Niveau',lang==='ar'?'الأستاذ':'Instituteur','Tomon','Hizb',lang==='ar'?'السور':'Sourates',lang==='ar'?'مقاطع':'Séq.',lang==='ar'?'النقاط':'Points','Séances','Obj %',(lang==='ar'?'التوجه':'Tendance')],
       ...dataToExport.map((s,i)=>[i+1,s.eleve.prenom+' '+s.eleve.nom,s.eleve.code_niveau||'?',s.instituteurNom,s.tomon,s.hizb,s.sourates,s.seqs,s.pts,s.nbSeances,s.pctObj!==null?s.pctObj+'%':'—',s.trend==='up'?'↑':s.trend==='down'?'↓':'=']),
     ].filter(r=>r.length>0));
     ws1['!cols']=[{wch:4},{wch:24},{wch:8},{wch:20},{wch:8},{wch:8},{wch:10},{wch:8},{wch:10},{wch:8},{wch:8},{wch:10}];
-    XLSX.utils.book_append_sheet(wb,ws1,'Résumé');
+    XLSX.utils.book_append_sheet(wb,ws1,lang==='ar'?'ملخص':'Résumé');
 
     if (timelineArr.length>0) {
       const ws2 = XLSX.utils.aoa_to_sheet([
-        ['Date','Tomon','Hizb','Sourates','Séquences','Points'],
+        [lang==='ar'?'التاريخ':'Date','Tomon','Hizb','Sourates','Séquences',lang==='ar'?'النقاط':'Points'],
         ...timelineArr.map(d=>[d.date,d.tomon,d.hizb,d.sourate,d.seq,d.pts])
       ]);
       ws2['!cols']=[{wch:14},{wch:10},{wch:8},{wch:10},{wch:10},{wch:10}];
-      XLSX.utils.book_append_sheet(wb,ws2,'Activité');
+      XLSX.utils.book_append_sheet(wb,ws2,lang==='ar'?'النشاط':'Activité');
     }
 
     if (filterEleve!=='tous'&&allDrill.length>0) {
       const ws3 = XLSX.utils.aoa_to_sheet([
         [eleveDrillDown?eleveDrillDown.prenom+' '+eleveDrillDown.nom:''],
         [],
-        ['Date','Heure','Type','Détails','Sourate/Hizb','Validé par','Points'],
+        [lang==='ar'?'التاريخ':'Date',lang==='ar'?'الوقت':'Heure',lang==='ar'?'النوع':'Type',lang==='ar'?'التفاصيل':'Détails',lang==='ar'?'السورة/الحزب':'Sourate/Hizb','Validé par',lang==='ar'?'النقاط':'Points'],
         ...allDrill.map(item=>{
           const isSR=!!item.type_recitation;
           const sourate=souratesDB.find(s=>s.id===item.sourate_id);
           const pts=isSR?(item.points||10):(item.type_validation==='hizb_complet'?100:item.nombre_tomon*10);
-          const type=isSR?(item.type_recitation==='complete'?'Sourate complète':'Séquence'):(item.type_validation==='hizb_complet'?'Hizb complet':'Tomon');
+          const type=isSR?(item.type_recitation==='complete'?lang==='ar'?'سورة كاملة':'Sourate complète':'Séquence'):(item.type_validation==='hizb_complet'?lang==='ar'?'حزب كامل':'Hizb complet':'Tomon');
           const detail=isSR?(item.type_recitation==='complete'?'✓':'V.'+item.verset_debut+'→V.'+item.verset_fin):(item.type_validation==='hizb_complet'?'Hizb '+item.hizb_valide:item.nombre_tomon+' Tomon');
           const surateNom=sourate?sourate.nom_ar:(item.hizb_validation?'Hizb '+item.hizb_validation:'—');
           const valideur=item.valideur?item.valideur.prenom+' '+item.valideur.nom:'—';
@@ -257,7 +257,7 @@ export default function HistoriqueSeances({ user, navigate, goBack, lang='fr' })
         })
       ]);
       ws3['!cols']=[{wch:14},{wch:8},{wch:16},{wch:22},{wch:24},{wch:18},{wch:8}];
-      XLSX.utils.book_append_sheet(wb,ws3,'Détail');
+      XLSX.utils.book_append_sheet(wb,ws3,lang==='ar'?'التفصيل':'Détail');
     }
 
     const suffix=filterEleve!=='tous'?(eleves.find(e=>e.id===filterEleve)||{nom:'eleve'}).nom:filterNiveau!=='tous'?filterNiveau:'rapport';
@@ -267,7 +267,7 @@ export default function HistoriqueSeances({ user, navigate, goBack, lang='fr' })
   // Export PDF
   const exportPDF = () => {
     const w = window.open('','_blank','width=1100,height=900');
-    if (!w) { alert('Autorisez les popups pour exporter le PDF'); return; }
+    if (!w) { alert((lang==='ar'?'يرجى السماح بالنوافذ المنبثقة':'Autorisez les popups pour exporter le PDF')); return; }
     const dir = lang==='ar'?'rtl':'ltr';
     const dataToExport = filterEleve!=='tous' ? actifs.filter(s=>s.eleve.id===filterEleve) : actifs;
     const filtreNom = filterEleve!=='tous' ? eleves.find(e=>e.id===filterEleve) : null;
@@ -397,7 +397,7 @@ export default function HistoriqueSeances({ user, navigate, goBack, lang='fr' })
     <div>
       <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'1.25rem',flexWrap:'wrap',gap:8}}>
         <button className="back-link" onClick={()=>goBack?goBack():navigate('dashboard')}>← {t(lang,'retour')}</button>
-        <div style={{fontSize:18,fontWeight:700,color:'#085041'}}>📊 {lang==='ar'?'تحليل الحصص':lang==='en'?'Session Analysis':lang==='ar'?'تحليل الحصص':'Analyse des Séances'}</div>
+        <div style={{fontSize:18,fontWeight:700,color:'#085041'}}>📊 {lang==='ar'?'تحليل الحصص':lang==='en'?'Session Analysis':lang==='ar'?'تحليل الحصص':lang==='ar'?'تحليل الحصص':'Analyse des Séances'}</div>
         <div style={{display:'flex',gap:6,alignItems:'center'}}>
           <span style={{fontSize:12,color:'#888'}}>{elevesVisibles.length} {lang==='ar'?'طالب':lang==='en'?'students':'élèves'}</span>
           <button onClick={exportExcel} style={{padding:'6px 12px',background:'#1D9E75',color:'#fff',border:'none',borderRadius:8,fontSize:11,fontWeight:600,cursor:'pointer'}}>📥 Excel</button>
@@ -414,7 +414,7 @@ export default function HistoriqueSeances({ user, navigate, goBack, lang='fr' })
             </button>
           ))}
           <button onClick={()=>setPeriodeActive(-1)} style={{padding:'5px 12px',borderRadius:20,fontSize:11,fontWeight:periodeActive===-1?700:400,cursor:'pointer',border:'1.5px solid '+(periodeActive===-1?'#534AB7':'#e0e0d8'),background:periodeActive===-1?'#534AB7':'#fff',color:periodeActive===-1?'#fff':'#666'}}>
-            {lang==='ar'?'فترة مخصصة':lang==='en'?'Custom':'Personnalisé'}
+            {lang==='ar'?'فترة مخصصة':lang==='en'?'Custom':(lang==='ar'?'مخصص':'Personnalisé')}
           </button>
         </div>
         <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:10}}>
@@ -434,7 +434,7 @@ export default function HistoriqueSeances({ user, navigate, goBack, lang='fr' })
               {instituteurs.map(i=><option key={i.id} value={i.id}>{i.prenom} {i.nom}</option>)}
             </select>
           </div>}
-          <div className="field-group"><label className="field-lbl">{lang==='ar'?'نوع التسميع':'Type'}</label>
+          <div className="field-group"><label className="field-lbl">{lang==='ar'?'نوع التسميع':lang==='ar'?'النوع':'Type'}</label>
             <select className="field-select" value={filterType} onChange={e=>setFilterType(e.target.value)}>
               <option value="tous">{lang==='ar'?'الكل':'Tous'}</option>
               <option value="sourate">{lang==='ar'?'سور مكتملة':'Sourates'}</option>
@@ -457,7 +457,7 @@ export default function HistoriqueSeances({ user, navigate, goBack, lang='fr' })
         <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:10,marginBottom:'1rem'}}>
           <StatCard icon="👥" val={filterEleve!=='tous'?1:elevesActifs.size} lbl={lang==='ar'?'طلاب نشطون':'Élèves actifs'} color="#1D9E75" bg="#E1F5EE"
             sub={filterEleve!=='tous'?(eleves.find(e=>e.id===filterEleve)||{prenom:'',nom:''}).prenom+' '+(eleves.find(e=>e.id===filterEleve)||{nom:''}).nom:(elevesActifs.size+'/'+elevesVisibles.length+' · inactifs: '+inactifs.length)}/>
-          <StatCard icon="⭐" val={(filterEleve!=='tous'?(actifs.find(s=>s.eleve.id===filterEleve)||{pts:0}).pts:ptsTotal).toLocaleString()} lbl={lang==='ar'?'نقاط':'Points'} color="#534AB7" bg="#EEEDFE"
+          <StatCard icon="⭐" val={(filterEleve!=='tous'?(actifs.find(s=>s.eleve.id===filterEleve)||{pts:0}).pts:ptsTotal).toLocaleString()} lbl={lang==='ar'?'نقاط':lang==='ar'?'النقاط':'Points'} color="#534AB7" bg="#EEEDFE"
             sub={ptsDelta!==0?(ptsDelta>0?'▲ ':'▼ ')+Math.abs(ptsDelta)+' vs période préc.':'Stable'}/>
           <StatCard icon="📅" val={joursActifs} lbl={lang==='ar'?'أيام نشطة':'Jours actifs'} color="#EF9F27" bg="#FAEEDA" sub={joursActifs+'/'+duree+' jours'}/>
         </div>
@@ -557,7 +557,7 @@ export default function HistoriqueSeances({ user, navigate, goBack, lang='fr' })
               <div className="table-wrap">
                 <table><thead><tr>
                   <th>Date</th><th>Heure</th><th>Type</th><th>Détails</th>
-                  <th>{lang==='ar'?'السورة/الحزب':'Sourate/Hizb'}</th>
+                  <th>{lang==='ar'?'السورة/الحزب':lang==='ar'?'السورة/الحزب':'Sourate/Hizb'}</th>
                   <th>{lang==='ar'?'صحح':'Validé'}</th><th>pts</th>
                 </tr></thead>
                 <tbody>
