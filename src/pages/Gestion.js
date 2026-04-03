@@ -142,6 +142,9 @@ function AcquisSelector({ codeNiveau, hizb, tomon, onHizbChange, onTomonChange, 
 
 export default function Gestion({ user, navigate, goBack, lang = 'fr' }) {
   const [tab, setTab] = useState('eleves');
+  const [parents, setParents] = useState([]);
+  const [formParent, setFormParent] = useState({prenom:'',nom:'',identifiant:'',mot_de_passe:'',telephone:'',eleve_ids:[]});
+  const [showFormParent, setShowFormParent] = useState(false);
   const [eleves, setEleves] = useState([]);
   const [instituteurs, setInstituteurs] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -161,6 +164,8 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr' }) {
     const { data: i } = await supabase.from('utilisateurs').select('*').eq('role', 'instituteur').order('nom');
     setEleves(e || []);
     setInstituteurs(i || []);
+    const { data: pd } = await supabase.from('parents').select('*, liens:parent_eleve(eleve_id, eleve:eleve_id(prenom,nom))').order('nom');
+    setParents(pd||[]);
     setLoading(false);
   };
 
@@ -247,6 +252,21 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr' }) {
     { value: 'Avancé', label: t(lang, 'avance') },
   ];
 
+
+  const exportParentsExcel = async () => {
+    if (!window.XLSX) {
+      await new Promise((res,rej)=>{ const s=document.createElement('script'); s.src='https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js'; s.onload=res; s.onerror=rej; document.head.appendChild(s); });
+    }
+    const XLSX = window.XLSX;
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.aoa_to_sheet([
+      ['#','Prénom','Nom','Identifiant','Téléphone','Enfants'],
+      ...parents.map((p,i)=>[i+1,p.prenom,p.nom,p.identifiant,p.telephone||'—',(p.liens||[]).map(l=>l.eleve?l.eleve.prenom+' '+l.eleve.nom:'?').join(', ')])
+    ]);
+    ws['!cols']=[{wch:4},{wch:16},{wch:16},{wch:18},{wch:14},{wch:30}];
+    XLSX.utils.book_append_sheet(wb,ws,'Parents');
+    XLSX.writeFile(wb,'parents_'+new Date().toISOString().split('T')[0]+'.xlsx');
+  };
 
   const NIVEAU_LABELS = {'5B':'Préscolaire','5A':'Primaire 1-2','2M':'Primaire 3-4','2':'Primaire 5-6','1':'Collège/Lycée'};
 
@@ -377,6 +397,7 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr' }) {
         <div className="tabs-row" style={{marginBottom:0}}>
           <div className={`tab ${tab === 'eleves' ? 'active' : ''}`} onClick={() => setTab('eleves')}>{t(lang, 'eleves')}</div>
           <div className={`tab ${tab === 'instituteurs' ? 'active' : ''}`} onClick={() => setTab('instituteurs')}>{t(lang, 'instituteurs')}</div>
+          <div className={`tab ${tab === 'parents' ? 'active' : ''}`} onClick={() => setTab('parents')}>👨‍👩‍👦 {lang==='ar'?'الآباء':'Parents'}</div>
         </div>
         <div style={{display:'flex',gap:6}}>
           {tab==='eleves'&&<>
@@ -387,6 +408,7 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr' }) {
             <button onClick={exportInstituteursExcel} style={{padding:'6px 12px',background:'#1D9E75',color:'#fff',border:'none',borderRadius:8,fontSize:11,fontWeight:600,cursor:'pointer'}}>📥 Excel</button>
             <button onClick={exportInstituteursPDF} style={{padding:'6px 12px',background:'#534AB7',color:'#fff',border:'none',borderRadius:8,fontSize:11,fontWeight:600,cursor:'pointer'}}>🖨️ PDF</button>
           </>}
+          {tab==='parents'&&<button onClick={exportParentsExcel} style={{padding:'6px 12px',background:'#1D9E75',color:'#fff',border:'none',borderRadius:8,fontSize:11,fontWeight:600,cursor:'pointer'}}>📥 Excel</button>}
         </div>
       </div>
 
@@ -622,7 +644,91 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr' }) {
             </div>
           )}
         </div>
-      )}
+      )
+
+      {tab === 'parents' && (
+        <div>
+          <div style={{display:'flex',justifyContent:'flex-end',marginBottom:'1rem'}}>
+            <button className="btn-primary" style={{width:'auto',padding:'8px 16px',fontSize:13}} onClick={()=>setShowFormParent(v=>!v)}>
+              {showFormParent?'✕':'+  '}{lang==='ar'?'إضافة ولي أمر':'Ajouter un parent'}
+            </button>
+          </div>
+
+          {showFormParent&&(
+            <div style={{background:'#fff',border:'1.5px solid #1D9E75',borderRadius:16,padding:'1.5rem',marginBottom:'1.25rem'}}>
+              <div style={{fontSize:14,fontWeight:600,color:'#085041',marginBottom:'1rem'}}>👨‍👩‍👦 {lang==='ar'?'إضافة ولي أمر جديد':'Nouveau parent'}</div>
+              <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12,marginBottom:12}}>
+                <div className="field-group"><label className="field-lbl">{lang==='ar'?'الاسم':'Prénom'} *</label><input className="field-input" value={formParent.prenom} onChange={e=>setFormParent(f=>({...f,prenom:e.target.value}))} placeholder={lang==='ar'?'الاسم':'Prénom'}/></div>
+                <div className="field-group"><label className="field-lbl">{lang==='ar'?'اللقب':'Nom'} *</label><input className="field-input" value={formParent.nom} onChange={e=>setFormParent(f=>({...f,nom:e.target.value}))} placeholder={lang==='ar'?'اللقب':'Nom'}/></div>
+                <div className="field-group"><label className="field-lbl">{lang==='ar'?'المعرف':'Identifiant'} *</label><input className="field-input" value={formParent.identifiant} onChange={e=>setFormParent(f=>({...f,identifiant:e.target.value}))} placeholder="parent.nom"/></div>
+                <div className="field-group"><label className="field-lbl">{lang==='ar'?'كلمة المرور':'Mot de passe'} *</label><input className="field-input" type="password" value={formParent.mot_de_passe} onChange={e=>setFormParent(f=>({...f,mot_de_passe:e.target.value}))} placeholder="••••••"/></div>
+                <div className="field-group"><label className="field-lbl">{lang==='ar'?'الهاتف':'Téléphone'}</label><input className="field-input" value={formParent.telephone} onChange={e=>setFormParent(f=>({...f,telephone:e.target.value}))} placeholder="06xxxxxxxx"/></div>
+              </div>
+              <div className="field-group" style={{marginBottom:14}}>
+                <label className="field-lbl">{lang==='ar'?'الأبناء المرتبطون':'Enfants liés'}</label>
+                <div style={{display:'flex',flexWrap:'wrap',gap:6,marginTop:6}}>
+                  {eleves.map(e=>{
+                    const sel=formParent.eleve_ids.includes(e.id);
+                    const nc={'5B':'#534AB7','5A':'#378ADD','2M':'#1D9E75','2':'#EF9F27','1':'#E24B4A'}[e.code_niveau||'1']||'#888';
+                    return(
+                      <div key={e.id} onClick={()=>setFormParent(f=>({...f,eleve_ids:sel?f.eleve_ids.filter(x=>x!==e.id):[...f.eleve_ids,e.id]}))}
+                        style={{padding:'5px 12px',borderRadius:20,fontSize:12,cursor:'pointer',border:'1.5px solid '+(sel?nc:'#e0e0d8'),background:sel?nc+'15':'#fff',color:sel?nc:'#888',fontWeight:sel?600:400}}>
+                        {e.prenom} {e.nom}{e.eleve_id_ecole?' #'+e.eleve_id_ecole:''}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+              <button className="btn-primary" onClick={async()=>{
+                if(!formParent.prenom||!formParent.nom||!formParent.identifiant||!formParent.mot_de_passe) return alert(lang==='ar'?'يرجى ملء الحقول المطلوبة':'Remplissez les champs obligatoires');
+                const {data:pd,error:pe}=await supabase.from('parents').insert({prenom:formParent.prenom,nom:formParent.nom,identifiant:formParent.identifiant,mot_de_passe:formParent.mot_de_passe,telephone:formParent.telephone||null,created_by:user.id}).select().single();
+                if(pe){alert(pe.message);return;}
+                if(formParent.eleve_ids.length>0){
+                  await supabase.from('parent_eleve').insert(formParent.eleve_ids.map(eid=>({parent_id:pd.id,eleve_id:eid})));
+                }
+                setShowFormParent(false);
+                setFormParent({prenom:'',nom:'',identifiant:'',mot_de_passe:'',telephone:'',eleve_ids:[]});
+                const {data:pd2}=await supabase.from('parents').select('*, liens:parent_eleve(eleve_id, eleve:eleve_id(prenom,nom))').order('nom');
+                setParents(pd2||[]);
+              }}>
+                ✓ {lang==='ar'?'إضافة':'Ajouter'}
+              </button>
+            </div>
+          )}
+
+          <div style={{fontSize:12,color:'#888',marginBottom:8}}>{parents.length} {lang==='ar'?'ولي أمر':'parent(s)'}</div>
+          <div style={{display:'flex',flexDirection:'column',gap:8}}>
+            {parents.map(p=>(
+              <div key={p.id} style={{background:'#fff',border:'0.5px solid #e0e0d8',borderRadius:12,padding:'12px 14px',display:'flex',alignItems:'center',gap:12}}>
+                <div style={{width:40,height:40,borderRadius:'50%',background:'#E1F5EE',color:'#085041',display:'flex',alignItems:'center',justifyContent:'center',fontWeight:700,fontSize:14,flexShrink:0}}>
+                  {(p.prenom[0]||'')+(p.nom[0]||'')}
+                </div>
+                <div style={{flex:1}}>
+                  <div style={{fontSize:13,fontWeight:600}}>{p.prenom} {p.nom}</div>
+                  <div style={{fontSize:11,color:'#888',marginTop:2}}>
+                    {lang==='ar'?'المعرف:':'ID: '}<strong>{p.identifiant}</strong>
+                    {p.telephone&&' · '+p.telephone}
+                  </div>
+                  <div style={{display:'flex',gap:4,flexWrap:'wrap',marginTop:4}}>
+                    {(p.liens||[]).map(l=>l.eleve&&(
+                      <span key={l.eleve_id} style={{padding:'1px 6px',borderRadius:8,fontSize:10,background:'#E1F5EE',color:'#085041'}}>
+                        👦 {l.eleve.prenom} {l.eleve.nom}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+                <button onClick={async()=>{
+                  if(!window.confirm(lang==='ar'?'حذف هذا الحساب؟':'Supprimer ce compte parent ?')) return;
+                  await supabase.from('parent_eleve').delete().eq('parent_id',p.id);
+                  await supabase.from('parents').delete().eq('id',p.id);
+                  setParents(prev=>prev.filter(x=>x.id!==p.id));
+                }} style={{fontSize:10,color:'#E24B4A',background:'none',border:'none',cursor:'pointer'}}>🗑</button>
+              </div>
+            ))}
+            {parents.length===0&&<div className="empty">{lang==='ar'?'لا أولياء أمور مسجلون':'Aucun parent enregistré'}</div>}
+          </div>
+        </div>
+      )}}
     </div>
   );
 }

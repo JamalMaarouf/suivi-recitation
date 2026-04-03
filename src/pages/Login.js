@@ -13,10 +13,16 @@ export default function Login({ onLogin, lang, LangSelector }) {
     setError('');
     if (!identifiant.trim() || !motDePasse) { setError(t(lang, 'remplir_champs')); return; }
     setLoading(true);
+    // Check utilisateurs first (surveillant/instituteur)
     const { data, error: err } = await supabase.from('utilisateurs').select('*').eq('identifiant', identifiant.trim()).eq('mot_de_passe', motDePasse).single();
+    if (!err && data) { setLoading(false); onLogin(data); return; }
+
+    // Check parents table
+    const { data: parentData, error: parentErr } = await supabase.from('parents').select('*').eq('identifiant', identifiant.trim()).eq('mot_de_passe', motDePasse).single();
     setLoading(false);
-    if (err || !data) { setError(t(lang, 'identifiant_incorrect')); return; }
-    onLogin(data);
+    if (!parentErr && parentData) { onLogin({...parentData, role: 'parent'}); return; }
+
+    setError(t(lang, 'identifiant_incorrect'));
   };
 
   return (

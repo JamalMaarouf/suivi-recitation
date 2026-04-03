@@ -14,6 +14,7 @@ import RecitationSourate from './pages/RecitationSourate';
 import GestionObjectifs from './pages/GestionObjectifs';
 import HistoriqueSeances from './pages/HistoriqueSeances';
 import Finance from './pages/Finance';
+import PortailParent from './pages/PortailParent';
 import ValidationRapide from './pages/ValidationRapide';
 import { t, getDir } from './lib/i18n';
 import { setSouratesDB } from './lib/sourates';
@@ -135,7 +136,7 @@ export default function App() {
     <LangContext.Provider value={{ lang, setLang }}>
       <div className="app-container" dir={getDir(lang)}>
 
-        {!isMobile && (
+        {!isMobile && user.role !== 'parent' && (
           <nav className="top-nav">
             <div className="nav-brand" onClick={() => navigate('dashboard')}>
               <div className="nav-logo"></div>
@@ -161,7 +162,8 @@ export default function App() {
         )}
 
         <main className={isMobile ? 'main-content-mobile' : 'main-content'}>
-          {page === 'dashboard'         && <Dashboard {...pageProps} />}
+          {user.role === 'parent' && <PortailParent parent={user} navigate={navigate} goBack={goBack} lang={lang} />}
+          {user.role !== 'parent' && page === 'dashboard'         && <Dashboard {...pageProps} />}
           {page === 'fiche'             && selectedEleve   && <FicheEleve eleve={selectedEleve} {...pageProps} />}
           {page === 'objectifs'          && <ErrorBoundary><GestionObjectifs user={user} navigate={navigate} goBack={goBack} lang={lang} /></ErrorBoundary>}
           {page === 'historique_seances'   && <ErrorBoundary><HistoriqueSeances user={user} navigate={navigate} goBack={goBack} lang={lang} /></ErrorBoundary>}
@@ -181,7 +183,7 @@ export default function App() {
           {page === 'rapport_mensuel'   && <RapportMensuel {...pageProps} />}
         </main>
 
-        {isMobile && (
+        {isMobile && user.role !== 'parent' && (
           <nav className="bottom-nav" dir={getDir(lang)}>
             {[
               { key: 'dashboard',        icon: '🏠', labelKey: 'tableau_de_bord' },

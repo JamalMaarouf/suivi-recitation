@@ -99,6 +99,7 @@ export default function GestionObjectifs({ user, navigate, goBack, lang='fr' }) 
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [editingId, setEditingId] = useState(null);
   const [msg, setMsg] = useState(null);
 
   // Filters
@@ -156,6 +157,28 @@ export default function GestionObjectifs({ user, navigate, goBack, lang='fr' }) 
 
   const showMsg = (type, text) => { setMsg({ type, text }); setTimeout(() => setMsg(null), 3000); };
 
+  const startEdit = (obj) => {
+    setEditingId(obj.id);
+    setForm({
+      type_cible: obj.type_cible,
+      eleve_id: obj.eleve_id||'',
+      code_niveau: obj.code_niveau||'5B',
+      instituteur_id: obj.instituteur_id||'',
+      periode: obj.periode,
+      date_debut: obj.date_debut,
+      date_fin: obj.date_fin,
+      metrique: obj.metrique,
+      valeur_cible: String(obj.valeur_cible),
+      cible_specifique: obj.cible_specifique||null,
+      cibles_selectionnees: [],
+      hizbSelected: null,
+      titre: obj.titre||'',
+      notes: obj.notes||'',
+    });
+    setShowForm(true);
+    window.scrollTo(0,0);
+  };
+
   const saveObjectif = async () => {
     if (!form.valeur_cible || isNaN(form.valeur_cible) || parseInt(form.valeur_cible) <= 0)
       return showMsg('error', lang==='ar'?'يجب تحديد قيمة الهدف':lang==='en'?'Please set a target value':'Veuillez définir une valeur cible');
@@ -180,11 +203,17 @@ export default function GestionObjectifs({ user, navigate, goBack, lang='fr' }) 
       cible_specifique: form.cibles_selectionnees.length>0 ? JSON.stringify(form.cibles_selectionnees) : (form.cible_specifique||null),
       created_by: user.id,
     };
-    const { error } = await supabase.from('objectifs_globaux').insert(insert);
+    let error;
+    if (editingId) {
+      ({ error } = await supabase.from('objectifs_globaux').update(insert).eq('id', editingId));
+    } else {
+      ({ error } = await supabase.from('objectifs_globaux').insert(insert));
+    }
     setSaving(false);
     if (error) return showMsg('error', error.message);
-    showMsg('success', lang==='ar'?'تم حفظ الهدف':lang==='en'?'Objective saved':'Objectif enregistré');
+    showMsg('success', editingId?(lang==='ar'?'تم تحديث الهدف':'Objectif modifié'):(lang==='ar'?'تم حفظ الهدف':'Objectif enregistré'));
     setShowForm(false);
+    setEditingId(null);
     setForm({ type_cible:'niveau', eleve_id:'', code_niveau:'5B', instituteur_id:'',
       periode:'mois', date_debut:new Date().toISOString().split('T')[0],
       date_fin:'', metrique:'sourate', valeur_cible:'', cible_specifique:null, cibles_selectionnees:[], hizbSelected:null, titre:'', notes:'' });
@@ -285,7 +314,7 @@ export default function GestionObjectifs({ user, navigate, goBack, lang='fr' }) 
         <button className="back-link" onClick={()=>goBack?goBack():navigate('dashboard')}>{t(lang,'retour')}</button>
         <div style={{fontSize:20,fontWeight:700}}>🎯 {lang==='ar'?'إدارة الأهداف':lang==='en'?'Objectives':'Gestion des objectifs'}</div>
         {user.role==='surveillant'&&(
-          <button className="btn-primary" style={{width:'auto',padding:'8px 16px',fontSize:13}} onClick={()=>setShowForm(v=>!v)}>
+          <button className="btn-primary" style={{width:'auto',padding:'8px 16px',fontSize:13}} onClick={()=>{setShowForm(v=>!v);setEditingId(null);}}>
             {showForm?'✕':'+ '}{lang==='ar'?'هدف جديد':lang==='en'?'New objective':'Nouvel objectif'}
           </button>
         )}
@@ -312,7 +341,7 @@ export default function GestionObjectifs({ user, navigate, goBack, lang='fr' }) 
       {showForm&&user.role==='surveillant'&&(
         <div style={{background:'#fff',border:'1.5px solid #1D9E75',borderRadius:16,padding:'1.5rem',marginBottom:'1.5rem'}}>
           <div style={{fontSize:15,fontWeight:600,color:'#085041',marginBottom:'1rem'}}>
-            🎯 {lang==='ar'?'تعريف هدف جديد':lang==='en'?'Define new objective':'Définir un nouvel objectif'}
+            {editingId?'✏️':'🎯'} {editingId?(lang==='ar'?'تعديل الهدف':lang==='en'?'Edit objective':'Modifier l'objectif'):(lang==='ar'?'تعريف هدف جديد':lang==='en'?'Define new objective':'Définir un nouvel objectif')}
           </div>
 
           {/* Titre optionnel */}
@@ -595,7 +624,7 @@ export default function GestionObjectifs({ user, navigate, goBack, lang='fr' }) 
           )}
 
           <button className="btn-primary" onClick={saveObjectif} disabled={saving}>
-            {saving?'...':`✓ ${lang==='ar'?'حفظ الهدف':lang==='en'?'Save objective':'Enregistrer l\'objectif'}`}
+            {saving?'...':(editingId?('✓ '+(lang==='ar'?'تحديث':lang==='en'?'Update':'Mettre à jour')):('✓ '+(lang==='ar'?'حفظ الهدف':lang==='en'?'Save objective':'Enregistrer l\'objectif')))}
           </button>
         </div>
       )}
@@ -682,7 +711,10 @@ export default function GestionObjectifs({ user, navigate, goBack, lang='fr' }) 
                     <div style={{fontSize:22,fontWeight:800,color:sc.color}}>{pct}%</div>
                     <div style={{fontSize:11,color:'#888'}}>{realise}/{obj.valeur_cible}</div>
                     {user.role==='surveillant'&&(
-                      <button onClick={()=>deleteObjectif(obj.id)} style={{fontSize:10,color:'#E24B4A',background:'none',border:'none',cursor:'pointer',marginTop:4,padding:0}}>🗑 {lang==='ar'?'حذف':lang==='en'?'Delete':'Suppr.'}</button>
+                      <div style={{display:'flex',gap:6,marginTop:4}}>
+                        <button onClick={()=>startEdit(obj)} style={{fontSize:10,color:'#378ADD',background:'none',border:'none',cursor:'pointer',padding:0}}>✏️ {lang==='ar'?'تعديل':lang==='en'?'Edit':'Modifier'}</button>
+                        <button onClick={()=>deleteObjectif(obj.id)} style={{fontSize:10,color:'#E24B4A',background:'none',border:'none',cursor:'pointer',padding:0}}>🗑 {lang==='ar'?'حذف':lang==='en'?'Delete':'Suppr.'}</button>
+                      </div>
                     )}
                   </div>
                 </div>
