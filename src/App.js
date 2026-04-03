@@ -13,6 +13,7 @@ import RapportMensuel from './pages/RapportMensuel';
 import RecitationSourate from './pages/RecitationSourate';
 import GestionObjectifs from './pages/GestionObjectifs';
 import HistoriqueSeances from './pages/HistoriqueSeances';
+import Finance from './pages/Finance';
 import ValidationRapide from './pages/ValidationRapide';
 import { t, getDir } from './lib/i18n';
 import { setSouratesDB } from './lib/sourates';
@@ -151,6 +152,7 @@ export default function App() {
               {user.role === 'surveillant' && <>
                 <button className="nav-btn" onClick={() => navigate('rapport_mensuel')}>📊 {t(lang, 'rapport')}</button>
                 {user.role==='surveillant' && <button className="nav-btn" onClick={() => navigate('objectifs')} style={{background:'#085041',color:'#fff',fontWeight:600}}>🎯 {lang==='ar'?'الأهداف':lang==='en'?'Objectives':'Objectifs'}</button>}
+                {user.role==='surveillant' && <button className="nav-btn" onClick={() => navigate('finance')} style={{background:'#1D9E75',color:'#fff',fontWeight:600}}>💰 {lang==='ar'?'المالية':lang==='en'?'Finance':'Finance'}</button>}
                 <button className="nav-btn" onClick={() => navigate('gestion')}>⚙️ {t(lang, 'gestion')}</button>
               </>}
               <button className="nav-btn nav-btn-logout" onClick={handleLogout}>{t(lang, 'deconnexion')}</button>
@@ -163,6 +165,7 @@ export default function App() {
           {page === 'fiche'             && selectedEleve   && <FicheEleve eleve={selectedEleve} {...pageProps} />}
           {page === 'objectifs'          && <ErrorBoundary><GestionObjectifs user={user} navigate={navigate} goBack={goBack} lang={lang} /></ErrorBoundary>}
           {page === 'historique_seances'   && <ErrorBoundary><HistoriqueSeances user={user} navigate={navigate} goBack={goBack} lang={lang} /></ErrorBoundary>}
+          {page === 'finance'             && user.role==='surveillant' && <ErrorBoundary><Finance user={user} navigate={navigate} goBack={goBack} lang={lang} /></ErrorBoundary>}
           {page === 'enregistrer'       && (
             ['5B','5A','2M'].includes(selectedEleve?.code_niveau||'')
               ? <RecitationSourate eleve={selectedEleve} {...pageProps} />
