@@ -353,7 +353,7 @@ export default function HistoriqueSeances({ user, navigate, goBack, lang='fr' })
 
     const html = '<!DOCTYPE html><html dir="'+dir+'"><head><meta charset="UTF-8">'
       +'<title>Analyse des Séances</title>'
-      +'<style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:'Tajawal',Arial,sans-serif;direction:'+(lang==='ar'?'rtl':'ltr')+';text-align:'+(lang==='ar'?'right':'left')+';color:#1a1a1a;padding:20px;font-size:12px}'
+      +'<style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:Tajawal,Arial,sans-serif;color:#1a1a1a;padding:20px;font-size:12px}'
       +'.header{background:linear-gradient(135deg,#085041,#1D9E75);color:#fff;padding:16px 20px;border-radius:10px;margin-bottom:16px}'
       +'.header h1{font-size:18px;font-weight:800;margin-bottom:4px}'
       +'.header .sub{font-size:11px;opacity:0.8}'

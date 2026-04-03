@@ -171,10 +171,10 @@ export default function Seance({ user, navigate, goBack, lang='fr' }) {
         +'<td style="color:#888">'+(e.jours!=null?e.jours+' j inactif':'—')+'</td></tr>';
     }).join('');
     const html = '<!DOCTYPE html><html dir="'+(lang==='ar'?'rtl':'ltr')+'" lang="'+(lang==='ar'?'ar':'fr')+'"><head><meta charset="UTF-8"><title>Séance</title>'
-      +'<style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:'Tajawal',Arial,sans-serif;direction:'+(lang==='ar'?'rtl':'ltr')+';text-align:'+(lang==='ar'?'right':'left')+';padding:20px;font-size:12px}'
+      +'<style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:Tajawal,Arial,sans-serif;padding:20px;font-size:12px}'
       +'.header{background:linear-gradient(135deg,#085041,#1D9E75);color:#fff;padding:16px 20px;border-radius:10px;margin-bottom:16px}'
       +'table{width:100%;border-collapse:collapse;margin-top:10px}'
-      +'th{background:#085041;color:#fff;padding:8px;text-align:'+(lang==='ar'?'right':'left')+';font-size:11px}td{padding:6px 8px;border-bottom:1px solid #f0f0ec}'+'th2{font-size:11px}'
+      +'th{background:#085041;color:#fff;padding:8px;text-align:start;font-size:11px}td{padding:6px 8px;border-bottom:1px solid #f0f0ec}'+'th2{font-size:11px}'
       +'td{padding:7px 8px;border-bottom:1px solid #f0f0ec;font-size:11px}'
       +'.footer{margin-top:14px;font-size:9px;color:#bbb;border-top:1px solid #e0e0d8;padding-top:8px;text-align:center}'
       +'</style></head><body>'
