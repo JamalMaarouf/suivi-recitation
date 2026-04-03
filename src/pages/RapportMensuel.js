@@ -23,10 +23,7 @@ export default function RapportMensuel({  user, navigate, goBack , lang="fr" }) 
   const [eleves, setEleves] = useState([]);
   const [instituteurs, setInstituteurs] = useState([]);
   const [allValidations, setAllValidations] = useState([]);
-  const [objectifs, setObjectifs] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [savingObj, setSavingObj] = useState({});
-  const [editObj, setEditObj] = useState({});
 
   useEffect(() => { loadData(); }, []);
 
@@ -36,7 +33,6 @@ export default function RapportMensuel({  user, navigate, goBack , lang="fr" }) 
       supabase.from('eleves').select('*').order('nom'),
       supabase.from('utilisateurs').select('*').eq('role', 'instituteur'),
       supabase.from('validations').select('*'),
-      supabase.from('objectifs').select('*')
     ]);
     const elevesData = (ed || []).map(e => {
       const vals = (vd || []).filter(v => v.eleve_id === e.id);
@@ -47,7 +43,6 @@ export default function RapportMensuel({  user, navigate, goBack , lang="fr" }) 
     setEleves(elevesData);
     setInstituteurs(id || []);
     setAllValidations(vd || []);
-    setObjectifs(od || []);
     setLoading(false);
   };
 
@@ -66,9 +61,8 @@ export default function RapportMensuel({  user, navigate, goBack , lang="fr" }) 
     const hizbMois = vEleve.filter(v => v.type_validation === 'hizb_complet').length;
     const ptsMois = tomonMois * 10 + Math.floor(tomonMois / 2) * 25 + Math.floor(tomonMois / 4) * 60 + hizbMois * 100;
     const seances = new Set(vEleve.map(v => new Date(v.date_validation).toDateString())).size;
-    const obj = objectifs.find(o => o.eleve_id === e.id && o.mois === mois + 1 && o.annee === annee);
     const pctObj = obj ? Math.min(100, Math.round(tomonMois / obj.nombre_tomon * 100)) : null;
-    return { ...e, tomonMois, hizbMois, ptsMois, seances, objectif: obj?.nombre_tomon || null, pctObj };
+    return { ...e, tomonMois, hizbMois, ptsMois, seances, objectif: null, pctObj: null };
   }).sort((a, b) => b.ptsMois - a.ptsMois);
 
   const totalTomonMois = vMois.filter(v => v.type_validation === 'tomon').reduce((s, v) => s + v.nombre_tomon, 0);
@@ -76,19 +70,7 @@ export default function RapportMensuel({  user, navigate, goBack , lang="fr" }) 
   const totalPtsMois = statsEleves.reduce((s, e) => s + e.ptsMois, 0);
   const elevesActifsMois = statsEleves.filter(e => e.tomonMois > 0 || e.hizbMois > 0).length;
 
-  const saveObjectif = async (eleveId, valeur) => {
-    if (!valeur || isNaN(valeur)) return;
-    setSavingObj(prev => ({ ...prev, [eleveId]: true }));
-    const existing = objectifs.find(o => o.eleve_id === eleveId && o.mois === mois + 1 && o.annee === annee);
-    if (existing) {
-      await supabase.from('objectifs').update({ nombre_tomon: parseInt(valeur) }).eq('id', existing.id);
-    } else {
-      await supabase.from('objectifs').insert({ eleve_id: eleveId, mois: mois + 1, annee, nombre_tomon: parseInt(valeur), created_by: user.id });
-    }
-    setEditObj(prev => ({ ...prev, [eleveId]: false }));
-    setSavingObj(prev => ({ ...prev, [eleveId]: false }));
-    await loadData();
-  };
+
 
   const imprimerRapport = () => {
     const w = window.open('', '', 'width=900,height=1000');
@@ -219,44 +201,11 @@ export default function RapportMensuel({  user, navigate, goBack , lang="fr" }) 
                     {e.seances > 0 && <span style={{ fontSize: 11, color: '#888' }}>{e.seances} séance{e.seances > 1 ? 's' : ''}</span>}
                     <span style={{ fontSize: 14, fontWeight: 700, color: '#1D9E75', minWidth: 60, textAlign: 'right' }}>{e.ptsMois.toLocaleString()} pts</span>
 
-                    {/* Objectif — définir/modifier */}
-                    {editObj[e.id] ? (
-                      <div style={{ display: 'flex', gap: 4 }}>
-                        <input type="number" min="1" max="80" placeholder="Tomon/mois"
-                          style={{ width: 90, padding: '4px 8px', border: '0.5px solid #e0e0d8', borderRadius: 6, fontSize: 12 }}
-                          defaultValue={e.objectif || ''}
-                          onKeyDown={ev => ev.key === 'Enter' && saveObjectif(e.id, ev.target.value)}
-                          id={`obj-${e.id}`} />
-                        <button onClick={() => saveObjectif(e.id, document.getElementById(`obj-${e.id}`).value)}
-                          style={{ padding: '4px 8px', background: '#1D9E75', color: '#fff', border: 'none', borderRadius: 6, fontSize: 11, cursor: 'pointer' }}>
-                          {savingObj[e.id] ? '...' : '✓'}
-                        </button>
-                        <button onClick={() => setEditObj(prev => ({ ...prev, [e.id]: false }))}
-                          style={{ padding: '4px 8px', border: '0.5px solid #e0e0d8', borderRadius: 6, background: '#fff', fontSize: 11, cursor: 'pointer' }}>✕</button>
-                      </div>
-                    ) : (
-                      <button onClick={() => setEditObj(prev => ({ ...prev, [e.id]: true }))}
-                        style={{ padding: '4px 10px', border: '0.5px solid #e0e0d8', borderRadius: 6, background: '#f9f9f6', fontSize: 11, cursor: 'pointer', color: '#888' }}>
-                        {e.objectif ? `🎯 ${e.objectif}T` : ('+ ' + t(lang,'objectif_label'))}
-                      </button>
-                    )}
-                  </div>
-                </div>
-
-                {/* Barre objectif */}
-                {e.objectif && (
-                  <div style={{ paddingLeft: 76 }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: '#888', marginBottom: 4 }}>
-                      <span>Objectif : {e.tomonMois} / {e.objectif} Tomon</span>
-                      <span style={{ fontWeight: 600, color: pctColor(e.pctObj) }}>{e.pctObj}%</span>
-                    </div>
-                    <div style={{ height: 8, background: '#e8e8e0', borderRadius: 4, overflow: 'hidden' }}>
-                      <div style={{ height: '100%', width: `${e.pctObj}%`, background: pctColor(e.pctObj), borderRadius: 4, transition: 'width 0.5s' }} />
-                    </div>
-                    {e.pctObj >= 100 && <div style={{ fontSize: 11, color: '#1D9E75', marginTop: 4 }}>🎯 Objectif atteint !</div>}
-                    {e.pctObj < 50 && e.objectif && <div style={{ fontSize: 11, color: '#E24B4A', marginTop: 4 }}>⚠️ Moins de 50% de l\'objectif</div>}
-                  </div>
-                )}
+                    {/* Lien vers module Objectifs */}
+                    <button onClick={() => navigate('objectifs')}
+                      style={{ padding: '4px 10px', border: '0.5px solid #1D9E75', borderRadius: 6, background: '#f0faf6', color: '#085041', fontSize: 11, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}>
+                      🎯 {t(lang,'objectif_label')}
+                    </button>
               </div>
             ))}
           </div>
