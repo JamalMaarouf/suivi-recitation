@@ -278,7 +278,7 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr' }) {
       ? (lang==='ar'?`هذا الأستاذ مرتبط بـ ${nbEleves} طالب. سيتم فصلهم عنه.`:`Cet instituteur a ${nbEleves} élève(s). Ils seront détachés.`)
       : (lang==='ar'?'هل تريد حذف هذا الأستاذ؟':'Supprimer cet instituteur ?');
     showConfirm(
-      lang==='ar'?'حذف الأستاذ':'Supprimer l'instituteur',
+      lang==='ar'?'حذف الأستاذ':"Supprimer instituteur",
       msg,
       async () => {
         // Detach all eleves first
