@@ -71,7 +71,7 @@ function StatCard({ icon, val, lbl, color, bg, sub }) {
       </div>
       <div style={{fontSize:26,fontWeight:800,color,letterSpacing:'-1px'}}>{val}</div>
       {sub&&<div style={{fontSize:11,color,opacity:0.6,marginTop:2}}>{sub}</div>}
-    <ConfirmModal isOpen={confirmModal.isOpen} title={confirmModal.title} message={confirmModal.message}
+      <ConfirmModal isOpen={confirmModal.isOpen} title={confirmModal.title} message={confirmModal.message}
         onConfirm={confirmModal.onConfirm} onCancel={hideConfirm}
         confirmLabel={confirmModal.confirmLabel} confirmColor={confirmModal.confirmColor} lang={lang}/>
     </div>

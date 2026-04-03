@@ -740,7 +740,7 @@ export default function GestionObjectifs({ user, navigate, goBack, lang='fr' }) 
           })}
         </div>
       )}
-    <ConfirmModal isOpen={confirmModal.isOpen} title={confirmModal.title} message={confirmModal.message}
+      <ConfirmModal isOpen={confirmModal.isOpen} title={confirmModal.title} message={confirmModal.message}
         onConfirm={confirmModal.onConfirm} onCancel={hideConfirm}
         confirmLabel={confirmModal.confirmLabel} confirmColor={confirmModal.confirmColor} lang={lang}/>
     </div>

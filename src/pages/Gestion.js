@@ -9,7 +9,7 @@ function Avatar({ prenom, nom, size = 28 }) {
   return (
     <div style={{ width: size, height: size, borderRadius: '50%', background: '#E1F5EE', color: '#085041', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 600, fontSize: size * 0.33, flexShrink: 0 }}>
       {getInitiales(prenom, nom)}
-    <ConfirmModal
+      <ConfirmModal
         isOpen={confirmModal.isOpen}
         title={confirmModal.title}
         message={confirmModal.message}

@@ -163,7 +163,8 @@ export default function App() {
 
         <main className={isMobile ? 'main-content-mobile' : 'main-content'}>
           {user.role === 'parent' && <PortailParent parent={user} navigate={navigate} goBack={goBack} lang={lang} />}
-          {user.role !== 'parent' && page === 'dashboard'         && <Dashboard {...pageProps} />}
+          {user.role !== 'parent' && <>
+          {page === 'dashboard'         && <Dashboard {...pageProps} />}
           {page === 'fiche'             && selectedEleve   && <FicheEleve eleve={selectedEleve} {...pageProps} />}
           {page === 'objectifs'          && <ErrorBoundary><GestionObjectifs user={user} navigate={navigate} goBack={goBack} lang={lang} /></ErrorBoundary>}
           {page === 'historique_seances'   && <ErrorBoundary><HistoriqueSeances user={user} navigate={navigate} goBack={goBack} lang={lang} /></ErrorBoundary>}
@@ -181,6 +182,8 @@ export default function App() {
           {page === 'profil_instituteur'&& selectedInstituteur && <ProfilInstituteur instituteur={selectedInstituteur} {...pageProps} />}
           {page === 'comparaison'       && <Comparaison eleves={compareEleves} {...pageProps} />}
           {page === 'rapport_mensuel'   && <RapportMensuel {...pageProps} />}
+          </>
+          }
         </main>
 
         {isMobile && user.role !== 'parent' && (
