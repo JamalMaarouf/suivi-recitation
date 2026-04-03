@@ -206,6 +206,8 @@ export default function RapportMensuel({  user, navigate, goBack , lang="fr" }) 
                       style={{ padding: '4px 10px', border: '0.5px solid #1D9E75', borderRadius: 6, background: '#f0faf6', color: '#085041', fontSize: 11, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}>
                       🎯 {t(lang,'objectif_label')}
                     </button>
+                  </div>
+                </div>
               </div>
             ))}
           </div>
