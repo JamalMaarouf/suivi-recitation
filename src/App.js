@@ -165,7 +165,7 @@ export default function App() {
           {user.role === 'parent' && <PortailParent parent={user} navigate={navigate} goBack={goBack} lang={lang} />}
           {user.role !== 'parent' && <>
           {page === 'dashboard'         && <Dashboard {...pageProps} />}
-          {page === 'fiche'             && selectedEleve   && <FicheEleve eleve={selectedEleve} {...pageProps} />}
+          {page === 'fiche'             && selectedEleve   && <ErrorBoundary><FicheEleve eleve={selectedEleve} {...pageProps} /></ErrorBoundary>}
           {page === 'objectifs'          && <ErrorBoundary><GestionObjectifs user={user} navigate={navigate} goBack={goBack} lang={lang} /></ErrorBoundary>}
           {page === 'historique_seances'   && <ErrorBoundary><HistoriqueSeances user={user} navigate={navigate} goBack={goBack} lang={lang} /></ErrorBoundary>}
           {page === 'finance'             && user.role==='surveillant' && <ErrorBoundary><Finance user={user} navigate={navigate} goBack={goBack} lang={lang} /></ErrorBoundary>}

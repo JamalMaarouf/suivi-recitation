@@ -120,31 +120,29 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang='fr' })
 
   const loadData = async () => {
     setLoading(true);
-    const [{data:vals},{data:appr},{data:objs}] = await Promise.all([
-      supabase.from('validations').select('*, valideur:valide_par(prenom,nom)').eq('eleve_id',eleve.id).order('date_validation',{ascending:false}),
-      supabase.from('apprentissages').select('*').eq('eleve_id',eleve.id).order('date_debut',{ascending:false}),
-      supabase.from('objectifs').select('*').eq('eleve_id',eleve.id)
-    ]);
-    if (eleve.instituteur_referent_id) {
-      const {data:inst}=await supabase.from('utilisateurs').select('prenom,nom').eq('id',eleve.instituteur_referent_id).single();
-      if(inst) setInstituteurNom(`${inst.prenom} ${inst.nom}`);
+    try {
+      const [{data:vals},{data:appr}] = await Promise.all([
+        supabase.from('validations').select('*, valideur:valide_par(prenom,nom)').eq('eleve_id',eleve.id).order('date_validation',{ascending:false}),
+        supabase.from('apprentissages').select('*').eq('eleve_id',eleve.id).order('date_debut',{ascending:false}),
+      ]);
+      if (eleve.instituteur_referent_id) {
+        const {data:inst}=await supabase.from('utilisateurs').select('prenom,nom').eq('id',eleve.instituteur_referent_id).single();
+        if(inst) setInstituteurNom(inst.prenom+' '+inst.nom);
+      }
+      const e = calcEtatEleve(vals||[],eleve.hizb_depart||1,eleve.tomon_depart||1);
+      setEtat(e);
+      setValidations(vals||[]);
+      setApprentissages(appr||[]);
+    } catch(err) {
+      console.error('FicheEleve loadData error:', err);
+      // Set minimal etat so page renders
+      setEtat(calcEtatEleve([],eleve.hizb_depart||1,eleve.tomon_depart||1));
+    } finally {
+      setLoading(false);
     }
-    const e = calcEtatEleve(vals||[],eleve.hizb_depart||1,eleve.tomon_depart||1);
-    setEtat(e);
-    setValidations(vals||[]);
-    setApprentissages(appr||[]);
-    setObjectifs(objs||[]);
-    setLoading(false);
   };
 
-  const saveObjectif = async () => {
-    if (!newObjVal||isNaN(newObjVal)) return;
-    const existing = objectifs.find(o=>o.mois===selectedMoisObj+1&&o.annee===selectedAnneeObj);
-    if(existing) await supabase.from('objectifs').update({nombre_tomon:parseInt(newObjVal)}).eq('id',existing.id);
-    else await supabase.from('objectifs').insert({eleve_id:eleve.id,mois:selectedMoisObj+1,annee:selectedAnneeObj,nombre_tomon:parseInt(newObjVal),created_by:user.id});
-    setEditObj(false);
-    await loadData();
-  };
+
 
   const handlePrint = () => {
     const w = window.open('','','width=800,height=900');
@@ -221,18 +219,19 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang='fr' })
   const finMoisSel = new Date(selectedAnneeObj,selectedMoisObj+1,0,23,59,59);
   const tomonMoisSel = validations.filter(v=>v.type_validation==='tomon'&&new Date(v.date_validation)>=debutMoisSel&&new Date(v.date_validation)<=finMoisSel).reduce((s,v)=>s+v.nombre_tomon,0);
   const pctObj = objActuel?Math.min(100,Math.round(tomonMoisSel/objActuel.nombre_tomon*100)):null;
+  // Guard: wait for data to load
+  if (loading || !etat) return (
+    <div style={{padding:'2rem',textAlign:'center'}}>
+      <div className="loading">...</div>
+    </div>
+  );
+
   const pctColor=(p)=>p>=100?'#1D9E75':p>=60?'#EF9F27':'#E24B4A';
 
   // Redirect 5B/5A AFTER all hooks are declared (React rules of hooks)
   if (['5B','5A','2M'].includes(eleve.code_niveau)) {
     return <FicheSourate eleve={eleve} user={user} navigate={navigate} lang={lang} />;
   }
-
-  if (loading || !etat) return (
-    <div style={{padding:'2rem',textAlign:'center'}}>
-      <div className="loading">...</div>
-    </div>
-  );
 
   return (
     <div>
