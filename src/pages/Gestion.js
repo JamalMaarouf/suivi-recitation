@@ -226,7 +226,7 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr' }) {
     const nom = eleve ? eleve.prenom+' '+eleve.nom : '';
     // Count linked data
     showConfirm(
-      lang==='ar'?'⚠️ حذف الطالب':'⚠️ Supprimer l'élève',
+      lang==='ar'?'⚠️ حذف الطالب':'⚠️ Supprimer eleve',
       lang==='ar'
         ? 'سيتم حذف جميع بيانات '+nom+' (التسميعات، الأهداف، الاشتراكات). هذا الإجراء لا رجعة منه!'
         : 'Toutes les données de '+nom+' seront supprimées (récitations, objectifs, cotisations). Action irréversible !',
@@ -685,7 +685,7 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr' }) {
           {loading ? <div className="loading">...</div> : (
             {editInstituteur && (
               <div style={{background:'#fff',border:'1.5px solid #378ADD',borderRadius:12,padding:'1rem',marginBottom:'1rem'}}>
-                <div style={{fontSize:13,fontWeight:600,color:'#378ADD',marginBottom:'0.75rem'}}>✏️ {lang==='ar'?'تعديل الأستاذ':'Modifier l\'instituteur'}</div>
+                <div style={{fontSize:13,fontWeight:600,color:'#378ADD',marginBottom:'0.75rem'}}>✏️ {lang==='ar'?'تعديل الأستاذ':'Modifier instituteur'}</div>
                 <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:10}}>
                   <div className="field-group"><label className="field-lbl">{lang==='ar'?'الاسم':'Prénom'}</label><input className="field-input" value={formEditInst.prenom} onChange={e=>setFormEditInst(f=>({...f,prenom:e.target.value}))}/></div>
                   <div className="field-group"><label className="field-lbl">{lang==='ar'?'اللقب':'Nom'}</label><input className="field-input" value={formEditInst.nom} onChange={e=>setFormEditInst(f=>({...f,nom:e.target.value}))}/></div>
