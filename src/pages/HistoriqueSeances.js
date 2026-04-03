@@ -217,15 +217,15 @@ export default function HistoriqueSeances({ user, navigate, goBack, lang='fr' })
     const filtreNom = filterEleve!=='tous' ? (eleves.find(e=>e.id===filterEleve)||{prenom:'',nom:''}) : null;
 
     const ws1 = XLSX.utils.aoa_to_sheet([
-      ['Analyse des Séances / تحليل الحصص'],
-      ['Période / الفترة: '+dateDebut+' → '+dateFin],
-      filtreNom ? ['Élève / الطالب: '+filtreNom.prenom+' '+filtreNom.nom] : [],
-      filterNiveau!=='tous' ? ['Niveau / المستوى: '+filterNiveau] : [],
+      [lang==='ar'?'تحليل الحصص':lang==='ar'?'تحليل الحصص':'Analyse des Séances'],
+      [(lang==='ar'?'الفترة: ':'Période: ')+dateDebut+' → '+dateFin],
+      filtreNom ? [(lang==='ar'?'الطالب: ':'Élève: ')+filtreNom.prenom+' '+filtreNom.nom] : [],
+      filterNiveau!=='tous' ? [(lang==='ar'?'المستوى: ':'Niveau: ')+filterNiveau] : [],
       [],
-      ['Élèves actifs','Points','Tomon','Hizb','Sourates','Séquences','Jours actifs'],
+      [lang==='ar'?'الطلاب النشطون':'Élèves actifs',lang==='ar'?'النقاط':'Points','Tomon','Hizb',lang==='ar'?'السور':'Sourates',lang==='ar'?'المقاطع':'Séquences',lang==='ar'?'أيام النشاط':'Jours actifs'],
       [(filterEleve!=='tous'?1:elevesActifs.size),(filterEleve!=='tous'?(actifs.find(s=>s.eleve.id===filterEleve)||{pts:0}).pts:ptsTotal),tomonTotal,hizbTotal,souratesTotal,sequencesTotal,joursActifs],
       [],
-      ['#','Nom / الاسم','Niveau','Instituteur','Tomon','Hizb','Sourates','Séq.','Points','Séances','Obj %','Tendance'],
+      ['#',lang==='ar'?'الاسم':'Nom',lang==='ar'?'المستوى':'Niveau',lang==='ar'?'الأستاذ':'Instituteur','Tomon','Hizb',lang==='ar'?'السور':'Sourates',lang==='ar'?'مقاطع':'Séq.','Points','Séances','Obj %','Tendance'],
       ...dataToExport.map((s,i)=>[i+1,s.eleve.prenom+' '+s.eleve.nom,s.eleve.code_niveau||'?',s.instituteurNom,s.tomon,s.hizb,s.sourates,s.seqs,s.pts,s.nbSeances,s.pctObj!==null?s.pctObj+'%':'—',s.trend==='up'?'↑':s.trend==='down'?'↓':'=']),
     ].filter(r=>r.length>0));
     ws1['!cols']=[{wch:4},{wch:24},{wch:8},{wch:20},{wch:8},{wch:8},{wch:10},{wch:8},{wch:10},{wch:8},{wch:8},{wch:10}];
@@ -347,13 +347,13 @@ export default function HistoriqueSeances({ user, navigate, goBack, lang='fr' })
     }).join('');
 
     const subtitle = (filtreNom?filtreNom.prenom+' '+filtreNom.nom+' · ':'')
-      +(filterNiveau!=='tous'?'Niveau '+filterNiveau+' · ':'')
+      +(filterNiveau!=='tous'?(lang==='ar'?'المستوى ':' Niveau ')+filterNiveau+' · ':'')
       +(instNom?instNom.prenom+' '+instNom.nom+' · ':'')
       +dateDebut+' → '+dateFin;
 
     const html = '<!DOCTYPE html><html dir="'+dir+'"><head><meta charset="UTF-8">'
       +'<title>Analyse des Séances</title>'
-      +'<style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:Arial,sans-serif;color:#1a1a1a;padding:20px;font-size:12px}'
+      +'<style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:'Tajawal',Arial,sans-serif;direction:'+(lang==='ar'?'rtl':'ltr')+';text-align:'+(lang==='ar'?'right':'left')+';color:#1a1a1a;padding:20px;font-size:12px}'
       +'.header{background:linear-gradient(135deg,#085041,#1D9E75);color:#fff;padding:16px 20px;border-radius:10px;margin-bottom:16px}'
       +'.header h1{font-size:18px;font-weight:800;margin-bottom:4px}'
       +'.header .sub{font-size:11px;opacity:0.8}'
@@ -397,7 +397,7 @@ export default function HistoriqueSeances({ user, navigate, goBack, lang='fr' })
     <div>
       <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'1.25rem',flexWrap:'wrap',gap:8}}>
         <button className="back-link" onClick={()=>goBack?goBack():navigate('dashboard')}>← {t(lang,'retour')}</button>
-        <div style={{fontSize:18,fontWeight:700,color:'#085041'}}>📊 {lang==='ar'?'تحليل الحصص':lang==='en'?'Session Analysis':'Analyse des Séances'}</div>
+        <div style={{fontSize:18,fontWeight:700,color:'#085041'}}>📊 {lang==='ar'?'تحليل الحصص':lang==='en'?'Session Analysis':lang==='ar'?'تحليل الحصص':'Analyse des Séances'}</div>
         <div style={{display:'flex',gap:6,alignItems:'center'}}>
           <span style={{fontSize:12,color:'#888'}}>{elevesVisibles.length} {lang==='ar'?'طالب':lang==='en'?'students':'élèves'}</span>
           <button onClick={exportExcel} style={{padding:'6px 12px',background:'#1D9E75',color:'#fff',border:'none',borderRadius:8,fontSize:11,fontWeight:600,cursor:'pointer'}}>📥 Excel</button>

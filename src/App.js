@@ -154,7 +154,7 @@ export default function App() {
                 {p:'seance', label:'📋 '+t(lang,'seance'), roles:['surveillant','instituteur']},
                 {p:'calendrier', label:'📅 '+t(lang,'calendrier'), roles:['surveillant','instituteur']},
                 {p:'rapport_mensuel', label:'📊 '+t(lang,'rapport'), roles:['surveillant']},
-                {p:'historique_seances', label:'📈 '+t(lang,'historique')||'Historique', roles:['surveillant','instituteur']},
+                {p:'historique_seances', label:'📈 '+(t(lang,'historique')||'Historique'), roles:['surveillant','instituteur']},
                 {p:'objectifs', label:'🎯 '+(lang==='ar'?'الأهداف':lang==='en'?'Objectives':'Objectifs'), roles:['surveillant']},
                 {p:'finance', label:'💰 '+(lang==='ar'?'المالية':'Finance'), roles:['surveillant']},
                 {p:'gestion', label:'⚙️ '+t(lang,'gestion'), roles:['surveillant','instituteur']},

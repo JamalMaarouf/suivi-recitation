@@ -168,7 +168,7 @@ export default function EnregistrerRecitation({  user, eleve: eleveInitial, navi
       <div className="page-title">{t(lang,'enregistrer_recitation_titre')}</div>
 
       <div className="steps-row">
-        {[['Élève', 1], ['Validation', 2], ['Confirmer', 3]].map(([label, n], i) => (
+        {[[lang==='ar'?'الطالب':'Élève', 1], [lang==='ar'?'التسميع':'Validation', 2], [lang==='ar'?'تأكيد':'Confirmer', 3]].map(([label, n], i) => (
           <React.Fragment key={n}>
             {i > 0 && <div className={`step-line ${step > n - 1 ? 'done' : ''}`} />}
             <div className="step-item">
@@ -318,7 +318,7 @@ export default function EnregistrerRecitation({  user, eleve: eleveInitial, navi
         <div>
           <div className="section-label">Récapitulatif</div>
           <div className="recap-card">
-            <div className="recap-row"><span className="recap-lbl">Élève</span><span className="recap-val">{selectedEleve.prenom} {selectedEleve.nom}</span></div>
+            <div className="recap-row"><span className="recap-lbl">{lang==='ar'?'الطالب':'Élève'}</span><span className="recap-val">{selectedEleve.prenom} {selectedEleve.nom}</span></div>
             <div className="recap-row"><span className="recap-lbl">Hizb</span><span className="recap-val">Hizb {etat.hizbEnCours}</span></div>
             {typeValidation === 'tomon' ? (
               <>

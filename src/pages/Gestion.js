@@ -147,7 +147,7 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr' }) {
   const [formParent, setFormParent] = useState({prenom:'',nom:'',identifiant:'',mot_de_passe:'',telephone:'',eleve_ids:[]});
   const [showFormParent, setShowFormParent] = useState(false);
   const [confirmModal, setConfirmModal] = useState({isOpen:false,title:'',message:'',onConfirm:null,confirmColor:'#E24B4A',confirmLabel:''});
-  const showConfirm = (title, message, onConfirm, confirmLabel, confirmColor) => setConfirmModal({isOpen:true,title,message,onConfirm,confirmLabel:confirmLabel||'Supprimer',confirmColor:confirmColor||'#E24B4A'});
+  const showConfirm = (title, message, onConfirm, confirmLabel, confirmColor) => setConfirmModal({isOpen:true,title,message,onConfirm,confirmLabel:confirmLabel||(lang==='ar'?'حذف':'Supprimer'),confirmColor:confirmColor||'#E24B4A'});
   const hideConfirm = () => setConfirmModal(m=>({...m,isOpen:false,onConfirm:null}));
   const [editingParentId, setEditingParentId] = useState(null);
   const [searchParent, setSearchParent] = useState('');
@@ -229,7 +229,7 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr' }) {
       lang==='ar'?'⚠️ حذف الطالب':'⚠️ Supprimer eleve',
       lang==='ar'
         ? 'سيتم حذف جميع بيانات '+nom+' (التسميعات، الأهداف، الاشتراكات). هذا الإجراء لا رجعة منه!'
-        : 'Toutes les données de '+nom+' seront supprimées (récitations, objectifs, cotisations). Action irréversible !',
+        : (lang==='ar'?'سيتم حذف جميع بيانات '+nom+' نهائياً':'Toutes les données de '+nom+' seront supprimées. Action irréversible !'),
       async () => {
         hideConfirm();
         // Step 2: second confirmation for critical data
@@ -313,7 +313,7 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr' }) {
     const XLSX = window.XLSX;
     const wb = XLSX.utils.book_new();
     const ws = XLSX.utils.aoa_to_sheet([
-      ['#','Prénom','Nom','Identifiant','Téléphone','Enfants'],
+      ['#',lang==='ar'?'الاسم':'Prénom',lang==='ar'?'اللقب':'Nom',lang==='ar'?'المعرف':'Identifiant',lang==='ar'?'الهاتف':'Téléphone',lang==='ar'?'الأبناء':'Enfants'],
       ...parents.map((p,i)=>[i+1,p.prenom,p.nom,p.identifiant,p.telephone||'—',(p.liens||[]).map(l=>l.eleve?l.eleve.prenom+' '+l.eleve.nom:'?').join(', ')])
     ]);
     ws['!cols']=[{wch:4},{wch:16},{wch:16},{wch:18},{wch:14},{wch:30}];
@@ -331,7 +331,7 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr' }) {
     const XLSX = window.XLSX;
     const wb = XLSX.utils.book_new();
     const ws = XLSX.utils.aoa_to_sheet([
-      ['#', lang==='ar'?'الاسم':'Prénom', lang==='ar'?'اللقب':'Nom', lang==='ar'?'رقم التعريف':'N° Élève', lang==='ar'?'المستوى':'Niveau', lang==='ar'?'الصف':'Classe', lang==='ar'?'الأستاذ المرجع':'Instituteur'],
+      [lang==='ar'?'#':'#', lang==='ar'?'الاسم':'Prénom', lang==='ar'?'اللقب':'Nom', lang==='ar'?'رقم التعريف':'N° Élève', lang==='ar'?'المستوى':'Niveau', lang==='ar'?'الصف':'Classe', lang==='ar'?'الأستاذ المرجع':'Instituteur'],
       ...eleves.map((e,i) => {
         const inst = instituteurs.find(x=>x.id===e.instituteur_referent_id);
         return [i+1, e.prenom, e.nom, e.eleve_id_ecole||'—', e.code_niveau||'?', NIVEAU_LABELS[e.code_niveau||'']||'—', inst?inst.prenom+' '+inst.nom:'—'];
@@ -379,16 +379,16 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr' }) {
         +'</tr>';
     }).join('');
 
-    const html = '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Liste Élèves</title>'
-      +'<style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:Arial,sans-serif;padding:20px;font-size:12px}'
+    const html = '<!DOCTYPE html><html dir="'+(lang==='ar'?'rtl':'ltr')+'" lang="'+(lang==='ar'?'ar':'fr')+'"><head><meta charset="UTF-8"><title>Liste Élèves</title>'
+      +'<style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:'Tajawal',Arial,sans-serif;direction:'+(lang==='ar'?'rtl':'ltr')+';text-align:'+(lang==='ar'?'right':'left')+';padding:20px;font-size:12px}'
       +'.header{background:linear-gradient(135deg,#085041,#1D9E75);color:#fff;padding:16px 20px;border-radius:10px;margin-bottom:16px}'
       +'h1{font-size:18px;font-weight:800;margin-bottom:4px}'
       +'table{width:100%;border-collapse:collapse;margin-top:10px}'
-      +'th{background:#085041;color:#fff;padding:8px;text-align:left;font-size:11px}'
+      +'th{background:#085041;color:#fff;padding:8px;text-align:'+(lang==='ar'?'right':'left')+';font-size:11px}td{padding:6px 8px;border-bottom:1px solid #f0f0ec}'+'th2{font-size:11px}'
       +'td{padding:7px 8px;border-bottom:1px solid #f0f0ec;font-size:11px}'
       +'.footer{margin-top:16px;font-size:9px;color:#bbb;border-top:1px solid #e0e0d8;padding-top:8px;text-align:center}'
       +'@media print{body{padding:10px}}</style></head><body>'
-      +'<div class="header"><h1>👥 '+(lang==='ar'?'قائمة الطلاب':'Liste des Élèves')+'</h1>'
+      +'<div class="header"><h1>👥 '+(lang==='ar'?'قائمة الطلاب':lang==='ar'?'قائمة الطلاب':'Liste des Élèves')+'</h1>'
       +'<div style="font-size:11px;opacity:0.8">'+eleves.length+' '+(lang==='ar'?'طالب':'élève(s)')+' · '+new Date().toLocaleDateString('fr-FR')+'</div></div>'
       +'<table><thead><tr>'
       +'<th>#</th><th>'+(lang==='ar'?'الاسم':'Nom complet')+'</th><th>'+(lang==='ar'?'رقم التعريف':'N° Élève')+'</th>'
@@ -419,12 +419,12 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr' }) {
         +'</tr>';
     }).join('');
 
-    const html = '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Liste Instituteurs</title>'
-      +'<style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:Arial,sans-serif;padding:20px;font-size:12px}'
+    const html = '<!DOCTYPE html><html dir="'+(lang==='ar'?'rtl':'ltr')+'" lang="'+(lang==='ar'?'ar':'fr')+'"><head><meta charset="UTF-8"><title>Liste Instituteurs</title>'
+      +'<style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:'Tajawal',Arial,sans-serif;direction:'+(lang==='ar'?'rtl':'ltr')+';text-align:'+(lang==='ar'?'right':'left')+';padding:20px;font-size:12px}'
       +'.header{background:linear-gradient(135deg,#085041,#1D9E75);color:#fff;padding:16px 20px;border-radius:10px;margin-bottom:16px}'
       +'h1{font-size:18px;font-weight:800;margin-bottom:4px}'
       +'table{width:100%;border-collapse:collapse;margin-top:10px}'
-      +'th{background:#085041;color:#fff;padding:8px;text-align:left;font-size:11px}'
+      +'th{background:#085041;color:#fff;padding:8px;text-align:'+(lang==='ar'?'right':'left')+';font-size:11px}td{padding:6px 8px;border-bottom:1px solid #f0f0ec}'+'th2{font-size:11px}'
       +'td{padding:7px 8px;border-bottom:1px solid #f0f0ec;font-size:11px}'
       +'.footer{margin-top:16px;font-size:9px;color:#bbb;border-top:1px solid #e0e0d8;padding-top:8px;text-align:center}'
       +'</style></head><body>'

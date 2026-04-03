@@ -214,7 +214,7 @@ export default function RapportMensuel({  user, navigate, goBack , lang="fr" }) 
           <button onClick={nextMois} style={{ padding: '6px 14px', border: '0.5px solid #e0e0d8', borderRadius: 8, background: '#fff', cursor: 'pointer', fontSize: 16 }}>›</button>
         </div>
         <button onClick={imprimerRapport} style={{ padding: '8px 18px', background: '#1D9E75', color: '#fff', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
-          🖨️ Imprimer rapport PDF
+          {lang==='ar'?'🖨️ طباعة التقرير':'🖨️ Imprimer rapport PDF'}
         </button>
       </div>
 
@@ -236,7 +236,7 @@ export default function RapportMensuel({  user, navigate, goBack , lang="fr" }) 
           </div>
 
           {/* Tableau élèves avec objectifs */}
-          <div className="section-label">Performance et objectifs — {getMoisNom(mois, lang)} {annee}</div>
+          <div className="section-label">{lang==='ar'?'الأداء والأهداف':'Performance et objectifs'} — {getMoisNom(mois, lang)} {annee}</div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             {statsEleves.map((e, idx) => (
               <div key={e.id} style={{ background: '#fff', border: '0.5px solid #e0e0d8', borderRadius: 12, padding: '14px' }}>
@@ -295,7 +295,7 @@ export default function RapportMensuel({  user, navigate, goBack , lang="fr" }) 
           </div>
 
           {/* Stats par instituteur */}
-          <div className="section-label" style={{ marginTop: '1.5rem' }}>Performance par instituteur</div>
+          <div className="section-label" style={{ marginTop: '1.5rem' }}>{lang==='ar'?'الأداء حسب الأستاذ':'Performance par instituteur'}</div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px,1fr))', gap: 10 }}>
             {instituteurs.map(inst => {
               const ei = statsEleves.filter(e => e.instituteur_referent_id === inst.id);

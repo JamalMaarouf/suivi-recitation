@@ -372,8 +372,8 @@ export default function PortailParent({ parent, navigate, goBack, lang='fr' }) {
           </div>
           {cotE.length===0?<div className="empty">{lang==='ar'?'لا اشتراكات مسجلة':'Aucune cotisation'}</div>:(
             cotE.map((c,i)=>{
-              const STATUTS = {paye:{label:'Payé',labelAr:'مدفوع',color:'#1D9E75',bg:'#E1F5EE'},partiel:{label:'Partiel',labelAr:'جزئي',color:'#EF9F27',bg:'#FAEEDA'},non_paye:{label:'Non payé',labelAr:'غير مدفوع',color:'#E24B4A',bg:'#FCEBEB'},exonere:{label:'Exonéré',labelAr:'معفى',color:'#888',bg:'#f5f5f0'}};
-              const st = STATUTS[c.statut]||STATUTS.paye;
+              const STATUTS_P = {paye:{label:'Payé',labelAr:'مدفوع',color:'#1D9E75',bg:'#E1F5EE'},partiel:{label:'Partiel',labelAr:'جزئي',color:'#EF9F27',bg:'#FAEEDA'},non_paye:{label:'Non payé',labelAr:'غير مدفوع',color:'#E24B4A',bg:'#FCEBEB'},exonere:{label:'Exonéré',labelAr:'معفى',color:'#888',bg:'#f5f5f0'}};
+              const st = STATUTS_P[c.statut]||STATUTS_P.paye;
               return(
                 <div key={c.id} style={{display:'flex',alignItems:'center',gap:12,padding:'10px 0',borderBottom:'0.5px solid #f0f0ec'}}>
                   <div style={{flex:1}}>
