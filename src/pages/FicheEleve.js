@@ -111,6 +111,7 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang='fr' })
   const [etat, setEtat] = useState(null);
   const [onglet, setOnglet] = useState('apercu');
   const [showAcquis, setShowAcquis] = useState(false);
+  const [exceptionsHizb, setExceptionsHizb] = useState([]);
   const [showExceptionModal, setShowExceptionModal] = useState(false);
   const [editObj, setEditObj] = useState(false);
   const [newObjVal, setNewObjVal] = useState('');
@@ -123,9 +124,10 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang='fr' })
   const loadData = async () => {
     setLoading(true);
     try {
-      const [{data:vals},{data:appr}] = await Promise.all([
+      const [{data:vals},{data:appr},{data:exhizb}] = await Promise.all([
         supabase.from('validations').select('*, valideur:valide_par(prenom,nom)').eq('eleve_id',eleve.id).order('date_validation',{ascending:false}),
         supabase.from('apprentissages').select('*').eq('eleve_id',eleve.id).order('date_debut',{ascending:false}),
+        supabase.from('exceptions_hizb').select('*').eq('eleve_id',eleve.id).eq('active',true),
       ]);
       if (eleve.instituteur_referent_id) {
         const {data:inst}=await supabase.from('utilisateurs').select('prenom,nom').eq('id',eleve.instituteur_referent_id).single();
@@ -135,6 +137,7 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang='fr' })
       setEtat(e);
       setValidations(vals||[]);
       setApprentissages(appr||[]);
+      setExceptionsHizb(exhizb||[]);
     } catch(err) {
       console.error('FicheEleve loadData error:', err);
       // Set minimal etat so page renders
