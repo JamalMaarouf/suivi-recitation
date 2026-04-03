@@ -49,6 +49,8 @@ export const LangContext = React.createContext({ lang: 'fr', setLang: () => {} }
 export default function App() {
   const [user, setUser] = useState(null);
   const [page, setPage] = useState('dashboard');
+  const pageRef = React.useRef('dashboard');
+  const setPageWithRef = (p) => { pageRef.current = p; setPageWithRef(p); };
   const [selectedEleve, setSelectedEleve] = useState(null);
   const [selectedInstituteur, setSelectedInstituteur] = useState(null);
   const [compareEleves, setCompareEleves] = useState([]);
@@ -80,14 +82,14 @@ export default function App() {
   }, [lang]);
 
   const handleLogin = (u) => { setUser(u); localStorage.setItem('suivi_user', JSON.stringify(u)); };
-  const handleLogout = () => { setUser(null); localStorage.removeItem('suivi_user'); setPage('dashboard'); };
+  const handleLogout = () => { setUser(null); localStorage.removeItem('suivi_user'); setPageWithRef('dashboard'); };
 
   const [navHistory, setNavHistory] = useState([]);
 
   const navigate = (p, data = null) => {
     // Save current page to history before navigating
-    setNavHistory(h => [...h.slice(-19), { page, selectedEleve, selectedInstituteur }]);
-    setPage(p);
+    setNavHistory(h => [...h.slice(-19), { page: pageRef.current, selectedEleve, selectedInstituteur }]);
+    setPageWithRef(p);
     if (p === 'fiche' || p === 'enregistrer') setSelectedEleve(data);
     if (p === 'profil_instituteur') setSelectedInstituteur(data);
     if (p === 'comparaison') setCompareEleves(data || []);
@@ -95,10 +97,10 @@ export default function App() {
   };
 
   const goBack = () => {
-    if (navHistory.length === 0) { setPage('dashboard'); return; }
+    if (navHistory.length === 0) { setPageWithRef('dashboard'); return; }
     const prev = navHistory[navHistory.length - 1];
     setNavHistory(h => h.slice(0, -1));
-    setPage(prev.page);
+    setPageWithRef(prev.page);
     if (prev.selectedEleve !== undefined) setSelectedEleve(prev.selectedEleve);
     if (prev.selectedInstituteur !== undefined) setSelectedInstituteur(prev.selectedInstituteur);
     window.scrollTo(0, 0);
