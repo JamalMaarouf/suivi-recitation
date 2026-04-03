@@ -396,7 +396,7 @@ export default function HistoriqueSeances({ user, navigate, goBack, lang='fr' })
   return (
     <div>
       <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'1.25rem',flexWrap:'wrap',gap:8}}>
-        <button className="back-link" onClick={()=>goBack?goBack():navigate('seance')}>← {t(lang,'retour')}</button>
+        <button className="back-link" onClick={()=>goBack?goBack():navigate('dashboard')}>← {t(lang,'retour')}</button>
         <div style={{fontSize:18,fontWeight:700,color:'#085041'}}>📊 {lang==='ar'?'تحليل الحصص':lang==='en'?'Session Analysis':'Analyse des Séances'}</div>
         <div style={{display:'flex',gap:6,alignItems:'center'}}>
           <span style={{fontSize:12,color:'#888'}}>{elevesVisibles.length} {lang==='ar'?'طالب':lang==='en'?'students':'élèves'}</span>

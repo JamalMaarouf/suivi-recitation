@@ -138,7 +138,7 @@ export default function FicheSourate({ eleve, user, navigate, goBack, lang='fr' 
   return (
     <div>
       <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'1.25rem',flexWrap:'wrap',gap:8}}>
-        <button className="back-link" onClick={() => navigate('dashboard')}>{t(lang,'retour')}</button>
+        <button className="back-link" onClick={()=>goBack?goBack():navigate('dashboard')}>{t(lang,'retour')}</button>
         <div style={{display:'flex',gap:8}}>
           <button className="btn-secondary" onClick={handlePrint} style={{fontSize:12,padding:'6px 14px'}}>{t(lang,'imprimer_pdf')}</button>
           <button className="btn-primary" style={{width:'auto',padding:'6px 14px',fontSize:12}} onClick={() => navigate('enregistrer', eleve)}>

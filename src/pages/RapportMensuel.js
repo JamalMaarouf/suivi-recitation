@@ -204,7 +204,7 @@ export default function RapportMensuel({  user, navigate, goBack , lang="fr" }) 
 
   return (
     <div>
-      <button className="back-link" onClick={() => navigate('dashboard')}>{t(lang,'retour')}</button>
+      <button className="back-link" onClick={()=>goBack?goBack():navigate('dashboard')}>{t(lang,'retour')}</button>
 
       {/* Header navigation mois */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.5rem', flexWrap: 'wrap', gap: 8 }}>

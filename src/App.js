@@ -147,15 +147,22 @@ export default function App() {
                 {user.prenom} · <em>{t(lang, user.role === 'surveillant' ? 'role_surveillant' : 'role_instituteur')}</em>
               </span>
               <LangSelector />
-              <button className="nav-btn" onClick={() => navigate('validation_rapide')}>⚡ {t(lang, 'express')}</button>
-              <button className="nav-btn" onClick={() => navigate('seance')}>📋 {t(lang, 'seance')}</button>
-              <button className="nav-btn" onClick={() => navigate('calendrier')}>📅 {t(lang, 'calendrier')}</button>
-              {user.role === 'surveillant' && <>
-                <button className="nav-btn" onClick={() => navigate('rapport_mensuel')}>📊 {t(lang, 'rapport')}</button>
-                {user.role==='surveillant' && <button className="nav-btn" onClick={() => navigate('objectifs')} style={{background:'#085041',color:'#fff',fontWeight:600}}>🎯 {lang==='ar'?'الأهداف':lang==='en'?'Objectives':'Objectifs'}</button>}
-                {user.role==='surveillant' && <button className="nav-btn" onClick={() => navigate('finance')} style={{background:'#1D9E75',color:'#fff',fontWeight:600}}>💰 {lang==='ar'?'المالية':lang==='en'?'Finance':'Finance'}</button>}
-                <button className="nav-btn" onClick={() => navigate('gestion')}>⚙️ {t(lang, 'gestion')}</button>
-              </>}
+              {[
+                {p:'validation_rapide', label:'⚡ '+t(lang,'express'), roles:['surveillant','instituteur']},
+                {p:'seance', label:'📋 '+t(lang,'seance'), roles:['surveillant','instituteur']},
+                {p:'calendrier', label:'📅 '+t(lang,'calendrier'), roles:['surveillant','instituteur']},
+                {p:'rapport_mensuel', label:'📊 '+t(lang,'rapport'), roles:['surveillant']},
+                {p:'historique_seances', label:'📈 '+t(lang,'historique')||'Historique', roles:['surveillant','instituteur']},
+                {p:'objectifs', label:'🎯 '+(lang==='ar'?'الأهداف':lang==='en'?'Objectives':'Objectifs'), roles:['surveillant']},
+                {p:'finance', label:'💰 '+(lang==='ar'?'المالية':'Finance'), roles:['surveillant']},
+                {p:'gestion', label:'⚙️ '+t(lang,'gestion'), roles:['surveillant','instituteur']},
+              ].filter(b=>b.roles.includes(user.role)).map(b=>(
+                <button key={b.p}
+                  className={`nav-btn ${page===b.p?'active':''}`}
+                  onClick={() => navigate(b.p)}>
+                  {b.label}
+                </button>
+              ))}
               <button className="nav-btn nav-btn-logout" onClick={handleLogout}>{t(lang, 'deconnexion')}</button>
             </div>
           </nav>
