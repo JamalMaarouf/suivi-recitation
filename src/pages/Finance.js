@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
+import ConfirmModal from '../components/ConfirmModal';
 import { getInitiales } from '../lib/helpers';
 import { t } from '../lib/i18n';
 
@@ -70,6 +71,9 @@ function StatCard({ icon, val, lbl, color, bg, sub }) {
       </div>
       <div style={{fontSize:26,fontWeight:800,color,letterSpacing:'-1px'}}>{val}</div>
       {sub&&<div style={{fontSize:11,color,opacity:0.6,marginTop:2}}>{sub}</div>}
+    <ConfirmModal isOpen={confirmModal.isOpen} title={confirmModal.title} message={confirmModal.message}
+        onConfirm={confirmModal.onConfirm} onCancel={hideConfirm}
+        confirmLabel={confirmModal.confirmLabel} confirmColor={confirmModal.confirmColor} lang={lang}/>
     </div>
   );
 }
@@ -87,6 +91,9 @@ export default function Finance({ user, navigate, goBack, lang='fr' }) {
   const [showFormCot, setShowFormCot] = useState(false);
   const [showFormDep, setShowFormDep] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [confirmModal, setConfirmModal] = useState({isOpen:false,title:'',message:'',onConfirm:null,confirmColor:'#E24B4A',confirmLabel:''});
+  const showConfirm = (title, message, onConfirm, confirmLabel, confirmColor) => setConfirmModal({isOpen:true,title,message,onConfirm,confirmLabel:confirmLabel||'Supprimer',confirmColor:confirmColor||'#E24B4A'});
+  const hideConfirm = () => setConfirmModal(m=>({...m,isOpen:false,onConfirm:null}));
 
   const [formCot, setFormCot] = useState({
     eleve_id: '', montant: '', date_paiement: new Date().toISOString().split('T')[0],
@@ -173,17 +180,17 @@ export default function Finance({ user, navigate, goBack, lang='fr' }) {
     await loadData();
   };
 
-  const deleteCotisation = async (id) => {
-    if (!window.confirm(lang==='ar'?'حذف هذا الاشتراك؟':'Supprimer cette cotisation ?')) return;
-    await supabase.from('cotisations').delete().eq('id',id);
-    await loadData();
-  };
+  const deleteCotisation = (id) => showConfirm(
+    lang==='ar'?'حذف الاشتراك':'Supprimer la cotisation',
+    lang==='ar'?'هل تريد حذف هذا الاشتراك نهائياً؟':'Supprimer définitivement cette cotisation ?',
+    async()=>{ await supabase.from('cotisations').delete().eq('id',id); await loadData(); hideConfirm(); }
+  );
 
-  const deleteDepense = async (id) => {
-    if (!window.confirm(lang==='ar'?'حذف هذا المصروف؟':'Supprimer cette dépense ?')) return;
-    await supabase.from('depenses').delete().eq('id',id);
-    await loadData();
-  };
+  const deleteDepense = (id) => showConfirm(
+    lang==='ar'?'حذف المصروف':'Supprimer la dépense',
+    lang==='ar'?'هل تريد حذف هذا المصروف نهائياً؟':'Supprimer définitivement cette dépense ?',
+    async()=>{ await supabase.from('depenses').delete().eq('id',id); await loadData(); hideConfirm(); }
+  );
 
   // Computed stats
   const debut = new Date(dateDebut); debut.setHours(0,0,0,0);

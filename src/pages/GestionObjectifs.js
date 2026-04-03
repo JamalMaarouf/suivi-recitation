@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
+import ConfirmModal from '../components/ConfirmModal';
 import { t } from '../lib/i18n';
 import { SOURATES_5B, SOURATES_5A, SOURATES_2M } from '../lib/sourates';
 
@@ -99,6 +100,9 @@ export default function GestionObjectifs({ user, navigate, goBack, lang='fr' }) 
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [confirmModal, setConfirmModal] = useState({isOpen:false,title:'',message:'',onConfirm:null,confirmColor:'#E24B4A',confirmLabel:''});
+  const showConfirm = (title, message, onConfirm, confirmLabel, confirmColor) => setConfirmModal({isOpen:true,title,message,onConfirm,confirmLabel:confirmLabel||'Supprimer',confirmColor:confirmColor||'#E24B4A'});
+  const hideConfirm = () => setConfirmModal(m=>({...m,isOpen:false,onConfirm:null}));
   const [editingId, setEditingId] = useState(null);
   const [msg, setMsg] = useState(null);
 
@@ -220,11 +224,11 @@ export default function GestionObjectifs({ user, navigate, goBack, lang='fr' }) 
     await loadData();
   };
 
-  const deleteObjectif = async (id) => {
-    if (!window.confirm(lang==='ar'?'حذف هذا الهدف؟':lang==='en'?'Delete this objective?':'Supprimer cet objectif ?')) return;
-    await supabase.from('objectifs_globaux').delete().eq('id', id);
-    await loadData();
-  };
+  const deleteObjectif = (id) => showConfirm(
+    lang==='ar'?'حذف الهدف':lang==='en'?'Delete objective':'Supprimer objectif',
+    lang==='ar'?'هل تريد حذف هذا الهدف نهائياً؟':lang==='en'?'Delete this objective permanently?':'Supprimer définitivement cet objectif ?',
+    async()=>{ await supabase.from('objectifs_globaux').delete().eq('id', id); await loadData(); hideConfirm(); }
+  );
 
   // Get validations for an objectif's scope
   const getValsForObj = (obj) => {
@@ -736,6 +740,9 @@ export default function GestionObjectifs({ user, navigate, goBack, lang='fr' }) 
           })}
         </div>
       )}
+    <ConfirmModal isOpen={confirmModal.isOpen} title={confirmModal.title} message={confirmModal.message}
+        onConfirm={confirmModal.onConfirm} onCancel={hideConfirm}
+        confirmLabel={confirmModal.confirmLabel} confirmColor={confirmModal.confirmColor} lang={lang}/>
     </div>
   );
 }

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
+import ConfirmModal from '../components/ConfirmModal';
 import { getInitiales, calcEtatEleve, calcPoints } from '../lib/helpers';
 import { SOURATES_5B, SOURATES_5A, SOURATES_2M, isSourateNiveau } from '../lib/sourates';
 import { t } from '../lib/i18n';
@@ -8,6 +9,16 @@ function Avatar({ prenom, nom, size = 28 }) {
   return (
     <div style={{ width: size, height: size, borderRadius: '50%', background: '#E1F5EE', color: '#085041', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 600, fontSize: size * 0.33, flexShrink: 0 }}>
       {getInitiales(prenom, nom)}
+    <ConfirmModal
+        isOpen={confirmModal.isOpen}
+        title={confirmModal.title}
+        message={confirmModal.message}
+        onConfirm={confirmModal.onConfirm}
+        onCancel={hideConfirm}
+        confirmLabel={confirmModal.confirmLabel}
+        confirmColor={confirmModal.confirmColor}
+        lang={lang}
+      />
     </div>
   );
 }
@@ -145,6 +156,9 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr' }) {
   const [parents, setParents] = useState([]);
   const [formParent, setFormParent] = useState({prenom:'',nom:'',identifiant:'',mot_de_passe:'',telephone:'',eleve_ids:[]});
   const [showFormParent, setShowFormParent] = useState(false);
+  const [confirmModal, setConfirmModal] = useState({isOpen:false,title:'',message:'',onConfirm:null,confirmColor:'#E24B4A',confirmLabel:''});
+  const showConfirm = (title, message, onConfirm, confirmLabel, confirmColor) => setConfirmModal({isOpen:true,title,message,onConfirm,confirmLabel:confirmLabel||'Supprimer',confirmColor:confirmColor||'#E24B4A'});
+  const hideConfirm = () => setConfirmModal(m=>({...m,isOpen:false,onConfirm:null}));
   const [editingParentId, setEditingParentId] = useState(null);
   const [searchParent, setSearchParent] = useState('');
   const [eleves, setEleves] = useState([]);
@@ -218,7 +232,7 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr' }) {
   };
 
   const supprimerEleve = async (id) => {
-    if (!window.confirm(t(lang, 'supprimer_eleve_confirm'))) return;
+    // REPLACED: if (!window.confirm(t(lang, 'supprimer_eleve_confirm'))) return;
     await supabase.from('validations').delete().eq('eleve_id', id);
     await supabase.from('apprentissages').delete().eq('eleve_id', id);
     await supabase.from('objectifs').delete().eq('eleve_id', id);
@@ -241,7 +255,7 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr' }) {
   };
 
   const supprimerInstituteur = async (id) => {
-    if (!window.confirm(t(lang, 'supprimer_instituteur_confirm'))) return;
+    // REPLACED: if (!window.confirm(t(lang, 'supprimer_instituteur_confirm'))) return;
     await supabase.from('utilisateurs').delete().eq('id', id);
     showMsg('success', t(lang, 'instituteur_retire'));
     loadData();
@@ -789,13 +803,17 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr' }) {
                     setEditingParentId(p.id);
                     setShowFormParent(true);
                     window.scrollTo(0,0);
-                  }} style={{fontSize:10,color:'#378ADD',background:'none',border:'none',cursor:'pointer',padding:0}}>✏️</button>
-                  <button onClick={async()=>{
-                    if(!window.confirm(lang==='ar'?'حذف هذا الحساب؟':'Supprimer ce compte parent ?')) return;
-                    await supabase.from('parent_eleve').delete().eq('parent_id',p.id);
-                    await supabase.from('parents').delete().eq('id',p.id);
-                    setParents(prev=>prev.filter(x=>x.id!==p.id));
-                  }} style={{fontSize:10,color:'#E24B4A',background:'none',border:'none',cursor:'pointer',padding:0}}>🗑</button>
+                  }} style={{padding:'4px 8px',borderRadius:6,background:'#E6F1FB',color:'#378ADD',border:'0.5px solid #378ADD30',cursor:'pointer',fontSize:11,fontWeight:600}}>✏️ {lang==='ar'?'تعديل':'Modifier'}</button>
+                  <button onClick={()=>showConfirm(
+                    lang==='ar'?'حذف ولي الأمر':'Supprimer le parent',
+                    (lang==='ar'?'هل تريد حذف حساب ':'Supprimer le compte de ')+(p.prenom+' '+p.nom)+'?',
+                    async()=>{
+                      await supabase.from('parent_eleve').delete().eq('parent_id',p.id);
+                      await supabase.from('parents').delete().eq('id',p.id);
+                      setParents(prev=>prev.filter(x=>x.id!==p.id));
+                      hideConfirm();
+                    }
+                  )} style={{padding:'4px 8px',borderRadius:6,background:'#FCEBEB',color:'#E24B4A',border:'0.5px solid #E24B4A30',cursor:'pointer',fontSize:11,fontWeight:600}}>🗑 {lang==='ar'?'حذف':'Suppr.'}</button>
                 </div>
               </div>
             ))}
