@@ -19,6 +19,44 @@ const STATUTS = [
   { val: 'exonere',  label: 'Exonéré',        labelAr: 'معفى',        color: '#888',    bg: '#f5f5f0' },
 ];
 
+const TYPE_PERIODES = [
+  { val: 'mois',      label: 'Mois',       labelAr: 'شهر' },
+  { val: 'trimestre', label: 'Trimestre',  labelAr: 'فصل' },
+  { val: 'semestre',  label: 'Semestre',   labelAr: 'نصف سنة' },
+  { val: 'annee',     label: 'Année',      labelAr: 'سنة' },
+];
+
+const MOIS = [
+  { val:'01', fr:'Janvier', ar:'يناير' }, { val:'02', fr:'Février', ar:'فبراير' },
+  { val:'03', fr:'Mars',    ar:'مارس'  }, { val:'04', fr:'Avril',   ar:'أبريل'  },
+  { val:'05', fr:'Mai',     ar:'ماي'   }, { val:'06', fr:'Juin',    ar:'يونيو'  },
+  { val:'07', fr:'Juillet', ar:'يوليوز'}, { val:'08', fr:'Août',    ar:'غشت'   },
+  { val:'09', fr:'Septembre',ar:'شتنبر'}, { val:'10', fr:'Octobre', ar:'أكتوبر' },
+  { val:'11', fr:'Novembre',ar:'نونبر' }, { val:'12', fr:'Décembre',ar:'دجنبر' },
+];
+const TRIMESTRES = [
+  { val:'T1', fr:'T1 (Jan-Mar)', ar:'الفصل 1' },
+  { val:'T2', fr:'T2 (Avr-Jun)', ar:'الفصل 2' },
+  { val:'T3', fr:'T3 (Jul-Sep)', ar:'الفصل 3' },
+  { val:'T4', fr:'T4 (Oct-Déc)', ar:'الفصل 4' },
+];
+const SEMESTRES = [
+  { val:'S1', fr:'S1 (Jan-Jun)', ar:'النصف 1' },
+  { val:'S2', fr:'S2 (Jul-Déc)', ar:'النصف 2' },
+];
+
+const getAnnees = () => {
+  const current = new Date().getFullYear();
+  return [current-1, current, current+1].map(y=>({ val:String(y), fr:String(y), ar:String(y) }));
+};
+
+const buildPeriodeStr = (typePeriode, valPeriode, annee) => {
+  if (!typePeriode || !valPeriode || !annee) return '';
+  if (typePeriode === 'mois') return valPeriode + '-' + annee;
+  if (typePeriode === 'annee') return annee;
+  return valPeriode + '-' + annee;
+};
+
 function Avatar({ prenom, nom, size=34, bg='#E1F5EE', color='#085041' }) {
   return <div style={{width:size,height:size,borderRadius:'50%',background:bg,color,display:'flex',alignItems:'center',justifyContent:'center',fontWeight:600,fontSize:size*0.33,flexShrink:0}}>{getInitiales(prenom,nom)}</div>;
 }
@@ -52,8 +90,10 @@ export default function Finance({ user, navigate, goBack, lang='fr' }) {
 
   const [formCot, setFormCot] = useState({
     eleve_id: '', montant: '', date_paiement: new Date().toISOString().split('T')[0],
-    periode: '', statut: 'paye', note: ''
+    periode: '', typePeriode: 'mois', valPeriode: '', annee: String(new Date().getFullYear()),
+    statut: 'paye', note: ''
   });
+  const [searchEleveForm, setSearchEleveForm] = useState('');
   const [formDep, setFormDep] = useState({
     montant: '', date_depense: new Date().toISOString().split('T')[0],
     categorie: 'salaire', beneficiaire_id: '', description: '', reference: ''
@@ -62,6 +102,7 @@ export default function Finance({ user, navigate, goBack, lang='fr' }) {
   // Filters
   const [filterEleve, setFilterEleve] = useState('tous');
   const [filterStatut, setFilterStatut] = useState('tous');
+  const [filterIdEleve, setFilterIdEleve] = useState('');
   const [filterPeriode, setFilterPeriode] = useState('');
   const [filterCat, setFilterCat] = useState('tous');
   const [searchEleve, setSearchEleve] = useState('');
@@ -97,7 +138,7 @@ export default function Finance({ user, navigate, goBack, lang='fr' }) {
       eleve_id: formCot.eleve_id,
       montant: parseFloat(formCot.montant),
       date_paiement: formCot.date_paiement,
-      periode: formCot.periode||null,
+      periode: buildPeriodeStr(formCot.typePeriode, formCot.valPeriode, formCot.annee) || formCot.periode || null,
       statut: formCot.statut,
       note: formCot.note||null,
       created_by: user.id,
@@ -106,7 +147,8 @@ export default function Finance({ user, navigate, goBack, lang='fr' }) {
     if (error) return showMsg('error', error.message);
     showMsg('success', lang==='ar'?'تم تسجيل الاشتراك':'Cotisation enregistrée');
     setShowFormCot(false);
-    setFormCot({ eleve_id:'', montant:'', date_paiement:new Date().toISOString().split('T')[0], periode:'', statut:'paye', note:'' });
+    setFormCot({ eleve_id:'', montant:'', date_paiement:new Date().toISOString().split('T')[0], periode:'', typePeriode:'mois', valPeriode:'', annee:String(new Date().getFullYear()), statut:'paye', note:'' });
+    setSearchEleveForm('');
     await loadData();
   };
 
@@ -170,6 +212,7 @@ export default function Finance({ user, navigate, goBack, lang='fr' }) {
     if (filterEleve!=='tous' && c.eleve_id!==filterEleve) return false;
     if (filterStatut!=='tous' && c.statut!==filterStatut) return false;
     if (filterPeriode && c.periode && !c.periode.toLowerCase().includes(filterPeriode.toLowerCase())) return false;
+    if (filterIdEleve && c.eleve && !String(c.eleve.eleve_id_ecole||'').includes(filterIdEleve) && !(c.eleve.prenom+' '+c.eleve.nom).toLowerCase().includes(filterIdEleve.toLowerCase())) return false;
     return true;
   });
 
@@ -464,10 +507,21 @@ export default function Finance({ user, navigate, goBack, lang='fr' }) {
                 <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12,marginBottom:12}}>
                   <div className="field-group">
                     <label className="field-lbl">{lang==='ar'?'الطالب':'Élève'} *</label>
+                    <input className="field-input" placeholder={'🔍 '+(lang==='ar'?'بحث بالاسم أو رقم التعريف...':'Nom ou N° élève...')}
+                      value={searchEleveForm} onChange={e=>setSearchEleveForm(e.target.value)}
+                      style={{marginBottom:6}}/>
                     <select className="field-select" value={formCot.eleve_id} onChange={e=>setFormCot(f=>({...f,eleve_id:e.target.value}))}>
                       <option value="">— {lang==='ar'?'اختر':'Sélectionner'} —</option>
-                      {eleves.map(e=><option key={e.id} value={e.id}>{e.prenom} {e.nom}{e.eleve_id_ecole?' #'+e.eleve_id_ecole:''} ({e.code_niveau||'?'})</option>)}
+                      {eleves.filter(e=>!searchEleveForm||(e.prenom+' '+e.nom).toLowerCase().includes(searchEleveForm.toLowerCase())||String(e.eleve_id_ecole||'').includes(searchEleveForm)).map(e=>(
+                        <option key={e.id} value={e.id}>
+                          {e.eleve_id_ecole?'#'+e.eleve_id_ecole+' · ':''}{e.prenom} {e.nom} ({e.code_niveau||'?'})
+                        </option>
+                      ))}
                     </select>
+                    {formCot.eleve_id && (()=>{
+                      const el=eleves.find(x=>x.id===formCot.eleve_id);
+                      return el?<div style={{marginTop:4,fontSize:11,color:'#1D9E75',fontWeight:500}}>✓ {el.prenom} {el.nom}{el.eleve_id_ecole?' · #'+el.eleve_id_ecole:''}</div>:null;
+                    })()}
                   </div>
                   <div className="field-group">
                     <label className="field-lbl">{lang==='ar'?'المبلغ':'Montant (MAD)'} *</label>
@@ -478,8 +532,35 @@ export default function Finance({ user, navigate, goBack, lang='fr' }) {
                     <input className="field-input" type="date" value={formCot.date_paiement} onChange={e=>setFormCot(f=>({...f,date_paiement:e.target.value}))}/>
                   </div>
                   <div className="field-group">
-                    <label className="field-lbl">{lang==='ar'?'الفترة (اختياري)':'Période (optionnel)'}</label>
-                    <input className="field-input" value={formCot.periode} onChange={e=>setFormCot(f=>({...f,periode:e.target.value}))} placeholder="Ex: Jan-2026, T1-2026..."/>
+                    <label className="field-lbl">{lang==='ar'?'الفترة':'Période'}</label>
+                    <div style={{display:'flex',gap:6,marginBottom:6}}>
+                      {TYPE_PERIODES.map(tp=>(
+                        <div key={tp.val} onClick={()=>setFormCot(f=>({...f,typePeriode:tp.val,valPeriode:''}))}
+                          style={{flex:1,padding:'5px 4px',borderRadius:8,fontSize:11,fontWeight:formCot.typePeriode===tp.val?700:400,cursor:'pointer',textAlign:'center',
+                            background:formCot.typePeriode===tp.val?'#1D9E75':'#f5f5f0',color:formCot.typePeriode===tp.val?'#fff':'#888',
+                            border:'1px solid '+(formCot.typePeriode===tp.val?'#1D9E75':'#e0e0d8')}}>
+                          {lang==='ar'?tp.labelAr:tp.label}
+                        </div>
+                      ))}
+                    </div>
+                    <div style={{display:'flex',gap:6}}>
+                      {formCot.typePeriode!=='annee'&&(
+                        <select className="field-select" style={{flex:2}} value={formCot.valPeriode} onChange={e=>setFormCot(f=>({...f,valPeriode:e.target.value}))}>
+                          <option value="">— {lang==='ar'?'اختر':'Choisir'} —</option>
+                          {formCot.typePeriode==='mois' && MOIS.map(m=><option key={m.val} value={m.val}>{lang==='ar'?m.ar:m.fr}</option>)}
+                          {formCot.typePeriode==='trimestre' && TRIMESTRES.map(t=><option key={t.val} value={t.val}>{lang==='ar'?t.ar:t.fr}</option>)}
+                          {formCot.typePeriode==='semestre' && SEMESTRES.map(s=><option key={s.val} value={s.val}>{lang==='ar'?s.ar:s.fr}</option>)}
+                        </select>
+                      )}
+                      <select className="field-select" style={{flex:1}} value={formCot.annee} onChange={e=>setFormCot(f=>({...f,annee:e.target.value}))}>
+                        {getAnnees().map(a=><option key={a.val} value={a.val}>{a.fr}</option>)}
+                      </select>
+                    </div>
+                    {buildPeriodeStr(formCot.typePeriode,formCot.valPeriode,formCot.annee)&&(
+                      <div style={{marginTop:4,fontSize:11,color:'#1D9E75',fontWeight:600}}>
+                        📅 {buildPeriodeStr(formCot.typePeriode,formCot.valPeriode,formCot.annee)}
+                      </div>
+                    )}
                   </div>
                 </div>
                 <div style={{marginBottom:12}}>
@@ -506,16 +587,42 @@ export default function Finance({ user, navigate, goBack, lang='fr' }) {
             )}
 
             {/* Filtres */}
-            <div style={{display:'flex',gap:8,flexWrap:'wrap',marginBottom:'1rem'}}>
-              <select className="field-select" style={{flex:1,minWidth:130}} value={filterEleve} onChange={e=>setFilterEleve(e.target.value)}>
-                <option value="tous">{lang==='ar'?'جميع الطلاب':'Tous les élèves'}</option>
-                {eleves.map(e=><option key={e.id} value={e.id}>{e.prenom} {e.nom}</option>)}
-              </select>
-              <select className="field-select" style={{flex:1,minWidth:130}} value={filterStatut} onChange={e=>setFilterStatut(e.target.value)}>
-                <option value="tous">{lang==='ar'?'جميع الحالات':'Tous les statuts'}</option>
-                {STATUTS.map(s=><option key={s.val} value={s.val}>{lang==='ar'?s.labelAr:s.label}</option>)}
-              </select>
-              <input className="field-input" style={{flex:1,minWidth:130}} value={filterPeriode} onChange={e=>setFilterPeriode(e.target.value)} placeholder={lang==='ar'?'فترة...':'Période...'}/>
+            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:8}}>
+              <div className="field-group">
+                <label className="field-lbl">{lang==='ar'?'بحث بالاسم أو رقم التعريف':'Nom ou N° élève'}</label>
+                <input className="field-input" value={filterIdEleve} onChange={e=>setFilterIdEleve(e.target.value)} placeholder={'🔍 '+(lang==='ar'?'اسم أو رقم...':'Nom ou #ID...')}/>
+              </div>
+              <div className="field-group">
+                <label className="field-lbl">{lang==='ar'?'الطالب':'Élève'}</label>
+                <select className="field-select" value={filterEleve} onChange={e=>setFilterEleve(e.target.value)}>
+                  <option value="tous">{lang==='ar'?'جميع الطلاب':'Tous les élèves'}</option>
+                  {eleves.map(e=><option key={e.id} value={e.id}>{e.eleve_id_ecole?'#'+e.eleve_id_ecole+' · ':''}{e.prenom} {e.nom} ({e.code_niveau||'?'})</option>)}
+                </select>
+              </div>
+            </div>
+            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:8,marginBottom:'1rem'}}>
+              <div className="field-group">
+                <label className="field-lbl">{lang==='ar'?'الحالة':'Statut'}</label>
+                <select className="field-select" value={filterStatut} onChange={e=>setFilterStatut(e.target.value)}>
+                  <option value="tous">{lang==='ar'?'جميع الحالات':'Tous'}</option>
+                  {STATUTS.map(s=><option key={s.val} value={s.val}>{lang==='ar'?s.labelAr:s.label}</option>)}
+                </select>
+              </div>
+              <div className="field-group">
+                <label className="field-lbl">{lang==='ar'?'نوع الفترة':'Type période'}</label>
+                <select className="field-select" value={filterPeriode.split('-')[0]||''} onChange={e=>setFilterPeriode(e.target.value)}>
+                  <option value="">{lang==='ar'?'كل الفترات':'Toutes les périodes'}</option>
+                  {['01','02','03','04','05','06','07','08','09','10','11','12'].map(m=>{const mo=MOIS.find(x=>x.val===m);return<option key={m} value={m}>{lang==='ar'?mo.ar:mo.fr}</option>;})}
+                  {['T1','T2','T3','T4','S1','S2'].map(p=><option key={p} value={p}>{p}</option>)}
+                </select>
+              </div>
+              <div className="field-group">
+                <label className="field-lbl">{lang==='ar'?'السنة':'Année'}</label>
+                <select className="field-select" value={filterPeriode.split('-')[1]||''} onChange={e=>{const base=filterPeriode.split('-')[0]||'';setFilterPeriode(base?(base+'-'+e.target.value):e.target.value);}}>
+                  <option value="">{lang==='ar'?'كل السنوات':'Toutes'}</option>
+                  {getAnnees().map(a=><option key={a.val} value={a.val}>{a.fr}</option>)}
+                </select>
+              </div>
             </div>
 
             <div style={{fontSize:12,color:'#888',marginBottom:8}}>{cotFiltrees.length} {lang==='ar'?'سجل':'entrée(s)'} · {lang==='ar'?'المجموع':'Total'}: <strong style={{color:'#1D9E75'}}>{fmtMAD(cotFiltrees.filter(c=>c.statut!=='exonere').reduce((s,c)=>s+parseFloat(c.montant||0),0))}</strong></div>
