@@ -39,7 +39,7 @@ export default function MurajaDashboard({ user, navigate, goBack, lang='fr' }) {
     setLoading(false);
   };
 
-  // Merge all muraja'a records
+  // Merge all murajaʼa records
   const cutoff = new Date();
   cutoff.setDate(cutoff.getDate() - filterPeriode);
 
@@ -87,7 +87,7 @@ export default function MurajaDashboard({ user, navigate, goBack, lang='fr' }) {
     return { niveau: n, nb: items.length, uniqueEleves, totalEleves, taux: totalEleves > 0 ? Math.round(uniqueEleves/totalEleves*100) : 0, color: NIVEAU_COLORS[n] };
   }).filter(s => s.totalEleves > 0);
 
-  // Absentees per niveau (élèves qui n'ont aucune muraja'a dans la période)
+  // Absentees per niveau (élèves qui n'ont aucune murajaʼa dans la période)
   const absenteesParNiveau = filterNiveau !== 'tous' ? eleves.filter(e => {
     if (e.code_niveau !== filterNiveau) return false;
     return !allMuraja.some(m => m.eleve?.id === e.id);
@@ -104,7 +104,7 @@ export default function MurajaDashboard({ user, navigate, goBack, lang='fr' }) {
           📊 {lang==='ar'?'لوحة تتبع المراجعة الجماعية':"Tableau de bord Muraja'a"}
         </div>
         <button onClick={()=>navigate('muraja')} style={{marginLeft:'auto',padding:'6px 14px',background:'#085041',color:'#fff',border:'none',borderRadius:8,fontSize:12,fontWeight:600,cursor:'pointer'}}>
-          + {lang==='ar'?'مراجعة جديدة':"Nouvelle muraja'a"}
+          + {lang==='ar'?'مراجعة جديدة':"Nouvelle murajaʼa"}
         </button>
       </div>
 
@@ -166,7 +166,7 @@ export default function MurajaDashboard({ user, navigate, goBack, lang='fr' }) {
 
       {sessionList.length === 0 ? (
         <div style={{textAlign:'center',color:'#aaa',padding:'2rem',background:'#fafaf8',borderRadius:12}}>
-          {lang==='ar'?'لا توجد مراجعات جماعية في هذه الفترة':"Aucune muraja'a enregistrée sur cette période"}
+          {lang==='ar'?'لا توجد مراجعات جماعية في هذه الفترة':"Aucune murajaʼa enregistrée sur cette période"}
         </div>
       ) : (
         <div style={{display:'flex',flexDirection:'column',gap:10}}>

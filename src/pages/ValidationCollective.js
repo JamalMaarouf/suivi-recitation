@@ -149,7 +149,7 @@ export default function ValidationCollective({ user, navigate, goBack, lang='fr'
         </div>
         <div style={{display:'flex',gap:10,justifyContent:'center'}}>
           <button onClick={resetForm} style={{padding:'10px 20px',background:'#085041',color:'#fff',border:'none',borderRadius:10,fontWeight:600,cursor:'pointer'}}>
-            {lang==='ar' ? '+ مراجعة جديدة' : "+ Nouvelle muraja'a"}
+            {lang==='ar' ? '+ مراجعة جديدة' : "+ Nouvelle murajaʼa"}
           </button>
           <button onClick={()=>navigate('muraja_dashboard')} style={{padding:'10px 20px',background:'#378ADD',color:'#fff',border:'none',borderRadius:10,fontWeight:600,cursor:'pointer'}}>
             📊 {lang==='ar' ? 'لوحة المراجعات' : 'Tableau de bord'}
@@ -365,7 +365,7 @@ export default function ValidationCollective({ user, navigate, goBack, lang='fr'
           {/* Question : tout le niveau ou exclusions ? */}
           <div style={{marginBottom:16}}>
             <div style={{fontSize:14,fontWeight:600,marginBottom:10,color:'#333'}}>
-              {lang==='ar'?'هل المراجعة تشمل جميع طلاب المستوى؟':'Cette muraja'a concerne-t-elle tout le niveau ?'}
+              {lang==='ar'?'هل المراجعة تشمل جميع طلاب المستوى؟':'Cette muraja\u2019a concerne-t-elle tout le niveau ?'}
             </div>
             <div style={{display:'flex',gap:10,marginBottom:12}}>
               <div onClick={()=>{setToutLeNiveau(true);setExclus({});}}
@@ -426,11 +426,11 @@ export default function ValidationCollective({ user, navigate, goBack, lang='fr'
             )}
           </div>
 
-          {/* Note muraja'a */}
+          {/* Note murajaʼa */}
           <div style={{padding:'10px 14px',borderRadius:10,background:'#FFF3CD',fontSize:12,color:'#856404',marginBottom:16}}>
             ℹ️ {lang==='ar'
               ?'هذه المراجعة الجماعية تُضاف إلى رصيد كل طالب كمراجعة ولن تغير موضعه في التقدم الفردي.'
-              :"Cette muraja'a sera enregistrée comme révision. Elle n'affecte pas la progression individuelle."}
+              :"Cette murajaʼa sera enregistrée comme révision. Elle n'affecte pas la progression individuelle."}
           </div>
 
           <div style={{display:'flex',gap:10}}>
@@ -442,7 +442,7 @@ export default function ValidationCollective({ user, navigate, goBack, lang='fr'
                 cursor:saving?'default':'pointer'}}>
               {saving?'...':(lang==='ar'
                 ?`✓ تأكيد المراجعة الجماعية (${toutLeNiveau?eleves.length:elevesRetenus.length} طالب)`
-                :`✓ Confirmer la muraja'a (${toutLeNiveau?eleves.length:elevesRetenus.length} élève(s))`)}
+                :`✓ Confirmer la murajaʼa (${toutLeNiveau?eleves.length:elevesRetenus.length} élève(s))`)}
             </button>
           </div>
         </div>
