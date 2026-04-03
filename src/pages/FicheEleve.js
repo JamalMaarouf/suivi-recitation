@@ -228,6 +228,12 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang='fr' })
     return <FicheSourate eleve={eleve} user={user} navigate={navigate} lang={lang} />;
   }
 
+  if (loading || !etat) return (
+    <div style={{padding:'2rem',textAlign:'center'}}>
+      <div className="loading">...</div>
+    </div>
+  );
+
   return (
     <div>
       <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'1.25rem',flexWrap:'wrap',gap:8}}>

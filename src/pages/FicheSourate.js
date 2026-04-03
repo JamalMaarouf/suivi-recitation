@@ -133,6 +133,8 @@ export default function FicheSourate({ eleve, user, navigate, goBack, lang='fr' 
     setTimeout(() => { w.print(); w.close(); }, 600);
   };
 
+  if (loading) return <div style={{padding:'2rem',textAlign:'center'}}><div className="loading">...</div></div>;
+
   return (
     <div>
       <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'1.25rem',flexWrap:'wrap',gap:8}}>
