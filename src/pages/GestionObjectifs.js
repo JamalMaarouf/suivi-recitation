@@ -717,7 +717,7 @@ export default function GestionObjectifs({ user, navigate, goBack, lang='fr' }) 
                     {user.role==='surveillant'&&(
                       <div style={{display:'flex',gap:6,marginTop:4}}>
                         <button onClick={()=>startEdit(obj)} style={{fontSize:10,color:'#378ADD',background:'none',border:'none',cursor:'pointer',padding:0}}>✏️ {lang==='ar'?'تعديل':lang==='en'?'Edit':'Modifier'}</button>
-                        <button onClick={()=>deleteObjectif(obj.id)} style={{fontSize:10,color:'#E24B4A',background:'none',border:'none',cursor:'pointer',padding:0}}>🗑 {lang==='ar'?'حذف':lang==='en'?'Delete':'Suppr.'}</button>
+                        <button onClick={()=>deleteObjectif(obj.id)} style={{padding:'3px 8px',background:'#FCEBEB',color:'#E24B4A',border:'0.5px solid #E24B4A30',borderRadius:6,cursor:'pointer',fontSize:11,fontWeight:600}}>🗑 {lang==='ar'?'حذف':lang==='en'?'Delete':'Supprimer'}</button>
                       </div>
                     )}
                   </div>

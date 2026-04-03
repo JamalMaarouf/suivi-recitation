@@ -177,11 +177,11 @@ export default function Finance({ user, navigate, goBack, lang='fr' }) {
     await loadData();
   };
 
-  const deleteCotisation = (id) => showConfirm(
+  const deleteCotisation = (id) => { const c2=cotisations.find(x=>x.id===id); const nom=c2?.eleve?(c2.eleve.prenom+' '+c2.eleve.nom):''; showConfirm(
     lang==='ar'?'حذف الاشتراك':'Supprimer la cotisation',
-    lang==='ar'?'هل تريد حذف هذا الاشتراك نهائياً؟':'Supprimer définitivement cette cotisation ?',
+    (lang==='ar'?'حذف اشتراك ':'Supprimer le versement de ')+nom+(c2?.periode?' ('+c2.periode+')':'')+' ?',
     async()=>{ await supabase.from('cotisations').delete().eq('id',id); await loadData(); hideConfirm(); }
-  );
+  );};
 
   const deleteDepense = (id) => showConfirm(
     lang==='ar'?'حذف المصروف':'Supprimer la dépense',
@@ -645,7 +645,7 @@ export default function Finance({ user, navigate, goBack, lang='fr' }) {
                     </div>
                     <span style={{padding:'3px 10px',borderRadius:20,fontSize:11,fontWeight:600,background:st.bg,color:st.color}}>{lang==='ar'?st.labelAr:st.label}</span>
                     <div style={{fontSize:16,fontWeight:800,color:'#1D9E75',minWidth:90,textAlign:'right'}}>{fmtMAD(c.montant)}</div>
-                    {user.role==='surveillant'&&<button onClick={()=>deleteCotisation(c.id)} style={{fontSize:10,color:'#E24B4A',background:'none',border:'none',cursor:'pointer',padding:0}}>🗑</button>}
+                    {user.role==='surveillant'&&<button onClick={()=>deleteCotisation(c.id)} style={{padding:'3px 8px',background:'#FCEBEB',color:'#E24B4A',border:'0.5px solid #E24B4A30',borderRadius:6,cursor:'pointer',fontSize:10,fontWeight:600}}>🗑 {lang==='ar'?'حذف':'Suppr.'}</button>}
                   </div>
                 );
               })}
@@ -743,7 +743,7 @@ export default function Finance({ user, navigate, goBack, lang='fr' }) {
                       </div>
                     </div>
                     <div style={{fontSize:16,fontWeight:800,color:'#E24B4A',minWidth:90,textAlign:'right'}}>{fmtMAD(d.montant)}</div>
-                    {user.role==='surveillant'&&<button onClick={()=>deleteDepense(d.id)} style={{fontSize:10,color:'#E24B4A',background:'none',border:'none',cursor:'pointer',padding:0}}>🗑</button>}
+                    {user.role==='surveillant'&&<button onClick={()=>deleteDepense(d.id)} style={{padding:'3px 8px',background:'#FCEBEB',color:'#E24B4A',border:'0.5px solid #E24B4A30',borderRadius:6,cursor:'pointer',fontSize:10,fontWeight:600}}>🗑 {lang==='ar'?'حذف':'Suppr.'}</button>}
                   </div>
                 );
               })}

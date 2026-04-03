@@ -221,14 +221,42 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr' }) {
     loadData();
   };
 
-  const supprimerEleve = async (id) => {
-    // REPLACED: if (!window.confirm(t(lang, 'supprimer_eleve_confirm'))) return;
-    await supabase.from('validations').delete().eq('eleve_id', id);
-    await supabase.from('apprentissages').delete().eq('eleve_id', id);
-    await supabase.from('objectifs').delete().eq('eleve_id', id);
-    await supabase.from('eleves').delete().eq('id', id);
-    showMsg('success', t(lang, 'eleve_retire'));
-    loadData();
+  const supprimerEleve = (id) => {
+    const eleve = eleves.find(e=>e.id===id);
+    const nom = eleve ? eleve.prenom+' '+eleve.nom : '';
+    // Count linked data
+    showConfirm(
+      lang==='ar'?'⚠️ حذف الطالب':'⚠️ Supprimer l'élève',
+      lang==='ar'
+        ? 'سيتم حذف جميع بيانات '+nom+' (التسميعات، الأهداف، الاشتراكات). هذا الإجراء لا رجعة منه!'
+        : 'Toutes les données de '+nom+' seront supprimées (récitations, objectifs, cotisations). Action irréversible !',
+      async () => {
+        hideConfirm();
+        // Step 2: second confirmation for critical data
+        showConfirm(
+          lang==='ar'?'تأكيد نهائي — حذف '+nom:'Confirmation finale — Supprimer '+nom,
+          lang==='ar'?'هل أنت متأكد تماماً؟ لا يمكن التراجع عن هذا الإجراء.':'Êtes-vous absolument sûr ? Cette action est définitive et irréversible.',
+          async () => {
+            await supabase.from('exceptions_recitation').delete().eq('eleve_id', id).catch(()=>{});
+            await supabase.from('exceptions_hizb').delete().eq('eleve_id', id).catch(()=>{});
+            await supabase.from('recitations_sourates').delete().eq('eleve_id', id).catch(()=>{});
+            await supabase.from('validations').delete().eq('eleve_id', id);
+            await supabase.from('apprentissages').delete().eq('eleve_id', id).catch(()=>{});
+            await supabase.from('cotisations').delete().eq('eleve_id', id).catch(()=>{});
+            await supabase.from('objectifs_globaux').update({eleve_id:null}).eq('eleve_id', id).catch(()=>{});
+            await supabase.from('parent_eleve').delete().eq('eleve_id', id).catch(()=>{});
+            await supabase.from('eleves').delete().eq('id', id);
+            showMsg('success', t(lang, 'eleve_retire'));
+            hideConfirm();
+            loadData();
+          },
+          lang==='ar'?'حذف نهائي':'Supprimer définitivement',
+          '#E24B4A'
+        );
+      },
+      lang==='ar'?'نعم، متابعة':'Oui, continuer',
+      '#EF9F27'
+    );
   };
 
   const ajouterInstituteur = async () => {
@@ -244,12 +272,31 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr' }) {
     loadData();
   };
 
-  const supprimerInstituteur = async (id) => {
-    // REPLACED: if (!window.confirm(t(lang, 'supprimer_instituteur_confirm'))) return;
-    await supabase.from('utilisateurs').delete().eq('id', id);
-    showMsg('success', t(lang, 'instituteur_retire'));
-    loadData();
+  const supprimerInstituteur = (inst) => {
+    const nbEleves = eleves.filter(e=>e.instituteur_referent_id===inst.id).length;
+    const msg = nbEleves > 0
+      ? (lang==='ar'?`هذا الأستاذ مرتبط بـ ${nbEleves} طالب. سيتم فصلهم عنه.`:`Cet instituteur a ${nbEleves} élève(s). Ils seront détachés.`)
+      : (lang==='ar'?'هل تريد حذف هذا الأستاذ؟':'Supprimer cet instituteur ?');
+    showConfirm(
+      lang==='ar'?'حذف الأستاذ':'Supprimer l'instituteur',
+      msg,
+      async () => {
+        // Detach all eleves first
+        if (nbEleves > 0) {
+          await supabase.from('eleves').update({instituteur_referent_id: null}).eq('instituteur_referent_id', inst.id);
+        }
+        // Remove from parent_eleve if any
+        await supabase.from('objectifs_globaux').update({instituteur_id: null}).eq('instituteur_id', inst.id).catch(()=>{});
+        await supabase.from('utilisateurs').delete().eq('id', inst.id);
+        showMsg('success', t(lang, 'instituteur_retire'));
+        hideConfirm();
+        loadData();
+      }
+    );
   };
+
+  const [editInstituteur, setEditInstituteur] = useState(null);
+  const [formEditInst, setFormEditInst] = useState({prenom:'',nom:'',identifiant:'',mot_de_passe:''});
 
   const instNom = (id) => { const i = instituteurs.find(x => x.id === id); return i ? `${i.prenom} ${i.nom}` : '—'; };
   const niveaux = [
@@ -517,10 +564,14 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr' }) {
                       const wasSourate = ['5B','5A','2M'].includes(oldNiv);
                       const isNowHizb = ['2M','2','1'].includes(newNiv);
                       if (wasSourate && isNowHizb) {
-                        if (window.confirm(lang==='ar'?'هذا الطالب ينتقل من نظام السور إلى نظام الحزب والثُّمن. يجب تحديد المكتسبات بالحزب والثُّمن. هل تريد المتابعة؟':lang==='en'?'This student is moving from surah-based to Hizb/Tomon system. Prior achievements must be redefined. Continue?':'Cet élève passe du système Sourates au système Hizb/Tomon. Les acquis doivent être redéfinis. Continuer?')) {
-                          setEditEleve({ ...editEleve, code_niveau: newNiv, hizb_depart: 1, tomon_depart: 1, sourates_acquises: 0 });
-                          setEditShowAcquisSelector(true);
-                        }
+                        showConfirm(
+                          lang==='ar'?'⚠️ تغيير نظام الطالب':'⚠️ Changement de système',
+                          lang==='ar'?'هذا الطالب ينتقل من نظام السور إلى نظام الحزب والثُّمن. يجب تحديد المكتسبات بالحزب والثُّمن.':'Cet élève passe du système Sourates au système Hizb/Tomon. Les acquis doivent être redéfinis.',
+                          ()=>{ setEditEleve({ ...editEleve, code_niveau: newNiv, hizb_depart: 1, tomon_depart: 1, sourates_acquises: 0 });
+                          setEditShowAcquisSelector(true);; hideConfirm(); },
+                          lang==='ar'?'متابعة':'Continuer',
+                          '#EF9F27'
+                        );
                       } else {
                         setEditEleve({ ...editEleve, code_niveau: newNiv });
                       }
@@ -602,7 +653,10 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr' }) {
                       <td>
                         <div style={{display:'flex',gap:4}}>
                           <button className="action-btn" onClick={() => { setEditEleve({...e}); setEditShowAcquisSelector(false); window.scrollTo(0,0); }}>{t(lang, 'modifier_btn')}</button>
-                          <button className="action-btn danger" onClick={() => supprimerEleve(e.id)}>{t(lang, 'retirer')}</button>
+                          <button onClick={() => supprimerEleve(e.id)}
+                            style={{padding:'4px 10px',background:'#FCEBEB',color:'#E24B4A',border:'0.5px solid #E24B4A40',borderRadius:6,cursor:'pointer',fontSize:11,fontWeight:600}}>
+                            🗑 {lang==='ar'?'حذف':'Supprimer'}
+                          </button>
                         </div>
                       </td>
                     </tr>
@@ -629,6 +683,28 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr' }) {
 
           <div className="section-label">{t(lang, 'instituteurs_actifs')} ({instituteurs.length})</div>
           {loading ? <div className="loading">...</div> : (
+            {editInstituteur && (
+              <div style={{background:'#fff',border:'1.5px solid #378ADD',borderRadius:12,padding:'1rem',marginBottom:'1rem'}}>
+                <div style={{fontSize:13,fontWeight:600,color:'#378ADD',marginBottom:'0.75rem'}}>✏️ {lang==='ar'?'تعديل الأستاذ':'Modifier l\'instituteur'}</div>
+                <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:10}}>
+                  <div className="field-group"><label className="field-lbl">{lang==='ar'?'الاسم':'Prénom'}</label><input className="field-input" value={formEditInst.prenom} onChange={e=>setFormEditInst(f=>({...f,prenom:e.target.value}))}/></div>
+                  <div className="field-group"><label className="field-lbl">{lang==='ar'?'اللقب':'Nom'}</label><input className="field-input" value={formEditInst.nom} onChange={e=>setFormEditInst(f=>({...f,nom:e.target.value}))}/></div>
+                  <div className="field-group"><label className="field-lbl">{lang==='ar'?'المعرف':'Identifiant'}</label><input className="field-input" value={formEditInst.identifiant} onChange={e=>setFormEditInst(f=>({...f,identifiant:e.target.value}))}/></div>
+                  <div className="field-group"><label className="field-lbl">{lang==='ar'?'كلمة المرور (اتركها فارغة إن لم تغيرها)':'Mot de passe (vide = inchangé)'}</label><input className="field-input" type="password" value={formEditInst.mot_de_passe} onChange={e=>setFormEditInst(f=>({...f,mot_de_passe:e.target.value}))}/></div>
+                </div>
+                <div style={{display:'flex',gap:8}}>
+                  <button className="btn-primary" style={{width:'auto',padding:'7px 16px',fontSize:12}} onClick={async()=>{
+                    const upd={prenom:formEditInst.prenom,nom:formEditInst.nom,identifiant:formEditInst.identifiant};
+                    if(formEditInst.mot_de_passe) upd.mot_de_passe=formEditInst.mot_de_passe;
+                    await supabase.from('utilisateurs').update(upd).eq('id',editInstituteur);
+                    setEditInstituteur(null);
+                    showMsg('success',lang==='ar'?'تم تحديث بيانات الأستاذ':'Instituteur mis à jour');
+                    loadData();
+                  }}>✓ {lang==='ar'?'حفظ':'Enregistrer'}</button>
+                  <button onClick={()=>setEditInstituteur(null)} style={{padding:'7px 14px',border:'0.5px solid #e0e0d8',borderRadius:8,background:'#fff',fontSize:12,cursor:'pointer'}}>✕ {lang==='ar'?'إلغاء':'Annuler'}</button>
+                </div>
+              </div>
+            )}
             <div className="table-wrap">
               <table>
                 <thead><tr>
@@ -642,7 +718,11 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr' }) {
                     <tr key={i.id}>
                       <td><div style={{display:'flex',alignItems:'center',gap:8}}><Avatar prenom={i.prenom} nom={i.nom}/>{i.prenom} {i.nom}</div></td>
                       <td style={{fontSize:12,color:'#888'}}>{i.identifiant}</td>
-                      <td><button className="action-btn danger" onClick={() => supprimerInstituteur(i.id)}>{t(lang, 'retirer')}</button></td>
+                      <td style={{display:'flex',gap:4,alignItems:'center',padding:'8px 4px'}}>
+                        <button onClick={()=>{setEditInstituteur(i.id);setFormEditInst({prenom:i.prenom,nom:i.nom,identifiant:i.identifiant,mot_de_passe:''});}}
+                          style={{padding:'4px 10px',background:'#E6F1FB',color:'#378ADD',border:'0.5px solid #378ADD30',borderRadius:6,cursor:'pointer',fontSize:11,fontWeight:600}}>✏️ {lang==='ar'?'تعديل':'Modifier'}</button>
+                        <button className="action-btn danger" onClick={() => supprimerInstituteur(i)}>{t(lang, 'retirer')}</button>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
