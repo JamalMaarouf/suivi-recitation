@@ -135,6 +135,61 @@ export default function Seance({ user, navigate, goBack, lang='fr' }) {
   const medals = ['🥇','🥈','🥉'];
   const niveaux = ['tous','5B','5A','2M','2','1'];
 
+  const exportSeanceExcel = async () => {
+    if (!window.XLSX) await new Promise((res,rej)=>{ const s=document.createElement('script'); s.src='https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js'; s.onload=res; s.onerror=rej; document.head.appendChild(s); });
+    const XLSX = window.XLSX;
+    const wb = XLSX.utils.book_new();
+    // Classement du jour
+    const rows = elevesData.map((e,i)=>{
+      const pts = e.isSourate ? e.ptsAujourdhui : (e.valsAujourdhui||[]).reduce((s,v)=>s+(v.type_validation==='hizb_complet'?100:v.nombre_tomon*10),0);
+      return [i+1, e.prenom+' '+e.nom, e.code_niveau||'?', e.isSourate?(e.souratesCompletesAujourdhui+'S / '+e.sequencesAujourdhui+'seq'):(e.tomonAujourdhui||0)+'T / '+((e.valsAujourdhui||[]).filter(v=>v.type_validation==='hizb_complet').length)+'H', pts, e.jours!=null?e.jours+' j':'—'];
+    });
+    const ws = XLSX.utils.aoa_to_sheet([
+      ['#','Élève','Niveau','Réalisé','Points','Dernière activité'],
+      ...rows
+    ]);
+    ws['!cols']=[{wch:4},{wch:22},{wch:8},{wch:20},{wch:10},{wch:16}];
+    XLSX.utils.book_append_sheet(wb,ws,lang==='ar'?'حصة اليوم':'Séance du jour');
+    XLSX.writeFile(wb,'seance_'+new Date().toISOString().split('T')[0]+'.xlsx');
+  };
+
+  const exportSeancePDF = () => {
+    const w = window.open('','_blank','width=1000,height=800');
+    if (!w) { alert('Autorisez les popups'); return; }
+    const dateStr = new Date().toLocaleDateString(lang==='ar'?'ar-MA':'fr-FR',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
+    const rows = elevesData.slice(0,30).map((e,i)=>{
+      const pts = e.isSourate ? e.ptsAujourdhui : (e.valsAujourdhui||[]).reduce((s,v)=>s+(v.type_validation==='hizb_complet'?100:v.nombre_tomon*10),0);
+      const nc={'5B':'#534AB7','5A':'#378ADD','2M':'#1D9E75','2':'#EF9F27','1':'#E24B4A'}[e.code_niveau||'1']||'#888';
+      const bg = i%2===0?'#fff':'#f9f9f6';
+      const realise = e.isSourate?(e.souratesCompletesAujourdhui+'S / '+e.sequencesAujourdhui+' seq'):(e.tomonAujourdhui||0)+'T / '+((e.valsAujourdhui||[]).filter(v=>v.type_validation==='hizb_complet').length)+'H';
+      const medals = ['🥇','🥈','🥉'];
+      return '<tr style="background:'+bg+'"><td>'+(medals[i]||i+1)+'</td>'
+        +'<td><strong>'+e.prenom+' '+e.nom+'</strong></td>'
+        +'<td><span style="padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;background:'+nc+'18;color:'+nc+'">'+(e.code_niveau||'?')+'</span></td>'
+        +'<td>'+realise+'</td>'
+        +'<td style="font-weight:700;color:#1D9E75">'+pts+' pts</td>'
+        +'<td style="color:#888">'+(e.jours!=null?e.jours+' j inactif':'—')+'</td></tr>';
+    }).join('');
+    const html = '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Séance</title>'
+      +'<style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:Arial,sans-serif;padding:20px;font-size:12px}'
+      +'.header{background:linear-gradient(135deg,#085041,#1D9E75);color:#fff;padding:16px 20px;border-radius:10px;margin-bottom:16px}'
+      +'table{width:100%;border-collapse:collapse;margin-top:10px}'
+      +'th{background:#085041;color:#fff;padding:8px;text-align:left;font-size:11px}'
+      +'td{padding:7px 8px;border-bottom:1px solid #f0f0ec;font-size:11px}'
+      +'.footer{margin-top:14px;font-size:9px;color:#bbb;border-top:1px solid #e0e0d8;padding-top:8px;text-align:center}'
+      +'</style></head><body>'
+      +'<div class="header"><h1 style="font-size:18px;font-weight:800;margin-bottom:4px">📋 '+(lang==='ar'?'حصة اليوم':'Séance du jour')+'</h1>'
+      +'<div style="font-size:11px;opacity:0.8">'+dateStr+'</div></div>'
+      +'<table><thead><tr><th>#</th><th>'+(lang==='ar'?'الطالب':'Élève')+'</th><th>Niv.</th><th>'+(lang==='ar'?'الإنجاز':'Réalisé')+'</th><th>Pts</th><th>'+(lang==='ar'?'النشاط':'Activité')+'</th></tr></thead>'
+      +'<tbody>'+rows+'</tbody></table>'
+      +'<div class="footer">Généré le '+new Date().toLocaleDateString('fr-FR',{day:'2-digit',month:'long',year:'numeric'})+' · متابعة التحفيظ</div>'
+      +'</body></html>';
+    w.document.write(html);
+    w.document.close();
+    setTimeout(()=>w.print(), 600);
+  };
+
+
   return (
     <div>
       <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'0.75rem'}}>
@@ -143,6 +198,8 @@ export default function Seance({ user, navigate, goBack, lang='fr' }) {
           style={{padding:'6px 14px',background:'#085041',color:'#fff',border:'none',borderRadius:8,fontSize:12,fontWeight:600,cursor:'pointer',display:'flex',alignItems:'center',gap:4}}>
           📊 {lang==='ar'?'تحليل الحصص':lang==='en'?'Session analysis':'Analyse des séances'}
         </button>
+        <button onClick={exportSeanceExcel} style={{padding:'6px 12px',background:'#1D9E75',color:'#fff',border:'none',borderRadius:8,fontSize:11,fontWeight:600,cursor:'pointer'}}>📥 Excel</button>
+        <button onClick={exportSeancePDF} style={{padding:'6px 12px',background:'#534AB7',color:'#fff',border:'none',borderRadius:8,fontSize:11,fontWeight:600,cursor:'pointer'}}>🖨️ PDF</button>
       </div>
       <div style={{display:'flex',gap:0,background:'#f0f0ec',borderRadius:10,padding:3,marginBottom:'1.25rem',width:'fit-content'}}>
         {[['seance',t(lang,'ma_seance')],['semaine',t(lang,'cette_semaine')]].map(([k,l])=>(

@@ -88,6 +88,8 @@ export default function Finance({ user, navigate, goBack, lang='fr' }) {
   const [showFormCot, setShowFormCot] = useState(false);
   const [showFormDep, setShowFormDep] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [editingCotId, setEditingCotId] = useState(null);
+  const [editingDepId, setEditingDepId] = useState(null);
   const [confirmModal, setConfirmModal] = useState({isOpen:false,title:'',message:'',onConfirm:null,confirmColor:'#E24B4A',confirmLabel:''});
   const showConfirm = (title, message, onConfirm, confirmLabel, confirmColor) => setConfirmModal({isOpen:true,title,message,onConfirm,confirmLabel:confirmLabel||'Supprimer',confirmColor:confirmColor||'#E24B4A'});
   const hideConfirm = () => setConfirmModal(m=>({...m,isOpen:false,onConfirm:null}));
@@ -138,22 +140,27 @@ export default function Finance({ user, navigate, goBack, lang='fr' }) {
     if (!formCot.eleve_id || !formCot.montant || !formCot.date_paiement)
       return showMsg('error', lang==='ar'?'يرجى ملء الحقول المطلوبة':'Remplissez les champs obligatoires');
     setSaving(true);
+    const payload = {
+      eleve_id: formCot.eleve_id,
+      montant: parseFloat(formCot.montant),
+      date_paiement: formCot.date_paiement,
+      periode: buildPeriodeStr(formCot.typePeriode, formCot.valPeriode, formCot.annee) || formCot.periode || null,
+      statut: formCot.statut,
+      note: formCot.note||null,
+    };
     let error;
     try {
-      ({ error } = await supabase.from('cotisations').insert({
-        eleve_id: formCot.eleve_id,
-        montant: parseFloat(formCot.montant),
-        date_paiement: formCot.date_paiement,
-        periode: buildPeriodeStr(formCot.typePeriode, formCot.valPeriode, formCot.annee) || formCot.periode || null,
-        statut: formCot.statut,
-        note: formCot.note||null,
-        created_by: user.id,
-      }));
+      if (editingCotId) {
+        ({ error } = await supabase.from('cotisations').update(payload).eq('id', editingCotId));
+      } else {
+        ({ error } = await supabase.from('cotisations').insert({...payload, created_by: user.id}));
+      }
     } catch(e) { error = e; }
     setSaving(false);
     if (error) return showMsg('error', error.message||'Erreur');
-    showMsg('success', lang==='ar'?'تم تسجيل الاشتراك':'Cotisation enregistrée');
+    showMsg('success', editingCotId?(lang==='ar'?'تم تحديث الاشتراك':'Cotisation modifiée'):(lang==='ar'?'تم تسجيل الاشتراك':'Cotisation enregistrée'));
     setShowFormCot(false);
+    setEditingCotId(null);
     setFormCot({ eleve_id:'', montant:'', date_paiement:new Date().toISOString().split('T')[0], periode:'', typePeriode:'mois', valPeriode:'', annee:String(new Date().getFullYear()), statut:'paye', note:'' });
     setSearchEleveForm('');
     await loadData();
@@ -163,24 +170,61 @@ export default function Finance({ user, navigate, goBack, lang='fr' }) {
     if (!formDep.montant || !formDep.date_depense || !formDep.description)
       return showMsg('error', lang==='ar'?'يرجى ملء الحقول المطلوبة':'Remplissez les champs obligatoires');
     setSaving(true);
+    const depPayload = {
+      montant: parseFloat(formDep.montant),
+      date_depense: formDep.date_depense,
+      categorie: formDep.categorie,
+      beneficiaire_id: formDep.beneficiaire_id||null,
+      description: formDep.description,
+      reference: formDep.reference||null,
+    };
     let error;
     try {
-      ({ error } = await supabase.from('depenses').insert({
-        montant: parseFloat(formDep.montant),
-        date_depense: formDep.date_depense,
-        categorie: formDep.categorie,
-        beneficiaire_id: formDep.beneficiaire_id||null,
-        description: formDep.description,
-        reference: formDep.reference||null,
-        created_by: user.id,
-      }));
+      if (editingDepId) {
+        ({ error } = await supabase.from('depenses').update(depPayload).eq('id', editingDepId));
+      } else {
+        ({ error } = await supabase.from('depenses').insert({...depPayload, created_by: user.id}));
+      }
     } catch(e) { error = e; }
     setSaving(false);
     if (error) return showMsg('error', error.message||'Erreur');
-    showMsg('success', lang==='ar'?'تم تسجيل المصروف':'Dépense enregistrée');
+    showMsg('success', editingDepId?(lang==='ar'?'تم تحديث المصروف':'Dépense modifiée'):(lang==='ar'?'تم تسجيل المصروف':'Dépense enregistrée'));
     setShowFormDep(false);
+    setEditingDepId(null);
     setFormDep({ montant:'', date_depense:new Date().toISOString().split('T')[0], categorie:'salaire', beneficiaire_id:'', description:'', reference:'' });
     await loadData();
+  };
+
+  const startEditCotisation = (c) => {
+    setEditingCotId(c.id);
+    setFormCot({
+      eleve_id: c.eleve_id,
+      montant: String(c.montant),
+      date_paiement: c.date_paiement,
+      periode: c.periode||'',
+      typePeriode: 'mois',
+      valPeriode: '',
+      annee: String(new Date().getFullYear()),
+      statut: c.statut,
+      note: c.note||'',
+      searchEleve: ''
+    });
+    setShowFormCot(true);
+    window.scrollTo(0,0);
+  };
+
+  const startEditDepense = (d) => {
+    setEditingDepId(d.id);
+    setFormDep({
+      montant: String(d.montant),
+      date_depense: d.date_depense,
+      categorie: d.categorie,
+      beneficiaire_id: d.beneficiaire_id||'',
+      description: d.description||'',
+      reference: d.reference||''
+    });
+    setShowFormDep(true);
+    window.scrollTo(0,0);
   };
 
   const deleteCotisation = (id) => {
@@ -210,9 +254,14 @@ export default function Finance({ user, navigate, goBack, lang='fr' }) {
   const totalDepenses = depPeriode.reduce((s,d)=>s+parseFloat(d.montant||0),0);
   const solde = totalCotisations - totalDepenses;
 
-  const nbElevesPayes = new Set(cotPeriode.filter(c=>c.statut==='paye').map(c=>c.eleve_id)).size;
-  const nbElevesPartiel = new Set(cotPeriode.filter(c=>c.statut==='partiel').map(c=>c.eleve_id)).size;
-  const nbElevesExoneres = new Set(cotPeriode.filter(c=>c.statut==='exonere').map(c=>c.eleve_id)).size;
+  // Count by most recent status per student (all time)
+  const statutParEleve = {};
+  [...cotisations].sort((a,b)=>new Date(b.date_paiement)-new Date(a.date_paiement)).forEach(c=>{
+    if(!statutParEleve[c.eleve_id]) statutParEleve[c.eleve_id]=c.statut;
+  });
+  const nbElevesPayes = Object.values(statutParEleve).filter(s=>s==='paye').length;
+  const nbElevesPartiel = Object.values(statutParEleve).filter(s=>s==='partiel').length;
+  const nbElevesExoneres = Object.values(statutParEleve).filter(s=>s==='exonere').length;
 
   // Par catégorie
   const parCategorie = CATEGORIES.map(cat => ({
@@ -297,6 +346,51 @@ export default function Finance({ user, navigate, goBack, lang='fr' }) {
 
     XLSX.writeFile(wb,'finance_'+dateDebut+'_'+dateFin+'.xlsx');
   };
+
+  const loadXLSX = async () => {
+    if (!window.XLSX) await new Promise((res,rej)=>{ const s=document.createElement('script'); s.src='https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js'; s.onload=res; s.onerror=rej; document.head.appendChild(s); });
+    return window.XLSX;
+  };
+
+  const exportCotisationsExcel = async () => {
+    const XLSX = await loadXLSX();
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.aoa_to_sheet([
+      ['#','Élève','ID École','Niveau','Montant','Période','Statut','Date','Note'],
+      ...cotFiltrees.map((c,i)=>[i+1,c.eleve?(c.eleve.prenom+' '+c.eleve.nom):'—',c.eleve?.eleve_id_ecole||'—',c.eleve?.code_niveau||'—',c.montant,c.periode||'—',c.statut,c.date_paiement,c.note||'—']),
+    ]);
+    ws['!cols']=[{wch:4},{wch:22},{wch:10},{wch:8},{wch:10},{wch:14},{wch:10},{wch:14},{wch:20}];
+    XLSX.utils.book_append_sheet(wb,ws,lang==='ar'?'الاشتراكات':'Cotisations');
+    // Summary row
+    const total = cotFiltrees.filter(c=>c.statut!=='exonere').reduce((s,c)=>s+parseFloat(c.montant||0),0);
+    XLSX.utils.sheet_add_aoa(ws,[['','','','','TOTAL','','','',total]], {origin:-1});
+    XLSX.writeFile(wb,'cotisations_'+new Date().toISOString().split('T')[0]+'.xlsx');
+  };
+
+  const exportDepensesExcel = async () => {
+    const XLSX = await loadXLSX();
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.aoa_to_sheet([
+      ['#','Description','Catégorie','Montant','Bénéficiaire','Date','Référence'],
+      ...depFiltrees.map((d,i)=>[i+1,d.description,d.categorie,d.montant,d.beneficiaire?(d.beneficiaire.prenom+' '+d.beneficiaire.nom):'—',d.date_depense,d.reference||'—']),
+    ]);
+    ws['!cols']=[{wch:4},{wch:28},{wch:16},{wch:10},{wch:20},{wch:14},{wch:14}];
+    XLSX.utils.book_append_sheet(wb,ws,lang==='ar'?'المصاريف':'Dépenses');
+    XLSX.writeFile(wb,'depenses_'+new Date().toISOString().split('T')[0]+'.xlsx');
+  };
+
+  const exportSuiviExcel = async () => {
+    const XLSX = await loadXLSX();
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.aoa_to_sheet([
+      ['Élève','ID','Niveau','Total versé','Nb versements','Dernier statut','Dernier paiement'],
+      ...parEleve.map(p=>[p.eleve.prenom+' '+p.eleve.nom,p.eleve.eleve_id_ecole||'—',p.eleve.code_niveau||'—',p.totalVerse,p.cotisations.length,p.statutDernier,p.dernierPaiement||'—']),
+    ]);
+    ws['!cols']=[{wch:22},{wch:10},{wch:8},{wch:12},{wch:14},{wch:14},{wch:14}];
+    XLSX.utils.book_append_sheet(wb,ws,lang==='ar'?'متابعة الطلاب':'Suivi élèves');
+    XLSX.writeFile(wb,'suivi_cotisations_'+new Date().toISOString().split('T')[0]+'.xlsx');
+  };
+
 
   // Export PDF
   const exportPDF = () => {
@@ -406,7 +500,10 @@ export default function Finance({ user, navigate, goBack, lang='fr' }) {
         <button className="back-link" onClick={()=>goBack?goBack():navigate('dashboard')}>← {t(lang,'retour')}</button>
         <div style={{fontSize:18,fontWeight:700,color:'#085041'}}>💰 {lang==='ar'?'الإدارة المالية':lang==='en'?'Finance':'Gestion Financière'}</div>
         <div style={{display:'flex',gap:6}}>
-          <button onClick={exportExcel} style={{padding:'6px 12px',background:'#1D9E75',color:'#fff',border:'none',borderRadius:8,fontSize:11,fontWeight:600,cursor:'pointer'}}>📥 Excel</button>
+          {onglet==='cotisations'&&<button onClick={exportCotisationsExcel} style={{padding:'6px 12px',background:'#1D9E75',color:'#fff',border:'none',borderRadius:8,fontSize:11,fontWeight:600,cursor:'pointer'}}>📥 Excel</button>}
+          {onglet==='depenses'&&<button onClick={exportDepensesExcel} style={{padding:'6px 12px',background:'#1D9E75',color:'#fff',border:'none',borderRadius:8,fontSize:11,fontWeight:600,cursor:'pointer'}}>📥 Excel</button>}
+          {onglet==='suivi'&&<button onClick={exportSuiviExcel} style={{padding:'6px 12px',background:'#1D9E75',color:'#fff',border:'none',borderRadius:8,fontSize:11,fontWeight:600,cursor:'pointer'}}>📥 Excel</button>}
+          {onglet==='dashboard'&&<button onClick={exportExcel} style={{padding:'6px 12px',background:'#1D9E75',color:'#fff',border:'none',borderRadius:8,fontSize:11,fontWeight:600,cursor:'pointer'}}>📥 Excel</button>}
           <button onClick={exportPDF} style={{padding:'6px 12px',background:'#534AB7',color:'#fff',border:'none',borderRadius:8,fontSize:11,fontWeight:600,cursor:'pointer'}}>🖨️ PDF</button>
         </div>
       </div>
@@ -510,14 +607,14 @@ export default function Finance({ user, navigate, goBack, lang='fr' }) {
         {onglet==='cotisations'&&(
           <>
             <div style={{display:'flex',justifyContent:'flex-end',marginBottom:'1rem'}}>
-              <button className="btn-primary" style={{width:'auto',padding:'8px 16px',fontSize:13}} onClick={()=>setShowFormCot(v=>!v)}>
+              <button className="btn-primary" style={{width:'auto',padding:'8px 16px',fontSize:13}} onClick={()=>{setShowFormCot(v=>!v);setEditingCotId(null);}}>
                 {showFormCot?'✕':'+  '}{lang==='ar'?'تسجيل اشتراك':'Enregistrer une cotisation'}
               </button>
             </div>
 
             {showFormCot&&(
               <div style={{background:'#fff',border:'1.5px solid #1D9E75',borderRadius:16,padding:'1.5rem',marginBottom:'1.25rem'}}>
-                <div style={{fontSize:14,fontWeight:600,color:'#085041',marginBottom:'1rem'}}>📥 {lang==='ar'?'تسجيل اشتراك جديد':'Nouvelle cotisation'}</div>
+                <div style={{fontSize:14,fontWeight:600,color:'#085041',marginBottom:'1rem'}}>{editingCotId?'✏️':'📥'} {editingCotId?(lang==='ar'?'تعديل الاشتراك':'Modifier cotisation'):(lang==='ar'?'تسجيل اشتراك جديد':'Nouvelle cotisation')}</div>
                 <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12,marginBottom:12}}>
                   <div className="field-group">
                     <label className="field-lbl">{lang==='ar'?'الطالب':'Élève'} *</label>
@@ -595,12 +692,12 @@ export default function Finance({ user, navigate, goBack, lang='fr' }) {
                   <input className="field-input" value={formCot.note} onChange={e=>setFormCot(f=>({...f,note:e.target.value}))} placeholder={lang==='ar'?'ملاحظات إضافية...':'Note optionnelle...'}/>
                 </div>
                 <button className="btn-primary" onClick={saveCotisation} disabled={saving}>
-                  {saving?'...':'✓ '+(lang==='ar'?'حفظ':'Enregistrer')}
+                  {saving?'...':(editingCotId?'✓ '+(lang==='ar'?'تحديث':'Mettre à jour'):'✓ '+(lang==='ar'?'حفظ':'Enregistrer'))}
                 </button>
               </div>
             )}
 
-            {/* Filtres */}
+            {/* Filtres */
             <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:8}}>
               <div className="field-group">
                 <label className="field-lbl">{lang==='ar'?'بحث بالاسم أو رقم التعريف':'Nom ou N° élève'}</label>
@@ -655,7 +752,10 @@ export default function Finance({ user, navigate, goBack, lang='fr' }) {
                     </div>
                     <span style={{padding:'3px 10px',borderRadius:20,fontSize:11,fontWeight:600,background:st.bg,color:st.color}}>{lang==='ar'?st.labelAr:st.label}</span>
                     <div style={{fontSize:16,fontWeight:800,color:'#1D9E75',minWidth:90,textAlign:'right'}}>{fmtMAD(c.montant)}</div>
-                    {user.role==='surveillant'&&<button onClick={()=>deleteCotisation(c.id)} style={{padding:'3px 8px',background:'#FCEBEB',color:'#E24B4A',border:'0.5px solid #E24B4A30',borderRadius:6,cursor:'pointer',fontSize:10,fontWeight:600}}>🗑 {lang==='ar'?'حذف':'Suppr.'}</button>}
+                    {user.role==='surveillant'&&(<div style={{display:'flex',gap:4}}>
+                    <button onClick={()=>startEditCotisation(c)} style={{padding:'3px 8px',background:'#E6F1FB',color:'#378ADD',border:'0.5px solid #378ADD30',borderRadius:6,cursor:'pointer',fontSize:10,fontWeight:600}}>✏️</button>
+                    <button onClick={()=>deleteCotisation(c.id)} style={{padding:'3px 8px',background:'#FCEBEB',color:'#E24B4A',border:'0.5px solid #E24B4A30',borderRadius:6,cursor:'pointer',fontSize:10,fontWeight:600}}>🗑</button>
+                  </div>)}
                   </div>
                 );
               })}
@@ -668,14 +768,14 @@ export default function Finance({ user, navigate, goBack, lang='fr' }) {
         {onglet==='depenses'&&(
           <>
             <div style={{display:'flex',justifyContent:'flex-end',marginBottom:'1rem'}}>
-              <button className="btn-primary" style={{width:'auto',padding:'8px 16px',fontSize:13}} onClick={()=>setShowFormDep(v=>!v)}>
+              <button className="btn-primary" style={{width:'auto',padding:'8px 16px',fontSize:13}} onClick={()=>{setShowFormDep(v=>!v);setEditingDepId(null);}}>
                 {showFormDep?'✕':'+  '}{lang==='ar'?'تسجيل مصروف':'Enregistrer une dépense'}
               </button>
             </div>
 
             {showFormDep&&(
               <div style={{background:'#fff',border:'1.5px solid #E24B4A',borderRadius:16,padding:'1.5rem',marginBottom:'1.25rem'}}>
-                <div style={{fontSize:14,fontWeight:600,color:'#A32D2D',marginBottom:'1rem'}}>📤 {lang==='ar'?'تسجيل مصروف جديد':'Nouvelle dépense'}</div>
+                <div style={{fontSize:14,fontWeight:600,color:'#A32D2D',marginBottom:'1rem'}}>{editingDepId?'✏️':'📤'} {editingDepId?(lang==='ar'?'تعديل المصروف':'Modifier dépense'):(lang==='ar'?'تسجيل مصروف جديد':'Nouvelle dépense')}</div>
                 {/* Catégorie */}
                 <div style={{marginBottom:12}}>
                   <label className="field-lbl">{lang==='ar'?'الفئة':'Catégorie'} *</label>
@@ -718,7 +818,7 @@ export default function Finance({ user, navigate, goBack, lang='fr' }) {
                   </div>
                 </div>
                 <button className="btn-primary" style={{background:'#E24B4A'}} onClick={saveDepense} disabled={saving}>
-                  {saving?'...':'✓ '+(lang==='ar'?'حفظ':'Enregistrer')}
+                  {saving?'...':(editingDepId?'✓ '+(lang==='ar'?'تحديث':'Mettre à jour'):'✓ '+(lang==='ar'?'حفظ':'Enregistrer'))}
                 </button>
               </div>
             )}
@@ -753,7 +853,10 @@ export default function Finance({ user, navigate, goBack, lang='fr' }) {
                       </div>
                     </div>
                     <div style={{fontSize:16,fontWeight:800,color:'#E24B4A',minWidth:90,textAlign:'right'}}>{fmtMAD(d.montant)}</div>
-                    {user.role==='surveillant'&&<button onClick={()=>deleteDepense(d.id)} style={{padding:'3px 8px',background:'#FCEBEB',color:'#E24B4A',border:'0.5px solid #E24B4A30',borderRadius:6,cursor:'pointer',fontSize:10,fontWeight:600}}>🗑 {lang==='ar'?'حذف':'Suppr.'}</button>}
+                    {user.role==='surveillant'&&(<div style={{display:'flex',gap:4}}>
+                    <button onClick={()=>startEditDepense(d)} style={{padding:'3px 8px',background:'#E6F1FB',color:'#378ADD',border:'0.5px solid #378ADD30',borderRadius:6,cursor:'pointer',fontSize:10,fontWeight:600}}>✏️</button>
+                    <button onClick={()=>deleteDepense(d.id)} style={{padding:'3px 8px',background:'#FCEBEB',color:'#E24B4A',border:'0.5px solid #E24B4A30',borderRadius:6,cursor:'pointer',fontSize:10,fontWeight:600}}>🗑</button>
+                  </div>)}
                   </div>
                 );
               })}
