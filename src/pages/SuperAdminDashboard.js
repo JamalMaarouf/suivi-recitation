@@ -10,20 +10,34 @@ export default function SuperAdminDashboard({ user, navigate, lang, onLogout }) 
   const [msg, setMsg] = useState('');
   const [form, setForm] = useState({ nom:'', ville:'', pays:'Maroc', telephone:'', email:'', identifiant:'', mot_de_passe:'', prenom_surveillant:'', nom_surveillant:'' });
   const [saving, setSaving] = useState(false);
+  const [editingEcole, setEditingEcole] = useState(null); // ecole being edited
+  const [editForm, setEditForm] = useState({});
+  const [editSaving, setEditSaving] = useState(false);
+  const [resetPwd, setResetPwd] = useState('');
 
   useEffect(() => { loadData(); }, []);
 
   const loadData = async () => {
     setLoading(true);
-    const { data } = await supabase
-      .from('ecoles')
-      .select('*, surveillant:utilisateurs!utilisateurs_ecole_id_fkey(id,prenom,nom,identifiant,statut_compte)')
-      .order('created_at', { ascending: false });
-    // Count eleves per ecole
-    const { data: eleves } = await supabase.from('eleves').select('ecole_id');
+    const [{ data: ecolesData }, { data: survsData }, { data: elevesData }, { data: instsData }] = await Promise.all([
+      supabase.from('ecoles').select('*').order('created_at', { ascending: false }),
+      supabase.from('utilisateurs').select('id,prenom,nom,identifiant,statut_compte,ecole_id').eq('role','surveillant'),
+      supabase.from('eleves').select('ecole_id'),
+      supabase.from('utilisateurs').select('ecole_id').eq('role','instituteur'),
+    ]);
+    // Map surveillants and eleve counts per ecole
+    const survByEcole = {};
+    (survsData||[]).forEach(s => { survByEcole[s.ecole_id] = s; });
     const counts = {};
-    (eleves||[]).forEach(e => { counts[e.ecole_id] = (counts[e.ecole_id]||0)+1; });
-    setEcoles((data||[]).map(e => ({ ...e, nb_eleves: counts[e.id]||0 })));
+    (elevesData||[]).forEach(e => { counts[e.ecole_id] = (counts[e.ecole_id]||0)+1; });
+    const instCounts = {};
+    (instsData||[]).forEach(i => { instCounts[i.ecole_id] = (instCounts[i.ecole_id]||0)+1; });
+    setEcoles((ecolesData||[]).map(e => ({
+      ...e,
+      surveillant: survByEcole[e.id] || null,
+      nb_eleves: counts[e.id]||0,
+      nb_instituteurs: instCounts[e.id]||0,
+    })));
     setLoading(false);
   };
 
@@ -36,7 +50,7 @@ export default function SuperAdminDashboard({ user, navigate, lang, onLogout }) 
       .eq('id', ecole.id);
     if (error) { showMsg('Erreur: ' + error.message); return; }
     // Activer le compte du surveillant
-    const surv = ecole.surveillant?.[0];
+    const surv = ecole.surveillant || null;
     if (surv) {
       await supabase.from('utilisateurs').update({ statut_compte: 'actif' }).eq('id', surv.id);
     }
@@ -46,7 +60,7 @@ export default function SuperAdminDashboard({ user, navigate, lang, onLogout }) 
 
   const suspendreEcole = async (ecole) => {
     await supabase.from('ecoles').update({ statut: 'suspendue' }).eq('id', ecole.id);
-    const surv = ecole.surveillant?.[0];
+    const surv = ecole.surveillant || null;
     if (surv) await supabase.from('utilisateurs').update({ statut_compte: 'suspendu' }).eq('id', surv.id);
     showMsg('École suspendue.');
     loadData();
@@ -54,10 +68,29 @@ export default function SuperAdminDashboard({ user, navigate, lang, onLogout }) 
 
   const reactiverEcole = async (ecole) => {
     await supabase.from('ecoles').update({ statut: 'active' }).eq('id', ecole.id);
-    const surv = ecole.surveillant?.[0];
+    const surv = ecole.surveillant || null;
     if (surv) await supabase.from('utilisateurs').update({ statut_compte: 'actif' }).eq('id', surv.id);
     showMsg('✅ École réactivée.');
     loadData();
+  };
+
+  const saveEditEcole = async () => {
+    setEditSaving(true);
+    const { error } = await supabase.from('ecoles')
+      .update({ nom: editForm.nom, ville: editForm.ville, pays: editForm.pays, telephone: editForm.telephone||null, email: editForm.email||null })
+      .eq('id', editingEcole.id);
+    if (error) { showMsg('Erreur: '+error.message); setEditSaving(false); return; }
+    // Reset password if provided
+    if (resetPwd.trim() && editingEcole.surveillant) {
+      await supabase.from('utilisateurs')
+        .update({ mot_de_passe: resetPwd.trim() })
+        .eq('id', editingEcole.surveillant.id);
+    }
+    showMsg('✅ École modifiée !');
+    setEditingEcole(null);
+    setResetPwd('');
+    loadData();
+    setEditSaving(false);
   };
 
   const creerEcole = async (e) => {
@@ -101,7 +134,7 @@ export default function SuperAdminDashboard({ user, navigate, lang, onLogout }) 
   );
 
   const EcoleCard = ({ecole}) => {
-    const surv = ecole.surveillant?.[0];
+    const surv = ecole.surveillant || null;
     const statusColor = ecole.statut==='active' ? S.green : ecole.statut==='en_attente' ? S.amber : S.red;
     const statusLabel = ecole.statut==='active' ? '✅ Active' : ecole.statut==='en_attente' ? '⏳ En attente' : '🚫 Suspendue';
     return (
@@ -118,10 +151,15 @@ export default function SuperAdminDashboard({ user, navigate, lang, onLogout }) 
         <div style={{display:'flex',gap:16,fontSize:12,color:'#888',marginBottom:10,flexWrap:'wrap'}}>
           {surv && <span>👤 {surv.prenom} {surv.nom} <em>({surv.identifiant})</em></span>}
           <span>🎓 {ecole.nb_eleves} élève(s)</span>
+          <span>👨‍🏫 {ecole.nb_instituteurs} instituteur(s)</span>
           {ecole.email && <span>✉️ {ecole.email}</span>}
           {ecole.telephone && <span>📞 {ecole.telephone}</span>}
         </div>
-        <div style={{display:'flex',gap:8}}>
+        <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
+          <button onClick={()=>{setEditingEcole(ecole);setEditForm({nom:ecole.nom,ville:ecole.ville||'',pays:ecole.pays||'Maroc',telephone:ecole.telephone||'',email:ecole.email||''});setResetPwd('');setVue('ecoles');}}
+            style={{padding:'7px 12px',background:'#F0EEFF',color:S.purple,border:`0.5px solid ${S.purple}30`,borderRadius:8,fontSize:12,fontWeight:600,cursor:'pointer'}}>
+            ✏️ Modifier
+          </button>
           {ecole.statut === 'en_attente' && (
             <button onClick={()=>validerEcole(ecole)}
               style={{flex:1,padding:'7px',background:S.green,color:'#fff',border:'none',borderRadius:8,fontSize:12,fontWeight:600,cursor:'pointer'}}>
@@ -262,6 +300,54 @@ export default function SuperAdminDashboard({ user, navigate, lang, onLogout }) 
             {saving ? '...' : '✅ Créer l\'école'}
           </button>
         </form>
+      )}
+      {/* Edit Modal */}
+      {editingEcole&&(
+        <div style={{position:'fixed',top:0,left:0,right:0,bottom:0,background:'rgba(0,0,0,0.5)',zIndex:1000,display:'flex',alignItems:'center',justifyContent:'center',padding:'1rem'}}
+          onClick={()=>setEditingEcole(null)}>
+          <div style={{background:'#fff',borderRadius:16,padding:'1.5rem',maxWidth:480,width:'100%',maxHeight:'90vh',overflowY:'auto'}} onClick={e=>e.stopPropagation()}>
+            <div style={{fontSize:15,fontWeight:700,color:S.purple,marginBottom:'1rem'}}>✏️ Modifier — {editingEcole.nom}</div>
+            <div style={{display:'grid',gap:10,marginBottom:'1rem'}}>
+              <div><label style={{fontSize:12,fontWeight:600,color:'#444',display:'block',marginBottom:3}}>Nom *</label>
+                <input style={{width:'100%',padding:'8px 12px',borderRadius:8,border:'0.5px solid #e0e0d8',fontSize:13,fontFamily:'inherit',boxSizing:'border-box'}}
+                  value={editForm.nom} onChange={e=>setEditForm(f=>({...f,nom:e.target.value}))}/></div>
+              <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
+                <div><label style={{fontSize:12,fontWeight:600,color:'#444',display:'block',marginBottom:3}}>Ville</label>
+                  <input style={{width:'100%',padding:'8px 12px',borderRadius:8,border:'0.5px solid #e0e0d8',fontSize:13,fontFamily:'inherit',boxSizing:'border-box'}}
+                    value={editForm.ville} onChange={e=>setEditForm(f=>({...f,ville:e.target.value}))}/></div>
+                <div><label style={{fontSize:12,fontWeight:600,color:'#444',display:'block',marginBottom:3}}>Pays</label>
+                  <input style={{width:'100%',padding:'8px 12px',borderRadius:8,border:'0.5px solid #e0e0d8',fontSize:13,fontFamily:'inherit',boxSizing:'border-box'}}
+                    value={editForm.pays} onChange={e=>setEditForm(f=>({...f,pays:e.target.value}))}/></div>
+              </div>
+              <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
+                <div><label style={{fontSize:12,fontWeight:600,color:'#444',display:'block',marginBottom:3}}>Téléphone</label>
+                  <input style={{width:'100%',padding:'8px 12px',borderRadius:8,border:'0.5px solid #e0e0d8',fontSize:13,fontFamily:'inherit',boxSizing:'border-box'}}
+                    value={editForm.telephone} onChange={e=>setEditForm(f=>({...f,telephone:e.target.value}))}/></div>
+                <div><label style={{fontSize:12,fontWeight:600,color:'#444',display:'block',marginBottom:3}}>Email</label>
+                  <input style={{width:'100%',padding:'8px 12px',borderRadius:8,border:'0.5px solid #e0e0d8',fontSize:13,fontFamily:'inherit',boxSizing:'border-box',type:'email'}}
+                    value={editForm.email} onChange={e=>setEditForm(f=>({...f,email:e.target.value}))}/></div>
+              </div>
+              {editingEcole.surveillant&&(
+                <div>
+                  <label style={{fontSize:12,fontWeight:600,color:'#444',display:'block',marginBottom:3}}>
+                    🔑 Réinitialiser mot de passe de {editingEcole.surveillant.prenom} (laisser vide = inchangé)
+                  </label>
+                  <input type="password" style={{width:'100%',padding:'8px 12px',borderRadius:8,border:'0.5px solid #e0e0d8',fontSize:13,fontFamily:'inherit',boxSizing:'border-box'}}
+                    value={resetPwd} onChange={e=>setResetPwd(e.target.value)} placeholder="Nouveau mot de passe..." autoComplete="new-password"/>
+                </div>
+              )}
+            </div>
+            <div style={{display:'flex',gap:10}}>
+              <button onClick={()=>setEditingEcole(null)} style={{padding:'9px 16px',background:'#f5f5f0',color:'#666',border:'0.5px solid #e0e0d8',borderRadius:10,fontWeight:600,cursor:'pointer',fontSize:13}}>
+                Annuler
+              </button>
+              <button onClick={saveEditEcole} disabled={editSaving||!editForm.nom.trim()}
+                style={{flex:1,padding:'9px',background:editSaving||!editForm.nom.trim()?'#ccc':S.green,color:'#fff',border:'none',borderRadius:10,fontWeight:700,cursor:'pointer',fontSize:13}}>
+                {editSaving?'...':'✅ Enregistrer'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
