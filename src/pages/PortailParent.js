@@ -44,18 +44,18 @@ export default function PortailParent({ parent, navigate, goBack, lang='fr' }) {
 
       if (elevesData.length > 0) {
         const ids = elevesData.map(e=>e.id);
-        const [r1, r2, r3, r4, r5] = await Promise.all([
+        const results = await Promise.allSettled([
           supabase.from('validations').select('*, valideur:valide_par(prenom,nom)').in('eleve_id', ids).order('date_validation',{ascending:false}),
           supabase.from('recitations_sourates').select('*, valideur:valide_par(prenom,nom)').in('eleve_id', ids).order('date_validation',{ascending:false}),
-          supabase.from('objectifs_globaux').select('*'),
+          supabase.from('objectifs_globaux').select('*').limit(100),
           supabase.from('cotisations').select('*').in('eleve_id', ids).order('date_paiement',{ascending:false}),
           supabase.from('sourates').select('*'),
         ]);
-        setValidations(r1.data||[]);
-        setRecitations(r2.data||[]);
-        setObjectifs(r3.data||[]);
-        setCotisations(r4.data||[]);
-        setSouratesDB(r5.data||[]);
+        setValidations(results[0].status==='fulfilled'?results[0].value.data||[]:[]);
+        setRecitations(results[1].status==='fulfilled'?results[1].value.data||[]:[]);
+        setObjectifs(results[2].status==='fulfilled'?results[2].value.data||[]:[]);
+        setCotisations(results[3].status==='fulfilled'?results[3].value.data||[]:[]);
+        setSouratesDB(results[4].status==='fulfilled'?results[4].value.data||[]:[]);
       }
     } catch(e) { console.error(e); }
     setLoading(false);
@@ -72,8 +72,8 @@ export default function PortailParent({ parent, navigate, goBack, lang='fr' }) {
   const eleve = selectedEnfant;
   if (!eleve) return null;
 
-  const isSourate = IS_SOURATE(eleve.code_niveau);
-  const nc = NIVEAU_COLORS[eleve.code_niveau||'1']||'#888';
+  const isSourate = IS_SOURATE(eleve?.code_niveau||'');
+  const nc = NIVEAU_COLORS[eleve?.code_niveau||'1']||'#888';
   const sl = scoreLabel(0);
 
   // Stats pour l'élève sélectionné

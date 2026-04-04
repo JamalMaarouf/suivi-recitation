@@ -174,7 +174,7 @@ export default function App() {
         )}
 
         <main className={isMobile ? 'main-content-mobile' : 'main-content'}>
-          {user.role === 'parent' && <PortailParent parent={user} navigate={navigate} goBack={goBack} lang={lang} />}
+          {user.role === 'parent' && <ErrorBoundary><PortailParent parent={user} navigate={navigate} goBack={goBack} lang={lang} /></ErrorBoundary>}
           {user.role !== 'parent' && <>
           {page === 'dashboard'         && <Dashboard {...pageProps} />}
           {page === 'fiche'             && selectedEleve   && <ErrorBoundary><FicheEleve eleve={selectedEleve} {...pageProps} /></ErrorBoundary>}
