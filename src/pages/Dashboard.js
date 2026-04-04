@@ -157,12 +157,12 @@ export default function Dashboard({ user, navigate, goBack, lang='fr' }) {
           </div>
 
           {/* Alerte critique inactifs */}
-          {eleves.filter(e=>e.jours==null||e.jours>30).length>0&&(
+          {eleves.filter(e=>e.jours!=null&&e.jours>30).length>0&&(
             <div onClick={()=>setShowInactifsModal(true)} style={{display:'flex',alignItems:'center',gap:12,padding:'10px 14px',background:'#FCEBEB',borderRadius:12,marginBottom:8,cursor:'pointer',border:'1.5px solid #E24B4A30'}}>
               <span style={{fontSize:20}}>🚨</span>
               <div style={{flex:1}}>
                 <div style={{fontSize:13,fontWeight:700,color:'#E24B4A'}}>
-                  {eleves.filter(e=>e.jours>30).length} {lang==='ar'?'طالب غائب أكثر من 30 يوماً':'élève(s) inactif(s) depuis +30 jours'}
+                  {eleves.filter(e=>e.jours!=null&&e.jours>30).length} {lang==='ar'?'طالب غائب أكثر من 30 يوماً':'élève(s) inactif(s) depuis +30 jours'}
                 </div>
                 <div style={{fontSize:11,color:'#E24B4A',opacity:0.7}}>
                   {lang==='ar'?'انقر لعرض القائمة':'Cliquer pour voir la liste'}
@@ -176,10 +176,21 @@ export default function Dashboard({ user, navigate, goBack, lang='fr' }) {
               <span style={{fontSize:20}}>⚠️</span>
               <div style={{flex:1}}>
                 <div style={{fontSize:13,fontWeight:700,color:'#856404'}}>
-                  {eleves.filter(e=>e.jours>14).length} {lang==='ar'?'طالب غائب أكثر من 14 يوماً':'élève(s) inactif(s) depuis +14 jours'}
+                  {eleves.filter(e=>e.jours!=null&&e.jours>14&&e.jours<=30).length} {lang==='ar'?'طالب غائب 14-30 يوماً':'élève(s) inactif(s) depuis 14-30 jours'}
                 </div>
               </div>
               <span style={{fontSize:11,color:'#856404',fontWeight:600}}>›</span>
+            </div>
+          )}
+          {eleves.filter(e=>e.jours==null).length>0&&(
+            <div onClick={()=>setShowInactifsModal(true)} style={{display:'flex',alignItems:'center',gap:12,padding:'10px 14px',background:'#F0EEFF',borderRadius:12,marginBottom:8,cursor:'pointer',border:'1.5px solid #534AB730'}}>
+              <span style={{fontSize:20}}>📋</span>
+              <div style={{flex:1}}>
+                <div style={{fontSize:13,fontWeight:700,color:'#534AB7'}}>
+                  {eleves.filter(e=>e.jours==null).length} {lang==='ar'?'طالب لم يستظهر بعد':'élève(s) sans aucune récitation'}
+                </div>
+              </div>
+              <span style={{fontSize:11,color:'#534AB7',fontWeight:600}}>›</span>
             </div>
           )}
                     <div style={{display:'grid',gridTemplateColumns:'repeat(4,minmax(0,1fr))',gap:8,marginBottom:'1.25rem'}}>
@@ -472,7 +483,7 @@ export default function Dashboard({ user, navigate, goBack, lang='fr' }) {
                 const urgent = (e.jours||0) > 30;
                 const nc = NIVEAU_COLORS[e.code_niveau||'1']||'#888';
                 return (
-                  <div key={e.id} onClick={ev=>{ev.stopPropagation();navigate('fiche',e);setShowInactifsModal(false);}}
+                  <div key={e.id} onClick={ev=>{ev.stopPropagation();setShowInactifsModal(false);setTimeout(()=>navigate('fiche',e),50);}}
                     style={{display:'flex',alignItems:'center',gap:12,padding:'10px 14px',borderRadius:12,cursor:'pointer',
                       background:urgent?'#FFF5F5':'#FFFDF0',
                       border:`1.5px solid ${urgent?'#E24B4A20':'#EF9F2720'}`}}>
