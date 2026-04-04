@@ -18,6 +18,7 @@ import PortailParent from './pages/PortailParent';
 import ValidationRapide from './pages/ValidationRapide';
 import ValidationCollective from './pages/ValidationCollective';
 import MurajaDashboard from './pages/MurajaDashboard';
+import ElevesInactifs from './pages/ElevesInactifs';
 import { t, getDir } from './lib/i18n';
 import { setSouratesDB } from './lib/sourates';
 import { supabase } from './lib/supabase';
@@ -198,6 +199,7 @@ export default function App() {
               : <EnregistrerRecitation eleve={selectedEleve} {...pageProps} />
           )}
           {page === 'muraja'            && <ValidationCollective {...pageProps} />}
+          {page === 'inactifs'           && <ElevesInactifs navigate={navigate} goBack={goBack} lang={lang} user={user} />}
           {page === 'muraja_dashboard'  && <MurajaDashboard {...pageProps} />}
           {page === 'validation_rapide' && <ValidationRapide {...pageProps} />}
           {page === 'gestion'           && user.role === 'surveillant' && <Gestion {...pageProps} />}

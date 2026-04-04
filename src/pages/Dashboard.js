@@ -49,7 +49,6 @@ export default function Dashboard({ user, navigate, goBack, lang='fr' }) {
   const [filtreInst, setFiltreInst] = useState('tous');
   const [filtreStatut, setFiltreStatut] = useState('tous');
   const [filtreNiveau, setFiltreNiveau] = useState('tous');
-  const [showInactifsModal, setShowInactifsModal] = useState(false);
   const [tri, setTri] = useState('points_desc');
 
   useEffect(() => { loadData(); }, []);
@@ -158,7 +157,7 @@ export default function Dashboard({ user, navigate, goBack, lang='fr' }) {
 
           {/* Alerte critique inactifs */}
           {eleves.filter(e=>e.jours!=null&&e.jours>30).length>0&&(
-            <div onClick={()=>setShowInactifsModal(true)} style={{display:'flex',alignItems:'center',gap:12,padding:'10px 14px',background:'#FCEBEB',borderRadius:12,marginBottom:8,cursor:'pointer',border:'1.5px solid #E24B4A30'}}>
+            <div onClick={()=>navigate('inactifs')} style={{display:'flex',alignItems:'center',gap:12,padding:'10px 14px',background:'#FCEBEB',borderRadius:12,marginBottom:8,cursor:'pointer',border:'1.5px solid #E24B4A30'}}>
               <span style={{fontSize:20}}>🚨</span>
               <div style={{flex:1}}>
                 <div style={{fontSize:13,fontWeight:700,color:'#E24B4A'}}>
@@ -172,7 +171,7 @@ export default function Dashboard({ user, navigate, goBack, lang='fr' }) {
             </div>
           )}
           {eleves.filter(e=>e.jours!=null&&e.jours>14&&e.jours<=30).length>0&&(
-            <div onClick={()=>setShowInactifsModal(true)} style={{display:'flex',alignItems:'center',gap:12,padding:'10px 14px',background:'#FFF3CD',borderRadius:12,marginBottom:8,cursor:'pointer',border:'1.5px solid #EF9F2730'}}>
+            <div onClick={()=>navigate('inactifs')} style={{display:'flex',alignItems:'center',gap:12,padding:'10px 14px',background:'#FFF3CD',borderRadius:12,marginBottom:8,cursor:'pointer',border:'1.5px solid #EF9F2730'}}>
               <span style={{fontSize:20}}>⚠️</span>
               <div style={{flex:1}}>
                 <div style={{fontSize:13,fontWeight:700,color:'#856404'}}>
@@ -183,7 +182,7 @@ export default function Dashboard({ user, navigate, goBack, lang='fr' }) {
             </div>
           )}
           {eleves.filter(e=>e.jours==null).length>0&&(
-            <div onClick={()=>setShowInactifsModal(true)} style={{display:'flex',alignItems:'center',gap:12,padding:'10px 14px',background:'#F0EEFF',borderRadius:12,marginBottom:8,cursor:'pointer',border:'1.5px solid #534AB730'}}>
+            <div onClick={()=>navigate('inactifs')} style={{display:'flex',alignItems:'center',gap:12,padding:'10px 14px',background:'#F0EEFF',borderRadius:12,marginBottom:8,cursor:'pointer',border:'1.5px solid #534AB730'}}>
               <span style={{fontSize:20}}>📋</span>
               <div style={{flex:1}}>
                 <div style={{fontSize:13,fontWeight:700,color:'#534AB7'}}>
@@ -446,88 +445,6 @@ export default function Dashboard({ user, navigate, goBack, lang='fr' }) {
         </>
       )}
 
-      {/* Modal Inactifs */}
-      {showInactifsModal&&(
-        <div style={{position:'fixed',top:0,left:0,right:0,bottom:0,background:'rgba(0,0,0,0.5)',zIndex:1000,display:'flex',alignItems:'center',justifyContent:'center',padding:'1rem'}} onClick={()=>setShowInactifsModal(false)}>
-          <div style={{background:'#fff',borderRadius:16,padding:'1.5rem',maxWidth:600,width:'100%',maxHeight:'80vh',overflowY:'auto'}} onClick={e=>e.stopPropagation()}>
-            {/* Header */}
-            <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'1rem'}}>
-              <div>
-                <div style={{fontSize:16,fontWeight:700,color:'#1a1a1a'}}>
-                  {lang==='ar'?'الطلاب غير النشطين':'Élèves inactifs'}
-                </div>
-                <div style={{fontSize:12,color:'#888',marginTop:2}}>
-                  {[...eleves].filter(e=>e.inactif).length} {lang==='ar'?'طالب':'élève(s)'}
-                </div>
-              </div>
-              <button onClick={()=>setShowInactifsModal(false)} style={{padding:'4px 10px',background:'#f5f5f0',border:'none',borderRadius:8,cursor:'pointer',fontSize:18,color:'#666'}}>✕</button>
-            </div>
-
-            {/* Urgency tabs */}
-            <div style={{display:'flex',gap:8,marginBottom:'1rem'}}>
-              {[
-                {label:lang==='ar'?'الكل':'Tous', count:eleves.filter(e=>e.inactif).length, color:'#666', bg:'#f5f5f0'},
-                {label:lang==='ar'?'+30 يوم':'+30 jours', count:eleves.filter(e=>e.jours==null||e.jours>30).length, color:'#E24B4A', bg:'#FCEBEB'},
-                {label:lang==='ar'?'14-30 يوم':'14-30 jours', count:eleves.filter(e=>e.jours!=null&&e.jours>14&&e.jours<=30).length, color:'#856404', bg:'#FFF3CD'},
-              ].map((tab,i)=>(
-                <div key={i} style={{flex:1,padding:'6px 10px',borderRadius:10,background:tab.bg,textAlign:'center',cursor:'default'}}>
-                  <div style={{fontSize:18,fontWeight:800,color:tab.color}}>{tab.count}</div>
-                  <div style={{fontSize:10,color:tab.color,opacity:0.8}}>{tab.label}</div>
-                </div>
-              ))}
-            </div>
-
-            {/* List */}
-            <div style={{display:'flex',flexDirection:'column',gap:6}}>
-              {[...eleves].filter(e=>e.inactif).sort((a,b)=>{
-                if(a.jours==null&&b.jours==null)return 0;
-                if(a.jours==null)return -1;
-                if(b.jours==null)return 1;
-                return b.jours-a.jours;
-              }).map(e=>{
-                const jours = e.jours;
-                const urgent = jours!=null && jours>30;
-                const jamais = jours==null;
-                const nc = NIVEAU_COLORS[e.code_niveau||'1']||'#888';
-                const bgColor = jamais?'#F0EEFF':urgent?'#FFF5F5':'#FFFDF0';
-                const borderColor = jamais?'#534AB730':urgent?'#E24B4A20':'#EF9F2720';
-                const textColor = jamais?'#534AB7':urgent?'#E24B4A':'#856404';
-                return (
-                  <div key={e.id}
-                    onClick={ev=>{ev.stopPropagation();navigate('fiche',e);}}
-                    style={{display:'flex',alignItems:'center',gap:10,padding:'10px 12px',borderRadius:10,cursor:'pointer',background:bgColor,border:'1.5px solid '+borderColor}}>
-                    <div style={{width:36,height:36,borderRadius:'50%',background:nc+'20',color:nc,display:'flex',alignItems:'center',justifyContent:'center',fontWeight:700,fontSize:13,flexShrink:0}}>
-                      {(e.prenom||'?')[0]}{(e.nom||'?')[0]}
-                    </div>
-                    <div style={{flex:1,minWidth:0}}>
-                      <div style={{fontWeight:600,fontSize:13}}>{e.prenom||''} {e.nom||''}</div>
-                      <div style={{fontSize:11,color:'#888',display:'flex',gap:6,flexWrap:'wrap',marginTop:2}}>
-                        <span style={{padding:'1px 5px',borderRadius:4,background:nc+'15',color:nc,fontWeight:600}}>{e.code_niveau||'?'}</span>
-                        {e.instituteurNom&&e.instituteurNom!=='—'&&<span>{'👤 '+e.instituteurNom}</span>}
-                      </div>
-                    </div>
-                    <div style={{textAlign:'center',flexShrink:0,minWidth:40}}>
-                      <div style={{fontSize:18,fontWeight:800,color:textColor}}>{jamais?'∞':jours}</div>
-                      <div style={{fontSize:9,color:textColor}}>{lang==='ar'?'يوم':'j.'}</div>
-                    </div>
-                  </div>
-                );
-              })}
-              {eleves.filter(e=>e.inactif).length===0&&(
-                <div style={{textAlign:'center',color:'#aaa',padding:'1.5rem'}}>
-                  {lang==='ar'?'لا يوجد طلاب غير نشطين':'Aucun élève inactif'}
-                </div>
-              )}
-            </div>
-            {/* Footer */}
-            <div style={{marginTop:'1rem',textAlign:'center'}}>
-              <button onClick={()=>setShowInactifsModal(false)} className="back-link">
-                {lang==='ar'?'إغلاق':'Fermer'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
