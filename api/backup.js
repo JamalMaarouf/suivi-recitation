@@ -5,12 +5,7 @@
 const { createClient } = require('@supabase/supabase-js');
 const { Resend } = require('resend');
 
-const supabase = createClient(
-  process.env.SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_KEY // Service key (pas anon key) pour accès complet
-);
-
-const resend = new Resend(process.env.RESEND_API_KEY);
+// Initialized inside handler to ensure env vars are available
 
 // Tables à sauvegarder
 const TABLES = [
@@ -31,7 +26,7 @@ const TABLES = [
   'sourates',
 ];
 
-async function exportTable(table) {
+async function exportTable(supabase, table) {
   const { data, error } = await supabase
     .from(table)
     .select('*')
@@ -51,7 +46,14 @@ function formatSize(bytes) {
   return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
 }
 
-export default async function handler(req, res) {
+module.exports = async function handler(req, res) {
+  // Initialize clients inside handler to ensure env vars are available
+  const supabase = createClient(
+    process.env.SUPABASE_URL,
+    process.env.SUPABASE_SERVICE_KEY
+  );
+  const resend = new Resend(process.env.RESEND_API_KEY);
+
   // Security: verify cron secret or allow GET for manual trigger
   const authHeader = req.headers['authorization'];
   const cronSecret = process.env.CRON_SECRET;
@@ -74,7 +76,7 @@ export default async function handler(req, res) {
 
   try {
     // Export all tables in parallel
-    const results = await Promise.all(TABLES.map(exportTable));
+    const results = await Promise.all(TABLES.map(t => exportTable(supabase, t)));
 
     // Build backup object
     const backup = {
