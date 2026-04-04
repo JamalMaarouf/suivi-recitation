@@ -157,7 +157,7 @@ export default function Dashboard({ user, navigate, goBack, lang='fr' }) {
           </div>
 
           {/* Alerte critique inactifs */}
-          {eleves.filter(e=>e.jours>30).length>0&&(
+          {eleves.filter(e=>e.jours==null||e.jours>30).length>0&&(
             <div onClick={()=>setShowInactifsModal(true)} style={{display:'flex',alignItems:'center',gap:12,padding:'10px 14px',background:'#FCEBEB',borderRadius:12,marginBottom:8,cursor:'pointer',border:'1.5px solid #E24B4A30'}}>
               <span style={{fontSize:20}}>🚨</span>
               <div style={{flex:1}}>
@@ -171,7 +171,7 @@ export default function Dashboard({ user, navigate, goBack, lang='fr' }) {
               <span style={{fontSize:11,color:'#E24B4A',fontWeight:600}}>›</span>
             </div>
           )}
-          {eleves.filter(e=>e.jours>14&&e.jours<=30).length>0&&eleves.filter(e=>e.jours>30).length===0&&(
+          {eleves.filter(e=>e.jours!=null&&e.jours>14&&e.jours<=30).length>0&&eleves.filter(e=>e.jours==null||e.jours>30).length===0&&(
             <div onClick={()=>setShowInactifsModal(true)} style={{display:'flex',alignItems:'center',gap:12,padding:'10px 14px',background:'#FFF3CD',borderRadius:12,marginBottom:8,cursor:'pointer',border:'1.5px solid #EF9F2730'}}>
               <span style={{fontSize:20}}>⚠️</span>
               <div style={{flex:1}}>
@@ -397,7 +397,7 @@ export default function Dashboard({ user, navigate, goBack, lang='fr' }) {
       {!loading && vue==='rapport' && user.role==='surveillant' && (
         <>
           {/* Alerte critique inactifs */}
-          {eleves.filter(e=>e.jours>30).length>0&&(
+          {eleves.filter(e=>e.jours==null||e.jours>30).length>0&&(
             <div onClick={()=>setShowInactifsModal(true)} style={{display:'flex',alignItems:'center',gap:12,padding:'10px 14px',background:'#FCEBEB',borderRadius:12,marginBottom:8,cursor:'pointer',border:'1.5px solid #E24B4A30'}}>
               <span style={{fontSize:20}}>🚨</span>
               <div style={{flex:1}}>
@@ -411,7 +411,7 @@ export default function Dashboard({ user, navigate, goBack, lang='fr' }) {
               <span style={{fontSize:11,color:'#E24B4A',fontWeight:600}}>›</span>
             </div>
           )}
-          {eleves.filter(e=>e.jours>14&&e.jours<=30).length>0&&eleves.filter(e=>e.jours>30).length===0&&(
+          {eleves.filter(e=>e.jours!=null&&e.jours>14&&e.jours<=30).length>0&&eleves.filter(e=>e.jours==null||e.jours>30).length===0&&(
             <div onClick={()=>setShowInactifsModal(true)} style={{display:'flex',alignItems:'center',gap:12,padding:'10px 14px',background:'#FFF3CD',borderRadius:12,marginBottom:8,cursor:'pointer',border:'1.5px solid #EF9F2730'}}>
               <span style={{fontSize:20}}>⚠️</span>
               <div style={{flex:1}}>
@@ -482,8 +482,8 @@ export default function Dashboard({ user, navigate, goBack, lang='fr' }) {
             <div style={{display:'flex',gap:8,marginBottom:'1rem'}}>
               {[
                 {label:lang==='ar'?'الكل':'Tous', count:eleves.filter(e=>e.inactif).length, color:'#666', bg:'#f5f5f0'},
-                {label:lang==='ar'?'+30 يوم':'+30 jours', count:eleves.filter(e=>(e.jours||0)>30).length, color:'#E24B4A', bg:'#FCEBEB'},
-                {label:lang==='ar'?'14-30 يوم':'14-30 jours', count:eleves.filter(e=>(e.jours||0)>14&&(e.jours||0)<=30).length, color:'#856404', bg:'#FFF3CD'},
+                {label:lang==='ar'?'+30 يوم':'+30 jours', count:eleves.filter(e=>e.jours==null||e.jours>30).length, color:'#E24B4A', bg:'#FCEBEB'},
+                {label:lang==='ar'?'14-30 يوم':'14-30 jours', count:eleves.filter(e=>e.jours!=null&&e.jours>14&&e.jours<=30).length, color:'#856404', bg:'#FFF3CD'},
               ].map((tab,i)=>(
                 <div key={i} style={{flex:1,padding:'6px 10px',borderRadius:10,background:tab.bg,textAlign:'center',cursor:'default'}}>
                   <div style={{fontSize:18,fontWeight:800,color:tab.color}}>{tab.count}</div>
@@ -494,7 +494,7 @@ export default function Dashboard({ user, navigate, goBack, lang='fr' }) {
 
             {/* List */}
             <div style={{display:'flex',flexDirection:'column',gap:8}}>
-              {[...eleves].filter(e=>e.inactif).sort((a,b)=>(b.jours||0)-(a.jours||0)).map(e=>{
+              {[...eleves].filter(e=>e.inactif).sort((a,b)=>{if(a.jours==null)return -1;if(b.jours==null)return 1;return b.jours-a.jours;}).map(e=>{
                 const urgent = (e.jours||0) > 30;
                 const nc = NIVEAU_COLORS[e.niveau||'1']||'#888';
                 return (
