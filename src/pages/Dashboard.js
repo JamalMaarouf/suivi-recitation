@@ -77,6 +77,22 @@ export default function Dashboard({ user, navigate, goBack, lang='fr' }) {
   const nbInactifs = eleves.filter(e=>e.inactif).length;
   const nbAttente = eleves.filter(e=>e.etat.enAttenteHizbComplet).length;
 
+  // Taux récitation hebdomadaire
+  const nbActifsSemaine = eleves.filter(e=>e.jours!=null&&e.jours<=7).length;
+  const tauxSemaine = eleves.length>0 ? Math.round(nbActifsSemaine/eleves.length*100) : 0;
+
+  // Récap mois en cours
+  const debutMois = new Date(); debutMois.setDate(1); debutMois.setHours(0,0,0,0);
+  const recapMois = React.useMemo(() => {
+    const vMois = allValidations.filter(v=>new Date(v.date_validation)>=debutMois);
+    const nbRecit = vMois.length;
+    const nbObj = eleves.filter(e=>{
+      const objEleve = e.etat?.tomonCumul||0;
+      return objEleve > 0;
+    }).length;
+    return { nbRecit, mois: new Date().toLocaleDateString(lang==='ar'?'ar-MA':'fr-FR',{month:'long'}) };
+  }, [allValidations, eleves]);
+
   const elevesFiltres = useMemo(() => {
     let list = [...eleves];
     if(searchEleve) list=list.filter(e=>`${e.prenom} ${e.nom}`.toLowerCase().includes(searchEleve.toLowerCase()));
@@ -152,6 +168,23 @@ export default function Dashboard({ user, navigate, goBack, lang='fr' }) {
               {[{v:totalTomon,l:t(lang,'tomon_recites')},{v:totalHizb,l:t(lang,'hizb_complets')},{v:eleves.length,l:t(lang,'eleves')},{v:instituteurs.length,l:t(lang,'instituteurs')}].map(k=>(
                 <div key={k.l}><div style={{fontSize:20,fontWeight:700}}>{k.v}</div><div style={{fontSize:11,opacity:0.65}}>{k.l}</div></div>
               ))}
+            </div>
+          </div>
+
+          {/* Récap mensuel */}
+          <div style={{display:'flex',alignItems:'center',gap:12,padding:'10px 14px',background:'#fff',borderRadius:10,marginBottom:8,border:'0.5px solid '+C.border}}>
+            <div style={{flex:1}}>
+              <span style={{fontSize:12,color:C.muted}}>{lang==='ar'?'شهر ':'Mois de '}{recapMois.mois} — </span>
+              <span style={{fontSize:12,fontWeight:600,color:C.green}}>{recapMois.nbRecit} {lang==='ar'?'استظهار':'récitations'}</span>
+            </div>
+            <div style={{display:'flex',alignItems:'center',gap:6}}>
+              <div style={{fontSize:11,color:C.muted}}>{lang==='ar'?'نشاط الأسبوع':'Actifs semaine'}</div>
+              <div style={{padding:'3px 10px',borderRadius:20,
+                background:tauxSemaine>=70?C.greenBg:tauxSemaine>=40?C.amberBg:C.redBg,
+                color:tauxSemaine>=70?C.green:tauxSemaine>=40?C.amber:C.red,
+                fontSize:13,fontWeight:700}}>
+                {tauxSemaine}%
+              </div>
             </div>
           </div>
 

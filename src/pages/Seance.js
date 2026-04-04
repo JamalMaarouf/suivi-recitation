@@ -246,6 +246,29 @@ export default function Seance({ user, navigate, goBack, lang='fr' }) {
                 ))}
               </div>
 
+              {/* Mini tendance par niveau */}
+              {elevesDataState.length>0&&(
+                <div style={{display:'flex',gap:6,flexWrap:'wrap',marginBottom:'1rem'}}>
+                  {['5B','5A','2M','2','1'].map(n=>{
+                    const nc=NIVEAU_COLORS[n]||'#888';
+                    const elevesN=elevesDataState.filter(e=>e.code_niveau===n);
+                    if(elevesN.length===0)return null;
+                    const actifs=elevesN.filter(e=>e.actifAujourdhui).length;
+                    const pct=Math.round(actifs/elevesN.length*100);
+                    return(
+                      <div key={n} style={{flex:1,minWidth:60,padding:'8px 6px',borderRadius:10,background:nc+'12',border:'1px solid '+nc+'25',textAlign:'center'}}>
+                        <div style={{fontSize:11,fontWeight:700,color:nc,marginBottom:2}}>{n}</div>
+                        <div style={{fontSize:16,fontWeight:800,color:nc}}>{actifs}<span style={{fontSize:10,opacity:0.7}}>/{elevesN.length}</span></div>
+                        <div style={{height:4,borderRadius:2,background:nc+'20',margin:'3px 0',overflow:'hidden'}}>
+                          <div style={{height:'100%',width:pct+'%',background:nc,borderRadius:2}}/>
+                        </div>
+                        <div style={{fontSize:9,color:nc,opacity:0.8}}>{pct}%</div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
               {/* Classement du jour */}
               {elevesVus.length>0&&(
                 <>
