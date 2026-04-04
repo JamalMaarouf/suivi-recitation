@@ -131,6 +131,127 @@ export default function PortailParent({ parent, navigate, goBack, lang='fr', onL
     { key:'cotisations', label:'Cotisations',      labelAr:'الاشتراكات',    icon:'💰' },
   ];
 
+  if (isMobile) {
+    return (
+      <div style={{paddingBottom:80, background:'#f5f5f0', minHeight:'100vh'}}>
+        {/* Mobile header */}
+        <div style={{background:'linear-gradient(135deg,#085041,#1D9E75)', padding:'48px 16px 20px'}}>
+          <div style={{fontSize:13, color:'rgba(255,255,255,0.8)', marginBottom:4}}>
+            {lang==='ar'?'مرحباً':'Bonjour'}, <strong>{parent.prenom} {parent.nom}</strong>
+          </div>
+          {/* Child selector */}
+          {enfants.length > 1 && (
+            <div style={{display:'flex', gap:8, overflowX:'auto', marginTop:10, scrollbarWidth:'none'}}>
+              {enfants.map(e=>(
+                <div key={e.id} onClick={()=>{setSelectedEnfant(e);setOnglet('progression');}}
+                  style={{display:'flex', alignItems:'center', gap:8, padding:'8px 12px', borderRadius:20,
+                    flexShrink:0, cursor:'pointer',
+                    background: selectedEnfant?.id===e.id ? 'rgba(255,255,255,0.3)' : 'rgba(255,255,255,0.15)',
+                    border: `1.5px solid ${selectedEnfant?.id===e.id ? '#fff' : 'rgba(255,255,255,0.2)'}`}}>
+                  <span style={{fontSize:14, color:'#fff', fontWeight:700}}>{e.prenom}</span>
+                </div>
+              ))}
+            </div>
+          )}
+          {/* Enfant sélectionné */}
+          {eleve && (
+            <div style={{marginTop:12, display:'flex', justifyContent:'space-between', alignItems:'center'}}>
+              <div>
+                <div style={{fontSize:20, fontWeight:800, color:'#fff'}}>{eleve.prenom} {eleve.nom}</div>
+                <div style={{fontSize:13, color:'rgba(255,255,255,0.8)', marginTop:2}}>
+                  {NIVEAUX_LABELS[eleve.code_niveau] || eleve.code_niveau}
+                </div>
+              </div>
+              <div style={{textAlign:'center'}}>
+                <div style={{fontSize:32, fontWeight:800, color:'#fff'}}>{etatEleve?.points?.total?.toLocaleString()||0}</div>
+                <div style={{fontSize:11, color:'rgba(255,255,255,0.7)'}}>points</div>
+              </div>
+            </div>
+          )}
+          {/* Onglets */}
+          <div style={{display:'flex', gap:0, marginTop:14, background:'rgba(0,0,0,0.2)', borderRadius:10, padding:3}}>
+            {onglets.map(o=>(
+              <div key={o.key} onClick={()=>setOnglet(o.key)}
+                style={{flex:1, padding:'8px 4px', borderRadius:8, textAlign:'center', fontSize:11, fontWeight:600,
+                  cursor:'pointer', background:onglet===o.key?'rgba(255,255,255,0.25)':'transparent',
+                  color:'#fff'}}>
+                {o.icon}
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {loading ? <div style={{textAlign:'center',padding:'2rem',color:'#888'}}>...</div> : (
+          <div style={{padding:'12px'}}>
+            {/* Progression */}
+            {onglet==='progression' && etatEleve && (
+              <div>
+                <div style={{display:'grid',gridTemplateColumns:'repeat(2,1fr)',gap:10,marginBottom:12}}>
+                  {[
+                    {label:lang==='ar'?'الثُّمن التالي':'Prochain tomon',val:`T.${etatEleve.prochainTomon||'—'}`,color:'#1D9E75',bg:'#E1F5EE'},
+                    {label:lang==='ar'?'الحزب الحالي':'Hizb en cours',val:`H.${etatEleve.hizbEnCours||'—'}`,color:'#534AB7',bg:'#F0EEFF'},
+                    {label:lang==='ar'?'الثُّمنات':'Tomon cumulés',val:etatEleve.tomonCumul||0,color:'#378ADD',bg:'#E6F1FB'},
+                    {label:lang==='ar'?'الأحزاب':'Hizb complets',val:etatEleve.hizbsComplets?.size||0,color:'#EF9F27',bg:'#FAEEDA'},
+                  ].map((k,i)=>(
+                    <div key={i} style={{background:k.bg,borderRadius:12,padding:'14px',textAlign:'center',border:`0.5px solid ${k.color}20`}}>
+                      <div style={{fontSize:24,fontWeight:800,color:k.color}}>{k.val}</div>
+                      <div style={{fontSize:11,color:k.color,marginTop:4,opacity:0.8}}>{k.label}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            {/* Récitations */}
+            {onglet==='recitations' && (
+              <div>
+                <div style={{fontSize:13,fontWeight:700,color:'#888',marginBottom:8}}>
+                  {lang==='ar'?'آخر الاستظهارات':'Dernières récitations'}
+                </div>
+                {validations.slice(0,20).map(v=>(
+                  <div key={v.id} style={{background:'#fff',borderRadius:12,padding:'12px 14px',marginBottom:8,
+                    border:'0.5px solid #e0e0d8',display:'flex',alignItems:'center',gap:12}}>
+                    <div style={{width:8,height:8,borderRadius:'50%',background:'#1D9E75',flexShrink:0}}/>
+                    <div style={{flex:1}}>
+                      <div style={{fontWeight:600,fontSize:13}}>
+                        {v.type_validation==='hizb_complet'?'Hizb complet':`T.${v.tomon_debut} ×${v.nombre_tomon}`}
+                      </div>
+                      <div style={{fontSize:11,color:'#888'}}>{new Date(v.date_validation).toLocaleDateString(lang==='ar'?'ar-MA':'fr-FR')}</div>
+                    </div>
+                    <span style={{fontSize:13,fontWeight:700,color:'#1D9E75'}}>+{v.type_validation==='hizb_complet'?100:v.nombre_tomon*30} pts</span>
+                  </div>
+                ))}
+                {validations.length===0&&<div style={{textAlign:'center',color:'#aaa',padding:'2rem'}}>Aucune récitation</div>}
+              </div>
+            )}
+            {/* Cotisations */}
+            {onglet==='cotisations' && (
+              <div>
+                {cotisations.slice(0,20).map(c=>(
+                  <div key={c.id} style={{background:'#fff',borderRadius:12,padding:'12px 14px',marginBottom:8,
+                    border:'0.5px solid #e0e0d8',display:'flex',alignItems:'center',gap:12}}>
+                    <span style={{fontSize:20}}>💰</span>
+                    <div style={{flex:1}}>
+                      <div style={{fontWeight:600,fontSize:13}}>{c.mois_concerne||new Date(c.date_paiement).toLocaleDateString(lang==='ar'?'ar-MA':'fr-FR')}</div>
+                      <div style={{fontSize:11,color:'#888'}}>{new Date(c.date_paiement).toLocaleDateString(lang==='ar'?'ar-MA':'fr-FR')}</div>
+                    </div>
+                    <span style={{fontSize:15,fontWeight:700,color:'#1D9E75'}}>{c.montant} DH</span>
+                  </div>
+                ))}
+                {cotisations.length===0&&<div style={{textAlign:'center',color:'#aaa',padding:'2rem'}}>Aucune cotisation</div>}
+              </div>
+            )}
+            {/* Objectifs */}
+            {onglet==='objectifs' && (
+              <div style={{textAlign:'center',color:'#aaa',padding:'2rem'}}>
+                {lang==='ar'?'الأهداف قريباً':'Objectifs bientôt disponibles'}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    );
+  }
+
   return (
     <div>
       {/* Header parent */}

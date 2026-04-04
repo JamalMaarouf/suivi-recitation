@@ -357,6 +357,232 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang, isMobi
     return <FicheSourate eleve={eleve} user={user} navigate={navigate} lang={lang} />;
   }
 
+  if (isMobile) {
+    const sl2 = etat ? scoreLabel(etat.points.total) : {color:'#888',bg:'#f0f0ec',label:'—'};
+    const nc = {'5B':'#534AB7','5A':'#378ADD','2M':'#1D9E75','2':'#EF9F27','1':'#E24B4A'}[eleve.code_niveau||'1']||'#888';
+    return (
+      <div style={{paddingBottom:80, background:'#f5f5f0', minHeight:'100vh'}}>
+        {/* Sticky header */}
+        <div style={{background:'#fff', borderBottom:'0.5px solid #e0e0d8', position:'sticky', top:0, zIndex:100}}>
+          <div style={{display:'flex', alignItems:'center', gap:12, padding:'12px 16px'}}>
+            <button onClick={()=>goBack?goBack():navigate('dashboard')}
+              style={{background:'none', border:'none', cursor:'pointer', fontSize:22, color:'#085041', padding:0, lineHeight:1}}>
+              ←
+            </button>
+            <div style={{flex:1}}>
+              <div style={{fontSize:17, fontWeight:800}}>{eleve.prenom} {eleve.nom}</div>
+              <div style={{display:'flex', gap:6, alignItems:'center', marginTop:2}}>
+                <span style={{padding:'1px 8px', borderRadius:10, fontSize:11, fontWeight:700, background:`${nc}20`, color:nc}}>
+                  {eleve.code_niveau||'?'}
+                </span>
+                <span style={{fontSize:12, color:'#888'}}>{instituteurNom}</span>
+              </div>
+            </div>
+            <button onClick={()=>navigate('enregistrer', eleve)}
+              style={{background:'#1D9E75', color:'#fff', border:'none', borderRadius:10,
+                padding:'8px 14px', fontSize:13, fontWeight:700, cursor:'pointer', fontFamily:'inherit'}}>
+              + {lang==='ar'?'تسجيل':'Récit.'}
+            </button>
+          </div>
+          {/* Score banner */}
+          <div style={{background:`${sl2.bg}`, padding:'8px 16px', display:'flex', justifyContent:'space-between', alignItems:'center'}}>
+            <div style={{fontSize:13, color:sl2.color, fontWeight:600}}>{sl2.label}</div>
+            <div style={{fontSize:26, fontWeight:800, color:sl2.color}}>{etat?.points?.total?.toLocaleString()||0} pts</div>
+          </div>
+          {/* Onglets scrollables */}
+          <div style={{display:'flex', overflowX:'auto', scrollbarWidth:'none', borderTop:'0.5px solid #f0f0ec'}}>
+            {[
+              {k:'progression', label: lang==='ar'?'التقدم':'Progression'},
+              {k:'historique',  label: lang==='ar'?'التاريخ':'Historique'},
+              {k:'muraja',      label: lang==='ar'?'المراجعة':"Muraja'a"},
+            ].map(tab=>(
+              <div key={tab.k} onClick={()=>setOnglet(tab.k)}
+                style={{padding:'10px 16px', fontSize:13, fontWeight:600, whiteSpace:'nowrap',
+                  cursor:'pointer', flexShrink:0,
+                  color: onglet===tab.k ? '#085041' : '#888',
+                  borderBottom: onglet===tab.k ? '2px solid #1D9E75' : '2px solid transparent',
+                  transition:'all 0.15s'}}>
+                {tab.label}
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Loading */}
+        {loading && <div style={{textAlign:'center', padding:'2rem', color:'#888'}}>...</div>}
+
+        {/* Content */}
+        {!loading && (
+          <div style={{padding:'12px 12px'}}>
+            {onglet==='progression' && (
+              <div>
+                {/* KPI cards */}
+                <div style={{display:'grid', gridTemplateColumns:'repeat(2,1fr)', gap:10, marginBottom:12}}>
+                  {[
+                    {label:lang==='ar'?'الثُّمن الحالي':'Tomon actuel', val:`T.${etat?.prochainTomon||'—'}`, color:'#1D9E75', bg:'#E1F5EE'},
+                    {label:lang==='ar'?'الحزب الحالي':'Hizb en cours', val:`H.${etat?.hizbEnCours||'—'}`, color:'#534AB7', bg:'#F0EEFF'},
+                    {label:lang==='ar'?'الثُّمنات المكتملة':'Tomon cumulés', val:etat?.tomonCumul||0, color:'#378ADD', bg:'#E6F1FB'},
+                    {label:lang==='ar'?'الأحزاب المكتملة':'Hizb complets', val:etat?.hizbsComplets?.size||0, color:'#EF9F27', bg:'#FAEEDA'},
+                  ].map((k,i)=>(
+                    <div key={i} style={{background:k.bg, borderRadius:12, padding:'14px', textAlign:'center', border:`0.5px solid ${k.color}20`}}>
+                      <div style={{fontSize:24, fontWeight:800, color:k.color}}>{k.val}</div>
+                      <div style={{fontSize:11, color:k.color, marginTop:4, opacity:0.8}}>{k.label}</div>
+                    </div>
+                  ))}
+                </div>
+                {/* Streak + badges */}
+                {streak>0 && (
+                  <div style={{background:'#E6F1FB', borderRadius:12, padding:'12px 14px', marginBottom:10,
+                    display:'flex', alignItems:'center', gap:10}}>
+                    <span style={{fontSize:24}}>🔥</span>
+                    <div>
+                      <div style={{fontWeight:700, color:'#0C447C'}}>{streak} jours de suite</div>
+                      <div style={{fontSize:12, color:'#378ADD'}}>Continuez comme ça !</div>
+                    </div>
+                  </div>
+                )}
+                {etat?.enAttenteHizbComplet && (
+                  <div style={{background:'#FAEEDA', borderRadius:12, padding:'12px 14px', marginBottom:10,
+                    display:'flex', alignItems:'center', justifyContent:'space-between'}}>
+                    <div>
+                      <div style={{fontWeight:700, color:'#633806'}}>🎉 Hizb complet !</div>
+                      <div style={{fontSize:12, color:'#856404'}}>Prêt pour validation</div>
+                    </div>
+                    <button onClick={()=>navigate('enregistrer', eleve)}
+                      style={{background:'#EF9F27', color:'#fff', border:'none', borderRadius:10,
+                        padding:'8px 14px', fontSize:13, fontWeight:700, cursor:'pointer', fontFamily:'inherit'}}>
+                      Valider
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+            {onglet==='historique' && (
+              <div>
+                {passages.length>0 && (
+                  <div style={{marginBottom:12}}>
+                    <div style={{fontSize:12,fontWeight:700,color:'#888',marginBottom:6}}>
+                      {lang==='ar'?'سجل الانتقالات':'Passages de niveau'}
+                    </div>
+                    {passages.map(p=>(
+                      <div key={p.id} style={{background:'#F0EEFF',borderRadius:10,padding:'10px 12px',marginBottom:6,display:'flex',alignItems:'center',gap:10}}>
+                        <span style={{fontSize:16}}>🎓</span>
+                        <div style={{flex:1}}>
+                          <div style={{fontWeight:600,color:'#534AB7',fontSize:13}}>{p.niveau_from} → {p.niveau_to}</div>
+                          <div style={{fontSize:11,color:'#888'}}>{new Date(p.date_passage).toLocaleDateString(lang==='ar'?'ar-MA':'fr-FR')}</div>
+                        </div>
+                        <div style={{fontSize:12,color:'#888'}}>+{p.acquis_points} pts</div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <div style={{fontSize:12,fontWeight:700,color:'#888',marginBottom:6}}>
+                  {lang==='ar'?'آخر الاستظهارات':'Dernières récitations'}
+                </div>
+                {validations.slice(0,20).map(v=>(
+                  <div key={v.id} style={{background:'#fff',borderRadius:10,padding:'10px 12px',marginBottom:6,
+                    border:'0.5px solid #e0e0d8',display:'flex',alignItems:'center',gap:10}}>
+                    <div style={{flex:1}}>
+                      <div style={{fontWeight:600,fontSize:13}}>
+                        {v.type_validation==='hizb_complet'?'Hizb complet':`T.${v.tomon_debut} ×${v.nombre_tomon}`}
+                      </div>
+                      <div style={{fontSize:11,color:'#888'}}>{new Date(v.date_validation).toLocaleDateString(lang==='ar'?'ar-MA':'fr-FR')}</div>
+                    </div>
+                    <span style={{fontSize:13,fontWeight:700,color:'#1D9E75'}}>
+                      +{v.type_validation==='hizb_complet'?100:v.nombre_tomon*30} pts
+                    </span>
+                  </div>
+                ))}
+                {validations.length===0 && (
+                  <div style={{textAlign:'center',color:'#aaa',padding:'2rem'}}>
+                    {t(lang,'aucune_recitation_label')}
+                  </div>
+                )}
+              </div>
+            )}
+            {onglet==='muraja' && (
+              <div>
+                {(murajaa.length+murajaaS.length)===0 ? (
+                  <div style={{textAlign:'center',color:'#aaa',padding:'2rem'}}>
+                    {lang==='ar'?'لا توجد مراجعات':'Aucune muraja'a'}
+                  </div>
+                ) : [...murajaa,...murajaaS].sort((a,b)=>new Date(b.date_validation||b.date_validation)-new Date(a.date_validation||a.date_validation)).slice(0,20).map((v,i)=>(
+                  <div key={i} style={{background:'#fff',borderRadius:10,padding:'10px 12px',marginBottom:6,
+                    border:'0.5px solid #EF9F2730',display:'flex',alignItems:'center',gap:10}}>
+                    <span style={{fontSize:16}}>📖</span>
+                    <div style={{flex:1}}>
+                      <div style={{fontWeight:600,fontSize:13}}>
+                        {v.type_validation==='hizb_muraja'?`Hizb ${v.hizb_validation}`:v.sourate?.nom_ar||'Muraja'a'}
+                      </div>
+                      <div style={{fontSize:11,color:'#888'}}>{new Date(v.date_validation).toLocaleDateString(lang==='ar'?'ar-MA':'fr-FR')}</div>
+                    </div>
+                    <span style={{fontSize:13,fontWeight:700,color:'#EF9F27'}}>
+                      +{v.type_validation==='hizb_muraja'?100:30} pts
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Passage niveau FAB - surveillant only */}
+        {user.role==='surveillant' && (
+          <button onClick={()=>{setNouveauNiveau('');setNotePassage('');setShowPassageModal(true);}}
+            style={{position:'fixed',bottom:80,right:16,background:'#534AB7',color:'#fff',
+              border:'none',borderRadius:14,padding:'10px 16px',fontSize:14,fontWeight:700,
+              cursor:'pointer',zIndex:150,boxShadow:'0 4px 16px rgba(83,74,183,0.4)',fontFamily:'inherit'}}>
+            🎓 Niveau
+          </button>
+        )}
+
+        {/* Modal passage niveau - kept as is */}
+        {showPassageModal&&(
+          <div style={{position:'fixed',top:0,left:0,right:0,bottom:0,background:'rgba(0,0,0,0.5)',zIndex:1000,display:'flex',alignItems:'flex-end'}}
+            onClick={()=>setShowPassageModal(false)}>
+            <div style={{background:'#fff',borderRadius:'20px 20px 0 0',padding:'1.5rem',width:'100%',maxHeight:'85vh',overflowY:'auto'}}
+              onClick={e=>e.stopPropagation()}>
+              <div style={{width:36,height:4,background:'#e0e0d8',borderRadius:2,margin:'0 auto 16px'}}/>
+              <div style={{fontSize:16,fontWeight:700,color:'#534AB7',marginBottom:'1rem'}}>
+                🎓 {lang==='ar'?'تغيير مستوى الطالب':'Passage de niveau'}
+              </div>
+              <div style={{marginBottom:'1rem'}}>
+                <label style={{fontSize:13,fontWeight:600,color:'#444',display:'block',marginBottom:6}}>
+                  {lang==='ar'?'المستوى الجديد:':'Nouveau niveau :'}
+                </label>
+                <select style={{width:'100%',padding:'13px 16px',borderRadius:12,border:'0.5px solid #e0e0d8',fontSize:16,fontFamily:'inherit',boxSizing:'border-box'}}
+                  value={nouveauNiveau} onChange={e=>setNouveauNiveau(e.target.value)}>
+                  <option value="">{lang==='ar'?'-- اختر --':'-- Choisir --'}</option>
+                  {NIVEAUX_DISPONIBLES.map(n=>(
+                    <option key={n} value={n}>{NIVEAUX_LABELS[n]||n}</option>
+                  ))}
+                </select>
+              </div>
+              <div style={{marginBottom:'1.2rem'}}>
+                <label style={{fontSize:13,fontWeight:600,color:'#444',display:'block',marginBottom:6}}>
+                  {lang==='ar'?'ملاحظة:':'Note :'}
+                </label>
+                <input style={{width:'100%',padding:'13px 16px',borderRadius:12,border:'0.5px solid #e0e0d8',fontSize:16,fontFamily:'inherit',boxSizing:'border-box'}}
+                  value={notePassage} onChange={e=>setNotePassage(e.target.value)}
+                  placeholder={lang==='ar'?'سبب الانتقال...':'Raison...'}/>
+              </div>
+              <div style={{display:'flex',gap:10}}>
+                <button onClick={()=>setShowPassageModal(false)}
+                  style={{flex:1,padding:'14px',background:'#f5f5f0',color:'#666',border:'none',borderRadius:12,fontWeight:600,cursor:'pointer',fontFamily:'inherit'}}>
+                  {lang==='ar'?'إلغاء':'Annuler'}
+                </button>
+                <button onClick={handlePassageNiveau} disabled={!nouveauNiveau||savingPassage}
+                  style={{flex:2,padding:'14px',background:nouveauNiveau&&!savingPassage?'#534AB7':'#ccc',color:'#fff',border:'none',borderRadius:12,fontWeight:700,cursor:'pointer',fontFamily:'inherit',fontSize:15}}>
+                  {savingPassage?'...':(lang==='ar'?'تأكيد':'Confirmer')}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
+
   return (
     <div>
       <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'1.25rem',flexWrap:'wrap',gap:8}}>

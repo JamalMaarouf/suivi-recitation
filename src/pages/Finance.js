@@ -571,6 +571,142 @@ export default function Finance({ user, navigate, goBack, lang='fr', isMobile })
     );
   }
 
+  if (isMobile) {
+    return (
+      <div style={{paddingBottom:80,background:'#f5f5f0',minHeight:'100vh'}}>
+        {/* Sticky header */}
+        <div style={{background:'#fff',padding:'16px',borderBottom:'0.5px solid #e0e0d8',position:'sticky',top:0,zIndex:100}}>
+          <div style={{fontSize:18,fontWeight:800,color:'#085041',marginBottom:10}}>
+            💰 {lang==='ar'?'المالية':lang==='en'?'Finance':'Finance'}
+          </div>
+          {/* Onglets scrollables */}
+          <div style={{display:'flex',gap:6,overflowX:'auto',scrollbarWidth:'none',paddingBottom:2}}>
+            {onglets.map(o=>(
+              <div key={o.key} onClick={()=>setOnglet(o.key)}
+                style={{padding:'7px 14px',borderRadius:20,fontSize:12,fontWeight:600,flexShrink:0,cursor:'pointer',
+                  background:onglet===o.key?'#1D9E75':'#f0f0ec',color:onglet===o.key?'#fff':'#666'}}>
+                {o.icon} {lang==='ar'?o.labelAr:o.label}
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {loading ? <div style={{textAlign:'center',padding:'2rem',color:'#888'}}>...</div> : (
+          <div style={{padding:'12px'}}>
+            {/* Dashboard KPIs */}
+            {onglet==='dashboard' && (
+              <div>
+                <div style={{display:'grid',gridTemplateColumns:'repeat(2,1fr)',gap:10,marginBottom:12}}>
+                  {[
+                    {icon:'📥',label:lang==='ar'?'إجمالي الاشتراكات':'Cotisations',val:fmtMAD(totalCotisations),color:'#1D9E75',bg:'#E1F5EE'},
+                    {icon:'📤',label:lang==='ar'?'إجمالي المصاريف':'Dépenses',val:fmtMAD(totalDepenses),color:'#E24B4A',bg:'#FCEBEB'},
+                    {icon:'💵',label:lang==='ar'?'الرصيد':'Solde',val:fmtMAD(totalCotisations-totalDepenses),
+                      color:(totalCotisations-totalDepenses)>=0?'#085041':'#E24B4A',
+                      bg:(totalCotisations-totalDepenses)>=0?'#E1F5EE':'#FCEBEB'},
+                    {icon:'⏳',label:lang==='ar'?'اشتراكات معلقة':'Non payés',val:elevesNonPayes.length+' élèves',color:'#EF9F27',bg:'#FAEEDA'},
+                  ].map((k,i)=>(
+                    <div key={i} style={{background:k.bg,borderRadius:12,padding:'14px',border:`0.5px solid ${k.color}20`}}>
+                      <div style={{fontSize:20,marginBottom:4}}>{k.icon}</div>
+                      <div style={{fontSize:20,fontWeight:800,color:k.color}}>{k.val}</div>
+                      <div style={{fontSize:11,color:k.color,marginTop:2,opacity:0.8}}>{k.label}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Cotisations list */}
+            {onglet==='cotisations' && (
+              <div>
+                <button onClick={()=>setShowFormCot(true)}
+                  style={{width:'100%',padding:'14px',background:'#1D9E75',color:'#fff',border:'none',
+                    borderRadius:12,fontSize:15,fontWeight:700,cursor:'pointer',fontFamily:'inherit',marginBottom:12}}>
+                  + {lang==='ar'?'إضافة اشتراك':'Ajouter cotisation'}
+                </button>
+                {cotisations.slice(0,50).map(c=>{
+                  const el=eleves.find(e=>e.id===c.eleve_id);
+                  return(
+                    <div key={c.id} style={{background:'#fff',borderRadius:12,padding:'13px 14px',marginBottom:8,
+                      border:'0.5px solid #e0e0d8',display:'flex',alignItems:'center',gap:12}}>
+                      <div style={{width:40,height:40,borderRadius:'50%',background:'#E1F5EE',color:'#085041',
+                        display:'flex',alignItems:'center',justifyContent:'center',fontWeight:800,fontSize:12,flexShrink:0}}>
+                        {el?el.prenom[0]+el.nom[0]:'?'}
+                      </div>
+                      <div style={{flex:1,minWidth:0}}>
+                        <div style={{fontWeight:700,fontSize:14}}>{el?`${el.prenom} ${el.nom}`:'—'}</div>
+                        <div style={{fontSize:12,color:'#888'}}>
+                          {new Date(c.date_paiement).toLocaleDateString(lang==='ar'?'ar-MA':'fr-FR')}
+                        </div>
+                      </div>
+                      <div style={{textAlign:'right',flexShrink:0}}>
+                        <div style={{fontSize:16,fontWeight:800,color:'#1D9E75'}}>{fmtMAD(c.montant)}</div>
+                        {c.mois_concerne&&<div style={{fontSize:11,color:'#888'}}>{c.mois_concerne}</div>}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* Dépenses list */}
+            {onglet==='depenses' && (
+              <div>
+                <button onClick={()=>setShowFormDep(true)}
+                  style={{width:'100%',padding:'14px',background:'#E24B4A',color:'#fff',border:'none',
+                    borderRadius:12,fontSize:15,fontWeight:700,cursor:'pointer',fontFamily:'inherit',marginBottom:12}}>
+                  + {lang==='ar'?'إضافة مصروف':'Ajouter dépense'}
+                </button>
+                {depenses.slice(0,50).map(d=>(
+                  <div key={d.id} style={{background:'#fff',borderRadius:12,padding:'13px 14px',marginBottom:8,
+                    border:'0.5px solid #FCEBEB',display:'flex',alignItems:'center',gap:12}}>
+                    <span style={{fontSize:20,flexShrink:0}}>📤</span>
+                    <div style={{flex:1,minWidth:0}}>
+                      <div style={{fontWeight:700,fontSize:14,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>
+                        {d.description||d.categorie||'Dépense'}
+                      </div>
+                      <div style={{fontSize:12,color:'#888'}}>
+                        {new Date(d.date_depense).toLocaleDateString(lang==='ar'?'ar-MA':'fr-FR')}
+                        {d.categorie&&` · ${d.categorie}`}
+                      </div>
+                    </div>
+                    <div style={{textAlign:'right',flexShrink:0}}>
+                      <div style={{fontSize:16,fontWeight:800,color:'#E24B4A'}}>{fmtMAD(d.montant)}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Suivi des impayés */}
+            {onglet==='suivi' && (
+              <div>
+                <div style={{fontSize:13,fontWeight:700,color:'#888',marginBottom:8}}>
+                  {lang==='ar'?'الطلاب غير المدفوعين':'Élèves en retard'} ({elevesNonPayes.length})
+                </div>
+                {elevesNonPayes.map(e=>(
+                  <div key={e.id} style={{background:'#fff',borderRadius:12,padding:'13px 14px',marginBottom:8,
+                    border:'0.5px solid #EF9F2730',display:'flex',alignItems:'center',gap:12}}>
+                    <div style={{width:40,height:40,borderRadius:'50%',background:'#FAEEDA',color:'#633806',
+                      display:'flex',alignItems:'center',justifyContent:'center',fontWeight:800,fontSize:12,flexShrink:0}}>
+                      {e.prenom[0]+e.nom[0]}
+                    </div>
+                    <div style={{flex:1}}>
+                      <div style={{fontWeight:700,fontSize:14}}>{e.prenom} {e.nom}</div>
+                      <div style={{fontSize:12,color:'#888'}}>
+                        {lang==='ar'?'آخر دفع:':'Dernier paiement :'} {e.dernierPaiement ? new Date(e.dernierPaiement).toLocaleDateString(lang==='ar'?'ar-MA':'fr-FR') : (lang==='ar'?'أبداً':'Jamais')}
+                      </div>
+                    </div>
+                    <span style={{fontSize:20}}>⚠️</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    );
+  }
+
   return (
     <div>
       {/* Header */}

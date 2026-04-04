@@ -172,7 +172,7 @@ export default function MurajaDashboard({ user, navigate, goBack, lang='fr', isM
   if (loading) return <div style={{padding:'2rem',textAlign:'center'}}><div className="loading">...</div></div>;
 
   return (
-    <div style={{padding:'1rem',maxWidth:800,margin:'0 auto'}}>
+    <div style={{padding: isMobile ? '0 0 80px' : '1rem',maxWidth:800,margin:'0 auto',background: isMobile ? '#f5f5f0' : 'transparent',minHeight: isMobile ? '100vh' : 'auto'}}>
       {/* Header */}
       <div style={{display:'flex',alignItems:'center',gap:12,marginBottom:'1.2rem'}}>
         <button className="back-link" onClick={()=>goBack?goBack():navigate('dashboard')}>← {t(lang,'retour')}</button>

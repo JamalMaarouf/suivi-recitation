@@ -16,7 +16,7 @@ function NiveauBadge({ code }) {
   return <span style={{padding:'1px 7px',borderRadius:10,fontSize:10,fontWeight:700,background:c+'18',color:c,border:`0.5px solid ${c}30`}}>{code}</span>;
 }
 
-export default function Seance({ user, navigate, goBack, lang, isMobile='fr' }) {
+export default function Seance({ user, navigate, goBack, lang, isMobile=false }) {
   const [eleves, setEleves] = useState([]);
   const [validationsAujourdhui, setValidationsAujourdhui] = useState([]);
   const [recitationsAujourdhui, setRecitationsAujourdhui] = useState([]);
@@ -196,6 +196,84 @@ export default function Seance({ user, navigate, goBack, lang, isMobile='fr' }) 
     setTimeout(()=>w.print(), 600);
   };
 
+
+  if (isMobile) {
+    return (
+      <div style={{paddingBottom:80,background:'#f5f5f0',minHeight:'100vh'}}>
+        <div style={{background:'#fff',padding:'16px 16px 12px',borderBottom:'0.5px solid #e0e0d8',position:'sticky',top:0,zIndex:100}}>
+          <div style={{fontSize:18,fontWeight:800,color:'#085041',marginBottom:10}}>
+            {new Date().toLocaleDateString(lang==='ar'?'ar-MA':'fr-FR',{weekday:'long',day:'numeric',month:'long'})}
+          </div>
+          <div style={{display:'flex',gap:6,overflowX:'auto',paddingBottom:4,scrollbarWidth:'none'}}>
+            {niveaux.map(n=>(
+              <div key={n} onClick={()=>setFilterNiveau(n)}
+                style={{padding:'6px 14px',borderRadius:20,fontSize:12,fontWeight:600,flexShrink:0,cursor:'pointer',
+                  background:filterNiveau===n?(n==='tous'?'#1D9E75':NIVEAU_COLORS[n]||'#1D9E75'):'#f0f0ec',
+                  color:filterNiveau===n?'#fff':'#666'}}>
+                {n==='tous'?(lang==='ar'?'الكل':'Tous'):n}
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {loading ? <div style={{textAlign:'center',padding:'2rem',color:'#888'}}>...</div> : (
+          <>
+            <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:8,padding:'12px 16px'}}>
+              {[
+                {val:elevesVus.length,lbl:t(lang,'eleves_vus'),color:'#1D9E75',bg:'#E1F5EE'},
+                {val:ptsTotal.toLocaleString(),lbl:'Points',color:'#534AB7',bg:'#EEEDFE'},
+                {val:tomonTotal+hizbTotal+souratesTotal,lbl:'Validations',color:'#378ADD',bg:'#E6F1FB'},
+              ].map((k,i)=>(
+                <div key={i} style={{background:k.bg,borderRadius:12,padding:'12px 8px',textAlign:'center'}}>
+                  <div style={{fontSize:22,fontWeight:800,color:k.color}}>{k.val}</div>
+                  <div style={{fontSize:10,color:k.color,marginTop:2}}>{k.lbl}</div>
+                </div>
+              ))}
+            </div>
+            <div style={{padding:'0 12px'}}>
+              <div style={{fontSize:12,fontWeight:700,color:'#888',marginBottom:8,paddingLeft:4}}>
+                {lang==='ar'?'الطلاب اليوم':'Élèves aujourd'hui'} ({elevesVus.length})
+              </div>
+              {elevesVus.length===0 ? (
+                <div style={{textAlign:'center',color:'#aaa',padding:'2rem',background:'#fff',borderRadius:12}}>
+                  {lang==='ar'?'لا يوجد طلاب اليوم':'Aucun élève aujourd'hui'}
+                </div>
+              ) : elevesVus.map((e,idx)=>{
+                const nc=NIVEAU_COLORS[e.code_niveau||'1']||'#888';
+                const pts=e.isSourate?(e.souratesCompletesAujourdhui*30+e.sequencesAujourdhui*10):(e.valsAujourdhui?.reduce((s,v)=>s+(v.type_validation==='hizb_complet'?100:30),0)||0);
+                return(
+                  <div key={e.id} onClick={()=>navigate('fiche',e)}
+                    style={{background:'#fff',borderRadius:12,padding:'13px 14px',marginBottom:8,
+                      border:`0.5px solid ${nc}20`,display:'flex',alignItems:'center',gap:12,cursor:'pointer'}}>
+                    <div style={{width:36,height:36,borderRadius:'50%',background:`${nc}20`,color:nc,
+                      display:'flex',alignItems:'center',justifyContent:'center',fontWeight:800,fontSize:13,flexShrink:0}}>
+                      {medals[idx]||`${idx+1}`}
+                    </div>
+                    <div style={{flex:1,minWidth:0}}>
+                      <div style={{fontWeight:700,fontSize:14,marginBottom:2}}>{e.prenom} {e.nom}</div>
+                      <span style={{padding:'1px 7px',borderRadius:8,background:`${nc}20`,color:nc,fontSize:11,fontWeight:700}}>{e.code_niveau||'?'}</span>
+                    </div>
+                    <div style={{textAlign:'right',flexShrink:0}}>
+                      <div style={{fontSize:18,fontWeight:800,color:'#1D9E75'}}>+{pts}</div>
+                      <div style={{fontSize:10,color:'#888'}}>pts</div>
+                    </div>
+                    <span style={{color:'#ccc',fontSize:16}}>{'›'}</span>
+                  </div>
+                );
+              })}
+            </div>
+            <div onClick={()=>navigate('validation_rapide')}
+              style={{position:'fixed',bottom:80,right:16,width:56,height:56,borderRadius:'50%',
+                background:'#1D9E75',color:'#fff',border:'none',fontSize:28,display:'flex',
+                alignItems:'center',justifyContent:'center',cursor:'pointer',zIndex:150,
+                boxShadow:'0 4px 16px rgba(29,158,117,0.4)'}}>
+              ⚡
+            </div>
+          </>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div>

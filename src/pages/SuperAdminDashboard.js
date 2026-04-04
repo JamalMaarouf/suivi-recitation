@@ -245,7 +245,7 @@ export default function SuperAdminDashboard({ user, navigate, lang, onLogout, is
   };
 
   return (
-    <div style={{maxWidth:800,margin:'0 auto',padding:'1rem'}}>
+    <div style={{maxWidth:800,margin:'0 auto',padding: isMobile ? '0 0 80px' : '1rem',background: isMobile ? '#f5f5f0' : 'transparent',minHeight: isMobile ? '100vh' : 'auto'}}>
 
       {/* Header */}
       <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'1.25rem',flexWrap:'wrap',gap:10}}>

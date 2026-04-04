@@ -444,6 +444,120 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile 
     setTimeout(function(){ w.print(); }, 600);
   };
 
+  if (isMobile) {
+    const NIVEAU_COLORS = {'5B':'#534AB7','5A':'#378ADD','2M':'#1D9E75','2':'#EF9F27','1':'#E24B4A'};
+    return (
+      <div style={{paddingBottom:80,background:'#f5f5f0',minHeight:'100vh'}}>
+        {/* Header */}
+        <div style={{background:'#fff',padding:'16px',borderBottom:'0.5px solid #e0e0d8',position:'sticky',top:0,zIndex:100}}>
+          <div style={{fontSize:18,fontWeight:800,color:'#085041',marginBottom:10}}>{t(lang,'gestion')}</div>
+          {msg.text&&<div style={{padding:'8px 12px',borderRadius:8,marginBottom:8,fontSize:13,
+            background:msg.type==='error'?'#FCEBEB':'#E1F5EE',color:msg.type==='error'?'#E24B4A':'#085041'}}>
+            {msg.text}
+          </div>}
+          {/* Tabs */}
+          <div style={{display:'flex',gap:0,background:'#f0f0ec',borderRadius:10,padding:3}}>
+            {[['eleves',t(lang,'eleves')],['instituteurs',t(lang,'instituteurs')],['parents','Parents']].map(([k,l])=>(
+              <div key={k} onClick={()=>setTab(k)}
+                style={{flex:1,padding:'8px 4px',borderRadius:8,textAlign:'center',fontSize:12,fontWeight:600,
+                  cursor:'pointer',background:tab===k?'#fff':'transparent',color:tab===k?'#1a1a1a':'#888'}}>
+                {l}
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Eleves list */}
+        {tab==='eleves' && (
+          <div style={{padding:'12px'}}>
+            {/* Search */}
+            <input style={{width:'100%',padding:'12px 16px',borderRadius:12,border:'0.5px solid #e0e0d8',
+              fontSize:16,fontFamily:'inherit',boxSizing:'border-box',background:'#fff',marginBottom:12}}
+              placeholder={lang==='ar'?'بحث عن طالب...':'Rechercher un élève...'}
+              value={searchEleve||''} onChange={e=>setSearchEleve&&setSearchEleve(e.target.value)}/>
+            {eleves.filter(e=>!searchEleve||(e.prenom+' '+e.nom).toLowerCase().includes(searchEleve.toLowerCase())).map(e=>{
+              const nc=NIVEAU_COLORS[e.code_niveau||'1']||'#888';
+              return(
+                <div key={e.id} onClick={()=>{setEditEleve({...e});setShowEditEleve(true);}}
+                  style={{background:'#fff',borderRadius:12,padding:'13px 14px',marginBottom:8,
+                    border:'0.5px solid #e0e0d8',display:'flex',alignItems:'center',gap:12,cursor:'pointer'}}>
+                  <div style={{width:40,height:40,borderRadius:'50%',background:`${nc}20`,color:nc,
+                    display:'flex',alignItems:'center',justifyContent:'center',fontWeight:800,fontSize:13,flexShrink:0}}>
+                    {(e.prenom[0]||'?')+(e.nom[0]||'?')}
+                  </div>
+                  <div style={{flex:1,minWidth:0}}>
+                    <div style={{fontWeight:700,fontSize:14}}>{e.prenom} {e.nom}</div>
+                    <div style={{display:'flex',gap:6,marginTop:2,alignItems:'center'}}>
+                      <span style={{padding:'1px 7px',borderRadius:8,background:`${nc}20`,color:nc,fontSize:11,fontWeight:700}}>{e.code_niveau||'?'}</span>
+                      {e.eleve_id_ecole&&<span style={{fontSize:11,color:'#aaa'}}>#{e.eleve_id_ecole}</span>}
+                    </div>
+                  </div>
+                  <span style={{color:'#ccc',fontSize:18}}>{'›'}</span>
+                </div>
+              );
+            })}
+            {/* FAB ajout élève */}
+            <div onClick={()=>setShowAddEleve&&setShowAddEleve(true)}
+              style={{position:'fixed',bottom:80,right:16,width:56,height:56,borderRadius:'50%',
+                background:'#1D9E75',color:'#fff',border:'none',fontSize:28,display:'flex',
+                alignItems:'center',justifyContent:'center',cursor:'pointer',zIndex:150,
+                boxShadow:'0 4px 16px rgba(29,158,117,0.4)'}}>
+              +
+            </div>
+          </div>
+        )}
+
+        {/* Instituteurs list */}
+        {tab==='instituteurs' && (
+          <div style={{padding:'12px'}}>
+            {instituteurs.map(inst=>(
+              <div key={inst.id} style={{background:'#fff',borderRadius:12,padding:'13px 14px',marginBottom:8,
+                border:'0.5px solid #e0e0d8',display:'flex',alignItems:'center',gap:12}}>
+                <div style={{width:40,height:40,borderRadius:'50%',background:'#E6F1FB',color:'#0C447C',
+                  display:'flex',alignItems:'center',justifyContent:'center',fontWeight:800,fontSize:13,flexShrink:0}}>
+                  {(inst.prenom[0]||'?')+(inst.nom[0]||'?')}
+                </div>
+                <div style={{flex:1}}>
+                  <div style={{fontWeight:700,fontSize:14}}>{inst.prenom} {inst.nom}</div>
+                  <div style={{fontSize:12,color:'#888'}}>{inst.identifiant}</div>
+                </div>
+                <button onClick={()=>supprimerInstituteur(inst)}
+                  style={{background:'#FCEBEB',color:'#E24B4A',border:'none',borderRadius:8,
+                    padding:'6px 10px',fontSize:12,cursor:'pointer'}}>✕</button>
+              </div>
+            ))}
+            <div onClick={()=>setShowAddInst&&setShowAddInst(true)}
+              style={{position:'fixed',bottom:80,right:16,width:56,height:56,borderRadius:'50%',
+                background:'#378ADD',color:'#fff',border:'none',fontSize:28,display:'flex',
+                alignItems:'center',justifyContent:'center',cursor:'pointer',zIndex:150,
+                boxShadow:'0 4px 16px rgba(55,138,221,0.4)'}}>
+              +
+            </div>
+          </div>
+        )}
+
+        {/* Parents list */}
+        {tab==='parents' && (
+          <div style={{padding:'12px'}}>
+            {parents.map(p=>(
+              <div key={p.id} style={{background:'#fff',borderRadius:12,padding:'13px 14px',marginBottom:8,
+                border:'0.5px solid #e0e0d8',display:'flex',alignItems:'center',gap:12}}>
+                <div style={{width:40,height:40,borderRadius:'50%',background:'#FAEEDA',color:'#633806',
+                  display:'flex',alignItems:'center',justifyContent:'center',fontWeight:800,fontSize:13,flexShrink:0}}>
+                  {(p.prenom[0]||'?')+(p.nom[0]||'?')}
+                </div>
+                <div style={{flex:1}}>
+                  <div style={{fontWeight:700,fontSize:14}}>{p.prenom} {p.nom}</div>
+                  <div style={{fontSize:12,color:'#888'}}>{p.telephone||p.identifiant}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  }
+
   return (
     <div>
       <div className="page-title">{t(lang, 'gestion')}</div>

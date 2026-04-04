@@ -167,6 +167,128 @@ export default function EnregistrerRecitation({  user, eleve: eleveInitial, navi
     );
   }
 
+  if (isMobile) {
+    return (
+      <div style={{paddingBottom:80, background:'#f5f5f0', minHeight:'100vh'}}>
+        {/* Mobile header */}
+        <div style={{background:'#fff', padding:'12px 16px', borderBottom:'0.5px solid #e0e0d8',
+          position:'sticky', top:0, zIndex:100}}>
+          <div style={{display:'flex', alignItems:'center', gap:12, marginBottom:12}}>
+            <button onClick={()=>navigate(selectedEleve?'fiche':'dashboard', selectedEleve)}
+              style={{background:'none',border:'none',cursor:'pointer',fontSize:22,color:'#085041',padding:0}}>
+              ←
+            </button>
+            <div style={{fontSize:16,fontWeight:800,color:'#085041'}}>
+              {t(lang,'enregistrer_recitation_titre')}
+            </div>
+          </div>
+          {/* Steps mobile */}
+          <div style={{display:'flex',alignItems:'center',gap:0}}>
+            {[[lang==='ar'?'الطالب':'Élève',1],[lang==='ar'?'الاستظهار':'Validation',2],[lang==='ar'?'التأكيد':'Confirmation',3]].map(([label,n],i)=>(
+              <React.Fragment key={n}>
+                {i>0&&<div style={{flex:1,height:2,background:step>n-1?'#1D9E75':'#e0e0d8'}}/>}
+                <div style={{display:'flex',flexDirection:'column',alignItems:'center',gap:3}}>
+                  <div style={{width:28,height:28,borderRadius:'50%',display:'flex',alignItems:'center',
+                    justifyContent:'center',fontSize:12,fontWeight:700,
+                    background:step>n?'#1D9E75':step===n?'#1D9E75':'#e0e0d8',
+                    color:step>=n?'#fff':'#888'}}>
+                    {step>n?'✓':n}
+                  </div>
+                  <div style={{fontSize:9,color:step===n?'#1D9E75':'#888',fontWeight:step===n?700:400}}>
+                    {label}
+                  </div>
+                </div>
+              </React.Fragment>
+            ))}
+          </div>
+        </div>
+
+        <div style={{padding:'16px'}}>
+          {/* Step 1 - Eleve */}
+          {step===1&&(
+            <div>
+              <div style={{fontSize:14,fontWeight:700,color:'#444',marginBottom:12}}>
+                {t(lang,'choisir_eleve')}
+              </div>
+              {eleves.map(e=>{
+                const vals=allValidations.filter(v=>v.eleve_id===e.id);
+                const et=calcEtatEleve(vals,e.hizb_depart,e.tomon_depart);
+                const nc={'5B':'#534AB7','5A':'#378ADD','2M':'#1D9E75','2':'#EF9F27','1':'#E24B4A'}[e.code_niveau||'1']||'#888';
+                return(
+                  <div key={e.id} onClick={()=>selectEleve(e)}
+                    style={{background:'#fff',borderRadius:12,padding:'13px 14px',marginBottom:8,
+                      border:`0.5px solid ${selectedEleve?.id===e.id?nc:'#e0e0d8'}`,
+                      background:selectedEleve?.id===e.id?`${nc}08`:'#fff',
+                      display:'flex',alignItems:'center',gap:12,cursor:'pointer'}}>
+                    <div style={{width:40,height:40,borderRadius:'50%',background:`${nc}20`,color:nc,
+                      display:'flex',alignItems:'center',justifyContent:'center',fontWeight:800,fontSize:13,flexShrink:0}}>
+                      {(e.prenom[0]||'?')+(e.nom[0]||'?')}
+                    </div>
+                    <div style={{flex:1}}>
+                      <div style={{fontWeight:700,fontSize:15}}>{e.prenom} {e.nom}</div>
+                      <div style={{fontSize:12,color:'#888'}}>
+                        <span style={{padding:'1px 6px',borderRadius:6,background:`${nc}20`,color:nc,fontWeight:700,marginRight:6}}>{e.code_niveau||'?'}</span>
+                        Hizb {et.hizbEnCours} · T.{et.prochainTomon}
+                      </div>
+                    </div>
+                    {selectedEleve?.id===e.id&&<span style={{color:nc,fontSize:20}}>✓</span>}
+                  </div>
+                );
+              })}
+              {selectedEleve&&(
+                <button onClick={()=>setStep(2)}
+                  style={{width:'100%',padding:'16px',background:'#1D9E75',color:'#fff',border:'none',
+                    borderRadius:14,fontSize:16,fontWeight:800,cursor:'pointer',fontFamily:'inherit',marginTop:8}}>
+                  {lang==='ar'?'التالي ←':'Suivant →'}
+                </button>
+              )}
+            </div>
+          )}
+
+          {/* Steps 2 & 3 - use existing PC layout with mobile padding */}
+          {step>=2&&(
+            <div>
+              {/* Recap eleve */}
+              {selectedEleve&&(
+                <div style={{background:'#E1F5EE',borderRadius:12,padding:'12px 14px',marginBottom:14,
+                  display:'flex',alignItems:'center',gap:10}}>
+                  <div style={{fontWeight:700,fontSize:15,flex:1}}>
+                    {selectedEleve.prenom} {selectedEleve.nom}
+                  </div>
+                  <button onClick={()=>{setStep(1);setSelectedEleve(null);}}
+                    style={{background:'rgba(0,0,0,0.1)',border:'none',borderRadius:8,padding:'4px 10px',
+                      fontSize:12,cursor:'pointer',color:'#085041'}}>
+                    ✕
+                  </button>
+                </div>
+              )}
+              {/* Existing step 2/3 content - rendered as normal but with better spacing */}
+              <div className="form-group" style={{fontSize:16}}>
+                {/* Validation type buttons - make bigger */}
+                {typeValidation===''&&(
+                  <div style={{display:'flex',flexDirection:'column',gap:12}}>
+                    {!isNiveauSourate&&[
+                      {type:'tomon',label:t(lang,'valider_tomon'),pts:30,color:'#1D9E75',bg:'#E1F5EE'},
+                      {type:'hizb_complet',label:t(lang,'valider_hizb_complet'),pts:100,color:'#EF9F27',bg:'#FAEEDA'},
+                    ].map(opt=>(
+                      <button key={opt.type} onClick={()=>setTypeValidation(opt.type)}
+                        style={{padding:'20px',background:opt.bg,color:opt.color,border:`2px solid ${opt.color}30`,
+                          borderRadius:14,fontSize:16,fontWeight:700,cursor:'pointer',fontFamily:'inherit',
+                          display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+                        <span>{opt.label}</span>
+                        <span style={{fontSize:14}}>+{opt.pts} pts</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div>
       <button className="back-link" onClick={() => navigate(selectedEleve ? 'fiche' : 'dashboard', selectedEleve)}>t(lang,'retour')</button>

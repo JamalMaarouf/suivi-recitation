@@ -190,6 +190,136 @@ export default function FicheSourate({ eleve, user, navigate, goBack, lang='fr',
     setSavingPassage(false);
   };
 
+  if (isMobile) {
+    const NIVEAU_COLORS_FS = {'5B':'#534AB7','5A':'#378ADD','2M':'#1D9E75'};
+    const nc = NIVEAU_COLORS_FS[codeNiveau] || '#1D9E75';
+    return (
+      <div style={{paddingBottom:80, background:'#f5f5f0', minHeight:'100vh'}}>
+        {/* Sticky header */}
+        <div style={{background:'#fff', borderBottom:'0.5px solid #e0e0d8', position:'sticky', top:0, zIndex:100}}>
+          <div style={{display:'flex', alignItems:'center', gap:12, padding:'12px 16px'}}>
+            <button onClick={()=>goBack?goBack():navigate('dashboard')}
+              style={{background:'none',border:'none',cursor:'pointer',fontSize:22,color:'#085041',padding:0,lineHeight:1}}>
+              ←
+            </button>
+            <div style={{flex:1}}>
+              <div style={{fontSize:17,fontWeight:800}}>{eleve.prenom} {eleve.nom}</div>
+              <div style={{display:'flex',gap:6,alignItems:'center',marginTop:2}}>
+                <NiveauBadge code={codeNiveau}/>
+                <span style={{fontSize:12,color:'#888'}}>{instituteurNom}</span>
+              </div>
+            </div>
+            <button onClick={()=>navigate('enregistrer',eleve)}
+              style={{background:'#1D9E75',color:'#fff',border:'none',borderRadius:10,
+                padding:'8px 14px',fontSize:13,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
+              + {lang==='ar'?'استظهار':'Récit.'}
+            </button>
+          </div>
+          {/* Onglets */}
+          <div style={{display:'flex',overflowX:'auto',scrollbarWidth:'none',borderTop:'0.5px solid #f0f0ec'}}>
+            {[
+              {k:'progression',label:lang==='ar'?'التقدم':'Progression'},
+              {k:'historique', label:lang==='ar'?'التاريخ':'Historique'},
+              {k:'muraja',     label:lang==='ar'?'المراجعة':"Muraja'a"},
+            ].map(tab=>(
+              <div key={tab.k} onClick={()=>setOnglet(tab.k)}
+                style={{padding:'10px 16px',fontSize:13,fontWeight:600,whiteSpace:'nowrap',cursor:'pointer',flexShrink:0,
+                  color:onglet===tab.k?'#085041':'#888',
+                  borderBottom:onglet===tab.k?'2px solid #1D9E75':'2px solid transparent'}}>
+                {tab.label}
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {loading ? <div style={{textAlign:'center',padding:'2rem',color:'#888'}}>...</div> : (
+          <div style={{padding:'12px'}}>
+            {onglet==='progression' && (
+              <div>
+                {/* Sourates grid */}
+                <div style={{fontSize:12,fontWeight:700,color:'#888',marginBottom:8}}>
+                  {lang==='ar'?'السور':lang==='en'?'Surahs':'Sourates'} ({souratesOrdonnees.length})
+                </div>
+                <div style={{display:'grid',gridTemplateColumns:'repeat(2,1fr)',gap:8}}>
+                  {souratesOrdonnees.map(s=>{
+                    const recs=getRecsSourate(s.numero);
+                    const complete=recs.some(r=>r.type_recitation==='complete');
+                    const sequences=recs.filter(r=>r.type_recitation==='sequence').length;
+                    const dbId=getDbId(s.numero);
+                    return(
+                      <div key={s.numero} onClick={()=>setSelectedSourate(selectedSourate?.numero===s.numero?null:s)}
+                        style={{background:'#fff',borderRadius:12,padding:'12px',cursor:'pointer',
+                          border:complete?`2px solid ${nc}`:`0.5px solid ${selectedSourate?.numero===s.numero?nc:'#e0e0d8'}`,
+                          background:complete?`${nc}08`:selectedSourate?.numero===s.numero?`${nc}05`:'#fff'}}>
+                        <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:4}}>
+                          <span style={{fontSize:11,fontWeight:700,color:'#888'}}>#{s.numero}</span>
+                          {complete && <span style={{fontSize:14}}>✅</span>}
+                          {!complete && sequences>0 && <span style={{fontSize:11,color:nc,fontWeight:600}}>{sequences} séq.</span>}
+                        </div>
+                        <div style={{fontSize:14,fontWeight:700,color:complete?nc:'#1a1a1a',fontFamily:"'Tajawal',Arial",direction:'rtl',textAlign:'right'}}>
+                          {s.nom_ar}
+                        </div>
+                        <div style={{fontSize:11,color:'#888',marginTop:2}}>{s.nom_fr||s.nom}</div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+            {onglet==='historique' && (
+              <div>
+                {recitations.slice(0,30).map(r=>{
+                  const s=souratesDB.find(x=>x.id===r.sourate_id);
+                  return(
+                    <div key={r.id} style={{background:'#fff',borderRadius:12,padding:'12px 14px',marginBottom:8,
+                      border:'0.5px solid #e0e0d8',display:'flex',alignItems:'center',gap:12}}>
+                      <span style={{fontSize:20}}>📖</span>
+                      <div style={{flex:1}}>
+                        <div style={{fontWeight:600,fontSize:14,fontFamily:"'Tajawal',Arial",direction:'rtl'}}>{s?.nom_ar||'—'}</div>
+                        <div style={{fontSize:12,color:'#888'}}>
+                          {r.type_recitation==='complete'?'Sourate complète':'Séquence'} · {new Date(r.date_validation).toLocaleDateString(lang==='ar'?'ar-MA':'fr-FR')}
+                        </div>
+                      </div>
+                      <span style={{fontSize:13,fontWeight:700,color:nc}}>+{r.type_recitation==='complete'?30:10} pts</span>
+                    </div>
+                  );
+                })}
+                {recitations.length===0&&<div style={{textAlign:'center',color:'#aaa',padding:'2rem'}}>Aucune récitation</div>}
+              </div>
+            )}
+            {onglet==='muraja' && (
+              <div>
+                {[...murajaaS,...murajaa].length===0 ? (
+                  <div style={{textAlign:'center',color:'#aaa',padding:'2rem'}}>Aucune muraja'a</div>
+                ) : [...murajaaS,...murajaa].slice(0,20).map((v,i)=>(
+                  <div key={i} style={{background:'#fff',borderRadius:12,padding:'12px 14px',marginBottom:8,
+                    border:'0.5px solid #EF9F2730',display:'flex',alignItems:'center',gap:12}}>
+                    <span style={{fontSize:20}}>📖</span>
+                    <div style={{flex:1}}>
+                      <div style={{fontWeight:600,fontSize:13}}>{v.sourate?.nom_ar||'Muraja'a'}</div>
+                      <div style={{fontSize:11,color:'#888'}}>{new Date(v.date_validation).toLocaleDateString(lang==='ar'?'ar-MA':'fr-FR')}</div>
+                    </div>
+                    <span style={{fontSize:13,fontWeight:700,color:'#EF9F27'}}>+{v.points||10} pts</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* FAB passage niveau */}
+        {user.role==='surveillant' && (
+          <button onClick={()=>{setNouveauNiveau('');setNotePassage('');setShowPassageModal(true);}}
+            style={{position:'fixed',bottom:80,right:16,background:'#534AB7',color:'#fff',
+              border:'none',borderRadius:14,padding:'10px 16px',fontSize:14,fontWeight:700,
+              cursor:'pointer',zIndex:150,boxShadow:'0 4px 16px rgba(83,74,183,0.4)',fontFamily:'inherit'}}>
+            🎓 Niveau
+          </button>
+        )}
+      </div>
+    );
+  }
+
   return (
     <div>
       <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'1.25rem',flexWrap:'wrap',gap:8}}>

@@ -68,7 +68,124 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
 
   const sl = selectedEleve&&etat ? scoreLabel(etat.points.total) : null;
 
-  return (
+  if (isMobile) {
+    return (
+      <div style={{paddingBottom:80,background:'#f5f5f0',minHeight:'100vh'}}>
+        {flash&&(
+          <div style={{position:'fixed',top:16,left:16,right:16,zIndex:999,background:'#1D9E75',
+            borderRadius:16,padding:'16px',textAlign:'center',color:'#fff'}}>
+            <div style={{fontSize:15,fontWeight:700}}>{flash.msg}</div>
+            <div style={{fontSize:30,fontWeight:800}}>+{flash.pts} pts</div>
+          </div>
+        )}
+        <div style={{background:'#fff',padding:'16px',borderBottom:'0.5px solid #e0e0d8',position:'sticky',top:0,zIndex:100}}>
+          <div style={{fontSize:18,fontWeight:800,color:'#085041',marginBottom:10}}>
+            ⚡ {t(lang,'validation_express')}
+          </div>
+          <input ref={searchRef} style={{width:'100%',padding:'13px 16px',borderRadius:12,
+            border:'0.5px solid #e0e0d8',fontSize:16,fontFamily:'inherit',boxSizing:'border-box',background:'#f9f9f6'}}
+            placeholder={t(lang,'rechercher_eleve')} value={search}
+            onChange={e=>setSearch(e.target.value)} autoComplete="off"/>
+        </div>
+        {search&&filteredEleves.length>0&&(
+          <div style={{background:'#fff',margin:'8px 12px',borderRadius:12,overflow:'hidden',border:'0.5px solid #e0e0d8'}}>
+            {filteredEleves.slice(0,8).map(e=>{
+              const vals=allValidations.filter(v=>v.eleve_id===e.id);
+              const et=calcEtatEleve(vals,e.hizb_depart,e.tomon_depart);
+              const nc={'5B':'#534AB7','5A':'#378ADD','2M':'#1D9E75','2':'#EF9F27','1':'#E24B4A'}[e.code_niveau||'1']||'#888';
+              return(
+                <div key={e.id} onClick={()=>{selectEleve(e);setSearch('');}}
+                  style={{display:'flex',alignItems:'center',gap:12,padding:'13px 14px',borderBottom:'0.5px solid #f0f0ec',cursor:'pointer'}}>
+                  <div style={{width:40,height:40,borderRadius:'50%',background:`${nc}20`,color:nc,
+                    display:'flex',alignItems:'center',justifyContent:'center',fontWeight:800,fontSize:13,flexShrink:0}}>
+                    {getInitiales(e.prenom,e.nom)}
+                  </div>
+                  <div style={{flex:1}}>
+                    <div style={{fontWeight:700,fontSize:15}}>{e.prenom} {e.nom}</div>
+                    <div style={{fontSize:12,color:'#888'}}>
+                      <span style={{padding:'1px 6px',borderRadius:6,background:`${nc}20`,color:nc,fontWeight:700,marginRight:6}}>{e.code_niveau||'?'}</span>
+                      Hizb {et.hizbEnCours}
+                    </div>
+                  </div>
+                  <span style={{color:'#ccc',fontSize:18}}>{'›'}</span>
+                </div>
+              );
+            })}
+          </div>
+        )}
+        {selectedEleve&&etat&&(
+          <div style={{margin:'12px',background:'#fff',borderRadius:16,overflow:'hidden',border:`2px solid ${sl?.color||'#e0e0d8'}`}}>
+            <div style={{background:`${sl?.bg||'#f5f5f0'}`,padding:'16px',display:'flex',alignItems:'center',gap:12}}>
+              <div style={{width:48,height:48,borderRadius:'50%',background:`${sl?.color||'#888'}30`,color:sl?.color||'#888',
+                display:'flex',alignItems:'center',justifyContent:'center',fontWeight:800,fontSize:16,flexShrink:0}}>
+                {getInitiales(selectedEleve.prenom,selectedEleve.nom)}
+              </div>
+              <div style={{flex:1}}>
+                <div style={{fontSize:17,fontWeight:800}}>{selectedEleve.prenom} {selectedEleve.nom}</div>
+                <div style={{fontSize:13,color:'#666'}}>Hizb {etat.hizbEnCours} · {etat.tomonDansHizbActuel}/8</div>
+              </div>
+              <button onClick={()=>{setSelectedEleve(null);setEtat(null);setSearch('');}}
+                style={{width:36,height:36,borderRadius:'50%',background:'rgba(0,0,0,0.1)',border:'none',fontSize:16,cursor:'pointer'}}>
+                ✕
+              </button>
+            </div>
+            <div style={{padding:'12px 16px 0'}}>
+              <div style={{display:'flex',gap:3}}>
+                {[1,2,3,4,5,6,7,8].map(n=>(
+                  <div key={n} style={{flex:1,height:10,borderRadius:3,background:n<=etat.tomonDansHizbActuel?sl?.color:'#e0e0d8'}}/>
+                ))}
+              </div>
+            </div>
+            <div style={{padding:'16px'}}>
+              {etat.enAttenteHizbComplet?(
+                <div>
+                  <div style={{background:'#FAEEDA',borderRadius:12,padding:'12px',marginBottom:12,fontSize:13,color:'#633806',textAlign:'center'}}>
+                    🎉 {t(lang,'hizb_complet_en_attente')}
+                  </div>
+                  <button onClick={validerHizb} disabled={saving}
+                    style={{width:'100%',padding:'18px',background:saving?'#ccc':'#EF9F27',color:'#fff',
+                      border:'none',borderRadius:14,fontSize:17,fontWeight:800,cursor:'pointer',fontFamily:'inherit'}}>
+                    {saving?'...':'✓ Valider Hizb (+100 pts)'}
+                  </button>
+                </div>
+              ):(
+                <div>
+                  <div style={{fontSize:13,color:'#888',marginBottom:12,textAlign:'center'}}>
+                    {t(lang,'prochain')}: Tomon {etat.prochainTomon}
+                  </div>
+                  <div style={{display:'grid',gridTemplateColumns:`repeat(${Math.min(etat.tomonRestants,4)},1fr)`,gap:10}}>
+                    {Array.from({length:etat.tomonRestants},(_,i)=>i+1).map(n=>(
+                      <button key={n} onClick={()=>validerTomon(n)} disabled={saving}
+                        style={{padding:'18px 8px',background:saving?'#ccc':'#1D9E75',color:'#fff',
+                          border:'none',borderRadius:14,fontSize:16,fontWeight:800,cursor:'pointer',fontFamily:'inherit'}}>
+                        {saving?'...':`+${n} (${n*30}pts)`}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+            {sessionLog.length>0&&(
+              <div style={{padding:'0 16px 16px'}}>
+                {sessionLog.slice(-3).reverse().map((l,i)=>(
+                  <div key={i} style={{fontSize:12,color:'#1D9E75',padding:'3px 0'}}>✓ {l.nom} · +{l.pts} pts</div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+        {!selectedEleve&&!search&&(
+          <div style={{textAlign:'center',padding:'3rem 2rem',color:'#aaa'}}>
+            <div style={{fontSize:48,marginBottom:12}}>⚡</div>
+            <div style={{fontSize:15,fontWeight:600,color:'#888',marginBottom:4}}>{t(lang,'validation_express')}</div>
+            <div style={{fontSize:13}}>{t(lang,'validation_express_aide')}</div>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+    return (
     <div>
       <button className="back-link" onClick={()=>goBack?goBack():navigate('dashboard')}>{t(lang,'retour')}</button>
       <div style={{fontSize:20,fontWeight:700,marginBottom:4}}>{t(lang,'validation_express')}</div>

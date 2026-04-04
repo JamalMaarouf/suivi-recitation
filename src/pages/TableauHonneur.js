@@ -37,7 +37,7 @@ export default function TableauHonneur({ navigate, goBack, lang='fr', isMobile }
   const elevesNiveau = vue!=='global' ? eleves.filter(e=>e.code_niveau===vue) : eleves;
 
   return (
-    <div style={{minHeight:'100vh',background:'linear-gradient(135deg,#0a0a0f 0%,#0d1f1a 100%)',padding:'2rem 1rem',paddingBottom:80}}>
+    <div style={{minHeight:'100vh',paddingBottom: isMobile ? 80 : 0,background:'linear-gradient(135deg,#0a0a0f 0%,#0d1f1a 100%)',padding:'2rem 1rem',paddingBottom:80}}>
       <button onClick={()=>goBack?goBack():navigate('dashboard')} style={{color:'#9FE1CB',background:'none',border:'none',cursor:'pointer',fontSize:14,marginBottom:'1.5rem',display:'block'}}>{t(lang,'retour')}</button>
 
       <div style={{textAlign:'center',marginBottom:'2rem'}}>

@@ -56,7 +56,7 @@ export default function ElevesInactifs({ navigate, goBack, lang='fr', user, isMo
   );
 
   return (
-    <div style={{padding:'1rem',maxWidth:700,margin:'0 auto'}}>
+    <div style={{padding: isMobile ? '0 0 80px' : '1rem',maxWidth:700,margin:'0 auto',background: isMobile ? '#f5f5f0' : 'transparent',minHeight: isMobile ? '100vh' : 'auto'}}>
       <div style={{display:'flex',alignItems:'center',gap:12,marginBottom:'1.2rem'}}>
         <button className="back-link" onClick={()=>goBack?goBack():navigate('dashboard')}>
           {lang==='ar'?'← رجوع':'← Retour'}
