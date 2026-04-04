@@ -112,6 +112,8 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang='fr' })
   const [onglet, setOnglet] = useState('apercu');
   const [showAcquis, setShowAcquis] = useState(false);
   const [exceptionsHizb, setExceptionsHizb] = useState([]);
+  const [murajaa, setMurajaa] = useState([]);
+  const [murajaaS, setMurajaaS] = useState([]); // sourate muraja'a
   const [showExceptionModal, setShowExceptionModal] = useState(false);
   const now = new Date();
   const [selectedMoisObj, setSelectedMoisObj] = useState(now.getMonth());
@@ -122,10 +124,12 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang='fr' })
   const loadData = async () => {
     setLoading(true);
     try {
-      const [{data:vals},{data:appr},{data:exhizb}] = await Promise.all([
+      const [{data:vals},{data:appr},{data:exhizb},{data:mval},{data:mrec}] = await Promise.all([
         supabase.from('validations').select('*, valideur:valide_par(prenom,nom)').eq('eleve_id',eleve.id).order('date_validation',{ascending:false}),
         supabase.from('apprentissages').select('*').eq('eleve_id',eleve.id).order('date_debut',{ascending:false}),
         supabase.from('exceptions_hizb').select('*').eq('eleve_id',eleve.id).eq('active',true),
+        supabase.from('validations').select('*, valideur:valide_par(prenom,nom)').eq('eleve_id',eleve.id).in('type_validation',['tomon_muraja','hizb_muraja']).order('date_validation',{ascending:false}),
+        supabase.from('recitations_sourates').select('*, sourate:sourate_id(nom_ar,numero), valideur:valide_par(prenom,nom)').eq('eleve_id',eleve.id).eq('is_muraja',true).order('date_validation',{ascending:false}),
       ]);
       if (eleve.instituteur_referent_id) {
         const {data:inst}=await supabase.from('utilisateurs').select('prenom,nom').eq('id',eleve.instituteur_referent_id).single();
@@ -136,6 +140,8 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang='fr' })
       setValidations(vals||[]);
       setApprentissages(appr||[]);
       setExceptionsHizb(exhizb||[]);
+      setMurajaa(mval||[]);
+      setMurajaaS(mrec||[]);
     } catch(err) {
       console.error('FicheEleve loadData error:', err);
       // Set minimal etat so page renders
@@ -432,7 +438,7 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang='fr' })
 
           {/* Tabs */}
           <div className="tabs-row" style={{marginBottom:'1rem'}}>
-            {[['apercu',t(lang,'apercu')],['apprentissage',t(lang,'apprentissage')],['graphique',t(lang,'evolution')],['activite',t(lang,'activite')],['historique',t(lang,'historique')]].map(([k,l])=>(
+            {[['apercu',t(lang,'apercu')],['apprentissage',t(lang,'apprentissage')],['graphique',t(lang,'evolution')],['activite',t(lang,'activite')],['historique',t(lang,'historique')],['muraja',lang==='ar'?'المراجعة':'Muraja\u02bca']].map(([k,l])=>(
               <div key={k} className={`tab ${onglet===k?'active':''}`} onClick={()=>setOnglet(k)}>{l}</div>
             ))}
           </div>
@@ -563,6 +569,47 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang='fr' })
           )}
 
           {/* HISTORIQUE */}
+          {onglet==='muraja'&&(
+            <div>
+              <div style={{fontSize:12,color:'#888',marginBottom:12,padding:'8px 12px',background:'#FFF3CD',borderRadius:8}}>
+                ℹ️ {lang==='ar'?'هذه المراجعات الجماعية لا تؤثر على التقدم الفردي':'Ces muraja\u02bca collectives n\'affectent pas la progression individuelle'}
+              </div>
+              {(murajaa.length+murajaaS.length)===0?(
+                <div className="empty">{lang==='ar'?'لا توجد مراجعات جماعية':'Aucune muraja\u02bca collective'}</div>
+              ):(
+                <div className="table-wrap">
+                  <table><thead><tr>
+                    <th>{lang==='ar'?'التاريخ':'Date'}</th>
+                    <th>{lang==='ar'?'النوع':'Type'}</th>
+                    <th>{lang==='ar'?'المحتوى':'Contenu'}</th>
+                    <th>{lang==='ar'?'النقاط':'Pts'}</th>
+                    <th>{lang==='ar'?'صحَّح بواسطة':'Validé par'}</th>
+                  </tr></thead>
+                  <tbody>
+                    {murajaaS.map(r=>(
+                      <tr key={'s'+r.id}>
+                        <td style={{fontSize:12,color:'#888'}}>{new Date(r.date_validation).toLocaleDateString(lang==='ar'?'ar-MA':'fr-FR')}</td>
+                        <td><span className="badge" style={{background:'#FFF3CD',color:'#856404',fontSize:10}}>{r.type_recitation==='complete'?(lang==='ar'?'سورة كاملة':'Sourate complète'):(lang==='ar'?'تسلسل':'Séquence')}</span></td>
+                        <td style={{fontSize:12}}>{r.sourate?.nom_ar||'—'}{r.type_recitation==='sequence'&&r.verset_debut?` (${lang==='ar'?'آية':'v.'} ${r.verset_debut}–${r.verset_fin})`:''}</td>
+                        <td><span style={{fontSize:12,fontWeight:600,color:'#EF9F27'}}>+{r.points||5}</span></td>
+                        <td style={{fontSize:11,color:'#888'}}>{r.valideur?`${r.valideur.prenom} ${r.valideur.nom}`:'—'}</td>
+                      </tr>
+                    ))}
+                    {murajaa.map(v=>(
+                      <tr key={'v'+v.id}>
+                        <td style={{fontSize:12,color:'#888'}}>{new Date(v.date_validation).toLocaleDateString(lang==='ar'?'ar-MA':'fr-FR')}</td>
+                        <td><span className="badge" style={{background:'#FFF3CD',color:'#856404',fontSize:10}}>{v.type_validation==='hizb_muraja'?(lang==='ar'?'حزب كامل':'Hizb complet'):(lang==='ar'?'ثُمن':'Tomon')}</span></td>
+                        <td style={{fontSize:12}}>{v.type_validation==='hizb_muraja'?`Hizb ${v.hizb_validation}`:`Hizb ${v.hizb_validation} — T${v.tomon_debut} ×${v.nombre_tomon}`}</td>
+                        <td><span style={{fontSize:12,fontWeight:600,color:'#EF9F27'}}>+{v.type_validation==='hizb_muraja'?100:v.nombre_tomon*10}</span></td>
+                        <td style={{fontSize:11,color:'#888'}}>{v.valideur?`${v.valideur.prenom} ${v.valideur.nom}`:'—'}</td>
+                      </tr>
+                    ))}
+                  </tbody></table>
+                </div>
+              )}
+            </div>
+          )}
+
           {onglet==='historique'&&(
             validations.length===0?<div className="empty">{t(lang,'aucune_recitation_label')}</div>:(
               <div className="table-wrap">
