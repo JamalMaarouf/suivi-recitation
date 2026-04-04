@@ -6,7 +6,7 @@ import ConfirmModal from '../components/ConfirmModal';
 const NIVEAU_COLORS = { '5B':'#534AB7','5A':'#378ADD','2M':'#1D9E75','2':'#EF9F27','1':'#E24B4A' };
 const NIVEAUX = ['5B','5A','2M','2','1'];
 
-export default function MurajaDashboard({ user, navigate, goBack, lang='fr' }) {
+export default function MurajaDashboard({ user, navigate, goBack, lang='fr', isMobile }) {
   const [recitations, setRecitations] = useState([]);
   const [validations, setValidations] = useState([]);
   const [eleves, setEleves]           = useState([]);

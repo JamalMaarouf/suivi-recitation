@@ -7,7 +7,7 @@ function Avatar({ prenom, nom, size=44, bg='#E1F5EE', color='#085041' }) {
   return <div style={{width:size,height:size,borderRadius:'50%',background:bg,color,display:'flex',alignItems:'center',justifyContent:'center',fontWeight:600,fontSize:size*0.33,flexShrink:0}}>{getInitiales(prenom,nom)}</div>;
 }
 
-export default function ProfilInstituteur({ instituteur, user, navigate, goBack, lang='fr' }) {
+export default function ProfilInstituteur({ instituteur, user, navigate, goBack, lang='fr', isMobile }) {
   const [eleves, setEleves] = useState([]);
   const [validations, setValidations] = useState([]);
   const [loading, setLoading] = useState(true);

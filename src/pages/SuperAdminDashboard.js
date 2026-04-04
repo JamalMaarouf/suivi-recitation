@@ -3,7 +3,7 @@ import { supabase } from '../lib/supabase';
 
 const S = { green:'#1D9E75', purple:'#534AB7', amber:'#EF9F27', red:'#E24B4A', gray:'#888', border:'#e0e0d8' };
 
-export default function SuperAdminDashboard({ user, navigate, lang, onLogout }) {
+export default function SuperAdminDashboard({ user, navigate, lang, onLogout, isMobile }) {
   const [ecoles, setEcoles] = useState([]);
   const [loading, setLoading] = useState(true);
   const [vue, setVue] = useState('ecoles'); // 'ecoles' | 'attente' | 'creer'

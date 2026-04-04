@@ -91,7 +91,7 @@ const statusConfig = {
   futur:    { color:'#888',    bg:'#f5f5f0', label_fr:'À venir',     label_ar:'قادم',      label_en:'Upcoming'   },
 };
 
-export default function GestionObjectifs({ user, navigate, goBack, lang='fr' }) {
+export default function GestionObjectifs({ user, navigate, goBack, lang='fr', isMobile }) {
   const [objectifs, setObjectifs] = useState([]);
   const [eleves, setEleves] = useState([]);
   const [instituteurs, setInstituteurs] = useState([]);

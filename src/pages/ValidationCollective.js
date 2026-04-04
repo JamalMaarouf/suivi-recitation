@@ -12,7 +12,7 @@ const NIVEAUX = [
 ];
 const NIVEAU_COLORS = { '5B':'#534AB7','5A':'#378ADD','2M':'#1D9E75','2':'#EF9F27','1':'#E24B4A' };
 
-export default function ValidationCollective({ user, navigate, goBack, lang='fr' }) {
+export default function ValidationCollective({ user, navigate, goBack, lang='fr', isMobile }) {
   const [step, setStep]             = useState(1);
   const [selectedNiveau, setSelectedNiveau] = useState(null);
   const [typeRecitation, setTypeRecitation] = useState('');

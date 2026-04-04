@@ -7,7 +7,7 @@ function Avatar({ prenom, nom, size=40, bg='#E1F5EE', color='#085041' }) {
   return <div style={{width:size,height:size,borderRadius:'50%',background:bg,color,display:'flex',alignItems:'center',justifyContent:'center',fontWeight:600,fontSize:size*0.33,flexShrink:0}}>{getInitiales(prenom,nom)}</div>;
 }
 
-export default function ValidationRapide({ user, navigate, goBack, lang='fr' }) {
+export default function ValidationRapide({ user, navigate, goBack, lang='fr', isMobile }) {
   const [eleves, setEleves] = useState([]);
   const [allValidations, setAllValidations] = useState([]);
   const [search, setSearch] = useState('');

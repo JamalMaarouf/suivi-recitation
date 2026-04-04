@@ -150,7 +150,7 @@ function PassageNiveauModal({ show, onClose, eleve, etat, user, lang, niveauxDis
   );
 }
 
-export default function FicheEleve({ eleve, user, navigate, goBack, lang='fr' }) {
+export default function FicheEleve({ eleve, user, navigate, goBack, lang, isMobile='fr' }) {
   const [validations, setValidations] = useState([]);
   const [apprentissages, setApprentissages] = useState([]);
   const [objectifs, setObjectifs] = useState([]);

@@ -16,7 +16,7 @@ function Avatar({ prenom, nom, size = 32 }) {
   );
 }
 
-export default function RapportMensuel({  user, navigate, goBack , lang="fr" }) {
+export default function RapportMensuel({  user, navigate, goBack , lang="fr", isMobile }) {
   const now = new Date();
   const [mois, setMois] = useState(now.getMonth());
   const [annee, setAnnee] = useState(now.getFullYear());

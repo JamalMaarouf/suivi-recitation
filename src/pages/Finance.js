@@ -75,7 +75,7 @@ function StatCard({ icon, val, lbl, color, bg, sub }) {
   );
 }
 
-export default function Finance({ user, navigate, goBack, lang='fr' }) {
+export default function Finance({ user, navigate, goBack, lang='fr', isMobile }) {
   const [onglet, setOnglet] = useState('dashboard');
   const [eleves, setEleves] = useState([]);
   const [instituteurs, setInstituteurs] = useState([]);
@@ -406,7 +406,7 @@ export default function Finance({ user, navigate, goBack, lang='fr' }) {
   const exportPDF = () => {
     if (onglet === 'cotisations') {
       const w = window.open('','_blank','width=1000,height=800');
-      if (!w) { alert('Autorisez les popups'); return; }
+      if (!w) { console.error('Autorisez les popups'); return; }
       const rows = cotFiltrees.slice(0,50).map((c,i)=>{
         const st=STATUTS.find(s=>s.val===c.statut)||STATUTS[0];
         const bg=i%2===0?'#fff':'#f9f9f6';
@@ -429,7 +429,7 @@ export default function Finance({ user, navigate, goBack, lang='fr' }) {
     }
     if (onglet === 'depenses') {
       const w = window.open('','_blank','width=1000,height=800');
-      if (!w) { alert('Autorisez les popups'); return; }
+      if (!w) { console.error('Autorisez les popups'); return; }
       const rows = depFiltrees.slice(0,50).map((d,i)=>{
         const cat=CATEGORIES.find(c=>c.val===d.categorie)||CATEGORIES[5];
         const bg=i%2===0?'#fff':'#f9f9f6';
@@ -451,7 +451,7 @@ export default function Finance({ user, navigate, goBack, lang='fr' }) {
     }
     if (onglet === 'suivi') {
       const w = window.open('','_blank','width=1000,height=800');
-      if (!w) { alert('Autorisez les popups'); return; }
+      if (!w) { console.error('Autorisez les popups'); return; }
       const rows = parEleve.map((p,i)=>{
         const st=STATUTS.find(s=>s.val===p.statutDernier)||STATUTS[2];
         const bg=i%2===0?'#fff':'#f9f9f6';
@@ -473,7 +473,7 @@ export default function Finance({ user, navigate, goBack, lang='fr' }) {
     }
     // Dashboard PDF (default)
     const w = window.open('','_blank','width=1100,height=900');
-    if (!w) { alert('Autorisez les popups'); return; }
+    if (!w) { console.error('Autorisez les popups'); return; }
 
     const maxDep = Math.max(...parCategorie.map(c=>c.total),1);
     const catBars = parCategorie.map((c,i)=>{

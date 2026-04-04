@@ -141,7 +141,7 @@ function AcquisSelector({ codeNiveau, hizb, tomon, onHizbChange, onTomonChange, 
 }
 
 
-export default function Gestion({ user, navigate, goBack, lang = 'fr' }) {
+export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile }) {
   const [tab, setTab] = useState('eleves');
   const [parents, setParents] = useState([]);
   const [formParent, setFormParent] = useState({prenom:'',nom:'',identifiant:'',mot_de_passe:'',telephone:'',eleve_ids:[]});
@@ -820,18 +820,18 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr' }) {
                 {eleves.length===0&&<div style={{fontSize:11,color:'#E24B4A',marginTop:4}}>⚠️ {lang==='ar'?'لا يوجد طلاب مسجلون بعد':'Aucun élève enregistré'}</div>}
               </div>
               <button className="btn-primary" onClick={async()=>{
-                if(!formParent.prenom||!formParent.nom||!formParent.identifiant) return alert(lang==='ar'?'يرجى ملء الحقول المطلوبة':'Remplissez les champs obligatoires');
-                if(!editingParentId && !formParent.mot_de_passe) return alert(lang==='ar'?'كلمة المرور مطلوبة':'Mot de passe requis');
+                if(!formParent.prenom||!formParent.nom||!formParent.identifiant) return console.error(lang==='ar'?'يرجى ملء الحقول المطلوبة':'Remplissez les champs obligatoires');
+                if(!editingParentId && !formParent.mot_de_passe) return console.error(lang==='ar'?'كلمة المرور مطلوبة':'Mot de passe requis');
                 let pid = editingParentId;
                 if(editingParentId) {
                   const upd={prenom:formParent.prenom,nom:formParent.nom,identifiant:formParent.identifiant,telephone:formParent.telephone||null};
                   if(formParent.mot_de_passe) upd.mot_de_passe=formParent.mot_de_passe;
                   const {error:ue}=await supabase.from('parents').update(upd).eq('id',editingParentId);
-                  if(ue){alert(ue.message);return;}
+                  if(ue){console.error(ue.message);return;}
                   await supabase.from('parent_eleve').delete().eq('parent_id',editingParentId);
                 } else {
                   const {data:pd,error:pe}=await supabase.from('parents').insert({prenom:formParent.prenom,nom:formParent.nom,identifiant:formParent.identifiant,mot_de_passe:formParent.mot_de_passe,telephone:formParent.telephone||null,created_by:user.id,ecole_id:user.ecole_id}).select().single();
-                  if(pe){alert(pe.message);return;}
+                  if(pe){console.error(pe.message);return;}
                   pid=pd.id;
                 }
                 if(formParent.eleve_ids.length>0){

@@ -41,7 +41,7 @@ function calcAlertes(eleves, allValidations, lang) {
   return alertes.sort((a,b)=>({stagnation:0,hizb_bloque:1,rapide:2}[a.type]||3)-({stagnation:0,hizb_bloque:1,rapide:2}[b.type]||3));
 }
 
-export default function Dashboard({ user, navigate, goBack, lang='fr' }) {
+export default function Dashboard({ user, navigate, goBack, lang, isMobile='fr' }) {
   const [eleves, setEleves] = useState([]);
   const [instituteurs, setInstituteurs] = useState([]);
   const [allValidations, setAllValidations] = useState([]);
@@ -168,6 +168,53 @@ export default function Dashboard({ user, navigate, goBack, lang='fr' }) {
 
       {!loading && vue==='general' && (
         <>
+          {/* Mobile Dashboard Header */}
+          {isMobile && (
+            <div className="dashboard-header">
+              <div style={{fontSize:13,color:'rgba(255,255,255,0.8)'}}>
+                {lang==='ar'?'مرحباً':'Bonjour'} {user.prenom} 👋
+              </div>
+              <div style={{fontSize:20,fontWeight:800,color:'#fff',marginTop:2}}>
+                {lang==='ar'?'لوحة التحكم':'Tableau de bord'}
+              </div>
+              <div className="dashboard-kpi-grid">
+                <div className="dashboard-kpi">
+                  <div className="dashboard-kpi-value">{eleves.length}</div>
+                  <div className="dashboard-kpi-label">{lang==='ar'?'طالب':'élèves'}</div>
+                </div>
+                <div className="dashboard-kpi">
+                  <div className="dashboard-kpi-value">{eleves.filter(e=>!e.inactif).length}</div>
+                  <div className="dashboard-kpi-label">{lang==='ar'?'نشط اليوم':'actifs'}</div>
+                </div>
+                <div className="dashboard-kpi">
+                  <div className="dashboard-kpi-value" style={{color:eleves.filter(e=>e.inactif).length>0?'#EF9F27':'#fff'}}>
+                    {eleves.filter(e=>e.inactif).length}
+                  </div>
+                  <div className="dashboard-kpi-label">{lang==='ar'?'غير نشط':'inactifs'}</div>
+                </div>
+              </div>
+            </div>
+          )}
+          {/* Mobile Quick Actions */}
+          {isMobile && (
+            <div className="quick-actions-grid">
+              {[
+                {icon:'⚡', label:lang==='ar'?'تسجيل سريع':'Récitation rapide', sub:lang==='ar'?'تحقق من الحفظ':'Valider maintenant', page:'validation_rapide', color:'#1D9E75', bg:'#E1F5EE'},
+                {icon:'📖', label:lang==='ar'?'مراجعة جماعية':"Muraja'a", sub:lang==='ar'?'مراجعة جماعية':'Révision collective', page:'muraja', color:'#534AB7', bg:'#F0EEFF'},
+                {icon:'👥', label:lang==='ar'?'الطلاب':'Séance', sub:lang==='ar'?'قائمة الطلاب':'Voir les élèves', page:'seance', color:'#378ADD', bg:'#E6F1FB'},
+                {icon:'🏆', label:lang==='ar'?'لوحة الشرف':'Honneur', sub:lang==='ar'?'أفضل الطلاب':'Classement', page:'honneur', color:'#EF9F27', bg:'#FAEEDA'},
+                {icon:'💰', label:lang==='ar'?'المالية':'Finance', sub:lang==='ar'?'الاشتراكات':'Cotisations', page:'finance', color:'#E24B4A', bg:'#FCEBEB'},
+                {icon:'⚙️', label:lang==='ar'?'الإدارة':'Gestion', sub:lang==='ar'?'إدارة المدرسة':'Paramètres', page:'gestion', color:'#888', bg:'#f5f5f0'},
+              ].filter(a => a.page !== 'finance' || user.role === 'surveillant').map(a => (
+                <div key={a.page} className="quick-action-card" onClick={()=>navigate(a.page)}
+                  style={{borderLeft:`3px solid ${a.color}20`}}>
+                  <div className="quick-action-icon">{a.icon}</div>
+                  <div className="quick-action-label">{a.label}</div>
+                  <div className="quick-action-sub">{a.sub}</div>
+                </div>
+              ))}
+            </div>
+          )}
           <div style={{background:'linear-gradient(135deg,#085041 0%,#1D9E75 100%)',borderRadius:16,padding:'1.5rem',marginBottom:'1.25rem',color:'#fff',position:'relative',overflow:'hidden'}}>
             <div style={{position:'absolute',right:-20,top:-20,width:120,height:120,borderRadius:'50%',background:'rgba(255,255,255,0.05)'}}/>
             <div style={{fontSize:10,opacity:0.7,textTransform:'uppercase',letterSpacing:'2px',marginBottom:6}}>{t(lang,'score_ecole')}</div>

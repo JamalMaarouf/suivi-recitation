@@ -14,7 +14,7 @@ function NiveauBadge({ code }) {
   return <span style={{padding:'2px 10px',borderRadius:20,fontSize:11,fontWeight:700,background:c+'15',color:c,border:`0.5px solid ${c}30`}}>{code}</span>;
 }
 
-export default function FicheSourate({ eleve, user, navigate, goBack, lang='fr' }) {
+export default function FicheSourate({ eleve, user, navigate, goBack, lang='fr', isMobile }) {
   const [recitations, setRecitations] = useState([]);
   const [souratesDB, setSouratesDB] = useState([]);
   const [instituteurNom, setInstituteurNom] = useState('—');

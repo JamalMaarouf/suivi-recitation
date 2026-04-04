@@ -176,7 +176,7 @@ export default function App() {
     </LangContext.Provider>
   );
 
-  const pageProps = { user, navigate, goBack, lang };
+  const pageProps = { user, navigate, goBack, lang, isMobile };
 
   return (
     <LangContext.Provider value={{ lang, setLang }}>
@@ -257,18 +257,29 @@ export default function App() {
 
         {isMobile && user.role !== 'parent' && (
           <nav className="bottom-nav" dir={getDir(lang)}>
-            {[
-              { key: 'dashboard',        icon: '🏠', labelKey: 'tableau_de_bord' },
-              { key: 'validation_rapide', icon: '⚡', labelKey: 'express' },
-              { key: 'seance',           icon: '📋', labelKey: 'seance' },
-              { key: 'calendrier',       icon: '📅', labelKey: 'calendrier' },
-              { key: 'honneur',          icon: '🏆', labelKey: 'honneur' },
-            ].map(tab => (
+            {(user.role === 'surveillant' ? [
+              { key: 'dashboard',        icon: '🏠', label: lang==='ar'?'الرئيسية':'Accueil' },
+              { key: 'validation_rapide',icon: '⚡', label: lang==='ar'?'تسجيل':'Express' },
+              { key: 'seance',           icon: '👥', label: lang==='ar'?'الحصة':'Élèves' },
+              { key: 'honneur',          icon: '🏆', label: lang==='ar'?'شرف':'Honneur' },
+              { key: 'gestion',          icon: '⚙️', label: lang==='ar'?'إدارة':'Gestion' },
+            ] : user.role === 'instituteur' ? [
+              { key: 'dashboard',        icon: '🏠', label: lang==='ar'?'الرئيسية':'Accueil' },
+              { key: 'validation_rapide',icon: '⚡', label: lang==='ar'?'تسجيل':'Valider' },
+              { key: 'seance',           icon: '👥', label: lang==='ar'?'طلابي':'Élèves' },
+              { key: 'calendrier',       icon: '📅', label: lang==='ar'?'التقويم':'Agenda' },
+            ] : [
+              { key: 'dashboard',        icon: '🏠', label: lang==='ar'?'الرئيسية':'Accueil' },
+              { key: 'validation_rapide',icon: '⚡', label: lang==='ar'?'تسجيل':'Express' },
+              { key: 'seance',           icon: '📋', label: lang==='ar'?'الحصة':'Séance' },
+              { key: 'honneur',          icon: '🏆', label: lang==='ar'?'شرف':'Honneur' },
+              { key: 'gestion',          icon: '⚙️', label: lang==='ar'?'إدارة':'Plus' },
+            ]).map(tab => (
               <div key={tab.key}
                 className={`bottom-nav-item ${page === tab.key ? 'active' : ''}`}
                 onClick={() => navigate(tab.key)}>
                 <span className="bottom-nav-icon">{tab.icon}</span>
-                <span className="bottom-nav-label">{t(lang, tab.labelKey)}</span>
+                <span className="bottom-nav-label">{tab.label}</span>
               </div>
             ))}
           </nav>
