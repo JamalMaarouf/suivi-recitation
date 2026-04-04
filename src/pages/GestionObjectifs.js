@@ -149,7 +149,7 @@ export default function GestionObjectifs({ user, navigate, goBack, lang='fr' }) 
         .eq('ecole_id', user.ecole_id).order('created_at', { ascending: false })),
       safeQuery(supabase.from('eleves').select('*')
         .eq('ecole_id', user.ecole_id).order('nom')),
-      safeQuery(supabase.from('utilisateurs').select('*').eq('role', 'instituteur')),
+      safeQuery(supabase.from('utilisateurs').select('*').eq('role', 'instituteur').eq('ecole_id', user.ecole_id)),
       safeQuery(supabase.from('validations').select('*')
         .eq('ecole_id', user.ecole_id)),
       safeQuery(supabase.from('recitations_sourates').select('*')

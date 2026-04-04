@@ -34,7 +34,7 @@ export default function RapportMensuel({  user, navigate, goBack , lang="fr" }) 
     const [{ data: ed }, { data: id }, { data: vd }, { data: recs }, { data: objd }] = await Promise.all([
       supabase.from('eleves').select('*')
         .eq('ecole_id', user.ecole_id).order('nom'),
-      supabase.from('utilisateurs').select('*').eq('role', 'instituteur'),
+      supabase.from('utilisateurs').select('*').eq('role', 'instituteur').eq('ecole_id', user.ecole_id),
       supabase.from('validations').select('*')
         .eq('ecole_id', user.ecole_id),
       supabase.from('recitations_sourates').select('*')

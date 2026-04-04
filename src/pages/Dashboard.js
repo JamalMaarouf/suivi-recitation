@@ -63,7 +63,7 @@ export default function Dashboard({ user, navigate, goBack, lang='fr' }) {
     const [{ data: ed },{ data: id },{ data: vd }] = await Promise.all([
       supabase.from('eleves').select('*')
         .eq('ecole_id', user.ecole_id).order('nom'),
-      supabase.from('utilisateurs').select('*').eq('role','instituteur'),
+      supabase.from('utilisateurs').select('*').eq('role','instituteur').eq('ecole_id', user.ecole_id),
       supabase.from('validations').select('*, valideur:valide_par(prenom,nom)')
         .eq('ecole_id', user.ecole_id).order('date_validation',{ascending:false})
     ]);

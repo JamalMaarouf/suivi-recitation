@@ -168,7 +168,7 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr' }) {
     setLoading(true);
     const { data: e } = await supabase.from('eleves').select('*')
         .eq('ecole_id', user.ecole_id).order('nom');
-    const { data: i } = await supabase.from('utilisateurs').select('*').eq('role', 'instituteur').order('nom');
+    const { data: i } = await supabase.from('utilisateurs').select('*').eq('role', 'instituteur').eq('ecole_id', user.ecole_id).order('nom');
     setEleves(e || []);
     setInstituteurs(i || []);
     const { data: pd } = await supabase.from('parents').select('*, liens:parent_eleve(eleve_id, eleve:eleve_id(prenom,nom))')
@@ -266,7 +266,8 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr' }) {
       return showMsg('error', t(lang, 'tous_champs_obligatoires'));
     const { error } = await supabase.from('utilisateurs').insert({
       prenom: newInst.prenom, nom: newInst.nom,
-      identifiant: newInst.identifiant, mot_de_passe: newInst.mot_de_passe, role: 'instituteur'
+      identifiant: newInst.identifiant, mot_de_passe: newInst.mot_de_passe, role: 'instituteur',
+      ecole_id: user.ecole_id, statut_compte: 'actif'
     });
     if (error) return showMsg('error', error.message.includes('unique') ? t(lang, 'identifiant_utilise') : t(lang, 'erreur_ajout'));
     showMsg('success', t(lang, 'instituteur_ajoute'));
