@@ -14,6 +14,8 @@ export default function SuperAdminDashboard({ user, navigate, lang, onLogout }) 
   const [editForm, setEditForm] = useState({});
   const [editSaving, setEditSaving] = useState(false);
   const [resetPwd, setResetPwd] = useState('');
+  const [backupLoading, setBackupLoading] = useState(false);
+  const [backupResult, setBackupResult] = useState(null);
 
   useEffect(() => { loadData(); }, []);
 
@@ -39,6 +41,26 @@ export default function SuperAdminDashboard({ user, navigate, lang, onLogout }) 
       nb_instituteurs: instCounts[e.id]||0,
     })));
     setLoading(false);
+  };
+
+  const runBackup = async () => {
+    setBackupLoading(true);
+    setBackupResult(null);
+    try {
+      const res = await fetch('/api/backup?manual=true');
+      const json = await res.json();
+      if (json.success) {
+        setBackupResult({
+          ok: true,
+          msg: `✅ Backup réussi — ${json.metadata.total_records.toLocaleString()} enregistrements · email envoyé`,
+        });
+      } else {
+        setBackupResult({ ok: false, msg: '❌ Erreur: ' + (json.error || 'inconnue') });
+      }
+    } catch(e) {
+      setBackupResult({ ok: false, msg: '❌ Erreur réseau: ' + e.message });
+    }
+    setBackupLoading(false);
   };
 
   const showMsg = (m) => { setMsg(m); setTimeout(()=>setMsg(''), 3000); };
@@ -194,12 +216,25 @@ export default function SuperAdminDashboard({ user, navigate, lang, onLogout }) 
           </div>
           <div style={{fontSize:12,color:'#888'}}>Bonjour {user.prenom} — tableau de bord global</div>
         </div>
-        <button onClick={onLogout}
-          style={{padding:'7px 14px',background:'#f5f5f0',color:'#666',border:'0.5px solid #e0e0d8',borderRadius:8,fontSize:12,cursor:'pointer'}}>
-          Déconnexion
-        </button>
+        <div style={{display:'flex',gap:8,alignItems:'center'}}>
+          <button onClick={runBackup} disabled={backupLoading}
+            style={{padding:'7px 14px',background:backupLoading?'#e0e0d8':'#085041',color:'#fff',border:'none',borderRadius:8,fontSize:12,cursor:'pointer',fontWeight:600}}>
+            {backupLoading ? '⏳ Backup...' : '💾 Backup maintenant'}
+          </button>
+          <button onClick={onLogout}
+            style={{padding:'7px 14px',background:'#f5f5f0',color:'#666',border:'0.5px solid #e0e0d8',borderRadius:8,fontSize:12,cursor:'pointer'}}>
+            Déconnexion
+          </button>
+        </div>
       </div>
 
+      {/* Backup result */}
+      {backupResult && (
+        <div style={{background:backupResult.ok?'#E1F5EE':'#FCEBEB',border:`0.5px solid ${backupResult.ok?'#1D9E7530':'#E24B4A30'}`,borderRadius:8,padding:'10px 14px',marginBottom:'1rem',fontSize:13,color:backupResult.ok?'#085041':'#E24B4A',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+          <span>{backupResult.msg}</span>
+          <button onClick={()=>setBackupResult(null)} style={{background:'none',border:'none',cursor:'pointer',color:'inherit',fontSize:16,padding:0}}>✕</button>
+        </div>
+      )}
       {/* Message flash */}
       {msg && <div style={{background:'#E1F5EE',border:'0.5px solid #1D9E7530',borderRadius:8,padding:'10px 14px',marginBottom:'1rem',fontSize:13,color:'#085041'}}>{msg}</div>}
 
