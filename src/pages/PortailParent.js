@@ -185,17 +185,17 @@ export default function PortailParent({ parent, navigate, goBack, lang='fr' }) {
 
       {/* KPI rapides */}
       <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:8,marginBottom:'1rem'}}>
-        {isSourate?[
+        {(isSourate?[
           {val:souratesCompletes,lbl:lang==='ar'?'سور مكتملة':'Sourates',color:'#1D9E75',bg:'#E1F5EE'},
           {val:sequences,lbl:lang==='ar'?'مقاطع':'Séquences',color:'#378ADD',bg:'#E6F1FB'},
           {val:actifSemaine,lbl:lang==='ar'?'نشاط 7 أيام':'7 derniers jours',color:'#EF9F27',bg:'#FAEEDA'},
-          {val:pts,lbl:'Points',color:'#534AB7',bg:'#EEEDFE'},
+          {val:pts,lbl:lang==='ar'?'النقاط':'Points',color:'#534AB7',bg:'#EEEDFE'},
         ]:[
           {val:tomon,lbl:'Tomon',color:'#378ADD',bg:'#E6F1FB'},
           {val:hizb,lbl:'Hizb',color:'#EF9F27',bg:'#FAEEDA'},
           {val:actifSemaine,lbl:lang==='ar'?'نشاط 7 أيام':'7 derniers jours',color:'#1D9E75',bg:'#E1F5EE'},
-          {val:pts,lbl:'Points',color:'#534AB7',bg:'#EEEDFE'},
-        ].map(k=>(
+          {val:pts,lbl:lang==='ar'?'النقاط':'Points',color:'#534AB7',bg:'#EEEDFE'},
+        ]).map(k=>(
           <div key={k.lbl} style={{background:k.bg,borderRadius:10,padding:'10px',textAlign:'center'}}>
             <div style={{fontSize:20,fontWeight:800,color:k.color}}>{k.val}</div>
             <div style={{fontSize:10,color:k.color,opacity:0.8}}>{k.lbl}</div>
