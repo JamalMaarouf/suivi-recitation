@@ -396,33 +396,7 @@ export default function Dashboard({ user, navigate, goBack, lang='fr' }) {
 
       {!loading && vue==='rapport' && user.role==='surveillant' && (
         <>
-          {/* Alerte critique inactifs */}
-          {eleves.filter(e=>e.jours==null||e.jours>30).length>0&&(
-            <div onClick={()=>setShowInactifsModal(true)} style={{display:'flex',alignItems:'center',gap:12,padding:'10px 14px',background:'#FCEBEB',borderRadius:12,marginBottom:8,cursor:'pointer',border:'1.5px solid #E24B4A30'}}>
-              <span style={{fontSize:20}}>🚨</span>
-              <div style={{flex:1}}>
-                <div style={{fontSize:13,fontWeight:700,color:'#E24B4A'}}>
-                  {eleves.filter(e=>e.jours>30).length} {lang==='ar'?'طالب غائب أكثر من 30 يوماً':'élève(s) inactif(s) depuis +30 jours'}
-                </div>
-                <div style={{fontSize:11,color:'#E24B4A',opacity:0.7}}>
-                  {lang==='ar'?'انقر لعرض القائمة':'Cliquer pour voir la liste'}
-                </div>
-              </div>
-              <span style={{fontSize:11,color:'#E24B4A',fontWeight:600}}>›</span>
-            </div>
-          )}
-          {eleves.filter(e=>e.jours!=null&&e.jours>14&&e.jours<=30).length>0&&(
-            <div onClick={()=>setShowInactifsModal(true)} style={{display:'flex',alignItems:'center',gap:12,padding:'10px 14px',background:'#FFF3CD',borderRadius:12,marginBottom:8,cursor:'pointer',border:'1.5px solid #EF9F2730'}}>
-              <span style={{fontSize:20}}>⚠️</span>
-              <div style={{flex:1}}>
-                <div style={{fontSize:13,fontWeight:700,color:'#856404'}}>
-                  {eleves.filter(e=>e.jours>14).length} {lang==='ar'?'طالب غائب أكثر من 14 يوماً':'élève(s) inactif(s) depuis +14 jours'}
-                </div>
-              </div>
-              <span style={{fontSize:11,color:'#856404',fontWeight:600}}>›</span>
-            </div>
-          )}
-                    <div style={{display:'grid',gridTemplateColumns:'repeat(4,minmax(0,1fr))',gap:8,marginBottom:'1.5rem'}}>
+    <div style={{display:'grid',gridTemplateColumns:'repeat(4,minmax(0,1fr))',gap:8,marginBottom:'1.5rem'}}>
             {[{val:totalPoints.toLocaleString(),lbl:t(lang,'score_total'),color:C.green},{val:stats.hizbsCompletsMois||0,lbl:t(lang,'hizb_ce_mois'),color:C.blue},{val:stats.tomonSemaine||0,lbl:t(lang,'tomon_semaine'),color:C.amber},{val:stats.recitationsMois||0,lbl:t(lang,'recitations_ce_mois'),color:C.muted}].map((k,i)=>(
               <div key={i} style={{background:'#fff',border:`0.5px solid ${C.border}`,borderRadius:12,padding:'14px',borderTop:`3px solid ${k.color}`}}>
                 <div style={{fontSize:22,fontWeight:700,color:k.color}}>{k.val}</div>

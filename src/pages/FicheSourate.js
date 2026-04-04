@@ -133,7 +133,15 @@ export default function FicheSourate({ eleve, user, navigate, goBack, lang='fr' 
     setTimeout(() => { w.print(); w.close(); }, 600);
   };
 
-  if (loading) return <div style={{padding:'2rem',textAlign:'center'}}><div className="loading">...</div></div>;
+  if (loading) return (
+    <div style={{padding:'2rem',textAlign:'center'}}>
+      <div className="loading">...</div>
+      <div style={{marginTop:'1rem',fontSize:13,color:'#888'}}>{eleve?.prenom} {eleve?.nom}</div>
+      <button onClick={()=>goBack?goBack():navigate('dashboard')} className="back-link" style={{marginTop:'1rem'}}>
+        ← {lang==='ar'?'رجوع':'Retour'}
+      </button>
+    </div>
+  );
 
   return (
     <div>
