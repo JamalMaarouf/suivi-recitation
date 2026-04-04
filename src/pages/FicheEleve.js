@@ -377,7 +377,7 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang='fr' })
               <Avatar prenom={eleve.prenom} nom={eleve.nom} size={60} bg={sl.bg} color={sl.color}/>
               <div style={{flex:1}}>
                 <div style={{fontSize:20,fontWeight:700}}>{eleve.prenom} {eleve.nom}</div>
-                <div style={{fontSize:13,color:'#888'}}>{niveauTraduit(eleve.niveau,lang,t)} · {instituteurNom}</div>
+                <div style={{fontSize:13,color:'#888'}}>{NIVEAUX_LABELS[eleve.code_niveau]||eleve.code_niveau||'—'} · {instituteurNom}</div>
                 <div style={{display:'flex',gap:6,marginTop:4,flexWrap:'wrap'}}>
                   <span style={{padding:'2px 10px',borderRadius:20,fontSize:11,fontWeight:500,background:sl.bg,color:sl.color}}>{sl.label}</span>
                   {passages.length>0&&<span style={{padding:'2px 10px',borderRadius:20,fontSize:11,fontWeight:500,background:'#EEEDFE',color:'#534AB7'}}>
