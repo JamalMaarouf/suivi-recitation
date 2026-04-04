@@ -50,10 +50,19 @@ export default function SuperAdminDashboard({ user, navigate, lang, onLogout }) 
       const res = await fetch('/api/backup?manual=true');
       const json = await res.json();
       if (json.success) {
+        const nb = json.metadata?.total_records || 0;
+        const debugInfo = nb === 0 && json.debug
+          ? ` (erreurs: ${json.debug.tables_error?.join(', ') || 'aucune'} · vides: ${json.debug.tables_empty?.length || 0} tables)`
+          : '';
+        const emailInfo = json.email_sent_to ? ` · email → ${json.email_sent_to}` : ' · email non envoyé';
         setBackupResult({
-          ok: true,
-          msg: `✅ Backup réussi — ${json.metadata.total_records.toLocaleString()} enregistrements · email envoyé`,
+          ok: nb > 0,
+          msg: nb > 0
+            ? `✅ Backup réussi — ${nb.toLocaleString()} enregistrements${emailInfo}`
+            : `⚠️ Backup envoyé mais 0 enregistrements${debugInfo} — vérifiez SUPABASE_SERVICE_KEY dans Vercel`,
         });
+      } else if (json.has_url !== undefined) {
+        setBackupResult({ ok: false, msg: `❌ Variables manquantes — URL:${json.has_url?'✓':'✗'} ServiceKey:${json.has_service_key?'✓':'✗'} Resend:${json.has_resend?'✓':'✗'}` });
       } else {
         setBackupResult({ ok: false, msg: '❌ Erreur: ' + (json.error || 'inconnue') });
       }

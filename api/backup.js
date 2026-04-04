@@ -48,11 +48,28 @@ function formatSize(bytes) {
 
 module.exports = async function handler(req, res) {
   // Initialize clients inside handler to ensure env vars are available
-  const supabase = createClient(
-    process.env.SUPABASE_URL,
-    process.env.SUPABASE_SERVICE_KEY
-  );
-  const resend = new Resend(process.env.RESEND_API_KEY);
+  const supabaseUrl = process.env.SUPABASE_URL;
+  const serviceKey = process.env.SUPABASE_SERVICE_KEY;
+  const resendKey = process.env.RESEND_API_KEY;
+
+  // Validate env vars
+  if (!supabaseUrl || !serviceKey) {
+    return res.status(500).json({
+      error: 'Missing env vars',
+      has_url: !!supabaseUrl,
+      has_service_key: !!serviceKey,
+      has_resend: !!resendKey,
+    });
+  }
+
+  const supabase = createClient(supabaseUrl, serviceKey, {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false,
+    },
+    db: { schema: 'public' },
+  });
+  const resend = resendKey ? new Resend(resendKey) : null;
 
   // Security: verify cron secret or allow GET for manual trigger
   const authHeader = req.headers['authorization'];
@@ -157,6 +174,13 @@ module.exports = async function handler(req, res) {
       });
     }
 
+    if (!resend) {
+      return res.status(200).json({
+        success: true,
+        message: 'Backup generated but RESEND_API_KEY not configured',
+        metadata: backup.metadata,
+      });
+    }
     await resend.emails.send({
       from: 'Suivi Récitation <backup@suivi-recitation.com>',
       to: backupEmail,
@@ -176,6 +200,11 @@ module.exports = async function handler(req, res) {
       success: true,
       metadata: backup.metadata,
       email_sent_to: backupEmail,
+      debug: {
+        tables_with_data: results.filter(r => r.count > 0).map(r => `${r.table}:${r.count}`),
+        tables_empty: results.filter(r => r.count === 0 && !r.error).map(r => r.table),
+        tables_error: results.filter(r => r.error).map(r => `${r.table}:${r.error}`),
+      }
     });
 
   } catch (err) {
