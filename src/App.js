@@ -213,7 +213,7 @@ export default function App() {
               {showInstallBtn && (
                 <button onClick={handleInstall} className="nav-btn"
                   style={{background:'#E1F5EE',color:'#085041',border:'1px solid #1D9E7540'}}>
-                  📲 {lang==='ar'?'تثبيت التطبيق':lang==='en'?'Install App':'Installer l'app'}
+                  📲 {lang==='ar'?'تثبيت التطبيق':lang==='en'?'Install App':"Installer l'app"}
                 </button>
               )}
               <button className="nav-btn nav-btn-logout" onClick={handleLogout}>{t(lang, 'deconnexion')}</button>
