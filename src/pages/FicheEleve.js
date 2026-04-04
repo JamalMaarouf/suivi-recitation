@@ -504,7 +504,7 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang, isMobi
               <div>
                 {(murajaa.length+murajaaS.length)===0 ? (
                   <div style={{textAlign:'center',color:'#aaa',padding:'2rem'}}>
-                    {lang==='ar'?'لا توجد مراجعات':'Aucune muraja'a'}
+                    {lang==='ar'?'لا توجد مراجعات':"Aucune muraja'a"}
                   </div>
                 ) : [...murajaa,...murajaaS].sort((a,b)=>new Date(b.date_validation||b.date_validation)-new Date(a.date_validation||a.date_validation)).slice(0,20).map((v,i)=>(
                   <div key={i} style={{background:'#fff',borderRadius:10,padding:'10px 12px',marginBottom:6,

@@ -290,7 +290,7 @@ export default function FicheSourate({ eleve, user, navigate, goBack, lang='fr',
             {onglet==='muraja' && (
               <div>
                 {[...murajaaS,...murajaa].length===0 ? (
-                  <div style={{textAlign:'center',color:'#aaa',padding:'2rem'}}>Aucune muraja'a</div>
+                  <div style={{textAlign:'center',color:'#aaa',padding:'2rem'}}>Aucune murajaʼa</div>
                 ) : [...murajaaS,...murajaa].slice(0,20).map((v,i)=>(
                   <div key={i} style={{background:'#fff',borderRadius:12,padding:'12px 14px',marginBottom:8,
                     border:'0.5px solid #EF9F2730',display:'flex',alignItems:'center',gap:12}}>

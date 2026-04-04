@@ -232,11 +232,11 @@ export default function Seance({ user, navigate, goBack, lang, isMobile=false })
             </div>
             <div style={{padding:'0 12px'}}>
               <div style={{fontSize:12,fontWeight:700,color:'#888',marginBottom:8,paddingLeft:4}}>
-                {lang==='ar'?'الطلاب اليوم':'Élèves aujourd'hui'} ({elevesVus.length})
+                {lang==='ar'?'الطلاب اليوم':"Élèves aujourd'hui"} ({elevesVus.length})
               </div>
               {elevesVus.length===0 ? (
                 <div style={{textAlign:'center',color:'#aaa',padding:'2rem',background:'#fff',borderRadius:12}}>
-                  {lang==='ar'?'لا يوجد طلاب اليوم':'Aucun élève aujourd'hui'}
+                  {lang==='ar'?'لا يوجد طلاب اليوم':"Aucun élève aujourd'hui"}
                 </div>
               ) : elevesVus.map((e,idx)=>{
                 const nc=NIVEAU_COLORS[e.code_niveau||'1']||'#888';
