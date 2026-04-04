@@ -182,7 +182,13 @@ export default function App() {
           {user.role === 'parent' && <ErrorBoundary><PortailParent parent={user} navigate={navigate} goBack={goBack} lang={lang} onLogout={handleLogout} /></ErrorBoundary>}
           {user.role !== 'parent' && <>
           {page === 'dashboard'         && <Dashboard {...pageProps} />}
-          {page === 'fiche'             && selectedEleve   && <ErrorBoundary><FicheEleve eleve={selectedEleve} {...pageProps} /></ErrorBoundary>}
+          {page === 'fiche'             && (selectedEleve
+            ? <ErrorBoundary><FicheEleve eleve={selectedEleve} {...pageProps} /></ErrorBoundary>
+            : <div style={{padding:'2rem',textAlign:'center'}}>
+                <div className="loading">...</div>
+                <button onClick={()=>goBack?goBack():setPageWithRef('dashboard')} className="back-link" style={{marginTop:'1rem'}}>← Retour</button>
+              </div>
+          )}
           {page === 'objectifs'          && <ErrorBoundary><GestionObjectifs user={user} navigate={navigate} goBack={goBack} lang={lang} /></ErrorBoundary>}
           {page === 'historique_seances'   && <ErrorBoundary><HistoriqueSeances user={user} navigate={navigate} goBack={goBack} lang={lang} /></ErrorBoundary>}
           {page === 'finance'             && user.role==='surveillant' && <ErrorBoundary><Finance user={user} navigate={navigate} goBack={goBack} lang={lang} /></ErrorBoundary>}

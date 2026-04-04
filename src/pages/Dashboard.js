@@ -483,7 +483,7 @@ export default function Dashboard({ user, navigate, goBack, lang='fr' }) {
                 const urgent = (e.jours||0) > 30;
                 const nc = NIVEAU_COLORS[e.code_niveau||'1']||'#888';
                 return (
-                  <div key={e.id} onClick={ev=>{ev.stopPropagation();setShowInactifsModal(false);setTimeout(()=>navigate('fiche',e),50);}}
+                  <div key={e.id} onClick={ev=>{ev.stopPropagation();navigate('fiche',e);}}
                     style={{display:'flex',alignItems:'center',gap:12,padding:'10px 14px',borderRadius:12,cursor:'pointer',
                       background:urgent?'#FFF5F5':'#FFFDF0',
                       border:`1.5px solid ${urgent?'#E24B4A20':'#EF9F2720'}`}}>
