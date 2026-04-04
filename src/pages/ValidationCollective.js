@@ -52,7 +52,7 @@ export default function ValidationCollective({ user, navigate, goBack, lang='fr'
     setLoading(true);
     const { data } = await supabase
       .from('eleves').select('id,prenom,nom,eleve_id_ecole,code_niveau')
-      .eq('code_niveau', selectedNiveau).order('nom');
+      .eq('ecole_id', user.ecole_id).eq('code_niveau', selectedNiveau).order('nom');
     setEleves(data || []);
     setExclus({});
     setLoading(false);
@@ -88,6 +88,7 @@ export default function ValidationCollective({ user, navigate, goBack, lang='fr'
         if (isSourate) {
           inserts_rec.push({
             eleve_id: e.id,
+            ecole_id: user.ecole_id,
             sourate_id: getDbSourateId(selectedSourate.numero),
             type_recitation: typeRecitation,
             verset_debut: typeRecitation === 'sequence' ? parseInt(versetDebut) : null,
@@ -100,6 +101,7 @@ export default function ValidationCollective({ user, navigate, goBack, lang='fr'
         } else {
           inserts_val.push({
             eleve_id: e.id,
+            ecole_id: user.ecole_id,
             valide_par: user.id,
             nombre_tomon: typeRecitation === 'tomon' ? parseInt(nombreTomon) : 0,
             type_validation: typeRecitation === 'tomon' ? 'tomon_muraja' : 'hizb_muraja',

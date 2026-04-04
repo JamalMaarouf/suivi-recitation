@@ -15,7 +15,9 @@ export default function Comparaison({ navigate, goBack, lang='fr' }) {
 
   const loadData = async () => {
     setLoading(true);
-    const [{data:ed},{data:vd}] = await Promise.all([supabase.from('eleves').select('*').order('nom'),supabase.from('validations').select('*').order('date_validation')]);
+    const [{data:ed},{data:vd}] = await Promise.all([supabase.from('eleves').select('*')
+        .eq('ecole_id', user.ecole_id).order('nom'),supabase.from('validations').select('*')
+        .eq('ecole_id', user.ecole_id).order('date_validation')]);
     setAllEleves((ed||[]).map(e => {
       const vals=(vd||[]).filter(v=>v.eleve_id===e.id);
       const etat=calcEtatEleve(vals,e.hizb_depart,e.tomon_depart);

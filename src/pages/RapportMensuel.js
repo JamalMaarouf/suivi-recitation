@@ -32,11 +32,15 @@ export default function RapportMensuel({  user, navigate, goBack , lang="fr" }) 
   const loadData = async () => {
     setLoading(true);
     const [{ data: ed }, { data: id }, { data: vd }, { data: recs }, { data: objd }] = await Promise.all([
-      supabase.from('eleves').select('*').order('nom'),
+      supabase.from('eleves').select('*')
+        .eq('ecole_id', user.ecole_id).order('nom'),
       supabase.from('utilisateurs').select('*').eq('role', 'instituteur'),
-      supabase.from('validations').select('*'),
-      supabase.from('recitations_sourates').select('*'),
-      supabase.from('objectifs_globaux').select('*'),
+      supabase.from('validations').select('*')
+        .eq('ecole_id', user.ecole_id),
+      supabase.from('recitations_sourates').select('*')
+        .eq('ecole_id', user.ecole_id),
+      supabase.from('objectifs_globaux').select('*')
+        .eq('ecole_id', user.ecole_id),
     ]);
     const elevesData = (ed || []).map(e => {
       const vals = (vd || []).filter(v => v.eleve_id === e.id);

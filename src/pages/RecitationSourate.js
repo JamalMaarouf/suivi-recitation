@@ -100,13 +100,14 @@ export default function RecitationSourate({ user, eleve, navigate, goBack, lang=
     setLoading(true);
     const [{ data: sdb }, { data: rd }] = await Promise.all([
       supabase.from('sourates').select('*'),
-      supabase.from('recitations_sourates').select('*, valideur:valide_par(prenom,nom)').eq('eleve_id', eleve.id).order('date_validation', { ascending: false }),
+      supabase.from('recitations_sourates').select('*, valideur:valide_par(prenom,nom)
+        .eq('ecole_id', user.ecole_id)').eq('eleve_id', eleve.id).order('date_validation', { ascending: false }),
     ]);
     // Safe load for exceptions (table may not exist)
     let ex = [];
     try {
       const { data: exData, error: exErr } = await supabase
-        .from('exceptions_recitation').select('*').eq('eleve_id', eleve.id).eq('active', true);
+        .from('exceptions_recitation').select('*').eq('eleve_id', eleve.id).eq('ecole_id', user.ecole_id).eq('active', true);
       if (!exErr) ex = exData || [];
     } catch(e) { /* table not yet created */ }
     const sdbData = sdb || [];
@@ -224,6 +225,7 @@ export default function RecitationSourate({ user, eleve, navigate, goBack, lang=
     // Insert exception records
     const inserts = sourates.map(numero => ({
       eleve_id: eleve.id,
+      ecole_id: user.ecole_id,
       sourate_numero: numero,
       active: true,
       cree_par: user.id,

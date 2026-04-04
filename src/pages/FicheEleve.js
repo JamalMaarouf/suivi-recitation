@@ -178,12 +178,14 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang='fr' })
     setLoading(true);
     try {
       const results = await Promise.allSettled([
-        supabase.from('validations').select('*, valideur:valide_par(prenom,nom)').eq('eleve_id',eleve.id).order('date_validation',{ascending:false}),
-        supabase.from('apprentissages').select('*').eq('eleve_id',eleve.id).order('date_debut',{ascending:false}),
-        supabase.from('exceptions_hizb').select('*').eq('eleve_id',eleve.id).eq('active',true),
-        supabase.from('validations').select('*, valideur:valide_par(prenom,nom)').eq('eleve_id',eleve.id).in('type_validation',['tomon_muraja','hizb_muraja']).order('date_validation',{ascending:false}),
-        supabase.from('recitations_sourates').select('*, sourate:sourate_id(nom_ar,numero), valideur:valide_par(prenom,nom)').eq('eleve_id',eleve.id).eq('is_muraja',true).order('date_validation',{ascending:false}),
-        supabase.from('passages_niveau').select('*, valide_par_u:valide_par(prenom,nom)').eq('eleve_id',eleve.id).order('date_passage',{ascending:false}),
+        supabase.from('validations').select('*, valideur:valide_par(prenom,nom)').eq('ecole_id', user.ecole_id).eq('eleve_id',eleve.id).order('date_validation',{ascending:false}),
+        supabase.from('apprentissages').select('*')
+        .eq('ecole_id', user.ecole_id).eq('eleve_id',eleve.id).order('date_debut',{ascending:false}),
+        supabase.from('exceptions_hizb').select('*')
+        .eq('ecole_id', user.ecole_id).eq('eleve_id',eleve.id).eq('active',true),
+        supabase.from('validations').select('*, valideur:valide_par(prenom,nom)').eq('ecole_id', user.ecole_id).eq('eleve_id',eleve.id).in('type_validation',['tomon_muraja','hizb_muraja']).order('date_validation',{ascending:false}),
+        supabase.from('recitations_sourates').select('*, sourate:sourate_id(nom_ar,numero), valideur:valide_par(prenom,nom)').eq('ecole_id', user.ecole_id).eq('eleve_id',eleve.id).eq('is_muraja',true).order('date_validation',{ascending:false}),
+        supabase.from('passages_niveau').select('*, valide_par_u:valide_par(prenom,nom)').eq('ecole_id', user.ecole_id).eq('eleve_id',eleve.id).order('date_passage',{ascending:false}),
       ]);
       const [r0,r1,r2,r3,r4,r5] = results.map(r=>r.status==='fulfilled'?r.value:{data:[]});
       const vals=r0.data||[], appr=r1.data||[], exhizb=r2.data||[], mval=r3.data||[], mrec=r4.data||[], passData=r5.data||[];
@@ -312,6 +314,7 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang='fr' })
       // 1. Archive acquis
       const acquis = {
         eleve_id: eleve.id,
+        ecole_id: user.ecole_id,
         niveau_from: eleve.code_niveau,
         niveau_to: nouveauNiveau,
         valide_par: user.id,
@@ -321,6 +324,7 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang='fr' })
         acquis_points: etat.points?.total||0,
         note: notePassage||null,
         date_passage: new Date().toISOString(),
+        ecole_id: user.ecole_id,
       };
       const { error: errPassage } = await supabase.from('passages_niveau').insert(acquis);
       if (errPassage) throw errPassage;
@@ -493,7 +497,7 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang='fr' })
               <ExceptionHizbModal
                 etat={etat} eleve={eleve} user={user}
                 onConfirm={async(hizbs)=>{
-                  await supabase.from('exceptions_hizb').insert(hizbs.map(h=>({eleve_id:eleve.id,hizb_numero:h,active:true,cree_par:user.id,date_creation:new Date().toISOString()})));
+                  await supabase.from('exceptions_hizb').insert(hizbs.map(h=>({eleve_id:eleve.id,ecole_id:user.ecole_id,hizb_numero:h,active:true,cree_par:user.id,date_creation:new Date().toISOString()})));
                   setShowExceptionModal(false);
                   await loadData();
                 }}

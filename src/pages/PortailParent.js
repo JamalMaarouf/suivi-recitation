@@ -45,10 +45,13 @@ export default function PortailParent({ parent, navigate, goBack, lang='fr', onL
       if (elevesData.length > 0) {
         const ids = elevesData.map(e=>e.id);
         const results = await Promise.allSettled([
-          supabase.from('validations').select('*, valideur:valide_par(prenom,nom)').in('eleve_id', ids).order('date_validation',{ascending:false}),
-          supabase.from('recitations_sourates').select('*, valideur:valide_par(prenom,nom)').in('eleve_id', ids).order('date_validation',{ascending:false}),
+          supabase.from('validations').select('*, valideur:valide_par(prenom,nom)
+        .eq('ecole_id', user.ecole_id)').in('eleve_id', ids).order('date_validation',{ascending:false}),
+          supabase.from('recitations_sourates').select('*, valideur:valide_par(prenom,nom)
+        .eq('ecole_id', user.ecole_id)').in('eleve_id', ids).order('date_validation',{ascending:false}),
           supabase.from('objectifs_globaux').select('*').limit(100),
-          supabase.from('cotisations').select('*').in('eleve_id', ids).order('date_paiement',{ascending:false}),
+          supabase.from('cotisations').select('*')
+        .eq('ecole_id', user.ecole_id).in('eleve_id', ids).order('date_paiement',{ascending:false}),
           supabase.from('sourates').select('*'),
         ]);
         setValidations(results[0].status==='fulfilled'?results[0].value.data||[]:[]);

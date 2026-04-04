@@ -145,11 +145,15 @@ export default function GestionObjectifs({ user, navigate, goBack, lang='fr' }) 
     const safeQuery = async (q) => { try { const r = await q; return r.data || []; } catch(e) { return []; } };
     
     const [objs, ed, inst, vd, rd] = await Promise.all([
-      safeQuery(supabase.from('objectifs_globaux').select('*').order('created_at', { ascending: false })),
-      safeQuery(supabase.from('eleves').select('*').order('nom')),
+      safeQuery(supabase.from('objectifs_globaux').select('*')
+        .eq('ecole_id', user.ecole_id).order('created_at', { ascending: false })),
+      safeQuery(supabase.from('eleves').select('*')
+        .eq('ecole_id', user.ecole_id).order('nom')),
       safeQuery(supabase.from('utilisateurs').select('*').eq('role', 'instituteur')),
-      safeQuery(supabase.from('validations').select('*')),
-      safeQuery(supabase.from('recitations_sourates').select('*')),
+      safeQuery(supabase.from('validations').select('*')
+        .eq('ecole_id', user.ecole_id)),
+      safeQuery(supabase.from('recitations_sourates').select('*')
+        .eq('ecole_id', user.ecole_id)),
     ]);
     setObjectifs(objs);
     setEleves(ed);
@@ -206,6 +210,7 @@ export default function GestionObjectifs({ user, navigate, goBack, lang='fr' }) 
       notes: form.notes || null,
       cible_specifique: form.cibles_selectionnees.length>0 ? JSON.stringify(form.cibles_selectionnees) : (form.cible_specifique||null),
       created_by: user.id,
+      ecole_id: user.ecole_id,
     };
     let error;
     if (editingId) {

@@ -10,8 +10,10 @@ export default function TableauHonneur({ navigate, goBack, lang='fr' }) {
   useEffect(() => { loadData(); }, []);
 
   const loadData = async () => {
-    const { data: ed } = await supabase.from('eleves').select('*');
-    const { data: vd } = await supabase.from('validations').select('*');
+    const { data: ed } = await supabase.from('eleves').select('*')
+        .eq('ecole_id', user.ecole_id);
+    const { data: vd } = await supabase.from('validations').select('*')
+        .eq('ecole_id', user.ecole_id);
     const data = (ed||[]).map(e => {
       const vals = (vd||[]).filter(v => v.eleve_id === e.id);
       const etat = calcEtatEleve(vals, e.hizb_depart, e.tomon_depart);

@@ -22,7 +22,9 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr' }) 
   useEffect(() => { loadData(); setTimeout(()=>searchRef.current?.focus(),200); }, []);
 
   const loadData = async () => {
-    const [{data:ed},{data:vd}] = await Promise.all([supabase.from('eleves').select('*').order('nom'),supabase.from('validations').select('*')]);
+    const [{data:ed},{data:vd}] = await Promise.all([supabase.from('eleves').select('*')
+        .eq('ecole_id', user.ecole_id).order('nom'),supabase.from('validations').select('*')
+        .eq('ecole_id', user.ecole_id)]);
     setEleves(ed||[]); setAllValidations(vd||[]); setLoading(false);
   };
 
@@ -36,13 +38,14 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr' }) 
   const validerTomon = async (n) => {
     if (!selectedEleve||!etat||saving||etat.enAttenteHizbComplet) return;
     setSaving(true);
-    const {error} = await supabase.from('validations').insert({eleve_id:selectedEleve.id,valide_par:user.id,nombre_tomon:n,type_validation:'tomon',date_validation:new Date().toISOString(),tomon_debut:etat.prochainTomon,hizb_validation:etat.hizbEnCours});
+    const {error} = await supabase.from('validations').insert({eleve_id:selectedEleve.id,ecole_id:user.ecole_id,valide_par:user.id,nombre_tomon:n,type_validation:'tomon',date_validation:new Date().toISOString(),tomon_debut:etat.prochainTomon,hizb_validation:etat.hizbEnCours});
     if (!error) {
       const msg = motivationMsg(n,etat,false);
       setFlash({msg:msg.msg,color:msg.color,pts:n*10});
       setTimeout(()=>setFlash(null),2500);
       setSessionLog(prev=>[{eleve:`${selectedEleve.prenom} ${selectedEleve.nom}`,detail:`${n} ${t(lang,'tomon_abrev')} · Hizb ${etat.hizbEnCours}`,pts:n*10,time:new Date().toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'})},...prev.slice(0,9)]);
-      const {data:newVals}=await supabase.from('validations').select('*').eq('eleve_id',selectedEleve.id);
+      const {data:newVals}=await supabase.from('validations').select('*')
+        .eq('ecole_id', user.ecole_id).eq('eleve_id',selectedEleve.id);
       setEtat(calcEtatEleve(newVals||[],selectedEleve.hizb_depart,selectedEleve.tomon_depart));
     }
     setSaving(false);
@@ -51,12 +54,13 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr' }) 
   const validerHizb = async () => {
     if (!selectedEleve||!etat||saving||!etat.enAttenteHizbComplet) return;
     setSaving(true);
-    const {error}=await supabase.from('validations').insert({eleve_id:selectedEleve.id,valide_par:user.id,nombre_tomon:0,type_validation:'hizb_complet',date_validation:new Date().toISOString(),hizb_valide:etat.hizbEnCours});
+    const {error}=await supabase.from('validations').insert({eleve_id:selectedEleve.id,ecole_id:user.ecole_id,valide_par:user.id,nombre_tomon:0,type_validation:'hizb_complet',date_validation:new Date().toISOString(),hizb_valide:etat.hizbEnCours});
     if (!error) {
       setFlash({msg:`🎉 Hizb ${etat.hizbEnCours} ${t(lang,'hizb_valide_titre')}`,color:'#EF9F27',pts:100});
       setTimeout(()=>setFlash(null),2500);
       setSessionLog(prev=>[{eleve:`${selectedEleve.prenom} ${selectedEleve.nom}`,detail:`Hizb ${etat.hizbEnCours} ${t(lang,'hizb_complets_label')}`,pts:100,time:new Date().toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'})},...prev.slice(0,9)]);
-      const {data:newVals}=await supabase.from('validations').select('*').eq('eleve_id',selectedEleve.id);
+      const {data:newVals}=await supabase.from('validations').select('*')
+        .eq('ecole_id', user.ecole_id).eq('eleve_id',selectedEleve.id);
       setEtat(calcEtatEleve(newVals||[],selectedEleve.hizb_depart,selectedEleve.tomon_depart));
     }
     setSaving(false);

@@ -30,16 +30,19 @@ export default function MurajaDashboard({ user, navigate, goBack, lang='fr' }) {
     setLoading(true);
     const [{ data: recs }, { data: vals }, { data: elevs }] = await Promise.all([
       supabase.from('recitations_sourates')
-        .select('id,date_validation,type_recitation,verset_debut,verset_fin,points,is_muraja, eleve:eleve_id(id,prenom,nom,code_niveau), sourate:sourate_id(numero,nom_ar), valideur:valide_par(prenom,nom)')
+        .select('id,date_validation,type_recitation,verset_debut,verset_fin,points,is_muraja, eleve:eleve_id(id,prenom,nom,code_niveau)
+        .eq('ecole_id', user.ecole_id), sourate:sourate_id(numero,nom_ar), valideur:valide_par(prenom,nom)')
         .eq('is_muraja', true)
         .order('date_validation', { ascending: false })
         .limit(500),
       supabase.from('validations')
-        .select('id,date_validation,type_validation,nombre_tomon,tomon_debut,hizb_validation,is_muraja, eleve:eleve_id(id,prenom,nom,code_niveau), valideur:valide_par(prenom,nom)')
+        .select('id,date_validation,type_validation,nombre_tomon,tomon_debut,hizb_validation,is_muraja, eleve:eleve_id(id,prenom,nom,code_niveau)
+        .eq('ecole_id', user.ecole_id), valideur:valide_par(prenom,nom)')
         .in('type_validation', ['tomon_muraja','hizb_muraja'])
         .order('date_validation', { ascending: false })
         .limit(500),
-      supabase.from('eleves').select('id,prenom,nom,code_niveau').order('nom'),
+      supabase.from('eleves').select('id,prenom,nom,code_niveau')
+        .eq('ecole_id', user.ecole_id).order('nom'),
     ]);
     setRecitations(recs || []);
     setValidations(vals || []);

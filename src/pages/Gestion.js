@@ -166,11 +166,13 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr' }) {
 
   const loadData = async () => {
     setLoading(true);
-    const { data: e } = await supabase.from('eleves').select('*').order('nom');
+    const { data: e } = await supabase.from('eleves').select('*')
+        .eq('ecole_id', user.ecole_id).order('nom');
     const { data: i } = await supabase.from('utilisateurs').select('*').eq('role', 'instituteur').order('nom');
     setEleves(e || []);
     setInstituteurs(i || []);
-    const { data: pd } = await supabase.from('parents').select('*, liens:parent_eleve(eleve_id, eleve:eleve_id(prenom,nom))').order('nom');
+    const { data: pd } = await supabase.from('parents').select('*, liens:parent_eleve(eleve_id, eleve:eleve_id(prenom,nom)
+        .eq('ecole_id', user.ecole_id))').order('nom');
     setParents(pd||[]);
     setLoading(false);
   };
@@ -184,7 +186,7 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr' }) {
     if (!newEleve.eleve_id_ecole?.trim()) return showMsg('error', lang==='ar'?'رقم تعريف الطالب إلزامي':lang==='en'?'Student ID is required':"L'ID élève est obligatoire");
     if (!newEleve.instituteur_referent_id) return showMsg('error', lang==='ar'?'يجب اختيار الأستاذ المرجع':lang==='en'?'Please select a teacher':'Veuillez sélectionner un instituteur référent');
     const { error } = await supabase.from('eleves').insert({
-      prenom: newEleve.prenom, nom: newEleve.nom, niveau: newEleve.niveau,
+      prenom: newEleve.prenom, nom: newEleve.nom, niveau: newEleve.niveau, ecole_id: user.ecole_id,
       code_niveau: newEleve.code_niveau || '1',
       eleve_id_ecole: newEleve.eleve_id_ecole || null,
       instituteur_referent_id: newEleve.instituteur_referent_id || null,
@@ -827,7 +829,7 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr' }) {
                   if(ue){alert(ue.message);return;}
                   await supabase.from('parent_eleve').delete().eq('parent_id',editingParentId);
                 } else {
-                  const {data:pd,error:pe}=await supabase.from('parents').insert({prenom:formParent.prenom,nom:formParent.nom,identifiant:formParent.identifiant,mot_de_passe:formParent.mot_de_passe,telephone:formParent.telephone||null,created_by:user.id}).select().single();
+                  const {data:pd,error:pe}=await supabase.from('parents').insert({prenom:formParent.prenom,nom:formParent.nom,identifiant:formParent.identifiant,mot_de_passe:formParent.mot_de_passe,telephone:formParent.telephone||null,created_by:user.id,ecole_id:user.ecole_id}).select().single();
                   if(pe){alert(pe.message);return;}
                   pid=pd.id;
                 }
@@ -837,7 +839,8 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr' }) {
                 setShowFormParent(false);
                 setEditingParentId(null);
                 setFormParent({prenom:'',nom:'',identifiant:'',mot_de_passe:'',telephone:'',eleve_ids:[],searchEleve:''});
-                const {data:pd2}=await supabase.from('parents').select('*, liens:parent_eleve(eleve_id, eleve:eleve_id(prenom,nom))').order('nom');
+                const {data:pd2}=await supabase.from('parents').select('*, liens:parent_eleve(eleve_id, eleve:eleve_id(prenom,nom)
+        .eq('ecole_id', user.ecole_id))').order('nom');
                 setParents(pd2||[]);
               }}>
                 {editingParentId?('✓ '+(lang==='ar'?'تحديث':'Mettre à jour')):('✓ '+(lang==='ar'?'إضافة':'Ajouter'))}

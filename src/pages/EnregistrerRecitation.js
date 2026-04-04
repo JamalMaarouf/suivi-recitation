@@ -30,14 +30,17 @@ export default function EnregistrerRecitation({  user, eleve: eleveInitial, navi
   }, []);
 
   const loadEleves = async () => {
-    const { data } = await supabase.from('eleves').select('*').order('nom');
+    const { data } = await supabase.from('eleves').select('*')
+        .eq('ecole_id', user.ecole_id).order('nom');
     setEleves(data || []);
   };
 
   const loadValidations = async (el) => {
     const [{ data: vals }, { data: appr }] = await Promise.all([
-      supabase.from('validations').select('*').eq('eleve_id', el.id),
-      supabase.from('apprentissages').select('*').eq('eleve_id', el.id)
+      supabase.from('validations').select('*')
+        .eq('ecole_id', user.ecole_id).eq('eleve_id', el.id),
+      supabase.from('apprentissages').select('*')
+        .eq('ecole_id', user.ecole_id).eq('eleve_id', el.id)
     ]);
     const e = calcEtatEleve(vals || [], el.hizb_depart, el.tomon_depart);
     setEtat(e);
@@ -84,6 +87,7 @@ export default function EnregistrerRecitation({  user, eleve: eleveInitial, navi
     setLoading(true);
     const insertData = {
       eleve_id: selectedEleve.id,
+      ecole_id: user.ecole_id,
       valide_par: user.id,
       nombre_tomon: typeValidation === 'hizb_complet' ? 0 : nombreTomon,
       type_validation: typeValidation,
@@ -102,6 +106,7 @@ export default function EnregistrerRecitation({  user, eleve: eleveInitial, navi
         if (!existant) {
           await supabase.from('apprentissages').insert({
             eleve_id: selectedEleve.id,
+            ecole_id: user.ecole_id,
             hizb: etat.hizbEnCours,
             tomon: prochainApresValidation,
             date_debut: new Date().toISOString()

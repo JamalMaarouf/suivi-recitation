@@ -61,9 +61,11 @@ export default function Dashboard({ user, navigate, goBack, lang='fr' }) {
   const loadData = async () => {
     setLoading(true);
     const [{ data: ed },{ data: id },{ data: vd }] = await Promise.all([
-      supabase.from('eleves').select('*').order('nom'),
+      supabase.from('eleves').select('*')
+        .eq('ecole_id', user.ecole_id).order('nom'),
       supabase.from('utilisateurs').select('*').eq('role','instituteur'),
-      supabase.from('validations').select('*, valideur:valide_par(prenom,nom)').order('date_validation',{ascending:false})
+      supabase.from('validations').select('*, valideur:valide_par(prenom,nom)
+        .eq('ecole_id', user.ecole_id)').order('date_validation',{ascending:false})
     ]);
     const elevesData = (ed||[]).map(eleve => {
       const vals = (vd||[]).filter(v=>v.eleve_id===eleve.id);
@@ -134,7 +136,9 @@ export default function Dashboard({ user, navigate, goBack, lang='fr' }) {
   };
 
   const backupJSON = async () => {
-    const [{data:ea},{data:va},{data:ua}]=await Promise.all([supabase.from('eleves').select('*'),supabase.from('validations').select('*'),supabase.from('utilisateurs').select('id,prenom,nom,identifiant,role')]);
+    const [{data:ea},{data:va},{data:ua}]=await Promise.all([supabase.from('eleves').select('*')
+        .eq('ecole_id', user.ecole_id),supabase.from('validations').select('*')
+        .eq('ecole_id', user.ecole_id),supabase.from('utilisateurs').select('id,prenom,nom,identifiant,role')]);
     const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([JSON.stringify({date:new Date().toISOString(),eleves:ea,validations:va,utilisateurs:ua},null,2)],{type:'application/json'})); a.download=`backup-${new Date().toLocaleDateString('fr-FR').replace(/\//g,'-')}.json`; a.click();
     setExportMsg('✓ Backup'); setTimeout(()=>setExportMsg(''),2000);
   };

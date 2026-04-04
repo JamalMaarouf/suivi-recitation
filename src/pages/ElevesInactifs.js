@@ -15,9 +15,11 @@ export default function ElevesInactifs({ navigate, goBack, lang='fr', user }) {
     setLoading(true);
     try {
       const [{ data: ed }, { data: id }, { data: vd }] = await Promise.all([
-        supabase.from('eleves').select('*').order('nom'),
+        supabase.from('eleves').select('*')
+        .eq('ecole_id', user.ecole_id).order('nom'),
         supabase.from('utilisateurs').select('id,prenom,nom').eq('role','instituteur'),
-        supabase.from('validations').select('eleve_id,date_validation,nombre_tomon,type_validation,hizb_valide').order('date_validation',{ascending:false}),
+        supabase.from('validations').select('eleve_id,date_validation,nombre_tomon,type_validation,hizb_valide')
+        .eq('ecole_id', user.ecole_id).order('date_validation',{ascending:false}),
       ]);
       const elevesData = (ed||[]).map(eleve => {
         const vals = (vd||[]).filter(v=>v.eleve_id===eleve.id);

@@ -123,10 +123,13 @@ export default function Finance({ user, navigate, goBack, lang='fr' }) {
     setLoading(true);
     try {
       const [r1, r2, r3, r4] = await Promise.all([
-        supabase.from('eleves').select('*, instituteur:instituteur_referent_id(prenom,nom)').order('nom'),
+        supabase.from('eleves').select('*, instituteur:instituteur_referent_id(prenom,nom)
+        .eq('ecole_id', user.ecole_id)').order('nom'),
         supabase.from('utilisateurs').select('*').eq('role','instituteur'),
-        supabase.from('cotisations').select('*, eleve:eleve_id(id,prenom,nom,code_niveau,eleve_id_ecole), createur:created_by(prenom,nom)').order('date_paiement',{ascending:false}),
-        supabase.from('depenses').select('*, beneficiaire:beneficiaire_id(prenom,nom), createur:created_by(prenom,nom)').order('date_depense',{ascending:false}),
+        supabase.from('cotisations').select('*, eleve:eleve_id(id,prenom,nom,code_niveau,eleve_id_ecole)
+        .eq('ecole_id', user.ecole_id), createur:created_by(prenom,nom)').order('date_paiement',{ascending:false}),
+        supabase.from('depenses').select('*, beneficiaire:beneficiaire_id(prenom,nom)
+        .eq('ecole_id', user.ecole_id), createur:created_by(prenom,nom)').order('date_depense',{ascending:false}),
       ]);
       setEleves(r1.data||[]);
       setInstituteurs(r2.data||[]);
@@ -144,6 +147,7 @@ export default function Finance({ user, navigate, goBack, lang='fr' }) {
     setSaving(true);
     const payload = {
       eleve_id: formCot.eleve_id,
+        ecole_id: user.ecole_id,
       montant: parseFloat(formCot.montant),
       date_paiement: formCot.date_paiement,
       periode: buildPeriodeStr(formCot.typePeriode, formCot.valPeriode, formCot.annee) || formCot.periode || null,
@@ -155,7 +159,7 @@ export default function Finance({ user, navigate, goBack, lang='fr' }) {
       if (editingCotId) {
         ({ error } = await supabase.from('cotisations').update(payload).eq('id', editingCotId));
       } else {
-        ({ error } = await supabase.from('cotisations').insert({...payload, created_by: user.id}));
+        ({ error } = await supabase.from('cotisations').insert({...payload, created_by: user.id, ecole_id: user.ecole_id}));
       }
     } catch(e) { error = e; }
     setSaving(false);
@@ -174,6 +178,7 @@ export default function Finance({ user, navigate, goBack, lang='fr' }) {
     setSaving(true);
     const depPayload = {
       montant: parseFloat(formDep.montant),
+        ecole_id: user.ecole_id,
       date_depense: formDep.date_depense,
       categorie: formDep.categorie,
       beneficiaire_id: formDep.beneficiaire_id||null,
@@ -185,7 +190,7 @@ export default function Finance({ user, navigate, goBack, lang='fr' }) {
       if (editingDepId) {
         ({ error } = await supabase.from('depenses').update(depPayload).eq('id', editingDepId));
       } else {
-        ({ error } = await supabase.from('depenses').insert({...depPayload, created_by: user.id}));
+        ({ error } = await supabase.from('depenses').insert({...depPayload, created_by: user.id, ecole_id: user.ecole_id}));
       }
     } catch(e) { error = e; }
     setSaving(false);

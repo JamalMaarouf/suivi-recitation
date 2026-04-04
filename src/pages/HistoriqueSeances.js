@@ -71,12 +71,16 @@ export default function HistoriqueSeances({ user, navigate, goBack, lang='fr' })
     setLoading(true);
     try {
       const [r1, r2, r3, r4, r5, r6] = await Promise.all([
-        supabase.from('eleves').select('*').order('nom'),
+        supabase.from('eleves').select('*')
+        .eq('ecole_id', user.ecole_id).order('nom'),
         supabase.from('utilisateurs').select('*').eq('role','instituteur'),
-        supabase.from('validations').select('*, valideur:valide_par(prenom,nom)').order('date_validation',{ascending:false}),
-        supabase.from('recitations_sourates').select('*, valideur:valide_par(prenom,nom)').order('date_validation',{ascending:false}),
+        supabase.from('validations').select('*, valideur:valide_par(prenom,nom)
+        .eq('ecole_id', user.ecole_id)').order('date_validation',{ascending:false}),
+        supabase.from('recitations_sourates').select('*, valideur:valide_par(prenom,nom)
+        .eq('ecole_id', user.ecole_id)').order('date_validation',{ascending:false}),
         supabase.from('sourates').select('*'),
-        supabase.from('objectifs_globaux').select('*').order('created_at',{ascending:false}),
+        supabase.from('objectifs_globaux').select('*')
+        .eq('ecole_id', user.ecole_id).order('created_at',{ascending:false}),
       ]);
       setEleves(r1.data||[]);
       setInstituteurs(r2.data||[]);

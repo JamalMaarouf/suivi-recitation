@@ -16,9 +16,12 @@ export default function ProfilInstituteur({ instituteur, user, navigate, goBack,
 
   const loadData = async () => {
     setLoading(true);
-    const {data:ed}=await supabase.from('eleves').select('*').eq('instituteur_referent_id',instituteur.id);
-    const {data:vd}=await supabase.from('validations').select('*, valideur:valide_par(prenom,nom)').eq('valide_par',instituteur.id).order('date_validation',{ascending:false});
-    const {data:allVd}=await supabase.from('validations').select('*');
+    const {data:ed}=await supabase.from('eleves').select('*')
+        .eq('ecole_id', user.ecole_id).eq('instituteur_referent_id',instituteur.id);
+    const {data:vd}=await supabase.from('validations').select('*, valideur:valide_par(prenom,nom)
+        .eq('ecole_id', user.ecole_id)').eq('valide_par',instituteur.id).order('date_validation',{ascending:false});
+    const {data:allVd}=await supabase.from('validations').select('*')
+        .eq('ecole_id', user.ecole_id);
     const elevesData=(ed||[]).map(e=>{
       const vals=(allVd||[]).filter(v=>v.eleve_id===e.id);
       const etat=calcEtatEleve(vals,e.hizb_depart,e.tomon_depart);
