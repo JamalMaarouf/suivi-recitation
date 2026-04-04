@@ -47,27 +47,57 @@ export default function SuperAdminDashboard({ user, navigate, lang, onLogout }) 
     setBackupLoading(true);
     setBackupResult(null);
     try {
-      const res = await fetch('/api/backup?manual=true');
-      const json = await res.json();
-      if (json.success) {
-        const nb = json.metadata?.total_records || 0;
-        const debugInfo = nb === 0 && json.debug
-          ? ` (erreurs: ${json.debug.tables_error?.join(', ') || 'aucune'} · vides: ${json.debug.tables_empty?.length || 0} tables)`
-          : '';
-        const emailInfo = json.email_sent_to ? ` · email → ${json.email_sent_to}` : ' · email non envoyé';
-        setBackupResult({
-          ok: nb > 0,
-          msg: nb > 0
-            ? `✅ Backup réussi — ${nb.toLocaleString()} enregistrements${emailInfo}`
-            : `⚠️ Backup envoyé mais 0 enregistrements${debugInfo} — vérifiez SUPABASE_SERVICE_KEY dans Vercel`,
-        });
-      } else if (json.has_url !== undefined) {
-        setBackupResult({ ok: false, msg: `❌ Variables manquantes — URL:${json.has_url?'✓':'✗'} ServiceKey:${json.has_service_key?'✓':'✗'} Resend:${json.has_resend?'✓':'✗'}` });
-      } else {
-        setBackupResult({ ok: false, msg: '❌ Erreur: ' + (json.error || 'inconnue') });
-      }
+      const TABLES = [
+        'ecoles','utilisateurs','eleves','validations',
+        'recitations_sourates','apprentissages','objectifs_globaux',
+        'cotisations','depenses','parents','parent_eleve',
+        'passages_niveau','exceptions_recitation','exceptions_hizb','sourates',
+      ];
+
+      // Fetch all tables directly from Supabase (client-side)
+      const results = await Promise.all(TABLES.map(async (table) => {
+        try {
+          const { data, error } = await supabase.from(table).select('*').limit(50000);
+          if (error) return { table, count: 0, error: error.message, data: [] };
+          return { table, count: data?.length || 0, data: data || [] };
+        } catch(e) {
+          return { table, count: 0, error: e.message, data: [] };
+        }
+      }));
+
+      const now = new Date();
+      const dateFilename = now.toISOString().split('T')[0];
+      const totalRecords = results.reduce((s, r) => s + r.count, 0);
+
+      const backup = {
+        metadata: {
+          version: '1.0',
+          created_at: now.toISOString(),
+          tables: results.map(r => ({ table: r.table, count: r.count, error: r.error || null })),
+          total_records: totalRecords,
+        },
+        data: Object.fromEntries(results.map(r => [r.table, r.data])),
+      };
+
+      // Download JSON file
+      const jsonStr = JSON.stringify(backup, null, 2);
+      const blob = new Blob([jsonStr], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `backup-${dateFilename}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+
+      const errors = results.filter(r => r.error);
+      setBackupResult({
+        ok: totalRecords > 0,
+        msg: `✅ Backup téléchargé — ${totalRecords.toLocaleString()} enregistrements · fichier: backup-${dateFilename}.json${errors.length > 0 ? ` (⚠️ ${errors.length} table(s) en erreur)` : ''}`,
+      });
     } catch(e) {
-      setBackupResult({ ok: false, msg: '❌ Erreur réseau: ' + e.message });
+      setBackupResult({ ok: false, msg: '❌ Erreur: ' + e.message });
     }
     setBackupLoading(false);
   };
@@ -228,7 +258,7 @@ export default function SuperAdminDashboard({ user, navigate, lang, onLogout }) 
         <div style={{display:'flex',gap:8,alignItems:'center'}}>
           <button onClick={runBackup} disabled={backupLoading}
             style={{padding:'7px 14px',background:backupLoading?'#e0e0d8':'#085041',color:'#fff',border:'none',borderRadius:8,fontSize:12,cursor:'pointer',fontWeight:600}}>
-            {backupLoading ? '⏳ Backup...' : '💾 Backup maintenant'}
+            {backupLoading ? '⏳ Export en cours...' : '💾 Télécharger backup'}
           </button>
           <button onClick={onLogout}
             style={{padding:'7px 14px',background:'#f5f5f0',color:'#666',border:'0.5px solid #e0e0d8',borderRadius:8,fontSize:12,cursor:'pointer'}}>
