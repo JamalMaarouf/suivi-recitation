@@ -35,9 +35,14 @@ class ErrorBoundary extends React.Component {
           <pre style={{fontSize:12,background:'#f5f5f5',padding:10,borderRadius:8,overflowX:'auto'}}>
             {this.state.error.toString()}
           </pre>
-          <button onClick={()=>this.setState({error:null})} style={{marginTop:10,padding:'6px 12px',cursor:'pointer'}}>
-            Réessayer
-          </button>
+          <div style={{display:'flex',gap:8,marginTop:10}}>
+            <button onClick={()=>this.setState({error:null})} style={{padding:'6px 12px',cursor:'pointer',borderRadius:6,border:'1px solid #ccc'}}>
+              🔄 Réessayer
+            </button>
+            <button onClick={()=>{this.setState({error:null});window.history.back();}} style={{padding:'6px 12px',cursor:'pointer',borderRadius:6,border:'1px solid #ccc',background:'#f5f5f0'}}>
+              ← Retour
+            </button>
+          </div>
         </div>
       );
     }

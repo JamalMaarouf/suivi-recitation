@@ -171,7 +171,7 @@ export default function Dashboard({ user, navigate, goBack, lang='fr' }) {
               <span style={{fontSize:11,color:'#E24B4A',fontWeight:600}}>›</span>
             </div>
           )}
-          {eleves.filter(e=>e.jours!=null&&e.jours>14&&e.jours<=30).length>0&&eleves.filter(e=>e.jours==null||e.jours>30).length===0&&(
+          {eleves.filter(e=>e.jours!=null&&e.jours>14&&e.jours<=30).length>0&&(
             <div onClick={()=>setShowInactifsModal(true)} style={{display:'flex',alignItems:'center',gap:12,padding:'10px 14px',background:'#FFF3CD',borderRadius:12,marginBottom:8,cursor:'pointer',border:'1.5px solid #EF9F2730'}}>
               <span style={{fontSize:20}}>⚠️</span>
               <div style={{flex:1}}>
@@ -411,7 +411,7 @@ export default function Dashboard({ user, navigate, goBack, lang='fr' }) {
               <span style={{fontSize:11,color:'#E24B4A',fontWeight:600}}>›</span>
             </div>
           )}
-          {eleves.filter(e=>e.jours!=null&&e.jours>14&&e.jours<=30).length>0&&eleves.filter(e=>e.jours==null||e.jours>30).length===0&&(
+          {eleves.filter(e=>e.jours!=null&&e.jours>14&&e.jours<=30).length>0&&(
             <div onClick={()=>setShowInactifsModal(true)} style={{display:'flex',alignItems:'center',gap:12,padding:'10px 14px',background:'#FFF3CD',borderRadius:12,marginBottom:8,cursor:'pointer',border:'1.5px solid #EF9F2730'}}>
               <span style={{fontSize:20}}>⚠️</span>
               <div style={{flex:1}}>
@@ -496,14 +496,12 @@ export default function Dashboard({ user, navigate, goBack, lang='fr' }) {
             <div style={{display:'flex',flexDirection:'column',gap:8}}>
               {[...eleves].filter(e=>e.inactif).sort((a,b)=>{if(a.jours==null)return -1;if(b.jours==null)return 1;return b.jours-a.jours;}).map(e=>{
                 const urgent = (e.jours||0) > 30;
-                const nc = NIVEAU_COLORS[e.niveau||'1']||'#888';
+                const nc = NIVEAU_COLORS[e.code_niveau||'1']||'#888';
                 return (
-                  <div key={e.id} onClick={()=>{setShowInactifsModal(false);navigate('fiche',e);}}
+                  <div key={e.id} onClick={ev=>{ev.stopPropagation();navigate('fiche',e);setShowInactifsModal(false);}}
                     style={{display:'flex',alignItems:'center',gap:12,padding:'10px 14px',borderRadius:12,cursor:'pointer',
                       background:urgent?'#FFF5F5':'#FFFDF0',
-                      border:`1.5px solid ${urgent?'#E24B4A20':'#EF9F2720'}`}}
-                    onMouseEnter={ev=>ev.currentTarget.style.background=urgent?'#FCEBEB':'#FFF3CD'}
-                    onMouseLeave={ev=>ev.currentTarget.style.background=urgent?'#FFF5F5':'#FFFDF0'}>
+                      border:`1.5px solid ${urgent?'#E24B4A20':'#EF9F2720'}`}}>
                     <Avatar prenom={e.prenom} nom={e.nom} size={38} bg={urgent?'#FCEBEB':'#FFF3CD'} color={urgent?'#E24B4A':'#856404'}/>
                     <div style={{flex:1}}>
                       <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:2}}>
