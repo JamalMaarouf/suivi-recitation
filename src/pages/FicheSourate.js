@@ -20,6 +20,8 @@ export default function FicheSourate({ eleve, user, navigate, goBack, lang='fr' 
   const [instituteurNom, setInstituteurNom] = useState('—');
   const [loading, setLoading] = useState(true);
   const [onglet, setOnglet] = useState('progression');
+  const [murajaaS, setMurajaaS] = useState([]);
+  const [murajaa, setMurajaa]   = useState([]);
   const [selectedSourate, setSelectedSourate] = useState(null);
 
   const [showAcquis, setShowAcquis] = useState(false);
@@ -32,16 +34,20 @@ export default function FicheSourate({ eleve, user, navigate, goBack, lang='fr' 
 
   const loadData = async () => {
     setLoading(true);
-    const [{ data: rd }, { data: sdb }] = await Promise.all([
-      supabase.from('recitations_sourates').select('*, valideur:valide_par(prenom,nom)').eq('eleve_id', eleve.id).order('date_validation', { ascending: false }),
-      supabase.from('sourates').select('*')
+    const [{ data: rd }, { data: sdb }, { data: mrec }, { data: mval }] = await Promise.all([
+      supabase.from('recitations_sourates').select('*, valideur:valide_par(prenom,nom)').eq('eleve_id', eleve.id).eq('is_muraja', false).order('date_validation', {ascending:false}),
+      supabase.from('sourates').select('*'),
+      supabase.from('recitations_sourates').select('*, sourate:sourate_id(nom_ar,numero), valideur:valide_par(prenom,nom)').eq('eleve_id', eleve.id).eq('is_muraja', true).order('date_validation', {ascending:false}),
+      supabase.from('validations').select('*, valideur:valide_par(prenom,nom)').eq('eleve_id', eleve.id).in('type_validation',['tomon_muraja','hizb_muraja']).order('date_validation', {ascending:false}),
     ]);
     if (eleve.instituteur_referent_id) {
-      const { data: inst, error: instErr } = await supabase.from('utilisateurs').select('prenom,nom').eq('id', eleve.instituteur_referent_id).single(); if(instErr) console.warn('inst not found');
-      if (inst) setInstituteurNom(`${inst.prenom} ${inst.nom}`);
+      const { data: inst } = await supabase.from('utilisateurs').select('prenom,nom').eq('id', eleve.instituteur_referent_id).single();
+      if (inst) setInstituteurNom(inst.prenom+' '+inst.nom);
     }
     setRecitations(rd || []);
     setSouratesDB(sdb || []);
+    setMurajaaS(mrec || []);
+    setMurajaa(mval || []);
     setLoading(false);
   };
 
@@ -251,6 +257,7 @@ export default function FicheSourate({ eleve, user, navigate, goBack, lang='fr' 
         {[
           ['progression', lang==='ar'?'التقدم':lang==='en'?'Progress':(lang==='ar'?'التقدم':(lang==='ar'?'التقدم':'Progression'))],
           ['historique', t(lang,'historique')],
+          ['muraja', lang==='ar'?'المراجعة':'Murajaʼa'],
         ].map(([k,l])=>(
           <div key={k} className={`tab ${onglet===k?'active':''}`} onClick={()=>{setOnglet(k);setSelectedSourate(null);}}>{l}</div>
         ))}
@@ -401,6 +408,37 @@ export default function FicheSourate({ eleve, user, navigate, goBack, lang='fr' 
                   </tbody></table>
                 </div>
               )
+          )}
+          {onglet==='muraja'&&(
+            <div>
+              <div style={{fontSize:12,color:'#888',marginBottom:12,padding:'8px 12px',background:'#FFF3CD',borderRadius:8}}>
+                ℹ️ {lang==='ar'?'هذه المراجعات لا تؤثر على التقدم الفردي':"Ces murajaʼa ne modifient pas la progression individuelle"}
+              </div>
+              {(murajaaS.length+murajaa.length)===0?(
+                <div className="empty">{lang==='ar'?'لا توجد مراجعات جماعية':"Aucune murajaʼa collective"}</div>
+              ):(
+                <div className="table-wrap">
+                  <table><thead><tr>
+                    <th>{lang==='ar'?'التاريخ':'Date'}</th>
+                    <th>{lang==='ar'?'النوع':'Type'}</th>
+                    <th>{lang==='ar'?'المحتوى':'Contenu'}</th>
+                    <th>{lang==='ar'?'النقاط':'Pts'}</th>
+                    <th>{lang==='ar'?'صحَّح بواسطة':'Validé par'}</th>
+                  </tr></thead>
+                  <tbody>
+                    {murajaaS.map(r=>(
+                      <tr key={r.id}>
+                        <td style={{fontSize:12,color:'#888'}}>{new Date(r.date_validation).toLocaleDateString(lang==='ar'?'ar-MA':'fr-FR')}</td>
+                        <td><span className="badge" style={{background:'#FFF3CD',color:'#856404',fontSize:10}}>{r.type_recitation==='complete'?(lang==='ar'?'سورة كاملة':'Sourate complète'):(lang==='ar'?'تسلسل':'Séquence')}</span></td>
+                        <td style={{fontSize:12}}>{r.sourate?.nom_ar||'—'}</td>
+                        <td><span style={{fontSize:12,fontWeight:600,color:'#EF9F27'}}>+{r.points||5}</span></td>
+                        <td style={{fontSize:11,color:'#888'}}>{r.valideur?r.valideur.prenom+' '+r.valideur.nom:'—'}</td>
+                      </tr>
+                    ))}
+                  </tbody></table>
+                </div>
+              )}
+            </div>
           )}
         </>
       )}
