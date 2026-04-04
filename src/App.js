@@ -19,6 +19,8 @@ import ValidationRapide from './pages/ValidationRapide';
 import ValidationCollective from './pages/ValidationCollective';
 import MurajaDashboard from './pages/MurajaDashboard';
 import ElevesInactifs from './pages/ElevesInactifs';
+import SuperAdminDashboard from './pages/SuperAdminDashboard';
+import InscriptionEcole from './pages/InscriptionEcole';
 import { t, getDir } from './lib/i18n';
 import { setSouratesDB } from './lib/sourates';
 import { supabase } from './lib/supabase';
@@ -56,6 +58,7 @@ export const LangContext = React.createContext({ lang: 'fr', setLang: () => {} }
 
 export default function App() {
   const [user, setUser] = useState(null);
+  const [showInscription, setShowInscription] = useState(false);
   const [page, setPage] = useState('dashboard');
   const pageRef = React.useRef('dashboard');
   const setPageWithRef = (p) => { pageRef.current = p; setPage(p); };
@@ -136,7 +139,19 @@ export default function App() {
 
   if (!user) return (
     <LangContext.Provider value={{ lang, setLang }}>
-      <Login onLogin={handleLogin} lang={lang} LangSelector={LangSelector} />
+      {showInscription
+        ? <InscriptionEcole onBack={()=>setShowInscription(false)} lang={lang}/>
+        : <Login onLogin={handleLogin} lang={lang} LangSelector={LangSelector} onShowInscription={()=>setShowInscription(true)}/>
+      }
+    </LangContext.Provider>
+  );
+
+  // Super admin → dashboard dédié
+  if (user.role === 'super_admin') return (
+    <LangContext.Provider value={{ lang, setLang }}>
+      <div className="app-container">
+        <SuperAdminDashboard user={user} navigate={navigate} lang={lang} onLogout={handleLogout}/>
+      </div>
     </LangContext.Provider>
   );
 
