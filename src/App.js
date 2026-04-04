@@ -19,6 +19,7 @@ import ValidationRapide from './pages/ValidationRapide';
 import ValidationCollective from './pages/ValidationCollective';
 import MurajaDashboard from './pages/MurajaDashboard';
 import ElevesInactifs from './pages/ElevesInactifs';
+import ProfilMobile from './pages/ProfilMobile';
 import SuperAdminDashboard from './pages/SuperAdminDashboard';
 import InscriptionEcole from './pages/InscriptionEcole';
 import { t, getDir } from './lib/i18n';
@@ -243,6 +244,7 @@ export default function App() {
           {page === 'muraja'            && <ValidationCollective {...pageProps} />}
           {page === 'inactifs'           && <ElevesInactifs navigate={navigate} goBack={goBack} lang={lang} user={user} />}
           {page === 'muraja_dashboard'  && <MurajaDashboard {...pageProps} />}
+          {page === 'profil_mobile'    && <ProfilMobile user={user} lang={lang} onLogout={handleLogout} navigate={navigate} goBack={goBack}/>}
           {page === 'validation_rapide' && <ValidationRapide {...pageProps} />}
           {page === 'gestion'           && user.role === 'surveillant' && <Gestion {...pageProps} />}
           {page === 'honneur'           && <TableauHonneur {...pageProps} />}
@@ -262,18 +264,18 @@ export default function App() {
               { key: 'validation_rapide',icon: '⚡', label: lang==='ar'?'تسجيل':'Express' },
               { key: 'seance',           icon: '👥', label: lang==='ar'?'الحصة':'Élèves' },
               { key: 'honneur',          icon: '🏆', label: lang==='ar'?'شرف':'Honneur' },
-              { key: 'gestion',          icon: '⚙️', label: lang==='ar'?'إدارة':'Gestion' },
+              { key: 'profil_mobile',    icon: '👤', label: lang==='ar'?'حسابي':'Profil' },
             ] : user.role === 'instituteur' ? [
               { key: 'dashboard',        icon: '🏠', label: lang==='ar'?'الرئيسية':'Accueil' },
               { key: 'validation_rapide',icon: '⚡', label: lang==='ar'?'تسجيل':'Valider' },
               { key: 'seance',           icon: '👥', label: lang==='ar'?'طلابي':'Élèves' },
-              { key: 'calendrier',       icon: '📅', label: lang==='ar'?'التقويم':'Agenda' },
+              { key: 'profil_mobile',    icon: '👤', label: lang==='ar'?'حسابي':'Profil' },
             ] : [
               { key: 'dashboard',        icon: '🏠', label: lang==='ar'?'الرئيسية':'Accueil' },
               { key: 'validation_rapide',icon: '⚡', label: lang==='ar'?'تسجيل':'Express' },
               { key: 'seance',           icon: '📋', label: lang==='ar'?'الحصة':'Séance' },
               { key: 'honneur',          icon: '🏆', label: lang==='ar'?'شرف':'Honneur' },
-              { key: 'gestion',          icon: '⚙️', label: lang==='ar'?'إدارة':'Plus' },
+              { key: 'profil_mobile',    icon: '👤', label: lang==='ar'?'حسابي':'Profil' },
             ]).map(tab => (
               <div key={tab.key}
                 className={`bottom-nav-item ${page === tab.key ? 'active' : ''}`}
