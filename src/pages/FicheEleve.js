@@ -251,7 +251,7 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang='fr' })
   const pctColor=(p)=>p>=100?'#1D9E75':p>=60?'#EF9F27':'#E24B4A';
 
   // Redirect 5B/5A AFTER all hooks are declared (React rules of hooks)
-  // ── Passage de niveau ──
+  // -- Passage de niveau --
   const NIVEAUX_ORDRE = ['5B','5A','2M','2','1'];
   const NIVEAUX_LABELS = {'5B':'Préscolaire (5B)','5A':'Primaire 1-2 (5A)','2M':'Primaire 3-4 (2M)','2':'Primaire 5-6 (2)','1':'Collège/Lycée (1)'};
   const niveauActuelIdx = NIVEAUX_ORDRE.indexOf(eleve.code_niveau||'1');
@@ -683,67 +683,67 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang='fr' })
           )}
 
           {onglet==='historique'&&(
-            <>
-            {passages.length>0&&(
-              <div style={{marginBottom:16}}>
-                <div style={{fontSize:13,fontWeight:600,color:'#534AB7',marginBottom:8}}>🎓 {lang==='ar'?'سجل الانتقالات بين المستويات':'Historique des passages de niveau'}</div>
-                {passages.map((p,i)=>(
-                  <div key={p.id} style={{display:'flex',alignItems:'center',gap:10,padding:'10px 14px',borderRadius:10,background:'#F0EEFF',border:'1px solid #534AB720',marginBottom:6}}>
-                    <span style={{fontSize:18}}>🎓</span>
-                    <div style={{flex:1}}>
-                      <div style={{fontSize:13,fontWeight:600,color:'#534AB7'}}>
-                        {p.niveau_from} → {p.niveau_to}
-                      </div>
-                      <div style={{fontSize:11,color:'#888',marginTop:2}}>
-                        {new Date(p.date_passage).toLocaleDateString(lang==='ar'?'ar-MA':'fr-FR',{day:'numeric',month:'long',year:'numeric'})}
-                        {p.valide_par_u&&' · '+p.valide_par_u.prenom+' '+p.valide_par_u.nom}
-                      </div>
-                      {p.note&&<div style={{fontSize:11,color:'#534AB7',marginTop:2,fontStyle:'italic'}}>{p.note}</div>}
-                    </div>
-                    <div style={{textAlign:'right',fontSize:11,color:'#888'}}>
-                      <div>{lang==='ar'?'ثُمن':'Tomon'}: <strong>{p.acquis_tomon}</strong></div>
-                      <div>{lang==='ar'?'نقاط':'Pts'}: <strong>{p.acquis_points}</strong></div>
-                    </div>
+            <div>
+              {passages.length>0&&(
+                <div style={{marginBottom:16}}>
+                  <div style={{fontSize:13,fontWeight:600,color:'#534AB7',marginBottom:8}}>
+                    🎓 {lang==='ar'?'سجل الانتقالات بين المستويات':'Historique des passages de niveau'}
                   </div>
-                ))}
-              </div>
-            )}
-            </>
-          )}
-          {onglet==='historique'&&(
-            validations.length===0?<div className="empty">{t(lang,'aucune_recitation_label')}</div>:(
-              <div className="table-wrap">
-                <table><thead><tr>
-                  <th style={{width:'18%'}}>{t(lang,'date_heure')}</th>
-                  <th style={{width:'18%'}}>{t(lang,'statut')}</th>
-                  <th style={{width:'24%'}}>{t(lang,'detail')}</th>
-                  <th style={{width:'14%'}}>{t(lang,'duree_apprentissage_col')}</th>
-                  <th style={{width:'12%'}}>{t(lang,'pts_abrev')}</th>
-                  <th style={{width:'14%'}}>{t(lang,'valide_par')}</th>
-                </tr></thead>
-                <tbody>
-                  {validations.map(v=>{
-                    const appr=apprentissages.find(a=>a.hizb===v.hizb_validation&&a.tomon===v.tomon_debut);
-                    const joursAppr=appr?Math.round((new Date(v.date_validation)-new Date(appr.date_debut))/(1000*60*60*24)):null;
-                    return(
-                      <tr key={v.id}>
-                        <td style={{fontSize:12,color:'#888'}}>{formatDate(v.date_validation)}</td>
-                        <td>{v.type_validation==='hizb_complet'?<span className="badge badge-green">{t(lang,'hizb_complets_label')}</span>:<span className="badge badge-blue">{v.nombre_tomon} {t(lang,'tomon_abrev')}</span>}</td>
-                        <td style={{fontSize:12,color:'#888'}}>{v.type_validation==='hizb_complet'?`Hizb ${v.hizb_valide}`:v.tomon_debut?`T.${v.tomon_debut}→T.${v.tomon_debut+v.nombre_tomon-1} · H.${v.hizb_validation}`:`${v.nombre_tomon} ${t(lang,'tomon_abrev')}`}</td>
-                        <td>{joursAppr!==null?<span style={{fontSize:12,fontWeight:600,color:joursAppr>14?'#E24B4A':joursAppr>7?'#EF9F27':'#1D9E75'}}>{joursAppr}{t(lang,'jour')}</span>:<span style={{color:'#bbb',fontSize:12}}>—</span>}</td>
-                        <td><span style={{fontSize:12,fontWeight:600,color:'#1D9E75'}}>+{v.type_validation==='hizb_complet'?100:v.nombre_tomon*10} {t(lang,'pts_abrev')}</span></td>
-                        <td style={{fontSize:12,color:'#888'}}>{v.valideur?`${v.valideur.prenom} ${v.valideur.nom}`:'—'}</td>
-                      </tr>
-                    );
-                  })}
-                </tbody></table>
-              </div>
-            )
+                  {passages.map(p=>(
+                    <div key={p.id} style={{display:'flex',alignItems:'center',gap:10,padding:'10px 14px',borderRadius:10,background:'#F0EEFF',border:'1px solid #534AB720',marginBottom:6}}>
+                      <span style={{fontSize:18}}>🎓</span>
+                      <div style={{flex:1}}>
+                        <div style={{fontSize:13,fontWeight:600,color:'#534AB7'}}>{p.niveau_from} → {p.niveau_to}</div>
+                        <div style={{fontSize:11,color:'#888',marginTop:2}}>
+                          {new Date(p.date_passage).toLocaleDateString(lang==='ar'?'ar-MA':'fr-FR',{day:'numeric',month:'long',year:'numeric'})}
+                          {p.valide_par_u&&(' · '+p.valide_par_u.prenom+' '+p.valide_par_u.nom)}
+                        </div>
+                        {p.note&&<div style={{fontSize:11,color:'#534AB7',marginTop:2,fontStyle:'italic'}}>{p.note}</div>}
+                      </div>
+                      <div style={{textAlign:'right',fontSize:11,color:'#888'}}>
+                        <div>Tomon: <strong>{p.acquis_tomon}</strong></div>
+                        <div>Pts: <strong>{p.acquis_points}</strong></div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {validations.length===0
+                ?<div className="empty">{t(lang,'aucune_recitation_label')}</div>
+                :(
+                  <div className="table-wrap">
+                    <table><thead><tr>
+                      <th style={{width:'18%'}}>{t(lang,'date_heure')}</th>
+                      <th style={{width:'18%'}}>{t(lang,'statut')}</th>
+                      <th style={{width:'24%'}}>{t(lang,'detail')}</th>
+                      <th style={{width:'14%'}}>{t(lang,'duree_apprentissage_col')}</th>
+                      <th style={{width:'12%'}}>{t(lang,'pts_abrev')}</th>
+                      <th style={{width:'14%'}}>{t(lang,'valide_par')}</th>
+                    </tr></thead>
+                    <tbody>
+                      {validations.map(v=>{
+                        const appr=apprentissages.find(a=>a.hizb===v.hizb_validation&&a.tomon===v.tomon_debut);
+                        const joursAppr=appr?Math.round((new Date(v.date_validation)-new Date(appr.date_debut))/(1000*60*60*24)):null;
+                        return(
+                          <tr key={v.id}>
+                            <td style={{fontSize:12,color:'#888'}}>{formatDate(v.date_validation)}</td>
+                            <td>{v.type_validation==='hizb_complet'?<span className="badge badge-green">{t(lang,'hizb_complet')}</span>:<span className="badge">{t(lang,'tomon_abrev')} ×{v.nombre_tomon}</span>}</td>
+                            <td style={{fontSize:12,color:'#888'}}>{v.type_validation==='hizb_complet'?('Hizb '+v.hizb_valide):('T'+v.tomon_debut+' Hizb '+v.hizb_validation)}</td>
+                            <td>{joursAppr!==null?<span style={{fontSize:12,fontWeight:600,color:joursAppr<=7?'#1D9E75':joursAppr<=14?'#EF9F27':'#E24B4A'}}>{joursAppr}j</span>:'—'}</td>
+                            <td><span style={{fontSize:12,fontWeight:600,color:'#1D9E75'}}>+{v.type_validation==='hizb_complet'?100:v.nombre_tomon*10}</span></td>
+                            <td style={{fontSize:12,color:'#888'}}>{v.valideur?(v.valideur.prenom+' '+v.valideur.nom):'—'}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody></table>
+                  </div>
+                )
+              }
+            </div>
           )}
         </>
       )}
-    </div>
-      {/* ── Modal Passage de Niveau ── */}
+      {/* -- Modal Passage de Niveau -- */}
       {showPassageModal&&(
         <div style={{position:'fixed',top:0,left:0,right:0,bottom:0,background:'rgba(0,0,0,0.5)',zIndex:1000,display:'flex',alignItems:'center',justifyContent:'center',padding:'1rem'}} onClick={()=>setShowPassageModal(false)}>
           <div style={{background:'#fff',borderRadius:16,padding:'1.5rem',maxWidth:500,width:'100%'}} onClick={e=>e.stopPropagation()}>
