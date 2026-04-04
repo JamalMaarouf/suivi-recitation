@@ -26,6 +26,13 @@ import { setSouratesDB } from './lib/sourates';
 import { supabase } from './lib/supabase';
 import './App.css';
 
+// PWA Install prompt
+let deferredPrompt = null;
+window.addEventListener('beforeinstallprompt', (e) => {
+  e.preventDefault();
+  deferredPrompt = e;
+});
+
 class ErrorBoundary extends React.Component {
   constructor(props) { super(props); this.state = { error: null }; }
   static getDerivedStateFromError(error) { return { error }; }
@@ -59,6 +66,20 @@ export const LangContext = React.createContext({ lang: 'fr', setLang: () => {} }
 export default function App() {
   const [user, setUser] = useState(null);
   const [showInscription, setShowInscription] = useState(false);
+  const [showInstallBtn, setShowInstallBtn] = useState(false);
+
+  useEffect(() => {
+    const checkInstall = () => setShowInstallBtn(!!deferredPrompt);
+    checkInstall();
+    window.addEventListener('appinstalled', () => setShowInstallBtn(false));
+  }, []);
+
+  const handleInstall = async () => {
+    if (!deferredPrompt) return;
+    deferredPrompt.prompt();
+    const { outcome } = await deferredPrompt.userChoice;
+    if (outcome === 'accepted') { deferredPrompt = null; setShowInstallBtn(false); }
+  };
   const [page, setPage] = useState('dashboard');
   const pageRef = React.useRef('dashboard');
   const setPageWithRef = (p) => { pageRef.current = p; setPage(p); };
@@ -189,6 +210,12 @@ export default function App() {
                   {b.label}
                 </button>
               ))}
+              {showInstallBtn && (
+                <button onClick={handleInstall} className="nav-btn"
+                  style={{background:'#E1F5EE',color:'#085041',border:'1px solid #1D9E7540'}}>
+                  📲 {lang==='ar'?'تثبيت التطبيق':lang==='en'?'Install App':'Installer l'app'}
+                </button>
+              )}
               <button className="nav-btn nav-btn-logout" onClick={handleLogout}>{t(lang, 'deconnexion')}</button>
             </div>
           </nav>
