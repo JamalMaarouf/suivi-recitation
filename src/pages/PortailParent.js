@@ -136,6 +136,10 @@ export default function PortailParent({ parent, navigate, goBack, lang='fr', onL
           {lang==='ar'?'مرحباً':lang==='en'?'Welcome':'Bonjour'}, <strong>{parent.prenom} {parent.nom}</strong>
         </div>
         <div style={{fontSize:11,opacity:0.7}}>متابعة التحفيظ</div>
+        <button onClick={onLogout}
+          style={{marginTop:10,padding:'6px 16px',background:'rgba(255,255,255,0.2)',color:'#fff',border:'1px solid rgba(255,255,255,0.4)',borderRadius:8,fontSize:12,fontWeight:600,cursor:'pointer',display:'inline-flex',alignItems:'center',gap:6}}>
+          🚪 {lang==='ar'?'تسجيل الخروج':'Déconnexion'}
+        </button>
       </div>
 
       {/* Sélecteur enfant (si plusieurs) */}
