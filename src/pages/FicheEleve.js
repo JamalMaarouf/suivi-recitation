@@ -743,7 +743,6 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang='fr' })
         </>
       )}
     </div>
-
       {/* ── Modal Passage de Niveau ── */}
       {showPassageModal&&(
         <div style={{position:'fixed',top:0,left:0,right:0,bottom:0,background:'rgba(0,0,0,0.5)',zIndex:1000,display:'flex',alignItems:'center',justifyContent:'center',padding:'1rem'}} onClick={()=>setShowPassageModal(false)}>
@@ -751,8 +750,6 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang='fr' })
             <div style={{fontSize:16,fontWeight:700,color:'#534AB7',marginBottom:'1rem'}}>
               🎓 {lang==='ar'?'تغيير مستوى الطالب':'Passage de niveau'}
             </div>
-
-            {/* Récap acquis actuels */}
             <div style={{background:'#F0EEFF',borderRadius:10,padding:'12px',marginBottom:'1rem',fontSize:13}}>
               <div style={{fontWeight:600,color:'#534AB7',marginBottom:8}}>
                 {lang==='ar'?'الاكتسابات الحالية (سيتم حفظها):':'Acquis actuels (seront archivés) :'}
@@ -760,17 +757,13 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang='fr' })
               <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:6}}>
                 <div style={{color:'#555'}}>{lang==='ar'?'المستوى الحالي:':'Niveau actuel :'} <strong>{eleve.code_niveau}</strong></div>
                 <div style={{color:'#555'}}>{lang==='ar'?'النقاط:':'Points :'} <strong>{etat?.points?.total||0}</strong></div>
-                <div style={{color:'#555'}}>{lang==='ar'?'الأثمان المكتسبة:':'Tomon :'} <strong>{etat?.tomonCumul||0}</strong></div>
-                <div style={{color:'#555'}}>{lang==='ar'?'الأحزاب الكاملة:':'Hizb complets :'} <strong>{etat?.hizbsComplets?.size||0}</strong></div>
+                <div style={{color:'#555'}}>{lang==='ar'?'الأثمان:':'Tomon :'} <strong>{etat?.tomonCumul||0}</strong></div>
+                <div style={{color:'#555'}}>{lang==='ar'?'الأحزاب:':'Hizb complets :'} <strong>{etat?.hizbsComplets?.size||0}</strong></div>
               </div>
             </div>
-
-            {/* Avertissement reset */}
             <div style={{background:'#FCEBEB',borderRadius:10,padding:'10px 12px',marginBottom:'1rem',fontSize:12,color:'#E24B4A'}}>
-              ⚠️ {lang==='ar'?'سيتم إعادة تعيين المُقدِّمات والأثمان والأحزاب إلى الصفر. هذا الإجراء لا يمكن التراجع عنه.':'Les acquis (tomon, hizb, sourates) seront remis à zéro. Action irréversible.'}
+              ⚠️ {lang==='ar'?'سيتم إعادة تعيين الاكتسابات إلى الصفر. هذا الإجراء لا يمكن التراجع عنه.':'Les acquis seront remis à zéro. Action irréversible.'}
             </div>
-
-            {/* Choix nouveau niveau */}
             <div className="field-group" style={{marginBottom:'1rem'}}>
               <label className="field-lbl">{lang==='ar'?'المستوى الجديد:':'Nouveau niveau :'}</label>
               <select className="field-select" value={nouveauNiveau} onChange={e=>setNouveauNiveau(e.target.value)}>
@@ -780,14 +773,11 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang='fr' })
                 ))}
               </select>
             </div>
-
-            {/* Note */}
             <div className="field-group" style={{marginBottom:'1.2rem'}}>
               <label className="field-lbl">{lang==='ar'?'ملاحظة (اختياري):':'Note (optionnelle) :'}</label>
               <input className="field-input" value={notePassage} onChange={e=>setNotePassage(e.target.value)}
                 placeholder={lang==='ar'?'سبب الانتقال...':'Raison du passage...'}/>
             </div>
-
             <div style={{display:'flex',gap:10}}>
               <button onClick={()=>setShowPassageModal(false)} className="back-link">
                 {lang==='ar'?'إلغاء':'Annuler'}
@@ -800,5 +790,6 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang='fr' })
           </div>
         </div>
       )}
+    </div>
   );
 }
