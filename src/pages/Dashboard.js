@@ -4,6 +4,11 @@ import { calcEtatEleve, niveauTraduit, calcStats, formatDate, formatDateCourt, i
 import { t } from '../lib/i18n';
 
 const C = { green:'#1D9E75',greenBg:'#E1F5EE',blue:'#378ADD',blueBg:'#E6F1FB',amber:'#EF9F27',amberBg:'#FAEEDA',red:'#E24B4A',redBg:'#FCEBEB',border:'#e0e0d8',muted:'#888',dark:'#1a1a1a' };
+const NIVEAU_COLORS = { '5B':'#534AB7','5A':'#378ADD','2M':'#1D9E75','2':'#EF9F27','1':'#E24B4A' };
+function NiveauBadge({ code }) {
+  const c = NIVEAU_COLORS[code||''] || '#888';
+  return code ? <span style={{padding:'1px 6px',borderRadius:10,fontSize:9,fontWeight:700,background:c+'18',color:c,border:`0.5px solid ${c}40`}}>{code}</span> : null;
+}
 
 function Avatar({ prenom, nom, size=36, bg=C.greenBg, color='#085041' }) {
   return <div style={{width:size,height:size,borderRadius:'50%',background:bg,color,display:'flex',alignItems:'center',justifyContent:'center',fontWeight:600,fontSize:size*0.33,flexShrink:0}}>{getInitiales(prenom,nom)}</div>;
@@ -371,7 +376,10 @@ export default function Dashboard({ user, navigate, goBack, lang='fr' }) {
                         <div style={{display:'flex',alignItems:'center',gap:10}}>
                           <Avatar prenom={eleve.prenom} nom={eleve.nom} size={42} bg={sl.bg} color={sl.color}/>
                           <div>
-                            <div style={{fontSize:14,fontWeight:600}}>{eleve.prenom} {eleve.nom}</div>
+                            <div style={{display:'flex',alignItems:'center',gap:5,flexWrap:'wrap'}}>
+                              <div style={{fontSize:14,fontWeight:600}}>{eleve.prenom} {eleve.nom}</div>
+                              <NiveauBadge code={eleve.code_niveau}/>
+                            </div>
                             <div style={{fontSize:11,color:C.muted}}>{eleve.instituteurNom}</div>
                             <span style={{padding:'1px 8px',borderRadius:20,fontSize:10,fontWeight:500,background:sl.bg,color:sl.color}}>{sl.label}</span>
                           </div>
@@ -384,7 +392,6 @@ export default function Dashboard({ user, navigate, goBack, lang='fr' }) {
                       </div>
                       {['5B','5A','2M'].includes(eleve.code_niveau||'') ? (
                 <div style={{fontSize:11,color:C.muted,marginBottom:6}}>
-                  <span style={{padding:'1px 6px',borderRadius:10,fontSize:10,fontWeight:700,background:'#534AB7',color:'#fff',marginRight:4}}>{eleve.code_niveau}</span>
                   {lang==='ar'?'سور':lang==='en'?'Surahs':'Sourates'}
                 </div>
               ) : (
