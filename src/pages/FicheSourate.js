@@ -25,6 +25,10 @@ export default function FicheSourate({ eleve, user, navigate, goBack, lang='fr' 
   const [selectedSourate, setSelectedSourate] = useState(null);
 
   const [showAcquis, setShowAcquis] = useState(false);
+  const [showPassageModal, setShowPassageModal] = useState(false);
+  const [nouveauNiveau, setNouveauNiveau] = useState('');
+  const [notePassage, setNotePassage] = useState('');
+  const [savingPassage, setSavingPassage] = useState(false);
   const codeNiveau = eleve.code_niveau || '5B';
   const souratesNiveau = getSouratesForNiveau(codeNiveau);
   // Order: 114 → 72 (start from shortest)
@@ -149,11 +153,50 @@ export default function FicheSourate({ eleve, user, navigate, goBack, lang='fr' 
     </div>
   );
 
+  const NIVEAUX_ORDRE = ['5B','5A','2M','2','1'];
+  const NIVEAUX_LABELS = {'5B':'Préscolaire (5B)','5A':'Primaire 1-2 (5A)','2M':'Primaire 3-4 (2M)','2':'Primaire 5-6 (2)','1':'Collège/Lycée (1)'};
+  const niveauxDisponibles = NIVEAUX_ORDRE.filter(n=>n!==eleve.code_niveau);
+
+  const handlePassageNiveau = async () => {
+    if (!nouveauNiveau) return;
+    setSavingPassage(true);
+    try {
+      const acquis = {
+        eleve_id: eleve.id,
+        niveau_from: eleve.code_niveau,
+        niveau_to: nouveauNiveau,
+        valide_par: user.id,
+        acquis_sourates: parseInt(eleve.sourates_acquises)||0,
+        acquis_points: 0,
+        note: notePassage||null,
+        date_passage: new Date().toISOString(),
+      };
+      const { error: errPassage } = await supabase.from('passages_niveau').insert(acquis);
+      if (errPassage) throw errPassage;
+      const resetData = { code_niveau: nouveauNiveau, sourates_acquises: 0 };
+      const { error: errEleve } = await supabase.from('eleves').update(resetData).eq('id', eleve.id);
+      if (errEleve) throw errEleve;
+      setShowPassageModal(false);
+      setNouveauNiveau('');
+      setNotePassage('');
+      navigate('dashboard');
+    } catch(err) {
+      alert(lang==='ar'?'خطأ في تغيير المستوى: '+err.message:'Erreur passage niveau: '+err.message);
+    }
+    setSavingPassage(false);
+  };
+
   return (
     <div>
       <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'1.25rem',flexWrap:'wrap',gap:8}}>
         <button className="back-link" onClick={()=>goBack?goBack():navigate('dashboard')}>{t(lang,'retour')}</button>
         <div style={{display:'flex',gap:8}}>
+          {user.role==='surveillant'&&(
+            <button onClick={()=>{setNouveauNiveau('');setNotePassage('');setShowPassageModal(true);}}
+              style={{padding:'6px 14px',fontSize:12,background:'#534AB7',color:'#fff',border:'none',borderRadius:8,cursor:'pointer',fontWeight:600,fontFamily:'inherit'}}>
+              🎓 {lang==='ar'?'تغيير المستوى':'Changer niveau'}
+            </button>
+          )}
           <button className="btn-secondary" onClick={handlePrint} style={{fontSize:12,padding:'6px 14px'}}>{t(lang,'imprimer_pdf')}</button>
           <button className="btn-primary" style={{width:'auto',padding:'6px 14px',fontSize:12}} onClick={() => navigate('enregistrer', eleve)}>
             {lang==='ar'?'+ استظهار':lang==='en'?'+ Recitation':'+ Récitation'}
@@ -441,6 +484,52 @@ export default function FicheSourate({ eleve, user, navigate, goBack, lang='fr' 
             </div>
           )}
         </>
+      )}
+
+      {/* -- Modal Passage de Niveau -- */}
+      {showPassageModal&&(
+        <div style={{position:'fixed',top:0,left:0,right:0,bottom:0,background:'rgba(0,0,0,0.5)',zIndex:1000,display:'flex',alignItems:'center',justifyContent:'center',padding:'1rem'}} onClick={()=>setShowPassageModal(false)}>
+          <div style={{background:'#fff',borderRadius:16,padding:'1.5rem',maxWidth:500,width:'100%'}} onClick={e=>e.stopPropagation()}>
+            <div style={{fontSize:16,fontWeight:700,color:'#534AB7',marginBottom:'1rem'}}>
+              🎓 {lang==='ar'?'تغيير مستوى الطالب':'Passage de niveau'}
+            </div>
+            <div style={{background:'#F0EEFF',borderRadius:10,padding:'12px',marginBottom:'1rem',fontSize:13}}>
+              <div style={{fontWeight:600,color:'#534AB7',marginBottom:8}}>
+                {lang==='ar'?'الاكتسابات الحالية:':'Acquis actuels (seront archivés) :'}
+              </div>
+              <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:6}}>
+                <div style={{color:'#555'}}>{lang==='ar'?'المستوى الحالي:':'Niveau actuel :'} <strong>{eleve.code_niveau}</strong></div>
+                <div style={{color:'#555'}}>{lang==='ar'?'السور المكتسبة:':'Sourates acquises :'} <strong>{eleve.sourates_acquises||0}</strong></div>
+              </div>
+            </div>
+            <div style={{background:'#FCEBEB',borderRadius:10,padding:'10px 12px',marginBottom:'1rem',fontSize:12,color:'#E24B4A'}}>
+              ⚠️ {lang==='ar'?'سيتم إعادة تعيين الاكتسابات إلى الصفر. هذا الإجراء لا يمكن التراجع عنه.':'Les acquis seront remis à zéro. Action irréversible.'}
+            </div>
+            <div style={{marginBottom:'1rem'}}>
+              <label style={{fontSize:13,fontWeight:600,color:'#444',display:'block',marginBottom:6}}>{lang==='ar'?'المستوى الجديد:':'Nouveau niveau :'}</label>
+              <select style={{width:'100%',padding:'8px 12px',borderRadius:8,border:'1px solid #ddd',fontSize:13}} value={nouveauNiveau} onChange={e=>setNouveauNiveau(e.target.value)}>
+                <option value="">{lang==='ar'?'-- اختر المستوى --':'-- Choisir le niveau --'}</option>
+                {niveauxDisponibles.map(n=>(
+                  <option key={n} value={n}>{NIVEAUX_LABELS[n]||n}</option>
+                ))}
+              </select>
+            </div>
+            <div style={{marginBottom:'1.2rem'}}>
+              <label style={{fontSize:13,fontWeight:600,color:'#444',display:'block',marginBottom:6}}>{lang==='ar'?'ملاحظة (اختياري):':'Note (optionnelle) :'}</label>
+              <input style={{width:'100%',padding:'8px 12px',borderRadius:8,border:'1px solid #ddd',fontSize:13,boxSizing:'border-box'}} value={notePassage} onChange={e=>setNotePassage(e.target.value)}
+                placeholder={lang==='ar'?'سبب الانتقال...':'Raison du passage...'}/>
+            </div>
+            <div style={{display:'flex',gap:10}}>
+              <button onClick={()=>setShowPassageModal(false)} className="back-link">
+                {lang==='ar'?'إلغاء':'Annuler'}
+              </button>
+              <button onClick={handlePassageNiveau} disabled={!nouveauNiveau||savingPassage}
+                style={{flex:1,padding:'10px',background:nouveauNiveau&&!savingPassage?'#534AB7':'#ccc',color:'#fff',border:'none',borderRadius:10,fontWeight:700,cursor:nouveauNiveau?'pointer':'default'}}>
+                {savingPassage?'...':(lang==='ar'?'تأكيد الانتقال':'Confirmer le passage')}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

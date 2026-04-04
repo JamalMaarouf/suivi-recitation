@@ -102,6 +102,54 @@ function ExceptionHizbModal({ etat, eleve, user, onConfirm, onCancel, lang }) {
   );
 }
 
+
+function PassageNiveauModal({ show, onClose, eleve, etat, user, lang, niveauxDisponibles, NIVEAUX_LABELS, nouveauNiveau, setNouveauNiveau, notePassage, setNotePassage, onConfirm, saving }) {
+  if (!show) return null;
+  return (
+    <div style={{position:'fixed',top:0,left:0,right:0,bottom:0,background:'rgba(0,0,0,0.5)',zIndex:1000,display:'flex',alignItems:'center',justifyContent:'center',padding:'1rem'}} onClick={onClose}>
+      <div style={{background:'#fff',borderRadius:16,padding:'1.5rem',maxWidth:500,width:'100%'}} onClick={e=>e.stopPropagation()}>
+        <div style={{fontSize:16,fontWeight:700,color:'#534AB7',marginBottom:'1rem'}}>
+          {lang==='ar'?'\u062a\u063a\u064a\u064a\u0631 \u0645\u0633\u062a\u0648\u0649 \u0627\u0644\u0637\u0627\u0644\u0628':'\ud83c\udf93 Passage de niveau'}
+        </div>
+        <div style={{background:'#F0EEFF',borderRadius:10,padding:'12px',marginBottom:'1rem',fontSize:13}}>
+          <div style={{fontWeight:600,color:'#534AB7',marginBottom:8}}>
+            {lang==='ar'?'\u0627\u0644\u0627\u0643\u062a\u0633\u0627\u0628\u0627\u062a \u0627\u0644\u062d\u0627\u0644\u064a\u0629 (\u0633\u064a\u062a\u0645 \u062d\u0641\u0638\u0647\u0627):':'Acquis actuels (seront archiv\u00e9s) :'}
+          </div>
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:6}}>
+            <div style={{color:'#555'}}>{lang==='ar'?'\u0627\u0644\u0645\u0633\u062a\u0648\u0649:':'Niveau :'} <strong>{eleve.code_niveau}</strong></div>
+            <div style={{color:'#555'}}>Pts: <strong>{etat&&etat.points?etat.points.total:0}</strong></div>
+            <div style={{color:'#555'}}>Tomon: <strong>{etat?etat.tomonCumul||0:0}</strong></div>
+            <div style={{color:'#555'}}>Hizb: <strong>{etat&&etat.hizbsComplets?etat.hizbsComplets.size:0}</strong></div>
+          </div>
+        </div>
+        <div style={{background:'#FCEBEB',borderRadius:10,padding:'10px 12px',marginBottom:'1rem',fontSize:12,color:'#E24B4A'}}>
+          {lang==='ar'?'\u26a0\ufe0f \u0633\u064a\u062a\u0645 \u0625\u0639\u0627\u062f\u0629 \u062a\u0639\u064a\u064a\u0646 \u0627\u0644\u0627\u0643\u062a\u0633\u0627\u0628\u0627\u062a \u0625\u0644\u0649 \u0627\u0644\u0635\u0641\u0631. \u0644\u0627 \u064a\u0645\u0643\u0646 \u0627\u0644\u062a\u0631\u0627\u062c\u0639.':'\u26a0\ufe0f Les acquis seront remis \u00e0 z\u00e9ro. Action irr\u00e9versible.'}
+        </div>
+        <div className="field-group" style={{marginBottom:'1rem'}}>
+          <label className="field-lbl">{lang==='ar'?'\u0627\u0644\u0645\u0633\u062a\u0648\u0649 \u0627\u0644\u062c\u062f\u064a\u062f:':'Nouveau niveau :'}</label>
+          <select className="field-select" value={nouveauNiveau} onChange={e=>setNouveauNiveau(e.target.value)}>
+            <option value="">{lang==='ar'?'\u2014 \u0627\u062e\u062a\u0631 \u0627\u0644\u0645\u0633\u062a\u0648\u0649 \u2014':'\u2014 Choisir le niveau \u2014'}</option>
+            {niveauxDisponibles.map(n=>(
+              <option key={n} value={n}>{NIVEAUX_LABELS[n]||n}</option>
+            ))}
+          </select>
+        </div>
+        <div className="field-group" style={{marginBottom:'1.2rem'}}>
+          <label className="field-lbl">{lang==='ar'?'\u0645\u0644\u0627\u062d\u0638\u0629:':'Note (optionnelle) :'}</label>
+          <input className="field-input" value={notePassage} onChange={e=>setNotePassage(e.target.value)} placeholder={lang==='ar'?'\u0633\u0628\u0628 \u0627\u0644\u0627\u0646\u062a\u0642\u0627\u0644...':'Raison du passage...'}/>
+        </div>
+        <div style={{display:'flex',gap:10}}>
+          <button onClick={onClose} className="back-link">{lang==='ar'?'\u0625\u0644\u063a\u0627\u0621':'Annuler'}</button>
+          <button onClick={onConfirm} disabled={!nouveauNiveau||saving}
+            style={{flex:1,padding:'10px',background:nouveauNiveau&&!saving?'#534AB7':'#ccc',color:'#fff',border:'none',borderRadius:10,fontWeight:700,cursor:nouveauNiveau?'pointer':'default'}}>
+            {saving?'...':(lang==='ar'?'\u2713 \u062a\u0623\u0643\u064a\u062f \u0627\u0644\u0627\u0646\u062a\u0642\u0627\u0644':'\u2713 Confirmer le passage')}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function FicheEleve({ eleve, user, navigate, goBack, lang='fr' }) {
   const [validations, setValidations] = useState([]);
   const [apprentissages, setApprentissages] = useState([]);
@@ -743,53 +791,22 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang='fr' })
           )}
         </>
       )}
-      {/* -- Modal Passage de Niveau -- */}
-      {showPassageModal&&(
-        <div style={{position:'fixed',top:0,left:0,right:0,bottom:0,background:'rgba(0,0,0,0.5)',zIndex:1000,display:'flex',alignItems:'center',justifyContent:'center',padding:'1rem'}} onClick={()=>setShowPassageModal(false)}>
-          <div style={{background:'#fff',borderRadius:16,padding:'1.5rem',maxWidth:500,width:'100%'}} onClick={e=>e.stopPropagation()}>
-            <div style={{fontSize:16,fontWeight:700,color:'#534AB7',marginBottom:'1rem'}}>
-              🎓 {lang==='ar'?'تغيير مستوى الطالب':'Passage de niveau'}
-            </div>
-            <div style={{background:'#F0EEFF',borderRadius:10,padding:'12px',marginBottom:'1rem',fontSize:13}}>
-              <div style={{fontWeight:600,color:'#534AB7',marginBottom:8}}>
-                {lang==='ar'?'الاكتسابات الحالية (سيتم حفظها):':'Acquis actuels (seront archivés) :'}
-              </div>
-              <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:6}}>
-                <div style={{color:'#555'}}>{lang==='ar'?'المستوى الحالي:':'Niveau actuel :'} <strong>{eleve.code_niveau}</strong></div>
-                <div style={{color:'#555'}}>{lang==='ar'?'النقاط:':'Points :'} <strong>{etat?.points?.total||0}</strong></div>
-                <div style={{color:'#555'}}>{lang==='ar'?'الأثمان:':'Tomon :'} <strong>{etat?.tomonCumul||0}</strong></div>
-                <div style={{color:'#555'}}>{lang==='ar'?'الأحزاب:':'Hizb complets :'} <strong>{etat?.hizbsComplets?.size||0}</strong></div>
-              </div>
-            </div>
-            <div style={{background:'#FCEBEB',borderRadius:10,padding:'10px 12px',marginBottom:'1rem',fontSize:12,color:'#E24B4A'}}>
-              ⚠️ {lang==='ar'?'سيتم إعادة تعيين الاكتسابات إلى الصفر. هذا الإجراء لا يمكن التراجع عنه.':'Les acquis seront remis à zéro. Action irréversible.'}
-            </div>
-            <div className="field-group" style={{marginBottom:'1rem'}}>
-              <label className="field-lbl">{lang==='ar'?'المستوى الجديد:':'Nouveau niveau :'}</label>
-              <select className="field-select" value={nouveauNiveau} onChange={e=>setNouveauNiveau(e.target.value)}>
-                <option value="">{lang==='ar'?'— اختر المستوى —':'— Choisir le niveau —'}</option>
-                {niveauxDisponibles.map(n=>(
-                  <option key={n} value={n}>{NIVEAUX_LABELS[n]||n}</option>
-                ))}
-              </select>
-            </div>
-            <div className="field-group" style={{marginBottom:'1.2rem'}}>
-              <label className="field-lbl">{lang==='ar'?'ملاحظة (اختياري):':'Note (optionnelle) :'}</label>
-              <input className="field-input" value={notePassage} onChange={e=>setNotePassage(e.target.value)}
-                placeholder={lang==='ar'?'سبب الانتقال...':'Raison du passage...'}/>
-            </div>
-            <div style={{display:'flex',gap:10}}>
-              <button onClick={()=>setShowPassageModal(false)} className="back-link">
-                {lang==='ar'?'إلغاء':'Annuler'}
-              </button>
-              <button onClick={handlePassageNiveau} disabled={!nouveauNiveau||savingPassage}
-                style={{flex:1,padding:'10px',background:nouveauNiveau&&!savingPassage?'#534AB7':'#ccc',color:'#fff',border:'none',borderRadius:10,fontWeight:700,cursor:nouveauNiveau?'pointer':'default'}}>
-                {savingPassage?'...':(lang==='ar'?'✓ تأكيد الانتقال':'✓ Confirmer le passage')}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <PassageNiveauModal
+        show={showPassageModal}
+        onClose={()=>setShowPassageModal(false)}
+        eleve={eleve}
+        etat={etat}
+        user={user}
+        lang={lang}
+        niveauxDisponibles={niveauxDisponibles}
+        NIVEAUX_LABELS={NIVEAUX_LABELS}
+        nouveauNiveau={nouveauNiveau}
+        setNouveauNiveau={setNouveauNiveau}
+        notePassage={notePassage}
+        setNotePassage={setNotePassage}
+        onConfirm={handlePassageNiveau}
+        saving={savingPassage}
+      />
     </div>
   );
 }
