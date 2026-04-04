@@ -171,8 +171,8 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr' }) {
     const { data: i } = await supabase.from('utilisateurs').select('*').eq('role', 'instituteur').order('nom');
     setEleves(e || []);
     setInstituteurs(i || []);
-    const { data: pd } = await supabase.from('parents').select('*, liens:parent_eleve(eleve_id, eleve:eleve_id(prenom,nom)
-        .eq('ecole_id', user.ecole_id))').order('nom');
+    const { data: pd } = await supabase.from('parents').select('*, liens:parent_eleve(eleve_id, eleve:eleve_id(prenom,nom))')
+        .eq('ecole_id', user.ecole_id).order('nom');
     setParents(pd||[]);
     setLoading(false);
   };
@@ -839,8 +839,8 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr' }) {
                 setShowFormParent(false);
                 setEditingParentId(null);
                 setFormParent({prenom:'',nom:'',identifiant:'',mot_de_passe:'',telephone:'',eleve_ids:[],searchEleve:''});
-                const {data:pd2}=await supabase.from('parents').select('*, liens:parent_eleve(eleve_id, eleve:eleve_id(prenom,nom)
-        .eq('ecole_id', user.ecole_id))').order('nom');
+                const {data:pd2}=await supabase.from('parents').select('*, liens:parent_eleve(eleve_id, eleve:eleve_id(prenom,nom))')
+        .eq('ecole_id', user.ecole_id).order('nom');
                 setParents(pd2||[]);
               }}>
                 {editingParentId?('✓ '+(lang==='ar'?'تحديث':'Mettre à jour')):('✓ '+(lang==='ar'?'إضافة':'Ajouter'))}

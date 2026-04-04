@@ -20,8 +20,8 @@ export default function Calendrier({ user, navigate, goBack, lang='fr' }) {
 
   const loadData = async () => {
     setLoading(true);
-    const { data: vd } = await supabase.from('validations').select('*, valideur:valide_par(prenom,nom)
-        .eq('ecole_id', user.ecole_id)').order('date_validation',{ascending:false});
+    const { data: vd } = await supabase.from('validations').select('*, valideur:valide_par(prenom,nom)')
+        .eq('ecole_id', user.ecole_id).order('date_validation',{ascending:false});
     const { data: ed } = await supabase.from('eleves').select('*')
         .eq('ecole_id', user.ecole_id);
     setValidations(vd||[]); setEleves(ed||[]); setLoading(false);

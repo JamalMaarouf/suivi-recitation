@@ -64,8 +64,8 @@ export default function Dashboard({ user, navigate, goBack, lang='fr' }) {
       supabase.from('eleves').select('*')
         .eq('ecole_id', user.ecole_id).order('nom'),
       supabase.from('utilisateurs').select('*').eq('role','instituteur'),
-      supabase.from('validations').select('*, valideur:valide_par(prenom,nom)
-        .eq('ecole_id', user.ecole_id)').order('date_validation',{ascending:false})
+      supabase.from('validations').select('*, valideur:valide_par(prenom,nom)')
+        .eq('ecole_id', user.ecole_id).order('date_validation',{ascending:false})
     ]);
     const elevesData = (ed||[]).map(eleve => {
       const vals = (vd||[]).filter(v=>v.eleve_id===eleve.id);

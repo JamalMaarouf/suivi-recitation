@@ -100,8 +100,8 @@ export default function RecitationSourate({ user, eleve, navigate, goBack, lang=
     setLoading(true);
     const [{ data: sdb }, { data: rd }] = await Promise.all([
       supabase.from('sourates').select('*'),
-      supabase.from('recitations_sourates').select('*, valideur:valide_par(prenom,nom)
-        .eq('ecole_id', user.ecole_id)').eq('eleve_id', eleve.id).order('date_validation', { ascending: false }),
+      supabase.from('recitations_sourates').select('*, valideur:valide_par(prenom,nom)')
+        .eq('ecole_id', user.ecole_id).eq('eleve_id', eleve.id).order('date_validation', { ascending: false }),
     ]);
     // Safe load for exceptions (table may not exist)
     let ex = [];

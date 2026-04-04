@@ -39,13 +39,13 @@ export default function FicheSourate({ eleve, user, navigate, goBack, lang='fr' 
   const loadData = async () => {
     setLoading(true);
     const [{ data: rd }, { data: sdb }, { data: mrec }, { data: mval }] = await Promise.all([
-      supabase.from('recitations_sourates').select('*, valideur:valide_par(prenom,nom)
-        .eq('ecole_id', user.ecole_id)').eq('eleve_id', eleve.id).eq('is_muraja', false).order('date_validation', {ascending:false}),
+      supabase.from('recitations_sourates').select('*, valideur:valide_par(prenom,nom)')
+        .eq('ecole_id', user.ecole_id).eq('eleve_id', eleve.id).eq('is_muraja', false).order('date_validation', {ascending:false}),
       supabase.from('sourates').select('*'),
-      supabase.from('recitations_sourates').select('*, sourate:sourate_id(nom_ar,numero)
-        .eq('ecole_id', user.ecole_id), valideur:valide_par(prenom,nom)').eq('eleve_id', eleve.id).eq('is_muraja', true).order('date_validation', {ascending:false}),
-      supabase.from('validations').select('*, valideur:valide_par(prenom,nom)
-        .eq('ecole_id', user.ecole_id)').eq('eleve_id', eleve.id).in('type_validation',['tomon_muraja','hizb_muraja']).order('date_validation', {ascending:false}),
+      supabase.from('recitations_sourates').select('*, sourate:sourate_id(nom_ar,numero), valideur:valide_par(prenom,nom)')
+        .eq('ecole_id', user.ecole_id).eq('eleve_id', eleve.id).eq('is_muraja', true).order('date_validation', {ascending:false}),
+      supabase.from('validations').select('*, valideur:valide_par(prenom,nom)')
+        .eq('ecole_id', user.ecole_id).eq('eleve_id', eleve.id).in('type_validation',['tomon_muraja','hizb_muraja']).order('date_validation', {ascending:false}),
     ]);
     if (eleve.instituteur_referent_id) {
       const { data: inst } = await supabase.from('utilisateurs').select('prenom,nom').eq('id', eleve.instituteur_referent_id).single();
