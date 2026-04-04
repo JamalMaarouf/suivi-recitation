@@ -113,7 +113,12 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang='fr' })
   const [showAcquis, setShowAcquis] = useState(false);
   const [exceptionsHizb, setExceptionsHizb] = useState([]);
   const [murajaa, setMurajaa] = useState([]);
-  const [murajaaS, setMurajaaS] = useState([]); // sourate muraja'a
+  const [murajaaS, setMurajaaS] = useState([]);
+  const [passages, setPassages] = useState([]);
+  const [showPassageModal, setShowPassageModal] = useState(false);
+  const [nouveauNiveau, setNouveauNiveau] = useState('');
+  const [notePassage, setNotePassage] = useState('');
+  const [savingPassage, setSavingPassage] = useState(false); // sourate muraja'a
   const [showExceptionModal, setShowExceptionModal] = useState(false);
   const now = new Date();
   const [selectedMoisObj, setSelectedMoisObj] = useState(now.getMonth());
@@ -130,9 +135,10 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang='fr' })
         supabase.from('exceptions_hizb').select('*').eq('eleve_id',eleve.id).eq('active',true),
         supabase.from('validations').select('*, valideur:valide_par(prenom,nom)').eq('eleve_id',eleve.id).in('type_validation',['tomon_muraja','hizb_muraja']).order('date_validation',{ascending:false}),
         supabase.from('recitations_sourates').select('*, sourate:sourate_id(nom_ar,numero), valideur:valide_par(prenom,nom)').eq('eleve_id',eleve.id).eq('is_muraja',true).order('date_validation',{ascending:false}),
+        supabase.from('passages_niveau').select('*, valide_par_u:valide_par(prenom,nom)').eq('eleve_id',eleve.id).order('date_passage',{ascending:false}),
       ]);
-      const [r0,r1,r2,r3,r4] = results.map(r=>r.status==='fulfilled'?r.value:{data:[]});
-      const vals=r0.data||[], appr=r1.data||[], exhizb=r2.data||[], mval=r3.data||[], mrec=r4.data||[];
+      const [r0,r1,r2,r3,r4,r5] = results.map(r=>r.status==='fulfilled'?r.value:{data:[]});
+      const vals=r0.data||[], appr=r1.data||[], exhizb=r2.data||[], mval=r3.data||[], mrec=r4.data||[], passData=r5.data||[];
       if (eleve.instituteur_referent_id) {
         const {data:inst}=await supabase.from('utilisateurs').select('prenom,nom').eq('id',eleve.instituteur_referent_id).single();
         if(inst) setInstituteurNom(inst.prenom+' '+inst.nom);
@@ -144,6 +150,7 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang='fr' })
       setExceptionsHizb(exhizb||[]);
       setMurajaa(mval||[]);
       setMurajaaS(mrec||[]);
+      setPassages(passData||[]);
     } catch(err) {
       console.error('FicheEleve loadData error:', err);
       // Set minimal etat so page renders
@@ -244,6 +251,56 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang='fr' })
   const pctColor=(p)=>p>=100?'#1D9E75':p>=60?'#EF9F27':'#E24B4A';
 
   // Redirect 5B/5A AFTER all hooks are declared (React rules of hooks)
+  // ── Passage de niveau ──
+  const NIVEAUX_ORDRE = ['5B','5A','2M','2','1'];
+  const NIVEAUX_LABELS = {'5B':'Préscolaire (5B)','5A':'Primaire 1-2 (5A)','2M':'Primaire 3-4 (2M)','2':'Primaire 5-6 (2)','1':'Collège/Lycée (1)'};
+  const niveauActuelIdx = NIVEAUX_ORDRE.indexOf(eleve.code_niveau||'1');
+  const niveauxDisponibles = NIVEAUX_ORDRE.filter(n=>n!==eleve.code_niveau);
+
+  const handlePassageNiveau = async () => {
+    if (!nouveauNiveau) return;
+    setSavingPassage(true);
+    try {
+      // 1. Archive acquis
+      const acquis = {
+        eleve_id: eleve.id,
+        niveau_from: eleve.code_niveau,
+        niveau_to: nouveauNiveau,
+        valide_par: user.id,
+        acquis_tomon: etat.tomonCumul||0,
+        acquis_hizb: etat.hizbsComplets?.size||0,
+        acquis_sourates: parseInt(eleve.sourates_acquises)||0,
+        acquis_points: etat.points?.total||0,
+        note: notePassage||null,
+        date_passage: new Date().toISOString(),
+      };
+      const { error: errPassage } = await supabase.from('passages_niveau').insert(acquis);
+      if (errPassage) throw errPassage;
+
+      // 2. Reset eleve: nouveau niveau, hizb/tomon à 1, sourates à 0
+      const resetData = {
+        code_niveau: nouveauNiveau,
+        hizb_depart: 1,
+        tomon_depart: 1,
+        sourates_acquises: 0,
+      };
+      const { error: errEleve } = await supabase.from('eleves').update(resetData).eq('id', eleve.id);
+      if (errEleve) throw errEleve;
+
+      setShowPassageModal(false);
+      setNouveauNiveau('');
+      setNotePassage('');
+      // Reload data
+      await loadData();
+      // Update eleve object in parent
+      navigate('dashboard');
+    } catch(err) {
+      console.error('Passage niveau error:', err);
+      alert(lang==='ar'?'خطأ في تغيير المستوى: '+err.message:'Erreur passage niveau: '+err.message);
+    }
+    setSavingPassage(false);
+  };
+
   if (['5B','5A','2M'].includes(eleve.code_niveau)) {
     return <FicheSourate eleve={eleve} user={user} navigate={navigate} lang={lang} />;
   }
@@ -254,6 +311,12 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang='fr' })
         <button className="back-link" onClick={()=>goBack?goBack():navigate('dashboard')}>{t(lang,'retour')}</button>
         <div style={{display:'flex',gap:8}}>
           <button className="btn-secondary" onClick={handlePrint} style={{fontSize:12,padding:'6px 14px'}}>{t(lang,'imprimer_pdf')}</button>
+          {user.role==='surveillant'&&(
+            <button onClick={()=>{setNouveauNiveau('');setNotePassage('');setShowPassageModal(true);}}
+              style={{padding:'6px 14px',fontSize:12,background:'#534AB7',color:'#fff',border:'none',borderRadius:8,cursor:'pointer',fontWeight:600,fontFamily:'inherit'}}>
+              🎓 {lang==='ar'?'تغيير المستوى':'Changer niveau'}
+            </button>
+          )}
           <button className="btn-primary" style={{width:'auto',padding:'6px 14px',fontSize:12}} onClick={()=>navigate('enregistrer',eleve)}>{t(lang,'enregistrer_recitation')}</button>
         </div>
       </div>
@@ -269,6 +332,9 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang='fr' })
                 <div style={{fontSize:13,color:'#888'}}>{niveauTraduit(eleve.niveau,lang,t)} · {instituteurNom}</div>
                 <div style={{display:'flex',gap:6,marginTop:4,flexWrap:'wrap'}}>
                   <span style={{padding:'2px 10px',borderRadius:20,fontSize:11,fontWeight:500,background:sl.bg,color:sl.color}}>{sl.label}</span>
+                  {passages.length>0&&<span style={{padding:'2px 10px',borderRadius:20,fontSize:11,fontWeight:500,background:'#EEEDFE',color:'#534AB7'}}>
+                    🎓 {passages.length} {lang==='ar'?'مستوى سابق':'passage(s)'}
+                  </span>}
                   {streak>0&&<span style={{padding:'2px 10px',borderRadius:20,fontSize:11,background:'#E6F1FB',color:'#0C447C'}}>🔥 {streak} {t(lang,+(lang==='ar'?' أسابيع':' semaines'))}</span>}
                   {vitesse.moyenne>0&&<span style={{padding:'2px 10px',borderRadius:20,fontSize:11,background:'#f5f5f0',color:'#666'}}>{vitesse.tendance==='hausse'?'📈':vitesse.tendance==='baisse'?'📉':'➡️'} {vitesse.moyenne}T/{t(lang,+(lang==='ar'?' أسابيع':' semaines'))}</span>}
                 </div>
@@ -617,6 +683,34 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang='fr' })
           )}
 
           {onglet==='historique'&&(
+            <>
+            {passages.length>0&&(
+              <div style={{marginBottom:16}}>
+                <div style={{fontSize:13,fontWeight:600,color:'#534AB7',marginBottom:8}}>🎓 {lang==='ar'?'سجل الانتقالات بين المستويات':'Historique des passages de niveau'}</div>
+                {passages.map((p,i)=>(
+                  <div key={p.id} style={{display:'flex',alignItems:'center',gap:10,padding:'10px 14px',borderRadius:10,background:'#F0EEFF',border:'1px solid #534AB720',marginBottom:6}}>
+                    <span style={{fontSize:18}}>🎓</span>
+                    <div style={{flex:1}}>
+                      <div style={{fontSize:13,fontWeight:600,color:'#534AB7'}}>
+                        {p.niveau_from} → {p.niveau_to}
+                      </div>
+                      <div style={{fontSize:11,color:'#888',marginTop:2}}>
+                        {new Date(p.date_passage).toLocaleDateString(lang==='ar'?'ar-MA':'fr-FR',{day:'numeric',month:'long',year:'numeric'})}
+                        {p.valide_par_u&&' · '+p.valide_par_u.prenom+' '+p.valide_par_u.nom}
+                      </div>
+                      {p.note&&<div style={{fontSize:11,color:'#534AB7',marginTop:2,fontStyle:'italic'}}>{p.note}</div>}
+                    </div>
+                    <div style={{textAlign:'right',fontSize:11,color:'#888'}}>
+                      <div>{lang==='ar'?'ثُمن':'Tomon'}: <strong>{p.acquis_tomon}</strong></div>
+                      <div>{lang==='ar'?'نقاط':'Pts'}: <strong>{p.acquis_points}</strong></div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+            </>
+          )}
+          {onglet==='historique'&&(
             validations.length===0?<div className="empty">{t(lang,'aucune_recitation_label')}</div>:(
               <div className="table-wrap">
                 <table><thead><tr>
@@ -649,5 +743,62 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang='fr' })
         </>
       )}
     </div>
+
+      {/* ── Modal Passage de Niveau ── */}
+      {showPassageModal&&(
+        <div style={{position:'fixed',top:0,left:0,right:0,bottom:0,background:'rgba(0,0,0,0.5)',zIndex:1000,display:'flex',alignItems:'center',justifyContent:'center',padding:'1rem'}} onClick={()=>setShowPassageModal(false)}>
+          <div style={{background:'#fff',borderRadius:16,padding:'1.5rem',maxWidth:500,width:'100%'}} onClick={e=>e.stopPropagation()}>
+            <div style={{fontSize:16,fontWeight:700,color:'#534AB7',marginBottom:'1rem'}}>
+              🎓 {lang==='ar'?'تغيير مستوى الطالب':'Passage de niveau'}
+            </div>
+
+            {/* Récap acquis actuels */}
+            <div style={{background:'#F0EEFF',borderRadius:10,padding:'12px',marginBottom:'1rem',fontSize:13}}>
+              <div style={{fontWeight:600,color:'#534AB7',marginBottom:8}}>
+                {lang==='ar'?'الاكتسابات الحالية (سيتم حفظها):':'Acquis actuels (seront archivés) :'}
+              </div>
+              <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:6}}>
+                <div style={{color:'#555'}}>{lang==='ar'?'المستوى الحالي:':'Niveau actuel :'} <strong>{eleve.code_niveau}</strong></div>
+                <div style={{color:'#555'}}>{lang==='ar'?'النقاط:':'Points :'} <strong>{etat?.points?.total||0}</strong></div>
+                <div style={{color:'#555'}}>{lang==='ar'?'الأثمان المكتسبة:':'Tomon :'} <strong>{etat?.tomonCumul||0}</strong></div>
+                <div style={{color:'#555'}}>{lang==='ar'?'الأحزاب الكاملة:':'Hizb complets :'} <strong>{etat?.hizbsComplets?.size||0}</strong></div>
+              </div>
+            </div>
+
+            {/* Avertissement reset */}
+            <div style={{background:'#FCEBEB',borderRadius:10,padding:'10px 12px',marginBottom:'1rem',fontSize:12,color:'#E24B4A'}}>
+              ⚠️ {lang==='ar'?'سيتم إعادة تعيين المُقدِّمات والأثمان والأحزاب إلى الصفر. هذا الإجراء لا يمكن التراجع عنه.':'Les acquis (tomon, hizb, sourates) seront remis à zéro. Action irréversible.'}
+            </div>
+
+            {/* Choix nouveau niveau */}
+            <div className="field-group" style={{marginBottom:'1rem'}}>
+              <label className="field-lbl">{lang==='ar'?'المستوى الجديد:':'Nouveau niveau :'}</label>
+              <select className="field-select" value={nouveauNiveau} onChange={e=>setNouveauNiveau(e.target.value)}>
+                <option value="">{lang==='ar'?'— اختر المستوى —':'— Choisir le niveau —'}</option>
+                {niveauxDisponibles.map(n=>(
+                  <option key={n} value={n}>{NIVEAUX_LABELS[n]||n}</option>
+                ))}
+              </select>
+            </div>
+
+            {/* Note */}
+            <div className="field-group" style={{marginBottom:'1.2rem'}}>
+              <label className="field-lbl">{lang==='ar'?'ملاحظة (اختياري):':'Note (optionnelle) :'}</label>
+              <input className="field-input" value={notePassage} onChange={e=>setNotePassage(e.target.value)}
+                placeholder={lang==='ar'?'سبب الانتقال...':'Raison du passage...'}/>
+            </div>
+
+            <div style={{display:'flex',gap:10}}>
+              <button onClick={()=>setShowPassageModal(false)} className="back-link">
+                {lang==='ar'?'إلغاء':'Annuler'}
+              </button>
+              <button onClick={handlePassageNiveau} disabled={!nouveauNiveau||savingPassage}
+                style={{flex:1,padding:'10px',background:nouveauNiveau&&!savingPassage?'#534AB7':'#ccc',color:'#fff',border:'none',borderRadius:10,fontWeight:700,cursor:nouveauNiveau?'pointer':'default'}}>
+                {savingPassage?'...':(lang==='ar'?'✓ تأكيد الانتقال':'✓ Confirmer le passage')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
   );
 }
