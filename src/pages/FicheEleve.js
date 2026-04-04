@@ -394,7 +394,7 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang, isMobi
             {[
               {k:'progression', label: lang==='ar'?'التقدم':'Progression'},
               {k:'historique',  label: lang==='ar'?'التاريخ':'Historique'},
-              {k:'muraja',      label: lang==='ar'?'المراجعة':"Muraja'a"},
+              {k:'muraja',      label: lang==='ar'?'المراجعة':"Murajaʼa"},
             ].map(tab=>(
               <div key={tab.k} onClick={()=>setOnglet(tab.k)}
                 style={{padding:'10px 16px', fontSize:13, fontWeight:600, whiteSpace:'nowrap',
@@ -512,7 +512,7 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang, isMobi
                     <span style={{fontSize:16}}>📖</span>
                     <div style={{flex:1}}>
                       <div style={{fontWeight:600,fontSize:13}}>
-                        {v.type_validation==='hizb_muraja'?`Hizb ${v.hizb_validation}`:v.sourate?.nom_ar||'Muraja'a'}
+                        {v.type_validation==='hizb_muraja'?`Hizb ${v.hizb_validation}`:v.sourate?.nom_ar||"Murajaʼa"}
                       </div>
                       <div style={{fontSize:11,color:'#888'}}>{new Date(v.date_validation).toLocaleDateString(lang==='ar'?'ar-MA':'fr-FR')}</div>
                     </div>

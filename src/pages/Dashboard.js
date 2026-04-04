@@ -200,7 +200,7 @@ export default function Dashboard({ user, navigate, goBack, lang, isMobile='fr' 
             <div className="quick-actions-grid">
               {[
                 {icon:'⚡', label:lang==='ar'?'تسجيل سريع':'Récitation rapide', sub:lang==='ar'?'تحقق من الحفظ':'Valider maintenant', page:'validation_rapide', color:'#1D9E75', bg:'#E1F5EE'},
-                {icon:'📖', label:lang==='ar'?'مراجعة جماعية':"Muraja'a", sub:lang==='ar'?'مراجعة جماعية':'Révision collective', page:'muraja', color:'#534AB7', bg:'#F0EEFF'},
+                {icon:'📖', label:lang==='ar'?'مراجعة جماعية':"Murajaʼa", sub:lang==='ar'?'مراجعة جماعية':'Révision collective', page:'muraja', color:'#534AB7', bg:'#F0EEFF'},
                 {icon:'👥', label:lang==='ar'?'الطلاب':'Séance', sub:lang==='ar'?'قائمة الطلاب':'Voir les élèves', page:'seance', color:'#378ADD', bg:'#E6F1FB'},
                 {icon:'🏆', label:lang==='ar'?'لوحة الشرف':'Honneur', sub:lang==='ar'?'أفضل الطلاب':'Classement', page:'honneur', color:'#EF9F27', bg:'#FAEEDA'},
                 {icon:'💰', label:lang==='ar'?'المالية':'Finance', sub:lang==='ar'?'الاشتراكات':'Cotisations', page:'finance', color:'#E24B4A', bg:'#FCEBEB'},

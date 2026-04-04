@@ -220,7 +220,7 @@ export default function FicheSourate({ eleve, user, navigate, goBack, lang='fr',
             {[
               {k:'progression',label:lang==='ar'?'التقدم':'Progression'},
               {k:'historique', label:lang==='ar'?'التاريخ':'Historique'},
-              {k:'muraja',     label:lang==='ar'?'المراجعة':"Muraja'a"},
+              {k:'muraja',     label:lang==='ar'?'المراجعة':"Murajaʼa"},
             ].map(tab=>(
               <div key={tab.k} onClick={()=>setOnglet(tab.k)}
                 style={{padding:'10px 16px',fontSize:13,fontWeight:600,whiteSpace:'nowrap',cursor:'pointer',flexShrink:0,
@@ -296,7 +296,7 @@ export default function FicheSourate({ eleve, user, navigate, goBack, lang='fr',
                     border:'0.5px solid #EF9F2730',display:'flex',alignItems:'center',gap:12}}>
                     <span style={{fontSize:20}}>📖</span>
                     <div style={{flex:1}}>
-                      <div style={{fontWeight:600,fontSize:13}}>{v.sourate?.nom_ar||'Muraja'a'}</div>
+                      <div style={{fontWeight:600,fontSize:13}}>{v.sourate?.nom_ar||"Murajaʼa"}</div>
                       <div style={{fontSize:11,color:'#888'}}>{new Date(v.date_validation).toLocaleDateString(lang==='ar'?'ar-MA':'fr-FR')}</div>
                     </div>
                     <span style={{fontSize:13,fontWeight:700,color:'#EF9F27'}}>+{v.points||10} pts</span>
