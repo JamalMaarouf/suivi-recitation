@@ -206,7 +206,7 @@ export default function Seance({ user, navigate, goBack, lang, isMobile=false })
           </div>
           {/* Vue switch: séance / semaine */}
           <div style={{display:'flex',gap:0,background:'#f0f0ec',borderRadius:10,padding:3,marginBottom:10}}>
-            {[['seance',lang==='ar'?'اليوم':'Aujourd'hui'],['semaine',lang==='ar'?'الأسبوع':'Cette semaine']].map(([k,l])=>(
+            {[['seance',lang==='ar'?'اليوم':"Aujourd'hui"],['semaine',lang==='ar'?'الأسبوع':'Cette semaine']].map(([k,l])=>(
               <div key={k} onClick={()=>setVue(k)}
                 style={{flex:1,padding:'7px 8px',borderRadius:8,textAlign:'center',fontSize:12,fontWeight:600,
                   cursor:'pointer',background:vue===k?'#fff':'transparent',color:vue===k?'#085041':'#888'}}>
