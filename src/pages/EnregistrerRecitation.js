@@ -262,26 +262,95 @@ export default function EnregistrerRecitation({  user, eleve: eleveInitial, navi
                   </button>
                 </div>
               )}
-              {/* Existing step 2/3 content - rendered as normal but with better spacing */}
-              <div className="form-group" style={{fontSize:16}}>
-                {/* Validation type buttons - make bigger */}
-                {typeValidation===''&&(
-                  <div style={{display:'flex',flexDirection:'column',gap:12}}>
-                    {!isNiveauSourate&&[
-                      {type:'tomon',label:t(lang,'valider_tomon'),pts:30,color:'#1D9E75',bg:'#E1F5EE'},
-                      {type:'hizb_complet',label:t(lang,'valider_hizb_complet'),pts:100,color:'#EF9F27',bg:'#FAEEDA'},
-                    ].map(opt=>(
-                      <button key={opt.type} onClick={()=>setTypeValidation(opt.type)}
-                        style={{padding:'20px',background:opt.bg,color:opt.color,border:`2px solid ${opt.color}30`,
-                          borderRadius:14,fontSize:16,fontWeight:700,cursor:'pointer',fontFamily:'inherit',
-                          display:'flex',justifyContent:'space-between',alignItems:'center'}}>
-                        <span>{opt.label}</span>
-                        <span style={{fontSize:14}}>+{opt.pts} pts</span>
-                      </button>
-                    ))}
+              {/* Step 2 - Tomon selection */}
+              {etat && (
+                <div>
+                  <div style={{background:'#E1F5EE',borderRadius:12,padding:'12px',marginBottom:14,textAlign:'center'}}>
+                    <div style={{fontSize:13,color:'#085041',fontWeight:600}}>
+                      Hizb {etat.hizbEnCours} · Tomon suivant: {etat.prochainTomon}
+                    </div>
+                    <div style={{fontSize:11,color:'#888',marginTop:4}}>
+                      {etat.tomonDansHizbActuel}/8 tomon complétés
+                    </div>
+                    <div style={{display:'flex',gap:3,marginTop:8}}>
+                      {[1,2,3,4,5,6,7,8].map(n=>(
+                        <div key={n} style={{flex:1,height:8,borderRadius:3,
+                          background:n<=etat.tomonDansHizbActuel?'#1D9E75':'#e0e0d8'}}/>
+                      ))}
+                    </div>
                   </div>
-                )}
-              </div>
+                  {etat.enAttenteHizbComplet ? (
+                    <div>
+                      <div style={{background:'#FAEEDA',borderRadius:12,padding:'12px',marginBottom:14,
+                        fontSize:13,color:'#633806',textAlign:'center'}}>
+                        🎉 {t(lang,'hizb_complet_en_attente')}
+                      </div>
+                      <button onClick={async ()=>{
+                        const {error} = await supabase.from('validations').insert({
+                          eleve_id:selectedEleve.id, ecole_id:user.ecole_id,
+                          valide_par:user.id, nombre_tomon:0,
+                          type_validation:'hizb_complet',
+                          date_validation:new Date().toISOString(),
+                          tomon_debut:etat.prochainTomon,
+                          hizb_validation:etat.hizbEnCours
+                        });
+                        if (!error) { setDone(true); setMotivMsg({msg:'🎉 Hizb complet ! +100 pts'}); }
+                      }} disabled={done}
+                        style={{width:'100%',padding:'18px',background:done?'#ccc':'#EF9F27',color:'#fff',
+                          border:'none',borderRadius:14,fontSize:17,fontWeight:800,
+                          cursor:'pointer',fontFamily:'inherit'}}>
+                        {done?'✓':'✓ Valider Hizb (+100 pts)'}
+                      </button>
+                    </div>
+                  ) : (
+                    <div>
+                      <div style={{fontSize:13,color:'#888',marginBottom:12,textAlign:'center'}}>
+                        {t(lang,'prochain')}: Tomon {etat.prochainTomon}
+                      </div>
+                      <div style={{display:'grid',gridTemplateColumns:'repeat(2,1fr)',gap:12}}>
+                        {Array.from({length:Math.min(etat.tomonRestants,4)},(_,i)=>i+1).map(n=>(
+                          <button key={n} onClick={async ()=>{
+                            const tomons = Array.from({length:n},(_,i)=>etat.prochainTomon+i);
+                            setTomonSelectionnes(tomons);
+                            // Valider directement avec n tomon
+                            const {error} = await supabase.from('validations').insert({
+                              eleve_id:selectedEleve.id, ecole_id:user.ecole_id,
+                              valide_par:user.id, nombre_tomon:n,
+                              type_validation:'tomon',
+                              date_validation:new Date().toISOString(),
+                              tomon_debut:etat.prochainTomon,
+                              hizb_validation:etat.hizbEnCours
+                            });
+                            if (!error) {
+                              setDone(true);
+                              setMotivMsg({msg:`✅ +${n*30} pts !`});
+                            }
+                          }} disabled={done}
+                            style={{padding:'20px 8px',background:done?'#ccc':'#1D9E75',color:'#fff',
+                              border:'none',borderRadius:14,fontSize:16,fontWeight:800,
+                              cursor:'pointer',fontFamily:'inherit'}}>
+                            +{n} tomon<br/>
+                            <span style={{fontSize:12,opacity:0.8}}>(+{n*30} pts)</span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {done && motivMsg && (
+                    <div style={{background:'#E1F5EE',borderRadius:12,padding:'16px',marginTop:14,textAlign:'center'}}>
+                      <div style={{fontSize:18,fontWeight:800,color:'#085041'}}>{motivMsg.msg}</div>
+                      <button onClick={()=>goBack?goBack():navigate('dashboard')}
+                        style={{marginTop:12,padding:'12px 24px',background:'#1D9E75',color:'#fff',
+                          border:'none',borderRadius:12,fontSize:15,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
+                        {lang==='ar'?'رجوع':'Retour'}
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+              {!etat && !loading && (
+                <div style={{textAlign:'center',color:'#888',padding:'2rem'}}>...</div>
+              )}
             </div>
           )}
         </div>
