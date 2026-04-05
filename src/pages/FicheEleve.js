@@ -381,7 +381,7 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang, isMobi
             <button onClick={()=>navigate('enregistrer', eleve)}
               style={{background:'#1D9E75', color:'#fff', border:'none', borderRadius:10,
                 padding:'8px 14px', fontSize:13, fontWeight:700, cursor:'pointer', fontFamily:'inherit'}}>
-              + {lang==='ar'?'تسجيل':'Récit.'}
+              + {lang==='ar'?(['5B','5A','2M'].includes(eleve.code_niveau)?'استظهار':'تسجيل'):'Récit.'}
             </button>
           </div>
           {/* Score banner */}

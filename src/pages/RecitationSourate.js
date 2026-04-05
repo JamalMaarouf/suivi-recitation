@@ -246,6 +246,15 @@ export default function RecitationSourate({ user, eleve, navigate, goBack, lang=
     const nc = NIVEAU_COLORS_RS[codeNiveau] || '#1D9E75';
     return (
       <div style={{paddingBottom:80, background:'#f5f5f0', minHeight:'100vh'}}>
+        {/* Flash notification */}
+        {flash&&(
+          <div style={{position:'fixed',top:16,left:16,right:16,zIndex:999,
+            background:flash.color||'#1D9E75',borderRadius:14,padding:'14px 16px',
+            textAlign:'center',color:'#fff',fontWeight:700,fontSize:16,
+            boxShadow:'0 4px 16px rgba(0,0,0,0.2)'}}>
+            {flash.msg}
+          </div>
+        )}
         {/* Header sticky */}
         <div style={{background:'#fff', borderBottom:'0.5px solid #e0e0d8', position:'sticky', top:0, zIndex:100}}>
           <div style={{display:'flex', alignItems:'center', gap:12, padding:'12px 16px'}}>
@@ -267,9 +276,9 @@ export default function RecitationSourate({ user, eleve, navigate, goBack, lang=
           {/* Onglets */}
           <div style={{display:'flex',gap:0,background:'#f0f0ec',borderRadius:10,padding:3,margin:'0 16px 12px'}}>
             {[['liste',lang==='ar'?'السور':'Sourates'],['recap',lang==='ar'?'ملخص':'Résumé']].map(([k,l])=>(
-              <div key={k} onClick={()=>setOnglet&&setOnglet(k)}
+              <div key={k} onClick={()=>setStep(k)}
                 style={{flex:1,padding:'7px 8px',borderRadius:8,textAlign:'center',fontSize:12,fontWeight:600,
-                  cursor:'pointer',background:(onglet||'liste')===k?'#fff':'transparent',color:(onglet||'liste')===k?'#085041':'#888'}}>
+                  cursor:'pointer',background:(step||'liste')===k?'#fff':'transparent',color:(step||'liste')===k?'#085041':'#888'}}>
                 {l}
               </div>
             ))}
@@ -286,7 +295,7 @@ export default function RecitationSourate({ user, eleve, navigate, goBack, lang=
         {loading ? <div style={{textAlign:'center',padding:'2rem',color:'#888'}}>...</div> : (
           <div style={{padding:'12px'}}>
             {/* Liste sourates */}
-            {(onglet||'liste')==='liste' && (
+            {step!=='recap' && (
               <div>
                 <div style={{fontSize:12,fontWeight:700,color:'#888',marginBottom:8}}>
                   {lang==='ar'?'السور المقررة':'Sourates du niveau'} ({souratesOrdonnees.length})
@@ -320,13 +329,39 @@ export default function RecitationSourate({ user, eleve, navigate, goBack, lang=
                           <div style={{marginTop:10,display:'flex',flexDirection:'column',gap:8}}>
                             <div style={{width:'100%',height:1,background:'#e0e0d8'}}/>
                             {!complete&&(
-                              <button onClick={e=>{e.stopPropagation();validerSourate('complete',s);}}
+                              <button onClick={async e=>{
+                                  e.stopPropagation();
+                                  setSelectedSourate(s);
+                                  setTypeRecitation('complete');
+                                  setSaving(true);
+                                  const dbId = getDbId(s.numero);
+                                  if (dbId) {
+                                    const {error} = await supabase.from('recitations_sourates')
+                                      .insert({eleve_id:eleve.id,ecole_id:user.ecole_id,sourate_id:dbId,
+                                        type_recitation:'complete',points:30,valide_par:user.id,
+                                        date_validation:new Date().toISOString()});
+                                    if (!error) { setFlash({msg:'✅ +30 pts',color:'#1D9E75'}); setTimeout(()=>setFlash(null),2000); loadData(); }
+                                  }
+                                  setSaving(false); setSelectedSourate(null);
+                                }}
                                 style={{padding:'10px',background:nc,color:'#fff',border:'none',borderRadius:10,
                                   fontSize:13,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
                                 ✅ {lang==='ar'?'استظهار كامل':'Complète (+30pts)'}
                               </button>
                             )}
-                            <button onClick={e=>{e.stopPropagation();validerSourate('sequence',s);}}
+                            <button onClick={async e=>{
+                                e.stopPropagation();
+                                setSaving(true);
+                                const dbId = getDbId(s.numero);
+                                if (dbId) {
+                                  const {error} = await supabase.from('recitations_sourates')
+                                    .insert({eleve_id:eleve.id,ecole_id:user.ecole_id,sourate_id:dbId,
+                                      type_recitation:'sequence',points:10,valide_par:user.id,
+                                      date_validation:new Date().toISOString(),verset_debut:1,verset_fin:1});
+                                  if (!error) { setFlash({msg:'📝 +10 pts',color:'#378ADD'}); setTimeout(()=>setFlash(null),2000); loadData(); }
+                                }
+                                setSaving(false);
+                              }}
                               style={{padding:'10px',background:`${nc}20`,color:nc,border:`1px solid ${nc}30`,borderRadius:10,
                                 fontSize:13,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
                               📝 {lang==='ar'?'مقطع':'Séquence (+10pts)'}
@@ -340,7 +375,7 @@ export default function RecitationSourate({ user, eleve, navigate, goBack, lang=
               </div>
             )}
             {/* Récap */}
-            {(onglet||'liste')==='recap' && (
+            {(step||'liste')==='recap' && (
               <div>
                 <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:8,marginBottom:12}}>
                   {[
