@@ -264,6 +264,8 @@ export default function Seance({ user, navigate, goBack, lang, isMobile=false })
             )}
             {/* Seance view */}
             {vue==='seance' && (
+            <>
+            <div>
             <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:8,padding:'12px 16px'}}>
               {[
                 {val:elevesVus.length,lbl:t(lang,'eleves_vus'),color:'#1D9E75',bg:'#E1F5EE'},
@@ -308,6 +310,7 @@ export default function Seance({ user, navigate, goBack, lang, isMobile=false })
                 );
               })}
             </div>
+            </div>
             <div onClick={()=>navigate('validation_rapide')}
               style={{position:'fixed',bottom:80,right:16,width:56,height:56,borderRadius:'50%',
                 background:'#1D9E75',color:'#fff',border:'none',fontSize:28,display:'flex',
@@ -315,6 +318,7 @@ export default function Seance({ user, navigate, goBack, lang, isMobile=false })
                 boxShadow:'0 4px 16px rgba(29,158,117,0.4)'}}>
               ⚡
             </div>
+            </>
             )}
           </>
         )}
