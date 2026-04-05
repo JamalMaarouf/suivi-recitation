@@ -446,6 +446,7 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile 
 
   if (isMobile) {
     const NIVEAU_COLORS_M = {'5B':'#534AB7','5A':'#378ADD','2M':'#1D9E75','2':'#EF9F27','1':'#E24B4A'};
+    if (loading) return <div style={{padding:'2rem',textAlign:'center',color:'#888'}}>...</div>;
     return (
       <div style={{paddingBottom:80,background:'#f5f5f0',minHeight:'100vh'}}>
         {/* Header */}
@@ -483,7 +484,7 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile 
                     border:'0.5px solid #e0e0d8',display:'flex',alignItems:'center',gap:12,cursor:'pointer'}}>
                   <div style={{width:40,height:40,borderRadius:'50%',background:`${nc}20`,color:nc,
                     display:'flex',alignItems:'center',justifyContent:'center',fontWeight:800,fontSize:13,flexShrink:0}}>
-                    {(e.prenom[0]||'?')+(e.nom[0]||'?')}
+                    {((e.prenom||'?')[0])+((e.nom||'?')[0])}
                   </div>
                   <div style={{flex:1,minWidth:0}}>
                     <div style={{fontWeight:700,fontSize:14}}>{e.prenom} {e.nom}</div>
@@ -515,7 +516,7 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile 
                 border:'0.5px solid #e0e0d8',display:'flex',alignItems:'center',gap:12}}>
                 <div style={{width:40,height:40,borderRadius:'50%',background:'#E6F1FB',color:'#0C447C',
                   display:'flex',alignItems:'center',justifyContent:'center',fontWeight:800,fontSize:13,flexShrink:0}}>
-                  {(inst.prenom[0]||'?')+(inst.nom[0]||'?')}
+                  {((inst.prenom||'?')[0])+((inst.nom||'?')[0])}
                 </div>
                 <div style={{flex:1}}>
                   <div style={{fontWeight:700,fontSize:14}}>{inst.prenom} {inst.nom}</div>
@@ -544,7 +545,7 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile 
                 border:'0.5px solid #e0e0d8',display:'flex',alignItems:'center',gap:12}}>
                 <div style={{width:40,height:40,borderRadius:'50%',background:'#FAEEDA',color:'#633806',
                   display:'flex',alignItems:'center',justifyContent:'center',fontWeight:800,fontSize:13,flexShrink:0}}>
-                  {(p.prenom[0]||'?')+(p.nom[0]||'?')}
+                  {((p.prenom||'?')[0])+((p.nom||'?')[0])}
                 </div>
                 <div style={{flex:1}}>
                   <div style={{fontWeight:700,fontSize:14}}>{p.prenom} {p.nom}</div>

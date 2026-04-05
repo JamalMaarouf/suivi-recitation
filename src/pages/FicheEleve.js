@@ -507,65 +507,7 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang, isMobi
                 <div style={{fontSize:12,fontWeight:700,color:'#888',marginBottom:8}}>
                   {lang==='ar'?'آخر النشاطات':'Activité récente'}
                 </div>
-                {[...validations,...recitations].sort((a,b)=>new Date(b.date_validation)-new Date(a.date_validation)).slice(0,15).map((v,i)=>{
-                  const isSourate = v.sourate_id !== undefined;
-                  const pts = isSourate ? (v.type_recitation==='complete'?30:10) : (v.type_validation==='hizb_complet'?100:v.nombre_tomon*30||30);
-                  return(
-                    <div key={i} style={{background:'#fff',borderRadius:10,padding:'10px 12px',marginBottom:6,
-                      border:'0.5px solid #e0e0d8',display:'flex',alignItems:'center',gap:10}}>
-                      <span style={{fontSize:16}}>{isSourate?'📖':'✅'}</span>
-                      <div style={{flex:1}}>
-                        <div style={{fontWeight:600,fontSize:13}}>
-                          {isSourate ? (v.sourate?.nom_ar||'Sourate') : (v.type_validation==='hizb_complet'?'Hizb complet':`T.${v.tomon_debut} ×${v.nombre_tomon}`)}
-                        </div>
-                        <div style={{fontSize:11,color:'#888'}}>{new Date(v.date_validation).toLocaleDateString(lang==='ar'?'ar-MA':'fr-FR')}</div>
-                      </div>
-                      <span style={{fontSize:13,fontWeight:700,color:'#1D9E75'}}>+{pts}</span>
-                    </div>
-                  );
-                })}
-                {validations.length===0&&recitations.length===0&&(
-                  <div style={{textAlign:'center',color:'#aaa',padding:'2rem'}}>{lang==='ar'?'لا توجد نشاطات':'Aucune activité'}</div>
-                )}
-              </div>
-            )}
-            {onglet==='objectifs' && (
-              <div>
-                {objectifsEleve && objectifsEleve.length > 0 ? objectifsEleve.map((obj,i)=>(
-                  <div key={i} style={{background:'#fff',borderRadius:12,padding:'14px',marginBottom:10,border:'0.5px solid #e0e0d8'}}>
-                    <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:8}}>
-                      <div style={{fontWeight:700,fontSize:14,color:'#085041'}}>{obj.titre||obj.type||'Objectif'}</div>
-                      <span style={{fontSize:12,fontWeight:600,color:obj.atteint?'#1D9E75':'#EF9F27',
-                        background:obj.atteint?'#E1F5EE':'#FAEEDA',padding:'2px 10px',borderRadius:10}}>
-                        {obj.atteint?(lang==='ar'?'مكتمل':'Atteint'):(lang==='ar'?'قيد التنفيذ':'En cours')}
-                      </span>
-                    </div>
-                    {obj.description&&<div style={{fontSize:12,color:'#888',marginBottom:8}}>{obj.description}</div>}
-                    {obj.valeur_cible&&(
-                      <div>
-                        <div style={{height:6,background:'#f0f0ec',borderRadius:3,overflow:'hidden'}}>
-                          <div style={{height:'100%',background:'#1D9E75',borderRadius:3,
-                            width:`${Math.min(100,Math.round((obj.valeur_actuelle||0)/obj.valeur_cible*100))}%`}}/>
-                        </div>
-                        <div style={{fontSize:11,color:'#888',marginTop:4,textAlign:'right'}}>
-                          {obj.valeur_actuelle||0}/{obj.valeur_cible}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                )) : (
-                  <div style={{textAlign:'center',color:'#aaa',padding:'2rem'}}>
-                    {lang==='ar'?'لا توجد أهداف':'Aucun objectif défini'}
-                  </div>
-                )}
-              </div>
-            )}
-            {onglet==='apercu' && (
-              <div>
-                <div style={{fontSize:12,fontWeight:700,color:'#888',marginBottom:8}}>
-                  {lang==='ar'?'آخر النشاطات':'Activité récente'}
-                </div>
-                {[...validations,...recitations].sort((a,b)=>new Date(b.date_validation)-new Date(a.date_validation)).slice(0,15).map((v,i)=>{
+                {[...validations].sort((a,b)=>new Date(b.date_validation)-new Date(a.date_validation)).slice(0,15).map((v,i)=>{
                   const isSourate = v.sourate_id !== undefined;
                   const pts = isSourate?(v.type_recitation==='complete'?30:10):(v.type_validation==='hizb_complet'?100:(v.nombre_tomon||1)*30);
                   return(
@@ -582,7 +524,7 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang, isMobi
                     </div>
                   );
                 })}
-                {validations.length===0&&recitations.length===0&&(
+                {validations.length===0&&(
                   <div style={{textAlign:'center',color:'#aaa',padding:'2rem'}}>{lang==='ar'?'لا توجد نشاطات':'Aucune activité'}</div>
                 )}
               </div>
