@@ -11,7 +11,7 @@ function Avatar({ prenom, nom, size = 36, bg = '#E1F5EE', color = '#085041' }) {
   );
 }
 
-export default function EnregistrerRecitation({  user, eleve: eleveInitial, navigate, goBack , lang="fr" }) {
+export default function EnregistrerRecitation({  user, eleve: eleveInitial, navigate, goBack, lang="fr", isMobile=false }) {
   const [step, setStep] = useState(eleveInitial ? 2 : 1);
   const [eleves, setEleves] = useState([]);
   const [search, setSearch] = useState('');
