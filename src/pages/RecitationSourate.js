@@ -66,7 +66,7 @@ function ExceptionModal({ sourates, recitations, souratesDB, onConfirm, onCancel
   );
 }
 
-export default function RecitationSourate({ user, eleve, navigate, goBack, lang='fr' }) {
+export default function RecitationSourate({ user, eleve, navigate, goBack, lang='fr', isMobile=false }) {
   const [souratesDB, setSouratesDB] = useState([]);
   const [recitations, setRecitations] = useState([]);
   const [exceptions, setExceptions] = useState([]); // unlocked sourates
@@ -240,6 +240,155 @@ export default function RecitationSourate({ user, eleve, navigate, goBack, lang=
     await supabase.from('exceptions_recitation').update({ active: false }).eq('eleve_id', eleve.id).eq('sourate_numero', numero);
     await loadData();
   };
+
+  if (isMobile) {
+    const NIVEAU_COLORS_RS = {'5B':'#534AB7','5A':'#378ADD','2M':'#1D9E75'};
+    const nc = NIVEAU_COLORS_RS[codeNiveau] || '#1D9E75';
+    return (
+      <div style={{paddingBottom:80, background:'#f5f5f0', minHeight:'100vh'}}>
+        {/* Header sticky */}
+        <div style={{background:'#fff', borderBottom:'0.5px solid #e0e0d8', position:'sticky', top:0, zIndex:100}}>
+          <div style={{display:'flex', alignItems:'center', gap:12, padding:'12px 16px'}}>
+            <button onClick={()=>goBack?goBack():navigate('dashboard')}
+              style={{background:'none',border:'none',cursor:'pointer',fontSize:22,color:'#085041',padding:0,lineHeight:1}}>
+              ←
+            </button>
+            <div style={{flex:1}}>
+              <div style={{fontSize:17,fontWeight:800}}>{eleve.prenom} {eleve.nom}</div>
+              <div style={{fontSize:12,color:'#888'}}>{codeNiveau} · {lang==='ar'?'استظهار السور':'Récitation des sourates'}</div>
+            </div>
+            {isPrivilegied && (
+              <button onClick={()=>setShowExceptionModal(true)}
+                style={{background:'#FCEBEB',color:'#E24B4A',border:'none',borderRadius:8,padding:'6px 10px',fontSize:12,cursor:'pointer'}}>
+                🔓
+              </button>
+            )}
+          </div>
+          {/* Onglets */}
+          <div style={{display:'flex',gap:0,background:'#f0f0ec',borderRadius:10,padding:3,margin:'0 16px 12px'}}>
+            {[['liste',lang==='ar'?'السور':'Sourates'],['recap',lang==='ar'?'ملخص':'Résumé']].map(([k,l])=>(
+              <div key={k} onClick={()=>setOnglet&&setOnglet(k)}
+                style={{flex:1,padding:'7px 8px',borderRadius:8,textAlign:'center',fontSize:12,fontWeight:600,
+                  cursor:'pointer',background:(onglet||'liste')===k?'#fff':'transparent',color:(onglet||'liste')===k?'#085041':'#888'}}>
+                {l}
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Exception banner */}
+        {exceptions.length > 0 && (
+          <div style={{margin:'8px 12px',padding:'10px 14px',background:'#FCEBEB',borderRadius:10,fontSize:12,color:'#A32D2D'}}>
+            🔓 {lang==='ar'?'استثناءات نشطة':'Exceptions actives'} ({exceptions.length})
+          </div>
+        )}
+
+        {loading ? <div style={{textAlign:'center',padding:'2rem',color:'#888'}}>...</div> : (
+          <div style={{padding:'12px'}}>
+            {/* Liste sourates */}
+            {(onglet||'liste')==='liste' && (
+              <div>
+                <div style={{fontSize:12,fontWeight:700,color:'#888',marginBottom:8}}>
+                  {lang==='ar'?'السور المقررة':'Sourates du niveau'} ({souratesOrdonnees.length})
+                </div>
+                <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
+                  {souratesOrdonnees.map(s=>{
+                    const recs = recitations.filter(r=>r.sourate_id===s.id||getDbId(s.numero)===r.sourate_id);
+                    const complete = recs.some(r=>r.type_recitation==='complete');
+                    const sequences = recs.filter(r=>r.type_recitation==='sequence').length;
+                    const isAccessible = isAccessible(s.numero);
+                    return(
+                      <div key={s.numero}
+                        onClick={()=>isAccessible&&setSelectedSourate(selectedSourate?.numero===s.numero?null:s)}
+                        style={{background:'#fff',borderRadius:12,padding:'12px 10px',cursor:isAccessible?'pointer':'default',
+                          border:complete?`2px solid ${nc}`:selectedSourate?.numero===s.numero?`1.5px solid ${nc}`:'0.5px solid #e0e0d8',
+                          background:complete?`${nc}08`:!isAccessible?'#f9f9f6':'#fff',
+                          opacity:isAccessible?1:0.5}}>
+                        <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:4}}>
+                          <span style={{fontSize:10,fontWeight:700,color:'#888'}}>#{s.numero}</span>
+                          {complete&&<span style={{fontSize:12}}>✅</span>}
+                          {!complete&&sequences>0&&<span style={{fontSize:10,color:nc,fontWeight:600}}>{sequences}s</span>}
+                          {!isAccessible&&<span style={{fontSize:10}}>🔒</span>}
+                        </div>
+                        <div style={{fontSize:14,fontWeight:700,color:complete?nc:!isAccessible?'#aaa':'#1a1a1a',
+                          fontFamily:"'Tajawal',Arial",direction:'rtl',textAlign:'right',marginBottom:2}}>
+                          {s.nom_ar}
+                        </div>
+                        <div style={{fontSize:10,color:'#888'}}>{s.nom_fr||s.nom||''}</div>
+                        {/* Validation buttons when selected */}
+                        {selectedSourate?.numero===s.numero&&isAccessible&&(
+                          <div style={{marginTop:10,display:'flex',flexDirection:'column',gap:8}}>
+                            <div style={{width:'100%',height:1,background:'#e0e0d8'}}/>
+                            {!complete&&(
+                              <button onClick={e=>{e.stopPropagation();validerSourate('complete',s);}}
+                                style={{padding:'10px',background:nc,color:'#fff',border:'none',borderRadius:10,
+                                  fontSize:13,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
+                                ✅ {lang==='ar'?'استظهار كامل':'Complète (+30pts)'}
+                              </button>
+                            )}
+                            <button onClick={e=>{e.stopPropagation();validerSourate('sequence',s);}}
+                              style={{padding:'10px',background:`${nc}20`,color:nc,border:`1px solid ${nc}30`,borderRadius:10,
+                                fontSize:13,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
+                              📝 {lang==='ar'?'مقطع':'Séquence (+10pts)'}
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+            {/* Récap */}
+            {(onglet||'liste')==='recap' && (
+              <div>
+                <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:8,marginBottom:12}}>
+                  {[
+                    {label:lang==='ar'?'مكتملة':'Complètes',val:recitations.filter(r=>r.type_recitation==='complete').length,color:nc,bg:`${nc}15`},
+                    {label:lang==='ar'?'مقاطع':'Séquences',val:recitations.filter(r=>r.type_recitation==='sequence').length,color:'#378ADD',bg:'#E6F1FB'},
+                    {label:lang==='ar'?'النقاط':'Points',val:recitations.reduce((s,r)=>s+(r.type_recitation==='complete'?30:10),0),color:'#EF9F27',bg:'#FAEEDA'},
+                  ].map((k,i)=>(
+                    <div key={i} style={{background:k.bg,borderRadius:12,padding:'12px 8px',textAlign:'center',border:`0.5px solid ${k.color}20`}}>
+                      <div style={{fontSize:22,fontWeight:800,color:k.color}}>{k.val}</div>
+                      <div style={{fontSize:10,color:k.color,marginTop:2,opacity:0.8}}>{k.label}</div>
+                    </div>
+                  ))}
+                </div>
+                {/* Recent activity */}
+                <div style={{fontSize:12,fontWeight:700,color:'#888',marginBottom:8}}>{lang==='ar'?'آخر الاستظهارات':'Récentes'}</div>
+                {recitations.slice(0,15).map((r,i)=>{
+                  const s = souratesDB.find(x=>x.id===r.sourate_id);
+                  return(
+                    <div key={i} style={{background:'#fff',borderRadius:10,padding:'10px 12px',marginBottom:6,
+                      border:'0.5px solid #e0e0d8',display:'flex',alignItems:'center',gap:10}}>
+                      <span style={{fontSize:16}}>{r.type_recitation==='complete'?'✅':'📝'}</span>
+                      <div style={{flex:1}}>
+                        <div style={{fontWeight:600,fontSize:13,fontFamily:"'Tajawal',Arial",direction:'rtl'}}>{s?.nom_ar||'—'}</div>
+                        <div style={{fontSize:11,color:'#888'}}>{new Date(r.date_validation).toLocaleDateString(lang==='ar'?'ar-MA':'fr-FR')}</div>
+                      </div>
+                      <span style={{fontSize:13,fontWeight:700,color:nc}}>+{r.type_recitation==='complete'?30:10}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Exception modal */}
+        {showExceptionModal && (
+          <ExceptionModal
+            sourates={souratesOrdonnees}
+            recitations={recitations}
+            souratesDB={souratesDB}
+            onConfirm={activerException}
+            onCancel={()=>setShowExceptionModal(false)}
+            lang={lang}
+          />
+        )}
+      </div>
+    );
+  }
 
   return (
     <div>

@@ -48,10 +48,10 @@ export default function Login({ onLogin, lang, LangSelector, onShowInscription }
       .select('*')
       .eq('identifiant', identifiant.trim())
       .eq('mot_de_passe', motDePasse)
-      .single();
+      .maybeSingle();
 
     setLoading(false);
-    if (!parentErr && parentData) { onLogin({...parentData, role: 'parent'}); return; }
+    if (parentData) { onLogin({...parentData, role: 'parent'}); return; }
 
     setError(t(lang, 'identifiant_incorrect'));
   };

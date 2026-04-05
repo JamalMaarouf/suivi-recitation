@@ -171,6 +171,126 @@ export default function ValidationCollective({ user, navigate, goBack, lang='fr'
     {n:3, label:lang==='ar'?'تأكيد':'Confirmer'},
   ];
 
+  if (isMobile) {
+    return (
+      <div style={{paddingBottom:80, background:'#f5f5f0', minHeight:'100vh'}}>
+        <div style={{background:'#fff', padding:'14px 16px', borderBottom:'0.5px solid #e0e0d8',
+          position:'sticky', top:0, zIndex:100}}>
+          <div style={{display:'flex', alignItems:'center', gap:10}}>
+            <button onClick={()=>goBack?goBack():navigate('dashboard')}
+              style={{background:'none',border:'none',cursor:'pointer',fontSize:22,color:'#085041',padding:0,lineHeight:1}}>←</button>
+            <div style={{flex:1, fontSize:17, fontWeight:800, color:'#085041'}}>
+              📖 {lang==='ar'?'مراجعة جماعية':"Murajaʼa collective"}
+            </div>
+            <button onClick={()=>navigate('muraja_dashboard')}
+              style={{background:'#E1F5EE',color:'#085041',border:'none',borderRadius:8,
+                padding:'6px 10px',fontSize:12,cursor:'pointer',fontWeight:600}}>
+              📊
+            </button>
+          </div>
+        </div>
+        {msg&&<div style={{margin:'8px 12px',padding:'10px 14px',borderRadius:10,fontSize:13,
+          background:msg.type==='success'?'#E1F5EE':'#FCEBEB',
+          color:msg.type==='success'?'#085041':'#E24B4A'}}>{msg.text}</div>}
+        <div style={{padding:'12px'}}>
+          {/* Elèves selection */}
+          {step===1&&(
+            <div>
+              <div style={{fontSize:14,fontWeight:700,color:'#444',marginBottom:12}}>
+                {lang==='ar'?'اختر الطلاب':'Sélectionner les élèves'}
+              </div>
+              {/* Niveau filter */}
+              <div style={{display:'flex',gap:6,overflowX:'auto',marginBottom:12,scrollbarWidth:'none'}}>
+                {niveaux.map(n=>(
+                  <div key={n} onClick={()=>setFilterNiveau(n)}
+                    style={{padding:'6px 14px',borderRadius:20,fontSize:12,fontWeight:600,flexShrink:0,cursor:'pointer',
+                      background:filterNiveau===n?'#1D9E75':'#f0f0ec',color:filterNiveau===n?'#fff':'#666'}}>
+                    {n==='tous'?(lang==='ar'?'الكل':'Tous'):n}
+                  </div>
+                ))}
+              </div>
+              {/* Select all button */}
+              <button onClick={()=>setSelectedEleves(elevesFiltres.map(e=>e.id))}
+                style={{width:'100%',padding:'12px',background:'#E1F5EE',color:'#085041',border:'1px solid #1D9E7530',
+                  borderRadius:10,fontSize:14,fontWeight:700,cursor:'pointer',fontFamily:'inherit',marginBottom:12}}>
+                {lang==='ar'?'تحديد الكل':'Tout sélectionner'} ({elevesFiltres.length})
+              </button>
+              {elevesFiltres.map(e=>{
+                const sel = selectedEleves.includes(e.id);
+                const nc={'5B':'#534AB7','5A':'#378ADD','2M':'#1D9E75','2':'#EF9F27','1':'#E24B4A'}[e.code_niveau||'1']||'#888';
+                return(
+                  <div key={e.id} onClick={()=>setSelectedEleves(prev=>sel?prev.filter(id=>id!==e.id):[...prev,e.id])}
+                    style={{background:sel?`${nc}08`:'#fff',borderRadius:12,padding:'12px 14px',marginBottom:8,
+                      border:sel?`2px solid ${nc}`:'0.5px solid #e0e0d8',
+                      display:'flex',alignItems:'center',gap:12,cursor:'pointer'}}>
+                    <div style={{width:24,height:24,borderRadius:6,border:`2px solid ${sel?nc:'#ccc'}`,
+                      background:sel?nc:'transparent',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
+                      {sel&&<span style={{color:'#fff',fontSize:14,fontWeight:800}}>✓</span>}
+                    </div>
+                    <div style={{width:36,height:36,borderRadius:'50%',background:`${nc}20`,color:nc,
+                      display:'flex',alignItems:'center',justifyContent:'center',fontWeight:800,fontSize:12,flexShrink:0}}>
+                      {(e.prenom[0]||'?')+(e.nom[0]||'?')}
+                    </div>
+                    <div style={{flex:1}}>
+                      <div style={{fontWeight:700,fontSize:14}}>{e.prenom} {e.nom}</div>
+                      <span style={{padding:'1px 7px',borderRadius:8,background:`${nc}20`,color:nc,fontSize:11,fontWeight:700}}>{e.code_niveau||'?'}</span>
+                    </div>
+                  </div>
+                );
+              })}
+              {selectedEleves.length>0&&(
+                <button onClick={()=>setStep(2)}
+                  style={{position:'sticky',bottom:88,width:'100%',padding:'16px',background:'#1D9E75',color:'#fff',
+                    border:'none',borderRadius:14,fontSize:16,fontWeight:800,cursor:'pointer',fontFamily:'inherit',marginTop:12}}>
+                  {lang==='ar'?`التالي (${selectedEleves.length} طالب)`:`Suivant (${selectedEleves.length} élève${selectedEleves.length>1?'s':''})`}
+                </button>
+              )}
+            </div>
+          )}
+          {/* Step 2 - Type */}
+          {step===2&&(
+            <div>
+              <div style={{background:'#E1F5EE',borderRadius:12,padding:'12px 14px',marginBottom:16,
+                display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+                <span style={{fontWeight:700,fontSize:14,color:'#085041'}}>{selectedEleves.length} {lang==='ar'?'طالب':'élève(s)'}</span>
+                <button onClick={()=>setStep(1)}
+                  style={{background:'none',border:'none',cursor:'pointer',color:'#1D9E75',fontSize:13,fontWeight:600}}>
+                  ✏️ {lang==='ar'?'تعديل':'Modifier'}
+                </button>
+              </div>
+              <div style={{fontSize:14,fontWeight:700,color:'#444',marginBottom:12}}>
+                {lang==='ar'?'نوع المراجعة':'Type de révision'}
+              </div>
+              {[
+                {type:'tomon',label:lang==='ar'?'ثُمن':'Tomon',pts:10,color:'#1D9E75',bg:'#E1F5EE'},
+                {type:'hizb',label:lang==='ar'?'حزب كامل':'Hizb complet',pts:100,color:'#EF9F27',bg:'#FAEEDA'},
+              ].map(opt=>(
+                <div key={opt.type} onClick={()=>setTypeRecitation(opt.type)}
+                  style={{padding:'18px 16px',background:typeRecitation===opt.type?opt.bg:'#fff',
+                    border:typeRecitation===opt.type?`2px solid ${opt.color}`:'0.5px solid #e0e0d8',
+                    borderRadius:14,marginBottom:12,cursor:'pointer',
+                    display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+                  <div>
+                    <div style={{fontSize:16,fontWeight:700,color:opt.color}}>{opt.label}</div>
+                    <div style={{fontSize:12,color:'#888',marginTop:2}}>+{opt.pts} pts / élève</div>
+                  </div>
+                  {typeRecitation===opt.type&&<span style={{fontSize:22,color:opt.color}}>✓</span>}
+                </div>
+              ))}
+              {typeRecitation&&(
+                <button onClick={soumettre} disabled={saving}
+                  style={{width:'100%',padding:'18px',background:saving?'#ccc':'#085041',color:'#fff',
+                    border:'none',borderRadius:14,fontSize:17,fontWeight:800,cursor:'pointer',fontFamily:'inherit',marginTop:8}}>
+                  {saving?'...':(lang==='ar'?'✓ تسجيل المراجعة':'✓ Valider la révision')}
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div style={{padding:'1rem',maxWidth:700,margin:'0 auto'}}>
       {/* Header */}

@@ -163,7 +163,7 @@ export default function PortailParent({ parent, navigate, goBack, lang='fr', onL
                 </div>
               </div>
               <div style={{textAlign:'center'}}>
-                <div style={{fontSize:32, fontWeight:800, color:'#fff'}}>{etatEleve?.points?.total?.toLocaleString()||0}</div>
+                <div style={{fontSize:32, fontWeight:800, color:'#fff'}}>{pts.toLocaleString()}</div>
                 <div style={{fontSize:11, color:'rgba(255,255,255,0.7)'}}>points</div>
               </div>
             </div>
@@ -184,14 +184,14 @@ export default function PortailParent({ parent, navigate, goBack, lang='fr', onL
         {loading ? <div style={{textAlign:'center',padding:'2rem',color:'#888'}}>...</div> : (
           <div style={{padding:'12px'}}>
             {/* Progression */}
-            {onglet==='progression' && etatEleve && (
+            {onglet==='progression' && pts && (
               <div>
                 <div style={{display:'grid',gridTemplateColumns:'repeat(2,1fr)',gap:10,marginBottom:12}}>
                   {[
-                    {label:lang==='ar'?'الثُّمن التالي':'Prochain tomon',val:`T.${etatEleve.prochainTomon||'—'}`,color:'#1D9E75',bg:'#E1F5EE'},
-                    {label:lang==='ar'?'الحزب الحالي':'Hizb en cours',val:`H.${etatEleve.hizbEnCours||'—'}`,color:'#534AB7',bg:'#F0EEFF'},
-                    {label:lang==='ar'?'الثُّمنات':'Tomon cumulés',val:etatEleve.tomonCumul||0,color:'#378ADD',bg:'#E6F1FB'},
-                    {label:lang==='ar'?'الأحزاب':'Hizb complets',val:etatEleve.hizbsComplets?.size||0,color:'#EF9F27',bg:'#FAEEDA'},
+                    {label:lang==='ar'?'الثُّمنات':'Tomon validés',val:tomon,color:'#1D9E75',bg:'#E1F5EE'},
+                    {label:lang==='ar'?'الأحزاب':'Hizb complets',val:hizb,color:'#534AB7',bg:'#F0EEFF'},
+                    {label:lang==='ar'?'السور':'Sourates',val:souratesCompletes,color:'#378ADD',bg:'#E6F1FB'},
+                    {label:lang==='ar'?'النقاط':'Points',val:pts.toLocaleString(),color:'#EF9F27',bg:'#FAEEDA'},
                   ].map((k,i)=>(
                     <div key={i} style={{background:k.bg,borderRadius:12,padding:'14px',textAlign:'center',border:`0.5px solid ${k.color}20`}}>
                       <div style={{fontSize:24,fontWeight:800,color:k.color}}>{k.val}</div>

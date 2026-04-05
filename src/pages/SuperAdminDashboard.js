@@ -246,6 +246,25 @@ export default function SuperAdminDashboard({ user, navigate, lang, onLogout, is
 
   return (
     <div style={{maxWidth:800,margin:'0 auto',padding: isMobile ? '0 0 80px' : '1rem',background: isMobile ? '#f5f5f0' : 'transparent',minHeight: isMobile ? '100vh' : 'auto'}}>
+      {isMobile && (
+        <div style={{background:'linear-gradient(135deg,#534AB7,#7F77DD)',padding:'48px 16px 20px',marginBottom:0}}>
+          <div style={{fontSize:13,color:'rgba(255,255,255,0.8)',marginBottom:4}}>Super Admin</div>
+          <div style={{fontSize:22,fontWeight:800,color:'#fff',marginBottom:12}}>Vue globale</div>
+          <div style={{display:'flex',gap:8}}>
+            <button onClick={runBackup} disabled={backupLoading}
+              style={{padding:'10px 16px',background:'rgba(255,255,255,0.2)',color:'#fff',
+                border:'1px solid rgba(255,255,255,0.3)',borderRadius:10,fontSize:13,fontWeight:700,
+                cursor:'pointer',fontFamily:'inherit'}}>
+              {backupLoading?'⏳...':'💾 Backup'}
+            </button>
+            <button onClick={onLogout}
+              style={{padding:'10px 16px',background:'rgba(255,255,255,0.1)',color:'#fff',
+                border:'1px solid rgba(255,255,255,0.2)',borderRadius:10,fontSize:13,cursor:'pointer'}}>
+              🚪
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Header */}
       <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'1.25rem',flexWrap:'wrap',gap:10}}>

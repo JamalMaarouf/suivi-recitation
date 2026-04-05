@@ -445,7 +445,7 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile 
   };
 
   if (isMobile) {
-    const NIVEAU_COLORS = {'5B':'#534AB7','5A':'#378ADD','2M':'#1D9E75','2':'#EF9F27','1':'#E24B4A'};
+    const NIVEAU_COLORS_M = {'5B':'#534AB7','5A':'#378ADD','2M':'#1D9E75','2':'#EF9F27','1':'#E24B4A'};
     return (
       <div style={{paddingBottom:80,background:'#f5f5f0',minHeight:'100vh'}}>
         {/* Header */}
@@ -476,9 +476,9 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile 
               placeholder={lang==='ar'?'بحث عن طالب...':'Rechercher un élève...'}
               value={searchEleve||''} onChange={e=>setSearchEleve&&setSearchEleve(e.target.value)}/>
             {eleves.filter(e=>!searchEleve||(e.prenom+' '+e.nom).toLowerCase().includes(searchEleve.toLowerCase())).map(e=>{
-              const nc=NIVEAU_COLORS[e.code_niveau||'1']||'#888';
+              const nc=NIVEAU_COLORS_M[e.code_niveau||'1']||'#888';
               return(
-                <div key={e.id} onClick={()=>{setEditEleve({...e});setShowEditEleve(true);}}
+                <div key={e.id} onClick={()=>navigate('fiche', e)}
                   style={{background:'#fff',borderRadius:12,padding:'13px 14px',marginBottom:8,
                     border:'0.5px solid #e0e0d8',display:'flex',alignItems:'center',gap:12,cursor:'pointer'}}>
                   <div style={{width:40,height:40,borderRadius:'50%',background:`${nc}20`,color:nc,
@@ -497,7 +497,7 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile 
               );
             })}
             {/* FAB ajout élève */}
-            <div onClick={()=>setShowAddEleve&&setShowAddEleve(true)}
+            <div onClick={()=>{window.scrollTo({top:0});navigate('gestion');}}
               style={{position:'fixed',bottom:80,right:16,width:56,height:56,borderRadius:'50%',
                 background:'#1D9E75',color:'#fff',border:'none',fontSize:28,display:'flex',
                 alignItems:'center',justifyContent:'center',cursor:'pointer',zIndex:150,
@@ -526,7 +526,7 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile 
                     padding:'6px 10px',fontSize:12,cursor:'pointer'}}>✕</button>
               </div>
             ))}
-            <div onClick={()=>setShowAddInst&&setShowAddInst(true)}
+            <div onClick={()=>setTab('instituteurs')}
               style={{position:'fixed',bottom:80,right:16,width:56,height:56,borderRadius:'50%',
                 background:'#378ADD',color:'#fff',border:'none',fontSize:28,display:'flex',
                 alignItems:'center',justifyContent:'center',cursor:'pointer',zIndex:150,

@@ -173,6 +173,20 @@ export default function MurajaDashboard({ user, navigate, goBack, lang='fr', isM
 
   return (
     <div style={{padding: isMobile ? '0 0 80px' : '1rem',maxWidth:800,margin:'0 auto',background: isMobile ? '#f5f5f0' : 'transparent',minHeight: isMobile ? '100vh' : 'auto'}}>
+      {isMobile && (
+        <div style={{background:'linear-gradient(135deg,#534AB7,#7F77DD)',padding:'48px 16px 20px',marginBottom:12}}>
+          <div style={{fontSize:20,fontWeight:800,color:'#fff',marginBottom:4}}>
+            📖 {lang==='ar'?'المراجعة الجماعية':"Murajaʼa"}
+          </div>
+          <div style={{display:'flex',gap:8,marginTop:10}}>
+            <button onClick={()=>navigate('muraja')}
+              style={{padding:'10px 16px',background:'rgba(255,255,255,0.2)',color:'#fff',border:'1px solid rgba(255,255,255,0.3)',
+                borderRadius:10,fontSize:13,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
+              + {lang==='ar'?'مراجعة جديدة':'Nouvelle révision'}
+            </button>
+          </div>
+        </div>
+      )}
       {/* Header */}
       <div style={{display:'flex',alignItems:'center',gap:12,marginBottom:'1.2rem'}}>
         <button className="back-link" onClick={()=>goBack?goBack():navigate('dashboard')}>← {t(lang,'retour')}</button>

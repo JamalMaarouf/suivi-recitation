@@ -57,7 +57,11 @@ export default function ElevesInactifs({ navigate, goBack, lang='fr', user, isMo
 
   return (
     <div style={{padding: isMobile ? '0 0 80px' : '1rem',maxWidth:700,margin:'0 auto',background: isMobile ? '#f5f5f0' : 'transparent',minHeight: isMobile ? '100vh' : 'auto'}}>
-      <div style={{display:'flex',alignItems:'center',gap:12,marginBottom:'1.2rem'}}>
+      <div style={{display:'flex',alignItems:'center',gap:12,marginBottom: isMobile ? 0 : '1.2rem',
+        position: isMobile ? 'sticky' : 'static', top:0, zIndex:100,
+        background: isMobile ? '#fff' : 'transparent',
+        padding: isMobile ? '14px 16px' : 0,
+        borderBottom: isMobile ? '0.5px solid #e0e0d8' : 'none'}}>
         <button className="back-link" onClick={()=>goBack?goBack():navigate('dashboard')}>
           {lang==='ar'?'← رجوع':'← Retour'}
         </button>

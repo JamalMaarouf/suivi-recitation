@@ -397,6 +397,83 @@ export default function HistoriqueSeances({ user, navigate, goBack, lang='fr', i
 
   const medals = ['🥇','🥈','🥉'];
 
+  if (isMobile) {
+    return (
+      <div style={{paddingBottom:80, background:'#f5f5f0', minHeight:'100vh'}}>
+        <div style={{background:'#fff', padding:'14px 16px', borderBottom:'0.5px solid #e0e0d8',
+          position:'sticky', top:0, zIndex:100}}>
+          <div style={{display:'flex', alignItems:'center', gap:10}}>
+            <button onClick={()=>goBack?goBack():navigate('dashboard')}
+              style={{background:'none',border:'none',cursor:'pointer',fontSize:22,color:'#085041',padding:0}}>←</button>
+            <div style={{flex:1,fontSize:17,fontWeight:800,color:'#085041'}}>
+              📊 {lang==='ar'?'تحليل الحصص':'Historique'}
+            </div>
+          </div>
+          {/* Period filter */}
+          <div style={{display:'flex',gap:4,background:'#f0f0ec',borderRadius:10,padding:3,marginTop:10}}>
+            {[['7','7 jours'],['30','30 jours'],['90','3 mois'],['365','1 an']].map(([v,l])=>(
+              <div key={v} onClick={()=>setPeriode&&setPeriode(Number(v))}
+                style={{flex:1,padding:'7px 4px',borderRadius:8,textAlign:'center',fontSize:11,fontWeight:600,
+                  cursor:'pointer',background:(periode||30)===Number(v)?'#fff':'transparent',
+                  color:(periode||30)===Number(v)?'#085041':'#888'}}>
+                {l}
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {loading ? <div style={{textAlign:'center',padding:'2rem',color:'#888'}}>...</div> : (
+          <div style={{padding:'12px'}}>
+            {/* KPIs */}
+            <div style={{display:'grid',gridTemplateColumns:'repeat(2,1fr)',gap:10,marginBottom:14}}>
+              {[
+                {label:lang==='ar'?'أيام نشطة':'Jours actifs',val:seancesStats?.joursActifs||0,color:'#1D9E75',bg:'#E1F5EE'},
+                {label:lang==='ar'?'إجمالي النقاط':'Total points',val:(seancesStats?.totalPts||0).toLocaleString(),color:'#534AB7',bg:'#F0EEFF'},
+                {label:lang==='ar'?'الثُّمنات':'Tomon validés',val:seancesStats?.totalTomon||0,color:'#378ADD',bg:'#E6F1FB'},
+                {label:lang==='ar'?'الأحزاب':'Hizb complets',val:seancesStats?.totalHizb||0,color:'#EF9F27',bg:'#FAEEDA'},
+              ].map((k,i)=>(
+                <div key={i} style={{background:k.bg,borderRadius:12,padding:'14px',textAlign:'center',border:`0.5px solid ${k.color}20`}}>
+                  <div style={{fontSize:24,fontWeight:800,color:k.color}}>{k.val}</div>
+                  <div style={{fontSize:11,color:k.color,marginTop:4,opacity:0.8}}>{k.label}</div>
+                </div>
+              ))}
+            </div>
+            {/* Eleves list */}
+            <div style={{fontSize:12,fontWeight:700,color:'#888',marginBottom:8}}>
+              {lang==='ar'?'أداء الطلاب':'Performance des élèves'} ({elevesVisibles?.length||0})
+            </div>
+            {(elevesVisibles||[]).map((e,idx)=>{
+              const nc={'5B':'#534AB7','5A':'#378ADD','2M':'#1D9E75','2':'#EF9F27','1':'#E24B4A'}[e.code_niveau||'1']||'#888';
+              return(
+                <div key={e.id} onClick={()=>navigate('fiche',e)}
+                  style={{background:'#fff',borderRadius:12,padding:'13px 14px',marginBottom:8,
+                    border:'0.5px solid #e0e0d8',display:'flex',alignItems:'center',gap:12,cursor:'pointer'}}>
+                  <div style={{width:32,height:32,borderRadius:'50%',background:`${nc}20`,color:nc,
+                    display:'flex',alignItems:'center',justifyContent:'center',fontWeight:800,fontSize:12,flexShrink:0}}>
+                    {idx+1}
+                  </div>
+                  <div style={{flex:1,minWidth:0}}>
+                    <div style={{fontWeight:700,fontSize:14}}>{e.prenom} {e.nom}</div>
+                    <div style={{display:'flex',gap:6,alignItems:'center',marginTop:2}}>
+                      <span style={{padding:'1px 7px',borderRadius:8,background:`${nc}20`,color:nc,fontSize:11,fontWeight:700}}>{e.code_niveau||'?'}</span>
+                      <span style={{fontSize:11,color:'#888'}}>{e.joursActifs||0} j · {e.tomon||0} T</span>
+                    </div>
+                  </div>
+                  <div style={{textAlign:'right',flexShrink:0}}>
+                    <div style={{fontSize:18,fontWeight:800,color:'#1D9E75'}}>{(e.pts||0).toLocaleString()}</div>
+                    <div style={{fontSize:10,color:'#888'}}>pts</div>
+                  </div>
+                  {e.trend==='up'&&<span style={{fontSize:14}}>📈</span>}
+                  {e.trend==='down'&&<span style={{fontSize:14}}>📉</span>}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    );
+  }
+
   return (
     <div>
       <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'1.25rem',flexWrap:'wrap',gap:8}}>

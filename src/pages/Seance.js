@@ -204,6 +204,17 @@ export default function Seance({ user, navigate, goBack, lang, isMobile=false })
           <div style={{fontSize:18,fontWeight:800,color:'#085041',marginBottom:10}}>
             {new Date().toLocaleDateString(lang==='ar'?'ar-MA':'fr-FR',{weekday:'long',day:'numeric',month:'long'})}
           </div>
+          {/* Vue switch: séance / semaine */}
+          <div style={{display:'flex',gap:0,background:'#f0f0ec',borderRadius:10,padding:3,marginBottom:10}}>
+            {[['seance',lang==='ar'?'اليوم':'Aujourd'hui'],['semaine',lang==='ar'?'الأسبوع':'Cette semaine']].map(([k,l])=>(
+              <div key={k} onClick={()=>setVue(k)}
+                style={{flex:1,padding:'7px 8px',borderRadius:8,textAlign:'center',fontSize:12,fontWeight:600,
+                  cursor:'pointer',background:vue===k?'#fff':'transparent',color:vue===k?'#085041':'#888'}}>
+                {l}
+              </div>
+            ))}
+          </div>
+          {/* Filtre niveau */}
           <div style={{display:'flex',gap:6,overflowX:'auto',paddingBottom:4,scrollbarWidth:'none'}}>
             {niveaux.map(n=>(
               <div key={n} onClick={()=>setFilterNiveau(n)}
@@ -218,6 +229,41 @@ export default function Seance({ user, navigate, goBack, lang, isMobile=false })
 
         {loading ? <div style={{textAlign:'center',padding:'2rem',color:'#888'}}>...</div> : (
           <>
+            {/* Semaine view */}
+            {vue==='semaine' && (
+              <div style={{padding:'12px'}}>
+                <div style={{fontSize:12,fontWeight:700,color:'#888',marginBottom:8}}>
+                  {lang==='ar'?'هذا الأسبوع':'Cette semaine'}
+                </div>
+                {elevesDataState.filter(e=>filterNiveau==='tous'||e.code_niveau===filterNiveau)
+                  .filter(e=>e.valsAujourdhui?.length>0||e.souratesCompletesAujourdhui>0)
+                  .map((e,idx)=>{
+                    const nc=NIVEAU_COLORS[e.code_niveau||'1']||'#888';
+                    const pts=e.isSourate?(e.souratesCompletesAujourdhui*30+e.sequencesAujourdhui*10):(e.valsAujourdhui?.reduce((s,v)=>s+(v.type_validation==='hizb_complet'?100:30),0)||0);
+                    return(
+                      <div key={e.id} onClick={()=>navigate('fiche',e)}
+                        style={{background:'#fff',borderRadius:12,padding:'13px 14px',marginBottom:8,
+                          border:`0.5px solid ${nc}20`,display:'flex',alignItems:'center',gap:12,cursor:'pointer'}}>
+                        <div style={{width:36,height:36,borderRadius:'50%',background:`${nc}20`,color:nc,
+                          display:'flex',alignItems:'center',justifyContent:'center',fontWeight:800,fontSize:13,flexShrink:0}}>
+                          {medals[idx]||`${idx+1}`}
+                        </div>
+                        <div style={{flex:1,minWidth:0}}>
+                          <div style={{fontWeight:700,fontSize:14}}>{e.prenom} {e.nom}</div>
+                          <span style={{padding:'1px 7px',borderRadius:8,background:`${nc}20`,color:nc,fontSize:11,fontWeight:700}}>{e.code_niveau||'?'}</span>
+                        </div>
+                        <div style={{textAlign:'right',flexShrink:0}}>
+                          <div style={{fontSize:18,fontWeight:800,color:'#1D9E75'}}>+{pts}</div>
+                          <div style={{fontSize:10,color:'#888'}}>pts</div>
+                        </div>
+                        <span style={{color:'#ccc',fontSize:16}}>{'›'}</span>
+                      </div>
+                    );
+                  })}
+              </div>
+            )}
+            {/* Seance view */}
+            {vue==='seance' && (
             <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:8,padding:'12px 16px'}}>
               {[
                 {val:elevesVus.length,lbl:t(lang,'eleves_vus'),color:'#1D9E75',bg:'#E1F5EE'},
@@ -269,6 +315,7 @@ export default function Seance({ user, navigate, goBack, lang, isMobile=false })
                 boxShadow:'0 4px 16px rgba(29,158,117,0.4)'}}>
               ⚡
             </div>
+            )}
           </>
         )}
       </div>
