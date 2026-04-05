@@ -143,6 +143,7 @@ function AcquisSelector({ codeNiveau, hizb, tomon, onHizbChange, onTomonChange, 
 
 export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile }) {
   const [tab, setTab] = useState('eleves');
+  const [searchEleve, setSearchEleve] = useState('');
   const [parents, setParents] = useState([]);
   const [formParent, setFormParent] = useState({prenom:'',nom:'',identifiant:'',mot_de_passe:'',telephone:'',eleve_ids:[]});
   const [showFormParent, setShowFormParent] = useState(false);
@@ -475,7 +476,7 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile 
             <input style={{width:'100%',padding:'12px 16px',borderRadius:12,border:'0.5px solid #e0e0d8',
               fontSize:16,fontFamily:'inherit',boxSizing:'border-box',background:'#fff',marginBottom:12}}
               placeholder={lang==='ar'?'بحث عن طالب...':'Rechercher un élève...'}
-              value={searchEleve||''} onChange={e=>setSearchEleve&&setSearchEleve(e.target.value)}/>
+              value={searchEleve||''} onChange={e=>setSearchEleve(e.target.value)}/>
             {eleves.filter(e=>!searchEleve||(e.prenom+' '+e.nom).toLowerCase().includes(searchEleve.toLowerCase())).map(e=>{
               const nc=NIVEAU_COLORS_M[e.code_niveau||'1']||'#888';
               return(
