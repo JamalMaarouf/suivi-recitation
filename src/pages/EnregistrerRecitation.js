@@ -136,7 +136,7 @@ export default function EnregistrerRecitation({  user, eleve: eleveInitial, navi
               ←
             </button>
             <div style={{fontSize:16,fontWeight:800,color:'#085041'}}>
-              {t(lang,'enregistrer_recitation_titre')}
+              {lang==='ar'?'استظهار':lang==='en'?'Recitation':'Récitation'}
             </div>
           </div>
         </div>
