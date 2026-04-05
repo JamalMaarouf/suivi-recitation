@@ -244,7 +244,8 @@ export default function Dashboard({ user, navigate, goBack, lang, isMobile='fr' 
             </div>
           </div>
 
-          {/* Alerte critique inactifs */}
+          {/* Alertes inactifs */}
+          <div>
           {eleves.filter(e=>e.jours!=null&&e.jours>30).length>0&&(
             <div onClick={()=>navigate('inactifs')} style={{display:'flex',alignItems:'center',gap:12,padding:'10px 14px',background:'#FCEBEB',borderRadius:12,marginBottom:8,cursor:'pointer',border:'1.5px solid #E24B4A30'}}>
               <span style={{fontSize:20}}>🚨</span>
@@ -281,6 +282,7 @@ export default function Dashboard({ user, navigate, goBack, lang, isMobile='fr' 
               <span style={{fontSize:11,color:'#534AB7',fontWeight:600}}>›</span>
             </div>
           )}
+          </div>
                     <div style={{display:'grid',gridTemplateColumns:'repeat(4,minmax(0,1fr))',gap:8,marginBottom:'1.25rem'}}>
             {[{val:stats.tomonSemaine||0,lbl:t(lang,'tomon_semaine'),color:C.green},{val:stats.hizbsCompletsMois||0,lbl:t(lang,'hizb_ce_mois'),color:C.blue},{val:nbAttente,lbl:t(lang,'attente_hizb'),color:C.amber},{val:nbInactifs,lbl:t(lang,'inactifs'),color:C.red}].map((k,i)=>(
               <div key={i} style={{background:'#fff',border:`0.5px solid ${C.border}`,borderRadius:12,padding:'12px',borderTop:`3px solid ${k.color}`}}>
