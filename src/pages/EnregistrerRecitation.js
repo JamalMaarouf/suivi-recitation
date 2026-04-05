@@ -211,7 +211,7 @@ export default function EnregistrerRecitation({  user, eleve: eleveInitial, navi
                 {t(lang,'choisir_eleve')}
               </div>
               {eleves.map(e=>{
-                const vals=allValidations.filter(v=>v.eleve_id===e.id);
+                const vals=[];
                 const et=calcEtatEleve(vals,e.hizb_depart,e.tomon_depart);
                 const nc={'5B':'#534AB7','5A':'#378ADD','2M':'#1D9E75','2':'#EF9F27','1':'#E24B4A'}[e.code_niveau||'1']||'#888';
                 return(
@@ -222,7 +222,7 @@ export default function EnregistrerRecitation({  user, eleve: eleveInitial, navi
                       display:'flex',alignItems:'center',gap:12,cursor:'pointer'}}>
                     <div style={{width:40,height:40,borderRadius:'50%',background:`${nc}20`,color:nc,
                       display:'flex',alignItems:'center',justifyContent:'center',fontWeight:800,fontSize:13,flexShrink:0}}>
-                      {(e.prenom[0]||'?')+(e.nom[0]||'?')}
+                      {((e.prenom||'?')[0])+((e.nom||'?')[0])}
                     </div>
                     <div style={{flex:1}}>
                       <div style={{fontWeight:700,fontSize:15}}>{e.prenom} {e.nom}</div>
