@@ -170,11 +170,10 @@ export default function EnregistrerRecitation({  user, eleve: eleveInitial, navi
   if (isMobile) {
     return (
       <div style={{paddingBottom:80, background:'#f5f5f0', minHeight:'100vh'}}>
-        {/* Mobile header */}
-        <div style={{background:'#fff', padding:'12px 16px', borderBottom:'0.5px solid #e0e0d8',
+        <div style={{background:'#fff', padding:'14px 16px', borderBottom:'0.5px solid #e0e0d8',
           position:'sticky', top:0, zIndex:100}}>
-          <div style={{display:'flex', alignItems:'center', gap:12, marginBottom:12}}>
-            <button onClick={()=>navigate(selectedEleve?'fiche':'dashboard', selectedEleve)}
+          <div style={{display:'flex', alignItems:'center', gap:12}}>
+            <button onClick={()=>goBack?goBack():navigate('dashboard')}
               style={{background:'none',border:'none',cursor:'pointer',fontSize:22,color:'#085041',padding:0}}>
               ←
             </button>
@@ -182,181 +181,119 @@ export default function EnregistrerRecitation({  user, eleve: eleveInitial, navi
               {t(lang,'enregistrer_recitation_titre')}
             </div>
           </div>
-          {/* Steps mobile */}
-          <div style={{display:'flex',alignItems:'center',gap:0}}>
-            {[[lang==='ar'?'الطالب':'Élève',1],[lang==='ar'?'الاستظهار':'Validation',2],[lang==='ar'?'التأكيد':'Confirmation',3]].map(([label,n],i)=>(
-              <React.Fragment key={n}>
-                {i>0&&<div style={{flex:1,height:2,background:step>n-1?'#1D9E75':'#e0e0d8'}}/>}
-                <div style={{display:'flex',flexDirection:'column',alignItems:'center',gap:3}}>
-                  <div style={{width:28,height:28,borderRadius:'50%',display:'flex',alignItems:'center',
-                    justifyContent:'center',fontSize:12,fontWeight:700,
-                    background:step>n?'#1D9E75':step===n?'#1D9E75':'#e0e0d8',
-                    color:step>=n?'#fff':'#888'}}>
-                    {step>n?'✓':n}
-                  </div>
-                  <div style={{fontSize:9,color:step===n?'#1D9E75':'#888',fontWeight:step===n?700:400}}>
-                    {label}
-                  </div>
-                </div>
-              </React.Fragment>
-            ))}
-          </div>
         </div>
-
         <div style={{padding:'16px'}}>
-          {/* Step 1 - Eleve */}
-          {step===1&&(
-            <div>
-              <div style={{fontSize:14,fontWeight:700,color:'#444',marginBottom:12}}>
-                {t(lang,'choisir_eleve')}
+          {/* Eleve info */}
+          {eleveInitial && (
+            <div style={{background:'#E1F5EE',borderRadius:12,padding:'13px 16px',marginBottom:16,
+              display:'flex',alignItems:'center',gap:12}}>
+              <div style={{width:40,height:40,borderRadius:'50%',background:'#1D9E75',color:'#fff',
+                display:'flex',alignItems:'center',justifyContent:'center',fontWeight:800,fontSize:14,flexShrink:0}}>
+                {((eleveInitial.prenom||'?')[0])+((eleveInitial.nom||'?')[0])}
               </div>
-              {eleves.map(e=>{
-                const vals=[];
-                const et=calcEtatEleve(vals,e.hizb_depart,e.tomon_depart);
-                const nc={'5B':'#534AB7','5A':'#378ADD','2M':'#1D9E75','2':'#EF9F27','1':'#E24B4A'}[e.code_niveau||'1']||'#888';
-                return(
-                  <div key={e.id} onClick={()=>selectEleve(e)}
-                    style={{background:'#fff',borderRadius:12,padding:'13px 14px',marginBottom:8,
-                      border:`0.5px solid ${selectedEleve?.id===e.id?nc:'#e0e0d8'}`,
-                      background:selectedEleve?.id===e.id?`${nc}08`:'#fff',
-                      display:'flex',alignItems:'center',gap:12,cursor:'pointer'}}>
-                    <div style={{width:40,height:40,borderRadius:'50%',background:`${nc}20`,color:nc,
-                      display:'flex',alignItems:'center',justifyContent:'center',fontWeight:800,fontSize:13,flexShrink:0}}>
-                      {((e.prenom||'?')[0])+((e.nom||'?')[0])}
-                    </div>
-                    <div style={{flex:1}}>
-                      <div style={{fontWeight:700,fontSize:15}}>{e.prenom} {e.nom}</div>
-                      <div style={{fontSize:12,color:'#888'}}>
-                        <span style={{padding:'1px 6px',borderRadius:6,background:`${nc}20`,color:nc,fontWeight:700,marginRight:6}}>{e.code_niveau||'?'}</span>
-                        Hizb {et.hizbEnCours} · T.{et.prochainTomon}
-                      </div>
-                    </div>
-                    {selectedEleve?.id===e.id&&<span style={{color:nc,fontSize:20}}>✓</span>}
-                  </div>
-                );
-              })}
-              {selectedEleve&&(
-                <button onClick={()=>setStep(2)}
-                  style={{width:'100%',padding:'16px',background:'#1D9E75',color:'#fff',border:'none',
-                    borderRadius:14,fontSize:16,fontWeight:800,cursor:'pointer',fontFamily:'inherit',marginTop:8}}>
-                  {lang==='ar'?'التالي ←':'Suivant →'}
-                </button>
-              )}
+              <div>
+                <div style={{fontWeight:700,fontSize:15}}>{eleveInitial.prenom} {eleveInitial.nom}</div>
+                <div style={{fontSize:12,color:'#085041',opacity:0.8}}>{eleveInitial.code_niveau}</div>
+              </div>
             </div>
           )}
-
-          {/* Steps 2 & 3 - use existing PC layout with mobile padding */}
-          {step>=2&&(
+          {/* Loading */}
+          {!etat && (
+            <div style={{textAlign:'center',color:'#888',padding:'2rem'}}>
+              <div style={{fontSize:32,marginBottom:8}}>⏳</div>
+              <div>{lang==='ar'?'جاري التحميل...':'Chargement...'}</div>
+            </div>
+          )}
+          {/* Validation - etat loaded */}
+          {etat && !done && (
             <div>
-              {/* Recap eleve */}
-              {selectedEleve&&(
-                <div style={{background:'#E1F5EE',borderRadius:12,padding:'12px 14px',marginBottom:14,
-                  display:'flex',alignItems:'center',gap:10}}>
-                  <div style={{fontWeight:700,fontSize:15,flex:1}}>
-                    {selectedEleve.prenom} {selectedEleve.nom}
+              {/* Progress bar */}
+              <div style={{background:'#fff',borderRadius:12,padding:'14px',marginBottom:16,border:'0.5px solid #e0e0d8'}}>
+                <div style={{fontSize:13,color:'#085041',fontWeight:600,marginBottom:8}}>
+                  Hizb {etat.hizbEnCours} · Tomon {etat.prochainTomon}
+                </div>
+                <div style={{display:'flex',gap:3}}>
+                  {[1,2,3,4,5,6,7,8].map(n=>(
+                    <div key={n} style={{flex:1,height:8,borderRadius:3,
+                      background:n<=etat.tomonDansHizbActuel?'#1D9E75':'#e0e0d8'}}/>
+                  ))}
+                </div>
+                <div style={{fontSize:11,color:'#888',marginTop:6}}>
+                  {etat.tomonDansHizbActuel}/8 tomon complétés dans ce Hizb
+                </div>
+              </div>
+              {/* Hizb complet waiting */}
+              {etat.enAttenteHizbComplet ? (
+                <div>
+                  <div style={{background:'#FAEEDA',borderRadius:12,padding:'14px',marginBottom:14,
+                    textAlign:'center',fontSize:14,color:'#633806',fontWeight:600}}>
+                    🎉 {t(lang,'hizb_complet_en_attente')}
                   </div>
-                  <button onClick={()=>{setStep(1);setSelectedEleve(null);}}
-                    style={{background:'rgba(0,0,0,0.1)',border:'none',borderRadius:8,padding:'4px 10px',
-                      fontSize:12,cursor:'pointer',color:'#085041'}}>
-                    ✕
+                  <button onClick={async ()=>{
+                    const {error} = await supabase.from('validations').insert({
+                      eleve_id:eleveInitial.id, ecole_id:user.ecole_id,
+                      valide_par:user.id, nombre_tomon:0,
+                      type_validation:'hizb_complet',
+                      date_validation:new Date().toISOString(),
+                      tomon_debut:etat.prochainTomon,
+                      hizb_validation:etat.hizbEnCours
+                    });
+                    if (!error) { setDone(true); setMotivMsg({msg:'🎉 Hizb complet ! +100 pts'}); }
+                  }}
+                    style={{width:'100%',padding:'18px',background:'#EF9F27',color:'#fff',
+                      border:'none',borderRadius:14,fontSize:17,fontWeight:800,cursor:'pointer',fontFamily:'inherit'}}>
+                    ✓ Valider Hizb (+100 pts)
                   </button>
                 </div>
-              )}
-              {/* Step 2 - Tomon selection */}
-              {etat && (
+              ) : (
                 <div>
-                  <div style={{background:'#E1F5EE',borderRadius:12,padding:'12px',marginBottom:14,textAlign:'center'}}>
-                    <div style={{fontSize:13,color:'#085041',fontWeight:600}}>
-                      Hizb {etat.hizbEnCours} · Tomon suivant: {etat.prochainTomon}
-                    </div>
-                    <div style={{fontSize:11,color:'#888',marginTop:4}}>
-                      {etat.tomonDansHizbActuel}/8 tomon complétés
-                    </div>
-                    <div style={{display:'flex',gap:3,marginTop:8}}>
-                      {[1,2,3,4,5,6,7,8].map(n=>(
-                        <div key={n} style={{flex:1,height:8,borderRadius:3,
-                          background:n<=etat.tomonDansHizbActuel?'#1D9E75':'#e0e0d8'}}/>
-                      ))}
-                    </div>
+                  <div style={{fontSize:14,fontWeight:600,color:'#444',marginBottom:12,textAlign:'center'}}>
+                    {lang==='ar'?'اختر عدد الثُّمن':'Combien de tomon ?'}
                   </div>
-                  {etat.enAttenteHizbComplet ? (
-                    <div>
-                      <div style={{background:'#FAEEDA',borderRadius:12,padding:'12px',marginBottom:14,
-                        fontSize:13,color:'#633806',textAlign:'center'}}>
-                        🎉 {t(lang,'hizb_complet_en_attente')}
-                      </div>
-                      <button onClick={async ()=>{
+                  <div style={{display:'grid',gridTemplateColumns:'repeat(2,1fr)',gap:12}}>
+                    {Array.from({length:Math.min(etat.tomonRestants||8,4)},(_,i)=>i+1).map(n=>(
+                      <button key={n} onClick={async ()=>{
                         const {error} = await supabase.from('validations').insert({
-                          eleve_id:selectedEleve.id, ecole_id:user.ecole_id,
-                          valide_par:user.id, nombre_tomon:0,
-                          type_validation:'hizb_complet',
+                          eleve_id:eleveInitial.id, ecole_id:user.ecole_id,
+                          valide_par:user.id, nombre_tomon:n,
+                          type_validation:'tomon',
                           date_validation:new Date().toISOString(),
                           tomon_debut:etat.prochainTomon,
                           hizb_validation:etat.hizbEnCours
                         });
-                        if (!error) { setDone(true); setMotivMsg({msg:'🎉 Hizb complet ! +100 pts'}); }
-                      }} disabled={done}
-                        style={{width:'100%',padding:'18px',background:done?'#ccc':'#EF9F27',color:'#fff',
-                          border:'none',borderRadius:14,fontSize:17,fontWeight:800,
-                          cursor:'pointer',fontFamily:'inherit'}}>
-                        {done?'✓':'✓ Valider Hizb (+100 pts)'}
+                        if (!error) { setDone(true); setMotivMsg({msg:`✅ +${n*30} pts !`}); }
+                      }}
+                        style={{padding:'20px 8px',background:'#1D9E75',color:'#fff',
+                          border:'none',borderRadius:14,fontSize:16,fontWeight:800,
+                          cursor:'pointer',fontFamily:'inherit',textAlign:'center'}}>
+                        +{n} tomon
+                        <div style={{fontSize:12,opacity:0.8,marginTop:4}}>(+{n*30} pts)</div>
                       </button>
-                    </div>
-                  ) : (
-                    <div>
-                      <div style={{fontSize:13,color:'#888',marginBottom:12,textAlign:'center'}}>
-                        {t(lang,'prochain')}: Tomon {etat.prochainTomon}
-                      </div>
-                      <div style={{display:'grid',gridTemplateColumns:'repeat(2,1fr)',gap:12}}>
-                        {Array.from({length:Math.min(etat.tomonRestants,4)},(_,i)=>i+1).map(n=>(
-                          <button key={n} onClick={async ()=>{
-                            const tomons = Array.from({length:n},(_,i)=>etat.prochainTomon+i);
-                            setTomonSelectionnes(tomons);
-                            // Valider directement avec n tomon
-                            const {error} = await supabase.from('validations').insert({
-                              eleve_id:selectedEleve.id, ecole_id:user.ecole_id,
-                              valide_par:user.id, nombre_tomon:n,
-                              type_validation:'tomon',
-                              date_validation:new Date().toISOString(),
-                              tomon_debut:etat.prochainTomon,
-                              hizb_validation:etat.hizbEnCours
-                            });
-                            if (!error) {
-                              setDone(true);
-                              setMotivMsg({msg:`✅ +${n*30} pts !`});
-                            }
-                          }} disabled={done}
-                            style={{padding:'20px 8px',background:done?'#ccc':'#1D9E75',color:'#fff',
-                              border:'none',borderRadius:14,fontSize:16,fontWeight:800,
-                              cursor:'pointer',fontFamily:'inherit'}}>
-                            +{n} tomon<br/>
-                            <span style={{fontSize:12,opacity:0.8}}>(+{n*30} pts)</span>
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                  {done && motivMsg && (
-                    <div style={{background:'#E1F5EE',borderRadius:12,padding:'16px',marginTop:14,textAlign:'center'}}>
-                      <div style={{fontSize:18,fontWeight:800,color:'#085041'}}>{motivMsg.msg}</div>
-                      <button onClick={()=>goBack?goBack():navigate('dashboard')}
-                        style={{marginTop:12,padding:'12px 24px',background:'#1D9E75',color:'#fff',
-                          border:'none',borderRadius:12,fontSize:15,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
-                        {lang==='ar'?'رجوع':'Retour'}
-                      </button>
-                    </div>
-                  )}
+                    ))}
+                  </div>
                 </div>
               )}
-              {!etat && !loading && (
-                <div style={{textAlign:'center',color:'#888',padding:'2rem'}}>...</div>
-              )}
+            </div>
+          )}
+          {/* Done */}
+          {done && motivMsg && (
+            <div style={{background:'#E1F5EE',borderRadius:14,padding:'24px',textAlign:'center'}}>
+              <div style={{fontSize:48,marginBottom:8}}>🎉</div>
+              <div style={{fontSize:20,fontWeight:800,color:'#085041',marginBottom:16}}>
+                {motivMsg.msg}
+              </div>
+              <button onClick={()=>goBack?goBack():navigate('dashboard')}
+                style={{padding:'14px 28px',background:'#1D9E75',color:'#fff',
+                  border:'none',borderRadius:12,fontSize:15,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
+                {lang==='ar'?'رجوع':'Retour'}
+              </button>
             </div>
           )}
         </div>
       </div>
     );
   }
+
 
   return (
     <div>
