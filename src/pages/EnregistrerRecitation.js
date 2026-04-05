@@ -125,48 +125,6 @@ export default function EnregistrerRecitation({  user, eleve: eleveInitial, navi
 
   const elevesFiltre = eleves.filter(e => `${e.prenom} ${e.nom}`.toLowerCase().includes(search.toLowerCase()));
 
-  if (done) {
-    return (
-      <div style={{ textAlign: 'center', padding: '2rem 1rem' }}>
-        <div style={{ width: 80, height: 80, borderRadius: '50%', background: '#E1F5EE', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 1rem', fontSize: 36 }}>
-          {typeValidation === 'hizb_complet' ? '🎉' : '✅'}
-        </div>
-        <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 8 }}>
-          {typeValidation === 'hizb_complet' ? t(lang,'hizb_valide_titre') : t(lang,'recitation_enregistree')}
-        </div>
-        {motivMsg && (
-          <div style={{ background: motivMsg.color + '15', border: `1px solid ${motivMsg.color}30`, borderRadius: 12, padding: '12px 20px', margin: '0 auto 1.5rem', maxWidth: 400, fontSize: 14, color: motivMsg.color, fontWeight: 500 }}>
-            {motivMsg.msg}
-          </div>
-        )}
-        {dureesApprentissage.length > 0 && (
-          <div style={{ background: '#E6F1FB', border: '0.5px solid #85B7EB', borderRadius: 10, padding: '10px 16px', margin: '0 auto 1.5rem', maxWidth: 400, fontSize: 13 }}>
-            <div style={{ fontWeight: 600, color: '#0C447C', marginBottom: 4 }}>{t(lang,'durees_apprentissage')}</div>
-            {dureesApprentissage.map(d => (
-              <div key={d.tomon} style={{ color: '#185FA5' }}>Tomon {d.tomon} : {d.jours} jour{d.jours > 1 ? 's' : ''}</div>
-            ))}
-          </div>
-        )}
-        <div style={{ fontSize: 13, color: '#888', marginBottom: '1.5rem' }}>
-          {selectedEleve?.prenom} {selectedEleve?.nom} —
-          {typeValidation === 'hizb_complet'
-            ? ` Hizb ${etat?.hizbEnCours} validé complet (+100 pts)`
-            : ` ${nombreTomon} Tomon validé${nombreTomon > 1 ? 's' : ''} (+${nombreTomon * 10} pts)`}
-        </div>
-        <div style={{ display: 'flex', gap: 10, justifyContent: 'center', flexWrap: 'wrap' }}>
-          <button className="btn-primary" style={{ maxWidth: 220 }}
-            onClick={() => { setDone(false); setStep(1); setSelectedEleve(null); setTomonSelectionnes([]); setEtat(null); setTypeValidation('tomon'); setMotivMsg(null); }}>
-            + Nouvelle récitation
-          </button>
-          <button className="btn-secondary" onClick={() => navigate('fiche', selectedEleve)}>Voir la fiche</button>
-        </div>
-        <div style={{ marginTop: 12 }}>
-          <button className="back-link" style={{ margin: '0 auto' }} onClick={() => navigate('dashboard')}>Retour au tableau de bord</button>
-        </div>
-      </div>
-    );
-  }
-
   if (isMobile) {
     return (
       <div style={{paddingBottom:80, background:'#f5f5f0', minHeight:'100vh'}}>
@@ -289,6 +247,48 @@ export default function EnregistrerRecitation({  user, eleve: eleveInitial, navi
               </button>
             </div>
           )}
+        </div>
+      </div>
+    );
+  }
+
+  if (done) {
+    return (
+      <div style={{ textAlign: 'center', padding: '2rem 1rem' }}>
+        <div style={{ width: 80, height: 80, borderRadius: '50%', background: '#E1F5EE', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 1rem', fontSize: 36 }}>
+          {typeValidation === 'hizb_complet' ? '🎉' : '✅'}
+        </div>
+        <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 8 }}>
+          {typeValidation === 'hizb_complet' ? t(lang,'hizb_valide_titre') : t(lang,'recitation_enregistree')}
+        </div>
+        {motivMsg && (
+          <div style={{ background: motivMsg.color + '15', border: `1px solid ${motivMsg.color}30`, borderRadius: 12, padding: '12px 20px', margin: '0 auto 1.5rem', maxWidth: 400, fontSize: 14, color: motivMsg.color, fontWeight: 500 }}>
+            {motivMsg.msg}
+          </div>
+        )}
+        {dureesApprentissage.length > 0 && (
+          <div style={{ background: '#E6F1FB', border: '0.5px solid #85B7EB', borderRadius: 10, padding: '10px 16px', margin: '0 auto 1.5rem', maxWidth: 400, fontSize: 13 }}>
+            <div style={{ fontWeight: 600, color: '#0C447C', marginBottom: 4 }}>{t(lang,'durees_apprentissage')}</div>
+            {dureesApprentissage.map(d => (
+              <div key={d.tomon} style={{ color: '#185FA5' }}>Tomon {d.tomon} : {d.jours} jour{d.jours > 1 ? 's' : ''}</div>
+            ))}
+          </div>
+        )}
+        <div style={{ fontSize: 13, color: '#888', marginBottom: '1.5rem' }}>
+          {selectedEleve?.prenom} {selectedEleve?.nom} —
+          {typeValidation === 'hizb_complet'
+            ? ` Hizb ${etat?.hizbEnCours} validé complet (+100 pts)`
+            : ` ${nombreTomon} Tomon validé${nombreTomon > 1 ? 's' : ''} (+${nombreTomon * 10} pts)`}
+        </div>
+        <div style={{ display: 'flex', gap: 10, justifyContent: 'center', flexWrap: 'wrap' }}>
+          <button className="btn-primary" style={{ maxWidth: 220 }}
+            onClick={() => { setDone(false); setStep(1); setSelectedEleve(null); setTomonSelectionnes([]); setEtat(null); setTypeValidation('tomon'); setMotivMsg(null); }}>
+            + Nouvelle récitation
+          </button>
+          <button className="btn-secondary" onClick={() => navigate('fiche', selectedEleve)}>Voir la fiche</button>
+        </div>
+        <div style={{ marginTop: 12 }}>
+          <button className="back-link" style={{ margin: '0 auto' }} onClick={() => navigate('dashboard')}>Retour au tableau de bord</button>
         </div>
       </div>
     );
