@@ -301,31 +301,31 @@ export default function RecitationSourate({ user, eleve, navigate, goBack, lang=
                   {lang==='ar'?'السور المقررة':'Sourates du niveau'} ({souratesOrdonnees.length})
                 </div>
                 <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
-                  {souratesOrdonnees.map(s=>{
+                  {souratesOrdonnees.map((s, sIdx)=>{
                     const recs = recitations.filter(r=>r.sourate_id===s.id||getDbId(s.numero)===r.sourate_id);
                     const complete = recs.some(r=>r.type_recitation==='complete');
                     const sequences = recs.filter(r=>r.type_recitation==='sequence').length;
-                    const isAccessible = isAccessible(s.numero);
+                    const accessible = canAccess(s, sIdx);
                     return(
                       <div key={s.numero}
-                        onClick={()=>isAccessible&&setSelectedSourate(selectedSourate?.numero===s.numero?null:s)}
-                        style={{background:'#fff',borderRadius:12,padding:'12px 10px',cursor:isAccessible?'pointer':'default',
+                        onClick={()=>accessible&&setSelectedSourate(selectedSourate?.numero===s.numero?null:s)}
+                        style={{background:'#fff',borderRadius:12,padding:'12px 10px',cursor:accessible?'pointer':'default',
                           border:complete?`2px solid ${nc}`:selectedSourate?.numero===s.numero?`1.5px solid ${nc}`:'0.5px solid #e0e0d8',
-                          background:complete?`${nc}08`:!isAccessible?'#f9f9f6':'#fff',
-                          opacity:isAccessible?1:0.5}}>
+                          background:complete?`${nc}08`:!accessible?'#f9f9f6':'#fff',
+                          opacity:accessible?1:0.5}}>
                         <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:4}}>
                           <span style={{fontSize:10,fontWeight:700,color:'#888'}}>#{s.numero}</span>
                           {complete&&<span style={{fontSize:12}}>✅</span>}
                           {!complete&&sequences>0&&<span style={{fontSize:10,color:nc,fontWeight:600}}>{sequences}s</span>}
-                          {!isAccessible&&<span style={{fontSize:10}}>🔒</span>}
+                          {!accessible&&<span style={{fontSize:10}}>🔒</span>}
                         </div>
-                        <div style={{fontSize:14,fontWeight:700,color:complete?nc:!isAccessible?'#aaa':'#1a1a1a',
+                        <div style={{fontSize:14,fontWeight:700,color:complete?nc:!accessible?'#aaa':'#1a1a1a',
                           fontFamily:"'Tajawal',Arial",direction:'rtl',textAlign:'right',marginBottom:2}}>
                           {s.nom_ar}
                         </div>
                         <div style={{fontSize:10,color:'#888'}}>{s.nom_fr||s.nom||''}</div>
                         {/* Validation buttons when selected */}
-                        {selectedSourate?.numero===s.numero&&isAccessible&&(
+                        {selectedSourate?.numero===s.numero&&accessible&&(
                           <div style={{marginTop:10,display:'flex',flexDirection:'column',gap:8}}>
                             <div style={{width:'100%',height:1,background:'#e0e0d8'}}/>
                             {!complete&&(
