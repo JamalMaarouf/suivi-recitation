@@ -411,12 +411,12 @@ export default function HistoriqueSeances({ user, navigate, goBack, lang='fr', i
           </div>
           {/* Period filter */}
           <div style={{display:'flex',gap:4,background:'#f0f0ec',borderRadius:10,padding:3,marginTop:10}}>
-            {[['7','7 jours'],['30','30 jours'],['90','3 mois'],['365','1 an']].map(([v,l])=>(
-              <div key={v} onClick={()=>setPeriode&&setPeriode(Number(v))}
+            {[[2,'7j'],[4,'Mois'],[5,'Trim.']].map(([idx,l])=>(
+              <div key={idx} onClick={()=>setPeriodeActive(idx)}
                 style={{flex:1,padding:'7px 4px',borderRadius:8,textAlign:'center',fontSize:11,fontWeight:600,
-                  cursor:'pointer',background:(periode||30)===Number(v)?'#fff':'transparent',
-                  color:(periode||30)===Number(v)?'#085041':'#888'}}>
-                {l}
+                  cursor:'pointer',background:periodeActive===idx?'#fff':'transparent',
+                  color:periodeActive===idx?'#085041':'#888'}}>
+                {lang==='ar'?PERIODES[idx].labelAr:l}
               </div>
             ))}
           </div>
@@ -427,10 +427,10 @@ export default function HistoriqueSeances({ user, navigate, goBack, lang='fr', i
             {/* KPIs */}
             <div style={{display:'grid',gridTemplateColumns:'repeat(2,1fr)',gap:10,marginBottom:14}}>
               {[
-                {label:lang==='ar'?'أيام نشطة':'Jours actifs',val:seancesStats?.joursActifs||0,color:'#1D9E75',bg:'#E1F5EE'},
-                {label:lang==='ar'?'إجمالي النقاط':'Total points',val:(seancesStats?.totalPts||0).toLocaleString(),color:'#534AB7',bg:'#F0EEFF'},
-                {label:lang==='ar'?'الثُّمنات':'Tomon validés',val:seancesStats?.totalTomon||0,color:'#378ADD',bg:'#E6F1FB'},
-                {label:lang==='ar'?'الأحزاب':'Hizb complets',val:seancesStats?.totalHizb||0,color:'#EF9F27',bg:'#FAEEDA'},
+                {label:lang==='ar'?'أيام نشطة':'Jours actifs',val:timelineArr.length,color:'#1D9E75',bg:'#E1F5EE'},
+                {label:lang==='ar'?'إجمالي النقاط':'Total points',val:actifs.reduce((s,e)=>s+e.pts,0).toLocaleString(),color:'#534AB7',bg:'#F0EEFF'},
+                {label:lang==='ar'?'الثُّمنات':'Tomon validés',val:actifs.reduce((s,e)=>s+e.tomon,0),color:'#378ADD',bg:'#E6F1FB'},
+                {label:lang==='ar'?'الأحزاب':'Hizb complets',val:actifs.reduce((s,e)=>s+e.hizb,0),color:'#EF9F27',bg:'#FAEEDA'},
               ].map((k,i)=>(
                 <div key={i} style={{background:k.bg,borderRadius:12,padding:'14px',textAlign:'center',border:`0.5px solid ${k.color}20`}}>
                   <div style={{fontSize:24,fontWeight:800,color:k.color}}>{k.val}</div>
