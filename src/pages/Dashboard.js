@@ -148,7 +148,7 @@ export default function Dashboard({ user, navigate, goBack, lang, isMobile=false
               {[
                 {icon:'🎯',label:lang==='ar'?'الأهداف':'Objectifs',sub:lang==='ar'?'متابعة':'Suivi',page:'objectifs',color:'#1D9E75',bg:'#E1F5EE'},
                 {icon:'📖',label:lang==='ar'?'مراجعة':"Murajaʼa",sub:lang==='ar'?'جماعية':'Collective',page:'muraja',color:'#534AB7',bg:'#F0EEFF'},
-                {icon:'👥',label:lang==='ar'?'الطلاب':'Élèves',sub:lang==='ar'?'القائمة':'Liste',page:'eleves_tab',color:'#378ADD',bg:'#E6F1FB'},
+                {icon:'👥',label:lang==='ar'?'السجل':'Registre',sub:lang==='ar'?'قائمة الطلاب':'Liste élèves',page:'eleves_tab',color:'#378ADD',bg:'#E6F1FB'},
                 {icon:'🏆',label:lang==='ar'?'الشرف':'Honneur',sub:lang==='ar'?'الترتيب':'Classement',page:'honneur',color:'#EF9F27',bg:'#FAEEDA'},
                 {icon:'💰',label:lang==='ar'?'المالية':'Finance',sub:lang==='ar'?'الاشتراكات':'Cotisations',page:'finance',color:'#E24B4A',bg:'#FCEBEB'},
                 {icon:'⚙️',label:lang==='ar'?'الإدارة':'Gestion',sub:lang==='ar'?'إدارة':'Paramètres',page:'gestion',color:'#888',bg:'#f5f5f0'},
