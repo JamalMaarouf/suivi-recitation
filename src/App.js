@@ -233,18 +233,18 @@ export default function App() {
                 <button onClick={()=>goBack?goBack():setPageWithRef('dashboard')} className="back-link" style={{marginTop:'1rem'}}>← Retour</button>
               </div>
           )}
-          {page === 'objectifs'          && <ErrorBoundary><GestionObjectifs user={user} navigate={navigate} goBack={goBack} lang={lang} /></ErrorBoundary>}
-          {page === 'historique_seances'   && <ErrorBoundary><HistoriqueSeances user={user} navigate={navigate} goBack={goBack} lang={lang} /></ErrorBoundary>}
-          {page === 'finance'             && user.role==='surveillant' && <ErrorBoundary><Finance user={user} navigate={navigate} goBack={goBack} lang={lang} /></ErrorBoundary>}
+          {page === 'objectifs'          && <ErrorBoundary><GestionObjectifs user={user} navigate={navigate} goBack={goBack} lang={lang} isMobile={isMobile} /></ErrorBoundary>}
+          {page === 'historique_seances'   && <ErrorBoundary><HistoriqueSeances user={user} navigate={navigate} goBack={goBack} lang={lang} isMobile={isMobile} /></ErrorBoundary>}
+          {page === 'finance'             && user.role==='surveillant' && <ErrorBoundary><Finance user={user} navigate={navigate} goBack={goBack} lang={lang} isMobile={isMobile} /></ErrorBoundary>}
           {page === 'enregistrer'       && (
             ['5B','5A','2M'].includes(selectedEleve?.code_niveau||'')
               ? <RecitationSourate eleve={selectedEleve} {...pageProps} />
               : <EnregistrerRecitation eleve={selectedEleve} {...pageProps} />
           )}
           {page === 'muraja'            && <ValidationCollective {...pageProps} />}
-          {page === 'inactifs'           && <ElevesInactifs navigate={navigate} goBack={goBack} lang={lang} user={user} />}
+          {page === 'inactifs'           && <ElevesInactifs navigate={navigate} goBack={goBack} lang={lang} user={user} isMobile={isMobile} />}
           {page === 'muraja_dashboard'  && <MurajaDashboard {...pageProps} />}
-          {page === 'profil_mobile'    && <ProfilMobile user={user} lang={lang} onLogout={handleLogout} navigate={navigate} goBack={goBack}/>}
+          {page === 'profil_mobile'    && <ProfilMobile user={user} lang={lang} onLogout={handleLogout} navigate={navigate} goBack={goBack} isMobile={isMobile}/>}
           {page === 'validation_rapide' && <ValidationRapide {...pageProps} />}
           {page === 'gestion'           && user.role === 'surveillant' && <Gestion {...pageProps} />}
           {page === 'honneur'           && <TableauHonneur {...pageProps} />}
