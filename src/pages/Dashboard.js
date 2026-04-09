@@ -148,7 +148,7 @@ export default function Dashboard({ user, navigate, goBack, lang, isMobile=false
               {[
                 {icon:'🎯',label:lang==='ar'?'الأهداف':'Objectifs',sub:lang==='ar'?'متابعة':'Suivi',page:'objectifs',color:'#1D9E75',bg:'#E1F5EE'},
                 {icon:'📖',label:lang==='ar'?'مراجعة':"Murajaʼa",sub:lang==='ar'?'جماعية':'Collective',page:'muraja',color:'#534AB7',bg:'#F0EEFF'},
-                {icon:'👥',label:lang==='ar'?'السجل':'Registre',sub:lang==='ar'?'تحليل الحصص':'Analyse séances',page:'eleves_tab',color:'#378ADD',bg:'#E6F1FB'},
+                {icon:'👥',label:lang==='ar'?'السجل':'Registre',sub:lang==='ar'?'تحليل الحصص':'Analyse séances',page:'historique_seances',color:'#378ADD',bg:'#E6F1FB'},
                 {icon:'🏆',label:lang==='ar'?'الشرف':'Honneur',sub:lang==='ar'?'الترتيب':'Classement',page:'honneur',color:'#EF9F27',bg:'#FAEEDA'},
                 {icon:'💰',label:lang==='ar'?'المالية':'Finance',sub:lang==='ar'?'الاشتراكات':'Cotisations',page:'finance',color:'#E24B4A',bg:'#FCEBEB'},
                 {icon:'⚙️',label:lang==='ar'?'الإدارة':'Gestion',sub:lang==='ar'?'إدارة':'Paramètres',page:'gestion',color:'#888',bg:'#f5f5f0'},
@@ -156,7 +156,7 @@ export default function Dashboard({ user, navigate, goBack, lang, isMobile=false
                .filter(a=>a.page!=='objectifs'||user.role==='surveillant')
                .map(a=>(
                 <div key={a.page} className="quick-action-card"
-                  onClick={()=>navigate(a.page==='eleves_tab'?'historique_seances':a.page)}
+                  onClick={()=>navigate(a.page)}
                   style={{borderLeft:`3px solid ${a.color}20`}}>
                   <div className="quick-action-icon">{a.icon}</div>
                   <div className="quick-action-label">{a.label}</div>
