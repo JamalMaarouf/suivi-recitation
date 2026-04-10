@@ -67,6 +67,7 @@ function ExceptionModal({ sourates, recitations, souratesDB, onConfirm, onCancel
 }
 
 export default function RecitationSourate({ user, eleve, navigate, goBack, lang='fr', isMobile=false }) {
+  const { toast } = useToast(); {
   const [souratesDB, setSouratesDB] = useState([]);
   const [recitations, setRecitations] = useState([]);
   const [exceptions, setExceptions] = useState([]); // unlocked sourates
@@ -192,8 +193,8 @@ export default function RecitationSourate({ user, eleve, navigate, goBack, lang=
   const confirmer = async () => {
     if (!selectedSourate || saving) return;
     if (typeRecitation === 'sequence') {
-      if (!versetDebut || !versetFin) { alert(lang==='ar'?'يجب تحديد الآيات':lang==='en'?'Please enter verse numbers':'Veuillez saisir les versets'); return; }
-      if (parseInt(versetFin) < parseInt(versetDebut)) { alert(lang==='ar'?'الآية الأخيرة يجب أن تكون أكبر':lang==='en'?'End verse must be greater':'Le verset de fin doit être supérieur'); return; }
+      if (!versetDebut || !versetFin) { toast.warning(lang==='ar'?'يجب تحديد الآيات':'Veuillez saisir les versets'); return; }
+      if (parseInt(versetFin) < parseInt(versetDebut)) { toast.warning(lang==='ar'?'الآية الأخيرة يجب أن تكون أكبر':'Le verset de fin doit être supérieur'); return; }
     }
     setSaving(true);
     const pts = typeRecitation === 'complete' ? 30 : 10;

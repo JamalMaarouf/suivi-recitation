@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useToast } from '../lib/toast';
 import { supabase } from '../lib/supabase';
 import { calcEtatEleve, calcPositionAtteinte, calcUnite, calcPoints, formatDate, formatDateCourt, getInitiales, scoreLabel, calcBadges, calcVitesse, niveauTraduit } from '../lib/helpers';
 import { t } from '../lib/i18n';
@@ -150,7 +151,8 @@ function PassageNiveauModal({ show, onClose, eleve, etat, user, lang, niveauxDis
   );
 }
 
-export default function FicheEleve({ eleve, user, navigate, goBack, lang, isMobile='fr' }) {
+export default function FicheEleve({
+  const { toast } = useToast(); eleve, user, navigate, goBack, lang, isMobile='fr' }) {
   const [validations, setValidations] = useState([]);
   const [apprentissages, setApprentissages] = useState([]);
   const [objectifs, setObjectifs] = useState([]);
@@ -186,9 +188,10 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang, isMobi
         supabase.from('validations').select('*, valideur:valide_par(prenom,nom)').eq('ecole_id', user.ecole_id).eq('eleve_id',eleve.id).in('type_validation',['tomon_muraja','hizb_muraja']).order('date_validation',{ascending:false}),
         supabase.from('recitations_sourates').select('*, sourate:sourate_id(nom_ar,numero), valideur:valide_par(prenom,nom)').eq('ecole_id', user.ecole_id).eq('eleve_id',eleve.id).eq('is_muraja',true).order('date_validation',{ascending:false}),
         supabase.from('passages_niveau').select('*, valide_par_u:valide_par(prenom,nom)').eq('ecole_id', user.ecole_id).eq('eleve_id',eleve.id).order('date_passage',{ascending:false}),
+        supabase.from('objectifs').select('*').eq('ecole_id', user.ecole_id).eq('eleve_id',eleve.id).order('created_at',{ascending:false}),
       ]);
-      const [r0,r1,r2,r3,r4,r5] = results.map(r=>r.status==='fulfilled'?r.value:{data:[]});
-      const vals=r0.data||[], appr=r1.data||[], exhizb=r2.data||[], mval=r3.data||[], mrec=r4.data||[], passData=r5.data||[];
+      const [r0,r1,r2,r3,r4,r5,r6] = results.map(r=>r.status==='fulfilled'?r.value:{data:[]});
+      const vals=r0.data||[], appr=r1.data||[], exhizb=r2.data||[], mval=r3.data||[], mrec=r4.data||[], passData=r5.data||[], objData=r6.data||[];
       if (eleve.instituteur_referent_id) {
         const {data:inst}=await supabase.from('utilisateurs').select('prenom,nom').eq('id',eleve.instituteur_referent_id).single();
         if(inst) setInstituteurNom(inst.prenom+' '+inst.nom);
@@ -201,8 +204,9 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang, isMobi
       setMurajaa(mval||[]);
       setMurajaaS(mrec||[]);
       setPassages(passData||[]);
+      setObjectifs(objData||[]);
     } catch(err) {
-      console.error('FicheEleve loadData error:', err);
+      toast.error(lang==='ar'?'خطأ في تحميل البيانات':'Erreur de chargement des données');
       // Set minimal etat so page renders
       setEtat(calcEtatEleve([],eleve.hizb_depart||1,eleve.tomon_depart||1));
     } finally {
@@ -344,11 +348,11 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang, isMobi
       setNotePassage('');
       // Reload data
       await loadData();
+      toast.success(lang==='ar'?'✅ تم تغيير المستوى بنجاح':'✅ Passage de niveau enregistré !');
       // Update eleve object in parent
       navigate('dashboard');
     } catch(err) {
-      console.error('Passage niveau error:', err);
-      alert(lang==='ar'?'خطأ في تغيير المستوى: '+err.message:'Erreur passage niveau: '+err.message);
+      toast.error(lang==='ar'?'خطأ في تغيير المستوى':'Erreur passage de niveau: '+err.message);
     }
     setSavingPassage(false);
   };

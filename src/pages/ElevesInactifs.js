@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react';
+import { useToast } from '../lib/toast';
 import { supabase } from '../lib/supabase';
 import { calcEtatEleve, joursDepuis, isInactif } from '../lib/helpers';
 import { t } from '../lib/i18n';
 
 const NIVEAU_COLORS = { '5B':'#534AB7','5A':'#378ADD','2M':'#1D9E75','2':'#EF9F27','1':'#E24B4A' };
 
-export default function ElevesInactifs({ navigate, goBack, lang='fr', user, isMobile }) {
+export default function ElevesInactifs({
+  const { toast } = useToast(); navigate, goBack, lang='fr', user, isMobile }) {
   const [inactifs, setInactifs] = useState([]);
   const [loading, setLoading]   = useState(true);
 
@@ -37,7 +39,7 @@ export default function ElevesInactifs({ navigate, goBack, lang='fr', user, isMo
         return b.jours-a.jours;
       }));
     } catch(err) {
-      console.error('ElevesInactifs error:', err);
+      toast.error('Erreur de chargement des élèves inactifs');
     }
     setLoading(false);
   };

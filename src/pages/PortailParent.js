@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useToast } from '../lib/toast';
 import { supabase } from '../lib/supabase';
 import { getInitiales, joursDepuis, scoreLabel, formatDateCourt } from '../lib/helpers';
 import { getSouratesForNiveau } from '../lib/sourates';
@@ -16,7 +17,8 @@ function NiveauBadge({ code }) {
   return <span style={{padding:'2px 8px',borderRadius:20,fontSize:10,fontWeight:700,background:c+'18',color:c,border:'0.5px solid '+c+'30'}}>{code}</span>;
 }
 
-export default function PortailParent({ parent, navigate, goBack, lang='fr', onLogout, isMobile }) {
+export default function PortailParent({
+  const { toast } = useToast(); parent, navigate, goBack, lang='fr', onLogout, isMobile }) {
   const [enfants, setEnfants] = useState([]);
   const [selectedEnfant, setSelectedEnfant] = useState(null);
   const [validations, setValidations] = useState([]);
@@ -60,7 +62,7 @@ export default function PortailParent({ parent, navigate, goBack, lang='fr', onL
         setCotisations(results[3].status==='fulfilled'?results[3].value.data||[]:[]);
         setSouratesDB(results[4].status==='fulfilled'?results[4].value.data||[]:[]);
       }
-    } catch(e) { console.error(e); }
+    } catch(e) { toast.error('Erreur de chargement'); }
     setLoading(false);
   };
 

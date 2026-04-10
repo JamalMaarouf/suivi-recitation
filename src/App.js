@@ -23,6 +23,7 @@ import ProfilMobile from './pages/ProfilMobile';
 import SuperAdminDashboard from './pages/SuperAdminDashboard';
 import InscriptionEcole from './pages/InscriptionEcole';
 import { t, getDir } from './lib/i18n';
+import { ToastProvider } from './lib/toast';
 import { setSouratesDB } from './lib/sourates';
 import { supabase } from './lib/supabase';
 import './App.css';
@@ -160,26 +161,31 @@ export default function App() {
   );
 
   if (!user) return (
+    <ToastProvider isMobile={isMobile}>
     <LangContext.Provider value={{ lang, setLang }}>
       {showInscription
         ? <InscriptionEcole onBack={()=>setShowInscription(false)} lang={lang}/>
         : <Login onLogin={handleLogin} lang={lang} LangSelector={LangSelector} onShowInscription={()=>setShowInscription(true)}/>
       }
     </LangContext.Provider>
+    </ToastProvider>
   );
 
   // Super admin → dashboard dédié
   if (user.role === 'super_admin') return (
+    <ToastProvider isMobile={isMobile}>
     <LangContext.Provider value={{ lang, setLang }}>
       <div className="app-container">
         <SuperAdminDashboard user={user} navigate={navigate} lang={lang} onLogout={handleLogout}/>
       </div>
     </LangContext.Provider>
+    </ToastProvider>
   );
 
   const pageProps = { user, navigate, goBack, lang, isMobile };
 
   return (
+    <ToastProvider isMobile={isMobile}>
     <LangContext.Provider value={{ lang, setLang }}>
       <div className="app-container" dir={getDir(lang)}>
 
@@ -288,5 +294,6 @@ export default function App() {
         )}
       </div>
     </LangContext.Provider>
+    </ToastProvider>
   );
 }

@@ -406,7 +406,7 @@ export default function Finance({ user, navigate, goBack, lang='fr', isMobile })
   const exportPDF = () => {
     if (onglet === 'cotisations') {
       const w = window.open('','_blank','width=1000,height=800');
-      if (!w) { console.error('Autorisez les popups'); return; }
+      if (!w) { showMsg('warning', 'Autorisez les popups pour exporter'); return; }
       const rows = cotFiltrees.slice(0,50).map((c,i)=>{
         const st=STATUTS.find(s=>s.val===c.statut)||STATUTS[0];
         const bg=i%2===0?'#fff':'#f9f9f6';
@@ -429,7 +429,7 @@ export default function Finance({ user, navigate, goBack, lang='fr', isMobile })
     }
     if (onglet === 'depenses') {
       const w = window.open('','_blank','width=1000,height=800');
-      if (!w) { console.error('Autorisez les popups'); return; }
+      if (!w) { showMsg('warning', 'Autorisez les popups pour exporter'); return; }
       const rows = depFiltrees.slice(0,50).map((d,i)=>{
         const cat=CATEGORIES.find(c=>c.val===d.categorie)||CATEGORIES[5];
         const bg=i%2===0?'#fff':'#f9f9f6';
@@ -451,7 +451,7 @@ export default function Finance({ user, navigate, goBack, lang='fr', isMobile })
     }
     if (onglet === 'suivi') {
       const w = window.open('','_blank','width=1000,height=800');
-      if (!w) { console.error('Autorisez les popups'); return; }
+      if (!w) { showMsg('warning', 'Autorisez les popups pour exporter'); return; }
       const rows = parEleve.map((p,i)=>{
         const st=STATUTS.find(s=>s.val===p.statutDernier)||STATUTS[2];
         const bg=i%2===0?'#fff':'#f9f9f6';
@@ -473,7 +473,7 @@ export default function Finance({ user, navigate, goBack, lang='fr', isMobile })
     }
     // Dashboard PDF (default)
     const w = window.open('','_blank','width=1100,height=900');
-    if (!w) { console.error('Autorisez les popups'); return; }
+    if (!w) { showMsg('warning', 'Autorisez les popups pour exporter'); return; }
 
     const maxDep = Math.max(...parCategorie.map(c=>c.total),1);
     const catBars = parCategorie.map((c,i)=>{

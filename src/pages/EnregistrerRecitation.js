@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useToast } from '../lib/toast';
 import { t } from '../lib/i18n';
 import { supabase } from '../lib/supabase';
 import { calcEtatEleve, calcPositionAtteinte, calcUnite, formatDate, getInitiales, motivationMsg } from '../lib/helpers';
@@ -12,6 +13,7 @@ function Avatar({ prenom, nom, size = 36, bg = '#E1F5EE', color = '#085041' }) {
 }
 
 export default function EnregistrerRecitation({  user, eleve: eleveInitial, navigate, goBack, lang="fr", isMobile=false }) {
+  const { toast } = useToast();
   const [step, setStep] = useState(eleveInitial ? 2 : 1);
   const [eleves, setEleves] = useState([]);
   const [search, setSearch] = useState('');
@@ -117,8 +119,7 @@ export default function EnregistrerRecitation({  user, eleve: eleveInitial, navi
 
     setLoading(false);
     if (error) {
-      console.error('Validation error:', error);
-      alert(`Erreur: ${error.message || JSON.stringify(error)}`);
+      toast.error(error.message || 'Erreur de validation');
       return;
     }
     const msg = motivationMsg(nombreTomon, etat, typeValidation === 'hizb_complet');
@@ -199,7 +200,7 @@ export default function EnregistrerRecitation({  user, eleve: eleveInitial, navi
                       tomon_debut:etat.prochainTomon,
                       hizb_validation:etat.hizbEnCours
                     });
-                    if (!error) { setDone(true); setMotivMsg({msg:'🎉 Hizb complet ! +100 pts'}); }
+                    if (!error) { setDone(true); setMotivMsg({msg:'🎉 Hizb complet ! +100 pts'}); toast.success(lang==='ar'?'🎉 تم تسجيل الحزب الكامل':'🎉 Hizb complet enregistré ! +100 pts'); }
                   }}
                     style={{width:'100%',padding:'18px',background:'#EF9F27',color:'#fff',
                       border:'none',borderRadius:14,fontSize:17,fontWeight:800,cursor:'pointer',fontFamily:'inherit'}}>
@@ -222,7 +223,7 @@ export default function EnregistrerRecitation({  user, eleve: eleveInitial, navi
                           tomon_debut:etat.prochainTomon,
                           hizb_validation:etat.hizbEnCours
                         });
-                        if (!error) { setDone(true); setMotivMsg({msg:`✅ +${n*30} pts !`}); }
+                        if (!error) { setDone(true); setMotivMsg({msg:`✅ +${n*30} pts !`}); toast.success(`✅ +${n*30} pts enregistrés !`); }
                       }}
                         style={{padding:'20px 8px',background:'#1D9E75',color:'#fff',
                           border:'none',borderRadius:14,fontSize:16,fontWeight:800,

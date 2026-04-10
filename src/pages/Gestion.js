@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useToast } from '../lib/toast';
 import { supabase } from '../lib/supabase';
 import ConfirmModal from '../components/ConfirmModal';
 import { getInitiales, calcEtatEleve, calcPoints } from '../lib/helpers';
@@ -141,7 +142,8 @@ function AcquisSelector({ codeNiveau, hizb, tomon, onHizbChange, onTomonChange, 
 }
 
 
-export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile }) {
+export default function Gestion({
+  const { toast } = useToast(); user, navigate, goBack, lang = 'fr', isMobile }) {
   const [tab, setTab] = useState('eleves');
   const [searchEleve, setSearchEleve] = useState('');
   const [parents, setParents] = useState([]);
@@ -368,7 +370,7 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile 
   // Export PDF élèves
   const exportElevesPDF = () => {
     const w = window.open('','_blank','width=1000,height=800');
-    if (!w) { alert((lang==='ar'?'يرجى السماح بالنوافذ المنبثقة':'Autorisez les popups')); return; }
+    if (!w) { toast.warning(lang==='ar'?'يرجى السماح بالنوافذ المنبثقة':'Autorisez les popups pour exporter'); return; }
     const rows = eleves.map((e,i) => {
       const inst = instituteurs.find(x=>x.id===e.instituteur_referent_id);
       const nc = {'5B':'#534AB7','5A':'#378ADD','2M':'#1D9E75','2':'#EF9F27','1':'#E24B4A'}[e.code_niveau||'']||'#888';
@@ -408,7 +410,7 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile 
   // Export PDF instituteurs
   const exportInstituteursPDF = () => {
     const w = window.open('','_blank','width=1000,height=800');
-    if (!w) { alert((lang==='ar'?'يرجى السماح بالنوافذ المنبثقة':'Autorisez les popups')); return; }
+    if (!w) { toast.warning(lang==='ar'?'يرجى السماح بالنوافذ المنبثقة':'Autorisez les popups pour exporter'); return; }
     const rows = instituteurs.map((inst,i) => {
       const nbEleves = eleves.filter(e=>e.instituteur_referent_id===inst.id).length;
       const elevesInst = eleves.filter(e=>e.instituteur_referent_id===inst.id);
@@ -936,18 +938,19 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile 
                 {eleves.length===0&&<div style={{fontSize:11,color:'#E24B4A',marginTop:4}}>⚠️ {lang==='ar'?'لا يوجد طلاب مسجلون بعد':'Aucun élève enregistré'}</div>}
               </div>
               <button className="btn-primary" onClick={async()=>{
-                if(!formParent.prenom||!formParent.nom||!formParent.identifiant) return console.error(lang==='ar'?'يرجى ملء الحقول المطلوبة':'Remplissez les champs obligatoires');
-                if(!editingParentId && !formParent.mot_de_passe) return console.error(lang==='ar'?'كلمة المرور مطلوبة':'Mot de passe requis');
+                if(!formParent.prenom||!formParent.nom||!formParent.identifiant) { toast.warning(lang==='ar'?'يرجى ملء الحقول المطلوبة':'Remplissez les champs obligatoires'); return; }
+                if(!editingParentId && !formParent.mot_de_passe) { toast.warning(lang==='ar'?'كلمة المرور مطلوبة':'Mot de passe requis'); return; }
                 let pid = editingParentId;
                 if(editingParentId) {
                   const upd={prenom:formParent.prenom,nom:formParent.nom,identifiant:formParent.identifiant,telephone:formParent.telephone||null};
                   if(formParent.mot_de_passe) upd.mot_de_passe=formParent.mot_de_passe;
                   const {error:ue}=await supabase.from('parents').update(upd).eq('id',editingParentId);
-                  if(ue){console.error(ue.message);return;}
+                  if(ue){ toast.error(ue.message||'Erreur utilisateur'); return; }
                   await supabase.from('parent_eleve').delete().eq('parent_id',editingParentId);
                 } else {
                   const {data:pd,error:pe}=await supabase.from('parents').insert({prenom:formParent.prenom,nom:formParent.nom,identifiant:formParent.identifiant,mot_de_passe:formParent.mot_de_passe,telephone:formParent.telephone||null,created_by:user.id,ecole_id:user.ecole_id}).select().single();
-                  if(pe){console.error(pe.message);return;}
+                  if(pe){ toast.error(pe.message||'Erreur parent'); return; }
+                  toast.success(lang==='ar'?'✅ تم حفظ ولي الأمر':'✅ Parent enregistré avec succès');
                   pid=pd.id;
                 }
                 if(formParent.eleve_ids.length>0){

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useToast } from '../lib/toast';
 import { supabase } from '../lib/supabase';
 import { calcEtatEleve, getInitiales, joursDepuis, isInactif, scoreLabel } from '../lib/helpers';
 import { t } from '../lib/i18n';
@@ -16,7 +17,8 @@ function NiveauBadge({ code }) {
   return <span style={{padding:'1px 7px',borderRadius:10,fontSize:10,fontWeight:700,background:c+'18',color:c,border:`0.5px solid ${c}30`}}>{code}</span>;
 }
 
-export default function Seance({ user, navigate, goBack, lang, isMobile=false }) {
+export default function Seance({
+  const { toast } = useToast(); user, navigate, goBack, lang, isMobile=false }) {
   const [eleves, setEleves] = useState([]);
   const [validationsAujourdhui, setValidationsAujourdhui] = useState([]);
   const [recitationsAujourdhui, setRecitationsAujourdhui] = useState([]);
@@ -161,7 +163,7 @@ export default function Seance({ user, navigate, goBack, lang, isMobile=false })
 
   const exportSeancePDF = () => {
     const w = window.open('','_blank','width=1000,height=800');
-    if (!w) { alert((lang==='ar'?'يرجى السماح بالنوافذ المنبثقة':'Autorisez les popups')); return; }
+    if (!w) { toast.warning(lang==='ar'?'يرجى السماح بالنوافذ المنبثقة':'Autorisez les popups pour exporter'); return; }
     const dateStr = new Date().toLocaleDateString(lang==='ar'?'ar-MA':'fr-FR',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
     const data2 = elevesDataState.length > 0 ? elevesDataState : [];
     const rows = data2.slice(0,30).map((e,i)=>{
@@ -204,11 +206,11 @@ export default function Seance({ user, navigate, goBack, lang, isMobile=false })
           <div style={{fontSize:18,fontWeight:800,color:'#085041',marginBottom:10}}>
             {new Date().toLocaleDateString(lang==='ar'?'ar-MA':'fr-FR',{weekday:'long',day:'numeric',month:'long'})}
           </div>
-          {/* Vue switch: séance / semaine */}
+          {/* Vue switch: séance / semaine / historique */}
           <div style={{display:'flex',gap:0,background:'#f0f0ec',borderRadius:10,padding:3,marginBottom:10}}>
-            {[['seance',lang==='ar'?'اليوم':"Aujourd'hui"],['semaine',lang==='ar'?'الأسبوع':'Cette semaine']].map(([k,l])=>(
-              <div key={k} onClick={()=>setVue(k)}
-                style={{flex:1,padding:'7px 8px',borderRadius:8,textAlign:'center',fontSize:12,fontWeight:600,
+            {[['seance',lang==='ar'?'اليوم':"Aujourd'hui"],['semaine',lang==='ar'?'الأسبوع':'Cette semaine'],['historique',lang==='ar'?'السجل':'Historique']].map(([k,l])=>(
+              <div key={k} onClick={()=>{ if(k==='historique') navigate('historique_seances'); else setVue(k); }}
+                style={{flex:1,padding:'7px 4px',borderRadius:8,textAlign:'center',fontSize:11,fontWeight:600,
                   cursor:'pointer',background:vue===k?'#fff':'transparent',color:vue===k?'#085041':'#888'}}>
                 {l}
               </div>

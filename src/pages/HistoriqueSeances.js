@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useToast } from '../lib/toast';
 import { supabase } from '../lib/supabase';
 import { getInitiales, joursDepuis, scoreLabel, formatDateCourt } from '../lib/helpers';
 import { t } from '../lib/i18n';
@@ -35,7 +36,8 @@ const PERIODES = [
   { label: 'Trimestre', labelAr: 'فصل', jours: 90 },
 ];
 
-export default function HistoriqueSeances({ user, navigate, goBack, lang='fr', isMobile }) {
+export default function HistoriqueSeances({
+  const { toast } = useToast(); user, navigate, goBack, lang='fr', isMobile }) {
   const [eleves, setEleves] = useState([]);
   const [instituteurs, setInstituteurs] = useState([]);
   const [validations, setValidations] = useState([]);
@@ -88,7 +90,7 @@ export default function HistoriqueSeances({ user, navigate, goBack, lang='fr', i
       setRecitations(r4.data||[]);
       setSouratesDB(r5.data||[]);
       setObjectifs(r6.data||[]);
-    } catch(e) { console.error(e); }
+    } catch(e) { toast.error('Erreur de chargement'); }
     setLoading(false);
   };
 
@@ -271,7 +273,7 @@ export default function HistoriqueSeances({ user, navigate, goBack, lang='fr', i
   // Export PDF
   const exportPDF = () => {
     const w = window.open('','_blank','width=1100,height=900');
-    if (!w) { alert((lang==='ar'?'يرجى السماح بالنوافذ المنبثقة':'Autorisez les popups pour exporter le PDF')); return; }
+    if (!w) { toast.warning(lang==='ar'?'يرجى السماح بالنوافذ المنبثقة':'Autorisez les popups pour exporter le PDF'); return; }
     const dir = lang==='ar'?'rtl':'ltr';
     const dataToExport = filterEleve!=='tous' ? actifs.filter(s=>s.eleve.id===filterEleve) : actifs;
     const filtreNom = filterEleve!=='tous' ? eleves.find(e=>e.id===filterEleve) : null;
