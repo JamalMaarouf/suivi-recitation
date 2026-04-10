@@ -6,8 +6,8 @@ import { t } from '../lib/i18n';
 
 const NIVEAU_COLORS = { '5B':'#534AB7','5A':'#378ADD','2M':'#1D9E75','2':'#EF9F27','1':'#E24B4A' };
 
-export default function ElevesInactifs({
-  const { toast } = useToast(); navigate, goBack, lang='fr', user, isMobile }) {
+export default function ElevesInactifs({ navigate, goBack, lang='fr', user, isMobile }) {
+  const { toast } = useToast();
   const [inactifs, setInactifs] = useState([]);
   const [loading, setLoading]   = useState(true);
 

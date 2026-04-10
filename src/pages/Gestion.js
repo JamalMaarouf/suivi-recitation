@@ -142,8 +142,8 @@ function AcquisSelector({ codeNiveau, hizb, tomon, onHizbChange, onTomonChange, 
 }
 
 
-export default function Gestion({
-  const { toast } = useToast(); user, navigate, goBack, lang = 'fr', isMobile }) {
+export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile }) {
+  const { toast } = useToast();
   const [tab, setTab] = useState('eleves');
   const [searchEleve, setSearchEleve] = useState('');
   const [parents, setParents] = useState([]);

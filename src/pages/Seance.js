@@ -17,8 +17,8 @@ function NiveauBadge({ code }) {
   return <span style={{padding:'1px 7px',borderRadius:10,fontSize:10,fontWeight:700,background:c+'18',color:c,border:`0.5px solid ${c}30`}}>{code}</span>;
 }
 
-export default function Seance({
-  const { toast } = useToast(); user, navigate, goBack, lang, isMobile=false }) {
+export default function Seance({ user, navigate, goBack, lang, isMobile=false }) {
+  const { toast } = useToast();
   const [eleves, setEleves] = useState([]);
   const [validationsAujourdhui, setValidationsAujourdhui] = useState([]);
   const [recitationsAujourdhui, setRecitationsAujourdhui] = useState([]);

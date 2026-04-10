@@ -36,8 +36,8 @@ const PERIODES = [
   { label: 'Trimestre', labelAr: 'فصل', jours: 90 },
 ];
 
-export default function HistoriqueSeances({
-  const { toast } = useToast(); user, navigate, goBack, lang='fr', isMobile }) {
+export default function HistoriqueSeances({ user, navigate, goBack, lang='fr', isMobile }) {
+  const { toast } = useToast();
   const [eleves, setEleves] = useState([]);
   const [instituteurs, setInstituteurs] = useState([]);
   const [validations, setValidations] = useState([]);

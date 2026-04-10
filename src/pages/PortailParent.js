@@ -17,8 +17,8 @@ function NiveauBadge({ code }) {
   return <span style={{padding:'2px 8px',borderRadius:20,fontSize:10,fontWeight:700,background:c+'18',color:c,border:'0.5px solid '+c+'30'}}>{code}</span>;
 }
 
-export default function PortailParent({
-  const { toast } = useToast(); parent, navigate, goBack, lang='fr', onLogout, isMobile }) {
+export default function PortailParent({ parent, navigate, goBack, lang='fr', onLogout, isMobile }) {
+  const { toast } = useToast();
   const [enfants, setEnfants] = useState([]);
   const [selectedEnfant, setSelectedEnfant] = useState(null);
   const [validations, setValidations] = useState([]);

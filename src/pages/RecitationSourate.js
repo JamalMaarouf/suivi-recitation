@@ -67,7 +67,7 @@ function ExceptionModal({ sourates, recitations, souratesDB, onConfirm, onCancel
 }
 
 export default function RecitationSourate({ user, eleve, navigate, goBack, lang='fr', isMobile=false }) {
-  const { toast } = useToast(); {
+  const { toast } = useToast();
   const [souratesDB, setSouratesDB] = useState([]);
   const [recitations, setRecitations] = useState([]);
   const [exceptions, setExceptions] = useState([]); // unlocked sourates
