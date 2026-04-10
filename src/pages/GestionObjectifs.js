@@ -320,16 +320,17 @@ export default function GestionObjectifs({ user, navigate, goBack, lang='fr', is
   if (isMobile) {
     return (
       <div style={{paddingBottom:80, background:'#f5f5f0', minHeight:'100vh'}}>
+        {/* Header sticky */}
         <div style={{background:'#fff', padding:'14px 16px', borderBottom:'0.5px solid #e0e0d8',
           position:'sticky', top:0, zIndex:100}}>
           <div style={{display:'flex', alignItems:'center', gap:10}}>
             <button onClick={()=>goBack?goBack():navigate('dashboard')}
               style={{background:'none',border:'none',cursor:'pointer',fontSize:22,color:'#085041',padding:0}}>←</button>
             <div style={{flex:1,fontSize:17,fontWeight:800,color:'#085041'}}>
-              🎯 {lang==='ar'?'الأهداف':lang==='en'?'Objectives':'Objectifs'}
+              🎯 {lang==='ar'?'الأهداف':'Objectifs'}
             </div>
             {user.role==='surveillant'&&(
-              <button onClick={()=>setShowForm(!showForm)}
+              <button onClick={()=>{setShowForm(v=>!v);setEditingId(null);setForm(f=>({...f,titre:'',notes:''}));}}
                 style={{background:'#1D9E75',color:'#fff',border:'none',borderRadius:8,
                   padding:'8px 12px',fontSize:13,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
                 {showForm?'✕':'+ Ajouter'}
@@ -337,79 +338,142 @@ export default function GestionObjectifs({ user, navigate, goBack, lang='fr', is
             )}
           </div>
         </div>
+
+        {/* Message feedback */}
         {msg&&<div style={{margin:'8px 12px',padding:'10px 14px',borderRadius:10,fontSize:13,
-          background:msg.ok?'#E1F5EE':'#FCEBEB',color:msg.ok?'#085041':'#E24B4A'}}>{msg.text}</div>}
+          background:msg.type==='success'?'#E1F5EE':'#FCEBEB',
+          color:msg.type==='success'?'#085041':'#E24B4A'}}>{msg.text}</div>}
+
         <div style={{padding:'12px'}}>
+          {/* Formulaire ajout / modification */}
           {showForm&&user.role==='surveillant'&&(
-            <div style={{background:'#fff',borderRadius:14,padding:'16px',marginBottom:12,border:'0.5px solid #e0e0d8'}}>
-              <div style={{fontSize:14,fontWeight:700,color:'#085041',marginBottom:12}}>{editingId?(lang==='ar'?'تعديل الهدف':'Modifier objectif'):(lang==='ar'?'إضافة هدف':'Nouvel objectif')}</div>
-              {[
-                {label:lang==='ar'?'العنوان':'Titre',key:'titre',type:'text'},
-                {label:lang==='ar'?'الوصف':'Description',key:'description',type:'text'},
-              ].map(f=>(
-                <div key={f.key} style={{marginBottom:12}}>
-                  <label style={{fontSize:13,fontWeight:600,color:'#666',display:'block',marginBottom:6}}>{f.label}</label>
-                  <input type={f.type}
-                    style={{width:'100%',padding:'12px 14px',borderRadius:10,border:'0.5px solid #e0e0d8',
-                      fontSize:16,fontFamily:'inherit',boxSizing:'border-box'}}
-                    value={newObj[f.key]||''} onChange={e=>setNewObj(p=>({...p,[f.key]:e.target.value}))}/>
-                </div>
-              ))}
-              <button onClick={ajouterObj}
-                style={{width:'100%',padding:'14px',background:'#1D9E75',color:'#fff',border:'none',
-                  borderRadius:12,fontSize:15,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
-                {editingId?(lang==='ar'?'تحديث':'Mettre à jour ✓'):(lang==='ar'?'حفظ':'Enregistrer')}
-              </button>
+            <div style={{background:'#fff',borderRadius:14,padding:'16px',marginBottom:12,
+              border:`1.5px solid ${editingId?'#378ADD':'#1D9E75'}`}}>
+              <div style={{fontSize:14,fontWeight:700,color:'#085041',marginBottom:12}}>
+                {editingId?(lang==='ar'?'تعديل الهدف':'✏️ Modifier objectif'):(lang==='ar'?'إضافة هدف':'🎯 Nouvel objectif')}
+              </div>
+              {/* Titre */}
+              <div style={{marginBottom:12}}>
+                <label style={{fontSize:13,fontWeight:600,color:'#666',display:'block',marginBottom:6}}>
+                  {lang==='ar'?'العنوان':'Titre'}
+                </label>
+                <input
+                  style={{width:'100%',padding:'12px 14px',borderRadius:10,border:'0.5px solid #e0e0d8',
+                    fontSize:15,fontFamily:'inherit',boxSizing:'border-box'}}
+                  value={form.titre||''}
+                  onChange={e=>setForm(p=>({...p,titre:e.target.value}))}
+                  placeholder={lang==='ar'?'عنوان الهدف':'Titre de l'objectif'}
+                />
+              </div>
+              {/* Notes / Description */}
+              <div style={{marginBottom:12}}>
+                <label style={{fontSize:13,fontWeight:600,color:'#666',display:'block',marginBottom:6}}>
+                  {lang==='ar'?'الوصف':'Description (optionnel)'}
+                </label>
+                <textarea
+                  style={{width:'100%',padding:'12px 14px',borderRadius:10,border:'0.5px solid #e0e0d8',
+                    fontSize:15,fontFamily:'inherit',boxSizing:'border-box',resize:'none',minHeight:70}}
+                  value={form.notes||''}
+                  onChange={e=>setForm(p=>({...p,notes:e.target.value}))}
+                  placeholder={lang==='ar'?'وصف اختياري':'Description optionnelle'}
+                />
+              </div>
+              {/* Boutons */}
+              <div style={{display:'flex',gap:8}}>
+                <button onClick={()=>{setShowForm(false);setEditingId(null);}}
+                  style={{flex:1,padding:'13px',background:'#f5f5f0',color:'#666',border:'none',
+                    borderRadius:12,fontSize:14,fontWeight:600,cursor:'pointer',fontFamily:'inherit'}}>
+                  {lang==='ar'?'إلغاء':'Annuler'}
+                </button>
+                <button onClick={saveObjectif} disabled={saving||!form.titre}
+                  style={{flex:2,padding:'13px',background:saving||!form.titre?'#ccc':'#1D9E75',
+                    color:'#fff',border:'none',borderRadius:12,fontSize:14,fontWeight:700,
+                    cursor:saving||!form.titre?'not-allowed':'pointer',fontFamily:'inherit'}}>
+                  {saving?'...':(editingId?(lang==='ar'?'تحديث':'Mettre à jour ✓'):(lang==='ar'?'حفظ':'Enregistrer'))}
+                </button>
+              </div>
             </div>
           )}
-          {objectifs.map(obj=>(
-            <div key={obj.id} style={{background:'#fff',borderRadius:12,padding:'14px',marginBottom:10,border:'0.5px solid #e0e0d8'}}>
-              <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:6}}>
-                <div style={{fontWeight:700,fontSize:15,color:'#085041',flex:1,marginRight:8}}>{obj.titre}</div>
-                <span style={{fontSize:11,fontWeight:600,padding:'3px 10px',borderRadius:10,flexShrink:0,
-                  color:obj.atteint?'#1D9E75':'#EF9F27',background:obj.atteint?'#E1F5EE':'#FAEEDA'}}>
-                  {obj.atteint?(lang==='ar'?'مكتمل':'Atteint'):(lang==='ar'?'قيد التنفيذ':'En cours')}
-                </span>
-              </div>
-              {obj.description&&<div style={{fontSize:13,color:'#888',marginBottom:8}}>{obj.description}</div>}
-              {obj.valeur_cible&&(
-                <div>
-                  <div style={{height:6,background:'#f0f0ec',borderRadius:3,overflow:'hidden',marginBottom:4}}>
-                    <div style={{height:'100%',background:'#1D9E75',borderRadius:3,
-                      width:`${Math.min(100,Math.round(((obj.valeur_actuelle||0)/obj.valeur_cible)*100))}%`}}/>
-                  </div>
-                  <div style={{fontSize:11,color:'#888'}}>{obj.valeur_actuelle||0} / {obj.valeur_cible}</div>
-                </div>
-              )}
-              {user.role==='surveillant'&&(
-                <div style={{display:'flex',gap:8,marginTop:10}}>
-                  <button onClick={()=>toggleAtteint(obj)}
-                    style={{flex:1,padding:'10px',background:obj.atteint?'#f5f5f0':'#E1F5EE',
-                      color:obj.atteint?'#888':'#085041',border:'none',borderRadius:10,
-                      fontSize:13,fontWeight:600,cursor:'pointer',fontFamily:'inherit'}}>
-                    {obj.atteint?(lang==='ar'?'إعادة فتح':'Réouvrir'):(lang==='ar'?'تحقق':'Atteint ✓')}
-                  </button>
-                  <button onClick={()=>{setEditingId(obj.id);setNewObj({titre:obj.titre||'',description:obj.description||''});setShowForm(true);window.scrollTo(0,0);}}
-                    style={{padding:'10px 14px',background:'#E6F1FB',color:'#378ADD',border:'none',
-                      borderRadius:10,fontSize:13,cursor:'pointer',fontWeight:600}}>
-                    ✏️
-                  </button>
-                  <button onClick={()=>supprimerObj(obj.id)}
-                    style={{padding:'10px 14px',background:'#FCEBEB',color:'#E24B4A',border:'none',
-                      borderRadius:10,fontSize:13,cursor:'pointer'}}>
-                    🗑
-                  </button>
-                </div>
-              )}
-            </div>
-          ))}
-          {objectifs.length===0&&(
+
+          {/* Liste des objectifs */}
+          {loading ? (
+            <div style={{textAlign:'center',padding:'2rem',color:'#888'}}>...</div>
+          ) : objectifs.length===0 ? (
             <div style={{textAlign:'center',color:'#aaa',padding:'3rem'}}>
               <div style={{fontSize:40,marginBottom:12}}>🎯</div>
               <div style={{fontSize:14}}>{lang==='ar'?'لا توجد أهداف':'Aucun objectif défini'}</div>
             </div>
-          )}
+          ) : objectifs.map(obj=>{
+            const { status } = calcAtteinte(obj, validations, recitationsSourates);
+            const info = statusConfig[status] || statusConfig['en_cours'];
+            return (
+              <div key={obj.id} style={{background:'#fff',borderRadius:12,padding:'14px',
+                marginBottom:10,border:`0.5px solid ${info.color}20`}}>
+                {/* En-tête carte */}
+                <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:6}}>
+                  <div style={{fontWeight:700,fontSize:15,color:'#085041',flex:1,marginRight:8}}>
+                    {obj.titre||'—'}
+                  </div>
+                  <span style={{fontSize:11,fontWeight:600,padding:'3px 10px',borderRadius:10,flexShrink:0,
+                    color:info.color,background:info.bg}}>
+                    {lang==='ar'?info.label_ar:info.label_fr}
+                  </span>
+                </div>
+                {/* Description */}
+                {obj.notes&&<div style={{fontSize:13,color:'#888',marginBottom:8}}>{obj.notes}</div>}
+                {/* Barre de progression */}
+                {obj.valeur_cible&&(
+                  <div style={{marginBottom:8}}>
+                    <div style={{height:6,background:'#f0f0ec',borderRadius:3,overflow:'hidden',marginBottom:4}}>
+                      <div style={{height:'100%',background:info.color,borderRadius:3,
+                        width:`${Math.min(100,Math.round(((obj.valeur_actuelle||0)/obj.valeur_cible)*100))}%`}}/>
+                    </div>
+                    <div style={{fontSize:11,color:'#888'}}>
+                      {obj.valeur_actuelle||0} / {obj.valeur_cible}
+                    </div>
+                  </div>
+                )}
+                {/* Boutons actions */}
+                {user.role==='surveillant'&&(
+                  <div style={{display:'flex',gap:8,marginTop:10}}>
+                    <button onClick={()=>{startEdit(obj);setShowForm(true);window.scrollTo(0,0);}}
+                      style={{flex:1,padding:'10px',background:'#E6F1FB',color:'#378ADD',border:'none',
+                        borderRadius:10,fontSize:13,fontWeight:600,cursor:'pointer',fontFamily:'inherit'}}>
+                      ✏️ {lang==='ar'?'تعديل':'Modifier'}
+                    </button>
+                    <button onClick={()=>deleteObjectif(obj.id)}
+                      style={{padding:'10px 16px',background:'#FCEBEB',color:'#E24B4A',border:'none',
+                        borderRadius:10,fontSize:13,cursor:'pointer',fontWeight:600}}>
+                      🗑
+                    </button>
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </div>
+        {/* ConfirmModal */}
+        {confirmModal.isOpen&&(
+          <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.5)',zIndex:1000,
+            display:'flex',alignItems:'center',justifyContent:'center',padding:'20px'}}>
+            <div style={{background:'#fff',borderRadius:16,padding:'24px',maxWidth:320,width:'100%'}}>
+              <div style={{fontWeight:700,fontSize:16,marginBottom:8}}>{confirmModal.title}</div>
+              <div style={{fontSize:13,color:'#666',marginBottom:20}}>{confirmModal.message}</div>
+              <div style={{display:'flex',gap:8}}>
+                <button onClick={hideConfirm}
+                  style={{flex:1,padding:'12px',background:'#f5f5f0',border:'none',borderRadius:10,
+                    fontSize:14,fontWeight:600,cursor:'pointer'}}>
+                  {lang==='ar'?'إلغاء':'Annuler'}
+                </button>
+                <button onClick={confirmModal.onConfirm}
+                  style={{flex:1,padding:'12px',background:confirmModal.confirmColor||'#E24B4A',
+                    color:'#fff',border:'none',borderRadius:10,fontSize:14,fontWeight:700,cursor:'pointer'}}>
+                  {confirmModal.confirmLabel}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     );
   }
