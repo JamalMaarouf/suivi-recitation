@@ -142,8 +142,10 @@ export default function Dashboard({ user, navigate, goBack, lang, isMobile=false
       {icon:'🎯', label:lang==='ar'?'الأهداف':'Objectifs',         sub:lang==='ar'?'متابعة':'Suivi',          page:'objectifs',          color:'#534AB7', bg:'#EEEDFE'},
       {icon:'📊', label:lang==='ar'?'السجل':'السجل',               sub:lang==='ar'?'تحليل':'Historique',       page:'historique_seances', color:'#378ADD', bg:'#E6F1FB'},
       {icon:'📖', label:lang==='ar'?'مراجعة':"Murajaʼa",           sub:lang==='ar'?'جماعية':'Collective',      page:'muraja',             color:'#534AB7', bg:'#F0EEFF'},
+      {icon:'📋', label:lang==='ar'?'التقرير الشهري':'Rapport mensuel', sub:lang==='ar'?'إحصائيات':'Statistiques',  page:'rapport_mensuel',    color:'#D85A30', bg:'#FAECE7'},
     ].filter(m => m.page!=='finance'||user.role==='surveillant')
-     .filter(m => m.page!=='objectifs'||user.role==='surveillant');
+     .filter(m => m.page!=='objectifs'||user.role==='surveillant')
+     .filter(m => m.page!=='rapport_mensuel'||user.role==='surveillant');
 
     const podiumColors = ['#EF9F27','#B0B0B0','#CD7F32'];
     const podiumBg     = ['#FAEEDA','#f5f5f0','#f9f3ec'];

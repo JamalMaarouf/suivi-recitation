@@ -448,20 +448,77 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile 
   };
 
   if (isMobile) {
-    const NIVEAU_COLORS_M = {'5B':'#534AB7','5A':'#378ADD','2M':'#1D9E75','2':'#EF9F27','1':'#E24B4A'};
-    if (loading) return <div style={{padding:'2rem',textAlign:'center',color:'#888'}}>...</div>;
+    const NC = {'5B':'#534AB7','5A':'#378ADD','2M':'#1D9E75','2':'#EF9F27','1':'#E24B4A'};
+    const NL = {'5B':lang==='ar'?'تمهيدي':'Préscolaire','5A':'Prim. 1-2','2M':'Prim. 3-4','2':'Prim. 5-6','1':lang==='ar'?'إعدادي':'Collège'};
+    const NIVEAUX_M = ['5B','5A','2M','2','1'];
+    const [showFormEleve,  setShowFormEleve]  = React.useState(false);
+    const [showFormInst,   setShowFormInst]   = React.useState(false);
+    const [showFormParent, setShowFormParent] = React.useState(false);
+    const [mobileEditEleve,setMobileEditEleve]= React.useState(null);
+
+    const resetFormEleve = () => {
+      setNewEleve({prenom:'',nom:'',niveau:'Débutant',code_niveau:'1',eleve_id_ecole:'',instituteur_referent_id:'',hizb_depart:1,tomon_depart:1,sourates_acquises:0});
+      setEditEleve(null); setMobileEditEleve(null);
+    };
+    const handleSaveEleve = async () => {
+      if (editEleve) { await modifierEleve(); setShowFormEleve(false); resetFormEleve(); }
+      else           { await ajouterEleve();  setShowFormEleve(false); resetFormEleve(); }
+    };
+    const startEditEleve = (e) => {
+      setEditEleve({...e}); setMobileEditEleve(e);
+      setShowFormEleve(true); window.scrollTo(0,0);
+    };
+
+    if (loading) return <div style={{padding:'3rem',textAlign:'center',color:'#888'}}>...</div>;
+
+    const FieldInput = ({label, val, onChange, ph, type='text'}) => (
+      <div style={{marginBottom:12}}>
+        <label style={{fontSize:12,fontWeight:600,color:'#666',display:'block',marginBottom:5}}>{label}</label>
+        <input type={type}
+          style={{width:'100%',padding:'12px 14px',borderRadius:10,border:'0.5px solid #e0e0d8',
+            fontSize:15,fontFamily:'inherit',boxSizing:'border-box'}}
+          value={val} onChange={onChange} placeholder={ph}/>
+      </div>
+    );
+
     return (
       <div style={{paddingBottom:80,background:'#f5f5f0',minHeight:'100vh'}}>
-        {/* Header */}
-        <div style={{background:'#fff',padding:'16px',borderBottom:'0.5px solid #e0e0d8',position:'sticky',top:0,zIndex:100}}>
-          <div style={{fontSize:18,fontWeight:800,color:'#085041',marginBottom:10}}>{t(lang,'gestion')}</div>
-          {msg.text&&<div style={{padding:'8px 12px',borderRadius:8,marginBottom:8,fontSize:13,
-            background:msg.type==='error'?'#FCEBEB':'#E1F5EE',color:msg.type==='error'?'#E24B4A':'#085041'}}>
-            {msg.text}
-          </div>}
-          {/* Tabs */}
+        {/* HEADER */}
+        <div style={{background:'#fff',padding:'14px 16px 0',borderBottom:'0.5px solid #e0e0d8',position:'sticky',top:0,zIndex:100}}>
+          <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:12}}>
+            <button onClick={()=>goBack?goBack():navigate('dashboard')}
+              style={{background:'none',border:'none',cursor:'pointer',fontSize:22,color:'#085041',padding:0}}>←</button>
+            <div style={{flex:1,fontSize:17,fontWeight:800,color:'#085041'}}>⚙️ {lang==='ar'?'الإدارة':'Administration'}</div>
+            {tab==='eleves'&&user.role==='surveillant'&&(
+              <button onClick={()=>{resetFormEleve();setShowFormEleve(v=>!v);}}
+                style={{background:showFormEleve?'#f0f0ec':'#1D9E75',color:showFormEleve?'#666':'#fff',
+                  border:'none',borderRadius:10,padding:'8px 14px',fontSize:13,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
+                {showFormEleve?'✕':lang==='ar'?'+ إضافة':'+ Ajouter'}
+              </button>
+            )}
+            {tab==='instituteurs'&&user.role==='surveillant'&&(
+              <button onClick={()=>setShowFormInst(v=>!v)}
+                style={{background:showFormInst?'#f0f0ec':'#378ADD',color:showFormInst?'#666':'#fff',
+                  border:'none',borderRadius:10,padding:'8px 14px',fontSize:13,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
+                {showFormInst?'✕':lang==='ar'?'+ إضافة':'+ Ajouter'}
+              </button>
+            )}
+            {tab==='parents'&&user.role==='surveillant'&&(
+              <button onClick={()=>setShowFormParent(v=>!v)}
+                style={{background:showFormParent?'#f0f0ec':'#EF9F27',color:showFormParent?'#666':'#fff',
+                  border:'none',borderRadius:10,padding:'8px 14px',fontSize:13,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
+                {showFormParent?'✕':lang==='ar'?'+ إضافة':'+ Ajouter'}
+              </button>
+            )}
+          </div>
+          {msg.text&&(
+            <div style={{margin:'0 0 10px',padding:'10px 14px',borderRadius:10,fontSize:13,
+              background:msg.type==='error'?'#FCEBEB':'#E1F5EE',color:msg.type==='error'?'#E24B4A':'#085041'}}>
+              {msg.text}
+            </div>
+          )}
           <div style={{display:'flex',gap:0,background:'#f0f0ec',borderRadius:10,padding:3}}>
-            {[['eleves',t(lang,'eleves')],['instituteurs',t(lang,'instituteurs')],['parents','Parents']].map(([k,l])=>(
+            {[['eleves',lang==='ar'?'الطلاب':'Élèves'],['instituteurs',lang==='ar'?'الأساتذة':'Profs'],['parents',lang==='ar'?'الآباء':'Parents']].map(([k,l])=>(
               <div key={k} onClick={()=>setTab(k)}
                 style={{flex:1,padding:'8px 4px',borderRadius:8,textAlign:'center',fontSize:12,fontWeight:600,
                   cursor:'pointer',background:tab===k?'#fff':'transparent',color:tab===k?'#1a1a1a':'#888'}}>
@@ -471,96 +528,304 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile 
           </div>
         </div>
 
-        {/* Eleves list */}
-        {tab==='eleves' && (
+        {/* ELEVES */}
+        {tab==='eleves'&&(
           <div style={{padding:'12px'}}>
-            {/* Search */}
-            <input style={{width:'100%',padding:'12px 16px',borderRadius:12,border:'0.5px solid #e0e0d8',
-              fontSize:16,fontFamily:'inherit',boxSizing:'border-box',background:'#fff',marginBottom:12}}
+            {showFormEleve&&user.role==='surveillant'&&(
+              <div style={{background:'#fff',borderRadius:16,padding:'18px',marginBottom:14,
+                border:`1.5px solid ${mobileEditEleve?'#378ADD':'#1D9E75'}`}}>
+                <div style={{fontSize:15,fontWeight:700,color:'#085041',marginBottom:14}}>
+                  {mobileEditEleve?(lang==='ar'?'تعديل الطالب':'✏️ Modifier élève'):(lang==='ar'?'إضافة طالب':'👤 Nouvel élève')}
+                </div>
+                {[{label:lang==='ar'?'الاسم':'Prénom *',key:'prenom',ph:lang==='ar'?'الاسم':'Prénom'},
+                  {label:lang==='ar'?'اللقب':'Nom *',key:'nom',ph:lang==='ar'?'اللقب':'Nom'},
+                ].map(f=>(
+                  <div key={f.key} style={{marginBottom:12}}>
+                    <label style={{fontSize:12,fontWeight:600,color:'#666',display:'block',marginBottom:5}}>{f.label}</label>
+                    <input style={{width:'100%',padding:'12px 14px',borderRadius:10,border:'0.5px solid #e0e0d8',fontSize:15,fontFamily:'inherit',boxSizing:'border-box'}}
+                      value={editEleve?editEleve[f.key]||'':newEleve[f.key]}
+                      onChange={e=>editEleve?setEditEleve(x=>({...x,[f.key]:e.target.value})):setNewEleve(x=>({...x,[f.key]:e.target.value}))}
+                      placeholder={f.ph}/>
+                  </div>
+                ))}
+                <div style={{marginBottom:12}}>
+                  <label style={{fontSize:12,fontWeight:600,color:'#666',display:'block',marginBottom:5}}>{lang==='ar'?'رقم التعريف':'ID élève *'}</label>
+                  <input style={{width:'100%',padding:'12px 14px',borderRadius:10,border:'0.5px solid #e0e0d8',fontSize:15,fontFamily:'inherit',boxSizing:'border-box'}}
+                    value={editEleve?editEleve.eleve_id_ecole||'':newEleve.eleve_id_ecole}
+                    onChange={e=>editEleve?setEditEleve(x=>({...x,eleve_id_ecole:e.target.value})):setNewEleve(x=>({...x,eleve_id_ecole:e.target.value}))}
+                    placeholder="001"/>
+                </div>
+                <div style={{marginBottom:12}}>
+                  <label style={{fontSize:12,fontWeight:600,color:'#666',display:'block',marginBottom:8}}>{lang==='ar'?'المستوى':'Niveau *'}</label>
+                  <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>
+                    {NIVEAUX_M.map(n=>{
+                      const nc=NC[n]; const cur=editEleve?editEleve.code_niveau:newEleve.code_niveau;
+                      return(
+                        <div key={n} onClick={()=>editEleve?setEditEleve(x=>({...x,code_niveau:n})):setNewEleve(x=>({...x,code_niveau:n}))}
+                          style={{padding:'8px 12px',borderRadius:20,cursor:'pointer',flexShrink:0,textAlign:'center',
+                            background:cur===n?nc:'#f5f5f0',color:cur===n?'#fff':'#666',
+                            border:`1.5px solid ${cur===n?nc:'#e0e0d8'}`,fontWeight:cur===n?700:400,fontSize:12}}>
+                          <div>{n}</div><div style={{fontSize:9,opacity:0.85}}>{NL[n]}</div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+                <div style={{marginBottom:12}}>
+                  <label style={{fontSize:12,fontWeight:600,color:'#666',display:'block',marginBottom:5}}>{lang==='ar'?'الأستاذ المرجع':'Instituteur référent *'}</label>
+                  <select style={{width:'100%',padding:'12px 14px',borderRadius:10,border:'0.5px solid #e0e0d8',fontSize:14,fontFamily:'inherit',background:'#fff',boxSizing:'border-box'}}
+                    value={editEleve?editEleve.instituteur_referent_id||'':newEleve.instituteur_referent_id}
+                    onChange={e=>editEleve?setEditEleve(x=>({...x,instituteur_referent_id:e.target.value})):setNewEleve(x=>({...x,instituteur_referent_id:e.target.value}))}>
+                    <option value="">— {lang==='ar'?'اختر أستاذاً':'Choisir'} —</option>
+                    {instituteurs.map(i=><option key={i.id} value={i.id}>{i.prenom} {i.nom}</option>)}
+                  </select>
+                </div>
+                {['2','1','2M'].includes(editEleve?editEleve.code_niveau:newEleve.code_niveau)&&(
+                  <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:12}}>
+                    {[{label:lang==='ar'?'الحزب الابتدائي':'Hizb départ',key:'hizb_depart',max:60},
+                      {label:lang==='ar'?'الثُّمن الابتدائي':'Tomon départ',key:'tomon_depart',max:8}
+                    ].map(f=>(
+                      <div key={f.key}>
+                        <label style={{fontSize:12,fontWeight:600,color:'#666',display:'block',marginBottom:5}}>{f.label}</label>
+                        <input type="number" min="1" max={f.max}
+                          style={{width:'100%',padding:'12px 14px',borderRadius:10,border:'0.5px solid #e0e0d8',fontSize:15,fontFamily:'inherit',boxSizing:'border-box'}}
+                          value={editEleve?editEleve[f.key]||1:newEleve[f.key]}
+                          onChange={e=>editEleve?setEditEleve(x=>({...x,[f.key]:e.target.value})):setNewEleve(x=>({...x,[f.key]:e.target.value}))}/>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <div style={{display:'flex',gap:8,marginTop:4}}>
+                  <button onClick={()=>{setShowFormEleve(false);resetFormEleve();}}
+                    style={{flex:1,padding:'13px',background:'#f5f5f0',color:'#666',border:'none',borderRadius:12,fontSize:14,fontWeight:600,cursor:'pointer',fontFamily:'inherit'}}>
+                    {lang==='ar'?'إلغاء':'Annuler'}
+                  </button>
+                  <button onClick={handleSaveEleve}
+                    style={{flex:2,padding:'13px',background:mobileEditEleve?'#378ADD':'#1D9E75',color:'#fff',border:'none',borderRadius:12,fontSize:14,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
+                    {mobileEditEleve?(lang==='ar'?'تحديث':'Mettre à jour ✓'):(lang==='ar'?'حفظ':'Enregistrer')}
+                  </button>
+                </div>
+              </div>
+            )}
+            <input style={{width:'100%',padding:'12px 16px',borderRadius:12,border:'0.5px solid #e0e0d8',fontSize:15,fontFamily:'inherit',boxSizing:'border-box',background:'#fff',marginBottom:8}}
               placeholder={lang==='ar'?'بحث عن طالب...':'Rechercher un élève...'}
               value={searchEleve||''} onChange={e=>setSearchEleve(e.target.value)}/>
-            {eleves.filter(e=>!searchEleve||(e.prenom+' '+e.nom).toLowerCase().includes(searchEleve.toLowerCase())).map(e=>{
-              const nc=NIVEAU_COLORS_M[e.code_niveau||'1']||'#888';
+            <div style={{fontSize:12,color:'#888',marginBottom:8,paddingLeft:4}}>
+              {eleves.filter(e=>!searchEleve||(e.prenom+' '+e.nom).toLowerCase().includes((searchEleve||'').toLowerCase())).length} {lang==='ar'?'طالب':'élève(s)'}
+            </div>
+            {eleves.filter(e=>!searchEleve||(e.prenom+' '+e.nom).toLowerCase().includes((searchEleve||'').toLowerCase())).map(e=>{
+              const nc=NC[e.code_niveau||'1']||'#888';
               return(
-                <div key={e.id} onClick={()=>navigate('fiche', e)}
-                  style={{background:'#fff',borderRadius:12,padding:'13px 14px',marginBottom:8,
-                    border:'0.5px solid #e0e0d8',display:'flex',alignItems:'center',gap:12,cursor:'pointer'}}>
-                  <div style={{width:40,height:40,borderRadius:'50%',background:`${nc}20`,color:nc,
-                    display:'flex',alignItems:'center',justifyContent:'center',fontWeight:800,fontSize:13,flexShrink:0}}>
+                <div key={e.id} style={{background:'#fff',borderRadius:12,padding:'13px 14px',marginBottom:8,border:'0.5px solid #e0e0d8',display:'flex',alignItems:'center',gap:12}}>
+                  <div onClick={()=>navigate('fiche',e)} style={{cursor:'pointer',width:42,height:42,borderRadius:'50%',background:`${nc}20`,color:nc,display:'flex',alignItems:'center',justifyContent:'center',fontWeight:800,fontSize:14,flexShrink:0}}>
                     {((e.prenom||'?')[0])+((e.nom||'?')[0])}
                   </div>
-                  <div style={{flex:1,minWidth:0}}>
+                  <div onClick={()=>navigate('fiche',e)} style={{flex:1,minWidth:0,cursor:'pointer'}}>
                     <div style={{fontWeight:700,fontSize:14}}>{e.prenom} {e.nom}</div>
-                    <div style={{display:'flex',gap:6,marginTop:2,alignItems:'center'}}>
-                      <span style={{padding:'1px 7px',borderRadius:8,background:`${nc}20`,color:nc,fontSize:11,fontWeight:700}}>{e.code_niveau||'?'}</span>
+                    <div style={{display:'flex',gap:6,marginTop:3,alignItems:'center',flexWrap:'wrap'}}>
+                      <span style={{padding:'2px 8px',borderRadius:10,background:`${nc}20`,color:nc,fontSize:11,fontWeight:700}}>{e.code_niveau||'?'}</span>
                       {e.eleve_id_ecole&&<span style={{fontSize:11,color:'#aaa'}}>#{e.eleve_id_ecole}</span>}
                     </div>
                   </div>
-                  <span style={{color:'#ccc',fontSize:18}}>{'›'}</span>
+                  {user.role==='surveillant'&&(
+                    <div style={{display:'flex',gap:6,flexShrink:0}}>
+                      <button onClick={()=>startEditEleve(e)} style={{background:'#E6F1FB',color:'#378ADD',border:'none',borderRadius:8,padding:'7px 10px',fontSize:13,cursor:'pointer',fontWeight:600}}>✏️</button>
+                      <button onClick={()=>supprimerEleve(e.id)} style={{background:'#FCEBEB',color:'#E24B4A',border:'none',borderRadius:8,padding:'7px 10px',fontSize:13,cursor:'pointer'}}>🗑</button>
+                    </div>
+                  )}
                 </div>
               );
             })}
-            {/* FAB ajout élève */}
-            <div onClick={()=>{window.scrollTo({top:0});navigate('gestion');}}
-              style={{position:'fixed',bottom:80,right:16,width:56,height:56,borderRadius:'50%',
-                background:'#1D9E75',color:'#fff',border:'none',fontSize:28,display:'flex',
-                alignItems:'center',justifyContent:'center',cursor:'pointer',zIndex:150,
-                boxShadow:'0 4px 16px rgba(29,158,117,0.4)'}}>
-              +
-            </div>
           </div>
         )}
 
-        {/* Instituteurs list */}
-        {tab==='instituteurs' && (
+        {/* INSTITUTEURS */}
+        {tab==='instituteurs'&&(
           <div style={{padding:'12px'}}>
-            {instituteurs.map(inst=>(
-              <div key={inst.id} style={{background:'#fff',borderRadius:12,padding:'13px 14px',marginBottom:8,
-                border:'0.5px solid #e0e0d8',display:'flex',alignItems:'center',gap:12}}>
-                <div style={{width:40,height:40,borderRadius:'50%',background:'#E6F1FB',color:'#0C447C',
-                  display:'flex',alignItems:'center',justifyContent:'center',fontWeight:800,fontSize:13,flexShrink:0}}>
-                  {((inst.prenom||'?')[0])+((inst.nom||'?')[0])}
+            {showFormInst&&user.role==='surveillant'&&(
+              <div style={{background:'#fff',borderRadius:16,padding:'18px',marginBottom:14,border:'1.5px solid #378ADD'}}>
+                <div style={{fontSize:15,fontWeight:700,color:'#085041',marginBottom:14}}>🧑‍🏫 {lang==='ar'?'إضافة أستاذ':'Nouvel instituteur'}</div>
+                {[{label:lang==='ar'?'الاسم':'Prénom *',key:'prenom',ph:lang==='ar'?'الاسم':'Prénom'},
+                  {label:lang==='ar'?'اللقب':'Nom *',key:'nom',ph:lang==='ar'?'اللقب':'Nom'},
+                  {label:lang==='ar'?'المعرف':'Identifiant *',key:'identifiant',ph:'ex: m.karim'},
+                ].map(f=>(
+                  <div key={f.key} style={{marginBottom:12}}>
+                    <label style={{fontSize:12,fontWeight:600,color:'#666',display:'block',marginBottom:5}}>{f.label}</label>
+                    <input style={{width:'100%',padding:'12px 14px',borderRadius:10,border:'0.5px solid #e0e0d8',fontSize:15,fontFamily:'inherit',boxSizing:'border-box'}}
+                      value={newInst[f.key]} onChange={e=>setNewInst(x=>({...x,[f.key]:e.target.value}))} placeholder={f.ph}/>
+                  </div>
+                ))}
+                <div style={{marginBottom:14}}>
+                  <label style={{fontSize:12,fontWeight:600,color:'#666',display:'block',marginBottom:5}}>{lang==='ar'?'كلمة المرور':'Mot de passe *'}</label>
+                  <input type="password" style={{width:'100%',padding:'12px 14px',borderRadius:10,border:'0.5px solid #e0e0d8',fontSize:15,fontFamily:'inherit',boxSizing:'border-box'}}
+                    value={newInst.mot_de_passe} onChange={e=>setNewInst(x=>({...x,mot_de_passe:e.target.value}))} placeholder="••••••••"/>
                 </div>
-                <div style={{flex:1}}>
-                  <div style={{fontWeight:700,fontSize:14}}>{inst.prenom} {inst.nom}</div>
-                  <div style={{fontSize:12,color:'#888'}}>{inst.identifiant}</div>
+                <div style={{display:'flex',gap:8}}>
+                  <button onClick={()=>setShowFormInst(false)} style={{flex:1,padding:'13px',background:'#f5f5f0',color:'#666',border:'none',borderRadius:12,fontSize:14,fontWeight:600,cursor:'pointer',fontFamily:'inherit'}}>{lang==='ar'?'إلغاء':'Annuler'}</button>
+                  <button onClick={async()=>{await ajouterInstituteur();setShowFormInst(false);}} style={{flex:2,padding:'13px',background:'#378ADD',color:'#fff',border:'none',borderRadius:12,fontSize:14,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>{lang==='ar'?'حفظ':'Enregistrer'}</button>
                 </div>
-                <button onClick={()=>supprimerInstituteur(inst)}
-                  style={{background:'#FCEBEB',color:'#E24B4A',border:'none',borderRadius:8,
-                    padding:'6px 10px',fontSize:12,cursor:'pointer'}}>✕</button>
               </div>
-            ))}
-            <div onClick={()=>setTab('instituteurs')}
-              style={{position:'fixed',bottom:80,right:16,width:56,height:56,borderRadius:'50%',
-                background:'#378ADD',color:'#fff',border:'none',fontSize:28,display:'flex',
-                alignItems:'center',justifyContent:'center',cursor:'pointer',zIndex:150,
-                boxShadow:'0 4px 16px rgba(55,138,221,0.4)'}}>
-              +
-            </div>
+            )}
+            {instituteurs.length===0?(
+              <div style={{textAlign:'center',color:'#aaa',padding:'3rem',background:'#fff',borderRadius:12}}>
+                <div style={{fontSize:36,marginBottom:10}}>🧑‍🏫</div>
+                <div style={{fontSize:14}}>{lang==='ar'?'لا يوجد أساتذة':'Aucun instituteur'}</div>
+              </div>
+            ):instituteurs.map(inst=>{
+              const nb=eleves.filter(e=>e.instituteur_referent_id===inst.id).length;
+              return(
+                <div key={inst.id} style={{background:'#fff',borderRadius:12,padding:'14px',marginBottom:8,border:'0.5px solid #e0e0d8',display:'flex',alignItems:'center',gap:12}}>
+                  <div style={{width:44,height:44,borderRadius:'50%',background:'#E6F1FB',color:'#0C447C',display:'flex',alignItems:'center',justifyContent:'center',fontWeight:800,fontSize:15,flexShrink:0}}>
+                    {((inst.prenom||'?')[0])+((inst.nom||'?')[0])}
+                  </div>
+                  <div style={{flex:1,minWidth:0}}>
+                    <div style={{fontWeight:700,fontSize:14}}>{inst.prenom} {inst.nom}</div>
+                    <div style={{fontSize:12,color:'#888',marginTop:2}}>{inst.identifiant} · {nb} {lang==='ar'?'طالب':'élève(s)'}</div>
+                  </div>
+                  {user.role==='surveillant'&&(
+                    <button onClick={()=>supprimerInstituteur(inst)} style={{background:'#FCEBEB',color:'#E24B4A',border:'none',borderRadius:8,padding:'8px 12px',fontSize:13,cursor:'pointer',fontWeight:600}}>🗑</button>
+                  )}
+                </div>
+              );
+            })}
           </div>
         )}
 
-        {/* Parents list */}
-        {tab==='parents' && (
+        {/* PARENTS */}
+        {tab==='parents'&&(
           <div style={{padding:'12px'}}>
-            {parents.map(p=>(
-              <div key={p.id} style={{background:'#fff',borderRadius:12,padding:'13px 14px',marginBottom:8,
-                border:'0.5px solid #e0e0d8',display:'flex',alignItems:'center',gap:12}}>
-                <div style={{width:40,height:40,borderRadius:'50%',background:'#FAEEDA',color:'#633806',
-                  display:'flex',alignItems:'center',justifyContent:'center',fontWeight:800,fontSize:13,flexShrink:0}}>
-                  {((p.prenom||'?')[0])+((p.nom||'?')[0])}
+            {showFormParent&&user.role==='surveillant'&&(
+              <div style={{background:'#fff',borderRadius:16,padding:'18px',marginBottom:14,border:`1.5px solid ${editingParentId?'#378ADD':'#EF9F27'}`}}>
+                <div style={{fontSize:15,fontWeight:700,color:'#085041',marginBottom:14}}>
+                  {editingParentId?(lang==='ar'?'تعديل ولي الأمر':'✏️ Modifier parent'):(lang==='ar'?'إضافة ولي أمر':'👨‍👩‍👦 Nouveau parent')}
                 </div>
-                <div style={{flex:1}}>
-                  <div style={{fontWeight:700,fontSize:14}}>{p.prenom} {p.nom}</div>
-                  <div style={{fontSize:12,color:'#888'}}>{p.telephone||p.identifiant}</div>
+                {[{label:lang==='ar'?'الاسم':'Prénom *',key:'prenom',ph:lang==='ar'?'الاسم':'Prénom'},
+                  {label:lang==='ar'?'اللقب':'Nom *',key:'nom',ph:lang==='ar'?'اللقب':'Nom'},
+                  {label:lang==='ar'?'المعرف':'Identifiant *',key:'identifiant',ph:'parent.nom'},
+                  {label:lang==='ar'?'الهاتف':'Téléphone',key:'telephone',ph:'06xxxxxxxx'},
+                ].map(f=>(
+                  <div key={f.key} style={{marginBottom:12}}>
+                    <label style={{fontSize:12,fontWeight:600,color:'#666',display:'block',marginBottom:5}}>{f.label}</label>
+                    <input style={{width:'100%',padding:'12px 14px',borderRadius:10,border:'0.5px solid #e0e0d8',fontSize:15,fontFamily:'inherit',boxSizing:'border-box'}}
+                      value={formParent[f.key]} onChange={e=>setFormParent(x=>({...x,[f.key]:e.target.value}))} placeholder={f.ph}/>
+                  </div>
+                ))}
+                {!editingParentId&&(
+                  <div style={{marginBottom:14}}>
+                    <label style={{fontSize:12,fontWeight:600,color:'#666',display:'block',marginBottom:5}}>{lang==='ar'?'كلمة المرور':'Mot de passe *'}</label>
+                    <input type="password" style={{width:'100%',padding:'12px 14px',borderRadius:10,border:'0.5px solid #e0e0d8',fontSize:15,fontFamily:'inherit',boxSizing:'border-box'}}
+                      value={formParent.mot_de_passe} onChange={e=>setFormParent(x=>({...x,mot_de_passe:e.target.value}))} placeholder="••••••"/>
+                  </div>
+                )}
+                <div style={{marginBottom:14}}>
+                  <label style={{fontSize:12,fontWeight:600,color:'#666',display:'block',marginBottom:8}}>
+                    {lang==='ar'?'ربط بالطلاب':'Lier aux élèves'}
+                    {formParent.eleve_ids?.length>0&&<span style={{marginRight:8,fontSize:11,color:'#1D9E75',fontWeight:700}}> ({formParent.eleve_ids.length} ✓)</span>}
+                  </label>
+                  <div style={{maxHeight:160,overflowY:'auto',display:'flex',flexDirection:'column',gap:6}}>
+                    {eleves.map(el=>{
+                      const nc=NC[el.code_niveau||'1']||'#888';
+                      const sel=(formParent.eleve_ids||[]).includes(el.id);
+                      return(
+                        <div key={el.id} onClick={()=>setFormParent(f=>({...f,eleve_ids:sel?f.eleve_ids.filter(id=>id!==el.id):[...(f.eleve_ids||[]),el.id]}))}
+                          style={{display:'flex',alignItems:'center',gap:10,padding:'9px 12px',borderRadius:10,cursor:'pointer',
+                            background:sel?`${nc}10`:'#f5f5f0',border:`1.5px solid ${sel?nc:'#e0e0d8'}`}}>
+                          <div style={{width:20,height:20,borderRadius:5,flexShrink:0,border:`1.5px solid ${sel?nc:'#ccc'}`,background:sel?nc:'#fff',display:'flex',alignItems:'center',justifyContent:'center'}}>
+                            {sel&&<span style={{color:'#fff',fontSize:12,fontWeight:700}}>✓</span>}
+                          </div>
+                          <div style={{width:30,height:30,borderRadius:'50%',background:`${nc}20`,color:nc,display:'flex',alignItems:'center',justifyContent:'center',fontWeight:700,fontSize:12,flexShrink:0}}>
+                            {((el.prenom||'?')[0])+((el.nom||'?')[0])}
+                          </div>
+                          <div style={{flex:1}}>
+                            <div style={{fontSize:13,fontWeight:600}}>{el.prenom} {el.nom}</div>
+                            <span style={{fontSize:11,padding:'1px 6px',borderRadius:8,background:`${nc}20`,color:nc,fontWeight:700}}>{el.code_niveau||'?'}</span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+                <div style={{display:'flex',gap:8}}>
+                  <button onClick={()=>{setShowFormParent(false);setEditingParentId(null);setFormParent({prenom:'',nom:'',identifiant:'',mot_de_passe:'',telephone:'',eleve_ids:[]});}}
+                    style={{flex:1,padding:'13px',background:'#f5f5f0',color:'#666',border:'none',borderRadius:12,fontSize:14,fontWeight:600,cursor:'pointer',fontFamily:'inherit'}}>
+                    {lang==='ar'?'إلغاء':'Annuler'}
+                  </button>
+                  <button onClick={async()=>{
+                    if(!formParent.prenom||!formParent.nom||!formParent.identifiant){toast.warning(lang==='ar'?'يرجى ملء الحقول المطلوبة':'Remplissez les champs obligatoires');return;}
+                    if(!editingParentId&&!formParent.mot_de_passe){toast.warning(lang==='ar'?'كلمة المرور مطلوبة':'Mot de passe requis');return;}
+                    let userId=editingParentId;
+                    if(!editingParentId){
+                      const{data:ud,error:ue}=await supabase.from('utilisateurs').insert({prenom:formParent.prenom,nom:formParent.nom,identifiant:formParent.identifiant,mot_de_passe:formParent.mot_de_passe,role:'parent',ecole_id:user.ecole_id}).select().single();
+                      if(ue){toast.error(ue.message||'Erreur');return;}
+                      userId=ud.id;
+                    } else {
+                      const{error:pe}=await supabase.from('utilisateurs').update({prenom:formParent.prenom,nom:formParent.nom,telephone:formParent.telephone}).eq('id',userId);
+                      if(pe){toast.error(pe.message||'Erreur');return;}
+                    }
+                    await supabase.from('parent_eleve').delete().eq('parent_id',userId);
+                    for(const eid of(formParent.eleve_ids||[])){await supabase.from('parent_eleve').insert({parent_id:userId,eleve_id:eid,ecole_id:user.ecole_id}).catch(()=>{});}
+                    toast.success(lang==='ar'?'تم الحفظ':'✅ Enregistré !');
+                    setShowFormParent(false);setEditingParentId(null);setFormParent({prenom:'',nom:'',identifiant:'',mot_de_passe:'',telephone:'',eleve_ids:[]});loadData();
+                  }}
+                    style={{flex:2,padding:'13px',background:editingParentId?'#378ADD':'#EF9F27',color:'#fff',border:'none',borderRadius:12,fontSize:14,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
+                    {editingParentId?(lang==='ar'?'تحديث':'Mettre à jour ✓'):(lang==='ar'?'حفظ':'Enregistrer')}
+                  </button>
                 </div>
               </div>
-            ))}
+            )}
+            {parents.length===0?(
+              <div style={{textAlign:'center',color:'#aaa',padding:'3rem',background:'#fff',borderRadius:12}}>
+                <div style={{fontSize:36,marginBottom:10}}>👨‍👩‍👦</div>
+                <div style={{fontSize:14}}>{lang==='ar'?'لا يوجد آباء':'Aucun parent'}</div>
+              </div>
+            ):parents.map(p=>{
+              const enfants=eleves.filter(e=>(p.eleve_ids||[]).includes(e.id));
+              return(
+                <div key={p.id} style={{background:'#fff',borderRadius:12,padding:'14px',marginBottom:8,border:'0.5px solid #e0e0d8'}}>
+                  <div style={{display:'flex',alignItems:'center',gap:12,marginBottom:enfants.length?8:0}}>
+                    <div style={{width:44,height:44,borderRadius:'50%',background:'#FAEEDA',color:'#633806',display:'flex',alignItems:'center',justifyContent:'center',fontWeight:800,fontSize:15,flexShrink:0}}>
+                      {((p.prenom||'?')[0])+((p.nom||'?')[0])}
+                    </div>
+                    <div style={{flex:1}}>
+                      <div style={{fontWeight:700,fontSize:14}}>{p.prenom} {p.nom}</div>
+                      <div style={{fontSize:12,color:'#888'}}>{p.telephone||p.identifiant}</div>
+                    </div>
+                    {user.role==='surveillant'&&(
+                      <div style={{display:'flex',gap:6}}>
+                        <button onClick={()=>{setEditingParentId(p.id);setFormParent({prenom:p.prenom,nom:p.nom,identifiant:p.identifiant,mot_de_passe:'',telephone:p.telephone||'',eleve_ids:eleves.filter(e=>(p.eleve_ids||[]).includes(e.id)).map(e=>e.id)});setShowFormParent(true);window.scrollTo(0,0);}}
+                          style={{background:'#E6F1FB',color:'#378ADD',border:'none',borderRadius:8,padding:'7px 10px',fontSize:13,cursor:'pointer',fontWeight:600}}>✏️</button>
+                        <button onClick={()=>supprimerParent&&supprimerParent(p.id)}
+                          style={{background:'#FCEBEB',color:'#E24B4A',border:'none',borderRadius:8,padding:'7px 10px',fontSize:13,cursor:'pointer'}}>🗑</button>
+                      </div>
+                    )}
+                  </div>
+                  {enfants.length>0&&(
+                    <div style={{display:'flex',gap:6,flexWrap:'wrap',paddingLeft:56}}>
+                      {enfants.map(e=>{const nc=NC[e.code_niveau||'1']||'#888';return(<span key={e.id} style={{fontSize:11,padding:'2px 8px',borderRadius:20,background:`${nc}20`,color:nc,fontWeight:600}}>{e.prenom} {e.nom}</span>);})}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {confirmModal.isOpen&&(
+          <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.5)',zIndex:1000,display:'flex',alignItems:'center',justifyContent:'center',padding:20}}>
+            <div style={{background:'#fff',borderRadius:16,padding:24,maxWidth:320,width:'100%'}}>
+              <div style={{fontWeight:700,fontSize:16,marginBottom:8}}>{confirmModal.title}</div>
+              <div style={{fontSize:13,color:'#666',marginBottom:20}}>{confirmModal.message}</div>
+              <div style={{display:'flex',gap:8}}>
+                <button onClick={hideConfirm} style={{flex:1,padding:'12px',background:'#f5f5f0',border:'none',borderRadius:10,fontSize:14,fontWeight:600,cursor:'pointer'}}>{lang==='ar'?'إلغاء':'Annuler'}</button>
+                <button onClick={confirmModal.onConfirm} style={{flex:1,padding:'12px',background:confirmModal.confirmColor||'#E24B4A',color:'#fff',border:'none',borderRadius:10,fontSize:14,fontWeight:700,cursor:'pointer'}}>{confirmModal.confirmLabel}</button>
+              </div>
+            </div>
           </div>
         )}
       </div>
     );
   }
+
 
   return (
     <div>
