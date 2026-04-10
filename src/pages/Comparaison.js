@@ -5,7 +5,7 @@ import { t } from '../lib/i18n';
 
 const PALETTE = ['#1D9E75','#378ADD','#EF9F27','#E24B4A','#534AB7','#D85A30'];
 
-export default function Comparaison({ navigate, goBack, lang='fr', isMobile }) {
+export default function Comparaison({ navigate, goBack, lang='fr', isMobile, user }) {
   const [allEleves, setAllEleves] = useState([]);
   const [selected, setSelected] = useState([]);
   const [loading, setLoading] = useState(true);
