@@ -362,7 +362,7 @@ export default function GestionObjectifs({ user, navigate, goBack, lang='fr', is
                     fontSize:15,fontFamily:'inherit',boxSizing:'border-box'}}
                   value={form.titre||''}
                   onChange={e=>setForm(p=>({...p,titre:e.target.value}))}
-                  placeholder={lang==='ar'?'عنوان الهدف':'Titre de l'objectif'}
+                  placeholder={lang==='ar'?'عنوان الهدف':"Titre de l'objectif"}
                 />
               </div>
               {/* Notes / Description */}
