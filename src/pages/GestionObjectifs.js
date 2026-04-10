@@ -349,35 +349,328 @@ export default function GestionObjectifs({ user, navigate, goBack, lang='fr', is
           {showForm&&user.role==='surveillant'&&(
             <div style={{background:'#fff',borderRadius:14,padding:'16px',marginBottom:12,
               border:`1.5px solid ${editingId?'#378ADD':'#1D9E75'}`}}>
-              <div style={{fontSize:14,fontWeight:700,color:'#085041',marginBottom:12}}>
+
+              {/* Titre formulaire */}
+              <div style={{fontSize:15,fontWeight:700,color:'#085041',marginBottom:14}}>
                 {editingId?(lang==='ar'?'تعديل الهدف':'✏️ Modifier objectif'):(lang==='ar'?'إضافة هدف':'🎯 Nouvel objectif')}
               </div>
-              {/* Titre */}
+
+              {/* Titre objectif */}
               <div style={{marginBottom:12}}>
-                <label style={{fontSize:13,fontWeight:600,color:'#666',display:'block',marginBottom:6}}>
-                  {lang==='ar'?'العنوان':'Titre'}
+                <label style={{fontSize:12,fontWeight:600,color:'#666',display:'block',marginBottom:5}}>
+                  {lang==='ar'?'عنوان الهدف (اختياري)':'Titre (optionnel)'}
                 </label>
                 <input
-                  style={{width:'100%',padding:'12px 14px',borderRadius:10,border:'0.5px solid #e0e0d8',
+                  style={{width:'100%',padding:'11px 13px',borderRadius:10,border:'0.5px solid #e0e0d8',
                     fontSize:15,fontFamily:'inherit',boxSizing:'border-box'}}
                   value={form.titre||''}
-                  onChange={e=>setForm(p=>({...p,titre:e.target.value}))}
-                  placeholder={lang==='ar'?'عنوان الهدف':"Titre de l'objectif"}
+                  onChange={e=>setForm(f=>({...f,titre:e.target.value}))}
+                  placeholder={lang==='ar'?'مثال: هدف الفصل الأول':"Ex: Objectif T1 2025"}
                 />
               </div>
-              {/* Notes / Description */}
+
+              {/* Type de cible */}
               <div style={{marginBottom:12}}>
-                <label style={{fontSize:13,fontWeight:600,color:'#666',display:'block',marginBottom:6}}>
-                  {lang==='ar'?'الوصف':'Description (optionnel)'}
+                <label style={{fontSize:12,fontWeight:600,color:'#666',display:'block',marginBottom:5}}>
+                  {lang==='ar'?'نوع الهدف':'Type de cible'} *
+                </label>
+                <div style={{display:'grid',gridTemplateColumns:'repeat(2,1fr)',gap:6}}>
+                  {[
+                    {val:'niveau', icon:'📚', fr:'Par niveau',    ar:'بالمستوى'},
+                    {val:'eleve',  icon:'👤', fr:'Par élève',     ar:'بالطالب'},
+                    {val:'instituteur',icon:'🧑‍🏫',fr:'Par instituteur',ar:'بالأستاذ'},
+                    {val:'global', icon:'🌐', fr:'Global',        ar:'عام'},
+                  ].map(t=>(
+                    <div key={t.val} onClick={()=>setForm(f=>({...f,type_cible:t.val,eleve_id:'',code_niveau:'5B',instituteur_id:'',metrique:'sourate',cible_specifique:null,valeur_cible:'',cibles_selectionnees:[]}))}
+                      style={{padding:'10px 8px',borderRadius:10,textAlign:'center',cursor:'pointer',
+                        background:form.type_cible===t.val?'#E1F5EE':'#f5f5f0',
+                        border:`1.5px solid ${form.type_cible===t.val?'#1D9E75':'#e0e0d8'}`,
+                        color:form.type_cible===t.val?'#085041':'#666',fontWeight:form.type_cible===t.val?700:400}}>
+                      <div style={{fontSize:18,marginBottom:2}}>{t.icon}</div>
+                      <div style={{fontSize:11}}>{lang==='ar'?t.ar:t.fr}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Cible spécifique selon type */}
+              {form.type_cible==='niveau'&&(
+                <div style={{marginBottom:12}}>
+                  <label style={{fontSize:12,fontWeight:600,color:'#666',display:'block',marginBottom:5}}>
+                    {lang==='ar'?'المستوى':'Niveau'} *
+                  </label>
+                  <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>
+                    {NIVEAUX.map(n=>{
+                      const nc=NIVEAU_COLORS[n]||'#888';
+                      return(
+                        <div key={n} onClick={()=>setForm(f=>({...f,code_niveau:n,metrique:['5B','5A','2M'].includes(n)?'sourate':'tomon',valeur_cible:'',cibles_selectionnees:[]}))}
+                          style={{padding:'8px 14px',borderRadius:20,cursor:'pointer',flexShrink:0,
+                            background:form.code_niveau===n?nc:'#f5f5f0',
+                            color:form.code_niveau===n?'#fff':'#666',
+                            border:`1.5px solid ${form.code_niveau===n?nc:'#e0e0d8'}`,
+                            fontWeight:form.code_niveau===n?700:400,fontSize:13}}>
+                          {n}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {form.type_cible==='eleve'&&(
+                <div style={{marginBottom:12}}>
+                  <label style={{fontSize:12,fontWeight:600,color:'#666',display:'block',marginBottom:5}}>
+                    {lang==='ar'?'الطالب':'Élève'} *
+                  </label>
+                  <select
+                    style={{width:'100%',padding:'11px 13px',borderRadius:10,border:'0.5px solid #e0e0d8',
+                      fontSize:14,fontFamily:'inherit',background:'#fff',boxSizing:'border-box'}}
+                    value={form.eleve_id}
+                    onChange={e=>{
+                      const el=eleves.find(x=>x.id===e.target.value);
+                      const niv=el?.code_niveau||'1';
+                      setForm(f=>({...f,eleve_id:e.target.value,metrique:['5B','5A','2M'].includes(niv)?'sourate':'tomon',valeur_cible:'',cibles_selectionnees:[]}));
+                    }}>
+                    <option value="">— {lang==='ar'?'اختر طالباً':'Sélectionner un élève'} —</option>
+                    {eleves.map(e=>(
+                      <option key={e.id} value={e.id}>{e.prenom} {e.nom} · {e.code_niveau||'?'}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              {form.type_cible==='instituteur'&&(
+                <div style={{marginBottom:12}}>
+                  <label style={{fontSize:12,fontWeight:600,color:'#666',display:'block',marginBottom:5}}>
+                    {lang==='ar'?'الأستاذ':'Instituteur'} *
+                  </label>
+                  <select
+                    style={{width:'100%',padding:'11px 13px',borderRadius:10,border:'0.5px solid #e0e0d8',
+                      fontSize:14,fontFamily:'inherit',background:'#fff',boxSizing:'border-box'}}
+                    value={form.instituteur_id}
+                    onChange={e=>setForm(f=>({...f,instituteur_id:e.target.value,valeur_cible:'',cibles_selectionnees:[]}))}>
+                    <option value="">— {lang==='ar'?'اختر أستاذاً':'Sélectionner un instituteur'} —</option>
+                    {instituteurs.map(i=>{
+                      const nb=eleves.filter(e=>e.instituteur_referent_id===i.id).length;
+                      return <option key={i.id} value={i.id}>{i.prenom} {i.nom} ({nb} {lang==='ar'?'طالب':'élèves'})</option>;
+                    })}
+                  </select>
+                </div>
+              )}
+
+              {/* Période + Dates */}
+              <div style={{marginBottom:12}}>
+                <label style={{fontSize:12,fontWeight:600,color:'#666',display:'block',marginBottom:5}}>
+                  {lang==='ar'?'الفترة':'Période'} *
+                </label>
+                <select
+                  style={{width:'100%',padding:'11px 13px',borderRadius:10,border:'0.5px solid #e0e0d8',
+                    fontSize:14,fontFamily:'inherit',background:'#fff',boxSizing:'border-box',marginBottom:8}}
+                  value={form.periode}
+                  onChange={e=>setForm(f=>({...f,periode:e.target.value}))}>
+                  {PERIODES.map(p=><option key={p.val} value={p.val}>{lang==='ar'?p.label_ar:p.label_fr}</option>)}
+                </select>
+                <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
+                  <div>
+                    <label style={{fontSize:11,color:'#888',display:'block',marginBottom:4}}>{lang==='ar'?'من':'Du'}</label>
+                    <input type="date"
+                      style={{width:'100%',padding:'10px 12px',borderRadius:10,border:'0.5px solid #e0e0d8',
+                        fontSize:13,fontFamily:'inherit',boxSizing:'border-box'}}
+                      value={form.date_debut}
+                      onChange={e=>setForm(f=>({...f,date_debut:e.target.value}))}/>
+                  </div>
+                  <div>
+                    <label style={{fontSize:11,color:'#888',display:'block',marginBottom:4}}>{lang==='ar'?'إلى':'Au'}</label>
+                    <input type="date"
+                      style={{width:'100%',padding:'10px 12px',borderRadius:10,border:'0.5px solid #e0e0d8',
+                        fontSize:13,fontFamily:'inherit',boxSizing:'border-box',color:'#1D9E75',fontWeight:500}}
+                      value={form.date_fin}
+                      onChange={e=>setForm(f=>({...f,date_fin:e.target.value}))}/>
+                  </div>
+                </div>
+              </div>
+
+              {/* Métrique */}
+              <div style={{marginBottom:12}}>
+                <label style={{fontSize:12,fontWeight:600,color:'#666',display:'block',marginBottom:5}}>
+                  {lang==='ar'?'مؤشر القياس':'Métrique'} *
+                </label>
+                <select
+                  style={{width:'100%',padding:'11px 13px',borderRadius:10,border:'0.5px solid #e0e0d8',
+                    fontSize:14,fontFamily:'inherit',background:'#fff',boxSizing:'border-box'}}
+                  value={form.metrique}
+                  onChange={e=>setForm(f=>({...f,metrique:e.target.value,valeur_cible:'',cibles_selectionnees:[],hizbSelected:null}))}>
+                  {metriquesDisponibles().map(m=><option key={m.val} value={m.val}>{lang==='ar'?m.label_ar:m.label_fr}</option>)}
+                </select>
+              </div>
+
+              {/* Valeur cible */}
+              <div style={{marginBottom:12}}>
+                <label style={{fontSize:12,fontWeight:600,color:'#666',display:'block',marginBottom:5}}>
+                  {form.metrique==='sourate'?(lang==='ar'?'عدد السور المستهدفة':'Nb de sourates cibles')
+                  :form.metrique==='hizb'?(lang==='ar'?'عدد الأحزاب المستهدفة':'Nb de Hizb cibles')
+                  :form.metrique==='tomon'?(lang==='ar'?'عدد الأثمان المستهدفة':'Nb de Tomon cibles')
+                  :form.metrique==='points'?(lang==='ar'?'النقاط المستهدفة':'Points cibles')
+                  :(lang==='ar'?'عدد الحصص':'Nb de séances')} *
+                </label>
+                <input type="number" min="1"
+                  style={{width:'100%',padding:'11px 13px',borderRadius:10,border:'0.5px solid #e0e0d8',
+                    fontSize:15,fontFamily:'inherit',boxSizing:'border-box'}}
+                  value={form.valeur_cible}
+                  onChange={e=>setForm(f=>({...f,valeur_cible:e.target.value,cibles_selectionnees:[]}))}
+                  placeholder={form.metrique==='points'?'500':form.metrique==='seances'?'12':'5'}
+                />
+              </div>
+
+              {/* Sélection visuelle sourates/hizb/tomon */}
+              {parseInt(form.valeur_cible)>0&&['sourate','hizb','tomon'].includes(form.metrique)&&(
+                <div style={{marginBottom:12,border:'1.5px solid #1D9E75',borderRadius:12,padding:'12px',background:'#f0faf6'}}>
+                  <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:8}}>
+                    <div style={{fontSize:12,fontWeight:600,color:'#085041'}}>
+                      {lang==='ar'?'اختر العناصر المستهدفة':'Sélectionner les éléments'}
+                      <span style={{fontSize:11,color:'#888',marginLeft:6}}>({form.cibles_selectionnees.length}/{parseInt(form.valeur_cible)||0})</span>
+                    </div>
+                    {form.cibles_selectionnees.length>0&&(
+                      <button onClick={()=>setForm(f=>({...f,cibles_selectionnees:[]}))}
+                        style={{fontSize:11,color:'#E24B4A',background:'none',border:'none',cursor:'pointer'}}>
+                        ✕ {lang==='ar'?'مسح':'Effacer'}
+                      </button>
+                    )}
+                  </div>
+                  {/* Barre progression sélection */}
+                  <div style={{height:5,background:'#e8e8e0',borderRadius:3,overflow:'hidden',marginBottom:10}}>
+                    <div style={{height:'100%',borderRadius:3,transition:'width 0.3s',
+                      width:`${Math.min(100,form.cibles_selectionnees.length/(parseInt(form.valeur_cible)||1)*100)}%`,
+                      background:form.cibles_selectionnees.length>=(parseInt(form.valeur_cible)||1)?'#1D9E75':'#EF9F27'}}/>
+                  </div>
+
+                  {/* Sourates */}
+                  {form.metrique==='sourate'&&(()=>{
+                    const niv=form.type_cible==='niveau'?form.code_niveau:form.type_cible==='eleve'?(eleves.find(e=>e.id===form.eleve_id)?.code_niveau||'5B'):'5A';
+                    const list=['5B'].includes(niv)?SOURATES_5B:SOURATES_5A;
+                    const sorted=[...list].sort((a,b)=>b.numero-a.numero);
+                    const maxSel=parseInt(form.valeur_cible)||0;
+                    return(
+                      <div style={{display:'flex',flexDirection:'column',gap:4,maxHeight:200,overflowY:'auto'}}>
+                        {sorted.map(s=>{
+                          const key=`sourate_${s.numero}`;
+                          const isSel=form.cibles_selectionnees.includes(key);
+                          const isDisabled=!isSel&&form.cibles_selectionnees.length>=maxSel;
+                          return(
+                            <div key={s.numero}
+                              onClick={()=>{if(isDisabled)return;setForm(f=>({...f,cibles_selectionnees:isSel?f.cibles_selectionnees.filter(x=>x!==key):[...f.cibles_selectionnees,key]}));}}
+                              style={{display:'flex',alignItems:'center',gap:10,padding:'8px 10px',borderRadius:8,
+                                cursor:isDisabled?'not-allowed':'pointer',opacity:isDisabled?0.4:1,
+                                background:isSel?'#E1F5EE':'#fff',border:`0.5px solid ${isSel?'#1D9E75':'#e0e0d8'}`}}>
+                              <div style={{width:20,height:20,borderRadius:4,flexShrink:0,
+                                border:`1.5px solid ${isSel?'#1D9E75':'#ccc'}`,background:isSel?'#1D9E75':'#fff',
+                                display:'flex',alignItems:'center',justifyContent:'center'}}>
+                                {isSel&&<span style={{color:'#fff',fontSize:12,fontWeight:700}}>✓</span>}
+                              </div>
+                              <span style={{fontSize:11,color:'#bbb',minWidth:22}}>{s.numero}</span>
+                              <span style={{fontSize:14,fontFamily:"'Tajawal',Arial",direction:'rtl',
+                                color:isSel?'#085041':'#333',fontWeight:isSel?600:400}}>{s.nom_ar}</span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    );
+                  })()}
+
+                  {/* Hizb */}
+                  {form.metrique==='hizb'&&(()=>{
+                    const maxSel=parseInt(form.valeur_cible)||0;
+                    return(
+                      <div style={{display:'grid',gridTemplateColumns:'repeat(6,1fr)',gap:5}}>
+                        {Array.from({length:60},(_,i)=>i+1).map(h=>{
+                          const key=`hizb_${h}`;
+                          const isSel=form.cibles_selectionnees.includes(key);
+                          const isDisabled=!isSel&&form.cibles_selectionnees.length>=maxSel;
+                          return(
+                            <div key={h}
+                              onClick={()=>{if(isDisabled)return;setForm(f=>({...f,cibles_selectionnees:isSel?f.cibles_selectionnees.filter(x=>x!==key):[...f.cibles_selectionnees,key]}));}}
+                              style={{height:38,borderRadius:8,display:'flex',alignItems:'center',justifyContent:'center',
+                                fontSize:13,fontWeight:isSel?700:400,cursor:isDisabled?'not-allowed':'pointer',
+                                opacity:isDisabled?0.35:1,background:isSel?'#1D9E75':'#fff',
+                                color:isSel?'#fff':'#666',border:`0.5px solid ${isSel?'#1D9E75':'#e0e0d8'}`}}>
+                              {h}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    );
+                  })()}
+
+                  {/* Tomon */}
+                  {form.metrique==='tomon'&&(()=>{
+                    const maxSel=parseInt(form.valeur_cible)||0;
+                    return(
+                      <div>
+                        <div style={{fontSize:11,color:'#085041',fontWeight:600,marginBottom:6}}>
+                          1️⃣ {lang==='ar'?'اختر الحزب أولاً':'Choisir le Hizb'}
+                        </div>
+                        <div style={{display:'grid',gridTemplateColumns:'repeat(10,1fr)',gap:3,marginBottom:10}}>
+                          {Array.from({length:60},(_,i)=>i+1).map(h=>{
+                            const hasSelected=form.cibles_selectionnees.some(k=>k.startsWith(`h${h}_t`));
+                            return(
+                              <div key={h}
+                                onClick={()=>setForm(f=>({...f,hizbSelected:f.hizbSelected===h?null:h}))}
+                                style={{height:28,borderRadius:4,display:'flex',alignItems:'center',justifyContent:'center',
+                                  fontSize:10,cursor:'pointer',
+                                  background:form.hizbSelected===h?'#085041':hasSelected?'#E1F5EE':'#f5f5f0',
+                                  color:form.hizbSelected===h?'#fff':hasSelected?'#085041':'#888',
+                                  border:`0.5px solid ${form.hizbSelected===h?'#085041':hasSelected?'#9FE1CB':'#e0e0d8'}`,
+                                  fontWeight:form.hizbSelected===h||hasSelected?600:400}}>
+                                {h}
+                              </div>
+                            );
+                          })}
+                        </div>
+                        {form.hizbSelected&&(
+                          <div>
+                            <div style={{fontSize:11,color:'#085041',fontWeight:600,marginBottom:6}}>
+                              2️⃣ {lang==='ar'?`أثمان الحزب ${form.hizbSelected}`:`Tomon Hizb ${form.hizbSelected}`}
+                            </div>
+                            <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:8}}>
+                              {[1,2,3,4,5,6,7,8].map(t=>{
+                                const key=`h${form.hizbSelected}_t${t}`;
+                                const isSel=form.cibles_selectionnees.includes(key);
+                                const isDisabled=!isSel&&form.cibles_selectionnees.length>=maxSel;
+                                return(
+                                  <div key={t}
+                                    onClick={()=>{if(isDisabled)return;setForm(f=>({...f,cibles_selectionnees:isSel?f.cibles_selectionnees.filter(x=>x!==key):[...f.cibles_selectionnees,key]}));}}
+                                    style={{padding:'12px 8px',borderRadius:10,textAlign:'center',
+                                      cursor:isDisabled?'not-allowed':'pointer',opacity:isDisabled?0.35:1,
+                                      background:isSel?'#1D9E75':'#fff',color:isSel?'#fff':'#555',
+                                      border:`1.5px solid ${isSel?'#1D9E75':'#e0e0d8'}`}}>
+                                    <div style={{fontSize:16,fontWeight:700}}>T.{t}</div>
+                                    <div style={{fontSize:10,color:isSel?'#9FE1CB':'#bbb',marginTop:2}}>H{form.hizbSelected}</div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
+                </div>
+              )}
+
+              {/* Notes */}
+              <div style={{marginBottom:14}}>
+                <label style={{fontSize:12,fontWeight:600,color:'#666',display:'block',marginBottom:5}}>
+                  {lang==='ar'?'ملاحظات':'Notes (optionnel)'}
                 </label>
                 <textarea
-                  style={{width:'100%',padding:'12px 14px',borderRadius:10,border:'0.5px solid #e0e0d8',
-                    fontSize:15,fontFamily:'inherit',boxSizing:'border-box',resize:'none',minHeight:70}}
+                  style={{width:'100%',padding:'11px 13px',borderRadius:10,border:'0.5px solid #e0e0d8',
+                    fontSize:14,fontFamily:'inherit',boxSizing:'border-box',resize:'none',minHeight:60}}
                   value={form.notes||''}
-                  onChange={e=>setForm(p=>({...p,notes:e.target.value}))}
-                  placeholder={lang==='ar'?'وصف اختياري':'Description optionnelle'}
+                  onChange={e=>setForm(f=>({...f,notes:e.target.value}))}
+                  placeholder={lang==='ar'?'ملاحظات إضافية...':'Notes supplémentaires...'}
                 />
               </div>
+
               {/* Boutons */}
               <div style={{display:'flex',gap:8}}>
                 <button onClick={()=>{setShowForm(false);setEditingId(null);}}
@@ -385,10 +678,9 @@ export default function GestionObjectifs({ user, navigate, goBack, lang='fr', is
                     borderRadius:12,fontSize:14,fontWeight:600,cursor:'pointer',fontFamily:'inherit'}}>
                   {lang==='ar'?'إلغاء':'Annuler'}
                 </button>
-                <button onClick={saveObjectif} disabled={saving||!form.titre}
-                  style={{flex:2,padding:'13px',background:saving||!form.titre?'#ccc':'#1D9E75',
-                    color:'#fff',border:'none',borderRadius:12,fontSize:14,fontWeight:700,
-                    cursor:saving||!form.titre?'not-allowed':'pointer',fontFamily:'inherit'}}>
+                <button onClick={saveObjectif} disabled={saving}
+                  style={{flex:2,padding:'13px',background:saving?'#ccc':'#1D9E75',color:'#fff',border:'none',
+                    borderRadius:12,fontSize:14,fontWeight:700,cursor:saving?'not-allowed':'pointer',fontFamily:'inherit'}}>
                   {saving?'...':(editingId?(lang==='ar'?'تحديث':'Mettre à jour ✓'):(lang==='ar'?'حفظ':'Enregistrer'))}
                 </button>
               </div>
