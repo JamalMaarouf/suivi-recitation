@@ -38,9 +38,9 @@ export default function Seance({ user, navigate, goBack, lang, isMobile=false })
     const debutSemaine = new Date(); debutSemaine.setDate(debutSemaine.getDate()-7);
 
     const [{ data: ed }, { data: instData }, { data: vd }, rdResult, { data: sdb }] = await Promise.all([
-      supabase.from('eleves').select('*')
+      supabase.from('eleves').select('id,prenom,nom,code_niveau,hizb_depart,tomon_depart,sourates_acquises,instituteur_referent_id,ecole_id')
         .eq('ecole_id', user.ecole_id).order('nom'),
-      supabase.from('utilisateurs').select('*').eq('role','instituteur').eq('ecole_id', user.ecole_id),
+      supabase.from('utilisateurs').select('id,prenom,nom').eq('role','instituteur').eq('ecole_id', user.ecole_id),
       supabase.from('validations').select('*, valideur:valide_par(prenom,nom)')
         .eq('ecole_id', user.ecole_id).order('date_validation',{ascending:false}),
       supabase.from('recitations_sourates').select('*, valideur:valide_par(prenom,nom)')

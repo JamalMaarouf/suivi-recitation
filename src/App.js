@@ -1,27 +1,31 @@
-import React, { useState, useEffect } from 'react';
-import Login from './pages/Login';
-import Dashboard from './pages/Dashboard';
-import FicheEleve from './pages/FicheEleve';
+import React, { useState, useEffect, Suspense, lazy } from 'react';
+
+// ── Pages critiques — chargées immédiatement ──────────────────────────────
+import Login               from './pages/Login';
+import Dashboard           from './pages/Dashboard';
+import FicheEleve          from './pages/FicheEleve';
 import EnregistrerRecitation from './pages/EnregistrerRecitation';
-import Gestion from './pages/Gestion';
-import TableauHonneur from './pages/TableauHonneur';
-import Seance from './pages/Seance';
-import Calendrier from './pages/Calendrier';
-import ProfilInstituteur from './pages/ProfilInstituteur';
-import Comparaison from './pages/Comparaison';
-import RapportMensuel from './pages/RapportMensuel';
-import RecitationSourate from './pages/RecitationSourate';
-import GestionObjectifs from './pages/GestionObjectifs';
-import HistoriqueSeances from './pages/HistoriqueSeances';
-import Finance from './pages/Finance';
-import PortailParent from './pages/PortailParent';
-import ValidationRapide from './pages/ValidationRapide';
-import ValidationCollective from './pages/ValidationCollective';
-import MurajaDashboard from './pages/MurajaDashboard';
-import ElevesInactifs from './pages/ElevesInactifs';
-import ProfilMobile from './pages/ProfilMobile';
+import Seance              from './pages/Seance';
+import ValidationRapide    from './pages/ValidationRapide';
+import PortailParent       from './pages/PortailParent';
+import ProfilMobile        from './pages/ProfilMobile';
 import SuperAdminDashboard from './pages/SuperAdminDashboard';
-import InscriptionEcole from './pages/InscriptionEcole';
+import InscriptionEcole    from './pages/InscriptionEcole';
+
+// ── Pages secondaires — chargées à la demande (lazy) ─────────────────────
+const Gestion             = lazy(() => import('./pages/Gestion'));
+const TableauHonneur      = lazy(() => import('./pages/TableauHonneur'));
+const Calendrier          = lazy(() => import('./pages/Calendrier'));
+const ProfilInstituteur   = lazy(() => import('./pages/ProfilInstituteur'));
+const Comparaison         = lazy(() => import('./pages/Comparaison'));
+const RapportMensuel      = lazy(() => import('./pages/RapportMensuel'));
+const RecitationSourate   = lazy(() => import('./pages/RecitationSourate'));
+const GestionObjectifs    = lazy(() => import('./pages/GestionObjectifs'));
+const HistoriqueSeances   = lazy(() => import('./pages/HistoriqueSeances'));
+const Finance             = lazy(() => import('./pages/Finance'));
+const ValidationCollective= lazy(() => import('./pages/ValidationCollective'));
+const MurajaDashboard     = lazy(() => import('./pages/MurajaDashboard'));
+const ElevesInactifs      = lazy(() => import('./pages/ElevesInactifs'));
 import { t, getDir } from './lib/i18n';
 import { ToastProvider } from './lib/toast';
 import { setSouratesDB } from './lib/sourates';
@@ -231,6 +235,7 @@ export default function App() {
         <main className={isMobile ? 'main-content-mobile' : 'main-content'}>
           {user.role === 'parent' && <ErrorBoundary><PortailParent parent={user} navigate={navigate} goBack={goBack} lang={lang} onLogout={handleLogout} /></ErrorBoundary>}
           {user.role !== 'parent' && <>
+          <Suspense fallback={<div style={{display:'flex',alignItems:'center',justifyContent:'center',padding:'3rem',color:'#888',fontSize:13}}><span style={{marginRight:8}}>⏳</span>{lang==='ar'?'جاري التحميل...':'Chargement...'}</div>}>
           {page === 'dashboard'         && <Dashboard {...pageProps} />}
           {page === 'fiche'             && (selectedEleve
             ? <ErrorBoundary><FicheEleve eleve={selectedEleve} {...pageProps} /></ErrorBoundary>
@@ -259,6 +264,7 @@ export default function App() {
           {page === 'profil_instituteur'&& selectedInstituteur && <ProfilInstituteur instituteur={selectedInstituteur} {...pageProps} />}
           {page === 'comparaison'       && <Comparaison eleves={compareEleves} {...pageProps} />}
           {page === 'rapport_mensuel'   && <RapportMensuel {...pageProps} />}
+          </Suspense>
           </>
           }
         </main>

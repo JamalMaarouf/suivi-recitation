@@ -169,9 +169,9 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile 
 
   const loadData = async () => {
     setLoading(true);
-    const { data: e } = await supabase.from('eleves').select('*')
+    const { data: e } = await supabase.from('eleves').select('id,prenom,nom,code_niveau,eleve_id_ecole,hizb_depart,tomon_depart,sourates_acquises,instituteur_referent_id,ecole_id')
         .eq('ecole_id', user.ecole_id).order('nom');
-    const { data: i } = await supabase.from('utilisateurs').select('*').eq('role', 'instituteur').eq('ecole_id', user.ecole_id).order('nom');
+    const { data: i } = await supabase.from('utilisateurs').select('id,prenom,nom,identifiant,role').eq('role', 'instituteur').eq('ecole_id', user.ecole_id).order('nom');
     setEleves(e || []);
     setInstituteurs(i || []);
     const { data: pd } = await supabase.from('parents').select('*, liens:parent_eleve(eleve_id, eleve:eleve_id(prenom,nom))')
@@ -303,6 +303,24 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile 
 
   const [editInstituteur, setEditInstituteur] = useState(null);
   const [formEditInst, setFormEditInst] = useState({prenom:'',nom:'',identifiant:'',mot_de_passe:''});
+
+  const supprimerParent = (parentId) => {
+    const p = parents.find(x=>x.id===parentId);
+    const nom = p ? p.prenom+' '+p.nom : '';
+    showConfirm(
+      lang==='ar'?'حذف ولي الأمر':'Supprimer le parent',
+      (lang==='ar'?'هل تريد حذف حساب ':'Supprimer le compte de ')+nom+' ?',
+      async () => {
+        await supabase.from('parent_eleve').delete().eq('parent_id', parentId);
+        await supabase.from('utilisateurs').delete().eq('id', parentId);
+        hideConfirm();
+        toast.success(lang==='ar'?'تم الحذف':'Parent supprimé');
+        loadData();
+      },
+      lang==='ar'?'حذف':'Supprimer',
+      '#E24B4A'
+    );
+  };
 
   const instNom = (id) => { const i = instituteurs.find(x => x.id === id); return i ? `${i.prenom} ${i.nom}` : '—'; };
   const niveaux = [
@@ -816,7 +834,7 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile 
                 <div style={{fontSize:14}}>{lang==='ar'?'لا يوجد آباء':'Aucun parent'}</div>
               </div>
             ):parents.map(p=>{
-              const enfants=eleves.filter(e=>(p.eleve_ids||[]).includes(e.id));
+              const enfants=eleves.filter(e=>(p.liens||[]).some(l=>l.eleve_id===e.id));
               return(
                 <div key={p.id} style={{background:'#fff',borderRadius:12,padding:'14px',marginBottom:8,border:'0.5px solid #e0e0d8'}}>
                   <div style={{display:'flex',alignItems:'center',gap:12,marginBottom:enfants.length?8:0}}>
@@ -829,7 +847,7 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile 
                     </div>
                     {user.role==='surveillant'&&(
                       <div style={{display:'flex',gap:6}}>
-                        <button onClick={()=>{setEditingParentId(p.id);setFormParent({prenom:p.prenom,nom:p.nom,identifiant:p.identifiant,mot_de_passe:'',telephone:p.telephone||'',eleve_ids:eleves.filter(e=>(p.eleve_ids||[]).includes(e.id)).map(e=>e.id)});setShowFormParent(true);window.scrollTo(0,0);}}
+                        <button onClick={()=>{setEditingParentId(p.id);setFormParent({prenom:p.prenom,nom:p.nom,identifiant:p.identifiant,mot_de_passe:'',telephone:p.telephone||'',eleve_ids:(p.liens||[]).map(l=>l.eleve_id)});setShowFormParent(true);window.scrollTo(0,0);}}
                           style={{background:'#E6F1FB',color:'#378ADD',border:'none',borderRadius:8,padding:'7px 10px',fontSize:13,cursor:'pointer',fontWeight:600}}>✏️</button>
                         <button onClick={()=>supprimerParent&&supprimerParent(p.id)}
                           style={{background:'#FCEBEB',color:'#E24B4A',border:'none',borderRadius:8,padding:'7px 10px',fontSize:13,cursor:'pointer'}}>🗑</button>
