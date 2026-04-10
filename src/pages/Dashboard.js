@@ -131,110 +131,324 @@ export default function Dashboard({ user, navigate, goBack, lang, isMobile=false
   const tabs = [{key:'general',icon:'🏠',labelKey:'vue_generale'},{key:'eleves',icon:'👥',labelKey:'eleves'},{key:'instituteurs',icon:'👨‍🏫',labelKey:'instituteurs'},...(user.role==='surveillant'?[{key:'rapport',icon:'📊',labelKey:'rapport_tab'}]:[])];
 
   if (isMobile) {
+    const podium = [...eleves].sort((a,b)=>b.etat.points.total-a.etat.points.total).slice(0,3);
+    const inactifs30 = eleves.filter(e=>e.jours!=null&&e.jours>30);
+    const inactifs14 = eleves.filter(e=>e.jours!=null&&e.jours>14&&e.jours<=30);
+    const sansRecit  = eleves.filter(e=>e.jours==null);
+    const navModules = [
+      {icon:'⚙️', label:lang==='ar'?'الإدارة':'Administration',  sub:lang==='ar'?'إدارة':'Gestion',        page:'gestion',            color:'#085041', bg:'#E1F5EE'},
+      {icon:'💰', label:lang==='ar'?'المالية':'Finance',           sub:lang==='ar'?'الاشتراكات':'Cotisations',page:'finance',            color:'#E24B4A', bg:'#FCEBEB'},
+      {icon:'👥', label:lang==='ar'?'الطلاب':'Élèves',            sub:`${eleves.length} ${lang==='ar'?'طالب':'inscrits'}`,            page:'gestion',  color:'#378ADD', bg:'#E6F1FB'},
+      {icon:'🎯', label:lang==='ar'?'الأهداف':'Objectifs',         sub:lang==='ar'?'متابعة':'Suivi',          page:'objectifs',          color:'#534AB7', bg:'#EEEDFE'},
+      {icon:'📊', label:lang==='ar'?'السجل':'السجل',               sub:lang==='ar'?'تحليل':'Historique',       page:'historique_seances', color:'#378ADD', bg:'#E6F1FB'},
+      {icon:'📖', label:lang==='ar'?'مراجعة':"Murajaʼa",           sub:lang==='ar'?'جماعية':'Collective',      page:'muraja',             color:'#534AB7', bg:'#F0EEFF'},
+    ].filter(m => m.page!=='finance'||user.role==='surveillant')
+     .filter(m => m.page!=='objectifs'||user.role==='surveillant');
+
+    const podiumColors = ['#EF9F27','#B0B0B0','#CD7F32'];
+    const podiumBg     = ['#FAEEDA','#f5f5f0','#f9f3ec'];
+    const podiumH      = [80,60,44];
+    const podiumOrder  = [1,0,2];
+
     return (
-      <div style={{paddingBottom:80,background:'#f5f5f0',minHeight:'100vh'}}>
-        <div className="dashboard-header">
-          <div style={{fontSize:13,color:'rgba(255,255,255,0.8)'}}>{lang==='ar'?'مرحباً':'Bonjour'} {user.prenom} 👋</div>
-          <div style={{fontSize:20,fontWeight:800,color:'#fff',marginTop:2}}>{lang==='ar'?'لوحة التحكم':'Tableau de bord'}</div>
-          <div className="dashboard-kpi-grid">
-            <div className="dashboard-kpi"><div className="dashboard-kpi-value">{eleves.length}</div><div className="dashboard-kpi-label">{lang==='ar'?'طالب':'élèves'}</div></div>
-            <div className="dashboard-kpi"><div className="dashboard-kpi-value">{eleves.filter(e=>!e.inactif).length}</div><div className="dashboard-kpi-label">{lang==='ar'?'نشيط':'actifs'}</div></div>
-            <div className="dashboard-kpi"><div className="dashboard-kpi-value" style={{color:nbInactifs>0?'#EF9F27':'#fff'}}>{nbInactifs}</div><div className="dashboard-kpi-label">{lang==='ar'?'غير نشيط':'inactifs'}</div></div>
+      <div style={{paddingBottom:80, background:'#f5f5f0', minHeight:'100vh'}}>
+
+        {/* ── HEADER GRADIENT ── */}
+        <div style={{background:'linear-gradient(135deg,#064e3b 0%,#085041 40%,#1D9E75 100%)',
+          padding:'48px 18px 20px', position:'relative', overflow:'hidden'}}>
+          {/* cercles décoratifs */}
+          <div style={{position:'absolute',top:-30,right:-30,width:120,height:120,
+            borderRadius:'50%',background:'rgba(255,255,255,0.06)'}}/>
+          <div style={{position:'absolute',bottom:-20,left:-20,width:80,height:80,
+            borderRadius:'50%',background:'rgba(255,255,255,0.04)'}}/>
+
+          <div style={{fontSize:13,color:'rgba(255,255,255,0.75)',marginBottom:2,position:'relative'}}>
+            {lang==='ar'?'مرحباً':'Bonjour'} {user.prenom} 👋
+          </div>
+          <div style={{fontSize:21,fontWeight:800,color:'#fff',marginBottom:16,position:'relative'}}>
+            {lang==='ar'?'لوحة التحكم':'Tableau de bord'}
+          </div>
+
+          {/* KPIs row */}
+          <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:8,position:'relative'}}>
+            {[
+              {val:eleves.length,        lbl:lang==='ar'?'طالب':'Élèves'},
+              {val:eleves.filter(e=>!e.inactif).length, lbl:lang==='ar'?'نشيط':'Actifs'},
+              {val:nbInactifs,           lbl:lang==='ar'?'غير نشيط':'Inactifs', warn:nbInactifs>0},
+              {val:instituteurs.length,  lbl:lang==='ar'?'أستاذ':'Profs'},
+            ].map((k,i)=>(
+              <div key={i} style={{background:'rgba(255,255,255,0.15)',borderRadius:12,
+                padding:'10px 8px',textAlign:'center',backdropFilter:'blur(4px)'}}>
+                <div style={{fontSize:22,fontWeight:800,color:k.warn?'#FAEEDA':'#fff'}}>{k.val}</div>
+                <div style={{fontSize:10,color:'rgba(255,255,255,0.72)',marginTop:2}}>{k.lbl}</div>
+              </div>
+            ))}
           </div>
         </div>
-        {loading ? <div style={{textAlign:'center',padding:'2rem',color:'#888'}}>...</div> : (
-          <div>
-            <div className="quick-actions-grid">
+
+        {loading ? <div style={{textAlign:'center',padding:'3rem',color:'#888'}}>...</div> : (<>
+
+          {/* ── SCORE ÉCOLE ── */}
+          <div style={{margin:'12px 12px 0',background:'linear-gradient(135deg,#085041,#1D9E75)',
+            borderRadius:16,padding:'16px 18px',color:'#fff'}}>
+            <div style={{fontSize:9,opacity:0.65,textTransform:'uppercase',letterSpacing:'2px',marginBottom:2}}>
+              {t(lang,'score_ecole')}
+            </div>
+            <div style={{fontSize:38,fontWeight:800,letterSpacing:'-1.5px',lineHeight:1}}>
+              {totalPoints.toLocaleString()}
+            </div>
+            <div style={{display:'flex',gap:20,marginTop:10}}>
               {[
-                {icon:'🎯',label:lang==='ar'?'الأهداف':'Objectifs',sub:lang==='ar'?'متابعة':'Suivi',page:'objectifs',color:'#1D9E75',bg:'#E1F5EE'},
-                {icon:'📖',label:lang==='ar'?'مراجعة':"Murajaʼa",sub:lang==='ar'?'جماعية':'Collective',page:'muraja',color:'#534AB7',bg:'#F0EEFF'},
-                {icon:'👥',label:lang==='ar'?'السجل':'Registre',sub:lang==='ar'?'تحليل الحصص':'Analyse séances',page:'historique_seances',color:'#378ADD',bg:'#E6F1FB'},
-                {icon:'🏆',label:lang==='ar'?'الشرف':'Honneur',sub:lang==='ar'?'الترتيب':'Classement',page:'honneur',color:'#EF9F27',bg:'#FAEEDA'},
-                {icon:'💰',label:lang==='ar'?'المالية':'Finance',sub:lang==='ar'?'الاشتراكات':'Cotisations',page:'finance',color:'#E24B4A',bg:'#FCEBEB'},
-                {icon:'⚙️',label:lang==='ar'?'الإدارة':'Gestion',sub:lang==='ar'?'إدارة':'Paramètres',page:'gestion',color:'#888',bg:'#f5f5f0'},
-              ].filter(a=>a.page!=='finance'||user.role==='surveillant')
-               .filter(a=>a.page!=='objectifs'||user.role==='surveillant')
-               .map(a=>(
-                <div key={a.page} className="quick-action-card"
-                  onClick={()=>navigate(a.page)}
-                  style={{borderLeft:`3px solid ${a.color}20`}}>
-                  <div className="quick-action-icon">{a.icon}</div>
-                  <div className="quick-action-label">{a.label}</div>
-                  <div className="quick-action-sub">{a.sub}</div>
+                {v:totalTomon,          l:t(lang,'tomon_abrev')},
+                {v:totalHizb,           l:t(lang,'hizb_abrev')},
+                {v:tauxSemaine+'%',     l:lang==='ar'?'نشاط':'Activité'},
+                {v:recapMois.nbRecit,   l:lang==='ar'?'هذا الشهر':'Ce mois'},
+              ].map(k=>(
+                <div key={k.l}>
+                  <div style={{fontSize:16,fontWeight:700}}>{k.v}</div>
+                  <div style={{fontSize:10,opacity:0.7}}>{k.l}</div>
                 </div>
               ))}
             </div>
-            <div style={{margin:'0 12px 12px',background:'linear-gradient(135deg,#085041,#1D9E75)',borderRadius:16,padding:'16px',color:'#fff'}}>
-              <div style={{fontSize:10,opacity:0.7,textTransform:'uppercase',letterSpacing:'1px',marginBottom:4}}>{t(lang,'score_ecole')}</div>
-              <div style={{fontSize:36,fontWeight:800,letterSpacing:'-1px'}}>{totalPoints.toLocaleString()}</div>
-              <div style={{display:'flex',gap:16,marginTop:8}}>
-                {[{v:totalTomon,l:t(lang,'tomon_abrev')},{v:totalHizb,l:t(lang,'hizb_abrev')},{v:eleves.length,l:t(lang,'eleves')}].map(k=>(
-                  <div key={k.l}><div style={{fontSize:16,fontWeight:700}}>{k.v}</div><div style={{fontSize:10,opacity:0.7}}>{k.l}</div></div>
-                ))}
+          </div>
+
+          {/* ── ALERTES ── */}
+          <div style={{padding:'10px 12px 0'}}>
+            {inactifs30.length>0&&(
+              <div onClick={()=>navigate('inactifs')}
+                style={{display:'flex',alignItems:'center',gap:10,padding:'12px 14px',
+                  background:'#FCEBEB',borderRadius:12,marginBottom:8,cursor:'pointer',
+                  border:'0.5px solid #E24B4A30'}}>
+                <span style={{fontSize:18}}>🚨</span>
+                <div style={{flex:1,fontSize:13,fontWeight:700,color:'#A32D2D'}}>
+                  {inactifs30.length} {lang==='ar'?'طالب غائب +30 يوم':'inactif(s) depuis +30 jours'}
+                </div>
+                <span style={{color:'#E24B4A',fontSize:16}}>›</span>
               </div>
-            </div>
-            <div style={{padding:'0 12px'}}>
-              {eleves.filter(e=>e.jours!=null&&e.jours>30).length>0&&(
-                <div onClick={()=>navigate('inactifs')} style={{display:'flex',alignItems:'center',gap:10,padding:'12px 14px',background:'#FCEBEB',borderRadius:12,marginBottom:8,cursor:'pointer'}}>
-                  <span style={{fontSize:18}}>🚨</span>
-                  <div style={{flex:1,fontSize:13,fontWeight:700,color:'#E24B4A'}}>{eleves.filter(e=>e.jours!=null&&e.jours>30).length} {lang==='ar'?'طالب غير نشيط +30 يوم':'inactif(s) +30 jours'}</div>
-                  <span style={{color:'#E24B4A'}}>›</span>
+            )}
+            {nbAttente>0&&(
+              <div onClick={()=>navigate('inactifs')}
+                style={{display:'flex',alignItems:'center',gap:10,padding:'12px 14px',
+                  background:'#FAEEDA',borderRadius:12,marginBottom:8,cursor:'pointer',
+                  border:'0.5px solid #EF9F2730'}}>
+                <span style={{fontSize:18}}>⏳</span>
+                <div style={{flex:1,fontSize:13,fontWeight:700,color:'#633806'}}>
+                  {nbAttente} {lang==='ar'?'في انتظار تصحيح الحزب':'en attente validation Hizb'}
                 </div>
-              )}
-              {nbAttente>0&&(
-                <div onClick={()=>navigate('inactifs')} style={{display:'flex',alignItems:'center',gap:10,padding:'12px 14px',background:'#FAEEDA',borderRadius:12,marginBottom:8,cursor:'pointer'}}>
-                  <span style={{fontSize:18}}>⏳</span>
-                  <div style={{flex:1,fontSize:13,fontWeight:700,color:'#633806'}}>{nbAttente} {lang==='ar'?'في انتظار تصحيح الحزب':'en attente Hizb'}</div>
-                  <span style={{color:'#EF9F27'}}>›</span>
+                <span style={{color:'#EF9F27',fontSize:16}}>›</span>
+              </div>
+            )}
+            {inactifs14.length>0&&!inactifs30.length&&(
+              <div onClick={()=>navigate('inactifs')}
+                style={{display:'flex',alignItems:'center',gap:10,padding:'12px 14px',
+                  background:'#FFF3CD',borderRadius:12,marginBottom:8,cursor:'pointer',
+                  border:'0.5px solid #EF9F2730'}}>
+                <span style={{fontSize:18}}>⚠️</span>
+                <div style={{flex:1,fontSize:13,fontWeight:700,color:'#856404'}}>
+                  {inactifs14.length} {lang==='ar'?'طالب غائب 14-30 يوم':'inactif(s) depuis 14-30 jours'}
                 </div>
-              )}
-            </div>
-            <div style={{display:'grid',gridTemplateColumns:'repeat(2,1fr)',gap:10,padding:'0 12px 12px'}}>
-              {[
-                {val:stats.tomonSemaine||0,lbl:t(lang,'tomon_semaine'),color:'#1D9E75',bg:'#E1F5EE'},
-                {val:stats.hizbsCompletsMois||0,lbl:t(lang,'hizb_ce_mois'),color:'#378ADD',bg:'#E6F1FB'},
-                {val:tauxSemaine+'%',lbl:lang==='ar'?'نسبة النشاط':'Taux activité',color:'#534AB7',bg:'#F0EEFF'},
-                {val:recapMois.nbRecit,lbl:lang==='ar'?'استظهارات الشهر':'Récit. ce mois',color:'#EF9F27',bg:'#FAEEDA'},
-              ].map((k,i)=>(
-                <div key={i} style={{background:k.bg,borderRadius:12,padding:'14px',textAlign:'center'}}>
-                  <div style={{fontSize:26,fontWeight:800,color:k.color}}>{k.val}</div>
-                  <div style={{fontSize:11,color:k.color,opacity:0.8,marginTop:4}}>{k.lbl}</div>
-                </div>
-              ))}
-            </div>
-            {vue==='eleves'&&(
-              <div style={{padding:'0 12px'}}>
-                <input style={{width:'100%',padding:'12px 16px',borderRadius:12,border:'0.5px solid #e0e0d8',fontSize:15,fontFamily:'inherit',boxSizing:'border-box',background:'#fff',marginBottom:12}}
-                  placeholder={lang==='ar'?'بحث...':'Rechercher...'} value={searchEleve} onChange={e=>setSearchEleve(e.target.value)}/>
-                {elevesFiltres.map(eleve=>{
-                  const nc=NIVEAU_COLORS[eleve.code_niveau||'1']||'#888';
-                  return(
-                    <div key={eleve.id} onClick={()=>navigate('fiche',eleve)}
-                      style={{background:'#fff',borderRadius:12,padding:'13px 14px',marginBottom:8,border:'0.5px solid #e0e0d8',display:'flex',alignItems:'center',gap:12,cursor:'pointer'}}>
-                      <div style={{width:40,height:40,borderRadius:'50%',background:`${nc}20`,color:nc,display:'flex',alignItems:'center',justifyContent:'center',fontWeight:800,fontSize:13,flexShrink:0}}>
-                        {((eleve.prenom||'?')[0])+((eleve.nom||'?')[0])}
-                      </div>
-                      <div style={{flex:1,minWidth:0}}>
-                        <div style={{fontWeight:700,fontSize:14}}>{eleve.prenom} {eleve.nom}</div>
-                        <div style={{display:'flex',gap:6,alignItems:'center',marginTop:2}}>
-                          <NiveauBadge code={eleve.code_niveau}/>
-                          <span style={{fontSize:11,color:'#888'}}>{eleve.instituteurNom}</span>
-                        </div>
-                      </div>
-                      <div style={{textAlign:'right',flexShrink:0}}>
-                        <div style={{fontSize:16,fontWeight:800,color:'#1D9E75'}}>{eleve.etat.points.total}</div>
-                        <div style={{fontSize:10,color:'#888'}}>pts</div>
-                      </div>
-                    </div>
-                  );
-                })}
+                <span style={{color:'#EF9F27',fontSize:16}}>›</span>
               </div>
             )}
           </div>
-        )}
+
+          {/* ── NAVIGATION 6 MODULES ── */}
+          <div style={{padding:'12px 12px 4px'}}>
+            <div style={{fontSize:11,fontWeight:700,color:'#888',textTransform:'uppercase',
+              letterSpacing:'1px',marginBottom:10}}>
+              {lang==='ar'?'القائمة الرئيسية':'Navigation'}
+            </div>
+            <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:8}}>
+              {navModules.map(m=>(
+                <div key={m.page+m.label} onClick={()=>navigate(m.page)}
+                  style={{background:'#fff',borderRadius:14,padding:'14px 10px',
+                    display:'flex',flexDirection:'column',alignItems:'center',gap:7,
+                    border:'0.5px solid #e0e0d8',cursor:'pointer',
+                    boxShadow:'0 1px 4px rgba(0,0,0,0.04)'}}>
+                  <div style={{width:40,height:40,borderRadius:12,background:m.bg,
+                    display:'flex',alignItems:'center',justifyContent:'center',fontSize:18}}>
+                    {m.icon}
+                  </div>
+                  <div style={{fontSize:12,fontWeight:700,color:'#1a1a1a',textAlign:'center',
+                    lineHeight:1.2}}>{m.label}</div>
+                  <div style={{fontSize:10,color:'#888',textAlign:'center'}}>{m.sub}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* ── STATS SEMAINE ── */}
+          <div style={{padding:'12px 12px 4px'}}>
+            <div style={{fontSize:11,fontWeight:700,color:'#888',textTransform:'uppercase',
+              letterSpacing:'1px',marginBottom:10}}>
+              {lang==='ar'?'إحصائيات الأسبوع':'Cette semaine'}
+            </div>
+            <div style={{display:'grid',gridTemplateColumns:'repeat(2,1fr)',gap:8}}>
+              {[
+                {val:stats.tomonSemaine||0,  lbl:t(lang,'tomon_semaine'),       color:'#1D9E75',bg:'#E1F5EE'},
+                {val:stats.hizbsCompletsMois||0,lbl:t(lang,'hizb_ce_mois'),     color:'#378ADD',bg:'#E6F1FB'},
+                {val:tauxSemaine+'%',         lbl:lang==='ar'?'نسبة النشاط':'Taux activité',color:'#534AB7',bg:'#EEEDFE'},
+                {val:recapMois.nbRecit,       lbl:lang==='ar'?'استظهارات الشهر':'Récit. ce mois',color:'#EF9F27',bg:'#FAEEDA'},
+              ].map((k,i)=>(
+                <div key={i} style={{background:k.bg,borderRadius:12,padding:'14px',textAlign:'center'}}>
+                  <div style={{fontSize:28,fontWeight:800,color:k.color}}>{k.val}</div>
+                  <div style={{fontSize:11,color:k.color,opacity:0.85,marginTop:4}}>{k.lbl}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* ── PODIUM TOP 3 ── */}
+          {podium.length>=2&&(
+            <div style={{padding:'12px 12px 4px'}}>
+              <div style={{fontSize:11,fontWeight:700,color:'#888',textTransform:'uppercase',
+                letterSpacing:'1px',marginBottom:10}}>
+                {lang==='ar'?'المتصدرون':'Classement'}
+              </div>
+              <div style={{background:'#fff',borderRadius:16,padding:'16px 12px 12px',
+                border:'0.5px solid #e0e0d8'}}>
+                <div style={{display:'flex',alignItems:'flex-end',justifyContent:'center',gap:6}}>
+                  {podiumOrder.map(rank=>{
+                    const e=podium[rank]; if(!e) return null;
+                    return(
+                      <div key={e.id} onClick={()=>navigate('fiche',e)}
+                        style={{flex:1,display:'flex',flexDirection:'column',
+                          alignItems:'center',cursor:'pointer'}}>
+                        {rank===0&&<div style={{fontSize:18,marginBottom:4}}>👑</div>}
+                        <div style={{width:rank===0?46:38,height:rank===0?46:38,borderRadius:'50%',
+                          background:podiumBg[rank],display:'flex',alignItems:'center',
+                          justifyContent:'center',fontWeight:700,fontSize:rank===0?14:12,
+                          color:podiumColors[rank],border:`1.5px solid ${podiumColors[rank]}40`,
+                          marginBottom:6}}>
+                          {((e.prenom||'?')[0])+((e.nom||'?')[0])}
+                        </div>
+                        <div style={{fontSize:11,fontWeight:600,textAlign:'center',
+                          color:'#1a1a1a',maxWidth:80,overflow:'hidden',
+                          textOverflow:'ellipsis',whiteSpace:'nowrap'}}>
+                          {e.prenom}
+                        </div>
+                        <div style={{fontSize:rank===0?13:11,fontWeight:700,
+                          color:podiumColors[rank],marginTop:2}}>
+                          {e.etat.points.total.toLocaleString()}
+                        </div>
+                        <div style={{width:'100%',height:podiumH[rank],marginTop:6,
+                          background:podiumBg[rank],borderRadius:'8px 8px 0 0',
+                          display:'flex',alignItems:'center',justifyContent:'center',
+                          border:`0.5px solid ${podiumColors[rank]}30`}}>
+                          <span style={{fontSize:rank===0?28:22,fontWeight:800,
+                            color:podiumColors[rank],opacity:0.7}}>
+                            {rank+1}
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+                <div onClick={()=>navigate('honneur')}
+                  style={{marginTop:12,textAlign:'center',padding:'8px',
+                    background:'#f5f5f0',borderRadius:10,fontSize:12,
+                    fontWeight:600,color:'#085041',cursor:'pointer'}}>
+                  🏆 {lang==='ar'?'عرض الترتيب الكامل':'Voir classement complet'}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ── ACTIVITÉ RÉCENTE ── */}
+          <div style={{padding:'12px 12px 4px'}}>
+            <div style={{fontSize:11,fontWeight:700,color:'#888',textTransform:'uppercase',
+              letterSpacing:'1px',marginBottom:10}}>
+              {lang==='ar'?'آخر الاستظهارات':'Activité récente'}
+            </div>
+            {allValidations.slice(0,5).map(v=>{
+              const el=eleves.find(e=>e.id===v.eleve_id);
+              const nc=NIVEAU_COLORS[el?.code_niveau||'1']||'#888';
+              return(
+                <div key={v.id} onClick={()=>el&&navigate('fiche',el)}
+                  style={{background:'#fff',borderRadius:12,padding:'11px 14px',
+                    marginBottom:8,border:'0.5px solid #e0e0d8',
+                    display:'flex',alignItems:'center',gap:12,cursor:'pointer'}}>
+                  <div style={{width:38,height:38,borderRadius:'50%',background:`${nc}20`,
+                    color:nc,display:'flex',alignItems:'center',justifyContent:'center',
+                    fontWeight:700,fontSize:13,flexShrink:0}}>
+                    {el?((el.prenom||'?')[0])+((el.nom||'?')[0]):'?'}
+                  </div>
+                  <div style={{flex:1,minWidth:0}}>
+                    <div style={{fontWeight:600,fontSize:13}}>
+                      {el?`${el.prenom} ${el.nom}`:'—'}
+                    </div>
+                    <div style={{fontSize:11,color:'#888',marginTop:1}}>
+                      {formatDateCourt(v.date_validation)}
+                    </div>
+                  </div>
+                  <div>
+                    {v.type_validation==='hizb_complet'
+                      ? <span style={{fontSize:11,fontWeight:700,padding:'3px 10px',
+                          borderRadius:20,background:'#E1F5EE',color:'#085041'}}>
+                          Hizb ✓
+                        </span>
+                      : <span style={{fontSize:11,fontWeight:700,padding:'3px 10px',
+                          borderRadius:20,background:'#E6F1FB',color:'#0C447C'}}>
+                          {v.nombre_tomon} {t(lang,'tomon_abrev')}
+                        </span>
+                    }
+                  </div>
+                </div>
+              );
+            })}
+            {allValidations.length===0&&(
+              <div style={{textAlign:'center',color:'#aaa',padding:'1.5rem',
+                background:'#fff',borderRadius:12,fontSize:13}}>
+                {t(lang,'aucune_activite')}
+              </div>
+            )}
+          </div>
+
+          {/* ── ÉLÈVES À RELANCER ── */}
+          {eleves.filter(e=>e.inactif).length>0&&(
+            <div style={{padding:'12px 12px 16px'}}>
+              <div style={{fontSize:11,fontWeight:700,color:'#888',textTransform:'uppercase',
+                letterSpacing:'1px',marginBottom:10}}>
+                {lang==='ar'?'يحتاجون متابعة':'À relancer'}
+              </div>
+              {[...eleves].filter(e=>e.inactif)
+                .sort((a,b)=>(b.jours||0)-(a.jours||0)).slice(0,4).map(e=>(
+                <div key={e.id} onClick={()=>navigate('fiche',e)}
+                  style={{background:'#fff',borderRadius:12,padding:'11px 14px',
+                    marginBottom:8,border:`0.5px solid ${e.jours>30?'#E24B4A30':'#EF9F2730'}`,
+                    display:'flex',alignItems:'center',gap:12,cursor:'pointer'}}>
+                  <div style={{width:38,height:38,borderRadius:'50%',
+                    background:e.jours>30?'#FCEBEB':'#FAEEDA',
+                    display:'flex',alignItems:'center',justifyContent:'center',
+                    fontWeight:700,fontSize:13,
+                    color:e.jours>30?'#E24B4A':'#EF9F27',flexShrink:0}}>
+                    {((e.prenom||'?')[0])+((e.nom||'?')[0])}
+                  </div>
+                  <div style={{flex:1}}>
+                    <div style={{fontWeight:600,fontSize:13}}>{e.prenom} {e.nom}</div>
+                    <div style={{fontSize:11,color:'#888'}}>{e.instituteurNom}</div>
+                  </div>
+                  <div style={{fontSize:12,fontWeight:700,
+                    color:e.jours>30?'#E24B4A':'#EF9F27'}}>
+                    {e.jours!=null?`${e.jours}j`:'∞'}
+                  </div>
+                </div>
+              ))}
+              {eleves.filter(e=>e.inactif).length>4&&(
+                <div onClick={()=>navigate('inactifs')}
+                  style={{textAlign:'center',padding:'10px',background:'#f5f5f0',
+                    borderRadius:10,fontSize:12,fontWeight:600,color:'#666',cursor:'pointer'}}>
+                  {lang==='ar'?'عرض الكل':'Voir tous'} ({eleves.filter(e=>e.inactif).length})
+                </div>
+              )}
+            </div>
+          )}
+
+        </>)}
       </div>
     );
   }
+
 
   return (
     <div>

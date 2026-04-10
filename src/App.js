@@ -267,19 +267,19 @@ export default function App() {
           <nav className="bottom-nav" dir={getDir(lang)}>
             {(user.role === 'surveillant' ? [
               { key: 'dashboard',        icon: '🏠', label: lang==='ar'?'الرئيسية':'Accueil' },
+              { key: 'seance',           icon: '📋', label: lang==='ar'?'الحصة':'Séances' },
               { key: 'validation_rapide',icon: '⚡', label: lang==='ar'?'استظهار':'Express' },
-              { key: 'seance',           icon: '👥', label: lang==='ar'?'الحصة':'Élèves' },
               { key: 'honneur',          icon: '🏆', label: lang==='ar'?'شرف':'Honneur' },
               { key: 'profil_mobile',    icon: '👤', label: lang==='ar'?'حسابي':'Profil' },
             ] : user.role === 'instituteur' ? [
               { key: 'dashboard',        icon: '🏠', label: lang==='ar'?'الرئيسية':'Accueil' },
+              { key: 'seance',           icon: '📋', label: lang==='ar'?'الحصة':'Séances' },
               { key: 'validation_rapide',icon: '⚡', label: lang==='ar'?'استظهار':'Valider' },
-              { key: 'seance',           icon: '👥', label: lang==='ar'?'طلابي':'Élèves' },
               { key: 'profil_mobile',    icon: '👤', label: lang==='ar'?'حسابي':'Profil' },
             ] : [
               { key: 'dashboard',        icon: '🏠', label: lang==='ar'?'الرئيسية':'Accueil' },
+              { key: 'seance',           icon: '📋', label: lang==='ar'?'الحصة':'Séances' },
               { key: 'validation_rapide',icon: '⚡', label: lang==='ar'?'استظهار':'Express' },
-              { key: 'seance',           icon: '📋', label: lang==='ar'?'الحصة':'Séance' },
               { key: 'honneur',          icon: '🏆', label: lang==='ar'?'شرف':'Honneur' },
               { key: 'profil_mobile',    icon: '👤', label: lang==='ar'?'حسابي':'Profil' },
             ]).map(tab => (
