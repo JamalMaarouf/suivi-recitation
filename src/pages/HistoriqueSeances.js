@@ -423,6 +423,22 @@ export default function HistoriqueSeances({ user, navigate, goBack, lang='fr', i
             ))}
           </div>
 
+          {/* Dates personnalisées */}
+          <div style={{display:'flex',gap:8,padding:'0 12px 8px'}}>
+            <div style={{flex:1}}>
+              <div style={{fontSize:11,color:'#888',marginBottom:4}}>{lang==='ar'?'من':'Du'}</div>
+              <input type="date" value={dateDebut} onChange={e=>{setDateDebut(e.target.value);setPeriodeActive(-1);}}
+                style={{width:'100%',padding:'8px 10px',borderRadius:10,border:'0.5px solid #e0e0d8',
+                  fontSize:13,fontFamily:'inherit',background:'#fff',boxSizing:'border-box'}}/>
+            </div>
+            <div style={{flex:1}}>
+              <div style={{fontSize:11,color:'#888',marginBottom:4}}>{lang==='ar'?'إلى':'Au'}</div>
+              <input type="date" value={dateFin} onChange={e=>{setDateFin(e.target.value);setPeriodeActive(-1);}}
+                style={{width:'100%',padding:'8px 10px',borderRadius:10,border:'0.5px solid #e0e0d8',
+                  fontSize:13,fontFamily:'inherit',background:'#fff',boxSizing:'border-box'}}/>
+            </div>
+          </div>
+
           {/* Filtres */}
           <div style={{padding:'0 12px 12px',display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
             <select value={filterNiveau} onChange={e=>setFilterNiveau(e.target.value)}
