@@ -642,27 +642,59 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile 
         {/* INSTITUTEURS */}
         {tab==='instituteurs'&&(
           <div style={{padding:'12px'}}>
-            {showFormInst&&user.role==='surveillant'&&(
-              <div style={{background:'#fff',borderRadius:16,padding:'18px',marginBottom:14,border:'1.5px solid #378ADD'}}>
-                <div style={{fontSize:15,fontWeight:700,color:'#085041',marginBottom:14}}>🧑‍🏫 {lang==='ar'?'إضافة أستاذ':'Nouvel instituteur'}</div>
-                {[{label:lang==='ar'?'الاسم':'Prénom *',key:'prenom',ph:lang==='ar'?'الاسم':'Prénom'},
-                  {label:lang==='ar'?'اللقب':'Nom *',key:'nom',ph:lang==='ar'?'اللقب':'Nom'},
+            {(showFormInst||editInstituteur)&&user.role==='surveillant'&&(
+              <div style={{background:'#fff',borderRadius:16,padding:'18px',marginBottom:14,
+                border:`1.5px solid ${editInstituteur?'#EF9F27':'#378ADD'}`}}>
+                <div style={{fontSize:15,fontWeight:700,color:'#085041',marginBottom:14}}>
+                  {editInstituteur?(lang==='ar'?'تعديل الأستاذ':'✏️ Modifier instituteur'):'🧑‍🏫 '+(lang==='ar'?'إضافة أستاذ':'Nouvel instituteur')}
+                </div>
+                {/* Champs communs ajout & modif */}
+                {[{label:lang==='ar'?'الاسم':'Prénom *',   key:'prenom',      ph:lang==='ar'?'الاسم':'Prénom'},
+                  {label:lang==='ar'?'اللقب':'Nom *',       key:'nom',         ph:lang==='ar'?'اللقب':'Nom'},
                   {label:lang==='ar'?'المعرف':'Identifiant *',key:'identifiant',ph:'ex: m.karim'},
                 ].map(f=>(
                   <div key={f.key} style={{marginBottom:12}}>
                     <label style={{fontSize:12,fontWeight:600,color:'#666',display:'block',marginBottom:5}}>{f.label}</label>
                     <input style={{width:'100%',padding:'12px 14px',borderRadius:10,border:'0.5px solid #e0e0d8',fontSize:15,fontFamily:'inherit',boxSizing:'border-box'}}
-                      value={newInst[f.key]} onChange={e=>setNewInst(x=>({...x,[f.key]:e.target.value}))} placeholder={f.ph}/>
+                      value={editInstituteur ? formEditInst[f.key] : newInst[f.key]}
+                      onChange={e=>editInstituteur ? setFormEditInst(x=>({...x,[f.key]:e.target.value})) : setNewInst(x=>({...x,[f.key]:e.target.value}))}
+                      placeholder={f.ph}/>
                   </div>
                 ))}
                 <div style={{marginBottom:14}}>
-                  <label style={{fontSize:12,fontWeight:600,color:'#666',display:'block',marginBottom:5}}>{lang==='ar'?'كلمة المرور':'Mot de passe *'}</label>
+                  <label style={{fontSize:12,fontWeight:600,color:'#666',display:'block',marginBottom:5}}>
+                    {editInstituteur
+                      ? (lang==='ar'?'كلمة المرور الجديدة (اتركها فارغة إن لم تغيرها)':'Nouveau mot de passe (vide = inchangé)')
+                      : (lang==='ar'?'كلمة المرور':'Mot de passe *')}
+                  </label>
                   <input type="password" style={{width:'100%',padding:'12px 14px',borderRadius:10,border:'0.5px solid #e0e0d8',fontSize:15,fontFamily:'inherit',boxSizing:'border-box'}}
-                    value={newInst.mot_de_passe} onChange={e=>setNewInst(x=>({...x,mot_de_passe:e.target.value}))} placeholder="••••••••"/>
+                    value={editInstituteur ? formEditInst.mot_de_passe : newInst.mot_de_passe}
+                    onChange={e=>editInstituteur ? setFormEditInst(x=>({...x,mot_de_passe:e.target.value})) : setNewInst(x=>({...x,mot_de_passe:e.target.value}))}
+                    placeholder="••••••••"/>
                 </div>
                 <div style={{display:'flex',gap:8}}>
-                  <button onClick={()=>setShowFormInst(false)} style={{flex:1,padding:'13px',background:'#f5f5f0',color:'#666',border:'none',borderRadius:12,fontSize:14,fontWeight:600,cursor:'pointer',fontFamily:'inherit'}}>{lang==='ar'?'إلغاء':'Annuler'}</button>
-                  <button onClick={async()=>{await ajouterInstituteur();setShowFormInst(false);}} style={{flex:2,padding:'13px',background:'#378ADD',color:'#fff',border:'none',borderRadius:12,fontSize:14,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>{lang==='ar'?'حفظ':'Enregistrer'}</button>
+                  <button
+                    onClick={()=>{setShowFormInst(false);setEditInstituteur(null);setFormEditInst({prenom:'',nom:'',identifiant:'',mot_de_passe:''});}}
+                    style={{flex:1,padding:'13px',background:'#f5f5f0',color:'#666',border:'none',borderRadius:12,fontSize:14,fontWeight:600,cursor:'pointer',fontFamily:'inherit'}}>
+                    {lang==='ar'?'إلغاء':'Annuler'}
+                  </button>
+                  <button
+                    onClick={async()=>{
+                      if(editInstituteur){
+                        const upd={prenom:formEditInst.prenom,nom:formEditInst.nom,identifiant:formEditInst.identifiant};
+                        if(formEditInst.mot_de_passe) upd.mot_de_passe=formEditInst.mot_de_passe;
+                        const{error}=await supabase.from('utilisateurs').update(upd).eq('id',editInstituteur);
+                        if(error){toast.error(error.message||'Erreur');return;}
+                        toast.success(lang==='ar'?'✅ تم التحديث':'✅ Instituteur modifié !');
+                        setEditInstituteur(null);setFormEditInst({prenom:'',nom:'',identifiant:'',mot_de_passe:''});
+                        setShowFormInst(false);loadData();
+                      } else {
+                        await ajouterInstituteur();setShowFormInst(false);
+                      }
+                    }}
+                    style={{flex:2,padding:'13px',background:editInstituteur?'#EF9F27':'#378ADD',color:'#fff',border:'none',borderRadius:12,fontSize:14,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
+                    {editInstituteur?(lang==='ar'?'تحديث':'Mettre à jour ✓'):(lang==='ar'?'حفظ':'Enregistrer')}
+                  </button>
                 </div>
               </div>
             )}
@@ -683,7 +715,12 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile 
                     <div style={{fontSize:12,color:'#888',marginTop:2}}>{inst.identifiant} · {nb} {lang==='ar'?'طالب':'élève(s)'}</div>
                   </div>
                   {user.role==='surveillant'&&(
-                    <button onClick={()=>supprimerInstituteur(inst)} style={{background:'#FCEBEB',color:'#E24B4A',border:'none',borderRadius:8,padding:'8px 12px',fontSize:13,cursor:'pointer',fontWeight:600}}>🗑</button>
+                    <div style={{display:'flex',gap:6}}>
+                      <button
+                        onClick={()=>{setEditInstituteur(inst.id);setFormEditInst({prenom:inst.prenom,nom:inst.nom,identifiant:inst.identifiant,mot_de_passe:''});setShowFormInst(true);window.scrollTo(0,0);}}
+                        style={{background:'#FAEEDA',color:'#633806',border:'none',borderRadius:8,padding:'8px 10px',fontSize:13,cursor:'pointer',fontWeight:600}}>✏️</button>
+                      <button onClick={()=>supprimerInstituteur(inst)} style={{background:'#FCEBEB',color:'#E24B4A',border:'none',borderRadius:8,padding:'8px 10px',fontSize:13,cursor:'pointer',fontWeight:600}}>🗑</button>
+                    </div>
                   )}
                 </div>
               );
