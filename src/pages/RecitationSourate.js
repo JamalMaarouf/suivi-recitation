@@ -199,6 +199,7 @@ export default function RecitationSourate({ user, eleve, navigate, goBack, lang=
     const pts = typeRecitation === 'complete' ? 30 : 10;
     const { error } = await supabase.from('recitations_sourates').insert({
       eleve_id: eleve.id,
+      ecole_id: user.ecole_id,
       sourate_id: getDbId(selectedSourate.numero),
       type_recitation: typeRecitation,
       verset_debut: typeRecitation === 'sequence' ? parseInt(versetDebut) : null,
