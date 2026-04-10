@@ -342,7 +342,7 @@ export default function GestionObjectifs({ user, navigate, goBack, lang='fr', is
         <div style={{padding:'12px'}}>
           {showForm&&user.role==='surveillant'&&(
             <div style={{background:'#fff',borderRadius:14,padding:'16px',marginBottom:12,border:'0.5px solid #e0e0d8'}}>
-              <div style={{fontSize:14,fontWeight:700,color:'#085041',marginBottom:12}}>{lang==='ar'?'إضافة هدف':'Nouvel objectif'}</div>
+              <div style={{fontSize:14,fontWeight:700,color:'#085041',marginBottom:12}}>{editingId?(lang==='ar'?'تعديل الهدف':'Modifier objectif'):(lang==='ar'?'إضافة هدف':'Nouvel objectif')}</div>
               {[
                 {label:lang==='ar'?'العنوان':'Titre',key:'titre',type:'text'},
                 {label:lang==='ar'?'الوصف':'Description',key:'description',type:'text'},
@@ -358,7 +358,7 @@ export default function GestionObjectifs({ user, navigate, goBack, lang='fr', is
               <button onClick={ajouterObj}
                 style={{width:'100%',padding:'14px',background:'#1D9E75',color:'#fff',border:'none',
                   borderRadius:12,fontSize:15,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
-                {lang==='ar'?'حفظ':'Enregistrer'}
+                {editingId?(lang==='ar'?'تحديث':'Mettre à jour ✓'):(lang==='ar'?'حفظ':'Enregistrer')}
               </button>
             </div>
           )}
@@ -388,6 +388,11 @@ export default function GestionObjectifs({ user, navigate, goBack, lang='fr', is
                       color:obj.atteint?'#888':'#085041',border:'none',borderRadius:10,
                       fontSize:13,fontWeight:600,cursor:'pointer',fontFamily:'inherit'}}>
                     {obj.atteint?(lang==='ar'?'إعادة فتح':'Réouvrir'):(lang==='ar'?'تحقق':'Atteint ✓')}
+                  </button>
+                  <button onClick={()=>{setEditingId(obj.id);setNewObj({titre:obj.titre||'',description:obj.description||''});setShowForm(true);window.scrollTo(0,0);}}
+                    style={{padding:'10px 14px',background:'#E6F1FB',color:'#378ADD',border:'none',
+                      borderRadius:10,fontSize:13,cursor:'pointer',fontWeight:600}}>
+                    ✏️
                   </button>
                   <button onClick={()=>supprimerObj(obj.id)}
                     style={{padding:'10px 14px',background:'#FCEBEB',color:'#E24B4A',border:'none',

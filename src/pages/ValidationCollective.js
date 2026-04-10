@@ -32,6 +32,9 @@ export default function ValidationCollective({ user, navigate, goBack, lang='fr'
   const [msg, setMsg]                     = useState(null);
   const [done, setDone]                   = useState(false);
   const [resultats, setResultats]         = useState([]);
+  // États spécifiques au bloc mobile
+  const [filterNiveau, setFilterNiveau]   = useState('tous');
+  const [selectedEleves, setSelectedEleves] = useState([]);
 
   const niveauInfo = NIVEAUX.find(n => n.code === selectedNiveau);
   const isSourate  = niveauInfo?.type === 'sourate';
@@ -171,6 +174,10 @@ export default function ValidationCollective({ user, navigate, goBack, lang='fr'
     {n:3, label:lang==='ar'?'تأكيد':'Confirmer'},
   ];
 
+  // Variable calculée pour le bloc mobile
+  const niveauxMobile = ['tous','5B','5A','2M','2','1'];
+  const elevesFiltres = filterNiveau === 'tous' ? eleves : eleves.filter(e => e.code_niveau === filterNiveau);
+
   if (isMobile) {
     return (
       <div style={{paddingBottom:80, background:'#f5f5f0', minHeight:'100vh'}}>
@@ -201,7 +208,7 @@ export default function ValidationCollective({ user, navigate, goBack, lang='fr'
               </div>
               {/* Niveau filter */}
               <div style={{display:'flex',gap:6,overflowX:'auto',marginBottom:12,scrollbarWidth:'none'}}>
-                {niveaux.map(n=>(
+                {niveauxMobile.map(n=>(
                   <div key={n} onClick={()=>setFilterNiveau(n)}
                     style={{padding:'6px 14px',borderRadius:20,fontSize:12,fontWeight:600,flexShrink:0,cursor:'pointer',
                       background:filterNiveau===n?'#1D9E75':'#f0f0ec',color:filterNiveau===n?'#fff':'#666'}}>

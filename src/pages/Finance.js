@@ -571,6 +571,9 @@ export default function Finance({ user, navigate, goBack, lang='fr', isMobile })
     );
   }
 
+  // Variable manquante pour le bloc mobile
+  const elevesNonPayes = parEleve.filter(p => p.statutDernier === 'non_paye');
+
   if (isMobile) {
     return (
       <div style={{paddingBottom:80,background:'#f5f5f0',minHeight:'100vh'}}>
