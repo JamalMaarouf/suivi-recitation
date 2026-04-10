@@ -400,37 +400,72 @@ export default function HistoriqueSeances({ user, navigate, goBack, lang='fr', i
   if (isMobile) {
     return (
       <div style={{paddingBottom:80, background:'#f5f5f0', minHeight:'100vh'}}>
-        <div style={{background:'#fff', padding:'14px 16px', borderBottom:'0.5px solid #e0e0d8',
-          position:'sticky', top:0, zIndex:100}}>
-          <div style={{display:'flex', alignItems:'center', gap:10}}>
+        {/* Header sticky */}
+        <div style={{background:'#fff', borderBottom:'0.5px solid #e0e0d8', position:'sticky', top:0, zIndex:100}}>
+          <div style={{display:'flex', alignItems:'center', gap:10, padding:'14px 16px 8px'}}>
             <button onClick={()=>goBack?goBack():navigate('dashboard')}
               style={{background:'none',border:'none',cursor:'pointer',fontSize:22,color:'#085041',padding:0}}>←</button>
             <div style={{flex:1,fontSize:17,fontWeight:800,color:'#085041'}}>
-              📊 {lang==='ar'?'تحليل الحصص':'Historique'}
+              📊 {lang==='ar'?'السجل':'Historique'}
             </div>
           </div>
-          {/* Period filter */}
-          <div style={{display:'flex',gap:4,background:'#f0f0ec',borderRadius:10,padding:3,marginTop:10}}>
-            {[[2,'7j'],[4,'Mois'],[5,'Trim.']].map(([idx,l])=>(
-              <div key={idx} onClick={()=>setPeriodeActive(idx)}
-                style={{flex:1,padding:'7px 4px',borderRadius:8,textAlign:'center',fontSize:11,fontWeight:600,
-                  cursor:'pointer',background:periodeActive===idx?'#fff':'transparent',
-                  color:periodeActive===idx?'#085041':'#888'}}>
-                {lang==='ar'?PERIODES[idx].labelAr:l}
+
+          {/* Périodes rapides scrollables */}
+          <div style={{display:'flex',gap:4,overflowX:'auto',scrollbarWidth:'none',padding:'0 12px 10px'}}>
+            {PERIODES.map((p,i)=>(
+              <div key={i} onClick={()=>setPeriodeRapide(i)}
+                style={{padding:'6px 12px',borderRadius:20,fontSize:12,fontWeight:600,
+                  flexShrink:0,cursor:'pointer',
+                  background:periodeActive===i?'#1D9E75':'#f0f0ec',
+                  color:periodeActive===i?'#fff':'#666'}}>
+                {lang==='ar'?p.labelAr:p.label}
               </div>
             ))}
+          </div>
+
+          {/* Filtres */}
+          <div style={{padding:'0 12px 12px',display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
+            <select value={filterNiveau} onChange={e=>setFilterNiveau(e.target.value)}
+              style={{padding:'8px 10px',borderRadius:10,border:'0.5px solid #e0e0d8',
+                fontSize:13,fontFamily:'inherit',background:'#fff'}}>
+              <option value="tous">{lang==='ar'?'كل المستويات':'Tous niveaux'}</option>
+              {['5B','5A','2M','2','1'].map(n=><option key={n} value={n}>{n}</option>)}
+            </select>
+            <select value={filterType} onChange={e=>setFilterType(e.target.value)}
+              style={{padding:'8px 10px',borderRadius:10,border:'0.5px solid #e0e0d8',
+                fontSize:13,fontFamily:'inherit',background:'#fff'}}>
+              <option value="tous">{lang==='ar'?'كل الأنواع':'Tous types'}</option>
+              <option value="sourate">{lang==='ar'?'سور':'Sourates'}</option>
+              <option value="sequence">{lang==='ar'?'مقاطع':'Séquences'}</option>
+              <option value="tomon">Tomon</option>
+              <option value="hizb">Hizb</option>
+            </select>
+            {user.role==='surveillant'&&(
+              <select value={filterInstituteur} onChange={e=>setFilterInstituteur(e.target.value)}
+                style={{padding:'8px 10px',borderRadius:10,border:'0.5px solid #e0e0d8',
+                  fontSize:13,fontFamily:'inherit',background:'#fff'}}>
+                <option value="tous">{lang==='ar'?'كل الأساتذة':'Tous inst.'}</option>
+                {instituteurs.map(i=><option key={i.id} value={i.id}>{i.prenom} {i.nom}</option>)}
+              </select>
+            )}
+            <select value={filterEleve} onChange={e=>setFilterEleve(e.target.value)}
+              style={{padding:'8px 10px',borderRadius:10,border:'0.5px solid #e0e0d8',
+                fontSize:13,fontFamily:'inherit',background:'#fff'}}>
+              <option value="tous">{lang==='ar'?'كل الطلاب':'Tous élèves'}</option>
+              {elevesVisibles.map(e=><option key={e.id} value={e.id}>{e.prenom} {e.nom}</option>)}
+            </select>
           </div>
         </div>
 
         {loading ? <div style={{textAlign:'center',padding:'2rem',color:'#888'}}>...</div> : (
           <div style={{padding:'12px'}}>
-            {/* KPIs */}
+            {/* KPIs 2x2 */}
             <div style={{display:'grid',gridTemplateColumns:'repeat(2,1fr)',gap:10,marginBottom:14}}>
               {[
                 {label:lang==='ar'?'أيام نشطة':'Jours actifs',val:timelineArr.length,color:'#1D9E75',bg:'#E1F5EE'},
                 {label:lang==='ar'?'إجمالي النقاط':'Total points',val:actifs.reduce((s,e)=>s+e.pts,0).toLocaleString(),color:'#534AB7',bg:'#F0EEFF'},
-                {label:lang==='ar'?'الثُّمنات':'Tomon validés',val:actifs.reduce((s,e)=>s+e.tomon,0),color:'#378ADD',bg:'#E6F1FB'},
-                {label:lang==='ar'?'الأحزاب':'Hizb complets',val:actifs.reduce((s,e)=>s+e.hizb,0),color:'#EF9F27',bg:'#FAEEDA'},
+                {label:lang==='ar'?'الثُّمنات':'Tomon',val:actifs.reduce((s,e)=>s+e.tomon,0),color:'#378ADD',bg:'#E6F1FB'},
+                {label:lang==='ar'?'الأحزاب':'Hizb',val:actifs.reduce((s,e)=>s+e.hizb,0),color:'#EF9F27',bg:'#FAEEDA'},
               ].map((k,i)=>(
                 <div key={i} style={{background:k.bg,borderRadius:12,padding:'14px',textAlign:'center',border:`0.5px solid ${k.color}20`}}>
                   <div style={{fontSize:24,fontWeight:800,color:k.color}}>{k.val}</div>
@@ -438,7 +473,8 @@ export default function HistoriqueSeances({ user, navigate, goBack, lang='fr', i
                 </div>
               ))}
             </div>
-            {/* Eleves list */}
+
+            {/* Liste élèves */}
             <div style={{fontSize:12,fontWeight:700,color:'#888',marginBottom:8}}>
               {lang==='ar'?'أداء الطلاب':'Performance des élèves'} ({elevesVisibles?.length||0})
             </div>
@@ -473,6 +509,7 @@ export default function HistoriqueSeances({ user, navigate, goBack, lang='fr', i
       </div>
     );
   }
+
 
   return (
     <div>
