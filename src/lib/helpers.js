@@ -99,7 +99,7 @@ export function calcEtatEleve(validations, hizbDepart, tomonDepart) {
   for (const v of valsChron) {
     if (v.type_validation === 'hizb_complet') {
       hizbsComplets.add(v.hizb_valide);
-    } else {
+    } else if (v.nombre_tomon > 0) {
       tomonCumul += v.nombre_tomon;
     }
   }

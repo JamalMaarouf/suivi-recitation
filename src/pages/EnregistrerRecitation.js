@@ -390,7 +390,7 @@ export default function EnregistrerRecitation({  user, eleve: eleveInitial, navi
                 <div style={{ fontSize: 15, fontWeight: 600, color: '#1D9E75' }}>Valider le Hizb {etat.hizbEnCours} complet</div>
                 <div style={{ fontSize: 12, color: '#888', marginTop: 4 }}>+100 pts bonus</div>
               </div>
-              <button className="btn-primary" style={{ marginTop: '1rem' }} onClick={() => setStep(3)}>Continuer</button>
+              <button className="btn-primary" style={{ marginTop: '1rem' }} onClick={() => { setTypeValidation('hizb_complet'); setStep(3); }}>Continuer</button>
             </div>
           ) : (
             <div>
