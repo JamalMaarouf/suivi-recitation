@@ -116,11 +116,14 @@ export default function EnregistrerRecitation({  user, eleve: eleveInitial, navi
     }
 
     setLoading(false);
-    if (!error) {
-      const msg = motivationMsg(nombreTomon, etat, typeValidation === 'hizb_complet');
-      setMotivMsg(msg);
-      setDone(true);
+    if (error) {
+      console.error('Validation error:', error);
+      alert(`Erreur: ${error.message || JSON.stringify(error)}`);
+      return;
     }
+    const msg = motivationMsg(nombreTomon, etat, typeValidation === 'hizb_complet');
+    setMotivMsg(msg);
+    setDone(true);
   };
 
   const elevesFiltre = eleves.filter(e => `${e.prenom} ${e.nom}`.toLowerCase().includes(search.toLowerCase()));
