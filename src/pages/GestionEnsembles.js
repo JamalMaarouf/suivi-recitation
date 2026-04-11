@@ -372,10 +372,10 @@ export default function GestionEnsembles({ user, navigate, goBack, lang='fr', is
 
   // ── RENDU PRINCIPAL ─────────────────────────────────────────────
   const HeaderNiveaux = () => (
-    <div style={{background:'#fff',padding:isMobile?'14px 16px 0':'0 0 16px',
+    <div style={{background:'#fff',padding:isMobile?'14px 16px 12px':'0 0 16px',
       borderBottom:isMobile?'0.5px solid #e0e0d8':'none',
       position:isMobile?'sticky':'relative',top:0,zIndex:100}}>
-      <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:12}}>
+      <div style={{display:'flex',alignItems:'center',gap:12,flexWrap:'wrap'}}>
         <button onClick={()=>goBack?goBack():navigate('dashboard')}
           style={{background:'none',border:'none',cursor:'pointer',
             fontSize:isMobile?22:14,color:'#085041',padding:0,
@@ -385,44 +385,29 @@ export default function GestionEnsembles({ user, navigate, goBack, lang='fr', is
         {!isMobile&&<div style={{fontSize:20,fontWeight:700}}>
           📦 {lang==='ar'?'مجموعات السور':'Ensembles de sourates'}
         </div>}
-        {isMobile&&<div style={{flex:1,fontSize:17,fontWeight:800,color:'#085041'}}>
+        {isMobile&&<div style={{fontSize:17,fontWeight:800,color:'#085041'}}>
           📦 {lang==='ar'?'مجموعات السور':'Ensembles'}
         </div>}
+        {/* Liste déroulante */}
+        <div style={{display:'flex',alignItems:'center',gap:8,marginRight:'auto'}}>
+          <select value={filtreNiveau}
+            onChange={e=>{setFiltreNiveau(e.target.value);setShowForm(false);}}
+            style={{padding:'8px 14px',borderRadius:10,
+              border:`1.5px solid ${nc}50`,fontSize:13,fontFamily:'inherit',
+              background:'#fff',color:'#1a1a1a',cursor:'pointer',
+              fontWeight:600,minWidth:isMobile?160:200,outline:'none'}}>
+            {niveaux.length===0&&<option value="">{lang==='ar'?'لا توجد مستويات':'Aucun niveau'}</option>}
+            {niveaux.map(n=>(
+              <option key={n.id} value={n.id}>{n.code} — {n.nom}</option>
+            ))}
+          </select>
+          {filtreNiveau&&(
+            <span style={{fontSize:12,color:'#888',whiteSpace:'nowrap'}}>
+              {ensNiveau.length} {lang==='ar'?'مجموعة':'ensemble(s)'}
+            </span>
+          )}
+        </div>
       </div>
-
-      {/* Sélecteur de niveau — cards horizontales scrollables */}
-      {niveaux.length===0&&!loading?(
-        <div style={{padding:'12px',background:'#FAEEDA',borderRadius:10,
-          color:'#633806',fontSize:13,marginBottom:12}}>
-          {lang==='ar'?'لا توجد مستويات سور. ':'Aucun niveau sourate. '}
-          <button onClick={()=>navigate('niveaux')}
-            style={{color:nc,background:'none',border:'none',cursor:'pointer',fontWeight:600,fontSize:13}}>
-            {lang==='ar'?'إنشاء مستوى →':'Créer un niveau →'}
-          </button>
-        </div>
-      ):(
-        <div style={{display:'flex',gap:8,overflowX:'auto',scrollbarWidth:'none',
-          paddingBottom:10,flexWrap:isMobile?'nowrap':'wrap'}}>
-          {niveaux.map(n=>(
-            <div key={n.id} onClick={()=>{setFiltreNiveau(n.id);setShowForm(false);}}
-              style={{display:'flex',alignItems:'center',gap:8,padding:'8px 14px',
-                borderRadius:12,cursor:'pointer',flexShrink:0,
-                background:filtreNiveau===n.id?n.couleur:'#fff',
-                color:filtreNiveau===n.id?'#fff':'#666',
-                border:`1.5px solid ${filtreNiveau===n.id?n.couleur:'#e0e0d8'}`,
-                boxShadow:filtreNiveau===n.id?`0 2px 8px ${n.couleur}40`:'none'}}>
-              <span style={{fontSize:13,fontWeight:700}}>{n.code}</span>
-              <span style={{fontSize:12,opacity:0.85}}>{n.nom}</span>
-              {filtreNiveau===n.id&&(
-                <span style={{fontSize:11,background:'rgba(255,255,255,0.25)',
-                  padding:'1px 6px',borderRadius:20,marginLeft:2}}>
-                  {ensembles.filter(e=>e.niveau_id===n.id).length} {lang==='ar'?'مجموعة':'ensemble(s)'}
-                </span>
-              )}
-            </div>
-          ))}
-        </div>
-      )}
     </div>
   );
 
