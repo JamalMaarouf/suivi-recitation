@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { useToast } from '../lib/toast';
-import { getSouratesForNiveau } from '../lib/sourates';
+import { getSouratesForNiveau, getSouratesDesc } from '../lib/sourates';
 
 const HIZB_NUMS = Array.from({length:60}, (_,i) => i+1);
 
@@ -96,9 +96,21 @@ export default function GestionNiveaux({ user, navigate, goBack, lang='fr', isMo
     loadData();
   };
 
-  const startEdit = (n) => {
+  const startEdit = async (n) => {
     setEditing(n.id);
     setForm({ code: n.code, nom: n.nom, type: n.type, couleur: n.couleur, ordre: n.ordre });
+    // Charger le programme existant dans le formulaire
+    const { data } = await supabase.from('programmes')
+      .select('reference_id').eq('niveau_id', n.id)
+      .eq('ecole_id', user.ecole_id).order('ordre');
+    if (data && data.length > 0) {
+      setFormProgramme(n.type === 'hizb'
+        ? data.map(d => parseInt(d.reference_id))
+        : data.map(d => d.reference_id)
+      );
+    } else {
+      setFormProgramme([]);
+    }
     setShowForm(true);
     window.scrollTo(0,0);
   };
@@ -106,7 +118,17 @@ export default function GestionNiveaux({ user, navigate, goBack, lang='fr', isMo
   const resetForm = () => {
     setEditing(null);
     setForm({ ...emptyForm, ordre: (niveaux.length + 1) });
+    setFormProgramme([]);
     setShowForm(false);
+  };
+
+  // Programme dans le formulaire de création
+  const [formProgramme, setFormProgramme] = useState([]);
+
+  const toggleFormProgramme = (id) => {
+    setFormProgramme(prev =>
+      prev.includes(id) ? prev.filter(x=>x!==id) : [...prev, id]
+    );
   };
 
   const save = async () => {
@@ -121,21 +143,40 @@ export default function GestionNiveaux({ user, navigate, goBack, lang='fr', isMo
       ordre: parseInt(form.ordre) || 1,
       ecole_id: user.ecole_id,
     };
+    let niveauId = editing;
     let error;
     if (editing) {
       ({ error } = await supabase.from('niveaux').update(payload).eq('id', editing));
     } else {
-      ({ error } = await supabase.from('niveaux').insert(payload));
+      const { data: newNiveau, error: insertErr } = await supabase
+        .from('niveaux').insert(payload).select().single();
+      error = insertErr;
+      if (newNiveau) niveauId = newNiveau.id;
     }
-    setSaving(false);
     if (error) {
+      setSaving(false);
       if (error.code === '23505') toast.error(lang==='ar'?'هذا الرمز موجود بالفعل':'Ce code existe déjà');
       else toast.error(error.message || 'Erreur');
       return;
     }
+    // Sauvegarder le programme si défini dans le formulaire
+    if (niveauId && formProgramme.length > 0) {
+      await supabase.from('programmes').delete().eq('niveau_id', niveauId).eq('ecole_id', user.ecole_id);
+      const rows = formProgramme.map((id, idx) => ({
+        niveau_id: niveauId,
+        ecole_id: user.ecole_id,
+        type_contenu: form.type,
+        reference_id: String(id),
+        ordre: idx + 1,
+        obligatoire: true,
+      }));
+      await supabase.from('programmes').insert(rows);
+    }
+    setSaving(false);
     toast.success(editing
       ? (lang==='ar'?'✅ تم تحديث المستوى':'✅ Niveau modifié !')
       : (lang==='ar'?'✅ تم إضافة المستوى':'✅ Niveau ajouté !'));
+    setFormProgramme([]);
     resetForm();
     loadData();
   };
@@ -418,6 +459,78 @@ export default function GestionNiveaux({ user, navigate, goBack, lang='fr', isMo
                     {form.code||'CODE'} — {form.nom||lang==='ar'?'اسم المستوى':'Nom du niveau'}
                   </span>
                 </div>
+              </div>
+
+
+              {/* ── Programme du niveau ── */}
+              <div style={{marginBottom:14}}>
+                <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:8}}>
+                  <label style={{fontSize:12,fontWeight:600,color:'#666'}}>
+                    📚 {lang==='ar'?'برنامج المستوى':'Programme du niveau'}
+                  </label>
+                  <span style={{fontSize:12,fontWeight:700,color:formProgramme.length>0?form.couleur:'#aaa'}}>
+                    {formProgramme.length>0?`${formProgramme.length} ${lang==='ar'?'محدد':'sélectionné(s)'}`:lang==='ar'?'لم يُحدد':'Non défini'}
+                  </span>
+                </div>
+                {form.type==='hizb'&&(
+                  <>
+                    <div style={{display:'flex',gap:5,flexWrap:'wrap',marginBottom:8}}>
+                      {[1,5,10,15,20,30,60].map(n=>(
+                        <button key={n} onClick={()=>setFormProgramme(Array.from({length:n},(_,i)=>i+1))}
+                          style={{padding:'3px 9px',borderRadius:20,border:'0.5px solid #e0e0d8',
+                            background:'#f5f5f0',fontSize:11,cursor:'pointer',color:'#666',fontFamily:'inherit'}}>
+                          1→{n}
+                        </button>
+                      ))}
+                      {formProgramme.length>0&&(
+                        <button onClick={()=>setFormProgramme([])}
+                          style={{padding:'3px 9px',borderRadius:20,border:'0.5px solid #e0e0d8',
+                            background:'#FCEBEB',fontSize:11,cursor:'pointer',color:'#E24B4A',fontFamily:'inherit'}}>✕</button>
+                      )}
+                    </div>
+                    <div style={{display:'grid',gridTemplateColumns:'repeat(10,1fr)',gap:3}}>
+                      {HIZB_NUMS.map(h=>{
+                        const sel=formProgramme.includes(h);
+                        return(
+                          <div key={h} onClick={()=>toggleFormProgramme(h)}
+                            style={{height:30,borderRadius:6,display:'flex',alignItems:'center',
+                              justifyContent:'center',fontSize:11,fontWeight:sel?700:400,cursor:'pointer',
+                              background:sel?form.couleur:'#f5f5f0',
+                              color:sel?'#fff':'#666',
+                              border:`1.5px solid ${sel?form.couleur:'#e0e0d8'}`}}>
+                            {h}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </>
+                )}
+                {form.type==='sourate'&&(
+                  <div style={{maxHeight:180,overflowY:'auto',display:'flex',flexDirection:'column',gap:4}}>
+                    {getSouratesDesc().map(s=>{
+                      const dbS=souratesDB.find(x=>x.numero===s.numero);
+                      if(!dbS) return null;
+                      const sel=formProgramme.includes(dbS.id);
+                      return(
+                        <div key={dbS.id} onClick={()=>toggleFormProgramme(dbS.id)}
+                          style={{display:'flex',alignItems:'center',gap:8,padding:'7px 10px',
+                            borderRadius:8,cursor:'pointer',
+                            background:sel?`${form.couleur}15`:'#f5f5f0',
+                            border:`1.5px solid ${sel?form.couleur:'#e0e0d8'}`}}>
+                          <div style={{width:18,height:18,borderRadius:4,flexShrink:0,
+                            border:`1.5px solid ${sel?form.couleur:'#ccc'}`,
+                            background:sel?form.couleur:'#fff',
+                            display:'flex',alignItems:'center',justifyContent:'center'}}>
+                            {sel&&<span style={{color:'#fff',fontSize:10,fontWeight:700}}>✓</span>}
+                          </div>
+                          <span style={{fontSize:10,color:'#aaa',minWidth:20}}>{s.numero}</span>
+                          <span style={{flex:1,fontSize:13,fontFamily:"'Tajawal',Arial",direction:'rtl',
+                            color:sel?form.couleur:'#333',fontWeight:sel?600:400}}>{s.nom_ar}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
 
               {/* Boutons */}

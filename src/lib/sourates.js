@@ -1,432 +1,133 @@
-// Auto-generated from Sourates.xlsx
-export const SOURATES = [
-  {
-    "numero": 62,
-    "nom_ar": "سورة الجمعة",
-    "niveau_5B": false,
-    "niveau_5A": false,
-    "niveau_2M": true
-  },
-  {
-    "numero": 63,
-    "nom_ar": "سورة المنافقون",
-    "niveau_5B": false,
-    "niveau_5A": false,
-    "niveau_2M": true
-  },
-  {
-    "numero": 64,
-    "nom_ar": "سورة التغابن",
-    "niveau_5B": false,
-    "niveau_5A": false,
-    "niveau_2M": true
-  },
-  {
-    "numero": 65,
-    "nom_ar": "سورة الطلاق",
-    "niveau_5B": false,
-    "niveau_5A": false,
-    "niveau_2M": true
-  },
-  {
-    "numero": 66,
-    "nom_ar": "سورة التحريم",
-    "niveau_5B": false,
-    "niveau_5A": false,
-    "niveau_2M": true
-  },
-  {
-    "numero": 67,
-    "nom_ar": "سورة الملك",
-    "niveau_5B": false,
-    "niveau_5A": false,
-    "niveau_2M": true
-  },
-  {
-    "numero": 68,
-    "nom_ar": "سورة القلم (ن)",
-    "niveau_5B": false,
-    "niveau_5A": false,
-    "niveau_2M": true
-  },
-  {
-    "numero": 69,
-    "nom_ar": "سورة الحاقة",
-    "niveau_5B": false,
-    "niveau_5A": false,
-    "niveau_2M": true
-  },
-  {
-    "numero": 70,
-    "nom_ar": "سورة المعارج",
-    "niveau_5B": false,
-    "niveau_5A": false,
-    "niveau_2M": true
-  },
-  {
-    "numero": 71,
-    "nom_ar": "سورة نوح",
-    "niveau_5B": false,
-    "niveau_5A": false,
-    "niveau_2M": true
-  },
-  {
-    "numero": 72,
-    "nom_ar": "سورة الجن",
-    "niveau_5B": false,
-    "niveau_5A": false,
-    "niveau_2M": true
-  },
-  {
-    "numero": 72,
-    "nom_ar": "سورة الجن",
-    "niveau_5B": false,
-    "niveau_5A": true,
-    "niveau_2M": true
-  },
-  {
-    "numero": 73,
-    "nom_ar": "سورة المزمل",
-    "niveau_5B": false,
-    "niveau_5A": false,
-    "niveau_2M": true
-  },
-  {
-    "numero": 73,
-    "nom_ar": "سورة المزمل",
-    "niveau_5B": false,
-    "niveau_5A": true,
-    "niveau_2M": true
-  },
-  {
-    "numero": 74,
-    "nom_ar": "سورة المدثر",
-    "niveau_5B": false,
-    "niveau_5A": false,
-    "niveau_2M": true
-  },
-  {
-    "numero": 74,
-    "nom_ar": "سورة المدثر",
-    "niveau_5B": false,
-    "niveau_5A": true,
-    "niveau_2M": true
-  },
-  {
-    "numero": 75,
-    "nom_ar": "سورة القيامة",
-    "niveau_5B": false,
-    "niveau_5A": false,
-    "niveau_2M": true
-  },
-  {
-    "numero": 75,
-    "nom_ar": "سورة القيامة",
-    "niveau_5B": false,
-    "niveau_5A": true,
-    "niveau_2M": true
-  },
-  {
-    "numero": 76,
-    "nom_ar": "سورة الإنسان",
-    "niveau_5B": false,
-    "niveau_5A": true,
-    "niveau_2M": true
-  },
-  {
-    "numero": 77,
-    "nom_ar": "سورة المرسلات",
-    "niveau_5B": false,
-    "niveau_5A": true,
-    "niveau_2M": true
-  },
-  {
-    "numero": 78,
-    "nom_ar": "سورة النبأ",
-    "niveau_5B": true,
-    "niveau_5A": true,
-    "niveau_2M": true
-  },
-  {
-    "numero": 79,
-    "nom_ar": "سورة النازعات",
-    "niveau_5B": true,
-    "niveau_5A": true,
-    "niveau_2M": true
-  },
-  {
-    "numero": 80,
-    "nom_ar": "سورة عبس",
-    "niveau_5B": true,
-    "niveau_5A": true,
-    "niveau_2M": true
-  },
-  {
-    "numero": 81,
-    "nom_ar": "سورة التكوير",
-    "niveau_5B": true,
-    "niveau_5A": true,
-    "niveau_2M": true
-  },
-  {
-    "numero": 82,
-    "nom_ar": "سورة الانفطار",
-    "niveau_5B": true,
-    "niveau_5A": true,
-    "niveau_2M": true
-  },
-  {
-    "numero": 83,
-    "nom_ar": "سورة المطففون",
-    "niveau_5B": true,
-    "niveau_5A": true,
-    "niveau_2M": true
-  },
-  {
-    "numero": 84,
-    "nom_ar": "سورة الانشقاق",
-    "niveau_5B": true,
-    "niveau_5A": true,
-    "niveau_2M": true
-  },
-  {
-    "numero": 85,
-    "nom_ar": "سورة البروج",
-    "niveau_5B": true,
-    "niveau_5A": true,
-    "niveau_2M": true
-  },
-  {
-    "numero": 86,
-    "nom_ar": "سورة الطارق",
-    "niveau_5B": true,
-    "niveau_5A": true,
-    "niveau_2M": true
-  },
-  {
-    "numero": 87,
-    "nom_ar": "سورة الأعلى",
-    "niveau_5B": true,
-    "niveau_5A": true,
-    "niveau_2M": true
-  },
-  {
-    "numero": 88,
-    "nom_ar": "سورة الغاشية",
-    "niveau_5B": true,
-    "niveau_5A": true,
-    "niveau_2M": true
-  },
-  {
-    "numero": 89,
-    "nom_ar": "سورة الفجر",
-    "niveau_5B": true,
-    "niveau_5A": true,
-    "niveau_2M": true
-  },
-  {
-    "numero": 90,
-    "nom_ar": "سورة البلد",
-    "niveau_5B": true,
-    "niveau_5A": true,
-    "niveau_2M": true
-  },
-  {
-    "numero": 91,
-    "nom_ar": "سورة الشمس",
-    "niveau_5B": true,
-    "niveau_5A": true,
-    "niveau_2M": true
-  },
-  {
-    "numero": 92,
-    "nom_ar": "سورة الليل",
-    "niveau_5B": true,
-    "niveau_5A": true,
-    "niveau_2M": true
-  },
-  {
-    "numero": 93,
-    "nom_ar": "سورة الضحى",
-    "niveau_5B": true,
-    "niveau_5A": true,
-    "niveau_2M": true
-  },
-  {
-    "numero": 94,
-    "nom_ar": "سورة الشرح",
-    "niveau_5B": true,
-    "niveau_5A": true,
-    "niveau_2M": true
-  },
-  {
-    "numero": 95,
-    "nom_ar": "سورة التين",
-    "niveau_5B": true,
-    "niveau_5A": true,
-    "niveau_2M": true
-  },
-  {
-    "numero": 96,
-    "nom_ar": "سورة العلق",
-    "niveau_5B": true,
-    "niveau_5A": true,
-    "niveau_2M": true
-  },
-  {
-    "numero": 97,
-    "nom_ar": "سورة القدر",
-    "niveau_5B": true,
-    "niveau_5A": true,
-    "niveau_2M": true
-  },
-  {
-    "numero": 98,
-    "nom_ar": "سورة البينة",
-    "niveau_5B": true,
-    "niveau_5A": true,
-    "niveau_2M": true
-  },
-  {
-    "numero": 99,
-    "nom_ar": "سورة الزلزلة",
-    "niveau_5B": true,
-    "niveau_5A": true,
-    "niveau_2M": true
-  },
-  {
-    "numero": 100,
-    "nom_ar": "سورة العاديات",
-    "niveau_5B": true,
-    "niveau_5A": true,
-    "niveau_2M": true
-  },
-  {
-    "numero": 101,
-    "nom_ar": "سورة القارعة",
-    "niveau_5B": true,
-    "niveau_5A": true,
-    "niveau_2M": true
-  },
-  {
-    "numero": 102,
-    "nom_ar": "سورة التكاثر",
-    "niveau_5B": true,
-    "niveau_5A": true,
-    "niveau_2M": true
-  },
-  {
-    "numero": 103,
-    "nom_ar": "سورة العصر",
-    "niveau_5B": true,
-    "niveau_5A": true,
-    "niveau_2M": true
-  },
-  {
-    "numero": 104,
-    "nom_ar": "سورة الهمزة",
-    "niveau_5B": true,
-    "niveau_5A": true,
-    "niveau_2M": true
-  },
-  {
-    "numero": 105,
-    "nom_ar": "سورة الفيل",
-    "niveau_5B": true,
-    "niveau_5A": true,
-    "niveau_2M": true
-  },
-  {
-    "numero": 106,
-    "nom_ar": "سورة قريش",
-    "niveau_5B": true,
-    "niveau_5A": true,
-    "niveau_2M": true
-  },
-  {
-    "numero": 107,
-    "nom_ar": "سورة الماعون",
-    "niveau_5B": true,
-    "niveau_5A": true,
-    "niveau_2M": true
-  },
-  {
-    "numero": 108,
-    "nom_ar": "سورة الكوثر",
-    "niveau_5B": true,
-    "niveau_5A": true,
-    "niveau_2M": true
-  },
-  {
-    "numero": 109,
-    "nom_ar": "سورة الكافرون",
-    "niveau_5B": true,
-    "niveau_5A": true,
-    "niveau_2M": true
-  },
-  {
-    "numero": 110,
-    "nom_ar": "سورة النصر",
-    "niveau_5B": true,
-    "niveau_5A": true,
-    "niveau_2M": true
-  },
-  {
-    "numero": 111,
-    "nom_ar": "سورة المسد",
-    "niveau_5B": true,
-    "niveau_5A": true,
-    "niveau_2M": true
-  },
-  {
-    "numero": 112,
-    "nom_ar": "سورة الإخلاص",
-    "niveau_5B": true,
-    "niveau_5A": true,
-    "niveau_2M": true
-  },
-  {
-    "numero": 113,
-    "nom_ar": "سورة الفلق",
-    "niveau_5B": true,
-    "niveau_5A": true,
-    "niveau_2M": true
-  },
-  {
-    "numero": 114,
-    "nom_ar": "سورة الناس",
-    "niveau_5B": true,
-    "niveau_5A": true,
-    "niveau_2M": true
-  }
+// ══════════════════════════════════════════════════
+// SOURATES DU CORAN — 114 sourates complètes
+// Source : liste officielle + Sourates_2.xlsx
+// ══════════════════════════════════════════════════
+
+export const SOURATES_CORAN = [
+  { numero: 1, nom_ar: 'الفاتحة' },
+  { numero: 2, nom_ar: 'البقرة' },
+  { numero: 3, nom_ar: 'آل عمران' },
+  { numero: 4, nom_ar: 'النساء' },
+  { numero: 5, nom_ar: 'المائدة' },
+  { numero: 6, nom_ar: 'الأنعام' },
+  { numero: 7, nom_ar: 'الأعراف' },
+  { numero: 8, nom_ar: 'الأنفال' },
+  { numero: 9, nom_ar: 'التوبة' },
+  { numero: 10, nom_ar: 'يونس' },
+  { numero: 11, nom_ar: 'هود' },
+  { numero: 12, nom_ar: 'يوسف' },
+  { numero: 13, nom_ar: 'الرعد' },
+  { numero: 14, nom_ar: 'إبراهيم' },
+  { numero: 15, nom_ar: 'الحجر' },
+  { numero: 16, nom_ar: 'النحل' },
+  { numero: 17, nom_ar: 'الإسراء' },
+  { numero: 18, nom_ar: 'الكهف' },
+  { numero: 19, nom_ar: 'مريم' },
+  { numero: 20, nom_ar: 'طه' },
+  { numero: 21, nom_ar: 'الأنبياء' },
+  { numero: 22, nom_ar: 'الحج' },
+  { numero: 23, nom_ar: 'المؤمنون' },
+  { numero: 24, nom_ar: 'النور' },
+  { numero: 25, nom_ar: 'الفرقان' },
+  { numero: 26, nom_ar: 'الشعراء' },
+  { numero: 27, nom_ar: 'النمل' },
+  { numero: 28, nom_ar: 'القصص' },
+  { numero: 29, nom_ar: 'العنكبوت' },
+  { numero: 30, nom_ar: 'الروم' },
+  { numero: 31, nom_ar: 'لقمان' },
+  { numero: 32, nom_ar: 'السجدة' },
+  { numero: 33, nom_ar: 'الأحزاب' },
+  { numero: 34, nom_ar: 'سبأ' },
+  { numero: 35, nom_ar: 'فاطر' },
+  { numero: 36, nom_ar: 'يس' },
+  { numero: 37, nom_ar: 'الصافات' },
+  { numero: 38, nom_ar: 'ص' },
+  { numero: 39, nom_ar: 'الزمر' },
+  { numero: 40, nom_ar: 'غافر' },
+  { numero: 41, nom_ar: 'فصلت' },
+  { numero: 42, nom_ar: 'الشورى' },
+  { numero: 43, nom_ar: 'الزخرف' },
+  { numero: 44, nom_ar: 'الدخان' },
+  { numero: 45, nom_ar: 'الجاثية' },
+  { numero: 46, nom_ar: 'الأحقاف' },
+  { numero: 47, nom_ar: 'محمد' },
+  { numero: 48, nom_ar: 'الفتح' },
+  { numero: 49, nom_ar: 'الحجرات' },
+  { numero: 50, nom_ar: 'ق' },
+  { numero: 51, nom_ar: 'الذاريات' },
+  { numero: 52, nom_ar: 'الطور' },
+  { numero: 53, nom_ar: 'النجم' },
+  { numero: 54, nom_ar: 'القمر' },
+  { numero: 55, nom_ar: 'الرحمن' },
+  { numero: 56, nom_ar: 'الواقعة' },
+  { numero: 57, nom_ar: 'الحديد' },
+  { numero: 58, nom_ar: 'المجادلة' },
+  { numero: 59, nom_ar: 'الحشر' },
+  { numero: 60, nom_ar: 'الممتحنة' },
+  { numero: 61, nom_ar: 'الصف' },
+  { numero: 62, nom_ar: 'الجمعة' },
+  { numero: 63, nom_ar: 'المنافقون' },
+  { numero: 64, nom_ar: 'التغابن' },
+  { numero: 65, nom_ar: 'الطلاق' },
+  { numero: 66, nom_ar: 'التحريم' },
+  { numero: 67, nom_ar: 'الملك' },
+  { numero: 68, nom_ar: 'القلم (ن)' },
+  { numero: 69, nom_ar: 'الحاقة' },
+  { numero: 70, nom_ar: 'المعارج' },
+  { numero: 71, nom_ar: 'نوح' },
+  { numero: 72, nom_ar: 'الجن' },
+  { numero: 73, nom_ar: 'المزمل' },
+  { numero: 74, nom_ar: 'المدثر' },
+  { numero: 75, nom_ar: 'القيامة' },
+  { numero: 76, nom_ar: 'الإنسان' },
+  { numero: 77, nom_ar: 'المرسلات' },
+  { numero: 78, nom_ar: 'النبأ' },
+  { numero: 79, nom_ar: 'النازعات' },
+  { numero: 80, nom_ar: 'عبس' },
+  { numero: 81, nom_ar: 'التكوير' },
+  { numero: 82, nom_ar: 'الانفطار' },
+  { numero: 83, nom_ar: 'المطففون' },
+  { numero: 84, nom_ar: 'الانشقاق' },
+  { numero: 85, nom_ar: 'البروج' },
+  { numero: 86, nom_ar: 'الطارق' },
+  { numero: 87, nom_ar: 'الأعلى' },
+  { numero: 88, nom_ar: 'الغاشية' },
+  { numero: 89, nom_ar: 'الفجر' },
+  { numero: 90, nom_ar: 'البلد' },
+  { numero: 91, nom_ar: 'الشمس' },
+  { numero: 92, nom_ar: 'الليل' },
+  { numero: 93, nom_ar: 'الضحى' },
+  { numero: 94, nom_ar: 'الشرح' },
+  { numero: 95, nom_ar: 'التين' },
+  { numero: 96, nom_ar: 'العلق' },
+  { numero: 97, nom_ar: 'القدر' },
+  { numero: 98, nom_ar: 'البينة' },
+  { numero: 99, nom_ar: 'الزلزلة' },
+  { numero: 100, nom_ar: 'العاديات' },
+  { numero: 101, nom_ar: 'القارعة' },
+  { numero: 102, nom_ar: 'التكاثر' },
+  { numero: 103, nom_ar: 'العصر' },
+  { numero: 104, nom_ar: 'الهمزة' },
+  { numero: 105, nom_ar: 'الفيل' },
+  { numero: 106, nom_ar: 'قريش' },
+  { numero: 107, nom_ar: 'الماعون' },
+  { numero: 108, nom_ar: 'الكوثر' },
+  { numero: 109, nom_ar: 'الكافرون' },
+  { numero: 110, nom_ar: 'النصر' },
+  { numero: 111, nom_ar: 'المسد' },
+  { numero: 112, nom_ar: 'الإخلاص' },
+  { numero: 113, nom_ar: 'الفلق' },
+  { numero: 114, nom_ar: 'الناس' },
 ];
 
-export const SOURATES_5B = SOURATES.filter(s => s.niveau_5B);
-export const SOURATES_5A = SOURATES.filter(s => s.niveau_5A);
-export const SOURATES_2M = SOURATES.filter(s => s.niveau_2M);
+// Ordre décroissant — الناس (114) en premier
+export const getSouratesDesc = () =>
+  [...SOURATES_CORAN].sort((a,b) => b.numero - a.numero);
 
-export function getSouratesForNiveau(niveau) {
-  if (niveau === '5B') return SOURATES_5B;
-  if (niveau === '5A') return SOURATES_5A;
-  if (niveau === '2M') return SOURATES_2M;
-  return [];
-}
+// Toutes dans l'ordre croissant
+export const getSouratesAsc = () =>
+  [...SOURATES_CORAN].sort((a,b) => a.numero - b.numero);
 
-export function isSourateNiveau(niveau) {
-  return ['5B', '5A', '2M'].includes(niveau);
-}
-
-// Map numero to DB id (loaded once from Supabase)
-let souratesDB = null;
-
-export function setSouratesDB(data) {
-  souratesDB = data;
-  SOURATES.forEach(s => {
-    const dbRow = data.find(d => d.numero === s.numero);
-    s.id_db = dbRow?.id || null;
-  });
-}
-
-export function getSouratesDB() {
-  return souratesDB;
-}
+// Pour la compatibilité avec l'existant
+// (le filtrage réel du programme se fait via Supabase table 'programmes')
+export const getSouratesForNiveau = (codeNiveau) => getSouratesDesc();
