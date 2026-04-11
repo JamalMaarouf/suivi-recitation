@@ -453,36 +453,57 @@ export default function GestionNiveaux({ user, navigate, goBack, lang='fr', isMo
               </div>
             )}
 
-            {/* Liste Sourates */}
+            {/* Liste Sourates — TOUTES les sourates, cochées si dans le programme */}
             {niveauProgramme.type==='sourate'&&(
-              <div style={{display:'flex',flexDirection:'column',gap:6}}>
-                {souratesNiveau.length===0&&(
-                  <div style={{textAlign:'center',color:'#aaa',padding:'2rem',fontSize:13}}>
-                    {lang==='ar'?'لا توجد سور لهذا المستوى':'Aucune sourate disponible'}
-                  </div>
-                )}
-                {souratesNiveau.map(s=>{
-                  const sel = programme.includes(s.id);
-                  return(
-                    <div key={s.id} onClick={()=>toggleProgrammeItem(s.id)}
-                      style={{display:'flex',alignItems:'center',gap:10,
-                        padding:'10px 12px',borderRadius:10,cursor:'pointer',
-                        background:sel?`${nc}10`:'#f5f5f0',
-                        border:`1.5px solid ${sel?nc:'#e0e0d8'}`}}>
-                      <div style={{width:22,height:22,borderRadius:5,flexShrink:0,
-                        border:`1.5px solid ${sel?nc:'#ccc'}`,
-                        background:sel?nc:'#fff',
-                        display:'flex',alignItems:'center',justifyContent:'center'}}>
-                        {sel&&<span style={{color:'#fff',fontSize:12,fontWeight:700}}>✓</span>}
-                      </div>
-                      <span style={{fontSize:11,color:'#aaa',minWidth:24}}>{s.numero}</span>
-                      <span style={{flex:1,fontSize:15,fontFamily:"'Tajawal',Arial",
-                        direction:'rtl',color:sel?nc:'#333',
-                        fontWeight:sel?600:400}}>{s.nom_ar}</span>
+              <>
+                {/* Barre de sélection rapide */}
+                <div style={{display:'flex',gap:8,marginBottom:10,alignItems:'center',flexWrap:'wrap'}}>
+                  <button onClick={()=>setProgramme(souratesDB.map(s=>s.id))}
+                    style={{padding:'4px 12px',borderRadius:20,border:`0.5px solid ${nc}`,
+                      background:`${nc}20`,color:nc,fontSize:11,cursor:'pointer',fontWeight:600,fontFamily:'inherit'}}>
+                    {lang==='ar'?'تحديد الكل':'Tout sélectionner'} ({souratesDB.length})
+                  </button>
+                  {programme.length>0&&(
+                    <button onClick={()=>setProgramme([])}
+                      style={{padding:'4px 12px',borderRadius:20,border:'0.5px solid #e0e0d8',
+                        background:'#FCEBEB',fontSize:11,cursor:'pointer',color:'#E24B4A',fontFamily:'inherit'}}>
+                      ✕ {lang==='ar'?'مسح الكل':'Tout décocher'}
+                    </button>
+                  )}
+                  <span style={{fontSize:11,color:nc,fontWeight:700,marginRight:'auto'}}>
+                    {programme.length} {lang==='ar'?'محدد':'cochée(s)'}
+                  </span>
+                </div>
+                {/* Liste complète des sourates */}
+                <div style={{display:'flex',flexDirection:'column',gap:5}}>
+                  {souratesDB.length===0&&(
+                    <div style={{textAlign:'center',color:'#aaa',padding:'2rem',fontSize:13}}>
+                      {lang==='ar'?'جاري التحميل...':'Chargement...'}
                     </div>
-                  );
-                })}
-              </div>
+                  )}
+                  {[...souratesDB].sort((a,b)=>b.numero-a.numero).map(s=>{
+                    const sel = programme.includes(s.id);
+                    return(
+                      <div key={s.id} onClick={()=>toggleProgrammeItem(s.id)}
+                        style={{display:'flex',alignItems:'center',gap:10,
+                          padding:'10px 12px',borderRadius:10,cursor:'pointer',
+                          background:sel?`${nc}10`:'#f5f5f0',
+                          border:`1.5px solid ${sel?nc:'#e0e0d8'}`}}>
+                        <div style={{width:22,height:22,borderRadius:5,flexShrink:0,
+                          border:`1.5px solid ${sel?nc:'#ccc'}`,
+                          background:sel?nc:'#fff',
+                          display:'flex',alignItems:'center',justifyContent:'center'}}>
+                          {sel&&<span style={{color:'#fff',fontSize:12,fontWeight:700}}>✓</span>}
+                        </div>
+                        <span style={{fontSize:11,color:'#aaa',minWidth:24}}>{s.numero}</span>
+                        <span style={{flex:1,fontSize:14,fontFamily:"'Tajawal',Arial",
+                          direction:'rtl',color:sel?nc:'#333',
+                          fontWeight:sel?600:400}}>{s.nom_ar}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </>
             )}
           </div>
 
