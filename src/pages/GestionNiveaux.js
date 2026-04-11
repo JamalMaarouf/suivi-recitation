@@ -26,6 +26,7 @@ export default function GestionNiveaux({ user, navigate, goBack, lang='fr', isMo
   const [niveauProgramme, setNiveauProgramme] = useState(null);
   const [programme, setProgramme]             = useState([]);
   const [modeEditionProgramme, setModeEditionProgramme] = useState(false);
+  const panneauScrollRef = React.useRef(null);
   const [souratesDB, setSouratesDB]           = useState([]);
   const [savingProg, setSavingProg]           = useState(false);
 
@@ -92,9 +93,17 @@ export default function GestionNiveaux({ user, navigate, goBack, lang='fr', isMo
   };
 
   const toggleProgrammeItem = (id) => {
+    // Sauvegarder la position de scroll avant le re-render
+    const scrollTop = panneauScrollRef.current?.scrollTop || 0;
     setProgramme(prev =>
       prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
     );
+    // Restaurer la position après le re-render
+    requestAnimationFrame(() => {
+      if (panneauScrollRef.current) {
+        panneauScrollRef.current.scrollTop = scrollTop;
+      }
+    });
   };
 
   const sauvegarderProgramme = async () => {
@@ -152,7 +161,6 @@ export default function GestionNiveaux({ user, navigate, goBack, lang='fr', isMo
       setFormProgramme([]);
     }
     setShowForm(true);
-    window.scrollTo(0,0);
   };
 
   const resetForm = () => {
@@ -430,7 +438,7 @@ export default function GestionNiveaux({ user, navigate, goBack, lang='fr', isMo
           )}
 
           {/* Contenu scrollable */}
-          <div style={{flex:1,overflowY:'auto',padding:'12px 18px'}}>
+          <div ref={panneauScrollRef} style={{flex:1,overflowY:'auto',padding:'12px 18px',overscrollBehavior:'contain'}}>
 
             {/* Grille Hizb */}
             {niveauProgramme.type==='hizb'&&(
