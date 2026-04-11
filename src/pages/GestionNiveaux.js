@@ -23,8 +23,9 @@ export default function GestionNiveaux({ user, navigate, goBack, lang='fr', isMo
   const [form, setForm] = useState(emptyForm);
 
   // Programme du niveau sélectionné
-  const [niveauProgramme, setNiveauProgramme] = useState(null); // niveau dont on édite le programme
-  const [programme, setProgramme]             = useState([]);   // contenu_ids sélectionnés
+  const [niveauProgramme, setNiveauProgramme] = useState(null);
+  const [programme, setProgramme]             = useState([]);
+  const [modeEditionProgramme, setModeEditionProgramme] = useState(false);
   const [souratesDB, setSouratesDB]           = useState([]);
   const [savingProg, setSavingProg]           = useState(false);
 
@@ -42,6 +43,7 @@ export default function GestionNiveaux({ user, navigate, goBack, lang='fr', isMo
   };
 
   const ouvrirProgramme = async (n) => {
+    setModeEditionProgramme(false); // toujours commencer en mode affichage
     setNiveauProgramme(n);
     // Charger le programme existant
     const { data } = await supabase
@@ -65,6 +67,7 @@ export default function GestionNiveaux({ user, navigate, goBack, lang='fr', isMo
   const fermerProgramme = () => {
     setNiveauProgramme(null);
     setProgramme([]);
+    setModeEditionProgramme(false);
   };
 
   const toggleProgrammeItem = (id) => {
@@ -92,7 +95,16 @@ export default function GestionNiveaux({ user, navigate, goBack, lang='fr', isMo
     setSavingProg(false);
     if (error) { toast.error(error.message || 'Erreur'); return; }
     toast.success(lang==='ar'?'✅ تم حفظ البرنامج':'✅ Programme enregistré !');
-    fermerProgramme();
+    setModeEditionProgramme(false);
+    // Recharger le programme affiché sans fermer le panneau
+    const { data: freshData } = await supabase.from('programmes')
+      .select('reference_id').eq('niveau_id',niveauProgramme.id).eq('ecole_id',user.ecole_id).order('ordre');
+    if (freshData) {
+      setProgramme(niveauProgramme.type==='hizb'
+        ? freshData.map(d=>parseInt(d.reference_id))
+        : freshData.map(d=>d.reference_id)
+      );
+    }
     loadData();
   };
 
@@ -236,8 +248,6 @@ export default function GestionNiveaux({ user, navigate, goBack, lang='fr', isMo
 
 
   // ── PANNEAU PROGRAMME — Affichage + Modification ───────────────
-  const [modeEditionProgramme, setModeEditionProgramme] = React.useState(false);
-
   const PanneauProgramme = () => {
     if (!niveauProgramme) return null;
     const nc = niveauProgramme.couleur || '#1D9E75';
@@ -249,9 +259,13 @@ export default function GestionNiveaux({ user, navigate, goBack, lang='fr', isMo
     if (!modeEditionProgramme) {
       return (
         <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.5)',
-          zIndex:1000,display:'flex',alignItems:'flex-end',justifyContent:'center'}}>
-          <div style={{background:'#fff',borderRadius:'20px 20px 0 0',
-            width:'100%',maxWidth:600,maxHeight:'85vh',
+          zIndex:1000,display:'flex',
+          alignItems:isMobile?'flex-end':'center',
+          justifyContent:'center',padding:isMobile?0:'20px'}}>
+          <div style={{background:'#fff',
+            borderRadius:isMobile?'20px 20px 0 0':'16px',
+            width:'100%',maxWidth:640,
+            maxHeight:isMobile?'85vh':'80vh',
             display:'flex',flexDirection:'column',overflow:'hidden'}}>
             {/* Header */}
             <div style={{padding:'18px 18px 14px',borderBottom:'0.5px solid #e0e0d8',
@@ -332,9 +346,13 @@ export default function GestionNiveaux({ user, navigate, goBack, lang='fr', isMo
     // Mode édition (ancien panneau)
     return (
       <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.5)',
-        zIndex:1000,display:'flex',alignItems:'flex-end',justifyContent:'center'}}>
-        <div style={{background:'#fff',borderRadius:'20px 20px 0 0',
-          width:'100%',maxWidth:600,maxHeight:'90vh',
+        zIndex:1000,display:'flex',
+        alignItems:isMobile?'flex-end':'center',
+        justifyContent:'center',padding:isMobile?0:'20px'}}>
+        <div style={{background:'#fff',
+          borderRadius:isMobile?'20px 20px 0 0':'16px',
+          width:'100%',maxWidth:640,
+          maxHeight:isMobile?'90vh':'80vh',
           display:'flex',flexDirection:'column',overflow:'hidden'}}>
 
           {/* Header panneau édition */}
