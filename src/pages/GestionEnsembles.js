@@ -133,7 +133,8 @@ export default function GestionEnsembles({ user, navigate, goBack, lang='fr', is
   // ── PANNEAU FORMULAIRE ───────────────────────────────────────────
   const PanneauForm = () => {
     if (!showForm) return null;
-    const nonAffectees = souratesProg.filter(s=>!sAffectees.includes(s.id));
+    const ncForm        = niveauForm?.couleur || '#1D9E75';
+    const nonAffectees  = souratesProg.filter(s=>!sAffectees.includes(s.id));
     const dejaDansAutre = souratesProg.filter(s=>sAffectees.includes(s.id));
 
     return (
@@ -143,107 +144,145 @@ export default function GestionEnsembles({ user, navigate, goBack, lang='fr', is
         justifyContent:'center',padding:isMobile?0:'20px'}}>
         <div style={{background:'#fff',
           borderRadius:isMobile?'20px 20px 0 0':'16px',
-          width:'100%',maxWidth:600,maxHeight:isMobile?'92vh':'85vh',
+          width:'100%',maxWidth:620,maxHeight:isMobile?'94vh':'88vh',
           display:'flex',flexDirection:'column',overflow:'hidden'}}>
 
-          {/* Header */}
-          <div style={{padding:'16px 18px',borderBottom:'0.5px solid #e0e0d8',flexShrink:0}}>
-            <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:4}}>
-              <div style={{width:36,height:36,borderRadius:10,background:`${nc}20`,
-                display:'flex',alignItems:'center',justifyContent:'center',
-                fontWeight:800,fontSize:14,color:nc,flexShrink:0}}>
-                {niveauSel?.code}
-              </div>
-              <div style={{flex:1,fontWeight:700,fontSize:16,color:'#1a1a1a'}}>
-                {editing?(lang==='ar'?'تعديل المجموعة':'Modifier l\'ensemble')
-                        :(lang==='ar'?'إضافة مجموعة':'Nouvel ensemble')}
+          {/* ── HEADER ── */}
+          <div style={{padding:'16px 18px 14px',borderBottom:'0.5px solid #e0e0d8',flexShrink:0}}>
+            <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:14}}>
+              <div style={{fontWeight:700,fontSize:16,color:'#1a1a1a',flex:1}}>
+                📦 {editing?(lang==='ar'?'تعديل المجموعة':'Modifier l\'ensemble')
+                           :(lang==='ar'?'إضافة مجموعة جديدة':'Nouvel ensemble')}
               </div>
               <button onClick={resetForm}
                 style={{background:'none',border:'none',fontSize:22,cursor:'pointer',color:'#888',padding:0}}>×</button>
             </div>
-            {/* Nom de l'ensemble */}
-            <input style={{width:'100%',padding:'10px 12px',borderRadius:10,
-              border:`1.5px solid ${nc}40`,fontSize:15,fontFamily:'inherit',boxSizing:'border-box',
-              marginTop:8}}
-              value={form.nom}
-              onChange={e=>setForm(f=>({...f,nom:e.target.value}))}
-              placeholder={lang==='ar'?'مثال: المجموعة الأولى — جزء عم':'Ex: Groupe 1 — Juz Amma'}
-              autoFocus/>
-          </div>
 
-          {/* Légende + filtre — uniquement si niveau choisi */}
-          {form.niveau_id&&<div style={{padding:'10px 18px',background:'#f9f9f6',
-            borderBottom:'0.5px solid #e0e0d8',flexShrink:0,
-            display:'flex',gap:16,flexWrap:'wrap',alignItems:'center'}}>
-            <div style={{display:'flex',alignItems:'center',gap:6,fontSize:11,color:'#666'}}>
-              <div style={{width:14,height:14,borderRadius:3,background:nc,flexShrink:0}}/>
-              {lang==='ar'?'محدد في هذه المجموعة':'Dans cet ensemble'}
-              <span style={{fontWeight:700,color:nc}}>({form.sourates_ids.length})</span>
+            {/* ÉTAPE 1 — Sélection du niveau */}
+            <div style={{marginBottom:12}}>
+              <div style={{fontSize:11,fontWeight:700,color:'#888',marginBottom:8,
+                textTransform:'uppercase',letterSpacing:'0.5px'}}>
+                {lang==='ar'?'① اختر المستوى':'① Choisir le niveau'}
+              </div>
+              <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>
+                {niveaux.map(n=>(
+                  <div key={n.id}
+                    onClick={async()=>{
+                      setForm(f=>({...f,niveau_id:n.id,sourates_ids:[]}));
+                      await chargerProgramme(n.id, souratesDB);
+                    }}
+                    style={{display:'flex',alignItems:'center',gap:6,padding:'7px 12px',
+                      borderRadius:20,cursor:'pointer',flexShrink:0,
+                      background:form.niveau_id===n.id?n.couleur:'#f5f5f0',
+                      color:form.niveau_id===n.id?'#fff':'#666',
+                      border:`1.5px solid ${form.niveau_id===n.id?n.couleur:'#e0e0d8'}`,
+                      fontWeight:form.niveau_id===n.id?700:400,fontSize:13}}>
+                    <span style={{fontWeight:700}}>{n.code}</span>
+                    <span style={{fontSize:11,opacity:0.85}}>{n.nom}</span>
+                  </div>
+                ))}
+              </div>
             </div>
-            <div style={{display:'flex',alignItems:'center',gap:6,fontSize:11,color:'#666'}}>
-              <div style={{width:14,height:14,borderRadius:3,background:'#f5f5f0',border:'1px solid #e0e0d8',flexShrink:0}}/>
-              {lang==='ar'?'متاحة':'Disponibles'}
-              <span style={{fontWeight:600}}>({nonAffectees.length})</span>
-            </div>
-            {dejaDansAutre.length>0&&(
-              <div style={{display:'flex',alignItems:'center',gap:6,fontSize:11,color:'#EF9F27'}}>
-                <div style={{width:14,height:14,borderRadius:3,background:'#FAEEDA',border:'1px solid #EF9F27',flexShrink:0}}/>
-                {lang==='ar'?'في مجموعة أخرى':'Dans autre ensemble'}
-                <span style={{fontWeight:600}}>({dejaDansAutre.length})</span>
+
+            {/* ÉTAPE 2 — Nom (visible seulement si niveau choisi) */}
+            {form.niveau_id&&(
+              <div>
+                <div style={{fontSize:11,fontWeight:700,color:'#888',marginBottom:6,
+                  textTransform:'uppercase',letterSpacing:'0.5px'}}>
+                  {lang==='ar'?'② اسم المجموعة':'② Nom de l\'ensemble'}
+                </div>
+                <input style={{width:'100%',padding:'10px 12px',borderRadius:10,
+                  border:`1.5px solid ${ncForm}50`,fontSize:15,fontFamily:'inherit',boxSizing:'border-box'}}
+                  value={form.nom}
+                  onChange={e=>setForm(f=>({...f,nom:e.target.value}))}
+                  placeholder={lang==='ar'?'مثال: المجموعة الأولى — جزء عم':'Ex: Groupe 1 — Juz Amma'}
+                  autoFocus/>
               </div>
             )}
-            {/* Boutons rapides */}
-            <div style={{marginRight:'auto',display:'flex',gap:6}}>
-              <button onClick={()=>setForm(f=>({...f,sourates_ids:nonAffectees.map(s=>s.id)}))}
-                style={{padding:'3px 10px',borderRadius:20,border:`0.5px solid ${ncForm}`,
-                  background:`${ncForm}15`,color:ncForm,fontSize:11,cursor:'pointer',
-                  fontWeight:600,fontFamily:'inherit'}}>
-                {lang==='ar'?'تحديد المتاحة':'Sél. disponibles'}
-              </button>
-              {form.sourates_ids.length>0&&(
-                <button onClick={()=>setForm(f=>({...f,sourates_ids:[]}))}
-                  style={{padding:'3px 10px',borderRadius:20,border:'0.5px solid #e0e0d8',
-                    background:'#FCEBEB',fontSize:11,cursor:'pointer',
-                    color:'#E24B4A',fontFamily:'inherit'}}>
-                  ✕ {lang==='ar'?'مسح':'Effacer'}
-                </button>
-              )}
-            </div>
-          </div>}
+          </div>
 
-          {/* ÉTAPE 3 — Liste sourates (si niveau choisi) */}
+          {/* ── LÉGENDE (si niveau choisi) ── */}
+          {form.niveau_id&&(
+            <div style={{padding:'10px 18px',background:'#f9f9f6',
+              borderBottom:'0.5px solid #e0e0d8',flexShrink:0,
+              display:'flex',gap:12,flexWrap:'wrap',alignItems:'center'}}>
+              <div style={{display:'flex',alignItems:'center',gap:5,fontSize:11,color:'#666'}}>
+                <div style={{width:12,height:12,borderRadius:3,background:ncForm,flexShrink:0}}/>
+                {lang==='ar'?'محدد':'Sélectionné'}
+                <span style={{fontWeight:700,color:ncForm}}>({form.sourates_ids.length})</span>
+              </div>
+              <div style={{display:'flex',alignItems:'center',gap:5,fontSize:11,color:'#666'}}>
+                <div style={{width:12,height:12,borderRadius:3,background:'#f5f5f0',border:'1px solid #e0e0d8',flexShrink:0}}/>
+                {lang==='ar'?'متاحة':'Disponibles'}
+                <span style={{fontWeight:600}}>({nonAffectees.length})</span>
+              </div>
+              {dejaDansAutre.length>0&&(
+                <div style={{display:'flex',alignItems:'center',gap:5,fontSize:11,color:'#EF9F27'}}>
+                  <div style={{width:12,height:12,borderRadius:3,background:'#FAEEDA',border:'1px solid #EF9F27',flexShrink:0}}/>
+                  {lang==='ar'?'في مجموعة أخرى':'Dans autre ensemble'}
+                  <span style={{fontWeight:600}}>({dejaDansAutre.length})</span>
+                </div>
+              )}
+              <div style={{marginRight:'auto',display:'flex',gap:6}}>
+                {nonAffectees.length>0&&(
+                  <button onClick={()=>setForm(f=>({...f,sourates_ids:nonAffectees.map(s=>s.id)}))}
+                    style={{padding:'3px 10px',borderRadius:20,border:`0.5px solid ${ncForm}`,
+                      background:`${ncForm}15`,color:ncForm,fontSize:11,
+                      cursor:'pointer',fontWeight:600,fontFamily:'inherit'}}>
+                    {lang==='ar'?'تحديد المتاحة':'Sél. disponibles'}
+                  </button>
+                )}
+                {form.sourates_ids.length>0&&(
+                  <button onClick={()=>setForm(f=>({...f,sourates_ids:[]}))}
+                    style={{padding:'3px 10px',borderRadius:20,border:'0.5px solid #e0e0d8',
+                      background:'#FCEBEB',fontSize:11,cursor:'pointer',
+                      color:'#E24B4A',fontFamily:'inherit'}}>
+                    ✕ {lang==='ar'?'مسح':'Effacer'}
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* ── ÉTAPE 3 — SOURATES ── */}
           {!form.niveau_id?(
             <div style={{flex:1,display:'flex',alignItems:'center',justifyContent:'center',
               padding:'2rem',flexDirection:'column',gap:8,color:'#aaa'}}>
-              <div style={{fontSize:36}}>☝️</div>
+              <div style={{fontSize:40}}>☝️</div>
               <div style={{fontSize:14,textAlign:'center'}}>
-{lang==='ar'?'اختر المستوى أولاً لعرض سوره':"Choisissez d'abord un niveau pour afficher son programme"}
+                {lang==='ar'
+                  ?"اختر المستوى أولاً لعرض سوره"
+                  :"Choisissez d'abord un niveau pour afficher son programme"}
               </div>
             </div>
           ):souratesProg.length===0?(
             <div style={{flex:1,display:'flex',alignItems:'center',justifyContent:'center',
-              padding:'2rem',flexDirection:'column',gap:10,color:'#aaa'}}>
+              padding:'2rem',flexDirection:'column',gap:10}}>
               <div style={{fontSize:36}}>⚠️</div>
               <div style={{fontSize:14,textAlign:'center',color:'#633806'}}>
                 {lang==='ar'
-                  ?'لا يوجد برنامج لهذا المستوى. أضف البرنامج أولاً من صفحة المستويات.'
-                  :"Aucun programme défini. Ajoutez-le d'abord dans Niveaux."}
+                  ?"لا يوجد برنامج لهذا المستوى"
+                  :"Aucun programme défini pour ce niveau"}
               </div>
               <button onClick={()=>{resetForm();navigate('niveaux');}}
                 style={{padding:'10px 20px',background:ncForm,color:'#fff',border:'none',
                   borderRadius:10,fontSize:13,fontWeight:600,cursor:'pointer',fontFamily:'inherit'}}>
-                {lang==='ar'?'انتقل إلى المستويات':'Aller aux Niveaux →'}
+                {lang==='ar'?'انتقل إلى المستويات':'Définir le programme →'}
               </button>
             </div>
           ):(
             <div ref={scrollRef} style={{flex:1,overflowY:'auto',padding:'10px 18px',
               overscrollBehavior:'contain'}}>
-              {/* Sourates disponibles (pas encore dans un ensemble) */}
+
+              {/* Sourates DISPONIBLES */}
               {nonAffectees.length>0&&(
                 <>
-                  <div style={{fontSize:11,fontWeight:700,color:'#666',marginBottom:6,marginTop:4,
+                  <div style={{fontSize:11,fontWeight:700,color:'#888',marginBottom:6,marginTop:4,
                     textTransform:'uppercase',letterSpacing:'0.5px'}}>
-                    {lang==='ar'?'متاحة':'Disponibles'} ({nonAffectees.length})
+                    ③ {lang==='ar'?'اختر السور لتكوين المجموعة':'Sélectionnez les sourates de l\'ensemble'}
+                    <span style={{color:'#bbb',fontWeight:400,marginRight:4}}>
+                      — {lang==='ar'?'المتاحة':'disponibles'} ({nonAffectees.length})
+                    </span>
                   </div>
                   {nonAffectees.map(s=>{
                     const sel=form.sourates_ids.includes(s.id);
@@ -266,7 +305,8 @@ export default function GestionEnsembles({ user, navigate, goBack, lang='fr', is
                   })}
                 </>
               )}
-              {/* Sourates déjà dans un autre ensemble */}
+
+              {/* Sourates dans AUTRE ensemble */}
               {dejaDansAutre.length>0&&(
                 <>
                   <div style={{fontSize:11,fontWeight:700,color:'#EF9F27',marginBottom:6,marginTop:14,
@@ -275,7 +315,7 @@ export default function GestionEnsembles({ user, navigate, goBack, lang='fr', is
                   </div>
                   {dejaDansAutre.map(s=>{
                     const sel=form.sourates_ids.includes(s.id);
-                    const autreEns=ensembles.find(e=>e.niveau_id===filtreNiveau&&e.id!==editing&&(e.sourates_ids||[]).includes(s.id));
+                    const autreEns=ensembles.find(e=>e.niveau_id===form.niveau_id&&e.id!==editing&&(e.sourates_ids||[]).includes(s.id));
                     return(
                       <div key={s.id} onClick={()=>toggleSourate(s.id)}
                         style={{display:'flex',alignItems:'center',gap:10,padding:'10px 12px',
@@ -283,14 +323,15 @@ export default function GestionEnsembles({ user, navigate, goBack, lang='fr', is
                           background:sel?`${ncForm}12`:'#FAEEDA30',
                           border:`1.5px solid ${sel?ncForm:'#EF9F2750'}`}}>
                         <div style={{width:22,height:22,borderRadius:5,flexShrink:0,
-                          border:`1.5px solid ${sel?ncForm:'#EF9F27'}`,background:sel?ncForm:'#FAEEDA',
+                          border:`1.5px solid ${sel?ncForm:'#EF9F27'}`,
+                          background:sel?ncForm:'#FAEEDA',
                           display:'flex',alignItems:'center',justifyContent:'center'}}>
                           {sel?<span style={{color:'#fff',fontSize:12,fontWeight:700}}>✓</span>
                              :<span style={{color:'#EF9F27',fontSize:10}}>↺</span>}
                         </div>
                         <span style={{fontSize:11,color:'#aaa',minWidth:24}}>{s.numero}</span>
                         <span style={{flex:1,fontSize:14,fontFamily:"'Tajawal',Arial",direction:'rtl',
-                          color:sel?nc:'#633806',fontWeight:sel?700:400}}>{s.nom_ar}</span>
+                          color:sel?ncForm:'#633806',fontWeight:sel?700:400}}>{s.nom_ar}</span>
                         {!sel&&autreEns&&(
                           <span style={{fontSize:10,color:'#EF9F27',padding:'1px 6px',
                             borderRadius:10,background:'#FAEEDA',flexShrink:0,whiteSpace:'nowrap'}}>
@@ -305,21 +346,23 @@ export default function GestionEnsembles({ user, navigate, goBack, lang='fr', is
             </div>
           )}
 
-          {/* Footer boutons */}
+          {/* ── BOUTONS ── */}
           <div style={{padding:'14px 18px',borderTop:'0.5px solid #e0e0d8',flexShrink:0,display:'flex',gap:8}}>
             <button onClick={resetForm}
               style={{flex:1,padding:'13px',background:'#f5f5f0',color:'#666',border:'none',
                 borderRadius:12,fontSize:14,fontWeight:600,cursor:'pointer',fontFamily:'inherit'}}>
               {lang==='ar'?'إلغاء':'Annuler'}
             </button>
-            <button onClick={save} disabled={saving||form.sourates_ids.length===0||!form.nom.trim()}
+            <button onClick={save}
+              disabled={saving||!form.niveau_id||form.sourates_ids.length===0||!form.nom.trim()}
               style={{flex:2,padding:'13px',
-                background:saving||form.sourates_ids.length===0||!form.nom.trim()||!form.niveau_id?'#ccc':editing?'#378ADD':ncForm,
+                background:saving||!form.niveau_id||form.sourates_ids.length===0||!form.nom.trim()
+                  ?'#ccc':editing?'#378ADD':ncForm,
                 color:'#fff',border:'none',borderRadius:12,fontSize:14,fontWeight:700,
                 cursor:saving||!form.niveau_id?'not-allowed':'pointer',fontFamily:'inherit'}}>
               {saving?'...':(editing
                 ?(lang==='ar'?'تحديث':'Mettre à jour ✓')
-                :(lang==='ar'?'حفظ الإضافة':'Enregistrer'))}
+                :(lang==='ar'?'حفظ المجموعة':'Enregistrer'))}
             </button>
           </div>
         </div>
