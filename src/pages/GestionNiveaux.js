@@ -716,6 +716,103 @@ export default function GestionNiveaux({ user, navigate, goBack, lang='fr', isMo
               </div>
             </div>
           </div>
+          {/* ── Programme du niveau ── */}
+          <div style={{marginBottom:18,padding:'16px',background:'#f9f9f6',borderRadius:12,border:'0.5px solid #e0e0d8'}}>
+            <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:12}}>
+              <label style={{fontSize:13,fontWeight:700,color:'#085041'}}>
+                📚 {lang==='ar'?'برنامج المستوى':'Programme du niveau'}
+                <span style={{fontSize:11,fontWeight:400,color:'#888',marginRight:6}}>
+                  {lang==='ar'?'(اختياري — يمكن تحديده لاحقاً)':'(optionnel — peut être défini plus tard)'}
+                </span>
+              </label>
+              <span style={{fontSize:12,fontWeight:700,color:formProgramme.length>0?form.couleur:'#aaa'}}>
+                {formProgramme.length>0?`${formProgramme.length} ${lang==='ar'?'محدد':'sélectionné(s)'}`:lang==='ar'?'لم يُحدد':'Non défini'}
+              </span>
+            </div>
+
+            {form.type==='hizb'&&(
+              <>
+                <div style={{display:'flex',gap:6,flexWrap:'wrap',marginBottom:10,alignItems:'center'}}>
+                  <span style={{fontSize:11,color:'#888'}}>{lang==='ar'?'اختيار سريع:':'Sélection rapide :'}</span>
+                  {[1,5,10,15,20,30,60].map(n=>(
+                    <button key={n} onClick={()=>setFormProgramme(Array.from({length:n},(_,i)=>i+1))}
+                      style={{padding:'3px 10px',borderRadius:20,border:'0.5px solid #e0e0d8',
+                        background:JSON.stringify(formProgramme)===JSON.stringify(Array.from({length:n},(_,i)=>i+1))?form.couleur:'#f5f5f0',
+                        color:JSON.stringify(formProgramme)===JSON.stringify(Array.from({length:n},(_,i)=>i+1))?'#fff':'#666',
+                        fontSize:11,cursor:'pointer',fontWeight:500}}>
+                      1→{n}
+                    </button>
+                  ))}
+                  {formProgramme.length>0&&(
+                    <button onClick={()=>setFormProgramme([])}
+                      style={{padding:'3px 10px',borderRadius:20,border:'0.5px solid #e0e0d8',
+                        background:'#FCEBEB',fontSize:11,cursor:'pointer',color:'#E24B4A'}}>
+                      ✕ {lang==='ar'?'مسح':'Effacer'}
+                    </button>
+                  )}
+                </div>
+                <div style={{display:'grid',gridTemplateColumns:'repeat(12,1fr)',gap:4}}>
+                  {HIZB_NUMS.map(h=>{
+                    const sel=formProgramme.includes(h);
+                    return(
+                      <div key={h} onClick={()=>toggleFormProgramme(h)}
+                        style={{height:34,borderRadius:7,display:'flex',alignItems:'center',
+                          justifyContent:'center',fontSize:11,fontWeight:sel?700:400,cursor:'pointer',
+                          background:sel?form.couleur:'#fff',color:sel?'#fff':'#666',
+                          border:`1.5px solid ${sel?form.couleur:'#e0e0d8'}`,transition:'all 0.1s'}}>
+                        {h}
+                      </div>
+                    );
+                  })}
+                </div>
+              </>
+            )}
+
+            {form.type==='sourate'&&(
+              <>
+                <div style={{display:'flex',gap:8,marginBottom:8,alignItems:'center'}}>
+                  <button onClick={()=>setFormProgramme(getSouratesDesc().map(s=>{const dbS=souratesDB.find(x=>x.numero===s.numero);return dbS?dbS.id:null;}).filter(Boolean))}
+                    style={{padding:'4px 12px',borderRadius:20,border:`0.5px solid ${form.couleur}`,
+                      background:`${form.couleur}20`,color:form.couleur,fontSize:11,cursor:'pointer',fontWeight:600}}>
+                    {lang==='ar'?'تحديد الكل':'Tout sélectionner'}
+                  </button>
+                  {formProgramme.length>0&&(
+                    <button onClick={()=>setFormProgramme([])}
+                      style={{padding:'4px 12px',borderRadius:20,border:'0.5px solid #e0e0d8',
+                        background:'#FCEBEB',fontSize:11,cursor:'pointer',color:'#E24B4A'}}>
+                      ✕ {lang==='ar'?'مسح':'Effacer'}
+                    </button>
+                  )}
+                </div>
+                <div style={{maxHeight:200,overflowY:'auto',display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:4}}>
+                  {getSouratesDesc().map(s=>{
+                    const dbS=souratesDB.find(x=>x.numero===s.numero);
+                    if(!dbS) return null;
+                    const sel=formProgramme.includes(dbS.id);
+                    return(
+                      <div key={dbS.id} onClick={()=>toggleFormProgramme(dbS.id)}
+                        style={{display:'flex',alignItems:'center',gap:6,padding:'6px 8px',
+                          borderRadius:8,cursor:'pointer',
+                          background:sel?`${form.couleur}10`:'#fff',
+                          border:`1.5px solid ${sel?form.couleur:'#e0e0d8'}`}}>
+                        <div style={{width:16,height:16,borderRadius:3,flexShrink:0,
+                          border:`1.5px solid ${sel?form.couleur:'#ccc'}`,
+                          background:sel?form.couleur:'#fff',
+                          display:'flex',alignItems:'center',justifyContent:'center'}}>
+                          {sel&&<span style={{color:'#fff',fontSize:9,fontWeight:700}}>✓</span>}
+                        </div>
+                        <span style={{fontSize:10,color:'#aaa',minWidth:18}}>{s.numero}</span>
+                        <span style={{flex:1,fontSize:12,fontFamily:"'Tajawal',Arial",direction:'rtl',
+                          color:sel?form.couleur:'#333',fontWeight:sel?600:400,overflow:'hidden',
+                          whiteSpace:'nowrap',textOverflow:'ellipsis'}}>{s.nom_ar}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </>
+            )}
+          </div>
+
           <div style={{display:'flex',gap:8}}>
             <button onClick={resetForm}
               style={{padding:'10px 20px',background:'#f5f5f0',color:'#666',border:'none',borderRadius:10,cursor:'pointer',fontSize:13,fontWeight:600}}>
