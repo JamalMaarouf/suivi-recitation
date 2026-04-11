@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useToast } from '../lib/toast';
 import { t } from '../lib/i18n';
 import { supabase } from '../lib/supabase';
-import { calcEtatEleve, calcPositionAtteinte, calcUnite, formatDate, getInitiales, motivationMsg } from '../lib/helpers';
+import { calcEtatEleve, calcPositionAtteinte, calcUnite, formatDate, getInitiales, motivationMsg, verifierBlocageExamen } from '../lib/helpers';
 
 function Avatar({ prenom, nom, size = 36, bg = '#E1F5EE', color = '#085041' }) {
   return (
@@ -15,6 +15,7 @@ function Avatar({ prenom, nom, size = 36, bg = '#E1F5EE', color = '#085041' }) {
 export default function EnregistrerRecitation({  user, eleve: eleveInitial, navigate, goBack, lang="fr", isMobile=false }) {
   const { toast } = useToast();
   const [step, setStep] = useState(eleveInitial ? 2 : 1);
+  const [blocage, setBlocage] = useState(null); // examen requis avant de continuer
   const [eleves, setEleves] = useState([]);
   const [search, setSearch] = useState('');
   const [selectedEleve, setSelectedEleve] = useState(eleveInitial || null);
@@ -122,6 +123,27 @@ export default function EnregistrerRecitation({  user, eleve: eleveInitial, navi
       toast.error(error.message || 'Erreur de validation');
       return;
     }
+
+    // Vérifier si un examen de bloc est maintenant requis
+    // On recharge les validations fraîches pour avoir l'état à jour
+    const { data: valsNouv } = await supabase
+      .from('validations').select('*')
+      .eq('eleve_id', selectedEleve.id).eq('ecole_id', user.ecole_id);
+    const { data: recsNouv } = await supabase
+      .from('recitations_sourates').select('*')
+      .eq('eleve_id', selectedEleve.id).eq('ecole_id', user.ecole_id);
+
+    const blocageDetecte = await verifierBlocageExamen(supabase, {
+      eleve: { ...selectedEleve, niveau_id: selectedEleve.niveau_id },
+      ecole_id: user.ecole_id,
+      validations: valsNouv || [],
+      recitations: recsNouv || [],
+    });
+
+    if (blocageDetecte) {
+      setBlocage(blocageDetecte);
+    }
+
     const msg = motivationMsg(nombreTomon, etat, typeValidation === 'hizb_complet');
     setMotivMsg(msg);
     setDone(true);
@@ -238,6 +260,22 @@ export default function EnregistrerRecitation({  user, eleve: eleveInitial, navi
             </div>
           )}
           {/* Done */}
+          {done && blocage && (
+            <div style={{margin:'12px 12px 0',padding:'16px',borderRadius:14,
+              background:'#FAEEDA',border:'1.5px solid #EF9F2730'}}>
+              <div style={{fontSize:15,fontWeight:700,color:'#633806',marginBottom:8}}>
+                📝 {lang==='ar'?'امتحان مطلوب !':'Examen requis !'}
+              </div>
+              <div style={{fontSize:13,color:'#854F0B',marginBottom:12}}>
+                {lang==='ar'?blocage.message_ar:blocage.message_fr}
+              </div>
+              <button onClick={()=>navigate('resultats_examens', {eleve:selectedEleve, blocage})}
+                style={{width:'100%',padding:'12px',background:'#EF9F27',color:'#fff',border:'none',
+                  borderRadius:10,fontSize:14,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
+                {lang==='ar'?'تسجيل نتيجة الامتحان':"Enregistrer le résultat d'examen"}
+              </button>
+            </div>
+          )}
           {done && motivMsg && (
             <div style={{background:'#E1F5EE',borderRadius:14,padding:'24px',textAlign:'center'}}>
               <div style={{fontSize:48,marginBottom:8}}>🎉</div>

@@ -267,3 +267,90 @@ export function niveauTraduit(niveau, lang, tFn) {
   if (adv.some(v => niveau?.toLowerCase() === v.toLowerCase())) return tFn(lang, 'avance');
   return niveau || '—';
 }
+
+// ══════════════════════════════════════════════════════════════════
+// PHASE 4 — Vérification des blocages d'examen
+// ══════════════════════════════════════════════════════════════════
+
+/**
+ * Vérifie si un élève est bloqué par un examen avant de continuer.
+ * Retourne null si pas de blocage, ou l'objet examen requis.
+ *
+ * Logique :
+ * - Pour Hizb : l'élève vient-il de finir le dernier Hizb d'un bloc ?
+ * - Pour Sourate : l'élève vient-il de finir la dernière sourate d'un bloc ?
+ * Dans les deux cas, on vérifie aussi qu'il n'a pas déjà réussi l'examen.
+ */
+export async function verifierBlocageExamen(supabase, {
+  eleve,
+  ecole_id,
+  validations,        // validations existantes (hizb)
+  recitations,        // recitations_sourates existantes
+}) {
+  try {
+    // Charger les blocs d'examen pour l'école + niveau de l'élève
+    const { data: blocs } = await supabase
+      .from('blocs_examen')
+      .select('*, examen:examen_id(id,nom,bloquant,score_minimum)')
+      .eq('ecole_id', ecole_id)
+      .eq('niveau_id', eleve.niveau_id || '')  // niveau_id dynamique
+      .order('ordre');
+
+    if (!blocs || blocs.length === 0) return null;
+
+    for (const bloc of blocs) {
+      if (!bloc.examen?.bloquant) continue;
+      const ids = bloc.contenu_ids || [];
+      if (ids.length === 0) continue;
+
+      let blocTermine = false;
+
+      if (bloc.type_contenu === 'hizb') {
+        // Hizb complets de l'élève
+        const hizbComplets = new Set(
+          (validations||[])
+            .filter(v => v.type_validation === 'hizb_complet')
+            .map(v => v.hizb_valide)
+        );
+        // Tous les Hizb du bloc sont-ils complétés ?
+        blocTermine = ids.every(h => hizbComplets.has(h));
+
+      } else {
+        // Sourates complètes de l'élève
+        const souratesCompletes = new Set(
+          (recitations||[])
+            .filter(r => r.type_recitation === 'complete')
+            .map(r => r.sourate_id)
+        );
+        // Toutes les sourates du bloc sont-elles complétées ?
+        blocTermine = ids.every(sid => souratesCompletes.has(sid));
+      }
+
+      if (!blocTermine) continue;
+
+      // Le bloc est terminé — vérifier si l'examen a déjà été réussi
+      const { data: resultat } = await supabase
+        .from('resultats_examens')
+        .select('statut, score')
+        .eq('examen_id', bloc.examen.id)
+        .eq('eleve_id', eleve.id)
+        .eq('statut', 'reussi')
+        .maybeSingle();
+
+      if (resultat) continue; // déjà réussi → pas de blocage
+
+      // Blocage actif !
+      return {
+        bloc,
+        examen: bloc.examen,
+        message_fr: `Examen requis : "${bloc.examen.nom}" avant de continuer`,
+        message_ar: `الامتحان مطلوب: "${bloc.examen.nom}" قبل المتابعة`,
+      };
+    }
+
+    return null; // aucun blocage
+  } catch (err) {
+    console.error('verifierBlocageExamen error:', err);
+    return null; // en cas d'erreur, ne pas bloquer
+  }
+}

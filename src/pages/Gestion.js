@@ -536,7 +536,7 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile 
             </div>
           )}
           <div style={{display:'flex',gap:0,background:'#f0f0ec',borderRadius:10,padding:3}}>
-            {[['eleves',lang==='ar'?'الطلاب':'Élèves'],['instituteurs',lang==='ar'?'الأساتذة':'Profs'],['parents',lang==='ar'?'الآباء':'Parents']].map(([k,l])=>(
+            {[['eleves',lang==='ar'?'الطلاب':'Élèves'],['instituteurs',lang==='ar'?'الأساتذة':'Profs'],['parents',lang==='ar'?'الآباء':'Parents'],['parametres',lang==='ar'?'إعدادات':'Config']].map(([k,l])=>(
               <div key={k} onClick={()=>setTab(k)}
                 style={{flex:1,padding:'8px 4px',borderRadius:8,textAlign:'center',fontSize:12,fontWeight:600,
                   cursor:'pointer',background:tab===k?'#fff':'transparent',color:tab===k?'#1a1a1a':'#888'}}>
@@ -865,7 +865,36 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile 
           </div>
         )}
 
-        {confirmModal.isOpen&&(
+        {/* PARAMÈTRES */}
+        {tab==='parametres'&&(
+          <div style={{padding:'12px'}}>
+            <div style={{fontSize:11,fontWeight:700,color:'#888',textTransform:'uppercase',letterSpacing:'1px',marginBottom:12}}>
+              {lang==='ar'?'إعدادات المدرسة':'Configuration école'}
+            </div>
+            {[
+              {icon:'📚', label:lang==='ar'?'المستويات':'Niveaux', desc:lang==='ar'?'إدارة مستويات المدرسة':"Configurer les niveaux de l'école", page:'niveaux', color:'#1D9E75', bg:'#E1F5EE'},
+              {icon:'📝', label:lang==='ar'?'الامتحانات':'Examens',    desc:lang==='ar'?'تكوين الامتحانات والحدود':'Configurer les examens et seuils',    page:'examens', color:'#EF9F27', bg:'#FAEEDA'},
+              {icon:'🔧', label:lang==='ar'?'مجموعات الامتحان':'Blocs', desc:lang==='ar'?'تعريف مجموعات الهزب والسور':'Définir les blocs Hizb / Sourates',   page:'blocs',   color:'#378ADD', bg:'#E6F1FB'},
+              {icon:'🏅', label:lang==='ar'?'نتائج الامتحانات':'Résultats', desc:lang==='ar'?'تسجيل نتائج الامتحانات':'Saisir et consulter les résultats',  page:'resultats_examens', color:'#534AB7', bg:'#EEEDFE'},
+            ].map(item=>(
+              <div key={item.page} onClick={()=>navigate(item.page)}
+                style={{background:'#fff',borderRadius:14,padding:'16px',marginBottom:10,
+                  border:`0.5px solid ${item.color}20`,display:'flex',alignItems:'center',gap:14,cursor:'pointer'}}>
+                <div style={{width:48,height:48,borderRadius:12,background:item.bg,
+                  display:'flex',alignItems:'center',justifyContent:'center',fontSize:22,flexShrink:0}}>
+                  {item.icon}
+                </div>
+                <div style={{flex:1}}>
+                  <div style={{fontWeight:700,fontSize:15,color:'#1a1a1a'}}>{item.label}</div>
+                  <div style={{fontSize:12,color:'#888',marginTop:2}}>{item.desc}</div>
+                </div>
+                <span style={{color:'#ccc',fontSize:18}}>›</span>
+              </div>
+            ))}
+          </div>
+        )}
+
+                {confirmModal.isOpen&&(
           <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.5)',zIndex:1000,display:'flex',alignItems:'center',justifyContent:'center',padding:20}}>
             <div style={{background:'#fff',borderRadius:16,padding:24,maxWidth:320,width:'100%'}}>
               <div style={{fontWeight:700,fontSize:16,marginBottom:8}}>{confirmModal.title}</div>
@@ -892,6 +921,7 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile 
           <div className={`tab ${tab === 'eleves' ? 'active' : ''}`} onClick={() => setTab('eleves')}>{t(lang, 'eleves')}</div>
           <div className={`tab ${tab === 'instituteurs' ? 'active' : ''}`} onClick={() => setTab('instituteurs')}>{t(lang, 'instituteurs')}</div>
           <div className={`tab ${tab === 'parents' ? 'active' : ''}`} onClick={() => setTab('parents')}>👨‍👩‍👦 {lang==='ar'?'الآباء':(lang==='ar'?'الآباء':'Parents')}</div>
+          <div className={`tab ${tab === 'parametres' ? 'active' : ''}`} onClick={() => setTab('parametres')}>⚙️ {lang==='ar'?'إعدادات':'Paramètres'}</div>
         </div>
         <div style={{display:'flex',gap:6}}>
           {tab==='eleves'&&<>

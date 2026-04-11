@@ -26,6 +26,10 @@ const Finance             = lazy(() => import('./pages/Finance'));
 const ValidationCollective= lazy(() => import('./pages/ValidationCollective'));
 const MurajaDashboard     = lazy(() => import('./pages/MurajaDashboard'));
 const ElevesInactifs      = lazy(() => import('./pages/ElevesInactifs'));
+const GestionNiveaux      = lazy(() => import('./pages/GestionNiveaux'));
+const GestionExamens      = lazy(() => import('./pages/GestionExamens'));
+const GestionBlocs        = lazy(() => import('./pages/GestionBlocs'));
+const ResultatsExamens    = lazy(() => import('./pages/ResultatsExamens'));
 import { t, getDir } from './lib/i18n';
 import { ToastProvider } from './lib/toast';
 import { setSouratesDB } from './lib/sourates';
@@ -264,6 +268,10 @@ export default function App() {
           {page === 'profil_instituteur'&& selectedInstituteur && <ProfilInstituteur instituteur={selectedInstituteur} {...pageProps} />}
           {page === 'comparaison'       && <Comparaison eleves={compareEleves} {...pageProps} />}
           {page === 'rapport_mensuel'   && <RapportMensuel {...pageProps} />}
+          {page === 'niveaux'           && user.role === 'surveillant' && <GestionNiveaux {...pageProps} />}
+          {page === 'examens'           && user.role === 'surveillant' && <GestionExamens {...pageProps} />}
+          {page === 'blocs'             && user.role === 'surveillant' && <GestionBlocs {...pageProps} />}
+          {page === 'resultats_examens' && <ResultatsExamens {...pageProps} data={selectedEleve} />}
           </Suspense>
           </>
           }
