@@ -21,11 +21,9 @@ export default function GestionEnsembles({ user, navigate, goBack, lang='fr', is
 
   useEffect(() => { loadData(); }, []);
 
-  useEffect(() => {
-    if (filtreNiveau && souratesDB.length > 0) chargerProgramme(filtreNiveau, souratesDB);
-  }, [filtreNiveau, souratesDB]);
+  // Programme chargé explicitement via chargerProgramme()
 
-  const loadData = async () => {
+  const loadData = async (niveauASelectionner) => {
     setLoading(true);
     const [{data:nd},{data:ed},{data:sd}] = await Promise.all([
       supabase.from('niveaux').select('id,code,nom,type,couleur')
@@ -37,7 +35,9 @@ export default function GestionEnsembles({ user, navigate, goBack, lang='fr', is
     setNiveaux(nd||[]);
     setEnsembles(ed||[]);
     setSouratesDB(sd||[]);
-    if (nd?.length > 0 && !filtreNiveau) setFiltreNiveau(nd[0].id);
+    // Sélectionner le niveau : priorité au paramètre, sinon premier niveau
+    const nid = niveauASelectionner || filtreNiveau || nd?.[0]?.id;
+    if (nid) setFiltreNiveau(nid);
     setLoading(false);
   };
 
@@ -113,9 +113,8 @@ export default function GestionEnsembles({ user, navigate, goBack, lang='fr', is
     setSaving(false);
     if (error) { toast.error(error.message||'Erreur'); return; }
     toast.success(editing?(lang==='ar'?'✅ تم التحديث':'✅ Modifié !'):(lang==='ar'?'✅ تم الإضافة':'✅ Ensemble ajouté !'));
-    setFiltreNiveau(niveauIdSauvegarde); // afficher le niveau de l'ensemble créé
     resetForm();
-    loadData();
+    loadData(niveauIdSauvegarde); // afficher le niveau de l'ensemble créé
   };
 
   const supprimer = (e) => {
