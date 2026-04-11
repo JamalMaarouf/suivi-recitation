@@ -16,7 +16,7 @@ export default function GestionEnsembles({ user, navigate, goBack, lang='fr', is
   const [confirmModal, setConfirmModal] = useState({isOpen:false});
   const scrollRef = useRef(null);
 
-  const emptyForm = { nom:'', ordre:1, sourates_ids:[] };
+  const emptyForm = { nom:'', niveau_id:'', ordre:1, sourates_ids:[] };
   const [form, setForm] = useState(emptyForm);
 
   useEffect(() => { loadData(); }, []);
@@ -57,26 +57,34 @@ export default function GestionEnsembles({ user, navigate, goBack, lang='fr', is
     setProgrammeIds(convertis);
   };
 
+  // Niveau affiché dans la liste = filtreNiveau
+  // Niveau du formulaire = form.niveau_id (peut différer)
   const niveauSel    = niveaux.find(n=>n.id===filtreNiveau);
-  const nc           = niveauSel?.couleur || '#1D9E75';
+  const niveauForm   = niveaux.find(n=>n.id===form.niveau_id);
+  const nc           = (showForm ? niveauForm?.couleur : niveauSel?.couleur) || '#1D9E75';
   const ensNiveau    = ensembles.filter(e=>e.niveau_id===filtreNiveau).sort((a,b)=>a.ordre-b.ordre);
-  // Sourates du programme dans l'ordre décroissant
+  // Sourates du programme du niveau sélectionné dans le formulaire
   const souratesProg = souratesDB.filter(s=>programmeIds.includes(s.id)).sort((a,b)=>b.numero-a.numero);
-  // Sourates pas encore dans un ensemble pour ce niveau
-  const sAffectees   = ensembles.filter(e=>e.niveau_id===filtreNiveau&&e.id!==editing)
-                                 .flatMap(e=>e.sourates_ids||[]);
+  // Sourates déjà dans un ensemble pour ce niveau (dans le formulaire)
+  const sAffectees   = ensembles
+    .filter(e=>e.niveau_id===(form.niveau_id||filtreNiveau)&&e.id!==editing)
+    .flatMap(e=>e.sourates_ids||[]);
 
   const resetForm = () => { setEditing(null); setForm(emptyForm); setShowForm(false); };
 
   const startCreate = () => {
     setEditing(null);
-    setForm({...emptyForm, ordre: ensNiveau.length+1});
+    // niveau_id vide — l'utilisateur le choisit dans le formulaire
+    setForm({...emptyForm, niveau_id:'', ordre:1, sourates_ids:[]});
+    setProgrammeIds([]);
     setShowForm(true);
   };
 
-  const startEdit = (e) => {
+  const startEdit = async (e) => {
     setEditing(e.id);
-    setForm({ nom:e.nom, ordre:e.ordre, sourates_ids:e.sourates_ids||[] });
+    setForm({ nom:e.nom, niveau_id:e.niveau_id||'', ordre:e.ordre, sourates_ids:e.sourates_ids||[] });
+    // Charger le programme du niveau de cet ensemble
+    if (e.niveau_id) await chargerProgramme(e.niveau_id, souratesDB);
     setShowForm(true);
   };
 
@@ -95,7 +103,8 @@ export default function GestionEnsembles({ user, navigate, goBack, lang='fr', is
     if (!form.nom.trim()) return toast.warning(lang==='ar'?'الاسم إلزامي':'Le nom est obligatoire');
     if (form.sourates_ids.length===0) return toast.warning(lang==='ar'?'اختر سورة واحدة على الأقل':'Sélectionnez au moins une sourate');
     setSaving(true);
-    const payload = { ecole_id:user.ecole_id, niveau_id:filtreNiveau,
+    if (!form.niveau_id) return toast.warning(lang==='ar'?'اختر المستوى':'Sélectionnez un niveau');
+    const payload = { ecole_id:user.ecole_id, niveau_id:form.niveau_id,
       nom:form.nom.trim(), ordre:parseInt(form.ordre)||1, sourates_ids:form.sourates_ids };
     let error;
     if (editing) ({ error } = await supabase.from('ensembles_sourates').update(payload).eq('id',editing));
@@ -162,8 +171,8 @@ export default function GestionEnsembles({ user, navigate, goBack, lang='fr', is
               autoFocus/>
           </div>
 
-          {/* Légende */}
-          <div style={{padding:'10px 18px',background:'#f9f9f6',
+          {/* Légende + filtre — uniquement si niveau choisi */}
+          {form.niveau_id&&<div style={{padding:'10px 18px',background:'#f9f9f6',
             borderBottom:'0.5px solid #e0e0d8',flexShrink:0,
             display:'flex',gap:16,flexWrap:'wrap',alignItems:'center'}}>
             <div style={{display:'flex',alignItems:'center',gap:6,fontSize:11,color:'#666'}}>
@@ -186,8 +195,8 @@ export default function GestionEnsembles({ user, navigate, goBack, lang='fr', is
             {/* Boutons rapides */}
             <div style={{marginRight:'auto',display:'flex',gap:6}}>
               <button onClick={()=>setForm(f=>({...f,sourates_ids:nonAffectees.map(s=>s.id)}))}
-                style={{padding:'3px 10px',borderRadius:20,border:`0.5px solid ${nc}`,
-                  background:`${nc}15`,color:nc,fontSize:11,cursor:'pointer',
+                style={{padding:'3px 10px',borderRadius:20,border:`0.5px solid ${ncForm}`,
+                  background:`${ncForm}15`,color:ncForm,fontSize:11,cursor:'pointer',
                   fontWeight:600,fontFamily:'inherit'}}>
                 {lang==='ar'?'تحديد المتاحة':'Sél. disponibles'}
               </button>
@@ -200,10 +209,18 @@ export default function GestionEnsembles({ user, navigate, goBack, lang='fr', is
                 </button>
               )}
             </div>
-          </div>
+          </div>}
 
-          {/* Liste sourates */}
-          {souratesProg.length===0?(
+          {/* ÉTAPE 3 — Liste sourates (si niveau choisi) */}
+          {!form.niveau_id?(
+            <div style={{flex:1,display:'flex',alignItems:'center',justifyContent:'center',
+              padding:'2rem',flexDirection:'column',gap:8,color:'#aaa'}}>
+              <div style={{fontSize:36}}>☝️</div>
+              <div style={{fontSize:14,textAlign:'center'}}>
+{lang==='ar'?'اختر المستوى أولاً لعرض سوره':"Choisissez d'abord un niveau pour afficher son programme"}
+              </div>
+            </div>
+          ):souratesProg.length===0?(
             <div style={{flex:1,display:'flex',alignItems:'center',justifyContent:'center',
               padding:'2rem',flexDirection:'column',gap:10,color:'#aaa'}}>
               <div style={{fontSize:36}}>⚠️</div>
@@ -213,7 +230,7 @@ export default function GestionEnsembles({ user, navigate, goBack, lang='fr', is
                   :"Aucun programme défini. Ajoutez-le d'abord dans Niveaux."}
               </div>
               <button onClick={()=>{resetForm();navigate('niveaux');}}
-                style={{padding:'10px 20px',background:nc,color:'#fff',border:'none',
+                style={{padding:'10px 20px',background:ncForm,color:'#fff',border:'none',
                   borderRadius:10,fontSize:13,fontWeight:600,cursor:'pointer',fontFamily:'inherit'}}>
                 {lang==='ar'?'انتقل إلى المستويات':'Aller aux Niveaux →'}
               </button>
@@ -234,16 +251,16 @@ export default function GestionEnsembles({ user, navigate, goBack, lang='fr', is
                       <div key={s.id} onClick={()=>toggleSourate(s.id)}
                         style={{display:'flex',alignItems:'center',gap:10,padding:'10px 12px',
                           borderRadius:10,cursor:'pointer',marginBottom:5,
-                          background:sel?`${nc}12`:'#f5f5f0',
-                          border:`1.5px solid ${sel?nc:'#e0e0d8'}`}}>
+                          background:sel?`${ncForm}12`:'#f5f5f0',
+                          border:`1.5px solid ${sel?ncForm:'#e0e0d8'}`}}>
                         <div style={{width:22,height:22,borderRadius:5,flexShrink:0,
-                          border:`1.5px solid ${sel?nc:'#ccc'}`,background:sel?nc:'#fff',
+                          border:`1.5px solid ${sel?ncForm:'#ccc'}`,background:sel?ncForm:'#fff',
                           display:'flex',alignItems:'center',justifyContent:'center'}}>
                           {sel&&<span style={{color:'#fff',fontSize:12,fontWeight:700}}>✓</span>}
                         </div>
                         <span style={{fontSize:11,color:'#aaa',minWidth:24}}>{s.numero}</span>
                         <span style={{flex:1,fontSize:14,fontFamily:"'Tajawal',Arial",direction:'rtl',
-                          color:sel?nc:'#333',fontWeight:sel?700:400}}>{s.nom_ar}</span>
+                          color:sel?ncForm:'#333',fontWeight:sel?700:400}}>{s.nom_ar}</span>
                       </div>
                     );
                   })}
@@ -263,10 +280,10 @@ export default function GestionEnsembles({ user, navigate, goBack, lang='fr', is
                       <div key={s.id} onClick={()=>toggleSourate(s.id)}
                         style={{display:'flex',alignItems:'center',gap:10,padding:'10px 12px',
                           borderRadius:10,cursor:'pointer',marginBottom:5,
-                          background:sel?`${nc}12`:'#FAEEDA30',
-                          border:`1.5px solid ${sel?nc:'#EF9F2750'}`}}>
+                          background:sel?`${ncForm}12`:'#FAEEDA30',
+                          border:`1.5px solid ${sel?ncForm:'#EF9F2750'}`}}>
                         <div style={{width:22,height:22,borderRadius:5,flexShrink:0,
-                          border:`1.5px solid ${sel?nc:'#EF9F27'}`,background:sel?nc:'#FAEEDA',
+                          border:`1.5px solid ${sel?ncForm:'#EF9F27'}`,background:sel?ncForm:'#FAEEDA',
                           display:'flex',alignItems:'center',justifyContent:'center'}}>
                           {sel?<span style={{color:'#fff',fontSize:12,fontWeight:700}}>✓</span>
                              :<span style={{color:'#EF9F27',fontSize:10}}>↺</span>}
@@ -297,9 +314,9 @@ export default function GestionEnsembles({ user, navigate, goBack, lang='fr', is
             </button>
             <button onClick={save} disabled={saving||form.sourates_ids.length===0||!form.nom.trim()}
               style={{flex:2,padding:'13px',
-                background:saving||form.sourates_ids.length===0||!form.nom.trim()?'#ccc':editing?'#378ADD':nc,
+                background:saving||form.sourates_ids.length===0||!form.nom.trim()||!form.niveau_id?'#ccc':editing?'#378ADD':ncForm,
                 color:'#fff',border:'none',borderRadius:12,fontSize:14,fontWeight:700,
-                cursor:saving?'not-allowed':'pointer',fontFamily:'inherit'}}>
+                cursor:saving||!form.niveau_id?'not-allowed':'pointer',fontFamily:'inherit'}}>
               {saving?'...':(editing
                 ?(lang==='ar'?'تحديث':'Mettre à jour ✓')
                 :(lang==='ar'?'حفظ الإضافة':'Enregistrer'))}
