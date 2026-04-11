@@ -40,13 +40,33 @@ export default function GestionEnsembles({ user, navigate, goBack, lang='fr', is
   };
 
   const chargerProgramme = async (niveauId) => {
+    // Charger sourates si pas encore disponibles
+    let sDB = souratesDB;
+    if (souratesDB.length === 0) {
+      const { data: sd } = await supabase.from('sourates').select('*').order('numero');
+      if (sd && sd.length > 0) { setSouratesDB(sd); sDB = sd; }
+    }
     const { data } = await supabase.from('programmes')
       .select('reference_id').eq('niveau_id',niveauId)
       .eq('ecole_id',user.ecole_id).order('ordre');
-    setProgrammes(data ? data.map(d=>d.reference_id) : []);
+    if (!data || data.length === 0) { setProgrammes([]); return; }
+    const ids = data.map(d=>d.reference_id);
+    // Vérifier si les reference_id sont des UUIDs valides dans souratesDB
+    const idsValides = ids.filter(id => sDB.some(s=>s.id===id));
+    if (idsValides.length > 0) {
+      setProgrammes(idsValides);
+    } else {
+      // Migration : convertir numéros → UUIDs
+      const idsConvertis = ids.map(id=>{
+        const num = parseInt(id);
+        if (!isNaN(num)) return sDB.find(s=>s.numero===num)?.id||null;
+        return id;
+      }).filter(Boolean);
+      setProgrammes(idsConvertis);
+    }
   };
 
-  // Sourates du programme du niveau sélectionné (dans l'ordre décroissant)
+  // Sourates du programme (dans l'ordre décroissant du numéro)
   const souratesProgramme = souratesDB
     .filter(s => programmes.includes(s.id))
     .sort((a,b) => b.numero - a.numero);
@@ -57,13 +77,13 @@ export default function GestionEnsembles({ user, navigate, goBack, lang='fr', is
   const startCreate = () => {
     setEditing(null);
     setForm({...emptyForm, ordre: ensemblesNiveau.length+1});
-    setShowForm(true); window.scrollTo(0,0);
+    setShowForm(true);
   };
 
   const startEdit = (e) => {
     setEditing(e.id);
     setForm({ nom:e.nom, ordre:e.ordre, sourates_ids:e.sourates_ids||[] });
-    setShowForm(true); window.scrollTo(0,0);
+    setShowForm(true);
   };
 
   const resetForm = () => { setEditing(null); setForm(emptyForm); setShowForm(false); };
@@ -153,40 +173,69 @@ export default function GestionEnsembles({ user, navigate, goBack, lang='fr', is
               :"Aucun programme défini pour ce niveau. Ajoutez-le d'abord dans Niveaux."}
           </div>
         ):(
-          <div style={{maxHeight:260,overflowY:'auto',
-            display:'flex',flexDirection:'column',gap:5}}>
-            {souratesProgramme.map(s=>{
-              const sel = form.sourates_ids.includes(s.id);
-              const nc  = niveauSelectionne?.couleur||'#1D9E75';
-              // Déjà dans un autre ensemble ?
-              const dejaAffecte = ensembles
-                .filter(e=>e.id!==editing&&e.niveau_id===filtreNiveau)
-                .some(e=>(e.sourates_ids||[]).includes(s.id));
-              return(
-                <div key={s.id} onClick={()=>toggleSourate(s.id)}
-                  style={{display:'flex',alignItems:'center',gap:10,padding:'10px 12px',
-                    borderRadius:10,cursor:'pointer',
-                    background:sel?`${nc}10`:dejaAffecte?'#f9f9f6':'#f5f5f0',
-                    border:`1.5px solid ${sel?nc:dejaAffecte?'#e0d8c0':'#e0e0d8'}`,
-                    opacity:dejaAffecte&&!sel?0.6:1}}>
-                  <div style={{width:22,height:22,borderRadius:5,flexShrink:0,
-                    border:`1.5px solid ${sel?nc:'#ccc'}`,
-                    background:sel?nc:'#fff',
-                    display:'flex',alignItems:'center',justifyContent:'center'}}>
-                    {sel&&<span style={{color:'#fff',fontSize:12,fontWeight:700}}>✓</span>}
-                  </div>
-                  <span style={{fontSize:11,color:'#aaa',minWidth:24}}>{s.numero}</span>
-                  <span style={{flex:1,fontSize:14,fontFamily:"'Tajawal',Arial",direction:'rtl',
-                    color:sel?nc:'#333',fontWeight:sel?600:400}}>{s.nom_ar}</span>
-                  {dejaAffecte&&!sel&&(
-                    <span style={{fontSize:10,color:'#EF9F27',flexShrink:0}}>
-                      {lang==='ar'?'مُعيَّنة':'Affectée'}
+          <>
+            {/* Sélection rapide */}
+            <div style={{display:'flex',gap:8,marginBottom:8,alignItems:'center',flexWrap:'wrap'}}>
+              <button onClick={()=>setForm(f=>({...f,sourates_ids:souratesProgramme.map(s=>s.id)}))}
+                style={{padding:'3px 10px',borderRadius:20,
+                  border:`0.5px solid ${niveauSelectionne?.couleur||'#1D9E75'}`,
+                  background:`${niveauSelectionne?.couleur||'#1D9E75'}20`,
+                  color:niveauSelectionne?.couleur||'#1D9E75',
+                  fontSize:11,cursor:'pointer',fontWeight:600,fontFamily:'inherit'}}>
+                {lang==='ar'?'تحديد الكل':'Tout sélectionner'}
+              </button>
+              {form.sourates_ids.length>0&&(
+                <button onClick={()=>setForm(f=>({...f,sourates_ids:[]}))}
+                  style={{padding:'3px 10px',borderRadius:20,border:'0.5px solid #e0e0d8',
+                    background:'#FCEBEB',fontSize:11,cursor:'pointer',
+                    color:'#E24B4A',fontFamily:'inherit'}}>
+                  ✕ {lang==='ar'?'مسح':'Effacer'}
+                </button>
+              )}
+              <span style={{fontSize:11,fontWeight:700,
+                color:niveauSelectionne?.couleur||'#1D9E75',marginRight:'auto'}}>
+                {form.sourates_ids.length} / {souratesProgramme.length} {lang==='ar'?'محدد':'sélectionné(s)'}
+              </span>
+            </div>
+            <div style={{maxHeight:300,overflowY:'auto',
+              display:'flex',flexDirection:'column',gap:5,overscrollBehavior:'contain'}}>
+              {souratesProgramme.map(s=>{
+                const sel = form.sourates_ids.includes(s.id);
+                const nc  = niveauSelectionne?.couleur||'#1D9E75';
+                const autreEnsemble = ensembles
+                  .filter(e=>e.id!==editing&&e.niveau_id===filtreNiveau)
+                  .find(e=>(e.sourates_ids||[]).includes(s.id));
+                return(
+                  <div key={s.id} onClick={()=>toggleSourate(s.id)}
+                    style={{display:'flex',alignItems:'center',gap:10,padding:'10px 12px',
+                      borderRadius:10,cursor:'pointer',
+                      background:sel?`${nc}10`:autreEnsemble?'#f9f9f6':'#f5f5f0',
+                      border:`1.5px solid ${sel?nc:autreEnsemble?'#e0d8c0':'#e0e0d8'}`}}>
+                    <div style={{width:22,height:22,borderRadius:5,flexShrink:0,
+                      border:`1.5px solid ${sel?nc:'#ccc'}`,
+                      background:sel?nc:'#fff',
+                      display:'flex',alignItems:'center',justifyContent:'center'}}>
+                      {sel&&<span style={{color:'#fff',fontSize:12,fontWeight:700}}>✓</span>}
+                    </div>
+                    <span style={{fontSize:11,color:'#aaa',minWidth:24}}>{s.numero}</span>
+                    <span style={{flex:1,fontSize:14,fontFamily:"'Tajawal',Arial",
+                      direction:'rtl',color:sel?nc:'#333',fontWeight:sel?600:400}}>
+                      {s.nom_ar}
                     </span>
-                  )}
-                </div>
-              );
-            })}
-          </div>
+                    {autreEnsemble&&!sel&&(
+                      <span style={{fontSize:10,color:'#EF9F27',flexShrink:0,
+                        padding:'1px 6px',borderRadius:10,background:'#FAEEDA'}}>
+                        {autreEnsemble.nom}
+                      </span>
+                    )}
+                    {sel&&(
+                      <span style={{fontSize:10,color:nc,flexShrink:0}}>✓</span>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </>
         )}
       </div>
 
