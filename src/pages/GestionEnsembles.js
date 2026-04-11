@@ -158,30 +158,29 @@ export default function GestionEnsembles({ user, navigate, goBack, lang='fr', is
                 style={{background:'none',border:'none',fontSize:22,cursor:'pointer',color:'#888',padding:0}}>×</button>
             </div>
 
-            {/* ÉTAPE 1 — Sélection du niveau */}
+            {/* ÉTAPE 1 — Sélection du niveau via liste déroulante */}
             <div style={{marginBottom:12}}>
-              <div style={{fontSize:11,fontWeight:700,color:'#888',marginBottom:8,
-                textTransform:'uppercase',letterSpacing:'0.5px'}}>
+              <label style={{fontSize:11,fontWeight:700,color:'#888',display:'block',
+                marginBottom:8,textTransform:'uppercase',letterSpacing:'0.5px'}}>
                 {lang==='ar'?'① اختر المستوى':'① Choisir le niveau'}
-              </div>
-              <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>
+              </label>
+              <select
+                value={form.niveau_id}
+                onChange={async e=>{
+                  const nid = e.target.value;
+                  setForm(f=>({...f,niveau_id:nid,sourates_ids:[]}));
+                  if (nid) await chargerProgramme(nid, souratesDB);
+                  else setProgrammeIds([]);
+                }}
+                style={{width:'100%',padding:'11px 14px',borderRadius:10,
+                  border:`1.5px solid ${ncForm}50`,fontSize:14,fontFamily:'inherit',
+                  background:'#fff',color:form.niveau_id?'#1a1a1a':'#888',
+                  cursor:'pointer',outline:'none',boxSizing:'border-box'}}>
+                <option value="">— {lang==='ar'?'اختر المستوى':'Sélectionnez un niveau'} —</option>
                 {niveaux.map(n=>(
-                  <div key={n.id}
-                    onClick={async()=>{
-                      setForm(f=>({...f,niveau_id:n.id,sourates_ids:[]}));
-                      await chargerProgramme(n.id, souratesDB);
-                    }}
-                    style={{display:'flex',alignItems:'center',gap:6,padding:'7px 12px',
-                      borderRadius:20,cursor:'pointer',flexShrink:0,
-                      background:form.niveau_id===n.id?n.couleur:'#f5f5f0',
-                      color:form.niveau_id===n.id?'#fff':'#666',
-                      border:`1.5px solid ${form.niveau_id===n.id?n.couleur:'#e0e0d8'}`,
-                      fontWeight:form.niveau_id===n.id?700:400,fontSize:13}}>
-                    <span style={{fontWeight:700}}>{n.code}</span>
-                    <span style={{fontSize:11,opacity:0.85}}>{n.nom}</span>
-                  </div>
+                  <option key={n.id} value={n.id}>{n.code} — {n.nom}</option>
                 ))}
-              </div>
+              </select>
             </div>
 
             {/* ÉTAPE 2 — Nom (visible seulement si niveau choisi) */}
@@ -375,37 +374,16 @@ export default function GestionEnsembles({ user, navigate, goBack, lang='fr', is
     <div style={{background:'#fff',padding:isMobile?'14px 16px 12px':'0 0 16px',
       borderBottom:isMobile?'0.5px solid #e0e0d8':'none',
       position:isMobile?'sticky':'relative',top:0,zIndex:100}}>
-      <div style={{display:'flex',alignItems:'center',gap:12,flexWrap:'wrap'}}>
+      <div style={{display:'flex',alignItems:'center',gap:12}}>
         <button onClick={()=>goBack?goBack():navigate('dashboard')}
           style={{background:'none',border:'none',cursor:'pointer',
             fontSize:isMobile?22:14,color:'#085041',padding:0,
             fontFamily:'inherit',fontWeight:600}}>
           {isMobile?'←':'← Retour'}
         </button>
-        {!isMobile&&<div style={{fontSize:20,fontWeight:700}}>
+        <div style={{flex:1,fontSize:isMobile?17:20,fontWeight:isMobile?800:700,
+          color:isMobile?'#085041':'#1a1a1a'}}>
           📦 {lang==='ar'?'مجموعات السور':'Ensembles de sourates'}
-        </div>}
-        {isMobile&&<div style={{fontSize:17,fontWeight:800,color:'#085041'}}>
-          📦 {lang==='ar'?'مجموعات السور':'Ensembles'}
-        </div>}
-        {/* Liste déroulante */}
-        <div style={{display:'flex',alignItems:'center',gap:8,marginRight:'auto'}}>
-          <select value={filtreNiveau}
-            onChange={e=>{setFiltreNiveau(e.target.value);setShowForm(false);}}
-            style={{padding:'8px 14px',borderRadius:10,
-              border:`1.5px solid ${nc}50`,fontSize:13,fontFamily:'inherit',
-              background:'#fff',color:'#1a1a1a',cursor:'pointer',
-              fontWeight:600,minWidth:isMobile?160:200,outline:'none'}}>
-            {niveaux.length===0&&<option value="">{lang==='ar'?'لا توجد مستويات':'Aucun niveau'}</option>}
-            {niveaux.map(n=>(
-              <option key={n.id} value={n.id}>{n.code} — {n.nom}</option>
-            ))}
-          </select>
-          {filtreNiveau&&(
-            <span style={{fontSize:12,color:'#888',whiteSpace:'nowrap'}}>
-              {ensNiveau.length} {lang==='ar'?'مجموعة':'ensemble(s)'}
-            </span>
-          )}
         </div>
       </div>
     </div>
