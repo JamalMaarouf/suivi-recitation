@@ -32,7 +32,6 @@ const GestionBlocs        = lazy(() => import('./pages/GestionBlocs'));
 const ResultatsExamens    = lazy(() => import('./pages/ResultatsExamens'));
 import { t, getDir } from './lib/i18n';
 import { ToastProvider } from './lib/toast';
-import { setSouratesDB } from './lib/sourates';
 import { supabase } from './lib/supabase';
 import './App.css';
 
@@ -104,10 +103,6 @@ export default function App() {
     if (saved) setUser(JSON.parse(saved));
     const handleResize = () => setIsMobile(window.innerWidth < 768);
     window.addEventListener('resize', handleResize);
-    // Load sourates from DB for 5B/5A levels
-    supabase.from('sourates').select('*').then(({ data }) => {
-      if (data) setSouratesDB(data);
-    });
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
