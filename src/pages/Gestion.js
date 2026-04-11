@@ -936,6 +936,49 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile 
         </div>
       </div>
 
+      {tab === 'parametres' && (
+        <div>
+          <div style={{fontSize:13,color:'#888',marginBottom:'1.25rem'}}>
+            {lang==='ar'?'إعدادات المدرسة — تكوين المستويات والامتحانات':'Configuration école — niveaux, examens et blocs'}
+          </div>
+          <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(240px,1fr))',gap:14}}>
+            {[
+              {icon:'📚', label:lang==='ar'?'المستويات':'Niveaux',
+               desc:lang==='ar'?'إدارة مستويات المدرسة وألوانها':"Configurer les niveaux de l'école",
+               page:'niveaux', color:'#1D9E75', bg:'#E1F5EE'},
+              {icon:'📝', label:lang==='ar'?'الامتحانات':'Examens',
+               desc:lang==='ar'?'تكوين الامتحانات والحدود':'Configurer les examens et seuils',
+               page:'examens', color:'#EF9F27', bg:'#FAEEDA'},
+              {icon:'🔧', label:lang==='ar'?'مجموعات الامتحان':'Blocs',
+               desc:lang==='ar'?'تعريف مجموعات الهزب والسور':'Définir les blocs Hizb / Sourates',
+               page:'blocs', color:'#378ADD', bg:'#E6F1FB'},
+              {icon:'🏅', label:lang==='ar'?'نتائج الامتحانات':'Résultats',
+               desc:lang==='ar'?'تسجيل ومتابعة نتائج الامتحانات':'Saisir et consulter les résultats',
+               page:'resultats_examens', color:'#534AB7', bg:'#EEEDFE'},
+            ].map(item=>(
+              <div key={item.page} onClick={()=>navigate(item.page)}
+                style={{background:'#fff',borderRadius:14,padding:'1.25rem',
+                  border:`0.5px solid ${item.color}20`,cursor:'pointer',
+                  display:'flex',alignItems:'center',gap:14,
+                  transition:'transform 0.15s'}}
+                onMouseEnter={e=>e.currentTarget.style.transform='translateY(-2px)'}
+                onMouseLeave={e=>e.currentTarget.style.transform='translateY(0)'}>
+                <div style={{width:52,height:52,borderRadius:14,background:item.bg,
+                  display:'flex',alignItems:'center',justifyContent:'center',
+                  fontSize:24,flexShrink:0}}>
+                  {item.icon}
+                </div>
+                <div style={{flex:1}}>
+                  <div style={{fontWeight:700,fontSize:15,color:'#1a1a1a',marginBottom:4}}>{item.label}</div>
+                  <div style={{fontSize:12,color:'#888',lineHeight:1.4}}>{item.desc}</div>
+                </div>
+                <span style={{color:'#ccc',fontSize:18}}>›</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {tab === 'eleves' && (
         <div>
           {/* Formulaire ajout / modification */}
