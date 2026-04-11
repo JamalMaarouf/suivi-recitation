@@ -23,6 +23,8 @@ export default function GestionExamens({ user, navigate, goBack, lang='fr', isMo
     score_minimum:70, bloquant:true, ordre:1
   };
   const [form, setForm] = useState(emptyForm);
+  // Programme du niveau sélectionné (éléments disponibles pour l'examen)
+  const [programmeNiveau, setProgrammeNiveau] = useState([]); // ids/nums du programme
 
   useEffect(() => { loadData(); }, []);
 
@@ -41,13 +43,36 @@ export default function GestionExamens({ user, navigate, goBack, lang='fr', isMo
 
   const niveauDuForm = niveaux.find(n=>n.id===form.niveau_id);
 
+  // Charger le programme du niveau quand niveau_id change dans le form
+  const chargerProgrammeNiveau = async (niveau_id) => {
+    if (!niveau_id) { setProgrammeNiveau([]); return; }
+    const { data } = await supabase
+      .from('programmes')
+      .select('reference_id, type_contenu')
+      .eq('niveau_id', niveau_id)
+      .eq('ecole_id', user.ecole_id)
+      .order('ordre');
+    if (data && data.length > 0) {
+      const niv = niveaux.find(n=>n.id===niveau_id);
+      setProgrammeNiveau(niv?.type === 'hizb'
+        ? data.map(d => parseInt(d.reference_id))
+        : data.map(d => d.reference_id)
+      );
+    } else {
+      setProgrammeNiveau([]);
+    }
+  };
+
   const startCreate = () => {
     setEditing(null);
     const nbExams = examens.filter(e=>e.niveau_id===filtreNiveau||filtreNiveau==='tous').length;
+    const nid = filtreNiveau==='tous' ? '' : filtreNiveau;
     setForm({...emptyForm, ordre: nbExams+1,
       type_contenu: niveaux.find(n=>n.id===filtreNiveau)?.type || 'hizb',
-      niveau_id: filtreNiveau==='tous' ? '' : filtreNiveau
+      niveau_id: nid
     });
+    if (nid) chargerProgrammeNiveau(nid);
+    else setProgrammeNiveau([]);
     setShowForm(true); window.scrollTo(0,0);
   };
 
@@ -62,6 +87,7 @@ export default function GestionExamens({ user, navigate, goBack, lang='fr', isMo
       bloquant: e.bloquant!==false,
       ordre: e.ordre||1
     });
+    if (e.niveau_id) chargerProgrammeNiveau(e.niveau_id);
     setShowForm(true); window.scrollTo(0,0);
   };
 
@@ -183,6 +209,7 @@ export default function GestionExamens({ user, navigate, goBack, lang='fr', isMo
             const niv = niveaux.find(n=>n.id===e.target.value);
             setForm(f=>({...f,niveau_id:e.target.value,
               type_contenu:niv?.type||'hizb',contenu_ids:[]}));
+            chargerProgrammeNiveau(e.target.value);
           }}>
           <option value="">— {lang==='ar'?'اختر مستوى':'Choisir un niveau'} —</option>
           {niveaux.map(n=>(
@@ -214,77 +241,111 @@ export default function GestionExamens({ user, navigate, goBack, lang='fr', isMo
             </div>
           </div>
 
-          {/* Hizb */}
+          {/* Hizb — uniquement ceux du programme du niveau */}
           {form.type_contenu==='hizb'&&(
             <>
-              {/* Sélection rapide */}
-              <div style={{display:'flex',gap:6,flexWrap:'wrap',marginBottom:10}}>
-                <span style={{fontSize:11,color:'#888',alignSelf:'center'}}>
-                  {lang==='ar'?'اختيار سريع:':'Sélection rapide :'}
-                </span>
-                {[1,5,10,15,20,30,60].map(n=>(
-                  <button key={n} onClick={()=>selectQuick(n)}
-                    style={{padding:'4px 10px',borderRadius:20,border:'0.5px solid #e0e0d8',
-                      background: JSON.stringify(form.contenu_ids)===JSON.stringify(Array.from({length:n},(_,i)=>i+1))
-                        ?'#1D9E75':'#f5f5f0',
-                      color: JSON.stringify(form.contenu_ids)===JSON.stringify(Array.from({length:n},(_,i)=>i+1))
-                        ?'#fff':'#666',
-                      fontSize:12,cursor:'pointer',fontWeight:500}}>
-                    1→{n}
-                  </button>
-                ))}
-              </div>
-              {/* Grille 60 Hizb */}
-              <div style={{display:'grid',gridTemplateColumns:'repeat(10,1fr)',gap:4}}>
-                {HIZB_NUMS.map(h=>{
-                  const sel=form.contenu_ids.includes(h);
-                  return(
-                    <div key={h} onClick={()=>toggleItem(h)}
-                      style={{height:36,borderRadius:8,display:'flex',alignItems:'center',
-                        justifyContent:'center',fontSize:12,fontWeight:sel?700:400,
-                        cursor:'pointer',transition:'all 0.1s',
-                        background:sel?'#1D9E75':'#f5f5f0',
-                        color:sel?'#fff':'#666',
-                        border:`1.5px solid ${sel?'#1D9E75':'#e0e0d8'}`}}>
-                      {h}
-                    </div>
-                  );
-                })}
-              </div>
+              {programmeNiveau.length===0?(
+                <div style={{textAlign:'center',padding:'1.5rem',background:'#FAEEDA',
+                  borderRadius:10,color:'#633806',fontSize:13}}>
+                  ⚠️ {lang==='ar'
+                    ?'لا يوجد برنامج لهذا المستوى. أضف البرنامج أولاً من صفحة المستويات.'
+                    :"Aucun programme défini pour ce niveau. Ajoutez-le d'abord dans Niveaux."}
+                </div>
+              ):(
+                <>
+                  {/* Sélection rapide : tout / effacer */}
+                  <div style={{display:'flex',gap:8,marginBottom:10,alignItems:'center',flexWrap:'wrap'}}>
+                    <button onClick={()=>setForm(f=>({...f,contenu_ids:[...programmeNiveau]}))}
+                      style={{padding:'4px 12px',borderRadius:20,border:'0.5px solid #1D9E75',
+                        background:'#E1F5EE',color:'#085041',fontSize:12,cursor:'pointer',fontWeight:600}}>
+                      {lang==='ar'?'تحديد الكل':'Tout sélectionner'} ({programmeNiveau.length})
+                    </button>
+                    {form.contenu_ids.length>0&&(
+                      <button onClick={()=>setForm(f=>({...f,contenu_ids:[]}))}
+                        style={{padding:'4px 12px',borderRadius:20,border:'0.5px solid #e0e0d8',
+                          background:'#FCEBEB',color:'#E24B4A',fontSize:12,cursor:'pointer'}}>
+                        ✕ {lang==='ar'?'مسح':'Effacer'}
+                      </button>
+                    )}
+                    <span style={{fontSize:11,color:'#888',marginLeft:'auto'}}>
+                      {lang==='ar'?'من برنامج المستوى':'Du programme du niveau'}
+                    </span>
+                  </div>
+                  {/* Grille des Hizb du programme uniquement */}
+                  <div style={{display:'grid',gridTemplateColumns:'repeat(10,1fr)',gap:4}}>
+                    {[...programmeNiveau].sort((a,b)=>a-b).map(h=>{
+                      const sel=form.contenu_ids.includes(h);
+                      return(
+                        <div key={h} onClick={()=>toggleItem(h)}
+                          style={{height:36,borderRadius:8,display:'flex',alignItems:'center',
+                            justifyContent:'center',fontSize:12,fontWeight:sel?700:400,
+                            cursor:'pointer',transition:'all 0.1s',
+                            background:sel?'#1D9E75':'#f5f5f0',
+                            color:sel?'#fff':'#666',
+                            border:`1.5px solid ${sel?'#1D9E75':'#e0e0d8'}`}}>
+                          {h}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </>
+              )}
             </>
           )}
 
-          {/* Sourates */}
+          {/* Sourates — uniquement celles du programme du niveau */}
           {form.type_contenu==='sourate'&&(
-            <div style={{maxHeight:220,overflowY:'auto',
-              display:'flex',flexDirection:'column',gap:5}}>
-              {souratesNiveau.length===0&&(
-                <div style={{textAlign:'center',color:'#aaa',padding:'1rem',fontSize:13}}>
-                  {lang==='ar'?'لا توجد سور لهذا المستوى':'Aucune sourate pour ce niveau'}
+            <>
+              {programmeNiveau.length===0?(
+                <div style={{textAlign:'center',padding:'1.5rem',background:'#FAEEDA',
+                  borderRadius:10,color:'#633806',fontSize:13}}>
+                  ⚠️ {lang==='ar'
+                    ?'لا يوجد برنامج لهذا المستوى. أضف البرنامج أولاً من صفحة المستويات.'
+                    :"Aucun programme défini. Ajoutez-le d'abord dans Niveaux."}
                 </div>
-              )}
-              {souratesNiveau.map(s=>{
-                const sel=form.contenu_ids.includes(s.id);
-                return(
-                  <div key={s.id} onClick={()=>toggleItem(s.id)}
-                    style={{display:'flex',alignItems:'center',gap:10,padding:'9px 12px',
-                      borderRadius:10,cursor:'pointer',
-                      background:sel?'#E1F5EE':'#f5f5f0',
-                      border:`1.5px solid ${sel?'#1D9E75':'#e0e0d8'}`}}>
-                    <div style={{width:20,height:20,borderRadius:5,flexShrink:0,
-                      border:`1.5px solid ${sel?'#1D9E75':'#ccc'}`,
-                      background:sel?'#1D9E75':'#fff',
-                      display:'flex',alignItems:'center',justifyContent:'center'}}>
-                      {sel&&<span style={{color:'#fff',fontSize:12,fontWeight:700}}>✓</span>}
-                    </div>
-                    <span style={{fontSize:11,color:'#aaa',minWidth:22}}>{s.numero}</span>
-                    <span style={{flex:1,fontSize:14,fontFamily:"'Tajawal',Arial",
-                      direction:'rtl',color:sel?'#085041':'#333',
-                      fontWeight:sel?600:400}}>{s.nom_ar}</span>
+              ):(
+                <>
+                  <div style={{display:'flex',gap:8,marginBottom:8,alignItems:'center'}}>
+                    <button onClick={()=>setForm(f=>({...f,contenu_ids:[...programmeNiveau]}))}
+                      style={{padding:'4px 12px',borderRadius:20,border:'0.5px solid #1D9E75',
+                        background:'#E1F5EE',color:'#085041',fontSize:12,cursor:'pointer',fontWeight:600}}>
+                      {lang==='ar'?'تحديد الكل':'Tout sélectionner'}
+                    </button>
+                    {form.contenu_ids.length>0&&(
+                      <button onClick={()=>setForm(f=>({...f,contenu_ids:[]}))}
+                        style={{padding:'4px 12px',borderRadius:20,border:'0.5px solid #e0e0d8',
+                          background:'#FCEBEB',color:'#E24B4A',fontSize:12,cursor:'pointer'}}>
+                        ✕ {lang==='ar'?'مسح':'Effacer'}
+                      </button>
+                    )}
                   </div>
-                );
-              })}
-            </div>
+                  <div style={{maxHeight:220,overflowY:'auto',
+                    display:'flex',flexDirection:'column',gap:5}}>
+                    {souratesDB.filter(s=>programmeNiveau.includes(s.id)).map(s=>{
+                      const sel=form.contenu_ids.includes(s.id);
+                      return(
+                        <div key={s.id} onClick={()=>toggleItem(s.id)}
+                          style={{display:'flex',alignItems:'center',gap:10,padding:'9px 12px',
+                            borderRadius:10,cursor:'pointer',
+                            background:sel?'#E1F5EE':'#f5f5f0',
+                            border:`1.5px solid ${sel?'#1D9E75':'#e0e0d8'}`}}>
+                          <div style={{width:20,height:20,borderRadius:5,flexShrink:0,
+                            border:`1.5px solid ${sel?'#1D9E75':'#ccc'}`,
+                            background:sel?'#1D9E75':'#fff',
+                            display:'flex',alignItems:'center',justifyContent:'center'}}>
+                            {sel&&<span style={{color:'#fff',fontSize:12,fontWeight:700}}>✓</span>}
+                          </div>
+                          <span style={{fontSize:11,color:'#aaa',minWidth:22}}>{s.numero}</span>
+                          <span style={{flex:1,fontSize:14,fontFamily:"'Tajawal',Arial",
+                            direction:'rtl',color:sel?'#085041':'#333',
+                            fontWeight:sel?600:400}}>{s.nom_ar}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </>
+              )}
+            </>
           )}
         </div>
       )}
