@@ -100,10 +100,11 @@ export default function GestionEnsembles({ user, navigate, goBack, lang='fr', is
   };
 
   const save = async () => {
+    if (!form.niveau_id) return toast.warning(lang==='ar'?'اختر المستوى':'Sélectionnez un niveau');
     if (!form.nom.trim()) return toast.warning(lang==='ar'?'الاسم إلزامي':'Le nom est obligatoire');
     if (form.sourates_ids.length===0) return toast.warning(lang==='ar'?'اختر سورة واحدة على الأقل':'Sélectionnez au moins une sourate');
     setSaving(true);
-    if (!form.niveau_id) return toast.warning(lang==='ar'?'اختر المستوى':'Sélectionnez un niveau');
+    const niveauIdSauvegarde = form.niveau_id; // mémoriser avant resetForm
     const payload = { ecole_id:user.ecole_id, niveau_id:form.niveau_id,
       nom:form.nom.trim(), ordre:parseInt(form.ordre)||1, sourates_ids:form.sourates_ids };
     let error;
@@ -112,7 +113,9 @@ export default function GestionEnsembles({ user, navigate, goBack, lang='fr', is
     setSaving(false);
     if (error) { toast.error(error.message||'Erreur'); return; }
     toast.success(editing?(lang==='ar'?'✅ تم التحديث':'✅ Modifié !'):(lang==='ar'?'✅ تم الإضافة':'✅ Ensemble ajouté !'));
-    resetForm(); loadData();
+    setFiltreNiveau(niveauIdSauvegarde); // afficher le niveau de l'ensemble créé
+    resetForm();
+    loadData();
   };
 
   const supprimer = (e) => {
