@@ -131,3 +131,24 @@ export const getSouratesAsc = () =>
 // Pour la compatibilité avec l'existant
 // (le filtrage réel du programme se fait via Supabase table 'programmes')
 export const getSouratesForNiveau = (codeNiveau) => getSouratesDesc();
+
+// ══════════════════════════════════════════════════
+// COMPATIBILITÉ — anciennes constantes par niveau
+// Utilisées dans Gestion.js, GestionObjectifs.js, etc.
+// ══════════════════════════════════════════════════
+
+// Sourates niveaux Préscolaire (courtes sourates, Juz Amma)
+export const SOURATES_5B = SOURATES_CORAN.filter(s => s.numero >= 78 && s.numero <= 114)
+  .sort((a,b) => b.numero - a.numero);
+
+// Sourates niveau Primaire 1-2
+export const SOURATES_5A = SOURATES_CORAN.filter(s => s.numero >= 49 && s.numero <= 77)
+  .sort((a,b) => b.numero - a.numero);
+
+// Sourates niveau Primaire 3-4
+export const SOURATES_2M = SOURATES_CORAN.filter(s => s.numero >= 1 && s.numero <= 48)
+  .sort((a,b) => b.numero - a.numero);
+
+// Vérifier si un code_niveau correspond à un niveau sourate
+export const isSourateNiveau = (codeNiveau) =>
+  ['5B', '5A', '2M'].includes(codeNiveau);
