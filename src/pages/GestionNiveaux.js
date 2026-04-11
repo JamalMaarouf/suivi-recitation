@@ -1,6 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { useToast } from '../lib/toast';
+import { getSouratesForNiveau } from '../lib/sourates';
+
+const HIZB_NUMS = Array.from({length:60}, (_,i) => i+1);
 
 const COULEURS_PRESET = [
   '#534AB7','#378ADD','#1D9E75','#EF9F27','#E24B4A',
@@ -19,17 +22,78 @@ export default function GestionNiveaux({ user, navigate, goBack, lang='fr', isMo
   const emptyForm = { code:'', nom:'', type:'hizb', couleur:'#1D9E75', ordre:1 };
   const [form, setForm] = useState(emptyForm);
 
+  // Programme du niveau sélectionné
+  const [niveauProgramme, setNiveauProgramme] = useState(null); // niveau dont on édite le programme
+  const [programme, setProgramme]             = useState([]);   // contenu_ids sélectionnés
+  const [souratesDB, setSouratesDB]           = useState([]);
+  const [savingProg, setSavingProg]           = useState(false);
+
   useEffect(() => { loadData(); }, []);
 
   const loadData = async () => {
     setLoading(true);
+    const [{ data }, { data: sd }] = await Promise.all([
+      supabase.from('niveaux').select('*').eq('ecole_id', user.ecole_id).order('ordre'),
+      supabase.from('sourates').select('*').order('numero'),
+    ]);
+    setNiveaux(data || []);
+    setSouratesDB(sd || []);
+    setLoading(false);
+  };
+
+  const ouvrirProgramme = async (n) => {
+    setNiveauProgramme(n);
+    // Charger le programme existant
     const { data } = await supabase
-      .from('niveaux')
-      .select('*')
+      .from('programmes')
+      .select('reference_id, ordre')
+      .eq('niveau_id', n.id)
       .eq('ecole_id', user.ecole_id)
       .order('ordre');
-    setNiveaux(data || []);
-    setLoading(false);
+    if (data && data.length > 0) {
+      // Pour hizb : reference_id est le numéro (string) → convertir en int
+      // Pour sourate : reference_id est l'UUID
+      setProgramme(n.type === 'hizb'
+        ? data.map(d => parseInt(d.reference_id))
+        : data.map(d => d.reference_id)
+      );
+    } else {
+      setProgramme([]);
+    }
+  };
+
+  const fermerProgramme = () => {
+    setNiveauProgramme(null);
+    setProgramme([]);
+  };
+
+  const toggleProgrammeItem = (id) => {
+    setProgramme(prev =>
+      prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
+    );
+  };
+
+  const sauvegarderProgramme = async () => {
+    if (!niveauProgramme) return;
+    if (programme.length === 0) return toast.warning(lang==='ar'?'اختر عناصر البرنامج':'Sélectionnez au moins un élément');
+    setSavingProg(true);
+    // Supprimer l'ancien programme
+    await supabase.from('programmes').delete().eq('niveau_id', niveauProgramme.id).eq('ecole_id', user.ecole_id);
+    // Insérer le nouveau
+    const rows = programme.map((id, idx) => ({
+      niveau_id: niveauProgramme.id,
+      ecole_id: user.ecole_id,
+      type_contenu: niveauProgramme.type,
+      reference_id: String(id),
+      ordre: idx + 1,
+      obligatoire: true,
+    }));
+    const { error } = await supabase.from('programmes').insert(rows);
+    setSavingProg(false);
+    if (error) { toast.error(error.message || 'Erreur'); return; }
+    toast.success(lang==='ar'?'✅ تم حفظ البرنامج':'✅ Programme enregistré !');
+    fermerProgramme();
+    loadData();
   };
 
   const startEdit = (n) => {
@@ -109,6 +173,152 @@ export default function GestionNiveaux({ user, navigate, goBack, lang='fr', isMo
     await supabase.from('niveaux').update({ ordre: n.ordre }).eq('id', next.id);
     await supabase.from('niveaux').update({ ordre: next.ordre }).eq('id', n.id);
     loadData();
+  };
+
+
+  // ── PANNEAU PROGRAMME (partagé PC + Mobile) ─────────────────────
+  const PanneauProgramme = () => {
+    if (!niveauProgramme) return null;
+    const nc = niveauProgramme.couleur || '#1D9E75';
+    const souratesNiveau = niveauProgramme.type === 'sourate'
+      ? getSouratesForNiveau(niveauProgramme.code).map(s => {
+          const dbS = souratesDB.find(x => x.numero === s.numero);
+          return dbS ? { ...s, id: dbS.id } : null;
+        }).filter(Boolean)
+      : [];
+
+    return (
+      <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.5)',
+        zIndex:1000,display:'flex',alignItems:'flex-end',justifyContent:'center'}}>
+        <div style={{background:'#fff',borderRadius:'20px 20px 0 0',
+          width:'100%',maxWidth:600,maxHeight:'90vh',
+          display:'flex',flexDirection:'column',overflow:'hidden'}}>
+
+          {/* Header panneau */}
+          <div style={{padding:'18px 18px 14px',borderBottom:'0.5px solid #e0e0d8',
+            display:'flex',alignItems:'center',gap:12,flexShrink:0}}>
+            <div style={{width:40,height:40,borderRadius:10,background:`${nc}20`,
+              display:'flex',alignItems:'center',justifyContent:'center',
+              fontWeight:800,fontSize:16,color:nc,flexShrink:0}}>
+              {niveauProgramme.code}
+            </div>
+            <div style={{flex:1}}>
+              <div style={{fontWeight:700,fontSize:16,color:'#1a1a1a'}}>
+                {lang==='ar'?'برنامج المستوى':'Programme du niveau'}
+              </div>
+              <div style={{fontSize:12,color:'#888',marginTop:2}}>
+                {niveauProgramme.nom} · {niveauProgramme.type==='hizb'
+                  ?(lang==='ar'?'أحزاب':'Hizb')
+                  :(lang==='ar'?'سور':'Sourates')}
+                <span style={{marginLeft:8,fontWeight:600,color:nc}}>
+                  {programme.length} {lang==='ar'?'محدد':'sélectionné(s)'}
+                </span>
+              </div>
+            </div>
+            <button onClick={fermerProgramme}
+              style={{background:'none',border:'none',fontSize:24,cursor:'pointer',
+                color:'#888',padding:0,lineHeight:1}}>×</button>
+          </div>
+
+          {/* Sélection rapide Hizb */}
+          {niveauProgramme.type==='hizb'&&(
+            <div style={{padding:'12px 18px 0',flexShrink:0}}>
+              <div style={{display:'flex',gap:6,flexWrap:'wrap',marginBottom:4}}>
+                <span style={{fontSize:11,color:'#888',alignSelf:'center'}}>
+                  {lang==='ar'?'اختيار سريع:':'Sélection rapide :'}
+                </span>
+                {[1,5,10,15,20,30,60].map(n=>(
+                  <button key={n}
+                    onClick={()=>setProgramme(Array.from({length:n},(_,i)=>i+1))}
+                    style={{padding:'3px 10px',borderRadius:20,
+                      border:'0.5px solid #e0e0d8',background:'#f5f5f0',
+                      fontSize:11,cursor:'pointer',color:'#666'}}>
+                    1→{n}
+                  </button>
+                ))}
+                {programme.length>0&&(
+                  <button onClick={()=>setProgramme([])}
+                    style={{padding:'3px 10px',borderRadius:20,border:'0.5px solid #e0e0d8',
+                      background:'#FCEBEB',fontSize:11,cursor:'pointer',color:'#E24B4A'}}>
+                    ✕ {lang==='ar'?'مسح':'Effacer'}
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Contenu scrollable */}
+          <div style={{flex:1,overflowY:'auto',padding:'12px 18px'}}>
+
+            {/* Grille Hizb */}
+            {niveauProgramme.type==='hizb'&&(
+              <div style={{display:'grid',gridTemplateColumns:'repeat(10,1fr)',gap:5}}>
+                {HIZB_NUMS.map(h=>{
+                  const sel = programme.includes(h);
+                  return(
+                    <div key={h} onClick={()=>toggleProgrammeItem(h)}
+                      style={{height:38,borderRadius:8,display:'flex',
+                        alignItems:'center',justifyContent:'center',
+                        fontSize:12,fontWeight:sel?700:400,cursor:'pointer',
+                        background:sel?nc:'#f5f5f0',
+                        color:sel?'#fff':'#666',
+                        border:`1.5px solid ${sel?nc:'#e0e0d8'}`,
+                        transition:'all 0.1s'}}>
+                      {h}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* Liste Sourates */}
+            {niveauProgramme.type==='sourate'&&(
+              <div style={{display:'flex',flexDirection:'column',gap:6}}>
+                {souratesNiveau.length===0&&(
+                  <div style={{textAlign:'center',color:'#aaa',padding:'2rem',fontSize:13}}>
+                    {lang==='ar'?'لا توجد سور لهذا المستوى':'Aucune sourate disponible'}
+                  </div>
+                )}
+                {souratesNiveau.map(s=>{
+                  const sel = programme.includes(s.id);
+                  return(
+                    <div key={s.id} onClick={()=>toggleProgrammeItem(s.id)}
+                      style={{display:'flex',alignItems:'center',gap:10,
+                        padding:'10px 12px',borderRadius:10,cursor:'pointer',
+                        background:sel?`${nc}10`:'#f5f5f0',
+                        border:`1.5px solid ${sel?nc:'#e0e0d8'}`}}>
+                      <div style={{width:22,height:22,borderRadius:5,flexShrink:0,
+                        border:`1.5px solid ${sel?nc:'#ccc'}`,
+                        background:sel?nc:'#fff',
+                        display:'flex',alignItems:'center',justifyContent:'center'}}>
+                        {sel&&<span style={{color:'#fff',fontSize:12,fontWeight:700}}>✓</span>}
+                      </div>
+                      <span style={{fontSize:11,color:'#aaa',minWidth:24}}>{s.numero}</span>
+                      <span style={{flex:1,fontSize:15,fontFamily:"'Tajawal',Arial",
+                        direction:'rtl',color:sel?nc:'#333',
+                        fontWeight:sel?600:400}}>{s.nom_ar}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* Bouton sauvegarder */}
+          <div style={{padding:'14px 18px',borderTop:'0.5px solid #e0e0d8',flexShrink:0}}>
+            <button onClick={sauvegarderProgramme} disabled={savingProg||programme.length===0}
+              style={{width:'100%',padding:'14px',
+                background:savingProg||programme.length===0?'#ccc':nc,
+                color:'#fff',border:'none',borderRadius:12,
+                fontSize:15,fontWeight:700,
+                cursor:savingProg||programme.length===0?'not-allowed':'pointer',
+                fontFamily:'inherit'}}>
+              {savingProg?'...':(lang==='ar'?'حفظ البرنامج':'Enregistrer le programme')}
+            </button>
+          </div>
+        </div>
+      </div>
+    );
   };
 
   // ── MOBILE ──────────────────────────────────────────────────────────────
@@ -277,25 +487,26 @@ export default function GestionNiveaux({ user, navigate, goBack, lang='fr', isMo
               </div>
               {/* Boutons actions */}
               <div style={{display:'flex',gap:8,marginTop:12}}>
+                <button onClick={()=>ouvrirProgramme(n)}
+                  style={{flex:2,padding:'9px',background:`${n.couleur}20`,color:n.couleur,
+                    border:`1.5px solid ${n.couleur}40`,borderRadius:10,fontSize:13,
+                    fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
+                  📚 {lang==='ar'?'البرنامج':'Programme'}
+                </button>
                 <button onClick={()=>startEdit(n)}
                   style={{flex:1,padding:'9px',background:'#E6F1FB',color:'#0C447C',border:'none',
                     borderRadius:10,fontSize:13,fontWeight:600,cursor:'pointer',fontFamily:'inherit'}}>
-                  ✏️ {lang==='ar'?'تعديل':'Modifier'}
-                </button>
-                <button onClick={()=>toggleActif(n)}
-                  style={{flex:1,padding:'9px',background:n.actif?'#FAEEDA':'#E1F5EE',
-                    color:n.actif?'#633806':'#085041',border:'none',
-                    borderRadius:10,fontSize:13,fontWeight:600,cursor:'pointer',fontFamily:'inherit'}}>
-                  {n.actif?(lang==='ar'?'تعطيل':'Désactiver'):(lang==='ar'?'تفعيل':'Activer')}
+                  ✏️
                 </button>
                 <button onClick={()=>supprimer(n)}
-                  style={{padding:'9px 14px',background:'#FCEBEB',color:'#E24B4A',border:'none',
+                  style={{padding:'9px 12px',background:'#FCEBEB',color:'#E24B4A',border:'none',
                     borderRadius:10,fontSize:13,cursor:'pointer'}}>🗑</button>
               </div>
             </div>
           ))}
         </div>
 
+        <PanneauProgramme/>
         {/* Confirm Modal */}
         {confirmModal.isOpen && (
           <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.5)',zIndex:1000,
@@ -461,13 +672,13 @@ export default function GestionNiveaux({ user, navigate, goBack, lang='fr', isMo
                   </td>
                   <td style={{padding:'12px 16px',textAlign:'right'}}>
                     <div style={{display:'flex',gap:6,justifyContent:'flex-end'}}>
+                      <button onClick={()=>ouvrirProgramme(n)}
+                        style={{padding:'6px 12px',background:`${n.couleur}20`,color:n.couleur,
+                          border:`1px solid ${n.couleur}40`,borderRadius:8,fontSize:12,fontWeight:700,cursor:'pointer'}}>
+                        📚 {lang==='ar'?'البرنامج':'Programme'}
+                      </button>
                       <button onClick={()=>startEdit(n)}
                         style={{padding:'6px 12px',background:'#E6F1FB',color:'#0C447C',border:'none',borderRadius:8,fontSize:12,fontWeight:600,cursor:'pointer'}}>✏️</button>
-                      <button onClick={()=>toggleActif(n)}
-                        style={{padding:'6px 12px',background:n.actif?'#FAEEDA':'#E1F5EE',
-                          color:n.actif?'#633806':'#085041',border:'none',borderRadius:8,fontSize:12,fontWeight:600,cursor:'pointer'}}>
-                        {n.actif?'Désactiver':'Activer'}
-                      </button>
                       <button onClick={()=>supprimer(n)}
                         style={{padding:'6px 10px',background:'#FCEBEB',color:'#E24B4A',border:'none',borderRadius:8,fontSize:12,cursor:'pointer'}}>🗑</button>
                     </div>
@@ -479,6 +690,7 @@ export default function GestionNiveaux({ user, navigate, goBack, lang='fr', isMo
         </div>
       )}
 
+      <PanneauProgramme/>
       {/* Confirm Modal PC */}
       {confirmModal.isOpen && (
         <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.5)',zIndex:1000,display:'flex',alignItems:'center',justifyContent:'center',padding:20}}>
