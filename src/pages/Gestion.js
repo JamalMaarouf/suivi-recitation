@@ -874,6 +874,7 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile 
             {[
               {icon:'📚', label:lang==='ar'?'المستويات':'Niveaux', desc:lang==='ar'?'إدارة مستويات المدرسة':"Configurer les niveaux de l'école", page:'niveaux', color:'#1D9E75', bg:'#E1F5EE'},
               {icon:'📝', label:lang==='ar'?'الامتحانات':'Examens',    desc:lang==='ar'?'تكوين الامتحانات والحدود':'Configurer les examens et seuils',    page:'examens', color:'#EF9F27', bg:'#FAEEDA'},
+              {icon:'📦', label:lang==='ar'?'مجموعات السور':'Ensembles', desc:lang==='ar'?'تجميع السور في مجموعات للتقدم':'Grouper les sourates par ensemble', page:'ensembles', color:'#D85A30', bg:'#FAECE7'},
               {icon:'🏅', label:lang==='ar'?'نتائج الامتحانات':'Résultats', desc:lang==='ar'?'تسجيل ومتابعة نتائج الامتحانات':'Saisir et consulter les résultats',  page:'resultats_examens', color:'#534AB7', bg:'#EEEDFE'},
             ].map(item=>(
               <div key={item.page} onClick={()=>navigate(item.page)}
@@ -949,6 +950,9 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile 
                desc:lang==='ar'?'تكوين الامتحانات والحدود':'Configurer les examens et seuils',
                page:'examens', color:'#EF9F27', bg:'#FAEEDA'},
 
+              {icon:'📦', label:lang==='ar'?'مجموعات السور':'Ensembles',
+               desc:lang==='ar'?'تجميع السور في مجموعات':'Grouper les sourates par ensemble',
+               page:'ensembles', color:'#D85A30', bg:'#FAECE7'},
               {icon:'🏅', label:lang==='ar'?'نتائج الامتحانات':'Résultats',
                desc:lang==='ar'?'تسجيل ومتابعة نتائج الامتحانات':'Saisir et consulter les résultats',
                page:'resultats_examens', color:'#534AB7', bg:'#EEEDFE'},

@@ -19,7 +19,7 @@ export default function GestionNiveaux({ user, navigate, goBack, lang='fr', isMo
   const [saving, setSaving]         = useState(false);
   const [confirmModal, setConfirmModal] = useState({isOpen:false});
 
-  const emptyForm = { code:'', nom:'', type:'hizb', couleur:'#1D9E75', ordre:1 };
+  const emptyForm = { code:'', nom:'', type:'hizb', couleur:'#1D9E75', ordre:1, nb_sequences:3 };
   const [form, setForm] = useState(emptyForm);
 
   // Programme du niveau sélectionné
@@ -98,7 +98,14 @@ export default function GestionNiveaux({ user, navigate, goBack, lang='fr', isMo
 
   const startEdit = async (n) => {
     setEditing(n.id);
-    setForm({ code: n.code, nom: n.nom, type: n.type, couleur: n.couleur, ordre: n.ordre });
+    // Charger nb_sequences depuis sequences_config
+    let nbSeq = 3;
+    if (n.type === 'sourate') {
+      const { data: sc } = await supabase.from('sequences_config')
+        .select('nb_sequences').eq('niveau_id',n.id).eq('ecole_id',user.ecole_id).maybeSingle();
+      if (sc) nbSeq = sc.nb_sequences;
+    }
+    setForm({ code: n.code, nom: n.nom, type: n.type, couleur: n.couleur, ordre: n.ordre, nb_sequences: nbSeq });
     // Charger le programme existant dans le formulaire
     const { data } = await supabase.from('programmes')
       .select('reference_id').eq('niveau_id', n.id)
@@ -143,6 +150,8 @@ export default function GestionNiveaux({ user, navigate, goBack, lang='fr', isMo
       ordre: parseInt(form.ordre) || 1,
       ecole_id: user.ecole_id,
     };
+    // nb_sequences → table sequences_config (séparée)
+    const nbSeq = form.type==='sourate' ? (parseInt(form.nb_sequences)||3) : null;
     let niveauId = editing;
     let error;
     if (editing) {
@@ -159,6 +168,15 @@ export default function GestionNiveaux({ user, navigate, goBack, lang='fr', isMo
       else toast.error(error.message || 'Erreur');
       return;
     }
+    // Sauvegarder nb_sequences si niveau sourate
+    if (niveauId && nbSeq !== null) {
+      await supabase.from('sequences_config').upsert({
+        ecole_id: user.ecole_id,
+        niveau_id: niveauId,
+        nb_sequences: nbSeq,
+      }, { onConflict: 'ecole_id,niveau_id' });
+    }
+
     // Sauvegarder le programme si défini dans le formulaire
     if (niveauId && formProgramme.length > 0) {
       await supabase.from('programmes').delete().eq('niveau_id', niveauId).eq('ecole_id', user.ecole_id);
@@ -217,17 +235,101 @@ export default function GestionNiveaux({ user, navigate, goBack, lang='fr', isMo
   };
 
 
-  // ── PANNEAU PROGRAMME (partagé PC + Mobile) ─────────────────────
+  // ── PANNEAU PROGRAMME — Affichage + Modification ───────────────
+  const [modeEditionProgramme, setModeEditionProgramme] = React.useState(false);
+
   const PanneauProgramme = () => {
     if (!niveauProgramme) return null;
     const nc = niveauProgramme.couleur || '#1D9E75';
     const souratesNiveau = niveauProgramme.type === 'sourate'
-      ? getSouratesForNiveau(niveauProgramme.code).map(s => {
-          const dbS = souratesDB.find(x => x.numero === s.numero);
-          return dbS ? { ...s, id: dbS.id } : null;
-        }).filter(Boolean)
+      ? souratesDB.filter(s => programme.includes(s.id)).sort((a,b)=>b.numero-a.numero)
       : [];
 
+    // Mode affichage
+    if (!modeEditionProgramme) {
+      return (
+        <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.5)',
+          zIndex:1000,display:'flex',alignItems:'flex-end',justifyContent:'center'}}>
+          <div style={{background:'#fff',borderRadius:'20px 20px 0 0',
+            width:'100%',maxWidth:600,maxHeight:'85vh',
+            display:'flex',flexDirection:'column',overflow:'hidden'}}>
+            {/* Header */}
+            <div style={{padding:'18px 18px 14px',borderBottom:'0.5px solid #e0e0d8',
+              display:'flex',alignItems:'center',gap:12,flexShrink:0}}>
+              <div style={{width:40,height:40,borderRadius:10,background:`${nc}20`,
+                display:'flex',alignItems:'center',justifyContent:'center',
+                fontWeight:800,fontSize:16,color:nc,flexShrink:0}}>
+                {niveauProgramme.code}
+              </div>
+              <div style={{flex:1}}>
+                <div style={{fontWeight:700,fontSize:16,color:'#1a1a1a'}}>
+                  {lang==='ar'?'برنامج المستوى':'Programme du niveau'}
+                </div>
+                <div style={{fontSize:12,color:'#888',marginTop:2}}>
+                  {niveauProgramme.nom} · {programme.length} {lang==='ar'?'محدد':'élément(s)'}
+                </div>
+              </div>
+              <button onClick={()=>setModeEditionProgramme(true)}
+                style={{padding:'8px 14px',background:'#E6F1FB',color:'#0C447C',border:'none',
+                  borderRadius:10,fontSize:13,fontWeight:600,cursor:'pointer',fontFamily:'inherit'}}>
+                ✏️ {lang==='ar'?'تعديل':'Modifier'}
+              </button>
+              <button onClick={()=>{fermerProgramme();setModeEditionProgramme(false);}}
+                style={{background:'none',border:'none',fontSize:24,cursor:'pointer',color:'#888',padding:0}}>×</button>
+            </div>
+            {/* Contenu */}
+            <div style={{flex:1,overflowY:'auto',padding:'16px 18px'}}>
+              {programme.length===0?(
+                <div style={{textAlign:'center',color:'#aaa',padding:'2rem'}}>
+                  <div style={{fontSize:32,marginBottom:8}}>📚</div>
+                  <div style={{fontSize:14,marginBottom:12}}>
+                    {lang==='ar'?'لا يوجد برنامج محدد':'Aucun programme défini'}
+                  </div>
+                  <button onClick={()=>setModeEditionProgramme(true)}
+                    style={{padding:'10px 20px',background:nc,color:'#fff',border:'none',
+                      borderRadius:10,fontSize:13,fontWeight:600,cursor:'pointer',fontFamily:'inherit'}}>
+                    {lang==='ar'?'تحديد البرنامج':'Définir le programme'}
+                  </button>
+                </div>
+              ):niveauProgramme.type==='hizb'?(
+                <>
+                  <div style={{fontSize:12,color:'#888',marginBottom:12}}>
+                    {lang==='ar'?'الأحزاب المحددة:':'Hizb sélectionnés :'}
+                  </div>
+                  <div style={{display:'grid',gridTemplateColumns:'repeat(10,1fr)',gap:4}}>
+                    {[...programme].sort((a,b)=>a-b).map(h=>(
+                      <div key={h} style={{height:36,borderRadius:8,display:'flex',alignItems:'center',
+                        justifyContent:'center',fontSize:12,fontWeight:700,
+                        background:`${nc}20`,color:nc,border:`1.5px solid ${nc}40`}}>
+                        {h}
+                      </div>
+                    ))}
+                  </div>
+                </>
+              ):(
+                <>
+                  <div style={{fontSize:12,color:'#888',marginBottom:12}}>
+                    {lang==='ar'?'السور المحددة:':'Sourates sélectionnées :'}
+                  </div>
+                  <div style={{display:'flex',flexDirection:'column',gap:6}}>
+                    {souratesNiveau.map(s=>(
+                      <div key={s.id} style={{display:'flex',alignItems:'center',gap:10,
+                        padding:'9px 12px',borderRadius:10,background:`${nc}10`,border:`1.5px solid ${nc}30`}}>
+                        <span style={{fontSize:11,color:'#aaa',minWidth:24}}>{s.numero}</span>
+                        <span style={{flex:1,fontSize:14,fontFamily:"'Tajawal',Arial",
+                          direction:'rtl',color:nc,fontWeight:600}}>{s.nom_ar}</span>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // Mode édition (ancien panneau)
     return (
       <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.5)',
         zIndex:1000,display:'flex',alignItems:'flex-end',justifyContent:'center'}}>
@@ -235,7 +337,7 @@ export default function GestionNiveaux({ user, navigate, goBack, lang='fr', isMo
           width:'100%',maxWidth:600,maxHeight:'90vh',
           display:'flex',flexDirection:'column',overflow:'hidden'}}>
 
-          {/* Header panneau */}
+          {/* Header panneau édition */}
           <div style={{padding:'18px 18px 14px',borderBottom:'0.5px solid #e0e0d8',
             display:'flex',alignItems:'center',gap:12,flexShrink:0}}>
             <div style={{width:40,height:40,borderRadius:10,background:`${nc}20`,
@@ -346,9 +448,15 @@ export default function GestionNiveaux({ user, navigate, goBack, lang='fr', isMo
           </div>
 
           {/* Bouton sauvegarder */}
-          <div style={{padding:'14px 18px',borderTop:'0.5px solid #e0e0d8',flexShrink:0}}>
-            <button onClick={sauvegarderProgramme} disabled={savingProg||programme.length===0}
-              style={{width:'100%',padding:'14px',
+          <div style={{padding:'14px 18px',borderTop:'0.5px solid #e0e0d8',flexShrink:0,display:'flex',gap:8}}>
+            <button onClick={()=>setModeEditionProgramme(false)}
+              style={{flex:1,padding:'14px',background:'#f5f5f0',color:'#666',border:'none',
+                borderRadius:12,fontSize:14,fontWeight:600,cursor:'pointer',fontFamily:'inherit'}}>
+              {lang==='ar'?'إلغاء':'Annuler'}
+            </button>
+            <button onClick={async()=>{await sauvegarderProgramme();setModeEditionProgramme(false);}}
+              disabled={savingProg||programme.length===0}
+              style={{flex:2,padding:'14px',
                 background:savingProg||programme.length===0?'#ccc':nc,
                 color:'#fff',border:'none',borderRadius:12,
                 fontSize:15,fontWeight:700,
@@ -697,6 +805,27 @@ export default function GestionNiveaux({ user, navigate, goBack, lang='fr', isMo
                   </div>
                 ))}
               </div>
+              {/* Nb séquences pour niveaux sourate */}
+              {form.type==='sourate'&&(
+                <div style={{marginTop:10}}>
+                  <label style={{fontSize:12,fontWeight:600,color:'#666',display:'block',marginBottom:5}}>
+                    {lang==='ar'?'عدد المقاطع لكل سورة':'Nb de séquences par sourate'}
+                  </label>
+                  <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>
+                    {[1,2,3,4,5,6].map(n=>(
+                      <div key={n} onClick={()=>setForm(f=>({...f,nb_sequences:n}))}
+                        style={{width:40,height:40,borderRadius:10,display:'flex',
+                          alignItems:'center',justifyContent:'center',cursor:'pointer',
+                          fontSize:16,fontWeight:700,
+                          background:(form.nb_sequences||3)===n?form.couleur:'#f5f5f0',
+                          color:(form.nb_sequences||3)===n?'#fff':'#666',
+                          border:`1.5px solid ${(form.nb_sequences||3)===n?form.couleur:'#e0e0d8'}`}}>
+                        {n}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
             <div>
               <label style={{fontSize:12,fontWeight:600,color:'#666',display:'block',marginBottom:8}}>Couleur</label>

@@ -28,6 +28,7 @@ const MurajaDashboard     = lazy(() => import('./pages/MurajaDashboard'));
 const ElevesInactifs      = lazy(() => import('./pages/ElevesInactifs'));
 const GestionNiveaux      = lazy(() => import('./pages/GestionNiveaux'));
 const GestionExamens      = lazy(() => import('./pages/GestionExamens'));
+const GestionEnsembles    = lazy(() => import('./pages/GestionEnsembles'));
 const GestionBlocs        = lazy(() => import('./pages/GestionBlocs'));
 const ResultatsExamens    = lazy(() => import('./pages/ResultatsExamens'));
 import { t, getDir } from './lib/i18n';
@@ -264,6 +265,7 @@ export default function App() {
           {page === 'comparaison'       && <Comparaison eleves={compareEleves} {...pageProps} />}
           {page === 'rapport_mensuel'   && <RapportMensuel {...pageProps} />}
           {page === 'niveaux'           && user.role === 'surveillant' && <GestionNiveaux {...pageProps} />}
+          {page === 'ensembles'         && user.role === 'surveillant' && <GestionEnsembles {...pageProps} />}
           {page === 'examens'           && user.role === 'surveillant' && <GestionExamens {...pageProps} />}
           {page === 'blocs'             && user.role === 'surveillant' && <GestionBlocs {...pageProps} />}
           {page === 'resultats_examens' && <ResultatsExamens {...pageProps} data={selectedEleve} />}

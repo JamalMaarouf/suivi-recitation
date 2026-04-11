@@ -39,12 +39,16 @@ export default function GestionExamens({ user, navigate, goBack, lang='fr', isMo
     setExamens(ed||[]);
     setSouratesDB(sd||[]);
     setLoading(false);
+    // Si filtreNiveau actif, charger son programme avec la liste fraîche
+    if (filtreNiveau && filtreNiveau!=='tous' && nd) {
+      chargerProgrammeNiveau(filtreNiveau, nd);
+    }
   };
 
   const niveauDuForm = niveaux.find(n=>n.id===form.niveau_id);
 
   // Charger le programme du niveau quand niveau_id change dans le form
-  const chargerProgrammeNiveau = async (niveau_id) => {
+  const chargerProgrammeNiveau = async (niveau_id, niveauxListe) => {
     if (!niveau_id) { setProgrammeNiveau([]); return; }
     const { data } = await supabase
       .from('programmes')
@@ -53,7 +57,9 @@ export default function GestionExamens({ user, navigate, goBack, lang='fr', isMo
       .eq('ecole_id', user.ecole_id)
       .order('ordre');
     if (data && data.length > 0) {
-      const niv = niveaux.find(n=>n.id===niveau_id);
+      // Utiliser la liste passée en paramètre OU le state niveaux
+      const liste = niveauxListe || niveaux;
+      const niv = liste.find(n=>n.id===niveau_id);
       setProgrammeNiveau(niv?.type === 'hizb'
         ? data.map(d => parseInt(d.reference_id))
         : data.map(d => d.reference_id)
@@ -71,7 +77,7 @@ export default function GestionExamens({ user, navigate, goBack, lang='fr', isMo
       type_contenu: niveaux.find(n=>n.id===filtreNiveau)?.type || 'hizb',
       niveau_id: nid
     });
-    if (nid) chargerProgrammeNiveau(nid);
+    if (nid) chargerProgrammeNiveau(nid, niveaux);
     else setProgrammeNiveau([]);
     setShowForm(true); window.scrollTo(0,0);
   };
@@ -87,7 +93,7 @@ export default function GestionExamens({ user, navigate, goBack, lang='fr', isMo
       bloquant: e.bloquant!==false,
       ordre: e.ordre||1
     });
-    if (e.niveau_id) chargerProgrammeNiveau(e.niveau_id);
+    if (e.niveau_id) chargerProgrammeNiveau(e.niveau_id, niveaux);
     setShowForm(true); window.scrollTo(0,0);
   };
 
@@ -209,7 +215,7 @@ export default function GestionExamens({ user, navigate, goBack, lang='fr', isMo
             const niv = niveaux.find(n=>n.id===e.target.value);
             setForm(f=>({...f,niveau_id:e.target.value,
               type_contenu:niv?.type||'hizb',contenu_ids:[]}));
-            chargerProgrammeNiveau(e.target.value);
+            chargerProgrammeNiveau(e.target.value, niveaux);
           }}>
           <option value="">— {lang==='ar'?'اختر مستوى':'Choisir un niveau'} —</option>
           {niveaux.map(n=>(
