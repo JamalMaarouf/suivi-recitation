@@ -43,22 +43,43 @@ export default function GestionNiveaux({ user, navigate, goBack, lang='fr', isMo
   };
 
   const ouvrirProgramme = async (n) => {
-    setModeEditionProgramme(false); // toujours commencer en mode affichage
+    setModeEditionProgramme(false);
     setNiveauProgramme(n);
-    // Charger le programme existant
+
+    // Toujours charger les sourates fraiches si niveau sourate
+    let sDB = souratesDB;
+    if (n.type === 'sourate') {
+      const { data: sd } = await supabase.from('sourates').select('*').order('numero');
+      if (sd && sd.length > 0) { setSouratesDB(sd); sDB = sd; }
+    }
+
+    // Charger le programme
     const { data } = await supabase
       .from('programmes')
       .select('reference_id, ordre')
       .eq('niveau_id', n.id)
       .eq('ecole_id', user.ecole_id)
       .order('ordre');
+
     if (data && data.length > 0) {
-      // Pour hizb : reference_id est le numéro (string) → convertir en int
-      // Pour sourate : reference_id est l'UUID
-      setProgramme(n.type === 'hizb'
-        ? data.map(d => parseInt(d.reference_id))
-        : data.map(d => d.reference_id)
-      );
+      if (n.type === 'hizb') {
+        setProgramme(data.map(d => parseInt(d.reference_id)));
+      } else {
+        const ids = data.map(d => d.reference_id);
+        // Vérifier que les IDs existent dans souratesDB
+        const idsValides = ids.filter(id => sDB.some(s => s.id === id));
+        if (idsValides.length > 0) {
+          setProgramme(idsValides);
+        } else {
+          // Migration : les reference_id sont peut-être des numéros de sourate
+          const idsConvertis = ids.map(id => {
+            const num = parseInt(id);
+            if (!isNaN(num)) return sDB.find(s => s.numero === num)?.id || null;
+            return id;
+          }).filter(Boolean);
+          setProgramme(idsConvertis);
+        }
+      }
     } else {
       setProgramme([]);
     }
@@ -283,7 +304,7 @@ export default function GestionNiveaux({ user, navigate, goBack, lang='fr', isMo
                   {niveauProgramme.nom} · {programme.length} {lang==='ar'?'محدد':'élément(s)'}
                 </div>
               </div>
-              <button onClick={()=>setModeEditionProgramme(true)}
+              <button onClick={()=>{setFormProgramme([...programme]);setModeEditionProgramme(true);}}
                 style={{padding:'8px 14px',background:'#E6F1FB',color:'#0C447C',border:'none',
                   borderRadius:10,fontSize:13,fontWeight:600,cursor:'pointer',fontFamily:'inherit'}}>
                 ✏️ {lang==='ar'?'تعديل':'Modifier'}
