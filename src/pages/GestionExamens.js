@@ -50,22 +50,41 @@ export default function GestionExamens({ user, navigate, goBack, lang='fr', isMo
   // Charger le programme du niveau quand niveau_id change dans le form
   const chargerProgrammeNiveau = async (niveau_id, niveauxListe) => {
     if (!niveau_id) { setProgrammeNiveau([]); return; }
+    const liste = niveauxListe || niveaux;
+    const niv = liste.find(n => n.id === niveau_id);
+
+    // Charger souratesDB si vide et niveau sourate
+    let sDB = souratesDB;
+    if (niv?.type === 'sourate' && souratesDB.length === 0) {
+      const { data: sd } = await supabase.from('sourates').select('*').order('numero');
+      if (sd && sd.length > 0) { setSouratesDB(sd); sDB = sd; }
+    }
+
     const { data } = await supabase
       .from('programmes')
       .select('reference_id, type_contenu')
       .eq('niveau_id', niveau_id)
       .eq('ecole_id', user.ecole_id)
       .order('ordre');
-    if (data && data.length > 0) {
-      // Utiliser la liste passée en paramètre OU le state niveaux
-      const liste = niveauxListe || niveaux;
-      const niv = liste.find(n=>n.id===niveau_id);
-      setProgrammeNiveau(niv?.type === 'hizb'
-        ? data.map(d => parseInt(d.reference_id))
-        : data.map(d => d.reference_id)
-      );
+
+    if (!data || data.length === 0) { setProgrammeNiveau([]); return; }
+
+    if (niv?.type === 'hizb') {
+      setProgrammeNiveau(data.map(d => parseInt(d.reference_id)));
     } else {
-      setProgrammeNiveau([]);
+      // Sourate : vérifier que les UUIDs existent dans souratesDB
+      const ids = data.map(d => d.reference_id);
+      const idsValides = ids.filter(id => sDB.some(s => s.id === id));
+      if (idsValides.length > 0) {
+        setProgrammeNiveau(idsValides);
+      } else {
+        // Migration : numéros → UUIDs
+        const convertis = ids.map(id => {
+          const num = parseInt(id);
+          return isNaN(num) ? id : sDB.find(s => s.numero === num)?.id || null;
+        }).filter(Boolean);
+        setProgrammeNiveau(convertis);
+      }
     }
   };
 
