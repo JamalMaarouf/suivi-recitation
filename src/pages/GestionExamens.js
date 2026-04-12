@@ -167,7 +167,10 @@ export default function GestionExamens({ user, navigate, goBack, lang='fr', isMo
     toast.success(editing
       ?(lang==='ar'?'✅ تم التحديث':'✅ Examen modifié !')
       :(lang==='ar'?'✅ تم الإضافة':'✅ Examen ajouté !'));
-    resetForm(); loadData();
+    const niveauSauvegarde = form.niveau_id;
+    resetForm();
+    setFiltreNiveau(niveauSauvegarde || 'tous');
+    loadData();
   };
 
   const supprimer = (e) => {
