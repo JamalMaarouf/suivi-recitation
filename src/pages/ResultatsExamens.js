@@ -525,12 +525,9 @@ export default function ResultatsExamens({ user, navigate, goBack, lang='fr', is
           <Tabs/>
         </div>
         <div style={{padding:'12px'}}>
-          {loading?<div style={{textAlign:'center',padding:'2rem',color:'#888'}}>...</div>
-          :activeTab==='saisir'?(
-          {tabSaisirJSX}
-        ):(
-          {tabRegistreJSX}
-        )}
+          {loading
+            ? <div style={{textAlign:'center',padding:'2rem',color:'#888'}}>...</div>
+            : activeTab==='saisir' ? tabSaisirJSX : tabRegistreJSX}
         </div>
       </div>
     );
@@ -543,12 +540,9 @@ export default function ResultatsExamens({ user, navigate, goBack, lang='fr', is
         <Header/>
       </div>
       <Tabs/>
-      {loading?<div style={{textAlign:'center',padding:'2rem',color:'#888'}}>...</div>
-      :activeTab==='saisir'?(
-          {tabSaisirJSX}
-        ):(
-          {tabRegistreJSX}
-        )}
+      {loading
+        ? <div style={{textAlign:'center',padding:'2rem',color:'#888'}}>...</div>
+        : activeTab==='saisir' ? tabSaisirJSX : tabRegistreJSX}
     </div>
   );
 }
