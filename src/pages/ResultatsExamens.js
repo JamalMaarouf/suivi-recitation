@@ -4,306 +4,492 @@ import { useToast } from '../lib/toast';
 
 export default function ResultatsExamens({ user, navigate, goBack, lang='fr', isMobile, data }) {
   const { toast } = useToast();
-  // data peut contenir { eleve, blocage } passé depuis EnregistrerRecitation
-  const eleveInit = data?.eleve || null;
-  const blocageInit = data?.blocage || null;
+  const eleveInit  = data?.eleve  || null;
+  const blocageInit= data?.blocage|| null;
 
-  const [eleves,   setEleves]   = useState([]);
-  const [examens,  setExamens]  = useState([]);
-  const [resultats,setResultats]= useState([]);
-  const [niveaux,  setNiveaux]  = useState([]);
-  const [loading,  setLoading]  = useState(true);
-  const [saving,   setSaving]   = useState(false);
-  const [activeTab, setActiveTab]= useState('saisir'); // 'saisir' | 'historique'
+  const [eleves,    setEleves]    = useState([]);
+  const [examens,   setExamens]   = useState([]);
+  const [resultats, setResultats] = useState([]);
+  const [niveaux,   setNiveaux]   = useState([]);
+  const [ensembles, setEnsembles] = useState([]);
+  const [souratesDB,setSouratesDB]= useState([]);
+  const [loading,   setLoading]   = useState(true);
+  const [saving,    setSaving]    = useState(false);
+  const [activeTab, setActiveTab] = useState('saisir');
 
-  // Formulaire saisie résultat
+  // Formulaire
+  const [searchEleve,    setSearchEleve]    = useState('');
   const [selectedEleve,  setSelectedEleve]  = useState(eleveInit);
-  const [selectedExamen, setSelectedExamen] = useState(blocageInit?.examen || null);
-  const [score, setScore]     = useState(0);
-  const [notes, setNotes]     = useState('');
-  const [searchEleve, setSearchEleve] = useState('');
+  const [selectedExamen, setSelectedExamen] = useState(blocageInit?.examen||null);
+  const [examensEleve,   setExamensEleve]   = useState([]);
+  const [score,          setScore]          = useState(70);
+  const [notes,          setNotes]          = useState('');
 
-  useEffect(() => { loadData(); }, []);
+  // Filtres registre
+  const [filtreNiveau,  setFiltreNiveau]  = useState('tous');
+  const [filtreStatut,  setFiltreStatut]  = useState('tous');
+  const [filtreExamen,  setFiltreExamen]  = useState('tous');
 
-  const loadData = async () => {
+  useEffect(() => { loadAll(); }, []);
+
+  const loadAll = async () => {
     setLoading(true);
-    const [{ data:ed },{ data:exd },{ data:rd },{ data:nd }] = await Promise.all([
+    const [{ data:el },{ data:ex },{ data:re },{ data:nv },{ data:en },{ data:sd }] = await Promise.all([
       supabase.from('eleves').select('id,prenom,nom,code_niveau,niveau_id').eq('ecole_id',user.ecole_id).order('nom'),
-      supabase.from('examens').select('id,nom,score_minimum,niveau_id,bloquant').eq('ecole_id',user.ecole_id).order('nom'),
-      supabase.from('resultats_examens')
-        .select('*, eleve:eleve_id(prenom,nom,code_niveau), examen:examen_id(nom,score_minimum)')
-        .eq('ecole_id',user.ecole_id).order('created_at',{ascending:false}).limit(50),
-      supabase.from('niveaux').select('id,code,nom,couleur').eq('ecole_id',user.ecole_id),
+      supabase.from('examens').select('*').eq('ecole_id',user.ecole_id).order('nom'),
+      supabase.from('resultats_examens').select('*').eq('ecole_id',user.ecole_id).order('created_at',{ascending:false}),
+      supabase.from('niveaux').select('id,code,nom,couleur,type').eq('ecole_id',user.ecole_id).order('ordre'),
+      supabase.from('ensembles_sourates').select('id,nom,ordre,niveau_id').eq('ecole_id',user.ecole_id),
+      supabase.from('sourates').select('id,numero,nom_ar').order('numero'),
     ]);
-    setEleves(ed||[]);
-    setExamens(exd||[]);
-    setResultats(rd||[]);
-    setNiveaux(nd||[]);
+    const niveauxData = nv||[];
+    const examenData  = (ex||[]).map(e=>({ ...e, niveau: niveauxData.find(n=>n.id===e.niveau_id)||null }));
+    setEleves(el||[]);
+    setExamens(examenData);
+    setResultats(re||[]);
+    setNiveaux(niveauxData);
+    setEnsembles(en||[]);
+    setSouratesDB(sd||[]);
     setLoading(false);
   };
 
+  // Quand on sélectionne un élève → charger ses examens disponibles
+  const selectionnerEleve = (eleve) => {
+    setSelectedEleve(eleve);
+    setSelectedExamen(null);
+    setScore(70);
+    setNotes('');
+    // Examens du niveau de l'élève pas encore réussis
+    const exNiveau = examens.filter(e => e.niveau_id === eleve.niveau_id);
+    const dejaReussis = resultats
+      .filter(r => r.eleve_id === eleve.id && r.statut === 'reussi')
+      .map(r => r.examen_id);
+    const disponibles = exNiveau.filter(e => !dejaReussis.includes(e.id));
+    setExamensEleve(disponibles);
+    setSearchEleve('');
+  };
+
   const sauvegarder = async () => {
-    if (!selectedEleve) return toast.warning(lang==='ar'?'اختر طالباً':'Sélectionnez un élève');
+    if (saving) return;
+    if (!selectedEleve)  return toast.warning(lang==='ar'?'اختر طالباً':'Sélectionnez un élève');
     if (!selectedExamen) return toast.warning(lang==='ar'?'اختر الامتحان':'Sélectionnez un examen');
     setSaving(true);
-    const reussi = score >= (selectedExamen.score_minimum || 0);
-    const { error } = await supabase.from('resultats_examens').insert({
-      examen_id: selectedExamen.id,
-      eleve_id: selectedEleve.id,
-      ecole_id: user.ecole_id,
+    const reussi = score >= (selectedExamen.score_minimum || 70);
+    // Vérifier si résultat existant → update, sinon insert
+    const existant = resultats.find(r=>r.eleve_id===selectedEleve.id&&r.examen_id===selectedExamen.id);
+    const payload = {
+      examen_id: selectedExamen.id, eleve_id: selectedEleve.id, ecole_id: user.ecole_id,
       date_examen: new Date().toISOString().split('T')[0],
-      score: parseInt(score),
-      statut: reussi ? 'reussi' : 'echoue',
-      notes_examinateur: notes.trim() || null,
-      valide_par: user.id,
-    });
+      score: parseInt(score), statut: reussi?'reussi':'echoue',
+      notes_examinateur: notes.trim()||null, valide_par: user.id,
+    };
+    const { error } = existant
+      ? await supabase.from('resultats_examens').update(payload).eq('id',existant.id)
+      : await supabase.from('resultats_examens').insert(payload);
     setSaving(false);
-    if (error) {
-      if (error.code === '23505') toast.warning(lang==='ar'?'نتيجة موجودة لهذا اليوم':'Résultat déjà enregistré pour aujourd\'hui');
-      else toast.error(error.message||'Erreur');
-      return;
-    }
+    if (error) { toast.error(error.message||'Erreur'); return; }
     toast.success(reussi
-      ? (lang==='ar'?`🎉 ${selectedEleve.prenom} نجح في الامتحان !`:`🎉 ${selectedEleve.prenom} a réussi l'examen !`)
-      : (lang==='ar'?`${selectedEleve.prenom} لم ينجح — إعادة الامتحان مطلوب`:`${selectedEleve.prenom} n'a pas réussi — nouvel examen requis`));
-    setScore(0); setNotes(''); setSelectedExamen(null);
-    if (!eleveInit) setSelectedEleve(null);
-    loadData();
-    setActiveTab('historique');
+      ? (lang==='ar'?'🎉 تهانينا! نجح الطالب':'🎉 Félicitations ! Examen réussi !')
+      : (lang==='ar'?'❌ لم ينجح الطالب. يجب إعادة الامتحان':'❌ Examen non validé. À repasser.'));
+    // Reset
+    setSelectedEleve(null); setSelectedExamen(null); setScore(70); setNotes('');
+    loadAll();
+    setActiveTab('registre');
   };
 
-  const elevesFiltres = eleves.filter(e =>
-    !searchEleve || `${e.prenom} ${e.nom}`.toLowerCase().includes(searchEleve.toLowerCase())
+  // ── DONNÉES CALCULÉES ──────────────────────────────────────────
+  const elevesFiltres = eleves.filter(e => {
+    const nom = `${e.prenom} ${e.nom}`.toLowerCase();
+    return nom.includes(searchEleve.toLowerCase());
+  });
+
+  const resultasFiltres = resultats.filter(r => {
+    const ex = examens.find(e=>e.id===r.examen_id);
+    if (filtreNiveau!=='tous' && ex?.niveau_id!==filtreNiveau) return false;
+    if (filtreStatut!=='tous' && r.statut!==filtreStatut) return false;
+    if (filtreExamen!=='tous' && r.examen_id!==filtreExamen) return false;
+    return true;
+  });
+
+  const stats = {
+    total: resultats.length,
+    reussis: resultats.filter(r=>r.statut==='reussi').length,
+    echoues: resultats.filter(r=>r.statut==='echoue').length,
+    tauxReussite: resultats.length>0
+      ? Math.round(resultats.filter(r=>r.statut==='reussi').length/resultats.length*100)
+      : 0,
+  };
+
+  const nomEleve   = (id) => { const e=eleves.find(x=>x.id===id); return e?`${e.prenom} ${e.nom}`:'?'; };
+  const nomExamen  = (id) => examens.find(e=>e.id===id)?.nom||'?';
+  const nomNiveau  = (id) => { const n=niveaux.find(x=>x.id===id); return n?`${n.code} — ${n.nom}`:'?'; };
+  const couleurNiv = (id) => niveaux.find(n=>n.id===id)?.couleur||'#888';
+
+  const reussi = score >= (selectedExamen?.score_minimum||70);
+
+  // ── ONGLETS ────────────────────────────────────────────────────
+  const Tabs = () => (
+    <div style={{display:'flex',gap:0,marginBottom:isMobile?0:'1.5rem',
+      background:'#f5f5f0',borderRadius:12,padding:4}}>
+      {[
+        {id:'saisir', ar:'تسجيل نتيجة', fr:'Saisir un résultat', icon:'✍️'},
+        {id:'registre', ar:'سجل النتائج', fr:'Registre', icon:'📋'},
+      ].map(tab=>(
+        <button key={tab.id} onClick={()=>setActiveTab(tab.id)}
+          style={{flex:1,padding:'10px 16px',borderRadius:10,border:'none',cursor:'pointer',
+            fontFamily:'inherit',fontSize:13,fontWeight:600,transition:'all 0.15s',
+            background:activeTab===tab.id?'#fff':'transparent',
+            color:activeTab===tab.id?'#085041':'#888',
+            boxShadow:activeTab===tab.id?'0 1px 4px rgba(0,0,0,0.08)':'none'}}>
+          {tab.icon} {lang==='ar'?tab.ar:tab.fr}
+        </button>
+      ))}
+    </div>
   );
 
-  const NIVEAU_COLORS = {'5B':'#534AB7','5A':'#378ADD','2M':'#1D9E75','2':'#EF9F27','1':'#E24B4A'};
-  const nc = (code) => {
-    const n = niveaux.find(x=>x.code===code);
-    return n?.couleur || NIVEAU_COLORS[code] || '#888';
-  };
-
-  return (
-    <div style={isMobile?{paddingBottom:80,background:'#f5f5f0',minHeight:'100vh'}:{}}>
-      {/* Header */}
-      <div style={isMobile?{background:'#fff',padding:'14px 16px 0',borderBottom:'0.5px solid #e0e0d8',position:'sticky',top:0,zIndex:100}:{marginBottom:'1.25rem'}}>
-        <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:12}}>
-          <button onClick={()=>goBack?goBack():navigate('dashboard')}
-            style={{background:'none',border:'none',cursor:'pointer',fontSize:isMobile?22:14,color:'#085041',padding:0,fontFamily:'inherit',fontWeight:600}}>
-            {isMobile?'←':'← Retour'}
-          </button>
-          <div style={{flex:1,fontSize:isMobile?17:20,fontWeight:isMobile?800:700,color:'#085041'}}>
-            🏅 {lang==='ar'?'نتائج الامتحانات':'Résultats examens'}
-          </div>
+  // ── ONGLET SAISIE ──────────────────────────────────────────────
+  const TabSaisir = () => (
+    <div>
+      {/* Étape 1 — Choisir l'élève */}
+      <div style={{background:'#fff',borderRadius:14,padding:'18px',marginBottom:14,
+        border:'0.5px solid #e0e0d8'}}>
+        <div style={{fontSize:13,fontWeight:700,color:'#085041',marginBottom:12}}>
+          {lang==='ar'?'① اختر الطالب':'① Choisir l\'élève'}
+          {selectedEleve&&(
+            <span style={{marginRight:8,fontSize:12,fontWeight:400,color:'#888'}}>
+              — {selectedEleve.prenom} {selectedEleve.nom}
+              <button onClick={()=>{setSelectedEleve(null);setSelectedExamen(null);setExamensEleve([]);}}
+                style={{marginRight:6,background:'none',border:'none',color:'#E24B4A',
+                  cursor:'pointer',fontSize:12}}>✕</button>
+            </span>
+          )}
         </div>
-        {/* Tabs */}
-        <div style={{display:'flex',gap:0,background:'#f0f0ec',borderRadius:10,padding:3,marginBottom:isMobile?0:0}}>
-          {[['saisir',lang==='ar'?'تسجيل نتيجة':'Saisir résultat'],
-            ['historique',lang==='ar'?'السجل':'Historique']
-          ].map(([k,l])=>(
-            <div key={k} onClick={()=>setActiveTab(k)}
-              style={{flex:1,padding:'8px 4px',borderRadius:8,textAlign:'center',fontSize:12,fontWeight:600,cursor:'pointer',
-                background:activeTab===k?'#fff':'transparent',color:activeTab===k?'#1a1a1a':'#888'}}>
-              {l}
+        {!selectedEleve ? (
+          <>
+            <input value={searchEleve} onChange={e=>setSearchEleve(e.target.value)}
+              placeholder={lang==='ar'?'بحث باسم الطالب...':'Rechercher un élève...'}
+              style={{width:'100%',padding:'10px 14px',borderRadius:10,
+                border:'0.5px solid #e0e0d8',fontSize:14,fontFamily:'inherit',
+                boxSizing:'border-box',marginBottom:8}}/>
+            <div style={{maxHeight:200,overflowY:'auto',display:'flex',flexDirection:'column',gap:4}}>
+              {elevesFiltres.slice(0,20).map(e=>{
+                const niv = niveaux.find(n=>n.id===e.niveau_id);
+                const nc  = niv?.couleur||'#888';
+                return(
+                  <div key={e.id} onClick={()=>selectionnerEleve(e)}
+                    style={{display:'flex',alignItems:'center',gap:10,padding:'10px 12px',
+                      borderRadius:10,cursor:'pointer',background:'#f5f5f0',
+                      border:'0.5px solid #e0e0d8'}}>
+                    <div style={{width:34,height:34,borderRadius:8,background:`${nc}20`,
+                      display:'flex',alignItems:'center',justifyContent:'center',
+                      fontWeight:700,fontSize:13,color:nc,flexShrink:0}}>
+                      {e.prenom[0]}{e.nom[0]}
+                    </div>
+                    <div style={{flex:1}}>
+                      <div style={{fontWeight:600,fontSize:14}}>{e.prenom} {e.nom}</div>
+                      <div style={{fontSize:11,color:'#888'}}>{niv?.code} — {niv?.nom}</div>
+                    </div>
+                    {/* Badge examen en attente */}
+                    {(() => {
+                      const exNiv = examens.filter(ex=>ex.niveau_id===e.niveau_id);
+                      const reuss = resultats.filter(r=>r.eleve_id===e.id&&r.statut==='reussi').map(r=>r.examen_id);
+                      const enAttente = exNiv.filter(ex=>!reuss.includes(ex.id)).length;
+                      return enAttente>0?(
+                        <span style={{fontSize:10,padding:'2px 7px',borderRadius:20,
+                          background:'#FCEBEB',color:'#E24B4A',fontWeight:700}}>
+                          {enAttente} {lang==='ar'?'امتحان':'exam(s)'}
+                        </span>
+                      ):null;
+                    })()}
+                  </div>
+                );
+              })}
+              {elevesFiltres.length===0&&<div style={{textAlign:'center',color:'#aaa',padding:'1rem',fontSize:13}}>
+                {lang==='ar'?'لا نتائج':'Aucun résultat'}
+              </div>}
             </div>
-          ))}
-        </div>
-      </div>
-
-      <div style={{padding:isMobile?'12px':'0',marginTop:isMobile?0:'0'}}>
-
-        {/* ── SAISIR RÉSULTAT ── */}
-        {activeTab==='saisir'&&(
-          <div>
-            {/* Info blocage si venu depuis EnregistrerRecitation */}
-            {blocageInit&&(
-              <div style={{background:'#FAEEDA',borderRadius:12,padding:'12px 14px',marginBottom:14,border:'1.5px solid #EF9F2730'}}>
-                <div style={{fontSize:13,fontWeight:700,color:'#633806',marginBottom:4}}>
-                  📝 {lang==='ar'?'امتحان مطلوب':'Examen requis'}
-                </div>
-                <div style={{fontSize:12,color:'#854F0B'}}>
-                  {lang==='ar'?blocageInit.message_ar:blocageInit.message_fr}
-                </div>
-              </div>
-            )}
-
-            {/* Sélection élève (si pas passé en param) */}
-            {!eleveInit&&(
-              <div style={{background:'#fff',borderRadius:14,padding:'14px',marginBottom:12,border:'0.5px solid #e0e0d8'}}>
-                <div style={{fontSize:13,fontWeight:700,color:'#085041',marginBottom:10}}>
-                  {lang==='ar'?'1. اختر الطالب':'1. Choisir l\'élève'}
-                </div>
-                <input style={{width:'100%',padding:'11px 13px',borderRadius:10,border:'0.5px solid #e0e0d8',fontSize:15,fontFamily:'inherit',boxSizing:'border-box',marginBottom:10}}
-                  placeholder={lang==='ar'?'بحث...':'Rechercher...'}
-                  value={searchEleve} onChange={e=>setSearchEleve(e.target.value)}/>
-                <div style={{maxHeight:200,overflowY:'auto',display:'flex',flexDirection:'column',gap:6}}>
-                  {elevesFiltres.map(e=>{
-                    const c = nc(e.code_niveau);
-                    const sel = selectedEleve?.id===e.id;
-                    return(
-                      <div key={e.id} onClick={()=>{setSelectedEleve(e);setSelectedExamen(null);}}
-                        style={{display:'flex',alignItems:'center',gap:10,padding:'10px 12px',borderRadius:10,cursor:'pointer',
-                          background:sel?`${c}10`:'#f5f5f0',border:`1.5px solid ${sel?c:'#e0e0d8'}`}}>
-                        <div style={{width:34,height:34,borderRadius:'50%',background:`${c}20`,color:c,
-                          display:'flex',alignItems:'center',justifyContent:'center',fontWeight:700,fontSize:12,flexShrink:0}}>
-                          {((e.prenom||'?')[0])+((e.nom||'?')[0])}
-                        </div>
-                        <div style={{flex:1}}>
-                          <div style={{fontSize:13,fontWeight:600}}>{e.prenom} {e.nom}</div>
-                          <span style={{fontSize:11,padding:'1px 6px',borderRadius:8,background:`${c}20`,color:c,fontWeight:700}}>{e.code_niveau||'?'}</span>
-                        </div>
-                        {sel&&<span style={{color:c,fontSize:16}}>✓</span>}
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-
-            {/* Élève sélectionné */}
-            {selectedEleve&&eleveInit&&(
-              <div style={{background:'#E1F5EE',borderRadius:12,padding:'12px 14px',marginBottom:12,
-                display:'flex',alignItems:'center',gap:10}}>
-                <div style={{width:40,height:40,borderRadius:'50%',background:'#9FE1CB',
-                  display:'flex',alignItems:'center',justifyContent:'center',fontWeight:700,fontSize:14,color:'#085041',flexShrink:0}}>
-                  {((selectedEleve.prenom||'?')[0])+((selectedEleve.nom||'?')[0])}
-                </div>
-                <div>
-                  <div style={{fontWeight:700,fontSize:15,color:'#085041'}}>{selectedEleve.prenom} {selectedEleve.nom}</div>
-                  <div style={{fontSize:12,color:'#0F6E56'}}>{selectedEleve.code_niveau}</div>
-                </div>
-              </div>
-            )}
-
-            {/* Sélection examen */}
-            {selectedEleve&&(
-              <div style={{background:'#fff',borderRadius:14,padding:'14px',marginBottom:12,border:'0.5px solid #e0e0d8'}}>
-                <div style={{fontSize:13,fontWeight:700,color:'#085041',marginBottom:10}}>
-                  {lang==='ar'?'2. اختر الامتحان':'2. Choisir l\'examen'}
-                </div>
-                <div style={{display:'flex',flexDirection:'column',gap:8}}>
-                  {examens.map(ex=>{
-                    const sel = selectedExamen?.id===ex.id;
-                    return(
-                      <div key={ex.id} onClick={()=>setSelectedExamen(ex)}
-                        style={{padding:'11px 14px',borderRadius:10,cursor:'pointer',
-                          background:sel?'#FAEEDA':'#f5f5f0',
-                          border:`1.5px solid ${sel?'#EF9F27':'#e0e0d8'}`}}>
-                        <div style={{fontSize:13,fontWeight:sel?700:500,color:sel?'#633806':'#666'}}>{ex.nom}</div>
-                        <div style={{fontSize:11,color:'#888',marginTop:2}}>
-                          {lang==='ar'?'النقاط الدنيا للنجاح':'Score min:'} {ex.score_minimum}%
-                          {ex.bloquant&&<span style={{marginLeft:8,color:'#E24B4A'}}>🔒 {lang==='ar'?'موقف':'Bloquant'}</span>}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-
-            {/* Score + Notes */}
-            {selectedEleve&&selectedExamen&&(
-              <div style={{background:'#fff',borderRadius:14,padding:'14px',marginBottom:12,border:'0.5px solid #e0e0d8'}}>
-                <div style={{fontSize:13,fontWeight:700,color:'#085041',marginBottom:14}}>
-                  {lang==='ar'?'3. تسجيل النتيجة':'3. Saisir le résultat'}
-                </div>
-
-                {/* Score slider */}
-                <div style={{marginBottom:14}}>
-                  <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:8}}>
-                    <label style={{fontSize:12,fontWeight:600,color:'#666'}}>{lang==='ar'?'النقاط':'Score'}</label>
-                    <div style={{fontSize:28,fontWeight:800,
-                      color:score>=(selectedExamen.score_minimum||0)?'#1D9E75':'#E24B4A'}}>
-                      {score}%
-                    </div>
-                  </div>
-                  <input type="range" min="0" max="100" step="5" value={score}
-                    onChange={e=>setScore(parseInt(e.target.value))}
-                    style={{width:'100%',accentColor:score>=(selectedExamen.score_minimum||0)?'#1D9E75':'#E24B4A'}}/>
-                  <div style={{display:'flex',justifyContent:'space-between',fontSize:11,color:'#aaa',marginTop:4}}>
-                    <span>0%</span>
-                    <span style={{color:'#888'}}>Min: {selectedExamen.score_minimum}%</span>
-                    <span>100%</span>
-                  </div>
-                  {/* Verdict */}
-                  <div style={{marginTop:10,padding:'10px 14px',borderRadius:10,textAlign:'center',
-                    background:score>=(selectedExamen.score_minimum||0)?'#E1F5EE':'#FCEBEB',
-                    border:`1.5px solid ${score>=(selectedExamen.score_minimum||0)?'#1D9E7530':'#E24B4A30'}`}}>
-                    <div style={{fontSize:20,marginBottom:4}}>
-                      {score>=(selectedExamen.score_minimum||0)?'🎉':'😔'}
-                    </div>
-                    <div style={{fontSize:14,fontWeight:700,
-                      color:score>=(selectedExamen.score_minimum||0)?'#085041':'#A32D2D'}}>
-                      {score>=(selectedExamen.score_minimum||0)
-                        ?(lang==='ar'?'ناجح — يمكن الاستمرار':'Réussi — peut continuer')
-                        :(lang==='ar'?'لم ينجح — إعادة الامتحان':'Échoué — nouvel examen requis')}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Notes */}
-                <div style={{marginBottom:14}}>
-                  <label style={{fontSize:12,fontWeight:600,color:'#666',display:'block',marginBottom:5}}>
-                    {lang==='ar'?'ملاحظات (اختياري)':'Notes (optionnel)'}
-                  </label>
-                  <textarea style={{width:'100%',padding:'11px 13px',borderRadius:10,border:'0.5px solid #e0e0d8',
-                    fontSize:14,fontFamily:'inherit',boxSizing:'border-box',resize:'none',minHeight:70}}
-                    value={notes} onChange={e=>setNotes(e.target.value)}
-                    placeholder={lang==='ar'?'ملاحظات المراقب...':'Observations de l\'examinateur...'}/>
-                </div>
-
-                <button onClick={sauvegarder} disabled={saving}
-                  style={{width:'100%',padding:'14px',background:saving?'#ccc':'#1D9E75',color:'#fff',border:'none',
-                    borderRadius:12,fontSize:15,fontWeight:700,cursor:saving?'not-allowed':'pointer',fontFamily:'inherit'}}>
-                  {saving?'...':(lang==='ar'?'حفظ النتيجة':'Enregistrer le résultat')}
-                </button>
-              </div>
-            )}
+          </>
+        ):(
+          // Élève sélectionné — afficher sa carte
+          <div style={{display:'flex',alignItems:'center',gap:12,padding:'12px 14px',
+            borderRadius:12,background:'#E1F5EE',border:'1.5px solid #1D9E75'}}>
+            <div style={{width:44,height:44,borderRadius:10,
+              background:`${couleurNiv(selectedEleve.niveau_id)}20`,
+              display:'flex',alignItems:'center',justifyContent:'center',
+              fontWeight:800,fontSize:16,color:couleurNiv(selectedEleve.niveau_id)}}>
+              {selectedEleve.prenom[0]}{selectedEleve.nom[0]}
+            </div>
+            <div style={{flex:1}}>
+              <div style={{fontWeight:700,fontSize:16}}>{selectedEleve.prenom} {selectedEleve.nom}</div>
+              <div style={{fontSize:12,color:'#666'}}>{nomNiveau(selectedEleve.niveau_id)}</div>
+            </div>
+            <span style={{fontSize:11,padding:'3px 10px',borderRadius:20,
+              background:'#1D9E75',color:'#fff',fontWeight:600}}>
+              {examensEleve.length} {lang==='ar'?'امتحان متاح':'examen(s) disponible(s)'}
+            </span>
           </div>
         )}
+      </div>
 
-        {/* ── HISTORIQUE ── */}
-        {activeTab==='historique'&&(
-          <div>
-            {loading&&<div style={{textAlign:'center',padding:'2rem',color:'#888'}}>...</div>}
-            {!loading&&resultats.length===0&&(
-              <div style={{textAlign:'center',color:'#aaa',padding:'3rem',background:'#fff',borderRadius:12,border:'0.5px solid #e0e0d8'}}>
-                <div style={{fontSize:36,marginBottom:10}}>🏅</div>
-                <div style={{fontSize:14}}>{lang==='ar'?'لا توجد نتائج بعد':'Aucun résultat enregistré'}</div>
+      {/* Étape 2 — Choisir l'examen */}
+      {selectedEleve&&(
+        <div style={{background:'#fff',borderRadius:14,padding:'18px',marginBottom:14,
+          border:'0.5px solid #e0e0d8'}}>
+          <div style={{fontSize:13,fontWeight:700,color:'#085041',marginBottom:12}}>
+            {lang==='ar'?'② اختر الامتحان':'② Choisir l\'examen'}
+          </div>
+          {examensEleve.length===0?(
+            <div style={{textAlign:'center',padding:'1.5rem',background:'#f5f5f0',
+              borderRadius:10,color:'#888',fontSize:13}}>
+              🎉 {lang==='ar'?'الطالب أنجز جميع الامتحانات!':'Cet élève a réussi tous ses examens !'}
+            </div>
+          ):(
+            <div style={{display:'flex',flexDirection:'column',gap:8}}>
+              {examensEleve.map(ex=>{
+                const sel = selectedExamen?.id===ex.id;
+                const nc  = couleurNiv(ex.niveau_id);
+                return(
+                  <div key={ex.id} onClick={()=>{setSelectedExamen(ex);setScore(ex.score_minimum||70);}}
+                    style={{display:'flex',alignItems:'center',gap:12,padding:'12px 14px',
+                      borderRadius:12,cursor:'pointer',
+                      background:sel?`${nc}10`:'#f5f5f0',
+                      border:`1.5px solid ${sel?nc:'#e0e0d8'}`}}>
+                    <div style={{fontSize:22}}>{ex.bloquant?'🔒':'📝'}</div>
+                    <div style={{flex:1}}>
+                      <div style={{fontWeight:sel?700:500,fontSize:14,color:sel?nc:'#333'}}>{ex.nom}</div>
+                      <div style={{fontSize:11,color:'#888',marginTop:2}}>
+                        {lang==='ar'?'النجاح من':'Seuil :'} {ex.score_minimum||70}%
+                        {ex.bloquant&&<span style={{marginRight:8,color:'#E24B4A',fontWeight:600}}> · {lang==='ar'?'موقف':'Bloquant'}</span>}
+                      </div>
+                    </div>
+                    {sel&&<span style={{color:nc,fontWeight:700,fontSize:18}}>✓</span>}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Étape 3 — Score & verdict */}
+      {selectedEleve&&selectedExamen&&(
+        <div style={{background:'#fff',borderRadius:14,padding:'18px',marginBottom:14,
+          border:'0.5px solid #e0e0d8'}}>
+          <div style={{fontSize:13,fontWeight:700,color:'#085041',marginBottom:16}}>
+            {lang==='ar'?'③ النتيجة':'③ Résultat'}
+          </div>
+
+          {/* Slider score */}
+          <div style={{marginBottom:20}}>
+            <div style={{display:'flex',justifyContent:'space-between',marginBottom:8}}>
+              <label style={{fontSize:13,fontWeight:600,color:'#666'}}>
+                {lang==='ar'?'النقاط المحصلة':'Score obtenu'}
+              </label>
+              <span style={{fontSize:24,fontWeight:800,color:reussi?'#1D9E75':'#E24B4A'}}>
+                {score}%
+              </span>
+            </div>
+            <input type="range" min="0" max="100" step="5" value={score}
+              onChange={e=>setScore(parseInt(e.target.value))}
+              style={{width:'100%',accentColor:reussi?'#1D9E75':'#E24B4A'}}/>
+            <div style={{display:'flex',justifyContent:'space-between',fontSize:11,color:'#aaa',marginTop:4}}>
+              <span>0%</span>
+              <span style={{color:'#888'}}>Seuil : {selectedExamen.score_minimum||70}%</span>
+              <span>100%</span>
+            </div>
+          </div>
+
+          {/* Verdict */}
+          <div style={{padding:'14px 18px',borderRadius:12,marginBottom:16,textAlign:'center',
+            background:reussi?'#E1F5EE':'#FCEBEB',
+            border:`1.5px solid ${reussi?'#1D9E75':'#E24B4A'}`}}>
+            <div style={{fontSize:32,marginBottom:6}}>{reussi?'🎉':'❌'}</div>
+            <div style={{fontWeight:700,fontSize:16,color:reussi?'#085041':'#C0392B'}}>
+              {reussi
+                ?(lang==='ar'?'ناجح — الامتحان مُجتاز':'Réussi — Examen validé !')
+                :(lang==='ar'?'لم ينجح — يجب إعادة الامتحان':'Non validé — À repasser')}
+            </div>
+            {selectedExamen.bloquant&&!reussi&&(
+              <div style={{fontSize:12,color:'#E24B4A',marginTop:4}}>
+                🔒 {lang==='ar'?'الطالب موقوف حتى اجتياز هذا الامتحان'
+                  :'L\'élève reste bloqué jusqu\'à la validation'}
               </div>
             )}
-            {!loading&&resultats.map(r=>{
-              const reussi = r.statut==='reussi';
-              const c = nc(r.eleve?.code_niveau);
-              return(
-                <div key={r.id} style={{background:'#fff',borderRadius:12,padding:'13px 14px',marginBottom:8,
-                  border:`0.5px solid ${reussi?'#1D9E7520':'#E24B4A20'}`}}>
-                  <div style={{display:'flex',alignItems:'center',gap:10}}>
-                    <div style={{fontSize:22,flexShrink:0}}>{reussi?'🎉':'😔'}</div>
-                    <div style={{flex:1,minWidth:0}}>
-                      <div style={{fontWeight:700,fontSize:14}}>
-                        {r.eleve?.prenom} {r.eleve?.nom}
-                      </div>
-                      <div style={{fontSize:12,color:'#888',marginTop:2}}>{r.examen?.nom}</div>
-                    </div>
-                    <div style={{textAlign:'right',flexShrink:0}}>
-                      <div style={{fontSize:20,fontWeight:800,color:reussi?'#1D9E75':'#E24B4A'}}>{r.score}%</div>
-                      <div style={{fontSize:10,color:'#888'}}>
-                        {new Date(r.date_examen).toLocaleDateString(lang==='ar'?'ar-MA':'fr-FR')}
-                      </div>
-                    </div>
+          </div>
+
+          {/* Notes */}
+          <div style={{marginBottom:14}}>
+            <label style={{fontSize:12,fontWeight:600,color:'#666',display:'block',marginBottom:6}}>
+              {lang==='ar'?'ملاحظات المصحح (اختياري)':'Observations (optionnel)'}
+            </label>
+            <textarea value={notes} onChange={e=>setNotes(e.target.value)} rows={2}
+              placeholder={lang==='ar'?'ملاحظات حول أداء الطالب...':'Notes sur la prestation de l\'élève...'}
+              style={{width:'100%',padding:'10px 12px',borderRadius:10,border:'0.5px solid #e0e0d8',
+                fontSize:13,fontFamily:'inherit',resize:'vertical',boxSizing:'border-box'}}/>
+          </div>
+
+          {/* Bouton */}
+          <button onClick={sauvegarder} disabled={saving}
+            style={{width:'100%',padding:'14px',border:'none',borderRadius:12,
+              background:saving?'#ccc':reussi?'#1D9E75':'#E24B4A',
+              color:'#fff',fontSize:15,fontWeight:700,cursor:saving?'not-allowed':'pointer',
+              fontFamily:'inherit'}}>
+            {saving?'...':(reussi
+              ?(lang==='ar'?'✅ تسجيل النجاح':'✅ Valider la réussite')
+              :(lang==='ar'?'❌ تسجيل الرسوب':'❌ Enregistrer l\'échec'))}
+          </button>
+        </div>
+      )}
+    </div>
+  );
+
+  // ── ONGLET REGISTRE ────────────────────────────────────────────
+  const TabRegistre = () => (
+    <div>
+      {/* Stats */}
+      <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:10,marginBottom:16}}>
+        {[
+          {label:lang==='ar'?'المجموع':'Total', val:stats.total, color:'#085041', bg:'#E1F5EE'},
+          {label:lang==='ar'?'ناجحون':'Réussis', val:stats.reussis, color:'#1D9E75', bg:'#E1F5EE'},
+          {label:lang==='ar'?'راسبون':'Échoués', val:stats.echoues, color:'#E24B4A', bg:'#FCEBEB'},
+          {label:lang==='ar'?'نسبة النجاح':'Taux', val:`${stats.tauxReussite}%`, color:'#378ADD', bg:'#E6F1FB'},
+        ].map((s,i)=>(
+          <div key={i} style={{background:s.bg,borderRadius:12,padding:'12px',textAlign:'center'}}>
+            <div style={{fontSize:22,fontWeight:800,color:s.color}}>{s.val}</div>
+            <div style={{fontSize:11,color:s.color,opacity:0.8,marginTop:2}}>{s.label}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* Filtres */}
+      <div style={{display:'flex',gap:8,flexWrap:'wrap',marginBottom:12}}>
+        <select value={filtreNiveau} onChange={e=>setFiltreNiveau(e.target.value)}
+          style={{padding:'7px 12px',borderRadius:10,border:'0.5px solid #e0e0d8',
+            fontSize:12,fontFamily:'inherit',background:'#fff',outline:'none'}}>
+          <option value="tous">{lang==='ar'?'كل المستويات':'Tous les niveaux'}</option>
+          {niveaux.map(n=><option key={n.id} value={n.id}>{n.code} — {n.nom}</option>)}
+        </select>
+        <select value={filtreExamen} onChange={e=>setFiltreExamen(e.target.value)}
+          style={{padding:'7px 12px',borderRadius:10,border:'0.5px solid #e0e0d8',
+            fontSize:12,fontFamily:'inherit',background:'#fff',outline:'none'}}>
+          <option value="tous">{lang==='ar'?'كل الامتحانات':'Tous les examens'}</option>
+          {examens.map(e=><option key={e.id} value={e.id}>{e.nom}</option>)}
+        </select>
+        <select value={filtreStatut} onChange={e=>setFiltreStatut(e.target.value)}
+          style={{padding:'7px 12px',borderRadius:10,border:'0.5px solid #e0e0d8',
+            fontSize:12,fontFamily:'inherit',background:'#fff',outline:'none'}}>
+          <option value="tous">{lang==='ar'?'الكل':'Tous'}</option>
+          <option value="reussi">{lang==='ar'?'ناجح':'Réussi'}</option>
+          <option value="echoue">{lang==='ar'?'راسب':'Échoué'}</option>
+        </select>
+        <span style={{fontSize:12,color:'#888',alignSelf:'center'}}>
+          {resultasFiltres.length} {lang==='ar'?'نتيجة':'résultat(s)'}
+        </span>
+      </div>
+
+      {/* Liste résultats */}
+      {resultasFiltres.length===0?(
+        <div style={{textAlign:'center',padding:'3rem',color:'#aaa',
+          background:'#fff',borderRadius:12,border:'0.5px solid #e0e0d8'}}>
+          <div style={{fontSize:40,marginBottom:10}}>📋</div>
+          <div>{lang==='ar'?'لا توجد نتائج':'Aucun résultat enregistré'}</div>
+        </div>
+      ):(
+        <div style={{display:'flex',flexDirection:'column',gap:8}}>
+          {resultasFiltres.map(r=>{
+            const ex  = examens.find(e=>e.id===r.examen_id);
+            const el  = eleves.find(e=>e.id===r.eleve_id);
+            const nc  = couleurNiv(ex?.niveau_id);
+            const ok  = r.statut==='reussi';
+            return(
+              <div key={r.id} style={{background:'#fff',borderRadius:12,padding:'14px 16px',
+                border:`0.5px solid ${ok?'#1D9E7520':'#E24B4A20'}`,
+                display:'flex',alignItems:'center',gap:12}}>
+                {/* Verdict */}
+                <div style={{width:40,height:40,borderRadius:10,flexShrink:0,
+                  background:ok?'#E1F5EE':'#FCEBEB',
+                  display:'flex',alignItems:'center',justifyContent:'center',fontSize:20}}>
+                  {ok?'✅':'❌'}
+                </div>
+                {/* Info */}
+                <div style={{flex:1,minWidth:0}}>
+                  <div style={{fontWeight:700,fontSize:14}}>
+                    {el?`${el.prenom} ${el.nom}`:r.eleve_id}
+                  </div>
+                  <div style={{fontSize:12,color:'#666',marginTop:2}}>
+                    {ex?.nom||'?'}
+                    <span style={{marginRight:6,marginLeft:6,color:'#ddd'}}>·</span>
+                    <span style={{padding:'1px 7px',borderRadius:20,fontSize:11,
+                      background:`${nc}20`,color:nc,fontWeight:600}}>
+                      {niveaux.find(n=>n.id===ex?.niveau_id)?.code||'?'}
+                    </span>
                   </div>
                   {r.notes_examinateur&&(
-                    <div style={{marginTop:8,fontSize:12,color:'#888',fontStyle:'italic',
-                      paddingTop:8,borderTop:'0.5px solid #f0f0ec'}}>
-                      {r.notes_examinateur}
+                    <div style={{fontSize:11,color:'#888',marginTop:4,fontStyle:'italic'}}>
+                      💬 {r.notes_examinateur}
                     </div>
                   )}
                 </div>
-              );
-            })}
-          </div>
-        )}
+                {/* Score + date */}
+                <div style={{textAlign:'center',flexShrink:0}}>
+                  <div style={{fontSize:20,fontWeight:800,color:ok?'#1D9E75':'#E24B4A'}}>
+                    {r.score}%
+                  </div>
+                  <div style={{fontSize:10,color:'#aaa'}}>
+                    {new Date(r.date_examen||r.created_at).toLocaleDateString('fr-FR')}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+
+  // ── RENDU ──────────────────────────────────────────────────────
+  const Header = () => (
+    <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:isMobile?12:'1.25rem'}}>
+      <button onClick={()=>goBack?goBack():navigate('dashboard')}
+        style={{background:'none',border:'none',cursor:'pointer',
+          fontSize:isMobile?22:14,color:'#085041',padding:0,
+          fontFamily:'inherit',fontWeight:600}}>
+        {isMobile?'←':'← Retour'}
+      </button>
+      {!isMobile&&<div style={{fontSize:20,fontWeight:700}}>
+        🏅 {lang==='ar'?'نتائج الامتحانات':'Résultats des examens'}
+      </div>}
+      {isMobile&&<div style={{flex:1,fontSize:17,fontWeight:800,color:'#085041'}}>
+        🏅 {lang==='ar'?'نتائج الامتحانات':'Résultats'}
+      </div>}
+    </div>
+  );
+
+  if (isMobile) {
+    return (
+      <div style={{paddingBottom:80,background:'#f5f5f0',minHeight:'100vh'}}>
+        <div style={{background:'#fff',padding:'14px 16px 12px',
+          borderBottom:'0.5px solid #e0e0d8',position:'sticky',top:0,zIndex:100}}>
+          <Header/>
+          <Tabs/>
+        </div>
+        <div style={{padding:'12px'}}>
+          {loading?<div style={{textAlign:'center',padding:'2rem',color:'#888'}}>...</div>
+          :activeTab==='saisir'?<TabSaisir/>:<TabRegistre/>}
+        </div>
       </div>
+    );
+  }
+
+  return (
+    <div>
+      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',
+        marginBottom:'1.25rem'}}>
+        <Header/>
+      </div>
+      <Tabs/>
+      {loading?<div style={{textAlign:'center',padding:'2rem',color:'#888'}}>...</div>
+      :activeTab==='saisir'?<TabSaisir/>:<TabRegistre/>}
     </div>
   );
 }
