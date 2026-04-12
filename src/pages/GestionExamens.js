@@ -33,11 +33,16 @@ export default function GestionExamens({ user, navigate, goBack, lang='fr', isMo
     setLoading(true);
     const [{data:nd},{data:ed},{data:sd}] = await Promise.all([
       supabase.from('niveaux').select('id,code,nom,type,couleur').eq('ecole_id',user.ecole_id).order('ordre'),
-      supabase.from('examens').select('*, niveau:niveau_id(code,nom,couleur,type)').eq('ecole_id',user.ecole_id).order('ordre'),
+      supabase.from('examens').select('*').eq('ecole_id',user.ecole_id).order('ordre'),
       supabase.from('sourates').select('*').order('numero'),
     ]);
     setNiveaux(nd||[]);
-    setExamens(ed||[]);
+    // Enrichir chaque examen avec les données de son niveau
+    const examensenrichis = (ed||[]).map(e=>({
+      ...e,
+      niveau: (nd||[]).find(n=>n.id===e.niveau_id)||null
+    }));
+    setExamens(examensenrichis);
     setSouratesDB(sd||[]);
     setLoading(false);
     // Si filtreNiveau actif, charger son programme avec la liste fraîche
@@ -222,29 +227,6 @@ export default function GestionExamens({ user, navigate, goBack, lang='fr', isMo
   // ── FORMULAIRE (partagé PC+Mobile) ────────────────────────────────
   const FormContent = () => (
     <div>
-      {/* Niveau — si pas présélectionné */}
-      {!form.niveau_id || true ? (
-        <div style={{marginBottom:13}}>
-          <label style={{fontSize:12,fontWeight:600,color:'#666',display:'block',marginBottom:5}}>
-            {lang==='ar'?'المستوى *':'Niveau *'}
-          </label>
-          <select value={form.niveau_id}
-            onChange={e=>{
-              const nid=e.target.value;
-              const niv=niveaux.find(n=>n.id===nid);
-              setForm(f=>({...f,niveau_id:nid,type_contenu:niv?.type||'hizb',contenu_ids:[]}));
-              if(nid) chargerProgrammeNiveau(nid,niveaux);
-              else {setProgrammeNiveau([]);setEnsemblesNiveau([]);}
-            }}
-            style={{width:'100%',padding:'10px 12px',borderRadius:10,
-              border:'0.5px solid #e0e0d8',fontSize:14,fontFamily:'inherit',
-              background:'#fff',outline:'none',boxSizing:'border-box'}}>
-            <option value="">— {lang==='ar'?'اختر المستوى':'Choisir un niveau'} —</option>
-            {niveaux.map(n=><option key={n.id} value={n.id}>{n.code} — {n.nom}</option>)}
-          </select>
-        </div>
-      ):null}
-
       {/* Nom */}
       <div style={{marginBottom:13}}>
         <label style={{fontSize:12,fontWeight:600,color:'#666',display:'block',marginBottom:5}}>
