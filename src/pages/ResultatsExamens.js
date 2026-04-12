@@ -295,9 +295,22 @@ export default function ResultatsExamens({ user, navigate, goBack, lang='fr', is
             {lang==='ar'?'② اختر الامتحان':'② Choisir l\'examen'}
           </div>
           {examensEleve.length===0?(
-            <div style={{textAlign:'center',padding:'1.5rem',background:'#f5f5f0',
-              borderRadius:10,color:'#888',fontSize:13}}>
-              🎉 {lang==='ar'?'الطالب أنجز جميع الامتحانات!':'Cet élève a réussi tous ses examens !'}
+            <div style={{textAlign:'center',padding:'1.5rem',background:'#FAEEDA',
+              borderRadius:10,color:'#633806',fontSize:13}}>
+              {resultats.some(r=>r.eleve_id===selectedEleve.id)
+                ? <>🎉 {lang==='ar'?'الطالب أنجز جميع الامتحانات المتاحة!':'Cet élève a complété tous les examens disponibles !'}</>
+                : <>
+                    ⚠️ {lang==='ar'
+                      ?'لا توجد امتحانات محددة لهذا المستوى.'
+                      :'Aucun examen configuré pour ce niveau.'}
+                    <button onClick={()=>navigate('examens')}
+                      style={{display:'block',margin:'8px auto 0',padding:'7px 16px',
+                        background:'#1D9E75',color:'#fff',border:'none',borderRadius:8,
+                        fontSize:12,cursor:'pointer',fontWeight:600,fontFamily:'inherit'}}>
+                      {lang==='ar'?'إضافة امتحان للمستوى →':'Créer un examen pour ce niveau →'}
+                    </button>
+                  </>
+              }
             </div>
           ):(
             <div style={{display:'flex',flexDirection:'column',gap:8}}>
