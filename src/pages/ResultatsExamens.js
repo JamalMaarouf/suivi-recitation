@@ -159,7 +159,8 @@ export default function ResultatsExamens({ user, navigate, goBack, lang='fr', is
   );
 
   // ── ONGLET SAISIE ──────────────────────────────────────────────
-  const TabSaisir = () => (
+  // Contenu des onglets — en variables JSX (pas de composants) pour éviter perte de focus
+  const tabSaisirJSX = (
     <div>
       {/* Étape 1 — Choisir l'élève */}
       <div style={{background:'#fff',borderRadius:14,padding:'18px',marginBottom:14,
@@ -394,8 +395,7 @@ export default function ResultatsExamens({ user, navigate, goBack, lang='fr', is
     </div>
   );
 
-  // ── ONGLET REGISTRE ────────────────────────────────────────────
-  const TabRegistre = () => (
+  const tabRegistreJSX = (
     <div>
       {/* Stats */}
       <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:10,marginBottom:16}}>
@@ -526,7 +526,11 @@ export default function ResultatsExamens({ user, navigate, goBack, lang='fr', is
         </div>
         <div style={{padding:'12px'}}>
           {loading?<div style={{textAlign:'center',padding:'2rem',color:'#888'}}>...</div>
-          :activeTab==='saisir'?<TabSaisir/>:<TabRegistre/>}
+          :activeTab==='saisir'?(
+          {tabSaisirJSX}
+        ):(
+          {tabRegistreJSX}
+        )}
         </div>
       </div>
     );
@@ -540,7 +544,11 @@ export default function ResultatsExamens({ user, navigate, goBack, lang='fr', is
       </div>
       <Tabs/>
       {loading?<div style={{textAlign:'center',padding:'2rem',color:'#888'}}>...</div>
-      :activeTab==='saisir'?<TabSaisir/>:<TabRegistre/>}
+      :activeTab==='saisir'?(
+          {tabSaisirJSX}
+        ):(
+          {tabRegistreJSX}
+        )}
     </div>
   );
 }
