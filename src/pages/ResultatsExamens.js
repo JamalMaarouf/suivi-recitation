@@ -25,6 +25,9 @@ export default function ResultatsExamens({ user, navigate, goBack, lang='fr', is
   const [score,          setScore]          = useState(70);
   const [notes,          setNotes]          = useState('');
 
+  // Filtres saisie
+  const [filtreNiveauEleve, setFiltreNiveauEleve] = useState('tous');
+
   // Filtres registre
   const [filtreNiveau,  setFiltreNiveau]  = useState('tous');
   const [filtreStatut,  setFiltreStatut]  = useState('tous');
@@ -35,7 +38,7 @@ export default function ResultatsExamens({ user, navigate, goBack, lang='fr', is
   const loadAll = async () => {
     setLoading(true);
     const [{ data:el },{ data:ex },{ data:re },{ data:nv },{ data:en },{ data:sd }] = await Promise.all([
-      supabase.from('eleves').select('id,prenom,nom,code_niveau,niveau_id').eq('ecole_id',user.ecole_id).order('nom'),
+      supabase.from('eleves').select('id,prenom,nom,code_niveau,niveau_id,instituteur_id,eleve_id_ecole').eq('ecole_id',user.ecole_id).order('nom'),
       supabase.from('examens').select('*').eq('ecole_id',user.ecole_id).order('nom'),
       supabase.from('resultats_examens').select('*').eq('ecole_id',user.ecole_id).order('created_at',{ascending:false}),
       supabase.from('niveaux').select('id,code,nom,couleur,type').eq('ecole_id',user.ecole_id).order('ordre'),
@@ -44,7 +47,11 @@ export default function ResultatsExamens({ user, navigate, goBack, lang='fr', is
     ]);
     const niveauxData = nv||[];
     const examenData  = (ex||[]).map(e=>({ ...e, niveau: niveauxData.find(n=>n.id===e.niveau_id)||null }));
-    setEleves(el||[]);
+    // Instituteur → ses élèves uniquement / Surveillant → tous
+    const elevesFiltres = (user.role === 'instituteur')
+      ? (el||[]).filter(e => e.instituteur_id === user.id)
+      : (el||[]);
+    setEleves(elevesFiltres);
     setExamens(examenData);
     setResultats(re||[]);
     setNiveaux(niveauxData);
@@ -100,7 +107,11 @@ export default function ResultatsExamens({ user, navigate, goBack, lang='fr', is
   // ── DONNÉES CALCULÉES ──────────────────────────────────────────
   const elevesFiltres = eleves.filter(e => {
     const nom = `${e.prenom} ${e.nom}`.toLowerCase();
-    return nom.includes(searchEleve.toLowerCase());
+    const num = String(e.eleve_id_ecole||'').toLowerCase();
+    const q   = searchEleve.toLowerCase();
+    const matchNom = searchEleve==='' || nom.includes(q) || num.includes(q);
+    const matchNiveau = filtreNiveauEleve==='tous' || e.niveau_id===filtreNiveauEleve;
+    return matchNom && matchNiveau;
   });
 
   const resultasFiltres = resultats.filter(r => {
@@ -166,12 +177,34 @@ export default function ResultatsExamens({ user, navigate, goBack, lang='fr', is
         </div>
         {!selectedEleve ? (
           <>
+            {/* Filtres rapides par niveau */}
+            <div style={{display:'flex',gap:6,flexWrap:'wrap',marginBottom:8}}>
+              <div onClick={()=>setFiltreNiveauEleve('tous')}
+                style={{padding:'5px 12px',borderRadius:20,cursor:'pointer',fontSize:12,fontWeight:600,
+                  background:filtreNiveauEleve==='tous'?'#085041':'#f5f5f0',
+                  color:filtreNiveauEleve==='tous'?'#fff':'#666',border:'0.5px solid #e0e0d8'}}>
+                {lang==='ar'?'الكل':'Tous'}
+              </div>
+              {niveaux.map(n=>(
+                <div key={n.id} onClick={()=>setFiltreNiveauEleve(n.id)}
+                  style={{padding:'5px 12px',borderRadius:20,cursor:'pointer',fontSize:12,fontWeight:600,
+                    background:filtreNiveauEleve===n.id?n.couleur:'#f5f5f0',
+                    color:filtreNiveauEleve===n.id?'#fff':'#666',
+                    border:`0.5px solid ${filtreNiveauEleve===n.id?n.couleur:'#e0e0d8'}`}}>
+                  {n.code}
+                </div>
+              ))}
+            </div>
+            {/* Recherche par nom */}
             <input value={searchEleve} onChange={e=>setSearchEleve(e.target.value)}
-              placeholder={lang==='ar'?'بحث باسم الطالب...':'Rechercher un élève...'}
+              placeholder={lang==='ar'?'بحث باسم الطالب أو رقمه...':'Nom ou numéro d\'élève...'}
               style={{width:'100%',padding:'10px 14px',borderRadius:10,
                 border:'0.5px solid #e0e0d8',fontSize:14,fontFamily:'inherit',
                 boxSizing:'border-box',marginBottom:8}}/>
-            <div style={{maxHeight:200,overflowY:'auto',display:'flex',flexDirection:'column',gap:4}}>
+            <div style={{fontSize:11,color:'#888',marginBottom:6}}>
+              {elevesFiltres.length} {lang==='ar'?'طالب':'élève(s)'}
+            </div>
+            <div style={{maxHeight:240,overflowY:'auto',display:'flex',flexDirection:'column',gap:4}}>
               {elevesFiltres.slice(0,20).map(e=>{
                 const niv = niveaux.find(n=>n.id===e.niveau_id);
                 const nc  = niv?.couleur||'#888';
@@ -187,7 +220,10 @@ export default function ResultatsExamens({ user, navigate, goBack, lang='fr', is
                     </div>
                     <div style={{flex:1}}>
                       <div style={{fontWeight:600,fontSize:14}}>{e.prenom} {e.nom}</div>
-                      <div style={{fontSize:11,color:'#888'}}>{niv?.code} — {niv?.nom}</div>
+                      <div style={{fontSize:11,color:'#888',display:'flex',gap:8,alignItems:'center'}}>
+                        {e.eleve_id_ecole&&<span style={{padding:'1px 7px',borderRadius:20,background:'#f0f0ec',fontWeight:700,color:'#555'}}>#{e.eleve_id_ecole}</span>}
+                        {niv?.code} — {niv?.nom}
+                      </div>
                     </div>
                     {/* Badge examen en attente */}
                     {(() => {
@@ -221,7 +257,10 @@ export default function ResultatsExamens({ user, navigate, goBack, lang='fr', is
             </div>
             <div style={{flex:1}}>
               <div style={{fontWeight:700,fontSize:16}}>{selectedEleve.prenom} {selectedEleve.nom}</div>
-              <div style={{fontSize:12,color:'#666'}}>{nomNiveau(selectedEleve.niveau_id)}</div>
+              <div style={{fontSize:12,color:'#666',display:'flex',gap:8,alignItems:'center'}}>
+                {selectedEleve.eleve_id_ecole&&<span style={{padding:'1px 7px',borderRadius:20,background:'rgba(255,255,255,0.4)',fontWeight:700}}>#{selectedEleve.eleve_id_ecole}</span>}
+                {nomNiveau(selectedEleve.niveau_id)}
+              </div>
             </div>
             <span style={{fontSize:11,padding:'3px 10px',borderRadius:20,
               background:'#1D9E75',color:'#fff',fontWeight:600}}>
