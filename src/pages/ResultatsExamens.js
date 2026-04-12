@@ -106,10 +106,10 @@ export default function ResultatsExamens({ user, navigate, goBack, lang='fr', is
 
   // ── DONNÉES CALCULÉES ──────────────────────────────────────────
   const elevesFiltres = eleves.filter(e => {
-    const nom = `${e.prenom} ${e.nom}`.toLowerCase();
+    const nom = `${e.prenom||''} ${e.nom||''}`.toLowerCase().trim();
     const num = String(e.eleve_id_ecole||'').toLowerCase();
-    const q   = searchEleve.toLowerCase();
-    const matchNom = searchEleve==='' || nom.includes(q) || num.includes(q);
+    const q   = searchEleve.toLowerCase().trim();
+    const matchNom = q==='' || nom.includes(q) || num.includes(q);
     const matchNiveau = filtreNiveauEleve==='tous' || e.niveau_id===filtreNiveauEleve;
     return matchNom && matchNiveau;
   });
@@ -195,14 +195,26 @@ export default function ResultatsExamens({ user, navigate, goBack, lang='fr', is
                 </div>
               ))}
             </div>
-            {/* Recherche par nom */}
-            <input value={searchEleve} onChange={e=>setSearchEleve(e.target.value)}
-              placeholder={lang==='ar'?'بحث باسم الطالب أو رقمه...':'Nom ou numéro d\'élève...'}
-              style={{width:'100%',padding:'10px 14px',borderRadius:10,
-                border:'0.5px solid #e0e0d8',fontSize:14,fontFamily:'inherit',
-                boxSizing:'border-box',marginBottom:8}}/>
-            <div style={{fontSize:11,color:'#888',marginBottom:6}}>
-              {elevesFiltres.length} {lang==='ar'?'طالب':'élève(s)'}
+            {/* Recherche nom + numéro */}
+            <div style={{position:'relative',marginBottom:8}}>
+              <input value={searchEleve} onChange={e=>setSearchEleve(e.target.value)}
+                placeholder={lang==='ar'?'بحث باسم الطالب أو رقمه...':'Nom ou numéro élève...'}
+                style={{width:'100%',padding:'10px 14px 10px 36px',borderRadius:10,
+                  border:'0.5px solid #e0e0d8',fontSize:14,fontFamily:'inherit',
+                  boxSizing:'border-box'}}/>
+              <span style={{position:'absolute',right:12,top:'50%',transform:'translateY(-50%)',
+                fontSize:16,color:'#aaa'}}>🔍</span>
+            </div>
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:6}}>
+              <span style={{fontSize:11,color:'#888'}}>
+                {elevesFiltres.length} {lang==='ar'?'طالب':'élève(s)'}
+              </span>
+              {searchEleve&&(
+                <button onClick={()=>setSearchEleve('')}
+                  style={{fontSize:11,color:'#E24B4A',background:'none',border:'none',cursor:'pointer'}}>
+                  ✕ {lang==='ar'?'مسح':'Effacer'}
+                </button>
+              )}
             </div>
             <div style={{maxHeight:240,overflowY:'auto',display:'flex',flexDirection:'column',gap:4}}>
               {elevesFiltres.slice(0,20).map(e=>{
@@ -216,7 +228,7 @@ export default function ResultatsExamens({ user, navigate, goBack, lang='fr', is
                     <div style={{width:34,height:34,borderRadius:8,background:`${nc}20`,
                       display:'flex',alignItems:'center',justifyContent:'center',
                       fontWeight:700,fontSize:13,color:nc,flexShrink:0}}>
-                      {e.prenom[0]}{e.nom[0]}
+                      {(e.prenom||'?')[0]}{(e.nom||'?')[0]}
                     </div>
                     <div style={{flex:1}}>
                       <div style={{fontWeight:600,fontSize:14}}>{e.prenom} {e.nom}</div>
