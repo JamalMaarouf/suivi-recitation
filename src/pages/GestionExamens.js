@@ -25,6 +25,7 @@ export default function GestionExamens({ user, navigate, goBack, lang='fr', isMo
   const [form, setForm] = useState(emptyForm);
   // Programme du niveau sélectionné (éléments disponibles pour l'examen)
   const [programmeNiveau, setProgrammeNiveau] = useState([]); // ids/nums du programme
+  const [ensemblesNiveau, setEnsemblesNiveau] = useState([]); // ensembles pour niveaux sourate
 
   useEffect(() => { loadData(); }, []);
 
@@ -68,6 +69,16 @@ export default function GestionExamens({ user, navigate, goBack, lang='fr', isMo
       .order('ordre');
 
     if (!data || data.length === 0) { setProgrammeNiveau([]); return; }
+
+    // Charger les ensembles si niveau sourate
+    if (niv?.type === 'sourate') {
+      const { data: ens } = await supabase.from('ensembles_sourates')
+        .select('*').eq('niveau_id', niveau_id)
+        .eq('ecole_id', user.ecole_id).order('ordre');
+      setEnsemblesNiveau(ens || []);
+    } else {
+      setEnsemblesNiveau([]);
+    }
 
     if (niv?.type === 'hizb') {
       setProgrammeNiveau(data.map(d => parseInt(d.reference_id)));
@@ -318,20 +329,31 @@ export default function GestionExamens({ user, navigate, goBack, lang='fr', isMo
             </>
           )}
 
-          {/* Sourates — uniquement celles du programme du niveau */}
+          {/* Ensembles — pour les niveaux sourate */}
           {form.type_contenu==='sourate'&&(
             <>
-              {programmeNiveau.length===0?(
+              {ensemblesNiveau.length===0?(
                 <div style={{textAlign:'center',padding:'1.5rem',background:'#FAEEDA',
                   borderRadius:10,color:'#633806',fontSize:13}}>
                   ⚠️ {lang==='ar'
-                    ?'لا يوجد برنامج لهذا المستوى. أضف البرنامج أولاً من صفحة المستويات.'
-                    :"Aucun programme défini. Ajoutez-le d'abord dans Niveaux."}
+                    ?'لا توجد مجموعات لهذا المستوى. أضف المجموعات أولاً.'
+                    :"Aucun ensemble défini. Ajoutez-les d'abord dans Ensembles."}
+                  <button onClick={()=>navigate('ensembles')}
+                    style={{display:'block',margin:'8px auto 0',padding:'6px 14px',
+                      background:'#1D9E75',color:'#fff',border:'none',borderRadius:8,
+                      fontSize:12,cursor:'pointer',fontWeight:600}}>
+                    {lang==='ar'?'انتقل إلى المجموعات':'Aller aux Ensembles →'}
+                  </button>
                 </div>
               ):(
                 <>
-                  <div style={{display:'flex',gap:8,marginBottom:8,alignItems:'center'}}>
-                    <button onClick={()=>setForm(f=>({...f,contenu_ids:[...programmeNiveau]}))}
+                  <div style={{fontSize:12,color:'#666',marginBottom:8,fontWeight:600}}>
+                    {lang==='ar'
+                      ?'اختر المجموعات التي يشملها الامتحان:'
+                      :"Sélectionnez les ensembles couverts par l'examen :"}
+                  </div>
+                  <div style={{display:'flex',gap:6,marginBottom:8,flexWrap:'wrap',alignItems:'center'}}>
+                    <button onClick={()=>setForm(f=>({...f,contenu_ids:ensemblesNiveau.map(e=>e.id)}))}
                       style={{padding:'4px 12px',borderRadius:20,border:'0.5px solid #1D9E75',
                         background:'#E1F5EE',color:'#085041',fontSize:12,cursor:'pointer',fontWeight:600}}>
                       {lang==='ar'?'تحديد الكل':'Tout sélectionner'}
@@ -343,27 +365,38 @@ export default function GestionExamens({ user, navigate, goBack, lang='fr', isMo
                         ✕ {lang==='ar'?'مسح':'Effacer'}
                       </button>
                     )}
+                    <span style={{fontSize:12,color:'#1D9E75',fontWeight:700}}>
+                      {form.contenu_ids.length}/{ensemblesNiveau.length}
+                    </span>
                   </div>
-                  <div style={{maxHeight:220,overflowY:'auto',
-                    display:'flex',flexDirection:'column',gap:5}}>
-                    {souratesDB.filter(s=>programmeNiveau.includes(s.id)).map(s=>{
-                      const sel=form.contenu_ids.includes(s.id);
+                  <div style={{maxHeight:260,overflowY:'auto',display:'flex',flexDirection:'column',gap:6}}>
+                    {ensemblesNiveau.map(ens=>{
+                      const sel=form.contenu_ids.includes(ens.id);
+                      const nb=(ens.sourates_ids||[]).length;
                       return(
-                        <div key={s.id} onClick={()=>toggleItem(s.id)}
-                          style={{display:'flex',alignItems:'center',gap:10,padding:'9px 12px',
-                            borderRadius:10,cursor:'pointer',
+                        <div key={ens.id} onClick={()=>toggleItem(ens.id)}
+                          style={{display:'flex',alignItems:'center',gap:10,
+                            padding:'12px 14px',borderRadius:10,cursor:'pointer',
                             background:sel?'#E1F5EE':'#f5f5f0',
                             border:`1.5px solid ${sel?'#1D9E75':'#e0e0d8'}`}}>
-                          <div style={{width:20,height:20,borderRadius:5,flexShrink:0,
+                          <div style={{width:22,height:22,borderRadius:5,flexShrink:0,
                             border:`1.5px solid ${sel?'#1D9E75':'#ccc'}`,
                             background:sel?'#1D9E75':'#fff',
                             display:'flex',alignItems:'center',justifyContent:'center'}}>
                             {sel&&<span style={{color:'#fff',fontSize:12,fontWeight:700}}>✓</span>}
                           </div>
-                          <span style={{fontSize:11,color:'#aaa',minWidth:22}}>{s.numero}</span>
-                          <span style={{flex:1,fontSize:14,fontFamily:"'Tajawal',Arial",
-                            direction:'rtl',color:sel?'#085041':'#333',
-                            fontWeight:sel?600:400}}>{s.nom_ar}</span>
+                          <div style={{width:30,height:30,borderRadius:8,background:sel?'#1D9E7520':'#e0e0d820',
+                            display:'flex',alignItems:'center',justifyContent:'center',
+                            fontWeight:800,fontSize:13,color:sel?'#1D9E75':'#888',flexShrink:0}}>
+                            {ens.ordre}
+                          </div>
+                          <div style={{flex:1}}>
+                            <div style={{fontWeight:sel?700:500,fontSize:14,
+                              color:sel?'#085041':'#333'}}>{ens.nom}</div>
+                            <div style={{fontSize:11,color:'#888',marginTop:1}}>
+                              {nb} {lang==='ar'?'سورة':'sourate(s)'}
+                            </div>
+                          </div>
                         </div>
                       );
                     })}
