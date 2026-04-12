@@ -38,7 +38,7 @@ export default function ResultatsExamens({ user, navigate, goBack, lang='fr', is
   const loadAll = async () => {
     setLoading(true);
     const [{ data:el },{ data:ex },{ data:re },{ data:nv },{ data:en },{ data:sd }] = await Promise.all([
-      supabase.from('eleves').select('id,prenom,nom,code_niveau,niveau_id,instituteur_id,eleve_id_ecole').eq('ecole_id',user.ecole_id).order('nom'),
+      supabase.from('eleves').select('id,prenom,nom,code_niveau,niveau,instituteur_referent_id,eleve_id_ecole').eq('ecole_id',user.ecole_id).order('nom'),
       supabase.from('examens').select('*').eq('ecole_id',user.ecole_id).order('nom'),
       supabase.from('resultats_examens').select('*').eq('ecole_id',user.ecole_id).order('created_at',{ascending:false}),
       supabase.from('niveaux').select('id,code,nom,couleur,type').eq('ecole_id',user.ecole_id).order('ordre'),
@@ -49,7 +49,7 @@ export default function ResultatsExamens({ user, navigate, goBack, lang='fr', is
     const examenData  = (ex||[]).map(e=>({ ...e, niveau: niveauxData.find(n=>n.id===e.niveau_id)||null }));
     // Instituteur → ses élèves uniquement / Surveillant → tous
     const elevesFiltres = (user.role === 'instituteur')
-      ? (el||[]).filter(e => e.instituteur_id === user.id)
+      ? (el||[]).filter(e => e.instituteur_referent_id === user.id)
       : (el||[]);
     setEleves(elevesFiltres);
     setExamens(examenData);
@@ -66,8 +66,10 @@ export default function ResultatsExamens({ user, navigate, goBack, lang='fr', is
     setSelectedExamen(null);
     setScore(70);
     setNotes('');
+    // Trouver l'UUID du niveau via code_niveau
+    const niveauId = niveaux.find(n => n.code === eleve.code_niveau)?.id;
     // Examens du niveau de l'élève pas encore réussis
-    const exNiveau = examens.filter(e => e.niveau_id === eleve.niveau_id);
+    const exNiveau = niveauId ? examens.filter(e => e.niveau_id === niveauId) : [];
     const dejaReussis = resultats
       .filter(r => r.eleve_id === eleve.id && r.statut === 'reussi')
       .map(r => r.examen_id);
@@ -105,22 +107,21 @@ export default function ResultatsExamens({ user, navigate, goBack, lang='fr', is
   };
 
   // ── DONNÉES CALCULÉES ──────────────────────────────────────────
+  // filtreNiveauEleve = 'tous' ou code du niveau (ex: '5B')
   const elevesFiltres = eleves.filter(e => {
     const nom = `${e.prenom||''} ${e.nom||''}`.toLowerCase().trim();
     const num = String(e.eleve_id_ecole ?? '').trim();
     const q   = searchEleve.trim();
-    if (!q) {
-      return filtreNiveauEleve==='tous' || e.niveau_id===filtreNiveauEleve;
-    }
+    const matchNiveau = filtreNiveauEleve==='tous' || e.code_niveau===filtreNiveauEleve;
+    if (!q) return matchNiveau;
     const matchNom    = nom.includes(q.toLowerCase());
     const matchNumero = num.includes(q);
-    const matchNiveau = filtreNiveauEleve==='tous' || e.niveau_id===filtreNiveauEleve;
     return (matchNom || matchNumero) && matchNiveau;
   });
 
   const resultasFiltres = resultats.filter(r => {
     const ex = examens.find(e=>e.id===r.examen_id);
-    if (filtreNiveau!=='tous' && ex?.niveau_id!==filtreNiveau) return false;
+    if (filtreNiveau!=='tous' && ex?.niveau_id_or_code!==filtreNiveau) return false;
     if (filtreStatut!=='tous' && r.statut!==filtreStatut) return false;
     if (filtreExamen!=='tous' && r.examen_id!==filtreExamen) return false;
     return true;
@@ -139,6 +140,8 @@ export default function ResultatsExamens({ user, navigate, goBack, lang='fr', is
   const nomExamen  = (id) => examens.find(e=>e.id===id)?.nom||'?';
   const nomNiveau  = (id) => { const n=niveaux.find(x=>x.id===id); return n?`${n.code} — ${n.nom}`:'?'; };
   const couleurNiv = (id) => niveaux.find(n=>n.id===id)?.couleur||'#888';
+  const couleurNivCode = (code) => niveaux.find(n=>n.code===code)?.couleur||'#888';
+  const nomNiveauCode  = (code) => { const n=niveaux.find(x=>x.code===code); return n?`${n.code} — ${n.nom}`:code||'?'; };
 
   const reussi = score >= (selectedExamen?.score_minimum||70);
 
@@ -191,11 +194,11 @@ export default function ResultatsExamens({ user, navigate, goBack, lang='fr', is
                 {lang==='ar'?'الكل':'Tous'}
               </div>
               {niveaux.map(n=>(
-                <div key={n.id} onClick={()=>setFiltreNiveauEleve(n.id)}
+                <div key={n.id} onClick={()=>setFiltreNiveauEleve(n.code)}
                   style={{padding:'5px 12px',borderRadius:20,cursor:'pointer',fontSize:12,fontWeight:600,
-                    background:filtreNiveauEleve===n.id?n.couleur:'#f5f5f0',
-                    color:filtreNiveauEleve===n.id?'#fff':'#666',
-                    border:`0.5px solid ${filtreNiveauEleve===n.id?n.couleur:'#e0e0d8'}`}}>
+                    background:filtreNiveauEleve===n.code?n.couleur:'#f5f5f0',
+                    color:filtreNiveauEleve===n.code?'#fff':'#666',
+                    border:`0.5px solid ${filtreNiveauEleve===n.code?n.couleur:'#e0e0d8'}`}}>
                   {n.code}
                 </div>
               ))}
@@ -219,7 +222,7 @@ export default function ResultatsExamens({ user, navigate, goBack, lang='fr', is
             </div>
             <div style={{maxHeight:240,overflowY:'auto',display:'flex',flexDirection:'column',gap:4}}>
               {elevesFiltres.slice(0,20).map(e=>{
-                const niv = niveaux.find(n=>n.id===e.niveau_id);
+                const niv = niveaux.find(n=>n.code===e.code_niveau);
                 const nc  = niv?.couleur||'#888';
                 return(
                   <div key={e.id} onClick={()=>selectionnerEleve(e)}
@@ -240,7 +243,8 @@ export default function ResultatsExamens({ user, navigate, goBack, lang='fr', is
                     </div>
                     {/* Badge examen en attente */}
                     {(() => {
-                      const exNiv = examens.filter(ex=>ex.niveau_id===e.niveau_id);
+                      const niveauId = niveaux.find(n=>n.code===e.code_niveau)?.id;
+                      const exNiv = niveauId ? examens.filter(ex=>ex.niveau_id===niveauId) : [];
                       const reuss = resultats.filter(r=>r.eleve_id===e.id&&r.statut==='reussi').map(r=>r.examen_id);
                       const enAttente = exNiv.filter(ex=>!reuss.includes(ex.id)).length;
                       return enAttente>0?(
@@ -263,16 +267,16 @@ export default function ResultatsExamens({ user, navigate, goBack, lang='fr', is
           <div style={{display:'flex',alignItems:'center',gap:12,padding:'12px 14px',
             borderRadius:12,background:'#E1F5EE',border:'1.5px solid #1D9E75'}}>
             <div style={{width:44,height:44,borderRadius:10,
-              background:`${couleurNiv(selectedEleve.niveau_id)}20`,
+              background:`${couleurNivCode(selectedEleve.code_niveau)}20`,
               display:'flex',alignItems:'center',justifyContent:'center',
-              fontWeight:800,fontSize:16,color:couleurNiv(selectedEleve.niveau_id)}}>
+              fontWeight:800,fontSize:16,color:couleurNivCode(selectedEleve.code_niveau)}}>
               {selectedEleve.prenom[0]}{selectedEleve.nom[0]}
             </div>
             <div style={{flex:1}}>
               <div style={{fontWeight:700,fontSize:16}}>{selectedEleve.prenom} {selectedEleve.nom}</div>
               <div style={{fontSize:12,color:'#666',display:'flex',gap:8,alignItems:'center'}}>
                 {selectedEleve.eleve_id_ecole&&<span style={{padding:'1px 7px',borderRadius:20,background:'rgba(255,255,255,0.4)',fontWeight:700}}>#{selectedEleve.eleve_id_ecole}</span>}
-                {nomNiveau(selectedEleve.niveau_id)}
+                {nomNiveauCode(selectedEleve.code_niveau)}
               </div>
             </div>
             <span style={{fontSize:11,padding:'3px 10px',borderRadius:20,
@@ -450,7 +454,7 @@ export default function ResultatsExamens({ user, navigate, goBack, lang='fr', is
           {resultasFiltres.map(r=>{
             const ex  = examens.find(e=>e.id===r.examen_id);
             const el  = eleves.find(e=>e.id===r.eleve_id);
-            const nc  = couleurNiv(ex?.niveau_id);
+            const nc  = couleurNiv(ex?.niveau_id_or_code);
             const ok  = r.statut==='reussi';
             return(
               <div key={r.id} style={{background:'#fff',borderRadius:12,padding:'14px 16px',
@@ -472,7 +476,7 @@ export default function ResultatsExamens({ user, navigate, goBack, lang='fr', is
                     <span style={{marginRight:6,marginLeft:6,color:'#ddd'}}>·</span>
                     <span style={{padding:'1px 7px',borderRadius:20,fontSize:11,
                       background:`${nc}20`,color:nc,fontWeight:600}}>
-                      {niveaux.find(n=>n.id===ex?.niveau_id)?.code||'?'}
+                      {niveaux.find(n=>n.id===ex?.niveau_id_or_code)?.code||'?'}
                     </span>
                   </div>
                   {r.notes_examinateur&&(
