@@ -101,15 +101,15 @@ export default function GestionExamens({ user, navigate, goBack, lang='fr', isMo
 
   const startCreate = () => {
     setEditing(null);
-    const nbExams = examens.filter(e=>e.niveau_id===filtreNiveau||filtreNiveau==='tous').length;
     const nid = filtreNiveau==='tous' ? '' : filtreNiveau;
-    setForm({...emptyForm, ordre: nbExams+1,
-      type_contenu: niveaux.find(n=>n.id===filtreNiveau)?.type || 'hizb',
+    setForm({...emptyForm,
+      ordre: examens.length+1,
+      type_contenu: niveaux.find(n=>n.id===nid)?.type || 'hizb',
       niveau_id: nid
     });
     if (nid) chargerProgrammeNiveau(nid, niveaux);
-    else setProgrammeNiveau([]);
-    setShowForm(true); window.scrollTo(0,0);
+    else { setProgrammeNiveau([]); setEnsemblesNiveau([]); }
+    setShowForm(true);
   };
 
   const startEdit = (e) => {
@@ -167,9 +167,8 @@ export default function GestionExamens({ user, navigate, goBack, lang='fr', isMo
     toast.success(editing
       ?(lang==='ar'?'✅ تم التحديث':'✅ Examen modifié !')
       :(lang==='ar'?'✅ تم الإضافة':'✅ Examen ajouté !'));
-    const niveauSauvegarde = form.niveau_id;
     resetForm();
-    setFiltreNiveau(niveauSauvegarde || 'tous');
+    setFiltreNiveau('tous'); // afficher tous les examens après création
     loadData();
   };
 
@@ -223,6 +222,29 @@ export default function GestionExamens({ user, navigate, goBack, lang='fr', isMo
   // ── FORMULAIRE (partagé PC+Mobile) ────────────────────────────────
   const FormContent = () => (
     <div>
+      {/* Niveau — si pas présélectionné */}
+      {!form.niveau_id || true ? (
+        <div style={{marginBottom:13}}>
+          <label style={{fontSize:12,fontWeight:600,color:'#666',display:'block',marginBottom:5}}>
+            {lang==='ar'?'المستوى *':'Niveau *'}
+          </label>
+          <select value={form.niveau_id}
+            onChange={e=>{
+              const nid=e.target.value;
+              const niv=niveaux.find(n=>n.id===nid);
+              setForm(f=>({...f,niveau_id:nid,type_contenu:niv?.type||'hizb',contenu_ids:[]}));
+              if(nid) chargerProgrammeNiveau(nid,niveaux);
+              else {setProgrammeNiveau([]);setEnsemblesNiveau([]);}
+            }}
+            style={{width:'100%',padding:'10px 12px',borderRadius:10,
+              border:'0.5px solid #e0e0d8',fontSize:14,fontFamily:'inherit',
+              background:'#fff',outline:'none',boxSizing:'border-box'}}>
+            <option value="">— {lang==='ar'?'اختر المستوى':'Choisir un niveau'} —</option>
+            {niveaux.map(n=><option key={n.id} value={n.id}>{n.code} — {n.nom}</option>)}
+          </select>
+        </div>
+      ):null}
+
       {/* Nom */}
       <div style={{marginBottom:13}}>
         <label style={{fontSize:12,fontWeight:600,color:'#666',display:'block',marginBottom:5}}>
