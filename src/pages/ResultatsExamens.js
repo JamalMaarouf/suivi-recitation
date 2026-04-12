@@ -107,11 +107,15 @@ export default function ResultatsExamens({ user, navigate, goBack, lang='fr', is
   // ── DONNÉES CALCULÉES ──────────────────────────────────────────
   const elevesFiltres = eleves.filter(e => {
     const nom = `${e.prenom||''} ${e.nom||''}`.toLowerCase().trim();
-    const num = String(e.eleve_id_ecole||'').toLowerCase();
-    const q   = searchEleve.toLowerCase().trim();
-    const matchNom = q==='' || nom.includes(q) || num.includes(q);
+    const num = String(e.eleve_id_ecole ?? '').trim();
+    const q   = searchEleve.trim();
+    if (!q) {
+      return filtreNiveauEleve==='tous' || e.niveau_id===filtreNiveauEleve;
+    }
+    const matchNom    = nom.includes(q.toLowerCase());
+    const matchNumero = num.includes(q);
     const matchNiveau = filtreNiveauEleve==='tous' || e.niveau_id===filtreNiveauEleve;
-    return matchNom && matchNiveau;
+    return (matchNom || matchNumero) && matchNiveau;
   });
 
   const resultasFiltres = resultats.filter(r => {
@@ -197,15 +201,11 @@ export default function ResultatsExamens({ user, navigate, goBack, lang='fr', is
               ))}
             </div>
             {/* Recherche nom + numéro */}
-            <div style={{position:'relative',marginBottom:8}}>
-              <input value={searchEleve} onChange={e=>setSearchEleve(e.target.value)}
-                placeholder={lang==='ar'?'بحث باسم الطالب أو رقمه...':'Nom ou numéro élève...'}
-                style={{width:'100%',padding:'10px 14px 10px 36px',borderRadius:10,
-                  border:'0.5px solid #e0e0d8',fontSize:14,fontFamily:'inherit',
-                  boxSizing:'border-box'}}/>
-              <span style={{position:'absolute',right:12,top:'50%',transform:'translateY(-50%)',
-                fontSize:16,color:'#aaa'}}>🔍</span>
-            </div>
+            <input value={searchEleve} onChange={e=>setSearchEleve(e.target.value)}
+              placeholder={lang==='ar'?'🔍 بحث باسم الطالب أو رقمه...':'🔍 Nom ou numéro élève...'}
+              style={{width:'100%',padding:'10px 14px',borderRadius:10,
+                border:'0.5px solid #e0e0d8',fontSize:14,fontFamily:'inherit',
+                boxSizing:'border-box',marginBottom:8}}/>
             <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:6}}>
               <span style={{fontSize:11,color:'#888'}}>
                 {elevesFiltres.length} {lang==='ar'?'طالب':'élève(s)'}
