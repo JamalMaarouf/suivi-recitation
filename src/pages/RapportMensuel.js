@@ -164,8 +164,10 @@ export default function RapportMensuel({ user, navigate, goBack, lang='fr', isMo
   const genererRapportPDF = async () => {
     setGenerating(true);
     try {
-      const [{jsPDF}, h2c] = await Promise.all([import('jspdf'), import('html2canvas')]);
-      const html2canvasFn = h2c.default || h2c;
+      const jspdfMod = await import('jspdf');
+      const h2cMod   = await import('html2canvas');
+      const jsPDF    = jspdfMod.jsPDF || jspdfMod.default?.jsPDF || jspdfMod.default;
+      const html2canvasFn = h2cMod.default || h2cMod;
 
       const moisLabel  = getMoisNom(mois, lang);
       const ecolNom    = ecole?.nom || 'École Coranique';
@@ -188,7 +190,7 @@ export default function RapportMensuel({ user, navigate, goBack, lang='fr', isMo
       await new Promise(r=>setTimeout(r,500));
 
       const pages = container.querySelectorAll('.rapport-page');
-      const doc = new jsPDF.jsPDF({orientation:'portrait', unit:'mm', format:'a4'});
+      const doc = new jsPDF({orientation:'portrait', unit:'mm', format:'a4'});
 
       for (let i=0; i<pages.length; i++) {
         if (i>0) doc.addPage();
