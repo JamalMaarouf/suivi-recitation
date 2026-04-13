@@ -1,122 +1,163 @@
 import React, { useState } from 'react';
-import { supabase } from '../lib/supabase';
 import { useToast } from '../lib/toast';
 
-// Génère et ouvre le certificat dans un nouvel onglet
+// Génère un vrai PDF téléchargeable via jsPDF (chargé dynamiquement)
 export async function genererCertificatPDF({ resultat, eleve, examen, niveau, ecole }) {
   try {
-    const res = await fetch('/api/certificat', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ resultat, eleve, examen, niveau, ecole }),
-    });
-    if (!res.ok) throw new Error('Erreur serveur ' + res.status);
-    const html = await res.text();
-    // Ouvrir dans un nouvel onglet pour impression
-    const win = window.open('', '_blank');
-    if (!win) throw new Error('Popups bloqués — autorisez les popups pour ce site');
-    win.document.write(html);
-    win.document.close();
-    return true;
-  } catch (err) {
-    console.error('Certificat error:', err);
-    // Fallback : générer le HTML directement sans API
-    try {
-      const html = buildCertificatHTMLClient({ resultat, eleve, examen, niveau, ecole });
-      const win = window.open('', '_blank');
-      if (!win) { alert('Autorisez les popups pour générer le certificat'); return false; }
-      win.document.write(html);
-      win.document.close();
-      return true;
-    } catch(e) {
-      return false;
+    const { jsPDF } = await import('jspdf');
+
+    const doc = new jsPDF({ orientation:'landscape', unit:'mm', format:'a4' });
+    const W = 297, H = 210; // A4 paysage
+
+    const date = new Date(resultat.date_examen || resultat.created_at)
+      .toLocaleDateString('fr-FR', { day:'numeric', month:'long', year:'numeric' });
+    const ecolNom   = ecole?.nom || 'École Coranique';
+    const niveauNom = niveau ? `${niveau.code} — ${niveau.nom}` : (eleve.code_niveau || '');
+    const score     = resultat.score;
+    const scoreColor = score >= 90 ? [29,158,117] : score >= 70 ? [55,138,221] : [239,159,39];
+
+    // ── Fond ──
+    doc.setFillColor(245, 240, 232);
+    doc.rect(0, 0, W, H, 'F');
+
+    // ── Bordure extérieure ──
+    doc.setDrawColor(29, 158, 117);
+    doc.setLineWidth(3);
+    doc.rect(6, 6, W-12, H-12);
+
+    // ── Bordure intérieure ──
+    doc.setLineWidth(0.8);
+    doc.setDrawColor(29, 158, 117, 0.4);
+    doc.rect(10, 10, W-20, H-20);
+
+    // ── En-tête ──
+    doc.setFillColor(255, 255, 255);
+    doc.roundedRect(15, 14, W-30, 32, 4, 4, 'F');
+
+    // Nom école
+    doc.setTextColor(100, 100, 100);
+    doc.setFontSize(11);
+    doc.text(ecolNom, W/2, 22, { align:'center' });
+
+    // Titre arabe
+    doc.setTextColor(8, 80, 65);
+    doc.setFontSize(22);
+    doc.setFont(undefined, 'bold');
+    doc.text('شهادة نجاح', W/2, 33, { align:'center' });
+
+    // Titre français
+    doc.setTextColor(130, 130, 130);
+    doc.setFontSize(9);
+    doc.setFont(undefined, 'normal');
+    doc.text('CERTIFICAT DE RÉUSSITE', W/2, 40, { align:'center' });
+
+    // ── Médaille ──
+    doc.setFontSize(28);
+    doc.text('🏅', W/2, 60, { align:'center' });
+
+    // ── Texte principal ──
+    doc.setTextColor(80, 80, 80);
+    doc.setFontSize(13);
+    doc.setFont(undefined, 'normal');
+    doc.text('يُشهد بأن الطالب / الطالبة', W/2, 74, { align:'center' });
+
+    // Nom élève
+    doc.setTextColor(8, 80, 65);
+    doc.setFontSize(22);
+    doc.setFont(undefined, 'bold');
+    doc.text(`${eleve.prenom} ${eleve.nom}`, W/2, 86, { align:'center' });
+
+    // Ligne décorative sous le nom
+    doc.setDrawColor(29, 158, 117);
+    doc.setLineWidth(1);
+    const nomWidth = doc.getTextWidth(`${eleve.prenom} ${eleve.nom}`);
+    doc.line(W/2 - nomWidth/2, 88, W/2 + nomWidth/2, 88);
+
+    doc.setTextColor(80, 80, 80);
+    doc.setFontSize(13);
+    doc.setFont(undefined, 'normal');
+    doc.text('قد اجتاز بنجاح امتحان', W/2, 97, { align:'center' });
+
+    // Nom examen dans un encadré
+    doc.setDrawColor(29, 158, 117);
+    doc.setFillColor(225, 245, 238);
+    doc.setLineWidth(1);
+    const examWidth = Math.max(60, doc.getTextWidth(examen.nom) + 16);
+    doc.roundedRect(W/2 - examWidth/2, 100, examWidth, 12, 3, 3, 'FD');
+    doc.setTextColor(8, 80, 65);
+    doc.setFontSize(14);
+    doc.setFont(undefined, 'bold');
+    doc.text(examen.nom, W/2, 108, { align:'center' });
+
+    // ── Détails (3 colonnes) ──
+    doc.setFillColor(249, 249, 246);
+    doc.roundedRect(20, 120, W-40, 26, 4, 4, 'F');
+
+    // Col 1 — Niveau
+    doc.setTextColor(160, 160, 160);
+    doc.setFontSize(8);
+    doc.setFont(undefined, 'normal');
+    doc.text('المستوى · NIVEAU', 65, 128, { align:'center' });
+    doc.setTextColor(30, 30, 30);
+    doc.setFontSize(12);
+    doc.setFont(undefined, 'bold');
+    doc.text(niveauNom, 65, 137, { align:'center' });
+
+    // Col 2 — Score
+    doc.setTextColor(160, 160, 160);
+    doc.setFontSize(8);
+    doc.setFont(undefined, 'normal');
+    doc.text('النقاط · SCORE', W/2, 128, { align:'center' });
+    doc.setTextColor(...scoreColor);
+    doc.setFontSize(18);
+    doc.setFont(undefined, 'bold');
+    doc.text(`${score}%`, W/2, 138, { align:'center' });
+
+    // Col 3 — Date
+    doc.setTextColor(160, 160, 160);
+    doc.setFontSize(8);
+    doc.setFont(undefined, 'normal');
+    doc.text('التاريخ · DATE', W-65, 128, { align:'center' });
+    doc.setTextColor(30, 30, 30);
+    doc.setFontSize(11);
+    doc.setFont(undefined, 'bold');
+    doc.text(date, W-65, 137, { align:'center' });
+
+    // ── Observations ──
+    if (resultat.notes_examinateur) {
+      doc.setTextColor(120, 120, 120);
+      doc.setFontSize(9);
+      doc.setFont(undefined, 'italic');
+      doc.text(`"${resultat.notes_examinateur}"`, W/2, 153, { align:'center' });
     }
+
+    // ── Signature ──
+    doc.setDrawColor(50, 50, 50);
+    doc.setLineWidth(0.5);
+    doc.line(W-90, 170, W-30, 170);
+    doc.setTextColor(100, 100, 100);
+    doc.setFontSize(8);
+    doc.setFont(undefined, 'normal');
+    doc.text('توقيع المشرف العام · Signature du Surveillant', W-60, 175, { align:'center' });
+
+    // Date émission
+    doc.setTextColor(140, 140, 140);
+    doc.setFontSize(8);
+    doc.text(`أصدر بتاريخ: ${date}`, 30, 175);
+
+    // ── Sauvegarder ──
+    const filename = `certificat_${eleve.prenom}_${eleve.nom}_${examen.nom}`
+      .replace(/\s+/g, '_').replace(/[^a-zA-Z0-9_-]/g, '') + '.pdf';
+    doc.save(filename);
+    return true;
+
+  } catch (err) {
+    console.error('Certificat PDF error:', err);
+    return false;
   }
 }
 
-// Génération côté client (fallback si API indisponible)
-function buildCertificatHTMLClient({ resultat, eleve, examen, niveau, ecole }) {
-  const date = new Date(resultat.date_examen || resultat.created_at)
-    .toLocaleDateString('fr-FR', { day:'numeric', month:'long', year:'numeric' });
-  const scoreColor = resultat.score >= 90 ? '#1D9E75' : resultat.score >= 70 ? '#378ADD' : '#EF9F27';
-  const niveauNom  = niveau ? niveau.code + ' — ' + niveau.nom : (eleve.code_niveau || '');
-  const ecolNom    = ecole?.nom || 'École Coranique';
-
-  return `<!DOCTYPE html>
-<html dir="rtl" lang="ar">
-<head>
-<meta charset="UTF-8">
-<title>شهادة نجاح — ${eleve.prenom} ${eleve.nom}</title>
-<style>
-  @import url('https://fonts.googleapis.com/css2?family=Tajawal:wght@400;700;800&display=swap');
-  *{margin:0;padding:0;box-sizing:border-box}
-  body{font-family:'Tajawal',Arial,sans-serif;background:#f5f0e8;display:flex;align-items:center;justify-content:center;min-height:100vh;padding:20px}
-  .cert{background:#fff;width:794px;min-height:560px;border:3px solid #1D9E75;border-radius:16px;padding:40px 50px;position:relative;box-shadow:0 8px 32px rgba(0,0,0,0.12)}
-  .cert::before{content:'';position:absolute;inset:8px;border:1.5px solid #1D9E7540;border-radius:12px;pointer-events:none}
-  .header{text-align:center;border-bottom:2px solid #1D9E75;padding-bottom:20px;margin-bottom:24px}
-  .ecole-nom{font-size:15px;color:#666;font-weight:600;margin-bottom:6px}
-  .title-ar{font-size:32px;font-weight:800;color:#085041;margin-bottom:4px}
-  .title-fr{font-size:14px;color:#888;font-weight:600;letter-spacing:2px;text-transform:uppercase}
-  .medaille{font-size:56px;text-align:center;margin:20px 0 16px}
-  .texte-principal{text-align:center;font-size:16px;color:#444;line-height:1.8;margin-bottom:24px}
-  .nom-eleve{display:block;font-size:28px;font-weight:800;color:#085041;margin:8px 0}
-  .examen-nom{display:inline-block;font-size:20px;font-weight:700;color:#1D9E75;padding:4px 16px;border:2px solid #1D9E75;border-radius:8px;margin:8px 0}
-  .details{display:flex;justify-content:space-around;margin:24px 0;padding:16px;background:#f9f9f6;border-radius:12px}
-  .detail-label{font-size:11px;color:#999;margin-bottom:4px;text-transform:uppercase;letter-spacing:1px}
-  .detail-value{font-size:18px;font-weight:700;color:#1a1a1a}
-  .score-value{font-size:28px;font-weight:800;color:${scoreColor}}
-  .footer{display:flex;justify-content:space-between;align-items:flex-end;margin-top:32px;padding-top:20px;border-top:1px solid #e0e0d8}
-  .sig-line{width:160px;border-bottom:1.5px solid #333;margin-bottom:6px}
-  .sig-label{font-size:12px;color:#666}
-  @media print{body{background:none;padding:0}.cert{box-shadow:none;border-radius:0}.print-btn{display:none}}
-</style>
-</head>
-<body>
-<div class="cert">
-  <div class="header">
-    <div class="ecole-nom">${ecolNom}</div>
-    <div class="title-ar">شهادة نجاح</div>
-    <div class="title-fr">Certificat de Réussite</div>
-  </div>
-  <div class="medaille">🏅</div>
-  <div class="texte-principal">
-    يُشهد بأن الطالب/الطالبة
-    <span class="nom-eleve">${eleve.prenom} ${eleve.nom}</span>
-    قد اجتاز بنجاح امتحان
-    <br><span class="examen-nom">${examen.nom}</span>
-  </div>
-  <div class="details">
-    <div class="detail-item">
-      <div class="detail-label">المستوى · Niveau</div>
-      <div class="detail-value">${niveauNom}</div>
-    </div>
-    <div class="detail-item">
-      <div class="detail-label">النقاط · Score</div>
-      <div class="score-value">${resultat.score}%</div>
-    </div>
-    <div class="detail-item">
-      <div class="detail-label">التاريخ · Date</div>
-      <div class="detail-value">${date}</div>
-    </div>
-  </div>
-  ${resultat.notes_examinateur ? '<div style="text-align:center;font-style:italic;color:#666;font-size:13px;margin-bottom:16px;">"' + resultat.notes_examinateur + '"</div>' : ''}
-  <div class="footer">
-    <div style="font-size:13px;color:#888">أصدر بتاريخ: ${date}</div>
-    <div class="signature">
-      <div class="sig-line"></div>
-      <div class="sig-label">توقيع المشرف العام · Signature</div>
-    </div>
-  </div>
-</div>
-<div style="text-align:center;margin-top:20px" class="print-btn">
-  <button onclick="window.print()" style="padding:12px 28px;background:#1D9E75;color:#fff;border:none;border-radius:10px;font-size:15px;cursor:pointer;font-family:'Tajawal',Arial">
-    🖨️ طباعة الشهادة · Imprimer
-  </button>
-</div>
-</body></html>`;
-}
-
-// Bouton de téléchargement du certificat (utilisé dans ResultatsExamens)
+// Bouton de téléchargement du certificat
 export default function BoutonCertificat({ resultat, eleves, examens, niveaux, ecole, lang='fr' }) {
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
@@ -132,16 +173,16 @@ export default function BoutonCertificat({ resultat, eleves, examens, niveaux, e
     setLoading(true);
     const ok = await genererCertificatPDF({ resultat, eleve, examen, niveau, ecole });
     setLoading(false);
-    if (ok) toast.success(lang==='ar'?'✅ تم تنزيل الشهادة':'✅ Certificat téléchargé !');
-    else    toast.error(lang==='ar'?'خطأ في إنشاء الشهادة':'Erreur lors de la génération');
+    if (ok) toast.success(lang==='ar'?'✅ تم تنزيل الشهادة PDF':'✅ Certificat PDF téléchargé !');
+    else    toast.error(lang==='ar'?'خطأ في إنشاء الشهادة':'Erreur génération certificat');
   };
 
   return (
     <button onClick={telecharger} disabled={loading}
-      style={{padding:'5px 12px',borderRadius:20,border:'none',cursor:'pointer',
+      style={{padding:'4px 10px',borderRadius:20,border:'none',cursor:'pointer',
         background:loading?'#ccc':'#1D9E75',color:'#fff',fontSize:11,
-        fontWeight:600,fontFamily:'inherit',display:'flex',alignItems:'center',gap:5}}>
-      {loading?'...':'📄'} {lang==='ar'?'شهادة':'Certificat'}
+        fontWeight:600,fontFamily:'inherit'}}>
+      {loading?'...':'📄 PDF'}
     </button>
   );
 }
