@@ -40,164 +40,15 @@ const emptyForm = {
   notes:'', actif:true,
 };
 
-export default function GestionObjectifs({ user, navigate, goBack, lang='fr', isMobile }) {
-  const { toast } = useToast();
-  const [niveaux,    setNiveaux]    = useState([]);
-  const [eleves,     setEleves]     = useState([]);
-  const [objectifs,  setObjectifs]  = useState([]);
-  const [loading,    setLoading]    = useState(true);
-  const [saving,     setSaving]     = useState(false);
-  const [showForm,   setShowForm]   = useState(false);
-  const [editing,    setEditing]    = useState(null);
-  const [form,       setForm]       = useState(emptyForm);
-  const [filtreType, setFiltreType] = useState('tous');
-  const [searchEleve,setSearchEleve]= useState('');
-  const [confirmModal, setConfirmModal] = useState({isOpen:false});
-
-  useEffect(() => { loadAll(); }, []);
-
-  const loadAll = async () => {
-    setLoading(true);
-    const [{ data:nv },{ data:el },{ data:ob }] = await Promise.all([
-      supabase.from('niveaux').select('id,code,nom,type,couleur').eq('ecole_id',user.ecole_id).order('ordre'),
-      supabase.from('eleves').select('id,prenom,nom,code_niveau,eleve_id_ecole').eq('ecole_id',user.ecole_id).order('nom'),
-      supabase.from('objectifs').select('*').eq('ecole_id',user.ecole_id).order('created_at',{ascending:false}),
-    ]);
-    setNiveaux(nv||[]);
-    setEleves(el||[]);
-    setObjectifs(ob||[]);
-    setLoading(false);
-  };
-
-  const niveauDuForm = niveaux.find(n=>n.id===form.niveau_id);
-  // Pour type élève : déduire le type du niveau depuis code_niveau de l'élève
-  const eleveDuForm  = eleves.find(e=>e.id===form.eleve_id);
-  const niveauEleve  = eleveDuForm ? niveaux.find(n=>n.code===eleveDuForm.code_niveau) : null;
-  const typeNiveauActif = form.type_cible==='eleve'
-    ? (niveauEleve?.type || 'hizb')
-    : (niveauDuForm?.type || 'hizb');
-  const metriques = getMetriques(typeNiveauActif);
-
-  const setFormField = (key, val) => setForm(f=>({...f,[key]:val}));
-
-  const onChangePeriode = (val) => {
-    if (val==='custom') {
-      setForm(f=>({...f, type_periode:'custom', date_debut:'', date_fin:''}));
-    } else {
-      const {date_debut, date_fin} = calcDates(val);
-      setForm(f=>({...f, type_periode:val, date_debut, date_fin}));
-    }
-  };
-
-  const onChangeNiveau = (nid) => {
-    const niv = niveaux.find(n=>n.id===nid);
-    const metr = getMetriques(niv?.type||'hizb')[0]?.val||'tomon';
-    setForm(f=>({...f, niveau_id:nid, metrique:metr}));
-  };
-
-  const startCreate = () => {
-    setEditing(null);
-    const dates = calcDates('mois');
-    setForm({...emptyForm, ...dates,
-      niveau_id: niveaux[0]?.id||'',
-      metrique: getMetriques(niveaux[0]?.type||'hizb')[0]?.val||'tomon',
-    });
-    setShowForm(true);
-  };
-
-  const startEdit = (obj) => {
-    setEditing(obj.id);
-    setForm({
-      type_cible:   obj.type_cible,
-      niveau_id:    obj.niveau_id||'',
-      eleve_id:     obj.eleve_id||'',
-      metrique:     obj.metrique,
-      valeur_cible: obj.valeur_cible,
-      type_periode: obj.type_periode,
-      date_debut:   obj.date_debut,
-      date_fin:     obj.date_fin,
-      notes:        obj.notes||'',
-      actif:        obj.actif,
-    });
-    setShowForm(true);
-    window.scrollTo(0,0);
-  };
-
-  const save = async () => {
-    if (saving) return;
-    if (form.type_cible==='niveau' && !form.niveau_id)
-      return toast.warning(lang==='ar'?'اختر المستوى':'Sélectionnez un niveau');
-    if (form.type_cible==='eleve' && !form.eleve_id)
-      return toast.warning(lang==='ar'?'اختر الطالب':'Sélectionnez un élève');
-    if (!form.date_debut || !form.date_fin)
-      return toast.warning(lang==='ar'?'حدد الفترة':'Définissez la période');
-    if (parseInt(form.valeur_cible)<1)
-      return toast.warning(lang==='ar'?'الهدف يجب أن يكون أكبر من 0':'L\'objectif doit être > 0');
-
-    setSaving(true);
-    const payload = {
-      ecole_id:     user.ecole_id,
-      type_cible:   form.type_cible,
-      niveau_id:    form.type_cible==='niveau' ? form.niveau_id : null,
-      eleve_id:     form.type_cible==='eleve'  ? form.eleve_id  : null,
-      metrique:     form.metrique,
-      valeur_cible: parseInt(form.valeur_cible)||1,
-      type_periode: form.type_periode,
-      date_debut:   form.date_debut,
-      date_fin:     form.date_fin,
-      notes:        form.notes.trim()||null,
-      actif:        form.actif,
-      created_by:   user.id,
-    };
-    const { error } = editing
-      ? await supabase.from('objectifs').update(payload).eq('id',editing)
-      : await supabase.from('objectifs').insert(payload);
-    setSaving(false);
-    if (error) { toast.error(error.message); return; }
-    toast.success(editing
-      ? (lang==='ar'?'✅ تم التحديث':'✅ Objectif modifié !')
-      : (lang==='ar'?'✅ تم الإضافة':'✅ Objectif ajouté !'));
-    setShowForm(false); setEditing(null); setForm(emptyForm);
-    loadAll();
-  };
-
-  const supprimer = (id) => setConfirmModal({
-    isOpen:true,
-    title: lang==='ar'?'حذف الهدف':'Supprimer l\'objectif',
-    message: lang==='ar'?'هل تريد حذف هذا الهدف نهائياً؟':'Supprimer cet objectif définitivement ?',
-    onConfirm: async()=>{ await supabase.from('objectifs').delete().eq('id',id); loadAll(); setConfirmModal({isOpen:false}); }
-  });
-
-  // ── Helpers affichage ──────────────────────────────────────────
-  const nomNiveau = (id) => { const n=niveaux.find(x=>x.id===id); return n?`${n.code} — ${n.nom}`:'?'; };
-  const couleurNiveau = (id) => niveaux.find(n=>n.id===id)?.couleur||'#888';
-  const nomEleve  = (id) => { const e=eleves.find(x=>x.id===id); return e?`${e.prenom} ${e.nom}`:'?'; };
-  const labelMetrique = (val, type) => {
-    const all = [...METRIQUES_HIZB, ...METRIQUES_SOURATE];
-    const m = all.find(x=>x.val===val);
-    return m ? (lang==='ar'?m.label_ar:m.label_fr) : val;
-  };
-  const labelPeriode = (val) => {
-    const p = PERIODES.find(x=>x.val===val);
-    return p ? (lang==='ar'?p.label_ar:p.label_fr) : val;
-  };
-  const formatDate = (d) => d ? new Date(d).toLocaleDateString('fr-FR') : '';
-
-  // ── Filtre liste ──────────────────────────────────────────────
-  const objFiltres = objectifs.filter(o => {
-    if (filtreType!=='tous' && o.type_cible!==filtreType) return false;
-    return true;
-  });
-
-  // ── Elevés filtrés pour sélection ─────────────────────────────
+function BuildForm({ isPC, form, setForm, setFormField, niveaux, eleves, metriques,
+  searchEleve, setSearchEleve, onChangePeriode, onChangeNiveau, save, saving,
+  editing, setShowForm, setEditing, emptyForm, lang }) {
   const elevesFiltres = eleves.filter(e =>
     `${e.prenom} ${e.nom} ${e.eleve_id_ecole||''}`.toLowerCase()
       .includes(searchEleve.toLowerCase())
   );
-
-  // ── FORMULAIRE ─────────────────────────────────────────────────
-  const buildForm = (isPC=false) => (
-    <div>
+  return (
+<div>
       {/* Type cible */}
       <div style={{marginBottom:14}}>
         <label style={{fontSize:12,fontWeight:700,color:'#666',display:'block',marginBottom:8}}>
@@ -399,6 +250,164 @@ export default function GestionObjectifs({ user, navigate, goBack, lang='fr', is
       </div>
     </div>
   );
+}
+
+export default function GestionObjectifs({ user, navigate, goBack, lang='fr', isMobile }) {
+  const { toast } = useToast();
+  const [niveaux,    setNiveaux]    = useState([]);
+  const [eleves,     setEleves]     = useState([]);
+  const [objectifs,  setObjectifs]  = useState([]);
+  const [loading,    setLoading]    = useState(true);
+  const [saving,     setSaving]     = useState(false);
+  const [showForm,   setShowForm]   = useState(false);
+  const [editing,    setEditing]    = useState(null);
+  const [form,       setForm]       = useState(emptyForm);
+  const [filtreType, setFiltreType] = useState('tous');
+  const [searchEleve,setSearchEleve]= useState('');
+  const [confirmModal, setConfirmModal] = useState({isOpen:false});
+
+  useEffect(() => { loadAll(); }, []);
+
+  const loadAll = async () => {
+    setLoading(true);
+    const [{ data:nv },{ data:el },{ data:ob }] = await Promise.all([
+      supabase.from('niveaux').select('id,code,nom,type,couleur').eq('ecole_id',user.ecole_id).order('ordre'),
+      supabase.from('eleves').select('id,prenom,nom,code_niveau,eleve_id_ecole').eq('ecole_id',user.ecole_id).order('nom'),
+      supabase.from('objectifs').select('*').eq('ecole_id',user.ecole_id).order('created_at',{ascending:false}),
+    ]);
+    setNiveaux(nv||[]);
+    setEleves(el||[]);
+    setObjectifs(ob||[]);
+    setLoading(false);
+  };
+
+  const niveauDuForm = niveaux.find(n=>n.id===form.niveau_id);
+  // Pour type élève : déduire le type du niveau depuis code_niveau de l'élève
+  const eleveDuForm  = eleves.find(e=>e.id===form.eleve_id);
+  const niveauEleve  = eleveDuForm ? niveaux.find(n=>n.code===eleveDuForm.code_niveau) : null;
+  const typeNiveauActif = form.type_cible==='eleve'
+    ? (niveauEleve?.type || 'hizb')
+    : (niveauDuForm?.type || 'hizb');
+  const metriques = getMetriques(typeNiveauActif);
+
+  const setFormField = (key, val) => setForm(f=>({...f,[key]:val}));
+
+  const onChangePeriode = (val) => {
+    if (val==='custom') {
+      setForm(f=>({...f, type_periode:'custom', date_debut:'', date_fin:''}));
+    } else {
+      const {date_debut, date_fin} = calcDates(val);
+      setForm(f=>({...f, type_periode:val, date_debut, date_fin}));
+    }
+  };
+
+  const onChangeNiveau = (nid) => {
+    const niv = niveaux.find(n=>n.id===nid);
+    const metr = getMetriques(niv?.type||'hizb')[0]?.val||'tomon';
+    setForm(f=>({...f, niveau_id:nid, metrique:metr}));
+  };
+
+  const startCreate = () => {
+    setEditing(null);
+    const dates = calcDates('mois');
+    setForm({...emptyForm, ...dates,
+      niveau_id: niveaux[0]?.id||'',
+      metrique: getMetriques(niveaux[0]?.type||'hizb')[0]?.val||'tomon',
+    });
+    setShowForm(true);
+  };
+
+  const startEdit = (obj) => {
+    setEditing(obj.id);
+    setForm({
+      type_cible:   obj.type_cible,
+      niveau_id:    obj.niveau_id||'',
+      eleve_id:     obj.eleve_id||'',
+      metrique:     obj.metrique,
+      valeur_cible: obj.valeur_cible,
+      type_periode: obj.type_periode,
+      date_debut:   obj.date_debut,
+      date_fin:     obj.date_fin,
+      notes:        obj.notes||'',
+      actif:        obj.actif,
+    });
+    setShowForm(true);
+    window.scrollTo(0,0);
+  };
+
+  const save = async () => {
+    if (saving) return;
+    if (form.type_cible==='niveau' && !form.niveau_id)
+      return toast.warning(lang==='ar'?'اختر المستوى':'Sélectionnez un niveau');
+    if (form.type_cible==='eleve' && !form.eleve_id)
+      return toast.warning(lang==='ar'?'اختر الطالب':'Sélectionnez un élève');
+    if (!form.date_debut || !form.date_fin)
+      return toast.warning(lang==='ar'?'حدد الفترة':'Définissez la période');
+    if (parseInt(form.valeur_cible)<1)
+      return toast.warning(lang==='ar'?'الهدف يجب أن يكون أكبر من 0':'L\'objectif doit être > 0');
+
+    setSaving(true);
+    const payload = {
+      ecole_id:     user.ecole_id,
+      type_cible:   form.type_cible,
+      niveau_id:    form.type_cible==='niveau' ? form.niveau_id : null,
+      eleve_id:     form.type_cible==='eleve'  ? form.eleve_id  : null,
+      metrique:     form.metrique,
+      valeur_cible: parseInt(form.valeur_cible)||1,
+      type_periode: form.type_periode,
+      date_debut:   form.date_debut,
+      date_fin:     form.date_fin,
+      notes:        form.notes.trim()||null,
+      actif:        form.actif,
+      created_by:   user.id,
+    };
+    const { error } = editing
+      ? await supabase.from('objectifs').update(payload).eq('id',editing)
+      : await supabase.from('objectifs').insert(payload);
+    setSaving(false);
+    if (error) { toast.error(error.message); return; }
+    toast.success(editing
+      ? (lang==='ar'?'✅ تم التحديث':'✅ Objectif modifié !')
+      : (lang==='ar'?'✅ تم الإضافة':'✅ Objectif ajouté !'));
+    setShowForm(false); setEditing(null); setForm(emptyForm);
+    loadAll();
+  };
+
+  const supprimer = (id) => setConfirmModal({
+    isOpen:true,
+    title: lang==='ar'?'حذف الهدف':'Supprimer l\'objectif',
+    message: lang==='ar'?'هل تريد حذف هذا الهدف نهائياً؟':'Supprimer cet objectif définitivement ?',
+    onConfirm: async()=>{ await supabase.from('objectifs').delete().eq('id',id); loadAll(); setConfirmModal({isOpen:false}); }
+  });
+
+  // ── Helpers affichage ──────────────────────────────────────────
+  const nomNiveau = (id) => { const n=niveaux.find(x=>x.id===id); return n?`${n.code} — ${n.nom}`:'?'; };
+  const couleurNiveau = (id) => niveaux.find(n=>n.id===id)?.couleur||'#888';
+  const nomEleve  = (id) => { const e=eleves.find(x=>x.id===id); return e?`${e.prenom} ${e.nom}`:'?'; };
+  const labelMetrique = (val, type) => {
+    const all = [...METRIQUES_HIZB, ...METRIQUES_SOURATE];
+    const m = all.find(x=>x.val===val);
+    return m ? (lang==='ar'?m.label_ar:m.label_fr) : val;
+  };
+  const labelPeriode = (val) => {
+    const p = PERIODES.find(x=>x.val===val);
+    return p ? (lang==='ar'?p.label_ar:p.label_fr) : val;
+  };
+  const formatDate = (d) => d ? new Date(d).toLocaleDateString('fr-FR') : '';
+
+  // ── Filtre liste ──────────────────────────────────────────────
+  const objFiltres = objectifs.filter(o => {
+    if (filtreType!=='tous' && o.type_cible!==filtreType) return false;
+    return true;
+  });
+
+  // ── Elevés filtrés pour sélection ─────────────────────────────
+  const elevesFiltres = eleves.filter(e =>
+    `${e.prenom} ${e.nom} ${e.eleve_id_ecole||''}`.toLowerCase()
+      .includes(searchEleve.toLowerCase())
+  );
+
+  // ── FORMULAIRE → voir composant BuildForm au dessus ──────────
 
   // ── CARTE OBJECTIF ─────────────────────────────────────────────
   const CarteObjectif = ({obj}) => {
@@ -498,7 +507,7 @@ export default function GestionObjectifs({ user, navigate, goBack, lang='fr', is
               <div style={{fontSize:15,fontWeight:700,color:'#085041',marginBottom:14}}>
                 {editing?(lang==='ar'?'تعديل الهدف':'✏️ Modifier'):(lang==='ar'?'إضافة هدف جديد':'🎯 Nouvel objectif')}
               </div>
-              {buildForm(false)}
+              <BuildForm isPC={false} form={form} setForm={setForm} setFormField={setFormField} niveaux={niveaux} eleves={eleves} metriques={metriques} searchEleve={searchEleve} setSearchEleve={setSearchEleve} onChangePeriode={onChangePeriode} onChangeNiveau={onChangeNiveau} save={save} saving={saving} editing={editing} setShowForm={setShowForm} setEditing={setEditing} emptyForm={emptyForm} lang={lang}/>
             </div>
           )}
           {!showForm&&(
@@ -631,7 +640,7 @@ export default function GestionObjectifs({ user, navigate, goBack, lang='fr', is
               {editing?(lang==='ar'?'تعديل الهدف':'✏️ Modifier l\'objectif')
                       :(lang==='ar'?'إضافة هدف جديد':'🎯 Nouvel objectif')}
             </div>
-            {buildForm(true)}
+            <BuildForm isPC={true} form={form} setForm={setForm} setFormField={setFormField} niveaux={niveaux} eleves={eleves} metriques={metriques} searchEleve={searchEleve} setSearchEleve={setSearchEleve} onChangePeriode={onChangePeriode} onChangeNiveau={onChangeNiveau} save={save} saving={saving} editing={editing} setShowForm={setShowForm} setEditing={setEditing} emptyForm={emptyForm} lang={lang}/>
           </div>
         )}
       </div>
