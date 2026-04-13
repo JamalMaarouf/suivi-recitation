@@ -1,432 +1,164 @@
-// Auto-generated from Sourates.xlsx
-export const SOURATES = [
-  {
-    "numero": 62,
-    "nom_ar": "سورة الجمعة",
-    "niveau_5B": false,
-    "niveau_5A": false,
-    "niveau_2M": true
-  },
-  {
-    "numero": 63,
-    "nom_ar": "سورة المنافقون",
-    "niveau_5B": false,
-    "niveau_5A": false,
-    "niveau_2M": true
-  },
-  {
-    "numero": 64,
-    "nom_ar": "سورة التغابن",
-    "niveau_5B": false,
-    "niveau_5A": false,
-    "niveau_2M": true
-  },
-  {
-    "numero": 65,
-    "nom_ar": "سورة الطلاق",
-    "niveau_5B": false,
-    "niveau_5A": false,
-    "niveau_2M": true
-  },
-  {
-    "numero": 66,
-    "nom_ar": "سورة التحريم",
-    "niveau_5B": false,
-    "niveau_5A": false,
-    "niveau_2M": true
-  },
-  {
-    "numero": 67,
-    "nom_ar": "سورة الملك",
-    "niveau_5B": false,
-    "niveau_5A": false,
-    "niveau_2M": true
-  },
-  {
-    "numero": 68,
-    "nom_ar": "سورة القلم (ن)",
-    "niveau_5B": false,
-    "niveau_5A": false,
-    "niveau_2M": true
-  },
-  {
-    "numero": 69,
-    "nom_ar": "سورة الحاقة",
-    "niveau_5B": false,
-    "niveau_5A": false,
-    "niveau_2M": true
-  },
-  {
-    "numero": 70,
-    "nom_ar": "سورة المعارج",
-    "niveau_5B": false,
-    "niveau_5A": false,
-    "niveau_2M": true
-  },
-  {
-    "numero": 71,
-    "nom_ar": "سورة نوح",
-    "niveau_5B": false,
-    "niveau_5A": false,
-    "niveau_2M": true
-  },
-  {
-    "numero": 72,
-    "nom_ar": "سورة الجن",
-    "niveau_5B": false,
-    "niveau_5A": false,
-    "niveau_2M": true
-  },
-  {
-    "numero": 72,
-    "nom_ar": "سورة الجن",
-    "niveau_5B": false,
-    "niveau_5A": true,
-    "niveau_2M": true
-  },
-  {
-    "numero": 73,
-    "nom_ar": "سورة المزمل",
-    "niveau_5B": false,
-    "niveau_5A": false,
-    "niveau_2M": true
-  },
-  {
-    "numero": 73,
-    "nom_ar": "سورة المزمل",
-    "niveau_5B": false,
-    "niveau_5A": true,
-    "niveau_2M": true
-  },
-  {
-    "numero": 74,
-    "nom_ar": "سورة المدثر",
-    "niveau_5B": false,
-    "niveau_5A": false,
-    "niveau_2M": true
-  },
-  {
-    "numero": 74,
-    "nom_ar": "سورة المدثر",
-    "niveau_5B": false,
-    "niveau_5A": true,
-    "niveau_2M": true
-  },
-  {
-    "numero": 75,
-    "nom_ar": "سورة القيامة",
-    "niveau_5B": false,
-    "niveau_5A": false,
-    "niveau_2M": true
-  },
-  {
-    "numero": 75,
-    "nom_ar": "سورة القيامة",
-    "niveau_5B": false,
-    "niveau_5A": true,
-    "niveau_2M": true
-  },
-  {
-    "numero": 76,
-    "nom_ar": "سورة الإنسان",
-    "niveau_5B": false,
-    "niveau_5A": true,
-    "niveau_2M": true
-  },
-  {
-    "numero": 77,
-    "nom_ar": "سورة المرسلات",
-    "niveau_5B": false,
-    "niveau_5A": true,
-    "niveau_2M": true
-  },
-  {
-    "numero": 78,
-    "nom_ar": "سورة النبأ",
-    "niveau_5B": true,
-    "niveau_5A": true,
-    "niveau_2M": true
-  },
-  {
-    "numero": 79,
-    "nom_ar": "سورة النازعات",
-    "niveau_5B": true,
-    "niveau_5A": true,
-    "niveau_2M": true
-  },
-  {
-    "numero": 80,
-    "nom_ar": "سورة عبس",
-    "niveau_5B": true,
-    "niveau_5A": true,
-    "niveau_2M": true
-  },
-  {
-    "numero": 81,
-    "nom_ar": "سورة التكوير",
-    "niveau_5B": true,
-    "niveau_5A": true,
-    "niveau_2M": true
-  },
-  {
-    "numero": 82,
-    "nom_ar": "سورة الانفطار",
-    "niveau_5B": true,
-    "niveau_5A": true,
-    "niveau_2M": true
-  },
-  {
-    "numero": 83,
-    "nom_ar": "سورة المطففون",
-    "niveau_5B": true,
-    "niveau_5A": true,
-    "niveau_2M": true
-  },
-  {
-    "numero": 84,
-    "nom_ar": "سورة الانشقاق",
-    "niveau_5B": true,
-    "niveau_5A": true,
-    "niveau_2M": true
-  },
-  {
-    "numero": 85,
-    "nom_ar": "سورة البروج",
-    "niveau_5B": true,
-    "niveau_5A": true,
-    "niveau_2M": true
-  },
-  {
-    "numero": 86,
-    "nom_ar": "سورة الطارق",
-    "niveau_5B": true,
-    "niveau_5A": true,
-    "niveau_2M": true
-  },
-  {
-    "numero": 87,
-    "nom_ar": "سورة الأعلى",
-    "niveau_5B": true,
-    "niveau_5A": true,
-    "niveau_2M": true
-  },
-  {
-    "numero": 88,
-    "nom_ar": "سورة الغاشية",
-    "niveau_5B": true,
-    "niveau_5A": true,
-    "niveau_2M": true
-  },
-  {
-    "numero": 89,
-    "nom_ar": "سورة الفجر",
-    "niveau_5B": true,
-    "niveau_5A": true,
-    "niveau_2M": true
-  },
-  {
-    "numero": 90,
-    "nom_ar": "سورة البلد",
-    "niveau_5B": true,
-    "niveau_5A": true,
-    "niveau_2M": true
-  },
-  {
-    "numero": 91,
-    "nom_ar": "سورة الشمس",
-    "niveau_5B": true,
-    "niveau_5A": true,
-    "niveau_2M": true
-  },
-  {
-    "numero": 92,
-    "nom_ar": "سورة الليل",
-    "niveau_5B": true,
-    "niveau_5A": true,
-    "niveau_2M": true
-  },
-  {
-    "numero": 93,
-    "nom_ar": "سورة الضحى",
-    "niveau_5B": true,
-    "niveau_5A": true,
-    "niveau_2M": true
-  },
-  {
-    "numero": 94,
-    "nom_ar": "سورة الشرح",
-    "niveau_5B": true,
-    "niveau_5A": true,
-    "niveau_2M": true
-  },
-  {
-    "numero": 95,
-    "nom_ar": "سورة التين",
-    "niveau_5B": true,
-    "niveau_5A": true,
-    "niveau_2M": true
-  },
-  {
-    "numero": 96,
-    "nom_ar": "سورة العلق",
-    "niveau_5B": true,
-    "niveau_5A": true,
-    "niveau_2M": true
-  },
-  {
-    "numero": 97,
-    "nom_ar": "سورة القدر",
-    "niveau_5B": true,
-    "niveau_5A": true,
-    "niveau_2M": true
-  },
-  {
-    "numero": 98,
-    "nom_ar": "سورة البينة",
-    "niveau_5B": true,
-    "niveau_5A": true,
-    "niveau_2M": true
-  },
-  {
-    "numero": 99,
-    "nom_ar": "سورة الزلزلة",
-    "niveau_5B": true,
-    "niveau_5A": true,
-    "niveau_2M": true
-  },
-  {
-    "numero": 100,
-    "nom_ar": "سورة العاديات",
-    "niveau_5B": true,
-    "niveau_5A": true,
-    "niveau_2M": true
-  },
-  {
-    "numero": 101,
-    "nom_ar": "سورة القارعة",
-    "niveau_5B": true,
-    "niveau_5A": true,
-    "niveau_2M": true
-  },
-  {
-    "numero": 102,
-    "nom_ar": "سورة التكاثر",
-    "niveau_5B": true,
-    "niveau_5A": true,
-    "niveau_2M": true
-  },
-  {
-    "numero": 103,
-    "nom_ar": "سورة العصر",
-    "niveau_5B": true,
-    "niveau_5A": true,
-    "niveau_2M": true
-  },
-  {
-    "numero": 104,
-    "nom_ar": "سورة الهمزة",
-    "niveau_5B": true,
-    "niveau_5A": true,
-    "niveau_2M": true
-  },
-  {
-    "numero": 105,
-    "nom_ar": "سورة الفيل",
-    "niveau_5B": true,
-    "niveau_5A": true,
-    "niveau_2M": true
-  },
-  {
-    "numero": 106,
-    "nom_ar": "سورة قريش",
-    "niveau_5B": true,
-    "niveau_5A": true,
-    "niveau_2M": true
-  },
-  {
-    "numero": 107,
-    "nom_ar": "سورة الماعون",
-    "niveau_5B": true,
-    "niveau_5A": true,
-    "niveau_2M": true
-  },
-  {
-    "numero": 108,
-    "nom_ar": "سورة الكوثر",
-    "niveau_5B": true,
-    "niveau_5A": true,
-    "niveau_2M": true
-  },
-  {
-    "numero": 109,
-    "nom_ar": "سورة الكافرون",
-    "niveau_5B": true,
-    "niveau_5A": true,
-    "niveau_2M": true
-  },
-  {
-    "numero": 110,
-    "nom_ar": "سورة النصر",
-    "niveau_5B": true,
-    "niveau_5A": true,
-    "niveau_2M": true
-  },
-  {
-    "numero": 111,
-    "nom_ar": "سورة المسد",
-    "niveau_5B": true,
-    "niveau_5A": true,
-    "niveau_2M": true
-  },
-  {
-    "numero": 112,
-    "nom_ar": "سورة الإخلاص",
-    "niveau_5B": true,
-    "niveau_5A": true,
-    "niveau_2M": true
-  },
-  {
-    "numero": 113,
-    "nom_ar": "سورة الفلق",
-    "niveau_5B": true,
-    "niveau_5A": true,
-    "niveau_2M": true
-  },
-  {
-    "numero": 114,
-    "nom_ar": "سورة الناس",
-    "niveau_5B": true,
-    "niveau_5A": true,
-    "niveau_2M": true
-  }
-];
+import React, { useState, useEffect } from 'react';
+import { supabase } from '../lib/supabase';
+import { calcEtatEleve, getInitiales, scoreLabel, formatDateCourt, niveauTraduit } from '../lib/helpers';
+import { t } from '../lib/i18n';
 
-export const SOURATES_5B = SOURATES.filter(s => s.niveau_5B);
-export const SOURATES_5A = SOURATES.filter(s => s.niveau_5A);
-export const SOURATES_2M = SOURATES.filter(s => s.niveau_2M);
+const PALETTE = ['#1D9E75','#378ADD','#EF9F27','#E24B4A','#534AB7','#D85A30'];
 
-export function getSouratesForNiveau(niveau) {
-  if (niveau === '5B') return SOURATES_5B;
-  if (niveau === '5A') return SOURATES_5A;
-  if (niveau === '2M') return SOURATES_2M;
-  return [];
-}
+export default function Comparaison({ navigate, goBack, lang='fr', isMobile, user }) {
+  const [allEleves, setAllEleves] = useState([]);
+  const [selected, setSelected] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState('');
 
-export function isSourateNiveau(niveau) {
-  return ['5B', '5A', '2M'].includes(niveau);
-}
+  useEffect(() => { loadData(); }, []);
 
-// Map numero to DB id (loaded once from Supabase)
-let souratesDB = null;
+  const loadData = async () => {
+    setLoading(true);
+    const [{data:ed},{data:vd}] = await Promise.all([supabase.from('eleves').select('*')
+        .eq('ecole_id', user.ecole_id).order('nom'),supabase.from('validations').select('*')
+        .eq('ecole_id', user.ecole_id).order('date_validation')]);
+    setAllEleves((ed||[]).map(e => {
+      const vals=(vd||[]).filter(v=>v.eleve_id===e.id);
+      const etat=calcEtatEleve(vals,e.hizb_depart,e.tomon_depart);
+      return {...e,etat,validations:vals};
+    }));
+    setLoading(false);
+  };
 
-export function setSouratesDB(data) {
-  souratesDB = data;
-  SOURATES.forEach(s => {
-    const dbRow = data.find(d => d.numero === s.numero);
-    s.id_db = dbRow?.id || null;
-  });
-}
+  const toggle = (e) => {
+    if (selected.find(s=>s.id===e.id)) setSelected(selected.filter(s=>s.id!==e.id));
+    else if (selected.length<6) setSelected([...selected,e]);
+  };
 
-export function getSouratesDB() {
-  return souratesDB;
+  const calcEvolution = (eleve) => {
+    const vals=[...eleve.validations].sort((a,b)=>new Date(a.date_validation)-new Date(b.date_validation));
+    let cumul=0; let hc=new Set();
+    const pts=[{score:0}];
+    vals.forEach(v=>{
+      if(v.type_validation==='hizb_complet') hc.add(v.hizb_valide); else cumul+=v.nombre_tomon;
+      pts.push({date:v.date_validation,score:cumul*10+Math.floor(cumul/2)*25+Math.floor(cumul/4)*60+hc.size*100,label:formatDateCourt(v.date_validation)});
+    });
+    return pts;
+  };
+
+  const evolutions = selected.map(e=>({eleve:e,points:calcEvolution(e)}));
+  const maxScore = Math.max(...evolutions.flatMap(ev=>ev.points.map(p=>p.score)),1);
+  const filtered = allEleves.filter(e=>`${e.prenom} ${e.nom}`.toLowerCase().includes(search.toLowerCase()));
+
+  return (
+    <div>
+      <button className="back-link" onClick={()=>goBack?goBack():navigate('dashboard')}>{t(lang,'retour')}</button>
+      <div style={{fontSize:20,fontWeight:600,marginBottom:'1.5rem'}}>{t(lang,'comparer_eleves')}</div>
+      {loading?<div className="loading">...</div>:(
+        <>
+          <div style={{background:'#fff',border:'0.5px solid #e0e0d8',borderRadius:12,padding:'1rem',marginBottom:'1.25rem'}}>
+            <div style={{fontSize:12,color:'#888',marginBottom:8}}>{t(lang,'selectionner_comparer')} :</div>
+            <input className="field-input" style={{marginBottom:10}} placeholder={t(lang,'rechercher_eleve')} value={search} onChange={e=>setSearch(e.target.value)}/>
+            <div style={{display:'flex',flexWrap:'wrap',gap:6}}>
+              {filtered.map((e,idx)=>{
+                const selIdx=selected.findIndex(s=>s.id===e.id);
+                const isSelected=selIdx>=0;
+                const color=isSelected?PALETTE[selIdx]:'#888';
+                return(
+                  <div key={e.id} onClick={()=>toggle(e)} style={{display:'flex',alignItems:'center',gap:6,padding:'5px 12px',borderRadius:20,cursor:'pointer',border:`1.5px solid ${isSelected?color:'#e0e0d8'}`,background:isSelected?color+'15':'#f9f9f6'}}>
+                    {isSelected&&<div style={{width:8,height:8,borderRadius:'50%',background:color}}/>}
+                    <span style={{fontSize:12,fontWeight:isSelected?500:400,color:isSelected?color:'#666'}}>{e.prenom} {e.nom}</span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {selected.length===0?(
+            <div className="empty">{t(lang,'rechercher_commencer')}</div>
+          ):(
+            <>
+              <div style={{display:'flex',gap:12,flexWrap:'wrap',marginBottom:'1rem'}}>
+                {selected.map((e,idx)=>(
+                  <div key={e.id} style={{display:'flex',alignItems:'center',gap:6,padding:'5px 12px',background:'#fff',border:`1.5px solid ${PALETTE[idx]}`,borderRadius:20}}>
+                    <div style={{width:10,height:10,borderRadius:'50%',background:PALETTE[idx]}}/>
+                    <span style={{fontSize:12,fontWeight:500,color:PALETTE[idx]}}>{e.prenom} {e.nom}</span>
+                    <span style={{fontSize:11,color:'#888'}}>· {e.etat.points.total.toLocaleString()} {t(lang,'pts_abrev')}</span>
+                  </div>
+                ))}
+              </div>
+
+              <div className="card">
+                <div style={{fontSize:13,fontWeight:500,marginBottom:12}}>{t(lang,'evolution_score')}</div>
+                <div style={{position:'relative',height:240,overflow:'hidden'}}>
+                  {[0,25,50,75,100].map(pct=>(
+                    <div key={pct} style={{position:'absolute',left:0,right:0,top:`${100-pct}%`,borderTop:'0.5px solid #e8e8e0'}}>
+                      <span style={{fontSize:9,color:'#bbb',marginLeft:2}}>{Math.round(maxScore*pct/100)}</span>
+                    </div>
+                  ))}
+                  <svg style={{position:'absolute',left:30,top:0,width:'calc(100% - 30px)',height:'90%'}}>
+                    {evolutions.map((ev,idx)=>{
+                      if(ev.points.length<2) return null;
+                      const color=PALETTE[idx];
+                      const w=100/(ev.points.length-1);
+                      const pts=ev.points.map((p,i)=>`${i*w}%,${90-(p.score/maxScore)*85}%`).join(' ');
+                      return(
+                        <g key={ev.eleve.id}>
+                          <polyline points={pts} fill="none" stroke={color} strokeWidth="2.5" strokeLinejoin="round" opacity="0.9"/>
+                          {ev.points.map((p,i)=><circle key={i} cx={`${i*w}%`} cy={`${90-(p.score/maxScore)*85}%`} r="3" fill={color}/>)}
+                        </g>
+                      );
+                    })}
+                  </svg>
+                </div>
+              </div>
+
+              <div className="section-label">{t(lang,'tableau_comparatif')}</div>
+              <div className="table-wrap">
+                <table><thead><tr>
+                  <th style={{width:'24%'}}>{t(lang,'eleve')}</th>
+                  <th style={{width:'14%'}}>{t(lang,'score_total')}</th>
+                  <th style={{width:'14%'}}>Hizb</th>
+                  <th style={{width:'12%'}}>{t(lang,'tomon_abrev')}</th>
+                  <th style={{width:'12%'}}>{t(lang,'hizb_abrev')}</th>
+                  <th style={{width:'24%'}}>{lang==='ar'?'تقدم الحزب':'Progression'}</th>
+                </tr></thead>
+                <tbody>
+                  {selected.map((e,idx)=>(
+                    <tr key={e.id} className="clickable" onClick={()=>navigate('fiche',e)}>
+                      <td><div style={{display:'flex',alignItems:'center',gap:8}}><div style={{width:10,height:10,borderRadius:'50%',background:PALETTE[idx],flexShrink:0}}/><span style={{fontSize:13}}>{e.prenom} {e.nom}</span></div></td>
+                      <td><span style={{fontSize:14,fontWeight:700,color:PALETTE[idx]}}>{e.etat.points.total.toLocaleString()}</span></td>
+                      <td style={{fontSize:12}}>Hizb {e.etat.hizbEnCours}</td>
+                      <td><span className="badge badge-blue" style={{fontSize:10}}>{e.etat.tomonTotal||e.etat.tomonCumul}</span></td>
+                      <td><span className="badge badge-green" style={{fontSize:10}}>{e.etat.hizbsComplets.size}</span></td>
+                      <td><div style={{display:'flex',gap:2}}>{[1,2,3,4,5,6,7,8].map(n=><div key={n} style={{flex:1,height:8,borderRadius:2,background:n<=e.etat.tomonDansHizbActuel?PALETTE[idx]:'#e8e8e0'}}/>)}</div></td>
+                    </tr>
+                  ))}
+                </tbody></table>
+              </div>
+
+              <div className="section-label">{t(lang,'classement_entre_eux')}</div>
+              <div style={{display:'flex',flexDirection:'column',gap:6}}>
+                {[...selected].sort((a,b)=>b.etat.points.total-a.etat.points.total).map((e,idx)=>{
+                  const origIdx=selected.findIndex(s=>s.id===e.id);
+                  const color=PALETTE[origIdx];
+                  const maxPts=Math.max(...selected.map(s=>s.etat.points.total));
+                  const pct=maxPts>0?(e.etat.points.total/maxPts)*100:0;
+                  return(
+                    <div key={e.id} style={{display:'flex',alignItems:'center',gap:12,padding:'10px 14px',background:'#fff',border:`0.5px solid ${color}30`,borderRadius:10}}>
+                      <div style={{fontSize:14,fontWeight:700,color,minWidth:20}}>{idx+1}</div>
+                      <div style={{width:32,height:32,borderRadius:'50%',background:color+'15',display:'flex',alignItems:'center',justifyContent:'center',fontWeight:600,fontSize:12,color}}>{getInitiales(e.prenom,e.nom)}</div>
+                      <div style={{flex:1}}>
+                        <div style={{fontSize:13,fontWeight:500}}>{e.prenom} {e.nom}</div>
+                        <div style={{height:5,background:'#e8e8e0',borderRadius:3,marginTop:4,overflow:'hidden'}}>
+                          <div style={{height:'100%',width:`${pct}%`,background:color,borderRadius:3}}/>
+                        </div>
+                      </div>
+                      <div style={{fontSize:16,fontWeight:700,color}}>{e.etat.points.total.toLocaleString()} {t(lang,'pts_abrev')}</div>
+                    </div>
+                  );
+                })}
+              </div>
+            </>
+          )}
+        </>
+      )}
+    </div>
+  );
 }

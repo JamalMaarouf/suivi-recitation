@@ -1,707 +1,521 @@
 import React, { useState, useEffect } from 'react';
+import { useToast } from '../lib/toast';
 import { supabase } from '../lib/supabase';
+import { getInitiales, joursDepuis, scoreLabel, formatDateCourt } from '../lib/helpers';
+import { getSouratesForNiveau } from '../lib/sourates';
 import { t } from '../lib/i18n';
-import { SOURATES_5B, SOURATES_5A, SOURATES_2M } from '../lib/sourates';
 
-const PERIODES = [
-  { val: 'semaine',    label_fr: 'Semaine',    label_ar: 'أسبوع',       label_en: 'Week',      jours: 7   },
-  { val: 'quinzaine',  label_fr: 'Quinzaine',  label_ar: 'أسبوعان',     label_en: 'Fortnight', jours: 15  },
-  { val: 'mois',       label_fr: 'Mois',       label_ar: 'شهر',         label_en: 'Month',     jours: 30  },
-  { val: 'trimestre',  label_fr: 'Trimestre',  label_ar: 'فصل دراسي',   label_en: 'Quarter',   jours: 90  },
-  { val: 'semestre',   label_fr: 'Semestre',   label_ar: 'نصف سنة',     label_en: 'Semester',  jours: 180 },
-  { val: 'annee',      label_fr: 'Année',      label_ar: 'سنة',         label_en: 'Year',      jours: 365 },
-];
+const IS_SOURATE = (code) => ['5B','5A','2M'].includes(code||'');
+const NIVEAU_COLORS = {'5B':'#534AB7','5A':'#378ADD','2M':'#1D9E75','2':'#EF9F27','1':'#E24B4A'};
 
-const METRIQUES = [
-  { val: 'tomon',    label_fr: 'Tomon récités',       label_ar: 'أثمان مُسمَّعة',    label_en: 'Tomon recited',    niveaux: ['2','1'] },
-  { val: 'hizb',     label_fr: 'Hizb complets',       label_ar: 'أحزاب مكتملة',     label_en: 'Complete Hizb',   niveaux: ['2','1'] },
-  { val: 'sourate',  label_fr: 'Sourates complètes',  label_ar: 'سور مكتملة',       label_en: 'Complete surahs', niveaux: ['5B','5A','2M'] },
-  { val: 'sequence', label_fr: 'Séquences',           label_ar: 'مقاطع',            label_en: 'Sequences',       niveaux: ['5B','5A','2M'] },
-  { val: 'points',   label_fr: 'Points gagnés',       label_ar: 'نقاط مكتسبة',     label_en: 'Points earned',   niveaux: ['5B','5A','2M','2','1'] },
-  { val: 'seances',  label_fr: 'Séances actives',     label_ar: 'حصص نشطة',        label_en: 'Active sessions', niveaux: ['5B','5A','2M','2','1'] },
-];
+function Avatar({ prenom, nom, size=40, bg='#E1F5EE', color='#085041' }) {
+  return <div style={{width:size,height:size,borderRadius:'50%',background:bg,color,display:'flex',alignItems:'center',justifyContent:'center',fontWeight:700,fontSize:size*0.35,flexShrink:0}}>{getInitiales(prenom,nom)}</div>;
+}
 
-const NIVEAUX = ['5B','5A','2M','2','1'];
-const NIVEAU_LABELS = { '5B':'Préscolaire','5A':'Primaire 1-2','2M':'Primaire 3-4','2':'Primaire 5-6','1':'Collège/Lycée' };
-const NIVEAU_COLORS = { '5B':'#534AB7','5A':'#378ADD','2M':'#1D9E75','2':'#EF9F27','1':'#E24B4A' };
+function NiveauBadge({ code }) {
+  const c = NIVEAU_COLORS[code||'1']||'#888';
+  return <span style={{padding:'2px 8px',borderRadius:20,fontSize:10,fontWeight:700,background:c+'18',color:c,border:'0.5px solid '+c+'30'}}>{code}</span>;
+}
 
-const getPeriodeLabel = (val, lang) => {
-  const p = PERIODES.find(x=>x.val===val);
-  return p ? (lang==='ar'?p.label_ar:lang==='en'?p.label_en:p.label_fr) : val;
-};
-const getMetriqueLabel = (val, lang) => {
-  const m = METRIQUES.find(x=>x.val===val);
-  return m ? (lang==='ar'?m.label_ar:lang==='en'?m.label_en:m.label_fr) : val;
-};
-
-// Calculate date range from periode
-const calcDateRange = (periode, refDate=new Date()) => {
-  const p = PERIODES.find(x=>x.val===periode);
-  const debut = new Date(refDate);
-  debut.setHours(0,0,0,0);
-  const fin = new Date(debut);
-  fin.setDate(fin.getDate() + (p?.jours||30) - 1);
-  fin.setHours(23,59,59,999);
-  return { debut: debut.toISOString().split('T')[0], fin: fin.toISOString().split('T')[0] };
-};
-
-// Calculate achievement for an objectif
-const calcAtteinte = (obj, validations, recitationsSourates) => {
-  const debut = new Date(obj.date_debut);
-  const fin = new Date(obj.date_fin); fin.setHours(23,59,59,999);
-
-  const vPeriode = validations.filter(v => {
-    const d = new Date(v.date_validation);
-    return d >= debut && d <= fin;
-  });
-  const rPeriode = recitationsSourates.filter(r => {
-    const d = new Date(r.date_validation);
-    return d >= debut && d <= fin;
-  });
-
-  let realise = 0;
-  if (obj.metrique === 'tomon') realise = vPeriode.filter(v=>v.type_validation==='tomon').reduce((s,v)=>s+v.nombre_tomon,0);
-  else if (obj.metrique === 'hizb') realise = vPeriode.filter(v=>v.type_validation==='hizb_complet').length;
-  else if (obj.metrique === 'sourate') realise = rPeriode.filter(r=>r.type_recitation==='complete').length;
-  else if (obj.metrique === 'sequence') realise = rPeriode.filter(r=>r.type_recitation==='sequence').length;
-  else if (obj.metrique === 'points') {
-    const t = vPeriode.filter(v=>v.type_validation==='tomon').reduce((s,v)=>s+v.nombre_tomon,0);
-    const h = vPeriode.filter(v=>v.type_validation==='hizb_complet').length;
-    const pts_r = rPeriode.reduce((s,r)=>s+(r.points||0),0);
-    realise = t*10+Math.floor(t/2)*25+Math.floor(t/4)*60+h*100+pts_r;
-  }
-  else if (obj.metrique === 'seances') {
-    const jours = new Set([...vPeriode,...rPeriode].map(v=>new Date(v.date_validation).toDateString()));
-    realise = jours.size;
-  }
-
-  const pct = obj.valeur_cible > 0 ? Math.min(100, Math.round(realise/obj.valeur_cible*100)) : 0;
-  const now = new Date();
-  const isActive = now >= debut && now <= fin;
-  const isExpired = now > fin;
-  const status = pct >= 100 ? 'atteint' : isExpired ? 'expire' : isActive ? 'en_cours' : 'futur';
-  return { realise, pct, status };
-};
-
-const statusConfig = {
-  atteint:  { color:'#1D9E75', bg:'#E1F5EE', label_fr:'✓ Atteint',   label_ar:'✓ محقق',    label_en:'✓ Achieved' },
-  expire:   { color:'#E24B4A', bg:'#FCEBEB', label_fr:'✗ Expiré',    label_ar:'✗ منتهي',   label_en:'✗ Expired'  },
-  en_cours: { color:'#EF9F27', bg:'#FAEEDA', label_fr:'En cours',    label_ar:'جارٍ',      label_en:'In progress'},
-  futur:    { color:'#888',    bg:'#f5f5f0', label_fr:'À venir',     label_ar:'قادم',      label_en:'Upcoming'   },
-};
-
-export default function GestionObjectifs({ user, navigate, goBack, lang='fr' }) {
-  const [objectifs, setObjectifs] = useState([]);
-  const [eleves, setEleves] = useState([]);
-  const [instituteurs, setInstituteurs] = useState([]);
+export default function PortailParent({ parent, navigate, goBack, lang='fr', onLogout, isMobile }) {
+  const { toast } = useToast();
+  const [enfants, setEnfants] = useState([]);
+  const [selectedEnfant, setSelectedEnfant] = useState(null);
   const [validations, setValidations] = useState([]);
-  const [recitationsSourates, setRecitationsSourates] = useState([]);
+  const [recitations, setRecitations] = useState([]);
+  const [objectifs, setObjectifs] = useState([]);
+  const [cotisations, setCotisations] = useState([]);
+  const [souratesDB, setSouratesDB] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [showForm, setShowForm] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [msg, setMsg] = useState(null);
-
-  // Filters
-  const [filterType, setFilterType] = useState('tous');
-  const [filterNiveau, setFilterNiveau] = useState('tous');
-  const [filterStatut, setFilterStatut] = useState('tous');
-
-  // New objectif form
-  const [form, setForm] = useState({
-    type_cible: 'niveau', eleve_id: '', code_niveau: '5B', instituteur_id: '',
-    periode: 'mois', date_debut: new Date().toISOString().split('T')[0],
-    date_fin: '', metrique: 'sourate', valeur_cible: '', cible_specifique: null, cibles_selectionnees: [], hizbSelected: null, titre: '', notes: ''
-  });
+  const [onglet, setOnglet] = useState('progression');
 
   useEffect(() => { loadData(); }, []);
-
-  // Auto-calculate date_fin when periode or date_debut changes
-  useEffect(() => {
-    if (form.periode && form.date_debut) {
-      const range = calcDateRange(form.periode, new Date(form.date_debut));
-      setForm(f => ({ ...f, date_fin: range.fin }));
-    }
-  }, [form.periode, form.date_debut]);
-
-  // Auto-set metrique based on niveau/type_cible
-  useEffect(() => {
-    const niveau = form.type_cible === 'niveau' ? form.code_niveau : 
-                   form.type_cible === 'eleve' ? eleves.find(e=>e.id===form.eleve_id)?.code_niveau : null;
-    if (niveau && ['5B','5A','2M'].includes(niveau) && ['tomon','hizb'].includes(form.metrique)) {
-      setForm(f => ({ ...f, metrique: 'sourate' }));
-    } else if (niveau && ['2M','2','1'].includes(niveau) && ['sourate','sequence'].includes(form.metrique)) {
-      setForm(f => ({ ...f, metrique: 'tomon' }));
-    }
-  }, [form.type_cible, form.code_niveau, form.eleve_id]);
+  useEffect(() => { if (enfants.length>0 && !selectedEnfant) setSelectedEnfant(enfants[0]); }, [enfants]);
 
   const loadData = async () => {
     setLoading(true);
-    // Load each table safely — some may not exist yet
-    const safeQuery = async (q) => { try { const r = await q; return r.data || []; } catch(e) { return []; } };
-    
-    const [objs, ed, inst, vd, rd] = await Promise.all([
-      safeQuery(supabase.from('objectifs_globaux').select('*').order('created_at', { ascending: false })),
-      safeQuery(supabase.from('eleves').select('*').order('nom')),
-      safeQuery(supabase.from('utilisateurs').select('*').eq('role', 'instituteur')),
-      safeQuery(supabase.from('validations').select('*')),
-      safeQuery(supabase.from('recitations_sourates').select('*')),
-    ]);
-    setObjectifs(objs);
-    setEleves(ed);
-    setInstituteurs(inst);
-    setValidations(vd);
-    setRecitationsSourates(rd);
+    try {
+      // Load linked children
+      const { data: links } = await supabase
+        .from('parent_eleve')
+        .select('eleve_id, eleve:eleve_id(*)')
+        .eq('parent_id', parent.id);
+
+      const elevesData = (links||[]).map(l=>l.eleve).filter(Boolean);
+      setEnfants(elevesData);
+
+      if (elevesData.length > 0) {
+        const ids = elevesData.map(e=>e.id);
+        const results = await Promise.allSettled([
+          supabase.from('validations').select('*, valideur:valide_par(prenom,nom)')
+        .in('eleve_id', ids).order('date_validation',{ascending:false}),
+          supabase.from('recitations_sourates').select('*, valideur:valide_par(prenom,nom)')
+        .in('eleve_id', ids).order('date_validation',{ascending:false}),
+          supabase.from('objectifs_globaux').select('*').limit(100),
+          supabase.from('cotisations').select('*')
+        .in('eleve_id', ids).order('date_paiement',{ascending:false}),
+          supabase.from('sourates').select('*'),
+        ]);
+        setValidations(results[0].status==='fulfilled'?results[0].value.data||[]:[]);
+        setRecitations(results[1].status==='fulfilled'?results[1].value.data||[]:[]);
+        setObjectifs(results[2].status==='fulfilled'?results[2].value.data||[]:[]);
+        setCotisations(results[3].status==='fulfilled'?results[3].value.data||[]:[]);
+        setSouratesDB(results[4].status==='fulfilled'?results[4].value.data||[]:[]);
+      }
+    } catch(e) { toast.error('Erreur de chargement'); }
     setLoading(false);
   };
 
-  const showMsg = (type, text) => { setMsg({ type, text }); setTimeout(() => setMsg(null), 3000); };
+  if (loading) return <div className="loading">...</div>;
+  if (enfants.length === 0) return (
+    <div style={{padding:'3rem',textAlign:'center'}}>
+      <div style={{fontSize:48,marginBottom:'1rem'}}>👶</div>
+      <div style={{fontSize:15,color:'#888'}}>{lang==='ar'?'لا يوجد طلاب مرتبطون بحسابك':'Aucun enfant lié à votre compte'}</div>
+    </div>
+  );
 
-  const saveObjectif = async () => {
-    if (!form.valeur_cible || isNaN(form.valeur_cible) || parseInt(form.valeur_cible) <= 0)
-      return showMsg('error', lang==='ar'?'يجب تحديد قيمة الهدف':lang==='en'?'Please set a target value':'Veuillez définir une valeur cible');
-    if (form.type_cible === 'eleve' && !form.eleve_id)
-      return showMsg('error', lang==='ar'?'اختر طالباً':lang==='en'?'Select a student':`Sélectionnez un élève`);
-    if (form.type_cible === 'instituteur' && !form.instituteur_id)
-      return showMsg('error', lang==='ar'?'اختر أستاذاً':lang==='en'?'Select a teacher':`Sélectionnez un instituteur`);
+  const eleve = selectedEnfant;
+  if (!eleve) return null;
 
-    setSaving(true);
-    const insert = {
-      type_cible: form.type_cible,
-      eleve_id: form.type_cible === 'eleve' ? form.eleve_id : null,
-      code_niveau: form.type_cible === 'niveau' ? form.code_niveau : null,
-      instituteur_id: form.type_cible === 'instituteur' ? form.instituteur_id : null,
-      periode: form.periode,
-      date_debut: form.date_debut,
-      date_fin: form.date_fin,
-      metrique: form.metrique,
-      valeur_cible: parseInt(form.valeur_cible),
-      titre: form.titre || null,
-      notes: form.notes || null,
-      cible_specifique: form.cibles_selectionnees.length>0 ? JSON.stringify(form.cibles_selectionnees) : (form.cible_specifique||null),
-      created_by: user.id,
-    };
-    const { error } = await supabase.from('objectifs_globaux').insert(insert);
-    setSaving(false);
-    if (error) return showMsg('error', error.message);
-    showMsg('success', lang==='ar'?'تم حفظ الهدف':lang==='en'?'Objective saved':'Objectif enregistré');
-    setShowForm(false);
-    setForm({ type_cible:'niveau', eleve_id:'', code_niveau:'5B', instituteur_id:'',
-      periode:'mois', date_debut:new Date().toISOString().split('T')[0],
-      date_fin:'', metrique:'sourate', valeur_cible:'', cible_specifique:null, cibles_selectionnees:[], hizbSelected:null, titre:'', notes:'' });
-    await loadData();
-  };
+  const isSourate = IS_SOURATE(eleve?.code_niveau||'');
+  const nc = NIVEAU_COLORS[eleve?.code_niveau||'1']||'#888';
+  const sl = scoreLabel(0);
 
-  const deleteObjectif = async (id) => {
-    if (!window.confirm(lang==='ar'?'حذف هذا الهدف؟':lang==='en'?'Delete this objective?':'Supprimer cet objectif ?')) return;
-    await supabase.from('objectifs_globaux').delete().eq('id', id);
-    await loadData();
-  };
+  // Stats pour l'élève sélectionné
+  const vE = validations.filter(v=>v.eleve_id===eleve.id);
+  const rE = recitations.filter(r=>r.eleve_id===eleve.id);
+  const cotE = cotisations.filter(c=>c.eleve_id===eleve.id);
 
-  // Get validations for an objectif's scope
-  const getValsForObj = (obj) => {
-    if (obj.type_cible === 'eleve') return validations.filter(v=>v.eleve_id===obj.eleve_id);
-    if (obj.type_cible === 'niveau') {
-      const elevesNiveau = eleves.filter(e=>(e.code_niveau||'1')===obj.code_niveau).map(e=>e.id);
-      return validations.filter(v=>elevesNiveau.includes(v.eleve_id));
-    }
-    if (obj.type_cible === 'instituteur') {
-      const elevesInst = eleves.filter(e=>e.instituteur_referent_id===obj.instituteur_id).map(e=>e.id);
-      return validations.filter(v=>elevesInst.includes(v.eleve_id));
-    }
-    return validations;
-  };
+  const tomon = vE.filter(v=>v.type_validation==='tomon').reduce((s,v)=>s+v.nombre_tomon,0);
+  const hizb = vE.filter(v=>v.type_validation==='hizb_complet').length;
+  const souratesCompletes = rE.filter(r=>r.type_recitation==='complete').length;
+  const sequences = rE.filter(r=>r.type_recitation==='sequence').length;
+  const pts = tomon*10+Math.floor(tomon/2)*25+Math.floor(tomon/4)*60+hizb*100+rE.reduce((s,r)=>s+(r.points||0),0);
 
-  const getRecsForObj = (obj) => {
-    if (obj.type_cible === 'eleve') return recitationsSourates.filter(r=>r.eleve_id===obj.eleve_id);
-    if (obj.type_cible === 'niveau') {
-      const elevesNiveau = eleves.filter(e=>(e.code_niveau||'1')===obj.code_niveau).map(e=>e.id);
-      return recitationsSourates.filter(r=>elevesNiveau.includes(r.eleve_id));
-    }
-    if (obj.type_cible === 'instituteur') {
-      const elevesInst = eleves.filter(e=>e.instituteur_referent_id===obj.instituteur_id).map(e=>e.id);
-      return recitationsSourates.filter(r=>elevesInst.includes(r.eleve_id));
-    }
-    return recitationsSourates;
-  };
+  // Dernière activité
+  const allActivity = [...vE,...rE].sort((a,b)=>new Date(b.date_validation)-new Date(a.date_validation));
+  const derniere = allActivity[0]?.date_validation||null;
+  const joursInactif = joursDepuis(derniere);
 
-  const getObjLabel = (obj) => {
-    if (obj.type_cible === 'eleve') {
-      const e = eleves.find(x=>x.id===obj.eleve_id);
-      return e ? `${e.prenom} ${e.nom}` : '—';
-    }
-    if (obj.type_cible === 'niveau') return `${lang==='ar'?'المستوى':lang==='en'?'Level':'Niveau'} ${obj.code_niveau}`;
-    if (obj.type_cible === 'instituteur') {
-      const i = instituteurs.find(x=>x.id===obj.instituteur_id);
-      return i ? `${i.prenom} ${i.nom}` : '—';
-    }
-    return lang==='ar'?'عام':lang==='en'?'Global':'Global';
-  };
+  // Activité 7 derniers jours
+  const debutSemaine = new Date(); debutSemaine.setDate(debutSemaine.getDate()-7);
+  const actifSemaine = allActivity.filter(x=>new Date(x.date_validation)>=debutSemaine).length;
 
-  const getNiveauForObj = (obj) => {
-    if (obj.type_cible === 'niveau') return obj.code_niveau;
-    if (obj.type_cible === 'eleve') return eleves.find(e=>e.id===obj.eleve_id)?.code_niveau||'1';
-    return null;
-  };
-
-  // Filtered objectifs
-  const objFiltres = objectifs.filter(obj => {
-    if (filterType !== 'tous' && obj.type_cible !== filterType) return false;
-    if (filterNiveau !== 'tous' && getNiveauForObj(obj) !== filterNiveau) return false;
-    if (filterStatut !== 'tous') {
-      const { status } = calcAtteinte(obj, getValsForObj(obj), getRecsForObj(obj));
-      if (status !== filterStatut) return false;
-    }
-    return true;
+  // Objectifs actifs pour cet élève
+  const now = new Date();
+  const objActifs = objectifs.filter(o => {
+    const debut = new Date(o.date_debut); const fin = new Date(o.date_fin);
+    if (now < debut || now > fin) return false;
+    if (o.type_cible==='eleve') return o.eleve_id===eleve.id;
+    if (o.type_cible==='niveau') return o.code_niveau===(eleve.code_niveau||'1');
+    return false;
   });
 
-  // Stats globales
-  const statsGlobales = objectifs.reduce((acc, obj) => {
-    const { status, pct } = calcAtteinte(obj, getValsForObj(obj), getRecsForObj(obj));
-    acc.total++;
-    if (status === 'atteint') acc.atteints++;
-    else if (status === 'en_cours') acc.en_cours++;
-    else if (status === 'expire') acc.expires++;
-    acc.pct_moy += pct;
-    return acc;
-  }, { total:0, atteints:0, en_cours:0, expires:0, pct_moy:0 });
-  if (statsGlobales.total > 0) statsGlobales.pct_moy = Math.round(statsGlobales.pct_moy / statsGlobales.total);
+  // Sourate actuelle
+  let sourateActuelle = null;
+  if (isSourate) {
+    const souratesNiveau = getSouratesForNiveau(eleve.code_niveau);
+    const sorted = [...souratesNiveau].sort((a,b)=>b.numero-a.numero);
+    const souratesAcq = parseInt(eleve.sourates_acquises)||0;
+    const souratesCompletesSet = new Set(rE.filter(r=>r.type_recitation==='complete').map(r=>r.sourate_id));
+    const idx = sorted.findIndex((s,i) => {
+      if (i < souratesAcq) return false;
+      const dbS = souratesDB.find(x=>x.numero===s.numero);
+      return dbS ? !souratesCompletesSet.has(dbS.id) : false;
+    });
+    sourateActuelle = idx >= 0 ? sorted[idx] : null;
+  }
 
-  const metriquesDisponibles = () => {
-    if (form.type_cible === 'niveau') {
-      return METRIQUES.filter(m => m.niveaux.includes(form.code_niveau));
-    }
-    if (form.type_cible === 'eleve' && form.eleve_id) {
-      const niv = eleves.find(e=>e.id===form.eleve_id)?.code_niveau || '1';
-      return METRIQUES.filter(m => m.niveaux.includes(niv));
-    }
-    return METRIQUES;
-  };
+  const onglets = [
+    { key:'progression', label:'Progression',     labelAr:'التقدم',        icon:'📈' },
+    { key:'recitations', label:'Récitations',      labelAr:'الاستظهارات',     icon:'📖' },
+    { key:'objectifs',   label:'Objectifs',        labelAr:'الأهداف',       icon:'🎯' },
+    { key:'cotisations', label:'Cotisations',      labelAr:'الاشتراكات',    icon:'💰' },
+  ];
 
-  const formatDate = (d) => d ? new Date(d).toLocaleDateString(lang==='ar'?'ar-MA':lang==='en'?'en-GB':'fr-FR',{day:'2-digit',month:'short',year:'numeric'}) : '—';
+  if (isMobile) {
+    return (
+      <div style={{paddingBottom:80, background:'#f5f5f0', minHeight:'100vh'}}>
+        {/* Mobile header */}
+        <div style={{background:'linear-gradient(135deg,#085041,#1D9E75)', padding:'48px 16px 20px'}}>
+          <div style={{fontSize:13, color:'rgba(255,255,255,0.8)', marginBottom:4}}>
+            {lang==='ar'?'مرحباً':'Bonjour'}, <strong>{parent.prenom} {parent.nom}</strong>
+          </div>
+          {/* Child selector */}
+          {enfants.length > 1 && (
+            <div style={{display:'flex', gap:8, overflowX:'auto', marginTop:10, scrollbarWidth:'none'}}>
+              {enfants.map(e=>(
+                <div key={e.id} onClick={()=>{setSelectedEnfant(e);setOnglet('progression');}}
+                  style={{display:'flex', alignItems:'center', gap:8, padding:'8px 12px', borderRadius:20,
+                    flexShrink:0, cursor:'pointer',
+                    background: selectedEnfant?.id===e.id ? 'rgba(255,255,255,0.3)' : 'rgba(255,255,255,0.15)',
+                    border: `1.5px solid ${selectedEnfant?.id===e.id ? '#fff' : 'rgba(255,255,255,0.2)'}`}}>
+                  <span style={{fontSize:14, color:'#fff', fontWeight:700}}>{e.prenom}</span>
+                </div>
+              ))}
+            </div>
+          )}
+          {/* Enfant sélectionné */}
+          {eleve && (
+            <div style={{marginTop:12, display:'flex', justifyContent:'space-between', alignItems:'center'}}>
+              <div>
+                <div style={{fontSize:20, fontWeight:800, color:'#fff'}}>{eleve.prenom} {eleve.nom}</div>
+                <div style={{fontSize:13, color:'rgba(255,255,255,0.8)', marginTop:2}}>
+                  {NIVEAUX_LABELS[eleve.code_niveau] || eleve.code_niveau}
+                </div>
+              </div>
+              <div style={{textAlign:'center'}}>
+                <div style={{fontSize:32, fontWeight:800, color:'#fff'}}>{pts.toLocaleString()}</div>
+                <div style={{fontSize:11, color:'rgba(255,255,255,0.7)'}}>points</div>
+              </div>
+            </div>
+          )}
+          {/* Onglets */}
+          <div style={{display:'flex', gap:0, marginTop:14, background:'rgba(0,0,0,0.2)', borderRadius:10, padding:3}}>
+            {onglets.map(o=>(
+              <div key={o.key} onClick={()=>setOnglet(o.key)}
+                style={{flex:1, padding:'8px 4px', borderRadius:8, textAlign:'center', fontSize:11, fontWeight:600,
+                  cursor:'pointer', background:onglet===o.key?'rgba(255,255,255,0.25)':'transparent',
+                  color:'#fff'}}>
+                {o.icon}
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {loading ? <div style={{textAlign:'center',padding:'2rem',color:'#888'}}>...</div> : (
+          <div style={{padding:'12px'}}>
+            {/* Progression */}
+            {onglet==='progression' && pts && (
+              <div>
+                <div style={{display:'grid',gridTemplateColumns:'repeat(2,1fr)',gap:10,marginBottom:12}}>
+                  {[
+                    {label:lang==='ar'?'الثُّمنات':'Tomon validés',val:tomon,color:'#1D9E75',bg:'#E1F5EE'},
+                    {label:lang==='ar'?'الأحزاب':'Hizb complets',val:hizb,color:'#534AB7',bg:'#F0EEFF'},
+                    {label:lang==='ar'?'السور':'Sourates',val:souratesCompletes,color:'#378ADD',bg:'#E6F1FB'},
+                    {label:lang==='ar'?'النقاط':'Points',val:pts.toLocaleString(),color:'#EF9F27',bg:'#FAEEDA'},
+                  ].map((k,i)=>(
+                    <div key={i} style={{background:k.bg,borderRadius:12,padding:'14px',textAlign:'center',border:`0.5px solid ${k.color}20`}}>
+                      <div style={{fontSize:24,fontWeight:800,color:k.color}}>{k.val}</div>
+                      <div style={{fontSize:11,color:k.color,marginTop:4,opacity:0.8}}>{k.label}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            {/* Récitations */}
+            {onglet==='recitations' && (
+              <div>
+                <div style={{fontSize:13,fontWeight:700,color:'#888',marginBottom:8}}>
+                  {lang==='ar'?'آخر الاستظهارات':'Dernières récitations'}
+                </div>
+                {validations.slice(0,20).map(v=>(
+                  <div key={v.id} style={{background:'#fff',borderRadius:12,padding:'12px 14px',marginBottom:8,
+                    border:'0.5px solid #e0e0d8',display:'flex',alignItems:'center',gap:12}}>
+                    <div style={{width:8,height:8,borderRadius:'50%',background:'#1D9E75',flexShrink:0}}/>
+                    <div style={{flex:1}}>
+                      <div style={{fontWeight:600,fontSize:13}}>
+                        {v.type_validation==='hizb_complet'?'Hizb complet':`T.${v.tomon_debut} ×${v.nombre_tomon}`}
+                      </div>
+                      <div style={{fontSize:11,color:'#888'}}>{new Date(v.date_validation).toLocaleDateString(lang==='ar'?'ar-MA':'fr-FR')}</div>
+                    </div>
+                    <span style={{fontSize:13,fontWeight:700,color:'#1D9E75'}}>+{v.type_validation==='hizb_complet'?100:v.nombre_tomon*30} pts</span>
+                  </div>
+                ))}
+                {validations.length===0&&<div style={{textAlign:'center',color:'#aaa',padding:'2rem'}}>Aucune récitation</div>}
+              </div>
+            )}
+            {/* Cotisations */}
+            {onglet==='cotisations' && (
+              <div>
+                {cotisations.slice(0,20).map(c=>(
+                  <div key={c.id} style={{background:'#fff',borderRadius:12,padding:'12px 14px',marginBottom:8,
+                    border:'0.5px solid #e0e0d8',display:'flex',alignItems:'center',gap:12}}>
+                    <span style={{fontSize:20}}>💰</span>
+                    <div style={{flex:1}}>
+                      <div style={{fontWeight:600,fontSize:13}}>{c.mois_concerne||new Date(c.date_paiement).toLocaleDateString(lang==='ar'?'ar-MA':'fr-FR')}</div>
+                      <div style={{fontSize:11,color:'#888'}}>{new Date(c.date_paiement).toLocaleDateString(lang==='ar'?'ar-MA':'fr-FR')}</div>
+                    </div>
+                    <span style={{fontSize:15,fontWeight:700,color:'#1D9E75'}}>{c.montant} DH</span>
+                  </div>
+                ))}
+                {cotisations.length===0&&<div style={{textAlign:'center',color:'#aaa',padding:'2rem'}}>Aucune cotisation</div>}
+              </div>
+            )}
+            {/* Objectifs */}
+            {onglet==='objectifs' && (
+              <div style={{textAlign:'center',color:'#aaa',padding:'2rem'}}>
+                {lang==='ar'?'الأهداف قريباً':'Objectifs bientôt disponibles'}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div>
-      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'1.25rem',flexWrap:'wrap',gap:8}}>
-        <button className="back-link" onClick={()=>goBack?goBack():navigate('dashboard')}>{t(lang,'retour')}</button>
-        <div style={{fontSize:20,fontWeight:700}}>🎯 {lang==='ar'?'إدارة الأهداف':lang==='en'?'Objectives':'Gestion des objectifs'}</div>
-        {user.role==='surveillant'&&(
-          <button className="btn-primary" style={{width:'auto',padding:'8px 16px',fontSize:13}} onClick={()=>setShowForm(v=>!v)}>
-            {showForm?'✕':'+ '}{lang==='ar'?'هدف جديد':lang==='en'?'New objective':'Nouvel objectif'}
-          </button>
-        )}
+      {/* Header parent */}
+      <div style={{background:'linear-gradient(135deg,#085041,#1D9E75)',borderRadius:16,padding:'1.25rem',marginBottom:'1.25rem',color:'#fff'}}>
+        <div style={{fontSize:12,opacity:0.8,marginBottom:4}}>
+          {lang==='ar'?'مرحباً':lang==='en'?'Welcome':'Bonjour'}, <strong>{parent.prenom} {parent.nom}</strong>
+        </div>
+        <div style={{fontSize:11,opacity:0.7}}>متابعة التحفيظ</div>
+        <button onClick={onLogout}
+          style={{marginTop:10,padding:'6px 16px',background:'rgba(255,255,255,0.2)',color:'#fff',border:'1px solid rgba(255,255,255,0.4)',borderRadius:8,fontSize:12,fontWeight:600,cursor:'pointer',display:'inline-flex',alignItems:'center',gap:6}}>
+          🚪 {lang==='ar'?'تسجيل الخروج':'Déconnexion'}
+        </button>
       </div>
 
-      {msg&&<div style={{padding:'10px 16px',borderRadius:8,marginBottom:'1rem',background:msg.type==='success'?'#E1F5EE':'#FCEBEB',color:msg.type==='success'?'#085041':'#A32D2D',fontSize:13,fontWeight:500}}>{msg.text}</div>}
+      {/* Sélecteur enfant (si plusieurs) */}
+      {enfants.length > 1 && (
+        <div style={{display:'flex',gap:8,marginBottom:'1rem',flexWrap:'wrap'}}>
+          {enfants.map(e=>(
+            <div key={e.id} onClick={()=>{setSelectedEnfant(e);setOnglet('progression');}}
+              style={{display:'flex',alignItems:'center',gap:8,padding:'8px 14px',borderRadius:12,cursor:'pointer',
+                border:'1.5px solid '+(selectedEnfant?.id===e.id?nc:'#e0e0d8'),
+                background:selectedEnfant?.id===e.id?nc+'10':'#fff'}}>
+              <Avatar prenom={e.prenom} nom={e.nom} size={32} bg={nc+'20'} color={nc}/>
+              <div>
+                <div style={{fontSize:13,fontWeight:600,color:selectedEnfant?.id===e.id?nc:'#1a1a1a'}}>{e.prenom} {e.nom}</div>
+                <NiveauBadge code={e.code_niveau}/>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
 
-      {/* Stats globales */}
-      <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:8,marginBottom:'1.25rem'}}>
-        {[
-          {val:statsGlobales.total,lbl:lang==='ar'?'إجمالي الأهداف':lang==='en'?'Total objectives':'Total objectifs',color:'#534AB7',bg:'#EEEDFE'},
-          {val:statsGlobales.atteints,lbl:lang==='ar'?'محققة':lang==='en'?'Achieved':'Atteints',color:'#1D9E75',bg:'#E1F5EE'},
-          {val:statsGlobales.en_cours,lbl:lang==='ar'?'جارية':lang==='en'?'In progress':'En cours',color:'#EF9F27',bg:'#FAEEDA'},
-          {val:`${statsGlobales.pct_moy}%`,lbl:lang==='ar'?'متوسط الإنجاز':lang==='en'?'Avg completion':'Taux moyen',color:'#378ADD',bg:'#E6F1FB'},
-        ].map(k=>(
-          <div key={k.lbl} style={{background:k.bg,borderRadius:12,padding:'12px',textAlign:'center'}}>
-            <div style={{fontSize:24,fontWeight:800,color:k.color}}>{k.val}</div>
-            <div style={{fontSize:11,color:k.color,opacity:0.8,marginTop:2}}>{k.lbl}</div>
+      {/* Carte élève */}
+      <div style={{background:'#fff',border:'0.5px solid #e0e0d8',borderRadius:16,padding:'1.25rem',marginBottom:'1rem',display:'flex',alignItems:'center',gap:14}}>
+        <Avatar prenom={eleve.prenom} nom={eleve.nom} size={52} bg={nc+'18'} color={nc}/>
+        <div style={{flex:1}}>
+          <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}>
+            <span style={{fontSize:18,fontWeight:700}}>{eleve.prenom} {eleve.nom}</span>
+            <NiveauBadge code={eleve.code_niveau}/>
+            {eleve.eleve_id_ecole&&<span style={{fontSize:11,color:'#bbb'}}>#{eleve.eleve_id_ecole}</span>}
+          </div>
+          <div style={{fontSize:12,color:'#888',marginTop:4}}>
+            {isSourate
+              ? (sourateActuelle?<span>{lang==='ar'?'السورة الحالية:':'En cours: '}<strong style={{fontFamily:"'Tajawal',Arial"}}>{sourateActuelle.nom_ar}</strong></span>:<span>{lang==='ar'?'أتم البرنامج 🎉':'Programme terminé 🎉'}</span>)
+              : `Hizb ${eleve.hizb_depart||1} · T.${eleve.tomon_depart||1}`
+            }
+          </div>
+          <div style={{fontSize:11,color:joursInactif>14?'#E24B4A':'#888',marginTop:2}}>
+            {derniere
+              ? (lang==='ar'?'آخر استظهار: ':'Dernière récitation: ')+new Date(derniere).toLocaleDateString(lang==='ar'?'ar-MA':'fr-FR',{day:'numeric',month:'long',year:'numeric'})
+              : (lang==='ar'?'لم يبدأ بعد':'Pas encore commencé')}
+          </div>
+        </div>
+        <div style={{textAlign:'center'}}>
+          <div style={{fontSize:28,fontWeight:800,color:nc}}>{pts.toLocaleString()}</div>
+          <div style={{fontSize:11,color:'#888'}}>pts</div>
+        </div>
+      </div>
+
+      {/* KPI rapides */}
+      <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:8,marginBottom:'1rem'}}>
+        {(isSourate?[
+          {val:souratesCompletes,lbl:lang==='ar'?'سور مكتملة':'Sourates',color:'#1D9E75',bg:'#E1F5EE'},
+          {val:sequences,lbl:lang==='ar'?'مقاطع':'Séquences',color:'#378ADD',bg:'#E6F1FB'},
+          {val:actifSemaine,lbl:lang==='ar'?'نشاط 7 أيام':'7 derniers jours',color:'#EF9F27',bg:'#FAEEDA'},
+          {val:pts,lbl:lang==='ar'?'النقاط':'Points',color:'#534AB7',bg:'#EEEDFE'},
+        ]:[
+          {val:tomon,lbl:'Tomon',color:'#378ADD',bg:'#E6F1FB'},
+          {val:hizb,lbl:'Hizb',color:'#EF9F27',bg:'#FAEEDA'},
+          {val:actifSemaine,lbl:lang==='ar'?'نشاط 7 أيام':'7 derniers jours',color:'#1D9E75',bg:'#E1F5EE'},
+          {val:pts,lbl:lang==='ar'?'النقاط':'Points',color:'#534AB7',bg:'#EEEDFE'},
+        ]).map(k=>(
+          <div key={k.lbl} style={{background:k.bg,borderRadius:10,padding:'10px',textAlign:'center'}}>
+            <div style={{fontSize:20,fontWeight:800,color:k.color}}>{k.val}</div>
+            <div style={{fontSize:10,color:k.color,opacity:0.8}}>{k.lbl}</div>
           </div>
         ))}
       </div>
 
-      {/* Form nouvel objectif */}
-      {showForm&&user.role==='surveillant'&&(
-        <div style={{background:'#fff',border:'1.5px solid #1D9E75',borderRadius:16,padding:'1.5rem',marginBottom:'1.5rem'}}>
-          <div style={{fontSize:15,fontWeight:600,color:'#085041',marginBottom:'1rem'}}>
-            🎯 {lang==='ar'?'تعريف هدف جديد':lang==='en'?'Define new objective':'Définir un nouvel objectif'}
+      {/* Onglets */}
+      <div style={{display:'flex',gap:4,background:'#f0f0ec',borderRadius:12,padding:4,marginBottom:'1rem'}}>
+        {onglets.map(o=>(
+          <div key={o.key} onClick={()=>setOnglet(o.key)}
+            style={{flex:1,padding:'7px 8px',borderRadius:8,fontSize:11,fontWeight:onglet===o.key?600:400,cursor:'pointer',textAlign:'center',
+              background:onglet===o.key?'#fff':'transparent',color:onglet===o.key?'#085041':'#888',
+              border:onglet===o.key?'0.5px solid #e0e0d8':'none',display:'flex',alignItems:'center',justifyContent:'center',gap:3}}>
+            <span>{o.icon}</span><span>{lang==='ar'?o.labelAr:o.label}</span>
           </div>
+        ))}
+      </div>
 
-          {/* Titre optionnel */}
-          <div className="field-group" style={{marginBottom:12}}>
-            <label className="field-lbl">{lang==='ar'?'عنوان الهدف (اختياري)':lang==='en'?'Objective title (optional)':'Titre de l\'objectif (optionnel)'}</label>
-            <input className="field-input" value={form.titre} onChange={e=>setForm(f=>({...f,titre:e.target.value}))} placeholder={lang==='ar'?'مثال: هدف الفصل الأول':lang==='en'?'e.g. Q1 target':'Ex: Objectif T1 2025'}/>
-          </div>
-
-          {/* Ligne 1 : Type de cible — direction forcée LTR pour cohérence visuelle */}
-          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12,marginBottom:12}}>
-            {/* Cible spécifique selon type — affiché en PREMIER pour RTL */}
-            {form.type_cible==='niveau' && (
-              <div className="field-group">
-                <label className="field-lbl">{lang==='ar'?'المستوى':lang==='en'?'Level':'Niveau'} *</label>
-                <select className="field-select" value={form.code_niveau} onChange={e=>setForm(f=>({...f,code_niveau:e.target.value,metrique:['5B','5A','2M'].includes(e.target.value)?'sourate':'tomon',cible_specifique:null,valeur_cible:'',cibles_selectionnees:[]}))}>
-                  {NIVEAUX.map(n=><option key={n} value={n}>{n} — {NIVEAU_LABELS[n]}</option>)}
-                </select>
-              </div>
-            )}
-
-            {form.type_cible==='eleve' && (
-              <div className="field-group">
-                <label className="field-lbl">{lang==='ar'?'الطالب':lang==='en'?'Student':'Élève'} *</label>
-                <select className="field-select" value={form.eleve_id}
-                  onChange={e=>{
-                    const el=eleves.find(x=>x.id===e.target.value);
-                    const niv=el?.code_niveau||'1';
-                    setForm(f=>({...f,eleve_id:e.target.value,metrique:['5B','5A','2M'].includes(niv)?'sourate':'tomon',cible_specifique:null,valeur_cible:'',cibles_selectionnees:[]}));
-                  }}>
-                  <option value="">— {lang==='ar'?'اختر طالباً':lang==='en'?'Select a student':`Sélectionner un élève`} —</option>
-                  {eleves.map(e=>(
-                    <option key={e.id} value={e.id}>{e.prenom} {e.nom} · {e.code_niveau||'?'}{e.eleve_id_ecole?` #${e.eleve_id_ecole}`:''}</option>
-                  ))}
-                </select>
-                {form.eleve_id && (()=>{
-                  const el=eleves.find(e=>e.id===form.eleve_id);
-                  if(!el) return null;
-                  const nc=NIVEAU_COLORS[el.code_niveau||'1']||'#888';
-                  return <div style={{marginTop:5,display:'flex',alignItems:'center',gap:6,fontSize:12}}>
-                    <span style={{padding:'2px 8px',borderRadius:20,fontSize:11,fontWeight:700,background:nc+'20',color:nc,border:`0.5px solid ${nc}40`}}>{el.code_niveau||'?'}</span>
-                    <span style={{color:'#888'}}>{NIVEAU_LABELS[el.code_niveau||'1']||''}</span>
-                  </div>;
-                })()}
-              </div>
-            )}
-
-            {form.type_cible==='instituteur' && (
-              <div className="field-group">
-                <label className="field-lbl">{lang==='ar'?'الأستاذ':lang==='en'?'Teacher':'Instituteur'} *</label>
-                <select className="field-select" value={form.instituteur_id} onChange={e=>setForm(f=>({...f,instituteur_id:e.target.value,cible_specifique:null,valeur_cible:'',cibles_selectionnees:[]}))}>
-                  <option value="">— {lang==='ar'?'اختر أستاذاً':lang==='en'?'Select a teacher':`Sélectionner un instituteur`} —</option>
-                  {instituteurs.map(i=>{
-                    const nb=eleves.filter(e=>e.instituteur_referent_id===i.id).length;
-                    return <option key={i.id} value={i.id}>{i.prenom} {i.nom} ({nb} {lang==='ar'?'طالب':lang==='en'?'students':'élèves'})</option>;
-                  })}
-                </select>
-                {form.instituteur_id && (()=>{
-                  const elevesInst=eleves.filter(e=>e.instituteur_referent_id===form.instituteur_id);
-                  const niveaux=[...new Set(elevesInst.map(e=>e.code_niveau||'?'))];
-                  return <div style={{marginTop:5,display:'flex',gap:4,flexWrap:'wrap'}}>
-                    {niveaux.map(n=><span key={n} style={{padding:'2px 6px',borderRadius:10,background:'#f0f0ec',fontSize:11,color:'#666'}}>{n}</span>)}
-                    <span style={{fontSize:11,color:'#888'}}>· {elevesInst.length} {lang==='ar'?'طالب':lang==='en'?'students':'élèves'}</span>
-                  </div>;
-                })()}
-              </div>
-            )}
-
-            {form.type_cible==='global' && (
-              <div className="field-group" style={{display:'flex',alignItems:'center',paddingTop:24}}>
-                <div style={{padding:'10px 14px',background:'#f0faf6',borderRadius:8,fontSize:12,color:'#085041',width:'100%'}}>
-                  🌐 {lang==='ar'?'يشمل جميع الطلاب':lang==='en'?'Covers all students':'Concerne tous les élèves'}
+      {/* PROGRESSION */}
+      {onglet==='progression'&&(
+        <>
+          {/* Barre de progression globale */}
+          <div style={{background:'#fff',border:'0.5px solid #e0e0d8',borderRadius:14,padding:'1.25rem',marginBottom:'1rem'}}>
+            <div style={{fontSize:13,fontWeight:600,marginBottom:10}}>{lang==='ar'?'التقدم العام':'Progression générale'}</div>
+            {isSourate?(()=>{
+              const souratesNiveau = getSouratesForNiveau(eleve.code_niveau);
+              const total = souratesNiveau.length;
+              const acq = parseInt(eleve.sourates_acquises)||0;
+              const pct = Math.round((acq+souratesCompletes)/total*100);
+              return(
+                <div>
+                  <div style={{display:'flex',justifyContent:'space-between',fontSize:12,color:'#888',marginBottom:6}}>
+                    <span>{acq+souratesCompletes}/{total} {lang==='ar'?'سورة':'sourates'}</span>
+                    <span style={{fontWeight:700,color:nc}}>{pct}%</span>
+                  </div>
+                  <div style={{height:14,background:'#e8e8e0',borderRadius:7,overflow:'hidden'}}>
+                    <div style={{height:'100%',width:pct+'%',background:'linear-gradient(90deg,#1D9E75,#5DCAA5)',borderRadius:7,transition:'width 0.5s'}}/>
+                  </div>
+                  <div style={{fontSize:11,color:'#888',marginTop:6}}>
+                    {lang==='ar'?'المكتسبات السابقة:':'Acquis antérieurs:'} <strong>{acq}</strong> · {lang==='ar'?'منذ المتابعة:':'Depuis le suivi:'} <strong>{souratesCompletes}</strong>
+                  </div>
                 </div>
-              </div>
-            )}
-
-            {/* Type de cible — en SECOND pour apparaître à droite en RTL */}
-            <div className="field-group" style={{order: lang==='ar'?-1:0}}>
-              <label className="field-lbl">{lang==='ar'?'نوع الهدف':lang==='en'?'Target type':'Type de cible'} *</label>
-              <select className="field-select" value={form.type_cible} onChange={e=>setForm(f=>({...f,type_cible:e.target.value,eleve_id:'',code_niveau:'5B',instituteur_id:'',metrique:'sourate',cible_specifique:null,valeur_cible:'',cibles_selectionnees:[]}))}>
-                <option value="niveau">{lang==='ar'?'بالمستوى':lang==='en'?'By level':'Par niveau'}</option>
-                <option value="eleve">{lang==='ar'?'بالطالب':lang==='en'?'By student':'Par élève'}</option>
-                <option value="instituteur">{lang==='ar'?'بالأستاذ':lang==='en'?'By teacher':'Par instituteur'}</option>
-                <option value="global">{lang==='ar'?'عام':lang==='en'?'Global':'Global'}</option>
-              </select>
-            </div>
-          </div>
-
-
-          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:12,marginBottom:12}}>
-            {/* Période */}
-            <div className="field-group">
-              <label className="field-lbl">{lang==='ar'?'الفترة':lang==='en'?'Period':'Période'} *</label>
-              <select className="field-select" value={form.periode} onChange={e=>setForm(f=>({...f,periode:e.target.value}))}>
-                {PERIODES.map(p=><option key={p.val} value={p.val}>{lang==='ar'?p.label_ar:lang==='en'?p.label_en:p.label_fr}</option>)}
-              </select>
-            </div>
-
-            {/* Date début */}
-            <div className="field-group">
-              <label className="field-lbl">{lang==='ar'?'تاريخ البداية':lang==='en'?'Start date':'Date de début'} *</label>
-              <input className="field-input" type="date" value={form.date_debut} onChange={e=>setForm(f=>({...f,date_debut:e.target.value}))}/>
-            </div>
-
-            {/* Date fin (auto) */}
-            <div className="field-group">
-              <label className="field-lbl">{lang==='ar'?'تاريخ النهاية':lang==='en'?'End date':'Date de fin'}</label>
-              <input className="field-input" type="date" value={form.date_fin} onChange={e=>setForm(f=>({...f,date_fin:e.target.value}))} style={{color:'#1D9E75',fontWeight:500}}/>
-            </div>
-          </div>
-
-          {/* ÉTAPE 1 : Métrique + nombre */}
-          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12,marginBottom:12}}>
-            <div className="field-group">
-              <label className="field-lbl">{lang==='ar'?'مؤشر القياس':lang==='en'?'Metric':'Métrique'} *</label>
-              <select className="field-select" value={form.metrique}
-                onChange={e=>setForm(f=>({...f,metrique:e.target.value,valeur_cible:'',cibles_selectionnees:[],hizbSelected:null}))}>
-                {metriquesDisponibles().map(m=><option key={m.val} value={m.val}>{lang==='ar'?m.label_ar:lang==='en'?m.label_en:m.label_fr}</option>)}
-              </select>
-            </div>
-            <div className="field-group">
-              <label className="field-lbl">
-                {form.metrique==='sourate'?(lang==='ar'?'عدد السور المستهدفة':lang==='en'?'Number of target surahs':'Nombre de sourates cibles')
-                :form.metrique==='hizb'?(lang==='ar'?'عدد الأحزاب المستهدفة':lang==='en'?'Number of target Hizb':'Nombre de Hizb cibles')
-                :form.metrique==='tomon'?(lang==='ar'?'عدد الأثمان المستهدفة':lang==='en'?'Number of target Tomon':'Nombre de Tomon cibles')
-                :form.metrique==='points'?(lang==='ar'?'النقاط المستهدفة':lang==='en'?'Target points':'Points cibles')
-                :(lang==='ar'?'عدد الحصص':lang==='en'?'Target sessions':'Nombre de séances')} *
-              </label>
-              <input className="field-input" type="number" min="1"
-                value={form.valeur_cible}
-                onChange={e=>setForm(f=>({...f,valeur_cible:e.target.value,cibles_selectionnees:[]}))}
-                placeholder={form.metrique==='points'?'500':form.metrique==='seances'?'12':'5'}/>
-            </div>
-          </div>
-
-          {/* ÉTAPE 2 : Sélection visuelle des éléments (si sourate/hizb/tomon) */}
-          {parseInt(form.valeur_cible)>0 && ['sourate','hizb','tomon'].includes(form.metrique) && (
-            <div style={{marginBottom:12,border:'1.5px solid #1D9E75',borderRadius:12,padding:'1rem',background:'#f0faf6'}}>
-              <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:10}}>
-                <div style={{fontSize:13,fontWeight:600,color:'#085041'}}>
-                  {lang==='ar'?'اختر العناصر المستهدفة':lang==='en'?'Select target items':`Sélectionnez les éléments cibles`}
-                  <span style={{fontSize:11,color:'#888',marginRight:8,marginLeft:8}}>({form.cibles_selectionnees.length}/{parseInt(form.valeur_cible)||0})</span>
+              );
+            })():(()=>{
+              const totalTomon = (60-((eleve.hizb_depart||1)-1))*8 - ((eleve.tomon_depart||1)-1);
+              const pct = Math.min(100, Math.round(tomon/Math.max(totalTomon,1)*100));
+              return(
+                <div>
+                  <div style={{display:'flex',justifyContent:'space-between',fontSize:12,color:'#888',marginBottom:6}}>
+                    <span>{tomon} Tomon · {hizb} Hizb complets</span>
+                    <span style={{fontWeight:700,color:nc}}>{pct}%</span>
+                  </div>
+                  <div style={{height:14,background:'#e8e8e0',borderRadius:7,overflow:'hidden'}}>
+                    <div style={{height:'100%',width:pct+'%',background:'linear-gradient(90deg,#EF9F27,#F5C56E)',borderRadius:7}}/>
+                  </div>
                 </div>
-                {form.cibles_selectionnees.length>0&&<button onClick={()=>setForm(f=>({...f,cibles_selectionnees:[]}))} style={{fontSize:11,color:'#E24B4A',background:'none',border:'none',cursor:'pointer'}}>✕ {lang==='ar'?'إلغاء الكل':lang==='en'?'Clear all':`Tout effacer`}</button>}
-              </div>
+              );
+            })()}
+          </div>
 
-              {/* Barre de progression de sélection */}
-              <div style={{height:6,background:'#e8e8e0',borderRadius:3,overflow:'hidden',marginBottom:10}}>
-                <div style={{height:'100%',width:`${Math.min(100,form.cibles_selectionnees.length/(parseInt(form.valeur_cible)||1)*100)}%`,background:form.cibles_selectionnees.length>=(parseInt(form.valeur_cible)||1)?'#1D9E75':'#EF9F27',borderRadius:3,transition:'width 0.3s'}}/>
-              </div>
-
-              {form.metrique==='sourate' && (()=>{
-                const niv = form.type_cible==='niveau' ? form.code_niveau :
-                            form.type_cible==='eleve' ? (eleves.find(e=>e.id===form.eleve_id)?.code_niveau||'5B') : '5A';
-                const list = ['5B'].includes(niv) ? SOURATES_5B : SOURATES_5A;
-                const sorted = [...list].sort((a,b)=>b.numero-a.numero);
-                const maxSel = parseInt(form.valeur_cible)||0;
-                return(
-                  <div style={{display:'flex',flexDirection:'column',gap:4,maxHeight:220,overflowY:'auto'}}>
-                    {sorted.map(s=>{
-                      const key=`sourate_${s.numero}`;
-                      const isSel=form.cibles_selectionnees.includes(key);
-                      const isDisabled=!isSel&&form.cibles_selectionnees.length>=maxSel;
-                      return(
-                        <div key={s.numero} onClick={()=>{if(isDisabled)return;setForm(f=>({...f,cibles_selectionnees:isSel?f.cibles_selectionnees.filter(x=>x!==key):[...f.cibles_selectionnees,key]}));}}
-                          style={{display:'flex',alignItems:'center',gap:10,padding:'7px 10px',borderRadius:8,cursor:isDisabled?'not-allowed':'pointer',opacity:isDisabled?0.4:1,background:isSel?'#E1F5EE':'#fff',border:`0.5px solid ${isSel?'#1D9E75':'#e0e0d8'}`,transition:'all 0.15s'}}>
-                          <div style={{width:18,height:18,borderRadius:4,border:`1.5px solid ${isSel?'#1D9E75':'#ccc'}`,background:isSel?'#1D9E75':'#fff',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
-                            {isSel&&<span style={{color:'#fff',fontSize:11,fontWeight:700}}>✓</span>}
-                          </div>
-                          <span style={{fontSize:11,color:'#bbb',minWidth:24}}>{s.numero}</span>
-                          <span style={{fontSize:14,fontFamily:"'Tajawal',Arial",direction:'rtl',color:isSel?'#085041':'#333',fontWeight:isSel?600:400}}>{s.nom_ar}</span>
-                        </div>
-                      );
-                    })}
+          {/* Activité récente */}
+          <div style={{background:'#fff',border:'0.5px solid #e0e0d8',borderRadius:14,padding:'1.25rem'}}>
+            <div style={{fontSize:13,fontWeight:600,marginBottom:10}}>{lang==='ar'?'النشاط الأخير':'Activité récente'}</div>
+            {allActivity.slice(0,6).map((item,i)=>{
+              const isSR = !!item.type_recitation;
+              const sourate = isSR ? souratesDB.find(s=>s.id===item.sourate_id) : null;
+              const pts2 = isSR?(item.points||10):(item.type_validation==='hizb_complet'?100:item.nombre_tomon*10);
+              return(
+                <div key={i} style={{display:'flex',alignItems:'center',gap:10,padding:'8px 0',borderBottom:'0.5px solid #f0f0ec'}}>
+                  <div style={{width:36,height:36,borderRadius:8,background:isSR?'#E1F5EE':'#E6F1FB',display:'flex',alignItems:'center',justifyContent:'center',fontSize:18,flexShrink:0}}>
+                    {isSR?'📖':'🎯'}
                   </div>
-                );
-              })()}
-
-              {form.metrique==='hizb' && (()=>{
-                const maxSel=parseInt(form.valeur_cible)||0;
-                return(
-                  <div style={{display:'grid',gridTemplateColumns:'repeat(6,1fr)',gap:4}}>
-                    {Array.from({length:60},(_,i)=>i+1).map(h=>{
-                      const key=`hizb_${h}`;
-                      const isSel=form.cibles_selectionnees.includes(key);
-                      const isDisabled=!isSel&&form.cibles_selectionnees.length>=maxSel;
-                      return(
-                        <div key={h} onClick={()=>{if(isDisabled)return;setForm(f=>({...f,cibles_selectionnees:isSel?f.cibles_selectionnees.filter(x=>x!==key):[...f.cibles_selectionnees,key]}));}}
-                          style={{height:36,borderRadius:6,display:'flex',alignItems:'center',justifyContent:'center',fontSize:12,fontWeight:isSel?700:400,cursor:isDisabled?'not-allowed':'pointer',opacity:isDisabled?0.35:1,background:isSel?'#1D9E75':'#fff',color:isSel?'#fff':'#666',border:`0.5px solid ${isSel?'#1D9E75':'#e0e0d8'}`,transition:'all 0.1s'}}>
-                          {h}
-                        </div>
-                      );
-                    })}
-                  </div>
-                );
-              })()}
-
-              {form.metrique==='tomon' && (()=>{
-                const maxSel=parseInt(form.valeur_cible)||0;
-                // First pick a Hizb, then pick Tomon within it
-                return(
-                  <div>
-                    <div style={{fontSize:11,color:'#085041',fontWeight:600,marginBottom:6}}>
-                      {'1️⃣'} {lang==='ar'?'اختر الحزب أولاً':lang==='en'?'First select a Hizb':`Sélectionnez d'abord un Hizb`}
+                  <div style={{flex:1}}>
+                    <div style={{fontSize:12,fontWeight:500}}>
+                      {isSR?(item.type_recitation==='complete'?(sourate?sourate.nom_ar:'Sourate complète'):('V.'+item.verset_debut+'→'+item.verset_fin)):(item.type_validation==='hizb_complet'?'Hizb '+item.hizb_valide:item.nombre_tomon+' Tomon')}
                     </div>
-                    <div style={{display:'grid',gridTemplateColumns:'repeat(10,1fr)',gap:3,marginBottom:10}}>
-                      {Array.from({length:60},(_,i)=>i+1).map(h=>{
-                        const hasSelected=form.cibles_selectionnees.some(k=>k.startsWith(`h${h}_t`));
-                        return(
-                          <div key={h} onClick={()=>setForm(f=>({...f,hizbSelected:f.hizbSelected===h?null:h}))}
-                            style={{height:28,borderRadius:4,display:'flex',alignItems:'center',justifyContent:'center',fontSize:11,cursor:'pointer',
-                              background:form.hizbSelected===h?'#085041':hasSelected?'#E1F5EE':'#f5f5f0',
-                              color:form.hizbSelected===h?'#fff':hasSelected?'#085041':'#888',
-                              border:`0.5px solid ${form.hizbSelected===h?'#085041':hasSelected?'#9FE1CB':'#e0e0d8'}`,
-                              fontWeight:form.hizbSelected===h||hasSelected?600:400}}>
-                            {h}
-                          </div>
-                        );
-                      })}
-                    </div>
-                    {form.hizbSelected && (
-                      <div>
-                        <div style={{fontSize:11,color:'#085041',fontWeight:600,marginBottom:6}}>
-                          {'2️⃣'} {lang==='ar'?`الأثمان - الحزب ${form.hizbSelected}`:lang==='en'?`Tomon - Hizb ${form.hizbSelected}`:`Tomon du Hizb ${form.hizbSelected}`}
-                        </div>
-                        <div style={{display:'grid',gridTemplateColumns:'repeat(8,1fr)',gap:6}}>
-                          {[1,2,3,4,5,6,7,8].map(t=>{
-                            const key=`h${form.hizbSelected}_t${t}`;
-                            const isSel=form.cibles_selectionnees.includes(key);
-                            const isDisabled=!isSel&&form.cibles_selectionnees.length>=maxSel;
-                            return(
-                              <div key={t} onClick={()=>{if(isDisabled)return;setForm(f=>({...f,cibles_selectionnees:isSel?f.cibles_selectionnees.filter(x=>x!==key):[...f.cibles_selectionnees,key]}));}}
-                                style={{padding:'10px',borderRadius:8,textAlign:'center',cursor:isDisabled?'not-allowed':'pointer',opacity:isDisabled?0.35:1,
-                                  background:isSel?'#1D9E75':'#fff',color:isSel?'#fff':'#555',border:`1.5px solid ${isSel?'#1D9E75':'#e0e0d8'}`,transition:'all 0.15s'}}>
-                                <div style={{fontSize:14,fontWeight:700}}>T.{t}</div>
-                                <div style={{fontSize:9,color:isSel?'#9FE1CB':'#bbb',marginTop:2}}>H{form.hizbSelected}</div>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    )}
-                    {form.cibles_selectionnees.length>0 && (
-                      <div style={{marginTop:8,display:'flex',gap:4,flexWrap:'wrap'}}>
-                        {form.cibles_selectionnees.map(k=>{
-                          const [h,t]=k.replace('h','').split('_t');
-                          return <span key={k} style={{padding:'2px 8px',background:'#E1F5EE',borderRadius:20,fontSize:11,color:'#085041'}}>Hizb {h} T.{t}</span>;
-                        })}
-                      </div>
-                    )}
+                    <div style={{fontSize:11,color:'#888'}}>{new Date(item.date_validation).toLocaleDateString(lang==='ar'?'ar-MA':'fr-FR',{day:'numeric',month:'short'})}</div>
                   </div>
-                );
-              })()}
+                  <span style={{fontSize:12,fontWeight:700,color:'#1D9E75'}}>+{pts2}</span>
+                </div>
+              );
+            })}
+            {allActivity.length===0&&<div className="empty">{lang==='ar'?'لا نشاط بعد':'Aucune activité'}</div>}
+          </div>
+        </>
+      )}
+
+      {/* RÉCITATIONS */}
+      {onglet==='recitations'&&(
+        <div style={{background:'#fff',border:'0.5px solid #e0e0d8',borderRadius:14,padding:'1.25rem'}}>
+          <div style={{fontSize:13,fontWeight:600,marginBottom:10}}>{lang==='ar'?'سجل الاستظهارات':'Historique des récitations'} ({allActivity.length})</div>
+          {allActivity.length===0?<div className="empty">{lang==='ar'?'لا استظهارات بعد':'Aucune récitation'}</div>:(
+            <div className="table-wrap">
+              <table><thead><tr>
+                <th>{lang==='ar'?'التاريخ':'Date'}</th>
+                <th>{lang==='ar'?'النوع':'Type'}</th>
+                <th>{lang==='ar'?'التفاصيل':'Détails'}</th>
+                <th>{lang==='ar'?'صحح بواسطة':'Validé par'}</th>
+                <th>pts</th>
+              </tr></thead>
+              <tbody>
+                {allActivity.map((item,i)=>{
+                  const isSR = !!item.type_recitation;
+                  const sourate = isSR ? souratesDB.find(s=>s.id===item.sourate_id) : null;
+                  const pts2 = isSR?(item.points||10):(item.type_validation==='hizb_complet'?100:item.nombre_tomon*10);
+                  return(
+                    <tr key={i}>
+                      <td style={{fontSize:11,color:'#888'}}>{new Date(item.date_validation).toLocaleDateString(lang==='ar'?'ar-MA':'fr-FR',{day:'2-digit',month:'short',year:'numeric'})}</td>
+                      <td>{isSR?(item.type_recitation==='complete'?<span className="badge badge-green">{lang==='ar'?'سورة كاملة':'Complète'}</span>:<span className="badge badge-blue">{lang==='ar'?'مقطع':'Séquence'}</span>):(item.type_validation==='hizb_complet'?<span className="badge badge-green">Hizb ✓</span>:<span className="badge badge-blue">Tomon</span>)}</td>
+                      <td style={{fontFamily:"'Tajawal',Arial",fontSize:12}}>{isSR?(sourate?sourate.nom_ar:('V.'+item.verset_debut+'→'+item.verset_fin)):(item.type_validation==='hizb_complet'?'Hizb '+item.hizb_valide:item.nombre_tomon+' T.')}</td>
+                      <td style={{fontSize:11,color:'#888'}}>{item.valideur?item.valideur.prenom+' '+item.valideur.nom:'—'}</td>
+                      <td><span style={{fontSize:12,fontWeight:700,color:'#1D9E75'}}>+{pts2}</span></td>
+                    </tr>
+                  );
+                })}
+              </tbody></table>
             </div>
           )}
-
-          {/* Notes */}
-          <div className="field-group" style={{marginBottom:14}}>
-            <label className="field-lbl">{lang==='ar'?'ملاحظات':lang==='en'?'Notes':'Notes'}</label>
-            <textarea className="field-input" rows={2} value={form.notes} onChange={e=>setForm(f=>({...f,notes:e.target.value}))} placeholder={lang==='ar'?'ملاحظات إضافية...':lang==='en'?'Additional notes...':'Notes supplémentaires...'} style={{resize:'vertical'}}/>
-          </div>
-
-          {/* Preview */}
-          {(form.valeur_cible>0||form.cible_specifique)&&(
-            <div style={{background:'#f0faf6',border:'0.5px solid #9FE1CB',borderRadius:10,padding:'10px 14px',marginBottom:14,fontSize:12,color:'#085041'}}>
-              📋 <strong>{form.titre||lang==='ar'?'هدف':'Objectif'}</strong>
-              {' → '}{getObjLabel({type_cible:form.type_cible,eleve_id:form.eleve_id,code_niveau:form.code_niveau,instituteur_id:form.instituteur_id})}
-              {' → '}
-              {form.cible_specifique
-                ? <span style={{fontWeight:700,color:'#085041'}}>
-                    {form.cible_specifique.startsWith('sourate_')
-                      ? (()=>{const n=parseInt(form.cible_specifique.replace('sourate_',''));const s=[...SOURATES_5B,...SOURATES_5A,...SOURATES_2M].find(x=>x.numero===n);return (lang==='ar'?'سورة':'Sourate')+' '+n+' — '+(s?.nom_ar||'');})()
-                      : form.cible_specifique.startsWith('hizb_')
-                      ? `Hizb ${form.cible_specifique.replace('hizb_','')}`
-                      : form.cible_specifique.replace('hizb','H').replace('_tomon',' T.')}
-                  </span>
-                : <span>{form.valeur_cible} {getMetriqueLabel(form.metrique,lang)}</span>}
-              {' / '}{getPeriodeLabel(form.periode,lang)}
-              {' ('}{formatDate(form.date_debut)} → {formatDate(form.date_fin)}{')'}
-            </div>
-          )}
-
-          <button className="btn-primary" onClick={saveObjectif} disabled={saving}>
-            {saving?'...':`✓ ${lang==='ar'?'حفظ الهدف':lang==='en'?'Save objective':'Enregistrer l\'objectif'}`}
-          </button>
         </div>
       )}
 
-      {/* Filtres */}
-      <div style={{background:'#fff',border:'0.5px solid #e0e0d8',borderRadius:12,padding:'1rem',marginBottom:'1rem'}}>
-        <div style={{fontSize:12,fontWeight:600,color:'#888',marginBottom:8}}>
-          🔍 {lang==='ar'?'تصفية الأهداف':lang==='en'?'Filter objectives':'Filtrer les objectifs'}
+      {/* OBJECTIFS */}
+      {onglet==='objectifs'&&(
+        <div>
+          {objActifs.length===0?<div className="empty">{lang==='ar'?'لا أهداف نشطة حالياً':'Aucun objectif actif'}</div>:(
+            objActifs.map(obj=>{
+              // Calculate achievement
+              let realise = 0;
+              if (obj.metrique==='tomon') realise=tomon;
+              else if (obj.metrique==='hizb') realise=hizb;
+              else if (obj.metrique==='sourate') realise=souratesCompletes;
+              else if (obj.metrique==='sequence') realise=sequences;
+              else if (obj.metrique==='points') realise=pts;
+              const pct = Math.min(100, Math.round(realise/obj.valeur_cible*100));
+              const color = pct>=100?'#1D9E75':pct>=60?'#EF9F27':'#E24B4A';
+              const daysLeft = Math.max(0,Math.ceil((new Date(obj.date_fin)-now)/(1000*60*60*24)));
+              return(
+                <div key={obj.id} style={{background:'#fff',border:'0.5px solid #e0e0d8',borderRadius:14,padding:'1.25rem',marginBottom:'1rem'}}>
+                  <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',marginBottom:10}}>
+                    <div>
+                      <div style={{fontSize:14,fontWeight:600}}>{obj.titre||(lang==='ar'?'هدف':'Objectif')}</div>
+                      <div style={{fontSize:11,color:'#888',marginTop:2}}>
+                        {new Date(obj.date_debut).toLocaleDateString('fr-FR',{day:'numeric',month:'short'})} → {new Date(obj.date_fin).toLocaleDateString('fr-FR',{day:'numeric',month:'short',year:'numeric'})}
+                      </div>
+                    </div>
+                    <div style={{textAlign:'center'}}>
+                      <div style={{fontSize:24,fontWeight:800,color}}>{pct}%</div>
+                      <div style={{fontSize:10,color:'#888'}}>{realise}/{obj.valeur_cible}</div>
+                    </div>
+                  </div>
+                  <div style={{height:12,background:'#e8e8e0',borderRadius:6,overflow:'hidden',marginBottom:6}}>
+                    <div style={{height:'100%',width:pct+'%',background:color,borderRadius:6,transition:'width 0.5s'}}/>
+                  </div>
+                  <div style={{display:'flex',justifyContent:'space-between',fontSize:11,color:'#888'}}>
+                    <span>{pct>=100?'🎉 '+(lang==='ar'?'تم تحقيق الهدف!':'Objectif atteint !'):daysLeft+' '+(lang==='ar'?'يوم متبقي':'jours restants')}</span>
+                    <span>{lang==='ar'?'المتبقي:':'Restant:'} {Math.max(0,obj.valeur_cible-realise)}</span>
+                  </div>
+                </div>
+              );
+            })
+          )}
         </div>
-        <div style={{display:'flex',gap:8,flexWrap:'wrap',marginBottom:10}}>
-          <select className="field-select" style={{flex:1,minWidth:130}} value={filterType} onChange={e=>setFilterType(e.target.value)}>
-            <option value="tous">{lang==='ar'?'جميع الأنواع':lang==='en'?'All types':'Tous les types'}</option>
-            <option value="eleve">{lang==='ar'?'بالطالب':lang==='en'?'By student':'Par élève'}</option>
-            <option value="niveau">{lang==='ar'?'بالمستوى':lang==='en'?'By level':'Par niveau'}</option>
-            <option value="instituteur">{lang==='ar'?'بالأستاذ':lang==='en'?'By teacher':'Par instituteur'}</option>
-            <option value="global">{lang==='ar'?'عام':lang==='en'?'Global':'Global'}</option>
-          </select>
-          <select className="field-select" style={{flex:1,minWidth:130}} value={filterNiveau} onChange={e=>setFilterNiveau(e.target.value)}>
-            <option value="tous">{lang==='ar'?'جميع المستويات':lang==='en'?'All levels':'Tous les niveaux'}</option>
-            {NIVEAUX.map(n=><option key={n} value={n}>{n} — {NIVEAU_LABELS[n]}</option>)}
-          </select>
-          <select className="field-select" style={{flex:1,minWidth:130}} value={filterStatut} onChange={e=>setFilterStatut(e.target.value)}>
-            <option value="tous">{lang==='ar'?'جميع الحالات':lang==='en'?'All statuses':'Tous les statuts'}</option>
-            <option value="en_cours">{lang==='ar'?'جارية':lang==='en'?'In progress':'En cours'}</option>
-            <option value="atteint">{lang==='ar'?'محققة':lang==='en'?'Achieved':'Atteints'}</option>
-            <option value="expire">{lang==='ar'?'منتهية':lang==='en'?'Expired':'Expirés'}</option>
-            <option value="futur">{lang==='ar'?'قادمة':lang==='en'?'Upcoming':'À venir'}</option>
-          </select>
-        </div>
-        <div style={{display:'flex',gap:8,alignItems:'center',justifyContent:'space-between'}}>
-          <div style={{fontSize:12,color:'#888'}}>
-            {objFiltres.length} {lang==='ar'?'هدف':lang==='en'?'objective(s)':'objectif(s)'} {filterType!=='tous'||filterNiveau!=='tous'||filterStatut!=='tous'?`(${lang==='ar'?'مصفّى':lang==='en'?'filtered':'filtré'})`:''}
-          </div>
-          <div style={{display:'flex',gap:6}}>
-            {(filterType!=='tous'||filterNiveau!=='tous'||filterStatut!=='tous')&&(
-              <button onClick={()=>{setFilterType('tous');setFilterNiveau('tous');setFilterStatut('tous');}}
-                style={{padding:'6px 12px',border:'0.5px solid #e0e0d8',borderRadius:8,background:'#fff',fontSize:12,cursor:'pointer',color:'#888'}}>
-                ✕ {lang==='ar'?'إلغاء التصفية':lang==='en'?'Clear filters':'Effacer les filtres'}
-              </button>
-            )}
-            <button onClick={loadData}
-              style={{padding:'6px 16px',background:'#1D9E75',color:'#fff',border:'none',borderRadius:8,fontSize:12,fontWeight:600,cursor:'pointer',display:'flex',alignItems:'center',gap:4}}>
-              🔄 {lang==='ar'?'تحديث':lang==='en'?'Refresh':'Actualiser'}
-            </button>
-          </div>
-        </div>
-      </div>
+      )}
 
-      {/* Liste des objectifs */}
-      {loading ? <div className="loading">...</div> : objFiltres.length === 0 ? (
-        <div className="empty">
-          {lang==='ar'?'لا توجد أهداف محددة بعد':lang==='en'?'No objectives defined yet':'Aucun objectif défini'}
-        </div>
-      ) : (
-        <div style={{display:'flex',flexDirection:'column',gap:10}}>
-          {objFiltres.map(obj => {
-            const vals = getValsForObj(obj);
-            const recs = getRecsForObj(obj);
-            const { realise, pct, status } = calcAtteinte(obj, vals, recs);
-            const sc = statusConfig[status];
-            const niv = getNiveauForObj(obj);
-            const nc = niv ? NIVEAU_COLORS[niv] : '#888';
-
-            return (
-              <div key={obj.id} style={{background:'#fff',border:`0.5px solid ${sc.color}30`,borderLeft:`4px solid ${sc.color}`,borderRadius:12,padding:'1rem'}}>
-                <div style={{display:'flex',alignItems:'flex-start',gap:12,marginBottom:10}}>
+      {/* COTISATIONS */}
+      {onglet==='cotisations'&&(
+        <div style={{background:'#fff',border:'0.5px solid #e0e0d8',borderRadius:14,padding:'1.25rem'}}>
+          <div style={{fontSize:13,fontWeight:600,marginBottom:10}}>
+            💰 {lang==='ar'?'الاشتراكات':'Cotisations'}
+            <span style={{fontSize:12,color:'#1D9E75',marginRight:8,marginLeft:8,fontWeight:700}}>
+              {lang==='ar'?'المجموع:':'Total: '}{cotE.filter(c=>c.statut!=='exonere').reduce((s,c)=>s+parseFloat(c.montant||0),0).toLocaleString()} MAD
+            </span>
+          </div>
+          {cotE.length===0?<div className="empty">{lang==='ar'?'لا اشتراكات مسجلة':'Aucune cotisation'}</div>:(
+            cotE.map((c,i)=>{
+              const STATUTS_P = {paye:{label:'Payé',labelAr:'مدفوع',color:'#1D9E75',bg:'#E1F5EE'},partiel:{label:'Partiel',labelAr:'جزئي',color:'#EF9F27',bg:'#FAEEDA'},non_paye:{label:'Non payé',labelAr:'غير مدفوع',color:'#E24B4A',bg:'#FCEBEB'},exonere:{label:'Exonéré',labelAr:'معفى',color:'#888',bg:'#f5f5f0'}};
+              const st = STATUTS_P[c.statut]||STATUTS_P.paye;
+              return(
+                <div key={c.id} style={{display:'flex',alignItems:'center',gap:12,padding:'10px 0',borderBottom:'0.5px solid #f0f0ec'}}>
                   <div style={{flex:1}}>
-                    <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap',marginBottom:4}}>
-                      {obj.titre&&<span style={{fontSize:14,fontWeight:700,color:'#1a1a1a'}}>{obj.titre}</span>}
-                      <span style={{padding:'2px 8px',borderRadius:20,fontSize:11,fontWeight:600,background:sc.bg,color:sc.color}}>
-                        {lang==='ar'?sc.label_ar:lang==='en'?sc.label_en:sc.label_fr}
-                      </span>
-                      {niv&&<span style={{padding:'2px 8px',borderRadius:20,fontSize:11,fontWeight:700,background:nc+'15',color:nc}}>{niv}</span>}
-                    </div>
-                    <div style={{fontSize:13,color:'#1a1a1a',fontWeight:500}}>
-                      {getObjLabel(obj)} — {obj.valeur_cible} {getMetriqueLabel(obj.metrique,lang)} / {getPeriodeLabel(obj.periode,lang)}
-                    </div>
-                    <div style={{fontSize:11,color:'#888',marginTop:2}}>
-                      📅 {formatDate(obj.date_debut)} → {formatDate(obj.date_fin)}
-                      {obj.notes&&<span style={{marginLeft:8}}>· {obj.notes}</span>}
-                    </div>
+                    <div style={{fontSize:13,fontWeight:500}}>{c.periode||(lang==='ar'?'دفعة':'Versement')} {i+1}</div>
+                    <div style={{fontSize:11,color:'#888'}}>{c.date_paiement}{c.note?' · '+c.note:''}</div>
                   </div>
-                  <div style={{textAlign:'right',flexShrink:0}}>
-                    <div style={{fontSize:22,fontWeight:800,color:sc.color}}>{pct}%</div>
-                    <div style={{fontSize:11,color:'#888'}}>{realise}/{obj.valeur_cible}</div>
-                    {user.role==='surveillant'&&(
-                      <button onClick={()=>deleteObjectif(obj.id)} style={{fontSize:10,color:'#E24B4A',background:'none',border:'none',cursor:'pointer',marginTop:4,padding:0}}>🗑 {lang==='ar'?'حذف':lang==='en'?'Delete':'Suppr.'}</button>
-                    )}
-                  </div>
+                  <span style={{padding:'3px 10px',borderRadius:20,fontSize:11,fontWeight:600,background:st.bg,color:st.color}}>{lang==='ar'?st.labelAr:st.label}</span>
+                  <span style={{fontSize:15,fontWeight:800,color:'#1D9E75'}}>{parseFloat(c.montant||0).toLocaleString()} MAD</span>
                 </div>
-
-                {/* Progress bar */}
-                <div style={{height:10,background:'#e8e8e0',borderRadius:5,overflow:'hidden',marginBottom:8}}>
-                  <div style={{height:'100%',width:`${pct}%`,borderRadius:5,transition:'width 0.5s',
-                    background:pct>=100?'#1D9E75':pct>=60?'#EF9F27':'#E24B4A'}}/>
-                </div>
-
-                {/* Detail */}
-                <div style={{display:'flex',justifyContent:'space-between',fontSize:11,color:'#888'}}>
-                  <span>{lang==='ar'?'المحقق':lang==='en'?'Achieved':'Réalisé'}: <strong style={{color:sc.color}}>{realise} {getMetriqueLabel(obj.metrique,lang)}</strong></span>
-                  <span>{lang==='ar'?'المتبقي':lang==='en'?'Remaining':'Restant'}: <strong>{Math.max(0,obj.valeur_cible-realise)}</strong></span>
-                  {status==='en_cours'&&<span>{lang==='ar'?'الأيام المتبقية':lang==='en'?'Days left':'Jours restants'}: <strong>{Math.max(0,Math.ceil((new Date(obj.date_fin)-new Date())/(1000*60*60*24)))}</strong></span>}
-                </div>
-              </div>
-            );
-          })}
+              );
+            })
+          )}
         </div>
       )}
     </div>

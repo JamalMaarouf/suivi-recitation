@@ -16,27 +16,31 @@ function Avatar({ prenom, nom, size = 32 }) {
   );
 }
 
-export default function RapportMensuel({  user, navigate, goBack , lang="fr" }) {
+export default function RapportMensuel({  user, navigate, goBack , lang="fr", isMobile }) {
   const now = new Date();
   const [mois, setMois] = useState(now.getMonth());
   const [annee, setAnnee] = useState(now.getFullYear());
   const [eleves, setEleves] = useState([]);
   const [instituteurs, setInstituteurs] = useState([]);
   const [allValidations, setAllValidations] = useState([]);
-  const [objectifs, setObjectifs] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [savingObj, setSavingObj] = useState({});
-  const [editObj, setEditObj] = useState({});
+  const [recitations, setRecitations] = useState([]);
+  const [objectifsGlobaux, setObjectifsGlobaux] = useState([]);
 
   useEffect(() => { loadData(); }, []);
 
   const loadData = async () => {
     setLoading(true);
-    const [{ data: ed }, { data: id }, { data: vd }, { data: od }] = await Promise.all([
-      supabase.from('eleves').select('*').order('nom'),
-      supabase.from('utilisateurs').select('*').eq('role', 'instituteur'),
-      supabase.from('validations').select('*'),
-      supabase.from('objectifs').select('*')
+    const [{ data: ed }, { data: id }, { data: vd }, { data: recs }, { data: objd }] = await Promise.all([
+      supabase.from('eleves').select('*')
+        .eq('ecole_id', user.ecole_id).order('nom'),
+      supabase.from('utilisateurs').select('*').eq('role', 'instituteur').eq('ecole_id', user.ecole_id),
+      supabase.from('validations').select('*')
+        .eq('ecole_id', user.ecole_id),
+      supabase.from('recitations_sourates').select('*')
+        .eq('ecole_id', user.ecole_id),
+      supabase.from('objectifs_globaux').select('*')
+        .eq('ecole_id', user.ecole_id),
     ]);
     const elevesData = (ed || []).map(e => {
       const vals = (vd || []).filter(v => v.eleve_id === e.id);
@@ -47,7 +51,8 @@ export default function RapportMensuel({  user, navigate, goBack , lang="fr" }) 
     setEleves(elevesData);
     setInstituteurs(id || []);
     setAllValidations(vd || []);
-    setObjectifs(od || []);
+    setRecitations(recs||[]);
+    setObjectifsGlobaux(objd||[]);
     setLoading(false);
   };
 
@@ -66,9 +71,56 @@ export default function RapportMensuel({  user, navigate, goBack , lang="fr" }) 
     const hizbMois = vEleve.filter(v => v.type_validation === 'hizb_complet').length;
     const ptsMois = tomonMois * 10 + Math.floor(tomonMois / 2) * 25 + Math.floor(tomonMois / 4) * 60 + hizbMois * 100;
     const seances = new Set(vEleve.map(v => new Date(v.date_validation).toDateString())).size;
-    const obj = objectifs.find(o => o.eleve_id === e.id && o.mois === mois + 1 && o.annee === annee);
-    const pctObj = obj ? Math.min(100, Math.round(tomonMois / obj.nombre_tomon * 100)) : null;
-    return { ...e, tomonMois, hizbMois, ptsMois, seances, objectif: obj?.nombre_tomon || null, pctObj };
+    // Période du rapport (début et fin du mois)
+    const debutMois = new Date(annee, mois, 1);
+    const finMois = new Date(annee, mois + 1, 0, 23, 59, 59);
+    const isSourate = ['5B','5A','2M'].includes(e.code_niveau||'');
+
+    // Récitations sourates ce mois
+    const recsEleve = (recitations||[]).filter(r => {
+      const d = new Date(r.date_validation);
+      return r.eleve_id === e.id && d >= debutMois && d <= finMois;
+    });
+    const souratesMois = recsEleve.filter(r=>r.type_recitation==='complete').length;
+    const seqMois = recsEleve.filter(r=>r.type_recitation==='sequence').length;
+    const ptsSourates = recsEleve.reduce((s,r)=>s+(r.points||0),0);
+    const ptsTotal = isSourate ? ptsSourates : ptsMois;
+
+    // Objectif NIVEAU (partagé avec tous les élèves du même niveau)
+    const objNiveau = (objectifsGlobaux||[]).find(o =>
+      o.type_cible==='niveau' &&
+      o.code_niveau===(e.code_niveau||'1') &&
+      new Date(o.date_debut) <= finMois &&
+      new Date(o.date_fin) >= debutMois
+    );
+
+    // Objectif PERSONNEL (propre à cet élève, prioritaire)
+    const objPersonnel = (objectifsGlobaux||[]).find(o =>
+      o.type_cible==='eleve' &&
+      o.eleve_id===e.id &&
+      new Date(o.date_debut) <= finMois &&
+      new Date(o.date_fin) >= debutMois
+    );
+
+    // Calculer atteinte pour un objectif
+    const calcAtteinte = (obj) => {
+      if (!obj) return null;
+      let realise = 0;
+      if (obj.metrique==='tomon') realise=tomonMois;
+      else if (obj.metrique==='hizb') realise=hizbMois;
+      else if (obj.metrique==='sourate') realise=souratesMois;
+      else if (obj.metrique==='sequence') realise=seqMois;
+      else if (obj.metrique==='points') realise=ptsTotal;
+      else if (obj.metrique==='seances') realise=seances;
+      return { realise, pct: Math.min(100, Math.round(realise/obj.valeur_cible*100)), obj };
+    };
+
+    const atteinteNiveau = calcAtteinte(objNiveau);
+    const atteintePersonnel = calcAtteinte(objPersonnel);
+
+    const pctObj = atteintePersonnel?.pct ?? atteinteNiveau?.pct ?? null;
+    return { ...e, tomonMois, hizbMois, ptsMois, souratesMois, seqMois, ptsTotal, seances,
+      isSourate, atteinteNiveau, atteintePersonnel, objectif: null, pctObj };
   }).sort((a, b) => b.ptsMois - a.ptsMois);
 
   const totalTomonMois = vMois.filter(v => v.type_validation === 'tomon').reduce((s, v) => s + v.nombre_tomon, 0);
@@ -76,19 +128,7 @@ export default function RapportMensuel({  user, navigate, goBack , lang="fr" }) 
   const totalPtsMois = statsEleves.reduce((s, e) => s + e.ptsMois, 0);
   const elevesActifsMois = statsEleves.filter(e => e.tomonMois > 0 || e.hizbMois > 0).length;
 
-  const saveObjectif = async (eleveId, valeur) => {
-    if (!valeur || isNaN(valeur)) return;
-    setSavingObj(prev => ({ ...prev, [eleveId]: true }));
-    const existing = objectifs.find(o => o.eleve_id === eleveId && o.mois === mois + 1 && o.annee === annee);
-    if (existing) {
-      await supabase.from('objectifs').update({ nombre_tomon: parseInt(valeur) }).eq('id', existing.id);
-    } else {
-      await supabase.from('objectifs').insert({ eleve_id: eleveId, mois: mois + 1, annee, nombre_tomon: parseInt(valeur), created_by: user.id });
-    }
-    setEditObj(prev => ({ ...prev, [eleveId]: false }));
-    setSavingObj(prev => ({ ...prev, [eleveId]: false }));
-    await loadData();
-  };
+
 
   const imprimerRapport = () => {
     const w = window.open('', '', 'width=900,height=1000');
@@ -135,7 +175,7 @@ export default function RapportMensuel({  user, navigate, goBack , lang="fr" }) 
         <th>${t(lang,'referent')}</th>
         <th>${t(lang,'tomon_abrev')}</th>
         <th>${t(lang,'hizb_abrev')}</th>
-        <th>${t(lang,'nb_seances')||'Séances'}</th>
+        <th>${t(lang,'nb_seances')||(lang==='ar'?'الحصص':'Séances')}</th>
         <th>${t(lang,'objectif_label')}</th>
         <th>${t(lang,'atteinte')}</th>
         <th>${t(lang,'score_mois')}</th>
@@ -168,7 +208,7 @@ export default function RapportMensuel({  user, navigate, goBack , lang="fr" }) 
 
   return (
     <div>
-      <button className="back-link" onClick={() => navigate('dashboard')}>{t(lang,'retour')}</button>
+      <button className="back-link" onClick={()=>goBack?goBack():navigate('dashboard')}>{t(lang,'retour')}</button>
 
       {/* Header navigation mois */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.5rem', flexWrap: 'wrap', gap: 8 }}>
@@ -178,7 +218,7 @@ export default function RapportMensuel({  user, navigate, goBack , lang="fr" }) 
           <button onClick={nextMois} style={{ padding: '6px 14px', border: '0.5px solid #e0e0d8', borderRadius: 8, background: '#fff', cursor: 'pointer', fontSize: 16 }}>›</button>
         </div>
         <button onClick={imprimerRapport} style={{ padding: '8px 18px', background: '#1D9E75', color: '#fff', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
-          🖨️ Imprimer rapport PDF
+          {lang==='ar'?'🖨️ طباعة التقرير':'🖨️ Imprimer rapport PDF'}
         </button>
       </div>
 
@@ -200,7 +240,7 @@ export default function RapportMensuel({  user, navigate, goBack , lang="fr" }) 
           </div>
 
           {/* Tableau élèves avec objectifs */}
-          <div className="section-label">Performance et objectifs — {getMoisNom(mois, lang)} {annee}</div>
+          <div className="section-label">{lang==='ar'?'الأداء والأهداف':(lang==='ar'?'الأداء والأهداف':'Performance et objectifs')} — {getMoisNom(mois, lang)} {annee}</div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             {statsEleves.map((e, idx) => (
               <div key={e.id} style={{ background: '#fff', border: '0.5px solid #e0e0d8', borderRadius: 12, padding: '14px' }}>
@@ -219,42 +259,39 @@ export default function RapportMensuel({  user, navigate, goBack , lang="fr" }) 
                     {e.seances > 0 && <span style={{ fontSize: 11, color: '#888' }}>{e.seances} séance{e.seances > 1 ? 's' : ''}</span>}
                     <span style={{ fontSize: 14, fontWeight: 700, color: '#1D9E75', minWidth: 60, textAlign: 'right' }}>{e.ptsMois.toLocaleString()} pts</span>
 
-                    {/* Objectif — définir/modifier */}
-                    {editObj[e.id] ? (
-                      <div style={{ display: 'flex', gap: 4 }}>
-                        <input type="number" min="1" max="80" placeholder="Tomon/mois"
-                          style={{ width: 90, padding: '4px 8px', border: '0.5px solid #e0e0d8', borderRadius: 6, fontSize: 12 }}
-                          defaultValue={e.objectif || ''}
-                          onKeyDown={ev => ev.key === 'Enter' && saveObjectif(e.id, ev.target.value)}
-                          id={`obj-${e.id}`} />
-                        <button onClick={() => saveObjectif(e.id, document.getElementById(`obj-${e.id}`).value)}
-                          style={{ padding: '4px 8px', background: '#1D9E75', color: '#fff', border: 'none', borderRadius: 6, fontSize: 11, cursor: 'pointer' }}>
-                          {savingObj[e.id] ? '...' : '✓'}
-                        </button>
-                        <button onClick={() => setEditObj(prev => ({ ...prev, [e.id]: false }))}
-                          style={{ padding: '4px 8px', border: '0.5px solid #e0e0d8', borderRadius: 6, background: '#fff', fontSize: 11, cursor: 'pointer' }}>✕</button>
-                      </div>
-                    ) : (
-                      <button onClick={() => setEditObj(prev => ({ ...prev, [e.id]: true }))}
-                        style={{ padding: '4px 10px', border: '0.5px solid #e0e0d8', borderRadius: 6, background: '#f9f9f6', fontSize: 11, cursor: 'pointer', color: '#888' }}>
-                        {e.objectif ? `🎯 ${e.objectif}T` : ('+ ' + t(lang,'objectif_label'))}
-                      </button>
-                    )}
                   </div>
                 </div>
-
-                {/* Barre objectif */}
-                {e.objectif && (
-                  <div style={{ paddingLeft: 76 }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: '#888', marginBottom: 4 }}>
-                      <span>Objectif : {e.tomonMois} / {e.objectif} Tomon</span>
-                      <span style={{ fontWeight: 600, color: pctColor(e.pctObj) }}>{e.pctObj}%</span>
-                    </div>
-                    <div style={{ height: 8, background: '#e8e8e0', borderRadius: 4, overflow: 'hidden' }}>
-                      <div style={{ height: '100%', width: `${e.pctObj}%`, background: pctColor(e.pctObj), borderRadius: 4, transition: 'width 0.5s' }} />
-                    </div>
-                    {e.pctObj >= 100 && <div style={{ fontSize: 11, color: '#1D9E75', marginTop: 4 }}>🎯 Objectif atteint !</div>}
-                    {e.pctObj < 50 && e.objectif && <div style={{ fontSize: 11, color: '#E24B4A', marginTop: 4 }}>⚠️ Moins de 50% de l\'objectif</div>}
+                {/* Objectifs — niveau + personnel */}
+                {(e.atteinteNiveau || e.atteintePersonnel) ? (
+                  <div style={{paddingLeft:76,marginTop:8,display:'flex',flexDirection:'column',gap:6}}>
+                    {e.atteinteNiveau && (
+                      <div>
+                        <div style={{display:'flex',justifyContent:'space-between',fontSize:11,color:'#888',marginBottom:3}}>
+                          <span>🎯 {lang==='ar'?'هدف المستوى':(lang==='ar'?'هدف المستوى':'Objectif niveau')} {e.code_niveau} — {e.atteinteNiveau.obj.valeur_cible} {e.atteinteNiveau.obj.metrique}</span>
+                          <span style={{fontWeight:700,color:e.atteinteNiveau.pct>=100?'#1D9E75':e.atteinteNiveau.pct>=60?'#EF9F27':'#E24B4A'}}>{e.atteinteNiveau.realise}/{e.atteinteNiveau.obj.valeur_cible} · {e.atteinteNiveau.pct}%</span>
+                        </div>
+                        <div style={{height:6,background:'#e8e8e0',borderRadius:3,overflow:'hidden'}}>
+                          <div style={{height:'100%',borderRadius:3,transition:'width 0.4s',width:e.atteinteNiveau.pct+'%',background:e.atteinteNiveau.pct>=100?'#1D9E75':e.atteinteNiveau.pct>=60?'#EF9F27':'#E24B4A'}}></div>
+                        </div>
+                      </div>
+                    )}
+                    {e.atteintePersonnel && (
+                      <div>
+                        <div style={{display:'flex',justifyContent:'space-between',fontSize:11,color:'#534AB7',marginBottom:3}}>
+                          <span>👤 {lang==='ar'?'هدف شخصي':(lang==='ar'?'هدف شخصي':'Objectif personnel')}{e.atteintePersonnel.obj.titre?' — '+e.atteintePersonnel.obj.titre:''} — {e.atteintePersonnel.obj.valeur_cible} {e.atteintePersonnel.obj.metrique}</span>
+                          <span style={{fontWeight:700,color:e.atteintePersonnel.pct>=100?'#1D9E75':e.atteintePersonnel.pct>=60?'#EF9F27':'#E24B4A'}}>{e.atteintePersonnel.realise}/{e.atteintePersonnel.obj.valeur_cible} · {e.atteintePersonnel.pct}%</span>
+                        </div>
+                        <div style={{height:6,background:'#e8e8e0',borderRadius:3,overflow:'hidden'}}>
+                          <div style={{height:'100%',borderRadius:3,transition:'width 0.4s',width:e.atteintePersonnel.pct+'%',background:e.atteintePersonnel.pct>=100?'#1D9E75':e.atteintePersonnel.pct>=60?'#EF9F27':'#E24B4A'}}></div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div style={{paddingLeft:76,marginTop:4}}>
+                    <button onClick={()=>navigate('objectifs')} style={{padding:'3px 10px',border:'0.5px solid #e0e0d8',borderRadius:6,background:'#f5f5f0',color:'#888',fontSize:11,cursor:'pointer'}}>
+                      🎯 {lang==='ar'?'تحديد هدف':'Définir un objectif'}
+                    </button>
                   </div>
                 )}
               </div>
@@ -262,7 +299,7 @@ export default function RapportMensuel({  user, navigate, goBack , lang="fr" }) 
           </div>
 
           {/* Stats par instituteur */}
-          <div className="section-label" style={{ marginTop: '1.5rem' }}>Performance par instituteur</div>
+          <div className="section-label" style={{ marginTop: '1.5rem' }}>{lang==='ar'?'الأداء حسب الأستاذ':(lang==='ar'?'الأداء حسب الأستاذ':'Performance par instituteur')}</div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px,1fr))', gap: 10 }}>
             {instituteurs.map(inst => {
               const ei = statsEleves.filter(e => e.instituteur_referent_id === inst.id);

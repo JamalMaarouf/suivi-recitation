@@ -1,588 +1,345 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
-import { getInitiales, joursDepuis, scoreLabel, formatDateCourt } from '../lib/helpers';
 import { t } from '../lib/i18n';
+import ConfirmModal from '../components/ConfirmModal';
 
-const IS_SOURATE = (code) => ['5B','5A','2M'].includes(code||'');
 const NIVEAU_COLORS = { '5B':'#534AB7','5A':'#378ADD','2M':'#1D9E75','2':'#EF9F27','1':'#E24B4A' };
+const NIVEAUX = ['5B','5A','2M','2','1'];
 
-function Avatar({ prenom, nom, size=36, bg='#E1F5EE', color='#085041' }) {
-  return <div style={{width:size,height:size,borderRadius:'50%',background:bg,color,display:'flex',alignItems:'center',justifyContent:'center',fontWeight:600,fontSize:size*0.33,flexShrink:0}}>{getInitiales(prenom,nom)}</div>;
-}
-function NiveauBadge({ code }) {
-  const c = NIVEAU_COLORS[code||'1']||'#888';
-  return <span style={{padding:'2px 8px',borderRadius:20,fontSize:10,fontWeight:700,background:c+'18',color:c,border:'0.5px solid '+c+'30'}}>{code}</span>;
-}
-function StatCard({ val, lbl, color, bg, sub, icon }) {
-  return (
-    <div style={{background:bg,borderRadius:14,padding:'14px 16px',display:'flex',flexDirection:'column',gap:4}}>
-      <div style={{display:'flex',alignItems:'center',gap:6}}>
-        {icon&&<span style={{fontSize:18}}>{icon}</span>}
-        <div style={{fontSize:11,color:color,opacity:0.8,fontWeight:500}}>{lbl}</div>
-      </div>
-      <div style={{fontSize:26,fontWeight:800,color,letterSpacing:'-1px'}}>{val}</div>
-      {sub&&<div style={{fontSize:11,color:color,opacity:0.6}}>{sub}</div>}
-    </div>
-  );
-}
-
-const PERIODES = [
-  { label: 'Aujourd\'hui', labelAr: 'اليوم', jours: 0 },
-  { label: 'Hier', labelAr: 'أمس', jours: 1 },
-  { label: '7 jours', labelAr: '7 أيام', jours: 7 },
-  { label: '15 jours', labelAr: '15 يوم', jours: 15 },
-  { label: 'Mois', labelAr: 'شهر', jours: 30 },
-  { label: 'Trimestre', labelAr: 'فصل', jours: 90 },
-];
-
-export default function HistoriqueSeances({ user, navigate, goBack, lang='fr' }) {
-  const [eleves, setEleves] = useState([]);
-  const [instituteurs, setInstituteurs] = useState([]);
-  const [validations, setValidations] = useState([]);
+export default function MurajaDashboard({ user, navigate, goBack, lang='fr', isMobile }) {
   const [recitations, setRecitations] = useState([]);
-  const [souratesDB, setSouratesDB] = useState([]);
-  const [objectifs, setObjectifs] = useState([]);
-  const [loading, setLoading] = useState(true);
-
-  const [dateDebut, setDateDebut] = useState(() => { const d=new Date(); d.setDate(d.getDate()-7); return d.toISOString().split('T')[0]; });
-  const [dateFin, setDateFin] = useState(() => new Date().toISOString().split('T')[0]);
+  const [validations, setValidations] = useState([]);
+  const [eleves, setEleves]           = useState([]);
+  const [loading, setLoading]         = useState(true);
   const [filterNiveau, setFilterNiveau] = useState('tous');
-  const [filterInstituteur, setFilterInstituteur] = useState('tous');
-  const [filterEleve, setFilterEleve] = useState('tous');
-  const [filterType, setFilterType] = useState('tous');
-  const [periodeActive, setPeriodeActive] = useState(2);
-  const [selectedEleve, setSelectedEleve] = useState(null);
-  const [drillDown, setDrillDown] = useState(false);
-  const [searchEleve, setSearchEleve] = useState('');
+  const [filterPeriode, setFilterPeriode] = useState(30);
+
+  // Edit state
+  const [editingSession, setEditingSession]   = useState(null); // session object
+  const [editExclus, setEditExclus]           = useState({});   // id→true if removed
+  const [editSaving, setEditSaving]           = useState(false);
+
+  // Confirm modal
+  const [confirmModal, setConfirmModal] = useState({ isOpen:false, title:'', message:'', onConfirm:null });
+  const showConfirm = (title, message, onConfirm) => setConfirmModal({ isOpen:true, title, message, onConfirm, confirmLabel:lang==='ar'?'حذف':'Supprimer', confirmColor:'#E24B4A' });
+  const hideConfirm = () => setConfirmModal(m=>({...m,isOpen:false,onConfirm:null}));
 
   useEffect(() => { loadData(); }, []);
 
-  useEffect(() => {
-    if (filterEleve !== 'tous') {
-      setSelectedEleve(filterEleve);
-      setDrillDown(true);
-    } else {
-      setDrillDown(false);
-      setSelectedEleve(null);
-    }
-  }, [filterEleve]);
-
   const loadData = async () => {
     setLoading(true);
-    try {
-      const [r1, r2, r3, r4, r5, r6] = await Promise.all([
-        supabase.from('eleves').select('*').order('nom'),
-        supabase.from('utilisateurs').select('*').eq('role','instituteur'),
-        supabase.from('validations').select('*, valideur:valide_par(prenom,nom)').order('date_validation',{ascending:false}),
-        supabase.from('recitations_sourates').select('*, valideur:valide_par(prenom,nom)').order('date_validation',{ascending:false}),
-        supabase.from('sourates').select('*'),
-        supabase.from('objectifs_globaux').select('*').order('created_at',{ascending:false}),
-      ]);
-      setEleves(r1.data||[]);
-      setInstituteurs(r2.data||[]);
-      setValidations(r3.data||[]);
-      setRecitations(r4.data||[]);
-      setSouratesDB(r5.data||[]);
-      setObjectifs(r6.data||[]);
-    } catch(e) { console.error(e); }
+    const [{ data: recs }, { data: vals }, { data: elevs }] = await Promise.all([
+      supabase.from('recitations_sourates')
+        .select('id,date_validation,type_recitation,verset_debut,verset_fin,points,is_muraja, eleve:eleve_id(id,prenom,nom,code_niveau), sourate:sourate_id(numero,nom_ar), valideur:valide_par(prenom,nom)')
+        .eq('ecole_id', user.ecole_id)
+        .eq('is_muraja', true)
+        .order('date_validation', { ascending: false })
+        .limit(500),
+      supabase.from('validations')
+        .select('id,date_validation,type_validation,nombre_tomon,tomon_debut,hizb_validation,is_muraja, eleve:eleve_id(id,prenom,nom,code_niveau), valideur:valide_par(prenom,nom)')
+        .eq('ecole_id', user.ecole_id)
+        .in('type_validation', ['tomon_muraja','hizb_muraja'])
+        .order('date_validation', { ascending: false })
+        .limit(500),
+      supabase.from('eleves').select('id,prenom,nom,code_niveau')
+        .eq('ecole_id', user.ecole_id).order('nom'),
+    ]);
+    setRecitations(recs || []);
+    setValidations(vals || []);
+    setEleves(elevs || []);
     setLoading(false);
   };
 
-  const setPeriodeRapide = (idx) => {
-    setPeriodeActive(idx);
-    const p = PERIODES[idx];
-    const fin = new Date();
-    const debut = new Date();
-    if (p.jours === 1) { debut.setDate(debut.getDate()-1); fin.setDate(fin.getDate()-1); }
-    else debut.setDate(debut.getDate()-p.jours);
-    setDateDebut(debut.toISOString().split('T')[0]);
-    setDateFin(fin.toISOString().split('T')[0]);
+  // Build flat records list with ids
+  const cutoff = new Date();
+  cutoff.setDate(cutoff.getDate() - filterPeriode);
+
+  const allMuraja = [
+    ...(recitations||[]).map(r => ({
+      id: r.id, source: 'sourate',
+      date: r.date_validation,
+      niveau: r.eleve?.code_niveau || '?',
+      eleve: r.eleve,
+      contenu: r.sourate?.nom_ar || '?',
+      type: r.type_recitation === 'complete' ? (lang==='ar'?'سورة كاملة':'Sourate complète') : (lang==='ar'?'تسلسل':'Séquence'),
+      valideur: r.valideur ? `${r.valideur.prenom} ${r.valideur.nom}` : '?',
+      valideurId: r.valide_par,
+    })),
+    ...(validations||[]).map(v => ({
+      id: v.id, source: 'hizb',
+      date: v.date_validation,
+      niveau: v.eleve?.code_niveau || '?',
+      eleve: v.eleve,
+      contenu: v.type_validation === 'hizb_muraja' ? `Hizb ${v.hizb_validation}` : `Hizb ${v.hizb_validation} — T${v.tomon_debut} ×${v.nombre_tomon}`,
+      type: v.type_validation === 'hizb_muraja' ? (lang==='ar'?'حزب كامل':'Hizb complet') : (lang==='ar'?'ثُمن':'Tomon'),
+      valideur: v.valideur ? `${v.valideur.prenom} ${v.valideur.nom}` : '?',
+      valideurId: v.valide_par,
+    })),
+  ]
+  .filter(m => new Date(m.date) >= cutoff)
+  .filter(m => filterNiveau === 'tous' || m.niveau === filterNiveau)
+  .sort((a,b) => new Date(b.date) - new Date(a.date));
+
+  // Group into sessions
+  const sessions = {};
+  allMuraja.forEach(m => {
+    const dateKey = m.date.slice(0,10);
+    const key = `${dateKey}|${m.contenu}|${m.niveau}|${m.valideur}`;
+    if (!sessions[key]) sessions[key] = {
+      key, date: dateKey, contenu: m.contenu, type: m.type,
+      niveau: m.niveau, valideur: m.valideur, valideurId: m.valideurId,
+      color: NIVEAU_COLORS[m.niveau]||'#888', source: m.source,
+      records: [], eleves: [],
+    };
+    sessions[key].records.push({ id: m.id, source: m.source });
+    if (m.eleve) sessions[key].eleves.push(m.eleve);
+  });
+  const sessionList = Object.values(sessions).sort((a,b) => b.date.localeCompare(a.date));
+
+  // Stats per niveau
+  const statsByNiveau = NIVEAUX.map(n => {
+    const items = allMuraja.filter(m => m.niveau === n);
+    const totalEleves = eleves.filter(e => e.code_niveau === n).length;
+    const uniqueEleves = new Set(items.map(m => m.eleve?.id).filter(Boolean)).size;
+    return { niveau:n, nb:items.length, uniqueEleves, totalEleves, taux: totalEleves>0?Math.round(uniqueEleves/totalEleves*100):0, color:NIVEAU_COLORS[n] };
+  }).filter(s => s.totalEleves > 0);
+
+  const absenteesParNiveau = filterNiveau !== 'tous' ? eleves.filter(e => {
+    if (e.code_niveau !== filterNiveau) return false;
+    return !allMuraja.some(m => m.eleve?.id === e.id);
+  }) : [];
+
+  // ── DELETE session ──
+  const handleDelete = (session) => {
+    const label = `${session.contenu} — ${session.date} (${session.eleves.length} ${lang==='ar'?'طالب':'élève(s)'})`;
+    showConfirm(
+      lang==='ar'?'حذف المراجعة الجماعية':'Supprimer la muraja\u02bca',
+      (lang==='ar'?'هل تريد حذف:':'Supprimer :') + ' ' + label + ' ?',
+      async () => {
+        const souIds = session.records.filter(r=>r.source==='sourate').map(r=>r.id);
+        const valIds = session.records.filter(r=>r.source==='hizb').map(r=>r.id);
+        if (souIds.length) await supabase.from('recitations_sourates').delete().in('id', souIds);
+        if (valIds.length) await supabase.from('validations').delete().in('id', valIds);
+        hideConfirm();
+        await loadData();
+      }
+    );
   };
 
-  const debut = new Date(dateDebut); debut.setHours(0,0,0,0);
-  const fin = new Date(dateFin); fin.setHours(23,59,59,999);
+  // ── EDIT session : toggle eleves ──
+  const startEdit = (session) => {
+    setEditingSession(session);
+    setEditExclus({});
+  };
 
-  const elevesVisibles = eleves.filter(e => {
-    if (filterNiveau !== 'tous' && (e.code_niveau||'1') !== filterNiveau) return false;
-    if (filterInstituteur !== 'tous' && e.instituteur_referent_id !== filterInstituteur) return false;
-    if (user.role === 'instituteur' && e.instituteur_referent_id !== user.id) return false;
-    return true;
-  });
-  const elevesVisiblesIds = new Set(elevesVisibles.map(e=>e.id));
+  const toggleEditExclu = (eleveId) => setEditExclus(prev => ({...prev, [eleveId]: !prev[eleveId]}));
 
-  const valsFiltrees = validations.filter(v => {
-    const d = new Date(v.date_validation);
-    if (d < debut || d > fin) return false;
-    if (!elevesVisiblesIds.has(v.eleve_id)) return false;
-    if (filterEleve !== 'tous' && v.eleve_id !== filterEleve) return false;
-    if (filterType === 'tomon' && v.type_validation !== 'tomon') return false;
-    if (filterType === 'hizb' && v.type_validation !== 'hizb_complet') return false;
-    if (filterType === 'sourate' || filterType === 'sequence') return false;
-    return true;
-  });
-
-  const recsFiltrees = recitations.filter(r => {
-    const d = new Date(r.date_validation);
-    if (d < debut || d > fin) return false;
-    if (!elevesVisiblesIds.has(r.eleve_id)) return false;
-    if (filterEleve !== 'tous' && r.eleve_id !== filterEleve) return false;
-    if (filterType === 'sourate' && r.type_recitation !== 'complete') return false;
-    if (filterType === 'sequence' && r.type_recitation !== 'sequence') return false;
-    if (filterType === 'tomon' || filterType === 'hizb') return false;
-    return true;
-  });
-
-  const tomonTotal = valsFiltrees.filter(v=>v.type_validation==='tomon').reduce((s,v)=>s+v.nombre_tomon,0);
-  const hizbTotal = valsFiltrees.filter(v=>v.type_validation==='hizb_complet').length;
-  const souratesTotal = recsFiltrees.filter(r=>r.type_recitation==='complete').length;
-  const sequencesTotal = recsFiltrees.filter(r=>r.type_recitation==='sequence').length;
-  const ptsTotal = tomonTotal*10+Math.floor(tomonTotal/2)*25+Math.floor(tomonTotal/4)*60+hizbTotal*100+recsFiltrees.reduce((s,r)=>s+(r.points||0),0);
-  const elevesActifs = new Set([...valsFiltrees.map(v=>v.eleve_id),...recsFiltrees.map(r=>r.eleve_id)]);
-  const joursActifs = new Set([...valsFiltrees,...recsFiltrees].map(x=>new Date(x.date_validation).toDateString())).size;
-
-  const duree = Math.max(1,Math.ceil((fin-debut)/(1000*60*60*24)));
-  const debutPrec = new Date(debut); debutPrec.setDate(debutPrec.getDate()-duree);
-  const finPrec = new Date(debut); finPrec.setDate(finPrec.getDate()-1);
-  const valsPrec = validations.filter(v=>{const d=new Date(v.date_validation);return d>=debutPrec&&d<=finPrec&&elevesVisiblesIds.has(v.eleve_id);});
-  const recsPrec = recitations.filter(r=>{const d=new Date(r.date_validation);return d>=debutPrec&&d<=finPrec&&elevesVisiblesIds.has(r.eleve_id);});
-  const ptsPrec = valsPrec.filter(v=>v.type_validation==='tomon').reduce((s,v)=>s+v.nombre_tomon,0)*10+recsPrec.reduce((s,r)=>s+(r.points||0),0);
-  const ptsDelta = ptsTotal - ptsPrec;
-
-  const statsParEleve = elevesVisibles.map(eleve => {
-    const vE = valsFiltrees.filter(v=>v.eleve_id===eleve.id);
-    const rE = recsFiltrees.filter(r=>r.eleve_id===eleve.id);
-    const tomon = vE.filter(v=>v.type_validation==='tomon').reduce((s,v)=>s+v.nombre_tomon,0);
-    const hizb = vE.filter(v=>v.type_validation==='hizb_complet').length;
-    const sourates = rE.filter(r=>r.type_recitation==='complete').length;
-    const seqs = rE.filter(r=>r.type_recitation==='sequence').length;
-    const pts = tomon*10+Math.floor(tomon/2)*25+Math.floor(tomon/4)*60+hizb*100+rE.reduce((s,r)=>s+(r.points||0),0);
-    const nbSeances = new Set([...vE,...rE].map(x=>new Date(x.date_validation).toDateString())).size;
-    const derniere = [...vE,...rE].sort((a,b)=>new Date(b.date_validation)-new Date(a.date_validation))[0]?.date_validation||null;
-    const isSourate = IS_SOURATE(eleve.code_niveau);
-    const objEleve = objectifs.find(o=>o.type_cible==='eleve'&&o.eleve_id===eleve.id&&new Date(o.date_debut)<=fin&&new Date(o.date_fin)>=debut);
-    const objNiveau = objectifs.find(o=>o.type_cible==='niveau'&&o.code_niveau===(eleve.code_niveau||'1')&&new Date(o.date_debut)<=fin&&new Date(o.date_fin)>=debut);
-    const obj = objEleve||objNiveau;
-    let pctObj = null;
-    if (obj) {
-      let r = 0;
-      if (obj.metrique==='tomon') r=tomon;
-      else if (obj.metrique==='hizb') r=hizb;
-      else if (obj.metrique==='sourate') r=sourates;
-      else if (obj.metrique==='sequence') r=seqs;
-      else if (obj.metrique==='points') r=pts;
-      else if (obj.metrique==='seances') r=nbSeances;
-      pctObj = Math.min(100,Math.round(r/obj.valeur_cible*100));
-    }
-    const vEPrec = valsPrec.filter(v=>v.eleve_id===eleve.id);
-    const rEPrec = recsPrec.filter(r=>r.eleve_id===eleve.id);
-    const ptsPrec2 = vEPrec.filter(v=>v.type_validation==='tomon').reduce((s,v)=>s+v.nombre_tomon,0)*10+rEPrec.reduce((s,r)=>s+(r.points||0),0);
-    const trend = pts>ptsPrec2?'up':pts<ptsPrec2?'down':'stable';
-    const inst = instituteurs.find(i=>i.id===eleve.instituteur_referent_id);
-    return { eleve, tomon, hizb, sourates, seqs, pts, nbSeances, derniere, isSourate, obj, pctObj, trend, instituteurNom:inst?inst.prenom+' '+inst.nom:'—' };
-  });
-
-  const actifs = statsParEleve.filter(s=>s.pts>0||s.nbSeances>0).sort((a,b)=>b.pts-a.pts);
-  const inactifs = statsParEleve.filter(s=>s.pts===0&&s.nbSeances===0);
-
-  const timeline = {};
-  [...valsFiltrees,...recsFiltrees].forEach(item=>{
-    const key=new Date(item.date_validation).toISOString().split('T')[0];
-    if(!timeline[key]) timeline[key]={date:key,pts:0,tomon:0,hizb:0,sourate:0,seq:0};
-    if(item.type_validation==='tomon'){timeline[key].tomon+=item.nombre_tomon;timeline[key].pts+=item.nombre_tomon*10;}
-    else if(item.type_validation==='hizb_complet'){timeline[key].hizb++;timeline[key].pts+=100;}
-    else if(item.type_recitation==='complete'){timeline[key].sourate++;timeline[key].pts+=(item.points||30);}
-    else if(item.type_recitation==='sequence'){timeline[key].seq++;timeline[key].pts+=(item.points||10);}
-  });
-  const timelineArr = Object.values(timeline).sort((a,b)=>a.date.localeCompare(b.date));
-  const maxPtsDay = Math.max(...timelineArr.map(d=>d.pts),1);
-
-  const eleveDrillDown = selectedEleve ? eleves.find(e=>e.id===selectedEleve) : null;
-  const valsDrill = selectedEleve ? validations.filter(v=>v.eleve_id===selectedEleve&&new Date(v.date_validation)>=debut&&new Date(v.date_validation)<=fin) : [];
-  const recsDrill = selectedEleve ? recitations.filter(r=>r.eleve_id===selectedEleve&&new Date(r.date_validation)>=debut&&new Date(r.date_validation)<=fin) : [];
-  const allDrill = [...valsDrill,...recsDrill].sort((a,b)=>new Date(b.date_validation)-new Date(a.date_validation));
-
-  // Export Excel
-  const exportExcel = async () => {
-    if (!window.XLSX) {
-      await new Promise((resolve,reject)=>{
-        const s=document.createElement('script');
-        s.src='https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
-        s.onload=resolve; s.onerror=reject;
-        document.head.appendChild(s);
+  const handleSaveEdit = async () => {
+    if (!editingSession) return;
+    setEditSaving(true);
+    // Delete records for excluded eleves
+    const toDelete = editingSession.records.filter(r => {
+      const eleve = editingSession.eleves.find(e => {
+        const rec = allMuraja.find(m => m.id === r.id && m.source === r.source);
+        return rec?.eleve?.id && editExclus[rec.eleve.id];
       });
+      return !!eleve;
+    });
+    // Simpler: re-fetch records with eleve_id and delete those matching excluded
+    const excludedIds = Object.keys(editExclus).filter(id => editExclus[id]);
+    if (excludedIds.length > 0) {
+      const souIds = (recitations||[]).filter(r =>
+        editingSession.records.some(rec=>rec.id===r.id&&rec.source==='sourate') &&
+        excludedIds.includes(String(r.eleve?.id))
+      ).map(r=>r.id);
+      const valIds = (validations||[]).filter(v =>
+        editingSession.records.some(rec=>rec.id===v.id&&rec.source==='hizb') &&
+        excludedIds.includes(String(v.eleve?.id))
+      ).map(v=>v.id);
+      if (souIds.length) await supabase.from('recitations_sourates').delete().in('id', souIds);
+      if (valIds.length) await supabase.from('validations').delete().in('id', valIds);
     }
-    const XLSX = window.XLSX;
-    const wb = XLSX.utils.book_new();
-    const dataToExport = filterEleve!=='tous' ? actifs.filter(s=>s.eleve.id===filterEleve) : actifs;
-    const filtreNom = filterEleve!=='tous' ? (eleves.find(e=>e.id===filterEleve)||{prenom:'',nom:''}) : null;
-
-    const ws1 = XLSX.utils.aoa_to_sheet([
-      ['Analyse des Séances / تحليل الحصص'],
-      ['Période / الفترة: '+dateDebut+' → '+dateFin],
-      filtreNom ? ['Élève / الطالب: '+filtreNom.prenom+' '+filtreNom.nom] : [],
-      filterNiveau!=='tous' ? ['Niveau / المستوى: '+filterNiveau] : [],
-      [],
-      ['Élèves actifs','Points','Tomon','Hizb','Sourates','Séquences','Jours actifs'],
-      [(filterEleve!=='tous'?1:elevesActifs.size),(filterEleve!=='tous'?(actifs.find(s=>s.eleve.id===filterEleve)||{pts:0}).pts:ptsTotal),tomonTotal,hizbTotal,souratesTotal,sequencesTotal,joursActifs],
-      [],
-      ['#','Nom / الاسم','Niveau','Instituteur','Tomon','Hizb','Sourates','Séq.','Points','Séances','Obj %','Tendance'],
-      ...dataToExport.map((s,i)=>[i+1,s.eleve.prenom+' '+s.eleve.nom,s.eleve.code_niveau||'?',s.instituteurNom,s.tomon,s.hizb,s.sourates,s.seqs,s.pts,s.nbSeances,s.pctObj!==null?s.pctObj+'%':'—',s.trend==='up'?'↑':s.trend==='down'?'↓':'=']),
-    ].filter(r=>r.length>0));
-    ws1['!cols']=[{wch:4},{wch:24},{wch:8},{wch:20},{wch:8},{wch:8},{wch:10},{wch:8},{wch:10},{wch:8},{wch:8},{wch:10}];
-    XLSX.utils.book_append_sheet(wb,ws1,'Résumé');
-
-    if (timelineArr.length>0) {
-      const ws2 = XLSX.utils.aoa_to_sheet([
-        ['Date','Tomon','Hizb','Sourates','Séquences','Points'],
-        ...timelineArr.map(d=>[d.date,d.tomon,d.hizb,d.sourate,d.seq,d.pts])
-      ]);
-      ws2['!cols']=[{wch:14},{wch:10},{wch:8},{wch:10},{wch:10},{wch:10}];
-      XLSX.utils.book_append_sheet(wb,ws2,'Activité');
-    }
-
-    if (filterEleve!=='tous'&&allDrill.length>0) {
-      const ws3 = XLSX.utils.aoa_to_sheet([
-        [eleveDrillDown?eleveDrillDown.prenom+' '+eleveDrillDown.nom:''],
-        [],
-        ['Date','Heure','Type','Détails','Sourate/Hizb','Validé par','Points'],
-        ...allDrill.map(item=>{
-          const isSR=!!item.type_recitation;
-          const sourate=souratesDB.find(s=>s.id===item.sourate_id);
-          const pts=isSR?(item.points||10):(item.type_validation==='hizb_complet'?100:item.nombre_tomon*10);
-          const type=isSR?(item.type_recitation==='complete'?'Sourate complète':'Séquence'):(item.type_validation==='hizb_complet'?'Hizb complet':'Tomon');
-          const detail=isSR?(item.type_recitation==='complete'?'✓':'V.'+item.verset_debut+'→V.'+item.verset_fin):(item.type_validation==='hizb_complet'?'Hizb '+item.hizb_valide:item.nombre_tomon+' Tomon');
-          const surateNom=sourate?sourate.nom_ar:(item.hizb_validation?'Hizb '+item.hizb_validation:'—');
-          const valideur=item.valideur?item.valideur.prenom+' '+item.valideur.nom:'—';
-          return [new Date(item.date_validation).toLocaleDateString('fr-FR'),new Date(item.date_validation).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'}),type,detail,surateNom,valideur,'+'+pts];
-        })
-      ]);
-      ws3['!cols']=[{wch:14},{wch:8},{wch:16},{wch:22},{wch:24},{wch:18},{wch:8}];
-      XLSX.utils.book_append_sheet(wb,ws3,'Détail');
-    }
-
-    const suffix=filterEleve!=='tous'?(eleves.find(e=>e.id===filterEleve)||{nom:'eleve'}).nom:filterNiveau!=='tous'?filterNiveau:'rapport';
-    XLSX.writeFile(wb,'seances_'+dateDebut+'_'+dateFin+'_'+suffix+'.xlsx');
+    setEditSaving(false);
+    setEditingSession(null);
+    setEditExclus({});
+    await loadData();
   };
 
-  // Export PDF
-  const exportPDF = () => {
-    const w = window.open('','_blank','width=1100,height=900');
-    if (!w) { alert('Autorisez les popups pour exporter le PDF'); return; }
-    const dir = lang==='ar'?'rtl':'ltr';
-    const dataToExport = filterEleve!=='tous' ? actifs.filter(s=>s.eleve.id===filterEleve) : actifs;
-    const filtreNom = filterEleve!=='tous' ? eleves.find(e=>e.id===filterEleve) : null;
-    const instNom = filterInstituteur!=='tous' ? (instituteurs.find(i=>i.id===filterInstituteur)||{prenom:'',nom:''}) : null;
+  // ── Eleves du niveau pour edit (add eleves) ──
+  const elevesDuNiveau = editingSession ? eleves.filter(e => e.code_niveau === editingSession.niveau) : [];
+  const elevesDejaInclus = editingSession ? new Set(editingSession.eleves.map(e=>e.id)) : new Set();
 
-    const maxPts = Math.max(...timelineArr.map(d=>d.pts),1);
-    const tlW = 600; const tlH = 70;
-    const bW = timelineArr.length>0 ? Math.max(3,Math.floor((tlW-20)/timelineArr.length)-2) : 10;
-
-    const tlBars = timelineArr.map((d,i)=>{
-      const bh = Math.max(3,Math.round((d.pts/maxPts)*tlH));
-      const x = 10+i*(bW+2);
-      const y = tlH-bh;
-      return '<rect x="'+x+'" y="'+y+'" width="'+bW+'" height="'+bh+'" fill="#1D9E75" rx="2" opacity="0.85"/>';
-    }).join('');
-
-    const tlLabels = timelineArr.length>1 ? [0,Math.floor(timelineArr.length/2),timelineArr.length-1].map(i=>{
-      const d=timelineArr[i];
-      const x=10+i*(bW+2)+bW/2;
-      const dt=new Date(d.date).toLocaleDateString('fr-FR',{day:'2-digit',month:'2-digit'});
-      return '<text x="'+x+'" y="'+(tlH+14)+'" text-anchor="middle" font-size="9" fill="#888">'+dt+'</text>';
-    }).join('') : '';
-
-    const timelineSVG = timelineArr.length>0
-      ? '<svg width="'+tlW+'" height="'+(tlH+20)+'" style="display:block;margin:0 auto">'+tlBars+tlLabels+'</svg>'
-      : '<p style="color:#bbb;text-align:center">Aucune activité</p>';
-
-    const maxPtsE = Math.max(...dataToExport.slice(0,8).map(s=>s.pts),1);
-    const perfBars = dataToExport.slice(0,8).map((s,i)=>{
-      const nc = NIVEAU_COLORS[s.eleve.code_niveau||'1']||'#888';
-      const bw = Math.max(4,Math.round((s.pts/maxPtsE)*380));
-      const y = i*30+4;
-      const name = (s.eleve.prenom+' '+s.eleve.nom).substring(0,22);
-      const pct = s.pctObj!==null ? ' · '+s.pctObj+'%' : '';
-      return '<text x="145" y="'+(y+14)+'" text-anchor="end" font-size="10" fill="#555">'+name+'</text>'
-        +'<rect x="150" y="'+(y+3)+'" width="'+bw+'" height="16" fill="'+nc+'" rx="3" opacity="0.8"/>'
-        +'<text x="'+(155+bw)+'" y="'+(y+14)+'" font-size="10" fill="'+nc+'" font-weight="bold">'+s.pts+pct+'</text>';
-    }).join('');
-    const perfSVG = dataToExport.length>0
-      ? '<svg width="560" height="'+(Math.min(8,dataToExport.length)*30+10)+'" style="display:block">'+perfBars+'</svg>'
-      : '';
-
-    const lignesTableau = dataToExport.map((s,i)=>{
-      const nc = NIVEAU_COLORS[s.eleve.code_niveau||'1']||'#888';
-      const bg = i%2===0?'#fff':'#f9f9f6';
-      const pctStr = s.pctObj!==null?s.pctObj+'%':'—';
-      const pctColor = s.pctObj!==null?(s.pctObj>=100?'#1D9E75':s.pctObj>=60?'#EF9F27':'#E24B4A'):'#888';
-      return '<tr style="background:'+bg+'"><td>'+(i+1)+'</td>'
-        +'<td><strong>'+s.eleve.prenom+' '+s.eleve.nom+'</strong></td>'
-        +'<td><span style="padding:2px 6px;border-radius:10px;font-size:9px;font-weight:700;background:'+nc+'22;color:'+nc+'">'+( s.eleve.code_niveau||'?')+'</span></td>'
-        +'<td style="color:#888;font-size:10px">'+s.instituteurNom+'</td>'
-        +'<td>'+s.tomon+'</td><td>'+s.hizb+'</td><td>'+s.sourates+'</td><td>'+s.seqs+'</td>'
-        +'<td><strong style="color:#1D9E75">'+s.pts+'</strong></td>'
-        +'<td>'+s.nbSeances+'</td>'
-        +'<td><strong style="color:'+pctColor+'">'+pctStr+'</strong></td></tr>';
-    }).join('');
-
-    const lignesDrill = allDrill.map((item,i)=>{
-      const isSR = !!item.type_recitation;
-      const sourate = souratesDB.find(s=>s.id===item.sourate_id);
-      const pts = isSR?(item.points||10):(item.type_validation==='hizb_complet'?100:item.nombre_tomon*10);
-      const bg = i%2===0?'#fff':'#f9f9f6';
-      const typeStr = isSR
-        ? (item.type_recitation==='complete'?'<span style="background:#E1F5EE;color:#085041;padding:1px 5px;border-radius:4px;font-size:9px">Complète</span>':'<span style="background:#E6F1FB;color:#378ADD;padding:1px 5px;border-radius:4px;font-size:9px">Séquence</span>')
-        : (item.type_validation==='hizb_complet'?'<span style="background:#FAEEDA;color:#EF9F27;padding:1px 5px;border-radius:4px;font-size:9px">Hizb ✓</span>':'<span style="background:#E6F1FB;color:#378ADD;padding:1px 5px;border-radius:4px;font-size:9px">Tomon</span>');
-      const detail = isSR
-        ? (item.type_recitation==='complete'?'✓':('V.'+item.verset_debut+'→'+item.verset_fin))
-        : (item.type_validation==='hizb_complet'?('Hizb '+item.hizb_valide):(item.nombre_tomon+' T.'));
-      const surateNom = sourate?sourate.nom_ar:(item.hizb_validation?'Hizb '+item.hizb_validation:'—');
-      const valideur = item.valideur?item.valideur.prenom+' '+item.valideur.nom:'—';
-      const dateStr = new Date(item.date_validation).toLocaleDateString('fr-FR',{day:'2-digit',month:'short'});
-      const heureStr = new Date(item.date_validation).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'});
-      return '<tr style="background:'+bg+'"><td>'+dateStr+'</td><td>'+heureStr+'</td><td>'+typeStr+'</td><td>'+detail+'</td>'
-        +'<td style="font-family:Arial;direction:rtl">'+surateNom+'</td>'
-        +'<td style="color:#888;font-size:10px">'+valideur+'</td>'
-        +'<td><strong style="color:#1D9E75">+'+pts+'</strong></td></tr>';
-    }).join('');
-
-    const subtitle = (filtreNom?filtreNom.prenom+' '+filtreNom.nom+' · ':'')
-      +(filterNiveau!=='tous'?'Niveau '+filterNiveau+' · ':'')
-      +(instNom?instNom.prenom+' '+instNom.nom+' · ':'')
-      +dateDebut+' → '+dateFin;
-
-    const html = '<!DOCTYPE html><html dir="'+dir+'"><head><meta charset="UTF-8">'
-      +'<title>Analyse des Séances</title>'
-      +'<style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:Arial,sans-serif;color:#1a1a1a;padding:20px;font-size:12px}'
-      +'.header{background:linear-gradient(135deg,#085041,#1D9E75);color:#fff;padding:16px 20px;border-radius:10px;margin-bottom:16px}'
-      +'.header h1{font-size:18px;font-weight:800;margin-bottom:4px}'
-      +'.header .sub{font-size:11px;opacity:0.8}'
-      +'.kpi-row{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:12px}'
-      +'.kpi{border-radius:8px;padding:10px;text-align:center}'
-      +'.kpi-val{font-size:22px;font-weight:800}'
-      +'.kpi-lbl{font-size:10px;opacity:0.8;margin-top:2px}'
-      +'.sec{border:0.5px solid #e0e0d8;border-radius:10px;padding:14px;margin-bottom:12px}'
-      +'.sec h2{font-size:13px;font-weight:600;color:#085041;margin-bottom:10px;padding-bottom:6px;border-bottom:2px solid #1D9E75}'
-      +'table{width:100%;border-collapse:collapse;font-size:11px}'
-      +'th{background:#085041;color:#fff;padding:7px 8px;text-align:'+(dir==='rtl'?'right':'left')+'}'
-      +'td{padding:6px 8px;border-bottom:1px solid #f0f0ec}'
-      +'.footer{margin-top:14px;font-size:9px;color:#bbb;border-top:1px solid #e0e0d8;padding-top:8px;text-align:center}'
-      +'@media print{.sec{break-inside:avoid}}</style></head><body>'
-      +'<div class="header"><h1>📊 Analyse des Séances — تحليل الحصص</h1><div class="sub">'+subtitle+'</div></div>'
-      +'<div class="kpi-row">'
-      +'<div class="kpi" style="background:#E1F5EE"><div class="kpi-val" style="color:#1D9E75">'+(filterEleve!=='tous'?1:elevesActifs.size)+'</div><div class="kpi-lbl" style="color:#1D9E75">Élèves actifs</div></div>'
-      +'<div class="kpi" style="background:#EEEDFE"><div class="kpi-val" style="color:#534AB7">'+(filterEleve!=='tous'?(actifs.find(s=>s.eleve.id===filterEleve)||{pts:0}).pts:ptsTotal)+'</div><div class="kpi-lbl" style="color:#534AB7">Points</div></div>'
-      +'<div class="kpi" style="background:#FAEEDA"><div class="kpi-val" style="color:#EF9F27">'+joursActifs+'</div><div class="kpi-lbl" style="color:#EF9F27">Jours actifs</div></div>'
-      +'<div class="kpi" style="background:#E6F1FB"><div class="kpi-val" style="color:#378ADD">'+(tomonTotal+souratesTotal)+'</div><div class="kpi-lbl" style="color:#378ADD">Récitations</div></div>'
-      +'</div>'
-      +(timelineArr.length>0?'<div class="sec"><h2>📈 Activité quotidienne</h2>'+timelineSVG+'</div>':'')
-      +(dataToExport.length>0?'<div class="sec"><h2>🏆 Performance par élève</h2>'+perfSVG+'</div>':'')
-      +'<div class="sec"><h2>📋 Détail par élève</h2>'
-      +'<table><thead><tr><th>#</th><th>Nom</th><th>Niv.</th><th>Instituteur</th><th>Tomon</th><th>Hizb</th><th>Sourates</th><th>Séq.</th><th>Points</th><th>Séances</th><th>Obj %</th></tr></thead>'
-      +'<tbody>'+lignesTableau+(inactifs.length>0&&filterEleve==='tous'?'<tr><td colspan="11" style="text-align:center;color:#E24B4A;padding:8px">⚠️ '+inactifs.length+' élève(s) inactif(s)</td></tr>':'')+'</tbody></table></div>'
-      +(filterEleve!=='tous'&&allDrill.length>0?'<div class="sec"><h2>📖 Détail des récitations</h2>'
-        +'<table><thead><tr><th>Date</th><th>Heure</th><th>Type</th><th>Détails</th><th>Sourate/Hizb</th><th>Validé par</th><th>Points</th></tr></thead>'
-        +'<tbody>'+lignesDrill+'</tbody></table></div>':'')
-      +'<div class="footer">Généré le '+new Date().toLocaleDateString('fr-FR',{day:'2-digit',month:'long',year:'numeric'})+' · متابعة التحفيظ</div>'
-      +'</body></html>';
-
-    w.document.write(html);
-    w.document.close();
-    setTimeout(function(){ w.print(); }, 800);
-  };
-
-  const medals = ['🥇','🥈','🥉'];
+  if (loading) return <div style={{padding:'2rem',textAlign:'center'}}><div className="loading">...</div></div>;
 
   return (
-    <div>
-      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'1.25rem',flexWrap:'wrap',gap:8}}>
-        <button className="back-link" onClick={()=>goBack?goBack():navigate('seance')}>← {t(lang,'retour')}</button>
-        <div style={{fontSize:18,fontWeight:700,color:'#085041'}}>📊 {lang==='ar'?'تحليل الحصص':lang==='en'?'Session Analysis':'Analyse des Séances'}</div>
-        <div style={{display:'flex',gap:6,alignItems:'center'}}>
-          <span style={{fontSize:12,color:'#888'}}>{elevesVisibles.length} {lang==='ar'?'طالب':lang==='en'?'students':'élèves'}</span>
-          <button onClick={exportExcel} style={{padding:'6px 12px',background:'#1D9E75',color:'#fff',border:'none',borderRadius:8,fontSize:11,fontWeight:600,cursor:'pointer'}}>📥 Excel</button>
-          <button onClick={exportPDF} style={{padding:'6px 12px',background:'#534AB7',color:'#fff',border:'none',borderRadius:8,fontSize:11,fontWeight:600,cursor:'pointer'}}>🖨️ PDF</button>
-        </div>
-      </div>
-
-      {/* FILTRES */}
-      <div style={{background:'#fff',border:'0.5px solid #e0e0d8',borderRadius:16,padding:'1.25rem',marginBottom:'1.25rem'}}>
-        <div style={{display:'flex',gap:6,flexWrap:'wrap',marginBottom:12}}>
-          {PERIODES.map((p,i)=>(
-            <button key={i} onClick={()=>setPeriodeRapide(i)} style={{padding:'5px 12px',borderRadius:20,fontSize:11,fontWeight:periodeActive===i?700:400,cursor:'pointer',border:'1.5px solid '+(periodeActive===i?'#1D9E75':'#e0e0d8'),background:periodeActive===i?'#1D9E75':'#fff',color:periodeActive===i?'#fff':'#666'}}>
-              {lang==='ar'?p.labelAr:p.label}
+    <div style={{padding: isMobile ? '0 0 80px' : '1rem',maxWidth:800,margin:'0 auto',background: isMobile ? '#f5f5f0' : 'transparent',minHeight: isMobile ? '100vh' : 'auto'}}>
+      {isMobile && (
+        <div style={{background:'linear-gradient(135deg,#534AB7,#7F77DD)',padding:'48px 16px 20px',marginBottom:12}}>
+          <div style={{fontSize:20,fontWeight:800,color:'#fff',marginBottom:4}}>
+            📖 {lang==='ar'?'المراجعة الجماعية':"Murajaʼa"}
+          </div>
+          <div style={{display:'flex',gap:8,marginTop:10}}>
+            <button onClick={()=>navigate('muraja')}
+              style={{padding:'10px 16px',background:'rgba(255,255,255,0.2)',color:'#fff',border:'1px solid rgba(255,255,255,0.3)',
+                borderRadius:10,fontSize:13,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
+              + {lang==='ar'?'مراجعة جديدة':'Nouvelle révision'}
             </button>
-          ))}
-          <button onClick={()=>setPeriodeActive(-1)} style={{padding:'5px 12px',borderRadius:20,fontSize:11,fontWeight:periodeActive===-1?700:400,cursor:'pointer',border:'1.5px solid '+(periodeActive===-1?'#534AB7':'#e0e0d8'),background:periodeActive===-1?'#534AB7':'#fff',color:periodeActive===-1?'#fff':'#666'}}>
-            {lang==='ar'?'فترة مخصصة':lang==='en'?'Custom':'Personnalisé'}
-          </button>
-        </div>
-        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:10}}>
-          <div className="field-group"><label className="field-lbl">{lang==='ar'?'من':'Du'}</label><input className="field-input" type="date" value={dateDebut} onChange={e=>{setDateDebut(e.target.value);setPeriodeActive(-1);}}/></div>
-          <div className="field-group"><label className="field-lbl">{lang==='ar'?'إلى':'Au'}</label><input className="field-input" type="date" value={dateFin} onChange={e=>{setDateFin(e.target.value);setPeriodeActive(-1);}}/></div>
-        </div>
-        <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:8}}>
-          <div className="field-group"><label className="field-lbl">{lang==='ar'?'المستوى':'Niveau'}</label>
-            <select className="field-select" value={filterNiveau} onChange={e=>setFilterNiveau(e.target.value)}>
-              <option value="tous">{lang==='ar'?'الكل':'Tous'}</option>
-              {['5B','5A','2M','2','1'].map(n=><option key={n} value={n}>{n}</option>)}
-            </select>
-          </div>
-          {user.role==='surveillant'&&<div className="field-group"><label className="field-lbl">{lang==='ar'?'الأستاذ':'Instituteur'}</label>
-            <select className="field-select" value={filterInstituteur} onChange={e=>setFilterInstituteur(e.target.value)}>
-              <option value="tous">{lang==='ar'?'الكل':'Tous'}</option>
-              {instituteurs.map(i=><option key={i.id} value={i.id}>{i.prenom} {i.nom}</option>)}
-            </select>
-          </div>}
-          <div className="field-group"><label className="field-lbl">{lang==='ar'?'نوع التسميع':'Type'}</label>
-            <select className="field-select" value={filterType} onChange={e=>setFilterType(e.target.value)}>
-              <option value="tous">{lang==='ar'?'الكل':'Tous'}</option>
-              <option value="sourate">{lang==='ar'?'سور مكتملة':'Sourates'}</option>
-              <option value="sequence">{lang==='ar'?'مقاطع':'Séquences'}</option>
-              <option value="tomon">Tomon</option>
-              <option value="hizb">Hizb</option>
-            </select>
-          </div>
-          <div className="field-group"><label className="field-lbl">{lang==='ar'?'الطالب':'Élève'}</label>
-            <select className="field-select" value={filterEleve} onChange={e=>setFilterEleve(e.target.value)}>
-              <option value="tous">{lang==='ar'?'الكل':'Tous'}</option>
-              {elevesVisibles.map(e=><option key={e.id} value={e.id}>{e.prenom} {e.nom} ({e.code_niveau||'?'})</option>)}
-            </select>
           </div>
         </div>
+      )}
+      {/* Header */}
+      <div style={{display:'flex',alignItems:'center',gap:12,marginBottom:'1.2rem'}}>
+        <button className="back-link" onClick={()=>goBack?goBack():navigate('dashboard')}>← {t(lang,'retour')}</button>
+        <div style={{fontSize:17,fontWeight:700,color:'#085041'}}>
+          📊 {lang==='ar'?'لوحة تتبع المراجعة الجماعية':'Tableau de bord Muraja\u02bca'}
+        </div>
+        <button onClick={()=>navigate('muraja')} style={{marginLeft:'auto',padding:'6px 14px',background:'#085041',color:'#fff',border:'none',borderRadius:8,fontSize:12,fontWeight:600,cursor:'pointer'}}>
+          + {lang==='ar'?'مراجعة جديدة':'Nouvelle muraja\u02bca'}
+        </button>
       </div>
 
-      {loading ? <div className="loading">...</div> : (<>
-        {/* KPI */}
-        <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:10,marginBottom:'1rem'}}>
-          <StatCard icon="👥" val={filterEleve!=='tous'?1:elevesActifs.size} lbl={lang==='ar'?'طلاب نشطون':'Élèves actifs'} color="#1D9E75" bg="#E1F5EE"
-            sub={filterEleve!=='tous'?(eleves.find(e=>e.id===filterEleve)||{prenom:'',nom:''}).prenom+' '+(eleves.find(e=>e.id===filterEleve)||{nom:''}).nom:(elevesActifs.size+'/'+elevesVisibles.length+' · inactifs: '+inactifs.length)}/>
-          <StatCard icon="⭐" val={(filterEleve!=='tous'?(actifs.find(s=>s.eleve.id===filterEleve)||{pts:0}).pts:ptsTotal).toLocaleString()} lbl={lang==='ar'?'نقاط':'Points'} color="#534AB7" bg="#EEEDFE"
-            sub={ptsDelta!==0?(ptsDelta>0?'▲ ':'▼ ')+Math.abs(ptsDelta)+' vs période préc.':'Stable'}/>
-          <StatCard icon="📅" val={joursActifs} lbl={lang==='ar'?'أيام نشطة':'Jours actifs'} color="#EF9F27" bg="#FAEEDA" sub={joursActifs+'/'+duree+' jours'}/>
-        </div>
-        <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:8,marginBottom:'1rem'}}>
-          {[{val:tomonTotal,lbl:'Tomon',color:'#378ADD',bg:'#E6F1FB'},{val:hizbTotal,lbl:'Hizb',color:'#EF9F27',bg:'#FAEEDA'},{val:souratesTotal,lbl:lang==='ar'?'سور':'Sourates',color:'#085041',bg:'#E1F5EE'},{val:sequencesTotal,lbl:lang==='ar'?'مقاطع':'Séq.',color:'#888',bg:'#f5f5f0'}].map(k=>(
-            <div key={k.lbl} style={{background:k.bg,borderRadius:10,padding:'10px',textAlign:'center'}}>
-              <div style={{fontSize:20,fontWeight:700,color:k.color}}>{k.val}</div>
-              <div style={{fontSize:11,color:k.color,opacity:0.8}}>{k.lbl}</div>
-            </div>
-          ))}
-        </div>
+      {/* Filters */}
+      <div style={{display:'flex',gap:10,marginBottom:16,flexWrap:'wrap'}}>
+        <select className="field-select" style={{flex:1,minWidth:120}} value={filterNiveau} onChange={e=>setFilterNiveau(e.target.value)}>
+          <option value="tous">{lang==='ar'?'جميع المستويات':'Tous les niveaux'}</option>
+          {NIVEAUX.map(n=><option key={n} value={n}>{n}</option>)}
+        </select>
+        <select className="field-select" style={{flex:1,minWidth:120}} value={filterPeriode} onChange={e=>setFilterPeriode(parseInt(e.target.value))}>
+          <option value={7}>{lang==='ar'?'آخر 7 أيام':'7 derniers jours'}</option>
+          <option value={30}>{lang==='ar'?'آخر 30 يوم':'30 derniers jours'}</option>
+          <option value={90}>{lang==='ar'?'آخر 3 أشهر':'3 derniers mois'}</option>
+          <option value={365}>{lang==='ar'?'آخر سنة':'Dernière année'}</option>
+        </select>
+        <button onClick={loadData} style={{padding:'6px 14px',background:'#E1F5EE',color:'#085041',border:'none',borderRadius:8,fontWeight:600,cursor:'pointer'}}>🔄</button>
+      </div>
 
-        {/* Timeline */}
-        {timelineArr.length>0&&(
-          <div style={{background:'#fff',border:'0.5px solid #e0e0d8',borderRadius:16,padding:'1.25rem',marginBottom:'1rem'}}>
-            <div style={{fontSize:13,fontWeight:600,marginBottom:10}}>{lang==='ar'?'النشاط اليومي':'Activité quotidienne'}</div>
-            <div style={{display:'flex',gap:2,alignItems:'flex-end',height:80,padding:'0 4px'}}>
-              {timelineArr.map(d=>(
-                <div key={d.date} style={{flex:1,display:'flex',flexDirection:'column',alignItems:'center',gap:2}} title={d.date+': '+d.pts+' pts'}>
-                  <div style={{width:'100%',background:'#1D9E75',borderRadius:'2px 2px 0 0',height:Math.max(3,(d.pts/maxPtsDay)*70)+'px',opacity:0.85}}/>
-                  {timelineArr.length<=14&&<div style={{fontSize:8,color:'#bbb',textAlign:'center'}}>{new Date(d.date).toLocaleDateString('fr-FR',{day:'numeric',month:'numeric'})}</div>}
-                </div>
-              ))}
+      {/* Stats */}
+      <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(130px,1fr))',gap:10,marginBottom:20}}>
+        {statsByNiveau.map(s=>(
+          <div key={s.niveau} style={{background:`${s.color}10`,border:`1.5px solid ${s.color}30`,borderRadius:12,padding:'12px',textAlign:'center'}}>
+            <div style={{fontSize:16,fontWeight:800,color:s.color,marginBottom:4}}>{s.niveau}</div>
+            <div style={{fontSize:22,fontWeight:800,color:'#1a1a1a'}}>{s.nb}</div>
+            <div style={{fontSize:10,color:'#888',marginBottom:6}}>{lang==='ar'?'استظهار':'entrées'}</div>
+            <div style={{height:6,borderRadius:3,background:'#e0e0d8',overflow:'hidden',marginBottom:4}}>
+              <div style={{height:'100%',width:`${s.taux}%`,background:s.color,borderRadius:3}}/>
             </div>
-            <div style={{display:'flex',justifyContent:'space-between',fontSize:11,color:'#888',marginTop:6}}>
-              <span>{lang==='ar'?'الأكثر نشاطاً':'Plus actif'}: <strong style={{color:'#1D9E75'}}>{timelineArr.reduce((m,d)=>d.pts>m.pts?d:m,timelineArr[0]).date}</strong></span>
-              <span>{lang==='ar'?'متوسط يومي':'Moy./jour'}: <strong style={{color:'#1D9E75'}}>{Math.round(ptsTotal/(joursActifs||1))} pts</strong></span>
-            </div>
+            <div style={{fontSize:10,color:s.color,fontWeight:600}}>{s.uniqueEleves}/{s.totalEleves} ({s.taux}%)</div>
           </div>
-        )}
+        ))}
+      </div>
 
-        {/* Performance list */}
-        {(!drillDown||filterEleve==='tous')&&(
-          <div style={{background:'#fff',border:'0.5px solid #e0e0d8',borderRadius:16,padding:'1.25rem',marginBottom:'1rem'}}>
-            <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:10,flexWrap:'wrap',gap:8}}>
-              <div style={{fontSize:13,fontWeight:600}}>{lang==='ar'?'أداء الطلاب':'Performance par élève'} <span style={{fontSize:11,color:'#888'}}>({actifs.length})</span></div>
-              <input style={{padding:'5px 10px',border:'0.5px solid #e0e0d8',borderRadius:8,fontSize:12,width:160}} placeholder="🔍 Rechercher" value={searchEleve} onChange={e=>setSearchEleve(e.target.value)}/>
-            </div>
-            {actifs.filter(s=>!searchEleve||((s.eleve.prenom+' '+s.eleve.nom).toLowerCase().includes(searchEleve.toLowerCase()))).map((s,idx)=>{
-              const nc=NIVEAU_COLORS[s.eleve.code_niveau||'1']||'#888';
-              return(
-                <div key={s.eleve.id} onClick={()=>{setSelectedEleve(s.eleve.id);setDrillDown(true);}} style={{display:'flex',alignItems:'center',gap:10,padding:'10px 12px',borderRadius:10,cursor:'pointer',marginBottom:6,border:'0.5px solid #e0e0d8',background:'#fff'}}
-                  onMouseEnter={e=>e.currentTarget.style.background='#f9f9f6'} onMouseLeave={e=>e.currentTarget.style.background='#fff'}>
-                  <div style={{fontSize:13,fontWeight:600,color:'#bbb',minWidth:22}}>{idx+1}</div>
-                  <Avatar prenom={s.eleve.prenom} nom={s.eleve.nom} size={34} bg={nc+'18'} color={nc}/>
-                  <div style={{flex:1,minWidth:0}}>
-                    <div style={{display:'flex',alignItems:'center',gap:6,flexWrap:'wrap'}}>
-                      <span style={{fontSize:13,fontWeight:600}}>{s.eleve.prenom} {s.eleve.nom}</span>
-                      <NiveauBadge code={s.eleve.code_niveau}/>
-                      <span style={{fontSize:10,color:'#bbb'}}>{s.instituteurNom}</span>
-                      {s.trend==='up'&&<span style={{fontSize:11,color:'#1D9E75'}}>📈</span>}
-                      {s.trend==='down'&&<span style={{fontSize:11,color:'#E24B4A'}}>📉</span>}
-                    </div>
-                    <div style={{display:'flex',gap:8,marginTop:3,flexWrap:'wrap'}}>
-                      {s.isSourate?(<>{s.sourates>0&&<span style={{fontSize:11,color:'#085041',fontWeight:500}}>{s.sourates} sur. ✓</span>}{s.seqs>0&&<span style={{fontSize:11,color:'#888'}}>{s.seqs} séq.</span>}</>):(<>{s.tomon>0&&<span style={{fontSize:11,color:'#378ADD',fontWeight:500}}>{s.tomon} T.</span>}{s.hizb>0&&<span style={{fontSize:11,color:'#EF9F27',fontWeight:500}}>{s.hizb} Hizb</span>}</>)}
-                      <span style={{fontSize:11,color:'#bbb'}}>{s.nbSeances} séance(s)</span>
-                    </div>
-                    {s.pctObj!==null&&<div style={{marginTop:4}}><div style={{height:4,background:'#e8e8e0',borderRadius:2,overflow:'hidden',width:100}}><div style={{height:'100%',width:s.pctObj+'%',background:s.pctObj>=100?'#1D9E75':s.pctObj>=60?'#EF9F27':'#E24B4A',borderRadius:2}}/></div><div style={{fontSize:9,color:'#888',marginTop:1}}>Obj: {s.pctObj}%{s.pctObj>=100?' ✓':''}</div></div>}
-                  </div>
-                  <div style={{textAlign:'right',flexShrink:0}}>
-                    <div style={{fontSize:16,fontWeight:800,color:nc}}>{s.pts}</div>
-                    <div style={{fontSize:9,color:'#888'}}>pts</div>
-                  </div>
-                  <div style={{color:'#bbb',fontSize:14}}>›</div>
-                </div>
-              );
-            })}
-            {inactifs.length>0&&(
-              <details style={{marginTop:10}}>
-                <summary style={{fontSize:12,color:'#E24B4A',cursor:'pointer',fontWeight:500,padding:'8px 0'}}>⚠️ {inactifs.length} {lang==='ar'?'طالب غير نشط':'élève(s) inactif(s)'}</summary>
-                <div style={{display:'flex',flexDirection:'column',gap:4,marginTop:6}}>
-                  {inactifs.map(s=>(
-                    <div key={s.eleve.id} onClick={()=>{setSelectedEleve(s.eleve.id);setDrillDown(true);}} style={{display:'flex',alignItems:'center',gap:10,padding:'7px 12px',borderRadius:8,cursor:'pointer',background:'#fff8f8',border:'0.5px solid #E24B4A20'}}>
-                      <Avatar prenom={s.eleve.prenom} nom={s.eleve.nom} size={28} bg="#FCEBEB" color="#A32D2D"/>
-                      <span style={{fontSize:12,fontWeight:500,color:'#A32D2D'}}>{s.eleve.prenom} {s.eleve.nom}</span>
-                      <NiveauBadge code={s.eleve.code_niveau}/>
-                      <span style={{marginRight:'auto'}}/>
-                      <span style={{fontSize:11,color:'#E24B4A'}}>{s.derniere?joursDepuis(s.derniere)+'j':'—'}</span>
-                    </div>
-                  ))}
-                </div>
-              </details>
-            )}
+      {/* Absentees */}
+      {absenteesParNiveau.length>0&&(
+        <div style={{background:'#FFF3CD',border:'1.5px solid #FFECB5',borderRadius:12,padding:'12px',marginBottom:16}}>
+          <div style={{fontSize:13,fontWeight:700,color:'#856404',marginBottom:8}}>
+            ⚠️ {lang==='ar'?'لم يشاركوا في أي مراجعة:':'Sans muraja\u02bca sur cette période :'}
           </div>
-        )}
+          <div style={{display:'flex',flexWrap:'wrap',gap:6}}>
+            {absenteesParNiveau.map(e=>(
+              <span key={e.id} style={{padding:'3px 8px',background:'#fff',borderRadius:10,fontSize:12,color:'#856404',border:'1px solid #FFECB5'}}>{e.prenom} {e.nom}</span>
+            ))}
+          </div>
+        </div>
+      )}
 
-        {/* Drill-down */}
-        {drillDown&&eleveDrillDown&&(
-          <div style={{background:'#fff',border:'1.5px solid #1D9E75',borderRadius:16,padding:'1.25rem',marginBottom:'1rem'}}>
-            <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:'1rem'}}>
-              <button onClick={()=>{setDrillDown(false);setSelectedEleve(null);setFilterEleve('tous');}} style={{padding:'4px 10px',border:'0.5px solid #e0e0d8',borderRadius:6,background:'#fff',fontSize:11,cursor:'pointer'}}>← {t(lang,'retour')}</button>
-              <Avatar prenom={eleveDrillDown.prenom} nom={eleveDrillDown.nom} size={38} bg={(NIVEAU_COLORS[eleveDrillDown.code_niveau||'1']||'#888')+'18'} color={NIVEAU_COLORS[eleveDrillDown.code_niveau||'1']||'#888'}/>
-              <div style={{flex:1}}><div style={{fontSize:15,fontWeight:700}}>{eleveDrillDown.prenom} {eleveDrillDown.nom}</div><div style={{display:'flex',gap:6,marginTop:2}}><NiveauBadge code={eleveDrillDown.code_niveau}/></div></div>
-              <button onClick={()=>navigate('fiche',eleveDrillDown)} style={{padding:'6px 12px',background:'#1D9E75',color:'#fff',border:'none',borderRadius:8,fontSize:11,cursor:'pointer'}}>Fiche →</button>
-            </div>
-            {allDrill.length===0?<div className="empty">{lang==='ar'?'لا نشاط في هذه الفترة':'Aucune activité sur la période'}</div>:(
-              <div className="table-wrap">
-                <table><thead><tr>
-                  <th>Date</th><th>Heure</th><th>Type</th><th>Détails</th>
-                  <th>{lang==='ar'?'السورة/الحزب':'Sourate/Hizb'}</th>
-                  <th>{lang==='ar'?'صحح':'Validé'}</th><th>pts</th>
-                </tr></thead>
-                <tbody>
-                  {allDrill.map((item,i)=>{
-                    const isSR=!!item.type_recitation;
-                    const sourate=souratesDB.find(s=>s.id===item.sourate_id);
-                    const pts=isSR?(item.points||10):(item.type_validation==='hizb_complet'?100:item.nombre_tomon*10);
-                    return(
-                      <tr key={i}>
-                        <td style={{fontSize:12,color:'#888'}}>{new Date(item.date_validation).toLocaleDateString('fr-FR',{day:'2-digit',month:'short'})}</td>
-                        <td style={{fontSize:12,color:'#888'}}>{new Date(item.date_validation).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'})}</td>
-                        <td>{isSR?(item.type_recitation==='complete'?<span className="badge badge-green">Complète</span>:<span className="badge badge-blue">Séquence</span>):(item.type_validation==='hizb_complet'?<span className="badge badge-green">Hizb ✓</span>:<span className="badge badge-blue">Tomon</span>)}</td>
-                        <td>{isSR?(item.type_recitation==='complete'?'✓':('V.'+item.verset_debut+'→'+item.verset_fin)):(item.type_validation==='hizb_complet'?('Hizb '+item.hizb_valide):(item.nombre_tomon+' T.'+( item.tomon_debut||'')))}</td>
-                        <td style={{fontFamily:"'Tajawal',Arial",direction:'rtl',fontSize:13}}>{sourate?sourate.nom_ar:(item.hizb_validation?'Hizb '+item.hizb_validation:'—')}</td>
-                        <td style={{fontSize:11,color:'#888'}}>{item.valideur?item.valideur.prenom[0]+'. '+item.valideur.nom:'—'}</td>
-                        <td><span style={{fontSize:12,fontWeight:700,color:'#1D9E75'}}>+{pts}</span></td>
-                      </tr>
-                    );
-                  })}
-                </tbody></table>
+      {/* Session list */}
+      <div style={{fontSize:14,fontWeight:600,marginBottom:10,color:'#333'}}>
+        📋 {lang==='ar'?'سجل المراجعات':'Historique des muraja\u02bca'} ({sessionList.length})
+      </div>
+
+      {sessionList.length===0?(
+        <div style={{textAlign:'center',color:'#aaa',padding:'2rem',background:'#fafaf8',borderRadius:12}}>
+          {lang==='ar'?'لا توجد مراجعات في هذه الفترة':'Aucune muraja\u02bca enregistrée sur cette période'}
+        </div>
+      ):(
+        <div style={{display:'flex',flexDirection:'column',gap:10}}>
+          {sessionList.map((s,i)=>{
+            const nc = s.color;
+            const isEditing = editingSession?.key === s.key;
+            return (
+              <div key={i} style={{background:'#fff',border:`1.5px solid ${isEditing?nc:nc+'20'}`,borderRadius:12,padding:'12px 14px',transition:'border 0.2s'}}>
+                {/* Header row */}
+                <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:8}}>
+                  <span style={{padding:'2px 8px',borderRadius:8,background:`${nc}20`,color:nc,fontWeight:700,fontSize:12}}>{s.niveau}</span>
+                  <span style={{fontWeight:700,fontSize:14,flex:1}}>{s.contenu}</span>
+                  <span style={{padding:'2px 8px',borderRadius:8,background:'#FFF3CD',color:'#856404',fontSize:11,fontWeight:600}}>📖 {s.type}</span>
+                  {/* Action buttons */}
+                  {user.role==='surveillant'&&!isEditing&&(
+                    <div style={{display:'flex',gap:4}}>
+                      <button onClick={()=>startEdit(s)} style={{padding:'3px 8px',background:'#E6F1FB',color:'#378ADD',border:'0.5px solid #378ADD30',borderRadius:6,cursor:'pointer',fontSize:11,fontWeight:600}}>✏️</button>
+                      <button onClick={()=>handleDelete(s)} style={{padding:'3px 8px',background:'#FCEBEB',color:'#E24B4A',border:'0.5px solid #E24B4A30',borderRadius:6,cursor:'pointer',fontSize:11,fontWeight:600}}>🗑</button>
+                    </div>
+                  )}
+                </div>
+
+                {/* Meta */}
+                <div style={{display:'flex',gap:16,fontSize:11,color:'#888',marginBottom:8}}>
+                  <span>📅 {new Date(s.date).toLocaleDateString(lang==='ar'?'ar-MA':'fr-FR',{weekday:'long',day:'numeric',month:'long'})}</span>
+                  <span>👤 {s.valideur}</span>
+                  <span style={{color:nc,fontWeight:600}}>👥 {s.eleves.length} {lang==='ar'?'طالب':'élève(s)'}</span>
+                </div>
+
+                {/* Normal view: eleve badges */}
+                {!isEditing&&(
+                  <div style={{display:'flex',flexWrap:'wrap',gap:4}}>
+                    {s.eleves.map((e,j)=>(
+                      <span key={j} style={{padding:'2px 8px',background:`${nc}10`,borderRadius:10,fontSize:11,color:'#444',border:`1px solid ${nc}20`}}>
+                        {e.prenom} {e.nom}
+                      </span>
+                    ))}
+                  </div>
+                )}
+
+                {/* Edit mode */}
+                {isEditing&&(
+                  <div>
+                    <div style={{fontSize:12,fontWeight:600,color:'#378ADD',marginBottom:8}}>
+                      ✏️ {lang==='ar'?'تعديل قائمة الطلاب — انقر لاستثناء/إضافة طالب':'Modifier les élèves — cliquer pour exclure/inclure'}
+                    </div>
+                    <div style={{display:'flex',flexDirection:'column',gap:4,maxHeight:250,overflowY:'auto',marginBottom:10}}>
+                      {elevesDuNiveau.map(e=>{
+                        const inclus = elevesDejaInclus.has(e.id);
+                        const exclu  = editExclus[e.id];
+                        const present = inclus && !exclu;
+                        return (
+                          <div key={e.id} onClick={()=>{ if(inclus) toggleEditExclu(e.id); }}
+                            style={{display:'flex',alignItems:'center',gap:10,padding:'7px 10px',borderRadius:8,cursor:inclus?'pointer':'default',
+                              background:!inclus?'#f5f5f0':exclu?'#FCEBEB':'#E1F5EE',
+                              border:`1px solid ${!inclus?'#e0e0d8':exclu?'#E24B4A30':'#1D9E7530'}`}}>
+                            <div style={{width:18,height:18,borderRadius:4,flexShrink:0,display:'flex',alignItems:'center',justifyContent:'center',
+                              background:!inclus?'#e0e0d8':exclu?'#E24B4A':'#1D9E75',color:'#fff',fontSize:10}}>
+                              {!inclus?'—':exclu?'✕':'✓'}
+                            </div>
+                            <span style={{flex:1,fontSize:13,fontWeight:present?600:400,
+                              color:!inclus?'#bbb':exclu?'#E24B4A':'#1D9E75',
+                              textDecoration:exclu?'line-through':'none'}}>
+                              {e.prenom} {e.nom}
+                            </span>
+                            {!inclus&&<span style={{fontSize:10,color:'#bbb'}}>{lang==='ar'?'غير مسجل':'non inclus'}</span>}
+                          </div>
+                        );
+                      })}
+                    </div>
+                    <div style={{display:'flex',gap:8}}>
+                      <button onClick={()=>{setEditingSession(null);setEditExclus({});}} className="back-link" style={{fontSize:12}}>
+                        {lang==='ar'?'إلغاء':'Annuler'}
+                      </button>
+                      <button onClick={handleSaveEdit} disabled={editSaving}
+                        style={{flex:1,padding:'8px',background:editSaving?'#ccc':'#1D9E75',color:'#fff',border:'none',borderRadius:8,fontWeight:600,cursor:'pointer',fontSize:13}}>
+                        {editSaving?'...':(lang==='ar'?'✓ حفظ التعديلات':'✓ Sauvegarder')}
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
-            )}
-          </div>
-        )}
-      </>)}
+            );
+          })}
+        </div>
+      )}
+
+      <ConfirmModal isOpen={confirmModal.isOpen} title={confirmModal.title} message={confirmModal.message}
+        onConfirm={confirmModal.onConfirm} onCancel={hideConfirm}
+        confirmLabel={confirmModal.confirmLabel} confirmColor={confirmModal.confirmColor} lang={lang}/>
     </div>
   );
 }
