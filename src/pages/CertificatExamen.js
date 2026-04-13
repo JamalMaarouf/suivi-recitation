@@ -4,10 +4,10 @@ import { useToast } from '../lib/toast';
 // Génère un PDF en capturant un HTML rendu (supporte l'arabe)
 export async function genererCertificatPDF({ resultat, eleve, examen, niveau, ecole }) {
   try {
-    const [{ jsPDF }, html2canvas] = await Promise.all([
-      import('jspdf'),
-      import('html2canvas'),
-    ]);
+    const jspdfModule    = await import('jspdf');
+    const h2cModule      = await import('html2canvas');
+    const jsPDF          = jspdfModule.jsPDF || jspdfModule.default?.jsPDF || jspdfModule.default;
+    const html2canvasFn  = h2cModule.default || h2cModule;
 
     const date = new Date(resultat.date_examen || resultat.created_at)
       .toLocaleDateString('fr-FR', { day:'numeric', month:'long', year:'numeric' });
@@ -112,7 +112,7 @@ export async function genererCertificatPDF({ resultat, eleve, examen, niveau, ec
     await document.fonts.ready;
 
     // Capturer en image
-    const canvas = await html2canvas.default(container.querySelector('#cert-render'), {
+    const canvas = await html2canvasFn(container.querySelector('#cert-render'), {
       scale: 2,
       useCORS: true,
       backgroundColor: '#fff',
@@ -123,7 +123,7 @@ export async function genererCertificatPDF({ resultat, eleve, examen, niveau, ec
     document.body.removeChild(container);
 
     // Convertir en PDF A4 paysage
-    const doc = new jsPDF.jsPDF({ orientation:'landscape', unit:'mm', format:'a4' });
+    const doc = new jsPDF({ orientation:'landscape', unit:'mm', format:'a4' });
     const imgData = canvas.toDataURL('image/jpeg', 0.95);
     doc.addImage(imgData, 'JPEG', 0, 0, 297, 210);
 
