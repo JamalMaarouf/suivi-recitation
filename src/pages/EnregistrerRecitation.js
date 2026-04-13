@@ -134,7 +134,7 @@ export default function EnregistrerRecitation({  user, eleve: eleveInitial, navi
       .eq('eleve_id', selectedEleve.id).eq('ecole_id', user.ecole_id);
 
     const blocageDetecte = await verifierBlocageExamen(supabase, {
-      eleve: { ...selectedEleve, niveau_id: selectedEleve.niveau_id },
+      eleve: selectedEleve,   // contient code_niveau
       ecole_id: user.ecole_id,
       validations: valsNouv || [],
       recitations: recsNouv || [],

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { genererCertificatPDF } from './CertificatExamen';
 import { supabase } from '../lib/supabase';
 import { useToast } from '../lib/toast';
 
@@ -15,6 +16,8 @@ export default function ResultatsExamens({ user, navigate, goBack, lang='fr', is
   const [souratesDB,setSouratesDB]= useState([]);
   const [loading,   setLoading]   = useState(true);
   const [saving,    setSaving]    = useState(false);
+  const [loadingCert, setLoadingCert] = useState(null); // id du résultat en cours
+  const [ecole, setEcole] = useState(null);
   const [activeTab, setActiveTab] = useState('saisir');
 
   // Formulaire
@@ -58,6 +61,12 @@ export default function ResultatsExamens({ user, navigate, goBack, lang='fr', is
     setEnsembles(en||[]);
     setSouratesDB(sd||[]);
     setLoading(false);
+    // Charger les données de l'école
+    if (user.ecole_id) {
+      const { data: ecoleData } = await supabase.from('ecoles')
+        .select('id,nom').eq('id', user.ecole_id).maybeSingle();
+      setEcole(ecoleData);
+    }
   };
 
   // Quand on sélectionne un élève → charger ses examens disponibles
@@ -137,6 +146,17 @@ export default function ResultatsExamens({ user, navigate, goBack, lang='fr', is
   };
 
   const nomEleve   = (id) => { const e=eleves.find(x=>x.id===id); return e?`${e.prenom} ${e.nom}`:'?'; };
+
+  const telechargerCertificat = async (r) => {
+    const el = eleves.find(e=>e.id===r.eleve_id);
+    const ex = examens.find(e=>e.id===r.examen_id);
+    const niv= niveaux.find(n=>n.id===ex?.niveau_id);
+    if (!el || !ex) return;
+    setLoadingCert(r.id);
+    const ok = await genererCertificatPDF({ resultat:r, eleve:el, examen:ex, niveau:niv, ecole });
+    setLoadingCert(null);
+    if (!ok) toast.warning(lang==='ar'?'خطأ في إنشاء الشهادة':'Erreur certificat');
+  };
   const nomExamen  = (id) => examens.find(e=>e.id===id)?.nom||'?';
   const nomNiveau  = (id) => { const n=niveaux.find(x=>x.id===id); return n?`${n.code} — ${n.nom}`:'?'; };
   const couleurNiv = (id) => niveaux.find(n=>n.id===id)?.couleur||'#888';
@@ -498,14 +518,25 @@ export default function ResultatsExamens({ user, navigate, goBack, lang='fr', is
                     </div>
                   )}
                 </div>
-                {/* Score + date */}
+                {/* Score + date + certificat */}
                 <div style={{textAlign:'center',flexShrink:0}}>
                   <div style={{fontSize:20,fontWeight:800,color:ok?'#1D9E75':'#E24B4A'}}>
                     {r.score}%
                   </div>
-                  <div style={{fontSize:10,color:'#aaa'}}>
+                  <div style={{fontSize:10,color:'#aaa',marginBottom:ok?6:0}}>
                     {new Date(r.date_examen||r.created_at).toLocaleDateString('fr-FR')}
                   </div>
+                  {ok&&(
+                    <button onClick={()=>telechargerCertificat(r)}
+                      disabled={loadingCert===r.id}
+                      style={{padding:'4px 10px',borderRadius:20,border:'none',
+                        background:loadingCert===r.id?'#ccc':'#1D9E75',
+                        color:'#fff',fontSize:10,fontWeight:600,
+                        cursor:loadingCert===r.id?'not-allowed':'pointer',
+                        fontFamily:'inherit'}}>
+                      {loadingCert===r.id?'...':'📄 Cert.'}
+                    </button>
+                  )}
                 </div>
               </div>
             );

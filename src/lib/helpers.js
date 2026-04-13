@@ -284,73 +284,136 @@ export function niveauTraduit(niveau, lang, tFn) {
 export async function verifierBlocageExamen(supabase, {
   eleve,
   ecole_id,
-  validations,        // validations existantes (hizb)
-  recitations,        // recitations_sourates existantes
+  validations,    // validations existantes (hizb)
+  recitations,    // recitations_sourates existantes
 }) {
   try {
-    // Charger les blocs d'examen pour l'école + niveau de l'élève
-    const { data: blocs } = await supabase
-      .from('blocs_examen')
-      .select('*, examen:examen_id(id,nom,bloquant,score_minimum)')
+    // Trouver le niveau_id depuis la table niveaux via code_niveau
+    const { data: niveauData } = await supabase
+      .from('niveaux')
+      .select('id, type, code')
       .eq('ecole_id', ecole_id)
-      .eq('niveau_id', eleve.niveau_id || '')  // niveau_id dynamique
+      .eq('code', eleve.code_niveau || '')
+      .maybeSingle();
+
+    if (!niveauData) return null;
+    const niveauId   = niveauData.id;
+    const niveauType = niveauData.type; // 'hizb' ou 'sourate'
+
+    // Charger les examens bloquants pour ce niveau
+    const { data: examens } = await supabase
+      .from('examens')
+      .select('id, nom, bloquant, score_minimum, type_contenu, contenu_ids')
+      .eq('ecole_id', ecole_id)
+      .eq('niveau_id', niveauId)
+      .eq('bloquant', true)
       .order('ordre');
 
-    if (!blocs || blocs.length === 0) return null;
+    if (!examens || examens.length === 0) return null;
 
-    for (const bloc of blocs) {
-      if (!bloc.examen?.bloquant) continue;
-      const ids = bloc.contenu_ids || [];
+    for (const examen of examens) {
+      const ids = examen.contenu_ids || [];
       if (ids.length === 0) continue;
 
-      let blocTermine = false;
+      let examTermine = false;
 
-      if (bloc.type_contenu === 'hizb') {
-        // Hizb complets de l'élève
+      if (niveauType === 'hizb') {
+        // ── Niveau Hizb ──
+        // ids = numéros de Hizb
+        // L'examen se déclenche quand tous ces Hizb sont validés (hizb_complet)
         const hizbComplets = new Set(
           (validations||[])
             .filter(v => v.type_validation === 'hizb_complet')
             .map(v => v.hizb_valide)
         );
-        // Tous les Hizb du bloc sont-ils complétés ?
-        blocTermine = ids.every(h => hizbComplets.has(h));
+        examTermine = ids.every(h => hizbComplets.has(Number(h)));
 
       } else {
+        // ── Niveau Sourate ──
+        // ids = UUIDs des ensembles_sourates
+        // L'examen se déclenche quand toutes les sourates de ces ensembles sont complètes
+
+        // Charger les sourates des ensembles concernés
+        const { data: ensembles } = await supabase
+          .from('ensembles_sourates')
+          .select('id, sourates_ids')
+          .in('id', ids);
+
+        if (!ensembles || ensembles.length === 0) continue;
+
+        // Toutes les sourates de tous ces ensembles
+        const toutesLesSourates = ensembles.flatMap(e => e.sourates_ids || []);
+
         // Sourates complètes de l'élève
         const souratesCompletes = new Set(
           (recitations||[])
-            .filter(r => r.type_recitation === 'complete')
+            .filter(r => r.type_recitation === 'complete' || r.complete === true)
             .map(r => r.sourate_id)
         );
-        // Toutes les sourates du bloc sont-elles complétées ?
-        blocTermine = ids.every(sid => souratesCompletes.has(sid));
+
+        examTermine = toutesLesSourates.length > 0 &&
+          toutesLesSourates.every(sid => souratesCompletes.has(sid));
       }
 
-      if (!blocTermine) continue;
+      if (!examTermine) continue;
 
-      // Le bloc est terminé — vérifier si l'examen a déjà été réussi
+      // Vérifier si l'examen a déjà été réussi
       const { data: resultat } = await supabase
         .from('resultats_examens')
-        .select('statut, score')
-        .eq('examen_id', bloc.examen.id)
+        .select('statut')
+        .eq('examen_id', examen.id)
         .eq('eleve_id', eleve.id)
         .eq('statut', 'reussi')
         .maybeSingle();
 
       if (resultat) continue; // déjà réussi → pas de blocage
 
-      // Blocage actif !
+      // 🔒 Blocage actif !
       return {
-        bloc,
-        examen: bloc.examen,
-        message_fr: `Examen requis : "${bloc.examen.nom}" avant de continuer`,
-        message_ar: `الامتحان مطلوب: "${bloc.examen.nom}" قبل المتابعة`,
+        examen,
+        type: niveauType,
+        message_fr: `🔒 Examen requis avant de continuer : "${examen.nom}"`,
+        message_ar: `🔒 الامتحان مطلوب قبل المتابعة: "${examen.nom}"`,
       };
     }
 
     return null; // aucun blocage
   } catch (err) {
     console.error('verifierBlocageExamen error:', err);
-    return null; // en cas d'erreur, ne pas bloquer
+    return null;
   }
+}
+
+// ── HELPERS NIVEAUX DYNAMIQUES ─────────────────────────────────
+// Cache des niveaux chargé une fois depuis Supabase
+let _niveauxCache = null;
+
+export async function getNiveauxDynamiques(supabase, ecole_id) {
+  if (_niveauxCache) return _niveauxCache;
+  const { data } = await supabase
+    .from('niveaux').select('id,code,nom,type,couleur').eq('ecole_id', ecole_id).order('ordre');
+  _niveauxCache = data || [];
+  return _niveauxCache;
+}
+
+export function clearNiveauxCache() {
+  _niveauxCache = null;
+}
+
+// Vérifier si un code_niveau correspond à un niveau sourate (dynamique)
+export function isSourateNiveauDyn(code_niveau, niveaux) {
+  if (!niveaux || niveaux.length === 0) {
+    // Fallback sur les codes historiques
+    return ['5B','5A','2M'].includes(code_niveau);
+  }
+  return niveaux.some(n => n.code === code_niveau && n.type === 'sourate');
+}
+
+// Obtenir la couleur d'un niveau dynamiquement
+export function getCouleurNiveau(code_niveau, niveaux) {
+  if (!niveaux || niveaux.length === 0) {
+    const fallback = {'5B':'#534AB7','5A':'#378ADD','2M':'#1D9E75','2':'#EF9F27','1':'#E24B4A'};
+    return fallback[code_niveau] || '#888';
+  }
+  return niveaux.find(n => n.code === code_niveau)?.couleur || '#888';
 }

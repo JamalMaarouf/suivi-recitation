@@ -4,9 +4,14 @@ import { calcEtatEleve, niveauTraduit, calcStats, formatDate, formatDateCourt, i
 import { t } from '../lib/i18n';
 
 const C = { green:'#1D9E75',greenBg:'#E1F5EE',blue:'#378ADD',blueBg:'#E6F1FB',amber:'#EF9F27',amberBg:'#FAEEDA',red:'#E24B4A',redBg:'#FCEBEB',border:'#e0e0d8',muted:'#888',dark:'#1a1a1a' };
-const NIVEAU_COLORS = { '5B':'#534AB7','5A':'#378ADD','2M':'#1D9E75','2':'#EF9F27','1':'#E24B4A' };
+// Couleurs niveaux — fallback sur des valeurs par défaut si niveaux pas encore chargés
+const NIVEAU_COLORS_FALLBACK = { '5B':'#534AB7','5A':'#378ADD','2M':'#1D9E75','2':'#EF9F27','1':'#E24B4A' };
+const getNiveauColor = (code, niveaux) => {
+  if (niveaux && niveaux.length > 0) return niveaux.find(n=>n.code===code)?.couleur || '#888';
+  return NIVEAU_COLORS_FALLBACK[code] || '#888';
+};
 function NiveauBadge({ code }) {
-  const c = NIVEAU_COLORS[code||''] || '#888';
+  const c = getNiveauColor(code||'', niveaux||[]) || '#888';
   return code ? <span style={{padding:'1px 6px',borderRadius:10,fontSize:9,fontWeight:700,background:c+'18',color:c,border:`0.5px solid ${c}40`}}>{code}</span> : null;
 }
 function Avatar({ prenom, nom, size=36, bg=C.greenBg, color='#085041' }) {
@@ -364,7 +369,7 @@ export default function Dashboard({ user, navigate, goBack, lang, isMobile=false
             </div>
             {allValidations.slice(0,5).map(v=>{
               const el=eleves.find(e=>e.id===v.eleve_id);
-              const nc=NIVEAU_COLORS[el?.code_niveau||'1']||'#888';
+              const nc=getNiveauColor(el?.code_niveau||'1', niveaux||[])||'#888';
               return(
                 <div key={v.id} onClick={()=>el&&navigate('fiche',el)}
                   style={{background:'#fff',borderRadius:12,padding:'11px 14px',

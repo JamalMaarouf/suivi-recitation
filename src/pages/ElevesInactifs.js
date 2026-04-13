@@ -4,7 +4,12 @@ import { supabase } from '../lib/supabase';
 import { calcEtatEleve, joursDepuis, isInactif } from '../lib/helpers';
 import { t } from '../lib/i18n';
 
-const NIVEAU_COLORS = { '5B':'#534AB7','5A':'#378ADD','2M':'#1D9E75','2':'#EF9F27','1':'#E24B4A' };
+// Couleurs niveaux — fallback sur des valeurs par défaut si niveaux pas encore chargés
+const NIVEAU_COLORS_FALLBACK = { '5B':'#534AB7','5A':'#378ADD','2M':'#1D9E75','2':'#EF9F27','1':'#E24B4A' };
+const getNiveauColor = (code, niveaux) => {
+  if (niveaux && niveaux.length > 0) return niveaux.find(n=>n.code===code)?.couleur || '#888';
+  return NIVEAU_COLORS_FALLBACK[code] || '#888';
+};
 
 export default function ElevesInactifs({ navigate, goBack, lang='fr', user, isMobile }) {
   const { toast } = useToast();
@@ -97,7 +102,7 @@ export default function ElevesInactifs({ navigate, goBack, lang='fr', user, isMo
             const jours = e.jours;
             const estJamais = jours == null;
             const urgent = !estJamais && jours > 30;
-            const nc = NIVEAU_COLORS[e.code_niveau||'1'] || '#888';
+            const nc = getNiveauColor(e.code_niveau||'1', niveaux||[]) || '#888';
             const bg = estJamais ? '#F0EEFF' : urgent ? '#FFF5F5' : '#FFFDF0';
             const borderCol = estJamais ? '#534AB7' : urgent ? '#E24B4A' : '#EF9F27';
             const textCol = estJamais ? '#534AB7' : urgent ? '#E24B4A' : '#856404';

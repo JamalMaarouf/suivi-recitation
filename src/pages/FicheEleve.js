@@ -357,13 +357,15 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang, isMobi
     setSavingPassage(false);
   };
 
-  if (['5B','5A','2M'].includes(eleve.code_niveau)) {
+  const _niveauxCtx = typeof niveaux !== 'undefined' ? niveaux : [];
+  if (_niveauxCtx.some(n=>n.code===eleve.code_niveau&&n.type==='sourate') || ['5B','5A','2M'].includes(eleve.code_niveau)) {
     return <FicheSourate eleve={eleve} user={user} navigate={navigate} lang={lang} />;
   }
 
   if (isMobile) {
     const sl2 = etat ? scoreLabel(etat.points.total) : {color:'#888',bg:'#f0f0ec',label:'—'};
-    const nc = {'5B':'#534AB7','5A':'#378ADD','2M':'#1D9E75','2':'#EF9F27','1':'#E24B4A'}[eleve.code_niveau||'1']||'#888';
+    const _niveauxFe = typeof niveaux !== 'undefined' ? niveaux : [];
+    const nc = getNiveauColor(eleve.code_niveau||'1', _niveauxFe);
     return (
       <div style={{paddingBottom:80, background:'#f5f5f0', minHeight:'100vh'}}>
         {/* Sticky header */}

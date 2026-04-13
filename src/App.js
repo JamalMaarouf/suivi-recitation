@@ -32,6 +32,7 @@ const GestionEnsembles    = lazy(() => import('./pages/GestionEnsembles'));
 const GestionBlocs        = lazy(() => import('./pages/GestionBlocs'));
 const ResultatsExamens    = lazy(() => import('./pages/ResultatsExamens'));
 import { t, getDir } from './lib/i18n';
+import { isSourateNiveauDyn } from './lib/helpers';
 import { ToastProvider } from './lib/toast';
 import { supabase } from './lib/supabase';
 import './App.css';
@@ -75,6 +76,7 @@ export const LangContext = React.createContext({ lang: 'fr', setLang: () => {} }
 
 export default function App() {
   const [user, setUser] = useState(null);
+  const [niveauxApp, setNiveauxApp] = useState([]);
   const [showInscription, setShowInscription] = useState(false);
   const [showInstallBtn, setShowInstallBtn] = useState(false);
 
@@ -248,7 +250,7 @@ export default function App() {
           {page === 'historique_seances'   && <ErrorBoundary><HistoriqueSeances user={user} navigate={navigate} goBack={goBack} lang={lang} isMobile={isMobile} /></ErrorBoundary>}
           {page === 'finance'             && user.role==='surveillant' && <ErrorBoundary><Finance user={user} navigate={navigate} goBack={goBack} lang={lang} isMobile={isMobile} /></ErrorBoundary>}
           {page === 'enregistrer'       && (
-            ['5B','5A','2M'].includes(selectedEleve?.code_niveau||'')
+            isSourateNiveauDyn(selectedEleve?.code_niveau||'', niveauxApp)
               ? <RecitationSourate eleve={selectedEleve} {...pageProps} />
               : <EnregistrerRecitation eleve={selectedEleve} {...pageProps} />
           )}
