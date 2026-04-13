@@ -51,9 +51,8 @@ export default function ResultatsExamens({ user, navigate, goBack, lang='fr', is
     const niveauxData = nv||[];
     const examenData  = (ex||[]).map(e=>({ ...e, niveau: niveauxData.find(n=>n.id===e.niveau_id)||null }));
     // Instituteur → ses élèves uniquement / Surveillant → tous
-    const elevesFiltres = (user.role === 'instituteur')
-      ? (el||[]).filter(e => e.instituteur_referent_id === user.id)
-      : (el||[]);
+    // Tous les élèves de l'école — instituteur et surveillant ont accès à tous
+    const elevesFiltres = (el||[]);
     setEleves(elevesFiltres);
     setExamens(examenData);
     setResultats(re||[]);

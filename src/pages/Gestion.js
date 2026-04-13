@@ -872,10 +872,12 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile 
               {lang==='ar'?'إعدادات المدرسة':'Configuration école'}
             </div>
             {[
-              {icon:'📚', label:lang==='ar'?'المستويات':'Niveaux', desc:lang==='ar'?'إدارة مستويات المدرسة':"Configurer les niveaux de l'école", page:'niveaux', color:'#1D9E75', bg:'#E1F5EE'},
-              {icon:'📝', label:lang==='ar'?'الامتحانات':'Examens',    desc:lang==='ar'?'تكوين الامتحانات والحدود':'Configurer les examens et seuils',    page:'examens', color:'#EF9F27', bg:'#FAEEDA'},
-              {icon:'📦', label:lang==='ar'?'مجموعات السور':'Ensembles', desc:lang==='ar'?'تجميع السور في مجموعات للتقدم':'Grouper les sourates par ensemble', page:'ensembles', color:'#D85A30', bg:'#FAECE7'},
-              {icon:'🏅', label:lang==='ar'?'نتائج الامتحانات':'Résultats', desc:lang==='ar'?'تسجيل ومتابعة نتائج الامتحانات':'Saisir et consulter les résultats',  page:'resultats_examens', color:'#534AB7', bg:'#EEEDFE'},
+              ...(user?.role==='surveillant'?[
+                {icon:'📚', label:lang==='ar'?'المستويات':'Niveaux', desc:lang==='ar'?'إدارة المستويات والبرامج':"Gérer les niveaux et programmes", page:'niveaux', color:'#1D9E75', bg:'#E1F5EE'},
+                {icon:'📝', label:lang==='ar'?'الامتحانات':'Examens', desc:lang==='ar'?'تكوين الامتحانات والحدود':'Configurer les examens', page:'examens', color:'#EF9F27', bg:'#FAEEDA'},
+                {icon:'📦', label:lang==='ar'?'مجموعات السور':'Ensembles', desc:lang==='ar'?'تجميع السور في مجموعات':'Grouper les sourates', page:'ensembles', color:'#D85A30', bg:'#FAECE7'},
+              ]:[]),
+              {icon:'🏅', label:lang==='ar'?'نتائج الامتحانات':'Résultats', desc:lang==='ar'?'تسجيل ومتابعة نتائج الامتحانات':'Saisir et consulter les résultats', page:'resultats_examens', color:'#534AB7', bg:'#EEEDFE'},
             ].map(item=>(
               <div key={item.page} onClick={()=>navigate(item.page)}
                 style={{background:'#fff',borderRadius:14,padding:'16px',marginBottom:10,
@@ -894,7 +896,7 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile 
           </div>
         )}
 
-                {confirmModal.isOpen&&(
+        {confirmModal.isOpen&&(
           <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.5)',zIndex:1000,display:'flex',alignItems:'center',justifyContent:'center',padding:20}}>
             <div style={{background:'#fff',borderRadius:16,padding:24,maxWidth:320,width:'100%'}}>
               <div style={{fontWeight:700,fontSize:16,marginBottom:8}}>{confirmModal.title}</div>

@@ -211,11 +211,12 @@ export default function App() {
                 {p:'muraja', label:'📖 '+(lang==='ar'?'مراجعة جماعية':'Muraja\'a'), roles:['surveillant','instituteur']},
                 {p:'seance', label:'📋 '+t(lang,'seance'), roles:['surveillant','instituteur']},
                 {p:'calendrier', label:'📅 '+t(lang,'calendrier'), roles:['surveillant','instituteur']},
-                {p:'rapport_mensuel', label:'📊 '+t(lang,'rapport'), roles:['surveillant']},
+                {p:'rapport_mensuel', label:'📊 '+t(lang,'rapport'), roles:['surveillant','instituteur']},
                 {p:'historique_seances', label:'📈 '+(t(lang,'historique')||'Historique'), roles:['surveillant','instituteur']},
+                {p:'resultats_examens', label:'🏅 '+(lang==='ar'?'نتائج الامتحانات':'Résultats'), roles:['surveillant','instituteur']},
                 {p:'objectifs', label:'🎯 '+(lang==='ar'?'الأهداف':lang==='en'?'Objectives':'Objectifs'), roles:['surveillant']},
                 {p:'finance', label:'💰 '+(lang==='ar'?'المالية':'Finance'), roles:['surveillant']},
-                {p:'gestion', label:'⚙️ '+t(lang,'gestion'), roles:['surveillant','instituteur']},
+                {p:'gestion', label:'⚙️ '+t(lang,'gestion'), roles:['surveillant']},
               ].filter(b=>b.roles.includes(user.role)).map(b=>(
                 <button key={b.p}
                   className={`nav-btn ${page===b.p?'active':''}`}
@@ -288,6 +289,7 @@ export default function App() {
               { key: 'dashboard',        icon: '🏠', label: lang==='ar'?'الرئيسية':'Accueil' },
               { key: 'seance',           icon: '📋', label: lang==='ar'?'الحصة':'Séances' },
               { key: 'validation_rapide',icon: '⚡', label: lang==='ar'?'استظهار':'Valider' },
+              { key: 'resultats_examens',icon: '🏅', label: lang==='ar'?'نتائج':'Résultats' },
               { key: 'profil_mobile',    icon: '👤', label: lang==='ar'?'حسابي':'Profil' },
             ] : [
               { key: 'dashboard',        icon: '🏠', label: lang==='ar'?'الرئيسية':'Accueil' },
