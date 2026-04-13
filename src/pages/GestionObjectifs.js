@@ -1,1206 +1,628 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
+import { useToast } from '../lib/toast';
 import ConfirmModal from '../components/ConfirmModal';
-import { t } from '../lib/i18n';
-import { SOURATES_5B, SOURATES_5A, SOURATES_2M } from '../lib/sourates';
 
 const PERIODES = [
-  { val: 'semaine',    label_fr: 'Semaine',    label_ar: 'أسبوع',       label_en: 'Week',      jours: 7   },
-  { val: 'quinzaine',  label_fr: 'Quinzaine',  label_ar: 'أسبوعان',     label_en: 'Fortnight', jours: 15  },
-  { val: 'mois',       label_fr: 'Mois',       label_ar: 'شهر',         label_en: 'Month',     jours: 30  },
-  { val: 'trimestre',  label_fr: 'Trimestre',  label_ar: 'فصل دراسي',   label_en: 'Quarter',   jours: 90  },
-  { val: 'semestre',   label_fr: 'Semestre',   label_ar: 'نصف سنة',     label_en: 'Semester',  jours: 180 },
-  { val: 'annee',      label_fr: 'Année',      label_ar: 'سنة',         label_en: 'Year',      jours: 365 },
+  { val:'semaine',   label_fr:'Semaine',   label_ar:'أسبوع',       jours:7   },
+  { val:'mois',      label_fr:'Mois',      label_ar:'شهر',         jours:30  },
+  { val:'trimestre', label_fr:'Trimestre', label_ar:'فصل دراسي',   jours:90  },
+  { val:'semestre',  label_fr:'Semestre',  label_ar:'نصف سنة',     jours:180 },
+  { val:'annee',     label_fr:'Année',     label_ar:'سنة',         jours:365 },
+  { val:'custom',    label_fr:'Dates personnalisées', label_ar:'تواريخ مخصصة', jours:0 },
 ];
 
-const METRIQUES = [
-  { val: 'tomon',    label_fr: 'Tomon récités',       label_ar: 'أثمان مُسمَّعة',    label_en: 'Tomon recited',    niveaux: ['2','1'] },
-  { val: 'hizb',     label_fr: 'Hizb complets',       label_ar: 'أحزاب مكتملة',     label_en: 'Complete Hizb',   niveaux: ['2','1'] },
-  { val: 'sourate',  label_fr: 'Sourates complètes',  label_ar: 'سور مكتملة',       label_en: 'Complete surahs', niveaux: ['5B','5A','2M'] },
-  { val: 'sequence', label_fr: 'Séquences',           label_ar: 'مقاطع',            label_en: 'Sequences',       niveaux: ['5B','5A','2M'] },
-  { val: 'points',   label_fr: 'Points gagnés',       label_ar: 'نقاط مكتسبة',     label_en: 'Points earned',   niveaux: ['5B','5A','2M','2','1'] },
-  { val: 'seances',  label_fr: 'Séances actives',     label_ar: 'حصص نشطة',        label_en: 'Active sessions', niveaux: ['5B','5A','2M','2','1'] },
+const METRIQUES_HIZB    = [
+  { val:'tomon', label_fr:'Tomon récités',  label_ar:'أثمان مُسمَّعة',  unite_fr:'tomon',  unite_ar:'ثمن' },
+  { val:'hizb',  label_fr:'Hizb complets',  label_ar:'أحزاب مكتملة',   unite_fr:'hizb',   unite_ar:'حزب' },
+];
+const METRIQUES_SOURATE = [
+  { val:'sourate',  label_fr:'Sourates complètes', label_ar:'سور مكتملة',    unite_fr:'sourate(s)',  unite_ar:'سورة' },
+  { val:'ensemble', label_fr:'Ensembles complétés', label_ar:'مجموعات مكتملة', unite_fr:'ensemble(s)', unite_ar:'مجموعة' },
 ];
 
-const NIVEAUX = ['5B','5A','2M','2','1'];
-const NIVEAU_LABELS = { '5B':'Préscolaire','5A':'Primaire 1-2','2M':'Primaire 3-4','2':'Primaire 5-6','1':'Collège/Lycée' };
-const NIVEAU_COLORS = { '5B':'#534AB7','5A':'#378ADD','2M':'#1D9E75','2':'#EF9F27','1':'#E24B4A' };
+const getMetriques = (niveauType) =>
+  niveauType === 'sourate' ? METRIQUES_SOURATE : METRIQUES_HIZB;
 
-const getPeriodeLabel = (val, lang) => {
-  const p = PERIODES.find(x=>x.val===val);
-  return p ? (lang==='ar'?p.label_ar:lang==='en'?p.label_en:p.label_fr) : val;
-};
-const getMetriqueLabel = (val, lang) => {
-  const m = METRIQUES.find(x=>x.val===val);
-  return m ? (lang==='ar'?m.label_ar:lang==='en'?m.label_en:m.label_fr) : val;
-};
-
-// Calculate date range from periode
-const calcDateRange = (periode, refDate=new Date()) => {
-  const p = PERIODES.find(x=>x.val===periode);
-  const debut = new Date(refDate);
-  debut.setHours(0,0,0,0);
-  const fin = new Date(debut);
-  fin.setDate(fin.getDate() + (p?.jours||30) - 1);
-  fin.setHours(23,59,59,999);
-  return { debut: debut.toISOString().split('T')[0], fin: fin.toISOString().split('T')[0] };
+const calcDates = (type_periode) => {
+  const today = new Date();
+  const fmt = d => d.toISOString().split('T')[0];
+  const add = (d, n) => { const r=new Date(d); r.setDate(r.getDate()+n); return r; };
+  const debut = new Date(today); debut.setHours(0,0,0,0);
+  const jours = PERIODES.find(p=>p.val===type_periode)?.jours||30;
+  return { date_debut: fmt(debut), date_fin: fmt(add(debut, jours-1)) };
 };
 
-// Calculate achievement for an objectif
-const calcAtteinte = (obj, validations, recitationsSourates) => {
-  const debut = new Date(obj.date_debut);
-  const fin = new Date(obj.date_fin); fin.setHours(23,59,59,999);
-
-  const vPeriode = validations.filter(v => {
-    const d = new Date(v.date_validation);
-    return d >= debut && d <= fin;
-  });
-  const rPeriode = recitationsSourates.filter(r => {
-    const d = new Date(r.date_validation);
-    return d >= debut && d <= fin;
-  });
-
-  let realise = 0;
-  if (obj.metrique === 'tomon') realise = vPeriode.filter(v=>v.type_validation==='tomon').reduce((s,v)=>s+v.nombre_tomon,0);
-  else if (obj.metrique === 'hizb') realise = vPeriode.filter(v=>v.type_validation==='hizb_complet').length;
-  else if (obj.metrique === 'sourate') realise = rPeriode.filter(r=>r.type_recitation==='complete').length;
-  else if (obj.metrique === 'sequence') realise = rPeriode.filter(r=>r.type_recitation==='sequence').length;
-  else if (obj.metrique === 'points') {
-    const t = vPeriode.filter(v=>v.type_validation==='tomon').reduce((s,v)=>s+v.nombre_tomon,0);
-    const h = vPeriode.filter(v=>v.type_validation==='hizb_complet').length;
-    const pts_r = rPeriode.reduce((s,r)=>s+(r.points||0),0);
-    realise = t*10+Math.floor(t/2)*25+Math.floor(t/4)*60+h*100+pts_r;
-  }
-  else if (obj.metrique === 'seances') {
-    const jours = new Set([...vPeriode,...rPeriode].map(v=>new Date(v.date_validation).toDateString()));
-    realise = jours.size;
-  }
-
-  const pct = obj.valeur_cible > 0 ? Math.min(100, Math.round(realise/obj.valeur_cible*100)) : 0;
-  const now = new Date();
-  const isActive = now >= debut && now <= fin;
-  const isExpired = now > fin;
-  const status = pct >= 100 ? 'atteint' : isExpired ? 'expire' : isActive ? 'en_cours' : 'futur';
-  return { realise, pct, status };
-};
-
-const statusConfig = {
-  atteint:  { color:'#1D9E75', bg:'#E1F5EE', label_fr:'✓ Atteint',   label_ar:'✓ محقق',    label_en:'✓ Achieved' },
-  expire:   { color:'#E24B4A', bg:'#FCEBEB', label_fr:'✗ Expiré',    label_ar:'✗ منتهي',   label_en:'✗ Expired'  },
-  en_cours: { color:'#EF9F27', bg:'#FAEEDA', label_fr:'En cours',    label_ar:'جارٍ',      label_en:'In progress'},
-  futur:    { color:'#888',    bg:'#f5f5f0', label_fr:'À venir',     label_ar:'قادم',      label_en:'Upcoming'   },
+const emptyForm = {
+  type_cible:'niveau', niveau_id:'', eleve_id:'',
+  metrique:'tomon', valeur_cible:4,
+  type_periode:'mois', date_debut:'', date_fin:'',
+  notes:'', actif:true,
 };
 
 export default function GestionObjectifs({ user, navigate, goBack, lang='fr', isMobile }) {
-  const [objectifs, setObjectifs] = useState([]);
-  const [eleves, setEleves] = useState([]);
-  const [instituteurs, setInstituteurs] = useState([]);
-  const [validations, setValidations] = useState([]);
-  const [recitationsSourates, setRecitationsSourates] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [showForm, setShowForm] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [confirmModal, setConfirmModal] = useState({isOpen:false,title:'',message:'',onConfirm:null,confirmColor:'#E24B4A',confirmLabel:''});
-  const showConfirm = (title, message, onConfirm, confirmLabel, confirmColor) => setConfirmModal({isOpen:true,title,message,onConfirm,confirmLabel:confirmLabel||(lang==='ar'?'حذف':'Supprimer'),confirmColor:confirmColor||'#E24B4A'});
-  const hideConfirm = () => setConfirmModal(m=>({...m,isOpen:false,onConfirm:null}));
-  const [editingId, setEditingId] = useState(null);
-  const [msg, setMsg] = useState(null);
+  const { toast } = useToast();
+  const [niveaux,    setNiveaux]    = useState([]);
+  const [eleves,     setEleves]     = useState([]);
+  const [objectifs,  setObjectifs]  = useState([]);
+  const [loading,    setLoading]    = useState(true);
+  const [saving,     setSaving]     = useState(false);
+  const [showForm,   setShowForm]   = useState(false);
+  const [editing,    setEditing]    = useState(null);
+  const [form,       setForm]       = useState(emptyForm);
+  const [filtreType, setFiltreType] = useState('tous');
+  const [searchEleve,setSearchEleve]= useState('');
+  const [confirmModal, setConfirmModal] = useState({isOpen:false});
 
-  // Filters
-  const [filterType, setFilterType] = useState('tous');
-  const [filterNiveau, setFilterNiveau] = useState('tous');
-  const [filterStatut, setFilterStatut] = useState('tous');
+  useEffect(() => { loadAll(); }, []);
 
-  // New objectif form
-  const [form, setForm] = useState({
-    type_cible: 'niveau', eleve_id: '', code_niveau: '5B', instituteur_id: '',
-    periode: 'mois', date_debut: new Date().toISOString().split('T')[0],
-    date_fin: '', metrique: 'sourate', valeur_cible: '', cible_specifique: null, cibles_selectionnees: [], hizbSelected: null, titre: '', notes: ''
-  });
-
-  useEffect(() => { loadData(); }, []);
-
-  // Auto-calculate date_fin when periode or date_debut changes
-  useEffect(() => {
-    if (form.periode && form.date_debut) {
-      const range = calcDateRange(form.periode, new Date(form.date_debut));
-      setForm(f => ({ ...f, date_fin: range.fin }));
-    }
-  }, [form.periode, form.date_debut]);
-
-  // Auto-set metrique based on niveau/type_cible
-  useEffect(() => {
-    const niveau = form.type_cible === 'niveau' ? form.code_niveau : 
-                   form.type_cible === 'eleve' ? eleves.find(e=>e.id===form.eleve_id)?.code_niveau : null;
-    if (niveau && ['5B','5A','2M'].includes(niveau) && ['tomon','hizb'].includes(form.metrique)) {
-      setForm(f => ({ ...f, metrique: 'sourate' }));
-    } else if (niveau && ['2M','2','1'].includes(niveau) && ['sourate','sequence'].includes(form.metrique)) {
-      setForm(f => ({ ...f, metrique: 'tomon' }));
-    }
-  }, [form.type_cible, form.code_niveau, form.eleve_id]);
-
-  const loadData = async () => {
+  const loadAll = async () => {
     setLoading(true);
-    // Load each table safely — some may not exist yet
-    const safeQuery = async (q) => { try { const r = await q; return r.data || []; } catch(e) { return []; } };
-    
-    const [objs, ed, inst, vd, rd] = await Promise.all([
-      safeQuery(supabase.from('objectifs_globaux').select('*')
-        .eq('ecole_id', user.ecole_id).order('created_at', { ascending: false })),
-      safeQuery(supabase.from('eleves').select('*')
-        .eq('ecole_id', user.ecole_id).order('nom')),
-      safeQuery(supabase.from('utilisateurs').select('*').eq('role', 'instituteur').eq('ecole_id', user.ecole_id)),
-      safeQuery(supabase.from('validations').select('*')
-        .eq('ecole_id', user.ecole_id)),
-      safeQuery(supabase.from('recitations_sourates').select('*')
-        .eq('ecole_id', user.ecole_id)),
+    const [{ data:nv },{ data:el },{ data:ob }] = await Promise.all([
+      supabase.from('niveaux').select('id,code,nom,type,couleur').eq('ecole_id',user.ecole_id).order('ordre'),
+      supabase.from('eleves').select('id,prenom,nom,code_niveau,eleve_id_ecole').eq('ecole_id',user.ecole_id).order('nom'),
+      supabase.from('objectifs').select('*').eq('ecole_id',user.ecole_id).order('created_at',{ascending:false}),
     ]);
-    setObjectifs(objs);
-    setEleves(ed);
-    setInstituteurs(inst);
-    setValidations(vd);
-    setRecitationsSourates(rd);
+    setNiveaux(nv||[]);
+    setEleves(el||[]);
+    setObjectifs(ob||[]);
     setLoading(false);
   };
 
-  const showMsg = (type, text) => { setMsg({ type, text }); setTimeout(() => setMsg(null), 3000); };
+  const niveauDuForm = niveaux.find(n=>n.id===form.niveau_id);
+  const metriques    = getMetriques(niveauDuForm?.type||'hizb');
+
+  const setFormField = (key, val) => setForm(f=>({...f,[key]:val}));
+
+  const onChangePeriode = (val) => {
+    if (val==='custom') {
+      setForm(f=>({...f, type_periode:'custom', date_debut:'', date_fin:''}));
+    } else {
+      const {date_debut, date_fin} = calcDates(val);
+      setForm(f=>({...f, type_periode:val, date_debut, date_fin}));
+    }
+  };
+
+  const onChangeNiveau = (nid) => {
+    const niv = niveaux.find(n=>n.id===nid);
+    const metr = getMetriques(niv?.type||'hizb')[0]?.val||'tomon';
+    setForm(f=>({...f, niveau_id:nid, metrique:metr}));
+  };
+
+  const startCreate = () => {
+    setEditing(null);
+    const dates = calcDates('mois');
+    setForm({...emptyForm, ...dates,
+      niveau_id: niveaux[0]?.id||'',
+      metrique: getMetriques(niveaux[0]?.type||'hizb')[0]?.val||'tomon',
+    });
+    setShowForm(true);
+  };
 
   const startEdit = (obj) => {
-    setEditingId(obj.id);
+    setEditing(obj.id);
     setForm({
-      type_cible: obj.type_cible,
-      eleve_id: obj.eleve_id||'',
-      code_niveau: obj.code_niveau||'5B',
-      instituteur_id: obj.instituteur_id||'',
-      periode: obj.periode,
-      date_debut: obj.date_debut,
-      date_fin: obj.date_fin,
-      metrique: obj.metrique,
-      valeur_cible: String(obj.valeur_cible),
-      cible_specifique: obj.cible_specifique||null,
-      cibles_selectionnees: [],
-      hizbSelected: null,
-      titre: obj.titre||'',
-      notes: obj.notes||'',
+      type_cible:   obj.type_cible,
+      niveau_id:    obj.niveau_id||'',
+      eleve_id:     obj.eleve_id||'',
+      metrique:     obj.metrique,
+      valeur_cible: obj.valeur_cible,
+      type_periode: obj.type_periode,
+      date_debut:   obj.date_debut,
+      date_fin:     obj.date_fin,
+      notes:        obj.notes||'',
+      actif:        obj.actif,
     });
     setShowForm(true);
     window.scrollTo(0,0);
   };
 
-  const saveObjectif = async () => {
-    if (!form.valeur_cible || isNaN(form.valeur_cible) || parseInt(form.valeur_cible) <= 0)
-      return showMsg('error', lang==='ar'?'يجب تحديد قيمة الهدف':lang==='en'?'Please set a target value':'Veuillez définir une valeur cible');
-    if (form.type_cible === 'eleve' && !form.eleve_id)
-      return showMsg('error', lang==='ar'?'اختر طالباً':lang==='en'?'Select a student':`Sélectionnez un élève`);
-    if (form.type_cible === 'instituteur' && !form.instituteur_id)
-      return showMsg('error', lang==='ar'?'اختر أستاذاً':lang==='en'?'Select a teacher':`Sélectionnez un instituteur`);
+  const save = async () => {
+    if (saving) return;
+    if (form.type_cible==='niveau' && !form.niveau_id)
+      return toast.warning(lang==='ar'?'اختر المستوى':'Sélectionnez un niveau');
+    if (form.type_cible==='eleve' && !form.eleve_id)
+      return toast.warning(lang==='ar'?'اختر الطالب':'Sélectionnez un élève');
+    if (!form.date_debut || !form.date_fin)
+      return toast.warning(lang==='ar'?'حدد الفترة':'Définissez la période');
+    if (parseInt(form.valeur_cible)<1)
+      return toast.warning(lang==='ar'?'الهدف يجب أن يكون أكبر من 0':'L\'objectif doit être > 0');
 
     setSaving(true);
-    const insert = {
-      type_cible: form.type_cible,
-      eleve_id: form.type_cible === 'eleve' ? form.eleve_id : null,
-      code_niveau: form.type_cible === 'niveau' ? form.code_niveau : null,
-      instituteur_id: form.type_cible === 'instituteur' ? form.instituteur_id : null,
-      periode: form.periode,
-      date_debut: form.date_debut,
-      date_fin: form.date_fin,
-      metrique: form.metrique,
-      valeur_cible: parseInt(form.valeur_cible),
-      titre: form.titre || null,
-      notes: form.notes || null,
-      cible_specifique: form.cibles_selectionnees.length>0 ? JSON.stringify(form.cibles_selectionnees) : (form.cible_specifique||null),
-      created_by: user.id,
-      ecole_id: user.ecole_id,
+    const payload = {
+      ecole_id:     user.ecole_id,
+      type_cible:   form.type_cible,
+      niveau_id:    form.type_cible==='niveau' ? form.niveau_id : null,
+      eleve_id:     form.type_cible==='eleve'  ? form.eleve_id  : null,
+      metrique:     form.metrique,
+      valeur_cible: parseInt(form.valeur_cible)||1,
+      type_periode: form.type_periode,
+      date_debut:   form.date_debut,
+      date_fin:     form.date_fin,
+      notes:        form.notes.trim()||null,
+      actif:        form.actif,
+      created_by:   user.id,
     };
-    let error;
-    if (editingId) {
-      ({ error } = await supabase.from('objectifs_globaux').update(insert).eq('id', editingId));
-    } else {
-      ({ error } = await supabase.from('objectifs_globaux').insert(insert));
-    }
+    const { error } = editing
+      ? await supabase.from('objectifs').update(payload).eq('id',editing)
+      : await supabase.from('objectifs').insert(payload);
     setSaving(false);
-    if (error) return showMsg('error', error.message);
-    showMsg('success', editingId?(lang==='ar'?'تم تحديث الهدف':'Objectif modifié'):(lang==='ar'?'تم حفظ الهدف':'Objectif enregistré'));
-    setShowForm(false);
-    setEditingId(null);
-    setForm({ type_cible:'niveau', eleve_id:'', code_niveau:'5B', instituteur_id:'',
-      periode:'mois', date_debut:new Date().toISOString().split('T')[0],
-      date_fin:'', metrique:'sourate', valeur_cible:'', cible_specifique:null, cibles_selectionnees:[], hizbSelected:null, titre:'', notes:'' });
-    await loadData();
+    if (error) { toast.error(error.message); return; }
+    toast.success(editing
+      ? (lang==='ar'?'✅ تم التحديث':'✅ Objectif modifié !')
+      : (lang==='ar'?'✅ تم الإضافة':'✅ Objectif ajouté !'));
+    setShowForm(false); setEditing(null); setForm(emptyForm);
+    loadAll();
   };
 
-  const deleteObjectif = (id) => showConfirm(
-    lang==='ar'?'حذف الهدف':lang==='en'?'Delete objective':'Supprimer objectif',
-    lang==='ar'?'هل تريد حذف هذا الهدف نهائياً؟':lang==='en'?'Delete this objective permanently?':'Supprimer définitivement cet objectif ?',
-    async()=>{ await supabase.from('objectifs_globaux').delete().eq('id', id); await loadData(); hideConfirm(); }
-  );
+  const supprimer = (id) => setConfirmModal({
+    isOpen:true,
+    title: lang==='ar'?'حذف الهدف':'Supprimer l\'objectif',
+    message: lang==='ar'?'هل تريد حذف هذا الهدف نهائياً؟':'Supprimer cet objectif définitivement ?',
+    onConfirm: async()=>{ await supabase.from('objectifs').delete().eq('id',id); loadAll(); setConfirmModal({isOpen:false}); }
+  });
 
-  // Get validations for an objectif's scope
-  const getValsForObj = (obj) => {
-    if (obj.type_cible === 'eleve') return validations.filter(v=>v.eleve_id===obj.eleve_id);
-    if (obj.type_cible === 'niveau') {
-      const elevesNiveau = eleves.filter(e=>(e.code_niveau||'1')===obj.code_niveau).map(e=>e.id);
-      return validations.filter(v=>elevesNiveau.includes(v.eleve_id));
-    }
-    if (obj.type_cible === 'instituteur') {
-      const elevesInst = eleves.filter(e=>e.instituteur_referent_id===obj.instituteur_id).map(e=>e.id);
-      return validations.filter(v=>elevesInst.includes(v.eleve_id));
-    }
-    return validations;
+  // ── Helpers affichage ──────────────────────────────────────────
+  const nomNiveau = (id) => { const n=niveaux.find(x=>x.id===id); return n?`${n.code} — ${n.nom}`:'?'; };
+  const couleurNiveau = (id) => niveaux.find(n=>n.id===id)?.couleur||'#888';
+  const nomEleve  = (id) => { const e=eleves.find(x=>x.id===id); return e?`${e.prenom} ${e.nom}`:'?'; };
+  const labelMetrique = (val, type) => {
+    const all = [...METRIQUES_HIZB, ...METRIQUES_SOURATE];
+    const m = all.find(x=>x.val===val);
+    return m ? (lang==='ar'?m.label_ar:m.label_fr) : val;
   };
-
-  const getRecsForObj = (obj) => {
-    if (obj.type_cible === 'eleve') return recitationsSourates.filter(r=>r.eleve_id===obj.eleve_id);
-    if (obj.type_cible === 'niveau') {
-      const elevesNiveau = eleves.filter(e=>(e.code_niveau||'1')===obj.code_niveau).map(e=>e.id);
-      return recitationsSourates.filter(r=>elevesNiveau.includes(r.eleve_id));
-    }
-    if (obj.type_cible === 'instituteur') {
-      const elevesInst = eleves.filter(e=>e.instituteur_referent_id===obj.instituteur_id).map(e=>e.id);
-      return recitationsSourates.filter(r=>elevesInst.includes(r.eleve_id));
-    }
-    return recitationsSourates;
+  const labelPeriode = (val) => {
+    const p = PERIODES.find(x=>x.val===val);
+    return p ? (lang==='ar'?p.label_ar:p.label_fr) : val;
   };
+  const formatDate = (d) => d ? new Date(d).toLocaleDateString('fr-FR') : '';
 
-  const getObjLabel = (obj) => {
-    if (obj.type_cible === 'eleve') {
-      const e = eleves.find(x=>x.id===obj.eleve_id);
-      return e ? `${e.prenom} ${e.nom}` : '—';
-    }
-    if (obj.type_cible === 'niveau') return `${lang==='ar'?'المستوى':lang==='en'?'Level':'Niveau'} ${obj.code_niveau}`;
-    if (obj.type_cible === 'instituteur') {
-      const i = instituteurs.find(x=>x.id===obj.instituteur_id);
-      return i ? `${i.prenom} ${i.nom}` : '—';
-    }
-    return lang==='ar'?'عام':lang==='en'?'Global':'Global';
-  };
-
-  const getNiveauForObj = (obj) => {
-    if (obj.type_cible === 'niveau') return obj.code_niveau;
-    if (obj.type_cible === 'eleve') return eleves.find(e=>e.id===obj.eleve_id)?.code_niveau||'1';
-    return null;
-  };
-
-  // Filtered objectifs
-  const objFiltres = objectifs.filter(obj => {
-    if (filterType !== 'tous' && obj.type_cible !== filterType) return false;
-    if (filterNiveau !== 'tous' && getNiveauForObj(obj) !== filterNiveau) return false;
-    if (filterStatut !== 'tous') {
-      const { status } = calcAtteinte(obj, getValsForObj(obj), getRecsForObj(obj));
-      if (status !== filterStatut) return false;
-    }
+  // ── Filtre liste ──────────────────────────────────────────────
+  const objFiltres = objectifs.filter(o => {
+    if (filtreType!=='tous' && o.type_cible!==filtreType) return false;
     return true;
   });
 
-  // Stats globales
-  const statsGlobales = objectifs.reduce((acc, obj) => {
-    const { status, pct } = calcAtteinte(obj, getValsForObj(obj), getRecsForObj(obj));
-    acc.total++;
-    if (status === 'atteint') acc.atteints++;
-    else if (status === 'en_cours') acc.en_cours++;
-    else if (status === 'expire') acc.expires++;
-    acc.pct_moy += pct;
-    return acc;
-  }, { total:0, atteints:0, en_cours:0, expires:0, pct_moy:0 });
-  if (statsGlobales.total > 0) statsGlobales.pct_moy = Math.round(statsGlobales.pct_moy / statsGlobales.total);
+  // ── Elevés filtrés pour sélection ─────────────────────────────
+  const elevesFiltres = eleves.filter(e =>
+    `${e.prenom} ${e.nom} ${e.eleve_id_ecole||''}`.toLowerCase()
+      .includes(searchEleve.toLowerCase())
+  );
 
-  const metriquesDisponibles = () => {
-    if (form.type_cible === 'niveau') {
-      return METRIQUES.filter(m => m.niveaux.includes(form.code_niveau));
-    }
-    if (form.type_cible === 'eleve' && form.eleve_id) {
-      const niv = eleves.find(e=>e.id===form.eleve_id)?.code_niveau || '1';
-      return METRIQUES.filter(m => m.niveaux.includes(niv));
-    }
-    return METRIQUES;
+  // ── FORMULAIRE ─────────────────────────────────────────────────
+  const FormContent = (
+    <div>
+      {/* Type cible */}
+      <div style={{marginBottom:14}}>
+        <label style={{fontSize:12,fontWeight:700,color:'#666',display:'block',marginBottom:8}}>
+          {lang==='ar'?'نوع الهدف':'Type d\'objectif'}
+        </label>
+        <div style={{display:'flex',gap:8}}>
+          {[
+            {val:'niveau', icon:'🏫', fr:'Par niveau', ar:'حسب المستوى'},
+            {val:'eleve',  icon:'👤', fr:'Par élève',  ar:'حسب الطالب'},
+          ].map(t=>(
+            <div key={t.val} onClick={()=>setFormField('type_cible',t.val)}
+              style={{flex:1,padding:'10px',borderRadius:10,cursor:'pointer',textAlign:'center',
+                background:form.type_cible===t.val?'#E1F5EE':'#f5f5f0',
+                border:`1.5px solid ${form.type_cible===t.val?'#1D9E75':'#e0e0d8'}`}}>
+              <div style={{fontSize:20}}>{t.icon}</div>
+              <div style={{fontSize:12,fontWeight:600,color:form.type_cible===t.val?'#085041':'#555',marginTop:4}}>
+                {lang==='ar'?t.ar:t.fr}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Sélection niveau ou élève */}
+      {form.type_cible==='niveau' ? (
+        <div style={{marginBottom:14}}>
+          <label style={{fontSize:12,fontWeight:700,color:'#666',display:'block',marginBottom:6}}>
+            {lang==='ar'?'المستوى *':'Niveau *'}
+          </label>
+          <select value={form.niveau_id} onChange={e=>onChangeNiveau(e.target.value)}
+            style={{width:'100%',padding:'10px 12px',borderRadius:10,border:'0.5px solid #e0e0d8',
+              fontSize:14,fontFamily:'inherit',background:'#fff',outline:'none',boxSizing:'border-box'}}>
+            <option value="">— {lang==='ar'?'اختر':'Choisir'} —</option>
+            {niveaux.map(n=><option key={n.id} value={n.id}>{n.code} — {n.nom}</option>)}
+          </select>
+        </div>
+      ):(
+        <div style={{marginBottom:14}}>
+          <label style={{fontSize:12,fontWeight:700,color:'#666',display:'block',marginBottom:6}}>
+            {lang==='ar'?'الطالب *':'Élève *'}
+          </label>
+          {!form.eleve_id ? (
+            <>
+              <input value={searchEleve} onChange={e=>setSearchEleve(e.target.value)}
+                placeholder={lang==='ar'?'🔍 بحث...':'🔍 Rechercher...'}
+                style={{width:'100%',padding:'10px 12px',borderRadius:10,border:'0.5px solid #e0e0d8',
+                  fontSize:14,fontFamily:'inherit',boxSizing:'border-box',marginBottom:6}}/>
+              <div style={{maxHeight:160,overflowY:'auto',display:'flex',flexDirection:'column',gap:4}}>
+                {elevesFiltres.slice(0,15).map(e=>{
+                  const niv = niveaux.find(n=>n.code===e.code_niveau);
+                  return(
+                    <div key={e.id} onClick={()=>{setFormField('eleve_id',e.id);setSearchEleve('');
+                      const metr=getMetriques(niv?.type||'hizb')[0]?.val||'tomon';
+                      setFormField('metrique',metr);}}
+                      style={{padding:'8px 12px',borderRadius:8,cursor:'pointer',background:'#f5f5f0',
+                        border:'0.5px solid #e0e0d8',display:'flex',gap:8,alignItems:'center'}}>
+                      <span style={{fontSize:11,padding:'1px 7px',borderRadius:20,
+                        background:`${niv?.couleur||'#888'}20`,color:niv?.couleur||'#888',fontWeight:700}}>
+                        {e.code_niveau}
+                      </span>
+                      {e.eleve_id_ecole&&<span style={{fontSize:11,color:'#aaa'}}>#{e.eleve_id_ecole}</span>}
+                      <span style={{fontSize:13,fontWeight:500}}>{e.prenom} {e.nom}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </>
+          ):(
+            <div style={{display:'flex',alignItems:'center',gap:10,padding:'10px 12px',
+              borderRadius:10,background:'#E1F5EE',border:'1.5px solid #1D9E75'}}>
+              <span style={{flex:1,fontWeight:700,fontSize:14}}>{nomEleve(form.eleve_id)}</span>
+              <button onClick={()=>setFormField('eleve_id','')}
+                style={{background:'none',border:'none',color:'#E24B4A',cursor:'pointer',fontSize:16}}>✕</button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Métrique + valeur */}
+      <div style={{display:'grid',gridTemplateColumns:'1fr auto',gap:10,marginBottom:14}}>
+        <div>
+          <label style={{fontSize:12,fontWeight:700,color:'#666',display:'block',marginBottom:6}}>
+            {lang==='ar'?'المقياس':'Métrique'}
+          </label>
+          <select value={form.metrique} onChange={e=>setFormField('metrique',e.target.value)}
+            style={{width:'100%',padding:'10px 12px',borderRadius:10,border:'0.5px solid #e0e0d8',
+              fontSize:14,fontFamily:'inherit',background:'#fff',outline:'none',boxSizing:'border-box'}}>
+            {metriques.map(m=>(
+              <option key={m.val} value={m.val}>{lang==='ar'?m.label_ar:m.label_fr}</option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label style={{fontSize:12,fontWeight:700,color:'#666',display:'block',marginBottom:6}}>
+            {lang==='ar'?'الهدف':'Objectif'}
+          </label>
+          <div style={{display:'flex',alignItems:'center',gap:6}}>
+            <button onClick={()=>setFormField('valeur_cible',Math.max(1,parseInt(form.valeur_cible||1)-1))}
+              style={{width:36,height:42,borderRadius:8,border:'0.5px solid #e0e0d8',
+                background:'#f5f5f0',fontSize:18,cursor:'pointer',fontWeight:700}}>−</button>
+            <input type="number" min="1" max="999" value={form.valeur_cible}
+              onChange={e=>setFormField('valeur_cible',parseInt(e.target.value)||1)}
+              style={{width:64,padding:'10px 8px',borderRadius:10,border:'0.5px solid #e0e0d8',
+                fontSize:16,fontWeight:800,textAlign:'center',fontFamily:'inherit',outline:'none'}}/>
+            <button onClick={()=>setFormField('valeur_cible',parseInt(form.valeur_cible||1)+1)}
+              style={{width:36,height:42,borderRadius:8,border:'0.5px solid #e0e0d8',
+                background:'#f5f5f0',fontSize:18,cursor:'pointer',fontWeight:700}}>+</button>
+          </div>
+        </div>
+      </div>
+
+      {/* Période */}
+      <div style={{marginBottom:14}}>
+        <label style={{fontSize:12,fontWeight:700,color:'#666',display:'block',marginBottom:8}}>
+          {lang==='ar'?'الفترة':'Période'}
+        </label>
+        <div style={{display:'flex',gap:6,flexWrap:'wrap',marginBottom:10}}>
+          {PERIODES.map(p=>(
+            <div key={p.val} onClick={()=>onChangePeriode(p.val)}
+              style={{padding:'5px 12px',borderRadius:20,cursor:'pointer',fontSize:12,fontWeight:600,
+                background:form.type_periode===p.val?'#1D9E75':'#f5f5f0',
+                color:form.type_periode===p.val?'#fff':'#666',
+                border:`0.5px solid ${form.type_periode===p.val?'#1D9E75':'#e0e0d8'}`}}>
+              {lang==='ar'?p.label_ar:p.label_fr}
+            </div>
+          ))}
+        </div>
+        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
+          <div>
+            <label style={{fontSize:11,color:'#888',display:'block',marginBottom:4}}>
+              {lang==='ar'?'من':'Du'}
+            </label>
+            <input type="date" value={form.date_debut}
+              onChange={e=>setFormField('date_debut',e.target.value)}
+              style={{width:'100%',padding:'9px 10px',borderRadius:10,border:'0.5px solid #e0e0d8',
+                fontSize:13,fontFamily:'inherit',outline:'none',boxSizing:'border-box'}}/>
+          </div>
+          <div>
+            <label style={{fontSize:11,color:'#888',display:'block',marginBottom:4}}>
+              {lang==='ar'?'إلى':'Au'}
+            </label>
+            <input type="date" value={form.date_fin}
+              onChange={e=>setFormField('date_fin',e.target.value)}
+              style={{width:'100%',padding:'9px 10px',borderRadius:10,border:'0.5px solid #e0e0d8',
+                fontSize:13,fontFamily:'inherit',outline:'none',boxSizing:'border-box'}}/>
+          </div>
+        </div>
+      </div>
+
+      {/* Notes */}
+      <div style={{marginBottom:16}}>
+        <label style={{fontSize:12,fontWeight:700,color:'#666',display:'block',marginBottom:6}}>
+          {lang==='ar'?'ملاحظات (اختياري)':'Notes (optionnel)'}
+        </label>
+        <textarea value={form.notes} onChange={e=>setFormField('notes',e.target.value)} rows={2}
+          placeholder={lang==='ar'?'ملاحظة حول هذا الهدف...':'Remarque sur cet objectif...'}
+          style={{width:'100%',padding:'10px 12px',borderRadius:10,border:'0.5px solid #e0e0d8',
+            fontSize:13,fontFamily:'inherit',resize:'vertical',boxSizing:'border-box',outline:'none'}}/>
+      </div>
+
+      {/* Actif toggle */}
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',
+        marginBottom:16,padding:'10px 14px',background:'#f9f9f6',borderRadius:10}}>
+        <span style={{fontSize:13,fontWeight:600,color:'#555'}}>
+          {lang==='ar'?'هدف نشط':'Objectif actif'}
+        </span>
+        <div onClick={()=>setFormField('actif',!form.actif)}
+          style={{width:44,height:24,borderRadius:12,cursor:'pointer',position:'relative',
+            background:form.actif?'#1D9E75':'#ccc',transition:'background 0.2s'}}>
+          <div style={{position:'absolute',top:2,left:form.actif?22:2,width:20,height:20,
+            borderRadius:'50%',background:'#fff',transition:'left 0.2s',
+            boxShadow:'0 1px 3px rgba(0,0,0,0.2)'}}/>
+        </div>
+      </div>
+
+      {/* Boutons */}
+      <div style={{display:'flex',gap:10}}>
+        <button onClick={save} disabled={saving}
+          style={{flex:1,padding:'13px',border:'none',borderRadius:12,
+            background:saving?'#ccc':'#1D9E75',color:'#fff',fontSize:14,
+            fontWeight:700,cursor:saving?'not-allowed':'pointer',fontFamily:'inherit'}}>
+          {saving?'...':(editing
+            ?(lang==='ar'?'تحديث':'Modifier')
+            :(lang==='ar'?'إضافة الهدف':'Ajouter l\'objectif'))}
+        </button>
+        <button onClick={()=>{setShowForm(false);setEditing(null);setForm(emptyForm);}}
+          style={{padding:'13px 20px',border:'0.5px solid #e0e0d8',borderRadius:12,
+            background:'#fff',color:'#666',fontSize:14,cursor:'pointer',fontFamily:'inherit'}}>
+          {lang==='ar'?'إلغاء':'Annuler'}
+        </button>
+      </div>
+    </div>
+  );
+
+  // ── CARTE OBJECTIF ─────────────────────────────────────────────
+  const CarteObjectif = ({obj}) => {
+    const isNiveau = obj.type_cible==='niveau';
+    const nc = isNiveau ? couleurNiveau(obj.niveau_id) : '#378ADD';
+    const today = new Date();
+    const debut = new Date(obj.date_debut);
+    const fin   = new Date(obj.date_fin);
+    const actif = today >= debut && today <= fin && obj.actif;
+    const all   = [...METRIQUES_HIZB,...METRIQUES_SOURATE];
+    const m     = all.find(x=>x.val===obj.metrique);
+    const unite = m ? (lang==='ar'?m.unite_ar:m.unite_fr) : '';
+
+    return (
+      <div style={{background:'#fff',borderRadius:14,padding:'14px 16px',
+        border:`0.5px solid ${nc}30`,opacity:obj.actif?1:0.6,
+        borderLeft:`4px solid ${nc}`}}>
+        <div style={{display:'flex',alignItems:'flex-start',gap:12}}>
+          <div style={{width:40,height:40,borderRadius:10,flexShrink:0,
+            background:`${nc}15`,display:'flex',alignItems:'center',
+            justifyContent:'center',fontSize:20}}>
+            {isNiveau?'🏫':'👤'}
+          </div>
+          <div style={{flex:1,minWidth:0}}>
+            <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:4}}>
+              <span style={{fontWeight:700,fontSize:14}}>
+                {isNiveau ? nomNiveau(obj.niveau_id) : nomEleve(obj.eleve_id)}
+              </span>
+              {actif && <span style={{fontSize:10,padding:'2px 7px',borderRadius:20,
+                background:'#E1F5EE',color:'#1D9E75',fontWeight:700}}>
+                {lang==='ar'?'نشط':'Actif'}
+              </span>}
+              {!obj.actif && <span style={{fontSize:10,padding:'2px 7px',borderRadius:20,
+                background:'#f5f5f0',color:'#aaa',fontWeight:700}}>
+                {lang==='ar'?'غير نشط':'Inactif'}
+              </span>}
+            </div>
+            <div style={{fontSize:13,color:'#1D9E75',fontWeight:700,marginBottom:4}}>
+              🎯 {obj.valeur_cible} {unite} — {labelMetrique(obj.metrique)}
+            </div>
+            <div style={{fontSize:11,color:'#888'}}>
+              📅 {formatDate(obj.date_debut)} → {formatDate(obj.date_fin)}
+              <span style={{marginRight:6,marginLeft:6,color:'#ddd'}}>·</span>
+              {labelPeriode(obj.type_periode)}
+            </div>
+            {obj.notes && <div style={{fontSize:11,color:'#aaa',marginTop:4,fontStyle:'italic'}}>
+              💬 {obj.notes}
+            </div>}
+          </div>
+          <div style={{display:'flex',flexDirection:'column',gap:6,flexShrink:0}}>
+            <button onClick={()=>startEdit(obj)}
+              style={{padding:'5px 12px',borderRadius:8,border:'0.5px solid #e0e0d8',
+                background:'#fff',fontSize:12,cursor:'pointer',fontFamily:'inherit',fontWeight:600}}>
+              ✏️
+            </button>
+            <button onClick={()=>supprimer(obj.id)}
+              style={{padding:'5px 12px',borderRadius:8,border:'0.5px solid #FCEBEB',
+                background:'#FCEBEB',fontSize:12,cursor:'pointer',color:'#E24B4A'}}>
+              🗑️
+            </button>
+          </div>
+        </div>
+      </div>
+    );
   };
 
-  const formatDate = (d) => d ? new Date(d).toLocaleDateString(lang==='ar'?'ar-MA':lang==='en'?'en-GB':'fr-FR',{day:'2-digit',month:'short',year:'numeric'}) : '—';
+  // ── RENDU ──────────────────────────────────────────────────────
+  const stats = {
+    total:   objectifs.length,
+    niveau:  objectifs.filter(o=>o.type_cible==='niveau').length,
+    eleve:   objectifs.filter(o=>o.type_cible==='eleve').length,
+    actifs:  objectifs.filter(o=>o.actif).length,
+  };
 
   if (isMobile) {
     return (
-      <div style={{paddingBottom:80, background:'#f5f5f0', minHeight:'100vh'}}>
-        {/* Header sticky */}
-        <div style={{background:'#fff', padding:'14px 16px', borderBottom:'0.5px solid #e0e0d8',
-          position:'sticky', top:0, zIndex:100}}>
-          <div style={{display:'flex', alignItems:'center', gap:10}}>
+      <div style={{paddingBottom:80,background:'#f5f5f0',minHeight:'100vh'}}>
+        <div style={{background:'#fff',padding:'14px 16px',borderBottom:'0.5px solid #e0e0d8',
+          position:'sticky',top:0,zIndex:100}}>
+          <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:showForm?0:10}}>
             <button onClick={()=>goBack?goBack():navigate('dashboard')}
               style={{background:'none',border:'none',cursor:'pointer',fontSize:22,color:'#085041',padding:0}}>←</button>
             <div style={{flex:1,fontSize:17,fontWeight:800,color:'#085041'}}>
               🎯 {lang==='ar'?'الأهداف':'Objectifs'}
             </div>
-            {user.role==='surveillant'&&(
-              <button onClick={()=>{setShowForm(v=>!v);setEditingId(null);setForm(f=>({...f,titre:'',notes:''}));}}
-                style={{background:'#1D9E75',color:'#fff',border:'none',borderRadius:8,
-                  padding:'8px 12px',fontSize:13,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
-                {showForm?'✕':'+ Ajouter'}
-              </button>
-            )}
+            <button onClick={showForm?()=>{setShowForm(false);setEditing(null);}:startCreate}
+              style={{background:showForm?'#f0f0ec':'#1D9E75',color:showForm?'#666':'#fff',
+                border:'none',borderRadius:10,padding:'8px 14px',fontSize:13,fontWeight:700,cursor:'pointer'}}>
+              {showForm?'✕':(lang==='ar'?'+ إضافة':'+ Ajouter')}
+            </button>
           </div>
         </div>
-
-        {/* Message feedback */}
-        {msg&&<div style={{margin:'8px 12px',padding:'10px 14px',borderRadius:10,fontSize:13,
-          background:msg.type==='success'?'#E1F5EE':'#FCEBEB',
-          color:msg.type==='success'?'#085041':'#E24B4A'}}>{msg.text}</div>}
-
         <div style={{padding:'12px'}}>
-          {/* Formulaire ajout / modification */}
-          {showForm&&user.role==='surveillant'&&(
-            <div style={{background:'#fff',borderRadius:14,padding:'16px',marginBottom:12,
-              border:`1.5px solid ${editingId?'#378ADD':'#1D9E75'}`}}>
-
-              {/* Titre formulaire */}
+          {showForm&&(
+            <div style={{background:'#fff',borderRadius:16,padding:'18px',marginBottom:14,
+              border:`1.5px solid ${editing?'#378ADD':'#1D9E75'}`}}>
               <div style={{fontSize:15,fontWeight:700,color:'#085041',marginBottom:14}}>
-                {editingId?(lang==='ar'?'تعديل الهدف':'✏️ Modifier objectif'):(lang==='ar'?'إضافة هدف':'🎯 Nouvel objectif')}
+                {editing?(lang==='ar'?'تعديل الهدف':'✏️ Modifier'):(lang==='ar'?'إضافة هدف جديد':'🎯 Nouvel objectif')}
               </div>
-
-              {/* Titre objectif */}
-              <div style={{marginBottom:12}}>
-                <label style={{fontSize:12,fontWeight:600,color:'#666',display:'block',marginBottom:5}}>
-                  {lang==='ar'?'عنوان الهدف (اختياري)':'Titre (optionnel)'}
-                </label>
-                <input
-                  style={{width:'100%',padding:'11px 13px',borderRadius:10,border:'0.5px solid #e0e0d8',
-                    fontSize:15,fontFamily:'inherit',boxSizing:'border-box'}}
-                  value={form.titre||''}
-                  onChange={e=>setForm(f=>({...f,titre:e.target.value}))}
-                  placeholder={lang==='ar'?'مثال: هدف الفصل الأول':"Ex: Objectif T1 2025"}
-                />
-              </div>
-
-              {/* Type de cible */}
-              <div style={{marginBottom:12}}>
-                <label style={{fontSize:12,fontWeight:600,color:'#666',display:'block',marginBottom:5}}>
-                  {lang==='ar'?'نوع الهدف':'Type de cible'} *
-                </label>
-                <div style={{display:'grid',gridTemplateColumns:'repeat(2,1fr)',gap:6}}>
-                  {[
-                    {val:'niveau', icon:'📚', fr:'Par niveau',    ar:'بالمستوى'},
-                    {val:'eleve',  icon:'👤', fr:'Par élève',     ar:'بالطالب'},
-                    {val:'instituteur',icon:'🧑‍🏫',fr:'Par instituteur',ar:'بالأستاذ'},
-                    {val:'global', icon:'🌐', fr:'Global',        ar:'عام'},
-                  ].map(t=>(
-                    <div key={t.val} onClick={()=>setForm(f=>({...f,type_cible:t.val,eleve_id:'',code_niveau:'5B',instituteur_id:'',metrique:'sourate',cible_specifique:null,valeur_cible:'',cibles_selectionnees:[]}))}
-                      style={{padding:'10px 8px',borderRadius:10,textAlign:'center',cursor:'pointer',
-                        background:form.type_cible===t.val?'#E1F5EE':'#f5f5f0',
-                        border:`1.5px solid ${form.type_cible===t.val?'#1D9E75':'#e0e0d8'}`,
-                        color:form.type_cible===t.val?'#085041':'#666',fontWeight:form.type_cible===t.val?700:400}}>
-                      <div style={{fontSize:18,marginBottom:2}}>{t.icon}</div>
-                      <div style={{fontSize:11}}>{lang==='ar'?t.ar:t.fr}</div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* Cible spécifique selon type */}
-              {form.type_cible==='niveau'&&(
-                <div style={{marginBottom:12}}>
-                  <label style={{fontSize:12,fontWeight:600,color:'#666',display:'block',marginBottom:5}}>
-                    {lang==='ar'?'المستوى':'Niveau'} *
-                  </label>
-                  <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>
-                    {NIVEAUX.map(n=>{
-                      const nc=NIVEAU_COLORS[n]||'#888';
-                      return(
-                        <div key={n} onClick={()=>setForm(f=>({...f,code_niveau:n,metrique:['5B','5A','2M'].includes(n)?'sourate':'tomon',valeur_cible:'',cibles_selectionnees:[]}))}
-                          style={{padding:'8px 14px',borderRadius:20,cursor:'pointer',flexShrink:0,
-                            background:form.code_niveau===n?nc:'#f5f5f0',
-                            color:form.code_niveau===n?'#fff':'#666',
-                            border:`1.5px solid ${form.code_niveau===n?nc:'#e0e0d8'}`,
-                            fontWeight:form.code_niveau===n?700:400,fontSize:13}}>
-                          {n}
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-
-              {form.type_cible==='eleve'&&(
-                <div style={{marginBottom:12}}>
-                  <label style={{fontSize:12,fontWeight:600,color:'#666',display:'block',marginBottom:5}}>
-                    {lang==='ar'?'الطالب':'Élève'} *
-                  </label>
-                  <select
-                    style={{width:'100%',padding:'11px 13px',borderRadius:10,border:'0.5px solid #e0e0d8',
-                      fontSize:14,fontFamily:'inherit',background:'#fff',boxSizing:'border-box'}}
-                    value={form.eleve_id}
-                    onChange={e=>{
-                      const el=eleves.find(x=>x.id===e.target.value);
-                      const niv=el?.code_niveau||'1';
-                      setForm(f=>({...f,eleve_id:e.target.value,metrique:['5B','5A','2M'].includes(niv)?'sourate':'tomon',valeur_cible:'',cibles_selectionnees:[]}));
-                    }}>
-                    <option value="">— {lang==='ar'?'اختر طالباً':'Sélectionner un élève'} —</option>
-                    {eleves.map(e=>(
-                      <option key={e.id} value={e.id}>{e.prenom} {e.nom} · {e.code_niveau||'?'}</option>
-                    ))}
-                  </select>
-                </div>
-              )}
-
-              {form.type_cible==='instituteur'&&(
-                <div style={{marginBottom:12}}>
-                  <label style={{fontSize:12,fontWeight:600,color:'#666',display:'block',marginBottom:5}}>
-                    {lang==='ar'?'الأستاذ':'Instituteur'} *
-                  </label>
-                  <select
-                    style={{width:'100%',padding:'11px 13px',borderRadius:10,border:'0.5px solid #e0e0d8',
-                      fontSize:14,fontFamily:'inherit',background:'#fff',boxSizing:'border-box'}}
-                    value={form.instituteur_id}
-                    onChange={e=>setForm(f=>({...f,instituteur_id:e.target.value,valeur_cible:'',cibles_selectionnees:[]}))}>
-                    <option value="">— {lang==='ar'?'اختر أستاذاً':'Sélectionner un instituteur'} —</option>
-                    {instituteurs.map(i=>{
-                      const nb=eleves.filter(e=>e.instituteur_referent_id===i.id).length;
-                      return <option key={i.id} value={i.id}>{i.prenom} {i.nom} ({nb} {lang==='ar'?'طالب':'élèves'})</option>;
-                    })}
-                  </select>
-                </div>
-              )}
-
-              {/* Période + Dates */}
-              <div style={{marginBottom:12}}>
-                <label style={{fontSize:12,fontWeight:600,color:'#666',display:'block',marginBottom:5}}>
-                  {lang==='ar'?'الفترة':'Période'} *
-                </label>
-                <select
-                  style={{width:'100%',padding:'11px 13px',borderRadius:10,border:'0.5px solid #e0e0d8',
-                    fontSize:14,fontFamily:'inherit',background:'#fff',boxSizing:'border-box',marginBottom:8}}
-                  value={form.periode}
-                  onChange={e=>setForm(f=>({...f,periode:e.target.value}))}>
-                  {PERIODES.map(p=><option key={p.val} value={p.val}>{lang==='ar'?p.label_ar:p.label_fr}</option>)}
-                </select>
-                <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
-                  <div>
-                    <label style={{fontSize:11,color:'#888',display:'block',marginBottom:4}}>{lang==='ar'?'من':'Du'}</label>
-                    <input type="date"
-                      style={{width:'100%',padding:'10px 12px',borderRadius:10,border:'0.5px solid #e0e0d8',
-                        fontSize:13,fontFamily:'inherit',boxSizing:'border-box'}}
-                      value={form.date_debut}
-                      onChange={e=>setForm(f=>({...f,date_debut:e.target.value}))}/>
-                  </div>
-                  <div>
-                    <label style={{fontSize:11,color:'#888',display:'block',marginBottom:4}}>{lang==='ar'?'إلى':'Au'}</label>
-                    <input type="date"
-                      style={{width:'100%',padding:'10px 12px',borderRadius:10,border:'0.5px solid #e0e0d8',
-                        fontSize:13,fontFamily:'inherit',boxSizing:'border-box',color:'#1D9E75',fontWeight:500}}
-                      value={form.date_fin}
-                      onChange={e=>setForm(f=>({...f,date_fin:e.target.value}))}/>
-                  </div>
-                </div>
-              </div>
-
-              {/* Métrique */}
-              <div style={{marginBottom:12}}>
-                <label style={{fontSize:12,fontWeight:600,color:'#666',display:'block',marginBottom:5}}>
-                  {lang==='ar'?'مؤشر القياس':'Métrique'} *
-                </label>
-                <select
-                  style={{width:'100%',padding:'11px 13px',borderRadius:10,border:'0.5px solid #e0e0d8',
-                    fontSize:14,fontFamily:'inherit',background:'#fff',boxSizing:'border-box'}}
-                  value={form.metrique}
-                  onChange={e=>setForm(f=>({...f,metrique:e.target.value,valeur_cible:'',cibles_selectionnees:[],hizbSelected:null}))}>
-                  {metriquesDisponibles().map(m=><option key={m.val} value={m.val}>{lang==='ar'?m.label_ar:m.label_fr}</option>)}
-                </select>
-              </div>
-
-              {/* Valeur cible */}
-              <div style={{marginBottom:12}}>
-                <label style={{fontSize:12,fontWeight:600,color:'#666',display:'block',marginBottom:5}}>
-                  {form.metrique==='sourate'?(lang==='ar'?'عدد السور المستهدفة':'Nb de sourates cibles')
-                  :form.metrique==='hizb'?(lang==='ar'?'عدد الأحزاب المستهدفة':'Nb de Hizb cibles')
-                  :form.metrique==='tomon'?(lang==='ar'?'عدد الأثمان المستهدفة':'Nb de Tomon cibles')
-                  :form.metrique==='points'?(lang==='ar'?'النقاط المستهدفة':'Points cibles')
-                  :(lang==='ar'?'عدد الحصص':'Nb de séances')} *
-                </label>
-                <input type="number" min="1"
-                  style={{width:'100%',padding:'11px 13px',borderRadius:10,border:'0.5px solid #e0e0d8',
-                    fontSize:15,fontFamily:'inherit',boxSizing:'border-box'}}
-                  value={form.valeur_cible}
-                  onChange={e=>setForm(f=>({...f,valeur_cible:e.target.value,cibles_selectionnees:[]}))}
-                  placeholder={form.metrique==='points'?'500':form.metrique==='seances'?'12':'5'}
-                />
-              </div>
-
-              {/* Sélection visuelle sourates/hizb/tomon */}
-              {parseInt(form.valeur_cible)>0&&['sourate','hizb','tomon'].includes(form.metrique)&&(
-                <div style={{marginBottom:12,border:'1.5px solid #1D9E75',borderRadius:12,padding:'12px',background:'#f0faf6'}}>
-                  <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:8}}>
-                    <div style={{fontSize:12,fontWeight:600,color:'#085041'}}>
-                      {lang==='ar'?'اختر العناصر المستهدفة':'Sélectionner les éléments'}
-                      <span style={{fontSize:11,color:'#888',marginLeft:6}}>({form.cibles_selectionnees.length}/{parseInt(form.valeur_cible)||0})</span>
-                    </div>
-                    {form.cibles_selectionnees.length>0&&(
-                      <button onClick={()=>setForm(f=>({...f,cibles_selectionnees:[]}))}
-                        style={{fontSize:11,color:'#E24B4A',background:'none',border:'none',cursor:'pointer'}}>
-                        ✕ {lang==='ar'?'مسح':'Effacer'}
-                      </button>
-                    )}
-                  </div>
-                  {/* Barre progression sélection */}
-                  <div style={{height:5,background:'#e8e8e0',borderRadius:3,overflow:'hidden',marginBottom:10}}>
-                    <div style={{height:'100%',borderRadius:3,transition:'width 0.3s',
-                      width:`${Math.min(100,form.cibles_selectionnees.length/(parseInt(form.valeur_cible)||1)*100)}%`,
-                      background:form.cibles_selectionnees.length>=(parseInt(form.valeur_cible)||1)?'#1D9E75':'#EF9F27'}}/>
-                  </div>
-
-                  {/* Sourates */}
-                  {form.metrique==='sourate'&&(()=>{
-                    const niv=form.type_cible==='niveau'?form.code_niveau:form.type_cible==='eleve'?(eleves.find(e=>e.id===form.eleve_id)?.code_niveau||'5B'):'5A';
-                    const list=['5B'].includes(niv)?SOURATES_5B:SOURATES_5A;
-                    const sorted=[...list].sort((a,b)=>b.numero-a.numero);
-                    const maxSel=parseInt(form.valeur_cible)||0;
-                    return(
-                      <div style={{display:'flex',flexDirection:'column',gap:4,maxHeight:200,overflowY:'auto'}}>
-                        {sorted.map(s=>{
-                          const key=`sourate_${s.numero}`;
-                          const isSel=form.cibles_selectionnees.includes(key);
-                          const isDisabled=!isSel&&form.cibles_selectionnees.length>=maxSel;
-                          return(
-                            <div key={s.numero}
-                              onClick={()=>{if(isDisabled)return;setForm(f=>({...f,cibles_selectionnees:isSel?f.cibles_selectionnees.filter(x=>x!==key):[...f.cibles_selectionnees,key]}));}}
-                              style={{display:'flex',alignItems:'center',gap:10,padding:'8px 10px',borderRadius:8,
-                                cursor:isDisabled?'not-allowed':'pointer',opacity:isDisabled?0.4:1,
-                                background:isSel?'#E1F5EE':'#fff',border:`0.5px solid ${isSel?'#1D9E75':'#e0e0d8'}`}}>
-                              <div style={{width:20,height:20,borderRadius:4,flexShrink:0,
-                                border:`1.5px solid ${isSel?'#1D9E75':'#ccc'}`,background:isSel?'#1D9E75':'#fff',
-                                display:'flex',alignItems:'center',justifyContent:'center'}}>
-                                {isSel&&<span style={{color:'#fff',fontSize:12,fontWeight:700}}>✓</span>}
-                              </div>
-                              <span style={{fontSize:11,color:'#bbb',minWidth:22}}>{s.numero}</span>
-                              <span style={{fontSize:14,fontFamily:"'Tajawal',Arial",direction:'rtl',
-                                color:isSel?'#085041':'#333',fontWeight:isSel?600:400}}>{s.nom_ar}</span>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    );
-                  })()}
-
-                  {/* Hizb */}
-                  {form.metrique==='hizb'&&(()=>{
-                    const maxSel=parseInt(form.valeur_cible)||0;
-                    return(
-                      <div style={{display:'grid',gridTemplateColumns:'repeat(6,1fr)',gap:5}}>
-                        {Array.from({length:60},(_,i)=>i+1).map(h=>{
-                          const key=`hizb_${h}`;
-                          const isSel=form.cibles_selectionnees.includes(key);
-                          const isDisabled=!isSel&&form.cibles_selectionnees.length>=maxSel;
-                          return(
-                            <div key={h}
-                              onClick={()=>{if(isDisabled)return;setForm(f=>({...f,cibles_selectionnees:isSel?f.cibles_selectionnees.filter(x=>x!==key):[...f.cibles_selectionnees,key]}));}}
-                              style={{height:38,borderRadius:8,display:'flex',alignItems:'center',justifyContent:'center',
-                                fontSize:13,fontWeight:isSel?700:400,cursor:isDisabled?'not-allowed':'pointer',
-                                opacity:isDisabled?0.35:1,background:isSel?'#1D9E75':'#fff',
-                                color:isSel?'#fff':'#666',border:`0.5px solid ${isSel?'#1D9E75':'#e0e0d8'}`}}>
-                              {h}
-                            </div>
-                          );
-                        })}
-                      </div>
-                    );
-                  })()}
-
-                  {/* Tomon */}
-                  {form.metrique==='tomon'&&(()=>{
-                    const maxSel=parseInt(form.valeur_cible)||0;
-                    return(
-                      <div>
-                        <div style={{fontSize:11,color:'#085041',fontWeight:600,marginBottom:6}}>
-                          1️⃣ {lang==='ar'?'اختر الحزب أولاً':'Choisir le Hizb'}
-                        </div>
-                        <div style={{display:'grid',gridTemplateColumns:'repeat(10,1fr)',gap:3,marginBottom:10}}>
-                          {Array.from({length:60},(_,i)=>i+1).map(h=>{
-                            const hasSelected=form.cibles_selectionnees.some(k=>k.startsWith(`h${h}_t`));
-                            return(
-                              <div key={h}
-                                onClick={()=>setForm(f=>({...f,hizbSelected:f.hizbSelected===h?null:h}))}
-                                style={{height:28,borderRadius:4,display:'flex',alignItems:'center',justifyContent:'center',
-                                  fontSize:10,cursor:'pointer',
-                                  background:form.hizbSelected===h?'#085041':hasSelected?'#E1F5EE':'#f5f5f0',
-                                  color:form.hizbSelected===h?'#fff':hasSelected?'#085041':'#888',
-                                  border:`0.5px solid ${form.hizbSelected===h?'#085041':hasSelected?'#9FE1CB':'#e0e0d8'}`,
-                                  fontWeight:form.hizbSelected===h||hasSelected?600:400}}>
-                                {h}
-                              </div>
-                            );
-                          })}
-                        </div>
-                        {form.hizbSelected&&(
-                          <div>
-                            <div style={{fontSize:11,color:'#085041',fontWeight:600,marginBottom:6}}>
-                              2️⃣ {lang==='ar'?`أثمان الحزب ${form.hizbSelected}`:`Tomon Hizb ${form.hizbSelected}`}
-                            </div>
-                            <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:8}}>
-                              {[1,2,3,4,5,6,7,8].map(t=>{
-                                const key=`h${form.hizbSelected}_t${t}`;
-                                const isSel=form.cibles_selectionnees.includes(key);
-                                const isDisabled=!isSel&&form.cibles_selectionnees.length>=maxSel;
-                                return(
-                                  <div key={t}
-                                    onClick={()=>{if(isDisabled)return;setForm(f=>({...f,cibles_selectionnees:isSel?f.cibles_selectionnees.filter(x=>x!==key):[...f.cibles_selectionnees,key]}));}}
-                                    style={{padding:'12px 8px',borderRadius:10,textAlign:'center',
-                                      cursor:isDisabled?'not-allowed':'pointer',opacity:isDisabled?0.35:1,
-                                      background:isSel?'#1D9E75':'#fff',color:isSel?'#fff':'#555',
-                                      border:`1.5px solid ${isSel?'#1D9E75':'#e0e0d8'}`}}>
-                                    <div style={{fontSize:16,fontWeight:700}}>T.{t}</div>
-                                    <div style={{fontSize:10,color:isSel?'#9FE1CB':'#bbb',marginTop:2}}>H{form.hizbSelected}</div>
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })()}
-                </div>
-              )}
-
-              {/* Notes */}
-              <div style={{marginBottom:14}}>
-                <label style={{fontSize:12,fontWeight:600,color:'#666',display:'block',marginBottom:5}}>
-                  {lang==='ar'?'ملاحظات':'Notes (optionnel)'}
-                </label>
-                <textarea
-                  style={{width:'100%',padding:'11px 13px',borderRadius:10,border:'0.5px solid #e0e0d8',
-                    fontSize:14,fontFamily:'inherit',boxSizing:'border-box',resize:'none',minHeight:60}}
-                  value={form.notes||''}
-                  onChange={e=>setForm(f=>({...f,notes:e.target.value}))}
-                  placeholder={lang==='ar'?'ملاحظات إضافية...':'Notes supplémentaires...'}
-                />
-              </div>
-
-              {/* Boutons */}
-              <div style={{display:'flex',gap:8}}>
-                <button onClick={()=>{setShowForm(false);setEditingId(null);}}
-                  style={{flex:1,padding:'13px',background:'#f5f5f0',color:'#666',border:'none',
-                    borderRadius:12,fontSize:14,fontWeight:600,cursor:'pointer',fontFamily:'inherit'}}>
-                  {lang==='ar'?'إلغاء':'Annuler'}
-                </button>
-                <button onClick={saveObjectif} disabled={saving}
-                  style={{flex:2,padding:'13px',background:saving?'#ccc':'#1D9E75',color:'#fff',border:'none',
-                    borderRadius:12,fontSize:14,fontWeight:700,cursor:saving?'not-allowed':'pointer',fontFamily:'inherit'}}>
-                  {saving?'...':(editingId?(lang==='ar'?'تحديث':'Mettre à jour ✓'):(lang==='ar'?'حفظ':'Enregistrer'))}
-                </button>
-              </div>
+              {FormContent}
             </div>
           )}
-
-          {/* Liste des objectifs */}
-          {loading ? (
-            <div style={{textAlign:'center',padding:'2rem',color:'#888'}}>...</div>
-          ) : objectifs.length===0 ? (
-            <div style={{textAlign:'center',color:'#aaa',padding:'3rem'}}>
-              <div style={{fontSize:40,marginBottom:12}}>🎯</div>
-              <div style={{fontSize:14}}>{lang==='ar'?'لا توجد أهداف':'Aucun objectif défini'}</div>
-            </div>
-          ) : objectifs.map(obj=>{
-            const { status } = calcAtteinte(obj, validations, recitationsSourates);
-            const info = statusConfig[status] || statusConfig['en_cours'];
-            return (
-              <div key={obj.id} style={{background:'#fff',borderRadius:12,padding:'14px',
-                marginBottom:10,border:`0.5px solid ${info.color}20`}}>
-                {/* En-tête carte */}
-                <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:6}}>
-                  <div style={{fontWeight:700,fontSize:15,color:'#085041',flex:1,marginRight:8}}>
-                    {obj.titre||'—'}
+          {!showForm&&(
+            <>
+              {/* Stats */}
+              <div style={{display:'grid',gridTemplateColumns:'repeat(2,1fr)',gap:8,marginBottom:12}}>
+                {[
+                  {l:lang==='ar'?'المجموع':'Total',       v:stats.total,  c:'#085041', bg:'#E1F5EE'},
+                  {l:lang==='ar'?'نشطة':'Actifs',         v:stats.actifs, c:'#1D9E75', bg:'#E1F5EE'},
+                  {l:lang==='ar'?'بالمستوى':'Par niveau',  v:stats.niveau, c:'#378ADD', bg:'#E6F1FB'},
+                  {l:lang==='ar'?'بالطالب':'Par élève',    v:stats.eleve,  c:'#D85A30', bg:'#FAECE7'},
+                ].map((s,i)=>(
+                  <div key={i} style={{background:s.bg,borderRadius:12,padding:'12px',textAlign:'center'}}>
+                    <div style={{fontSize:22,fontWeight:800,color:s.c}}>{s.v}</div>
+                    <div style={{fontSize:11,color:s.c,opacity:0.8}}>{s.l}</div>
                   </div>
-                  <span style={{fontSize:11,fontWeight:600,padding:'3px 10px',borderRadius:10,flexShrink:0,
-                    color:info.color,background:info.bg}}>
-                    {lang==='ar'?info.label_ar:info.label_fr}
-                  </span>
+                ))}
+              </div>
+              {/* Filtres */}
+              <div style={{display:'flex',gap:6,marginBottom:12}}>
+                {[
+                  {val:'tous',   fr:'Tous',        ar:'الكل'},
+                  {val:'niveau', fr:'Par niveau',  ar:'بالمستوى'},
+                  {val:'eleve',  fr:'Par élève',   ar:'بالطالب'},
+                ].map(f=>(
+                  <div key={f.val} onClick={()=>setFiltreType(f.val)}
+                    style={{padding:'5px 12px',borderRadius:20,cursor:'pointer',fontSize:12,fontWeight:600,
+                      background:filtreType===f.val?'#085041':'#f5f5f0',
+                      color:filtreType===f.val?'#fff':'#666'}}>
+                    {lang==='ar'?f.ar:f.fr}
+                  </div>
+                ))}
+              </div>
+              {loading?<div style={{textAlign:'center',padding:'2rem',color:'#888'}}>...</div>
+              :objFiltres.length===0?(
+                <div style={{textAlign:'center',padding:'3rem',color:'#aaa',background:'#fff',borderRadius:12}}>
+                  <div style={{fontSize:40,marginBottom:10}}>🎯</div>
+                  <div>{lang==='ar'?'لا توجد أهداف':'Aucun objectif défini'}</div>
                 </div>
-                {/* Description */}
-                {obj.notes&&<div style={{fontSize:13,color:'#888',marginBottom:8}}>{obj.notes}</div>}
-                {/* Barre de progression */}
-                {obj.valeur_cible&&(
-                  <div style={{marginBottom:8}}>
-                    <div style={{height:6,background:'#f0f0ec',borderRadius:3,overflow:'hidden',marginBottom:4}}>
-                      <div style={{height:'100%',background:info.color,borderRadius:3,
-                        width:`${Math.min(100,Math.round(((obj.valeur_actuelle||0)/obj.valeur_cible)*100))}%`}}/>
-                    </div>
-                    <div style={{fontSize:11,color:'#888'}}>
-                      {obj.valeur_actuelle||0} / {obj.valeur_cible}
-                    </div>
-                  </div>
-                )}
-                {/* Boutons actions */}
-                {user.role==='surveillant'&&(
-                  <div style={{display:'flex',gap:8,marginTop:10}}>
-                    <button onClick={()=>{startEdit(obj);setShowForm(true);window.scrollTo(0,0);}}
-                      style={{flex:1,padding:'10px',background:'#E6F1FB',color:'#378ADD',border:'none',
-                        borderRadius:10,fontSize:13,fontWeight:600,cursor:'pointer',fontFamily:'inherit'}}>
-                      ✏️ {lang==='ar'?'تعديل':'Modifier'}
-                    </button>
-                    <button onClick={()=>deleteObjectif(obj.id)}
-                      style={{padding:'10px 16px',background:'#FCEBEB',color:'#E24B4A',border:'none',
-                        borderRadius:10,fontSize:13,cursor:'pointer',fontWeight:600}}>
-                      🗑
-                    </button>
-                  </div>
-                )}
-              </div>
-            );
-          })}
+              ):(
+                <div style={{display:'flex',flexDirection:'column',gap:8}}>
+                  {objFiltres.map(obj=><CarteObjectif key={obj.id} obj={obj}/>)}
+                </div>
+              )}
+            </>
+          )}
         </div>
-        {/* ConfirmModal */}
-        {confirmModal.isOpen&&(
-          <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.5)',zIndex:1000,
-            display:'flex',alignItems:'center',justifyContent:'center',padding:'20px'}}>
-            <div style={{background:'#fff',borderRadius:16,padding:'24px',maxWidth:320,width:'100%'}}>
-              <div style={{fontWeight:700,fontSize:16,marginBottom:8}}>{confirmModal.title}</div>
-              <div style={{fontSize:13,color:'#666',marginBottom:20}}>{confirmModal.message}</div>
-              <div style={{display:'flex',gap:8}}>
-                <button onClick={hideConfirm}
-                  style={{flex:1,padding:'12px',background:'#f5f5f0',border:'none',borderRadius:10,
-                    fontSize:14,fontWeight:600,cursor:'pointer'}}>
-                  {lang==='ar'?'إلغاء':'Annuler'}
-                </button>
-                <button onClick={confirmModal.onConfirm}
-                  style={{flex:1,padding:'12px',background:confirmModal.confirmColor||'#E24B4A',
-                    color:'#fff',border:'none',borderRadius:10,fontSize:14,fontWeight:700,cursor:'pointer'}}>
-                  {confirmModal.confirmLabel}
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
+        <ConfirmModal {...confirmModal} onClose={()=>setConfirmModal({isOpen:false})} lang={lang}/>
       </div>
     );
   }
 
+  // ── PC ─────────────────────────────────────────────────────────
   return (
     <div>
-      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'1.25rem',flexWrap:'wrap',gap:8}}>
-        <button className="back-link" onClick={()=>goBack?goBack():navigate('dashboard')}>{t(lang,'retour')}</button>
-        <div style={{fontSize:20,fontWeight:700}}>🎯 {lang==='ar'?'إدارة الأهداف':lang==='en'?'Objectives':'Gestion des objectifs'}</div>
-        {user.role==='surveillant'&&(
-          <button className="btn-primary" style={{width:'auto',padding:'8px 16px',fontSize:13}} onClick={()=>{setShowForm(v=>!v);setEditingId(null);}}>
-            {showForm?'✕':'+ '}{lang==='ar'?'هدف جديد':lang==='en'?'New objective':'Nouvel objectif'}
+      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'1.25rem'}}>
+        <div style={{display:'flex',alignItems:'center',gap:10}}>
+          <button onClick={()=>goBack?goBack():navigate('dashboard')} className="back-link">
+            ← {lang==='ar'?'رجوع':'Retour'}
           </button>
-        )}
+          <div style={{fontSize:20,fontWeight:700}}>🎯 {lang==='ar'?'الأهداف':'Gestion des objectifs'}</div>
+        </div>
+        <button onClick={showForm?()=>{setShowForm(false);setEditing(null);}:startCreate}
+          style={{padding:'8px 18px',background:showForm?'#f0f0ec':'#1D9E75',
+            color:showForm?'#666':'#fff',border:'none',borderRadius:10,fontSize:13,fontWeight:600,cursor:'pointer'}}>
+          {showForm?'✕ Annuler':'+ Nouvel objectif'}
+        </button>
       </div>
 
-      {msg&&<div style={{padding:'10px 16px',borderRadius:8,marginBottom:'1rem',background:msg.type==='success'?'#E1F5EE':'#FCEBEB',color:msg.type==='success'?'#085041':'#A32D2D',fontSize:13,fontWeight:500}}>{msg.text}</div>}
-
-      {/* Stats globales */}
-      <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:8,marginBottom:'1.25rem'}}>
+      {/* Stats */}
+      <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:10,marginBottom:'1.25rem'}}>
         {[
-          {val:statsGlobales.total,lbl:lang==='ar'?'إجمالي الأهداف':lang==='en'?'Total objectives':'Total objectifs',color:'#534AB7',bg:'#EEEDFE'},
-          {val:statsGlobales.atteints,lbl:lang==='ar'?'محققة':lang==='en'?'Achieved':'Atteints',color:'#1D9E75',bg:'#E1F5EE'},
-          {val:statsGlobales.en_cours,lbl:lang==='ar'?'جارية':lang==='en'?'In progress':'En cours',color:'#EF9F27',bg:'#FAEEDA'},
-          {val:`${statsGlobales.pct_moy}%`,lbl:lang==='ar'?'متوسط الإنجاز':lang==='en'?'Avg completion':'Taux moyen',color:'#378ADD',bg:'#E6F1FB'},
-        ].map(k=>(
-          <div key={k.lbl} style={{background:k.bg,borderRadius:12,padding:'12px',textAlign:'center'}}>
-            <div style={{fontSize:24,fontWeight:800,color:k.color}}>{k.val}</div>
-            <div style={{fontSize:11,color:k.color,opacity:0.8,marginTop:2}}>{k.lbl}</div>
+          {l:lang==='ar'?'المجموع':'Total',       v:stats.total,  c:'#085041', bg:'#E1F5EE'},
+          {l:lang==='ar'?'نشطة':'Actifs',         v:stats.actifs, c:'#1D9E75', bg:'#E1F5EE'},
+          {l:lang==='ar'?'بالمستوى':'Par niveau',  v:stats.niveau, c:'#378ADD', bg:'#E6F1FB'},
+          {l:lang==='ar'?'بالطالب':'Par élève',    v:stats.eleve,  c:'#D85A30', bg:'#FAECE7'},
+        ].map((s,i)=>(
+          <div key={i} style={{background:s.bg,borderRadius:12,padding:'14px',textAlign:'center'}}>
+            <div style={{fontSize:26,fontWeight:800,color:s.c}}>{s.v}</div>
+            <div style={{fontSize:12,color:s.c,opacity:0.8,marginTop:2}}>{s.l}</div>
           </div>
         ))}
       </div>
 
-      {/* Form nouvel objectif */}
-      {showForm&&user.role==='surveillant'&&(
-        <div style={{background:'#fff',border:'1.5px solid #1D9E75',borderRadius:16,padding:'1.5rem',marginBottom:'1.5rem'}}>
-          <div style={{fontSize:15,fontWeight:600,color:'#085041',marginBottom:'1rem'}}>
-            {editingId?'✏️':'🎯'} {editingId?(lang==='ar'?'تعديل الهدف':lang==='en'?'Edit objective':'Modifier objectif'):(lang==='ar'?'تعريف هدف جديد':lang==='en'?'Define new objective':'Definir nouvel objectif')}
+      <div style={{display:'grid',gridTemplateColumns:showForm?'1fr 380px':'1fr',gap:'1.25rem'}}>
+        {/* Liste */}
+        <div>
+          {/* Filtres */}
+          <div style={{display:'flex',gap:6,marginBottom:12}}>
+            {[
+              {val:'tous',   fr:'Tous',       ar:'الكل'},
+              {val:'niveau', fr:'Par niveau', ar:'بالمستوى'},
+              {val:'eleve',  fr:'Par élève',  ar:'بالطالب'},
+            ].map(f=>(
+              <div key={f.val} onClick={()=>setFiltreType(f.val)}
+                style={{padding:'5px 14px',borderRadius:20,cursor:'pointer',fontSize:12,fontWeight:600,
+                  background:filtreType===f.val?'#085041':'#f5f5f0',
+                  color:filtreType===f.val?'#fff':'#666',
+                  border:`0.5px solid ${filtreType===f.val?'#085041':'#e0e0d8'}`}}>
+                {lang==='ar'?f.ar:f.fr}
+              </div>
+            ))}
+            <span style={{fontSize:12,color:'#888',alignSelf:'center',marginRight:8}}>
+              {objFiltres.length} {lang==='ar'?'هدف':'objectif(s)'}
+            </span>
           </div>
 
-          {/* Titre optionnel */}
-          <div className="field-group" style={{marginBottom:12}}>
-            <label className="field-lbl">{lang==='ar'?'عنوان الهدف (اختياري)':lang==='en'?'Objective title (optional)':'Titre de l\'objectif (optionnel)'}</label>
-            <input className="field-input" value={form.titre} onChange={e=>setForm(f=>({...f,titre:e.target.value}))} placeholder={lang==='ar'?'مثال: هدف الفصل الأول':lang==='en'?'e.g. Q1 target':'Ex: Objectif T1 2025'}/>
-          </div>
-
-          {/* Ligne 1 : Type de cible — direction forcée LTR pour cohérence visuelle */}
-          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12,marginBottom:12}}>
-            {/* Cible spécifique selon type — affiché en PREMIER pour RTL */}
-            {form.type_cible==='niveau' && (
-              <div className="field-group">
-                <label className="field-lbl">{lang==='ar'?'المستوى':lang==='en'?'Level':'Niveau'} *</label>
-                <select className="field-select" value={form.code_niveau} onChange={e=>setForm(f=>({...f,code_niveau:e.target.value,metrique:['5B','5A','2M'].includes(e.target.value)?'sourate':'tomon',cible_specifique:null,valeur_cible:'',cibles_selectionnees:[]}))}>
-                  {NIVEAUX.map(n=><option key={n} value={n}>{n} — {NIVEAU_LABELS[n]}</option>)}
-                </select>
+          {loading?<div style={{textAlign:'center',padding:'3rem',color:'#888'}}>...</div>
+          :objFiltres.length===0?(
+            <div style={{textAlign:'center',padding:'4rem',color:'#aaa',background:'#fff',
+              borderRadius:12,border:'0.5px solid #e0e0d8'}}>
+              <div style={{fontSize:48,marginBottom:12}}>🎯</div>
+              <div>{lang==='ar'?'لا توجد أهداف محددة':'Aucun objectif défini'}</div>
+              <div style={{fontSize:13,marginTop:6,color:'#ccc'}}>
+                {lang==='ar'?'أضف هدفاً للبدء':'Cliquez sur "+ Nouvel objectif" pour commencer'}
               </div>
-            )}
-
-            {form.type_cible==='eleve' && (
-              <div className="field-group">
-                <label className="field-lbl">{lang==='ar'?'الطالب':lang==='en'?'Student':'Élève'} *</label>
-                <select className="field-select" value={form.eleve_id}
-                  onChange={e=>{
-                    const el=eleves.find(x=>x.id===e.target.value);
-                    const niv=el?.code_niveau||'1';
-                    setForm(f=>({...f,eleve_id:e.target.value,metrique:['5B','5A','2M'].includes(niv)?'sourate':'tomon',cible_specifique:null,valeur_cible:'',cibles_selectionnees:[]}));
-                  }}>
-                  <option value="">— {lang==='ar'?'اختر طالباً':lang==='en'?'Select a student':`Sélectionner un élève`} —</option>
-                  {eleves.map(e=>(
-                    <option key={e.id} value={e.id}>{e.prenom} {e.nom} · {e.code_niveau||'?'}{e.eleve_id_ecole?` #${e.eleve_id_ecole}`:''}</option>
-                  ))}
-                </select>
-                {form.eleve_id && (()=>{
-                  const el=eleves.find(e=>e.id===form.eleve_id);
-                  if(!el) return null;
-                  const nc=NIVEAU_COLORS[el.code_niveau||'1']||'#888';
-                  return <div style={{marginTop:5,display:'flex',alignItems:'center',gap:6,fontSize:12}}>
-                    <span style={{padding:'2px 8px',borderRadius:20,fontSize:11,fontWeight:700,background:nc+'20',color:nc,border:`0.5px solid ${nc}40`}}>{el.code_niveau||'?'}</span>
-                    <span style={{color:'#888'}}>{NIVEAU_LABELS[el.code_niveau||'1']||''}</span>
-                  </div>;
-                })()}
-              </div>
-            )}
-
-            {form.type_cible==='instituteur' && (
-              <div className="field-group">
-                <label className="field-lbl">{lang==='ar'?'الأستاذ':lang==='en'?'Teacher':'Instituteur'} *</label>
-                <select className="field-select" value={form.instituteur_id} onChange={e=>setForm(f=>({...f,instituteur_id:e.target.value,cible_specifique:null,valeur_cible:'',cibles_selectionnees:[]}))}>
-                  <option value="">— {lang==='ar'?'اختر أستاذاً':lang==='en'?'Select a teacher':`Sélectionner un instituteur`} —</option>
-                  {instituteurs.map(i=>{
-                    const nb=eleves.filter(e=>e.instituteur_referent_id===i.id).length;
-                    return <option key={i.id} value={i.id}>{i.prenom} {i.nom} ({nb} {lang==='ar'?'طالب':lang==='en'?'students':'élèves'})</option>;
-                  })}
-                </select>
-                {form.instituteur_id && (()=>{
-                  const elevesInst=eleves.filter(e=>e.instituteur_referent_id===form.instituteur_id);
-                  const niveaux=[...new Set(elevesInst.map(e=>e.code_niveau||'?'))];
-                  return <div style={{marginTop:5,display:'flex',gap:4,flexWrap:'wrap'}}>
-                    {niveaux.map(n=><span key={n} style={{padding:'2px 6px',borderRadius:10,background:'#f0f0ec',fontSize:11,color:'#666'}}>{n}</span>)}
-                    <span style={{fontSize:11,color:'#888'}}>· {elevesInst.length} {lang==='ar'?'طالب':lang==='en'?'students':'élèves'}</span>
-                  </div>;
-                })()}
-              </div>
-            )}
-
-            {form.type_cible==='global' && (
-              <div className="field-group" style={{display:'flex',alignItems:'center',paddingTop:24}}>
-                <div style={{padding:'10px 14px',background:'#f0faf6',borderRadius:8,fontSize:12,color:'#085041',width:'100%'}}>
-                  🌐 {lang==='ar'?'يشمل جميع الطلاب':lang==='en'?'Covers all students':'Concerne tous les élèves'}
-                </div>
-              </div>
-            )}
-
-            {/* Type de cible — en SECOND pour apparaître à droite en RTL */}
-            <div className="field-group" style={{order: lang==='ar'?-1:0}}>
-              <label className="field-lbl">{lang==='ar'?'نوع الهدف':lang==='en'?'Target type':'Type de cible'} *</label>
-              <select className="field-select" value={form.type_cible} onChange={e=>setForm(f=>({...f,type_cible:e.target.value,eleve_id:'',code_niveau:'5B',instituteur_id:'',metrique:'sourate',cible_specifique:null,valeur_cible:'',cibles_selectionnees:[]}))}>
-                <option value="niveau">{lang==='ar'?'بالمستوى':lang==='en'?'By level':'Par niveau'}</option>
-                <option value="eleve">{lang==='ar'?'بالطالب':lang==='en'?'By student':'Par élève'}</option>
-                <option value="instituteur">{lang==='ar'?'بالأستاذ':lang==='en'?'By teacher':'Par instituteur'}</option>
-                <option value="global">{lang==='ar'?'عام':lang==='en'?'Global':'Global'}</option>
-              </select>
             </div>
-          </div>
-
-
-          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:12,marginBottom:12}}>
-            {/* Période */}
-            <div className="field-group">
-              <label className="field-lbl">{lang==='ar'?'الفترة':lang==='en'?'Period':'Période'} *</label>
-              <select className="field-select" value={form.periode} onChange={e=>setForm(f=>({...f,periode:e.target.value}))}>
-                {PERIODES.map(p=><option key={p.val} value={p.val}>{lang==='ar'?p.label_ar:lang==='en'?p.label_en:p.label_fr}</option>)}
-              </select>
-            </div>
-
-            {/* Date début */}
-            <div className="field-group">
-              <label className="field-lbl">{lang==='ar'?'تاريخ البداية':lang==='en'?'Start date':'Date de début'} *</label>
-              <input className="field-input" type="date" value={form.date_debut} onChange={e=>setForm(f=>({...f,date_debut:e.target.value}))}/>
-            </div>
-
-            {/* Date fin (auto) */}
-            <div className="field-group">
-              <label className="field-lbl">{lang==='ar'?'تاريخ النهاية':lang==='en'?'End date':'Date de fin'}</label>
-              <input className="field-input" type="date" value={form.date_fin} onChange={e=>setForm(f=>({...f,date_fin:e.target.value}))} style={{color:'#1D9E75',fontWeight:500}}/>
-            </div>
-          </div>
-
-          {/* ÉTAPE 1 : Métrique + nombre */}
-          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12,marginBottom:12}}>
-            <div className="field-group">
-              <label className="field-lbl">{lang==='ar'?'مؤشر القياس':lang==='en'?'Metric':'Métrique'} *</label>
-              <select className="field-select" value={form.metrique}
-                onChange={e=>setForm(f=>({...f,metrique:e.target.value,valeur_cible:'',cibles_selectionnees:[],hizbSelected:null}))}>
-                {metriquesDisponibles().map(m=><option key={m.val} value={m.val}>{lang==='ar'?m.label_ar:lang==='en'?m.label_en:m.label_fr}</option>)}
-              </select>
-            </div>
-            <div className="field-group">
-              <label className="field-lbl">
-                {form.metrique==='sourate'?(lang==='ar'?'عدد السور المستهدفة':lang==='en'?'Number of target surahs':'Nombre de sourates cibles')
-                :form.metrique==='hizb'?(lang==='ar'?'عدد الأحزاب المستهدفة':lang==='en'?'Number of target Hizb':'Nombre de Hizb cibles')
-                :form.metrique==='tomon'?(lang==='ar'?'عدد الأثمان المستهدفة':lang==='en'?'Number of target Tomon':'Nombre de Tomon cibles')
-                :form.metrique==='points'?(lang==='ar'?'النقاط المستهدفة':lang==='en'?'Target points':'Points cibles')
-                :(lang==='ar'?'عدد الحصص':lang==='en'?'Target sessions':'Nombre de séances')} *
-              </label>
-              <input className="field-input" type="number" min="1"
-                value={form.valeur_cible}
-                onChange={e=>setForm(f=>({...f,valeur_cible:e.target.value,cibles_selectionnees:[]}))}
-                placeholder={form.metrique==='points'?'500':form.metrique==='seances'?'12':'5'}/>
-            </div>
-          </div>
-
-          {/* ÉTAPE 2 : Sélection visuelle des éléments (si sourate/hizb/tomon) */}
-          {parseInt(form.valeur_cible)>0 && ['sourate','hizb','tomon'].includes(form.metrique) && (
-            <div style={{marginBottom:12,border:'1.5px solid #1D9E75',borderRadius:12,padding:'1rem',background:'#f0faf6'}}>
-              <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:10}}>
-                <div style={{fontSize:13,fontWeight:600,color:'#085041'}}>
-                  {lang==='ar'?'اختر العناصر المستهدفة':lang==='en'?'Select target items':`Sélectionnez les éléments cibles`}
-                  <span style={{fontSize:11,color:'#888',marginRight:8,marginLeft:8}}>({form.cibles_selectionnees.length}/{parseInt(form.valeur_cible)||0})</span>
-                </div>
-                {form.cibles_selectionnees.length>0&&<button onClick={()=>setForm(f=>({...f,cibles_selectionnees:[]}))} style={{fontSize:11,color:'#E24B4A',background:'none',border:'none',cursor:'pointer'}}>✕ {lang==='ar'?'إلغاء الكل':lang==='en'?'Clear all':`Tout effacer`}</button>}
-              </div>
-
-              {/* Barre de progression de sélection */}
-              <div style={{height:6,background:'#e8e8e0',borderRadius:3,overflow:'hidden',marginBottom:10}}>
-                <div style={{height:'100%',width:`${Math.min(100,form.cibles_selectionnees.length/(parseInt(form.valeur_cible)||1)*100)}%`,background:form.cibles_selectionnees.length>=(parseInt(form.valeur_cible)||1)?'#1D9E75':'#EF9F27',borderRadius:3,transition:'width 0.3s'}}/>
-              </div>
-
-              {form.metrique==='sourate' && (()=>{
-                const niv = form.type_cible==='niveau' ? form.code_niveau :
-                            form.type_cible==='eleve' ? (eleves.find(e=>e.id===form.eleve_id)?.code_niveau||'5B') : '5A';
-                const list = ['5B'].includes(niv) ? SOURATES_5B : SOURATES_5A;
-                const sorted = [...list].sort((a,b)=>b.numero-a.numero);
-                const maxSel = parseInt(form.valeur_cible)||0;
-                return(
-                  <div style={{display:'flex',flexDirection:'column',gap:4,maxHeight:220,overflowY:'auto'}}>
-                    {sorted.map(s=>{
-                      const key=`sourate_${s.numero}`;
-                      const isSel=form.cibles_selectionnees.includes(key);
-                      const isDisabled=!isSel&&form.cibles_selectionnees.length>=maxSel;
-                      return(
-                        <div key={s.numero} onClick={()=>{if(isDisabled)return;setForm(f=>({...f,cibles_selectionnees:isSel?f.cibles_selectionnees.filter(x=>x!==key):[...f.cibles_selectionnees,key]}));}}
-                          style={{display:'flex',alignItems:'center',gap:10,padding:'7px 10px',borderRadius:8,cursor:isDisabled?'not-allowed':'pointer',opacity:isDisabled?0.4:1,background:isSel?'#E1F5EE':'#fff',border:`0.5px solid ${isSel?'#1D9E75':'#e0e0d8'}`,transition:'all 0.15s'}}>
-                          <div style={{width:18,height:18,borderRadius:4,border:`1.5px solid ${isSel?'#1D9E75':'#ccc'}`,background:isSel?'#1D9E75':'#fff',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
-                            {isSel&&<span style={{color:'#fff',fontSize:11,fontWeight:700}}>✓</span>}
-                          </div>
-                          <span style={{fontSize:11,color:'#bbb',minWidth:24}}>{s.numero}</span>
-                          <span style={{fontSize:14,fontFamily:"'Tajawal',Arial",direction:'rtl',color:isSel?'#085041':'#333',fontWeight:isSel?600:400}}>{s.nom_ar}</span>
-                        </div>
-                      );
-                    })}
-                  </div>
-                );
-              })()}
-
-              {form.metrique==='hizb' && (()=>{
-                const maxSel=parseInt(form.valeur_cible)||0;
-                return(
-                  <div style={{display:'grid',gridTemplateColumns:'repeat(6,1fr)',gap:4}}>
-                    {Array.from({length:60},(_,i)=>i+1).map(h=>{
-                      const key=`hizb_${h}`;
-                      const isSel=form.cibles_selectionnees.includes(key);
-                      const isDisabled=!isSel&&form.cibles_selectionnees.length>=maxSel;
-                      return(
-                        <div key={h} onClick={()=>{if(isDisabled)return;setForm(f=>({...f,cibles_selectionnees:isSel?f.cibles_selectionnees.filter(x=>x!==key):[...f.cibles_selectionnees,key]}));}}
-                          style={{height:36,borderRadius:6,display:'flex',alignItems:'center',justifyContent:'center',fontSize:12,fontWeight:isSel?700:400,cursor:isDisabled?'not-allowed':'pointer',opacity:isDisabled?0.35:1,background:isSel?'#1D9E75':'#fff',color:isSel?'#fff':'#666',border:`0.5px solid ${isSel?'#1D9E75':'#e0e0d8'}`,transition:'all 0.1s'}}>
-                          {h}
-                        </div>
-                      );
-                    })}
-                  </div>
-                );
-              })()}
-
-              {form.metrique==='tomon' && (()=>{
-                const maxSel=parseInt(form.valeur_cible)||0;
-                // First pick a Hizb, then pick Tomon within it
-                return(
-                  <div>
-                    <div style={{fontSize:11,color:'#085041',fontWeight:600,marginBottom:6}}>
-                      {'1️⃣'} {lang==='ar'?'اختر الحزب أولاً':lang==='en'?'First select a Hizb':`Sélectionnez d'abord un Hizb`}
-                    </div>
-                    <div style={{display:'grid',gridTemplateColumns:'repeat(10,1fr)',gap:3,marginBottom:10}}>
-                      {Array.from({length:60},(_,i)=>i+1).map(h=>{
-                        const hasSelected=form.cibles_selectionnees.some(k=>k.startsWith(`h${h}_t`));
-                        return(
-                          <div key={h} onClick={()=>setForm(f=>({...f,hizbSelected:f.hizbSelected===h?null:h}))}
-                            style={{height:28,borderRadius:4,display:'flex',alignItems:'center',justifyContent:'center',fontSize:11,cursor:'pointer',
-                              background:form.hizbSelected===h?'#085041':hasSelected?'#E1F5EE':'#f5f5f0',
-                              color:form.hizbSelected===h?'#fff':hasSelected?'#085041':'#888',
-                              border:`0.5px solid ${form.hizbSelected===h?'#085041':hasSelected?'#9FE1CB':'#e0e0d8'}`,
-                              fontWeight:form.hizbSelected===h||hasSelected?600:400}}>
-                            {h}
-                          </div>
-                        );
-                      })}
-                    </div>
-                    {form.hizbSelected && (
-                      <div>
-                        <div style={{fontSize:11,color:'#085041',fontWeight:600,marginBottom:6}}>
-                          {'2️⃣'} {lang==='ar'?`الأثمان - الحزب ${form.hizbSelected}`:lang==='en'?`Tomon - Hizb ${form.hizbSelected}`:`Tomon du Hizb ${form.hizbSelected}`}
-                        </div>
-                        <div style={{display:'grid',gridTemplateColumns:'repeat(8,1fr)',gap:6}}>
-                          {[1,2,3,4,5,6,7,8].map(t=>{
-                            const key=`h${form.hizbSelected}_t${t}`;
-                            const isSel=form.cibles_selectionnees.includes(key);
-                            const isDisabled=!isSel&&form.cibles_selectionnees.length>=maxSel;
-                            return(
-                              <div key={t} onClick={()=>{if(isDisabled)return;setForm(f=>({...f,cibles_selectionnees:isSel?f.cibles_selectionnees.filter(x=>x!==key):[...f.cibles_selectionnees,key]}));}}
-                                style={{padding:'10px',borderRadius:8,textAlign:'center',cursor:isDisabled?'not-allowed':'pointer',opacity:isDisabled?0.35:1,
-                                  background:isSel?'#1D9E75':'#fff',color:isSel?'#fff':'#555',border:`1.5px solid ${isSel?'#1D9E75':'#e0e0d8'}`,transition:'all 0.15s'}}>
-                                <div style={{fontSize:14,fontWeight:700}}>T.{t}</div>
-                                <div style={{fontSize:9,color:isSel?'#9FE1CB':'#bbb',marginTop:2}}>H{form.hizbSelected}</div>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    )}
-                    {form.cibles_selectionnees.length>0 && (
-                      <div style={{marginTop:8,display:'flex',gap:4,flexWrap:'wrap'}}>
-                        {form.cibles_selectionnees.map(k=>{
-                          const [h,t]=k.replace('h','').split('_t');
-                          return <span key={k} style={{padding:'2px 8px',background:'#E1F5EE',borderRadius:20,fontSize:11,color:'#085041'}}>Hizb {h} T.{t}</span>;
-                        })}
-                      </div>
-                    )}
-                  </div>
-                );
-              })()}
+          ):(
+            <div style={{display:'flex',flexDirection:'column',gap:10}}>
+              {objFiltres.map(obj=><CarteObjectif key={obj.id} obj={obj}/>)}
             </div>
           )}
+        </div>
 
-          {/* Notes */}
-          <div className="field-group" style={{marginBottom:14}}>
-            <label className="field-lbl">{lang==='ar'?'ملاحظات':lang==='en'?'Notes':'Notes'}</label>
-            <textarea className="field-input" rows={2} value={form.notes} onChange={e=>setForm(f=>({...f,notes:e.target.value}))} placeholder={lang==='ar'?'ملاحظات إضافية...':lang==='en'?'Additional notes...':'Notes supplémentaires...'} style={{resize:'vertical'}}/>
-          </div>
-
-          {/* Preview */}
-          {(form.valeur_cible>0||form.cible_specifique)&&(
-            <div style={{background:'#f0faf6',border:'0.5px solid #9FE1CB',borderRadius:10,padding:'10px 14px',marginBottom:14,fontSize:12,color:'#085041'}}>
-              📋 <strong>{form.titre||lang==='ar'?'هدف':'Objectif'}</strong>
-              {' → '}{getObjLabel({type_cible:form.type_cible,eleve_id:form.eleve_id,code_niveau:form.code_niveau,instituteur_id:form.instituteur_id})}
-              {' → '}
-              {form.cible_specifique
-                ? <span style={{fontWeight:700,color:'#085041'}}>
-                    {form.cible_specifique.startsWith('sourate_')
-                      ? (()=>{const n=parseInt(form.cible_specifique.replace('sourate_',''));const s=[...SOURATES_5B,...SOURATES_5A,...SOURATES_2M].find(x=>x.numero===n);return (lang==='ar'?'سورة':'Sourate')+' '+n+' — '+(s?.nom_ar||'');})()
-                      : form.cible_specifique.startsWith('hizb_')
-                      ? `Hizb ${form.cible_specifique.replace('hizb_','')}`
-                      : form.cible_specifique.replace('hizb','H').replace('_tomon',' T.')}
-                  </span>
-                : <span>{form.valeur_cible} {getMetriqueLabel(form.metrique,lang)}</span>}
-              {' / '}{getPeriodeLabel(form.periode,lang)}
-              {' ('}{formatDate(form.date_debut)} → {formatDate(form.date_fin)}{')'}
+        {/* Formulaire PC */}
+        {showForm&&(
+          <div style={{background:'#fff',border:`1.5px solid ${editing?'#378ADD':'#1D9E75'}`,
+            borderRadius:14,padding:'1.5rem',height:'fit-content',position:'sticky',top:20}}>
+            <div style={{fontSize:15,fontWeight:700,color:'#085041',marginBottom:'1rem'}}>
+              {editing?(lang==='ar'?'تعديل الهدف':'✏️ Modifier l\'objectif')
+                      :(lang==='ar'?'إضافة هدف جديد':'🎯 Nouvel objectif')}
             </div>
-          )}
-
-          <button className="btn-primary" onClick={saveObjectif} disabled={saving}>
-            {saving?'...':(editingId?('✓ '+(lang==='ar'?'تحديث':lang==='en'?'Update':'Mettre à jour')):('✓ '+(lang==='ar'?'حفظ الهدف':lang==='en'?'Save objective':'Enregistrer objectif')))}
-          </button>
-        </div>
-      )}
-
-      {/* Filtres */}
-      <div style={{background:'#fff',border:'0.5px solid #e0e0d8',borderRadius:12,padding:'1rem',marginBottom:'1rem'}}>
-        <div style={{fontSize:12,fontWeight:600,color:'#888',marginBottom:8}}>
-          🔍 {lang==='ar'?'تصفية الأهداف':lang==='en'?'Filter objectives':'Filtrer les objectifs'}
-        </div>
-        <div style={{display:'flex',gap:8,flexWrap:'wrap',marginBottom:10}}>
-          <select className="field-select" style={{flex:1,minWidth:130}} value={filterType} onChange={e=>setFilterType(e.target.value)}>
-            <option value="tous">{lang==='ar'?'جميع الأنواع':lang==='en'?'All types':'Tous les types'}</option>
-            <option value="eleve">{lang==='ar'?'بالطالب':lang==='en'?'By student':'Par élève'}</option>
-            <option value="niveau">{lang==='ar'?'بالمستوى':lang==='en'?'By level':'Par niveau'}</option>
-            <option value="instituteur">{lang==='ar'?'بالأستاذ':lang==='en'?'By teacher':'Par instituteur'}</option>
-            <option value="global">{lang==='ar'?'عام':lang==='en'?'Global':'Global'}</option>
-          </select>
-          <select className="field-select" style={{flex:1,minWidth:130}} value={filterNiveau} onChange={e=>setFilterNiveau(e.target.value)}>
-            <option value="tous">{lang==='ar'?'جميع المستويات':lang==='en'?'All levels':'Tous les niveaux'}</option>
-            {NIVEAUX.map(n=><option key={n} value={n}>{n} — {NIVEAU_LABELS[n]}</option>)}
-          </select>
-          <select className="field-select" style={{flex:1,minWidth:130}} value={filterStatut} onChange={e=>setFilterStatut(e.target.value)}>
-            <option value="tous">{lang==='ar'?'جميع الحالات':lang==='en'?'All statuses':'Tous les statuts'}</option>
-            <option value="en_cours">{lang==='ar'?'جارية':lang==='en'?'In progress':'En cours'}</option>
-            <option value="atteint">{lang==='ar'?'محققة':lang==='en'?'Achieved':'Atteints'}</option>
-            <option value="expire">{lang==='ar'?'منتهية':lang==='en'?'Expired':'Expirés'}</option>
-            <option value="futur">{lang==='ar'?'قادمة':lang==='en'?'Upcoming':'À venir'}</option>
-          </select>
-        </div>
-        <div style={{display:'flex',gap:8,alignItems:'center',justifyContent:'space-between'}}>
-          <div style={{fontSize:12,color:'#888'}}>
-            {objFiltres.length} {lang==='ar'?'هدف':lang==='en'?'objective(s)':'objectif(s)'} {filterType!=='tous'||filterNiveau!=='tous'||filterStatut!=='tous'?`(${lang==='ar'?'مصفّى':lang==='en'?'filtered':'filtré'})`:''}
+            {FormContent}
           </div>
-          <div style={{display:'flex',gap:6}}>
-            {(filterType!=='tous'||filterNiveau!=='tous'||filterStatut!=='tous')&&(
-              <button onClick={()=>{setFilterType('tous');setFilterNiveau('tous');setFilterStatut('tous');}}
-                style={{padding:'6px 12px',border:'0.5px solid #e0e0d8',borderRadius:8,background:'#fff',fontSize:12,cursor:'pointer',color:'#888'}}>
-                ✕ {lang==='ar'?'إلغاء التصفية':lang==='en'?'Clear filters':'Effacer les filtres'}
-              </button>
-            )}
-            <button onClick={loadData}
-              style={{padding:'6px 16px',background:'#1D9E75',color:'#fff',border:'none',borderRadius:8,fontSize:12,fontWeight:600,cursor:'pointer',display:'flex',alignItems:'center',gap:4}}>
-              🔄 {lang==='ar'?'تحديث':lang==='en'?'Refresh':'Actualiser'}
-            </button>
-          </div>
-        </div>
+        )}
       </div>
 
-      {/* Liste des objectifs */}
-      {loading ? <div className="loading">...</div> : objFiltres.length === 0 ? (
-        <div className="empty">
-          {lang==='ar'?'لا توجد أهداف محددة بعد':lang==='en'?'No objectives defined yet':'Aucun objectif défini'}
-        </div>
-      ) : (
-        <div style={{display:'flex',flexDirection:'column',gap:10}}>
-          {objFiltres.map(obj => {
-            const vals = getValsForObj(obj);
-            const recs = getRecsForObj(obj);
-            const { realise, pct, status } = calcAtteinte(obj, vals, recs);
-            const sc = statusConfig[status];
-            const niv = getNiveauForObj(obj);
-            const nc = niv ? NIVEAU_COLORS[niv] : '#888';
-
-            return (
-              <div key={obj.id} style={{background:'#fff',border:`0.5px solid ${sc.color}30`,borderLeft:`4px solid ${sc.color}`,borderRadius:12,padding:'1rem'}}>
-                <div style={{display:'flex',alignItems:'flex-start',gap:12,marginBottom:10}}>
-                  <div style={{flex:1}}>
-                    <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap',marginBottom:4}}>
-                      {obj.titre&&<span style={{fontSize:14,fontWeight:700,color:'#1a1a1a'}}>{obj.titre}</span>}
-                      <span style={{padding:'2px 8px',borderRadius:20,fontSize:11,fontWeight:600,background:sc.bg,color:sc.color}}>
-                        {lang==='ar'?sc.label_ar:lang==='en'?sc.label_en:sc.label_fr}
-                      </span>
-                      {niv&&<span style={{padding:'2px 8px',borderRadius:20,fontSize:11,fontWeight:700,background:nc+'15',color:nc}}>{niv}</span>}
-                    </div>
-                    <div style={{fontSize:13,color:'#1a1a1a',fontWeight:500}}>
-                      {getObjLabel(obj)} — {obj.valeur_cible} {getMetriqueLabel(obj.metrique,lang)} / {getPeriodeLabel(obj.periode,lang)}
-                    </div>
-                    <div style={{fontSize:11,color:'#888',marginTop:2}}>
-                      📅 {formatDate(obj.date_debut)} → {formatDate(obj.date_fin)}
-                      {obj.notes&&<span style={{marginLeft:8}}>· {obj.notes}</span>}
-                    </div>
-                  </div>
-                  <div style={{textAlign:'right',flexShrink:0}}>
-                    <div style={{fontSize:22,fontWeight:800,color:sc.color}}>{pct}%</div>
-                    <div style={{fontSize:11,color:'#888'}}>{realise}/{obj.valeur_cible}</div>
-                    {user.role==='surveillant'&&(
-                      <div style={{display:'flex',gap:6,marginTop:4}}>
-                        <button onClick={()=>startEdit(obj)} style={{fontSize:10,color:'#378ADD',background:'none',border:'none',cursor:'pointer',padding:0}}>✏️ {lang==='ar'?'تعديل':lang==='en'?'Edit':'Modifier'}</button>
-                        <button onClick={()=>deleteObjectif(obj.id)} style={{padding:'3px 8px',background:'#FCEBEB',color:'#E24B4A',border:'0.5px solid #E24B4A30',borderRadius:6,cursor:'pointer',fontSize:11,fontWeight:600}}>🗑 {lang==='ar'?'حذف':lang==='en'?'Delete':'Supprimer'}</button>
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                {/* Progress bar */}
-                <div style={{height:10,background:'#e8e8e0',borderRadius:5,overflow:'hidden',marginBottom:8}}>
-                  <div style={{height:'100%',width:`${pct}%`,borderRadius:5,transition:'width 0.5s',
-                    background:pct>=100?'#1D9E75':pct>=60?'#EF9F27':'#E24B4A'}}/>
-                </div>
-
-                {/* Detail */}
-                <div style={{display:'flex',justifyContent:'space-between',fontSize:11,color:'#888'}}>
-                  <span>{lang==='ar'?'المحقق':lang==='en'?'Achieved':'Réalisé'}: <strong style={{color:sc.color}}>{realise} {getMetriqueLabel(obj.metrique,lang)}</strong></span>
-                  <span>{lang==='ar'?'المتبقي':lang==='en'?'Remaining':'Restant'}: <strong>{Math.max(0,obj.valeur_cible-realise)}</strong></span>
-                  {status==='en_cours'&&<span>{lang==='ar'?'الأيام المتبقية':lang==='en'?'Days left':'Jours restants'}: <strong>{Math.max(0,Math.ceil((new Date(obj.date_fin)-new Date())/(1000*60*60*24)))}</strong></span>}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      )}
-      <ConfirmModal isOpen={confirmModal.isOpen} title={confirmModal.title} message={confirmModal.message}
-        onConfirm={confirmModal.onConfirm} onCancel={hideConfirm}
-        confirmLabel={confirmModal.confirmLabel} confirmColor={confirmModal.confirmColor} lang={lang}/>
+      <ConfirmModal {...confirmModal} onClose={()=>setConfirmModal({isOpen:false})} lang={lang}/>
     </div>
   );
 }
