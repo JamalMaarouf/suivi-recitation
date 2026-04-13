@@ -9,8 +9,8 @@ export async function genererCertificatPDF({ resultat, eleve, examen, niveau, ec
     const jsPDF          = jspdfModule.jsPDF || jspdfModule.default?.jsPDF || jspdfModule.default;
     const html2canvasFn  = h2cModule.default || h2cModule;
 
-    const date = new Date(resultat.date_examen || resultat.created_at)
-      .toLocaleDateString('fr-FR', { day:'numeric', month:'long', year:'numeric' });
+    const d = new Date(resultat.date_examen || resultat.created_at);
+    const date = `${d.getDate()} ${d.toLocaleDateString('fr-FR', {month:'long'})} ${d.getFullYear()}`;
     const ecolNom   = ecole?.nom || 'École Coranique';
     const niveauNom = niveau ? `${niveau.code} — ${niveau.nom}` : (eleve.code_niveau || '');
     const score     = resultat.score;
@@ -71,17 +71,17 @@ export async function genererCertificatPDF({ resultat, eleve, examen, niveau, ec
           <div style="width:100%;background:#f9f9f6;border-radius:12px;padding:14px 24px;
             display:flex;justify-content:space-around;align-items:center;margin:10px 0;">
             <div style="text-align:center;">
-              <div style="font-size:10px;color:#aaa;letter-spacing:1px;text-transform:uppercase;direction:rtl;font-family:'Tajawal',Arial;">المستوى · Niveau</div>
+              <div style="font-size:10px;color:#aaa;letter-spacing:1px;text-transform:uppercase;font-family:'Tajawal',Arial;unicode-bidi:plaintext;">المستوى · Niveau</div>
               <div style="font-size:16px;font-weight:700;color:#1a1a1a;">${niveauNom}</div>
             </div>
             <div style="width:1px;height:40px;background:#e0e0d8;"></div>
             <div style="text-align:center;">
-              <div style="font-size:10px;color:#aaa;letter-spacing:1px;text-transform:uppercase;direction:rtl;font-family:'Tajawal',Arial;">النقاط · Score</div>
+              <div style="font-size:10px;color:#aaa;letter-spacing:1px;text-transform:uppercase;font-family:'Tajawal',Arial;unicode-bidi:plaintext;">النقاط · Score</div>
               <div style="font-size:32px;font-weight:800;color:${scoreColor};">${score}%</div>
             </div>
             <div style="width:1px;height:40px;background:#e0e0d8;"></div>
             <div style="text-align:center;">
-              <div style="font-size:10px;color:#aaa;letter-spacing:1px;text-transform:uppercase;direction:rtl;font-family:'Tajawal',Arial;">التاريخ · Date</div>
+              <div style="font-size:10px;color:#aaa;letter-spacing:1px;text-transform:uppercase;font-family:'Tajawal',Arial;unicode-bidi:plaintext;">التاريخ · Date</div>
               <div style="font-size:16px;font-weight:700;color:#1a1a1a;">${date}</div>
             </div>
           </div>
