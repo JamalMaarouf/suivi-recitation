@@ -70,7 +70,13 @@ export default function GestionObjectifs({ user, navigate, goBack, lang='fr', is
   };
 
   const niveauDuForm = niveaux.find(n=>n.id===form.niveau_id);
-  const metriques    = getMetriques(niveauDuForm?.type||'hizb');
+  // Pour type élève : déduire le type du niveau depuis code_niveau de l'élève
+  const eleveDuForm  = eleves.find(e=>e.id===form.eleve_id);
+  const niveauEleve  = eleveDuForm ? niveaux.find(n=>n.code===eleveDuForm.code_niveau) : null;
+  const typeNiveauActif = form.type_cible==='eleve'
+    ? (niveauEleve?.type || 'hizb')
+    : (niveauDuForm?.type || 'hizb');
+  const metriques = getMetriques(typeNiveauActif);
 
   const setFormField = (key, val) => setForm(f=>({...f,[key]:val}));
 
@@ -190,7 +196,7 @@ export default function GestionObjectifs({ user, navigate, goBack, lang='fr', is
   );
 
   // ── FORMULAIRE ─────────────────────────────────────────────────
-  const FormContent = (
+  const buildForm = (isPC=false) => (
     <div>
       {/* Type cible */}
       <div style={{marginBottom:14}}>
@@ -203,11 +209,14 @@ export default function GestionObjectifs({ user, navigate, goBack, lang='fr', is
             {val:'eleve',  icon:'👤', fr:'Par élève',  ar:'حسب الطالب'},
           ].map(t=>(
             <div key={t.val} onClick={()=>setFormField('type_cible',t.val)}
-              style={{flex:1,padding:'10px',borderRadius:10,cursor:'pointer',textAlign:'center',
+              style={{flex:1,padding:isPC?'8px 12px':'10px',borderRadius:10,cursor:'pointer',
+                textAlign:'center',display:'flex',alignItems:'center',
+                gap:isPC?8:0,flexDirection:isPC?'row':'column',justifyContent:'center',
                 background:form.type_cible===t.val?'#E1F5EE':'#f5f5f0',
                 border:`1.5px solid ${form.type_cible===t.val?'#1D9E75':'#e0e0d8'}`}}>
-              <div style={{fontSize:20}}>{t.icon}</div>
-              <div style={{fontSize:12,fontWeight:600,color:form.type_cible===t.val?'#085041':'#555',marginTop:4}}>
+              <div style={{fontSize:isPC?16:20}}>{t.icon}</div>
+              <div style={{fontSize:12,fontWeight:600,color:form.type_cible===t.val?'#085041':'#555',
+                marginTop:isPC?0:4}}>
                 {lang==='ar'?t.ar:t.fr}
               </div>
             </div>
@@ -243,9 +252,11 @@ export default function GestionObjectifs({ user, navigate, goBack, lang='fr', is
                 {elevesFiltres.slice(0,15).map(e=>{
                   const niv = niveaux.find(n=>n.code===e.code_niveau);
                   return(
-                    <div key={e.id} onClick={()=>{setFormField('eleve_id',e.id);setSearchEleve('');
+                    <div key={e.id} onClick={()=>{
                       const metr=getMetriques(niv?.type||'hizb')[0]?.val||'tomon';
-                      setFormField('metrique',metr);}}
+                      setForm(f=>({...f, eleve_id:e.id, metrique:metr}));
+                      setSearchEleve('');
+                    }}
                       style={{padding:'8px 12px',borderRadius:8,cursor:'pointer',background:'#f5f5f0',
                         border:'0.5px solid #e0e0d8',display:'flex',gap:8,alignItems:'center'}}>
                       <span style={{fontSize:11,padding:'1px 7px',borderRadius:20,
@@ -308,10 +319,12 @@ export default function GestionObjectifs({ user, navigate, goBack, lang='fr', is
         <label style={{fontSize:12,fontWeight:700,color:'#666',display:'block',marginBottom:8}}>
           {lang==='ar'?'الفترة':'Période'}
         </label>
-        <div style={{display:'flex',gap:6,flexWrap:'wrap',marginBottom:10}}>
+        <div style={{display:'flex',gap:6,flexWrap:'wrap',marginBottom:10,
+          overflowX:isPC?'auto':'visible',scrollbarWidth:'none'}}>
           {PERIODES.map(p=>(
             <div key={p.val} onClick={()=>onChangePeriode(p.val)}
-              style={{padding:'5px 12px',borderRadius:20,cursor:'pointer',fontSize:12,fontWeight:600,
+              style={{padding:isPC?'4px 10px':'5px 12px',borderRadius:20,cursor:'pointer',
+                fontSize:isPC?11:12,fontWeight:600,flexShrink:0,
                 background:form.type_periode===p.val?'#1D9E75':'#f5f5f0',
                 color:form.type_periode===p.val?'#fff':'#666',
                 border:`0.5px solid ${form.type_periode===p.val?'#1D9E75':'#e0e0d8'}`}}>
@@ -346,9 +359,10 @@ export default function GestionObjectifs({ user, navigate, goBack, lang='fr', is
         <label style={{fontSize:12,fontWeight:700,color:'#666',display:'block',marginBottom:6}}>
           {lang==='ar'?'ملاحظات (اختياري)':'Notes (optionnel)'}
         </label>
-        <textarea value={form.notes} onChange={e=>setFormField('notes',e.target.value)} rows={2}
+        <textarea value={form.notes} onChange={e=>setFormField('notes',e.target.value)}
+          rows={isPC?2:2}
           placeholder={lang==='ar'?'ملاحظة حول هذا الهدف...':'Remarque sur cet objectif...'}
-          style={{width:'100%',padding:'10px 12px',borderRadius:10,border:'0.5px solid #e0e0d8',
+          style={{width:'100%',padding:'8px 12px',borderRadius:10,border:'0.5px solid #e0e0d8',
             fontSize:13,fontFamily:'inherit',resize:'vertical',boxSizing:'border-box',outline:'none'}}/>
       </div>
 
@@ -370,16 +384,16 @@ export default function GestionObjectifs({ user, navigate, goBack, lang='fr', is
       {/* Boutons */}
       <div style={{display:'flex',gap:10}}>
         <button onClick={save} disabled={saving}
-          style={{flex:1,padding:'13px',border:'none',borderRadius:12,
-            background:saving?'#ccc':'#1D9E75',color:'#fff',fontSize:14,
+          style={{flex:1,padding:isPC?'10px':'13px',border:'none',borderRadius:12,
+            background:saving?'#ccc':'#1D9E75',color:'#fff',fontSize:isPC?13:14,
             fontWeight:700,cursor:saving?'not-allowed':'pointer',fontFamily:'inherit'}}>
           {saving?'...':(editing
             ?(lang==='ar'?'تحديث':'Modifier')
-            :(lang==='ar'?'إضافة الهدف':'Ajouter l\'objectif'))}
+            :(lang==='ar'?'إضافة الهدف':'Ajouter'))}
         </button>
         <button onClick={()=>{setShowForm(false);setEditing(null);setForm(emptyForm);}}
-          style={{padding:'13px 20px',border:'0.5px solid #e0e0d8',borderRadius:12,
-            background:'#fff',color:'#666',fontSize:14,cursor:'pointer',fontFamily:'inherit'}}>
+          style={{padding:isPC?'10px 16px':'13px 20px',border:'0.5px solid #e0e0d8',borderRadius:12,
+            background:'#fff',color:'#666',fontSize:isPC?13:14,cursor:'pointer',fontFamily:'inherit'}}>
           {lang==='ar'?'إلغاء':'Annuler'}
         </button>
       </div>
@@ -484,7 +498,7 @@ export default function GestionObjectifs({ user, navigate, goBack, lang='fr', is
               <div style={{fontSize:15,fontWeight:700,color:'#085041',marginBottom:14}}>
                 {editing?(lang==='ar'?'تعديل الهدف':'✏️ Modifier'):(lang==='ar'?'إضافة هدف جديد':'🎯 Nouvel objectif')}
               </div>
-              {FormContent}
+              {buildForm(false)}
             </div>
           )}
           {!showForm&&(
@@ -617,7 +631,7 @@ export default function GestionObjectifs({ user, navigate, goBack, lang='fr', is
               {editing?(lang==='ar'?'تعديل الهدف':'✏️ Modifier l\'objectif')
                       :(lang==='ar'?'إضافة هدف جديد':'🎯 Nouvel objectif')}
             </div>
-            {FormContent}
+            {buildForm(true)}
           </div>
         )}
       </div>
