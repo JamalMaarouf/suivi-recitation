@@ -1,92 +1,91 @@
+# Configuration du Backup Automatique
 
--- ============================================================
--- PHASE 2 : Migration Multi-École
--- À exécuter UNE SEULE FOIS dans Supabase SQL Editor
--- ============================================================
+## Ce que ça fait
+- Chaque nuit à **minuit (heure Maroc)**, Vercel appelle `/api/backup`
+- La fonction exporte toutes les tables Supabase en JSON
+- Le fichier JSON est envoyé par **email** avec un résumé
+- Vous pouvez aussi déclencher un backup **manuellement** depuis le tableau de bord Super Admin
 
--- 1. TABLE ECOLES
-CREATE TABLE IF NOT EXISTS ecoles (
-  id              uuid DEFAULT gen_random_uuid() PRIMARY KEY,
-  nom             text NOT NULL,
-  ville           text,
-  pays            text DEFAULT 'Maroc',
-  telephone       text,
-  email           text,
-  code_acces      text UNIQUE,          -- code généré pour l'école
-  statut          text DEFAULT 'en_attente', -- 'en_attente' | 'active' | 'suspendue'
-  valide_par      uuid REFERENCES utilisateurs(id),
-  date_validation timestamptz,
-  note_admin      text,
-  created_at      timestamptz DEFAULT now()
-);
-ALTER TABLE ecoles DISABLE ROW LEVEL SECURITY;
+---
 
--- 2. AJOUTER ecole_id SUR TOUTES LES TABLES EXISTANTES
-ALTER TABLE utilisateurs      ADD COLUMN IF NOT EXISTS ecole_id uuid REFERENCES ecoles(id);
-ALTER TABLE eleves            ADD COLUMN IF NOT EXISTS ecole_id uuid REFERENCES ecoles(id);
-ALTER TABLE validations       ADD COLUMN IF NOT EXISTS ecole_id uuid REFERENCES ecoles(id);
-ALTER TABLE recitations_sourates ADD COLUMN IF NOT EXISTS ecole_id uuid REFERENCES ecoles(id);
-ALTER TABLE apprentissages    ADD COLUMN IF NOT EXISTS ecole_id uuid REFERENCES ecoles(id);
-ALTER TABLE objectifs_globaux ADD COLUMN IF NOT EXISTS ecole_id uuid REFERENCES ecoles(id);
-ALTER TABLE cotisations       ADD COLUMN IF NOT EXISTS ecole_id uuid REFERENCES ecoles(id);
-ALTER TABLE depenses          ADD COLUMN IF NOT EXISTS ecole_id uuid REFERENCES ecoles(id);
-ALTER TABLE parents           ADD COLUMN IF NOT EXISTS ecole_id uuid REFERENCES ecoles(id);
-ALTER TABLE passages_niveau   ADD COLUMN IF NOT EXISTS ecole_id uuid REFERENCES ecoles(id);
-ALTER TABLE exceptions_recitation ADD COLUMN IF NOT EXISTS ecole_id uuid REFERENCES ecoles(id);
-ALTER TABLE exceptions_hizb   ADD COLUMN IF NOT EXISTS ecole_id uuid REFERENCES ecoles(id);
+## Étape 1 — Créer un compte Resend (gratuit)
 
--- 3. AJOUTER role super_admin + statut_compte SUR utilisateurs
-ALTER TABLE utilisateurs ADD COLUMN IF NOT EXISTS statut_compte text DEFAULT 'actif';
--- role existant : 'instituteur' | 'surveillant' → on ajoute 'super_admin'
+1. Allez sur [resend.com](https://resend.com) → **Sign up**
+2. Vérifiez votre email
+3. Dans le dashboard Resend → **API Keys** → **Create API Key**
+4. Copiez la clé (commence par `re_...`)
 
--- 4. CRÉER L'ÉCOLE DE TEST (avec les données actuelles)
-INSERT INTO ecoles (nom, ville, pays, statut, code_acces)
-VALUES ('École de test', 'Casablanca', 'Maroc', 'active', 'ECOLE-TEST-001')
-ON CONFLICT (code_acces) DO NOTHING;
+> Plan gratuit : 3 000 emails/mois, largement suffisant pour 1 email/nuit
 
--- 5. RATTACHER TOUTE LA DATA EXISTANTE À L'ÉCOLE DE TEST
-DO $$
-DECLARE
-  ecole_test_id uuid;
-BEGIN
-  SELECT id INTO ecole_test_id FROM ecoles WHERE code_acces = 'ECOLE-TEST-001';
+---
 
-  UPDATE utilisateurs           SET ecole_id = ecole_test_id WHERE ecole_id IS NULL AND role != 'super_admin';
-  UPDATE eleves                 SET ecole_id = ecole_test_id WHERE ecole_id IS NULL;
-  UPDATE validations            SET ecole_id = ecole_test_id WHERE ecole_id IS NULL;
-  UPDATE recitations_sourates   SET ecole_id = ecole_test_id WHERE ecole_id IS NULL;
-  UPDATE apprentissages         SET ecole_id = ecole_test_id WHERE ecole_id IS NULL;
-  UPDATE objectifs_globaux      SET ecole_id = ecole_test_id WHERE ecole_id IS NULL;
-  UPDATE cotisations            SET ecole_id = ecole_test_id WHERE ecole_id IS NULL;
-  UPDATE depenses               SET ecole_id = ecole_test_id WHERE ecole_id IS NULL;
-  UPDATE parents                SET ecole_id = ecole_test_id WHERE ecole_id IS NULL;
-  UPDATE passages_niveau        SET ecole_id = ecole_test_id WHERE ecole_id IS NULL;
-  UPDATE exceptions_recitation  SET ecole_id = ecole_test_id WHERE ecole_id IS NULL;
-  UPDATE exceptions_hizb        SET ecole_id = ecole_test_id WHERE ecole_id IS NULL;
+## Étape 2 — Récupérer la Service Key Supabase
 
-  -- Rattacher l'école de test à son surveillant (compte admin)
-  UPDATE ecoles 
-  SET valide_par = (SELECT id FROM utilisateurs WHERE identifiant = 'admin' LIMIT 1),
-      date_validation = now()
-  WHERE code_acces = 'ECOLE-TEST-001';
+La Service Key a accès complet (bypass RLS) — nécessaire pour exporter toutes les données.
 
-  -- Mettre à jour ecole_id du surveillant admin sur l'école de test
-  UPDATE utilisateurs 
-  SET ecole_id = ecole_test_id
-  WHERE identifiant = 'admin';
+1. Supabase → votre projet → **Settings** → **API**
+2. Copiez la **service_role key** (⚠️ ne jamais l'exposer côté client)
 
-END $$;
+---
 
--- 6. CRÉER LE COMPTE SUPER ADMIN
-INSERT INTO utilisateurs (prenom, nom, identifiant, mot_de_passe, role, statut_compte)
-VALUES ('Super', 'Admin', 'superadmin', 'superadmin123', 'super_admin', 'actif')
-ON CONFLICT (identifiant) DO UPDATE SET role = 'super_admin', statut_compte = 'actif';
+## Étape 3 — Configurer les variables dans Vercel
 
--- 7. VÉRIFICATION FINALE
-SELECT 'Écoles créées:' as info, count(*) as nb FROM ecoles
-UNION ALL
-SELECT 'Utilisateurs migrés:', count(*) FROM utilisateurs WHERE ecole_id IS NOT NULL
-UNION ALL
-SELECT 'Élèves migrés:', count(*) FROM eleves WHERE ecole_id IS NOT NULL
-UNION ALL
-SELECT 'Super admins:', count(*) FROM utilisateurs WHERE role = 'super_admin';
+Allez sur [vercel.com](https://vercel.com) → votre projet → **Settings** → **Environment Variables**
+
+Ajoutez ces 4 variables (Environment: **Production**) :
+
+| Variable | Valeur |
+|----------|--------|
+| `SUPABASE_URL` | `https://uwqhtahknhftinlzmusi.supabase.co` |
+| `SUPABASE_SERVICE_KEY` | votre service_role key Supabase |
+| `RESEND_API_KEY` | votre clé Resend (re_...) |
+| `BACKUP_EMAIL` | votre adresse email |
+| `CRON_SECRET` | un mot de passe aléatoire (ex: `backup-secret-2025`) |
+
+---
+
+## Étape 4 — Redéployer sur Vercel
+
+Après avoir ajouté les variables, faites un nouveau déploiement :
+```
+Push sur GitHub → Vercel redéploie automatiquement
+```
+
+---
+
+## Étape 5 — Tester le backup
+
+Depuis le tableau de bord **Super Admin** → bouton **💾 Backup maintenant**
+
+Vous devriez recevoir un email avec le fichier JSON en pièce jointe dans les 30 secondes.
+
+---
+
+## Planification automatique
+
+Le fichier `vercel.json` contient :
+```json
+"crons": [{ "path": "/api/backup", "schedule": "0 0 * * *" }]
+```
+`0 0 * * *` = chaque jour à **00h00 UTC** = **01h00 heure Maroc** (été) / **00h00 hiver**
+
+Pour changer l'heure, modifiez le cron : `0 22 * * *` = 22h UTC = minuit Maroc.
+
+---
+
+## Format du backup JSON
+
+```json
+{
+  "metadata": {
+    "created_at": "2025-04-04T00:00:00Z",
+    "total_records": 1234,
+    "tables": [{ "table": "eleves", "count": 45 }, ...]
+  },
+  "data": {
+    "eleves": [...],
+    "validations": [...],
+    ...
+  }
+}
+```
