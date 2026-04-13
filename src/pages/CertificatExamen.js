@@ -1,153 +1,134 @@
 import React, { useState } from 'react';
 import { useToast } from '../lib/toast';
 
-// Génère un vrai PDF téléchargeable via jsPDF (chargé dynamiquement)
+// Génère un PDF en capturant un HTML rendu (supporte l'arabe)
 export async function genererCertificatPDF({ resultat, eleve, examen, niveau, ecole }) {
   try {
-    const { jsPDF } = await import('jspdf');
-
-    const doc = new jsPDF({ orientation:'landscape', unit:'mm', format:'a4' });
-    const W = 297, H = 210; // A4 paysage
+    const [{ jsPDF }, html2canvas] = await Promise.all([
+      import('jspdf'),
+      import('html2canvas'),
+    ]);
 
     const date = new Date(resultat.date_examen || resultat.created_at)
       .toLocaleDateString('fr-FR', { day:'numeric', month:'long', year:'numeric' });
     const ecolNom   = ecole?.nom || 'École Coranique';
     const niveauNom = niveau ? `${niveau.code} — ${niveau.nom}` : (eleve.code_niveau || '');
     const score     = resultat.score;
-    const scoreColor = score >= 90 ? [29,158,117] : score >= 70 ? [55,138,221] : [239,159,39];
+    const scoreColor = score >= 90 ? '#1D9E75' : score >= 70 ? '#378ADD' : '#EF9F27';
 
-    // ── Fond ──
-    doc.setFillColor(245, 240, 232);
-    doc.rect(0, 0, W, H, 'F');
+    // Créer un div caché avec le certificat HTML
+    const container = document.createElement('div');
+    container.style.cssText = 'position:fixed;left:-9999px;top:0;width:1122px;height:794px;z-index:-1;';
+    container.innerHTML = `
+      <div id="cert-render" style="
+        width:1122px; height:794px; background:#fff;
+        font-family:'Tajawal',Arial,sans-serif;
+        border:6px solid #1D9E75; border-radius:0; position:relative;
+        padding:0; overflow:hidden; box-sizing:border-box;
+      ">
+        <!-- Bordure intérieure -->
+        <div style="position:absolute;inset:12px;border:1.5px solid #1D9E7560;pointer-events:none;"></div>
 
-    // ── Bordure extérieure ──
-    doc.setDrawColor(29, 158, 117);
-    doc.setLineWidth(3);
-    doc.rect(6, 6, W-12, H-12);
+        <!-- Fond décoratif -->
+        <div style="position:absolute;inset:0;background:linear-gradient(135deg,#f9fff9 0%,#fff 50%,#f0f8f0 100%);"></div>
 
-    // ── Bordure intérieure ──
-    doc.setLineWidth(0.8);
-    doc.setDrawColor(29, 158, 117, 0.4);
-    doc.rect(10, 10, W-20, H-20);
+        <!-- Contenu -->
+        <div style="position:relative;z-index:1;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:space-between;padding:30px 60px;">
 
-    // ── En-tête ──
-    doc.setFillColor(255, 255, 255);
-    doc.roundedRect(15, 14, W-30, 32, 4, 4, 'F');
+          <!-- Header -->
+          <div style="text-align:center;border-bottom:2px solid #1D9E75;width:100%;padding-bottom:16px;">
+            <div style="font-size:14px;color:#888;font-weight:600;margin-bottom:4px;">${ecolNom}</div>
+            <div style="font-size:38px;font-weight:800;color:#085041;direction:rtl;font-family:'Tajawal',Arial;">شهادة نجاح</div>
+            <div style="font-size:12px;color:#aaa;letter-spacing:3px;font-weight:600;">CERTIFICAT DE RÉUSSITE</div>
+          </div>
 
-    // Nom école
-    doc.setTextColor(100, 100, 100);
-    doc.setFontSize(11);
-    doc.text(ecolNom, W/2, 22, { align:'center' });
+          <!-- Corps -->
+          <div style="text-align:center;flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;">
+            <div style="font-size:60px;line-height:1;">🏅</div>
 
-    // Titre arabe
-    doc.setTextColor(8, 80, 65);
-    doc.setFontSize(22);
-    doc.setFont(undefined, 'bold');
-    doc.text('شهادة نجاح', W/2, 33, { align:'center' });
+            <div style="font-size:16px;color:#666;direction:rtl;font-family:'Tajawal',Arial;">
+              يُشهد بأن الطالب / الطالبة
+            </div>
 
-    // Titre français
-    doc.setTextColor(130, 130, 130);
-    doc.setFontSize(9);
-    doc.setFont(undefined, 'normal');
-    doc.text('CERTIFICAT DE RÉUSSITE', W/2, 40, { align:'center' });
+            <div style="font-size:34px;font-weight:800;color:#085041;direction:rtl;font-family:'Tajawal',Arial;
+              border-bottom:2px solid #1D9E75;padding-bottom:4px;">
+              ${eleve.prenom} ${eleve.nom}
+            </div>
 
-    // ── Médaille ──
-    doc.setFontSize(28);
-    doc.text('🏅', W/2, 60, { align:'center' });
+            <div style="font-size:16px;color:#666;direction:rtl;font-family:'Tajawal',Arial;">
+              قد اجتاز بنجاح امتحان
+            </div>
 
-    // ── Texte principal ──
-    doc.setTextColor(80, 80, 80);
-    doc.setFontSize(13);
-    doc.setFont(undefined, 'normal');
-    doc.text('يُشهد بأن الطالب / الطالبة', W/2, 74, { align:'center' });
+            <div style="font-size:22px;font-weight:700;color:#1D9E75;
+              border:2px solid #1D9E75;border-radius:10px;
+              padding:6px 24px;background:#E1F5EE;
+              direction:rtl;font-family:'Tajawal',Arial;">
+              ${examen.nom}
+            </div>
+          </div>
 
-    // Nom élève
-    doc.setTextColor(8, 80, 65);
-    doc.setFontSize(22);
-    doc.setFont(undefined, 'bold');
-    doc.text(`${eleve.prenom} ${eleve.nom}`, W/2, 86, { align:'center' });
+          <!-- Détails -->
+          <div style="width:100%;background:#f9f9f6;border-radius:12px;padding:14px 24px;
+            display:flex;justify-content:space-around;align-items:center;margin:10px 0;">
+            <div style="text-align:center;">
+              <div style="font-size:10px;color:#aaa;letter-spacing:1px;text-transform:uppercase;direction:rtl;font-family:'Tajawal',Arial;">المستوى · Niveau</div>
+              <div style="font-size:16px;font-weight:700;color:#1a1a1a;">${niveauNom}</div>
+            </div>
+            <div style="width:1px;height:40px;background:#e0e0d8;"></div>
+            <div style="text-align:center;">
+              <div style="font-size:10px;color:#aaa;letter-spacing:1px;text-transform:uppercase;direction:rtl;font-family:'Tajawal',Arial;">النقاط · Score</div>
+              <div style="font-size:32px;font-weight:800;color:${scoreColor};">${score}%</div>
+            </div>
+            <div style="width:1px;height:40px;background:#e0e0d8;"></div>
+            <div style="text-align:center;">
+              <div style="font-size:10px;color:#aaa;letter-spacing:1px;text-transform:uppercase;direction:rtl;font-family:'Tajawal',Arial;">التاريخ · Date</div>
+              <div style="font-size:16px;font-weight:700;color:#1a1a1a;">${date}</div>
+            </div>
+          </div>
 
-    // Ligne décorative sous le nom
-    doc.setDrawColor(29, 158, 117);
-    doc.setLineWidth(1);
-    const nomWidth = doc.getTextWidth(`${eleve.prenom} ${eleve.nom}`);
-    doc.line(W/2 - nomWidth/2, 88, W/2 + nomWidth/2, 88);
+          ${resultat.notes_examinateur ? `
+          <div style="font-style:italic;color:#888;font-size:13px;text-align:center;font-family:'Tajawal',Arial;direction:rtl;">
+            "${resultat.notes_examinateur}"
+          </div>` : ''}
 
-    doc.setTextColor(80, 80, 80);
-    doc.setFontSize(13);
-    doc.setFont(undefined, 'normal');
-    doc.text('قد اجتاز بنجاح امتحان', W/2, 97, { align:'center' });
+          <!-- Footer -->
+          <div style="width:100%;display:flex;justify-content:space-between;align-items:flex-end;padding-top:10px;border-top:1px solid #e0e0d8;">
+            <div style="font-size:12px;color:#aaa;direction:rtl;font-family:'Tajawal',Arial;">
+              أصدر بتاريخ: ${date}
+            </div>
+            <div style="text-align:center;">
+              <div style="width:200px;border-bottom:1.5px solid #333;margin-bottom:6px;"></div>
+              <div style="font-size:11px;color:#666;direction:rtl;font-family:'Tajawal',Arial;">
+                توقيع المشرف العام · Signature du Surveillant
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(container);
 
-    // Nom examen dans un encadré
-    doc.setDrawColor(29, 158, 117);
-    doc.setFillColor(225, 245, 238);
-    doc.setLineWidth(1);
-    const examWidth = Math.max(60, doc.getTextWidth(examen.nom) + 16);
-    doc.roundedRect(W/2 - examWidth/2, 100, examWidth, 12, 3, 3, 'FD');
-    doc.setTextColor(8, 80, 65);
-    doc.setFontSize(14);
-    doc.setFont(undefined, 'bold');
-    doc.text(examen.nom, W/2, 108, { align:'center' });
+    // Attendre que la police se charge
+    await document.fonts.ready;
 
-    // ── Détails (3 colonnes) ──
-    doc.setFillColor(249, 249, 246);
-    doc.roundedRect(20, 120, W-40, 26, 4, 4, 'F');
+    // Capturer en image
+    const canvas = await html2canvas.default(container.querySelector('#cert-render'), {
+      scale: 2,
+      useCORS: true,
+      backgroundColor: '#fff',
+      width: 1122,
+      height: 794,
+    });
 
-    // Col 1 — Niveau
-    doc.setTextColor(160, 160, 160);
-    doc.setFontSize(8);
-    doc.setFont(undefined, 'normal');
-    doc.text('المستوى · NIVEAU', 65, 128, { align:'center' });
-    doc.setTextColor(30, 30, 30);
-    doc.setFontSize(12);
-    doc.setFont(undefined, 'bold');
-    doc.text(niveauNom, 65, 137, { align:'center' });
+    document.body.removeChild(container);
 
-    // Col 2 — Score
-    doc.setTextColor(160, 160, 160);
-    doc.setFontSize(8);
-    doc.setFont(undefined, 'normal');
-    doc.text('النقاط · SCORE', W/2, 128, { align:'center' });
-    doc.setTextColor(...scoreColor);
-    doc.setFontSize(18);
-    doc.setFont(undefined, 'bold');
-    doc.text(`${score}%`, W/2, 138, { align:'center' });
+    // Convertir en PDF A4 paysage
+    const doc = new jsPDF.jsPDF({ orientation:'landscape', unit:'mm', format:'a4' });
+    const imgData = canvas.toDataURL('image/jpeg', 0.95);
+    doc.addImage(imgData, 'JPEG', 0, 0, 297, 210);
 
-    // Col 3 — Date
-    doc.setTextColor(160, 160, 160);
-    doc.setFontSize(8);
-    doc.setFont(undefined, 'normal');
-    doc.text('التاريخ · DATE', W-65, 128, { align:'center' });
-    doc.setTextColor(30, 30, 30);
-    doc.setFontSize(11);
-    doc.setFont(undefined, 'bold');
-    doc.text(date, W-65, 137, { align:'center' });
-
-    // ── Observations ──
-    if (resultat.notes_examinateur) {
-      doc.setTextColor(120, 120, 120);
-      doc.setFontSize(9);
-      doc.setFont(undefined, 'italic');
-      doc.text(`"${resultat.notes_examinateur}"`, W/2, 153, { align:'center' });
-    }
-
-    // ── Signature ──
-    doc.setDrawColor(50, 50, 50);
-    doc.setLineWidth(0.5);
-    doc.line(W-90, 170, W-30, 170);
-    doc.setTextColor(100, 100, 100);
-    doc.setFontSize(8);
-    doc.setFont(undefined, 'normal');
-    doc.text('توقيع المشرف العام · Signature du Surveillant', W-60, 175, { align:'center' });
-
-    // Date émission
-    doc.setTextColor(140, 140, 140);
-    doc.setFontSize(8);
-    doc.text(`أصدر بتاريخ: ${date}`, 30, 175);
-
-    // ── Sauvegarder ──
     const filename = `certificat_${eleve.prenom}_${eleve.nom}_${examen.nom}`
-      .replace(/\s+/g, '_').replace(/[^a-zA-Z0-9_-]/g, '') + '.pdf';
+      .replace(/\s+/g,'_').replace(/[^\w-]/g,'') + '.pdf';
     doc.save(filename);
     return true;
 
@@ -157,13 +138,11 @@ export async function genererCertificatPDF({ resultat, eleve, examen, niveau, ec
   }
 }
 
-// Bouton de téléchargement du certificat
 export default function BoutonCertificat({ resultat, eleves, examens, niveaux, ecole, lang='fr' }) {
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
 
   if (!resultat || resultat.statut !== 'reussi') return null;
-
   const eleve  = eleves.find(e => e.id === resultat.eleve_id);
   const examen = examens.find(e => e.id === resultat.examen_id);
   const niveau = niveaux.find(n => n.id === examen?.niveau_id);
@@ -182,7 +161,7 @@ export default function BoutonCertificat({ resultat, eleves, examens, niveaux, e
       style={{padding:'4px 10px',borderRadius:20,border:'none',cursor:'pointer',
         background:loading?'#ccc':'#1D9E75',color:'#fff',fontSize:11,
         fontWeight:600,fontFamily:'inherit'}}>
-      {loading?'...':'📄 PDF'}
+      {loading?'⏳':'📄 PDF'}
     </button>
   );
 }
