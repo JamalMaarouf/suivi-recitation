@@ -247,18 +247,43 @@ export default function PortailParent({ parent, navigate, goBack, lang='fr', onL
             {/* Cotisations */}
             {onglet==='cotisations' && (
               <div>
-                {cotisations.slice(0,20).map(c=>(
-                  <div key={c.id} style={{background:'#fff',borderRadius:12,padding:'12px 14px',marginBottom:8,
-                    border:'0.5px solid #e0e0d8',display:'flex',alignItems:'center',gap:12}}>
-                    <span style={{fontSize:20}}>💰</span>
-                    <div style={{flex:1}}>
-                      <div style={{fontWeight:600,fontSize:13}}>{c.mois_concerne||new Date(c.date_paiement).toLocaleDateString(lang==='ar'?'ar-MA':'fr-FR')}</div>
-                      <div style={{fontSize:11,color:'#888'}}>{new Date(c.date_paiement).toLocaleDateString(lang==='ar'?'ar-MA':'fr-FR')}</div>
+                {/* Bandeau alerte impayés */}
+                {cotE.filter(c=>c.statut==='non_paye'||c.statut==='partiel').length > 0 && (
+                  <div style={{background:'#FCEBEB',border:'1.5px solid #E24B4A',borderRadius:12,padding:'12px 14px',marginBottom:12,display:'flex',alignItems:'center',gap:10}}>
+                    <span style={{fontSize:24}}>🔴</span>
+                    <div>
+                      <div style={{fontWeight:700,fontSize:13,color:'#E24B4A'}}>
+                        {lang==='ar'?'لديك اشتراكات غير مدفوعة':'Vous avez des cotisations impayées'}
+                      </div>
+                      <div style={{fontSize:11,color:'#E24B4A',opacity:0.8,marginTop:2}}>
+                        {cotE.filter(c=>c.statut==='non_paye'||c.statut==='partiel').length} {lang==='ar'?'شهر غير مسوى':'mois non réglé(s)'} · {lang==='ar'?'يرجى التسوية في أقرب وقت':'Veuillez régulariser rapidement'}
+                      </div>
                     </div>
-                    <span style={{fontSize:15,fontWeight:700,color:'#1D9E75'}}>{c.montant} DH</span>
                   </div>
-                ))}
-                {cotisations.length===0&&<div style={{textAlign:'center',color:'#aaa',padding:'2rem'}}>Aucune cotisation</div>}
+                )}
+                {cotE.filter(c=>c.statut==='non_paye'||c.statut==='partiel').length === 0 && cotE.length > 0 && (
+                  <div style={{background:'#E1F5EE',border:'1.5px solid #1D9E75',borderRadius:12,padding:'12px 14px',marginBottom:12,display:'flex',alignItems:'center',gap:10}}>
+                    <span style={{fontSize:24}}>✅</span>
+                    <div style={{fontWeight:700,fontSize:13,color:'#085041'}}>{lang==='ar'?'وضعيتك مالية ممتازة!':'Situation financière excellente !'}</div>
+                  </div>
+                )}
+                {cotE.map(cot=>{
+                  const STATUTS={paye:{ic:'✅',color:'#1D9E75',bg:'#E1F5EE',lbl:'Payé',lblAr:'مدفوع'},partiel:{ic:'⚠️',color:'#EF9F27',bg:'#FAEEDA',lbl:'Partiel',lblAr:'جزئي'},non_paye:{ic:'❌',color:'#E24B4A',bg:'#FCEBEB',lbl:'Non payé',lblAr:'غير مدفوع'},exonere:{ic:'🎁',color:'#888',bg:'#f5f5f0',lbl:'Exonéré',lblAr:'معفى'}};
+                  const st=STATUTS[cot.statut]||STATUTS.paye;
+                  return(
+                  <div key={cot.id} style={{background:st.bg,borderRadius:12,padding:'12px 14px',marginBottom:8,border:`1.5px solid ${st.color}30`,display:'flex',alignItems:'center',gap:12}}>
+                    <span style={{fontSize:20}}>{st.ic}</span>
+                    <div style={{flex:1}}>
+                      <div style={{fontWeight:700,fontSize:13,color:st.color}}>{cot.periode||cot.mois_concerne||'—'}</div>
+                      <div style={{fontSize:11,color:'#888',marginTop:2}}>{cot.date_paiement?new Date(cot.date_paiement).toLocaleDateString(lang==='ar'?'ar-MA':'fr-FR'):'—'}{cot.note?' · '+cot.note:''}</div>
+                    </div>
+                    <div style={{textAlign:'left'}}>
+                      <div style={{fontSize:15,fontWeight:800,color:st.color}}>{parseFloat(cot.montant||0).toLocaleString()} MAD</div>
+                      <div style={{fontSize:10,padding:'2px 6px',borderRadius:8,background:st.color+'20',color:st.color,fontWeight:600,textAlign:'center',marginTop:2}}>{lang==='ar'?st.lblAr:st.lbl}</div>
+                    </div>
+                  </div>
+                );})}
+                {cotE.length===0&&<div style={{textAlign:'center',color:'#aaa',padding:'2rem',fontSize:13}}>{lang==='ar'?'لا توجد اشتراكات مسجلة':'Aucune cotisation enregistrée'}</div>}
               </div>
             )}
             {/* Objectifs */}

@@ -197,10 +197,8 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile 
     const { data: pd, error: pdErr } = await supabase.from('utilisateurs')
         .select('id,prenom,nom,identifiant')
         .eq('role','parent').eq('ecole_id', user.ecole_id);
-    console.log('Parents query result:', pd, 'Error:', pdErr, 'ecole_id:', user.ecole_id);
     const { data: pliens } = await supabase.from('parent_eleve')
         .select('parent_id,eleve_id');
-    console.log('Liens parent_eleve:', pliens);
     const liensMap = {};
     (pliens||[]).forEach(l => { if(!liensMap[l.parent_id]) liensMap[l.parent_id]=[]; liensMap[l.parent_id].push(l.eleve_id); });
     setParents((pd||[]).map(p=>({...p, eleve_ids:liensMap[p.id]||[]})));
@@ -234,7 +232,6 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile 
     // Récupérer l'élève créé par son numéro (RLS bloque .select() après insert)
     const { data: eleveData } = await supabase.from('eleves')
       .select('id').eq('eleve_id_ecole', newEleve.eleve_id_ecole.trim()).eq('ecole_id', user.ecole_id).maybeSingle();
-    console.log('Eleve récupéré:', eleveData);
 
     // ⑥ Créer compte parent automatiquement
     const mdpParent = ecoleConfig?.mdp_defaut_parents || 'parent2024';
@@ -244,13 +241,11 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile 
       identifiant: loginParent, mot_de_passe: mdpParent,
       role: 'parent', ecole_id: user.ecole_id, statut_compte: 'actif'
     }).select().single();
-    console.log('Parent insert result:', parentData, 'Error:', parentErr?.message);
     if (parentErr) showMsg('error', 'Erreur création parent: '+parentErr.message);
     if (parentData?.id && eleveData?.id) {
       const { error: lienErr } = await supabase.from('parent_eleve').insert({
         parent_id: parentData.id, eleve_id: eleveData.id
       });
-      console.log('Lien parent_eleve error:', lienErr?.message);
     }
 
     showMsg('success', lang==='ar'?`✅ تم إضافة الطالب — حساب ولي الأمر: ${loginParent} / ${mdpParent}`:`✅ Élève ajouté — Compte parent: ${loginParent} / ${mdpParent}`);
@@ -348,7 +343,6 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile 
       ecole_id: user.ecole_id, statut_compte: 'actif'
     });
     if (error) return showMsg('error', error.message);
-    console.log('Instituteur créé:', {login, mdp});
     showMsg('success', `✅ ${lang==='ar'?'تم الإضافة — المعرف:':'Ajouté — Login :'} ${login} ${lang==='ar'?'/ كلمة السر:':'/ MDP :'} ${mdp}`);
     setNewInst({ prenom: '', nom: '', identifiant: '', mot_de_passe: '' });
     loadData();
