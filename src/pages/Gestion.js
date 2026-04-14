@@ -481,6 +481,8 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile 
   const NC = Object.fromEntries(niveauxActifs.map(n=>[n.code, n.couleur||FALLBACK_NC[n.code]||'#888']));
   const NL = Object.fromEntries(niveauxActifs.map(n=>[n.code, n.nom||n.code]));
   const NIVEAUX_M = niveauxActifs.map(n=>n.code);
+  // Alias pour compatibilité section PC
+  const niveaux = niveauxActifs.map(n=>({value:n.code, label:`${n.code} — ${n.nom}`}));
 
   if (isMobile) {
 
