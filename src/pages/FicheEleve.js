@@ -206,7 +206,7 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang, isMobi
             const {data:examData} = await supabase.from('examens').select('id,nom,description,score_minimum,bloquant').in('id',examIds);
             const examMap = Object.fromEntries((examData||[]).map(e=>[e.id,e]));
             setExamens(exRes.data.map(r=>({...r, examen:examMap[r.examen_id]||null})));
-            setCertificats(exRes.data.filter(r=>r.certificat_genere).map(r=>({...r, examen:examMap[r.examen_id]||null})));
+            setCertificats(exRes.data.filter(r=>r.statut==='reussi'||r.certificat_genere).map(r=>({...r, examen:examMap[r.examen_id]||null})));
           } else {
             setExamens([]); setCertificats([]);
           }
