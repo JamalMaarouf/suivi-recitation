@@ -97,7 +97,7 @@ export const translations = {
     retour_dashboard: 'Retour au tableau de bord',
     enregistrer_recitation_titre: 'Enregistrer une récitation',
     selectionner_eleve: "Sélectionner l'élève",
-    rechercher_eleve: 'Rechercher un élève...',
+    rechercher_eleve: 'Nom, prénom ou numéro...',
     changer: 'Changer',
     tomon_recites_aujourd_hui: "Tomon récités aujourd'hui",
     valider_hizb_complet: 'Valider le Hizb complet',

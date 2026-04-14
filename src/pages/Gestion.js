@@ -90,19 +90,19 @@ function AcquisSelector({ codeNiveau, hizb, tomon, onHizbChange, onTomonChange, 
     <div style={{background:'#f9f9f6',borderRadius:12,padding:'1rem',border:'0.5px solid #e0e0d8'}}>
       <div style={{fontSize:11,color:'#888',marginBottom:10,textAlign:'center'}}>{lang==='ar'?'موقع الطالب في القرآن قبل بدء المتابعة':lang==='en'?'Position in Quran before tracking':'Position dans le Coran avant de commencer le suivi'}</div>
       <div style={{marginBottom:12}}>
-        <div style={{fontSize:12,color:'#888',marginBottom:6,fontWeight:500}}>{lang==='ar'?'الحزب (1-60)':lang==='en'?'Hizb (1-60)':'Hizb (1-60)'}</div>
+        <div style={{fontSize:12,color:'#888',marginBottom:6,fontWeight:500}}>{lang==='ar'?'انقر على أول حزب محفوظ (من 60 نحو 1)':'Cliquez sur le premier Hizb mémorisé (60 → 1)'}</div>
         <div style={{display:'flex',alignItems:'center',gap:8}}>
-          <button onClick={()=>onHizbChange(Math.max(1,hizb-1))} style={{width:32,height:32,border:'0.5px solid #e0e0d8',borderRadius:6,background:'#fff',cursor:'pointer',fontSize:16}}>-</button>
+          <button onClick={()=>onHizbChange(Math.min(60,hizb+1))} style={{width:32,height:32,border:'0.5px solid #e0e0d8',borderRadius:6,background:'#fff',cursor:'pointer',fontSize:16,fontWeight:700}}>+</button>
           <div style={{flex:1,display:'grid',gridTemplateColumns:'repeat(10,1fr)',gap:3}}>
             {Array.from({length:60},(_,i)=>60-i).map(n=>(
-              <div key={n} onClick={()=>onHizbChange(n)} style={{height:28,borderRadius:4,display:'flex',alignItems:'center',justifyContent:'center',fontSize:11,fontWeight:n===hizb?700:400,cursor:'pointer',background:n===hizb?'#1D9E75':n<hizb?'#E1F5EE':'#f0f0ec',color:n===hizb?'#fff':n<hizb?'#085041':'#999',transition:'all 0.1s'}}>
+              <div key={n} onClick={()=>onHizbChange(n)} style={{height:28,borderRadius:4,display:'flex',alignItems:'center',justifyContent:'center',fontSize:11,fontWeight:n===hizb?700:400,cursor:'pointer',background:(hizb>0&&n>=hizb)?'#1D9E75':'#f0f0ec',color:(hizb>0&&n>=hizb)?'#fff':'#999',fontWeight:n===hizb?800:400,border:n===hizb&&hizb>0?'2px solid #085041':'none',transition:'all 0.1s'}}>
                 {n}
               </div>
             ))}
           </div>
-          <button onClick={()=>onHizbChange(Math.min(60,hizb+1))} style={{width:32,height:32,border:'0.5px solid #e0e0d8',borderRadius:6,background:'#fff',cursor:'pointer',fontSize:16}}>+</button>
+          <button onClick={()=>onHizbChange(Math.max(0,hizb-1))} style={{width:32,height:32,border:'0.5px solid #e0e0d8',borderRadius:6,background:'#fff',cursor:'pointer',fontSize:16,fontWeight:700}}>−</button>
         </div>
-        <div style={{textAlign:'center',marginTop:6,fontSize:14,fontWeight:700,color:'#1D9E75'}}>Hizb {hizb}</div>
+        <div style={{textAlign:'center',marginTop:6,fontSize:14,fontWeight:700,color:'#1D9E75'}}>{hizb===0?(lang==='ar'?'لا توجد مكتسبات سابقة':'Aucun acquis antérieur'):`${lang==='ar'?'الحزب المختار':'Hizb sélectionné'} : ${hizb} — ${lang==='ar'?'المحفوظ':'Acquis'} : ${hizb} ${lang==='ar'?'إلى 60':'à 60'}`}</div>
       </div>
       <div>
         <div style={{fontSize:12,color:'#888',marginBottom:6,fontWeight:500}}>{lang==='ar'?'الثُّمن (1-8)':lang==='en'?'Tomon (1-8)':'Tomon (1-8)'}</div>
@@ -163,7 +163,7 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile 
   const [showAcquisSelector, setShowAcquisSelector] = useState(false);
   const [editShowAcquisSelector, setEditShowAcquisSelector] = useState(false);
 
-  const [newEleve, setNewEleve] = useState({ prenom: '', nom: '', niveau: 'Débutant', code_niveau: '1', eleve_id_ecole: '', instituteur_referent_id: '', hizb_depart: 1, tomon_depart: 1, sourates_acquises: 0 });
+  const [newEleve, setNewEleve] = useState({ prenom: '', nom: '', niveau: 'Débutant', code_niveau: '1', eleve_id_ecole: '', instituteur_referent_id: '', hizb_depart: 0, tomon_depart: 1, sourates_acquises: 0 });
   const [newInst, setNewInst] = useState({ prenom: '', nom: '', identifiant: '', mot_de_passe: '' });
   // Hooks niveaux dynamiques
   const [niveauxDyn, setNiveauxDyn] = useState([]);
@@ -305,15 +305,29 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile 
   };
 
   const ajouterInstituteur = async () => {
-    if (!newInst.prenom || !newInst.nom || !newInst.identifiant || !newInst.mot_de_passe)
-      return showMsg('error', t(lang, 'tous_champs_obligatoires'));
+    if (!newInst.prenom || !newInst.nom)
+      return showMsg('error', lang==='ar'?'الاسم واللقب إلزاميان':'Prénom et nom obligatoires');
+    // Générer login automatique : prenom.nom (normalisé sans accents)
+    const normalize = s => s.toLowerCase().trim()
+      .normalize('NFD').replace(/[\u0300-\u036f]/g,'')
+      .replace(/\s+/g,'.').replace(/[^a-z0-9.]/g,'');
+    const baseLogin = normalize(newInst.prenom)+'.'+normalize(newInst.nom);
+    // Trouver un login unique
+    let login = baseLogin; let suffix = 2;
+    while (true) {
+      const {data:ex} = await supabase.from('utilisateurs')
+        .select('id').eq('identifiant',login).eq('ecole_id',user.ecole_id).maybeSingle();
+      if (!ex) break;
+      login = baseLogin + suffix; suffix++;
+    }
+    const mdp = newInst.mot_de_passe || ecoleConfig?.mdp_defaut_instituteurs || 'ecole2024';
     const { error } = await supabase.from('utilisateurs').insert({
       prenom: newInst.prenom, nom: newInst.nom,
-      identifiant: newInst.identifiant, mot_de_passe: newInst.mot_de_passe, role: 'instituteur',
+      identifiant: login, mot_de_passe: mdp, role: 'instituteur',
       ecole_id: user.ecole_id, statut_compte: 'actif'
     });
-    if (error) return showMsg('error', error.message.includes('unique') ? t(lang, 'identifiant_utilise') : t(lang, 'erreur_ajout'));
-    showMsg('success', t(lang, 'instituteur_ajoute'));
+    if (error) return showMsg('error', error.message);
+    showMsg('success', `✅ ${lang==='ar'?'تم الإضافة — المعرف:':'Ajouté — Login :'} ${login} / ${mdp}`);
     setNewInst({ prenom: '', nom: '', identifiant: '', mot_de_passe: '' });
     loadData();
   };
@@ -669,9 +683,9 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile 
               placeholder={lang==='ar'?'\u0628\u062d\u062b \u0639\u0646 \u0637\u0627\u0644\u0628...':'Rechercher un \u00e9l\u00e8ve...'}
               value={searchEleve||''} onChange={e=>setSearchEleve(e.target.value)}/>
             <div style={{fontSize:12,color:'#888',marginBottom:8,paddingLeft:4}}>
-              {eleves.filter(e=>!searchEleve||(e.prenom+' '+e.nom).toLowerCase().includes((searchEleve||'').toLowerCase())).length} {lang==='ar'?'\u0637\u0627\u0644\u0628':'\u00e9l\u00e8ve(s)'}
+              {eleves.filter(e=>!searchEleve||`${e.prenom} ${e.nom} ${e.eleve_id_ecole||''}`.toLowerCase().includes((searchEleve||'').toLowerCase())).length} {lang==='ar'?'\u0637\u0627\u0644\u0628':'\u00e9l\u00e8ve(s)'}
             </div>
-            {eleves.filter(e=>!searchEleve||(e.prenom+' '+e.nom).toLowerCase().includes((searchEleve||'').toLowerCase())).map(e=>{
+            {eleves.filter(e=>!searchEleve||`${e.prenom} ${e.nom} ${e.eleve_id_ecole||''}`.toLowerCase().includes((searchEleve||'').toLowerCase())).map(e=>{
               const nc=NC[e.code_niveau||'1']||'#888';
               return(
                 <div key={e.id} style={{background:'#fff',borderRadius:12,padding:'13px 14px',marginBottom:8,border:'0.5px solid #e0e0d8',display:'flex',alignItems:'center',gap:12}}>
@@ -1057,7 +1071,7 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile 
                         showConfirm(
                           lang==='ar'?'⚠️ تغيير نظام الطالب':'⚠️ Changement de système',
                           lang==='ar'?'هذا الطالب ينتقل من نظام السور إلى نظام الحزب والثُّمن. يجب تحديد المكتسبات بالحزب والثُّمن.':'Cet élève passe du système Sourates au système Hizb/Tomon. Les acquis doivent être redéfinis.',
-                          ()=>{ setEditEleve({ ...editEleve, code_niveau: newNiv, hizb_depart: 1, tomon_depart: 1, sourates_acquises: 0 });
+                          ()=>{ setEditEleve({ ...editEleve, code_niveau: newNiv, hizb_depart: 0, tomon_depart: 1, sourates_acquises: 0 });
                           setEditShowAcquisSelector(true);; hideConfirm(); },
                           lang==='ar'?'متابعة':'Continuer',
                           '#EF9F27'
