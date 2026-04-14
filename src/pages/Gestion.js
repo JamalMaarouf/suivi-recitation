@@ -168,6 +168,7 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile 
 
   const [newEleve, setNewEleve] = useState({ prenom: '', nom: '', niveau: 'Débutant', code_niveau: '1', eleve_id_ecole: '', instituteur_referent_id: '', hizb_depart: 0, tomon_depart: 1, sourates_acquises: 0 });
   const [newInst, setNewInst] = useState({ prenom: '', nom: '', identifiant: '', mot_de_passe: '' });
+  const [ecoleConfig, setEcoleConfig] = useState({ mdp_defaut_instituteurs: 'ecole2024', mdp_defaut_parents: 'parent2024' });
   // Hooks niveaux dynamiques
   const [niveauxDyn, setNiveauxDyn] = useState([]);
   // Hooks formulaires mobiles
@@ -185,6 +186,8 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile 
   }, []);
 
   const loadData = async () => {
+    const { data: ecData } = await supabase.from('ecoles').select('mdp_defaut_instituteurs,mdp_defaut_parents').eq('id', user.ecole_id).maybeSingle();
+    if (ecData) setEcoleConfig(prev => ({...prev, ...ecData}));
     setLoading(true);
     const { data: e } = await supabase.from('eleves').select('id,prenom,nom,code_niveau,eleve_id_ecole,hizb_depart,tomon_depart,sourates_acquises,instituteur_referent_id,ecole_id')
         .eq('ecole_id', user.ecole_id).order('nom');
