@@ -483,9 +483,16 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile 
   const NIVEAUX_M = niveauxActifs.map(n=>n.code);
 
   if (isMobile) {
+    const NC = {'5B':'#534AB7','5A':'#378ADD','2M':'#1D9E75','2':'#EF9F27','1':'#E24B4A'};
+    const NL = {'5B':lang==='ar'?'\u062a\u0645\u0647\u064a\u062f\u064a':'Pr\u00e9scolaire','5A':'Prim. 1-2','2M':'Prim. 3-4','2':'Prim. 5-6','1':lang==='ar'?'\u0625\u0639\u062f\u0627\u062f\u064a':'Coll\u00e8ge'};
+    const NIVEAUX_M = ['5B','5A','2M','2','1'];
+    const [showFormEleve,  setShowFormEleve]  = React.useState(false);
+    const [showFormInst,   setShowFormInst]   = React.useState(false);
+    const [showFormParent, setShowFormParent] = React.useState(false);
+    const [mobileEditEleve,setMobileEditEleve]= React.useState(null);
 
     const resetFormEleve = () => {
-      setNewEleve({prenom:'',nom:'',niveau:'Débutant',code_niveau:'1',eleve_id_ecole:'',instituteur_referent_id:'',hizb_depart:1,tomon_depart:1,sourates_acquises:0});
+      setNewEleve({prenom:'',nom:'',niveau:'D\u00e9butant',code_niveau:'1',eleve_id_ecole:'',instituteur_referent_id:'',hizb_depart:1,tomon_depart:1,sourates_acquises:0});
       setEditEleve(null); setMobileEditEleve(null);
     };
     const handleSaveEleve = async () => {
@@ -515,27 +522,27 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile 
         <div style={{background:'#fff',padding:'14px 16px 0',borderBottom:'0.5px solid #e0e0d8',position:'sticky',top:0,zIndex:100}}>
           <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:12}}>
             <button onClick={()=>goBack?goBack():navigate('dashboard')}
-              style={{background:'none',border:'none',cursor:'pointer',fontSize:22,color:'#085041',padding:0}}>←</button>
-            <div style={{flex:1,fontSize:17,fontWeight:800,color:'#085041'}}>⚙️ {lang==='ar'?'الإدارة':'Administration'}</div>
+              style={{background:'none',border:'none',cursor:'pointer',fontSize:22,color:'#085041',padding:0}}>\u2190</button>
+            <div style={{flex:1,fontSize:17,fontWeight:800,color:'#085041'}}>\u2699\ufe0f {lang==='ar'?'\u0627\u0644\u0625\u062f\u0627\u0631\u0629':'Administration'}</div>
             {tab==='eleves'&&user.role==='surveillant'&&(
               <button onClick={()=>{resetFormEleve();setShowFormEleve(v=>!v);}}
                 style={{background:showFormEleve?'#f0f0ec':'#1D9E75',color:showFormEleve?'#666':'#fff',
                   border:'none',borderRadius:10,padding:'8px 14px',fontSize:13,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
-                {showFormEleve?'✕':lang==='ar'?'+ إضافة':'+ Ajouter'}
+                {showFormEleve?'\u2715':lang==='ar'?'+ \u0625\u0636\u0627\u0641\u0629':'+ Ajouter'}
               </button>
             )}
             {tab==='instituteurs'&&user.role==='surveillant'&&(
               <button onClick={()=>setShowFormInst(v=>!v)}
                 style={{background:showFormInst?'#f0f0ec':'#378ADD',color:showFormInst?'#666':'#fff',
                   border:'none',borderRadius:10,padding:'8px 14px',fontSize:13,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
-                {showFormInst?'✕':lang==='ar'?'+ إضافة':'+ Ajouter'}
+                {showFormInst?'\u2715':lang==='ar'?'+ \u0625\u0636\u0627\u0641\u0629':'+ Ajouter'}
               </button>
             )}
             {tab==='parents'&&user.role==='surveillant'&&(
               <button onClick={()=>setShowFormParent(v=>!v)}
                 style={{background:showFormParent?'#f0f0ec':'#EF9F27',color:showFormParent?'#666':'#fff',
                   border:'none',borderRadius:10,padding:'8px 14px',fontSize:13,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
-                {showFormParent?'✕':lang==='ar'?'+ إضافة':'+ Ajouter'}
+                {showFormParent?'\u2715':lang==='ar'?'+ \u0625\u0636\u0627\u0641\u0629':'+ Ajouter'}
               </button>
             )}
           </div>
@@ -546,7 +553,7 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile 
             </div>
           )}
           <div style={{display:'flex',gap:0,background:'#f0f0ec',borderRadius:10,padding:3}}>
-            {[['eleves',lang==='ar'?'الطلاب':'Élèves'],['instituteurs',lang==='ar'?'الأساتذة':'Profs'],['parents',lang==='ar'?'الآباء':'Parents'],['parametres',lang==='ar'?'إعدادات':'Config']].map(([k,l])=>(
+            {[['eleves',lang==='ar'?'\u0627\u0644\u0637\u0644\u0627\u0628':'\u00c9l\u00e8ves'],['instituteurs',lang==='ar'?'\u0627\u0644\u0623\u0633\u0627\u062a\u0630\u0629':'Profs'],['parents',lang==='ar'?'\u0627\u0644\u0622\u0628\u0627\u0621':'Parents']].map(([k,l])=>(
               <div key={k} onClick={()=>setTab(k)}
                 style={{flex:1,padding:'8px 4px',borderRadius:8,textAlign:'center',fontSize:12,fontWeight:600,
                   cursor:'pointer',background:tab===k?'#fff':'transparent',color:tab===k?'#1a1a1a':'#888'}}>
@@ -563,10 +570,10 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile 
               <div style={{background:'#fff',borderRadius:16,padding:'18px',marginBottom:14,
                 border:`1.5px solid ${mobileEditEleve?'#378ADD':'#1D9E75'}`}}>
                 <div style={{fontSize:15,fontWeight:700,color:'#085041',marginBottom:14}}>
-                  {mobileEditEleve?(lang==='ar'?'تعديل الطالب':'✏️ Modifier élève'):(lang==='ar'?'إضافة طالب':'👤 Nouvel élève')}
+                  {mobileEditEleve?(lang==='ar'?'\u062a\u0639\u062f\u064a\u0644 \u0627\u0644\u0637\u0627\u0644\u0628':'\u270f\ufe0f Modifier \u00e9l\u00e8ve'):(lang==='ar'?'\u0625\u0636\u0627\u0641\u0629 \u0637\u0627\u0644\u0628':'\ud83d\udc64 Nouvel \u00e9l\u00e8ve')}
                 </div>
-                {[{label:lang==='ar'?'الاسم':'Prénom *',key:'prenom',ph:lang==='ar'?'الاسم':'Prénom'},
-                  {label:lang==='ar'?'اللقب':'Nom *',key:'nom',ph:lang==='ar'?'اللقب':'Nom'},
+                {[{label:lang==='ar'?'\u0627\u0644\u0627\u0633\u0645':'Pr\u00e9nom *',key:'prenom',ph:lang==='ar'?'\u0627\u0644\u0627\u0633\u0645':'Pr\u00e9nom'},
+                  {label:lang==='ar'?'\u0627\u0644\u0644\u0642\u0628':'Nom *',key:'nom',ph:lang==='ar'?'\u0627\u0644\u0644\u0642\u0628':'Nom'},
                 ].map(f=>(
                   <div key={f.key} style={{marginBottom:12}}>
                     <label style={{fontSize:12,fontWeight:600,color:'#666',display:'block',marginBottom:5}}>{f.label}</label>
@@ -577,14 +584,14 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile 
                   </div>
                 ))}
                 <div style={{marginBottom:12}}>
-                  <label style={{fontSize:12,fontWeight:600,color:'#666',display:'block',marginBottom:5}}>{lang==='ar'?'رقم التعريف':'ID élève *'}</label>
+                  <label style={{fontSize:12,fontWeight:600,color:'#666',display:'block',marginBottom:5}}>{lang==='ar'?'\u0631\u0642\u0645 \u0627\u0644\u062a\u0639\u0631\u064a\u0641':'ID \u00e9l\u00e8ve *'}</label>
                   <input style={{width:'100%',padding:'12px 14px',borderRadius:10,border:'0.5px solid #e0e0d8',fontSize:15,fontFamily:'inherit',boxSizing:'border-box'}}
                     value={editEleve?editEleve.eleve_id_ecole||'':newEleve.eleve_id_ecole}
                     onChange={e=>editEleve?setEditEleve(x=>({...x,eleve_id_ecole:e.target.value})):setNewEleve(x=>({...x,eleve_id_ecole:e.target.value}))}
                     placeholder="001"/>
                 </div>
                 <div style={{marginBottom:12}}>
-                  <label style={{fontSize:12,fontWeight:600,color:'#666',display:'block',marginBottom:8}}>{lang==='ar'?'المستوى':'Niveau *'}</label>
+                  <label style={{fontSize:12,fontWeight:600,color:'#666',display:'block',marginBottom:8}}>{lang==='ar'?'\u0627\u0644\u0645\u0633\u062a\u0648\u0649':'Niveau *'}</label>
                   <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>
                     {NIVEAUX_M.map(n=>{
                       const nc=NC[n]; const cur=editEleve?editEleve.code_niveau:newEleve.code_niveau;
@@ -600,18 +607,18 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile 
                   </div>
                 </div>
                 <div style={{marginBottom:12}}>
-                  <label style={{fontSize:12,fontWeight:600,color:'#666',display:'block',marginBottom:5}}>{lang==='ar'?'الأستاذ المرجع':'Instituteur référent *'}</label>
+                  <label style={{fontSize:12,fontWeight:600,color:'#666',display:'block',marginBottom:5}}>{lang==='ar'?'\u0627\u0644\u0623\u0633\u062a\u0627\u0630 \u0627\u0644\u0645\u0631\u062c\u0639':'Instituteur r\u00e9f\u00e9rent *'}</label>
                   <select style={{width:'100%',padding:'12px 14px',borderRadius:10,border:'0.5px solid #e0e0d8',fontSize:14,fontFamily:'inherit',background:'#fff',boxSizing:'border-box'}}
                     value={editEleve?editEleve.instituteur_referent_id||'':newEleve.instituteur_referent_id}
                     onChange={e=>editEleve?setEditEleve(x=>({...x,instituteur_referent_id:e.target.value})):setNewEleve(x=>({...x,instituteur_referent_id:e.target.value}))}>
-                    <option value="">— {lang==='ar'?'اختر أستاذاً':'Choisir'} —</option>
+                    <option value="">\u2014 {lang==='ar'?'\u0627\u062e\u062a\u0631 \u0623\u0633\u062a\u0627\u0630\u0627\u064b':'Choisir'} \u2014</option>
                     {instituteurs.map(i=><option key={i.id} value={i.id}>{i.prenom} {i.nom}</option>)}
                   </select>
                 </div>
                 {['2','1','2M'].includes(editEleve?editEleve.code_niveau:newEleve.code_niveau)&&(
                   <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:12}}>
-                    {[{label:lang==='ar'?'الحزب الابتدائي':'Hizb départ',key:'hizb_depart',max:60},
-                      {label:lang==='ar'?'الثُّمن الابتدائي':'Tomon départ',key:'tomon_depart',max:8}
+                    {[{label:lang==='ar'?'\u0627\u0644\u062d\u0632\u0628 \u0627\u0644\u0627\u0628\u062a\u062f\u0627\u0626\u064a':'Hizb d\u00e9part',key:'hizb_depart',max:60},
+                      {label:lang==='ar'?'\u0627\u0644\u062b\u064f\u0651\u0645\u0646 \u0627\u0644\u0627\u0628\u062a\u062f\u0627\u0626\u064a':'Tomon d\u00e9part',key:'tomon_depart',max:8}
                     ].map(f=>(
                       <div key={f.key}>
                         <label style={{fontSize:12,fontWeight:600,color:'#666',display:'block',marginBottom:5}}>{f.label}</label>
@@ -626,20 +633,20 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile 
                 <div style={{display:'flex',gap:8,marginTop:4}}>
                   <button onClick={()=>{setShowFormEleve(false);resetFormEleve();}}
                     style={{flex:1,padding:'13px',background:'#f5f5f0',color:'#666',border:'none',borderRadius:12,fontSize:14,fontWeight:600,cursor:'pointer',fontFamily:'inherit'}}>
-                    {lang==='ar'?'إلغاء':'Annuler'}
+                    {lang==='ar'?'\u0625\u0644\u063a\u0627\u0621':'Annuler'}
                   </button>
                   <button onClick={handleSaveEleve}
                     style={{flex:2,padding:'13px',background:mobileEditEleve?'#378ADD':'#1D9E75',color:'#fff',border:'none',borderRadius:12,fontSize:14,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
-                    {mobileEditEleve?(lang==='ar'?'تحديث':'Mettre à jour ✓'):(lang==='ar'?'حفظ':'Enregistrer')}
+                    {mobileEditEleve?(lang==='ar'?'\u062a\u062d\u062f\u064a\u062b':'Mettre \u00e0 jour \u2713'):(lang==='ar'?'\u062d\u0641\u0638':'Enregistrer')}
                   </button>
                 </div>
               </div>
             )}
             <input style={{width:'100%',padding:'12px 16px',borderRadius:12,border:'0.5px solid #e0e0d8',fontSize:15,fontFamily:'inherit',boxSizing:'border-box',background:'#fff',marginBottom:8}}
-              placeholder={lang==='ar'?'بحث عن طالب...':'Rechercher un élève...'}
+              placeholder={lang==='ar'?'\u0628\u062d\u062b \u0639\u0646 \u0637\u0627\u0644\u0628...':'Rechercher un \u00e9l\u00e8ve...'}
               value={searchEleve||''} onChange={e=>setSearchEleve(e.target.value)}/>
             <div style={{fontSize:12,color:'#888',marginBottom:8,paddingLeft:4}}>
-              {eleves.filter(e=>!searchEleve||(e.prenom+' '+e.nom).toLowerCase().includes((searchEleve||'').toLowerCase())).length} {lang==='ar'?'طالب':'élève(s)'}
+              {eleves.filter(e=>!searchEleve||(e.prenom+' '+e.nom).toLowerCase().includes((searchEleve||'').toLowerCase())).length} {lang==='ar'?'\u0637\u0627\u0644\u0628':'\u00e9l\u00e8ve(s)'}
             </div>
             {eleves.filter(e=>!searchEleve||(e.prenom+' '+e.nom).toLowerCase().includes((searchEleve||'').toLowerCase())).map(e=>{
               const nc=NC[e.code_niveau||'1']||'#888';
@@ -657,8 +664,8 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile 
                   </div>
                   {user.role==='surveillant'&&(
                     <div style={{display:'flex',gap:6,flexShrink:0}}>
-                      <button onClick={()=>startEditEleve(e)} style={{background:'#E6F1FB',color:'#378ADD',border:'none',borderRadius:8,padding:'7px 10px',fontSize:13,cursor:'pointer',fontWeight:600}}>✏️</button>
-                      <button onClick={()=>supprimerEleve(e.id)} style={{background:'#FCEBEB',color:'#E24B4A',border:'none',borderRadius:8,padding:'7px 10px',fontSize:13,cursor:'pointer'}}>🗑</button>
+                      <button onClick={()=>startEditEleve(e)} style={{background:'#E6F1FB',color:'#378ADD',border:'none',borderRadius:8,padding:'7px 10px',fontSize:13,cursor:'pointer',fontWeight:600}}>\u270f\ufe0f</button>
+                      <button onClick={()=>supprimerEleve(e.id)} style={{background:'#FCEBEB',color:'#E24B4A',border:'none',borderRadius:8,padding:'7px 10px',fontSize:13,cursor:'pointer'}}>\ud83d\uddd1</button>
                     </div>
                   )}
                 </div>
@@ -670,66 +677,34 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile 
         {/* INSTITUTEURS */}
         {tab==='instituteurs'&&(
           <div style={{padding:'12px'}}>
-            {(showFormInst||editInstituteur)&&user.role==='surveillant'&&(
-              <div style={{background:'#fff',borderRadius:16,padding:'18px',marginBottom:14,
-                border:`1.5px solid ${editInstituteur?'#EF9F27':'#378ADD'}`}}>
-                <div style={{fontSize:15,fontWeight:700,color:'#085041',marginBottom:14}}>
-                  {editInstituteur?(lang==='ar'?'تعديل الأستاذ':'✏️ Modifier instituteur'):'🧑‍🏫 '+(lang==='ar'?'إضافة أستاذ':'Nouvel instituteur')}
-                </div>
-                {/* Champs communs ajout & modif */}
-                {[{label:lang==='ar'?'الاسم':'Prénom *',   key:'prenom',      ph:lang==='ar'?'الاسم':'Prénom'},
-                  {label:lang==='ar'?'اللقب':'Nom *',       key:'nom',         ph:lang==='ar'?'اللقب':'Nom'},
-                  {label:lang==='ar'?'المعرف':'Identifiant *',key:'identifiant',ph:'ex: m.karim'},
+            {showFormInst&&user.role==='surveillant'&&(
+              <div style={{background:'#fff',borderRadius:16,padding:'18px',marginBottom:14,border:'1.5px solid #378ADD'}}>
+                <div style={{fontSize:15,fontWeight:700,color:'#085041',marginBottom:14}}>\ud83e\uddd1\u200d\ud83c\udfeb {lang==='ar'?'\u0625\u0636\u0627\u0641\u0629 \u0623\u0633\u062a\u0627\u0630':'Nouvel instituteur'}</div>
+                {[{label:lang==='ar'?'\u0627\u0644\u0627\u0633\u0645':'Pr\u00e9nom *',key:'prenom',ph:lang==='ar'?'\u0627\u0644\u0627\u0633\u0645':'Pr\u00e9nom'},
+                  {label:lang==='ar'?'\u0627\u0644\u0644\u0642\u0628':'Nom *',key:'nom',ph:lang==='ar'?'\u0627\u0644\u0644\u0642\u0628':'Nom'},
+                  {label:lang==='ar'?'\u0627\u0644\u0645\u0639\u0631\u0641':'Identifiant *',key:'identifiant',ph:'ex: m.karim'},
                 ].map(f=>(
                   <div key={f.key} style={{marginBottom:12}}>
                     <label style={{fontSize:12,fontWeight:600,color:'#666',display:'block',marginBottom:5}}>{f.label}</label>
                     <input style={{width:'100%',padding:'12px 14px',borderRadius:10,border:'0.5px solid #e0e0d8',fontSize:15,fontFamily:'inherit',boxSizing:'border-box'}}
-                      value={editInstituteur ? formEditInst[f.key] : newInst[f.key]}
-                      onChange={e=>editInstituteur ? setFormEditInst(x=>({...x,[f.key]:e.target.value})) : setNewInst(x=>({...x,[f.key]:e.target.value}))}
-                      placeholder={f.ph}/>
+                      value={newInst[f.key]} onChange={e=>setNewInst(x=>({...x,[f.key]:e.target.value}))} placeholder={f.ph}/>
                   </div>
                 ))}
                 <div style={{marginBottom:14}}>
-                  <label style={{fontSize:12,fontWeight:600,color:'#666',display:'block',marginBottom:5}}>
-                    {editInstituteur
-                      ? (lang==='ar'?'كلمة المرور الجديدة (اتركها فارغة إن لم تغيرها)':'Nouveau mot de passe (vide = inchangé)')
-                      : (lang==='ar'?'كلمة المرور':'Mot de passe *')}
-                  </label>
+                  <label style={{fontSize:12,fontWeight:600,color:'#666',display:'block',marginBottom:5}}>{lang==='ar'?'\u0643\u0644\u0645\u0629 \u0627\u0644\u0645\u0631\u0648\u0631':'Mot de passe *'}</label>
                   <input type="password" style={{width:'100%',padding:'12px 14px',borderRadius:10,border:'0.5px solid #e0e0d8',fontSize:15,fontFamily:'inherit',boxSizing:'border-box'}}
-                    value={editInstituteur ? formEditInst.mot_de_passe : newInst.mot_de_passe}
-                    onChange={e=>editInstituteur ? setFormEditInst(x=>({...x,mot_de_passe:e.target.value})) : setNewInst(x=>({...x,mot_de_passe:e.target.value}))}
-                    placeholder="••••••••"/>
+                    value={newInst.mot_de_passe} onChange={e=>setNewInst(x=>({...x,mot_de_passe:e.target.value}))} placeholder="\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022"/>
                 </div>
                 <div style={{display:'flex',gap:8}}>
-                  <button
-                    onClick={()=>{setShowFormInst(false);setEditInstituteur(null);setFormEditInst({prenom:'',nom:'',identifiant:'',mot_de_passe:''});}}
-                    style={{flex:1,padding:'13px',background:'#f5f5f0',color:'#666',border:'none',borderRadius:12,fontSize:14,fontWeight:600,cursor:'pointer',fontFamily:'inherit'}}>
-                    {lang==='ar'?'إلغاء':'Annuler'}
-                  </button>
-                  <button
-                    onClick={async()=>{
-                      if(editInstituteur){
-                        const upd={prenom:formEditInst.prenom,nom:formEditInst.nom,identifiant:formEditInst.identifiant};
-                        if(formEditInst.mot_de_passe) upd.mot_de_passe=formEditInst.mot_de_passe;
-                        const{error}=await supabase.from('utilisateurs').update(upd).eq('id',editInstituteur);
-                        if(error){toast.error(error.message||'Erreur');return;}
-                        toast.success(lang==='ar'?'✅ تم التحديث':'✅ Instituteur modifié !');
-                        setEditInstituteur(null);setFormEditInst({prenom:'',nom:'',identifiant:'',mot_de_passe:''});
-                        setShowFormInst(false);loadData();
-                      } else {
-                        await ajouterInstituteur();setShowFormInst(false);
-                      }
-                    }}
-                    style={{flex:2,padding:'13px',background:editInstituteur?'#EF9F27':'#378ADD',color:'#fff',border:'none',borderRadius:12,fontSize:14,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
-                    {editInstituteur?(lang==='ar'?'تحديث':'Mettre à jour ✓'):(lang==='ar'?'حفظ':'Enregistrer')}
-                  </button>
+                  <button onClick={()=>setShowFormInst(false)} style={{flex:1,padding:'13px',background:'#f5f5f0',color:'#666',border:'none',borderRadius:12,fontSize:14,fontWeight:600,cursor:'pointer',fontFamily:'inherit'}}>{lang==='ar'?'\u0625\u0644\u063a\u0627\u0621':'Annuler'}</button>
+                  <button onClick={async()=>{await ajouterInstituteur();setShowFormInst(false);}} style={{flex:2,padding:'13px',background:'#378ADD',color:'#fff',border:'none',borderRadius:12,fontSize:14,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>{lang==='ar'?'\u062d\u0641\u0638':'Enregistrer'}</button>
                 </div>
               </div>
             )}
             {instituteurs.length===0?(
               <div style={{textAlign:'center',color:'#aaa',padding:'3rem',background:'#fff',borderRadius:12}}>
-                <div style={{fontSize:36,marginBottom:10}}>🧑‍🏫</div>
-                <div style={{fontSize:14}}>{lang==='ar'?'لا يوجد أساتذة':'Aucun instituteur'}</div>
+                <div style={{fontSize:36,marginBottom:10}}>\ud83e\uddd1\u200d\ud83c\udfeb</div>
+                <div style={{fontSize:14}}>{lang==='ar'?'\u0644\u0627 \u064a\u0648\u062c\u062f \u0623\u0633\u0627\u062a\u0630\u0629':'Aucun instituteur'}</div>
               </div>
             ):instituteurs.map(inst=>{
               const nb=eleves.filter(e=>e.instituteur_referent_id===inst.id).length;
@@ -740,15 +715,10 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile 
                   </div>
                   <div style={{flex:1,minWidth:0}}>
                     <div style={{fontWeight:700,fontSize:14}}>{inst.prenom} {inst.nom}</div>
-                    <div style={{fontSize:12,color:'#888',marginTop:2}}>{inst.identifiant} · {nb} {lang==='ar'?'طالب':'élève(s)'}</div>
+                    <div style={{fontSize:12,color:'#888',marginTop:2}}>{inst.identifiant} \u00b7 {nb} {lang==='ar'?'\u0637\u0627\u0644\u0628':'\u00e9l\u00e8ve(s)'}</div>
                   </div>
                   {user.role==='surveillant'&&(
-                    <div style={{display:'flex',gap:6}}>
-                      <button
-                        onClick={()=>{setEditInstituteur(inst.id);setFormEditInst({prenom:inst.prenom,nom:inst.nom,identifiant:inst.identifiant,mot_de_passe:''});setShowFormInst(true);window.scrollTo(0,0);}}
-                        style={{background:'#FAEEDA',color:'#633806',border:'none',borderRadius:8,padding:'8px 10px',fontSize:13,cursor:'pointer',fontWeight:600}}>✏️</button>
-                      <button onClick={()=>supprimerInstituteur(inst)} style={{background:'#FCEBEB',color:'#E24B4A',border:'none',borderRadius:8,padding:'8px 10px',fontSize:13,cursor:'pointer',fontWeight:600}}>🗑</button>
-                    </div>
+                    <button onClick={()=>supprimerInstituteur(inst)} style={{background:'#FCEBEB',color:'#E24B4A',border:'none',borderRadius:8,padding:'8px 12px',fontSize:13,cursor:'pointer',fontWeight:600}}>\ud83d\uddd1</button>
                   )}
                 </div>
               );
@@ -762,12 +732,12 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile 
             {showFormParent&&user.role==='surveillant'&&(
               <div style={{background:'#fff',borderRadius:16,padding:'18px',marginBottom:14,border:`1.5px solid ${editingParentId?'#378ADD':'#EF9F27'}`}}>
                 <div style={{fontSize:15,fontWeight:700,color:'#085041',marginBottom:14}}>
-                  {editingParentId?(lang==='ar'?'تعديل ولي الأمر':'✏️ Modifier parent'):(lang==='ar'?'إضافة ولي أمر':'👨‍👩‍👦 Nouveau parent')}
+                  {editingParentId?(lang==='ar'?'\u062a\u0639\u062f\u064a\u0644 \u0648\u0644\u064a \u0627\u0644\u0623\u0645\u0631':'\u270f\ufe0f Modifier parent'):(lang==='ar'?'\u0625\u0636\u0627\u0641\u0629 \u0648\u0644\u064a \u0623\u0645\u0631':'\ud83d\udc68\u200d\ud83d\udc69\u200d\ud83d\udc66 Nouveau parent')}
                 </div>
-                {[{label:lang==='ar'?'الاسم':'Prénom *',key:'prenom',ph:lang==='ar'?'الاسم':'Prénom'},
-                  {label:lang==='ar'?'اللقب':'Nom *',key:'nom',ph:lang==='ar'?'اللقب':'Nom'},
-                  {label:lang==='ar'?'المعرف':'Identifiant *',key:'identifiant',ph:'parent.nom'},
-                  {label:lang==='ar'?'الهاتف':'Téléphone',key:'telephone',ph:'06xxxxxxxx'},
+                {[{label:lang==='ar'?'\u0627\u0644\u0627\u0633\u0645':'Pr\u00e9nom *',key:'prenom',ph:lang==='ar'?'\u0627\u0644\u0627\u0633\u0645':'Pr\u00e9nom'},
+                  {label:lang==='ar'?'\u0627\u0644\u0644\u0642\u0628':'Nom *',key:'nom',ph:lang==='ar'?'\u0627\u0644\u0644\u0642\u0628':'Nom'},
+                  {label:lang==='ar'?'\u0627\u0644\u0645\u0639\u0631\u0641':'Identifiant *',key:'identifiant',ph:'parent.nom'},
+                  {label:lang==='ar'?'\u0627\u0644\u0647\u0627\u062a\u0641':'T\u00e9l\u00e9phone',key:'telephone',ph:'06xxxxxxxx'},
                 ].map(f=>(
                   <div key={f.key} style={{marginBottom:12}}>
                     <label style={{fontSize:12,fontWeight:600,color:'#666',display:'block',marginBottom:5}}>{f.label}</label>
@@ -777,15 +747,15 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile 
                 ))}
                 {!editingParentId&&(
                   <div style={{marginBottom:14}}>
-                    <label style={{fontSize:12,fontWeight:600,color:'#666',display:'block',marginBottom:5}}>{lang==='ar'?'كلمة المرور':'Mot de passe *'}</label>
+                    <label style={{fontSize:12,fontWeight:600,color:'#666',display:'block',marginBottom:5}}>{lang==='ar'?'\u0643\u0644\u0645\u0629 \u0627\u0644\u0645\u0631\u0648\u0631':'Mot de passe *'}</label>
                     <input type="password" style={{width:'100%',padding:'12px 14px',borderRadius:10,border:'0.5px solid #e0e0d8',fontSize:15,fontFamily:'inherit',boxSizing:'border-box'}}
-                      value={formParent.mot_de_passe} onChange={e=>setFormParent(x=>({...x,mot_de_passe:e.target.value}))} placeholder="••••••"/>
+                      value={formParent.mot_de_passe} onChange={e=>setFormParent(x=>({...x,mot_de_passe:e.target.value}))} placeholder="\u2022\u2022\u2022\u2022\u2022\u2022"/>
                   </div>
                 )}
                 <div style={{marginBottom:14}}>
                   <label style={{fontSize:12,fontWeight:600,color:'#666',display:'block',marginBottom:8}}>
-                    {lang==='ar'?'ربط بالطلاب':'Lier aux élèves'}
-                    {formParent.eleve_ids?.length>0&&<span style={{marginRight:8,fontSize:11,color:'#1D9E75',fontWeight:700}}> ({formParent.eleve_ids.length} ✓)</span>}
+                    {lang==='ar'?'\u0631\u0628\u0637 \u0628\u0627\u0644\u0637\u0644\u0627\u0628':'Lier aux \u00e9l\u00e8ves'}
+                    {formParent.eleve_ids?.length>0&&<span style={{marginRight:8,fontSize:11,color:'#1D9E75',fontWeight:700}}> ({formParent.eleve_ids.length} \u2713)</span>}
                   </label>
                   <div style={{maxHeight:160,overflowY:'auto',display:'flex',flexDirection:'column',gap:6}}>
                     {eleves.map(el=>{
@@ -796,7 +766,7 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile 
                           style={{display:'flex',alignItems:'center',gap:10,padding:'9px 12px',borderRadius:10,cursor:'pointer',
                             background:sel?`${nc}10`:'#f5f5f0',border:`1.5px solid ${sel?nc:'#e0e0d8'}`}}>
                           <div style={{width:20,height:20,borderRadius:5,flexShrink:0,border:`1.5px solid ${sel?nc:'#ccc'}`,background:sel?nc:'#fff',display:'flex',alignItems:'center',justifyContent:'center'}}>
-                            {sel&&<span style={{color:'#fff',fontSize:12,fontWeight:700}}>✓</span>}
+                            {sel&&<span style={{color:'#fff',fontSize:12,fontWeight:700}}>\u2713</span>}
                           </div>
                           <div style={{width:30,height:30,borderRadius:'50%',background:`${nc}20`,color:nc,display:'flex',alignItems:'center',justifyContent:'center',fontWeight:700,fontSize:12,flexShrink:0}}>
                             {((el.prenom||'?')[0])+((el.nom||'?')[0])}
@@ -813,11 +783,11 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile 
                 <div style={{display:'flex',gap:8}}>
                   <button onClick={()=>{setShowFormParent(false);setEditingParentId(null);setFormParent({prenom:'',nom:'',identifiant:'',mot_de_passe:'',telephone:'',eleve_ids:[]});}}
                     style={{flex:1,padding:'13px',background:'#f5f5f0',color:'#666',border:'none',borderRadius:12,fontSize:14,fontWeight:600,cursor:'pointer',fontFamily:'inherit'}}>
-                    {lang==='ar'?'إلغاء':'Annuler'}
+                    {lang==='ar'?'\u0625\u0644\u063a\u0627\u0621':'Annuler'}
                   </button>
                   <button onClick={async()=>{
-                    if(!formParent.prenom||!formParent.nom||!formParent.identifiant){toast.warning(lang==='ar'?'يرجى ملء الحقول المطلوبة':'Remplissez les champs obligatoires');return;}
-                    if(!editingParentId&&!formParent.mot_de_passe){toast.warning(lang==='ar'?'كلمة المرور مطلوبة':'Mot de passe requis');return;}
+                    if(!formParent.prenom||!formParent.nom||!formParent.identifiant){toast.warning(lang==='ar'?'\u064a\u0631\u062c\u0649 \u0645\u0644\u0621 \u0627\u0644\u062d\u0642\u0648\u0644 \u0627\u0644\u0645\u0637\u0644\u0648\u0628\u0629':'Remplissez les champs obligatoires');return;}
+                    if(!editingParentId&&!formParent.mot_de_passe){toast.warning(lang==='ar'?'\u0643\u0644\u0645\u0629 \u0627\u0644\u0645\u0631\u0648\u0631 \u0645\u0637\u0644\u0648\u0628\u0629':'Mot de passe requis');return;}
                     let userId=editingParentId;
                     if(!editingParentId){
                       const{data:ud,error:ue}=await supabase.from('utilisateurs').insert({prenom:formParent.prenom,nom:formParent.nom,identifiant:formParent.identifiant,mot_de_passe:formParent.mot_de_passe,role:'parent',ecole_id:user.ecole_id}).select().single();
@@ -829,22 +799,22 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile 
                     }
                     await supabase.from('parent_eleve').delete().eq('parent_id',userId);
                     for(const eid of(formParent.eleve_ids||[])){await supabase.from('parent_eleve').insert({parent_id:userId,eleve_id:eid,ecole_id:user.ecole_id}).catch(()=>{});}
-                    toast.success(lang==='ar'?'تم الحفظ':'✅ Enregistré !');
+                    toast.success(lang==='ar'?'\u062a\u0645 \u0627\u0644\u062d\u0641\u0638':'\u2705 Enregistr\u00e9 !');
                     setShowFormParent(false);setEditingParentId(null);setFormParent({prenom:'',nom:'',identifiant:'',mot_de_passe:'',telephone:'',eleve_ids:[]});loadData();
                   }}
                     style={{flex:2,padding:'13px',background:editingParentId?'#378ADD':'#EF9F27',color:'#fff',border:'none',borderRadius:12,fontSize:14,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
-                    {editingParentId?(lang==='ar'?'تحديث':'Mettre à jour ✓'):(lang==='ar'?'حفظ':'Enregistrer')}
+                    {editingParentId?(lang==='ar'?'\u062a\u062d\u062f\u064a\u062b':'Mettre \u00e0 jour \u2713'):(lang==='ar'?'\u062d\u0641\u0638':'Enregistrer')}
                   </button>
                 </div>
               </div>
             )}
             {parents.length===0?(
               <div style={{textAlign:'center',color:'#aaa',padding:'3rem',background:'#fff',borderRadius:12}}>
-                <div style={{fontSize:36,marginBottom:10}}>👨‍👩‍👦</div>
-                <div style={{fontSize:14}}>{lang==='ar'?'لا يوجد آباء':'Aucun parent'}</div>
+                <div style={{fontSize:36,marginBottom:10}}>\ud83d\udc68\u200d\ud83d\udc69\u200d\ud83d\udc66</div>
+                <div style={{fontSize:14}}>{lang==='ar'?'\u0644\u0627 \u064a\u0648\u062c\u062f \u0622\u0628\u0627\u0621':'Aucun parent'}</div>
               </div>
             ):parents.map(p=>{
-              const enfants=eleves.filter(e=>(p.liens||[]).some(l=>l.eleve_id===e.id));
+              const enfants=eleves.filter(e=>(p.eleve_ids||[]).includes(e.id));
               return(
                 <div key={p.id} style={{background:'#fff',borderRadius:12,padding:'14px',marginBottom:8,border:'0.5px solid #e0e0d8'}}>
                   <div style={{display:'flex',alignItems:'center',gap:12,marginBottom:enfants.length?8:0}}>
@@ -857,10 +827,10 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile 
                     </div>
                     {user.role==='surveillant'&&(
                       <div style={{display:'flex',gap:6}}>
-                        <button onClick={()=>{setEditingParentId(p.id);setFormParent({prenom:p.prenom,nom:p.nom,identifiant:p.identifiant,mot_de_passe:'',telephone:p.telephone||'',eleve_ids:(p.liens||[]).map(l=>l.eleve_id)});setShowFormParent(true);window.scrollTo(0,0);}}
-                          style={{background:'#E6F1FB',color:'#378ADD',border:'none',borderRadius:8,padding:'7px 10px',fontSize:13,cursor:'pointer',fontWeight:600}}>✏️</button>
+                        <button onClick={()=>{setEditingParentId(p.id);setFormParent({prenom:p.prenom,nom:p.nom,identifiant:p.identifiant,mot_de_passe:'',telephone:p.telephone||'',eleve_ids:eleves.filter(e=>(p.eleve_ids||[]).includes(e.id)).map(e=>e.id)});setShowFormParent(true);window.scrollTo(0,0);}}
+                          style={{background:'#E6F1FB',color:'#378ADD',border:'none',borderRadius:8,padding:'7px 10px',fontSize:13,cursor:'pointer',fontWeight:600}}>\u270f\ufe0f</button>
                         <button onClick={()=>supprimerParent&&supprimerParent(p.id)}
-                          style={{background:'#FCEBEB',color:'#E24B4A',border:'none',borderRadius:8,padding:'7px 10px',fontSize:13,cursor:'pointer'}}>🗑</button>
+                          style={{background:'#FCEBEB',color:'#E24B4A',border:'none',borderRadius:8,padding:'7px 10px',fontSize:13,cursor:'pointer'}}>\ud83d\uddd1</button>
                       </div>
                     )}
                   </div>
@@ -875,44 +845,13 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile 
           </div>
         )}
 
-        {/* PARAMÈTRES */}
-        {tab==='parametres'&&(
-          <div style={{padding:'12px'}}>
-            <div style={{fontSize:11,fontWeight:700,color:'#888',textTransform:'uppercase',letterSpacing:'1px',marginBottom:12}}>
-              {lang==='ar'?'إعدادات المدرسة':'Configuration école'}
-            </div>
-            {[
-              ...(user?.role==='surveillant'?[
-                {icon:'📚', label:lang==='ar'?'المستويات':'Niveaux', desc:lang==='ar'?'إدارة المستويات والبرامج':"Gérer les niveaux et programmes", page:'niveaux', color:'#1D9E75', bg:'#E1F5EE'},
-                {icon:'📝', label:lang==='ar'?'الامتحانات':'Examens', desc:lang==='ar'?'تكوين الامتحانات والحدود':'Configurer les examens', page:'examens', color:'#EF9F27', bg:'#FAEEDA'},
-                {icon:'📦', label:lang==='ar'?'مجموعات السور':'Ensembles', desc:lang==='ar'?'تجميع السور في مجموعات':'Grouper les sourates', page:'ensembles', color:'#D85A30', bg:'#FAECE7'},
-              ]:[]),
-              {icon:'🏅', label:lang==='ar'?'نتائج الامتحانات':'Résultats', desc:lang==='ar'?'تسجيل ومتابعة نتائج الامتحانات':'Saisir et consulter les résultats', page:'resultats_examens', color:'#534AB7', bg:'#EEEDFE'},
-            ].map(item=>(
-              <div key={item.page} onClick={()=>navigate(item.page)}
-                style={{background:'#fff',borderRadius:14,padding:'16px',marginBottom:10,
-                  border:`0.5px solid ${item.color}20`,display:'flex',alignItems:'center',gap:14,cursor:'pointer'}}>
-                <div style={{width:48,height:48,borderRadius:12,background:item.bg,
-                  display:'flex',alignItems:'center',justifyContent:'center',fontSize:22,flexShrink:0}}>
-                  {item.icon}
-                </div>
-                <div style={{flex:1}}>
-                  <div style={{fontWeight:700,fontSize:15,color:'#1a1a1a'}}>{item.label}</div>
-                  <div style={{fontSize:12,color:'#888',marginTop:2}}>{item.desc}</div>
-                </div>
-                <span style={{color:'#ccc',fontSize:18}}>›</span>
-              </div>
-            ))}
-          </div>
-        )}
-
         {confirmModal.isOpen&&(
           <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.5)',zIndex:1000,display:'flex',alignItems:'center',justifyContent:'center',padding:20}}>
             <div style={{background:'#fff',borderRadius:16,padding:24,maxWidth:320,width:'100%'}}>
               <div style={{fontWeight:700,fontSize:16,marginBottom:8}}>{confirmModal.title}</div>
               <div style={{fontSize:13,color:'#666',marginBottom:20}}>{confirmModal.message}</div>
               <div style={{display:'flex',gap:8}}>
-                <button onClick={hideConfirm} style={{flex:1,padding:'12px',background:'#f5f5f0',border:'none',borderRadius:10,fontSize:14,fontWeight:600,cursor:'pointer'}}>{lang==='ar'?'إلغاء':'Annuler'}</button>
+                <button onClick={hideConfirm} style={{flex:1,padding:'12px',background:'#f5f5f0',border:'none',borderRadius:10,fontSize:14,fontWeight:600,cursor:'pointer'}}>{lang==='ar'?'\u0625\u0644\u063a\u0627\u0621':'Annuler'}</button>
                 <button onClick={confirmModal.onConfirm} style={{flex:1,padding:'12px',background:confirmModal.confirmColor||'#E24B4A',color:'#fff',border:'none',borderRadius:10,fontSize:14,fontWeight:700,cursor:'pointer'}}>{confirmModal.confirmLabel}</button>
               </div>
             </div>
@@ -921,6 +860,7 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile 
       </div>
     );
   }
+
 
 
   return (
