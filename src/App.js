@@ -1,3 +1,5 @@
+import React, { useState, useEffect, Suspense, lazy } from 'react';
+
 // ErrorBoundary pour débogage
 class DebugErrorBoundary extends React.Component {
   constructor(props) { super(props); this.state = { error: null }; }
@@ -6,20 +8,15 @@ class DebugErrorBoundary extends React.Component {
     if (this.state.error) {
       return (
         <div style={{padding:20,background:'#FCEBEB',color:'#A32D2D',borderRadius:12,margin:20,fontFamily:'monospace',fontSize:13}}>
-          <b>🔴 Erreur React :</b><br/>
-          {this.state.error.message}<br/><br/>
+          <b>Erreur : </b>{this.state.error.message}<br/><br/>
           <pre style={{fontSize:11,overflow:'auto',maxHeight:300}}>{this.state.error.stack}</pre>
-          <button onClick={()=>this.setState({error:null})} style={{marginTop:10,padding:'6px 14px',background:'#E24B4A',color:'#fff',border:'none',borderRadius:6,cursor:'pointer'}}>
-            Fermer
-          </button>
+          <button onClick={()=>this.setState({error:null})} style={{marginTop:10,padding:'6px 14px',background:'#E24B4A',color:'#fff',border:'none',borderRadius:6,cursor:'pointer'}}>Fermer</button>
         </div>
       );
     }
     return this.props.children;
   }
 }
-
-import React, { useState, useEffect, Suspense, lazy } from 'react';
 
 // ── Pages critiques — chargées immédiatement ──────────────────────────────
 import Login               from './pages/Login';
