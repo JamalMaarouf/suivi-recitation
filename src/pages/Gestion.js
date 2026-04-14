@@ -332,14 +332,15 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile 
       if (!ex) break;
       login = baseLogin + suffix; suffix++;
     }
-    const mdp = newInst.mot_de_passe || ecoleConfig?.mdp_defaut_instituteurs || 'ecole2024';
+    const mdp = (newInst.mot_de_passe && newInst.mot_de_passe.trim()) ? newInst.mot_de_passe.trim() : (ecoleConfig?.mdp_defaut_instituteurs || 'ecole2024');
     const { error } = await supabase.from('utilisateurs').insert({
       prenom: newInst.prenom, nom: newInst.nom,
       identifiant: login, mot_de_passe: mdp, role: 'instituteur',
       ecole_id: user.ecole_id, statut_compte: 'actif'
     });
     if (error) return showMsg('error', error.message);
-    showMsg('success', `✅ ${lang==='ar'?'تم الإضافة — المعرف:':'Ajouté — Login :'} ${login} / ${mdp}`);
+    console.log('Instituteur créé:', {login, mdp});
+    showMsg('success', `✅ ${lang==='ar'?'تم الإضافة — المعرف:':'Ajouté — Login :'} ${login} ${lang==='ar'?'/ كلمة السر:':'/ MDP :'} ${mdp}`);
     setNewInst({ prenom: '', nom: '', identifiant: '', mot_de_passe: '' });
     loadData();
   };
