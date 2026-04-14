@@ -199,8 +199,9 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang, isMobi
         // Charger examens et certificats (tables optionnelles)
         try {
           const exRes = await supabase.from('resultats_examens').select('*, examen:examen_id(id,description,score_minimum,bloquant,type_contenu)').eq('eleve_id',eleve.id).order('created_at',{ascending:false});
+          console.log('Examens result:', exRes.data, 'Error:', exRes.error);
           setExamens(exRes.data||[]);
-        } catch(e) { setExamens([]); }
+        } catch(e) { console.log('Examens catch:', e); setExamens([]); }
         try {
           // Certificats = résultats d'examens avec certificat généré
           const certRes = await supabase.from('resultats_examens')
