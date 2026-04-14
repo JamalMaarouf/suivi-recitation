@@ -28,6 +28,22 @@ export default function PortailParent({ parent, navigate, goBack, lang='fr', onL
   const [souratesDB, setSouratesDB] = useState([]);
   const [loading, setLoading] = useState(true);
   const [onglet, setOnglet] = useState('progression');
+  const [showChangeMdp, setShowChangeMdp] = useState(false);
+  const [oldPwd, setOldPwd] = useState('');
+  const [newPwd, setNewPwd] = useState('');
+  const [confirmPwd, setConfirmPwd] = useState('');
+
+  const changerMotDePasse = async () => {
+    if (!oldPwd || !newPwd || !confirmPwd) return toast.error(lang==='ar'?'يرجى ملء جميع الحقول':'Remplissez tous les champs');
+    if (newPwd !== confirmPwd) return toast.error(lang==='ar'?'كلمتا المرور غير متطابقتين':'Les mots de passe ne correspondent pas');
+    if (newPwd.length < 4) return toast.error(lang==='ar'?'كلمة المرور قصيرة جداً':'Mot de passe trop court');
+    const { data: check } = await supabase.from('utilisateurs').select('id').eq('id', parent.id).eq('mot_de_passe', oldPwd).maybeSingle();
+    if (!check) return toast.error(lang==='ar'?'كلمة المرور الحالية غير صحيحة':'Mot de passe actuel incorrect');
+    const { error } = await supabase.from('utilisateurs').update({ mot_de_passe: newPwd }).eq('id', parent.id);
+    if (error) return toast.error('Erreur: '+error.message);
+    toast.success(lang==='ar'?'✅ تم تغيير كلمة المرور':'✅ Mot de passe modifié');
+    setShowChangeMdp(false); setOldPwd(''); setNewPwd(''); setConfirmPwd('');
+  };
 
   useEffect(() => { loadData(); }, []);
   useEffect(() => { if (enfants.length>0 && !selectedEnfant) setSelectedEnfant(enfants[0]); }, [enfants]);
@@ -265,10 +281,36 @@ export default function PortailParent({ parent, navigate, goBack, lang='fr', onL
           {lang==='ar'?'مرحباً':lang==='en'?'Welcome':'Bonjour'}, <strong>{parent.prenom} {parent.nom}</strong>
         </div>
         <div style={{fontSize:11,opacity:0.7}}>متابعة التحفيظ</div>
-        <button onClick={onLogout}
-          style={{marginTop:10,padding:'6px 16px',background:'rgba(255,255,255,0.2)',color:'#fff',border:'1px solid rgba(255,255,255,0.4)',borderRadius:8,fontSize:12,fontWeight:600,cursor:'pointer',display:'inline-flex',alignItems:'center',gap:6}}>
-          🚪 {lang==='ar'?'تسجيل الخروج':'Déconnexion'}
-        </button>
+        <div style={{display:'flex',gap:8,marginTop:10,flexWrap:'wrap'}}>
+          <button onClick={()=>setShowChangeMdp(true)}
+            style={{padding:'6px 16px',background:'rgba(255,255,255,0.2)',color:'#fff',border:'1px solid rgba(255,255,255,0.4)',borderRadius:8,fontSize:12,fontWeight:600,cursor:'pointer'}}>
+            🔑 {lang==='ar'?'تغيير كلمة المرور':'Changer MDP'}
+          </button>
+          <button onClick={onLogout}
+            style={{padding:'6px 16px',background:'rgba(255,255,255,0.2)',color:'#fff',border:'1px solid rgba(255,255,255,0.4)',borderRadius:8,fontSize:12,fontWeight:600,cursor:'pointer'}}>
+            🚪 {lang==='ar'?'تسجيل الخروج':'Déconnexion'}
+          </button>
+        </div>
+        {showChangeMdp && (
+          <div style={{marginTop:12,background:'rgba(255,255,255,0.15)',borderRadius:10,padding:'1rem'}}>
+            <div style={{fontSize:13,fontWeight:700,marginBottom:8,color:'#fff'}}>🔑 {lang==='ar'?'تغيير كلمة المرور':'Changer le mot de passe'}</div>
+            <input type="password" placeholder={lang==='ar'?'كلمة المرور الحالية':'Mot de passe actuel'} value={oldPwd} onChange={e=>setOldPwd(e.target.value)}
+              style={{width:'100%',padding:'8px',borderRadius:6,border:'none',marginBottom:6,fontSize:13}}/>
+            <input type="password" placeholder={lang==='ar'?'كلمة المرور الجديدة':'Nouveau mot de passe'} value={newPwd} onChange={e=>setNewPwd(e.target.value)}
+              style={{width:'100%',padding:'8px',borderRadius:6,border:'none',marginBottom:6,fontSize:13}}/>
+            <input type="password" placeholder={lang==='ar'?'تأكيد كلمة المرور':'Confirmer'} value={confirmPwd} onChange={e=>setConfirmPwd(e.target.value)}
+              style={{width:'100%',padding:'8px',borderRadius:6,border:'none',marginBottom:8,fontSize:13}}/>
+            <div style={{display:'flex',gap:6}}>
+              <button onClick={changerMotDePasse} style={{flex:1,padding:'8px',background:'#1D9E75',color:'#fff',border:'none',borderRadius:6,fontWeight:600,cursor:'pointer',fontSize:13}}>
+                ✓ {lang==='ar'?'حفظ':'Enregistrer'}
+              </button>
+              <button onClick={()=>{setShowChangeMdp(false);setOldPwd('');setNewPwd('');setConfirmPwd('');}}
+                style={{padding:'8px 12px',background:'rgba(255,255,255,0.2)',color:'#fff',border:'none',borderRadius:6,cursor:'pointer',fontSize:13}}>
+                ✕
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Sélecteur enfant (si plusieurs) */}
