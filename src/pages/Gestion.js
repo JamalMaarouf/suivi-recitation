@@ -188,14 +188,9 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile 
     const { data: i } = await supabase.from('utilisateurs').select('id,prenom,nom,identifiant,role').eq('role', 'instituteur').eq('ecole_id', user.ecole_id).order('nom');
     setEleves(e || []);
     setInstituteurs(i || []);
-    const { data: pd } = await supabase.from('utilisateurs')
-        .select('id,prenom,nom,identifiant,telephone')
-        .eq('role','parent').eq('ecole_id', user.ecole_id).order('nom');
-    const { data: pliens } = await supabase.from('parent_eleve')
-        .select('parent_id,eleve_id').eq('ecole_id', user.ecole_id);
-    const liensMap = {};
-    (pliens||[]).forEach(l => { if(!liensMap[l.parent_id]) liensMap[l.parent_id]=[]; liensMap[l.parent_id].push(l.eleve_id); });
-    setParents((pd||[]).map(p=>({...p, eleve_ids:liensMap[p.id]||[]})));
+    const { data: pd } = await supabase.from('parents').select('*, liens:parent_eleve(eleve_id, eleve:eleve_id(prenom,nom))')
+        .eq('ecole_id', user.ecole_id).order('nom');
+    setParents(pd||[]);
     setLoading(false);
   };
 
@@ -1287,11 +1282,11 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile 
                 if(editingParentId) {
                   const upd={prenom:formParent.prenom,nom:formParent.nom,identifiant:formParent.identifiant,telephone:formParent.telephone||null};
                   if(formParent.mot_de_passe) upd.mot_de_passe=formParent.mot_de_passe;
-                  const {error:ue}=await supabase.from('utilisateurs').update(upd).eq('id',editingParentId);
+                  const {error:ue}=await supabase.from('parents').update(upd).eq('id',editingParentId);
                   if(ue){ toast.error(ue.message||'Erreur utilisateur'); return; }
                   await supabase.from('parent_eleve').delete().eq('parent_id',editingParentId);
                 } else {
-                  const {data:pd,error:pe}=await supabase.from('utilisateurs').insert({prenom:formParent.prenom,nom:formParent.nom,identifiant:formParent.identifiant,mot_de_passe:formParent.mot_de_passe,telephone:formParent.telephone||null,role:'parent',ecole_id:user.ecole_id,statut_compte:'actif'}).select().single();
+                  const {data:pd,error:pe}=await supabase.from('parents').insert({prenom:formParent.prenom,nom:formParent.nom,identifiant:formParent.identifiant,mot_de_passe:formParent.mot_de_passe,telephone:formParent.telephone||null,created_by:user.id,ecole_id:user.ecole_id}).select().single();
                   if(pe){ toast.error(pe.message||'Erreur parent'); return; }
                   toast.success(lang==='ar'?'✅ تم حفظ ولي الأمر':'✅ Parent enregistré avec succès');
                   pid=pd.id;
@@ -1302,10 +1297,9 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile 
                 setShowFormParent(false);
                 setEditingParentId(null);
                 setFormParent({prenom:'',nom:'',identifiant:'',mot_de_passe:'',telephone:'',eleve_ids:[],searchEleve:''});
-                const {data:pd2}=await supabase.from('utilisateurs').select('id,prenom,nom,identifiant,telephone').eq('role','parent').eq('ecole_id',user.ecole_id).order('nom');
-                const {data:pl2}=await supabase.from('parent_eleve').select('parent_id,eleve_id').eq('ecole_id',user.ecole_id);
-                const lm2={}; (pl2||[]).forEach(l=>{if(!lm2[l.parent_id])lm2[l.parent_id]=[];lm2[l.parent_id].push(l.eleve_id);});
-                setParents((pd2||[]).map(p=>({...p,eleve_ids:lm2[p.id]||[]})));
+                const {data:pd2}=await supabase.from('parents').select('*, liens:parent_eleve(eleve_id, eleve:eleve_id(prenom,nom))')
+        .eq('ecole_id', user.ecole_id).order('nom');
+                setParents(pd2||[]);
               }}>
                 {editingParentId?('✓ '+(lang==='ar'?'تحديث':'Mettre à jour')):('✓ '+(lang==='ar'?'إضافة':'Ajouter'))}
               </button>
@@ -1347,7 +1341,7 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile 
                     (lang==='ar'?'هل تريد حذف حساب ':'Supprimer le compte de ')+(p.prenom+' '+p.nom)+'?',
                     async()=>{
                       await supabase.from('parent_eleve').delete().eq('parent_id',p.id);
-                      await supabase.from('utilisateurs').delete().eq('id',p.id);
+                      await supabase.from('parents').delete().eq('id',p.id);
                       setParents(prev=>prev.filter(x=>x.id!==p.id));
                       hideConfirm();
                     }

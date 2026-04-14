@@ -112,14 +112,13 @@ export default function App() {
   const [lang, setLangRaw] = useState(() => localStorage.getItem('suivi_lang') || 'fr');
   const [navHistory, setNavHistory] = useState([]);
 
-  const pageRef = React.useRef('dashboard');
-
   const handleInstall = async () => {
     if (!deferredPrompt) return;
     deferredPrompt.prompt();
     const { outcome } = await deferredPrompt.userChoice;
     if (outcome === 'accepted') { deferredPrompt = null; setShowInstallBtn(false); }
   };
+  const pageRef = React.useRef('dashboard');
   const setPageWithRef = (p) => { pageRef.current = p; setPage(p); };
 
   useEffect(() => {
