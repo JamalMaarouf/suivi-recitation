@@ -953,7 +953,9 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile 
                   <div className="field-group">
                     <label className="field-lbl">{t(lang, 'niveau')} <span style={{color:'#E24B4A'}}>*</span></label>
                     <select className="field-select" value={newEleve.niveau} onChange={e => setNewEleve({ ...newEleve, niveau: e.target.value })}>
-                      {niveaux.map(n => <option key={n.value} value={n.value}>{n.label}</option>)}
+                      <option value="Débutant">{lang==='ar'?'مبتدئ':'Débutant'}</option>
+                      <option value="Intermédiaire">{lang==='ar'?'متوسط':'Intermédiaire'}</option>
+                      <option value="Avancé">{lang==='ar'?'متقدم':'Avancé'}</option>
                     </select>
                   </div>
                   <div className="field-group">
@@ -1018,7 +1020,9 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile 
                   <div className="field-group">
                     <label className="field-lbl">{t(lang, 'niveau')} <span style={{color:'#E24B4A'}}>*</span></label>
                     <select className="field-select" value={editEleve.niveau} onChange={e => setEditEleve({ ...editEleve, niveau: e.target.value })}>
-                      {niveaux.map(n => <option key={n.value} value={n.value}>{n.label}</option>)}
+                      <option value="Débutant">{lang==='ar'?'مبتدئ':'Débutant'}</option>
+                      <option value="Intermédiaire">{lang==='ar'?'متوسط':'Intermédiaire'}</option>
+                      <option value="Avancé">{lang==='ar'?'متقدم':'Avancé'}</option>
                     </select>
                   </div>
                   <div className="field-group">
