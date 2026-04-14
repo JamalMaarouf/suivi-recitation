@@ -853,7 +853,7 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile 
                       if(ue){toast.error(ue.message||'Erreur');return;}
                       userId=ud.id;
                     } else {
-                      const{error:pe}=await supabase.from('utilisateurs').update({prenom:formParent.prenom,nom:formParent.nom,telephone:formParent.telephone}).eq('id',userId);
+                      const{error:pe}=await supabase.from('utilisateurs').update({prenom:formParent.prenom,nom:formParent.nom}).eq('id',userId);
                       if(pe){toast.error(pe.message||'Erreur');return;}
                     }
                     await supabase.from('parent_eleve').delete().eq('parent_id',userId);
@@ -1360,13 +1360,13 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile 
                 if(!editingParentId && !formParent.mot_de_passe) { toast.warning(lang==='ar'?'كلمة المرور مطلوبة':'Mot de passe requis'); return; }
                 let pid = editingParentId;
                 if(editingParentId) {
-                  const upd={prenom:formParent.prenom,nom:formParent.nom,identifiant:formParent.identifiant,telephone:formParent.telephone||null};
+                  const upd={prenom:formParent.prenom,nom:formParent.nom,identifiant:formParent.identifiant};
                   if(formParent.mot_de_passe) upd.mot_de_passe=formParent.mot_de_passe;
                   const {error:ue}=await supabase.from('utilisateurs').update(upd).eq('id',editingParentId);
                   if(ue){ toast.error(ue.message||'Erreur utilisateur'); return; }
                   await supabase.from('parent_eleve').delete().eq('parent_id',editingParentId);
                 } else {
-                  const {data:pd,error:pe}=await supabase.from('utilisateurs').insert({prenom:formParent.prenom,nom:formParent.nom,identifiant:formParent.identifiant,mot_de_passe:formParent.mot_de_passe,telephone:formParent.telephone||null,role:'parent',ecole_id:user.ecole_id,statut_compte:'actif'}).select().single();
+                  const {data:pd,error:pe}=await supabase.from('utilisateurs').insert({prenom:formParent.prenom,nom:formParent.nom,identifiant:formParent.identifiant,mot_de_passe:formParent.mot_de_passe,role:'parent',ecole_id:user.ecole_id,statut_compte:'actif'}).select().single();
                   if(pe){ toast.error(pe.message||'Erreur parent'); return; }
                   toast.success(lang==='ar'?'✅ تم حفظ ولي الأمر':'✅ Parent enregistré avec succès');
                   pid=pd.id;
