@@ -191,12 +191,12 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile 
     setLoading(true);
     const { data: e } = await supabase.from('eleves').select('id,prenom,nom,code_niveau,eleve_id_ecole,hizb_depart,tomon_depart,sourates_acquises,instituteur_referent_id,ecole_id')
         .eq('ecole_id', user.ecole_id).order('nom');
-    const { data: i } = await supabase.from('utilisateurs').select('id,prenom,nom,identifiant,role').eq('role', 'instituteur').eq('ecole_id', user.ecole_id).order('nom');
+    const { data: i } = await supabase.from('utilisateurs').select('id,prenom,nom,identifiant,role').eq('role', 'instituteur').eq('ecole_id', user.ecole_id);
     setEleves(e || []);
     setInstituteurs(i || []);
     const { data: pd, error: pdErr } = await supabase.from('utilisateurs')
         .select('id,prenom,nom,identifiant,telephone')
-        .eq('role','parent').eq('ecole_id', user.ecole_id).order('nom');
+        .eq('role','parent').eq('ecole_id', user.ecole_id);
     console.log('Parents query result:', pd, 'Error:', pdErr, 'ecole_id:', user.ecole_id);
     const { data: pliens } = await supabase.from('parent_eleve')
         .select('parent_id,eleve_id');
