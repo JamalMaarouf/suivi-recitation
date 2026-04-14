@@ -980,13 +980,23 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile 
                     <input className="field-input" value={newEleve.nom} onChange={e => setNewEleve({ ...newEleve, nom: e.target.value })} placeholder={t(lang, 'nom_label')} />
                   </div>
                   <div className="field-group">
-                    <label className="field-lbl">{t(lang, 'niveau')} <span style={{color:'#E24B4A'}}>*</span></label>
-                    <select className="field-select" value={newEleve.niveau} onChange={e => setNewEleve({ ...newEleve, niveau: e.target.value })}>
-                      {niveaux.map(n => <option key={n.value} value={n.value}>{n.label}</option>)}
+                    <label className="field-lbl">{lang==='ar'?'المستوى':'Niveau'} <span style={{color:'#E24B4A'}}>*</span></label>
+                    <select className="field-select" value={editEleve.niveau||'Débutant'} onChange={e => setEditEleve({ ...editEleve, niveau: e.target.value })}>
+                      <option value="Débutant">{lang==='ar'?'مبتدئ':lang==='en'?'Beginner':'Débutant'}</option>
+                      <option value="Intermédiaire">{lang==='ar'?'متوسط':lang==='en'?'Intermediate':'Intermédiaire'}</option>
+                      <option value="Avancé">{lang==='ar'?'متقدم':lang==='en'?'Advanced':'Avancé'}</option>
                     </select>
                   </div>
                   <div className="field-group">
-                    <label className="field-lbl">{lang==='ar'?'المستوى الدراسي':lang==='en'?'Class level':(lang==='ar'?'الصف الدراسي':'Niveau scolaire')} <span style={{color:'#E24B4A'}}>*</span></label>
+                    <label className="field-lbl">{lang==='ar'?'المستوى الدراسي':'Niveau scolaire'} <span style={{color:'#E24B4A'}}>*</span></label>
+                    <select className="field-select" value={newEleve.niveau} onChange={e => setNewEleve({ ...newEleve, niveau: e.target.value })}>
+                      <option value="Débutant">{lang==='ar'?'مبتدئ':lang==='en'?'Beginner':'Débutant'}</option>
+                      <option value="Intermédiaire">{lang==='ar'?'متوسط':lang==='en'?'Intermediate':'Intermédiaire'}</option>
+                      <option value="Avancé">{lang==='ar'?'متقدم':lang==='en'?'Advanced':'Avancé'}</option>
+                    </select>
+                  </div>
+                  <div className="field-group">
+                    <label className="field-lbl">{lang==='ar'?'المستوى الدراسي':'Niveau scolaire'} <span style={{color:'#E24B4A'}}>*</span></label>
                     <select className="field-select" value={newEleve.code_niveau} onChange={e => setNewEleve({ ...newEleve, code_niveau: e.target.value })}>
                       {niveauxActifs.map(n=><option key={n.code} value={n.code}>{n.code} — {n.nom}</option>)}
                     </select>
@@ -1045,18 +1055,20 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile 
                     <input className="field-input" value={editEleve.nom} onChange={e => setEditEleve({ ...editEleve, nom: e.target.value })} />
                   </div>
                   <div className="field-group">
-                    <label className="field-lbl">{t(lang, 'niveau')} <span style={{color:'#E24B4A'}}>*</span></label>
-                    <select className="field-select" value={editEleve.niveau} onChange={e => setEditEleve({ ...editEleve, niveau: e.target.value })}>
-                      {niveaux.map(n => <option key={n.value} value={n.value}>{n.label}</option>)}
+                    <label className="field-lbl">{lang==='ar'?'المستوى':'Niveau'} <span style={{color:'#E24B4A'}}>*</span></label>
+                    <select className="field-select" value={editEleve.niveau||'Débutant'} onChange={e => setEditEleve({ ...editEleve, niveau: e.target.value })}>
+                      <option value="Débutant">{lang==='ar'?'مبتدئ':lang==='en'?'Beginner':'Débutant'}</option>
+                      <option value="Intermédiaire">{lang==='ar'?'متوسط':lang==='en'?'Intermediate':'Intermédiaire'}</option>
+                      <option value="Avancé">{lang==='ar'?'متقدم':lang==='en'?'Advanced':'Avancé'}</option>
                     </select>
                   </div>
                   <div className="field-group">
-                    <label className="field-lbl">{lang==='ar'?'المستوى الدراسي':lang==='en'?'Class level':(lang==='ar'?'الصف الدراسي':'Niveau scolaire')} <span style={{color:'#E24B4A'}}>*</span></label>
+                    <label className="field-lbl">{lang==='ar'?'المستوى الدراسي':'Niveau scolaire'} <span style={{color:'#E24B4A'}}>*</span></label>
                     <select className="field-select" value={editEleve.code_niveau||'1'} onChange={e => {
                       const oldNiv = editEleve.code_niveau||'1';
                       const newNiv = e.target.value;
-                      const wasSourate = ['5B','5A','2M'].includes(oldNiv);
-                      const isNowHizb = ['2M','2','1'].includes(newNiv);
+                      const wasSourate = niveauxActifs.find(n=>n.code===oldNiv)?.type==='sourate' || ['5B','5A','2M'].includes(oldNiv);
+                      const isNowHizb = niveauxActifs.find(n=>n.code===newNiv)?.type==='hizb' || ['2M','2','1'].includes(newNiv);
                       if (wasSourate && isNowHizb) {
                         showConfirm(
                           lang==='ar'?'⚠️ تغيير نظام الطالب':'⚠️ Changement de système',
@@ -1070,11 +1082,7 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile 
                         setEditEleve({ ...editEleve, code_niveau: newNiv });
                       }
                     }}>
-                      <option value="5B">5B — {lang==='ar'?'تمهيدي':lang==='en'?'Preschool':(lang==='ar'?'تمهيدي':'Préscolaire')}</option>
-                      <option value="5A">5A — {lang==='ar'?'ابتدائي 1-2':lang==='en'?'Primary 1-2':'Primaire 1-2'}</option>
-                      <option value="2M">2M — {lang==='ar'?'ابتدائي 3-4':lang==='en'?'Primary 3-4':'Primaire 3-4'}</option>
-                      <option value="2">2 — {lang==='ar'?'ابتدائي 5-6':lang==='en'?'Primary 5-6':'Primaire 5-6'}</option>
-                      <option value="1">1 — {lang==='ar'?'إعدادي/ثانوي':lang==='en'?'Middle/High school':(lang==='ar'?'إعدادي/ثانوي':'Collège/Lycée')}</option>
+                      {niveauxActifs.map(n=><option key={n.code} value={n.code}>{n.code} — {n.nom}</option>)}
                     </select>
                   </div>
                   <div className="field-group">
