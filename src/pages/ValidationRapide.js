@@ -28,7 +28,7 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
     setEleves(ed||[]); setAllValidations(vd||[]); setLoading(false);
   };
 
-  const filteredEleves = search.length>0 ? eleves.filter(e=>`${e.prenom} ${e.nom}`.toLowerCase().includes(search.toLowerCase())).slice(0,5) : [];
+  const filteredEleves = search.length>0 ? eleves.filter(e=>`${e.prenom} ${e.nom} ${e.eleve_id_ecole||''}`.toLowerCase().includes(search.toLowerCase())).slice(0,5) : [];
 
   const selectEleve = (e) => {
     const vals = allValidations.filter(v=>v.eleve_id===e.id);
