@@ -10,7 +10,7 @@ const getNiveauColor = (code, niveaux) => {
   if (niveaux && niveaux.length > 0) return niveaux.find(n=>n.code===code)?.couleur || '#888';
   return NIVEAU_COLORS_FALLBACK[code] || '#888';
 };
-function NiveauBadge({ code }) {
+function NiveauBadge({ code, niveaux=[] }) {
   const c = getNiveauColor(code||'', niveaux||[]) || '#888';
   return code ? <span style={{padding:'1px 6px',borderRadius:10,fontSize:9,fontWeight:700,background:c+'18',color:c,border:`0.5px solid ${c}40`}}>{code}</span> : null;
 }
@@ -64,7 +64,7 @@ export default function Dashboard({ user, navigate, goBack, lang, isMobile=false
 
   const loadData = async () => {
     setLoading(true);
-    const [{ data: ed },{ data: id },{ data: vd }] = await Promise.all([
+    const [{ data: nv },{ data: ed },{ data: id },{ data: vd }] = await Promise.all([
       supabase.from('eleves').select('id,prenom,nom,code_niveau,niveau,hizb_depart,tomon_depart,sourates_acquises,instituteur_referent_id,ecole_id').eq('ecole_id', user.ecole_id).order('nom'),
       supabase.from('utilisateurs').select('id,prenom,nom,role').eq('role','instituteur').eq('ecole_id', user.ecole_id),
       supabase.from('validations').select('id,eleve_id,type_validation,nombre_tomon,hizb_valide,tomon_debut,date_validation,valide_par,ecole_id,valideur:valide_par(prenom,nom)').eq('ecole_id', user.ecole_id).order('date_validation',{ascending:false})
@@ -76,7 +76,7 @@ export default function Dashboard({ user, navigate, goBack, lang, isMobile=false
       const inst = (id||[]).find(i=>i.id===eleve.instituteur_referent_id);
       return {...eleve,etat,derniere,jours:joursDepuis(derniere),instituteurNom:inst?`${inst.prenom} ${inst.nom}`:'—',instituteur:inst,inactif:isInactif(derniere)};
     });
-    setEleves(elevesData); setInstituteurs(id||[]); setAllValidations(vd||[]); setStats(calcStats(vd||[])); setLoading(false);
+    setNiveaux(nv||[]); setEleves(elevesData); setInstituteurs(id||[]); setAllValidations(vd||[]); setStats(calcStats(vd||[])); setLoading(false);
   };
 
   const alertes = useMemo(() => calcAlertes(eleves, allValidations, lang), [eleves, allValidations, lang]);
@@ -555,7 +555,7 @@ export default function Dashboard({ user, navigate, goBack, lang, isMobile=false
                         <div style={{display:'flex',alignItems:'center',gap:10}}>
                           <Avatar prenom={eleve.prenom} nom={eleve.nom} size={42} bg={sl.bg} color={sl.color}/>
                           <div>
-                            <div style={{display:'flex',alignItems:'center',gap:5,flexWrap:'wrap'}}><div style={{fontSize:14,fontWeight:600}}>{eleve.prenom} {eleve.nom}</div><NiveauBadge code={eleve.code_niveau}/></div>
+                            <div style={{display:'flex',alignItems:'center',gap:5,flexWrap:'wrap'}}><div style={{fontSize:14,fontWeight:600}}>{eleve.prenom} {eleve.nom}</div><NiveauBadge code={eleve.code_niveau} niveaux={niveaux}/></div>
                             <div style={{fontSize:11,color:C.muted}}>{eleve.instituteurNom}</div>
                             <span style={{padding:'1px 8px',borderRadius:20,fontSize:10,fontWeight:500,background:sl.bg,color:sl.color}}>{sl.label}</span>
                           </div>
