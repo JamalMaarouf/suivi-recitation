@@ -258,7 +258,7 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile 
       code_niveau: editEleve.code_niveau || '1',
       eleve_id_ecole: editEleve.eleve_id_ecole || null,
       instituteur_referent_id: editEleve.instituteur_referent_id || null,
-      hizb_depart: parseInt(editEleve.hizb_depart) || 1,
+      hizb_depart: parseInt(editEleve.hizb_depart) || 0,
       tomon_depart: parseInt(editEleve.tomon_depart) || 1,
       sourates_acquises: parseInt(editEleve.sourates_acquises) || 0
     }).eq('id', editEleve.id);
@@ -532,7 +532,7 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile 
     const NIVEAUX_M = ['5B','5A','2M','2','1'];
 
     const resetFormEleve = () => {
-      setNewEleve({prenom:'',nom:'',niveau:'D\u00e9butant',code_niveau:'1',eleve_id_ecole:'',instituteur_referent_id:'',hizb_depart:1,tomon_depart:1,sourates_acquises:0});
+      setNewEleve({prenom:'',nom:'',niveau:'D\u00e9butant',code_niveau:'1',eleve_id_ecole:'',instituteur_referent_id:'',hizb_depart:0,tomon_depart:1,sourates_acquises:0});
       setEditEleve(null); setMobileEditEleve(null);
     };
     const handleSaveEleve = async () => {
