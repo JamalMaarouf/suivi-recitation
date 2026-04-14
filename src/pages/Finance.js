@@ -288,7 +288,7 @@ export default function Finance({ user, navigate, goBack, lang='fr', isMobile })
 
   // Par élève (pour tableau de suivi)
   const parEleve = eleves.filter(e => {
-    if(filterSuiviApplied.search && !`${e.prenom} ${e.nom} ${e.eleve_id_ecole||''}`.toLowerCase().includes(filterSuiviApplied.search.toLowerCase()) && !String(e.eleve_id_ecole||'').includes(filterSuiviApplied.search)) return false;
+    if(filterSuiviApplied.search && !(e.prenom+' '+e.nom).toLowerCase().includes(filterSuiviApplied.search.toLowerCase()) && !String(e.eleve_id_ecole||'').includes(filterSuiviApplied.search)) return false;
     return true;
   }).map(e => {
     const cotE = cotisations.filter(c=>c.eleve_id===e.id);
@@ -842,7 +842,7 @@ export default function Finance({ user, navigate, goBack, lang='fr', isMobile })
                       style={{marginBottom:6}}/>
                     <select className="field-select" value={formCot.eleve_id} onChange={e=>setFormCot(f=>({...f,eleve_id:e.target.value}))}>
                       <option value="">— {lang==='ar'?'اختر':'Sélectionner'} —</option>
-                      {eleves.filter(e=>!searchEleveForm||`${e.prenom} ${e.nom} ${e.eleve_id_ecole||''}`.toLowerCase().includes(searchEleveForm.toLowerCase())||String(e.eleve_id_ecole||'').includes(searchEleveForm)).map(e=>(
+                      {eleves.filter(e=>!searchEleveForm||(e.prenom+' '+e.nom).toLowerCase().includes(searchEleveForm.toLowerCase())||String(e.eleve_id_ecole||'').includes(searchEleveForm)).map(e=>(
                         <option key={e.id} value={e.id}>
                           {e.eleve_id_ecole?'#'+e.eleve_id_ecole+' · ':''}{e.prenom} {e.nom} ({e.code_niveau||'?'})
                         </option>

@@ -149,7 +149,7 @@ export default function EnregistrerRecitation({  user, eleve: eleveInitial, navi
     setDone(true);
   };
 
-  const elevesFiltre = eleves.filter(e => `${e.prenom} ${e.nom} ${e.eleve_id_ecole||''}`.toLowerCase().includes(search.toLowerCase()));
+  const elevesFiltre = eleves.filter(e => `${e.prenom} ${e.nom}`.toLowerCase().includes(search.toLowerCase()));
 
   if (isMobile) {
     return (

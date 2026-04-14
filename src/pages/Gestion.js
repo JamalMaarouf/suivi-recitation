@@ -90,32 +90,19 @@ function AcquisSelector({ codeNiveau, hizb, tomon, onHizbChange, onTomonChange, 
     <div style={{background:'#f9f9f6',borderRadius:12,padding:'1rem',border:'0.5px solid #e0e0d8'}}>
       <div style={{fontSize:11,color:'#888',marginBottom:10,textAlign:'center'}}>{lang==='ar'?'موقع الطالب في القرآن قبل بدء المتابعة':lang==='en'?'Position in Quran before tracking':'Position dans le Coran avant de commencer le suivi'}</div>
       <div style={{marginBottom:12}}>
-        <div style={{fontSize:12,color:'#888',marginBottom:6,fontWeight:500}}>{lang==='ar'?'انقر على آخر حزب محفوظ (من 60 نحو 1)':lang==='en'?'Click the last memorized Hizb (60 down to 1)':'Cliquez sur le dernier Hizb mémorisé (de 60 vers 1)'}</div>
+        <div style={{fontSize:12,color:'#888',marginBottom:6,fontWeight:500}}>{lang==='ar'?'الحزب (1-60)':lang==='en'?'Hizb (1-60)':'Hizb (1-60)'}</div>
         <div style={{display:'flex',alignItems:'center',gap:8}}>
-          <button onClick={()=>onHizbChange(Math.min(60,hizb+1))} style={{width:32,height:32,border:'0.5px solid #e0e0d8',borderRadius:6,background:'#fff',cursor:'pointer',fontSize:16,fontWeight:700}}>+</button>
+          <button onClick={()=>onHizbChange(Math.max(1,hizb-1))} style={{width:32,height:32,border:'0.5px solid #e0e0d8',borderRadius:6,background:'#fff',cursor:'pointer',fontSize:16}}>-</button>
           <div style={{flex:1,display:'grid',gridTemplateColumns:'repeat(10,1fr)',gap:3}}>
-            {Array.from({length:60},(_,i)=>60-i).map(n=>{
-              const acquis = hizb > 0 && n >= hizb;
-              const actif  = hizb > 0 && n === hizb;
-              return (
-                <div key={n} onClick={()=>onHizbChange(n)}
-                  style={{height:28,borderRadius:4,display:'flex',alignItems:'center',
-                    justifyContent:'center',fontSize:11,cursor:'pointer',
-                    fontWeight:actif?800:400,
-                    background:acquis?'#1D9E75':'#f0f0ec',
-                    color:acquis?'#fff':'#999',
-                    border:actif?'2px solid #085041':'none',
-                    transition:'all 0.1s'}}>
-                  {n}
-                </div>
-              );
-            })}
+            {Array.from({length:60},(_,i)=>60-i).map(n=>(
+              <div key={n} onClick={()=>onHizbChange(n)} style={{height:28,borderRadius:4,display:'flex',alignItems:'center',justifyContent:'center',fontSize:11,fontWeight:n===hizb?700:400,cursor:'pointer',background:n===hizb?'#1D9E75':n<hizb?'#E1F5EE':'#f0f0ec',color:n===hizb?'#fff':n<hizb?'#085041':'#999',transition:'all 0.1s'}}>
+                {n}
+              </div>
+            ))}
           </div>
           <button onClick={()=>onHizbChange(Math.min(60,hizb+1))} style={{width:32,height:32,border:'0.5px solid #e0e0d8',borderRadius:6,background:'#fff',cursor:'pointer',fontSize:16}}>+</button>
         </div>
-        <div style={{textAlign:'center',marginTop:6,fontSize:13,fontWeight:700,color:'#1D9E75'}}>
-          {hizb===0?(lang==='ar'?'لا توجد مكتسبات سابقة':'Aucun acquis antérieur'):(lang==='ar'?`الحزب المختار: ${hizb} — المحفوظ: ${hizb} إلى 60`:`Hizb sélectionné : ${hizb} — Acquis : Hizb ${hizb} à 60`)}
-        </div>
+        <div style={{textAlign:'center',marginTop:6,fontSize:14,fontWeight:700,color:'#1D9E75'}}>Hizb {hizb}</div>
       </div>
       <div>
         <div style={{fontSize:12,color:'#888',marginBottom:6,fontWeight:500}}>{lang==='ar'?'الثُّمن (1-8)':lang==='en'?'Tomon (1-8)':'Tomon (1-8)'}</div>
@@ -176,11 +163,10 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile 
   const [showAcquisSelector, setShowAcquisSelector] = useState(false);
   const [editShowAcquisSelector, setEditShowAcquisSelector] = useState(false);
 
-  const [newEleve, setNewEleve] = useState({ prenom: '', nom: '', niveau: 'Débutant', code_niveau: '1', eleve_id_ecole: '', instituteur_referent_id: '', hizb_depart: 0, tomon_depart: 1, sourates_acquises: 0 });
+  const [newEleve, setNewEleve] = useState({ prenom: '', nom: '', niveau: 'Débutant', code_niveau: '1', eleve_id_ecole: '', instituteur_referent_id: '', hizb_depart: 1, tomon_depart: 1, sourates_acquises: 0 });
   const [newInst, setNewInst] = useState({ prenom: '', nom: '', identifiant: '', mot_de_passe: '' });
   // Hooks niveaux dynamiques
   const [niveauxDyn, setNiveauxDyn] = useState([]);
-  const [ecoleConfig, setEcoleConfig] = useState({mdp_defaut_instituteurs:'ecole2024',mdp_defaut_parents:'parent2024'});
   // Hooks formulaires mobiles
   const [showFormEleve,  setShowFormEleve]  = useState(false);
   const [showFormInst,   setShowFormInst]   = useState(false);
@@ -197,8 +183,6 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile 
 
   const loadData = async () => {
     setLoading(true);
-    const { data: ecoleData } = await supabase.from('ecoles').select('id,nom,mdp_defaut_instituteurs,mdp_defaut_parents').eq('id', user.ecole_id).maybeSingle();
-    if (ecoleData) setEcoleConfig(ecoleData);
     const { data: e } = await supabase.from('eleves').select('id,prenom,nom,code_niveau,eleve_id_ecole,hizb_depart,tomon_depart,sourates_acquises,instituteur_referent_id,ecole_id')
         .eq('ecole_id', user.ecole_id).order('nom');
     const { data: i } = await supabase.from('utilisateurs').select('id,prenom,nom,identifiant,role').eq('role', 'instituteur').eq('ecole_id', user.ecole_id).order('nom');
@@ -207,15 +191,11 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile 
     const { data: pd } = await supabase.from('utilisateurs')
         .select('id,prenom,nom,identifiant,telephone')
         .eq('role','parent').eq('ecole_id', user.ecole_id).order('nom');
-    // Charger les liens parent-élève séparément
     const { data: pliens } = await supabase.from('parent_eleve')
         .select('parent_id,eleve_id').eq('ecole_id', user.ecole_id);
     const liensMap = {};
-    (pliens||[]).forEach(l => {
-        if (!liensMap[l.parent_id]) liensMap[l.parent_id] = [];
-        liensMap[l.parent_id].push(l.eleve_id);
-    });
-    setParents((pd||[]).map(p=>({...p, eleve_ids: liensMap[p.id]||[], liens:[] })));
+    (pliens||[]).forEach(l => { if(!liensMap[l.parent_id]) liensMap[l.parent_id]=[]; liensMap[l.parent_id].push(l.eleve_id); });
+    setParents((pd||[]).map(p=>({...p, eleve_ids:liensMap[p.id]||[]})));
     setLoading(false);
   };
 
@@ -304,32 +284,15 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile 
   };
 
   const ajouterInstituteur = async () => {
-    if (!newInst.prenom || !newInst.nom)
-      return showMsg('error', lang==='ar'?'الاسم واللقب إلزاميان':'Prénom et nom obligatoires');
-    // Générer login automatique : prenom.nom (normalisé)
-    const normalize = s => s.toLowerCase().trim()
-      .replace(/\s+/g,'.').replace(/[àáâä]/g,'a').replace(/[éèêë]/g,'e')
-      .replace(/[îï]/g,'i').replace(/[ôö]/g,'o').replace(/[ùûü]/g,'u')
-      .replace(/[^a-z0-9.]/g,'');
-    const baseLogin = normalize(newInst.prenom)+'.'+normalize(newInst.nom);
-    // Vérifier les doublons et trouver un login unique
-    let login = baseLogin;
-    let suffix = 2;
-    while (true) {
-      const {data:existing} = await supabase.from('utilisateurs')
-        .select('id').eq('identifiant', login).eq('ecole_id', user.ecole_id).maybeSingle();
-      if (!existing) break;
-      login = baseLogin + suffix;
-      suffix++;
-    }
-    const mdp = newInst.mot_de_passe || ecoleConfig.mdp_defaut_instituteurs || 'ecole2024';
+    if (!newInst.prenom || !newInst.nom || !newInst.identifiant || !newInst.mot_de_passe)
+      return showMsg('error', t(lang, 'tous_champs_obligatoires'));
     const { error } = await supabase.from('utilisateurs').insert({
       prenom: newInst.prenom, nom: newInst.nom,
-      identifiant: login, mot_de_passe: mdp, role: 'instituteur',
+      identifiant: newInst.identifiant, mot_de_passe: newInst.mot_de_passe, role: 'instituteur',
       ecole_id: user.ecole_id, statut_compte: 'actif'
     });
-    if (error) return showMsg('error', error.message);
-    showMsg('success', (lang==='ar'?'✅ تم إضافة الأستاذ — المعرف: ':'✅ Instituteur ajouté — Login : ')+login);
+    if (error) return showMsg('error', error.message.includes('unique') ? t(lang, 'identifiant_utilise') : t(lang, 'erreur_ajout'));
+    showMsg('success', t(lang, 'instituteur_ajoute'));
     setNewInst({ prenom: '', nom: '', identifiant: '', mot_de_passe: '' });
     loadData();
   };
@@ -523,10 +486,11 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile 
   const NC = Object.fromEntries(niveauxActifs.map(n=>[n.code, n.couleur||FALLBACK_NC[n.code]||'#888']));
   const NL = Object.fromEntries(niveauxActifs.map(n=>[n.code, n.nom||n.code]));
   const NIVEAUX_M = niveauxActifs.map(n=>n.code);
-  // Alias pour compatibilité section PC
-  const niveaux = niveauxActifs.map(n=>({value:n.code, label:`${n.code} — ${n.nom}`}));
 
   if (isMobile) {
+    const NC = {'5B':'#534AB7','5A':'#378ADD','2M':'#1D9E75','2':'#EF9F27','1':'#E24B4A'};
+    const NL = {'5B':lang==='ar'?'\u062a\u0645\u0647\u064a\u062f\u064a':'Pr\u00e9scolaire','5A':'Prim. 1-2','2M':'Prim. 3-4','2':'Prim. 5-6','1':lang==='ar'?'\u0625\u0639\u062f\u0627\u062f\u064a':'Coll\u00e8ge'};
+    const NIVEAUX_M = ['5B','5A','2M','2','1'];
 
     const resetFormEleve = () => {
       setNewEleve({prenom:'',nom:'',niveau:'D\u00e9butant',code_niveau:'1',eleve_id_ecole:'',instituteur_referent_id:'',hizb_depart:1,tomon_depart:1,sourates_acquises:0});
@@ -680,12 +644,12 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile 
               </div>
             )}
             <input style={{width:'100%',padding:'12px 16px',borderRadius:12,border:'0.5px solid #e0e0d8',fontSize:15,fontFamily:'inherit',boxSizing:'border-box',background:'#fff',marginBottom:8}}
-              placeholder={lang==='ar'?'الاسم أو رقم التعريف...':'Nom, prénom ou numéro...'}
+              placeholder={lang==='ar'?'\u0628\u062d\u062b \u0639\u0646 \u0637\u0627\u0644\u0628...':'Rechercher un \u00e9l\u00e8ve...'}
               value={searchEleve||''} onChange={e=>setSearchEleve(e.target.value)}/>
             <div style={{fontSize:12,color:'#888',marginBottom:8,paddingLeft:4}}>
-              {eleves.filter(e=>!searchEleve||`${e.prenom} ${e.nom} ${e.eleve_id_ecole||''}`.toLowerCase().includes((searchEleve||'').toLowerCase())).length} {lang==='ar'?'\u0637\u0627\u0644\u0628':'\u00e9l\u00e8ve(s)'}
+              {eleves.filter(e=>!searchEleve||(e.prenom+' '+e.nom).toLowerCase().includes((searchEleve||'').toLowerCase())).length} {lang==='ar'?'\u0637\u0627\u0644\u0628':'\u00e9l\u00e8ve(s)'}
             </div>
-            {eleves.filter(e=>!searchEleve||`${e.prenom} ${e.nom} ${e.eleve_id_ecole||''}`.toLowerCase().includes((searchEleve||'').toLowerCase())).map(e=>{
+            {eleves.filter(e=>!searchEleve||(e.prenom+' '+e.nom).toLowerCase().includes((searchEleve||'').toLowerCase())).map(e=>{
               const nc=NC[e.code_niveau||'1']||'#888';
               return(
                 <div key={e.id} style={{background:'#fff',borderRadius:12,padding:'13px 14px',marginBottom:8,border:'0.5px solid #e0e0d8',display:'flex',alignItems:'center',gap:12}}>
@@ -730,7 +694,7 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile 
                 <div style={{marginBottom:14}}>
                   <label style={{fontSize:12,fontWeight:600,color:'#666',display:'block',marginBottom:5}}>{lang==='ar'?'\u0643\u0644\u0645\u0629 \u0627\u0644\u0645\u0631\u0648\u0631':'Mot de passe *'}</label>
                   <input type="password" style={{width:'100%',padding:'12px 14px',borderRadius:10,border:'0.5px solid #e0e0d8',fontSize:15,fontFamily:'inherit',boxSizing:'border-box'}}
-                    value={newInst.mot_de_passe} onChange={e=>setNewInst(x=>({...x,mot_de_passe:e.target.value}))} placeholder={(lang==='ar'?'اتركه فارغاً للمعتمد':'Laisser vide = MDP par défaut')}/>
+                    value={newInst.mot_de_passe} onChange={e=>setNewInst(x=>({...x,mot_de_passe:e.target.value}))} placeholder="\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022"/>
                 </div>
                 <div style={{display:'flex',gap:8}}>
                   <button onClick={()=>setShowFormInst(false)} style={{flex:1,padding:'13px',background:'#f5f5f0',color:'#666',border:'none',borderRadius:12,fontSize:14,fontWeight:600,cursor:'pointer',fontFamily:'inherit'}}>{lang==='ar'?'\u0625\u0644\u063a\u0627\u0621':'Annuler'}</button>
@@ -932,9 +896,6 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile 
           </div>
           <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(240px,1fr))',gap:14}}>
             {[
-              {icon:'🔑', label:lang==='ar'?'كلمات المرور الافتراضية':'MDP par défaut',
-               desc:lang==='ar'?'كلمة مرور افتراضية للأساتذة والآباء':"MDP par défaut instituteurs et parents",
-               page:'mdp_config', color:'#534AB7', bg:'#EEEDFE'},
               {icon:'📚', label:lang==='ar'?'المستويات':'Niveaux',
                desc:lang==='ar'?'إدارة مستويات المدرسة وألوانها':"Configurer les niveaux de l'école",
                page:'niveaux', color:'#1D9E75', bg:'#E1F5EE'},
@@ -989,23 +950,13 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile 
                     <input className="field-input" value={newEleve.nom} onChange={e => setNewEleve({ ...newEleve, nom: e.target.value })} placeholder={t(lang, 'nom_label')} />
                   </div>
                   <div className="field-group">
-                    <label className="field-lbl">{lang==='ar'?'المستوى':'Niveau'} <span style={{color:'#E24B4A'}}>*</span></label>
-                    <select className="field-select" value={editEleve.niveau||'Débutant'} onChange={e => setEditEleve({ ...editEleve, niveau: e.target.value })}>
-                      <option value="Débutant">{lang==='ar'?'مبتدئ':lang==='en'?'Beginner':'Débutant'}</option>
-                      <option value="Intermédiaire">{lang==='ar'?'متوسط':lang==='en'?'Intermediate':'Intermédiaire'}</option>
-                      <option value="Avancé">{lang==='ar'?'متقدم':lang==='en'?'Advanced':'Avancé'}</option>
-                    </select>
-                  </div>
-                  <div className="field-group">
-                    <label className="field-lbl">{lang==='ar'?'المستوى الدراسي':'Niveau scolaire'} <span style={{color:'#E24B4A'}}>*</span></label>
+                    <label className="field-lbl">{t(lang, 'niveau')} <span style={{color:'#E24B4A'}}>*</span></label>
                     <select className="field-select" value={newEleve.niveau} onChange={e => setNewEleve({ ...newEleve, niveau: e.target.value })}>
-                      <option value="Débutant">{lang==='ar'?'مبتدئ':lang==='en'?'Beginner':'Débutant'}</option>
-                      <option value="Intermédiaire">{lang==='ar'?'متوسط':lang==='en'?'Intermediate':'Intermédiaire'}</option>
-                      <option value="Avancé">{lang==='ar'?'متقدم':lang==='en'?'Advanced':'Avancé'}</option>
+                      {niveaux.map(n => <option key={n.value} value={n.value}>{n.label}</option>)}
                     </select>
                   </div>
                   <div className="field-group">
-                    <label className="field-lbl">{lang==='ar'?'المستوى الدراسي':'Niveau scolaire'} <span style={{color:'#E24B4A'}}>*</span></label>
+                    <label className="field-lbl">{lang==='ar'?'المستوى الدراسي':lang==='en'?'Class level':(lang==='ar'?'الصف الدراسي':'Niveau scolaire')} <span style={{color:'#E24B4A'}}>*</span></label>
                     <select className="field-select" value={newEleve.code_niveau} onChange={e => setNewEleve({ ...newEleve, code_niveau: e.target.value })}>
                       {niveauxActifs.map(n=><option key={n.code} value={n.code}>{n.code} — {n.nom}</option>)}
                     </select>
@@ -1064,25 +1015,23 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile 
                     <input className="field-input" value={editEleve.nom} onChange={e => setEditEleve({ ...editEleve, nom: e.target.value })} />
                   </div>
                   <div className="field-group">
-                    <label className="field-lbl">{lang==='ar'?'المستوى':'Niveau'} <span style={{color:'#E24B4A'}}>*</span></label>
-                    <select className="field-select" value={editEleve.niveau||'Débutant'} onChange={e => setEditEleve({ ...editEleve, niveau: e.target.value })}>
-                      <option value="Débutant">{lang==='ar'?'مبتدئ':lang==='en'?'Beginner':'Débutant'}</option>
-                      <option value="Intermédiaire">{lang==='ar'?'متوسط':lang==='en'?'Intermediate':'Intermédiaire'}</option>
-                      <option value="Avancé">{lang==='ar'?'متقدم':lang==='en'?'Advanced':'Avancé'}</option>
+                    <label className="field-lbl">{t(lang, 'niveau')} <span style={{color:'#E24B4A'}}>*</span></label>
+                    <select className="field-select" value={editEleve.niveau} onChange={e => setEditEleve({ ...editEleve, niveau: e.target.value })}>
+                      {niveaux.map(n => <option key={n.value} value={n.value}>{n.label}</option>)}
                     </select>
                   </div>
                   <div className="field-group">
-                    <label className="field-lbl">{lang==='ar'?'المستوى الدراسي':'Niveau scolaire'} <span style={{color:'#E24B4A'}}>*</span></label>
+                    <label className="field-lbl">{lang==='ar'?'المستوى الدراسي':lang==='en'?'Class level':(lang==='ar'?'الصف الدراسي':'Niveau scolaire')} <span style={{color:'#E24B4A'}}>*</span></label>
                     <select className="field-select" value={editEleve.code_niveau||'1'} onChange={e => {
                       const oldNiv = editEleve.code_niveau||'1';
                       const newNiv = e.target.value;
-                      const wasSourate = niveauxActifs.find(n=>n.code===oldNiv)?.type==='sourate' || ['5B','5A','2M'].includes(oldNiv);
-                      const isNowHizb = niveauxActifs.find(n=>n.code===newNiv)?.type==='hizb' || ['2M','2','1'].includes(newNiv);
+                      const wasSourate = ['5B','5A','2M'].includes(oldNiv);
+                      const isNowHizb = ['2M','2','1'].includes(newNiv);
                       if (wasSourate && isNowHizb) {
                         showConfirm(
                           lang==='ar'?'⚠️ تغيير نظام الطالب':'⚠️ Changement de système',
                           lang==='ar'?'هذا الطالب ينتقل من نظام السور إلى نظام الحزب والثُّمن. يجب تحديد المكتسبات بالحزب والثُّمن.':'Cet élève passe du système Sourates au système Hizb/Tomon. Les acquis doivent être redéfinis.',
-                          ()=>{ setEditEleve({ ...editEleve, code_niveau: newNiv, hizb_depart: 0, tomon_depart: 1, sourates_acquises: 0 });
+                          ()=>{ setEditEleve({ ...editEleve, code_niveau: newNiv, hizb_depart: 1, tomon_depart: 1, sourates_acquises: 0 });
                           setEditShowAcquisSelector(true);; hideConfirm(); },
                           lang==='ar'?'متابعة':'Continuer',
                           '#EF9F27'
@@ -1091,7 +1040,11 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile 
                         setEditEleve({ ...editEleve, code_niveau: newNiv });
                       }
                     }}>
-                      {niveauxActifs.map(n=><option key={n.code} value={n.code}>{n.code} — {n.nom}</option>)}
+                      <option value="5B">5B — {lang==='ar'?'تمهيدي':lang==='en'?'Preschool':(lang==='ar'?'تمهيدي':'Préscolaire')}</option>
+                      <option value="5A">5A — {lang==='ar'?'ابتدائي 1-2':lang==='en'?'Primary 1-2':'Primaire 1-2'}</option>
+                      <option value="2M">2M — {lang==='ar'?'ابتدائي 3-4':lang==='en'?'Primary 3-4':'Primaire 3-4'}</option>
+                      <option value="2">2 — {lang==='ar'?'ابتدائي 5-6':lang==='en'?'Primary 5-6':'Primaire 5-6'}</option>
+                      <option value="1">1 — {lang==='ar'?'إعدادي/ثانوي':lang==='en'?'Middle/High school':(lang==='ar'?'إعدادي/ثانوي':'Collège/Lycée')}</option>
                     </select>
                   </div>
                   <div className="field-group">
@@ -1186,18 +1139,8 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile 
             <div className="form-grid">
               <div className="field-group"><label className="field-lbl">{t(lang, 'prenom')}</label><input className="field-input" value={newInst.prenom} onChange={e => setNewInst({...newInst,prenom:e.target.value})} placeholder={t(lang,'prenom')}/></div>
               <div className="field-group"><label className="field-lbl">{t(lang, 'nom_label')}</label><input className="field-input" value={newInst.nom} onChange={e => setNewInst({...newInst,nom:e.target.value})} placeholder={t(lang,'nom_label')}/></div>
-              <div className="field-group">
-                <label className="field-lbl">{lang==='ar'?'المعرف (تلقائي)':'Login (auto-généré)'}</label>
-                <div style={{padding:'8px 12px',background:'#f5f5f0',borderRadius:8,fontSize:12,color:'#888',border:'0.5px solid #e0e0d8'}}>
-                  {newInst.prenom&&newInst.nom
-                    ? (newInst.prenom.toLowerCase().replace(/\s+/g,'.').replace(/[^a-z0-9.]/g,'')+'.'+newInst.nom.toLowerCase().replace(/\s+/g,'.').replace(/[^a-z0-9.]/g,''))
-                    : (lang==='ar'?'سيتم توليده تلقائياً':'Sera généré automatiquement')}
-                </div>
-              </div>
-              <div className="field-group">
-                <label className="field-lbl">{lang==='ar'?'كلمة المرور (اختياري)':'Mot de passe (optionnel)'}</label>
-                <input className="field-input" type="password" value={newInst.mot_de_passe} onChange={e => setNewInst({...newInst,mot_de_passe:e.target.value})} placeholder={lang==='ar'?'فارغ = كلمة المرور الافتراضية':'Vide = MDP par défaut école'}/>
-              </div>
+              <div className="field-group"><label className="field-lbl">{t(lang, 'identifiant_label')}</label><input className="field-input" value={newInst.identifiant} onChange={e => setNewInst({...newInst,identifiant:e.target.value})} placeholder="ex: m.karim"/></div>
+              <div className="field-group"><label className="field-lbl">{t(lang, 'mot_de_passe')}</label><input className="field-input" type="password" value={newInst.mot_de_passe} onChange={e => setNewInst({...newInst,mot_de_passe:e.target.value})} placeholder="••••••••"/></div>
             </div>
             <button className="btn-primary" onClick={ajouterInstituteur}>{t(lang, 'ajouter_instituteur_btn')}</button>
           </div>
@@ -1311,7 +1254,7 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile 
                 <div style={{maxHeight:220,overflowY:'auto',border:'0.5px solid #e0e0d8',borderRadius:10,background:'#fff'}}>
                   {(()=>{
                     const search=(formParent.searchEleve||'').toLowerCase();
-                    const filtered=eleves.filter(e=>!search||`${e.prenom} ${e.nom} ${e.eleve_id_ecole||''}`.toLowerCase().includes(search)||String(e.eleve_id_ecole||'').includes(search));
+                    const filtered=eleves.filter(e=>!search||(e.prenom+' '+e.nom).toLowerCase().includes(search)||String(e.eleve_id_ecole||'').includes(search));
                     if(filtered.length===0) return <div style={{padding:12,textAlign:'center',fontSize:12,color:'#bbb'}}>{lang==='ar'?'لا نتائج':'Aucun résultat'}</div>;
                     return filtered.map(e=>{
                       const sel=formParent.eleve_ids.includes(e.id);
@@ -1344,11 +1287,11 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile 
                 if(editingParentId) {
                   const upd={prenom:formParent.prenom,nom:formParent.nom,identifiant:formParent.identifiant,telephone:formParent.telephone||null};
                   if(formParent.mot_de_passe) upd.mot_de_passe=formParent.mot_de_passe;
-                  const {error:ue}=await supabase.from('parents').update(upd).eq('id',editingParentId);
+                  const {error:ue}=await supabase.from('utilisateurs').update(upd).eq('id',editingParentId);
                   if(ue){ toast.error(ue.message||'Erreur utilisateur'); return; }
                   await supabase.from('parent_eleve').delete().eq('parent_id',editingParentId);
                 } else {
-                  const {data:pd,error:pe}=await supabase.from('parents').insert({prenom:formParent.prenom,nom:formParent.nom,identifiant:formParent.identifiant,mot_de_passe:formParent.mot_de_passe,telephone:formParent.telephone||null,created_by:user.id,ecole_id:user.ecole_id}).select().single();
+                  const {data:pd,error:pe}=await supabase.from('utilisateurs').insert({prenom:formParent.prenom,nom:formParent.nom,identifiant:formParent.identifiant,mot_de_passe:formParent.mot_de_passe,telephone:formParent.telephone||null,role:'parent',ecole_id:user.ecole_id,statut_compte:'actif'}).select().single();
                   if(pe){ toast.error(pe.message||'Erreur parent'); return; }
                   toast.success(lang==='ar'?'✅ تم حفظ ولي الأمر':'✅ Parent enregistré avec succès');
                   pid=pd.id;
@@ -1359,9 +1302,10 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile 
                 setShowFormParent(false);
                 setEditingParentId(null);
                 setFormParent({prenom:'',nom:'',identifiant:'',mot_de_passe:'',telephone:'',eleve_ids:[],searchEleve:''});
-                const {data:pd2}=await supabase.from('parents').select('*, liens:parent_eleve(eleve_id, eleve:eleve_id(prenom,nom))')
-        .eq('ecole_id', user.ecole_id).order('nom');
-                setParents(pd2||[]);
+                const {data:pd2}=await supabase.from('utilisateurs').select('id,prenom,nom,identifiant,telephone').eq('role','parent').eq('ecole_id',user.ecole_id).order('nom');
+                const {data:pl2}=await supabase.from('parent_eleve').select('parent_id,eleve_id').eq('ecole_id',user.ecole_id);
+                const lm2={}; (pl2||[]).forEach(l=>{if(!lm2[l.parent_id])lm2[l.parent_id]=[];lm2[l.parent_id].push(l.eleve_id);});
+                setParents((pd2||[]).map(p=>({...p,eleve_ids:lm2[p.id]||[]})));
               }}>
                 {editingParentId?('✓ '+(lang==='ar'?'تحديث':'Mettre à jour')):('✓ '+(lang==='ar'?'إضافة':'Ajouter'))}
               </button>
