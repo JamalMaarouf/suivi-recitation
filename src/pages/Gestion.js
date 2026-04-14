@@ -107,7 +107,7 @@ function AcquisSelector({ codeNiveau, hizb, tomon, onHizbChange, onTomonChange, 
         </div>
         <div style={{textAlign:'center',marginTop:6,fontSize:14,fontWeight:700,color:'#1D9E75'}}>{hizb===0?(lang==='ar'?'لا توجد مكتسبات سابقة':'Aucun acquis antérieur'):`${lang==='ar'?'الحزب المختار':'Hizb sélectionné'} : ${hizb} — ${lang==='ar'?'المحفوظ':'Acquis'} : ${hizb} ${lang==='ar'?'إلى 60':'à 60'}`}</div>
       </div>
-      <div>
+      {hizb > 0 && <div>
         <div style={{fontSize:12,color:'#888',marginBottom:6,fontWeight:500}}>{lang==='ar'?'الثُّمن (1-8)':lang==='en'?'Tomon (1-8)':'Tomon (1-8)'}</div>
         <div style={{display:'grid',gridTemplateColumns:'repeat(8,1fr)',gap:4}}>
           {[1,2,3,4,5,6,7,8].map(n=>(
@@ -119,7 +119,7 @@ function AcquisSelector({ codeNiveau, hizb, tomon, onHizbChange, onTomonChange, 
         <div style={{textAlign:'center',marginTop:6,fontSize:12,color:'#888'}}>
           T.{tomon} du Hizb {hizb} · <span style={{color:'#1D9E75',fontWeight:600}}>{(hizb-1)*8+(tomon-1)} {lang==='ar'?'ثُمن':lang==='en'?'Tomon':'Tomon'} acquis</span>
         </div>
-      </div>
+      </div>}
 
       {(hizb > 1 || tomon > 1) && (()=>{
         const ta=(hizb-1)*8+(tomon-1); const hc=hizb-1;
