@@ -171,6 +171,8 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile 
   const [showFormEleve,  setShowFormEleve]  = useState(false);
   const [showFormInst,   setShowFormInst]   = useState(false);
   const [mobileEditEleve,setMobileEditEleve]= useState(null);
+  const [editInstituteur, setEditInstituteur] = useState(null);
+  const [formEditInst, setFormEditInst] = useState({prenom:'',nom:'',identifiant:'',mot_de_passe:''});
 
   useEffect(() => { loadData(); }, []);
   useEffect(() => {
@@ -313,8 +315,6 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile 
     );
   };
 
-  const [editInstituteur, setEditInstituteur] = useState(null);
-  const [formEditInst, setFormEditInst] = useState({prenom:'',nom:'',identifiant:'',mot_de_passe:''});
 
   const supprimerParent = (parentId) => {
     const p = parents.find(x=>x.id===parentId);
@@ -486,10 +486,6 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile 
     const NC = {'5B':'#534AB7','5A':'#378ADD','2M':'#1D9E75','2':'#EF9F27','1':'#E24B4A'};
     const NL = {'5B':lang==='ar'?'\u062a\u0645\u0647\u064a\u062f\u064a':'Pr\u00e9scolaire','5A':'Prim. 1-2','2M':'Prim. 3-4','2':'Prim. 5-6','1':lang==='ar'?'\u0625\u0639\u062f\u0627\u062f\u064a':'Coll\u00e8ge'};
     const NIVEAUX_M = ['5B','5A','2M','2','1'];
-    const [showFormEleve,  setShowFormEleve]  = React.useState(false);
-    const [showFormInst,   setShowFormInst]   = React.useState(false);
-    const [showFormParent, setShowFormParent] = React.useState(false);
-    const [mobileEditEleve,setMobileEditEleve]= React.useState(null);
 
     const resetFormEleve = () => {
       setNewEleve({prenom:'',nom:'',niveau:'D\u00e9butant',code_niveau:'1',eleve_id_ecole:'',instituteur_referent_id:'',hizb_depart:1,tomon_depart:1,sourates_acquises:0});
