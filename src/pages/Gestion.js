@@ -221,7 +221,7 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile 
       .select('id').eq('eleve_id_ecole', newEleve.eleve_id_ecole.trim()).eq('ecole_id', user.ecole_id).maybeSingle();
     if (existing) return showMsg('error', lang==='ar'?'رقم التعريف مستخدم مسبقاً، اختر رقماً آخر':'Ce numéro élève existe déjà, choisissez-en un autre');
 
-    const { data: eleveData, error } = await supabase.from('eleves').insert({
+    const { error } = await supabase.from('eleves').insert({
       prenom: newEleve.prenom, nom: newEleve.nom, niveau: newEleve.niveau, ecole_id: user.ecole_id,
       code_niveau: newEleve.code_niveau || '1',
       eleve_id_ecole: newEleve.eleve_id_ecole || null,
@@ -229,10 +229,12 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile 
       hizb_depart: parseInt(newEleve.hizb_depart) || 0,
       tomon_depart: parseInt(newEleve.tomon_depart) || 1,
       sourates_acquises: parseInt(newEleve.sourates_acquises) || 0
-    }).select().single();
-    console.log('Eleve insert:', eleveData, 'Error:', error);
+    });
     if (error) return showMsg('error', t(lang, 'erreur_ajout'));
-    if (!eleveData) return showMsg('error', 'Erreur: élève non créé');
+    // Récupérer l'élève créé par son numéro (RLS bloque .select() après insert)
+    const { data: eleveData } = await supabase.from('eleves')
+      .select('id').eq('eleve_id_ecole', newEleve.eleve_id_ecole.trim()).eq('ecole_id', user.ecole_id).maybeSingle();
+    console.log('Eleve récupéré:', eleveData);
 
     // ⑥ Créer compte parent automatiquement
     const mdpParent = ecoleConfig?.mdp_defaut_parents || 'parent2024';
