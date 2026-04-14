@@ -369,9 +369,10 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang, isMobi
   };
 
   const _niveauxCtx = typeof niveaux !== 'undefined' ? niveaux : [];
-  if (_niveauxCtx.some(n=>n.code===eleve.code_niveau&&n.type==='sourate') || ['5B','5A','2M'].includes(eleve.code_niveau)) {
-    return <FicheSourate eleve={eleve} user={user} navigate={navigate} lang={lang} />;
-  }
+  // Tous les élèves utilisent FicheEleve (FicheSourate gardé pour compatibilité)
+  // if (_niveauxCtx.some(n=>n.code===eleve.code_niveau&&n.type==='sourate') || ['5B','5A','2M'].includes(eleve.code_niveau)) {
+  //   return <FicheSourate eleve={eleve} user={user} navigate={navigate} lang={lang} />;
+  // }
 
   if (isMobile) {
     const sl2 = etat ? scoreLabel(etat.points.total) : {color:'#888',bg:'#f0f0ec',label:'—'};
