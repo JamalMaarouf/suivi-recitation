@@ -21,14 +21,16 @@ export default function ElevesInactifs({ navigate, goBack, lang='fr', user, isMo
   const loadData = async () => {
     setLoading(true);
     try {
-      const [{ data: ed }, { data: id }, { data: vd }, { data: nv }] = await Promise.all([
-        supabase.from('eleves').select('*')
-        .eq('ecole_id', user.ecole_id).order('nom'),
+      const results = await Promise.all([
+        supabase.from('eleves').select('*').eq('ecole_id', user.ecole_id).order('nom'),
         supabase.from('utilisateurs').select('id,prenom,nom').eq('role','instituteur').eq('ecole_id', user.ecole_id),
-        supabase.from('validations').select('eleve_id,date_validation,nombre_tomon,type_validation,hizb_valide')
-        .eq('ecole_id', user.ecole_id).order('date_validation',{ascending:false}),
+        supabase.from('validations').select('eleve_id,date_validation,nombre_tomon,type_validation,hizb_valide').eq('ecole_id', user.ecole_id).order('date_validation',{ascending:false}),
         supabase.from('niveaux').select('id,code,couleur').eq('ecole_id', user.ecole_id),
       ]);
+      const ed = results[0]?.data;
+      const id = results[1]?.data;
+      const vd = results[2]?.data;
+      const nv = results[3]?.data;
       const elevesData = (ed||[]).map(eleve => {
         const vals = (vd||[]).filter(v=>v.eleve_id===eleve.id);
         const etat = calcEtatEleve(vals, eleve.hizb_depart||1, eleve.tomon_depart||1);
@@ -46,7 +48,8 @@ export default function ElevesInactifs({ navigate, goBack, lang='fr', user, isMo
         return b.jours-a.jours;
       }));
     } catch(err) {
-      toast.error('Erreur de chargement des élèves inactifs');
+      console.error('ElevesInactifs error:', err);
+      toast.error('Erreur: '+err.message);
     }
     setLoading(false);
   };

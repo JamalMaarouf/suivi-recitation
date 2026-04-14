@@ -468,15 +468,18 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile 
     setTimeout(function(){ w.print(); }, 600);
   };
 
+  // Hooks mobile — déclarés avant le if(isMobile) pour respecter les règles React
+  const [showFormEleve,  setShowFormEleve]  = React.useState(false);
+  const [showFormInst,   setShowFormInst]   = React.useState(false);
+  const [mobileEditEleve,setMobileEditEleve]= React.useState(null);
+
+  // Constantes niveaux dynamiques
+  const FALLBACK_NC = {'5B':'#534AB7','5A':'#378ADD','2M':'#1D9E75','2':'#EF9F27','1':'#E24B4A'};
+  const NC = Object.fromEntries(niveauxDyn.map(n=>[n.code, n.couleur||FALLBACK_NC[n.code]||'#888']));
+  const NL = Object.fromEntries(niveauxDyn.map(n=>[n.code, n.nom]));
+  const NIVEAUX_M = niveauxDyn.map(n=>n.code);
+
   if (isMobile) {
-    const FALLBACK_NC = {'5B':'#534AB7','5A':'#378ADD','2M':'#1D9E75','2':'#EF9F27','1':'#E24B4A'};
-    const NC = Object.fromEntries(niveauxDyn.map(n=>[n.code, n.couleur||FALLBACK_NC[n.code]||'#888']));
-    const NL = Object.fromEntries(niveauxDyn.map(n=>[n.code, n.nom]));
-    const NIVEAUX_M = niveauxDyn.map(n=>n.code);
-    const [showFormEleve,  setShowFormEleve]  = React.useState(false);
-    const [showFormInst,   setShowFormInst]   = React.useState(false);
-    const [showFormParent, setShowFormParent] = React.useState(false);
-    const [mobileEditEleve,setMobileEditEleve]= React.useState(null);
 
     const resetFormEleve = () => {
       setNewEleve({prenom:'',nom:'',niveau:'Débutant',code_niveau:'1',eleve_id_ecole:'',instituteur_referent_id:'',hizb_depart:1,tomon_depart:1,sourates_acquises:0});
