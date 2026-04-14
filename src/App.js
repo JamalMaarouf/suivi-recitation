@@ -104,20 +104,22 @@ export default function App() {
     window.addEventListener('appinstalled', () => setShowInstallBtn(false));
   }, []);
 
+  const [page, setPage] = useState('dashboard');
+  const [selectedEleve, setSelectedEleve] = useState(null);
+  const [selectedInstituteur, setSelectedInstituteur] = useState(null);
+  const [compareEleves, setCompareEleves] = useState([]);
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+  const [lang, setLangRaw] = useState(() => localStorage.getItem('suivi_lang') || 'fr');
+  const [navHistory, setNavHistory] = useState([]);
+
   const handleInstall = async () => {
     if (!deferredPrompt) return;
     deferredPrompt.prompt();
     const { outcome } = await deferredPrompt.userChoice;
     if (outcome === 'accepted') { deferredPrompt = null; setShowInstallBtn(false); }
   };
-  const [page, setPage] = useState('dashboard');
   const pageRef = React.useRef('dashboard');
   const setPageWithRef = (p) => { pageRef.current = p; setPage(p); };
-  const [selectedEleve, setSelectedEleve] = useState(null);
-  const [selectedInstituteur, setSelectedInstituteur] = useState(null);
-  const [compareEleves, setCompareEleves] = useState([]);
-  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
-  const [lang, setLangRaw] = useState(() => localStorage.getItem('suivi_lang') || 'fr');
 
   useEffect(() => {
     const saved = localStorage.getItem('suivi_user');
@@ -142,7 +144,6 @@ export default function App() {
   const handleLogin = (u) => { setUser(u); localStorage.setItem('suivi_user', JSON.stringify(u)); };
   const handleLogout = () => { setUser(null); localStorage.removeItem('suivi_user'); setPageWithRef('dashboard'); };
 
-  const [navHistory, setNavHistory] = useState([]);
 
   const navigate = (p, data = null) => {
     // Save current page to history before navigating

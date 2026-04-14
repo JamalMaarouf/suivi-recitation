@@ -9,6 +9,8 @@ export default function TableauHonneur({ navigate, goBack, lang='fr', isMobile }
 
   useEffect(() => { loadData(); }, []);
 
+  const [vue, setVue] = useState('global');
+
   const loadData = async () => {
     const { data: ed } = await supabase.from('eleves').select('*')
         .eq('ecole_id', user.ecole_id);
@@ -26,7 +28,6 @@ export default function TableauHonneur({ navigate, goBack, lang='fr', isMobile }
   const medals = ['🥇','🥈','🥉'];
   const podiumColors = ['#EF9F27','#B0B0B0','#CD7F32'];
   const podiumBg = ['#FAEEDA','#f5f5f0','#f9f3ec'];
-  const [vue, setVue] = useState('global');
   const NIVEAUX_HON = [
     {code:'5B',label:'Préscolaire (5B)',color:'#534AB7'},
     {code:'5A',label:'Primaire 1-2 (5A)',color:'#378ADD'},

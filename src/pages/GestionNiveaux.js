@@ -32,6 +32,8 @@ export default function GestionNiveaux({ user, navigate, goBack, lang='fr', isMo
 
   useEffect(() => { loadData(); }, []);
 
+  const [formProgramme, setFormProgramme] = useState([]);
+
   const loadData = async () => {
     setLoading(true);
     const [{ data }, { data: sd }] = await Promise.all([
@@ -171,7 +173,6 @@ export default function GestionNiveaux({ user, navigate, goBack, lang='fr', isMo
   };
 
   // Programme dans le formulaire de création
-  const [formProgramme, setFormProgramme] = useState([]);
 
   const toggleFormProgramme = (id) => {
     setFormProgramme(prev =>
