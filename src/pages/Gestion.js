@@ -235,15 +235,17 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile 
     // ⑥ Créer compte parent automatiquement
     const mdpParent = ecoleConfig?.mdp_defaut_parents || 'parent2024';
     const loginParent = newEleve.eleve_id_ecole.trim();
-    const { data: parentData } = await supabase.from('utilisateurs').insert({
+    const { data: parentData, error: parentErr } = await supabase.from('utilisateurs').insert({
       prenom: newEleve.prenom, nom: newEleve.nom,
       identifiant: loginParent, mot_de_passe: mdpParent,
       role: 'parent', ecole_id: user.ecole_id, statut_compte: 'actif'
     }).select().single();
+    console.log('Parent insert result:', parentData, 'Error:', parentErr);
     if (parentData) {
-      await supabase.from('parent_eleve').insert({
+      const { error: lienErr } = await supabase.from('parent_eleve').insert({
         parent_id: parentData.id, eleve_id: eleveData.id
       });
+      console.log('Lien parent_eleve error:', lienErr);
     }
 
     showMsg('success', lang==='ar'?`✅ تم إضافة الطالب — حساب ولي الأمر: ${loginParent} / ${mdpParent}`:`✅ Élève ajouté — Compte parent: ${loginParent} / ${mdpParent}`);
