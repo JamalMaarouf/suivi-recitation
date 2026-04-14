@@ -278,26 +278,7 @@ export default function PortailParent({ parent, navigate, goBack, lang='fr', onL
             {/* Cotisations */}
             {onglet==='cotisations' && (
               <div>
-                {/* Bandeau alerte impayés */}
-                {cotEAvecManquants.filter(c=>c.statut==='non_paye'||c.statut==='partiel').length > 0 && (
-                  <div style={{background:'#FCEBEB',border:'1.5px solid #E24B4A',borderRadius:12,padding:'12px 14px',marginBottom:12,display:'flex',alignItems:'center',gap:10}}>
-                    <span style={{fontSize:24}}>🔴</span>
-                    <div>
-                      <div style={{fontWeight:700,fontSize:13,color:'#E24B4A'}}>
-                        {lang==='ar'?'لديك اشتراكات غير مدفوعة':'Vous avez des cotisations impayées'}
-                      </div>
-                      <div style={{fontSize:11,color:'#E24B4A',opacity:0.8,marginTop:2}}>
-                        {cotEAvecManquants.filter(c=>c.statut==='non_paye'||c.statut==='partiel').length} {lang==='ar'?'شهر غير مسوى':'mois non réglé(s)'} · {lang==='ar'?'يرجى التسوية في أقرب وقت':'Veuillez régulariser rapidement'}
-                      </div>
-                    </div>
-                  </div>
-                )}
-                {cotEAvecManquants.filter(c=>c.statut==='non_paye'||c.statut==='partiel').length === 0 && cotEAvecManquants.length > 0 && (
-                  <div style={{background:'#E1F5EE',border:'1.5px solid #1D9E75',borderRadius:12,padding:'12px 14px',marginBottom:12,display:'flex',alignItems:'center',gap:10}}>
-                    <span style={{fontSize:24}}>✅</span>
-                    <div style={{fontWeight:700,fontSize:13,color:'#085041'}}>{lang==='ar'?'وضعيتك مالية ممتازة!':'Situation financière excellente !'}</div>
-                  </div>
-                )}
+
                 {cotEAvecManquants.map(cot=>{
                   const STATUTS={paye:{ic:'✅',color:'#1D9E75',bg:'#E1F5EE',lbl:'Payé',lblAr:'مدفوع'},partiel:{ic:'⚠️',color:'#EF9F27',bg:'#FAEEDA',lbl:'Partiel',lblAr:'جزئي'},non_paye:{ic:'❌',color:'#E24B4A',bg:'#FCEBEB',lbl:'Non payé',lblAr:'غير مدفوع'},exonere:{ic:'🎁',color:'#888',bg:'#f5f5f0',lbl:'Exonéré',lblAr:'معفى'}};
                   const st=STATUTS[cot.statut]||STATUTS.paye;
@@ -616,18 +597,7 @@ export default function PortailParent({ parent, navigate, goBack, lang='fr', onL
       {/* COTISATIONS */}
       {onglet==='cotisations'&&(
         <div style={{background:'#fff',border:'0.5px solid #e0e0d8',borderRadius:14,padding:'1.25rem'}}>
-          {/* Bandeau alerte impayés */}
-          {cotEAvecManquants.filter(c=>c.statut==='non_paye'||c.statut==='partiel').length > 0 && (
-            <div style={{background:'#FCEBEB',border:'1.5px solid #E24B4A',borderRadius:10,padding:'12px',marginBottom:12,display:'flex',alignItems:'center',gap:10}}>
-              <span style={{fontSize:22}}>🔴</span>
-              <div>
-                <div style={{fontWeight:700,fontSize:13,color:'#E24B4A'}}>{lang==='ar'?'لديك اشتراكات غير مدفوعة':'Cotisations impayées'}</div>
-                <div style={{fontSize:11,color:'#E24B4A',opacity:0.85,marginTop:2}}>
-                  {cotEAvecManquants.filter(c=>c.statut==='non_paye'||c.statut==='partiel').length} {lang==='ar'?'شهر غير مسوى':'mois non réglé(s)'}
-                </div>
-              </div>
-            </div>
-          )}
+
           <div style={{fontSize:13,fontWeight:600,marginBottom:10}}>
             💰 {lang==='ar'?'الاشتراكات':'Cotisations'}
             <span style={{fontSize:12,color:'#1D9E75',marginRight:8,marginLeft:8,fontWeight:700}}>
