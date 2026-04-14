@@ -198,7 +198,7 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile 
         .select('id,prenom,nom,identifiant,telephone')
         .eq('role','parent').eq('ecole_id', user.ecole_id).order('nom');
     const { data: pliens } = await supabase.from('parent_eleve')
-        .select('parent_id,eleve_id').eq('ecole_id', user.ecole_id);
+        .select('parent_id,eleve_id');
     const liensMap = {};
     (pliens||[]).forEach(l => { if(!liensMap[l.parent_id]) liensMap[l.parent_id]=[]; liensMap[l.parent_id].push(l.eleve_id); });
     setParents((pd||[]).map(p=>({...p, eleve_ids:liensMap[p.id]||[]})));
@@ -240,7 +240,7 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile 
     }).select().single();
     if (parentData) {
       await supabase.from('parent_eleve').insert({
-        parent_id: parentData.id, eleve_id: eleveData.id, ecole_id: user.ecole_id
+        parent_id: parentData.id, eleve_id: eleveData.id
       });
     }
 
@@ -1369,7 +1369,7 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile 
                 setEditingParentId(null);
                 setFormParent({prenom:'',nom:'',identifiant:'',mot_de_passe:'',telephone:'',eleve_ids:[],searchEleve:''});
                 const {data:pd2}=await supabase.from('utilisateurs').select('id,prenom,nom,identifiant,telephone').eq('role','parent').eq('ecole_id',user.ecole_id).order('nom');
-                const {data:pl2}=await supabase.from('parent_eleve').select('parent_id,eleve_id').eq('ecole_id',user.ecole_id);
+                const {data:pl2}=await supabase.from('parent_eleve').select('parent_id,eleve_id');
                 const lm2={}; (pl2||[]).forEach(l=>{if(!lm2[l.parent_id])lm2[l.parent_id]=[];lm2[l.parent_id].push(l.eleve_id);});
                 setParents((pd2||[]).map(p=>({...p,eleve_ids:lm2[p.id]||[]})));
               }}>
