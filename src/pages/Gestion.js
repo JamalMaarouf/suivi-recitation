@@ -95,7 +95,7 @@ function AcquisSelector({ codeNiveau, hizb, tomon, onHizbChange, onTomonChange, 
       <div style={{marginBottom:12}}>
         <div style={{fontSize:12,color:'#888',marginBottom:6,fontWeight:500}}>{lang==='ar'?'انقر على أول حزب محفوظ (من 60 نحو 1)':'Cliquez sur le premier Hizb mémorisé (60 → 1)'}</div>
         <div style={{display:'flex',alignItems:'center',gap:8}}>
-          <button onClick={()=>onHizbChange(Math.max(0,hizb-1))} style={{width:32,height:32,border:'0.5px solid #e0e0d8',borderRadius:6,background:'#fff',cursor:'pointer',fontSize:16,fontWeight:700}}>−</button>
+          <button onClick={()=>onHizbChange(Math.min(60,hizb+1))} style={{width:32,height:32,border:'0.5px solid #e0e0d8',borderRadius:6,background:'#fff',cursor:'pointer',fontSize:16,fontWeight:700}}>−</button>
           <div style={{flex:1,display:'grid',gridTemplateColumns:'repeat(10,1fr)',gap:3}}>
             {Array.from({length:60},(_,i)=>60-i).map(n=>(
               <div key={n} onClick={()=>onHizbChange(n===hizb?0:n)} style={{height:28,borderRadius:4,display:'flex',alignItems:'center',justifyContent:'center',fontSize:11,fontWeight:n===hizb?700:400,cursor:'pointer',background:(hizb>0&&n>=hizb)?'#1D9E75':'#f0f0ec',color:(hizb>0&&n>=hizb)?'#fff':'#999',fontWeight:n===hizb?800:400,border:n===hizb&&hizb>0?'2px solid #085041':'none',transition:'all 0.1s'}}>
@@ -103,7 +103,7 @@ function AcquisSelector({ codeNiveau, hizb, tomon, onHizbChange, onTomonChange, 
               </div>
             ))}
           </div>
-          <button onClick={()=>onHizbChange(Math.min(60,hizb+1))} style={{width:32,height:32,border:'0.5px solid #e0e0d8',borderRadius:6,background:'#fff',cursor:'pointer',fontSize:16,fontWeight:700}}>+</button>
+          <button onClick={()=>onHizbChange(Math.max(0,hizb-1))} style={{width:32,height:32,border:'0.5px solid #e0e0d8',borderRadius:6,background:'#fff',cursor:'pointer',fontSize:16,fontWeight:700}}>+</button>
         </div>
         <div style={{textAlign:'center',marginTop:6,fontSize:14,fontWeight:700,color:'#1D9E75'}}>{hizb===0?(lang==='ar'?'لا توجد مكتسبات سابقة':'Aucun acquis antérieur'):`${lang==='ar'?'الحزب المختار':'Hizb sélectionné'} : ${hizb} — ${lang==='ar'?'المحفوظ':'Acquis'} : ${hizb} ${lang==='ar'?'إلى 60':'à 60'}`}</div>
       </div>
