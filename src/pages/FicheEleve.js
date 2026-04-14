@@ -203,7 +203,7 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang, isMobi
           if (exRes.data && exRes.data.length > 0) {
             // Charger les descriptions d'examens séparément
             const examIds = [...new Set(exRes.data.map(r=>r.examen_id).filter(Boolean))];
-            const {data:examData} = await supabase.from('examens').select('id,description,score_minimum,bloquant').in('id',examIds);
+            const {data:examData} = await supabase.from('examens').select('id,nom,description,score_minimum,bloquant').in('id',examIds);
             const examMap = Object.fromEntries((examData||[]).map(e=>[e.id,e]));
             setExamens(exRes.data.map(r=>({...r, examen:examMap[r.examen_id]||null})));
             setCertificats(exRes.data.filter(r=>r.certificat_genere).map(r=>({...r, examen:examMap[r.examen_id]||null})));
@@ -594,7 +594,7 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang, isMobi
                   return(
                     <div key={r.id} style={{background:'#fff',border:'0.5px solid #e0e0d8',borderRadius:12,padding:'12px 14px',marginBottom:8}}>
                       <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:6}}>
-                        <div style={{fontSize:13,fontWeight:700}}>{r.examen?.description||r.examen?.nom||lang==='ar'?'امتحان':'Examen'}</div>
+                        <div style={{fontSize:13,fontWeight:700}}>{r.examen?.nom||r.examen?.description||(lang==='ar'?'امتحان':'Examen')}</div>
                         <span style={{padding:'3px 10px',borderRadius:20,fontSize:11,fontWeight:600,background:m.bg,color:m.color}}>{lang==='ar'?(r.statut==='reussi'?'ناجح':r.statut==='echoue'?'راسب':'معلق'):(r.statut||'—')}</span>
                       </div>
                       <div style={{display:'flex',gap:16,fontSize:12,color:'#888',flexWrap:'wrap'}}>
