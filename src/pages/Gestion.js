@@ -15,8 +15,9 @@ function Avatar({ prenom, nom, size = 28 }) {
 }
 
 // Sélecteur acquis antérieurs — adapté selon le niveau
-function AcquisSelector({ codeNiveau, hizb, tomon, onHizbChange, onTomonChange, souratesAcquises, onSouratesChange, lang }) {
-  const isSourate = ['5B','5A','2M'].includes(codeNiveau);
+function AcquisSelector({ codeNiveau, hizb, tomon, onHizbChange, onTomonChange, souratesAcquises, onSouratesChange, lang, niveauxDyn=[] }) {
+  const _niv = niveauxDyn.find(n=>n.code===codeNiveau);
+  const isSourate = _niv ? _niv.type==='sourate' : ['5B','5A','2M'].includes(codeNiveau);
 
   if (isSourate) {
     const souratesNiveau = codeNiveau === '5B' ? SOURATES_5B : codeNiveau === '5A' ? SOURATES_5A : SOURATES_2M;
@@ -1016,11 +1017,7 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile 
                   <div className="field-group">
                     <label className="field-lbl">{lang==='ar'?'المستوى الدراسي':lang==='en'?'Class level':(lang==='ar'?'الصف الدراسي':'Niveau scolaire')} <span style={{color:'#E24B4A'}}>*</span></label>
                     <select className="field-select" value={newEleve.code_niveau} onChange={e => setNewEleve({ ...newEleve, code_niveau: e.target.value })}>
-                      <option value="5B">5B — {lang==='ar'?'تمهيدي':lang==='en'?'Preschool':(lang==='ar'?'تمهيدي':'Préscolaire')}</option>
-                      <option value="5A">5A — {lang==='ar'?'ابتدائي 1-2':lang==='en'?'Primary 1-2':'Primaire 1-2'}</option>
-                      <option value="2M">2M — {lang==='ar'?'ابتدائي 3-4':lang==='en'?'Primary 3-4':'Primaire 3-4'}</option>
-                      <option value="2">2 — {lang==='ar'?'ابتدائي 5-6':lang==='en'?'Primary 5-6':'Primaire 5-6'}</option>
-                      <option value="1">1 — {lang==='ar'?'إعدادي/ثانوي':lang==='en'?'Middle/High school':(lang==='ar'?'إعدادي/ثانوي':'Collège/Lycée')}</option>
+                      {niveauxActifs.map(n=><option key={n.code} value={n.code}>{n.code} — {n.nom}</option>)}
                     </select>
                   </div>
                   <div className="field-group">
@@ -1047,7 +1044,7 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile 
                   </div>
                   {showAcquisSelector && (
                     <AcquisSelector
-                      codeNiveau={newEleve.code_niveau}
+                      codeNiveau={newEleve.code_niveau} niveauxDyn={niveauxDyn}
                       hizb={newEleve.hizb_depart} tomon={newEleve.tomon_depart} lang={lang}
                       onHizbChange={h => setNewEleve({ ...newEleve, hizb_depart: h })}
                       onTomonChange={tv => setNewEleve({ ...newEleve, tomon_depart: tv })}
