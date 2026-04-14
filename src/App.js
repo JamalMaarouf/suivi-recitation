@@ -221,9 +221,13 @@ export default function App() {
               <span>{t(lang, 'app_name')}</span>
             </div>
             <div className="nav-right">
-              <span className="nav-user">
-                {user.prenom} · <em>{t(lang, user.role === 'surveillant' ? 'role_surveillant' : 'role_instituteur')}</em>
-              </span>
+              <button className="nav-btn" onClick={()=>navigate('profil_mobile')}
+                style={{background:'#1D9E75',color:'#fff',border:'none',fontWeight:700,display:'flex',alignItems:'center',gap:6}}>
+                <span style={{width:28,height:28,borderRadius:'50%',background:'rgba(255,255,255,0.25)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:13,fontWeight:800}}>
+                  {user.prenom?user.prenom[0].toUpperCase():'?'}
+                </span>
+                {user.prenom} · <em style={{fontStyle:'normal',opacity:0.85,fontSize:11}}>{t(lang, user.role === 'surveillant' ? 'role_surveillant' : 'role_instituteur')}</em>
+              </button>
               <LangSelector />
               {[
                 {p:'validation_rapide', label:'⚡ '+t(lang,'express'), roles:['surveillant','instituteur']},
