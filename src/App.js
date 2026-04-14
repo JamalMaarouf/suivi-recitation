@@ -260,7 +260,6 @@ export default function App() {
           {page === 'muraja_dashboard'  && <MurajaDashboard {...pageProps} />}
           {page === 'profil_mobile'    && <ProfilMobile user={user} lang={lang} onLogout={handleLogout} navigate={navigate} goBack={goBack} isMobile={isMobile}/>}
           {page === 'validation_rapide' && <ValidationRapide {...pageProps} />}
-          {page === 'gestion'           && user.role === 'surveillant' && <Gestion {...pageProps} />}
           {page === 'honneur'           && <TableauHonneur {...pageProps} />}
           {page === 'seance'            && <Seance {...pageProps} />}
           {page === 'calendrier'        && <Calendrier {...pageProps} />}

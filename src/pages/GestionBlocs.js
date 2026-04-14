@@ -3,7 +3,7 @@ import { supabase } from '../lib/supabase';
 import { useToast } from '../lib/toast';
 import { getSouratesForNiveau } from '../lib/sourates';
 
-const HIZB_NUMS = Array.from({length:60}, (_,i) => i+1);
+const HIZB_NUMS = Array.from({length:60}, (_,i) => 60-i);
 
 export default function GestionBlocs({ user, navigate, goBack, lang='fr', isMobile }) {
   const { toast } = useToast();

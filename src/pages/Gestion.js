@@ -93,7 +93,7 @@ function AcquisSelector({ codeNiveau, hizb, tomon, onHizbChange, onTomonChange, 
         <div style={{display:'flex',alignItems:'center',gap:8}}>
           <button onClick={()=>onHizbChange(Math.max(1,hizb-1))} style={{width:32,height:32,border:'0.5px solid #e0e0d8',borderRadius:6,background:'#fff',cursor:'pointer',fontSize:16}}>-</button>
           <div style={{flex:1,display:'grid',gridTemplateColumns:'repeat(10,1fr)',gap:3}}>
-            {Array.from({length:60},(_,i)=>i+1).map(n=>(
+            {Array.from({length:60},(_,i)=>60-i).map(n=>(
               <div key={n} onClick={()=>onHizbChange(n)} style={{height:28,borderRadius:4,display:'flex',alignItems:'center',justifyContent:'center',fontSize:11,fontWeight:n===hizb?700:400,cursor:'pointer',background:n===hizb?'#1D9E75':n<hizb?'#E1F5EE':'#f0f0ec',color:n===hizb?'#fff':n<hizb?'#085041':'#999',transition:'all 0.1s'}}>
                 {n}
               </div>
@@ -323,11 +323,14 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile 
   };
 
   const instNom = (id) => { const i = instituteurs.find(x => x.id === id); return i ? `${i.prenom} ${i.nom}` : '—'; };
-  const niveaux = [
-    { value: 'Débutant', label: t(lang, 'debutant') },
-    { value: 'Intermédiaire', label: t(lang, 'intermediaire') },
-    { value: 'Avancé', label: t(lang, 'avance') },
-  ];
+  const [niveauxDyn, setNiveauxDyn] = React.useState([]);
+  React.useEffect(() => {
+    supabase.from('niveaux').select('id,code,nom,type,couleur')
+      .eq('ecole_id', user.ecole_id).order('ordre')
+      .then(({data}) => { if(data) setNiveauxDyn(data); });
+  }, []);
+  // Compatibilité ancien format
+  const niveaux = niveauxDyn.map(n => ({ value: n.code, label: `${n.code} — ${n.nom}` }));
 
 
   const exportParentsExcel = async () => {
@@ -466,9 +469,10 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile 
   };
 
   if (isMobile) {
-    const NC = {'5B':'#534AB7','5A':'#378ADD','2M':'#1D9E75','2':'#EF9F27','1':'#E24B4A'};
-    const NL = {'5B':lang==='ar'?'تمهيدي':'Préscolaire','5A':'Prim. 1-2','2M':'Prim. 3-4','2':'Prim. 5-6','1':lang==='ar'?'إعدادي':'Collège'};
-    const NIVEAUX_M = ['5B','5A','2M','2','1'];
+    const FALLBACK_NC = {'5B':'#534AB7','5A':'#378ADD','2M':'#1D9E75','2':'#EF9F27','1':'#E24B4A'};
+    const NC = Object.fromEntries(niveauxDyn.map(n=>[n.code, n.couleur||FALLBACK_NC[n.code]||'#888']));
+    const NL = Object.fromEntries(niveauxDyn.map(n=>[n.code, n.nom]));
+    const NIVEAUX_M = niveauxDyn.map(n=>n.code);
     const [showFormEleve,  setShowFormEleve]  = React.useState(false);
     const [showFormInst,   setShowFormInst]   = React.useState(false);
     const [showFormParent, setShowFormParent] = React.useState(false);

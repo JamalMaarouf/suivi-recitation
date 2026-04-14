@@ -21,12 +21,13 @@ export default function ElevesInactifs({ navigate, goBack, lang='fr', user, isMo
   const loadData = async () => {
     setLoading(true);
     try {
-      const [{ data: ed }, { data: id }, { data: vd }] = await Promise.all([
+      const [{ data: ed }, { data: id }, { data: vd }, { data: nv }] = await Promise.all([
         supabase.from('eleves').select('*')
         .eq('ecole_id', user.ecole_id).order('nom'),
         supabase.from('utilisateurs').select('id,prenom,nom').eq('role','instituteur').eq('ecole_id', user.ecole_id),
         supabase.from('validations').select('eleve_id,date_validation,nombre_tomon,type_validation,hizb_valide')
         .eq('ecole_id', user.ecole_id).order('date_validation',{ascending:false}),
+        supabase.from('niveaux').select('id,code,couleur').eq('ecole_id', user.ecole_id),
       ]);
       const elevesData = (ed||[]).map(eleve => {
         const vals = (vd||[]).filter(v=>v.eleve_id===eleve.id);
@@ -37,6 +38,7 @@ export default function ElevesInactifs({ navigate, goBack, lang='fr', user, isMo
         const inactif = isInactif(derniere);
         return { ...eleve, etat, derniere, jours, inactif, instituteurNom: inst ? inst.prenom+' '+inst.nom : '' };
       });
+      setNiveaux(nv||[]);
       setInactifs(elevesData.filter(e=>e.inactif).sort((a,b)=>{
         if(a.jours==null&&b.jours==null) return 0;
         if(a.jours==null) return -1;

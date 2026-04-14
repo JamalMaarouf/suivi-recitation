@@ -3,7 +3,7 @@ import { supabase } from '../lib/supabase';
 import { useToast } from '../lib/toast';
 import { getSouratesForNiveau } from '../lib/sourates';
 
-const HIZB_NUMS = Array.from({length:60}, (_,i) => i+1);
+const HIZB_NUMS = Array.from({length:60}, (_,i) => 60-i);
 
 export default function GestionExamens({ user, navigate, goBack, lang='fr', isMobile }) {
   const { toast } = useToast();
@@ -316,7 +316,7 @@ export default function GestionExamens({ user, navigate, goBack, lang='fr', isMo
                   </div>
                   {/* Grille des Hizb du programme uniquement */}
                   <div style={{display:'grid',gridTemplateColumns:'repeat(10,1fr)',gap:4}}>
-                    {[...programmeNiveau].sort((a,b)=>a-b).map(h=>{
+                    {[...programmeNiveau].sort((a,b)=>b-a).map(h=>{
                       const sel=form.contenu_ids.includes(h);
                       return(
                         <div key={h} onClick={()=>toggleItem(h)}

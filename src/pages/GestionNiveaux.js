@@ -3,7 +3,7 @@ import { supabase } from '../lib/supabase';
 import { useToast } from '../lib/toast';
 import { getSouratesForNiveau, getSouratesDesc } from '../lib/sourates';
 
-const HIZB_NUMS = Array.from({length:60}, (_,i) => i+1);
+const HIZB_NUMS = Array.from({length:60}, (_,i) => 60-i);
 
 const COULEURS_PRESET = [
   '#534AB7','#378ADD','#1D9E75','#EF9F27','#E24B4A',
