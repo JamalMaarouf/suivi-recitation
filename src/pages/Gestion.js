@@ -31,7 +31,7 @@ function AcquisSelector({ codeNiveau, hizb, tomon, onHizbChange, onTomonChange, 
         <div style={{fontSize:11,color:'#888',marginBottom:10,textAlign:'center'}}>
           {lang==='ar'?'عدد السور المحفوظة قبل بدء المتابعة':lang==='en'?'Surahs memorized before tracking':'Sourates mémorisées avant le début du suivi'}
         </div>
-        <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:12}}>
+        <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:12,direction:'ltr'}}>
           <button onClick={()=>onSouratesChange(Math.min(souratesNiveau.length, nbAcquis+1))}
             style={{width:36,height:36,border:'0.5px solid #e0e0d8',borderRadius:6,background:'#fff',cursor:'pointer',fontSize:18,fontWeight:700}}>+</button>
           <div style={{flex:1,textAlign:'center'}}>
@@ -94,7 +94,7 @@ function AcquisSelector({ codeNiveau, hizb, tomon, onHizbChange, onTomonChange, 
       <div style={{fontSize:11,color:'#888',marginBottom:10,textAlign:'center'}}>{lang==='ar'?'موقع الطالب في القرآن قبل بدء المتابعة':lang==='en'?'Position in Quran before tracking':'Position dans le Coran avant de commencer le suivi'}</div>
       <div style={{marginBottom:12}}>
         <div style={{fontSize:12,color:'#888',marginBottom:6,fontWeight:500}}>{lang==='ar'?'انقر على أول حزب محفوظ (من 60 نحو 1)':'Cliquez sur le premier Hizb mémorisé (60 → 1)'}</div>
-        <div style={{display:'flex',alignItems:'center',gap:8}}>
+        <div style={{display:'flex',alignItems:'center',gap:8,direction:'ltr'}}>
           <button onClick={()=>onHizbChange(Math.min(60,hizb+1))} style={{width:32,height:32,border:'0.5px solid #e0e0d8',borderRadius:6,background:'#fff',cursor:'pointer',fontSize:16,fontWeight:700}}>+</button>
           <div style={{flex:1,display:'grid',gridTemplateColumns:'repeat(10,1fr)',gap:3}}>
             {Array.from({length:60},(_,i)=>60-i).map(n=>(
