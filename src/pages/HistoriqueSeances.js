@@ -663,7 +663,7 @@ export default function HistoriqueSeances({ user, navigate, goBack, lang='fr', i
               <div style={{fontSize:13,fontWeight:600}}>{lang==='ar'?'أداء الطلاب':(lang==='ar'?'الأداء حسب الطالب':(lang==='ar'?'الأداء حسب الطالب':'Performance par élève'))} <span style={{fontSize:11,color:'#888'}}>({actifs.length})</span></div>
               <input style={{padding:'7px 12px',border:'1.5px solid #e0e0d8',borderRadius:8,fontSize:13,width:220,fontFamily:'inherit'}} placeholder={lang==='ar'?'🔍 اسم أو رقم التعريف...':'🔍 Nom ou N° élève...'} value={searchEleve} onChange={e=>setSearchEleve(e.target.value)}/>
             </div>
-            {actifs.filter(s=>!searchEleve||(`${s.eleve.prenom} ${s.eleve.nom} ${s.eleve.eleve_id_ecole||''}`.toLowerCase().includes(searchEleve.toLowerCase()))||String(s.eleve.eleve_id_ecole||'').includes(searchEleve.trim())).map((s,idx)=>{
+            {(searchEleve ? [...actifs, ...inactifs] : actifs).filter(s=>!searchEleve||(`${s.eleve.prenom} ${s.eleve.nom} ${s.eleve.eleve_id_ecole||''}`.toLowerCase().includes(searchEleve.toLowerCase()))||String(s.eleve.eleve_id_ecole||'').includes(searchEleve.trim())).map((s,idx)=>{
               const nc=NIVEAU_COLORS[s.eleve.code_niveau||'1']||'#888';
               return(
                 <div key={s.eleve.id} onClick={()=>{setSelectedEleve(s.eleve.id);setDrillDown(true);}} style={{display:'flex',alignItems:'center',gap:10,padding:'10px 12px',borderRadius:10,cursor:'pointer',marginBottom:6,border:'0.5px solid #e0e0d8',background:'#fff'}}
@@ -692,7 +692,7 @@ export default function HistoriqueSeances({ user, navigate, goBack, lang='fr', i
                 </div>
               );
             })}
-            {inactifs.length>0&&(
+            {inactifs.length>0&&!searchEleve&&(
               <details style={{marginTop:10}}>
                 <summary style={{fontSize:12,color:'#E24B4A',cursor:'pointer',fontWeight:500,padding:'8px 0'}}>⚠️ {inactifs.length} {lang==='ar'?'طالب غير نشط':'élève(s) inactif(s)'}</summary>
                 <div style={{display:'flex',flexDirection:'column',gap:4,marginTop:6}}>
