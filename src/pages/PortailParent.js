@@ -105,6 +105,26 @@ export default function PortailParent({ parent, navigate, goBack, lang='fr', onL
   const rE = recitations.filter(r=>r.eleve_id===eleve.id);
   const cotE = cotisations.filter(c=>c.eleve_id===eleve.id);
 
+  // Générer les mois manquants comme impayés virtuels
+  const cotEAvecManquants = (() => {
+    if (!eleve) return cotE;
+    const debut = new Date(eleve.created_at || '2024-09-01');
+    debut.setDate(1); debut.setHours(0,0,0,0);
+    const fin = new Date(); fin.setDate(1); fin.setHours(0,0,0,0);
+    const moisExistants = new Set(cotE.map(c => c.periode || c.mois_concerne || ''));
+    const result = [...cotE];
+    const d = new Date(debut);
+    while (d <= fin) {
+      const key = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+      const label = d.toLocaleDateString(lang==='ar'?'ar-MA':'fr-FR', {month:'long', year:'numeric'});
+      if (!moisExistants.has(key) && !moisExistants.has(label)) {
+        result.push({ id:'virtual_'+key, eleve_id: eleve.id, statut:'non_paye', montant:0, periode:key, mois_concerne:key, date_paiement:null, note:null, _virtuel:true });
+      }
+      d.setMonth(d.getMonth()+1);
+    }
+    return result.sort((a,b) => (b.periode||'').localeCompare(a.periode||''));
+  })();
+
   const tomon = vE.filter(v=>v.type_validation==='tomon').reduce((s,v)=>s+v.nombre_tomon,0);
   const hizb = vE.filter(v=>v.type_validation==='hizb_complet').length;
   const souratesCompletes = rE.filter(r=>r.type_recitation==='complete').length;
@@ -248,7 +268,7 @@ export default function PortailParent({ parent, navigate, goBack, lang='fr', onL
             {onglet==='cotisations' && (
               <div>
                 {/* Bandeau alerte impayés */}
-                {cotE.filter(c=>c.statut==='non_paye'||c.statut==='partiel').length > 0 && (
+                {cotEAvecManquants.filter(c=>c.statut==='non_paye'||c.statut==='partiel').length > 0 && (
                   <div style={{background:'#FCEBEB',border:'1.5px solid #E24B4A',borderRadius:12,padding:'12px 14px',marginBottom:12,display:'flex',alignItems:'center',gap:10}}>
                     <span style={{fontSize:24}}>🔴</span>
                     <div>
@@ -256,18 +276,18 @@ export default function PortailParent({ parent, navigate, goBack, lang='fr', onL
                         {lang==='ar'?'لديك اشتراكات غير مدفوعة':'Vous avez des cotisations impayées'}
                       </div>
                       <div style={{fontSize:11,color:'#E24B4A',opacity:0.8,marginTop:2}}>
-                        {cotE.filter(c=>c.statut==='non_paye'||c.statut==='partiel').length} {lang==='ar'?'شهر غير مسوى':'mois non réglé(s)'} · {lang==='ar'?'يرجى التسوية في أقرب وقت':'Veuillez régulariser rapidement'}
+                        {cotEAvecManquants.filter(c=>c.statut==='non_paye'||c.statut==='partiel').length} {lang==='ar'?'شهر غير مسوى':'mois non réglé(s)'} · {lang==='ar'?'يرجى التسوية في أقرب وقت':'Veuillez régulariser rapidement'}
                       </div>
                     </div>
                   </div>
                 )}
-                {cotE.filter(c=>c.statut==='non_paye'||c.statut==='partiel').length === 0 && cotE.length > 0 && (
+                {cotEAvecManquants.filter(c=>c.statut==='non_paye'||c.statut==='partiel').length === 0 && cotEAvecManquants.length > 0 && (
                   <div style={{background:'#E1F5EE',border:'1.5px solid #1D9E75',borderRadius:12,padding:'12px 14px',marginBottom:12,display:'flex',alignItems:'center',gap:10}}>
                     <span style={{fontSize:24}}>✅</span>
                     <div style={{fontWeight:700,fontSize:13,color:'#085041'}}>{lang==='ar'?'وضعيتك مالية ممتازة!':'Situation financière excellente !'}</div>
                   </div>
                 )}
-                {cotE.map(cot=>{
+                {cotEAvecManquants.map(cot=>{
                   const STATUTS={paye:{ic:'✅',color:'#1D9E75',bg:'#E1F5EE',lbl:'Payé',lblAr:'مدفوع'},partiel:{ic:'⚠️',color:'#EF9F27',bg:'#FAEEDA',lbl:'Partiel',lblAr:'جزئي'},non_paye:{ic:'❌',color:'#E24B4A',bg:'#FCEBEB',lbl:'Non payé',lblAr:'غير مدفوع'},exonere:{ic:'🎁',color:'#888',bg:'#f5f5f0',lbl:'Exonéré',lblAr:'معفى'}};
                   const st=STATUTS[cot.statut]||STATUTS.paye;
                   return(
@@ -283,7 +303,7 @@ export default function PortailParent({ parent, navigate, goBack, lang='fr', onL
                     </div>
                   </div>
                 );})}
-                {cotE.length===0&&<div style={{textAlign:'center',color:'#aaa',padding:'2rem',fontSize:13}}>{lang==='ar'?'لا توجد اشتراكات مسجلة':'Aucune cotisation enregistrée'}</div>}
+                {cotEAvecManquants.length===0&&<div style={{textAlign:'center',color:'#aaa',padding:'2rem',fontSize:13}}>{lang==='ar'?'لا توجد اشتراكات مسجلة':'Aucune cotisation enregistrée'}</div>}
               </div>
             )}
             {/* Objectifs */}
