@@ -470,7 +470,7 @@ export default function HistoriqueSeances({ user, navigate, goBack, lang='fr', i
               style={{padding:'8px 10px',borderRadius:10,border:'0.5px solid #e0e0d8',
                 fontSize:13,fontFamily:'inherit',background:'#fff'}}>
               <option value="tous">{lang==='ar'?'كل الطلاب':'Tous élèves'}</option>
-              {elevesVisibles.map(e=><option key={e.id} value={e.id}>{e.prenom} {e.nom}</option>)}
+              {elevesVisibles.map(e=><option key={e.id} value={e.id}>{e.eleve_id_ecole?`#${e.eleve_id_ecole} — `:''}{e.prenom} {e.nom}</option>)}
             </select>
           </div>
         </div>
@@ -582,7 +582,7 @@ export default function HistoriqueSeances({ user, navigate, goBack, lang='fr', i
           <div className="field-group"><label className="field-lbl">{lang==='ar'?'الطالب':'Élève'}</label>
             <select className="field-select" value={filterEleve} onChange={e=>setFilterEleve(e.target.value)}>
               <option value="tous">{lang==='ar'?'الكل':'Tous'}</option>
-              {elevesVisibles.map(e=><option key={e.id} value={e.id}>{e.prenom} {e.nom} ({e.code_niveau||'?'})</option>)}
+              {elevesVisibles.map(e=><option key={e.id} value={e.id}>{e.eleve_id_ecole?`#${e.eleve_id_ecole} — `:''}{e.prenom} {e.nom} ({e.code_niveau||'?'})</option>)}
             </select>
           </div>
         </div>
