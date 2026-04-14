@@ -1187,7 +1187,7 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile 
                 <div className="field-input" style={{background:'#f5f5f0',color:'#085041',fontWeight:600,cursor:'default'}}>
                   {newInst.prenom&&newInst.nom
                     ? (newInst.prenom.toLowerCase().trim().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/\s+/g,'.')+'.'+newInst.nom.toLowerCase().trim().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/\s+/g,'.'))
-                    : <span style={{color:'#aaa',fontStyle:'italic'}}>{lang==='ar'?'أدخل الاسم واللقب أولاً':'Saisir prénom et nom d'abord'}</span>}
+                    : <span style={{color:'#aaa',fontStyle:'italic'}}>{lang==='ar'?'أدخل الاسم واللقب أولاً':'Saisir prénom et nom dabord'}</span>}
                 </div>
               </div>
               <div className="field-group">
