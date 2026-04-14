@@ -92,18 +92,29 @@ function AcquisSelector({ codeNiveau, hizb, tomon, onHizbChange, onTomonChange, 
       <div style={{marginBottom:12}}>
         <div style={{fontSize:12,color:'#888',marginBottom:6,fontWeight:500}}>{lang==='ar'?'انقر على آخر حزب محفوظ (من 60 نحو 1)':lang==='en'?'Click the last memorized Hizb (60 down to 1)':'Cliquez sur le dernier Hizb mémorisé (de 60 vers 1)'}</div>
         <div style={{display:'flex',alignItems:'center',gap:8}}>
-          <button onClick={()=>onHizbChange(Math.max(1,hizb-1))} style={{width:32,height:32,border:'0.5px solid #e0e0d8',borderRadius:6,background:'#fff',cursor:'pointer',fontSize:16}}>-</button>
+          <button onClick={()=>onHizbChange(Math.min(60,hizb+1))} style={{width:32,height:32,border:'0.5px solid #e0e0d8',borderRadius:6,background:'#fff',cursor:'pointer',fontSize:16,fontWeight:700}}>+</button>
           <div style={{flex:1,display:'grid',gridTemplateColumns:'repeat(10,1fr)',gap:3}}>
-            {Array.from({length:60},(_,i)=>60-i).map(n=>(
-              <div key={n} onClick={()=>onHizbChange(n)} style={{height:28,borderRadius:4,display:'flex',alignItems:'center',justifyContent:'center',fontSize:11,fontWeight:n===hizb?700:400,cursor:'pointer',background:n>=hizb?'#1D9E75':'#f0f0ec',color:n>=hizb?'#fff':'#999',fontWeight:n===hizb?700:400,transition:'all 0.1s'}}>
-                {n}
-              </div>
-            ))}
+            {Array.from({length:60},(_,i)=>60-i).map(n=>{
+              const acquis = hizb > 0 && n >= hizb;
+              const actif  = hizb > 0 && n === hizb;
+              return (
+                <div key={n} onClick={()=>onHizbChange(n)}
+                  style={{height:28,borderRadius:4,display:'flex',alignItems:'center',
+                    justifyContent:'center',fontSize:11,cursor:'pointer',
+                    fontWeight:actif?800:400,
+                    background:acquis?'#1D9E75':'#f0f0ec',
+                    color:acquis?'#fff':'#999',
+                    border:actif?'2px solid #085041':'none',
+                    transition:'all 0.1s'}}>
+                  {n}
+                </div>
+              );
+            })}
           </div>
           <button onClick={()=>onHizbChange(Math.min(60,hizb+1))} style={{width:32,height:32,border:'0.5px solid #e0e0d8',borderRadius:6,background:'#fff',cursor:'pointer',fontSize:16}}>+</button>
         </div>
         <div style={{textAlign:'center',marginTop:6,fontSize:13,fontWeight:700,color:'#1D9E75'}}>
-          {lang==='ar'?`الحزب المختار: ${hizb} — المحفوظ: ${hizb} إلى 60`:`Hizb sélectionné : ${hizb} — Acquis : Hizb ${hizb} à 60`}
+          {hizb===0?(lang==='ar'?'لا توجد مكتسبات سابقة':'Aucun acquis antérieur'):(lang==='ar'?`الحزب المختار: ${hizb} — المحفوظ: ${hizb} إلى 60`:`Hizb sélectionné : ${hizb} — Acquis : Hizb ${hizb} à 60`)}
         </div>
       </div>
       <div>
@@ -165,7 +176,7 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile 
   const [showAcquisSelector, setShowAcquisSelector] = useState(false);
   const [editShowAcquisSelector, setEditShowAcquisSelector] = useState(false);
 
-  const [newEleve, setNewEleve] = useState({ prenom: '', nom: '', niveau: 'Débutant', code_niveau: '1', eleve_id_ecole: '', instituteur_referent_id: '', hizb_depart: 1, tomon_depart: 1, sourates_acquises: 0 });
+  const [newEleve, setNewEleve] = useState({ prenom: '', nom: '', niveau: 'Débutant', code_niveau: '1', eleve_id_ecole: '', instituteur_referent_id: '', hizb_depart: 0, tomon_depart: 1, sourates_acquises: 0 });
   const [newInst, setNewInst] = useState({ prenom: '', nom: '', identifiant: '', mot_de_passe: '' });
   // Hooks niveaux dynamiques
   const [niveauxDyn, setNiveauxDyn] = useState([]);
@@ -1050,7 +1061,7 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile 
                         showConfirm(
                           lang==='ar'?'⚠️ تغيير نظام الطالب':'⚠️ Changement de système',
                           lang==='ar'?'هذا الطالب ينتقل من نظام السور إلى نظام الحزب والثُّمن. يجب تحديد المكتسبات بالحزب والثُّمن.':'Cet élève passe du système Sourates au système Hizb/Tomon. Les acquis doivent être redéfinis.',
-                          ()=>{ setEditEleve({ ...editEleve, code_niveau: newNiv, hizb_depart: 1, tomon_depart: 1, sourates_acquises: 0 });
+                          ()=>{ setEditEleve({ ...editEleve, code_niveau: newNiv, hizb_depart: 0, tomon_depart: 1, sourates_acquises: 0 });
                           setEditShowAcquisSelector(true);; hideConfirm(); },
                           lang==='ar'?'متابعة':'Continuer',
                           '#EF9F27'
