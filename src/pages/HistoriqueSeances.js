@@ -56,6 +56,7 @@ export default function HistoriqueSeances({ user, navigate, goBack, lang='fr', i
   const [selectedEleve, setSelectedEleve] = useState(null);
   const [drillDown, setDrillDown] = useState(false);
   const [searchEleve, setSearchEleve] = useState('');
+  const [searchFiltreEleve, setSearchFiltreEleve] = useState('');
 
   useEffect(() => { loadData(); }, []);
 
@@ -466,12 +467,25 @@ export default function HistoriqueSeances({ user, navigate, goBack, lang='fr', i
                 {instituteurs.map(i=><option key={i.id} value={i.id}>{i.prenom} {i.nom}</option>)}
               </select>
             )}
-            <select value={filterEleve} onChange={e=>setFilterEleve(e.target.value)}
-              style={{padding:'8px 10px',borderRadius:10,border:'0.5px solid #e0e0d8',
-                fontSize:13,fontFamily:'inherit',background:'#fff'}}>
-              <option value="tous">{lang==='ar'?'كل الطلاب':'Tous élèves'}</option>
-              {elevesVisibles.map(e=><option key={e.id} value={e.id}>{e.eleve_id_ecole?`#${e.eleve_id_ecole} — `:''}{e.prenom} {e.nom}</option>)}
-            </select>
+            <div style={{position:'relative',minWidth:180}}>
+              <input value={filterEleve==='tous'?searchFiltreEleve:((eleves.find(e=>e.id===filterEleve)||{prenom:'',nom:'',eleve_id_ecole:''})&&(eleves.find(e=>e.id===filterEleve)?.eleve_id_ecole?'#'+eleves.find(e=>e.id===filterEleve).eleve_id_ecole+' — ':'')+eleves.find(e=>e.id===filterEleve)?.prenom+' '+eleves.find(e=>e.id===filterEleve)?.nom)}
+                onChange={e=>{setSearchFiltreEleve(e.target.value);setFilterEleve('tous');}}
+                placeholder={lang==='ar'?'🔍 كل الطلاب أو رقم التعريف':'🔍 Tous ou N° élève'}
+                style={{padding:'8px 10px',borderRadius:10,border:'0.5px solid #e0e0d8',fontSize:13,fontFamily:'inherit',background:'#fff',width:'100%'}}/>
+              {searchFiltreEleve && filterEleve==='tous' && (
+                <div style={{position:'absolute',top:'100%',right:0,left:0,background:'#fff',border:'0.5px solid #e0e0d8',borderRadius:8,zIndex:100,maxHeight:200,overflowY:'auto',boxShadow:'0 4px 12px #0001'}}>
+                  <div onClick={()=>{setFilterEleve('tous');setSearchFiltreEleve('');}} style={{padding:'8px 12px',cursor:'pointer',fontSize:12,color:'#888',borderBottom:'0.5px solid #f0f0ec'}}>{lang==='ar'?'كل الطلاب':'Tous les élèves'}</div>
+                  {elevesVisibles.filter(e=>`${e.prenom} ${e.nom} ${e.eleve_id_ecole||''}`.toLowerCase().includes(searchFiltreEleve.toLowerCase())||String(e.eleve_id_ecole||'').includes(searchFiltreEleve)).map(e=>(
+                    <div key={e.id} onClick={()=>{setFilterEleve(e.id);setSearchFiltreEleve('');}}
+                      style={{padding:'8px 12px',cursor:'pointer',fontSize:12,borderBottom:'0.5px solid #f0f0ec',display:'flex',gap:8,alignItems:'center'}}
+                      onMouseEnter={ev=>ev.currentTarget.style.background='#f5f5f0'} onMouseLeave={ev=>ev.currentTarget.style.background='#fff'}>
+                      {e.eleve_id_ecole&&<span style={{background:'#E1F5EE',color:'#085041',padding:'1px 5px',borderRadius:4,fontSize:10,fontWeight:700}}>#{e.eleve_id_ecole}</span>}
+                      <span>{e.prenom} {e.nom}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         </div>
 
@@ -630,7 +644,7 @@ export default function HistoriqueSeances({ user, navigate, goBack, lang='fr', i
           <div style={{background:'#fff',border:'0.5px solid #e0e0d8',borderRadius:16,padding:'1.25rem',marginBottom:'1rem'}}>
             <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:10,flexWrap:'wrap',gap:8}}>
               <div style={{fontSize:13,fontWeight:600}}>{lang==='ar'?'أداء الطلاب':(lang==='ar'?'الأداء حسب الطالب':(lang==='ar'?'الأداء حسب الطالب':'Performance par élève'))} <span style={{fontSize:11,color:'#888'}}>({actifs.length})</span></div>
-              <input style={{padding:'5px 10px',border:'0.5px solid #e0e0d8',borderRadius:8,fontSize:12,width:160}} placeholder="🔍 Rechercher" value={searchEleve} onChange={e=>setSearchEleve(e.target.value)}/>
+              <input style={{padding:'5px 10px',border:'0.5px solid #e0e0d8',borderRadius:8,fontSize:12,width:160}} placeholder={lang==='ar'?'🔍 اسم أو رقم التعريف...':'🔍 Nom ou N° élève...'} value={searchEleve} onChange={e=>setSearchEleve(e.target.value)}/>
             </div>
             {actifs.filter(s=>!searchEleve||(`${s.eleve.prenom} ${s.eleve.nom} ${s.eleve.eleve_id_ecole||''}`.toLowerCase().includes(searchEleve.toLowerCase()))).map((s,idx)=>{
               const nc=NIVEAU_COLORS[s.eleve.code_niveau||'1']||'#888';
