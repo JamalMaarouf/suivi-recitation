@@ -585,24 +585,39 @@ export default function PortailParent({ parent, navigate, goBack, lang='fr', onL
       {/* COTISATIONS */}
       {onglet==='cotisations'&&(
         <div style={{background:'#fff',border:'0.5px solid #e0e0d8',borderRadius:14,padding:'1.25rem'}}>
+          {/* Bandeau alerte impayés */}
+          {cotEAvecManquants.filter(c=>c.statut==='non_paye'||c.statut==='partiel').length > 0 && (
+            <div style={{background:'#FCEBEB',border:'1.5px solid #E24B4A',borderRadius:10,padding:'12px',marginBottom:12,display:'flex',alignItems:'center',gap:10}}>
+              <span style={{fontSize:22}}>🔴</span>
+              <div>
+                <div style={{fontWeight:700,fontSize:13,color:'#E24B4A'}}>{lang==='ar'?'لديك اشتراكات غير مدفوعة':'Cotisations impayées'}</div>
+                <div style={{fontSize:11,color:'#E24B4A',opacity:0.85,marginTop:2}}>
+                  {cotEAvecManquants.filter(c=>c.statut==='non_paye'||c.statut==='partiel').length} {lang==='ar'?'شهر غير مسوى':'mois non réglé(s)'}
+                </div>
+              </div>
+            </div>
+          )}
           <div style={{fontSize:13,fontWeight:600,marginBottom:10}}>
             💰 {lang==='ar'?'الاشتراكات':'Cotisations'}
             <span style={{fontSize:12,color:'#1D9E75',marginRight:8,marginLeft:8,fontWeight:700}}>
-              {lang==='ar'?'المجموع:':'Total: '}{cotE.filter(c=>c.statut!=='exonere').reduce((s,c)=>s+parseFloat(c.montant||0),0).toLocaleString()} MAD
+              {lang==='ar'?'المجموع:':'Total: '}{cotEAvecManquants.filter(c=>c.statut!=='exonere'&&!c._virtuel).reduce((s,c)=>s+parseFloat(c.montant||0),0).toLocaleString()} MAD
             </span>
           </div>
-          {cotE.length===0?<div className="empty">{lang==='ar'?'لا اشتراكات مسجلة':'Aucune cotisation'}</div>:(
-            cotE.map((c,i)=>{
-              const STATUTS_P = {paye:{label:'Payé',labelAr:'مدفوع',color:'#1D9E75',bg:'#E1F5EE'},partiel:{label:'Partiel',labelAr:'جزئي',color:'#EF9F27',bg:'#FAEEDA'},non_paye:{label:'Non payé',labelAr:'غير مدفوع',color:'#E24B4A',bg:'#FCEBEB'},exonere:{label:'Exonéré',labelAr:'معفى',color:'#888',bg:'#f5f5f0'}};
-              const st = STATUTS_P[c.statut]||STATUTS_P.paye;
+          {cotEAvecManquants.length===0?<div className="empty">{lang==='ar'?'لا اشتراكات مسجلة':'Aucune cotisation'}</div>:(
+            cotEAvecManquants.map((cot,i)=>{
+              const STATUTS_P = {paye:{label:'Payé',labelAr:'مدفوع',color:'#1D9E75',bg:'#E1F5EE',ic:'✅'},partiel:{label:'Partiel',labelAr:'جزئي',color:'#EF9F27',bg:'#FAEEDA',ic:'⚠️'},non_paye:{label:'Non payé',labelAr:'غير مدفوع',color:'#E24B4A',bg:'#FCEBEB',ic:'❌'},exonere:{label:'Exonéré',labelAr:'معفى',color:'#888',bg:'#f5f5f0',ic:'🎁'}};
+              const st = STATUTS_P[cot.statut]||STATUTS_P.non_paye;
               return(
-                <div key={c.id} style={{display:'flex',alignItems:'center',gap:12,padding:'10px 0',borderBottom:'0.5px solid #f0f0ec'}}>
+                <div key={cot.id} style={{display:'flex',alignItems:'center',gap:12,padding:'10px 0',borderBottom:'0.5px solid #f0f0ec',background:cot._virtuel?st.bg:'transparent',borderRadius:cot._virtuel?8:0,padding:cot._virtuel?'10px 8px':'10px 0',marginBottom:cot._virtuel?4:0}}>
+                  <span style={{fontSize:16}}>{st.ic}</span>
                   <div style={{flex:1}}>
-                    <div style={{fontSize:13,fontWeight:500}}>{c.periode||(lang==='ar'?'دفعة':'Versement')} {i+1}</div>
-                    <div style={{fontSize:11,color:'#888'}}>{c.date_paiement}{c.note?' · '+c.note:''}</div>
+                    <div style={{fontSize:13,fontWeight:600,color:st.color}}>{cot.periode||cot.mois_concerne||'—'}</div>
+                    <div style={{fontSize:11,color:'#888'}}>{cot.date_paiement?new Date(cot.date_paiement).toLocaleDateString(lang==='ar'?'ar-MA':'fr-FR'):(lang==='ar'?'لم يُدفع بعد':'Non payé')}{cot.note?' · '+cot.note:''}</div>
                   </div>
-                  <span style={{padding:'3px 10px',borderRadius:20,fontSize:11,fontWeight:600,background:st.bg,color:st.color}}>{lang==='ar'?st.labelAr:st.label}</span>
-                  <span style={{fontSize:15,fontWeight:800,color:'#1D9E75'}}>{parseFloat(c.montant||0).toLocaleString()} MAD</span>
+                  <div style={{textAlign:'left'}}>
+                    <span style={{padding:'3px 10px',borderRadius:20,fontSize:11,fontWeight:600,background:st.bg,color:st.color}}>{lang==='ar'?st.labelAr:st.label}</span>
+                    {!cot._virtuel&&<div style={{fontSize:14,fontWeight:800,color:st.color,marginTop:2}}>{parseFloat(cot.montant||0).toLocaleString()} MAD</div>}
+                  </div>
                 </div>
               );
             })
