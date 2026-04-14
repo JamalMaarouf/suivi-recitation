@@ -164,8 +164,19 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile 
 
   const [newEleve, setNewEleve] = useState({ prenom: '', nom: '', niveau: 'Débutant', code_niveau: '1', eleve_id_ecole: '', instituteur_referent_id: '', hizb_depart: 1, tomon_depart: 1, sourates_acquises: 0 });
   const [newInst, setNewInst] = useState({ prenom: '', nom: '', identifiant: '', mot_de_passe: '' });
+  // Hooks niveaux dynamiques
+  const [niveauxDyn, setNiveauxDyn] = useState([]);
+  // Hooks formulaires mobiles
+  const [showFormEleve,  setShowFormEleve]  = useState(false);
+  const [showFormInst,   setShowFormInst]   = useState(false);
+  const [mobileEditEleve,setMobileEditEleve]= useState(null);
 
   useEffect(() => { loadData(); }, []);
+  useEffect(() => {
+    supabase.from('niveaux').select('id,code,nom,type,couleur')
+      .eq('ecole_id', user.ecole_id).order('ordre')
+      .then(({data}) => { if(data) setNiveauxDyn(data); });
+  }, []);
 
   const loadData = async () => {
     setLoading(true);
@@ -323,14 +334,6 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile 
   };
 
   const instNom = (id) => { const i = instituteurs.find(x => x.id === id); return i ? `${i.prenom} ${i.nom}` : '—'; };
-  const [niveauxDyn, setNiveauxDyn] = React.useState([]);
-  React.useEffect(() => {
-    supabase.from('niveaux').select('id,code,nom,type,couleur')
-      .eq('ecole_id', user.ecole_id).order('ordre')
-      .then(({data}) => { if(data) setNiveauxDyn(data); });
-  }, []);
-  // Compatibilité ancien format
-  const niveaux = niveauxDyn.map(n => ({ value: n.code, label: `${n.code} — ${n.nom}` }));
 
 
   const exportParentsExcel = async () => {
@@ -468,10 +471,7 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile 
     setTimeout(function(){ w.print(); }, 600);
   };
 
-  // Hooks mobile — déclarés avant le if(isMobile) pour respecter les règles React
-  const [showFormEleve,  setShowFormEleve]  = React.useState(false);
-  const [showFormInst,   setShowFormInst]   = React.useState(false);
-  const [mobileEditEleve,setMobileEditEleve]= React.useState(null);
+
 
   // Constantes niveaux dynamiques
   const FALLBACK_NC = {'5B':'#534AB7','5A':'#378ADD','2M':'#1D9E75','2':'#EF9F27','1':'#E24B4A'};
