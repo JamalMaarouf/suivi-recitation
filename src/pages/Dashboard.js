@@ -98,7 +98,7 @@ export default function Dashboard({ user, navigate, goBack, lang, isMobile=false
 
   const elevesFiltres = useMemo(() => {
     let list = [...eleves];
-    if(searchEleve) list=list.filter(e=>`${e.prenom} ${e.nom}`.toLowerCase().includes(searchEleve.toLowerCase()));
+    if(searchEleve) list=list.filter(e=>`${e.prenom} ${e.nom} ${e.eleve_id_ecole||''}`.toLowerCase().includes(searchEleve.toLowerCase()));
     if(filtreInst!=='tous') list=list.filter(e=>e.instituteur_referent_id===filtreInst);
     if(filtreStatut==='actifs') list=list.filter(e=>!e.inactif);
     if(filtreStatut==='inactifs') list=list.filter(e=>e.inactif);
