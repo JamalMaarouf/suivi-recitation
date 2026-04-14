@@ -204,9 +204,10 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile 
     const { data: i } = await supabase.from('utilisateurs').select('id,prenom,nom,identifiant,role').eq('role', 'instituteur').eq('ecole_id', user.ecole_id).order('nom');
     setEleves(e || []);
     setInstituteurs(i || []);
-    const { data: pd } = await supabase.from('parents').select('*, liens:parent_eleve(eleve_id, eleve:eleve_id(prenom,nom))')
-        .eq('ecole_id', user.ecole_id).order('nom');
-    setParents(pd||[]);
+    const { data: pd } = await supabase.from('utilisateurs')
+        .select('id,prenom,nom,identifiant,telephone, liens:parent_eleve(eleve_id, eleve:eleve_id(prenom,nom))')
+        .eq('role','parent').eq('ecole_id', user.ecole_id).order('nom');
+    setParents((pd||[]).map(p=>({...p, eleve_ids:(p.liens||[]).map(l=>l.eleve_id)})));
     setLoading(false);
   };
 
