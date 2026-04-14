@@ -108,7 +108,6 @@ export default function PortailParent({ parent, navigate, goBack, lang='fr', onL
   // Générer les mois manquants comme impayés virtuels
   const cotEAvecManquants = (() => {
     if (!eleve) return cotE;
-    console.log('eleve.created_at:', eleve.created_at, 'cotE:', cotE.length);
     const debut = new Date(eleve.created_at || '2024-09-01');
     debut.setDate(1); debut.setHours(0,0,0,0);
     const fin = new Date(); fin.setDate(1); fin.setHours(0,0,0,0);
@@ -226,6 +225,17 @@ export default function PortailParent({ parent, navigate, goBack, lang='fr', onL
         {loading ? <div style={{textAlign:'center',padding:'2rem',color:'#888'}}>...</div> : (
           <div style={{padding:'12px'}}>
             {/* Progression */}
+            {/* Bandeau alerte mobile */}
+            {cotEAvecManquants.filter(x=>x.statut==='non_paye'||x.statut==='partiel').length > 0 && (
+              <div onClick={()=>setOnglet('cotisations')} style={{background:'#FCEBEB',border:'2px solid #E24B4A',borderRadius:12,padding:'12px',marginBottom:8,cursor:'pointer',display:'flex',alignItems:'center',gap:10}}>
+                <span style={{fontSize:22}}>🔴</span>
+                <div style={{flex:1}}>
+                  <div style={{fontWeight:700,fontSize:13,color:'#E24B4A'}}>{lang==='ar'?'اشتراكات غير مدفوعة':'Cotisations impayées'}</div>
+                  <div style={{fontSize:11,color:'#E24B4A',opacity:0.8}}>{cotEAvecManquants.filter(x=>x.statut==='non_paye'||x.statut==='partiel').length} {lang==='ar'?'شهر — انقر للتفاصيل':'mois — Voir détail'}</div>
+                </div>
+                <span style={{color:'#E24B4A'}}>←</span>
+              </div>
+            )}
             {onglet==='progression' && pts && (
               <div>
                 <div style={{display:'grid',gridTemplateColumns:'repeat(2,1fr)',gap:10,marginBottom:12}}>
@@ -435,6 +445,27 @@ export default function PortailParent({ parent, navigate, goBack, lang='fr', onL
           </div>
         ))}
       </div>
+
+      {/* BANDEAU ALERTE COTISATIONS - visible sur toutes les pages */}
+      {cotEAvecManquants.filter(x=>x.statut==='non_paye'||x.statut==='partiel').length > 0 && (
+        <div onClick={()=>setOnglet('cotisations')} style={{
+          background:'#FCEBEB',border:'2px solid #E24B4A',borderRadius:12,
+          padding:'14px 16px',marginBottom:'1rem',cursor:'pointer',
+          display:'flex',alignItems:'center',gap:12,
+          boxShadow:'0 2px 8px #E24B4A20',transition:'all 0.2s'
+        }}>
+          <span style={{fontSize:28}}>🔴</span>
+          <div style={{flex:1}}>
+            <div style={{fontWeight:800,fontSize:14,color:'#E24B4A'}}>
+              {lang==='ar'?'لديك اشتراكات غير مدفوعة':'Vous avez des cotisations impayées'}
+            </div>
+            <div style={{fontSize:12,color:'#E24B4A',opacity:0.85,marginTop:3}}>
+              {cotEAvecManquants.filter(x=>x.statut==='non_paye'||x.statut==='partiel').length} {lang==='ar'?'شهر غير مسوى — انقر للتفاصيل':'mois non réglé(s) — Cliquez pour voir le détail'}
+            </div>
+          </div>
+          <span style={{fontSize:18,color:'#E24B4A'}}>←</span>
+        </div>
+      )}
 
       {/* PROGRESSION */}
       {onglet==='progression'&&(
