@@ -838,19 +838,36 @@ export default function Finance({ user, navigate, goBack, lang='fr', isMobile })
                   <div className="field-group">
                     <label className="field-lbl">{lang==='ar'?'الطالب':'Élève'} *</label>
                     <input className="field-input" placeholder={'🔍 '+(lang==='ar'?'بحث بالاسم أو رقم التعريف...':'Nom ou N° élève...')}
-                      value={searchEleveForm} onChange={e=>setSearchEleveForm(e.target.value)}
+                      value={searchEleveForm}
+                      onChange={e=>{
+                        const val=e.target.value;
+                        setSearchEleveForm(val);
+                        // Auto-sélection si numéro exact
+                        const found=eleves.find(x=>String(x.eleve_id_ecole||'')===val.trim());
+                        if(found) setFormCot(f=>({...f,eleve_id:found.id}));
+                        else if(val==='') setFormCot(f=>({...f,eleve_id:''}));
+                      }}
                       style={{marginBottom:6}}/>
-                    <select className="field-select" value={formCot.eleve_id} onChange={e=>setFormCot(f=>({...f,eleve_id:e.target.value}))}>
-                      <option value="">— {lang==='ar'?'اختر':'Sélectionner'} —</option>
-                      {eleves.filter(e=>!searchEleveForm||`${e.prenom} ${e.nom} ${e.eleve_id_ecole||''}`.toLowerCase().includes(searchEleveForm.toLowerCase())||String(e.eleve_id_ecole||'').includes(searchEleveForm)).map(e=>(
-                        <option key={e.id} value={e.id}>
-                          {e.eleve_id_ecole?'#'+e.eleve_id_ecole+' · ':''}{e.prenom} {e.nom} ({e.code_niveau||'?'})
-                        </option>
-                      ))}
-                    </select>
+                    {/* Résultats de recherche */}
+                    {searchEleveForm && !eleves.find(x=>String(x.eleve_id_ecole||'')===searchEleveForm.trim()) && (
+                      <div style={{border:'0.5px solid #e0e0d8',borderRadius:8,background:'#fff',maxHeight:160,overflowY:'auto',marginBottom:6}}>
+                        {eleves.filter(e=>!searchEleveForm||`${e.prenom} ${e.nom} ${e.eleve_id_ecole||''}`.toLowerCase().includes(searchEleveForm.toLowerCase())||String(e.eleve_id_ecole||'').includes(searchEleveForm)).slice(0,8).map(e=>(
+                          <div key={e.id} onClick={()=>{setFormCot(f=>({...f,eleve_id:e.id}));setSearchEleveForm(e.eleve_id_ecole?'#'+e.eleve_id_ecole+' — '+e.prenom+' '+e.nom:e.prenom+' '+e.nom);}}
+                            style={{padding:'8px 12px',cursor:'pointer',fontSize:13,borderBottom:'0.5px solid #f0f0ec',display:'flex',alignItems:'center',gap:8}}
+                            onMouseEnter={e=>e.currentTarget.style.background='#f5f5f0'}
+                            onMouseLeave={e=>e.currentTarget.style.background='#fff'}>
+                            {e.eleve_id_ecole&&<span style={{background:'#E1F5EE',color:'#085041',padding:'1px 6px',borderRadius:4,fontSize:11,fontWeight:700}}>#{e.eleve_id_ecole}</span>}
+                            <span>{e.prenom} {e.nom}</span>
+                            <span style={{fontSize:11,color:'#888',marginRight:'auto'}}>{e.code_niveau}</span>
+                          </div>
+                        ))}
+                        {eleves.filter(e=>!searchEleveForm||`${e.prenom} ${e.nom} ${e.eleve_id_ecole||''}`.toLowerCase().includes(searchEleveForm.toLowerCase())).length===0&&
+                          <div style={{padding:'8px 12px',color:'#aaa',fontSize:12}}>{lang==='ar'?'لا نتائج':'Aucun résultat'}</div>}
+                      </div>
+                    )}
                     {formCot.eleve_id && (()=>{
                       const el=eleves.find(x=>x.id===formCot.eleve_id);
-                      return el?<div style={{marginTop:4,fontSize:11,color:'#1D9E75',fontWeight:500}}>✓ {el.prenom} {el.nom}{el.eleve_id_ecole?' · #'+el.eleve_id_ecole:''}</div>:null;
+                      return el?<div style={{padding:'8px 12px',background:'#E1F5EE',borderRadius:8,fontSize:12,color:'#085041',fontWeight:600}}>✓ #{el.eleve_id_ecole||'—'} — {el.prenom} {el.nom}</div>:null;
                     })()}
                   </div>
                   <div className="field-group">
