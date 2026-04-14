@@ -1182,8 +1182,18 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile 
             <div className="form-grid">
               <div className="field-group"><label className="field-lbl">{t(lang, 'prenom')}</label><input className="field-input" value={newInst.prenom} onChange={e => setNewInst({...newInst,prenom:e.target.value})} placeholder={t(lang,'prenom')}/></div>
               <div className="field-group"><label className="field-lbl">{t(lang, 'nom_label')}</label><input className="field-input" value={newInst.nom} onChange={e => setNewInst({...newInst,nom:e.target.value})} placeholder={t(lang,'nom_label')}/></div>
-              <div className="field-group"><label className="field-lbl">{t(lang, 'identifiant_label')}</label><input className="field-input" value={newInst.identifiant} onChange={e => setNewInst({...newInst,identifiant:e.target.value})} placeholder="ex: m.karim"/></div>
-              <div className="field-group"><label className="field-lbl">{t(lang, 'mot_de_passe')}</label><input className="field-input" type="password" value={newInst.mot_de_passe} onChange={e => setNewInst({...newInst,mot_de_passe:e.target.value})} placeholder="••••••••"/></div>
+              <div className="field-group">
+                <label className="field-lbl">{lang==='ar'?'المعرّف (مولَّد تلقائياً)':'Login (généré automatiquement)'}</label>
+                <div className="field-input" style={{background:'#f5f5f0',color:'#085041',fontWeight:600,cursor:'default'}}>
+                  {newInst.prenom&&newInst.nom
+                    ? (newInst.prenom.toLowerCase().trim().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/\s+/g,'.')+'.'+newInst.nom.toLowerCase().trim().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/\s+/g,'.'))
+                    : <span style={{color:'#aaa',fontStyle:'italic'}}>{lang==='ar'?'أدخل الاسم واللقب أولاً':'Saisir prénom et nom d'abord'}</span>}
+                </div>
+              </div>
+              <div className="field-group">
+                <label className="field-lbl">{lang==='ar'?'كلمة السر (اتركها فارغة للمرور الافتراضي)':'Mot de passe (vide = MDP par défaut)'}</label>
+                <input className="field-input" type="password" value={newInst.mot_de_passe} onChange={e => setNewInst({...newInst,mot_de_passe:e.target.value})} placeholder="••••••••"/>
+              </div>
             </div>
             <button className="btn-primary" onClick={ajouterInstituteur}>{t(lang, 'ajouter_instituteur_btn')}</button>
           </div>
