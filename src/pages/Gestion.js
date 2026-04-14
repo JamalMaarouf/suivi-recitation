@@ -313,11 +313,17 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile 
   const ajouterInstituteur = async () => {
     if (!newInst.prenom || !newInst.nom)
       return showMsg('error', lang==='ar'?'الاسم واللقب إلزاميان':'Prénom et nom obligatoires');
-    // Générer login automatique : prenom.nom (normalisé sans accents)
-    const normalize = s => s.toLowerCase().trim()
-      .normalize('NFD').replace(/[\u0300-\u036f]/g,'')
-      .replace(/\s+/g,'.').replace(/[^a-z0-9.]/g,'');
-    const baseLogin = normalize(newInst.prenom)+'.'+normalize(newInst.nom);
+    // Générer login automatique : prenom.nom
+    const normalize = s => {
+      // Essayer normalisation latine (accents)
+      const latin = s.toLowerCase().trim()
+        .normalize('NFD').replace(/[\u0300-\u036f]/g,'')
+        .replace(/\s+/g,'_').replace(/[^a-z0-9_]/g,'');
+      if (latin.length >= 2) return latin;
+      // Fallback: utiliser le texte tel quel (arabe, etc.) nettoyé
+      return s.trim().replace(/\s+/g,'_').replace(/[^\u0600-\u06ff\u0750-\u077fa-z0-9_]/gi,'').toLowerCase();
+    };
+    const baseLogin = normalize(newInst.prenom)+'_'+normalize(newInst.nom);
     // Trouver un login unique
     let login = baseLogin; let suffix = 2;
     while (true) {
@@ -1189,7 +1195,10 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile 
                 <label className="field-lbl">{lang==='ar'?'المعرّف (مولَّد تلقائياً)':'Login (généré automatiquement)'}</label>
                 <div className="field-input" style={{background:'#f5f5f0',color:'#085041',fontWeight:600,cursor:'default'}}>
                   {newInst.prenom&&newInst.nom
-                    ? (newInst.prenom.toLowerCase().trim().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/\s+/g,'.')+'.'+newInst.nom.toLowerCase().trim().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/\s+/g,'.'))
+                    ? (()=>{
+                      const norm=s=>{const l=s.toLowerCase().trim().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/\s+/g,'_').replace(/[^a-z0-9_]/g,'');return l.length>=2?l:s.trim().replace(/\s+/g,'_').toLowerCase();};
+                      return norm(newInst.prenom)+'_'+norm(newInst.nom);
+                    })()
                     : <span style={{color:'#aaa',fontStyle:'italic'}}>{lang==='ar'?'أدخل الاسم واللقب أولاً':'Saisir prénom et nom dabord'}</span>}
                 </div>
               </div>
