@@ -44,10 +44,11 @@ export default function Login({ onLogin, lang, LangSelector, onShowInscription }
 
     // Check parents table
     const { data: parentData, error: parentErr } = await supabase
-      .from('parents')
+      .from('utilisateurs')
       .select('*')
       .eq('identifiant', identifiant.trim())
       .eq('mot_de_passe', motDePasse)
+      .eq('role', 'parent')
       .maybeSingle();
 
     setLoading(false);

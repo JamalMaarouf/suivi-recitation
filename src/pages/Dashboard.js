@@ -61,25 +61,6 @@ export default function Dashboard({ user, navigate, goBack, lang, isMobile=false
   const [filtreNiveau, setFiltreNiveau] = useState('tous');
   const [tri, setTri] = useState('points_desc');
 
-  useEffect(() => { loadData(); }, []);
-
-  const loadData = async () => {
-    setLoading(true);
-    const [{ data: nv },{ data: ed },{ data: id },{ data: vd }] = await Promise.all([
-      supabase.from('eleves').select('id,prenom,nom,code_niveau,niveau,hizb_depart,tomon_depart,sourates_acquises,instituteur_referent_id,ecole_id').eq('ecole_id', user.ecole_id).order('nom'),
-      supabase.from('utilisateurs').select('id,prenom,nom,role').eq('role','instituteur').eq('ecole_id', user.ecole_id),
-      supabase.from('validations').select('id,eleve_id,type_validation,nombre_tomon,hizb_valide,tomon_debut,date_validation,valide_par,ecole_id,valideur:valide_par(prenom,nom)').eq('ecole_id', user.ecole_id).order('date_validation',{ascending:false})
-    ]);
-    const elevesData = (ed||[]).map(eleve => {
-      const vals = (vd||[]).filter(v=>v.eleve_id===eleve.id);
-      const etat = calcEtatEleve(vals,eleve.hizb_depart,eleve.tomon_depart);
-      const derniere = vals[0]?.date_validation||null;
-      const inst = (id||[]).find(i=>i.id===eleve.instituteur_referent_id);
-      return {...eleve,etat,derniere,jours:joursDepuis(derniere),instituteurNom:inst?`${inst.prenom} ${inst.nom}`:'—',instituteur:inst,inactif:isInactif(derniere)};
-    });
-    setNiveaux(nv||[]); setEleves(elevesData); setInstituteurs(id||[]); setAllValidations(vd||[]); setStats(calcStats(vd||[])); setLoading(false);
-  };
-
   const alertes = useMemo(() => calcAlertes(eleves, allValidations, lang), [eleves, allValidations, lang]);
   const totalPoints = eleves.reduce((s,e)=>s+e.etat.points.total,0);
   const totalTomon = eleves.reduce((s,e)=>s+e.etat.tomonCumul,0);
@@ -94,7 +75,6 @@ export default function Dashboard({ user, navigate, goBack, lang, isMobile=false
     const vMois = allValidations.filter(v=>new Date(v.date_validation)>=debutMois);
     return { nbRecit: vMois.length, mois: new Date().toLocaleDateString(lang==='ar'?'ar-MA':'fr-FR',{month:'long'}) };
   }, [allValidations, eleves]);
-
   const elevesFiltres = useMemo(() => {
     let list = [...eleves];
     if(searchEleve) list=list.filter(e=>`${e.prenom} ${e.nom}`.toLowerCase().includes(searchEleve.toLowerCase()));
@@ -115,7 +95,6 @@ export default function Dashboard({ user, navigate, goBack, lang, isMobile=false
     }
     return list;
   }, [eleves,searchEleve,filtreInst,filtreStatut,filtreNiveau,tri]);
-
   const statsInst = useMemo(() => instituteurs.map(inst => {
     const ei = eleves.filter(e=>e.instituteur_referent_id===inst.id);
     return {...inst,nbEleves:ei.length,totalPoints:ei.reduce((s,e)=>s+e.etat.points.total,0),totalTomon:ei.reduce((s,e)=>s+e.etat.tomonCumul,0),totalHizb:ei.reduce((s,e)=>s+e.etat.hizbsComplets.size,0),nbInactifs:ei.filter(e=>e.inactif).length,nbAttente:ei.filter(e=>e.etat.enAttenteHizbComplet).length,meilleur:[...ei].sort((a,b)=>b.etat.points.total-a.etat.points.total)[0]||null};
@@ -600,3 +579,26 @@ export default function Dashboard({ user, navigate, goBack, lang, isMobile=false
     </div>
   );
 }
+
+
+  useEffect(() => { loadData(); }, []);
+
+  const loadData = async () => {
+    setLoading(true);
+    const [{ data: nv },{ data: ed },{ data: id },{ data: vd }] = await Promise.all([
+      supabase.from('niveaux').select('id,code,nom,type,couleur').eq('ecole_id', user.ecole_id).order('ordre'),
+      supabase.from('eleves').select('id,prenom,nom,code_niveau,niveau,hizb_depart,tomon_depart,sourates_acquises,instituteur_referent_id,ecole_id').eq('ecole_id', user.ecole_id).order('nom'),
+      supabase.from('utilisateurs').select('id,prenom,nom,role').eq('role','instituteur').eq('ecole_id', user.ecole_id),
+      supabase.from('validations').select('id,eleve_id,type_validation,nombre_tomon,hizb_valide,tomon_debut,date_validation,valide_par,ecole_id,valideur:valide_par(prenom,nom)').eq('ecole_id', user.ecole_id).order('date_validation',{ascending:false})
+    ]);
+    const elevesData = (ed||[]).map(eleve => {
+      const vals = (vd||[]).filter(v=>v.eleve_id===eleve.id);
+      const etat = calcEtatEleve(vals,eleve.hizb_depart,eleve.tomon_depart);
+      const derniere = vals[0]?.date_validation||null;
+      const inst = (id||[]).find(i=>i.id===eleve.instituteur_referent_id);
+      return {...eleve,etat,derniere,jours:joursDepuis(derniere),instituteurNom:inst?`${inst.prenom} ${inst.nom}`:'—',instituteur:inst,inactif:isInactif(derniere)};
+    });
+    setNiveaux(nv||[]); setEleves(elevesData); setInstituteurs(id||[]); setAllValidations(vd||[]); setStats(calcStats(vd||[])); setLoading(false);
+  };
+
+
