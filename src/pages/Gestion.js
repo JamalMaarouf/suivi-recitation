@@ -205,20 +205,41 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile 
     if (!newEleve.prenom?.trim()) return showMsg('error', t(lang, 'prenom_nom_obligatoires'));
     if (!newEleve.nom?.trim()) return showMsg('error', t(lang, 'prenom_nom_obligatoires'));
     if (!newEleve.code_niveau) return showMsg('error', t(lang, 'tous_champs_obligatoires'));
-    if (!newEleve.eleve_id_ecole?.trim()) return showMsg('error', lang==='ar'?'رقم تعريف الطالب إلزامي':lang==='en'?'Student ID is required':"L'ID élève est obligatoire");
-    if (!newEleve.instituteur_referent_id) return showMsg('error', lang==='ar'?'يجب اختيار الأستاذ المرجع':lang==='en'?'Please select a teacher':'Veuillez sélectionner un instituteur référent');
-    const { error } = await supabase.from('eleves').insert({
+    if (!newEleve.eleve_id_ecole?.trim()) return showMsg('error', lang==='ar'?'رقم تعريف الطالب إلزامي':"L'ID élève est obligatoire");
+    if (!newEleve.instituteur_referent_id) return showMsg('error', lang==='ar'?'يجب اختيار الأستاذ المرجع':'Veuillez sélectionner un instituteur référent');
+
+    // ⑦ Vérifier unicité numéro élève
+    const { data: existing } = await supabase.from('eleves')
+      .select('id').eq('eleve_id_ecole', newEleve.eleve_id_ecole.trim()).eq('ecole_id', user.ecole_id).maybeSingle();
+    if (existing) return showMsg('error', lang==='ar'?'رقم التعريف مستخدم مسبقاً، اختر رقماً آخر':'Ce numéro élève existe déjà, choisissez-en un autre');
+
+    const { data: eleveData, error } = await supabase.from('eleves').insert({
       prenom: newEleve.prenom, nom: newEleve.nom, niveau: newEleve.niveau, ecole_id: user.ecole_id,
       code_niveau: newEleve.code_niveau || '1',
       eleve_id_ecole: newEleve.eleve_id_ecole || null,
       instituteur_referent_id: newEleve.instituteur_referent_id || null,
-      hizb_depart: parseInt(newEleve.hizb_depart) || 1,
+      hizb_depart: parseInt(newEleve.hizb_depart) || 0,
       tomon_depart: parseInt(newEleve.tomon_depart) || 1,
       sourates_acquises: parseInt(newEleve.sourates_acquises) || 0
-    });
+    }).select().single();
     if (error) return showMsg('error', t(lang, 'erreur_ajout'));
-    showMsg('success', t(lang, 'eleve_ajoute'));
-    setNewEleve({ prenom: '', nom: '', niveau: 'Débutant', instituteur_referent_id: '', hizb_depart: 1, tomon_depart: 1 });
+
+    // ⑥ Créer compte parent automatiquement
+    const mdpParent = ecoleConfig?.mdp_defaut_parents || 'parent2024';
+    const loginParent = newEleve.eleve_id_ecole.trim();
+    const { data: parentData } = await supabase.from('utilisateurs').insert({
+      prenom: newEleve.prenom, nom: newEleve.nom,
+      identifiant: loginParent, mot_de_passe: mdpParent,
+      role: 'parent', ecole_id: user.ecole_id, statut_compte: 'actif'
+    }).select().single();
+    if (parentData) {
+      await supabase.from('parent_eleve').insert({
+        parent_id: parentData.id, eleve_id: eleveData.id, ecole_id: user.ecole_id
+      });
+    }
+
+    showMsg('success', lang==='ar'?`✅ تم إضافة الطالب — حساب ولي الأمر: ${loginParent} / ${mdpParent}`:`✅ Élève ajouté — Compte parent: ${loginParent} / ${mdpParent}`);
+    setNewEleve({ prenom: '', nom: '', niveau: 'Débutant', code_niveau: '1', eleve_id_ecole: '', instituteur_referent_id: '', hizb_depart: 0, tomon_depart: 1, sourates_acquises: 0 });
     setShowAcquisSelector(false);
     loadData();
   };
