@@ -32,14 +32,17 @@ function AcquisSelector({ codeNiveau, hizb, tomon, onHizbChange, onTomonChange, 
           {lang==='ar'?'عدد السور المحفوظة قبل بدء المتابعة':lang==='en'?'Surahs memorized before tracking':'Sourates mémorisées avant le début du suivi'}
         </div>
         <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:12}}>
-          <button onClick={()=>onSouratesChange(Math.max(0,nbAcquis-1))}
-            style={{width:36,height:36,border:'0.5px solid #e0e0d8',borderRadius:6,background:'#fff',cursor:'pointer',fontSize:18}}>−</button>
+          <button onClick={()=>onSouratesChange(Math.min(souratesNiveau.length, nbAcquis+1))}
+            style={{width:36,height:36,border:'0.5px solid #e0e0d8',borderRadius:6,background:'#fff',cursor:'pointer',fontSize:18,fontWeight:700}}>+</button>
           <div style={{flex:1,textAlign:'center'}}>
             <div style={{fontSize:32,fontWeight:800,color:'#1D9E75'}}>{nbAcquis}</div>
             <div style={{fontSize:11,color:'#888'}}>/ {souratesNiveau.length} {lang==='ar'?'سورة':lang==='en'?'surahs':'sourates'}</div>
+            <div style={{fontSize:11,color:nbAcquis===0?'#888':'#1D9E75',marginTop:4,fontWeight:600}}>
+              {nbAcquis===0?(lang==='ar'?'لا توجد مكتسبات سابقة':'Aucun acquis antérieur'):`${lang==='ar'?'من':'De'} ${souratesOrdonnees[nbAcquis-1]?.numero||''} ${lang==='ar'?'إلى':'à'} ${souratesOrdonnees[0]?.numero||''}`}
+            </div>
           </div>
-          <button onClick={()=>onSouratesChange(Math.min(souratesNiveau.length, nbAcquis+1))}
-            style={{width:36,height:36,border:'0.5px solid #e0e0d8',borderRadius:6,background:'#fff',cursor:'pointer',fontSize:18}}>+</button>
+          <button onClick={()=>onSouratesChange(Math.max(0,nbAcquis-1))}
+            style={{width:36,height:36,border:'0.5px solid #e0e0d8',borderRadius:6,background:'#fff',cursor:'pointer',fontSize:18,fontWeight:700}}>−</button>
         </div>
 
         {/* Visual grid of surahs */}
