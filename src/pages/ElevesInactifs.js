@@ -14,7 +14,8 @@ const getNiveauColor = (code, niveaux) => {
 export default function ElevesInactifs({ navigate, goBack, lang='fr', user, isMobile }) {
   const { toast } = useToast();
   const [inactifs, setInactifs] = useState([]);
-  const [loading, setLoading]   = useState(true);
+  const [niveaux,  setNiveaux]  = useState([]);
+  const [loading,  setLoading]  = useState(true);
 
   useEffect(() => { loadData(); }, []);
 

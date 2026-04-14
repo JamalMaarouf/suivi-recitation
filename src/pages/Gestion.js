@@ -473,11 +473,13 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile 
 
 
 
-  // Constantes niveaux dynamiques
+  // Constantes niveaux dynamiques — avec fallback si niveaux pas encore chargés
   const FALLBACK_NC = {'5B':'#534AB7','5A':'#378ADD','2M':'#1D9E75','2':'#EF9F27','1':'#E24B4A'};
-  const NC = Object.fromEntries(niveauxDyn.map(n=>[n.code, n.couleur||FALLBACK_NC[n.code]||'#888']));
-  const NL = Object.fromEntries(niveauxDyn.map(n=>[n.code, n.nom]));
-  const NIVEAUX_M = niveauxDyn.map(n=>n.code);
+  const FALLBACK_NL = {'5B':'Préscolaire','5A':'Prim. 1-2','2M':'Prim. 3-4','2':'Prim. 5-6','1':'Collège'};
+  const niveauxActifs = niveauxDyn.length > 0 ? niveauxDyn : Object.keys(FALLBACK_NC).map(code=>({id:code,code,nom:FALLBACK_NL[code]||code,couleur:FALLBACK_NC[code],type:'hizb'}));
+  const NC = Object.fromEntries(niveauxActifs.map(n=>[n.code, n.couleur||FALLBACK_NC[n.code]||'#888']));
+  const NL = Object.fromEntries(niveauxActifs.map(n=>[n.code, n.nom||n.code]));
+  const NIVEAUX_M = niveauxActifs.map(n=>n.code);
 
   if (isMobile) {
 
