@@ -194,11 +194,13 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile 
     const { data: i } = await supabase.from('utilisateurs').select('id,prenom,nom,identifiant,role').eq('role', 'instituteur').eq('ecole_id', user.ecole_id).order('nom');
     setEleves(e || []);
     setInstituteurs(i || []);
-    const { data: pd } = await supabase.from('utilisateurs')
+    const { data: pd, error: pdErr } = await supabase.from('utilisateurs')
         .select('id,prenom,nom,identifiant,telephone')
         .eq('role','parent').eq('ecole_id', user.ecole_id).order('nom');
+    console.log('Parents query result:', pd, 'Error:', pdErr, 'ecole_id:', user.ecole_id);
     const { data: pliens } = await supabase.from('parent_eleve')
         .select('parent_id,eleve_id');
+    console.log('Liens parent_eleve:', pliens);
     const liensMap = {};
     (pliens||[]).forEach(l => { if(!liensMap[l.parent_id]) liensMap[l.parent_id]=[]; liensMap[l.parent_id].push(l.eleve_id); });
     setParents((pd||[]).map(p=>({...p, eleve_ids:liensMap[p.id]||[]})));
