@@ -46,6 +46,7 @@ function calcAlertes(eleves, allValidations, lang) {
 }
 
 export default function Dashboard({ user, navigate, goBack, lang, isMobile=false }) {
+  const [niveaux, setNiveaux] = useState([]);
   const [eleves, setEleves] = useState([]);
   const [instituteurs, setInstituteurs] = useState([]);
   const [allValidations, setAllValidations] = useState([]);
