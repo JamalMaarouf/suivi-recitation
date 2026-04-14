@@ -169,6 +169,8 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang, isMobi
   const [nouveauNiveau, setNouveauNiveau] = useState('');
   const [notePassage, setNotePassage] = useState('');
   const [savingPassage, setSavingPassage] = useState(false); // sourate muraja'a
+  const [examens, setExamens] = useState([]);
+  const [certificats, setCertificats] = useState([]);
   const [showExceptionModal, setShowExceptionModal] = useState(false);
   const now = new Date();
   const [selectedMoisObj, setSelectedMoisObj] = useState(now.getMonth());
@@ -194,6 +196,13 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang, isMobi
       const vals=r0.data||[], appr=r1.data||[], exhizb=r2.data||[], mval=r3.data||[], mrec=r4.data||[], passData=r5.data||[], objData=r6.data||[];
       if (eleve.instituteur_referent_id) {
         const {data:inst}=await supabase.from('utilisateurs').select('prenom,nom').eq('id',eleve.instituteur_referent_id).single();
+        // Charger examens et certificats
+        const [{data:exData},{data:certData}] = await Promise.all([
+          supabase.from('resultats_examens').select('*, examen:examen_id(titre,date_examen,type_examen)').eq('eleve_id',eleve.id).order('created_at',{ascending:false}),
+          supabase.from('certificats_eleves').select('*').eq('eleve_id',eleve.id).order('created_at',{ascending:false}).catch(()=>({data:[]})),
+        ]);
+        setExamens(exData||[]);
+        setCertificats(certData||[]);
         if(inst) setInstituteurNom(inst.prenom+' '+inst.nom);
       }
       const e = calcEtatEleve(vals||[],eleve.hizb_depart||1,eleve.tomon_depart||1);
@@ -403,6 +412,8 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang, isMobi
               {k:'historique',  label: lang==='ar'?'التاريخ':'Historique'},
               {k:'muraja',      label: lang==='ar'?'المراجعة':"Murajaʼa"},
               {k:'objectifs',   label: lang==='ar'?'الأهداف':'Objectifs'},
+              {k:'examens',     label: lang==='ar'?'الامتحانات':'Examens'},
+              {k:'certificats', label: lang==='ar'?'الشهادات':'Certificats'},
             ].map(tab=>(
               <div key={tab.k} onClick={()=>setOnglet(tab.k)}
                 style={{padding:'10px 16px', fontSize:13, fontWeight:600, whiteSpace:'nowrap',
@@ -562,6 +573,52 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang, isMobi
                 )}
               </div>
             )}
+            {onglet==='examens' && (
+              <div style={{padding:'1rem 0'}}>
+                {examens.length===0 ? (
+                  <div style={{textAlign:'center',color:'#aaa',padding:'2rem',fontSize:13}}>
+                    {lang==='ar'?'لا توجد نتائج امتحانات':'Aucun résultat d'examen'}
+                  </div>
+                ) : examens.map(r=>{
+                  const MENTION={excellent:{label:'Excellent',color:'#1D9E75',bg:'#E1F5EE'},bien:{label:'Bien',color:'#378ADD',bg:'#EBF4FD'},passable:{label:'Passable',color:'#EF9F27',bg:'#FAEEDA'},insuffisant:{label:'Insuffisant',color:'#E24B4A',bg:'#FCEBEB'},ajourne:{label:'Ajourné',color:'#888',bg:'#f5f5f0'}};
+                  const m=MENTION[r.mention]||MENTION.passable;
+                  return(
+                    <div key={r.id} style={{background:'#fff',border:'0.5px solid #e0e0d8',borderRadius:12,padding:'12px 14px',marginBottom:8}}>
+                      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:6}}>
+                        <div style={{fontSize:13,fontWeight:700}}>{r.examen?.titre||'—'}</div>
+                        <span style={{padding:'3px 10px',borderRadius:20,fontSize:11,fontWeight:600,background:m.bg,color:m.color}}>{lang==='ar'?r.mention:m.label}</span>
+                      </div>
+                      <div style={{display:'flex',gap:16,fontSize:12,color:'#888',flexWrap:'wrap'}}>
+                        <span>📅 {r.examen?.date_examen||'—'}</span>
+                        <span>📊 {r.note_obtenue||0}/{r.note_max||20}</span>
+                        {r.bloque&&<span style={{color:'#E24B4A',fontWeight:600}}>🔒 {lang==='ar'?'موقوف':'Bloqué'}</span>}
+                        {r.commentaire&&<span>💬 {r.commentaire}</span>}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            {onglet==='certificats' && (
+              <div style={{padding:'1rem 0'}}>
+                {certificats.length===0 ? (
+                  <div style={{textAlign:'center',color:'#aaa',padding:'2rem',fontSize:13}}>
+                    {lang==='ar'?'لا توجد شهادات بعد':'Aucun certificat pour le moment'}
+                  </div>
+                ) : certificats.map(cert=>(
+                  <div key={cert.id} style={{background:'linear-gradient(135deg,#f9f9f6,#fff)',border:'1px solid #1D9E7530',borderRadius:12,padding:'14px',marginBottom:8,display:'flex',alignItems:'center',gap:12}}>
+                    <span style={{fontSize:32}}>🏅</span>
+                    <div style={{flex:1}}>
+                      <div style={{fontSize:13,fontWeight:700,color:'#085041'}}>{cert.titre||lang==='ar'?'شهادة إتمام':'Certificat de réussite'}</div>
+                      <div style={{fontSize:11,color:'#888',marginTop:3}}>📅 {cert.date_emission?new Date(cert.date_emission).toLocaleDateString(lang==='ar'?'ar-MA':'fr-FR'):'—'}</div>
+                      {cert.description&&<div style={{fontSize:11,color:'#666',marginTop:2}}>{cert.description}</div>}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
             {onglet==='muraja' && (
               <div>
                 {(murajaa.length+murajaaS.length)===0 ? (
