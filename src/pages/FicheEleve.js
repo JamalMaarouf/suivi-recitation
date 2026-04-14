@@ -577,7 +577,7 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang, isMobi
               <div style={{padding:'1rem 0'}}>
                 {examens.length===0 ? (
                   <div style={{textAlign:'center',color:'#aaa',padding:'2rem',fontSize:13}}>
-                    {lang==='ar'?'لا توجد نتائج امتحانات':'Aucun résultat d'examen'}
+                    {lang==='ar'?'لا توجد نتائج امتحانات':'Aucun résultat d\'examen'}
                   </div>
                 ) : examens.map(r=>{
                   const MENTION={excellent:{label:'Excellent',color:'#1D9E75',bg:'#E1F5EE'},bien:{label:'Bien',color:'#378ADD',bg:'#EBF4FD'},passable:{label:'Passable',color:'#EF9F27',bg:'#FAEEDA'},insuffisant:{label:'Insuffisant',color:'#E24B4A',bg:'#FCEBEB'},ajourne:{label:'Ajourné',color:'#888',bg:'#f5f5f0'}};
