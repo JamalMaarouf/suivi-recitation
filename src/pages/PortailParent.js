@@ -70,7 +70,10 @@ export default function PortailParent({ parent, navigate, goBack, lang='fr', onL
   if (enfants.length === 0) return (
     <div style={{padding:'3rem',textAlign:'center'}}>
       <div style={{fontSize:48,marginBottom:'1rem'}}>👶</div>
-      <div style={{fontSize:15,color:'#888'}}>{lang==='ar'?'لا يوجد طلاب مرتبطون بحسابك':'Aucun enfant lié à votre compte'}</div>
+      <div style={{fontSize:15,color:'#888',marginBottom:'1.5rem'}}>{lang==='ar'?'لا يوجد طلاب مرتبطون بحسابك':'Aucun enfant lié à votre compte'}</div>
+      <button onClick={onLogout} style={{padding:'10px 24px',borderRadius:10,background:'#E24B4A',color:'#fff',border:'none',cursor:'pointer',fontWeight:600,fontSize:14}}>
+        🚪 {lang==='ar'?'تسجيل الخروج':'Déconnexion'}
+      </button>
     </div>
   );
 
