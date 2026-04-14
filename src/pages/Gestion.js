@@ -230,7 +230,9 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile 
       tomon_depart: parseInt(newEleve.tomon_depart) || 1,
       sourates_acquises: parseInt(newEleve.sourates_acquises) || 0
     }).select().single();
+    console.log('Eleve insert:', eleveData, 'Error:', error);
     if (error) return showMsg('error', t(lang, 'erreur_ajout'));
+    if (!eleveData) return showMsg('error', 'Erreur: élève non créé');
 
     // ⑥ Créer compte parent automatiquement
     const mdpParent = ecoleConfig?.mdp_defaut_parents || 'parent2024';
@@ -240,12 +242,13 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile 
       identifiant: loginParent, mot_de_passe: mdpParent,
       role: 'parent', ecole_id: user.ecole_id, statut_compte: 'actif'
     }).select().single();
-    console.log('Parent insert result:', parentData, 'Error:', parentErr);
-    if (parentData) {
+    console.log('Parent insert result:', parentData, 'Error:', parentErr?.message);
+    if (parentErr) showMsg('error', 'Erreur création parent: '+parentErr.message);
+    if (parentData?.id && eleveData?.id) {
       const { error: lienErr } = await supabase.from('parent_eleve').insert({
         parent_id: parentData.id, eleve_id: eleveData.id
       });
-      console.log('Lien parent_eleve error:', lienErr);
+      console.log('Lien parent_eleve error:', lienErr?.message);
     }
 
     showMsg('success', lang==='ar'?`✅ تم إضافة الطالب — حساب ولي الأمر: ${loginParent} / ${mdpParent}`:`✅ Élève ajouté — Compte parent: ${loginParent} / ${mdpParent}`);
