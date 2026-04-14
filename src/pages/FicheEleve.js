@@ -198,19 +198,19 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang, isMobi
         const {data:inst}=await supabase.from('utilisateurs').select('prenom,nom').eq('id',eleve.instituteur_referent_id).single();
         // Charger examens et certificats (tables optionnelles)
         try {
-          const exRes = await supabase.from('resultats_examens').select('*, examen:examen_id(id,description,score_minimum,bloquant,type_contenu)').eq('eleve_id',eleve.id).order('created_at',{ascending:false});
-          console.log('Examens result:', exRes.data, 'Error:', exRes.error);
-          setExamens(exRes.data||[]);
-        } catch(e) { console.log('Examens catch:', e); setExamens([]); }
-        try {
-          // Certificats = résultats d'examens avec certificat généré
-          const certRes = await supabase.from('resultats_examens')
-            .select('*, examen:examen_id(description,nom)')
-            .eq('eleve_id',eleve.id)
-            .eq('certificat_genere',true)
-            .order('date_certificat',{ascending:false});
-          setCertificats(certRes.data||[]);
-        } catch(e) { setCertificats([]); }
+          const exRes = await supabase.from('resultats_examens')
+            .select('*').eq('eleve_id',eleve.id).order('created_at',{ascending:false});
+          if (exRes.data && exRes.data.length > 0) {
+            // Charger les descriptions d'examens séparément
+            const examIds = [...new Set(exRes.data.map(r=>r.examen_id).filter(Boolean))];
+            const {data:examData} = await supabase.from('examens').select('id,description,score_minimum,bloquant').in('id',examIds);
+            const examMap = Object.fromEntries((examData||[]).map(e=>[e.id,e]));
+            setExamens(exRes.data.map(r=>({...r, examen:examMap[r.examen_id]||null})));
+            setCertificats(exRes.data.filter(r=>r.certificat_genere).map(r=>({...r, examen:examMap[r.examen_id]||null})));
+          } else {
+            setExamens([]); setCertificats([]);
+          }
+        } catch(e) { setExamens([]); setCertificats([]); }
         if(inst) setInstituteurNom(inst.prenom+' '+inst.nom);
       }
       const e = calcEtatEleve(vals||[],eleve.hizb_depart||1,eleve.tomon_depart||1);
