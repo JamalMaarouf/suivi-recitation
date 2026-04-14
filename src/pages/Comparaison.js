@@ -44,7 +44,7 @@ export default function Comparaison({ navigate, goBack, lang='fr', isMobile, use
 
   const evolutions = selected.map(e=>({eleve:e,points:calcEvolution(e)}));
   const maxScore = Math.max(...evolutions.flatMap(ev=>ev.points.map(p=>p.score)),1);
-  const filtered = allEleves.filter(e=>`${e.prenom} ${e.nom}`.toLowerCase().includes(search.toLowerCase()));
+  const filtered = allEleves.filter(e=>`${e.prenom} ${e.nom} ${e.eleve_id_ecole||''}`.toLowerCase().includes(search.toLowerCase()));
 
   return (
     <div>
