@@ -108,6 +108,7 @@ export default function PortailParent({ parent, navigate, goBack, lang='fr', onL
   // Générer les mois manquants comme impayés virtuels
   const cotEAvecManquants = (() => {
     if (!eleve) return cotE;
+    console.log('eleve.created_at:', eleve.created_at, 'cotE:', cotE.length);
     const debut = new Date(eleve.created_at || '2024-09-01');
     debut.setDate(1); debut.setHours(0,0,0,0);
     const fin = new Date(); fin.setDate(1); fin.setHours(0,0,0,0);
