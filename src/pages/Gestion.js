@@ -205,9 +205,17 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile 
     setEleves(e || []);
     setInstituteurs(i || []);
     const { data: pd } = await supabase.from('utilisateurs')
-        .select('id,prenom,nom,identifiant,telephone, liens:parent_eleve(eleve_id, eleve:eleve_id(prenom,nom))')
+        .select('id,prenom,nom,identifiant,telephone')
         .eq('role','parent').eq('ecole_id', user.ecole_id).order('nom');
-    setParents((pd||[]).map(p=>({...p, eleve_ids:(p.liens||[]).map(l=>l.eleve_id)})));
+    // Charger les liens parent-élève séparément
+    const { data: pliens } = await supabase.from('parent_eleve')
+        .select('parent_id,eleve_id').eq('ecole_id', user.ecole_id);
+    const liensMap = {};
+    (pliens||[]).forEach(l => {
+        if (!liensMap[l.parent_id]) liensMap[l.parent_id] = [];
+        liensMap[l.parent_id].push(l.eleve_id);
+    });
+    setParents((pd||[]).map(p=>({...p, eleve_ids: liensMap[p.id]||[], liens:[] })));
     setLoading(false);
   };
 
@@ -1395,7 +1403,7 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile 
                     (lang==='ar'?'هل تريد حذف حساب ':'Supprimer le compte de ')+(p.prenom+' '+p.nom)+'?',
                     async()=>{
                       await supabase.from('parent_eleve').delete().eq('parent_id',p.id);
-                      await supabase.from('parents').delete().eq('id',p.id);
+                      await supabase.from('utilisateurs').delete().eq('id',p.id);
                       setParents(prev=>prev.filter(x=>x.id!==p.id));
                       hideConfirm();
                     }
