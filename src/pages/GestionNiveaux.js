@@ -546,8 +546,7 @@ export default function GestionNiveaux({ user, navigate, goBack, lang='fr', isMo
         {/* Header */}
         <div style={{background:'#fff', padding:'14px 16px 0', borderBottom:'0.5px solid #e0e0d8', position:'sticky', top:0, zIndex:100}}>
           <div style={{display:'flex', alignItems:'center', gap:10, marginBottom:12}}>
-            <button onClick={()=>goBack?goBack():navigate('dashboard')}
-              style={{background:'none',border:'none',cursor:'pointer',fontSize:22,color:'#085041',padding:0}}>←</button>
+            <button onClick={()=>goBack?goBack():navigate('dashboard')} className="back-link">{t(lang,'retour')}</button>
             <div style={{flex:1, fontSize:17, fontWeight:800, color:'#085041'}}>
               📚 {lang==='ar'?'المستويات':'Niveaux'}
             </div>

@@ -184,8 +184,7 @@ export default function ValidationCollective({ user, navigate, goBack, lang='fr'
         <div style={{background:'#fff', padding:'14px 16px', borderBottom:'0.5px solid #e0e0d8',
           position:'sticky', top:0, zIndex:100}}>
           <div style={{display:'flex', alignItems:'center', gap:10}}>
-            <button onClick={()=>goBack?goBack():navigate('dashboard')}
-              style={{background:'none',border:'none',cursor:'pointer',fontSize:22,color:'#085041',padding:0,lineHeight:1}}>←</button>
+            <button onClick={()=>goBack?goBack():navigate('dashboard')} className="back-link">{t(lang,'retour')}</button>
             <div style={{flex:1, fontSize:17, fontWeight:800, color:'#085041'}}>
               📖 {lang==='ar'?'مراجعة جماعية':"Murajaʼa collective"}
             </div>
@@ -302,7 +301,7 @@ export default function ValidationCollective({ user, navigate, goBack, lang='fr'
     <div style={{padding:'1rem',maxWidth:700,margin:'0 auto'}}>
       {/* Header */}
       <div style={{display:'flex',alignItems:'center',gap:12,marginBottom:'1.2rem'}}>
-        <button className="back-link" onClick={()=>goBack?goBack():navigate('dashboard')}>← {t(lang,'retour')}</button>
+        <button className="back-link" onClick={()=>goBack?goBack():navigate('dashboard')}>{t(lang,'retour')}</button>
         <div style={{fontSize:17,fontWeight:700,color:'#085041'}}>
           📖 {lang==='ar' ? 'مراجعة جماعية' : "Muraja'a collective"}
         </div>

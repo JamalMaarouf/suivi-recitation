@@ -189,7 +189,7 @@ export default function MurajaDashboard({ user, navigate, goBack, lang='fr', isM
       )}
       {/* Header */}
       <div style={{display:'flex',alignItems:'center',gap:12,marginBottom:'1.2rem'}}>
-        <button className="back-link" onClick={()=>goBack?goBack():navigate('dashboard')}>← {t(lang,'retour')}</button>
+        <button className="back-link" onClick={()=>goBack?goBack():navigate('dashboard')}>{t(lang,'retour')}</button>
         <div style={{fontSize:17,fontWeight:700,color:'#085041'}}>
           📊 {lang==='ar'?'لوحة تتبع المراجعة الجماعية':'Tableau de bord Muraja\u02bca'}
         </div>

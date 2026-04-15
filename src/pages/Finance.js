@@ -568,7 +568,7 @@ export default function Finance({ user, navigate, goBack, lang='fr', isMobile })
         <div style={{fontSize:13,color:'#888',marginBottom:'1.5rem'}}>
           {lang==='ar'?'هذا القسم مخصص للمراقب العام فقط':lang==='en'?'This section is for the supervisor only':'Cette section est réservée au surveillant général'}
         </div>
-        <button className="back-link" onClick={()=>goBack?goBack():navigate('dashboard')}>← {t(lang,'retour')}</button>
+        <button className="back-link" onClick={()=>goBack?goBack():navigate('dashboard')}>{t(lang,'retour')}</button>
       </div>
     );
   }
@@ -716,7 +716,7 @@ export default function Finance({ user, navigate, goBack, lang='fr', isMobile })
     <div>
       {/* Header */}
       <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'1rem',flexWrap:'wrap',gap:8}}>
-        <button className="back-link" onClick={()=>goBack?goBack():navigate('dashboard')}>← {t(lang,'retour')}</button>
+        <button className="back-link" onClick={()=>goBack?goBack():navigate('dashboard')}>{t(lang,'retour')}</button>
         <div style={{fontSize:18,fontWeight:700,color:'#085041'}}>💰 {lang==='ar'?'الإدارة المالية':lang==='en'?'Finance':'Gestion Financière'}</div>
         <div style={{display:'flex',gap:6}}>
           {onglet==='cotisations'&&<button onClick={exportCotisationsExcel} style={{padding:'6px 12px',background:'#1D9E75',color:'#fff',border:'none',borderRadius:8,fontSize:11,fontWeight:600,cursor:'pointer'}}>📥 Excel</button>}

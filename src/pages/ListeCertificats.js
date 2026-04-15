@@ -58,8 +58,7 @@ export default function ListeCertificats({ user, navigate, goBack, lang='fr', is
   return (
     <div style={{ padding: isMobile?'1rem':'1.5rem', paddingBottom: 80 }}>
       <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:'1.25rem' }}>
-        <button onClick={()=>goBack?goBack():navigate('dashboard')}
-          style={{ background:'none', border:'none', cursor:'pointer', fontSize:20, color:'#1D9E75' }}>←</button>
+        <button onClick={()=>goBack?goBack():navigate('dashboard')} className="back-link">{t(lang,'retour')}</button>
         <div>
           <div style={{ fontSize:20, fontWeight:800, color:'#1a1a1a' }}>🏅 {lang==='ar'?'قائمة الشهادات':'Liste des certificats'}</div>
           <div style={{ fontSize:12, color:'#888' }}>{filtered.length} {lang==='ar'?'شهادة':'certificat(s)'}</div>

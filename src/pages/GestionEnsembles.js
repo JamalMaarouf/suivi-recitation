@@ -382,7 +382,7 @@ export default function GestionEnsembles({ user, navigate, goBack, lang='fr', is
     return (
       <div style={{ paddingBottom: 80, background: '#f5f5f0', minHeight: '100vh' }}>
         <div style={{ background: '#fff', padding: '14px 16px 12px', borderBottom: '0.5px solid #e0e0d8', position: 'sticky', top: 0, zIndex: 100, display: 'flex', alignItems: 'center', gap: 10 }}>
-          <button onClick={() => goBack ? goBack() : navigate('dashboard')} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 22, color: '#085041', padding: 0 }}>←</button>
+          <button onClick={() => goBack ? goBack() : navigate('dashboard')} className="back-link">{t(lang,'retour')}</button>
           <div style={{ flex: 1, fontSize: 17, fontWeight: 800, color: '#085041' }}>📦 {lang === 'ar' ? 'مجموعات السور' : 'Ensembles'}</div>
         </div>
         <div style={{ padding: '12px' }}>
@@ -418,7 +418,7 @@ export default function GestionEnsembles({ user, navigate, goBack, lang='fr', is
     <div>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.25rem' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <button className="back-link" onClick={() => goBack ? goBack() : navigate('dashboard')}>← {lang === 'ar' ? 'رجوع' : 'Retour'}</button>
+          <button className="back-link" onClick={() => goBack ? goBack() : navigate('dashboard')}>{t(lang,'retour')}</button>
           <div style={{ fontSize: 20, fontWeight: 700 }}>📦 {lang === 'ar' ? 'مجموعات السور' : 'Ensembles de sourates'}</div>
         </div>
         <button onClick={openCreate} style={{ padding: '9px 20px', background: '#1D9E75', color: '#fff', border: 'none', borderRadius: 10, fontSize: 13, fontWeight: 700, cursor: 'pointer', boxShadow: '0 2px 8px rgba(29,158,117,0.3)' }}>

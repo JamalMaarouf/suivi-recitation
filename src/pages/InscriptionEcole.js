@@ -97,7 +97,7 @@ export default function InscriptionEcole({ onBack, lang }) {
 
         {/* Header */}
         <div style={{display:'flex',alignItems:'center',gap:12,marginBottom:'1.5rem'}}>
-          <button onClick={onBack} style={{background:'none',border:'none',cursor:'pointer',fontSize:18,color:'#888',padding:0}}>←</button>
+          <button onClick={onBack} className="back-link">{lang==='ar'?'رجوع':'Retour'}</button>
           <div>
             <div style={{fontSize:16,fontWeight:700}}>
               {lang==='ar' ? '📝 تسجيل مدرسة جديدة' : '📝 Inscrire votre école'}
