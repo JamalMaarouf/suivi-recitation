@@ -702,9 +702,20 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang, isMobi
                     ))}
                   </div>
 
-                  {/* Score total */}
+                  {/* Total depuis le début */}
+                  {(() => {
+                    const ptsTotal = calcPointsPeriode(validations||[], new Date('2000-01-01'), new Date(), baremeEleve, pointsEvenements);
+                    return (
+                      <div style={{background:'linear-gradient(135deg,#085041,#1D9E75)',borderRadius:14,padding:'14px 16px',marginBottom:10,display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+                        <div style={{color:'rgba(255,255,255,0.8)',fontSize:11}}>{lang==='ar'?'المجموع الكلي منذ بداية المتابعة':'Total depuis le début du suivi'}</div>
+                        <div style={{color:'#fff',fontWeight:800,fontSize:22}}>{ptsTotal.total.toLocaleString()} <span style={{fontSize:11,opacity:0.8}}>{lang==='ar'?'ن':'pts'}</span></div>
+                      </div>
+                    );
+                  })()}
+
+                  {/* Score période */}
                   <div style={{background:'linear-gradient(135deg,#E6F1FB,#fff)',border:'1px solid #378ADD30',borderRadius:14,padding:'16px',marginBottom:14,textAlign:'center'}}>
-                    <div style={{fontSize:11,color:'#888',marginBottom:4}}>{lang==='ar'?'مجموع النقاط في هذه الفترة':'Points gagnés sur cette période'}</div>
+                    <div style={{fontSize:11,color:'#888',marginBottom:4}}>{lang==='ar'?'نقاط هذه الفترة':'Points sur cette période'}</div>
                     <div style={{fontSize:36,fontWeight:800,color:'#378ADD'}}>{pts.total.toLocaleString()}</div>
                     <div style={{fontSize:11,color:'#888',marginTop:4}}>{lang==='ar'?'نقطة':'pts'}</div>
                   </div>
@@ -1289,9 +1300,19 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang, isMobi
                     </button>
                   ))}
                 </div>
-                {/* Score total */}
+                {/* Total depuis le début - mobile */}
+                {(() => {
+                  const ptsTot = calcPointsPeriode(validations||[], new Date('2000-01-01'), new Date(), baremeEleve, pointsEvenements);
+                  return (
+                    <div style={{background:'linear-gradient(135deg,#085041,#1D9E75)',borderRadius:12,padding:'12px 14px',marginBottom:8,display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+                      <div style={{color:'rgba(255,255,255,0.8)',fontSize:10}}>{lang==='ar'?'المجموع الكلي':'Total suivi'}</div>
+                      <div style={{color:'#fff',fontWeight:800,fontSize:18}}>{ptsTot.total.toLocaleString()} <span style={{fontSize:10,opacity:0.8}}>{lang==='ar'?'ن':'pts'}</span></div>
+                    </div>
+                  );
+                })()}
+                {/* Score période */}
                 <div style={{background:'linear-gradient(135deg,#E6F1FB,#fff)',border:'1px solid #378ADD30',borderRadius:14,padding:'14px',marginBottom:10,textAlign:'center'}}>
-                  <div style={{fontSize:11,color:'#888',marginBottom:4}}>{lang==='ar'?'مجموع النقاط':'Points période'}</div>
+                  <div style={{fontSize:11,color:'#888',marginBottom:4}}>{lang==='ar'?'نقاط هذه الفترة':'Points période'}</div>
                   <div style={{fontSize:32,fontWeight:800,color:'#378ADD'}}>{pts.total.toLocaleString()}</div>
                   <div style={{fontSize:11,color:'#888'}}>{lang==='ar'?'نقطة':'pts'}</div>
                 </div>

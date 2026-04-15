@@ -49,6 +49,8 @@ const GestionExamens      = lazy(() => import('./pages/GestionExamens'));
 const GestionEnsembles    = lazy(() => import('./pages/GestionEnsembles'));
 const GestionBlocs        = lazy(() => import('./pages/GestionBlocs'));
 const ResultatsExamens    = lazy(() => import('./pages/ResultatsExamens'));
+const ListeCertificats    = lazy(() => import('./pages/ListeCertificats'));
+const ListeNotes          = lazy(() => import('./pages/ListeNotes'));
 import { t, getDir } from './lib/i18n';
 import { isSourateNiveauDyn } from './lib/helpers';
 import { ToastProvider } from './lib/toast';
@@ -165,23 +167,35 @@ export default function App() {
     window.scrollTo(0, 0);
   };
 
+  const [showLangMenu, setShowLangMenu] = React.useState(false);
+  const LANGS = [
+    { code: 'fr', flag: '🇫🇷', label: 'FR' },
+    { code: 'ar', flag: '🇸🇦', label: 'AR' },
+    { code: 'en', flag: '🇬🇧', label: 'EN' },
+  ];
+  const currentLang = LANGS.find(l=>l.code===lang) || LANGS[0];
+
   const LangSelector = () => (
-    <div style={{ display: 'flex', gap: 4 }}>
-      {[
-        { code: 'fr', flag: '🇫🇷', label: 'Français' },
-        { code: 'ar', flag: '🇸🇦', label: 'العربية' },
-        { code: 'en', flag: '🇬🇧', label: 'English' },
-      ].map(l => (
-        <button key={l.code} onClick={() => setLang(l.code)} title={l.label}
-          style={{
-            padding: '4px 8px', border: `1.5px solid ${lang === l.code ? '#1D9E75' : '#e0e0d8'}`,
-            borderRadius: 6, background: lang === l.code ? '#E1F5EE' : '#fff',
-            fontSize: 14, cursor: 'pointer', fontWeight: lang === l.code ? 700 : 400,
-            transition: 'all 0.15s'
-          }}>
-          {l.flag}
-        </button>
-      ))}
+    <div style={{ position:'relative' }}>
+      <button onClick={() => setShowLangMenu(v=>!v)}
+        style={{ padding:'4px 8px', border:'1.5px solid #e0e0d8', borderRadius:6,
+          background:'#fff', fontSize:13, cursor:'pointer', display:'flex', alignItems:'center', gap:4,
+          fontWeight:600, color:'#555' }}>
+        {currentLang.flag} {currentLang.label} ▾
+      </button>
+      {showLangMenu && (
+        <div style={{ position:'absolute', top:'110%', right:0, background:'#fff', border:'0.5px solid #e0e0d8',
+          borderRadius:8, boxShadow:'0 4px 16px rgba(0,0,0,0.1)', zIndex:999, overflow:'hidden', minWidth:100 }}>
+          {LANGS.map(l => (
+            <button key={l.code} onClick={() => { setLang(l.code); setShowLangMenu(false); }}
+              style={{ display:'block', width:'100%', padding:'8px 14px', border:'none', background:lang===l.code?'#E1F5EE':'#fff',
+                color:lang===l.code?'#085041':'#555', fontWeight:lang===l.code?700:400, cursor:'pointer',
+                textAlign:'left', fontSize:13 }}>
+              {l.flag} {l.label}
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 
@@ -220,40 +234,50 @@ export default function App() {
               <div className="nav-logo"></div>
               <span>{t(lang, 'app_name')}</span>
             </div>
-            <div className="nav-right">
-              <button className="nav-btn" onClick={()=>navigate('profil_mobile')}
-                style={{background:'#1D9E75',color:'#fff',border:'none',fontWeight:700,display:'flex',alignItems:'center',gap:6}}>
-                <span style={{width:28,height:28,borderRadius:'50%',background:'rgba(255,255,255,0.25)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:13,fontWeight:800}}>
-                  {user.prenom?user.prenom[0].toUpperCase():'?'}
-                </span>
-                {user.prenom} · <em style={{fontStyle:'normal',opacity:0.85,fontSize:11}}>{t(lang, user.role === 'surveillant' ? 'role_surveillant' : 'role_instituteur')}</em>
-              </button>
-              <LangSelector />
-              {[
-                {p:'validation_rapide', label:'⚡ '+t(lang,'express'), roles:['surveillant','instituteur']},
-                {p:'muraja', label:'📖 '+(lang==='ar'?'مراجعة جماعية':'Muraja\'a'), roles:['surveillant','instituteur']},
-                {p:'seance', label:'📋 '+t(lang,'seance'), roles:['surveillant','instituteur']},
-                {p:'calendrier', label:'📅 '+t(lang,'calendrier'), roles:['surveillant','instituteur']},
-                {p:'rapport_mensuel', label:'📊 '+t(lang,'rapport'), roles:['surveillant','instituteur']},
-                {p:'historique_seances', label:'📈 '+(t(lang,'historique')||'Historique'), roles:['surveillant','instituteur']},
-                {p:'resultats_examens', label:'🏅 '+(lang==='ar'?'نتائج الامتحانات':'Résultats'), roles:['surveillant','instituteur']},
-                {p:'objectifs', label:'🎯 '+(lang==='ar'?'الأهداف':lang==='en'?'Objectives':'Objectifs'), roles:['surveillant']},
-                {p:'finance', label:'💰 '+(lang==='ar'?'المالية':'Finance'), roles:['surveillant']},
-                {p:'gestion', label:'⚙️ '+t(lang,'gestion'), roles:['surveillant']},
-              ].filter(b=>b.roles.includes(user.role)).map(b=>(
-                <button key={b.p}
-                  className={`nav-btn ${page===b.p?'active':''}`}
-                  onClick={() => navigate(b.p)}>
-                  {b.label}
+            <div className="nav-right" style={{flex:1,display:'flex',alignItems:'center',gap:4,flexWrap:'nowrap',overflow:'hidden'}}>
+              {/* Menus navigation */}
+              <div style={{display:'flex',alignItems:'center',gap:3,flex:1,overflow:'hidden'}}>
+                {[
+                  {p:'validation_rapide', label:'⚡ '+t(lang,'express'),                          roles:['surveillant','instituteur']},
+                  {p:'muraja',            label:'📖 '+(lang==='ar'?'مراجعة جماعية':"Muraja'a"),   roles:['surveillant','instituteur']},
+                  {p:'seance',            label:'📋 '+t(lang,'seance'),                            roles:['surveillant','instituteur']},
+                  {p:'rapport_mensuel',   label:'📊 '+t(lang,'rapport'),                           roles:['surveillant','instituteur']},
+                  {p:'historique_seances',label:'📈 '+(lang==='ar'?'السجل':(t(lang,'historique')||'Historique')), roles:['surveillant','instituteur']},
+                  {p:'resultats_examens', label:'🏅 '+(lang==='ar'?'نتائج الامتحانات':'Résultats'),roles:['surveillant','instituteur']},
+                  {p:'objectifs',         label:'🎯 '+(lang==='ar'?'الأهداف':'Objectifs'),         roles:['surveillant']},
+                  {p:'finance',           label:'💰 '+(lang==='ar'?'المالية':'Finance'),            roles:['surveillant']},
+                  {p:'liste_certificats', label:'🏅 '+(lang==='ar'?'الشهادات':'Certificats'),      roles:['surveillant']},
+                  {p:'liste_notes',       label:'⭐ '+(lang==='ar'?'النقاط':'Notes'),              roles:['surveillant']},
+                  {p:'gestion',           label:'⚙️ '+t(lang,'gestion'),                           roles:['surveillant']},
+                ].filter(b=>b.roles.includes(user.role)).map(b=>(
+                  <button key={b.p}
+                    className={`nav-btn ${page===b.p?'active':''}`}
+                    style={{whiteSpace:'nowrap',padding:'4px 8px',fontSize:11}}
+                    onClick={() => navigate(b.p)}>
+                    {b.label}
+                  </button>
+                ))}
+              </div>
+              {/* Droite : langue + admin + logout */}
+              <div style={{display:'flex',alignItems:'center',gap:4,flexShrink:0}}>
+                <LangSelector />
+                {showInstallBtn && (
+                  <button onClick={handleInstall} className="nav-btn" style={{fontSize:11,padding:'4px 8px'}}>
+                    📲
+                  </button>
+                )}
+                <button onClick={()=>navigate('profil_mobile')}
+                  style={{display:'flex',alignItems:'center',gap:5,padding:'4px 8px',
+                    background:'#1D9E75',color:'#fff',border:'none',borderRadius:6,cursor:'pointer',
+                    fontSize:11,fontWeight:700,whiteSpace:'nowrap'}}>
+                  <span style={{width:22,height:22,borderRadius:'50%',background:'rgba(255,255,255,0.25)',
+                    display:'flex',alignItems:'center',justifyContent:'center',fontSize:11,fontWeight:800}}>
+                    {user.prenom?user.prenom[0].toUpperCase():'?'}
+                  </span>
+                  {user.prenom} · <em style={{fontStyle:'normal',opacity:0.85,fontSize:10}}>{t(lang, user.role==='surveillant'?'role_surveillant':'role_instituteur')}</em>
                 </button>
-              ))}
-              {showInstallBtn && (
-                <button onClick={handleInstall} className="nav-btn"
-                  style={{background:'#E1F5EE',color:'#085041',border:'1px solid #1D9E7540'}}>
-                  📲 {lang==='ar'?'تثبيت التطبيق':lang==='en'?'Install App':"Installer l'app"}
-                </button>
-              )}
-              <button className="nav-btn nav-btn-logout" onClick={handleLogout}>{t(lang, 'deconnexion')}</button>
+                <button className="nav-btn nav-btn-logout" style={{fontSize:11,padding:'4px 8px'}} onClick={handleLogout}>{t(lang,'deconnexion')}</button>
+              </div>
             </div>
           </nav>
         )}
@@ -295,6 +319,8 @@ export default function App() {
           {page === 'examens'           && user.role === 'surveillant' && <GestionExamens {...pageProps} />}
           {page === 'blocs'             && user.role === 'surveillant' && <GestionBlocs {...pageProps} />}
           {page === 'resultats_examens' && <ResultatsExamens {...pageProps} data={selectedEleve} />}
+          {page === 'liste_certificats' && <ErrorBoundary><Suspense fallback={<div className="loading">...</div>}><ListeCertificats {...pageProps} /></Suspense></ErrorBoundary>}
+          {page === 'liste_notes'       && <ErrorBoundary><Suspense fallback={<div className="loading">...</div>}><ListeNotes       {...pageProps} /></Suspense></ErrorBoundary>}
           </Suspense>
           </>
           }
