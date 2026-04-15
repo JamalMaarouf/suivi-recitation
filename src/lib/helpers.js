@@ -186,6 +186,8 @@ export function calcEtatEleve(validations, hizbDepart, tomonDepart) {
   }
 
   const pos = calcPosition(hizbD, tomonD, tomonCumul);
+  // En ordre décroissant: pos.hizb est le PROCHAIN hizb quand tous8Faits
+  // hizbBrut = le hizb EN COURS (celui dont on vient de finir les 8 tomons)
   const hizbBrut = (pos.tomon === 1 && tomonCumul > 0) ? pos.hizb + 1 : pos.hizb;
   const tous8Faits = pos.tomon === 1 && tomonCumul > 0;
   const hizbCompletValide = hizbsComplets.has(hizbBrut);
@@ -199,8 +201,9 @@ export function calcEtatEleve(validations, hizbDepart, tomonDepart) {
   const points = calcPoints(tomonTotal, hizbCompletsTotal, validations, tomonAcquis, hizbAcquisComplets);
 
   if (tous8Faits && hizbCompletValide) {
+    // Hizb complet validé → passer au hizb SUIVANT en ordre décroissant = hizbBrut - 1
     return {
-      hizbEnCours: hizbBrut + 1,
+      hizbEnCours: Math.max(1, hizbBrut - 1),
       prochainTomon: 1,
       tomonDansHizbActuel: 0,
       tomonRestants: 8,

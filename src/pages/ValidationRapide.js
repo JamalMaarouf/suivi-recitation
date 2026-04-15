@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from '../lib/supabase';
-import { calcEtatEleve, getInitiales, scoreLabel, motivationMsg, verifierEtCreerCertificats, isSourateNiveauDyn } from '../lib/helpers';
+import { calcEtatEleve, getInitiales, scoreLabel, motivationMsg, verifierEtCreerCertificats, isSourateNiveauDyn, loadBareme, BAREME_DEFAUT } from '../lib/helpers';
 import { t } from '../lib/i18n';
 
 export default function ValidationRapide({ user, navigate, goBack, lang='fr', isMobile }) {
@@ -16,6 +16,7 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
   const [flash, setFlash] = useState(null);
   const [sessionLog, setSessionLog] = useState([]);
   const [nbTomon, setNbTomon] = useState(1); // nombre de tomons à valider
+  const [bareme, setBareme] = useState(null); // barème de l'école
   const [sourateSelectionnee, setSourateSelectionnee] = useState(null); // sourate choisie
   const [typeRec, setTypeRec] = useState('complete'); // 'complete' ou 'sequence'
   const [versetDebut, setVersetDebut] = useState('');
@@ -33,6 +34,8 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
     ]);
     setEleves(ed || []); setAllValidations(vd || []);
     setNiveaux(niv || []); setSouratesDB(sour || []);
+    const b = await loadBareme(supabase, user.ecole_id);
+    setBareme(b);
     setLoading(false);
   };
 
@@ -64,7 +67,8 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
       tomon_debut: etat.prochainTomon, hizb_validation: etat.hizbEnCours
     });
     if (!error) {
-      const pts = nbTomon * 10;
+      const ptsParTomon = bareme?.unites?.tomon || 0;
+      const pts = nbTomon * ptsParTomon;
       setFlash({ msg: `✓ ${nbTomon} ثمن · الحزب ${etat.hizbEnCours}`, color: '#1D9E75', pts });
       setTimeout(() => setFlash(null), 2500);
       setSessionLog(prev => [{
@@ -90,11 +94,12 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
       date_validation: new Date().toISOString(), hizb_valide: etat.hizbEnCours
     });
     if (!error) {
-      setFlash({ msg: `🎉 الحزب ${etat.hizbEnCours} مكتمل !`, color: '#EF9F27', pts: 100 });
+      const ptsHizb = bareme?.unites?.hizb_complet || 0;
+      setFlash({ msg: `🎉 الحزب ${etat.hizbEnCours} مكتمل !`, color: '#EF9F27', pts: ptsHizb });
       setTimeout(() => setFlash(null), 2500);
       setSessionLog(prev => [{
         eleve: `${selectedEleve.prenom} ${selectedEleve.nom}`,
-        detail: `الحزب ${etat.hizbEnCours} مكتمل`, pts: 100,
+        detail: `الحزب ${etat.hizbEnCours} مكتمل`, pts: ptsHizb,
         time: new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })
       }, ...prev.slice(0, 9)]);
       const { data: newVals } = await supabase.from('validations').select('*')
@@ -117,7 +122,10 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
     if (!selectedEleve || saving || !sourateSelectionnee) return;
     if (typeRec === 'sequence' && (!versetDebut || !versetFin)) return;
     setSaving(true);
-    const pts = typeRec === 'complete' ? 30 : 10;
+    // Utiliser le barème de l'école si défini, sinon 0
+    const ptsComplet = bareme?.unites?.sourate || 0;
+    const ptsSequence = bareme?.unites?.sequence_sourate || 0;
+    const pts = typeRec === 'complete' ? ptsComplet : ptsSequence;
     const { error } = await supabase.from('recitations_sourates').insert({
       eleve_id: selectedEleve.id, ecole_id: user.ecole_id, valide_par: user.id,
       sourate_id: sourateSelectionnee.id,
@@ -257,7 +265,7 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
                       style={{ width: '100%', padding: '16px', background: saving ? '#ccc' : 'linear-gradient(135deg,#EF9F27,#d4841a)',
                         color: '#fff', border: 'none', borderRadius: 14, fontSize: 16, fontWeight: 800, cursor: 'pointer',
                         boxShadow: '0 3px 12px rgba(239,159,39,0.4)', fontFamily: 'inherit' }}>
-                      {saving ? '...' : `✓ ${lang === 'ar' ? `تصحيح الحزب ${etat.hizbEnCours}` : `Valider Hizb ${etat.hizbEnCours}`} (+100 ${t(lang, 'pts_abrev')})`}
+                      {saving ? '...' : `✓ ${lang === 'ar' ? `تصحيح الحزب ${etat.hizbEnCours}` : `Valider Hizb ${etat.hizbEnCours}`}${(bareme?.unites?.hizb_complet||0)>0?` (+${bareme.unites.hizb_complet} ${t(lang,'pts_abrev')})`:''}`}
                     </button>
                   </div>
                 ) : (
@@ -357,8 +365,8 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
                 {/* Type : complète ou séquence */}
                 <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
                   {[
-                    { val: 'complete', label: lang==='ar'?'كاملة':'Complète', pts: 30, icon: '🎯' },
-                    { val: 'sequence', label: lang==='ar'?'مقطع':'Séquence', pts: 10, icon: '📌' },
+                    { val: 'complete', label: lang==='ar'?'كاملة':'Complète', pts: bareme?.unites?.sourate || 0, icon: '🎯' },
+                    { val: 'sequence', label: lang==='ar'?'مقطع':'Séquence', pts: bareme?.unites?.sequence_sourate || 0, icon: '📌' },
                   ].map(opt => (
                     <button key={opt.val} onClick={() => setTypeRec(opt.val)}
                       style={{ flex: 1, padding: '10px 8px', borderRadius: 10, cursor: 'pointer',
