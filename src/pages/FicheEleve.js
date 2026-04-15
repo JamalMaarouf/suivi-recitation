@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useToast } from '../lib/toast';
 import { supabase } from '../lib/supabase';
-import { calcEtatEleve, calcPositionAtteinte, calcUnite, calcPoints, formatDate, formatDateCourt, getInitiales, scoreLabel, calcBadges, calcVitesse, niveauTraduit, calcPointsPeriode, loadBareme, BAREME_DEFAUT } from '../lib/helpers';
+import { calcEtatEleve, isSourateNiveauDyn, calcPositionAtteinte, calcUnite, calcPoints, formatDate, formatDateCourt, getInitiales, scoreLabel, calcBadges, calcVitesse, niveauTraduit, calcPointsPeriode, loadBareme, BAREME_DEFAUT } from '../lib/helpers';
 import { t } from '../lib/i18n';
 import FicheSourate from './FicheSourate';
 
@@ -232,11 +232,7 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang, isMobi
           const jalRes = await supabase.from('jalons').select('id,nom,nom_ar').eq('ecole_id',eleve.ecole_id).eq('actif',true).order('created_at');
           setJalonsDisp(jalRes.data || []);
         } catch(e) { setJalonsDisp([]); }
-        // Charger périodes de notes
-        try {
-          const perRes = await supabase.from('periodes_notes').select('*').eq('ecole_id',eleve.ecole_id).eq('actif',true).order('date_debut');
-          setPeriodesDisp(perRes.data || []);
-        } catch(e) { setPeriodesDisp([]); }
+
         if(inst) setInstituteurNom(inst.prenom+' '+inst.nom);
       }
       const e = calcEtatEleve(vals||[],eleve.hizb_depart||1,eleve.tomon_depart||1);
@@ -682,18 +678,19 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang, isMobi
             {onglet==='notes' && (() => {
               const now = new Date();
               const PERIODES_FIXES = [
-                { id:'semaine', label_ar:'الأسبوع', date_debut: new Date(now.getTime()-7*86400000), date_fin: now },
-                { id:'mois',    label_ar:'الشهر الحالي', date_debut: new Date(now.getFullYear(),now.getMonth(),1), date_fin: now },
-                { id:'trimestre', label_ar:'الفصل (3 أشهر)', date_debut: new Date(now.getFullYear(),now.getMonth()-3,1), date_fin: now },
+                { id:'semaine',   label_ar:'الأسبوع',           date_debut: new Date(now.getTime()-7*86400000), date_fin: now },
+                { id:'mois',      label_ar:'الشهر الحالي',      date_debut: new Date(now.getFullYear(),now.getMonth(),1), date_fin: now },
+                { id:'trimestre', label_ar:'الفصل (3 أشهر)',    date_debut: new Date(now.getFullYear(),now.getMonth()-3,1), date_fin: now },
               ];
-              const allPeriodes = [...PERIODES_FIXES, ...(periodesDisp||[]).map(p=>({...p,label_ar:p.nom_ar||p.nom}))];
-              const selP = allPeriodes.find(p=>p.id===periodeSelectId) || allPeriodes[1];
+              const selP = PERIODES_FIXES.find(p=>p.id===periodeSelectId) || PERIODES_FIXES[1];
               const pts = calcPointsPeriode(validations||[], selP.date_debut, selP.date_fin, baremeEleve, pointsEvenements);
+              const niveauxCtx = typeof niveaux !== 'undefined' ? niveaux : [];
+              const estSourate = isSourateNiveauDyn(eleve.code_niveau, niveauxCtx);
               return (
                 <div style={{padding:'1rem 0'}}>
                   {/* Sélecteur période */}
                   <div style={{display:'flex',gap:6,flexWrap:'wrap',marginBottom:'1.25rem'}}>
-                    {allPeriodes.map(p=>(
+                    {PERIODES_FIXES.map(p=>(
                       <button key={p.id} onClick={()=>setPeriodeSelectId(p.id)}
                         style={{padding:'5px 12px',borderRadius:20,border:`1px solid ${periodeSelectId===p.id?'#378ADD':'#e0e0d8'}`,
                           background:periodeSelectId===p.id?'#E6F1FB':'#fff',
@@ -704,32 +701,54 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang, isMobi
                       </button>
                     ))}
                   </div>
-                  {/* Score total période */}
-                  <div style={{background:'linear-gradient(135deg,#E6F1FB,#fff)',border:'1px solid #378ADD30',borderRadius:14,padding:'16px',marginBottom:12,textAlign:'center'}}>
+
+                  {/* Score total */}
+                  <div style={{background:'linear-gradient(135deg,#E6F1FB,#fff)',border:'1px solid #378ADD30',borderRadius:14,padding:'16px',marginBottom:14,textAlign:'center'}}>
                     <div style={{fontSize:11,color:'#888',marginBottom:4}}>{lang==='ar'?'مجموع النقاط في هذه الفترة':'Points gagnés sur cette période'}</div>
                     <div style={{fontSize:36,fontWeight:800,color:'#378ADD'}}>{pts.total.toLocaleString()}</div>
                     <div style={{fontSize:11,color:'#888',marginTop:4}}>{lang==='ar'?'نقطة':'pts'}</div>
                   </div>
-                  {/* Détail */}
-                  <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:12}}>
-                    {[
-                      {label:lang==='ar'?'الأثمان':'Tomon', val:pts.tomonPeriode, pts:pts.ptsTomon, color:'#378ADD', bg:'#E6F1FB', icon:'📖'},
-                      {label:lang==='ar'?'الأرباع':'Roboâ', val:pts.details?.nbRoboe||0, pts:pts.ptsRoboe, color:'#1D9E75', bg:'#E1F5EE', icon:'✦'},
-                      {label:lang==='ar'?'الأنصاف':'Nisf', val:pts.details?.nbNisf||0, pts:pts.ptsNisf, color:'#EF9F27', bg:'#FAEEDA', icon:'◈'},
-                      {label:lang==='ar'?'أحزاب كاملة':'Hizb complets', val:pts.hizbsPeriode, pts:pts.ptsHizb, color:'#085041', bg:'#E1F5EE', icon:'🎯'},
-                      ...(pts.ptsExamens>0?[{label:lang==='ar'?'الامتحانات':'Examens', val:'', pts:pts.ptsExamens, color:'#EF9F27', bg:'#FAEEDA', icon:'📝'}]:[]),
-                      ...(pts.ptsCertificats>0?[{label:lang==='ar'?'الشهادات':'Certificats', val:'', pts:pts.ptsCertificats, color:'#D85A30', bg:'#FAECE7', icon:'🏅'}]:[]),
-                      ...(pts.ptsEnsembles>0?[{label:lang==='ar'?'مجموعات السور':'Ensembles', val:'', pts:pts.ptsEnsembles, color:'#534AB7', bg:'#EEEDFE', icon:'📦'}]:[]),
-                    ].map((row,i)=>(
-                      <div key={i} style={{background:row.bg,borderRadius:12,padding:'12px',border:`0.5px solid ${row.color}20`}}>
-                        <div style={{fontSize:18,marginBottom:4}}>{row.icon}</div>
-                        <div style={{fontSize:11,color:'#888'}}>{row.label}</div>
-                        <div style={{fontSize:20,fontWeight:800,color:row.color}}>{row.val}</div>
-                        <div style={{fontSize:10,color:row.color,opacity:0.7}}>{row.pts > 0 ? `+${row.pts} ${lang==='ar'?'ن':'pts'}` : '—'}</div>
-                      </div>
-                    ))}
-                  </div>
-                  {pts.total === 0 && (
+
+                  {/* Détail selon type élève */}
+                  {estSourate ? (
+                    // ── Élève Sourates ──
+                    <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:12}}>
+                      {[
+                        {label:lang==='ar'?'السور المستظهرة':'Sourates récitées', val:pts.tomonPeriode, pts:pts.ptsTomon, color:'#534AB7', bg:'#EEEDFE', icon:'📜'},
+                        {label:lang==='ar'?'المجموعات المكتملة':'Ensembles complétés', val:'', pts:pts.ptsEnsembles||0, color:'#D85A30', bg:'#FAECE7', icon:'📦'},
+                        ...(pts.ptsExamens>0?[{label:lang==='ar'?'الامتحانات':'Examens', val:'', pts:pts.ptsExamens, color:'#EF9F27', bg:'#FAEEDA', icon:'📝'}]:[]),
+                        ...(pts.ptsCertificats>0?[{label:lang==='ar'?'الشهادات':'Certificats', val:'', pts:pts.ptsCertificats, color:'#085041', bg:'#E1F5EE', icon:'🏅'}]:[]),
+                      ].map((row,i)=>(
+                        <div key={i} style={{background:row.bg,borderRadius:12,padding:'12px',border:`0.5px solid ${row.color}20`}}>
+                          <div style={{fontSize:18,marginBottom:4}}>{row.icon}</div>
+                          <div style={{fontSize:11,color:'#888'}}>{row.label}</div>
+                          <div style={{fontSize:20,fontWeight:800,color:row.color}}>{row.val!==''?row.val:'—'}</div>
+                          <div style={{fontSize:10,color:row.color,opacity:0.8}}>{row.pts>0?`+${row.pts} ${lang==='ar'?'ن':'pts'}`:'—'}</div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    // ── Élève Hizb ──
+                    <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:12}}>
+                      {[
+                        {label:lang==='ar'?'الأثمان':'Tomon validés', val:pts.tomonPeriode, pts:pts.ptsTomon, color:'#378ADD', bg:'#E6F1FB', icon:'📖'},
+                        {label:lang==='ar'?'الأرباع':'Roboâ', val:pts.details?.nbRoboe||0, pts:pts.ptsRoboe, color:'#1D9E75', bg:'#E1F5EE', icon:'✦'},
+                        {label:lang==='ar'?'الأنصاف':'Nisf', val:pts.details?.nbNisf||0, pts:pts.ptsNisf, color:'#EF9F27', bg:'#FAEEDA', icon:'◈'},
+                        {label:lang==='ar'?'أحزاب كاملة':'Hizb complets', val:pts.hizbsPeriode, pts:pts.ptsHizb, color:'#085041', bg:'#E1F5EE', icon:'🎯'},
+                        ...(pts.ptsExamens>0?[{label:lang==='ar'?'الامتحانات':'Examens', val:'', pts:pts.ptsExamens, color:'#EF9F27', bg:'#FAEEDA', icon:'📝'}]:[]),
+                        ...(pts.ptsCertificats>0?[{label:lang==='ar'?'الشهادات':'Certificats', val:'', pts:pts.ptsCertificats, color:'#D85A30', bg:'#FAECE7', icon:'🏅'}]:[]),
+                      ].map((row,i)=>(
+                        <div key={i} style={{background:row.bg,borderRadius:12,padding:'12px',border:`0.5px solid ${row.color}20`}}>
+                          <div style={{fontSize:18,marginBottom:4}}>{row.icon}</div>
+                          <div style={{fontSize:11,color:'#888'}}>{row.label}</div>
+                          <div style={{fontSize:20,fontWeight:800,color:row.color}}>{row.val!==''?row.val:'—'}</div>
+                          <div style={{fontSize:10,color:row.color,opacity:0.8}}>{row.pts>0?`+${row.pts} ${lang==='ar'?'ن':'pts'}`:'—'}</div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {pts.total===0 && (
                     <div style={{textAlign:'center',color:'#aaa',padding:'1.5rem',fontSize:13}}>
                       {lang==='ar'?'لا توجد استظهارات في هذه الفترة':'Aucune récitation sur cette période'}
                     </div>
@@ -737,6 +756,7 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang, isMobi
                 </div>
               );
             })()}
+
 
             {onglet==='muraja' && (
               <div>
@@ -1246,18 +1266,19 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang, isMobi
           {onglet==='notes'&&(()=>{
             const now = new Date();
             const PERIODES_FIXES = [
-              { id:'semaine', label_ar:'الأسبوع', date_debut: new Date(now.getTime()-7*86400000), date_fin: now },
-              { id:'mois',    label_ar:'الشهر الحالي', date_debut: new Date(now.getFullYear(),now.getMonth(),1), date_fin: now },
+              { id:'semaine',   label_ar:'الأسبوع',        date_debut: new Date(now.getTime()-7*86400000), date_fin: now },
+              { id:'mois',      label_ar:'الشهر الحالي',   date_debut: new Date(now.getFullYear(),now.getMonth(),1), date_fin: now },
               { id:'trimestre', label_ar:'الفصل (3 أشهر)', date_debut: new Date(now.getFullYear(),now.getMonth()-3,1), date_fin: now },
             ];
-            const allPeriodes = [...PERIODES_FIXES, ...(periodesDisp||[]).map(p=>({...p,label_ar:p.nom_ar||p.nom}))];
-            const selP = allPeriodes.find(p=>p.id===periodeSelectId) || allPeriodes[1];
+            const selP = PERIODES_FIXES.find(p=>p.id===periodeSelectId) || PERIODES_FIXES[1];
             const pts = calcPointsPeriode(validations||[], selP.date_debut, selP.date_fin, baremeEleve, pointsEvenements);
+            const niveauxCtx2 = typeof niveaux !== 'undefined' ? niveaux : [];
+            const estSourate2 = isSourateNiveauDyn(eleve.code_niveau, niveauxCtx2);
             return (
               <div style={{padding:'0.5rem 0'}}>
                 {/* Sélecteur période */}
                 <div style={{display:'flex',gap:6,flexWrap:'wrap',marginBottom:'1rem'}}>
-                  {allPeriodes.map(p=>(
+                  {PERIODES_FIXES.map(p=>(
                     <button key={p.id} onClick={()=>setPeriodeSelectId(p.id)}
                       style={{padding:'5px 10px',borderRadius:20,border:`1px solid ${periodeSelectId===p.id?'#378ADD':'#e0e0d8'}`,
                         background:periodeSelectId===p.id?'#E6F1FB':'#fff',
@@ -1276,20 +1297,24 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang, isMobi
                 </div>
                 {/* Détail */}
                 <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
-                  {[
+                  {(estSourate2 ? [
+                    {label:lang==='ar'?'السور':'Sourates', val:pts.tomonPeriode, pts:pts.ptsTomon, color:'#534AB7', bg:'#EEEDFE', icon:'📜'},
+                    {label:lang==='ar'?'المجموعات':'Ensembles', val:'', pts:pts.ptsEnsembles||0, color:'#D85A30', bg:'#FAECE7', icon:'📦'},
+                    ...(pts.ptsExamens>0?[{label:lang==='ar'?'الامتحانات':'Examens', val:'', pts:pts.ptsExamens, color:'#EF9F27', bg:'#FAEEDA', icon:'📝'}]:[]),
+                    ...(pts.ptsCertificats>0?[{label:lang==='ar'?'الشهادات':'Certs', val:'', pts:pts.ptsCertificats, color:'#085041', bg:'#E1F5EE', icon:'🏅'}]:[]),
+                  ] : [
                     {label:lang==='ar'?'الأثمان':'Tomon', val:pts.tomonPeriode, pts:pts.ptsTomon, color:'#378ADD', bg:'#E6F1FB', icon:'📖'},
                     {label:lang==='ar'?'الأرباع':'Roboâ', val:pts.details?.nbRoboe||0, pts:pts.ptsRoboe, color:'#1D9E75', bg:'#E1F5EE', icon:'✦'},
                     {label:lang==='ar'?'الأنصاف':'Nisf', val:pts.details?.nbNisf||0, pts:pts.ptsNisf, color:'#EF9F27', bg:'#FAEEDA', icon:'◈'},
                     {label:lang==='ar'?'أحزاب كاملة':'Hizb ✓', val:pts.hizbsPeriode, pts:pts.ptsHizb, color:'#085041', bg:'#E1F5EE', icon:'🎯'},
                     ...(pts.ptsExamens>0?[{label:lang==='ar'?'الامتحانات':'Examens', val:'', pts:pts.ptsExamens, color:'#EF9F27', bg:'#FAEEDA', icon:'📝'}]:[]),
-                    ...(pts.ptsCertificats>0?[{label:lang==='ar'?'الشهادات':'Certificats', val:'', pts:pts.ptsCertificats, color:'#D85A30', bg:'#FAECE7', icon:'🏅'}]:[]),
-                    ...(pts.ptsEnsembles>0?[{label:lang==='ar'?'مجموعات السور':'Ensembles', val:'', pts:pts.ptsEnsembles, color:'#534AB7', bg:'#EEEDFE', icon:'📦'}]:[]),
-                  ].map((row,i)=>(
+                    ...(pts.ptsCertificats>0?[{label:lang==='ar'?'الشهادات':'Certs', val:'', pts:pts.ptsCertificats, color:'#D85A30', bg:'#FAECE7', icon:'🏅'}]:[]),
+                  ]).map((row,i)=>(
                     <div key={i} style={{background:row.bg,borderRadius:12,padding:'10px',border:`0.5px solid ${row.color}20`}}>
                       <div style={{fontSize:16,marginBottom:2}}>{row.icon}</div>
                       <div style={{fontSize:10,color:'#888'}}>{row.label}</div>
-                      <div style={{fontSize:18,fontWeight:800,color:row.color}}>{row.val}</div>
-                      <div style={{fontSize:10,color:row.color,opacity:0.7}}>{row.pts>0?`+${row.pts} ${lang==='ar'?'ن':'pts'}`:'—'}</div>
+                      <div style={{fontSize:18,fontWeight:800,color:row.color}}>{row.val!==''?row.val:'—'}</div>
+                      <div style={{fontSize:10,color:row.color,opacity:0.8}}>{row.pts>0?`+${row.pts} ${lang==='ar'?'ن':'pts'}`:'—'}</div>
                     </div>
                   ))}
                 </div>
@@ -1301,6 +1326,7 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang, isMobi
               </div>
             );
           })()}
+
 
           {onglet==='historique'&&(
             <div>
