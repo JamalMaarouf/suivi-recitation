@@ -174,74 +174,24 @@ export default function App() {
     { code: 'ar', flag: '🇸🇦', label: 'AR' },
     { code: 'en', flag: '🇬🇧', label: 'EN' },
   ];
-  const currentLang = LANGS.find(l=>l.code===lang) || LANGS[0];
-
-  const LangSelector = () => (
-    <div style={{ position:'relative' }}>
-      <button
-        onClick={(e) => { e.stopPropagation(); setShowLangMenu(v=>!v); setShowUserMenu(false); }}
-        style={{ padding:'4px 8px', border:'1.5px solid #e0e0d8', borderRadius:6,
-          background:'#fff', fontSize:12, cursor:'pointer', display:'flex', alignItems:'center', gap:4,
-          fontWeight:600, color:'#555' }}>
-        {currentLang.flag} {currentLang.label} ▾
-      </button>
-      {showLangMenu && (
-        <div style={{ position:'absolute', top:'110%', left:0, background:'#fff', border:'0.5px solid #e0e0d8',
-          borderRadius:8, boxShadow:'0 4px 16px rgba(0,0,0,0.12)', zIndex:9999, overflow:'hidden', minWidth:110 }}
-          onClick={e=>e.stopPropagation()}>
-          {LANGS.map(l => (
-            <button key={l.code} onClick={() => { setLang(l.code); setShowLangMenu(false); }}
-              style={{ display:'flex', alignItems:'center', gap:8, width:'100%', padding:'8px 14px', border:'none',
-                background:lang===l.code?'#E1F5EE':'#fff',
-                color:lang===l.code?'#085041':'#555', fontWeight:lang===l.code?700:400, cursor:'pointer',
-                fontSize:13 }}>
-              {l.flag} {l.label}
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-
-  const UserMenu = () => (
-    <div style={{ position:'relative' }}>
-      <button
-        onClick={(e) => { e.stopPropagation(); setShowUserMenu(v=>!v); setShowLangMenu(false); }}
-        style={{ width:32, height:32, borderRadius:'50%', background:'#1D9E75', color:'#fff',
-          border:'2px solid #085041', cursor:'pointer', fontSize:13, fontWeight:800,
-          display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
-        {user.prenom?user.prenom[0].toUpperCase():'?'}
-      </button>
-      {showUserMenu && (
-        <div style={{ position:'absolute', top:'110%', left:0, background:'#fff', border:'0.5px solid #e0e0d8',
-          borderRadius:10, boxShadow:'0 4px 16px rgba(0,0,0,0.12)', zIndex:9999, minWidth:180, overflow:'hidden' }}
-          onClick={e=>e.stopPropagation()}>
-          <div style={{ padding:'12px 14px', borderBottom:'0.5px solid #f0f0ec', background:'#f9f9f6' }}>
-            <div style={{ fontWeight:700, fontSize:13, color:'#1a1a1a' }}>{user.prenom} {user.nom}</div>
-            <div style={{ fontSize:11, color:'#888', marginTop:2 }}>{t(lang, user.role==='surveillant'?'role_surveillant':'role_instituteur')}</div>
-          </div>
-          <button onClick={() => { setShowUserMenu(false); navigate('profil_mobile'); }}
-            style={{ display:'flex', alignItems:'center', gap:8, width:'100%', padding:'10px 14px',
-              border:'none', background:'#fff', color:'#555', cursor:'pointer', fontSize:12 }}>
-            👤 {lang==='ar'?'الملف الشخصي':'Mon profil'}
-          </button>
-          <button onClick={() => { setShowUserMenu(false); handleLogout(); }}
-            style={{ display:'flex', alignItems:'center', gap:8, width:'100%', padding:'10px 14px',
-              border:'none', background:'#fff', color:'#E24B4A', cursor:'pointer', fontSize:12,
-              borderTop:'0.5px solid #f0f0ec' }}>
-            🚪 {t(lang,'deconnexion')}
-          </button>
-        </div>
-      )}
-    </div>
-  );
 
   if (!user) return (
     <ToastProvider isMobile={isMobile}>
     <LangContext.Provider value={{ lang, setLang }}>
       {showInscription
         ? <InscriptionEcole onBack={()=>setShowInscription(false)} lang={lang}/>
-        : <Login onLogin={handleLogin} lang={lang} LangSelector={LangSelector} onShowInscription={()=>setShowInscription(true)}/>
+        : <Login onLogin={handleLogin} lang={lang} LangSelector={() => (
+            <div style={{display:'flex',gap:4}}>
+              {LANGS.map(l=>(
+                <button key={l.code} onClick={()=>setLang(l.code)} title={l.label}
+                  style={{padding:'4px 8px',border:`1.5px solid ${lang===l.code?'#1D9E75':'#e0e0d8'}`,
+                    borderRadius:6,background:lang===l.code?'#E1F5EE':'#fff',
+                    fontSize:14,cursor:'pointer',fontWeight:lang===l.code?700:400}}>
+                  {l.flag}
+                </button>
+              ))}
+            </div>
+          )} onShowInscription={()=>setShowInscription(true)}/>
       }
     </LangContext.Provider>
     </ToastProvider>
@@ -299,13 +249,65 @@ export default function App() {
                 ))}
               </div>
 
-              {/* Droite fixe : langue + cercle user */}
+              {/* Droite fixe : langue + cercle user — inline pour éviter les bugs de re-render */}
               <div style={{display:'flex',alignItems:'center',gap:6,flexShrink:0,marginLeft:6}}>
-                <LangSelector />
+                {/* Sélecteur langue */}
+                <div style={{position:'relative'}}>
+                  <button
+                    onClick={e=>{e.stopPropagation();setShowLangMenu(v=>!v);setShowUserMenu(false);}}
+                    style={{padding:'4px 8px',border:'1.5px solid #e0e0d8',borderRadius:6,background:'#fff',
+                      fontSize:12,cursor:'pointer',display:'flex',alignItems:'center',gap:4,fontWeight:600,color:'#555'}}>
+                    {LANGS.find(l=>l.code===lang)?.flag||'🇫🇷'} {(lang||'fr').toUpperCase()} ▾
+                  </button>
+                  {showLangMenu && (
+                    <div style={{position:'absolute',top:'110%',right:0,background:'#fff',border:'0.5px solid #e0e0d8',
+                      borderRadius:8,boxShadow:'0 4px 16px rgba(0,0,0,0.12)',zIndex:99999,overflow:'hidden',minWidth:110}}
+                      onClick={e=>e.stopPropagation()}>
+                      {LANGS.map(l=>(
+                        <button key={l.code} onClick={()=>{setLang(l.code);setShowLangMenu(false);}}
+                          style={{display:'flex',alignItems:'center',gap:8,width:'100%',padding:'8px 14px',border:'none',
+                            background:lang===l.code?'#E1F5EE':'#fff',color:lang===l.code?'#085041':'#555',
+                            fontWeight:lang===l.code?700:400,cursor:'pointer',fontSize:13}}>
+                          {l.flag} {l.label}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
                 {showInstallBtn && (
                   <button onClick={handleInstall} className="nav-btn" style={{fontSize:11,padding:'4px 8px'}}>📲</button>
                 )}
-                <UserMenu />
+                {/* Cercle user */}
+                <div style={{position:'relative'}}>
+                  <button
+                    onClick={e=>{e.stopPropagation();setShowUserMenu(v=>!v);setShowLangMenu(false);}}
+                    style={{width:32,height:32,borderRadius:'50%',background:'#1D9E75',color:'#fff',
+                      border:'2px solid #085041',cursor:'pointer',fontSize:13,fontWeight:800,
+                      display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
+                    {user.prenom?user.prenom[0].toUpperCase():'?'}
+                  </button>
+                  {showUserMenu && (
+                    <div style={{position:'absolute',top:'110%',right:0,background:'#fff',border:'0.5px solid #e0e0d8',
+                      borderRadius:10,boxShadow:'0 4px 16px rgba(0,0,0,0.12)',zIndex:99999,minWidth:180,overflow:'hidden'}}
+                      onClick={e=>e.stopPropagation()}>
+                      <div style={{padding:'12px 14px',borderBottom:'0.5px solid #f0f0ec',background:'#f9f9f6'}}>
+                        <div style={{fontWeight:700,fontSize:13,color:'#1a1a1a'}}>{user.prenom} {user.nom}</div>
+                        <div style={{fontSize:11,color:'#888',marginTop:2}}>{t(lang,user.role==='surveillant'?'role_surveillant':'role_instituteur')}</div>
+                      </div>
+                      <button onClick={()=>{setShowUserMenu(false);navigate('profil_mobile');}}
+                        style={{display:'flex',alignItems:'center',gap:8,width:'100%',padding:'10px 14px',
+                          border:'none',background:'#fff',color:'#555',cursor:'pointer',fontSize:12}}>
+                        👤 {lang==='ar'?'الملف الشخصي':'Mon profil'}
+                      </button>
+                      <button onClick={()=>{setShowUserMenu(false);handleLogout();}}
+                        style={{display:'flex',alignItems:'center',gap:8,width:'100%',padding:'10px 14px',
+                          border:'none',background:'#fff',color:'#E24B4A',cursor:'pointer',fontSize:12,
+                          borderTop:'0.5px solid #f0f0ec'}}>
+                        🚪 {t(lang,'deconnexion')}
+                      </button>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           </nav>
