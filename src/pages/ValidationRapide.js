@@ -67,24 +67,28 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
 
   const estSourate = selectedEleve ? isSourateNiveauDyn(selectedEleve.code_niveau, niveaux) : false;
 
-  // Index souratesDB par numero pour lookup rapide
-  const souratesIndex = Object.fromEntries(souratesDB.map(s => [s.numero, s]));
+  // Calculer la sourate en cours — même logique que RecitationSourate
+  const getDbId = (numero) => souratesDB.find(s => s.numero === numero)?.id;
+  const isCompleteNum = (numero) => {
+    const dbId = getDbId(numero);
+    return dbId ? recitationsSourates.some(r => r.sourate_id === dbId && r.type_recitation === 'complete') : false;
+  };
 
-  // Calculer la sourate en cours pour les élèves sourate
   const currentSourate = (() => {
-    if (!estSourate || !selectedEleve || souratesDB.length === 0) return null;
+    if (!estSourate || !selectedEleve) return null;
     const souratesAcquises = selectedEleve.sourates_acquises || 0;
-    // Toutes les sourates triées décroissantes (114→1) — filtrées à celles dans souratesDB
-    const souratesOrdonnees = [...souratesDB].sort((a, b) => b.numero - a.numero);
-    // isComplete : sourate validée comme complète dans les récitations
-    const isComplete = (sourateId) =>
-      recitationsSourates.some(r => r.sourate_id === sourateId && r.type_recitation === 'complete');
+    // Sourates du niveau triées décroissantes (114→1)
+    const souratesNiveau = getSouratesForNiveau(selectedEleve.code_niveau);
+    const souratesOrdonnees = [...souratesNiveau].sort((a, b) => b.numero - a.numero);
     const firstNonComplete = souratesOrdonnees.findIndex((sr, i) => {
       if (i < souratesAcquises) return false;
-      return !isComplete(sr.id);
+      return !isCompleteNum(sr.numero);
     });
     if (firstNonComplete < 0) return null;
-    return souratesOrdonnees[firstNonComplete]; // contient déjà id, numero, nom_ar, nb_versets
+    const s = souratesOrdonnees[firstNonComplete];
+    const dbObj = souratesDB.find(sd => sd.numero === s.numero);
+    // Si souratesDB pas encore chargé, on retourne quand même la sourate sans id
+    return dbObj ? { ...s, id: dbObj.id, nb_versets: dbObj.nb_versets } : { ...s };
   })();
 
   // Valider N tomons
