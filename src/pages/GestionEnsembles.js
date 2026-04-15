@@ -330,50 +330,52 @@ export default function GestionEnsembles({ user, navigate, goBack, lang='fr', is
   const CarteEnsemble = ({ e, cniv }) => {
     const sEns = souratesDB.filter(s => (e.sourates_ids || []).includes(s.id)).sort((a, b) => b.numero - a.numero);
     return (
-      <div style={{ background:'#fff', borderRadius:14, overflow:'hidden',
-        border:`1.5px solid ${cniv}25`, boxShadow:'0 2px 8px rgba(0,0,0,0.05)',
-        transition:'all 0.18s', cursor:'default',
-        display:'flex', flexDirection:'column' }}
-        onMouseEnter={ev=>{ev.currentTarget.style.boxShadow=`0 8px 24px ${cniv}30`;ev.currentTarget.style.transform='translateY(-3px)';}}
-        onMouseLeave={ev=>{ev.currentTarget.style.boxShadow='0 2px 8px rgba(0,0,0,0.05)';ev.currentTarget.style.transform='translateY(0)';}}>
-        {/* Bandeau haut */}
-        <div style={{ height:5, background:`linear-gradient(90deg,${cniv},${cniv}60)` }} />
-        <div style={{ padding:'14px 16px', display:'flex', alignItems:'center', gap:12 }}>
-          {/* Numéro */}
-          <div style={{ width:44, height:44, borderRadius:12, flexShrink:0,
-            background:`linear-gradient(135deg,${cniv}20,${cniv}08)`,
-            border:`1.5px solid ${cniv}30`,
-            display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center' }}>
-            <span style={{ fontSize:16, fontWeight:900, color:cniv, lineHeight:1 }}>{e.ordre}</span>
+      <div style={{
+          background:`linear-gradient(135deg, ${cniv}10 0%, #fff 60%)`,
+          borderRadius:16, border:`1.5px solid ${cniv}30`,
+          boxShadow:'0 2px 8px rgba(0,0,0,0.05)',
+          transition:'all 0.2s', cursor:'default', overflow:'hidden',
+          display:'flex', alignItems:'stretch', minHeight:90 }}
+        onMouseEnter={ev=>{ev.currentTarget.style.boxShadow=`0 8px 24px ${cniv}35`;ev.currentTarget.style.transform='translateY(-2px)';ev.currentTarget.style.border=`1.5px solid ${cniv}70`;}}
+        onMouseLeave={ev=>{ev.currentTarget.style.boxShadow='0 2px 8px rgba(0,0,0,0.05)';ev.currentTarget.style.transform='translateY(0)';ev.currentTarget.style.border=`1.5px solid ${cniv}30`;}}>
+        {/* Bande latérale gauche */}
+        <div style={{ width:6, background:`linear-gradient(180deg,${cniv},${cniv}60)`, flexShrink:0 }} />
+        {/* Contenu principal */}
+        <div style={{ flex:1, padding:'14px 14px', display:'flex', alignItems:'center', gap:14, minWidth:0 }}>
+          {/* Cercle numéro */}
+          <div style={{ width:46, height:46, borderRadius:'50%', flexShrink:0,
+            background:`linear-gradient(135deg,${cniv},${cniv}80)`,
+            boxShadow:`0 3px 10px ${cniv}40`,
+            display:'flex', alignItems:'center', justifyContent:'center' }}>
+            <span style={{ fontSize:18, fontWeight:900, color:'#fff' }}>{e.ordre}</span>
           </div>
-          {/* Infos */}
+          {/* Texte */}
           <div style={{ flex:1, minWidth:0 }}>
-            <div style={{ fontWeight:800, fontSize:14, color:'#1a1a1a', lineHeight:1.3,
+            <div style={{ fontWeight:800, fontSize:15, color:'#1a1a1a', lineHeight:1.3,
               overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{e.nom}</div>
-            <div style={{ display:'flex', alignItems:'center', gap:6, marginTop:4 }}>
-              <span style={{ fontSize:11, padding:'1px 8px', borderRadius:20,
-                background:`${cniv}12`, color:cniv, fontWeight:700,
-                border:`0.5px solid ${cniv}30` }}>
-                {sEns.length} {lang==='ar'?'سورة':'sour.'}
+            <div style={{ display:'flex', alignItems:'center', gap:8, marginTop:5, flexWrap:'wrap' }}>
+              <span style={{ fontSize:11, padding:'2px 10px', borderRadius:20,
+                background:`${cniv}15`, color:cniv, fontWeight:700, border:`1px solid ${cniv}30` }}>
+                📖 {sEns.length} {lang==='ar'?'سورة':'sourate(s)'}
               </span>
             </div>
           </div>
           {/* Actions */}
-          <div style={{ display:'flex', flexDirection:'column', gap:5, flexShrink:0 }}>
-            <button onClick={() => openEdit(e)}
-              style={{ width:30,height:30, background:'#E6F1FB', color:'#378ADD', border:'none',
-                borderRadius:8, fontSize:13, cursor:'pointer',
-                display:'flex',alignItems:'center',justifyContent:'center',
-                transition:'background 0.15s' }}
-              onMouseEnter={e=>e.currentTarget.style.background='#cce3f8'}
-              onMouseLeave={e=>e.currentTarget.style.background='#E6F1FB'}>✏️</button>
-            <button onClick={() => supprimer(e)}
-              style={{ width:30,height:30, background:'#FCEBEB', color:'#E24B4A', border:'none',
-                borderRadius:8, fontSize:13, cursor:'pointer',
-                display:'flex',alignItems:'center',justifyContent:'center',
-                transition:'background 0.15s' }}
-              onMouseEnter={e=>e.currentTarget.style.background='#f9d0d0'}
-              onMouseLeave={e=>e.currentTarget.style.background='#FCEBEB'}>🗑</button>
+          <div style={{ display:'flex', gap:6, flexShrink:0 }}>
+            <button onClick={() => openEdit(e)} title={lang==='ar'?'تعديل':'Modifier'}
+              style={{ width:34, height:34, background:'rgba(55,138,221,0.1)', color:'#378ADD',
+                border:'1px solid rgba(55,138,221,0.2)', borderRadius:10, fontSize:14,
+                cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center',
+                transition:'all 0.15s' }}
+              onMouseEnter={ev=>{ev.currentTarget.style.background='#E6F1FB';ev.currentTarget.style.border='1px solid #378ADD';}}
+              onMouseLeave={ev=>{ev.currentTarget.style.background='rgba(55,138,221,0.1)';ev.currentTarget.style.border='1px solid rgba(55,138,221,0.2)';}}>✏️</button>
+            <button onClick={() => supprimer(e)} title={lang==='ar'?'حذف':'Supprimer'}
+              style={{ width:34, height:34, background:'rgba(226,75,74,0.08)', color:'#E24B4A',
+                border:'1px solid rgba(226,75,74,0.15)', borderRadius:10, fontSize:14,
+                cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center',
+                transition:'all 0.15s' }}
+              onMouseEnter={ev=>{ev.currentTarget.style.background='#FCEBEB';ev.currentTarget.style.border='1px solid #E24B4A';}}
+              onMouseLeave={ev=>{ev.currentTarget.style.background='rgba(226,75,74,0.08)';ev.currentTarget.style.border='1px solid rgba(226,75,74,0.15)';}}>🗑</button>
           </div>
         </div>
       </div>
@@ -498,7 +500,7 @@ export default function GestionEnsembles({ user, navigate, goBack, lang='fr', is
         <div key={niv.id} style={{ marginBottom:28 }}>
 
           {/* Grille */}
-          <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(200px,1fr))', gap:10 }}>
+          <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(260px,1fr))', gap:10 }}>
             {items.map(e => <CarteEnsemble key={e.id} e={e} cniv={niv.couleur || '#1D9E75'} />)}
           </div>
         </div>
