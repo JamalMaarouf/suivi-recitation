@@ -3,6 +3,7 @@ import { genererCertificatPDF } from './CertificatExamen';
 import { supabase } from '../lib/supabase';
 import { loadBareme, enregistrerPointsEvenement, verifierEtCreerCertificats } from '../lib/helpers';
 import { useToast } from '../lib/toast';
+import { t } from '../lib/i18n';
 
 export default function ResultatsExamens({ user, navigate, goBack, lang='fr', isMobile, data }) {
   const { toast } = useToast();
@@ -567,17 +568,49 @@ export default function ResultatsExamens({ user, navigate, goBack, lang='fr', is
   );
 
   // ── RENDU ──────────────────────────────────────────────────────
+  const exportResultatsExcel = async () => {
+    if (!window.XLSX) {
+      await new Promise((res,rej)=>{ const s=document.createElement('script'); s.src='https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js'; s.onload=res; s.onerror=rej; document.head.appendChild(s); });
+    }
+    const XLSX = window.XLSX;
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.aoa_to_sheet([
+      ['#', lang==='ar'?'الطالب':'Élève', lang==='ar'?'المستوى':'Niveau',
+       lang==='ar'?'الامتحان':'Examen', lang==='ar'?'النتيجة':'Score',
+       lang==='ar'?'الحالة':'Statut', lang==='ar'?'التاريخ':'Date'],
+      ...resultats.map((r,i) => {
+        const el = eleves.find(e=>e.id===r.eleve_id);
+        const ex = examens.find(e=>e.id===r.examen_id);
+        return [i+1, el?el.prenom+' '+el.nom:'—', el?.code_niveau||'—',
+          ex?.nom||'—', r.score||0,
+          r.statut==='reussi'?(lang==='ar'?'ناجح':'Réussi'):r.statut==='echoue'?(lang==='ar'?'راسب':'Échoué'):(lang==='ar'?'معلق':'En cours'),
+          r.date_examen?new Date(r.date_examen).toLocaleDateString('fr-FR'):'—'];
+      })
+    ]);
+    ws['!cols']=[{wch:4},{wch:20},{wch:10},{wch:20},{wch:8},{wch:10},{wch:12}];
+    XLSX.utils.book_append_sheet(wb, ws, lang==='ar'?'النتائج':'Résultats');
+    XLSX.writeFile(wb, 'resultats_examens_'+new Date().toISOString().split('T')[0]+'.xlsx');
+  };
+
   const Header = () => (
     <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:isMobile?12:'1.25rem'}}>
-      <button onClick={()=>goBack?goBack():navigate('dashboard')}
-        style={{background:'none',border:'none',cursor:'pointer',
-          fontSize:isMobile?22:14,color:'#085041',padding:0,
-          fontFamily:'inherit',fontWeight:600}}>
-        {isMobile?'←':'← Retour'}
+      <button onClick={()=>goBack?goBack():navigate('dashboard')} className="back-link" style={{marginBottom:0}}>
+        {isMobile?'←':t(lang,'retour')}
       </button>
-      {!isMobile&&<div style={{fontSize:20,fontWeight:700}}>
-        🏅 {lang==='ar'?'نتائج الامتحانات':'Résultats des examens'}
-      </div>}
+      {!isMobile&&<>
+        <div style={{fontSize:20,fontWeight:700,flex:1}}>
+          🏅 {lang==='ar'?'نتائج الامتحانات':'Résultats des examens'}
+        </div>
+        <div style={{display:'flex',gap:6}}>
+          <button onClick={exportResultatsExcel}
+            style={{display:'flex',alignItems:'center',gap:5,padding:'5px 12px',background:'#f5f5f0',
+              color:'#085041',border:'0.5px solid #e0e0d8',borderRadius:8,fontSize:11,fontWeight:600,cursor:'pointer'}}
+            onMouseEnter={e=>e.currentTarget.style.background='#E1F5EE'}
+            onMouseLeave={e=>e.currentTarget.style.background='#f5f5f0'}>
+            📊 Excel
+          </button>
+        </div>
+      </>}
       {isMobile&&<div style={{flex:1,fontSize:17,fontWeight:800,color:'#085041'}}>
         🏅 {lang==='ar'?'نتائج الامتحانات':'Résultats'}
       </div>}

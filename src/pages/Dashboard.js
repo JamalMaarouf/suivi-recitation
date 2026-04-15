@@ -504,7 +504,7 @@ export default function Dashboard({ user, navigate, goBack, lang, isMobile=false
         <div style={{fontSize:20,fontWeight:700}}>{t(lang,tabs.find(tb=>tb.key===vue)?.labelKey||'tableau_de_bord')}</div>
         <div style={{display:'flex',gap:6,flexWrap:'wrap',alignItems:'center'}}>
           {exportMsg&&<span style={{fontSize:12,color:C.green,fontWeight:600}}>{exportMsg}</span>}
-          {user.role==='surveillant'&&<><button onClick={exportExcel} style={{padding:'6px 10px',border:`0.5px solid ${C.border}`,borderRadius:8,background:'#fff',fontSize:11,cursor:'pointer'}}>📥 Excel</button><button onClick={backupJSON} style={{padding:'6px 10px',border:`0.5px solid ${C.border}`,borderRadius:8,background:'#fff',fontSize:11,cursor:'pointer'}}>💾 Backup</button></>}
+          {user.role==='surveillant'&&<><button onClick={exportExcel} style={{padding:'6px 10px',border:`0.5px solid ${C.border}`,borderRadius:8,background:'#fff',fontSize:11,cursor:'pointer'}}>📊 Excel</button><button onClick={backupJSON} style={{padding:'6px 10px',border:`0.5px solid ${C.border}`,borderRadius:8,background:'#fff',fontSize:11,cursor:'pointer'}}>💾 Backup</button></>}
           <button onClick={()=>navigate('honneur')} style={{padding:'6px 10px',background:C.green,color:'#fff',border:'none',borderRadius:8,fontSize:11,cursor:'pointer',fontWeight:600}}>🏆 {t(lang,'honneur')}</button>
           <button onClick={()=>navigate('comparaison')} style={{padding:'6px 10px',border:`0.5px solid ${C.border}`,borderRadius:8,background:'#fff',fontSize:11,cursor:'pointer'}}>📈 {t(lang,'comparer')}</button>
         </div>
