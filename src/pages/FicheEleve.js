@@ -174,6 +174,7 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang, isMobi
   const [jalonsDisp, setJalonsDisp] = useState([]);
   const [periodesDisp, setPeriodesDisp] = useState([]);
   const [baremeEleve, setBaremeEleve] = useState({...BAREME_DEFAUT});
+  const [pointsEvenements, setPointsEvenements] = useState([]);
   const [periodeSelectId, setPeriodeSelectId] = useState('mois');
   const [showAddCert, setShowAddCert] = useState(false);
   const [newCertJalonId, setNewCertJalonId] = useState('');
@@ -222,8 +223,10 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang, isMobi
             .select('*').eq('eleve_id',eleve.id).order('date_obtention',{ascending:false});
           setCertificats(certRes.data || []);
         } catch(e) { setCertificats([]); }
-        // Charger barème
+        // Charger barème et points événements
         loadBareme(supabase, eleve.ecole_id).then(b => setBaremeEleve(b));
+        supabase.from('points_eleves').select('*').eq('eleve_id', eleve.id).order('date_event')
+          .then(({data}) => setPointsEvenements(data||[]));
         // Charger jalons
         try {
           const jalRes = await supabase.from('jalons').select('id,nom,nom_ar').eq('ecole_id',eleve.ecole_id).eq('actif',true).order('created_at');
@@ -685,7 +688,7 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang, isMobi
               ];
               const allPeriodes = [...PERIODES_FIXES, ...(periodesDisp||[]).map(p=>({...p,label_ar:p.nom_ar||p.nom}))];
               const selP = allPeriodes.find(p=>p.id===periodeSelectId) || allPeriodes[1];
-              const pts = validations.length > 0 ? calcPointsPeriode(validations, selP.date_debut, selP.date_fin, baremeEleve) : {total:0,ptsTomon:0,ptsRoboe:0,ptsNisf:0,ptsHizb:0,tomonPeriode:0,hizbsPeriode:0};
+              const pts = calcPointsPeriode(validations||[], selP.date_debut, selP.date_fin, baremeEleve, pointsEvenements);
               return (
                 <div style={{padding:'1rem 0'}}>
                   {/* Sélecteur période */}
@@ -714,6 +717,9 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang, isMobi
                       {label:lang==='ar'?'الأرباع':'Roboâ', val:pts.details?.nbRoboe||0, pts:pts.ptsRoboe, color:'#1D9E75', bg:'#E1F5EE', icon:'✦'},
                       {label:lang==='ar'?'الأنصاف':'Nisf', val:pts.details?.nbNisf||0, pts:pts.ptsNisf, color:'#EF9F27', bg:'#FAEEDA', icon:'◈'},
                       {label:lang==='ar'?'أحزاب كاملة':'Hizb complets', val:pts.hizbsPeriode, pts:pts.ptsHizb, color:'#085041', bg:'#E1F5EE', icon:'🎯'},
+                      ...(pts.ptsExamens>0?[{label:lang==='ar'?'الامتحانات':'Examens', val:'', pts:pts.ptsExamens, color:'#EF9F27', bg:'#FAEEDA', icon:'📝'}]:[]),
+                      ...(pts.ptsCertificats>0?[{label:lang==='ar'?'الشهادات':'Certificats', val:'', pts:pts.ptsCertificats, color:'#D85A30', bg:'#FAECE7', icon:'🏅'}]:[]),
+                      ...(pts.ptsEnsembles>0?[{label:lang==='ar'?'مجموعات السور':'Ensembles', val:'', pts:pts.ptsEnsembles, color:'#534AB7', bg:'#EEEDFE', icon:'📦'}]:[]),
                     ].map((row,i)=>(
                       <div key={i} style={{background:row.bg,borderRadius:12,padding:'12px',border:`0.5px solid ${row.color}20`}}>
                         <div style={{fontSize:18,marginBottom:4}}>{row.icon}</div>
@@ -1246,7 +1252,7 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang, isMobi
             ];
             const allPeriodes = [...PERIODES_FIXES, ...(periodesDisp||[]).map(p=>({...p,label_ar:p.nom_ar||p.nom}))];
             const selP = allPeriodes.find(p=>p.id===periodeSelectId) || allPeriodes[1];
-            const pts = validations.length > 0 ? calcPointsPeriode(validations, selP.date_debut, selP.date_fin, baremeEleve) : {total:0,ptsTomon:0,ptsRoboe:0,ptsNisf:0,ptsHizb:0,tomonPeriode:0,hizbsPeriode:0,details:{nbRoboe:0,nbNisf:0}};
+            const pts = calcPointsPeriode(validations||[], selP.date_debut, selP.date_fin, baremeEleve, pointsEvenements);
             return (
               <div style={{padding:'0.5rem 0'}}>
                 {/* Sélecteur période */}
@@ -1275,6 +1281,9 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang, isMobi
                     {label:lang==='ar'?'الأرباع':'Roboâ', val:pts.details?.nbRoboe||0, pts:pts.ptsRoboe, color:'#1D9E75', bg:'#E1F5EE', icon:'✦'},
                     {label:lang==='ar'?'الأنصاف':'Nisf', val:pts.details?.nbNisf||0, pts:pts.ptsNisf, color:'#EF9F27', bg:'#FAEEDA', icon:'◈'},
                     {label:lang==='ar'?'أحزاب كاملة':'Hizb ✓', val:pts.hizbsPeriode, pts:pts.ptsHizb, color:'#085041', bg:'#E1F5EE', icon:'🎯'},
+                    ...(pts.ptsExamens>0?[{label:lang==='ar'?'الامتحانات':'Examens', val:'', pts:pts.ptsExamens, color:'#EF9F27', bg:'#FAEEDA', icon:'📝'}]:[]),
+                    ...(pts.ptsCertificats>0?[{label:lang==='ar'?'الشهادات':'Certificats', val:'', pts:pts.ptsCertificats, color:'#D85A30', bg:'#FAECE7', icon:'🏅'}]:[]),
+                    ...(pts.ptsEnsembles>0?[{label:lang==='ar'?'مجموعات السور':'Ensembles', val:'', pts:pts.ptsEnsembles, color:'#534AB7', bg:'#EEEDFE', icon:'📦'}]:[]),
                   ].map((row,i)=>(
                     <div key={i} style={{background:row.bg,borderRadius:12,padding:'10px',border:`0.5px solid ${row.color}20`}}>
                       <div style={{fontSize:16,marginBottom:2}}>{row.icon}</div>

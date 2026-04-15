@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { genererCertificatPDF } from './CertificatExamen';
 import { supabase } from '../lib/supabase';
+import { loadBareme, enregistrerPointsEvenement, verifierEtCreerCertificats } from '../lib/helpers';
 import { useToast } from '../lib/toast';
 
 export default function ResultatsExamens({ user, navigate, goBack, lang='fr', isMobile, data }) {
@@ -105,6 +106,26 @@ export default function ResultatsExamens({ user, navigate, goBack, lang='fr', is
       : await supabase.from('resultats_examens').insert(payload);
     setSaving(false);
     if (error) { toast.error(error.message||'Erreur'); return; }
+    // Si réussi → créditer les points de l'examen + vérifier jalons
+    if (reussi) {
+      try {
+        const bareme = await loadBareme(supabase, user.ecole_id);
+        const ptsExamen = bareme.examens?.[selectedExamen.id] || 0;
+        if (ptsExamen > 0) {
+          await enregistrerPointsEvenement(supabase, {
+            eleve_id: selectedEleve.id, ecole_id: user.ecole_id,
+            type_event: 'examen', objet_id: selectedExamen.id,
+            points: ptsExamen, valide_par: user.id,
+          });
+        }
+        // Vérifier si un jalon est débloqué
+        const { data: valsEleve } = await supabase.from('validations').select('*').eq('eleve_id', selectedEleve.id);
+        await verifierEtCreerCertificats(supabase, {
+          eleve: selectedEleve, ecole_id: user.ecole_id, valide_par: user.id,
+          validations: valsEleve || [], recitations: [],
+        });
+      } catch(e) { console.error('points examen error:', e); }
+    }
     toast.success(reussi
       ? (lang==='ar'?'🎉 تهانينا! نجح الطالب':'🎉 Félicitations ! Examen réussi !')
       : (lang==='ar'?'❌ لم ينجح الطالب. يجب إعادة الامتحان':'❌ Examen non validé. À repasser.'));

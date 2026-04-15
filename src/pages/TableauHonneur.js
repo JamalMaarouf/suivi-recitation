@@ -17,16 +17,18 @@ export default function TableauHonneur({ user, navigate, goBack, lang='fr', isMo
 
   const loadData = async () => {
     loadBareme(supabase, user.ecole_id).then(b => setBareme(b));
-    const [{ data: ed }, { data: vd }, { data: pd }, { data: nv }] = await Promise.all([
+    const [{ data: ed }, { data: vd }, { data: pd }, { data: nv }, { data: pe }] = await Promise.all([
       supabase.from('eleves').select('id,prenom,nom,code_niveau,niveau,hizb_depart,tomon_depart,ecole_id').eq('ecole_id', user.ecole_id).order('nom'),
       supabase.from('validations').select('id,eleve_id,type_validation,nombre_tomon,hizb_valide,date_validation').eq('ecole_id', user.ecole_id),
       supabase.from('periodes_notes').select('*').eq('ecole_id', user.ecole_id).eq('actif', true).order('date_debut'),
       supabase.from('niveaux').select('id,code,nom,couleur').eq('ecole_id', user.ecole_id).order('ordre'),
+      supabase.from('points_eleves').select('*').eq('ecole_id', user.ecole_id),
     ]);
     const elevesData = (ed||[]).map(e => {
       const vals = (vd||[]).filter(v => v.eleve_id === e.id);
       const etat = calcEtatEleve(vals, e.hizb_depart, e.tomon_depart);
-      return { ...e, etat, validations: vals };
+      const evts = (pe||[]).filter(p=>p.eleve_id===e.id);
+      return { ...e, etat, validations: vals, pointsEvenements: evts };
     });
     setEleves(elevesData);
     setAllValidations(vd||[]);
@@ -40,19 +42,19 @@ export default function TableauHonneur({ user, navigate, goBack, lang='fr', isMo
     const now = new Date();
     if (periodeId === 'semaine') {
       const d = new Date(now); d.setDate(now.getDate() - 7);
-      return calcPointsPeriode(eleve.validations, d, now, bareme);
+      return calcPointsPeriode(eleve.validations, d, now, bareme, eleve.pointsEvenements);
     }
     if (periodeId === 'mois') {
       const d = new Date(now.getFullYear(), now.getMonth(), 1);
-      return calcPointsPeriode(eleve.validations, d, now, bareme);
+      return calcPointsPeriode(eleve.validations, d, now, bareme, eleve.pointsEvenements);
     }
     if (periodeId === 'trimestre') {
       const d = new Date(now); d.setMonth(now.getMonth() - 3); d.setDate(1);
-      return calcPointsPeriode(eleve.validations, d, now, bareme);
+      return calcPointsPeriode(eleve.validations, d, now, bareme, eleve.pointsEvenements);
     }
     const p = periodes.find(x => x.id === periodeId);
-    if (p) return calcPointsPeriode(eleve.validations, p.date_debut, p.date_fin, bareme);
-    return calcPointsPeriode(eleve.validations, new Date(0), now, bareme);
+    if (p) return calcPointsPeriode(eleve.validations, p.date_debut, p.date_fin, bareme, eleve.pointsEvenements);
+    return calcPointsPeriode(eleve.validations, new Date(0), now, bareme, eleve.pointsEvenements);
   };
 
   const PERIODES_FIXES = [

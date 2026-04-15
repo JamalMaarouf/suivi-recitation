@@ -582,6 +582,20 @@ export async function verifierEtCreerCertificats(supabase, {
       };
       await supabase.from('certificats_eleves').insert(payload);
       nouveauxCerts.push({ ...payload, jalon });
+
+      // Créditer les points du jalon si barème configuré
+      try {
+        const bareme = await loadBareme(supabase, ecole_id);
+        const ptsJalon = bareme.jalons?.[jalon.id] || 0;
+        if (ptsJalon > 0) {
+          await supabase.from('points_eleves').insert({
+            eleve_id: eleve.id, ecole_id,
+            type_event: 'jalon', objet_id: jalon.id,
+            points: ptsJalon, date_event: new Date().toISOString(),
+            valide_par: valide_par || null,
+          });
+        }
+      } catch(e) { console.error('points jalon error:', e); }
     }
 
     return nouveauxCerts;
@@ -599,12 +613,13 @@ export async function verifierEtCreerCertificats(supabase, {
  * Calcule les points gagnés par un élève sur une période donnée.
  * N'inclut PAS les acquis antérieurs — uniquement les validations dans la plage.
  */
-export function calcPointsPeriode(validations, dateDebut, dateFin, bareme=null) {
+export function calcPointsPeriode(validations, dateDebut, dateFin, bareme=null, pointsEvenements=[]) {
   const B = (bareme && bareme.unites) ? bareme.unites : (bareme || BAREME_DEFAUT);
   const debut = new Date(dateDebut);
   const fin = new Date(dateFin);
   fin.setHours(23, 59, 59, 999);
 
+  // ── Validations (Tomon / Hizb) ──
   const vPeriode = validations.filter(v => {
     const d = new Date(v.date_validation);
     return d >= debut && d <= fin;
@@ -612,7 +627,6 @@ export function calcPointsPeriode(validations, dateDebut, dateFin, bareme=null) 
 
   let tomonPeriode = 0;
   const hizbsCompletsPeriode = new Set();
-
   for (const v of vPeriode) {
     if (v.type_validation === 'hizb_complet') {
       hizbsCompletsPeriode.add(v.hizb_valide);
@@ -627,19 +641,44 @@ export function calcPointsPeriode(validations, dateDebut, dateFin, bareme=null) 
   const ptsRoboe = nbRoboe * Math.round(B.tomon * 2.5);
   const ptsNisf = nbNisf * Math.round(B.tomon * 6);
   const ptsHizb = hizbsCompletsPeriode.size * B.hizb_complet;
-  const total = ptsTomon + ptsRoboe + ptsNisf + ptsHizb;
+
+  // ── Événements ponctuels (examens réussis, certificats, ensembles) ──
+  const evtPeriode = (pointsEvenements || []).filter(e => {
+    const d = new Date(e.date_event);
+    return d >= debut && d <= fin;
+  });
+  const ptsExamens   = evtPeriode.filter(e=>e.type_event==='examen').reduce((s,e)=>s+e.points,0);
+  const ptsCertificats = evtPeriode.filter(e=>e.type_event==='jalon').reduce((s,e)=>s+e.points,0);
+  const ptsEnsembles = evtPeriode.filter(e=>e.type_event==='ensemble_sourates').reduce((s,e)=>s+e.points,0);
+
+  const total = ptsTomon + ptsRoboe + ptsNisf + ptsHizb + ptsExamens + ptsCertificats + ptsEnsembles;
 
   return {
     total,
-    ptsTomon,
-    ptsRoboe,
-    ptsNisf,
-    ptsHizb,
+    ptsTomon, ptsRoboe, ptsNisf, ptsHizb,
+    ptsExamens, ptsCertificats, ptsEnsembles,
     tomonPeriode,
     hizbsPeriode: hizbsCompletsPeriode.size,
     nbValidations: vPeriode.length,
     details: { nbRoboe, nbNisf, nbHizb: hizbsCompletsPeriode.size },
   };
+}
+
+/**
+ * Enregistre un événement ponctuel de points (examen réussi, certificat, ensemble).
+ * Ces points s'ajoutent aux points calculés depuis les validations.
+ */
+export async function enregistrerPointsEvenement(supabase, { eleve_id, ecole_id, type_event, objet_id, points, valide_par }) {
+  if (!points || points <= 0) return;
+  try {
+    await supabase.from('points_eleves').insert({
+      eleve_id, ecole_id, type_event, objet_id,
+      points, date_event: new Date().toISOString(),
+      valide_par: valide_par || null,
+    });
+  } catch(e) {
+    console.error('enregistrerPointsEvenement error:', e);
+  }
 }
 
 /**
