@@ -154,23 +154,25 @@ export default function GestionEnsembles({ user, navigate, goBack, lang='fr', is
         justifyContent: 'center', padding: isMobile ? 0 : '20px'
       }}>
         <div style={{
-          background: '#fff', width: '100%', maxWidth: 620,
+          background: '#fff', width: '100%', maxWidth: 640,
           maxHeight: isMobile ? '94vh' : '88vh',
           borderRadius: isMobile ? '20px 20px 0 0' : '16px',
-          display: 'flex', flexDirection: 'column', overflow: 'hidden'
+          display: 'flex', flexDirection: 'column', overflow: 'hidden',
+          boxShadow: '0 20px 60px rgba(0,0,0,0.18)'
         }}>
           {/* Header */}
-          <div style={{ padding: '16px 18px 14px', borderBottom: '0.5px solid #e0e0d8', flexShrink: 0 }}>
+          <div style={{ padding: '16px 18px 14px', borderBottom: '0.5px solid #e0e0d8', flexShrink: 0,
+            background: `linear-gradient(135deg, ${ncForm}08, #fff)` }}>
             <div style={{ display: 'flex', alignItems: 'center', marginBottom: 14 }}>
-              <div style={{ flex: 1, fontWeight: 700, fontSize: 16 }}>
+              <div style={{ flex: 1, fontWeight: 800, fontSize: 16, color: '#1a1a1a' }}>
                 📦 {editing ? (lang === 'ar' ? 'تعديل المجموعة' : "Modifier l'ensemble") : (lang === 'ar' ? 'إضافة مجموعة جديدة' : 'Nouvel ensemble')}
               </div>
-              <button onClick={resetForm} style={{ background: 'none', border: 'none', fontSize: 22, cursor: 'pointer', color: '#888', padding: 0 }}>×</button>
+              <button onClick={resetForm} style={{ width:30, height:30, borderRadius:'50%', background:'#f5f5f0', border:'none', fontSize:16, cursor:'pointer', color:'#888', display:'flex', alignItems:'center', justifyContent:'center' }}>×</button>
             </div>
 
             {/* ① Niveau */}
             <div style={{ marginBottom: 12 }}>
-              <label style={{ fontSize: 11, fontWeight: 700, color: '#888', display: 'block', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+              <label className="field-lbl">
                 {lang === 'ar' ? '① اختر المستوى' : '① Choisir le niveau'}
               </label>
               <select value={form.niveau_id}
@@ -180,12 +182,7 @@ export default function GestionEnsembles({ user, navigate, goBack, lang='fr', is
                   if (nid) await chargerProgramme(nid);
                   else setProgrammeIds([]);
                 }}
-                style={{
-                  width: '100%', padding: '10px 14px', borderRadius: 10,
-                  border: `1.5px solid ${ncForm}50`, fontSize: 14,
-                  fontFamily: 'inherit', background: '#fff', cursor: 'pointer',
-                  outline: 'none', boxSizing: 'border-box'
-                }}>
+                className="field-select" style={{border:`1.5px solid ${ncForm}50`,fontSize:14}}>
                 <option value="">— {lang === 'ar' ? 'اختر المستوى' : 'Sélectionnez un niveau'} —</option>
                 {niveaux.map(n => <option key={n.id} value={n.id}>{n.code} — {n.nom}</option>)}
               </select>
@@ -194,17 +191,13 @@ export default function GestionEnsembles({ user, navigate, goBack, lang='fr', is
             {/* ② Nom */}
             {form.niveau_id && (
               <div>
-                <label style={{ fontSize: 11, fontWeight: 700, color: '#888', display: 'block', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                <label className="field-lbl">
                   {lang === 'ar' ? '② اسم المجموعة' : "② Nom de l'ensemble"}
                 </label>
                 <input value={form.nom} onChange={e => setForm(f => ({ ...f, nom: e.target.value }))}
                   placeholder={lang === 'ar' ? 'مثال: المجموعة الأولى' : 'Ex: Groupe 1 — Juz Amma'}
                   autoFocus
-                  style={{
-                    width: '100%', padding: '10px 12px', borderRadius: 10,
-                    border: `1.5px solid ${ncForm}50`, fontSize: 15,
-                    fontFamily: 'inherit', boxSizing: 'border-box'
-                  }} />
+                  className="field-input" style={{border:`1.5px solid ${ncForm}50`,fontSize:15}} />
               </div>
             )}
           </div>
@@ -271,7 +264,7 @@ export default function GestionEnsembles({ user, navigate, goBack, lang='fr', is
               {/* Disponibles */}
               {nonAffectees.length > 0 && (
                 <>
-                  <div style={{ fontSize: 11, fontWeight: 700, color: '#888', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                  <div className="section-label" style={{marginTop:8}}>
                     ③ {lang === 'ar' ? 'متاحة' : 'Disponibles'} ({nonAffectees.length})
                   </div>
                   {nonAffectees.map(s => {
@@ -319,11 +312,11 @@ export default function GestionEnsembles({ user, navigate, goBack, lang='fr', is
 
           {/* Boutons */}
           <div style={{ padding: '14px 18px', borderTop: '0.5px solid #e0e0d8', flexShrink: 0, display: 'flex', gap: 8 }}>
-            <button onClick={resetForm} style={{ flex: 1, padding: '13px', background: '#f5f5f0', color: '#666', border: 'none', borderRadius: 12, fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
+            <button onClick={resetForm} style={{ flex: 1, padding: '13px', background: '#f5f5f0', color: '#666', border: '0.5px solid #e0e0d8', borderRadius: 12, fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', transition:'all 0.15s' }}>
               {lang === 'ar' ? 'إلغاء' : 'Annuler'}
             </button>
             <button onClick={save} disabled={saving || !form.niveau_id || !form.nom.trim() || form.sourates_ids.length === 0}
-              style={{ flex: 2, padding: '13px', background: saving || !form.niveau_id || !form.nom.trim() || form.sourates_ids.length === 0 ? '#ccc' : editing ? '#378ADD' : ncForm, color: '#fff', border: 'none', borderRadius: 12, fontSize: 14, fontWeight: 700, cursor: saving ? 'not-allowed' : 'pointer', fontFamily: 'inherit' }}>
+              style={{ flex: 2, padding: '13px', background: saving || !form.niveau_id || !form.nom.trim() || form.sourates_ids.length === 0 ? '#e0e0d8' : editing ? 'linear-gradient(135deg,#378ADD,#1a6ab1)' : `linear-gradient(135deg,${ncForm},#085041)`, color: saving || !form.niveau_id || !form.nom.trim() || form.sourates_ids.length === 0 ? '#aaa' : '#fff', border: 'none', borderRadius: 12, fontSize: 14, fontWeight: 700, cursor: saving ? 'not-allowed' : 'pointer', fontFamily: 'inherit', boxShadow: saving || !form.niveau_id || !form.nom.trim() || form.sourates_ids.length === 0 ? 'none' : '0 2px 8px rgba(0,0,0,0.15)', transition:'all 0.15s' }}>
               {saving ? '...' : editing ? (lang === 'ar' ? 'تحديث' : 'Mettre à jour ✓') : (lang === 'ar' ? 'حفظ المجموعة' : 'Enregistrer')}
             </button>
           </div>
