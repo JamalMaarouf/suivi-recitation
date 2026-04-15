@@ -331,54 +331,50 @@ export default function GestionEnsembles({ user, navigate, goBack, lang='fr', is
     const sEns = souratesDB.filter(s => (e.sourates_ids || []).includes(s.id)).sort((a, b) => b.numero - a.numero);
     return (
       <div style={{ background:'#fff', borderRadius:14, overflow:'hidden',
-        border:`1px solid ${cniv}22`, boxShadow:'0 2px 8px rgba(0,0,0,0.05)',
-        transition:'all 0.18s', cursor:'default' }}
-        onMouseEnter={ev=>{ev.currentTarget.style.boxShadow=`0 6px 20px ${cniv}25`;ev.currentTarget.style.transform='translateY(-2px)';}}
+        border:`1.5px solid ${cniv}25`, boxShadow:'0 2px 8px rgba(0,0,0,0.05)',
+        transition:'all 0.18s', cursor:'default',
+        display:'flex', flexDirection:'column' }}
+        onMouseEnter={ev=>{ev.currentTarget.style.boxShadow=`0 8px 24px ${cniv}30`;ev.currentTarget.style.transform='translateY(-3px)';}}
         onMouseLeave={ev=>{ev.currentTarget.style.boxShadow='0 2px 8px rgba(0,0,0,0.05)';ev.currentTarget.style.transform='translateY(0)';}}>
-        {/* Bandeau couleur en haut */}
-        <div style={{ height:4, background:`linear-gradient(90deg,${cniv},${cniv}80)` }} />
-        <div style={{ padding:'12px 14px' }}>
-          {/* Ligne titre */}
-          <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:10 }}>
-            <div style={{ width:32, height:32, borderRadius:8, background:`${cniv}15`,
-              display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
-              <span style={{ fontSize:13, fontWeight:900, color:cniv }}>{e.ordre}</span>
-            </div>
-            <div style={{ flex:1 }}>
-              <div style={{ fontWeight:700, fontSize:14, color:'#1a1a1a', lineHeight:1.2 }}>{e.nom}</div>
-              <div style={{ fontSize:10, color:'#aaa', marginTop:1 }}>
-                {sEns.length} {lang==='ar'?'سورة':'sourate(s)'}
-              </div>
-            </div>
-            <div style={{ display:'flex', gap:5 }}>
-              <button onClick={() => openEdit(e)} title="Modifier"
-                style={{ width:30,height:30, background:'#E6F1FB', color:'#378ADD', border:'none',
-                  borderRadius:8, fontSize:13, cursor:'pointer', display:'flex',alignItems:'center',justifyContent:'center' }}>✏️</button>
-              <button onClick={() => supprimer(e)} title="Supprimer"
-                style={{ width:30,height:30, background:'#FCEBEB', color:'#E24B4A', border:'none',
-                  borderRadius:8, fontSize:13, cursor:'pointer', display:'flex',alignItems:'center',justifyContent:'center' }}>🗑</button>
+        {/* Bandeau haut */}
+        <div style={{ height:5, background:`linear-gradient(90deg,${cniv},${cniv}60)` }} />
+        <div style={{ padding:'14px 16px', display:'flex', alignItems:'center', gap:12 }}>
+          {/* Numéro */}
+          <div style={{ width:44, height:44, borderRadius:12, flexShrink:0,
+            background:`linear-gradient(135deg,${cniv}20,${cniv}08)`,
+            border:`1.5px solid ${cniv}30`,
+            display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center' }}>
+            <span style={{ fontSize:16, fontWeight:900, color:cniv, lineHeight:1 }}>{e.ordre}</span>
+          </div>
+          {/* Infos */}
+          <div style={{ flex:1, minWidth:0 }}>
+            <div style={{ fontWeight:800, fontSize:14, color:'#1a1a1a', lineHeight:1.3,
+              overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{e.nom}</div>
+            <div style={{ display:'flex', alignItems:'center', gap:6, marginTop:4 }}>
+              <span style={{ fontSize:11, padding:'1px 8px', borderRadius:20,
+                background:`${cniv}12`, color:cniv, fontWeight:700,
+                border:`0.5px solid ${cniv}30` }}>
+                {sEns.length} {lang==='ar'?'سورة':'sour.'}
+              </span>
             </div>
           </div>
-          {/* Sourates — max 5 affichées + compteur */}
-          {sEns.length > 0 && (
-            <div style={{ display:'flex', gap:4, flexWrap:'wrap', paddingTop:8,
-              borderTop:`1px dashed ${cniv}20` }}>
-              {sEns.slice(0,6).map(s => (
-                <span key={s.id} style={{ fontSize:10, padding:'2px 8px', borderRadius:20,
-                  background:`${cniv}10`, color:cniv, fontWeight:700,
-                  fontFamily:"'Tajawal',Arial", direction:'rtl',
-                  border:`0.5px solid ${cniv}30`, letterSpacing:'0.2px' }}>
-                  {s.nom_ar}
-                </span>
-              ))}
-              {sEns.length > 6 && (
-                <span style={{ fontSize:10, padding:'2px 8px', borderRadius:20,
-                  background:'#f5f5f0', color:'#888', fontWeight:600, border:'0.5px solid #e0e0d8' }}>
-                  +{sEns.length-6} {lang==='ar'?'أخرى':'autres'}
-                </span>
-              )}
-            </div>
-          )}
+          {/* Actions */}
+          <div style={{ display:'flex', flexDirection:'column', gap:5, flexShrink:0 }}>
+            <button onClick={() => openEdit(e)}
+              style={{ width:30,height:30, background:'#E6F1FB', color:'#378ADD', border:'none',
+                borderRadius:8, fontSize:13, cursor:'pointer',
+                display:'flex',alignItems:'center',justifyContent:'center',
+                transition:'background 0.15s' }}
+              onMouseEnter={e=>e.currentTarget.style.background='#cce3f8'}
+              onMouseLeave={e=>e.currentTarget.style.background='#E6F1FB'}>✏️</button>
+            <button onClick={() => supprimer(e)}
+              style={{ width:30,height:30, background:'#FCEBEB', color:'#E24B4A', border:'none',
+                borderRadius:8, fontSize:13, cursor:'pointer',
+                display:'flex',alignItems:'center',justifyContent:'center',
+                transition:'background 0.15s' }}
+              onMouseEnter={e=>e.currentTarget.style.background='#f9d0d0'}
+              onMouseLeave={e=>e.currentTarget.style.background='#FCEBEB'}>🗑</button>
+          </div>
         </div>
       </div>
     );
@@ -500,23 +496,9 @@ export default function GestionEnsembles({ user, navigate, goBack, lang='fr', is
 
       {!loading && groupesFiltres.map(({ niv, items }) => (
         <div key={niv.id} style={{ marginBottom:28 }}>
-          {/* Niveau header */}
-          <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:12,
-            padding:'8px 16px', borderRadius:10,
-            background:`linear-gradient(135deg,${niv.couleur}12,${niv.couleur}06)`,
-            border:`1px solid ${niv.couleur}30` }}>
-            <div style={{ width:8, height:8, borderRadius:'50%', background:niv.couleur, flexShrink:0 }} />
-            <span style={{ fontWeight:800, fontSize:13, color:niv.couleur }}>{niv.code}</span>
-            <span style={{ fontWeight:600, fontSize:13, color:'#333' }}>— {niv.nom}</span>
-            <span style={{ fontSize:11, color:'#aaa', marginRight:'auto' }}>
-              {items.length} {lang==='ar'?'مجموعة':'ensemble(s)'}
-            </span>
-            <span style={{ fontSize:11, color:niv.couleur, fontWeight:600, opacity:0.7 }}>
-              {items.reduce((acc,e)=>(e.sourates_ids||[]).length+acc,0)} {lang==='ar'?'سورة مُجمَّعة':'sourates groupées'}
-            </span>
-          </div>
+
           {/* Grille */}
-          <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(280px,1fr))', gap:10 }}>
+          <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(200px,1fr))', gap:10 }}>
             {items.map(e => <CarteEnsemble key={e.id} e={e} cniv={niv.couleur || '#1D9E75'} />)}
           </div>
         </div>
