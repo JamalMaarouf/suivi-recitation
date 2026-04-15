@@ -1483,16 +1483,7 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile 
       {msg.text && <div className={msg.type === 'error' ? 'error-box' : 'success-box'}>{msg.text}</div>}
 
       <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:0,flexWrap:'wrap',gap:8}}>
-        <div className="tabs-row" style={{marginBottom:0}}>
-          <div className={`tab ${tab === 'parametres' ? 'active' : ''}`} onClick={() => setTab('parametres')}>🏠 {lang==='ar'?'الرئيسية':'Accueil'}</div>
-          <div className={`tab ${tab === 'eleves' ? 'active' : ''}`} onClick={() => setTab('eleves')}>{t(lang, 'eleves')}</div>
-          <div className={`tab ${tab === 'instituteurs' ? 'active' : ''}`} onClick={() => setTab('instituteurs')}>{t(lang, 'instituteurs')}</div>
-          <div className={`tab ${tab === 'parents' ? 'active' : ''}`} onClick={() => setTab('parents')}>👨‍👩‍👦 {lang==='ar'?'الآباء':(lang==='ar'?'الآباء':'Parents')}</div>
 
-          <div className={`tab ${tab === 'jalons' ? 'active' : ''}`} onClick={() => setTab('jalons')}>🏅 {lang==='ar'?'الشهادات':'Jalons'}</div>
-
-          <div className={`tab ${tab === 'bareme' ? 'active' : ''}`} onClick={() => setTab('bareme')}>⭐ {lang==='ar'?'النقاط':'Barème'}</div>
-        </div>
         <div style={{display:'flex',gap:6}}>
           {tab==='eleves'&&<>
             <button onClick={exportElevesExcel} style={{padding:'6px 12px',background:'#1D9E75',color:'#fff',border:'none',borderRadius:8,fontSize:11,fontWeight:600,cursor:'pointer'}}>📥 Excel</button>
@@ -1561,6 +1552,11 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile 
         </div>
       )}
 
+      {tab !== 'parametres' && tab !== '' && (
+        <button onClick={()=>setTab('parametres')} className="back-link" style={{marginBottom:'0.75rem'}}>
+          {lang==='ar'?'← الرئيسية':'← Accueil الإدارة'}
+        </button>
+      )}
       {tab === 'eleves' && (
         <div>
           {/* Formulaire ajout / modification */}
