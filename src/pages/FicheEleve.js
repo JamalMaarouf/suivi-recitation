@@ -634,18 +634,20 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang, isMobi
                 ) : examens.map(r=>{
                   const STATUTS={reussi:{label:'Réussi',color:'#1D9E75',bg:'#E1F5EE'},echoue:{label:'Échoué',color:'#E24B4A',bg:'#FCEBEB'},en_cours:{label:'En cours',color:'#EF9F27',bg:'#FAEEDA'},annule:{label:'Annulé',color:'#888',bg:'#f5f5f0'}};
                   const m=STATUTS[r.statut]||STATUTS.en_cours;
+                  const examNom = r.examen?.nom || (lang==='ar'?'امتحان':'Examen');
+                  const statutLabel = r.statut==='reussi'?(lang==='ar'?'ناجح ✓':'Réussi ✓'):r.statut==='echoue'?(lang==='ar'?'راسب ✗':'Échoué ✗'):(lang==='ar'?'معلق':'En cours');
                   return(
-                    <div key={r.id} style={{background:'#fff',border:'0.5px solid #e0e0d8',borderRadius:12,padding:'12px 14px',marginBottom:8}}>
-                      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:6}}>
-                        <div style={{fontSize:13,fontWeight:700}}>{r.examen?.nom||r.examen?.description||(lang==='ar'?'امتحان':'Examen')}</div>
-                        <span style={{padding:'3px 10px',borderRadius:20,fontSize:11,fontWeight:600,background:m.bg,color:m.color}}>{lang==='ar'?(r.statut==='reussi'?'ناجح':r.statut==='echoue'?'راسب':'معلق'):(r.statut||'—')}</span>
+                    <div key={r.id} style={{background:'#fff',border:'0.5px solid #e0e0d8',borderRadius:12,padding:'14px',marginBottom:8}}>
+                      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:8}}>
+                        <div style={{fontSize:14,fontWeight:700,color:'#1a1a1a'}}>{examNom}</div>
+                        <span style={{padding:'3px 12px',borderRadius:20,fontSize:11,fontWeight:700,background:m.bg,color:m.color}}>{statutLabel}</span>
                       </div>
-                      <div style={{display:'flex',gap:16,fontSize:12,color:'#888',flexWrap:'wrap'}}>
-                        <span>📅 {r.date_examen?new Date(r.date_examen).toLocaleDateString(lang==='ar'?'ar-MA':'fr-FR'):r.created_at?new Date(r.created_at).toLocaleDateString(lang==='ar'?'ar-MA':'fr-FR'):'—'}</span>
-                        <span>📊 {r.score||0}/{r.examen?.score_minimum||20}</span>
+                      <div style={{display:'flex',gap:12,fontSize:12,color:'#888',flexWrap:'wrap',alignItems:'center'}}>
+                        <span>📅 {r.date_examen?new Date(r.date_examen).toLocaleDateString(lang==='ar'?'ar-MA':'fr-FR',{day:'2-digit',month:'short',year:'numeric'}):'—'}</span>
+                        <span>📊 {lang==='ar'?'النتيجة:':'Score:'} <strong style={{color:'#1a1a1a'}}>{r.score||0}</strong>{r.examen?.score_minimum?` / ${r.examen.score_minimum}`:''}</span>
                         {r.examen?.bloquant&&r.statut==='echoue'&&<span style={{color:'#E24B4A',fontWeight:600}}>🔒 {lang==='ar'?'موقوف':'Bloqué'}</span>}
                         {r.certificat_genere&&<span style={{color:'#1D9E75',fontWeight:600}}>🏅 {lang==='ar'?'شهادة مُنحت':'Certificat émis'}</span>}
-                        {r.notes_examinateur&&<span>💬 {r.notes_examinateur}</span>}
+                        {r.notes_examinateur&&<span style={{fontStyle:'italic'}}>💬 {r.notes_examinateur}</span>}
                       </div>
                     </div>
                   );
@@ -1210,18 +1212,21 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang, isMobi
                   {lang==='ar'?'لا توجد نتائج امتحانات':'Aucun résultat d\'examen'}
                 </div>
               ):examens.map(r=>{
-                const MENTION={excellent:{label:'Excellent',color:'#1D9E75',bg:'#E1F5EE'},bien:{label:'Bien',color:'#378ADD',bg:'#EBF4FD'},passable:{label:'Passable',color:'#EF9F27',bg:'#FAEEDA'},insuffisant:{label:'Insuffisant',color:'#E24B4A',bg:'#FCEBEB'},ajourne:{label:'Ajourné',color:'#888',bg:'#f5f5f0'}};
-                const m=MENTION[r.mention]||MENTION.passable;
+                const STATUTS2={reussi:{color:'#1D9E75',bg:'#E1F5EE'},echoue:{color:'#E24B4A',bg:'#FCEBEB'},en_cours:{color:'#EF9F27',bg:'#FAEEDA'}};
+                const m2=STATUTS2[r.statut]||STATUTS2.en_cours;
+                const examNom2 = r.examen?.nom || (lang==='ar'?'امتحان':'Examen');
+                const statutLabel2 = r.statut==='reussi'?(lang==='ar'?'ناجح ✓':'Réussi ✓'):r.statut==='echoue'?(lang==='ar'?'راسب ✗':'Échoué ✗'):(lang==='ar'?'معلق':'En cours');
                 return(
                   <div key={r.id} style={{background:'#fff',border:'0.5px solid #e0e0d8',borderRadius:12,padding:'12px 14px',marginBottom:8}}>
                     <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:6}}>
-                      <div style={{fontSize:13,fontWeight:700}}>{r.examen?.titre||'—'}</div>
-                      <span style={{padding:'3px 10px',borderRadius:20,fontSize:11,fontWeight:600,background:m.bg,color:m.color}}>{lang==='ar'?r.mention:m.label}</span>
+                      <div style={{fontSize:13,fontWeight:700,color:'#1a1a1a'}}>{examNom2}</div>
+                      <span style={{padding:'3px 10px',borderRadius:20,fontSize:11,fontWeight:700,background:m2.bg,color:m2.color}}>{statutLabel2}</span>
                     </div>
-                    <div style={{display:'flex',gap:16,fontSize:12,color:'#888',flexWrap:'wrap'}}>
-                      <span>📅 {r.examen?.date_examen||'—'}</span>
-                      <span>📊 {r.note_obtenue||0}/{r.note_max||20}</span>
-                      {r.bloque&&<span style={{color:'#E24B4A',fontWeight:600}}>🔒 {lang==='ar'?'موقوف':'Bloqué'}</span>}
+                    <div style={{display:'flex',gap:12,fontSize:11,color:'#888',flexWrap:'wrap'}}>
+                      <span>📅 {r.date_examen?new Date(r.date_examen).toLocaleDateString(lang==='ar'?'ar-MA':'fr-FR'):'—'}</span>
+                      <span>📊 <strong style={{color:'#1a1a1a'}}>{r.score||0}</strong>{r.examen?.score_minimum?` / ${r.examen.score_minimum}`:''}</span>
+                      {r.examen?.bloquant&&r.statut==='echoue'&&<span style={{color:'#E24B4A',fontWeight:600}}>🔒 {lang==='ar'?'موقوف':'Bloqué'}</span>}
+                      {r.certificat_genere&&<span style={{color:'#1D9E75',fontWeight:600}}>🏅</span>}
                     </div>
                   </div>
                 );
