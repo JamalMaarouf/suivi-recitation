@@ -348,7 +348,7 @@ export default function GestionEnsembles({ user, navigate, goBack, lang='fr', is
         {/* Texte */}
         <div style={{ flex:1, minWidth:0 }}>
           <div style={{ fontWeight:700, fontSize:14, color:'#1a1a1a', marginBottom:3,
-            overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{e.nom}</div>
+            lineHeight:1.3, wordBreak:'break-word' }}>{e.nom}</div>
           <div style={{ fontSize:11, color:'#999' }}>{sEns.length} {lang==='ar'?'سورة':'sourate(s)'}</div>
         </div>
         {/* Actions — stop propagation */}
@@ -480,7 +480,7 @@ export default function GestionEnsembles({ user, navigate, goBack, lang='fr', is
       )}
 
       {!loading && (
-        <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(220px,1fr))', gap:12}}>
+        <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(280px,1fr))', gap:12}}>
           {groupesFiltres.flatMap(({ niv, items }) =>
             items.map(e => <CarteEnsemble key={e.id} e={e} cniv={niv.couleur || '#1D9E75'} />)
           )}
