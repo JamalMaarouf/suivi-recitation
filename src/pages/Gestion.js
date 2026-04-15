@@ -10,18 +10,6 @@ function Avatar({ prenom, nom, size = 28 }) {
   return (
     <div style={{ width: size, height: size, borderRadius: '50%', background: '#E1F5EE', color: '#085041', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 600, fontSize: size * 0.33, flexShrink: 0 }}>
       {getInitiales(prenom, nom)}
-
-      {tab === 'jalons' && (
-        <JalonsTab
-          user={user} lang={lang}
-          jalons={jalons} setJalons={setJalons}
-          ensembles={ensemblesDisp}
-          examens={examensDisp}
-          newJalon={newJalon} setNewJalon={setNewJalon}
-          savingJalon={savingJalon} setSavingJalon={setSavingJalon}
-          showMsg={showMsg}
-        />
-      )}
     </div>
   );
 }
@@ -1596,6 +1584,17 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile 
             {parents.length===0&&<div className="empty">{lang==='ar'?'لا أولياء أمور مسجلون':'Aucun parent enregistré'}</div>}
           </div>
         </div>
+      )}
+      {tab === 'jalons' && (
+        <JalonsTab
+          user={user} lang={lang}
+          jalons={jalons} setJalons={setJalons}
+          ensembles={ensemblesDisp}
+          examens={examensDisp}
+          newJalon={newJalon} setNewJalon={setNewJalon}
+          savingJalon={savingJalon} setSavingJalon={setSavingJalon}
+          showMsg={showMsg}
+        />
       )}
     </div>
   );
