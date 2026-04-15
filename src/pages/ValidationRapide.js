@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 import { calcEtatEleve, getInitiales, scoreLabel, motivationMsg, verifierEtCreerCertificats, isSourateNiveauDyn, loadBareme, BAREME_DEFAUT } from '../lib/helpers';
+import { getSouratesForNiveau } from '../lib/sourates';
 import { t } from '../lib/i18n';
 
 export default function ValidationRapide({ user, navigate, goBack, lang='fr', isMobile }) {
@@ -65,16 +66,27 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
   const currentSourate = (() => {
     if (!estSourate || !selectedEleve) return null;
     const souratesAcquises = selectedEleve.sourates_acquises || 0;
-    // Sourates triées décroissantes (114→1)
-    const souratesOrdonnees = [...souratesDB].sort((a, b) => b.numero - a.numero);
-    const isComplete = (num) => recitationsSourates.some(r =>
-      souratesDB.find(s => s.id === r.sourate_id)?.numero === num && r.type_recitation === 'complete'
-    );
+    // Sourates du niveau triées décroissantes (114→1)
+    const souratesNiveau = getSouratesForNiveau(selectedEleve.code_niveau);
+    const souratesOrdonnees = [...souratesNiveau].sort((a, b) => b.numero - a.numero);
+    // isComplete : chercher par numéro dans les récitations (on matche via souratesDB id→numero)
+    const isComplete = (num) => {
+      // trouver l'id de cette sourate dans souratesDB
+      const sourateObj = souratesDB.find(s => s.numero === num);
+      if (!sourateObj) return false;
+      return recitationsSourates.some(r =>
+        r.sourate_id === sourateObj.id && r.type_recitation === 'complete'
+      );
+    };
     const firstNonComplete = souratesOrdonnees.findIndex((sr, i) => {
       if (i < souratesAcquises) return false;
       return !isComplete(sr.numero);
     });
-    return firstNonComplete >= 0 ? souratesOrdonnees[firstNonComplete] : null;
+    if (firstNonComplete < 0) return null;
+    const s = souratesOrdonnees[firstNonComplete];
+    // Enrichir avec l'id Supabase pour pouvoir insérer
+    const sourateDB = souratesDB.find(sd => sd.numero === s.numero);
+    return sourateDB ? { ...s, id: sourateDB.id, nb_versets: sourateDB.nb_versets } : s;
   })();
 
   // Valider N tomons
