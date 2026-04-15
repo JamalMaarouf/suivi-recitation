@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { supabase } from '../lib/supabase';
-import { calcEtatEleve, niveauTraduit, calcStats, formatDate, formatDateCourt, isInactif, joursDepuis, getInitiales, scoreLabel } from '../lib/helpers';
+import { calcEtatEleve, niveauTraduit, calcStats, formatDate, formatDateCourt, isInactif, joursDepuis, getInitiales, scoreLabel, loadBareme, BAREME_DEFAUT } from '../lib/helpers';
 import { t } from '../lib/i18n';
 
 const C = { green:'#1D9E75',greenBg:'#E1F5EE',blue:'#378ADD',blueBg:'#E6F1FB',amber:'#EF9F27',amberBg:'#FAEEDA',red:'#E24B4A',redBg:'#FCEBEB',border:'#e0e0d8',muted:'#888',dark:'#1a1a1a' };
@@ -53,6 +53,7 @@ export default function Dashboard({ user, navigate, goBack, lang, isMobile=false
   const [loading, setLoading] = useState(true);
   const [vue, setVue] = useState('general');
   const [stats, setStats] = useState({});
+  const [bareme, setBareme] = useState({...BAREME_DEFAUT});
   const [exportMsg, setExportMsg] = useState('');
   const [selectedEleves, setSelectedEleves] = useState([]);
   const [searchEleve, setSearchEleve] = useState('');
@@ -65,6 +66,7 @@ export default function Dashboard({ user, navigate, goBack, lang, isMobile=false
 
   const loadData = async () => {
     setLoading(true);
+    loadBareme(supabase, user.ecole_id).then(b => setBareme(b));
     const [{ data: ed },{ data: id },{ data: vd }] = await Promise.all([
       supabase.from('eleves').select('id,prenom,nom,code_niveau,niveau,hizb_depart,tomon_depart,sourates_acquises,instituteur_referent_id,ecole_id').eq('ecole_id', user.ecole_id).order('nom'),
       supabase.from('utilisateurs').select('id,prenom,nom,role').eq('role','instituteur').eq('ecole_id', user.ecole_id),

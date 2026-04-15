@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { supabase } from '../lib/supabase';
-import { calcEtatEleve, getInitiales, scoreLabel, calcPointsPeriode } from '../lib/helpers';
+import { calcEtatEleve, getInitiales, scoreLabel, calcPointsPeriode, loadBareme, BAREME_DEFAUT } from '../lib/helpers';
 import { t } from '../lib/i18n';
 
 export default function TableauHonneur({ user, navigate, goBack, lang='fr', isMobile }) {
@@ -11,10 +11,12 @@ export default function TableauHonneur({ user, navigate, goBack, lang='fr', isMo
   const [vue, setVue] = useState('global');
   const [periodeId, setPeriodeId] = useState('semaine');
   const [niveauxDyn, setNiveauxDyn] = useState([]);
+  const [bareme, setBareme] = useState({...BAREME_DEFAUT});
 
   useEffect(() => { loadData(); }, []);
 
   const loadData = async () => {
+    loadBareme(supabase, user.ecole_id).then(b => setBareme(b));
     const [{ data: ed }, { data: vd }, { data: pd }, { data: nv }] = await Promise.all([
       supabase.from('eleves').select('id,prenom,nom,code_niveau,niveau,hizb_depart,tomon_depart,ecole_id').eq('ecole_id', user.ecole_id).order('nom'),
       supabase.from('validations').select('id,eleve_id,type_validation,nombre_tomon,hizb_valide,date_validation').eq('ecole_id', user.ecole_id),
@@ -38,19 +40,19 @@ export default function TableauHonneur({ user, navigate, goBack, lang='fr', isMo
     const now = new Date();
     if (periodeId === 'semaine') {
       const d = new Date(now); d.setDate(now.getDate() - 7);
-      return calcPointsPeriode(eleve.validations, d, now);
+      return calcPointsPeriode(eleve.validations, d, now, bareme);
     }
     if (periodeId === 'mois') {
       const d = new Date(now.getFullYear(), now.getMonth(), 1);
-      return calcPointsPeriode(eleve.validations, d, now);
+      return calcPointsPeriode(eleve.validations, d, now, bareme);
     }
     if (periodeId === 'trimestre') {
       const d = new Date(now); d.setMonth(now.getMonth() - 3); d.setDate(1);
-      return calcPointsPeriode(eleve.validations, d, now);
+      return calcPointsPeriode(eleve.validations, d, now, bareme);
     }
     const p = periodes.find(x => x.id === periodeId);
-    if (p) return calcPointsPeriode(eleve.validations, p.date_debut, p.date_fin);
-    return calcPointsPeriode(eleve.validations, new Date(0), now);
+    if (p) return calcPointsPeriode(eleve.validations, p.date_debut, p.date_fin, bareme);
+    return calcPointsPeriode(eleve.validations, new Date(0), now, bareme);
   };
 
   const PERIODES_FIXES = [

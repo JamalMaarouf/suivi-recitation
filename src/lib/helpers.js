@@ -52,30 +52,82 @@ export function getInitiales(prenom, nom) {
 // 25 pts bonus par Roboe (2 Tomon)
 // 60 pts bonus par Nisf (4 Tomon)
 // 100 pts bonus par Hizb complet validé
-export function calcPoints(tomonCumul, hizbsCompletsCount, validations, tomonAcquis=0, hizbAcquisComplets=0) {
+
+// ══════════════════════════════════════════════════════════════════
+// BARÈME DYNAMIQUE — points paramétrables par l'école
+// ══════════════════════════════════════════════════════════════════
+
+export const BAREME_DEFAUT = {
+  tomon: 10,
+  hizb_complet: 100,
+  sourate: 30,
+  examen: 50,
+  certificat: 0,
+  muraja_tomon: 5,
+  muraja_hizb: 20,
+};
+
+/**
+ * Charge le barème depuis Supabase pour une école.
+ * Retourne un objet { tomon, hizb_complet, sourate, examen, ... }
+ */
+export async function loadBareme(supabase, ecole_id) {
+  try {
+    const { data } = await supabase
+      .from('bareme_notes')
+      .select('type_action, points')
+      .eq('ecole_id', ecole_id)
+      .eq('actif', true);
+    if (!data || data.length === 0) return { ...BAREME_DEFAUT };
+    const bareme = { ...BAREME_DEFAUT };
+    data.forEach(row => { bareme[row.type_action] = row.points; });
+    return bareme;
+  } catch (e) {
+    return { ...BAREME_DEFAUT };
+  }
+}
+
+/**
+ * Sauvegarde le barème complet d'une école (upsert).
+ */
+export async function saveBareme(supabase, ecole_id, bareme) {
+  const rows = Object.entries(bareme).map(([type_action, points]) => ({
+    ecole_id,
+    type_action,
+    points: parseInt(points) || 0,
+    actif: true,
+  }));
+  for (const row of rows) {
+    await supabase.from('bareme_notes')
+      .upsert(row, { onConflict: 'ecole_id,type_action' });
+  }
+}
+
+export function calcPoints(tomonCumul, hizbsCompletsCount, validations, tomonAcquis=0, hizbAcquisComplets=0, bareme=null) {
+  const B = bareme || BAREME_DEFAUT;
   // tomonCumul = total Tomon (acquis + nouveaux)
   // hizbsCompletsCount = total Hizb complets (acquis + nouveaux)
-  const ptsTomon = tomonCumul * 10;
+  const ptsTomon = tomonCumul * B.tomon;
   const nbRoboe = Math.floor(tomonCumul / 2);
   const nbNisf = Math.floor(tomonCumul / 4);
-  const ptsRoboe = nbRoboe * 25;
-  const ptsNisf = nbNisf * 60;
-  const ptsHizb = hizbsCompletsCount * 100;
+  const ptsRoboe = nbRoboe * Math.round(B.tomon * 2.5);
+  const ptsNisf = nbNisf * Math.round(B.tomon * 6);
+  const ptsHizb = hizbsCompletsCount * B.hizb_complet;
 
   // Points acquis antérieurs séparément (pour affichage informatif)
-  const ptsAcquisTomon = tomonAcquis * 10;
-  const ptsAcquisRoboe = Math.floor(tomonAcquis / 2) * 25;
-  const ptsAcquisNisf = Math.floor(tomonAcquis / 4) * 60;
-  const ptsAcquisHizb = hizbAcquisComplets * 100;
+  const ptsAcquisTomon = tomonAcquis * B.tomon;
+  const ptsAcquisRoboe = Math.floor(tomonAcquis / 2) * Math.round(B.tomon * 2.5);
+  const ptsAcquisNisf = Math.floor(tomonAcquis / 4) * Math.round(B.tomon * 6);
+  const ptsAcquisHizb = hizbAcquisComplets * B.hizb_complet;
   const ptsAcquisTotal = ptsAcquisTomon + ptsAcquisRoboe + ptsAcquisNisf + ptsAcquisHizb;
 
   // Points gagnés depuis le début du suivi
   const tomonNouveaux = tomonCumul - tomonAcquis;
   const hizbNouveaux = hizbsCompletsCount - hizbAcquisComplets;
-  const ptsSuiviTomon = tomonNouveaux * 10;
-  const ptsSuiviRoboe = (Math.floor(tomonCumul / 2) - Math.floor(tomonAcquis / 2)) * 25;
-  const ptsSuiviNisf = (Math.floor(tomonCumul / 4) - Math.floor(tomonAcquis / 4)) * 60;
-  const ptsSuiviHizb = hizbNouveaux * 100;
+  const ptsSuiviTomon = tomonNouveaux * B.tomon;
+  const ptsSuiviRoboe = (Math.floor(tomonCumul / 2) - Math.floor(tomonAcquis / 2)) * Math.round(B.tomon * 2.5);
+  const ptsSuiviNisf = (Math.floor(tomonCumul / 4) - Math.floor(tomonAcquis / 4)) * Math.round(B.tomon * 6);
+  const ptsSuiviHizb = hizbNouveaux * B.hizb_complet;
 
   return {
     total: ptsTomon + ptsRoboe + ptsNisf + ptsHizb,
@@ -534,7 +586,8 @@ export async function verifierEtCreerCertificats(supabase, {
  * Calcule les points gagnés par un élève sur une période donnée.
  * N'inclut PAS les acquis antérieurs — uniquement les validations dans la plage.
  */
-export function calcPointsPeriode(validations, dateDebut, dateFin) {
+export function calcPointsPeriode(validations, dateDebut, dateFin, bareme=null) {
+  const B = bareme || BAREME_DEFAUT;
   const debut = new Date(dateDebut);
   const fin = new Date(dateFin);
   fin.setHours(23, 59, 59, 999);
@@ -555,12 +608,12 @@ export function calcPointsPeriode(validations, dateDebut, dateFin) {
     }
   }
 
-  const ptsTomon = tomonPeriode * 10;
+  const ptsTomon = tomonPeriode * B.tomon;
   const nbRoboe = Math.floor(tomonPeriode / 2);
   const nbNisf = Math.floor(tomonPeriode / 4);
-  const ptsRoboe = nbRoboe * 25;
-  const ptsNisf = nbNisf * 60;
-  const ptsHizb = hizbsCompletsPeriode.size * 100;
+  const ptsRoboe = nbRoboe * Math.round(B.tomon * 2.5);
+  const ptsNisf = nbNisf * Math.round(B.tomon * 6);
+  const ptsHizb = hizbsCompletsPeriode.size * B.hizb_complet;
   const total = ptsTomon + ptsRoboe + ptsNisf + ptsHizb;
 
   return {

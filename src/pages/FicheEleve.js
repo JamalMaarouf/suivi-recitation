@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useToast } from '../lib/toast';
 import { supabase } from '../lib/supabase';
-import { calcEtatEleve, calcPositionAtteinte, calcUnite, calcPoints, formatDate, formatDateCourt, getInitiales, scoreLabel, calcBadges, calcVitesse, niveauTraduit, calcPointsPeriode } from '../lib/helpers';
+import { calcEtatEleve, calcPositionAtteinte, calcUnite, calcPoints, formatDate, formatDateCourt, getInitiales, scoreLabel, calcBadges, calcVitesse, niveauTraduit, calcPointsPeriode, loadBareme, BAREME_DEFAUT } from '../lib/helpers';
 import { t } from '../lib/i18n';
 import FicheSourate from './FicheSourate';
 
@@ -173,6 +173,7 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang, isMobi
   const [certificats, setCertificats] = useState([]);
   const [jalonsDisp, setJalonsDisp] = useState([]);
   const [periodesDisp, setPeriodesDisp] = useState([]);
+  const [baremeEleve, setBaremeEleve] = useState({...BAREME_DEFAUT});
   const [periodeSelectId, setPeriodeSelectId] = useState('mois');
   const [showAddCert, setShowAddCert] = useState(false);
   const [newCertJalonId, setNewCertJalonId] = useState('');
@@ -221,6 +222,8 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang, isMobi
             .select('*').eq('eleve_id',eleve.id).order('date_obtention',{ascending:false});
           setCertificats(certRes.data || []);
         } catch(e) { setCertificats([]); }
+        // Charger barème
+        loadBareme(supabase, eleve.ecole_id).then(b => setBaremeEleve(b));
         // Charger jalons
         try {
           const jalRes = await supabase.from('jalons').select('id,nom,nom_ar').eq('ecole_id',eleve.ecole_id).eq('actif',true).order('created_at');
@@ -682,7 +685,7 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang, isMobi
               ];
               const allPeriodes = [...PERIODES_FIXES, ...(periodesDisp||[]).map(p=>({...p,label_ar:p.nom_ar||p.nom}))];
               const selP = allPeriodes.find(p=>p.id===periodeSelectId) || allPeriodes[1];
-              const pts = validations.length > 0 ? calcPointsPeriode(validations, selP.date_debut, selP.date_fin) : {total:0,ptsTomon:0,ptsRoboe:0,ptsNisf:0,ptsHizb:0,tomonPeriode:0,hizbsPeriode:0};
+              const pts = validations.length > 0 ? calcPointsPeriode(validations, selP.date_debut, selP.date_fin, baremeEleve) : {total:0,ptsTomon:0,ptsRoboe:0,ptsNisf:0,ptsHizb:0,tomonPeriode:0,hizbsPeriode:0};
               return (
                 <div style={{padding:'1rem 0'}}>
                   {/* Sélecteur période */}
@@ -1243,7 +1246,7 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang, isMobi
             ];
             const allPeriodes = [...PERIODES_FIXES, ...(periodesDisp||[]).map(p=>({...p,label_ar:p.nom_ar||p.nom}))];
             const selP = allPeriodes.find(p=>p.id===periodeSelectId) || allPeriodes[1];
-            const pts = validations.length > 0 ? calcPointsPeriode(validations, selP.date_debut, selP.date_fin) : {total:0,ptsTomon:0,ptsRoboe:0,ptsNisf:0,ptsHizb:0,tomonPeriode:0,hizbsPeriode:0,details:{nbRoboe:0,nbNisf:0}};
+            const pts = validations.length > 0 ? calcPointsPeriode(validations, selP.date_debut, selP.date_fin, baremeEleve) : {total:0,ptsTomon:0,ptsRoboe:0,ptsNisf:0,ptsHizb:0,tomonPeriode:0,hizbsPeriode:0,details:{nbRoboe:0,nbNisf:0}};
             return (
               <div style={{padding:'0.5rem 0'}}>
                 {/* Sélecteur période */}

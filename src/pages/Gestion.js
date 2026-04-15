@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useToast } from '../lib/toast';
 import { supabase } from '../lib/supabase';
 import ConfirmModal from '../components/ConfirmModal';
-import { getInitiales, calcEtatEleve, calcPoints } from '../lib/helpers';
+import { getInitiales, calcEtatEleve, calcPoints, BAREME_DEFAUT, loadBareme, saveBareme } from '../lib/helpers';
 import { SOURATES_5B, SOURATES_5A, SOURATES_2M, isSourateNiveau } from '../lib/sourates';
 import { t } from '../lib/i18n';
 
@@ -146,6 +146,99 @@ function AcquisSelector({ codeNiveau, hizb, tomon, onHizbChange, onTomonChange, 
 }
 
 
+
+
+// ══════════════════════════════════════════════════════
+// COMPOSANT BaremeTab — Paramétrage des points par action
+// ══════════════════════════════════════════════════════
+function BaremeTab({ user, lang, bareme, setBareme, saving, setSaving, showMsg }) {
+
+  const ACTIONS = [
+    { key: 'tomon',       icon: '📖', label_ar: 'ثمن واحد مُستظهر',       label_fr: '1 Tomon validé',          color: '#378ADD' },
+    { key: 'hizb_complet',icon: '🎯', label_ar: 'حزب كامل مُصحَّح',        label_fr: '1 Hizb complet validé',    color: '#085041' },
+    { key: 'sourate',     icon: '📜', label_ar: 'سورة كاملة (نظام السور)', label_fr: '1 Sourate complète',       color: '#534AB7' },
+    { key: 'examen',      icon: '📝', label_ar: 'امتحان ناجح',              label_fr: 'Examen réussi',            color: '#EF9F27' },
+    { key: 'certificat',  icon: '🏅', label_ar: 'شهادة مُمنوحة',           label_fr: 'Certificat obtenu',        color: '#D85A30' },
+    { key: 'muraja_tomon',icon: '🔄', label_ar: 'ثمن مراجعة',              label_fr: "1 Tomon Muraja'a",        color: '#1D9E75' },
+    { key: 'muraja_hizb', icon: '🔁', label_ar: 'حزب مراجعة كامل',         label_fr: "1 Hizb Muraja'a complet", color: '#1D9E75' },
+  ];
+
+  const handleSave = async () => {
+    setSaving(true);
+    await saveBareme(supabase, user.ecole_id, bareme);
+    setSaving(false);
+    showMsg('success', lang==='ar'?'تم حفظ نظام التنقيط بنجاح':'Barème enregistré avec succès');
+  };
+
+  const totalExemple = () => {
+    // Exemple : 8 tomon + 1 hizb complet
+    const b = bareme;
+    return 8 * (b.tomon||0) + 1 * (b.hizb_complet||0);
+  };
+
+  return (
+    <div>
+      <div style={{fontSize:13,color:'#888',marginBottom:'1.25rem'}}>
+        {lang==='ar'
+          ? 'حدد عدد النقاط لكل عمل — سيُطبَّق هذا النظام تلقائياً على جميع الطلاب'
+          : "Définissez les points attribués pour chaque action — appliqués automatiquement à tous les élèves"}
+      </div>
+
+      <div className="card" style={{marginBottom:'1.5rem'}}>
+        <div className="section-label">{lang==='ar'?'نظام التنقيط':'Barème de points'}</div>
+        <div style={{display:'flex',flexDirection:'column',gap:10,marginBottom:'1.25rem'}}>
+          {ACTIONS.map(a => (
+            <div key={a.key} style={{display:'flex',alignItems:'center',gap:12,padding:'10px 14px',background:'#f9f9f6',borderRadius:10,border:'0.5px solid #e0e0d8'}}>
+              <div style={{width:36,height:36,borderRadius:10,background:a.color+'18',display:'flex',alignItems:'center',justifyContent:'center',fontSize:18,flexShrink:0}}>
+                {a.icon}
+              </div>
+              <div style={{flex:1}}>
+                <div style={{fontWeight:600,fontSize:13,color:'#1a1a1a',direction:'rtl',fontFamily:"'Tajawal',Arial,sans-serif"}}>{a.label_ar}</div>
+                <div style={{fontSize:11,color:'#aaa'}}>{a.label_fr}</div>
+              </div>
+              <div style={{display:'flex',alignItems:'center',gap:6}}>
+                <input
+                  type="number" min="0" max="9999"
+                  value={bareme[a.key] ?? 0}
+                  onChange={e => setBareme(prev => ({...prev, [a.key]: parseInt(e.target.value)||0}))}
+                  style={{width:72,padding:'6px 10px',borderRadius:8,border:`1.5px solid ${a.color}50`,
+                    fontSize:16,fontWeight:700,textAlign:'center',color:a.color,background:'#fff'}}
+                />
+                <span style={{fontSize:11,color:'#aaa'}}>{lang==='ar'?'ن':'pts'}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Aperçu exemple */}
+        <div style={{background:'#E1F5EE',borderRadius:10,padding:'12px 14px',marginBottom:'1rem',display:'flex',alignItems:'center',gap:10}}>
+          <span style={{fontSize:18}}>💡</span>
+          <div style={{flex:1,fontSize:12,color:'#085041'}}>
+            {lang==='ar'
+              ? `مثال: طالب يستظهر حزباً كاملاً (8 أثمان + تصحيح) = ${totalExemple()} نقطة`
+              : `Ex: élève qui valide 1 Hizb complet (8 Tomon + correction) = ${totalExemple()} pts`}
+          </div>
+        </div>
+
+        <button className="btn-primary" onClick={handleSave} disabled={saving}>
+          {saving ? '...' : (lang==='ar'?'حفظ نظام التنقيط':'Enregistrer le barème')}
+        </button>
+      </div>
+
+      {/* Info barème actif */}
+      <div style={{background:'#FAEEDA',borderRadius:12,padding:'12px 14px',border:'0.5px solid #EF9F2740'}}>
+        <div style={{fontSize:12,color:'#EF9F27',fontWeight:600,marginBottom:6}}>
+          ⚠️ {lang==='ar'?'ملاحظة مهمة':'Note importante'}
+        </div>
+        <div style={{fontSize:11,color:'#633806',lineHeight:1.5}}>
+          {lang==='ar'
+            ? 'تغيير النظام يؤثر على جميع النقاط المحسوبة مستقبلاً. النقاط السابقة تُعاد حسابها تلقائياً وفق النظام الجديد.'
+            : 'Modifier le barème recalcule automatiquement tous les points selon les nouvelles valeurs.'}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 // ══════════════════════════════════════════════════════
 // COMPOSANT PeriodesTab — Gestion des périodes de notes
@@ -462,6 +555,11 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile 
   const [editInstituteur, setEditInstituteur] = useState(null);
   const [formEditInst, setFormEditInst] = useState({prenom:'',nom:'',identifiant:'',mot_de_passe:''});
 
+  // ── Barème de notes ──
+  const [bareme, setBareme] = useState({ ...BAREME_DEFAUT });
+  const [baremeLoaded, setBaremeLoaded] = useState(false);
+  const [savingBareme, setSavingBareme] = useState(false);
+
   // ── Périodes / Notes ──
   const [periodes, setPeriodes] = useState([]);
   const [newPeriode, setNewPeriode] = useState({ nom_ar: '', date_debut: '', date_fin: '' });
@@ -481,6 +579,7 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile 
       .then(({data}) => { if(data) setNiveauxDyn(data); });
   }, []);
   useEffect(() => {
+    loadBareme(supabase, user.ecole_id).then(b => { setBareme(b); setBaremeLoaded(true); });
     supabase.from('periodes_notes').select('*').eq('ecole_id', user.ecole_id).order('date_debut')
       .then(({data}) => { if(data) setPeriodes(data); });
     supabase.from('jalons').select('*').eq('ecole_id', user.ecole_id).order('created_at')
@@ -1235,6 +1334,7 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile 
           <div className={`tab ${tab === 'parametres' ? 'active' : ''}`} onClick={() => setTab('parametres')}>⚙️ {lang==='ar'?'إعدادات':'Paramètres'}</div>
           <div className={`tab ${tab === 'jalons' ? 'active' : ''}`} onClick={() => setTab('jalons')}>🏅 {lang==='ar'?'الشهادات':'Jalons'}</div>
           <div className={`tab ${tab === 'notes' ? 'active' : ''}`} onClick={() => setTab('notes')}>📊 {lang==='ar'?'الفترات':'Périodes'}</div>
+          <div className={`tab ${tab === 'bareme' ? 'active' : ''}`} onClick={() => setTab('bareme')}>⭐ {lang==='ar'?'النقاط':'Barème'}</div>
         </div>
         <div style={{display:'flex',gap:6}}>
           {tab==='eleves'&&<>
@@ -1734,6 +1834,14 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile 
             {parents.length===0&&<div className="empty">{lang==='ar'?'لا أولياء أمور مسجلون':'Aucun parent enregistré'}</div>}
           </div>
         </div>
+      )}
+      {tab === 'bareme' && (
+        <BaremeTab
+          user={user} lang={lang}
+          bareme={bareme} setBareme={setBareme}
+          saving={savingBareme} setSaving={setSavingBareme}
+          showMsg={showMsg}
+        />
       )}
       {tab === 'notes' && (
         <PeriodesTab
