@@ -500,7 +500,7 @@ export default function GestionEnsembles({ user, navigate, goBack, lang='fr', is
         <div key={niv.id} style={{ marginBottom:28 }}>
 
           {/* Grille */}
-          <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:10 }}>
+          <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:10, direction:'ltr' }}>
             {items.map(e => <CarteEnsemble key={e.id} e={e} cniv={niv.couleur || '#1D9E75'} />)}
           </div>
         </div>
