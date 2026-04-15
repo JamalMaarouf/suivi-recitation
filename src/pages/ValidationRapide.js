@@ -8,6 +8,7 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
   const [niveaux, setNiveaux] = useState([]);
   const [allValidations, setAllValidations] = useState([]);
   const [souratesDB, setSouratesDB] = useState([]);
+  const [recitationsSourates, setRecitationsSourates] = useState([]);
   const [search, setSearch] = useState('');
   const [selectedEleve, setSelectedEleve] = useState(null);
   const [etat, setEtat] = useState(null);
@@ -52,9 +53,29 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
     setSourateSelectionnee(null);
     setTypeRec('complete');
     setVersetDebut(''); setVersetFin('');
+    // Charger récitations sourates pour cet élève
+    const { data: recs } = await supabase.from('recitations_sourates')
+      .select('*').eq('eleve_id', e.id).eq('ecole_id', user.ecole_id);
+    setRecitationsSourates(recs || []);
   };
 
   const estSourate = selectedEleve ? isSourateNiveauDyn(selectedEleve.code_niveau, niveaux) : false;
+
+  // Calculer la sourate en cours pour les élèves sourate
+  const currentSourate = (() => {
+    if (!estSourate || !selectedEleve) return null;
+    const souratesAcquises = selectedEleve.sourates_acquises || 0;
+    // Sourates triées décroissantes (114→1)
+    const souratesOrdonnees = [...souratesDB].sort((a, b) => b.numero - a.numero);
+    const isComplete = (num) => recitationsSourates.some(r =>
+      souratesDB.find(s => s.id === r.sourate_id)?.numero === num && r.type_recitation === 'complete'
+    );
+    const firstNonComplete = souratesOrdonnees.findIndex((sr, i) => {
+      if (i < souratesAcquises) return false;
+      return !isComplete(sr.numero);
+    });
+    return firstNonComplete >= 0 ? souratesOrdonnees[firstNonComplete] : null;
+  })();
 
   // Valider N tomons
   const validerTomon = async () => {
@@ -321,28 +342,57 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
               </>
             )}
 
-            {/* ── Élève SOURATES ── */}
+            {/* ── Élève SOURATES — affiche la sourate en cours directement ── */}
             {estSourate && !sourateSelectionnee && (
               <div>
-                <div style={{ fontSize: 13, color: '#666', marginBottom: 10, textAlign: 'center' }}>
-                  {lang === 'ar' ? 'اختر السورة المستظهرة:' : 'Choisissez la sourate récitée :'}
-                </div>
-                <div style={{ maxHeight: 260, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 5 }}>
-                  {souratesDB.map(s => (
-                    <button key={s.id} onClick={() => { setSourateSelectionnee(s); setTypeRec('complete'); setVersetDebut(''); setVersetFin(''); }}
-                      style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '9px 14px',
-                        background: '#f9f9f6', border: `1px solid ${nc}15`, borderRadius: 10,
-                        cursor: 'pointer', fontFamily: "'Tajawal',Arial,sans-serif", transition: 'all 0.12s' }}
-                      onMouseEnter={ev => { ev.currentTarget.style.background = `${nc}10`; ev.currentTarget.style.border = `1px solid ${nc}40`; }}
-                      onMouseLeave={ev => { ev.currentTarget.style.background = '#f9f9f6'; ev.currentTarget.style.border = `1px solid ${nc}15`; }}>
-                      <span style={{ fontSize: 11, color: '#aaa', minWidth: 28, textAlign: 'center',
-                        background: '#f0f0ec', borderRadius: 6, padding: '1px 5px' }}>{s.numero}</span>
-                      <span style={{ flex: 1, fontSize: 14, fontWeight: 600, color: '#1a1a1a', direction: 'rtl' }}>{s.nom_ar}</span>
-                      <span style={{ fontSize: 10, color: '#aaa' }}>{s.nb_versets} {lang==='ar'?'آية':'v.'}</span>
-                      <span style={{ color: '#ccc', fontSize: 14 }}>›</span>
-                    </button>
-                  ))}
-                </div>
+                {currentSourate ? (
+                  <>
+                    {/* Info sourate en cours */}
+                    <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:14,
+                      padding:'12px 14px', background:`${nc}08`, borderRadius:12, border:`1px solid ${nc}20` }}>
+                      <div style={{ lineHeight:1.2, flex:1 }}>
+                        <div style={{ fontSize:11, color:'#aaa', marginBottom:3 }}>
+                          {lang==='ar'?'السورة في الدور:':'Sourate en cours :'}
+                        </div>
+                        <div style={{ fontSize:17, fontWeight:900, color:'#1a1a1a', direction:'rtl' }}>
+                          {currentSourate.nom_ar}
+                        </div>
+                        <div style={{ fontSize:11, color:'#aaa', marginTop:2 }}>
+                          {lang==='ar'?'رقم':'N°'} {currentSourate.numero} · {currentSourate.nb_versets} {lang==='ar'?'آية':'versets'}
+                        </div>
+                      </div>
+                      <div style={{ width:44, height:44, borderRadius:10, background:`${nc}15`,
+                        display:'flex', alignItems:'center', justifyContent:'center',
+                        fontSize:16, fontWeight:900, color:nc, flexShrink:0 }}>
+                        {currentSourate.numero}
+                      </div>
+                    </div>
+
+                    {/* Choix : complète ou séquence */}
+                    <div style={{ display:'flex', gap:8, marginBottom:14 }}>
+                      {[
+                        { val:'complete', label:lang==='ar'?'كاملة':'Complète', pts:bareme?.unites?.sourate||0, icon:'🎯' },
+                        { val:'sequence', label:lang==='ar'?'مقطع':'Séquence', pts:bareme?.unites?.sequence_sourate||0, icon:'📌' },
+                      ].map(opt => (
+                        <button key={opt.val} onClick={() => { setTypeRec(opt.val); setSourateSelectionnee(currentSourate); }}
+                          style={{ flex:1, padding:'12px 8px', borderRadius:12, cursor:'pointer',
+                            border:`2px solid ${nc}30`, background:`${nc}08`,
+                            fontFamily:"'Tajawal',Arial,sans-serif", transition:'all 0.15s' }}
+                          onMouseEnter={ev=>{ev.currentTarget.style.background=`${nc}15`;ev.currentTarget.style.border=`2px solid ${nc}60`;}}
+                          onMouseLeave={ev=>{ev.currentTarget.style.background=`${nc}08`;ev.currentTarget.style.border=`2px solid ${nc}30`;}}>
+                          <div style={{ fontSize:20, marginBottom:4 }}>{opt.icon}</div>
+                          <div style={{ fontSize:13, fontWeight:700, color:'#1a1a1a' }}>{opt.label}</div>
+                          {opt.pts > 0 && <div style={{ fontSize:11, color:'#aaa', marginTop:2 }}>+{opt.pts} {t(lang,'pts_abrev')}</div>}
+                        </button>
+                      ))}
+                    </div>
+                  </>
+                ) : (
+                  <div style={{ textAlign:'center', padding:'2rem', color:'#aaa' }}>
+                    <div style={{ fontSize:32, marginBottom:8 }}>🎉</div>
+                    <div style={{ fontSize:13 }}>{lang==='ar'?'أحسنت! تم الانتهاء من جميع السور':'Toutes les sourates complétées !'}</div>
+                  </div>
+                )}
               </div>
             )}
 
