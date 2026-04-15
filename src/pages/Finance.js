@@ -49,7 +49,7 @@ const SEMESTRES = [
 const getAnnees = () => {
   const current = new Date().getFullYear();
   const years = [];
-  for (let y = 2015; y <= current + 5; y++) years.push(y);
+  for (let y = current - 10; y <= current + 10; y++) years.push(y);
   return years.map(y=>({ val:String(y), fr:String(y), ar:String(y) }));
 };
 
