@@ -1526,9 +1526,7 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile 
             {icon:'📦', label:lang==='ar'?'مجموعات السور':'Ensembles',
              desc:lang==='ar'?'تجميع السور في مجموعات':'Grouper les sourates par ensemble',
              action:()=>navigate('ensembles'), color:'#D85A30', bg:'#FAECE7'},
-            {icon:'🏆', label:lang==='ar'?'نتائج الامتحانات':'Résultats',
-             desc:lang==='ar'?'تسجيل ومتابعة نتائج الامتحانات':'Saisir et consulter les résultats',
-             action:()=>navigate('resultats_examens'), color:'#534AB7', bg:'#EEEDFE'},
+
           ].map((item,idx)=>(
             <div key={idx} onClick={item.action}
               style={{background:'#fff',borderRadius:14,padding:'1.1rem',
