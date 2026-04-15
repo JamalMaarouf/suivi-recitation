@@ -48,7 +48,9 @@ const SEMESTRES = [
 
 const getAnnees = () => {
   const current = new Date().getFullYear();
-  return [current-1, current, current+1].map(y=>({ val:String(y), fr:String(y), ar:String(y) }));
+  const years = [];
+  for (let y = 2015; y <= current + 5; y++) years.push(y);
+  return years.map(y=>({ val:String(y), fr:String(y), ar:String(y) }));
 };
 
 const buildPeriodeStr = (typePeriode, valPeriode, annee) => {

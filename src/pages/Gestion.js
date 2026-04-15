@@ -1487,7 +1487,7 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile 
           <div className={`tab ${tab === 'parents' ? 'active' : ''}`} onClick={() => setTab('parents')}>👨‍👩‍👦 {lang==='ar'?'الآباء':(lang==='ar'?'الآباء':'Parents')}</div>
           <div className={`tab ${tab === 'parametres' ? 'active' : ''}`} onClick={() => setTab('parametres')}>⚙️ {lang==='ar'?'إعدادات':'Paramètres'}</div>
           <div className={`tab ${tab === 'jalons' ? 'active' : ''}`} onClick={() => setTab('jalons')}>🏅 {lang==='ar'?'الشهادات':'Jalons'}</div>
-          <div className={`tab ${tab === 'notes' ? 'active' : ''}`} onClick={() => setTab('notes')}>📊 {lang==='ar'?'الفترات':'Périodes'}</div>
+
           <div className={`tab ${tab === 'bareme' ? 'active' : ''}`} onClick={() => setTab('bareme')}>⭐ {lang==='ar'?'النقاط':'Barème'}</div>
         </div>
         <div style={{display:'flex',gap:6}}>
@@ -1997,15 +1997,7 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile 
           showMsg={showMsg}
         />
       )}
-      {tab === 'notes' && (
-        <PeriodesTab
-          user={user} lang={lang}
-          periodes={periodes} setPeriodes={setPeriodes}
-          newPeriode={newPeriode} setNewPeriode={setNewPeriode}
-          savingPeriode={savingPeriode} setSavingPeriode={setSavingPeriode}
-          showMsg={showMsg}
-        />
-      )}
+
       {tab === 'jalons' && (
         <JalonsTab
           user={user} lang={lang}
