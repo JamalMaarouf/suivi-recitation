@@ -182,6 +182,10 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
       setSourateSelectionnee(null);
       setTypeRec('complete');
       setVersetDebut(''); setVersetFin('');
+      // Recharger les récitations pour avancer à la sourate suivante
+      const { data: newRecs } = await supabase.from('recitations_sourates')
+        .select('*').eq('eleve_id', selectedEleve.id).eq('ecole_id', user.ecole_id);
+      setRecitationsSourates(newRecs || []);
     }
     setSaving(false);
   };
