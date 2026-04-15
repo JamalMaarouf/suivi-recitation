@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from '../lib/supabase';
-import { calcEtatEleve, getInitiales, scoreLabel, motivationMsg } from '../lib/helpers';
+import { calcEtatEleve, getInitiales, scoreLabel, motivationMsg, verifierEtCreerCertificats } from '../lib/helpers';
 import { t } from '../lib/i18n';
 
 function Avatar({ prenom, nom, size=40, bg='#E1F5EE', color='#085041' }) {
@@ -62,6 +62,15 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
       const {data:newVals}=await supabase.from('validations').select('*')
         .eq('ecole_id', user.ecole_id).eq('eleve_id',selectedEleve.id);
       setEtat(calcEtatEleve(newVals||[],selectedEleve.hizb_depart,selectedEleve.tomon_depart));
+      // Vérification automatique jalons/certificats
+      const nouveauxCerts = await verifierEtCreerCertificats(supabase, {
+        eleve: selectedEleve, ecole_id: user.ecole_id, valide_par: user.id,
+        validations: newVals || [], recitations: [],
+      });
+      if (nouveauxCerts.length > 0) {
+        setTimeout(() => setFlash({ msg: `🏅 ${nouveauxCerts.map(c=>c.nom_certificat).join(', ')} !`, color: '#EF9F27', pts: 0 }), 2600);
+        setTimeout(() => setFlash(null), 6000);
+      }
     }
     setSaving(false);
   };

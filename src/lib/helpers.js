@@ -417,3 +417,109 @@ export function getCouleurNiveau(code_niveau, niveaux) {
   }
   return niveaux.find(n => n.code === code_niveau)?.couleur || '#888';
 }
+
+// ══════════════════════════════════════════════════════════════════
+// CERTIFICATS — Détection automatique après validation
+// ══════════════════════════════════════════════════════════════════
+
+/**
+ * Vérifie si l'élève a atteint un jalon et crée le certificat si pas encore existant.
+ * Appelé après chaque validation hizb_complet ou recitation sourate complete.
+ * Retourne la liste des nouveaux certificats créés (pour afficher une notification).
+ */
+export async function verifierEtCreerCertificats(supabase, {
+  eleve,
+  ecole_id,
+  valide_par,
+  validations,       // validations hizb existantes
+  recitations,       // recitations_sourates existantes
+}) {
+  try {
+    // 1. Charger les jalons actifs de l'école
+    const { data: jalons } = await supabase
+      .from('jalons')
+      .select('*')
+      .eq('ecole_id', ecole_id)
+      .eq('actif', true);
+
+    if (!jalons || jalons.length === 0) return [];
+
+    // 2. Charger les certificats déjà obtenus par cet élève
+    const { data: certsExistants } = await supabase
+      .from('certificats_eleves')
+      .select('jalon_id')
+      .eq('eleve_id', eleve.id);
+
+    const jalonsDejaObtenus = new Set((certsExistants || []).map(c => c.jalon_id));
+
+    // 3. Calcul des hizb complétés (depuis validations)
+    const hizbsComplets = new Set(
+      (validations || [])
+        .filter(v => v.type_validation === 'hizb_complet')
+        .map(v => v.hizb_valide)
+    );
+    // Inclure les hizb acquis antérieurs
+    const hizbDepart = eleve.hizb_depart || 1;
+    for (let h = 1; h < hizbDepart; h++) hizbsComplets.add(h);
+    const totalHizbComplets = hizbsComplets.size;
+
+    // 4. Sourates complètes (depuis recitations)
+    const souratesCompletes = new Set(
+      (recitations || [])
+        .filter(r => r.type_recitation === 'complete' || r.complete === true)
+        .map(r => r.sourate_id)
+    );
+
+    const nouveauxCerts = [];
+
+    for (const jalon of jalons) {
+      // Déjà obtenu → skip
+      if (jalonsDejaObtenus.has(jalon.id)) continue;
+
+      let jalonAtteint = false;
+
+      if (jalon.type_jalon === 'hizb') {
+        jalonAtteint = totalHizbComplets >= jalon.valeur;
+      } else if (jalon.type_jalon === 'ensemble_sourates' && jalon.ensemble_id) {
+        const { data: ensemble } = await supabase
+          .from('ensembles_sourates')
+          .select('sourates_ids')
+          .eq('id', jalon.ensemble_id)
+          .maybeSingle();
+        if (ensemble && ensemble.sourates_ids && ensemble.sourates_ids.length > 0) {
+          jalonAtteint = ensemble.sourates_ids.every(sid => souratesCompletes.has(sid));
+        }
+      } else if (jalon.type_jalon === 'examen' && jalon.examen_id) {
+        // Jalon atteint si l'élève a réussi cet examen
+        const { data: resultat } = await supabase
+          .from('resultats_examens')
+          .select('id')
+          .eq('eleve_id', eleve.id)
+          .eq('examen_id', jalon.examen_id)
+          .eq('statut', 'reussi')
+          .maybeSingle();
+        jalonAtteint = !!resultat;
+      }
+
+      if (!jalonAtteint) continue;
+
+      // Créer le certificat
+      const payload = {
+        eleve_id: eleve.id,
+        ecole_id,
+        jalon_id: jalon.id,
+        nom_certificat: jalon.nom,
+        nom_certificat_ar: jalon.nom_ar || null,
+        date_obtention: new Date().toISOString(),
+        valide_par: valide_par || null,
+      };
+      await supabase.from('certificats_eleves').insert(payload);
+      nouveauxCerts.push({ ...payload, jalon });
+    }
+
+    return nouveauxCerts;
+  } catch (err) {
+    console.error('verifierEtCreerCertificats error:', err);
+    return [];
+  }
+}

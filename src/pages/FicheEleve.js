@@ -201,16 +201,20 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang, isMobi
           const exRes = await supabase.from('resultats_examens')
             .select('*').eq('eleve_id',eleve.id).order('created_at',{ascending:false});
           if (exRes.data && exRes.data.length > 0) {
-            // Charger les descriptions d'examens séparément
             const examIds = [...new Set(exRes.data.map(r=>r.examen_id).filter(Boolean))];
             const {data:examData} = await supabase.from('examens').select('id,nom,description,score_minimum,bloquant').in('id',examIds);
             const examMap = Object.fromEntries((examData||[]).map(e=>[e.id,e]));
             setExamens(exRes.data.map(r=>({...r, examen:examMap[r.examen_id]||null})));
-            setCertificats(exRes.data.filter(r=>r.statut==='reussi'||r.certificat_genere).map(r=>({...r, examen:examMap[r.examen_id]||null})));
           } else {
-            setExamens([]); setCertificats([]);
+            setExamens([]);
           }
-        } catch(e) { setExamens([]); setCertificats([]); }
+        } catch(e) { setExamens([]); }
+        // Charger les vrais certificats depuis certificats_eleves
+        try {
+          const certRes = await supabase.from('certificats_eleves')
+            .select('*').eq('eleve_id',eleve.id).order('date_obtention',{ascending:false});
+          setCertificats(certRes.data || []);
+        } catch(e) { setCertificats([]); }
         if(inst) setInstituteurNom(inst.prenom+' '+inst.nom);
       }
       const e = calcEtatEleve(vals||[],eleve.hizb_depart||1,eleve.tomon_depart||1);
@@ -614,16 +618,19 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang, isMobi
               <div style={{padding:'1rem 0'}}>
                 {certificats.length===0 ? (
                   <div style={{textAlign:'center',color:'#aaa',padding:'2rem',fontSize:13}}>
-                    {lang==='ar'?'لا توجد شهادات بعد':'Aucun certificat pour le moment'}
+                    {lang==='ar'?'لا توجد شهادات بعد — ستظهر تلقائياً عند بلوغ مرحلة':'Aucun certificat pour le moment — ils apparaissent automatiquement lors d\'un jalon'}
                   </div>
                 ) : certificats.map(cert=>(
-                  <div key={cert.id} style={{background:'linear-gradient(135deg,#f9f9f6,#fff)',border:'1px solid #1D9E7530',borderRadius:12,padding:'14px',marginBottom:8,display:'flex',alignItems:'center',gap:12}}>
-                    <span style={{fontSize:32}}>🏅</span>
+                  <div key={cert.id} style={{background:'linear-gradient(135deg,#FAEEDA,#fff8ee)',border:'1px solid #EF9F2740',borderRadius:14,padding:'16px',marginBottom:10,display:'flex',alignItems:'center',gap:14}}>
+                    <div style={{width:52,height:52,borderRadius:14,background:'#FAEEDA',display:'flex',alignItems:'center',justifyContent:'center',fontSize:28,flexShrink:0}}>🏅</div>
                     <div style={{flex:1}}>
-                      <div style={{fontSize:13,fontWeight:700,color:'#085041'}}>{cert.titre||lang==='ar'?'شهادة إتمام':'Certificat de réussite'}</div>
-                      <div style={{fontSize:11,color:'#888',marginTop:3}}>📅 {cert.date_emission?new Date(cert.date_emission).toLocaleDateString(lang==='ar'?'ar-MA':'fr-FR'):'—'}</div>
-                      {cert.description&&<div style={{fontSize:11,color:'#666',marginTop:2}}>{cert.description}</div>}
+                      <div style={{fontSize:14,fontWeight:700,color:'#085041'}}>{cert.nom_certificat}</div>
+                      {cert.nom_certificat_ar&&<div style={{fontSize:12,color:'#888',direction:'rtl',fontFamily:"'Tajawal',Arial,sans-serif",marginTop:2}}>{cert.nom_certificat_ar}</div>}
+                      <div style={{fontSize:11,color:'#888',marginTop:4}}>
+                        📅 {cert.date_obtention ? new Date(cert.date_obtention).toLocaleDateString(lang==='ar'?'ar-MA':'fr-FR',{day:'2-digit',month:'long',year:'numeric'}) : '—'}
+                      </div>
                     </div>
+                    <span style={{fontSize:22}}>🎓</span>
                   </div>
                 ))}
               </div>
@@ -1119,14 +1126,15 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang, isMobi
             <div style={{padding:'0.5rem 0'}}>
               {certificats.length===0?(
                 <div style={{textAlign:'center',color:'#aaa',padding:'2rem',fontSize:13}}>
-                  {lang==='ar'?'لا توجد شهادات بعد':'Aucun certificat pour le moment'}
+                  {lang==='ar'?'لا توجد شهادات بعد — ستظهر تلقائياً عند بلوغ مرحلة':'Aucun certificat — ils apparaissent automatiquement'}
                 </div>
               ):certificats.map(cert=>(
-                <div key={cert.id} style={{background:'linear-gradient(135deg,#f9f9f6,#fff)',border:'1px solid #1D9E7530',borderRadius:12,padding:'14px',marginBottom:8,display:'flex',alignItems:'center',gap:12}}>
-                  <span style={{fontSize:32}}>🏅</span>
+                <div key={cert.id} style={{background:'linear-gradient(135deg,#FAEEDA,#fff8ee)',border:'1px solid #EF9F2740',borderRadius:14,padding:'14px',marginBottom:10,display:'flex',alignItems:'center',gap:12}}>
+                  <div style={{width:44,height:44,borderRadius:12,background:'#FAEEDA',display:'flex',alignItems:'center',justifyContent:'center',fontSize:24,flexShrink:0}}>🏅</div>
                   <div style={{flex:1}}>
-                    <div style={{fontSize:13,fontWeight:700,color:'#085041'}}>{cert.titre||lang==='ar'?'شهادة إتمام':'Certificat de réussite'}</div>
-                    <div style={{fontSize:11,color:'#888',marginTop:3}}>📅 {cert.date_emission?new Date(cert.date_emission).toLocaleDateString(lang==='ar'?'ar-MA':'fr-FR'):'—'}</div>
+                    <div style={{fontSize:13,fontWeight:700,color:'#085041'}}>{cert.nom_certificat}</div>
+                    {cert.nom_certificat_ar&&<div style={{fontSize:11,color:'#888',direction:'rtl',fontFamily:"'Tajawal',Arial,sans-serif",marginTop:2}}>{cert.nom_certificat_ar}</div>}
+                    <div style={{fontSize:11,color:'#888',marginTop:3}}>📅 {cert.date_obtention?new Date(cert.date_obtention).toLocaleDateString(lang==='ar'?'ar-MA':'fr-FR'):'—'}</div>
                   </div>
                 </div>
               ))}

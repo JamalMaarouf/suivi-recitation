@@ -10,6 +10,18 @@ function Avatar({ prenom, nom, size = 28 }) {
   return (
     <div style={{ width: size, height: size, borderRadius: '50%', background: '#E1F5EE', color: '#085041', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 600, fontSize: size * 0.33, flexShrink: 0 }}>
       {getInitiales(prenom, nom)}
+
+      {tab === 'jalons' && (
+        <JalonsTab
+          user={user} lang={lang}
+          jalons={jalons} setJalons={setJalons}
+          ensembles={ensemblesDisp}
+          examens={examensDisp}
+          newJalon={newJalon} setNewJalon={setNewJalon}
+          savingJalon={savingJalon} setSavingJalon={setSavingJalon}
+          showMsg={showMsg}
+        />
+      )}
     </div>
   );
 }
@@ -146,6 +158,148 @@ function AcquisSelector({ codeNiveau, hizb, tomon, onHizbChange, onTomonChange, 
 }
 
 
+// ══════════════════════════════════════════════════════
+// COMPOSANT JalonsTab — Gestion des jalons/certificats
+// ══════════════════════════════════════════════════════
+function JalonsTab({ user, lang, jalons, setJalons, ensembles, examens, newJalon, setNewJalon, savingJalon, setSavingJalon, showMsg }) {
+
+  const ajouterJalon = async () => {
+    if (!newJalon.nom.trim()) return showMsg('error', lang==='ar'?'اسم المرحلة مطلوب':'Le nom du jalon est obligatoire');
+    if (newJalon.type_jalon === 'hizb' && (!newJalon.valeur || newJalon.valeur < 1)) return showMsg('error', lang==='ar'?'عدد الأحزاب مطلوب':'Nombre de hizb requis');
+    if (newJalon.type_jalon === 'ensemble_sourates' && !newJalon.ensemble_id) return showMsg('error', lang==='ar'?'اختر مجموعة السور':'Choisissez un ensemble de sourates');
+    if (newJalon.type_jalon === 'examen' && !newJalon.examen_id) return showMsg('error', lang==='ar'?'اختر الامتحان':'Choisissez un examen');
+    setSavingJalon(true);
+    const payload = {
+      ecole_id: user.ecole_id,
+      nom: newJalon.nom.trim(),
+      nom_ar: newJalon.nom_ar.trim() || null,
+      type_jalon: newJalon.type_jalon,
+      valeur: newJalon.type_jalon === 'hizb' ? parseInt(newJalon.valeur) : null,
+      ensemble_id: newJalon.type_jalon === 'ensemble_sourates' ? newJalon.ensemble_id : null,
+      examen_id: newJalon.type_jalon === 'examen' ? newJalon.examen_id : null,
+      actif: true,
+    };
+    await supabase.from('jalons').insert(payload);
+    const { data } = await supabase.from('jalons').select('*').eq('ecole_id', user.ecole_id).order('created_at');
+    if (data) setJalons(data);
+    setNewJalon({ nom: '', nom_ar: '', type_jalon: 'hizb', valeur: 5, ensemble_id: '', examen_id: '' });
+    setSavingJalon(false);
+    showMsg('success', lang==='ar'?'تمت إضافة المرحلة بنجاح':'Jalon ajouté avec succès');
+  };
+
+  const supprimerJalon = async (id) => {
+    await supabase.from('jalons').delete().eq('id', id);
+    setJalons(prev => prev.filter(j => j.id !== id));
+    showMsg('success', lang==='ar'?'تم حذف المرحلة':'Jalon supprimé');
+  };
+
+  const toggleActif = async (jalon) => {
+    await supabase.from('jalons').update({ actif: !jalon.actif }).eq('id', jalon.id);
+    setJalons(prev => prev.map(j => j.id === jalon.id ? {...j, actif: !j.actif} : j));
+  };
+
+  const getEnsembleNom = (id) => ensembles.find(e => e.id === id)?.nom || '—';
+  const getExamenNom = (id) => (examens||[]).find(e => e.id === id)?.nom || '—';
+  const typeLabel = (j) => {
+    if (j.type_jalon === 'hizb') return lang==='ar' ? `${j.valeur} أحزاب مكتملة` : `${j.valeur} Hizb complétés`;
+    if (j.type_jalon === 'ensemble_sourates') return lang==='ar' ? `مجموعة: ${getEnsembleNom(j.ensemble_id)}` : `Ensemble: ${getEnsembleNom(j.ensemble_id)}`;
+    if (j.type_jalon === 'examen') return lang==='ar' ? `امتحان ناجح: ${getExamenNom(j.examen_id)}` : `Examen réussi: ${getExamenNom(j.examen_id)}`;
+    return j.type_jalon;
+  };
+
+  return (
+    <div>
+      <div style={{fontSize:13,color:'#888',marginBottom:'1.25rem'}}>
+        {lang==='ar'?'تكوين المراحل التي تُمنح عندها شهادة للطالب تلقائياً':'Configurez les jalons qui déclenchent automatiquement un certificat'}
+      </div>
+
+      {/* Formulaire ajout jalon */}
+      <div className="card" style={{marginBottom:'1.5rem'}}>
+        <div className="section-label">{lang==='ar'?'إضافة مرحلة جديدة':'Ajouter un jalon'}</div>
+        <div className="form-grid">
+          <div className="field-group">
+            <label className="field-lbl">{lang==='ar'?'اسم الشهادة (فرنسية)':'Nom du certificat (français)'} <span style={{color:'#E24B4A'}}>*</span></label>
+            <input className="field-input" value={newJalon.nom} onChange={e=>setNewJalon({...newJalon,nom:e.target.value})} placeholder={lang==='ar'?'مثال: شهادة 5 أحزاب':'Ex: Certificat 5 Hizb'} />
+          </div>
+          <div className="field-group">
+            <label className="field-lbl">{lang==='ar'?'الاسم بالعربية (اختياري)':'Nom en arabe (optionnel)'}</label>
+            <input className="field-input" value={newJalon.nom_ar} onChange={e=>setNewJalon({...newJalon,nom_ar:e.target.value})} placeholder="مثال: شهادة 5 أحزاب" style={{direction:'rtl'}} />
+          </div>
+          <div className="field-group">
+            <label className="field-lbl">{lang==='ar'?'نوع المرحلة':'Type de jalon'} <span style={{color:'#E24B4A'}}>*</span></label>
+            <select className="field-select" value={newJalon.type_jalon} onChange={e=>setNewJalon({...newJalon,type_jalon:e.target.value,valeur:5,ensemble_id:'',examen_id:''})}>
+              <option value="hizb">{lang==='ar'?'عدد أحزاب مكتملة':'Nombre de Hizb complétés'}</option>
+              <option value="ensemble_sourates">{lang==='ar'?'مجموعة سور مكتملة':'Ensemble de sourates terminé'}</option>
+              <option value="examen">{lang==='ar'?'اجتياز امتحان':'Examen réussi'}</option>
+            </select>
+          </div>
+          {newJalon.type_jalon === 'hizb' && (
+            <div className="field-group">
+              <label className="field-lbl">{lang==='ar'?'عدد الأحزاب المطلوبة':'Nombre de Hizb requis'} <span style={{color:'#E24B4A'}}>*</span></label>
+              <input className="field-input" type="number" min="1" max="60" value={newJalon.valeur}
+                onChange={e=>setNewJalon({...newJalon,valeur:e.target.value})} placeholder="Ex: 5" />
+            </div>
+          )}
+          {newJalon.type_jalon === 'ensemble_sourates' && (
+            <div className="field-group">
+              <label className="field-lbl">{lang==='ar'?'مجموعة السور':'Ensemble de sourates'} <span style={{color:'#E24B4A'}}>*</span></label>
+              <select className="field-select" value={newJalon.ensemble_id} onChange={e=>setNewJalon({...newJalon,ensemble_id:e.target.value})}>
+                <option value="">{lang==='ar'?'اختر مجموعة':'Choisir un ensemble'}</option>
+                {ensembles.map(e=><option key={e.id} value={e.id}>{e.nom}</option>)}
+              </select>
+            </div>
+          )}
+          {newJalon.type_jalon === 'examen' && (
+            <div className="field-group">
+              <label className="field-lbl">{lang==='ar'?'الامتحان':'Examen'} <span style={{color:'#E24B4A'}}>*</span></label>
+              <select className="field-select" value={newJalon.examen_id} onChange={e=>setNewJalon({...newJalon,examen_id:e.target.value})}>
+                <option value="">{lang==='ar'?'اختر امتحاناً':'Choisir un examen'}</option>
+                {(examens||[]).map(e=><option key={e.id} value={e.id}>{e.nom}</option>)}
+              </select>
+            </div>
+          )}
+        </div>
+        <button className="btn-primary" onClick={ajouterJalon} disabled={savingJalon}>
+          {savingJalon ? '...' : (lang==='ar'?'إضافة المرحلة':'Ajouter le jalon')}
+        </button>
+      </div>
+
+      {/* Liste des jalons */}
+      <div className="section-label">{lang==='ar'?'المراحل المُعرَّفة':'Jalons configurés'} ({jalons.length})</div>
+      {jalons.length === 0 ? (
+        <div className="empty">{lang==='ar'?'لا توجد مراحل بعد — أضف أول مرحلة أعلاه':'Aucun jalon — ajoutez-en un ci-dessus'}</div>
+      ) : (
+        <div style={{display:'flex',flexDirection:'column',gap:8}}>
+          {jalons.map(j => (
+            <div key={j.id} style={{background:'#fff',border:'0.5px solid #e0e0d8',borderRadius:12,padding:'12px 14px',display:'flex',alignItems:'center',gap:12,opacity:j.actif?1:0.5}}>
+              <div style={{width:44,height:44,borderRadius:12,background:j.actif?'#FAEEDA':'#f0f0ec',display:'flex',alignItems:'center',justifyContent:'center',fontSize:22,flexShrink:0}}>
+                {j.type_jalon==='examen'?'📝':'🏅'}
+              </div>
+              <div style={{flex:1}}>
+                <div style={{fontWeight:700,fontSize:14,color:'#1a1a1a'}}>{j.nom}</div>
+                {j.nom_ar && <div style={{fontSize:12,color:'#888',direction:'rtl',fontFamily:"'Tajawal',Arial,sans-serif"}}>{j.nom_ar}</div>}
+                <div style={{fontSize:11,color:'#EF9F27',marginTop:2,fontWeight:600}}>{typeLabel(j)}</div>
+              </div>
+              <div style={{display:'flex',gap:6}}>
+                <button onClick={()=>toggleActif(j)}
+                  style={{padding:'4px 8px',borderRadius:6,fontSize:11,fontWeight:600,cursor:'pointer',
+                    background:j.actif?'#E1F5EE':'#f0f0ec',color:j.actif?'#085041':'#888',
+                    border:`0.5px solid ${j.actif?'#1D9E7530':'#e0e0d8'}`}}>
+                  {j.actif ? (lang==='ar'?'نشط':'Actif') : (lang==='ar'?'غير نشط':'Inactif')}
+                </button>
+                <button onClick={()=>supprimerJalon(j.id)}
+                  style={{padding:'4px 8px',borderRadius:6,background:'#FCEBEB',color:'#E24B4A',border:'0.5px solid #E24B4A30',cursor:'pointer',fontSize:11,fontWeight:600}}>
+                  🗑
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile }) {
   const { toast } = useToast();
   const [tab, setTab] = useState('eleves');
@@ -178,11 +332,26 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile 
   const [editInstituteur, setEditInstituteur] = useState(null);
   const [formEditInst, setFormEditInst] = useState({prenom:'',nom:'',identifiant:'',mot_de_passe:''});
 
+  // ── Jalons / Certificats ──
+  const [jalons, setJalons] = useState([]);
+  const [ensemblesDisp, setEnsemblesDisp] = useState([]);
+  const [examensDisp, setExamensDisp] = useState([]);
+  const [newJalon, setNewJalon] = useState({ nom: '', nom_ar: '', type_jalon: 'hizb', valeur: 5, ensemble_id: '', examen_id: '' });
+  const [savingJalon, setSavingJalon] = useState(false);
+
   useEffect(() => { loadData(); }, []);
   useEffect(() => {
     supabase.from('niveaux').select('id,code,nom,type,couleur')
       .eq('ecole_id', user.ecole_id).order('ordre')
       .then(({data}) => { if(data) setNiveauxDyn(data); });
+  }, []);
+  useEffect(() => {
+    supabase.from('jalons').select('*').eq('ecole_id', user.ecole_id).order('created_at')
+      .then(({data}) => { if(data) setJalons(data); });
+    supabase.from('ensembles_sourates').select('id,nom').eq('ecole_id', user.ecole_id).order('nom')
+      .then(({data}) => { if(data) setEnsemblesDisp(data); });
+    supabase.from('examens').select('id,nom').eq('ecole_id', user.ecole_id).eq('actif', true).order('nom')
+      .then(({data}) => { if(data) setExamensDisp(data); });
   }, []);
 
   const loadData = async () => {
@@ -927,6 +1096,7 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile 
           <div className={`tab ${tab === 'instituteurs' ? 'active' : ''}`} onClick={() => setTab('instituteurs')}>{t(lang, 'instituteurs')}</div>
           <div className={`tab ${tab === 'parents' ? 'active' : ''}`} onClick={() => setTab('parents')}>👨‍👩‍👦 {lang==='ar'?'الآباء':(lang==='ar'?'الآباء':'Parents')}</div>
           <div className={`tab ${tab === 'parametres' ? 'active' : ''}`} onClick={() => setTab('parametres')}>⚙️ {lang==='ar'?'إعدادات':'Paramètres'}</div>
+          <div className={`tab ${tab === 'jalons' ? 'active' : ''}`} onClick={() => setTab('jalons')}>🏅 {lang==='ar'?'الشهادات':'Jalons'}</div>
         </div>
         <div style={{display:'flex',gap:6}}>
           {tab==='eleves'&&<>
