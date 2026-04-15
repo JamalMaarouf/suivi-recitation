@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 import { useToast } from '../lib/toast';
+import { t } from '../lib/i18n';
 
 export default function GestionEnsembles({ user, navigate, goBack, lang='fr', isMobile }) {
   const { toast } = useToast();
