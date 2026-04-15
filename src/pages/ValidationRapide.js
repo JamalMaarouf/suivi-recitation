@@ -44,7 +44,7 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
     ? eleves.filter(e => `${e.prenom} ${e.nom} ${e.eleve_id_ecole || ''}`.toLowerCase().includes(search.toLowerCase())).slice(0, 6)
     : [];
 
-  const selectEleve = (e) => {
+  const selectEleve = async (e) => {
     const vals = allValidations.filter(v => v.eleve_id === e.id);
     setSelectedEleve(e);
     setEtat(calcEtatEleve(vals, e.hizb_depart, e.tomon_depart));
