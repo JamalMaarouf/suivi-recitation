@@ -58,13 +58,13 @@ export function getInitiales(prenom, nom) {
 // ══════════════════════════════════════════════════════════════════
 
 export const BAREME_DEFAUT = {
-  tomon: 10,
-  hizb_complet: 100,
-  sourate: 30,
-  examen: 50,
+  tomon: 0,
+  hizb_complet: 0,
+  sourate: 0,
+  examen: 0,
   certificat: 0,
-  muraja_tomon: 5,
-  muraja_hizb: 20,
+  muraja_tomon: 0,
+  muraja_hizb: 0,
 };
 
 /**
