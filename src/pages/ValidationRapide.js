@@ -58,35 +58,33 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
     const { data: recs } = await supabase.from('recitations_sourates')
       .select('*').eq('eleve_id', e.id).eq('ecole_id', user.ecole_id);
     setRecitationsSourates(recs || []);
+    // Recharger souratesDB si vide (race condition)
+    if (souratesDB.length === 0) {
+      const { data: sour } = await supabase.from('sourates').select('id,numero,nom_ar,nb_versets').order('numero', { ascending: false });
+      if (sour) setSouratesDB(sour);
+    }
   };
 
   const estSourate = selectedEleve ? isSourateNiveauDyn(selectedEleve.code_niveau, niveaux) : false;
 
+  // Index souratesDB par numero pour lookup rapide
+  const souratesIndex = Object.fromEntries(souratesDB.map(s => [s.numero, s]));
+
   // Calculer la sourate en cours pour les élèves sourate
   const currentSourate = (() => {
-    if (!estSourate || !selectedEleve) return null;
+    if (!estSourate || !selectedEleve || souratesDB.length === 0) return null;
     const souratesAcquises = selectedEleve.sourates_acquises || 0;
-    // Sourates du niveau triées décroissantes (114→1)
-    const souratesNiveau = getSouratesForNiveau(selectedEleve.code_niveau);
-    const souratesOrdonnees = [...souratesNiveau].sort((a, b) => b.numero - a.numero);
-    // isComplete : chercher par numéro dans les récitations (on matche via souratesDB id→numero)
-    const isComplete = (num) => {
-      // trouver l'id de cette sourate dans souratesDB
-      const sourateObj = souratesDB.find(s => s.numero === num);
-      if (!sourateObj) return false;
-      return recitationsSourates.some(r =>
-        r.sourate_id === sourateObj.id && r.type_recitation === 'complete'
-      );
-    };
+    // Toutes les sourates triées décroissantes (114→1) — filtrées à celles dans souratesDB
+    const souratesOrdonnees = [...souratesDB].sort((a, b) => b.numero - a.numero);
+    // isComplete : sourate validée comme complète dans les récitations
+    const isComplete = (sourateId) =>
+      recitationsSourates.some(r => r.sourate_id === sourateId && r.type_recitation === 'complete');
     const firstNonComplete = souratesOrdonnees.findIndex((sr, i) => {
       if (i < souratesAcquises) return false;
-      return !isComplete(sr.numero);
+      return !isComplete(sr.id);
     });
     if (firstNonComplete < 0) return null;
-    const s = souratesOrdonnees[firstNonComplete];
-    // Enrichir avec l'id Supabase pour pouvoir insérer
-    const sourateDB = souratesDB.find(sd => sd.numero === s.numero);
-    return sourateDB ? { ...s, id: sourateDB.id, nb_versets: sourateDB.nb_versets } : s;
+    return souratesOrdonnees[firstNonComplete]; // contient déjà id, numero, nom_ar, nb_versets
   })();
 
   // Valider N tomons
@@ -159,6 +157,10 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
     const ptsComplet = bareme?.unites?.sourate || 0;
     const ptsSequence = bareme?.unites?.sequence_sourate || 0;
     const pts = typeRec === 'complete' ? ptsComplet : ptsSequence;
+    if (!sourateSelectionnee.id) {
+      console.error('ERREUR: sourate sans id', sourateSelectionnee);
+      setSaving(false); return;
+    }
     const { error } = await supabase.from('recitations_sourates').insert({
       eleve_id: selectedEleve.id, ecole_id: user.ecole_id, valide_par: user.id,
       sourate_id: sourateSelectionnee.id,
