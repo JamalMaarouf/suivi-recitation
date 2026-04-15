@@ -152,10 +152,24 @@ function AcquisSelector({ codeNiveau, hizb, tomon, onHizbChange, onTomonChange, 
 // COMPOSANT BaremeTab — Paramétrage centralisé des points
 // ══════════════════════════════════════════════════════
 function BaremeTab({ user, lang, bareme, setBareme, saving, setSaving, showMsg }) {
-  const [examens, setExamens] = useState([]);
-  const [ensembles, setEnsembles] = useState([]);
-  const [jalons, setJalons] = useState([]);
-  const [section, setSection] = useState('unites');
+  const [examens,    setExamens]    = useState([]);
+  const [ensembles,  setEnsembles]  = useState([]);
+  const [jalons,     setJalons]     = useState([]);
+  // Critères en cours de construction
+  const [criteres,   setCriteres]   = useState([]); // [{type, objet_id, label, points, icon, color}]
+  const [critereType, setCritereType] = useState('');
+  const [critereObjetId, setCritereObjetId] = useState('');
+  const [criterePoints, setCriterePoints] = useState(0);
+  // Configurations enregistrées (lignes)
+  const [configs, setConfigs] = useState([]);
+
+  const UNITES = [
+    { key:'tomon',        icon:'📖', label_ar:'ثمن واحد مُستظهر',       color:'#378ADD' },
+    { key:'hizb_complet', icon:'🎯', label_ar:'حزب كامل مُصحَّح',        color:'#085041' },
+    { key:'sourate',      icon:'📜', label_ar:'سورة كاملة',              color:'#534AB7' },
+    { key:'muraja_tomon', icon:'🔄', label_ar:'ثمن مراجعة',              color:'#1D9E75' },
+    { key:'muraja_hizb',  icon:'🔁', label_ar:'حزب مراجعة كامل',         color:'#1D9E75' },
+  ];
 
   useEffect(() => {
     supabase.from('examens').select('id,nom').eq('ecole_id', user.ecole_id).eq('actif', true).order('nom')
@@ -164,159 +178,221 @@ function BaremeTab({ user, lang, bareme, setBareme, saving, setSaving, showMsg }
       .then(({data}) => setEnsembles(data||[]));
     supabase.from('jalons').select('id,nom,nom_ar,type_jalon').eq('ecole_id', user.ecole_id).eq('actif', true).order('created_at')
       .then(({data}) => setJalons(data||[]));
+    // Charger configs existantes
+    supabase.from('bareme_notes').select('*').eq('ecole_id', user.ecole_id).eq('actif', true).order('created_at')
+      .then(({data}) => { if (data) setConfigs(data); });
   }, []);
 
-  const saveUnite = async (key, val) => {
-    const pts = parseInt(val)||0;
-    setBareme(prev => ({...prev, unites: {...prev.unites, [key]: pts}}));
-    await saveBaremeItem(supabase, user.ecole_id, key, pts, null);
+  // Options du sélecteur selon type
+  const getOptions = () => {
+    if (critereType === 'examen') return examens.map(e => ({ id: e.id, label: e.nom }));
+    if (critereType === 'ensemble_sourates') return ensembles.map(e => ({ id: e.id, label: e.nom }));
+    if (critereType === 'jalon') return jalons.map(j => ({ id: j.id, label: j.nom_ar || j.nom }));
+    return [];
   };
 
-  const saveObjet = async (type, id, val, stateKey) => {
-    const pts = parseInt(val)||0;
-    setBareme(prev => ({...prev, [stateKey]: {...prev[stateKey], [id]: pts}}));
-    await saveBaremeItem(supabase, user.ecole_id, type, pts, id);
+  const getCritereLabel = () => {
+    const u = UNITES.find(u => u.key === critereType);
+    if (u) return { label: u.label_ar, icon: u.icon, color: u.color, objet_id: null };
+    if (critereType === 'examen') {
+      const e = examens.find(x => x.id === critereObjetId);
+      return { label: e?.nom || '', icon: '📝', color: '#EF9F27', objet_id: critereObjetId };
+    }
+    if (critereType === 'ensemble_sourates') {
+      const e = ensembles.find(x => x.id === critereObjetId);
+      return { label: e?.nom || '', icon: '📦', color: '#D85A30', objet_id: critereObjetId };
+    }
+    if (critereType === 'jalon') {
+      const j = jalons.find(x => x.id === critereObjetId);
+      return { label: j?.nom_ar || j?.nom || '', icon: '🏅', color: '#EF9F27', objet_id: critereObjetId };
+    }
+    return null;
   };
 
-  const UNITES = [
-    { key:'tomon',        icon:'📖', label_ar:'ثمن واحد مُستظهر',        color:'#378ADD' },
-    { key:'hizb_complet', icon:'🎯', label_ar:'حزب كامل مُصحَّح',         color:'#085041' },
-    { key:'sourate',      icon:'📜', label_ar:'سورة كاملة (نظام السور)',  color:'#534AB7' },
-    { key:'muraja_tomon', icon:'🔄', label_ar:'ثمن مراجعة',               color:'#1D9E75' },
-    { key:'muraja_hizb',  icon:'🔁', label_ar:'حزب مراجعة كامل',          color:'#1D9E75' },
-  ];
+  const ajouterCritere = () => {
+    if (!critereType) return;
+    const isUnite = UNITES.find(u => u.key === critereType);
+    if (!isUnite && !critereObjetId) return;
+    if (criterePoints <= 0) return;
+    const info = getCritereLabel();
+    if (!info || !info.label) return;
+    // Éviter doublon
+    const exists = criteres.find(c => c.type === critereType && c.objet_id === info.objet_id);
+    if (exists) { showMsg('error', lang==='ar'?'هذا المعيار موجود بالفعل':'Ce critère est déjà ajouté'); return; }
+    setCriteres(prev => [...prev, { type: critereType, objet_id: info.objet_id, label: info.label, icon: info.icon, color: info.color, points: criterePoints }]);
+    setCritereType(''); setCritereObjetId(''); setCriterePoints(0);
+  };
 
-  const SECTIONS = [
-    { id:'unites',    icon:'⚖️',  label: lang==='ar'?'الوحدات الأساسية':'Unités de base' },
-    { id:'examens',   icon:'📝',  label: lang==='ar'?'الامتحانات':'Examens' },
-    { id:'ensembles', icon:'📦',  label: lang==='ar'?'مجموعات السور':'Ensembles' },
-    { id:'jalons',    icon:'🏅',  label: lang==='ar'?'الشهادات':'Jalons' },
-  ];
+  const retirerCritere = (idx) => setCriteres(prev => prev.filter((_,i) => i !== idx));
 
-  const PtsInput = ({ value, onChange, color='#378ADD' }) => (
-    <div style={{display:'flex',alignItems:'center',gap:4}}>
-      <input type="number" min="0" max="9999"
-        defaultValue={value||0}
-        onBlur={e => onChange(e.target.value)}
-        style={{width:68,padding:'6px 8px',borderRadius:8,border:`1.5px solid ${color}50`,
-          fontSize:15,fontWeight:700,textAlign:'center',color,background:'#fff'}}
-      />
-      <span style={{fontSize:10,color:'#aaa'}}>{lang==='ar'?'ن':'pts'}</span>
-    </div>
-  );
+  const enregistrerConfig = async () => {
+    if (criteres.length === 0) { showMsg('error', lang==='ar'?'أضف معياراً واحداً على الأقل':'Ajoutez au moins un critère'); return; }
+    setSaving(true);
+    // Upsert chaque critère
+    for (const c of criteres) {
+      await saveBaremeItem(supabase, user.ecole_id, c.type, c.points, c.objet_id);
+    }
+    // Recharger configs
+    const { data } = await supabase.from('bareme_notes').select('*').eq('ecole_id', user.ecole_id).eq('actif', true).order('created_at');
+    if (data) setConfigs(data);
+    // Recharger bareme global
+    const newB = await loadBareme(supabase, user.ecole_id);
+    setBareme(newB);
+    setCriteres([]);
+    setSaving(false);
+    showMsg('success', lang==='ar'?'تم حفظ التنقيط بنجاح':'Configuration enregistrée');
+  };
 
-  const Row = ({ icon, label, value, onChange, color, sublabel }) => (
-    <div style={{display:'flex',alignItems:'center',gap:12,padding:'10px 14px',background:'#f9f9f6',borderRadius:10,border:'0.5px solid #e0e0d8',marginBottom:6}}>
-      <div style={{width:34,height:34,borderRadius:9,background:color+'18',display:'flex',alignItems:'center',justifyContent:'center',fontSize:17,flexShrink:0}}>{icon}</div>
-      <div style={{flex:1,minWidth:0}}>
-        <div style={{fontWeight:600,fontSize:13,color:'#1a1a1a',direction:'rtl',fontFamily:"'Tajawal',Arial,sans-serif",overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{label}</div>
-        {sublabel && <div style={{fontSize:10,color:'#aaa'}}>{sublabel}</div>}
-      </div>
-      <PtsInput value={value} onChange={onChange} color={color} />
-    </div>
-  );
+  const supprimerConfig = async (id) => {
+    await supabase.from('bareme_notes').delete().eq('id', id);
+    setConfigs(prev => prev.filter(c => c.id !== id));
+    const newB = await loadBareme(supabase, user.ecole_id);
+    setBareme(newB);
+  };
+
+  const getConfigLabel = (c) => {
+    if (!c.objet_id) return UNITES.find(u => u.key === c.type)?.label_ar || c.type;
+    if (c.type === 'examen') return examens.find(e => e.id === c.objet_id)?.nom || '—';
+    if (c.type === 'ensemble_sourates') return ensembles.find(e => e.id === c.objet_id)?.nom || '—';
+    if (c.type === 'jalon') { const j = jalons.find(x => x.id === c.objet_id); return j?.nom_ar || j?.nom || '—'; }
+    return c.type;
+  };
+
+  const getConfigIcon = (c) => {
+    if (!c.objet_id) return UNITES.find(u => u.key === c.type)?.icon || '⭐';
+    if (c.type === 'examen') return '📝';
+    if (c.type === 'ensemble_sourates') return '📦';
+    if (c.type === 'jalon') return '🏅';
+    return '⭐';
+  };
+
+  const needsObjet = critereType && !UNITES.find(u => u.key === critereType);
 
   return (
     <div>
       <div style={{fontSize:13,color:'#888',marginBottom:'1.25rem'}}>
         {lang==='ar'
-          ? 'حدد النقاط لكل عنصر — تُحفظ فور التغيير تلقائياً'
-          : 'Définissez les points pour chaque élément — sauvegardés automatiquement'}
+          ? 'أضف معايير التنقيط واحفظها — تُطبَّق تلقائياً على جميع الطلاب'
+          : 'Ajoutez des critères de notation et enregistrez — appliqués automatiquement à tous'}
       </div>
 
-      {/* Tabs sections */}
-      <div style={{display:'flex',gap:6,marginBottom:'1.25rem',flexWrap:'wrap'}}>
-        {SECTIONS.map(s => (
-          <button key={s.id} onClick={()=>setSection(s.id)}
-            style={{padding:'6px 14px',borderRadius:20,border:`1px solid ${section===s.id?'#378ADD':'#e0e0d8'}`,
-              background:section===s.id?'#E6F1FB':'#fff',
-              color:section===s.id?'#378ADD':'#888',
-              fontSize:12,fontWeight:section===s.id?700:400,cursor:'pointer'}}>
-            {s.icon} {s.label}
-          </button>
-        ))}
-      </div>
+      {/* Formulaire ajout critère */}
+      <div className="card" style={{marginBottom:'1.5rem'}}>
+        <div className="section-label">{lang==='ar'?'إضافة معيار':'Ajouter un critère'}</div>
 
-      {/* Section Unités */}
-      {section==='unites' && (
-        <div>
-          <div style={{fontSize:11,color:'#888',marginBottom:10}}>
-            {lang==='ar'?'نقاط لكل وحدة أساسية في الاستظهار':'Points attribués pour chaque unité de récitation'}
+        {/* Ligne sélection */}
+        <div style={{display:'flex',gap:8,flexWrap:'wrap',alignItems:'flex-end',marginBottom:12}}>
+
+          {/* Sélecteur type */}
+          <div style={{flex:2,minWidth:160}}>
+            <label className="field-lbl">{lang==='ar'?'نوع المعيار':'Type de critère'}</label>
+            <select className="field-select" value={critereType}
+              onChange={e => { setCritereType(e.target.value); setCritereObjetId(''); }}>
+              <option value="">{lang==='ar'?'— اختر —':'— Choisir —'}</option>
+              <optgroup label={lang==='ar'?'وحدات أساسية':'Unités de base'}>
+                {UNITES.map(u => <option key={u.key} value={u.key}>{u.icon} {u.label_ar}</option>)}
+              </optgroup>
+              <optgroup label={lang==='ar'?'امتحانات':'Examens'}>
+                <option value="examen">{lang==='ar'?'امتحان محدد...':'Examen spécifique...'}</option>
+              </optgroup>
+              <optgroup label={lang==='ar'?'مجموعات سور':'Ensembles'}>
+                <option value="ensemble_sourates">{lang==='ar'?'مجموعة سور...':'Ensemble de sourates...'}</option>
+              </optgroup>
+              <optgroup label={lang==='ar'?'شهادات':'Jalons'}>
+                <option value="jalon">{lang==='ar'?'شهادة محددة...':'Jalon spécifique...'}</option>
+              </optgroup>
+            </select>
           </div>
-          {UNITES.map(u => (
-            <Row key={u.key} icon={u.icon} label={u.label_ar} color={u.color}
-              value={bareme.unites?.[u.key]??0}
-              onChange={v => saveUnite(u.key, v)} />
+
+          {/* Sélecteur objet si nécessaire */}
+          {needsObjet && (
+            <div style={{flex:2,minWidth:160}}>
+              <label className="field-lbl">{lang==='ar'?'اختر العنصر':"Choisir l'élément"}</label>
+              <select className="field-select" value={critereObjetId} onChange={e => setCritereObjetId(e.target.value)}>
+                <option value="">{lang==='ar'?'— اختر —':'— Choisir —'}</option>
+                {getOptions().map(o => <option key={o.id} value={o.id}>{o.label}</option>)}
+              </select>
+            </div>
+          )}
+
+          {/* Points avec +/- */}
+          <div style={{minWidth:130}}>
+            <label className="field-lbl">{lang==='ar'?'النقاط':'Points'}</label>
+            <div style={{display:'flex',alignItems:'center',gap:4}}>
+              <button onClick={() => setCriterePoints(p => Math.max(0, p-1))}
+                style={{width:32,height:38,borderRadius:6,border:'0.5px solid #e0e0d8',background:'#f9f9f6',cursor:'pointer',fontSize:18,fontWeight:700,color:'#888'}}>−</button>
+              <input type="number" min="0" max="9999" value={criterePoints}
+                onChange={e => setCriterePoints(parseInt(e.target.value)||0)}
+                style={{width:68,padding:'8px',borderRadius:6,border:'1.5px solid #378ADD50',fontSize:16,fontWeight:700,textAlign:'center',color:'#378ADD'}} />
+              <button onClick={() => setCriterePoints(p => p+1)}
+                style={{width:32,height:38,borderRadius:6,border:'0.5px solid #e0e0d8',background:'#f9f9f6',cursor:'pointer',fontSize:18,fontWeight:700,color:'#888'}}>+</button>
+            </div>
+          </div>
+
+          {/* Bouton ajouter critère */}
+          <button onClick={ajouterCritere}
+            style={{padding:'8px 16px',background:'#E6F1FB',color:'#378ADD',border:'1px solid #378ADD40',borderRadius:8,fontWeight:700,fontSize:13,cursor:'pointer',alignSelf:'flex-end',height:38}}>
+            + {lang==='ar'?'أضف':'Ajouter'}
+          </button>
+        </div>
+
+        {/* Liste critères en cours */}
+        {criteres.length > 0 && (
+          <div style={{marginBottom:14}}>
+            <div style={{fontSize:11,color:'#888',marginBottom:6,fontWeight:600}}>
+              {lang==='ar'?'المعايير المضافة:':'Critères ajoutés :'}
+            </div>
+            <div style={{display:'flex',flexDirection:'column',gap:6}}>
+              {criteres.map((c,i) => (
+                <div key={i} style={{display:'flex',alignItems:'center',gap:10,padding:'8px 12px',background:'#f9f9f6',borderRadius:8,border:'0.5px solid #e0e0d8'}}>
+                  <span style={{fontSize:16}}>{c.icon}</span>
+                  <span style={{flex:1,fontSize:13,fontWeight:600,direction:'rtl',fontFamily:"'Tajawal',Arial,sans-serif"}}>{c.label}</span>
+                  <span style={{fontWeight:800,fontSize:15,color:c.color}}>{c.points}</span>
+                  <span style={{fontSize:10,color:'#aaa'}}>{lang==='ar'?'ن':'pts'}</span>
+                  <button onClick={() => retirerCritere(i)}
+                    style={{padding:'2px 8px',background:'#FCEBEB',color:'#E24B4A',border:'none',borderRadius:6,cursor:'pointer',fontSize:12}}>✕</button>
+                </div>
+              ))}
+            </div>
+            <div style={{marginTop:8,fontSize:12,color:'#085041',fontWeight:600}}>
+              {lang==='ar'?'المجموع:':'Total :'} {criteres.reduce((s,c)=>s+c.points,0)} {lang==='ar'?'نقطة':'pts'}
+            </div>
+          </div>
+        )}
+
+        <button className="btn-primary" onClick={enregistrerConfig} disabled={saving||criteres.length===0}>
+          {saving ? '...' : (lang==='ar'?'حفظ هذه التنقيطات':'Enregistrer ces notations')}
+        </button>
+      </div>
+
+      {/* Liste des configurations enregistrées */}
+      <div className="section-label">{lang==='ar'?'التنقيطات المُسجَّلة':'Notations enregistrées'} ({configs.length})</div>
+      {configs.length === 0 ? (
+        <div className="empty">{lang==='ar'?'لا توجد تنقيطات بعد — أضف معايير وسجّلها أعلاه':'Aucune notation enregistrée'}</div>
+      ) : (
+        <div style={{display:'flex',flexDirection:'column',gap:6}}>
+          {configs.map(c => (
+            <div key={c.id} style={{display:'flex',alignItems:'center',gap:12,padding:'10px 14px',background:'#fff',border:'0.5px solid #e0e0d8',borderRadius:10}}>
+              <span style={{fontSize:18}}>{getConfigIcon(c)}</span>
+              <div style={{flex:1}}>
+                <div style={{fontWeight:600,fontSize:13,direction:'rtl',fontFamily:"'Tajawal',Arial,sans-serif"}}>{getConfigLabel(c)}</div>
+                <div style={{fontSize:11,color:'#888',marginTop:1}}>
+                  {c.type} {c.objet_id ? '· '+c.objet_id.slice(0,8)+'...' : ''}
+                </div>
+              </div>
+              <span style={{fontWeight:800,fontSize:16,color:'#378ADD'}}>{c.points}</span>
+              <span style={{fontSize:10,color:'#aaa'}}>{lang==='ar'?'ن':'pts'}</span>
+              <button onClick={() => supprimerConfig(c.id)}
+                style={{padding:'4px 8px',background:'#FCEBEB',color:'#E24B4A',border:'0.5px solid #E24B4A30',borderRadius:6,cursor:'pointer',fontSize:11}}>
+                🗑
+              </button>
+            </div>
           ))}
         </div>
       )}
-
-      {/* Section Examens */}
-      {section==='examens' && (
-        <div>
-          <div style={{fontSize:11,color:'#888',marginBottom:10}}>
-            {lang==='ar'?'نقاط خاصة لكل امتحان — مستقلة عن نقاط الأثمان والأحزاب':'Points spécifiques par examen — indépendants des unités'}
-          </div>
-          {examens.length===0
-            ? <div className="empty">{lang==='ar'?'لا توجد امتحانات — أنشئها أولاً في الإعدادات':'Aucun examen — créez-en dans Paramètres'}</div>
-            : examens.map(e => (
-              <Row key={e.id} icon="📝" label={e.nom} color="#EF9F27"
-                sublabel={lang==='ar'?'نقاط عند اجتياز هذا الامتحان':'Points pour réussite de cet examen'}
-                value={bareme.examens?.[e.id]??0}
-                onChange={v => saveObjet('examen', e.id, v, 'examens')} />
-            ))
-          }
-        </div>
-      )}
-
-      {/* Section Ensembles */}
-      {section==='ensembles' && (
-        <div>
-          <div style={{fontSize:11,color:'#888',marginBottom:10}}>
-            {lang==='ar'?'نقاط لكل مجموعة سور عند إتمامها':'Points pour chaque ensemble de sourates complété'}
-          </div>
-          {ensembles.length===0
-            ? <div className="empty">{lang==='ar'?'لا توجد مجموعات — أنشئها أولاً في الإعدادات':'Aucun ensemble — créez-en dans Paramètres'}</div>
-            : ensembles.map(e => (
-              <Row key={e.id} icon="📦" label={e.nom} color="#D85A30"
-                sublabel={lang==='ar'?'نقاط عند إتمام هذه المجموعة':'Points pour completion de cet ensemble'}
-                value={bareme.ensembles?.[e.id]??0}
-                onChange={v => saveObjet('ensemble_sourates', e.id, v, 'ensembles')} />
-            ))
-          }
-        </div>
-      )}
-
-      {/* Section Jalons */}
-      {section==='jalons' && (
-        <div>
-          <div style={{fontSize:11,color:'#888',marginBottom:10}}>
-            {lang==='ar'?'نقاط لكل شهادة عند منحها':"Points attribués lors de l'obtention d'un certificat"}
-          </div>
-          {jalons.length===0
-            ? <div className="empty">{lang==='ar'?'لا توجد شهادات — أنشئها في onglet الشهادات':"Aucun jalon — créez-en dans l'onglet Jalons"}</div>
-            : jalons.map(j => (
-              <Row key={j.id} icon="🏅" label={j.nom_ar||j.nom} color="#EF9F27"
-                sublabel={j.type_jalon==='hizb'?(lang==='ar'?'أحزاب محددة':'Hizb spécifiques'):j.type_jalon==='examen'?(lang==='ar'?'امتحان':'Examen'):(lang==='ar'?'مجموعة سور':'Ensemble')}
-                value={bareme.jalons?.[j.id]??0}
-                onChange={v => saveObjet('jalon', j.id, v, 'jalons')} />
-            ))
-          }
-        </div>
-      )}
-
-      <div style={{background:'#E1F5EE',borderRadius:10,padding:'10px 14px',marginTop:'1rem',display:'flex',gap:8,alignItems:'center'}}>
-        <span>💡</span>
-        <div style={{fontSize:11,color:'#085041'}}>
-          {lang==='ar'
-            ? 'النقاط تُحفظ فوراً عند تغيير كل خانة — لا حاجة لزر حفظ'
-            : 'Les points sont sauvegardés immédiatement à chaque modification'}
-        </div>
-      </div>
     </div>
   );
 }
-
 
 // ══════════════════════════════════════════════════════
 // COMPOSANT PeriodesTab — Gestion des périodes de notes
