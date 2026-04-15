@@ -34,7 +34,7 @@ export default function ElevesInactifs({ navigate, goBack, lang='fr', user, isMo
       const nv = results[3]?.data;
       const elevesData = (ed||[]).map(eleve => {
         const vals = (vd||[]).filter(v=>v.eleve_id===eleve.id);
-        const etat = calcEtatEleve(vals, eleve.hizb_depart||1, eleve.tomon_depart||1);
+        const etat = calcEtatEleve(vals, eleve.hizb_depart, eleve.tomon_depart);
         const derniere = vals[0]?.date_validation || null;
         const inst = (id||[]).find(i=>i.id===eleve.instituteur_referent_id);
         const jours = joursDepuis(derniere);

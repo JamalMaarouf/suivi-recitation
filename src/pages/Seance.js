@@ -84,11 +84,11 @@ export default function Seance({ user, navigate, goBack, lang, isMobile=false })
           souratesSemaine, actifAujourdhui: recsAujourdhui.length > 0,
           derniere: dernierRec, jours: joursDepuis(dernierRec), inactif: isInactif(dernierRec),
           currentSourate, instituteurNom: inst?`${inst.prenom} ${inst.nom}`:'—',
-          etat: calcEtatEleve([], e.hizb_depart||1, e.tomon_depart||1),
+          etat: calcEtatEleve([], e.hizb_depart, e.tomon_depart),
         };
       } else {
         const vals = (vd||[]).filter(v => v.eleve_id === e.id);
-        const etat = calcEtatEleve(vals, e.hizb_depart||1, e.tomon_depart||1);
+        const etat = calcEtatEleve(vals, e.hizb_depart, e.tomon_depart);
         const valsAujourdhui = vAujourdhui.filter(v => v.eleve_id === e.id);
         const valsSemaine = (vd||[]).filter(v => v.eleve_id === e.id && new Date(v.date_validation) >= debutSemaine);
         const tomonAujourdhui = valsAujourdhui.filter(v=>v.type_validation==='tomon').reduce((s,v)=>s+v.nombre_tomon,0);

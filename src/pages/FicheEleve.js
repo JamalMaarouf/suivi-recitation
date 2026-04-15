@@ -235,7 +235,7 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang, isMobi
 
         if(inst) setInstituteurNom(inst.prenom+' '+inst.nom);
       }
-      const e = calcEtatEleve(vals||[],eleve.hizb_depart||1,eleve.tomon_depart||1);
+      const e = calcEtatEleve(vals||[],eleve.hizb_depart,eleve.tomon_depart);
       setEtat(e);
       setValidations(vals||[]);
       setApprentissages(appr||[]);
@@ -247,7 +247,7 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang, isMobi
     } catch(err) {
       toast.error(lang==='ar'?'خطأ في تحميل البيانات':'Erreur de chargement des données');
       // Set minimal etat so page renders
-      setEtat(calcEtatEleve([],eleve.hizb_depart||1,eleve.tomon_depart||1));
+      setEtat(calcEtatEleve([],eleve.hizb_depart,eleve.tomon_depart));
     } finally {
       setLoading(false);
     }

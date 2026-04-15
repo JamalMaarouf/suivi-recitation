@@ -1,18 +1,28 @@
 export function calcPosition(hizbDepart, tomonDepart, totalTomonValides) {
-  const indexDepart = (hizbDepart - 1) * 8 + (tomonDepart - 1);
+  // Règle : sans acquis (hizb_depart=0 ou 1 et tomon_depart=1) → départ Hizb 60 T.1
+  // Ordre décroissant : Hizb 60→1, donc index 0 = Hizb 60 T.1, index 7 = Hizb 60 T.8
+  // index 8 = Hizb 59 T.1 ... index 479 = Hizb 1 T.8
+  const hizbD = (hizbDepart === 0 || hizbDepart === null || hizbDepart === undefined) ? 60 : hizbDepart;
+  const tomonD = (tomonDepart === 0 || tomonDepart === null || tomonDepart === undefined) ? 1 : tomonDepart;
+  // Index dans l'ordre décroissant : Hizb 60 T.1 = index 0
+  const indexDepart = (60 - hizbD) * 8 + (tomonD - 1);
   const indexActuel = indexDepart + totalTomonValides;
-  const hizb = Math.floor(indexActuel / 8) + 1;
+  const hizbIndex = Math.floor(indexActuel / 8); // 0 = Hizb 60, 59 = Hizb 1
   const tomon = (indexActuel % 8) + 1;
-  return { hizb: Math.min(hizb, 60), tomon };
+  const hizb = Math.max(1, 60 - hizbIndex);
+  return { hizb, tomon };
 }
 
 export function calcPositionAtteinte(hizbDepart, tomonDepart, totalTomonValides) {
   if (totalTomonValides === 0) return null;
-  const indexDepart = (hizbDepart - 1) * 8 + (tomonDepart - 1);
+  const hizbD = (hizbDepart === 0 || hizbDepart === null || hizbDepart === undefined) ? 60 : hizbDepart;
+  const tomonD = (tomonDepart === 0 || tomonDepart === null || tomonDepart === undefined) ? 1 : tomonDepart;
+  const indexDepart = (60 - hizbD) * 8 + (tomonD - 1);
   const indexAtteint = indexDepart + totalTomonValides - 1;
-  const hizb = Math.floor(indexAtteint / 8) + 1;
+  const hizbIndex = Math.floor(indexAtteint / 8);
   const tomon = (indexAtteint % 8) + 1;
-  return { hizb: Math.min(hizb, 60), tomon };
+  const hizb = Math.max(1, 60 - hizbIndex);
+  return { hizb, tomon };
 }
 
 export function calcUnite(tomon) {
@@ -157,6 +167,12 @@ export function calcPoints(tomonCumul, hizbsCompletsCount, validations, tomonAcq
 }
 
 export function calcEtatEleve(validations, hizbDepart, tomonDepart) {
+  // Normaliser : hizb_depart=0 → départ Hizb 60 T.1 (pas d'acquis antérieurs)
+  const hizbD = (hizbDepart === 0 || hizbDepart === null || hizbDepart === undefined) ? 60 : hizbDepart;
+  const tomonD = (tomonDepart === 0 || tomonDepart === null || tomonDepart === undefined) ? 1 : tomonDepart;
+  // Si hizb_depart était 0 → pas d'acquis antérieurs (l'élève commence de zéro)
+  const sansAcquis = (hizbDepart === 0 || hizbDepart === null || hizbDepart === undefined);
+
   const valsChron = [...validations].sort((a, b) => new Date(a.date_validation) - new Date(b.date_validation));
   let tomonCumul = 0;
   const hizbsComplets = new Set();
@@ -169,15 +185,14 @@ export function calcEtatEleve(validations, hizbDepart, tomonDepart) {
     }
   }
 
-  const pos = calcPosition(hizbDepart, tomonDepart, tomonCumul);
-  const hizbBrut = (pos.tomon === 1 && tomonCumul > 0) ? pos.hizb - 1 : pos.hizb;
+  const pos = calcPosition(hizbD, tomonD, tomonCumul);
+  const hizbBrut = (pos.tomon === 1 && tomonCumul > 0) ? pos.hizb + 1 : pos.hizb;
   const tous8Faits = pos.tomon === 1 && tomonCumul > 0;
   const hizbCompletValide = hizbsComplets.has(hizbBrut);
 
-  // Acquis antérieurs : Tomon et Hizb complets déjà validés avant le début du suivi
-  // hizb_depart=15, tomon_depart=3 → 14 Hizb complets + 2 Tomon déjà acquis
-  const tomonAcquis = (hizbDepart - 1) * 8 + (tomonDepart - 1);
-  const hizbAcquisComplets = hizbDepart - 1; // Hizb 1 à (hizbDepart-1) = complets
+  // Acquis antérieurs : seulement si hizb_depart > 0 (l'élève avait déjà mémorisé quelque chose)
+  const tomonAcquis = sansAcquis ? 0 : (60 - hizbD) * 8 + (tomonD - 1);
+  const hizbAcquisComplets = sansAcquis ? 0 : (60 - hizbD); // Hizb 60 à (hizbD+1) déjà complets
   // Points totaux = acquis antérieurs + nouveaux validés depuis le suivi
   const tomonTotal = tomonAcquis + tomonCumul;
   const hizbCompletsTotal = hizbAcquisComplets + hizbsComplets.size;
