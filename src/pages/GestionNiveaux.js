@@ -569,7 +569,7 @@ export default function GestionNiveaux({ user, navigate, goBack, lang='fr', isMo
 
               {/* Code */}
               <div style={{marginBottom:12}}>
-                <label style={{fontSize:12,fontWeight:600,color:'#666',display:'block',marginBottom:5}}>
+                <label className="field-lbl">
                   {lang==='ar'?'رمز المستوى (مثال: N1, CM2)':'Code (ex: N1, CM2) *'}
                 </label>
                 <input style={{width:'100%',padding:'12px 14px',borderRadius:10,border:'0.5px solid #e0e0d8',fontSize:15,fontFamily:'inherit',boxSizing:'border-box',textTransform:'uppercase'}}
@@ -579,17 +579,17 @@ export default function GestionNiveaux({ user, navigate, goBack, lang='fr', isMo
 
               {/* Nom */}
               <div style={{marginBottom:12}}>
-                <label style={{fontSize:12,fontWeight:600,color:'#666',display:'block',marginBottom:5}}>
+                <label className="field-lbl">
                   {lang==='ar'?'اسم المستوى':'Nom du niveau *'}
                 </label>
-                <input style={{width:'100%',padding:'12px 14px',borderRadius:10,border:'0.5px solid #e0e0d8',fontSize:15,fontFamily:'inherit',boxSizing:'border-box'}}
+                <input className="field-input"
                   value={form.nom} onChange={e=>setForm(f=>({...f,nom:e.target.value}))}
                   placeholder={lang==='ar'?'مثال: مستوى مبتدئ':'Ex: Niveau débutant'}/>
               </div>
 
               {/* Type */}
               <div style={{marginBottom:12}}>
-                <label style={{fontSize:12,fontWeight:600,color:'#666',display:'block',marginBottom:8}}>
+                <label className="field-lbl">
                   {lang==='ar'?'نوع الاستظهار':'Type de récitation *'}
                 </label>
                 <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
@@ -611,7 +611,7 @@ export default function GestionNiveaux({ user, navigate, goBack, lang='fr', isMo
 
               {/* Couleur */}
               <div style={{marginBottom:14}}>
-                <label style={{fontSize:12,fontWeight:600,color:'#666',display:'block',marginBottom:8}}>
+                <label className="field-lbl">
                   {lang==='ar'?'اللون':'Couleur'}
                 </label>
                 <div style={{display:'flex',gap:8,flexWrap:'wrap',alignItems:'center'}}>
@@ -843,24 +843,24 @@ export default function GestionNiveaux({ user, navigate, goBack, lang='fr', isMo
           </div>
           <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:12,marginBottom:16}}>
             <div>
-              <label style={{fontSize:12,fontWeight:600,color:'#666',display:'block',marginBottom:5}}>Code *</label>
+              <label className="field-lbl">Code *</label>
               <input className="field-input" value={form.code}
                 onChange={e=>setForm(f=>({...f,code:e.target.value.toUpperCase()}))} placeholder="N1"/>
             </div>
             <div>
-              <label style={{fontSize:12,fontWeight:600,color:'#666',display:'block',marginBottom:5}}>Nom *</label>
+              <label className="field-lbl">Nom *</label>
               <input className="field-input" value={form.nom}
                 onChange={e=>setForm(f=>({...f,nom:e.target.value}))} placeholder="Niveau débutant"/>
             </div>
             <div>
-              <label style={{fontSize:12,fontWeight:600,color:'#666',display:'block',marginBottom:5}}>Ordre</label>
+              <label className="field-lbl">Ordre</label>
               <input className="field-input" type="number" min="1" value={form.ordre}
                 onChange={e=>setForm(f=>({...f,ordre:e.target.value}))}/>
             </div>
           </div>
           <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12,marginBottom:16}}>
             <div>
-              <label style={{fontSize:12,fontWeight:600,color:'#666',display:'block',marginBottom:8}}>Type de récitation *</label>
+              <label className="field-lbl">Type de récitation *</label>
               <div style={{display:'flex',gap:8}}>
                 {[{val:'hizb',icon:'📿',fr:'Hizb / Tomon'},{val:'sourate',icon:'📖',fr:'Sourates'}].map(t=>(
                   <div key={t.val} onClick={()=>setForm(f=>({...f,type:t.val}))}
@@ -876,7 +876,7 @@ export default function GestionNiveaux({ user, navigate, goBack, lang='fr', isMo
               {/* Nb séquences pour niveaux sourate */}
               {form.type==='sourate'&&(
                 <div style={{marginTop:10}}>
-                  <label style={{fontSize:12,fontWeight:600,color:'#666',display:'block',marginBottom:5}}>
+                  <label className="field-lbl">
                     {lang==='ar'?'عدد المقاطع لكل سورة':'Nb de séquences par sourate'}
                   </label>
                   <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>
@@ -896,7 +896,7 @@ export default function GestionNiveaux({ user, navigate, goBack, lang='fr', isMo
               )}
             </div>
             <div>
-              <label style={{fontSize:12,fontWeight:600,color:'#666',display:'block',marginBottom:8}}>Couleur</label>
+              <label className="field-lbl">Couleur</label>
               <div style={{display:'flex',gap:6,flexWrap:'wrap',alignItems:'center'}}>
                 {COULEURS_PRESET.map(col=>(
                   <div key={col} onClick={()=>setForm(f=>({...f,couleur:col}))}

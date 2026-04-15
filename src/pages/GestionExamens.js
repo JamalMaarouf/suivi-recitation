@@ -229,7 +229,7 @@ export default function GestionExamens({ user, navigate, goBack, lang='fr', isMo
     <div>
       {/* Nom */}
       <div style={{marginBottom:13}}>
-        <label style={{fontSize:12,fontWeight:600,color:'#666',display:'block',marginBottom:5}}>
+        <label className="field-lbl">
           {lang==='ar'?'اسم الامتحان':'Nom de l\'examen *'}
         </label>
         <input style={{width:'100%',padding:'12px 14px',borderRadius:10,
@@ -241,7 +241,7 @@ export default function GestionExamens({ user, navigate, goBack, lang='fr', isMo
 
       {/* Niveau */}
       <div style={{marginBottom:13}}>
-        <label style={{fontSize:12,fontWeight:600,color:'#666',display:'block',marginBottom:5}}>
+        <label className="field-lbl">
           {lang==='ar'?'المستوى':'Niveau *'}
         </label>
         <select style={{width:'100%',padding:'12px 14px',borderRadius:10,
@@ -417,7 +417,7 @@ export default function GestionExamens({ user, navigate, goBack, lang='fr', isMo
 
       {/* Score minimum */}
       <div style={{marginBottom:13}}>
-        <label style={{fontSize:12,fontWeight:600,color:'#666',display:'block',marginBottom:5}}>
+        <label className="field-lbl">
           {lang==='ar'?`النقاط الدنيا للنجاح : ${form.score_minimum}%`:`Score minimum pour réussir : ${form.score_minimum}%`}
         </label>
         <input type="range" min="0" max="100" step="5"

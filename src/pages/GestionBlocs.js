@@ -159,7 +159,7 @@ export default function GestionBlocs({ user, navigate, goBack, lang='fr', isMobi
     <div>
       {/* Nom du bloc */}
       <div style={{marginBottom:14}}>
-        <label style={{fontSize:12,fontWeight:600,color:'#666',display:'block',marginBottom:5}}>
+        <label className="field-lbl">
           {lang==='ar'?'اسم البلوك':'Nom du bloc *'}
         </label>
         <input style={{width:'100%',padding:'12px 14px',borderRadius:10,border:'0.5px solid #e0e0d8',
