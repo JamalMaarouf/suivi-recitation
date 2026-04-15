@@ -168,6 +168,7 @@ export default function App() {
   };
 
   const [showLangMenu, setShowLangMenu] = React.useState(false);
+  const [showUserMenu, setShowUserMenu] = React.useState(false);
   const LANGS = [
     { code: 'fr', flag: '🇫🇷', label: 'FR' },
     { code: 'ar', flag: '🇸🇦', label: 'AR' },
@@ -177,23 +178,59 @@ export default function App() {
 
   const LangSelector = () => (
     <div style={{ position:'relative' }}>
-      <button onClick={() => setShowLangMenu(v=>!v)}
+      <button
+        onClick={(e) => { e.stopPropagation(); setShowLangMenu(v=>!v); setShowUserMenu(false); }}
         style={{ padding:'4px 8px', border:'1.5px solid #e0e0d8', borderRadius:6,
-          background:'#fff', fontSize:13, cursor:'pointer', display:'flex', alignItems:'center', gap:4,
+          background:'#fff', fontSize:12, cursor:'pointer', display:'flex', alignItems:'center', gap:4,
           fontWeight:600, color:'#555' }}>
         {currentLang.flag} {currentLang.label} ▾
       </button>
       {showLangMenu && (
-        <div style={{ position:'absolute', top:'110%', right:0, background:'#fff', border:'0.5px solid #e0e0d8',
-          borderRadius:8, boxShadow:'0 4px 16px rgba(0,0,0,0.1)', zIndex:999, overflow:'hidden', minWidth:100 }}>
+        <div style={{ position:'absolute', top:'110%', left:0, background:'#fff', border:'0.5px solid #e0e0d8',
+          borderRadius:8, boxShadow:'0 4px 16px rgba(0,0,0,0.12)', zIndex:9999, overflow:'hidden', minWidth:110 }}
+          onClick={e=>e.stopPropagation()}>
           {LANGS.map(l => (
             <button key={l.code} onClick={() => { setLang(l.code); setShowLangMenu(false); }}
-              style={{ display:'block', width:'100%', padding:'8px 14px', border:'none', background:lang===l.code?'#E1F5EE':'#fff',
+              style={{ display:'flex', alignItems:'center', gap:8, width:'100%', padding:'8px 14px', border:'none',
+                background:lang===l.code?'#E1F5EE':'#fff',
                 color:lang===l.code?'#085041':'#555', fontWeight:lang===l.code?700:400, cursor:'pointer',
-                textAlign:'left', fontSize:13 }}>
+                fontSize:13 }}>
               {l.flag} {l.label}
             </button>
           ))}
+        </div>
+      )}
+    </div>
+  );
+
+  const UserMenu = () => (
+    <div style={{ position:'relative' }}>
+      <button
+        onClick={(e) => { e.stopPropagation(); setShowUserMenu(v=>!v); setShowLangMenu(false); }}
+        style={{ width:32, height:32, borderRadius:'50%', background:'#1D9E75', color:'#fff',
+          border:'2px solid #085041', cursor:'pointer', fontSize:13, fontWeight:800,
+          display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+        {user.prenom?user.prenom[0].toUpperCase():'?'}
+      </button>
+      {showUserMenu && (
+        <div style={{ position:'absolute', top:'110%', left:0, background:'#fff', border:'0.5px solid #e0e0d8',
+          borderRadius:10, boxShadow:'0 4px 16px rgba(0,0,0,0.12)', zIndex:9999, minWidth:180, overflow:'hidden' }}
+          onClick={e=>e.stopPropagation()}>
+          <div style={{ padding:'12px 14px', borderBottom:'0.5px solid #f0f0ec', background:'#f9f9f6' }}>
+            <div style={{ fontWeight:700, fontSize:13, color:'#1a1a1a' }}>{user.prenom} {user.nom}</div>
+            <div style={{ fontSize:11, color:'#888', marginTop:2 }}>{t(lang, user.role==='surveillant'?'role_surveillant':'role_instituteur')}</div>
+          </div>
+          <button onClick={() => { setShowUserMenu(false); navigate('profil_mobile'); }}
+            style={{ display:'flex', alignItems:'center', gap:8, width:'100%', padding:'10px 14px',
+              border:'none', background:'#fff', color:'#555', cursor:'pointer', fontSize:12 }}>
+            👤 {lang==='ar'?'الملف الشخصي':'Mon profil'}
+          </button>
+          <button onClick={() => { setShowUserMenu(false); handleLogout(); }}
+            style={{ display:'flex', alignItems:'center', gap:8, width:'100%', padding:'10px 14px',
+              border:'none', background:'#fff', color:'#E24B4A', cursor:'pointer', fontSize:12,
+              borderTop:'0.5px solid #f0f0ec' }}>
+            🚪 {t(lang,'deconnexion')}
+          </button>
         </div>
       )}
     </div>
@@ -234,22 +271,24 @@ export default function App() {
               <div className="nav-logo"></div>
               <span>{t(lang, 'app_name')}</span>
             </div>
-            <div className="nav-right" style={{flex:1,display:'flex',alignItems:'center',gap:4,flexWrap:'nowrap',overflow:'hidden'}}>
-              {/* Menus navigation */}
-              <div style={{display:'flex',alignItems:'center',gap:3,flex:1,overflow:'hidden'}}>
+            <div className="nav-right" style={{flex:1,display:'flex',alignItems:'center',gap:3,flexWrap:'nowrap',overflow:'hidden'}}
+              onClick={()=>{setShowLangMenu(false);setShowUserMenu(false);}}>
+
+              {/* Menus navigation — de gauche à droite en LTR (سريع en dernier, الإدارة en premier) */}
+              <div style={{display:'flex',alignItems:'center',gap:3,flex:1,overflow:'hidden',flexShrink:1}}>
                 {[
-                  {p:'validation_rapide', label:'⚡ '+t(lang,'express'),                                    roles:['surveillant','instituteur']},
-                  {p:'muraja',            label:'📖 '+(lang==='ar'?'مراجعة جماعية':"Muraja'a"),             roles:['surveillant','instituteur']},
-                  {p:'seance',            label:'📋 '+t(lang,'seance'),                                     roles:['surveillant','instituteur']},
-                  {p:'calendrier',        label:'📅 '+t(lang,'calendrier'),                                  roles:['surveillant','instituteur']},
-                  {p:'rapport_mensuel',   label:'📊 '+t(lang,'rapport'),                                     roles:['surveillant','instituteur']},
-                  {p:'historique_seances',label:'📈 '+(t(lang,'historique')||'Historique'),                  roles:['surveillant','instituteur']},
-                  {p:'resultats_examens', label:'🏅 '+(lang==='ar'?'نتائج الامتحانات':'Résultats'),          roles:['surveillant','instituteur']},
+                  {p:'gestion',           label:'⚙️ '+t(lang,'gestion'),                                     roles:['surveillant']},
+                  {p:'liste_notes',       label:'⭐ '+(lang==='ar'?'النقاط':'Notes'),                        roles:['surveillant']},
+                  {p:'liste_certificats', label:'🏅 '+(lang==='ar'?'الشهادات':'Certificats'),                 roles:['surveillant']},
+                  {p:'finance',           label:'💰 '+(lang==='ar'?'المالية':'Finance'),                      roles:['surveillant']},
                   {p:'objectifs',         label:'🎯 '+(lang==='ar'?'الأهداف':lang==='en'?'Objectives':'Objectifs'), roles:['surveillant']},
-                  {p:'finance',           label:'💰 '+(lang==='ar'?'المالية':'Finance'),                     roles:['surveillant']},
-                  {p:'liste_certificats', label:'🏅 '+(lang==='ar'?'الشهادات':'Certificats'),                roles:['surveillant']},
-                  {p:'liste_notes',       label:'⭐ '+(lang==='ar'?'النقاط':'Notes'),                       roles:['surveillant']},
-                  {p:'gestion',           label:'⚙️ '+t(lang,'gestion'),                                    roles:['surveillant']},
+                  {p:'resultats_examens', label:'🏅 '+(lang==='ar'?'نتائج الامتحانات':'Résultats'),           roles:['surveillant','instituteur']},
+                  {p:'historique_seances',label:'📈 '+(t(lang,'historique')||'Historique'),                   roles:['surveillant','instituteur']},
+                  {p:'rapport_mensuel',   label:'📊 '+t(lang,'rapport'),                                      roles:['surveillant','instituteur']},
+                  {p:'calendrier',        label:'📅 '+t(lang,'calendrier'),                                   roles:['surveillant','instituteur']},
+                  {p:'seance',            label:'📋 '+t(lang,'seance'),                                      roles:['surveillant','instituteur']},
+                  {p:'muraja',            label:"📖 "+(lang==='ar'?'مراجعة جماعية':"Muraja'a"),              roles:['surveillant','instituteur']},
+                  {p:'validation_rapide', label:'⚡ '+t(lang,'express'),                                     roles:['surveillant','instituteur']},
                 ].filter(b=>b.roles.includes(user.role)).map(b=>(
                   <button key={b.p}
                     className={`nav-btn ${page===b.p?'active':''}`}
@@ -259,25 +298,14 @@ export default function App() {
                   </button>
                 ))}
               </div>
-              {/* Droite : langue + admin + logout */}
-              <div style={{display:'flex',alignItems:'center',gap:4,flexShrink:0}}>
+
+              {/* Droite fixe : langue + cercle user */}
+              <div style={{display:'flex',alignItems:'center',gap:6,flexShrink:0,marginLeft:6}}>
                 <LangSelector />
                 {showInstallBtn && (
-                  <button onClick={handleInstall} className="nav-btn" style={{fontSize:11,padding:'4px 8px'}}>
-                    📲
-                  </button>
+                  <button onClick={handleInstall} className="nav-btn" style={{fontSize:11,padding:'4px 8px'}}>📲</button>
                 )}
-                <button onClick={()=>navigate('profil_mobile')}
-                  style={{display:'flex',alignItems:'center',gap:5,padding:'4px 8px',
-                    background:'#1D9E75',color:'#fff',border:'none',borderRadius:6,cursor:'pointer',
-                    fontSize:11,fontWeight:700,whiteSpace:'nowrap'}}>
-                  <span style={{width:22,height:22,borderRadius:'50%',background:'rgba(255,255,255,0.25)',
-                    display:'flex',alignItems:'center',justifyContent:'center',fontSize:11,fontWeight:800}}>
-                    {user.prenom?user.prenom[0].toUpperCase():'?'}
-                  </span>
-                  {user.prenom} · <em style={{fontStyle:'normal',opacity:0.85,fontSize:10}}>{t(lang, user.role==='surveillant'?'role_surveillant':'role_instituteur')}</em>
-                </button>
-                <button className="nav-btn nav-btn-logout" style={{fontSize:11,padding:'4px 8px'}} onClick={handleLogout}>{t(lang,'deconnexion')}</button>
+                <UserMenu />
               </div>
             </div>
           </nav>
