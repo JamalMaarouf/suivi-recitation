@@ -1482,20 +1482,7 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile 
       <div className="page-title">{t(lang, 'gestion')}</div>
       {msg.text && <div className={msg.type === 'error' ? 'error-box' : 'success-box'}>{msg.text}</div>}
 
-      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:0,flexWrap:'wrap',gap:8}}>
 
-        <div style={{display:'flex',gap:6}}>
-          {tab==='eleves'&&<>
-            <button onClick={exportElevesExcel} style={{padding:'6px 12px',background:'#1D9E75',color:'#fff',border:'none',borderRadius:8,fontSize:11,fontWeight:600,cursor:'pointer'}}>📥 Excel</button>
-            <button onClick={exportElevesPDF} style={{padding:'6px 12px',background:'#534AB7',color:'#fff',border:'none',borderRadius:8,fontSize:11,fontWeight:600,cursor:'pointer'}}>🖨️ PDF</button>
-          </>}
-          {tab==='instituteurs'&&<>
-            <button onClick={exportInstituteursExcel} style={{padding:'6px 12px',background:'#1D9E75',color:'#fff',border:'none',borderRadius:8,fontSize:11,fontWeight:600,cursor:'pointer'}}>📥 Excel</button>
-            <button onClick={exportInstituteursPDF} style={{padding:'6px 12px',background:'#534AB7',color:'#fff',border:'none',borderRadius:8,fontSize:11,fontWeight:600,cursor:'pointer'}}>🖨️ PDF</button>
-          </>}
-          {tab==='parents'&&<button onClick={exportParentsExcel} style={{padding:'6px 12px',background:'#1D9E75',color:'#fff',border:'none',borderRadius:8,fontSize:11,fontWeight:600,cursor:'pointer'}}>📥 Excel</button>}
-        </div>
-      </div>
 
       {tab === 'parametres' && (
         <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(220px,1fr))',gap:12}}>
@@ -1721,7 +1708,25 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile 
           )}
 
           {/* Liste élèves */}
-          <div className="section-label">{t(lang, 'eleves_inscrits')} ({eleves.length})</div>
+          <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'0.75rem'}}>
+            <div className="section-label" style={{margin:0}}>{t(lang, 'eleves_inscrits')} ({eleves.length})</div>
+            <div style={{display:'flex',gap:6}}>
+              <button onClick={exportElevesExcel}
+                style={{display:'flex',alignItems:'center',gap:5,padding:'5px 12px',background:'#f5f5f0',
+                  color:'#085041',border:'0.5px solid #e0e0d8',borderRadius:8,fontSize:11,fontWeight:600,cursor:'pointer'}}
+                onMouseEnter={e=>e.currentTarget.style.background='#E1F5EE'}
+                onMouseLeave={e=>e.currentTarget.style.background='#f5f5f0'}>
+                📊 Excel
+              </button>
+              <button onClick={exportElevesPDF}
+                style={{display:'flex',alignItems:'center',gap:5,padding:'5px 12px',background:'#f5f5f0',
+                  color:'#534AB7',border:'0.5px solid #e0e0d8',borderRadius:8,fontSize:11,fontWeight:600,cursor:'pointer'}}
+                onMouseEnter={e=>e.currentTarget.style.background='#EEEDFE'}
+                onMouseLeave={e=>e.currentTarget.style.background='#f5f5f0'}>
+                🖨️ PDF
+              </button>
+            </div>
+          </div>
           {loading ? <div className="loading">...</div> : (
             <div className="table-wrap">
               <table>
@@ -1790,7 +1795,25 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile 
             <button className="btn-primary" onClick={ajouterInstituteur}>{t(lang, 'ajouter_instituteur_btn')}</button>
           </div>
 
-          <div className="section-label">{t(lang, 'instituteurs_actifs')} ({instituteurs.length})</div>
+          <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'0.75rem'}}>
+            <div className="section-label" style={{margin:0}}>{t(lang, 'instituteurs_actifs')} ({instituteurs.length})</div>
+            <div style={{display:'flex',gap:6}}>
+              <button onClick={exportInstituteursExcel}
+                style={{display:'flex',alignItems:'center',gap:5,padding:'5px 12px',background:'#f5f5f0',
+                  color:'#085041',border:'0.5px solid #e0e0d8',borderRadius:8,fontSize:11,fontWeight:600,cursor:'pointer'}}
+                onMouseEnter={e=>e.currentTarget.style.background='#E1F5EE'}
+                onMouseLeave={e=>e.currentTarget.style.background='#f5f5f0'}>
+                📊 Excel
+              </button>
+              <button onClick={exportInstituteursPDF}
+                style={{display:'flex',alignItems:'center',gap:5,padding:'5px 12px',background:'#f5f5f0',
+                  color:'#534AB7',border:'0.5px solid #e0e0d8',borderRadius:8,fontSize:11,fontWeight:600,cursor:'pointer'}}
+                onMouseEnter={e=>e.currentTarget.style.background='#EEEDFE'}
+                onMouseLeave={e=>e.currentTarget.style.background='#f5f5f0'}>
+                🖨️ PDF
+              </button>
+            </div>
+          </div>
           {loading ? <div className="loading">...</div> : (
             <>{editInstituteur && (
               <div style={{background:'#fff',border:'1.5px solid #378ADD',borderRadius:12,padding:'1rem',marginBottom:'1rem'}}>
@@ -1958,7 +1981,16 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile 
           )}
 
           <input className="field-input" style={{marginBottom:8}} placeholder={'🔍 '+(lang==='ar'?'بحث عن ولي أمر...':'Rechercher un parent...')} value={searchParent} onChange={e=>setSearchParent(e.target.value)}/>
-          <div style={{fontSize:12,color:'#888',marginBottom:8}}>{parents.length} {lang==='ar'?'ولي أمر':'parent(s)'}</div>
+          <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:8}}>
+            <div style={{fontSize:12,color:'#888'}}>{parents.length} {lang==='ar'?'ولي أمر':'parent(s)'}</div>
+            <button onClick={exportParentsExcel}
+              style={{display:'flex',alignItems:'center',gap:5,padding:'5px 12px',background:'#f5f5f0',
+                color:'#085041',border:'0.5px solid #e0e0d8',borderRadius:8,fontSize:11,fontWeight:600,cursor:'pointer'}}
+              onMouseEnter={e=>e.currentTarget.style.background='#E1F5EE'}
+              onMouseLeave={e=>e.currentTarget.style.background='#f5f5f0'}>
+              📊 Excel
+            </button>
+          </div>
           <div style={{display:'flex',flexDirection:'column',gap:8}}>
             {parents.filter(p=>!searchParent||(p.prenom+' '+p.nom).toLowerCase().includes(searchParent.toLowerCase())||p.identifiant.includes(searchParent)||p.telephone?.includes(searchParent)).map(p=>(
               <div key={p.id} style={{background:'#fff',border:'0.5px solid #e0e0d8',borderRadius:12,padding:'12px 14px',display:'flex',alignItems:'center',gap:12}}>
