@@ -697,7 +697,7 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile 
   const [showAcquisSelector, setShowAcquisSelector] = useState(false);
   const [editShowAcquisSelector, setEditShowAcquisSelector] = useState(false);
 
-  const [newEleve, setNewEleve] = useState({ prenom: '', nom: '', niveau: 'Débutant', code_niveau: '1', eleve_id_ecole: '', instituteur_referent_id: '', hizb_depart: 0, tomon_depart: 1, sourates_acquises: 0 });
+  const [newEleve, setNewEleve] = useState({ prenom: '', nom: '', niveau: 'Débutant', code_niveau: '1', eleve_id_ecole: '', instituteur_referent_id: '', hizb_depart: 0, tomon_depart: 1, sourates_acquises: 0, telephone: '' });
   const [newInst, setNewInst] = useState({ prenom: '', nom: '', identifiant: '', mot_de_passe: '' });
   const [ecoleConfig, setEcoleConfig] = useState({ mdp_defaut_instituteurs: 'ecole2024', mdp_defaut_parents: 'parent2024' });
   // Hooks niveaux dynamiques
@@ -785,7 +785,8 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile 
       instituteur_referent_id: newEleve.instituteur_referent_id || null,
       hizb_depart: parseInt(newEleve.hizb_depart) || 0,
       tomon_depart: parseInt(newEleve.tomon_depart) || 1,
-      sourates_acquises: parseInt(newEleve.sourates_acquises) || 0
+      sourates_acquises: parseInt(newEleve.sourates_acquises) || 0,
+      telephone: newEleve.telephone?.trim() || null
     });
     if (error) return showMsg('error', t(lang, 'erreur_ajout'));
     // Récupérer l'élève créé par son numéro (RLS bloque .select() après insert)
@@ -826,7 +827,8 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile 
       instituteur_referent_id: editEleve.instituteur_referent_id || null,
       hizb_depart: parseInt(editEleve.hizb_depart) || 0,
       tomon_depart: parseInt(editEleve.tomon_depart) || 1,
-      sourates_acquises: parseInt(editEleve.sourates_acquises) || 0
+      sourates_acquises: parseInt(editEleve.sourates_acquises) || 0,
+      telephone: editEleve.telephone?.trim() || null
     }).eq('id', editEleve.id);
     if (error) return showMsg('error', t(lang, 'erreur_ajout'));
     showMsg('success', t(lang, 'eleve_modifie'));
@@ -1588,6 +1590,10 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile 
                       {instituteurs.map(i => <option key={i.id} value={i.id}>{i.prenom} {i.nom}</option>)}
                     </select>
                   </div>
+                  <div className="field-group">
+                    <label className="field-lbl">{lang==='ar'?'رقم الهاتف (اختياري)':lang==='en'?'Phone (optional)':'Téléphone (optionnel)'}</label>
+                    <input className="field-input" type="tel" value={newEleve.telephone||''} onChange={e => setNewEleve({ ...newEleve, telephone: e.target.value })} placeholder={lang==='ar'?'06XXXXXXXX':'06XXXXXXXX'}/>
+                  </div>
                 </div>
 
                 {/* Acquis antérieurs */}
@@ -1675,6 +1681,10 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile 
                       <option value="">{t(lang, 'choisir')}</option>
                       {instituteurs.map(i => <option key={i.id} value={i.id}>{i.prenom} {i.nom}</option>)}
                     </select>
+                  </div>
+                  <div className="field-group">
+                    <label className="field-lbl">{lang==='ar'?'رقم الهاتف (اختياري)':lang==='en'?'Phone (optional)':'Téléphone (optionnel)'}</label>
+                    <input className="field-input" type="tel" value={editEleve.telephone||''} onChange={e => setEditEleve({ ...editEleve, telephone: e.target.value })} placeholder="06XXXXXXXX"/>
                   </div>
                 </div>
 
