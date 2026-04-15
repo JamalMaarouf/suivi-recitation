@@ -645,40 +645,6 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang, isMobi
 
             {onglet==='certificats' && (
               <div style={{padding:'1rem 0'}}>
-                {/* Bouton ajout manuel — surveillant seulement */}
-                {(user?.role==='surveillant'||user?.role==='super_admin') && (
-                  <div style={{marginBottom:'1rem'}}>
-                    {!showAddCert ? (
-                      <button onClick={()=>setShowAddCert(true)}
-                        style={{padding:'8px 16px',background:'#FAEEDA',color:'#EF9F27',border:'1px solid #EF9F2750',borderRadius:10,fontWeight:700,fontSize:13,cursor:'pointer'}}>
-                        🏅 {lang==='ar'?'منح شهادة يدوياً':'Délivrer un certificat manuellement'}
-                      </button>
-                    ) : (
-                      <div style={{background:'#fff8ee',border:'1px solid #EF9F2740',borderRadius:12,padding:'14px',marginBottom:8}}>
-                        <div style={{fontSize:13,fontWeight:600,color:'#085041',marginBottom:8,direction:'rtl'}}>
-                          {lang==='ar'?'اختر الشهادة لمنحها:':'Choisir le certificat à délivrer :'}
-                        </div>
-                        <select style={{width:'100%',padding:'8px 12px',borderRadius:8,border:'0.5px solid #e0e0d8',fontSize:13,marginBottom:10,direction:'rtl',fontFamily:"'Tajawal',Arial,sans-serif"}}
-                          value={newCertJalonId} onChange={e=>setNewCertJalonId(e.target.value)}>
-                          <option value="">{lang==='ar'?'اختر شهادة...':'Choisir...'}</option>
-                          {jalonsDisp.filter(j=>!certificats.find(c=>c.jalon_id===j.id)).map(j=>(
-                            <option key={j.id} value={j.id}>{j.nom_ar||j.nom}</option>
-                          ))}
-                        </select>
-                        <div style={{display:'flex',gap:8}}>
-                          <button onClick={ajouterCertificatManuellement} disabled={!newCertJalonId||savingCert}
-                            style={{padding:'7px 16px',background:'#1D9E75',color:'#fff',border:'none',borderRadius:8,fontWeight:700,fontSize:12,cursor:'pointer'}}>
-                            {savingCert?'...':lang==='ar'?'تأكيد المنح':'Confirmer'}
-                          </button>
-                          <button onClick={()=>{setShowAddCert(false);setNewCertJalonId('');}}
-                            style={{padding:'7px 12px',background:'#f0f0ec',color:'#888',border:'none',borderRadius:8,fontSize:12,cursor:'pointer'}}>
-                            {lang==='ar'?'إلغاء':'Annuler'}
-                          </button>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                )}
                 {certificats.length===0 ? (
                   <div style={{textAlign:'center',color:'#aaa',padding:'2rem',fontSize:13}}>
                     {lang==='ar'?'لا توجد شهادات بعد — ستظهر تلقائياً عند بلوغ مرحلة':"Aucun certificat — apparaissent automatiquement lors d'un jalon"}
@@ -1186,36 +1152,6 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang, isMobi
 
           {onglet==='certificats'&&(
             <div style={{padding:'0.5rem 0'}}>
-              {(user?.role==='surveillant'||user?.role==='super_admin') && (
-                <div style={{marginBottom:'1rem'}}>
-                  {!showAddCert ? (
-                    <button onClick={()=>setShowAddCert(true)}
-                      style={{width:'100%',padding:'10px',background:'#FAEEDA',color:'#EF9F27',border:'1px solid #EF9F2750',borderRadius:10,fontWeight:700,fontSize:13,cursor:'pointer'}}>
-                      🏅 {lang==='ar'?'منح شهادة يدوياً':'Délivrer un certificat'}
-                    </button>
-                  ) : (
-                    <div style={{background:'#fff8ee',border:'1px solid #EF9F2740',borderRadius:12,padding:'12px'}}>
-                      <select style={{width:'100%',padding:'8px 10px',borderRadius:8,border:'0.5px solid #e0e0d8',fontSize:13,marginBottom:10,direction:'rtl',fontFamily:"'Tajawal',Arial,sans-serif"}}
-                        value={newCertJalonId} onChange={e=>setNewCertJalonId(e.target.value)}>
-                        <option value="">{lang==='ar'?'اختر شهادة...':'Choisir...'}</option>
-                        {jalonsDisp.filter(j=>!certificats.find(c=>c.jalon_id===j.id)).map(j=>(
-                          <option key={j.id} value={j.id}>{j.nom_ar||j.nom}</option>
-                        ))}
-                      </select>
-                      <div style={{display:'flex',gap:8}}>
-                        <button onClick={ajouterCertificatManuellement} disabled={!newCertJalonId||savingCert}
-                          style={{flex:1,padding:'8px',background:'#1D9E75',color:'#fff',border:'none',borderRadius:8,fontWeight:700,fontSize:12,cursor:'pointer'}}>
-                          {savingCert?'...':lang==='ar'?'تأكيد':'Confirmer'}
-                        </button>
-                        <button onClick={()=>{setShowAddCert(false);setNewCertJalonId('');}}
-                          style={{padding:'8px 12px',background:'#f0f0ec',color:'#888',border:'none',borderRadius:8,fontSize:12,cursor:'pointer'}}>
-                          ✕
-                        </button>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
               {certificats.length===0?(
                 <div style={{textAlign:'center',color:'#aaa',padding:'2rem',fontSize:13}}>
                   {lang==='ar'?'لا توجد شهادات بعد':'Aucun certificat pour le moment'}
