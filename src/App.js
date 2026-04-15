@@ -216,18 +216,19 @@ export default function App() {
       <div className="app-container" dir={getDir(lang)}>
 
         {!isMobile && user.role !== 'parent' && (
-          <nav style={{background:'#fff',borderBottom:'0.5px solid #e0e0d8',position:'sticky',top:0,zIndex:200}}>
+          <nav style={{background:'#fff',borderBottom:'0.5px solid #e0e0d8',position:'sticky',top:0,zIndex:200,direction:'ltr'}}>
 
-            {/* ═══ LIGNE 1 : Langue gauche + Profil droite (fonctionne en RTL et LTR) ═══ */}
-            <div style={{display:'flex',alignItems:'center',height:52,padding:'0 1.5rem',borderBottom:'0.5px solid #f0f0ec',gap:12}}>
+            {/* LIGNE 1 — direction forcée LTR: gauche=langue, droite=profil */}
+            <div style={{display:'flex',flexDirection:'row',alignItems:'center',height:52,
+              padding:'0 1.5rem',borderBottom:'0.5px solid #f0f0ec',gap:12}}>
 
-              {/* Langue — tout à gauche */}
+              {/* LANGUE — premier enfant = physiquement à gauche */}
               <div style={{position:'relative',flexShrink:0}}>
                 <button onClick={e=>{e.stopPropagation();setShowLangMenu(v=>!v);setShowUserMenu(false);}}
-                  style={{display:'flex',alignItems:'center',gap:5,padding:'6px 10px',
+                  style={{display:'flex',flexDirection:'row',alignItems:'center',gap:5,padding:'6px 10px',
                     border:'1px solid #e0e0d8',borderRadius:8,background:'#f9f9f6',
                     fontSize:12,cursor:'pointer',fontWeight:600,color:'#555'}}>
-                  <span style={{fontSize:15}}>{LANGS.find(l=>l.code===lang)?.flag||'🇫🇷'}</span>
+                  <span>{LANGS.find(l=>l.code===lang)?.flag||'🇫🇷'}</span>
                   <span>{(lang||'fr').toUpperCase()}</span>
                   <span style={{fontSize:9,color:'#aaa'}}>▾</span>
                 </button>
@@ -237,44 +238,48 @@ export default function App() {
                     boxShadow:'0 12px 32px rgba(0,0,0,0.12)',zIndex:99999,overflow:'hidden',minWidth:140}}>
                     {LANGS.map(l=>(
                       <button key={l.code} onClick={()=>{setLang(l.code);setShowLangMenu(false);}}
-                        style={{display:'flex',alignItems:'center',gap:10,width:'100%',padding:'10px 16px',
-                          border:'none',borderLeft:lang===l.code?'3px solid #1D9E75':'3px solid transparent',
+                        style={{display:'flex',flexDirection:'row',alignItems:'center',gap:10,
+                          width:'100%',padding:'10px 16px',border:'none',
+                          borderLeft:lang===l.code?'3px solid #1D9E75':'3px solid transparent',
                           background:lang===l.code?'#E1F5EE':'#fff',
                           color:lang===l.code?'#085041':'#555',
                           fontWeight:lang===l.code?700:400,cursor:'pointer',fontSize:13}}>
-                        <span style={{fontSize:16}}>{l.flag}</span> {l.label}
-                        {lang===l.code && <span style={{marginLeft:'auto',color:'#1D9E75',fontSize:11}}>✓</span>}
+                        <span>{l.flag}</span>
+                        <span>{l.label}</span>
+                        {lang===l.code && <span style={{marginLeft:'auto',color:'#1D9E75'}}>✓</span>}
                       </button>
                     ))}
                   </div>
                 )}
               </div>
 
-              {/* Espace flex — pousse le profil à droite */}
+              {/* ESPACEUR */}
               <div style={{flex:1}} />
 
-              {/* Install btn si dispo */}
+              {/* INSTALL BTN */}
               {showInstallBtn && (
                 <button onClick={handleInstall}
-                  style={{padding:'5px 9px',border:'1px solid #e0e0d8',borderRadius:8,fontSize:11,cursor:'pointer',background:'#f9f9f6',color:'#888',flexShrink:0}}>
+                  style={{padding:'5px 9px',border:'1px solid #e0e0d8',borderRadius:8,
+                    fontSize:11,cursor:'pointer',background:'#f9f9f6',color:'#888',flexShrink:0}}>
                   📲
                 </button>
               )}
 
-              {/* Profil — tout à droite */}
+              {/* PROFIL — dernier enfant = physiquement à droite */}
               <div style={{position:'relative',flexShrink:0}}>
                 <button onClick={e=>{e.stopPropagation();setShowUserMenu(v=>!v);setShowLangMenu(false);}}
-                  style={{display:'flex',alignItems:'center',gap:8,padding:'5px 12px 5px 5px',
+                  style={{display:'flex',flexDirection:'row',alignItems:'center',gap:8,
+                    padding:'5px 12px 5px 5px',
                     background:'linear-gradient(135deg,#085041,#1D9E75)',
                     border:'none',borderRadius:22,cursor:'pointer',
                     boxShadow:'0 3px 10px rgba(8,80,65,0.25)'}}>
-                  <div style={{width:28,height:28,borderRadius:'50%',
+                  <div style={{width:28,height:28,borderRadius:'50%',flexShrink:0,
                     background:'rgba(255,255,255,0.22)',border:'1.5px solid rgba(255,255,255,0.4)',
                     display:'flex',alignItems:'center',justifyContent:'center',
-                    fontSize:13,fontWeight:900,color:'#fff',flexShrink:0}}>
+                    fontSize:13,fontWeight:900,color:'#fff'}}>
                     {user.prenom?user.prenom[0].toUpperCase():'?'}
                   </div>
-                  <div>
+                  <div style={{direction:'rtl'}}>
                     <div style={{fontSize:12,fontWeight:700,color:'#fff',lineHeight:1.3,whiteSpace:'nowrap'}}>
                       {user.prenom} {user.nom?.split(' ')[0]}
                     </div>
@@ -289,14 +294,14 @@ export default function App() {
                     border:'0.5px solid #e0e0d8',borderRadius:14,
                     boxShadow:'0 12px 32px rgba(0,0,0,0.14)',zIndex:99999,minWidth:220,overflow:'hidden'}}>
                     <div style={{padding:'16px',background:'linear-gradient(135deg,#085041,#1D9E75)'}}>
-                      <div style={{display:'flex',alignItems:'center',gap:12}}>
-                        <div style={{width:42,height:42,borderRadius:'50%',
+                      <div style={{display:'flex',flexDirection:'row',alignItems:'center',gap:12}}>
+                        <div style={{width:42,height:42,borderRadius:'50%',flexShrink:0,
                           background:'rgba(255,255,255,0.2)',border:'2px solid rgba(255,255,255,0.4)',
                           display:'flex',alignItems:'center',justifyContent:'center',
-                          fontSize:18,fontWeight:900,color:'#fff',flexShrink:0}}>
+                          fontSize:18,fontWeight:900,color:'#fff'}}>
                           {user.prenom?user.prenom[0].toUpperCase():'?'}
                         </div>
-                        <div>
+                        <div style={{direction:'rtl'}}>
                           <div style={{fontWeight:800,fontSize:14,color:'#fff'}}>{user.prenom} {user.nom}</div>
                           <div style={{fontSize:10,color:'rgba(255,255,255,0.75)',marginTop:2,
                             background:'rgba(255,255,255,0.15)',padding:'1px 8px',borderRadius:10,display:'inline-block'}}>
@@ -305,22 +310,26 @@ export default function App() {
                         </div>
                       </div>
                     </div>
-                    <div style={{padding:'6px 0'}}>
+                    <div style={{padding:'6px 0',direction:'rtl'}}>
                       <button onClick={()=>{setShowUserMenu(false);navigate('profil_mobile');}}
-                        style={{display:'flex',alignItems:'center',gap:12,width:'100%',padding:'11px 16px',
-                          border:'none',background:'#fff',color:'#333',cursor:'pointer',fontSize:13}}
+                        style={{display:'flex',flexDirection:'row',alignItems:'center',gap:12,
+                          width:'100%',padding:'11px 16px',border:'none',background:'#fff',
+                          color:'#333',cursor:'pointer',fontSize:13}}
                         onMouseEnter={e=>e.currentTarget.style.background='#f5f5f0'}
                         onMouseLeave={e=>e.currentTarget.style.background='#fff'}>
-                        <span style={{width:28,height:28,borderRadius:8,background:'#E1F5EE',display:'flex',alignItems:'center',justifyContent:'center',fontSize:14}}>👤</span>
+                        <span style={{width:28,height:28,borderRadius:8,background:'#E1F5EE',
+                          display:'flex',alignItems:'center',justifyContent:'center',fontSize:14,flexShrink:0}}>👤</span>
                         <span>{lang==='ar'?'الملف الشخصي':'Mon profil'}</span>
                       </button>
                       <div style={{height:'0.5px',background:'#f0f0ec',margin:'4px 16px'}}/>
                       <button onClick={()=>{setShowUserMenu(false);handleLogout();}}
-                        style={{display:'flex',alignItems:'center',gap:12,width:'100%',padding:'11px 16px',
-                          border:'none',background:'#fff',color:'#E24B4A',cursor:'pointer',fontSize:13}}
+                        style={{display:'flex',flexDirection:'row',alignItems:'center',gap:12,
+                          width:'100%',padding:'11px 16px',border:'none',background:'#fff',
+                          color:'#E24B4A',cursor:'pointer',fontSize:13}}
                         onMouseEnter={e=>e.currentTarget.style.background='#fff5f5'}
                         onMouseLeave={e=>e.currentTarget.style.background='#fff'}>
-                        <span style={{width:28,height:28,borderRadius:8,background:'#FCEBEB',display:'flex',alignItems:'center',justifyContent:'center',fontSize:14}}>🚪</span>
+                        <span style={{width:28,height:28,borderRadius:8,background:'#FCEBEB',
+                          display:'flex',alignItems:'center',justifyContent:'center',fontSize:14,flexShrink:0}}>🚪</span>
                         <span>{t(lang,'deconnexion')}</span>
                       </button>
                     </div>
@@ -329,13 +338,14 @@ export default function App() {
               </div>
             </div>
 
-            {/* ═══ LIGNE 2 : Menus + Logo متابعة à droite ═══ */}
-            <div style={{display:'flex',alignItems:'center',overflowX:'auto',scrollbarWidth:'none',
-              background:'linear-gradient(to bottom,#fafafa,#fff)'}}
+            {/* LIGNE 2 — Menus + Logo متابعة à droite */}
+            <div style={{display:'flex',flexDirection:'row',alignItems:'center',
+              overflowX:'auto',scrollbarWidth:'none',background:'linear-gradient(to bottom,#fafafa,#fff)'}}
               onClick={()=>{setShowLangMenu(false);setShowUserMenu(false);}}>
 
-              {/* Menus scrollables */}
-              <div style={{display:'flex',alignItems:'center',gap:0,padding:'0 8px',whiteSpace:'nowrap',flex:1}}>
+              {/* Menus */}
+              <div style={{display:'flex',flexDirection:'row',alignItems:'center',
+                gap:0,padding:'0 8px',whiteSpace:'nowrap',flex:1}}>
                 {[
                   {p:'validation_rapide', icon:'⚡', text:t(lang,'express'),                                          roles:['surveillant','instituteur']},
                   {p:'muraja',            icon:'📖', text:lang==='ar'?'مراجعة جماعية':"Muraja'a",                     roles:['surveillant','instituteur']},
@@ -353,11 +363,11 @@ export default function App() {
                   const isActive = page===b.p;
                   return (
                     <button key={b.p} onClick={() => navigate(b.p)}
-                      style={{display:'flex',alignItems:'center',gap:5,padding:'9px 11px',
-                        border:'none',borderBottom:isActive?'2.5px solid #1D9E75':'2.5px solid transparent',
+                      style={{display:'flex',flexDirection:'row',alignItems:'center',gap:5,
+                        padding:'9px 11px',border:'none',
+                        borderBottom:isActive?'2.5px solid #1D9E75':'2.5px solid transparent',
                         background:'transparent',cursor:'pointer',whiteSpace:'nowrap',flexShrink:0,
-                        color:isActive?'#085041':'#666',fontWeight:isActive?700:400,fontSize:12,
-                        transition:'color 0.15s'}}>
+                        color:isActive?'#085041':'#666',fontWeight:isActive?700:400,fontSize:12}}>
                       <span style={{fontSize:13}}>{b.icon}</span>
                       <span>{b.text}</span>
                     </button>
@@ -365,16 +375,17 @@ export default function App() {
                 })}
               </div>
 
-              {/* Logo متابعة التحفيظ — à droite des menus */}
+              {/* Logo متابعة التحفيظ — à droite physique (dernier enfant en LTR) */}
               <div onClick={() => navigate('dashboard')}
-                style={{display:'flex',alignItems:'center',gap:8,padding:'6px 16px',
-                  cursor:'pointer',flexShrink:0,borderLeft:'1px solid #f0f0ec',marginLeft:'auto'}}>
+                style={{display:'flex',flexDirection:'row',alignItems:'center',gap:8,
+                  padding:'6px 16px',cursor:'pointer',flexShrink:0,
+                  borderLeft:'1px solid #f0f0ec'}}>
                 <div style={{width:26,height:26,borderRadius:7,
                   background:'linear-gradient(135deg,#1D9E75,#085041)',
                   display:'flex',alignItems:'center',justifyContent:'center',fontSize:13}}>
                   📖
                 </div>
-                <div style={{lineHeight:1.2,textAlign:'right'}}>
+                <div style={{lineHeight:1.2,direction:'rtl'}}>
                   <div style={{fontSize:11,fontWeight:800,color:'#085041',whiteSpace:'nowrap'}}>متابعة التحفيظ</div>
                   <div style={{fontSize:8,color:'#aaa',whiteSpace:'nowrap'}}>{t(lang,'app_name')}</div>
                 </div>
