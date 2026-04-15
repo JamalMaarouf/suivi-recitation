@@ -218,74 +218,56 @@ export default function App() {
         {!isMobile && user.role !== 'parent' && (
           <nav style={{background:'#fff',borderBottom:'0.5px solid #e0e0d8',position:'sticky',top:0,zIndex:200}}>
 
-            {/* ═══ LIGNE 1 : Barre principale ═══ */}
-            <div style={{display:'flex',alignItems:'center',height:52,padding:'0 1.5rem',gap:12}}>
+            {/* ═══ LIGNE 1 : Langue à gauche + Profil à droite ═══ */}
+            <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',height:52,padding:'0 1.5rem',borderBottom:'0.5px solid #f0f0ec'}}>
 
-              {/* Gauche : Logo + Titre */}
-              <div style={{display:'flex',alignItems:'center',gap:10,cursor:'pointer',flexShrink:0}}
-                onClick={() => navigate('dashboard')}>
-                <div style={{width:32,height:32,borderRadius:10,background:'linear-gradient(135deg,#1D9E75,#085041)',
-                  display:'flex',alignItems:'center',justifyContent:'center',fontSize:16,boxShadow:'0 2px 8px rgba(29,158,117,0.3)'}}>
-                  📖
-                </div>
-                <div style={{lineHeight:1.2}}>
-                  <div style={{fontSize:13,fontWeight:800,color:'#085041',letterSpacing:'-0.3px'}}>{t(lang, 'app_name')}</div>
-                  <div style={{fontSize:9,color:'#aaa',fontWeight:500}}>متابعة التحفيظ</div>
-                </div>
+              {/* Gauche : Sélecteur langue */}
+              <div style={{position:'relative'}}>
+                <button onClick={e=>{e.stopPropagation();setShowLangMenu(v=>!v);setShowUserMenu(false);}}
+                  style={{display:'flex',alignItems:'center',gap:5,padding:'6px 10px',
+                    border:'1px solid #e0e0d8',borderRadius:8,background:'#f9f9f6',
+                    fontSize:12,cursor:'pointer',fontWeight:600,color:'#555'}}>
+                  <span style={{fontSize:15}}>{LANGS.find(l=>l.code===lang)?.flag||'🇫🇷'}</span>
+                  <span>{(lang||'fr').toUpperCase()}</span>
+                  <span style={{fontSize:9,color:'#aaa'}}>▾</span>
+                </button>
+                {showLangMenu && (
+                  <div style={{position:'absolute',top:'calc(100% + 6px)',left:0,background:'#fff',
+                    border:'0.5px solid #e0e0d8',borderRadius:10,
+                    boxShadow:'0 12px 32px rgba(0,0,0,0.12)',zIndex:99999,overflow:'hidden',minWidth:140}}>
+                    {LANGS.map(l=>(
+                      <button key={l.code} onClick={()=>{setLang(l.code);setShowLangMenu(false);}}
+                        style={{display:'flex',alignItems:'center',gap:10,width:'100%',padding:'10px 16px',
+                          border:'none',borderLeft:lang===l.code?'3px solid #1D9E75':'3px solid transparent',
+                          background:lang===l.code?'#E1F5EE':'#fff',
+                          color:lang===l.code?'#085041':'#555',
+                          fontWeight:lang===l.code?700:400,cursor:'pointer',fontSize:13}}>
+                        <span style={{fontSize:16}}>{l.flag}</span> {l.label}
+                        {lang===l.code && <span style={{marginLeft:'auto',color:'#1D9E75',fontSize:11}}>✓</span>}
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
 
-              {/* Centre : espace flex */}
-              <div style={{flex:1}} />
-
-              {/* Droite : Langue + Profil */}
-              <div style={{display:'flex',alignItems:'center',gap:8,flexShrink:0}}>
+              {/* Droite : Profil user */}
+              <div style={{display:'flex',alignItems:'center',gap:8}}>
                 {showInstallBtn && (
                   <button onClick={handleInstall}
                     style={{padding:'5px 9px',border:'1px solid #e0e0d8',borderRadius:8,fontSize:11,cursor:'pointer',background:'#f9f9f6',color:'#888'}}>
                     📲
                   </button>
                 )}
-
-                {/* Sélecteur langue */}
-                <div style={{position:'relative'}}>
-                  <button onClick={e=>{e.stopPropagation();setShowLangMenu(v=>!v);setShowUserMenu(false);}}
-                    style={{display:'flex',alignItems:'center',gap:5,padding:'6px 10px',
-                      border:'1px solid #e0e0d8',borderRadius:8,background:'#f9f9f6',
-                      fontSize:12,cursor:'pointer',fontWeight:600,color:'#555',transition:'all 0.15s'}}>
-                    <span style={{fontSize:15}}>{LANGS.find(l=>l.code===lang)?.flag||'🇫🇷'}</span>
-                    <span>{(lang||'fr').toUpperCase()}</span>
-                    <span style={{fontSize:9,color:'#aaa'}}>▾</span>
-                  </button>
-                  {showLangMenu && (
-                    <div style={{position:'absolute',top:'calc(100% + 6px)',right:0,background:'#fff',
-                      border:'0.5px solid #e0e0d8',borderRadius:10,
-                      boxShadow:'0 12px 32px rgba(0,0,0,0.12)',zIndex:99999,overflow:'hidden',minWidth:140}}>
-                      {LANGS.map(l=>(
-                        <button key={l.code} onClick={()=>{setLang(l.code);setShowLangMenu(false);}}
-                          style={{display:'flex',alignItems:'center',gap:10,width:'100%',padding:'10px 16px',
-                            border:'none',borderLeft: lang===l.code?'3px solid #1D9E75':'3px solid transparent',
-                            background:lang===l.code?'#E1F5EE':'#fff',
-                            color:lang===l.code?'#085041':'#555',
-                            fontWeight:lang===l.code?700:400,cursor:'pointer',fontSize:13}}>
-                          <span style={{fontSize:16}}>{l.flag}</span> {l.label}
-                          {lang===l.code && <span style={{marginLeft:'auto',color:'#1D9E75',fontSize:11}}>✓</span>}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-
-                {/* Profil user */}
                 <div style={{position:'relative'}}>
                   <button onClick={e=>{e.stopPropagation();setShowUserMenu(v=>!v);setShowLangMenu(false);}}
                     style={{display:'flex',alignItems:'center',gap:8,padding:'5px 12px 5px 5px',
                       background:'linear-gradient(135deg,#085041,#1D9E75)',
                       border:'none',borderRadius:22,cursor:'pointer',
-                      boxShadow:'0 3px 10px rgba(8,80,65,0.25)',transition:'all 0.15s'}}>
+                      boxShadow:'0 3px 10px rgba(8,80,65,0.25)'}}>
                     <div style={{width:28,height:28,borderRadius:'50%',
                       background:'rgba(255,255,255,0.22)',border:'1.5px solid rgba(255,255,255,0.4)',
                       display:'flex',alignItems:'center',justifyContent:'center',
-                      fontSize:13,fontWeight:900,color:'#fff',flexShrink:0,letterSpacing:'-0.5px'}}>
+                      fontSize:13,fontWeight:900,color:'#fff',flexShrink:0}}>
                       {user.prenom?user.prenom[0].toUpperCase():'?'}
                     </div>
                     <div style={{textAlign:'right',direction:'rtl'}}>
@@ -302,18 +284,16 @@ export default function App() {
                     <div style={{position:'absolute',top:'calc(100% + 8px)',right:0,background:'#fff',
                       border:'0.5px solid #e0e0d8',borderRadius:14,
                       boxShadow:'0 12px 32px rgba(0,0,0,0.14)',zIndex:99999,minWidth:220,overflow:'hidden'}}>
-                      {/* Header */}
-                      <div style={{padding:'16px',background:'linear-gradient(135deg,#085041,#1D9E75)',position:'relative',overflow:'hidden'}}>
-                        <div style={{position:'absolute',top:-20,right:-20,width:80,height:80,borderRadius:'50%',
-                          background:'rgba(255,255,255,0.05)'}} />
-                        <div style={{display:'flex',alignItems:'center',gap:12,position:'relative'}}>
+                      <div style={{padding:'16px',background:'linear-gradient(135deg,#085041,#1D9E75)',position:'relative'}}>
+                        <div style={{position:'absolute',top:-20,right:-20,width:80,height:80,borderRadius:'50%',background:'rgba(255,255,255,0.05)'}}/>
+                        <div style={{display:'flex',alignItems:'center',gap:12,direction:'rtl'}}>
                           <div style={{width:42,height:42,borderRadius:'50%',
                             background:'rgba(255,255,255,0.2)',border:'2px solid rgba(255,255,255,0.4)',
                             display:'flex',alignItems:'center',justifyContent:'center',
                             fontSize:18,fontWeight:900,color:'#fff',flexShrink:0}}>
                             {user.prenom?user.prenom[0].toUpperCase():'?'}
                           </div>
-                          <div style={{direction:'rtl'}}>
+                          <div>
                             <div style={{fontWeight:800,fontSize:14,color:'#fff'}}>{user.prenom} {user.nom}</div>
                             <div style={{fontSize:10,color:'rgba(255,255,255,0.75)',marginTop:2,
                               background:'rgba(255,255,255,0.15)',padding:'1px 8px',borderRadius:10,display:'inline-block'}}>
@@ -322,27 +302,22 @@ export default function App() {
                           </div>
                         </div>
                       </div>
-                      {/* Actions */}
                       <div style={{padding:'6px 0'}}>
                         <button onClick={()=>{setShowUserMenu(false);navigate('profil_mobile');}}
                           style={{display:'flex',alignItems:'center',gap:12,width:'100%',padding:'11px 16px',
-                            border:'none',background:'#fff',color:'#333',cursor:'pointer',fontSize:13,
-                            transition:'background 0.1s'}}
+                            border:'none',background:'#fff',color:'#333',cursor:'pointer',fontSize:13}}
                           onMouseEnter={e=>e.currentTarget.style.background='#f5f5f0'}
                           onMouseLeave={e=>e.currentTarget.style.background='#fff'}>
-                          <span style={{width:28,height:28,borderRadius:8,background:'#E1F5EE',
-                            display:'flex',alignItems:'center',justifyContent:'center',fontSize:14}}>👤</span>
+                          <span style={{width:28,height:28,borderRadius:8,background:'#E1F5EE',display:'flex',alignItems:'center',justifyContent:'center',fontSize:14}}>👤</span>
                           <span>{lang==='ar'?'الملف الشخصي':'Mon profil'}</span>
                         </button>
-                        <div style={{height:'0.5px',background:'#f0f0ec',margin:'4px 16px'}} />
+                        <div style={{height:'0.5px',background:'#f0f0ec',margin:'4px 16px'}}/>
                         <button onClick={()=>{setShowUserMenu(false);handleLogout();}}
                           style={{display:'flex',alignItems:'center',gap:12,width:'100%',padding:'11px 16px',
-                            border:'none',background:'#fff',color:'#E24B4A',cursor:'pointer',fontSize:13,
-                            transition:'background 0.1s'}}
+                            border:'none',background:'#fff',color:'#E24B4A',cursor:'pointer',fontSize:13}}
                           onMouseEnter={e=>e.currentTarget.style.background='#fff5f5'}
                           onMouseLeave={e=>e.currentTarget.style.background='#fff'}>
-                          <span style={{width:28,height:28,borderRadius:8,background:'#FCEBEB',
-                            display:'flex',alignItems:'center',justifyContent:'center',fontSize:14}}>🚪</span>
+                          <span style={{width:28,height:28,borderRadius:8,background:'#FCEBEB',display:'flex',alignItems:'center',justifyContent:'center',fontSize:14}}>🚪</span>
                           <span>{t(lang,'deconnexion')}</span>
                         </button>
                       </div>
@@ -352,34 +327,50 @@ export default function App() {
               </div>
             </div>
 
-            {/* ═══ LIGNE 2 : Menus navigation ═══ */}
-            <div style={{overflowX:'auto',scrollbarWidth:'none',msOverflowStyle:'none',
-              background:'linear-gradient(to right, #f9faf8, #fff)'}}
+            {/* ═══ LIGNE 2 : Logo + Menus navigation ═══ */}
+            <div style={{display:'flex',alignItems:'center',overflowX:'auto',scrollbarWidth:'none',
+              background:'linear-gradient(to right,#f9faf8,#fff)'}}
               onClick={()=>{setShowLangMenu(false);setShowUserMenu(false);}}>
-              <div style={{display:'flex',alignItems:'center',padding:'0 1rem',gap:0,whiteSpace:'nowrap',minWidth:'max-content'}}>
+
+              {/* Logo متابعة التحفيظ */}
+              <div onClick={() => navigate('dashboard')}
+                style={{display:'flex',alignItems:'center',gap:8,padding:'6px 16px 6px 12px',
+                  cursor:'pointer',flexShrink:0,borderRight:'1px solid #f0f0ec'}}>
+                <div style={{width:28,height:28,borderRadius:8,
+                  background:'linear-gradient(135deg,#1D9E75,#085041)',
+                  display:'flex',alignItems:'center',justifyContent:'center',fontSize:14}}>
+                  📖
+                </div>
+                <div style={{lineHeight:1.2}}>
+                  <div style={{fontSize:11,fontWeight:800,color:'#085041',whiteSpace:'nowrap'}}>متابعة التحفيظ</div>
+                  <div style={{fontSize:8,color:'#aaa',whiteSpace:'nowrap'}}>{t(lang,'app_name')}</div>
+                </div>
+              </div>
+
+              {/* Menus */}
+              <div style={{display:'flex',alignItems:'center',gap:0,padding:'0 4px',whiteSpace:'nowrap'}}>
                 {[
-                  {p:'validation_rapide', label:'⚡',  text:t(lang,'express'),                                      roles:['surveillant','instituteur']},
-                  {p:'muraja',            label:'📖',  text:lang==='ar'?'مراجعة جماعية':"Muraja'a",                 roles:['surveillant','instituteur']},
-                  {p:'seance',            label:'📋',  text:t(lang,'seance'),                                       roles:['surveillant','instituteur']},
-                  {p:'calendrier',        label:'📅',  text:t(lang,'calendrier'),                                   roles:['surveillant','instituteur']},
-                  {p:'rapport_mensuel',   label:'📊',  text:t(lang,'rapport'),                                      roles:['surveillant','instituteur']},
-                  {p:'historique_seances',label:'📈',  text:t(lang,'historique')||'Historique',                     roles:['surveillant','instituteur']},
-                  {p:'resultats_examens', label:'🏅',  text:lang==='ar'?'نتائج الامتحانات':'Résultats',             roles:['surveillant','instituteur']},
-                  {p:'objectifs',         label:'🎯',  text:lang==='ar'?'الأهداف':lang==='en'?'Objectives':'Objectifs', roles:['surveillant']},
-                  {p:'finance',           label:'💰',  text:lang==='ar'?'المالية':'Finance',                        roles:['surveillant']},
-                  {p:'liste_certificats', label:'🏅',  text:lang==='ar'?'الشهادات':'Certificats',                   roles:['surveillant']},
-                  {p:'liste_notes',       label:'⭐',  text:lang==='ar'?'النقاط':'Notes',                           roles:['surveillant']},
-                  {p:'gestion',           label:'⚙️',  text:t(lang,'gestion'),                                      roles:['surveillant']},
+                  {p:'validation_rapide', icon:'⚡', text:t(lang,'express'),                                         roles:['surveillant','instituteur']},
+                  {p:'muraja',            icon:'📖', text:lang==='ar'?'مراجعة جماعية':"Muraja'a",                    roles:['surveillant','instituteur']},
+                  {p:'seance',            icon:'📋', text:t(lang,'seance'),                                          roles:['surveillant','instituteur']},
+                  {p:'calendrier',        icon:'📅', text:t(lang,'calendrier'),                                      roles:['surveillant','instituteur']},
+                  {p:'rapport_mensuel',   icon:'📊', text:t(lang,'rapport'),                                         roles:['surveillant','instituteur']},
+                  {p:'historique_seances',icon:'📈', text:t(lang,'historique')||'Historique',                        roles:['surveillant','instituteur']},
+                  {p:'resultats_examens', icon:'🏅', text:lang==='ar'?'نتائج الامتحانات':'Résultats',                roles:['surveillant','instituteur']},
+                  {p:'objectifs',         icon:'🎯', text:lang==='ar'?'الأهداف':lang==='en'?'Objectives':'Objectifs',roles:['surveillant']},
+                  {p:'finance',           icon:'💰', text:lang==='ar'?'المالية':'Finance',                           roles:['surveillant']},
+                  {p:'liste_certificats', icon:'🏅', text:lang==='ar'?'الشهادات':'Certificats',                      roles:['surveillant']},
+                  {p:'liste_notes',       icon:'⭐', text:lang==='ar'?'النقاط':'Notes',                              roles:['surveillant']},
+                  {p:'gestion',           icon:'⚙️', text:t(lang,'gestion'),                                         roles:['surveillant']},
                 ].filter(b=>b.roles.includes(user.role)).map(b=>{
                   const isActive = page===b.p;
                   return (
                     <button key={b.p} onClick={() => navigate(b.p)}
-                      style={{display:'flex',alignItems:'center',gap:5,padding:'8px 12px',
-                        border:'none',borderBottom: isActive?'2px solid #1D9E75':'2px solid transparent',
+                      style={{display:'flex',alignItems:'center',gap:5,padding:'9px 11px',
+                        border:'none',borderBottom:isActive?'2px solid #1D9E75':'2px solid transparent',
                         background:'transparent',cursor:'pointer',whiteSpace:'nowrap',flexShrink:0,
-                        color: isActive?'#085041':'#666',fontWeight: isActive?700:400,fontSize:12,
-                        transition:'all 0.15s'}}>
-                      <span style={{fontSize:14}}>{b.label}</span>
+                        color:isActive?'#085041':'#666',fontWeight:isActive?700:400,fontSize:12}}>
+                      <span style={{fontSize:13}}>{b.icon}</span>
                       <span>{b.text}</span>
                     </button>
                   );
