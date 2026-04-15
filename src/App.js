@@ -350,18 +350,18 @@ export default function App() {
               <div style={{display:'flex',flexDirection:'row',alignItems:'center',
                 gap:0,padding:'0 8px',whiteSpace:'nowrap'}}>
                 {[
-                  {p:'gestion',           icon:'⚙️', text:t(lang,'gestion'),                                          roles:['surveillant']},
-                  {p:'finance',           icon:'💰', text:lang==='ar'?'المالية':'Finance',                            roles:['surveillant']},
-                  {p:'objectifs',         icon:'🎯', text:lang==='ar'?'الأهداف':lang==='en'?'Objectives':'Objectifs', roles:['surveillant']},
-                  {p:'seance',            icon:'📋', text:t(lang,'seance'),                                           roles:['surveillant','instituteur']},
-                  {p:'resultats_examens', icon:'🏅', text:lang==='ar'?'نتائج الامتحانات':'Résultats',                 roles:['surveillant','instituteur']},
-                  {p:'liste_notes',       icon:'⭐', text:lang==='ar'?'النقاط':'Notes',                               roles:['surveillant']},
-                  {p:'historique_seances',icon:'📈', text:lang==='ar'?'السجل':t(lang,'historique')||'Registre',       roles:['surveillant','instituteur']},
-                  {p:'liste_certificats', icon:'🏅', text:lang==='ar'?'الشهادات':'Certificats',                       roles:['surveillant']},
-                  {p:'rapport_mensuel',   icon:'📊', text:t(lang,'rapport'),                                          roles:['surveillant','instituteur']},
-                  {p:'muraja',            icon:'📖', text:lang==='ar'?'مراجعة جماعية':"Muraja'a",                     roles:['surveillant','instituteur']},
-                  {p:'validation_rapide', icon:'⚡', text:t(lang,'express'),                                          roles:['surveillant','instituteur']},
                   {p:'calendrier',        icon:'📅', text:t(lang,'calendrier'),                                       roles:['surveillant','instituteur']},
+                  {p:'validation_rapide', icon:'⚡', text:t(lang,'express'),                                          roles:['surveillant','instituteur']},
+                  {p:'muraja',            icon:'📖', text:lang==='ar'?'مراجعة جماعية':"Muraja'a",                     roles:['surveillant','instituteur']},
+                  {p:'rapport_mensuel',   icon:'📊', text:t(lang,'rapport'),                                          roles:['surveillant','instituteur']},
+                  {p:'liste_certificats', icon:'🏅', text:lang==='ar'?'الشهادات':'Certificats',                       roles:['surveillant']},
+                  {p:'historique_seances',icon:'📈', text:lang==='ar'?'السجل':t(lang,'historique')||'Registre',       roles:['surveillant','instituteur']},
+                  {p:'liste_notes',       icon:'⭐', text:lang==='ar'?'النقاط':'Notes',                               roles:['surveillant']},
+                  {p:'resultats_examens', icon:'🏅', text:lang==='ar'?'نتائج الامتحانات':'Résultats',                 roles:['surveillant','instituteur']},
+                  {p:'seance',            icon:'📋', text:t(lang,'seance'),                                           roles:['surveillant','instituteur']},
+                  {p:'objectifs',         icon:'🎯', text:lang==='ar'?'الأهداف':lang==='en'?'Objectives':'Objectifs', roles:['surveillant']},
+                  {p:'finance',           icon:'💰', text:lang==='ar'?'المالية':'Finance',                            roles:['surveillant']},
+                  {p:'gestion',           icon:'⚙️', text:t(lang,'gestion'),                                          roles:['surveillant']},
                 ].filter(b=>b.roles.includes(user.role)).map(b=>{
                   const isActive = page===b.p;
                   return (
