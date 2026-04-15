@@ -82,6 +82,43 @@ export default function Dashboard({ user, navigate, goBack, lang, isMobile=false
   };
 
   const alertes = useMemo(() => calcAlertes(eleves, allValidations, lang), [eleves, allValidations, lang]);
+  const [certifNotifs, setCertifNotifs] = useState([]);
+
+  useEffect(() => {
+    if (!user || !eleves.length) return;
+    // Charger jalons actifs + certificats déjà émis pour détecter ceux en attente
+    const checkCertifs = async () => {
+      const { data: jalons } = await supabase.from('jalons').select('*').eq('ecole_id', user.ecole_id).eq('actif', true);
+      if (!jalons || jalons.length === 0) return;
+      const { data: certsEmis } = await supabase.from('certificats_eleves').select('eleve_id,jalon_id').eq('ecole_id', user.ecole_id);
+      const emis = new Set((certsEmis||[]).map(c => c.eleve_id+'_'+c.jalon_id));
+      const { data: recitations } = await supabase.from('recitations_sourates').select('eleve_id,sourate_id,type_recitation,complete').eq('ecole_id', user.ecole_id);
+      const notifs = [];
+      for (const eleve of eleves) {
+        for (const jalon of jalons) {
+          if (emis.has(eleve.id+'_'+jalon.id)) continue;
+          let atteint = false;
+          if (jalon.type_jalon === 'hizb') {
+            const required = jalon.hizb_ids || [];
+            atteint = required.length > 0 && required.every(h => eleve.etat.hizbsComplets.has(Number(h)));
+          } else if (jalon.type_jalon === 'ensemble_sourates' && jalon.ensemble_id) {
+            const { data: ens } = await supabase.from('ensembles_sourates').select('sourates_ids').eq('id', jalon.ensemble_id).maybeSingle();
+            if (ens && ens.sourates_ids && ens.sourates_ids.length > 0) {
+              const srecs = (recitations||[]).filter(r=>r.eleve_id===eleve.id && (r.type_recitation==='complete'||r.complete));
+              const sComplets = new Set(srecs.map(r=>r.sourate_id));
+              atteint = ens.sourates_ids.every(sid => sComplets.has(sid));
+            }
+          } else if (jalon.type_jalon === 'examen' && jalon.examen_id) {
+            const { data: res } = await supabase.from('resultats_examens').select('id').eq('eleve_id',eleve.id).eq('examen_id',jalon.examen_id).eq('statut','reussi').maybeSingle();
+            atteint = !!res;
+          }
+          if (atteint) notifs.push({ eleve, jalon });
+        }
+      }
+      setCertifNotifs(notifs);
+    };
+    checkCertifs();
+  }, [eleves, user]);
   const totalPoints = eleves.reduce((s,e)=>s+e.etat.points.total,0);
   const totalTomon = eleves.reduce((s,e)=>s+e.etat.tomonCumul,0);
   const totalHizb = eleves.reduce((s,e)=>s+e.etat.hizbsComplets.size,0);
@@ -507,6 +544,34 @@ export default function Dashboard({ user, navigate, goBack, lang, isMobile=false
               </div>
             ))}
           </div>
+          {certifNotifs.length>0&&(
+            <div style={{marginBottom:'1.25rem'}}>
+              <div className="section-label" style={{color:'#EF9F27'}}>
+                🏅 {lang==='ar'?'شهادات في انتظار التسليم':'Certificats à délivrer'} ({certifNotifs.length})
+              </div>
+              <div style={{display:'flex',flexDirection:'column',gap:6}}>
+                {certifNotifs.map((n,i)=>(
+                  <div key={i} onClick={()=>navigate('fiche',n.eleve)}
+                    style={{display:'flex',alignItems:'center',gap:12,padding:'12px 14px',
+                      background:'#FAEEDA',borderLeft:'4px solid #EF9F27',
+                      borderRadius:'0 12px 12px 0',cursor:'pointer'}}>
+                    <span style={{fontSize:20}}>🏅</span>
+                    <div style={{flex:1}}>
+                      <div style={{fontSize:13,fontWeight:700,color:'#085041'}}>
+                        {n.eleve.prenom} {n.eleve.nom}
+                      </div>
+                      <div style={{fontSize:11,color:'#EF9F27',marginTop:1}}>
+                        {lang==='ar'?'مستحق:':'Certificat:'} {n.jalon.nom}
+                      </div>
+                    </div>
+                    <span style={{fontSize:11,color:'#EF9F27',fontWeight:600}}>
+                      {lang==='ar'?'تسليم ←':'Délivrer →'}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
           {alertes.length>0&&(<><div className="section-label">{t(lang,'alertes')} ({alertes.length})</div><div style={{display:'flex',flexDirection:'column',gap:6,marginBottom:'1.25rem'}}>{alertes.slice(0,5).map((a,i)=>(<div key={i} onClick={()=>navigate('fiche',a.eleve)} style={{display:'flex',alignItems:'center',gap:12,padding:'10px 14px',background:a.bg,borderLeft:`4px solid ${a.color}`,borderRadius:'0 10px 10px 0',cursor:'pointer'}}><span style={{fontSize:18}}>{a.icon}</span><span style={{fontSize:13,color:a.color,flex:1}}>{a.msg}</span><span style={{fontSize:11,color:a.color,opacity:0.6}}>›</span></div>))}</div></>)}
           <div className="section-label">{t(lang,'podium')}</div>
           <div style={{display:'flex',alignItems:'flex-end',justifyContent:'center',gap:10,marginBottom:'1.5rem'}}>

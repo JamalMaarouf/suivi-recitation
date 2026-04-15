@@ -479,7 +479,9 @@ export async function verifierEtCreerCertificats(supabase, {
       let jalonAtteint = false;
 
       if (jalon.type_jalon === 'hizb') {
-        jalonAtteint = totalHizbComplets >= jalon.valeur;
+        // Tous les hizb spécifiques du jalon doivent être complétés
+        const requiredHizb = jalon.hizb_ids || [];
+        jalonAtteint = requiredHizb.length > 0 && requiredHizb.every(h => hizbsComplets.has(Number(h)));
       } else if (jalon.type_jalon === 'ensemble_sourates' && jalon.ensemble_id) {
         const { data: ensemble } = await supabase
           .from('ensembles_sourates')

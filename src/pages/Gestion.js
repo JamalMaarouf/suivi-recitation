@@ -153,7 +153,7 @@ function JalonsTab({ user, lang, jalons, setJalons, ensembles, examens, newJalon
 
   const ajouterJalon = async () => {
     if (!newJalon.nom.trim()) return showMsg('error', lang==='ar'?'اسم المرحلة مطلوب':'Le nom du jalon est obligatoire');
-    if (newJalon.type_jalon === 'hizb' && (!newJalon.valeur || newJalon.valeur < 1)) return showMsg('error', lang==='ar'?'عدد الأحزاب مطلوب':'Nombre de hizb requis');
+    if (newJalon.type_jalon === 'hizb' && (!newJalon.hizb_ids || newJalon.hizb_ids.length === 0)) return showMsg('error', lang==='ar'?'اختر الأحزاب المطلوبة':'Sélectionnez au moins un Hizb');
     if (newJalon.type_jalon === 'ensemble_sourates' && !newJalon.ensemble_id) return showMsg('error', lang==='ar'?'اختر مجموعة السور':'Choisissez un ensemble de sourates');
     if (newJalon.type_jalon === 'examen' && !newJalon.examen_id) return showMsg('error', lang==='ar'?'اختر الامتحان':'Choisissez un examen');
     setSavingJalon(true);
@@ -162,7 +162,7 @@ function JalonsTab({ user, lang, jalons, setJalons, ensembles, examens, newJalon
       nom: newJalon.nom.trim(),
       nom_ar: newJalon.nom_ar.trim() || null,
       type_jalon: newJalon.type_jalon,
-      valeur: newJalon.type_jalon === 'hizb' ? parseInt(newJalon.valeur) : null,
+      hizb_ids: newJalon.type_jalon === 'hizb' ? newJalon.hizb_ids : null,
       ensemble_id: newJalon.type_jalon === 'ensemble_sourates' ? newJalon.ensemble_id : null,
       examen_id: newJalon.type_jalon === 'examen' ? newJalon.examen_id : null,
       actif: true,
@@ -170,7 +170,7 @@ function JalonsTab({ user, lang, jalons, setJalons, ensembles, examens, newJalon
     await supabase.from('jalons').insert(payload);
     const { data } = await supabase.from('jalons').select('*').eq('ecole_id', user.ecole_id).order('created_at');
     if (data) setJalons(data);
-    setNewJalon({ nom: '', nom_ar: '', type_jalon: 'hizb', valeur: 5, ensemble_id: '', examen_id: '' });
+    setNewJalon({ nom: '', nom_ar: '', type_jalon: 'hizb', hizb_ids: [], ensemble_id: '', examen_id: '' });
     setSavingJalon(false);
     showMsg('success', lang==='ar'?'تمت إضافة المرحلة بنجاح':'Jalon ajouté avec succès');
   };
@@ -189,10 +189,19 @@ function JalonsTab({ user, lang, jalons, setJalons, ensembles, examens, newJalon
   const getEnsembleNom = (id) => ensembles.find(e => e.id === id)?.nom || '—';
   const getExamenNom = (id) => (examens||[]).find(e => e.id === id)?.nom || '—';
   const typeLabel = (j) => {
-    if (j.type_jalon === 'hizb') return lang==='ar' ? `${j.valeur} أحزاب مكتملة` : `${j.valeur} Hizb complétés`;
+    if (j.type_jalon === 'hizb') {
+      const ids = j.hizb_ids || [];
+      const label = ids.length > 0 ? ids.sort((a,b)=>a-b).join(', ') : '—';
+      return lang==='ar' ? `أحزاب محددة: ${label}` : `Hizb spécifiques: ${label}`;
+    }
     if (j.type_jalon === 'ensemble_sourates') return lang==='ar' ? `مجموعة: ${getEnsembleNom(j.ensemble_id)}` : `Ensemble: ${getEnsembleNom(j.ensemble_id)}`;
     if (j.type_jalon === 'examen') return lang==='ar' ? `امتحان ناجح: ${getExamenNom(j.examen_id)}` : `Examen réussi: ${getExamenNom(j.examen_id)}`;
     return j.type_jalon;
+  };
+  const toggleHizb = (n) => {
+    const ids = newJalon.hizb_ids || [];
+    const updated = ids.includes(n) ? ids.filter(h=>h!==n) : [...ids, n];
+    setNewJalon({...newJalon, hizb_ids: updated});
   };
 
   return (
@@ -222,10 +231,35 @@ function JalonsTab({ user, lang, jalons, setJalons, ensembles, examens, newJalon
             </select>
           </div>
           {newJalon.type_jalon === 'hizb' && (
-            <div className="field-group">
-              <label className="field-lbl">{lang==='ar'?'عدد الأحزاب المطلوبة':'Nombre de Hizb requis'} <span style={{color:'#E24B4A'}}>*</span></label>
-              <input className="field-input" type="number" min="1" max="60" value={newJalon.valeur}
-                onChange={e=>setNewJalon({...newJalon,valeur:e.target.value})} placeholder="Ex: 5" />
+            <div className="field-group" style={{gridColumn:'1/-1'}}>
+              <label className="field-lbl">
+                {lang==='ar'?'اختر الأحزاب المطلوبة':'Sélectionnez les Hizb requis'} <span style={{color:'#E24B4A'}}>*</span>
+                {newJalon.hizb_ids.length > 0 && (
+                  <span style={{marginRight:8,marginLeft:8,color:'#1D9E75',fontWeight:700}}>
+                    ({newJalon.hizb_ids.length} {lang==='ar'?'محدد':'sélectionné(s)'})
+                  </span>
+                )}
+              </label>
+              <div style={{display:'grid',gridTemplateColumns:'repeat(10,1fr)',gap:3,marginTop:6}}>
+                {Array.from({length:60},(_,i)=>60-i).map(n=>{
+                  const sel = (newJalon.hizb_ids||[]).includes(n);
+                  return (
+                    <div key={n} onClick={()=>toggleHizb(n)}
+                      style={{borderRadius:6,padding:'5px 2px',textAlign:'center',cursor:'pointer',fontSize:11,fontWeight:700,
+                        background: sel ? '#085041' : '#f0f0ec',
+                        color: sel ? '#fff' : '#888',
+                        border: `0.5px solid ${sel ? '#085041' : '#e0e0d8'}`,
+                        transition:'all 0.1s'}}>
+                      {n}
+                    </div>
+                  );
+                })}
+              </div>
+              {newJalon.hizb_ids.length > 0 && (
+                <div style={{marginTop:6,fontSize:11,color:'#085041',fontWeight:600}}>
+                  {lang==='ar'?'الأحزاب المختارة:':'Hizb sélectionnés:'} {[...newJalon.hizb_ids].sort((a,b)=>a-b).join(', ')}
+                </div>
+              )}
             </div>
           )}
           {newJalon.type_jalon === 'ensemble_sourates' && (
@@ -324,7 +358,7 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile 
   const [jalons, setJalons] = useState([]);
   const [ensemblesDisp, setEnsemblesDisp] = useState([]);
   const [examensDisp, setExamensDisp] = useState([]);
-  const [newJalon, setNewJalon] = useState({ nom: '', nom_ar: '', type_jalon: 'hizb', valeur: 5, ensemble_id: '', examen_id: '' });
+  const [newJalon, setNewJalon] = useState({ nom: '', nom_ar: '', type_jalon: 'hizb', hizb_ids: [], ensemble_id: '', examen_id: '' });
   const [savingJalon, setSavingJalon] = useState(false);
 
   useEffect(() => { loadData(); }, []);
