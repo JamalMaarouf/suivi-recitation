@@ -343,9 +343,12 @@ export default function App() {
               overflowX:'auto',scrollbarWidth:'none',background:'linear-gradient(to bottom,#fafafa,#fff)'}}
               onClick={()=>{setShowLangMenu(false);setShowUserMenu(false);}}>
 
+              {/* Espace flex gauche — pousse tout vers la droite */}
+              <div style={{flex:1}} />
+
               {/* Menus */}
               <div style={{display:'flex',flexDirection:'row',alignItems:'center',
-                gap:0,padding:'0 8px',whiteSpace:'nowrap',flex:1}}>
+                gap:0,padding:'0 8px',whiteSpace:'nowrap'}}>
                 {[
                   {p:'validation_rapide', icon:'⚡', text:t(lang,'express'),                                          roles:['surveillant','instituteur']},
                   {p:'muraja',            icon:'📖', text:lang==='ar'?'مراجعة جماعية':"Muraja'a",                     roles:['surveillant','instituteur']},
