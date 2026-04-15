@@ -525,3 +525,75 @@ export async function verifierEtCreerCertificats(supabase, {
     return [];
   }
 }
+
+// ══════════════════════════════════════════════════════════════════
+// NOTES PAR PÉRIODE — calcul des points sur une plage de dates
+// ══════════════════════════════════════════════════════════════════
+
+/**
+ * Calcule les points gagnés par un élève sur une période donnée.
+ * N'inclut PAS les acquis antérieurs — uniquement les validations dans la plage.
+ */
+export function calcPointsPeriode(validations, dateDebut, dateFin) {
+  const debut = new Date(dateDebut);
+  const fin = new Date(dateFin);
+  fin.setHours(23, 59, 59, 999);
+
+  const vPeriode = validations.filter(v => {
+    const d = new Date(v.date_validation);
+    return d >= debut && d <= fin;
+  });
+
+  let tomonPeriode = 0;
+  const hizbsCompletsPeriode = new Set();
+
+  for (const v of vPeriode) {
+    if (v.type_validation === 'hizb_complet') {
+      hizbsCompletsPeriode.add(v.hizb_valide);
+    } else if (v.nombre_tomon > 0) {
+      tomonPeriode += v.nombre_tomon;
+    }
+  }
+
+  const ptsTomon = tomonPeriode * 10;
+  const nbRoboe = Math.floor(tomonPeriode / 2);
+  const nbNisf = Math.floor(tomonPeriode / 4);
+  const ptsRoboe = nbRoboe * 25;
+  const ptsNisf = nbNisf * 60;
+  const ptsHizb = hizbsCompletsPeriode.size * 100;
+  const total = ptsTomon + ptsRoboe + ptsNisf + ptsHizb;
+
+  return {
+    total,
+    ptsTomon,
+    ptsRoboe,
+    ptsNisf,
+    ptsHizb,
+    tomonPeriode,
+    hizbsPeriode: hizbsCompletsPeriode.size,
+    nbValidations: vPeriode.length,
+    details: { nbRoboe, nbNisf, nbHizb: hizbsCompletsPeriode.size },
+  };
+}
+
+/**
+ * Retourne les points pour les périodes prédéfinies (semaine, mois, trimestre).
+ */
+export function calcPointsToutes(validations) {
+  const now = new Date();
+
+  const debutSemaine = new Date(now);
+  debutSemaine.setDate(now.getDate() - 7);
+
+  const debutMois = new Date(now.getFullYear(), now.getMonth(), 1);
+
+  const debutTrimestre = new Date(now);
+  debutTrimestre.setMonth(now.getMonth() - 3);
+  debutTrimestre.setDate(1);
+
+  return {
+    semaine: calcPointsPeriode(validations, debutSemaine, now),
+    mois: calcPointsPeriode(validations, debutMois, now),
+    trimestre: calcPointsPeriode(validations, debutTrimestre, now),
+  };
+}

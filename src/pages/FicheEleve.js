@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useToast } from '../lib/toast';
 import { supabase } from '../lib/supabase';
-import { calcEtatEleve, calcPositionAtteinte, calcUnite, calcPoints, formatDate, formatDateCourt, getInitiales, scoreLabel, calcBadges, calcVitesse, niveauTraduit } from '../lib/helpers';
+import { calcEtatEleve, calcPositionAtteinte, calcUnite, calcPoints, formatDate, formatDateCourt, getInitiales, scoreLabel, calcBadges, calcVitesse, niveauTraduit, calcPointsPeriode } from '../lib/helpers';
 import { t } from '../lib/i18n';
 import FicheSourate from './FicheSourate';
 
@@ -172,6 +172,8 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang, isMobi
   const [examens, setExamens] = useState([]);
   const [certificats, setCertificats] = useState([]);
   const [jalonsDisp, setJalonsDisp] = useState([]);
+  const [periodesDisp, setPeriodesDisp] = useState([]);
+  const [periodeSelectId, setPeriodeSelectId] = useState('mois');
   const [showAddCert, setShowAddCert] = useState(false);
   const [newCertJalonId, setNewCertJalonId] = useState('');
   const [savingCert, setSavingCert] = useState(false);
@@ -219,11 +221,16 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang, isMobi
             .select('*').eq('eleve_id',eleve.id).order('date_obtention',{ascending:false});
           setCertificats(certRes.data || []);
         } catch(e) { setCertificats([]); }
-        // Charger jalons pour ajout manuel
+        // Charger jalons
         try {
           const jalRes = await supabase.from('jalons').select('id,nom,nom_ar').eq('ecole_id',eleve.ecole_id).eq('actif',true).order('created_at');
           setJalonsDisp(jalRes.data || []);
         } catch(e) { setJalonsDisp([]); }
+        // Charger périodes de notes
+        try {
+          const perRes = await supabase.from('periodes_notes').select('*').eq('ecole_id',eleve.ecole_id).eq('actif',true).order('date_debut');
+          setPeriodesDisp(perRes.data || []);
+        } catch(e) { setPeriodesDisp([]); }
         if(inst) setInstituteurNom(inst.prenom+' '+inst.nom);
       }
       const e = calcEtatEleve(vals||[],eleve.hizb_depart||1,eleve.tomon_depart||1);
@@ -456,6 +463,7 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang, isMobi
               {k:'objectifs',   label: lang==='ar'?'الأهداف':'Objectifs'},
               {k:'examens',     label: lang==='ar'?'الامتحانات':'Examens'},
               {k:'certificats', label: lang==='ar'?'الشهادات':'Certificats'},
+              {k:'notes',       label: lang==='ar'?'النقاط':'Points'},
             ].map(tab=>(
               <div key={tab.k} onClick={()=>setOnglet(tab.k)}
                 style={{padding:'10px 16px', fontSize:13, fontWeight:600, whiteSpace:'nowrap',
@@ -663,6 +671,63 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang, isMobi
                 ))}
               </div>
             )}
+
+
+            {onglet==='notes' && (() => {
+              const now = new Date();
+              const PERIODES_FIXES = [
+                { id:'semaine', label_ar:'الأسبوع', date_debut: new Date(now.getTime()-7*86400000), date_fin: now },
+                { id:'mois',    label_ar:'الشهر الحالي', date_debut: new Date(now.getFullYear(),now.getMonth(),1), date_fin: now },
+                { id:'trimestre', label_ar:'الفصل (3 أشهر)', date_debut: new Date(now.getFullYear(),now.getMonth()-3,1), date_fin: now },
+              ];
+              const allPeriodes = [...PERIODES_FIXES, ...(periodesDisp||[]).map(p=>({...p,label_ar:p.nom_ar||p.nom}))];
+              const selP = allPeriodes.find(p=>p.id===periodeSelectId) || allPeriodes[1];
+              const pts = validations.length > 0 ? calcPointsPeriode(validations, selP.date_debut, selP.date_fin) : {total:0,ptsTomon:0,ptsRoboe:0,ptsNisf:0,ptsHizb:0,tomonPeriode:0,hizbsPeriode:0};
+              return (
+                <div style={{padding:'1rem 0'}}>
+                  {/* Sélecteur période */}
+                  <div style={{display:'flex',gap:6,flexWrap:'wrap',marginBottom:'1.25rem'}}>
+                    {allPeriodes.map(p=>(
+                      <button key={p.id} onClick={()=>setPeriodeSelectId(p.id)}
+                        style={{padding:'5px 12px',borderRadius:20,border:`1px solid ${periodeSelectId===p.id?'#378ADD':'#e0e0d8'}`,
+                          background:periodeSelectId===p.id?'#E6F1FB':'#fff',
+                          color:periodeSelectId===p.id?'#378ADD':'#888',
+                          fontSize:11,fontWeight:periodeSelectId===p.id?700:400,cursor:'pointer',
+                          fontFamily:"'Tajawal',Arial,sans-serif",direction:'rtl'}}>
+                        {p.label_ar}
+                      </button>
+                    ))}
+                  </div>
+                  {/* Score total période */}
+                  <div style={{background:'linear-gradient(135deg,#E6F1FB,#fff)',border:'1px solid #378ADD30',borderRadius:14,padding:'16px',marginBottom:12,textAlign:'center'}}>
+                    <div style={{fontSize:11,color:'#888',marginBottom:4}}>{lang==='ar'?'مجموع النقاط في هذه الفترة':'Points gagnés sur cette période'}</div>
+                    <div style={{fontSize:36,fontWeight:800,color:'#378ADD'}}>{pts.total.toLocaleString()}</div>
+                    <div style={{fontSize:11,color:'#888',marginTop:4}}>{lang==='ar'?'نقطة':'pts'}</div>
+                  </div>
+                  {/* Détail */}
+                  <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:12}}>
+                    {[
+                      {label:lang==='ar'?'الأثمان':'Tomon', val:pts.tomonPeriode, pts:pts.ptsTomon, color:'#378ADD', bg:'#E6F1FB', icon:'📖'},
+                      {label:lang==='ar'?'الأرباع':'Roboâ', val:pts.details?.nbRoboe||0, pts:pts.ptsRoboe, color:'#1D9E75', bg:'#E1F5EE', icon:'✦'},
+                      {label:lang==='ar'?'الأنصاف':'Nisf', val:pts.details?.nbNisf||0, pts:pts.ptsNisf, color:'#EF9F27', bg:'#FAEEDA', icon:'◈'},
+                      {label:lang==='ar'?'أحزاب كاملة':'Hizb complets', val:pts.hizbsPeriode, pts:pts.ptsHizb, color:'#085041', bg:'#E1F5EE', icon:'🎯'},
+                    ].map((row,i)=>(
+                      <div key={i} style={{background:row.bg,borderRadius:12,padding:'12px',border:`0.5px solid ${row.color}20`}}>
+                        <div style={{fontSize:18,marginBottom:4}}>{row.icon}</div>
+                        <div style={{fontSize:11,color:'#888'}}>{row.label}</div>
+                        <div style={{fontSize:20,fontWeight:800,color:row.color}}>{row.val}</div>
+                        <div style={{fontSize:10,color:row.color,opacity:0.7}}>{row.pts > 0 ? `+${row.pts} ${lang==='ar'?'ن':'pts'}` : '—'}</div>
+                      </div>
+                    ))}
+                  </div>
+                  {pts.total === 0 && (
+                    <div style={{textAlign:'center',color:'#aaa',padding:'1.5rem',fontSize:13}}>
+                      {lang==='ar'?'لا توجد استظهارات في هذه الفترة':'Aucune récitation sur cette période'}
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
 
             {onglet==='muraja' && (
               <div>
@@ -952,7 +1017,7 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang, isMobi
 
           {/* Tabs */}
           <div className="tabs-row" style={{marginBottom:'1rem'}}>
-            {[['apercu',t(lang,'apercu')],['apprentissage',t(lang,'apprentissage')],['graphique',t(lang,'evolution')],['activite',t(lang,'activite')],['historique',t(lang,'historique')],['muraja',lang==='ar'?'المراجعة':'Muraja\u02bca'],['examens',lang==='ar'?'الامتحانات':'Examens'],['certificats',lang==='ar'?'الشهادات':'Certificats']].map(([k,l])=>(
+            {[['apercu',t(lang,'apercu')],['apprentissage',t(lang,'apprentissage')],['graphique',t(lang,'evolution')],['activite',t(lang,'activite')],['historique',t(lang,'historique')],['muraja',lang==='ar'?'المراجعة':'Muraja\u02bca'],['examens',lang==='ar'?'الامتحانات':'Examens'],['certificats',lang==='ar'?'الشهادات':'Certificats'],['notes',lang==='ar'?'النقاط':'Points']].map(([k,l])=>(
               <div key={k} className={`tab ${onglet===k?'active':''}`} onClick={()=>setOnglet(k)}>{l}</div>
             ))}
           </div>
@@ -1167,6 +1232,63 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang, isMobi
               ))}
             </div>
           )}
+
+
+          {onglet==='notes'&&(()=>{
+            const now = new Date();
+            const PERIODES_FIXES = [
+              { id:'semaine', label_ar:'الأسبوع', date_debut: new Date(now.getTime()-7*86400000), date_fin: now },
+              { id:'mois',    label_ar:'الشهر الحالي', date_debut: new Date(now.getFullYear(),now.getMonth(),1), date_fin: now },
+              { id:'trimestre', label_ar:'الفصل (3 أشهر)', date_debut: new Date(now.getFullYear(),now.getMonth()-3,1), date_fin: now },
+            ];
+            const allPeriodes = [...PERIODES_FIXES, ...(periodesDisp||[]).map(p=>({...p,label_ar:p.nom_ar||p.nom}))];
+            const selP = allPeriodes.find(p=>p.id===periodeSelectId) || allPeriodes[1];
+            const pts = validations.length > 0 ? calcPointsPeriode(validations, selP.date_debut, selP.date_fin) : {total:0,ptsTomon:0,ptsRoboe:0,ptsNisf:0,ptsHizb:0,tomonPeriode:0,hizbsPeriode:0,details:{nbRoboe:0,nbNisf:0}};
+            return (
+              <div style={{padding:'0.5rem 0'}}>
+                {/* Sélecteur période */}
+                <div style={{display:'flex',gap:6,flexWrap:'wrap',marginBottom:'1rem'}}>
+                  {allPeriodes.map(p=>(
+                    <button key={p.id} onClick={()=>setPeriodeSelectId(p.id)}
+                      style={{padding:'5px 10px',borderRadius:20,border:`1px solid ${periodeSelectId===p.id?'#378ADD':'#e0e0d8'}`,
+                        background:periodeSelectId===p.id?'#E6F1FB':'#fff',
+                        color:periodeSelectId===p.id?'#378ADD':'#888',
+                        fontSize:10,fontWeight:periodeSelectId===p.id?700:400,cursor:'pointer',
+                        fontFamily:"'Tajawal',Arial,sans-serif",direction:'rtl'}}>
+                      {p.label_ar}
+                    </button>
+                  ))}
+                </div>
+                {/* Score total */}
+                <div style={{background:'linear-gradient(135deg,#E6F1FB,#fff)',border:'1px solid #378ADD30',borderRadius:14,padding:'14px',marginBottom:10,textAlign:'center'}}>
+                  <div style={{fontSize:11,color:'#888',marginBottom:4}}>{lang==='ar'?'مجموع النقاط':'Points période'}</div>
+                  <div style={{fontSize:32,fontWeight:800,color:'#378ADD'}}>{pts.total.toLocaleString()}</div>
+                  <div style={{fontSize:11,color:'#888'}}>{lang==='ar'?'نقطة':'pts'}</div>
+                </div>
+                {/* Détail */}
+                <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
+                  {[
+                    {label:lang==='ar'?'الأثمان':'Tomon', val:pts.tomonPeriode, pts:pts.ptsTomon, color:'#378ADD', bg:'#E6F1FB', icon:'📖'},
+                    {label:lang==='ar'?'الأرباع':'Roboâ', val:pts.details?.nbRoboe||0, pts:pts.ptsRoboe, color:'#1D9E75', bg:'#E1F5EE', icon:'✦'},
+                    {label:lang==='ar'?'الأنصاف':'Nisf', val:pts.details?.nbNisf||0, pts:pts.ptsNisf, color:'#EF9F27', bg:'#FAEEDA', icon:'◈'},
+                    {label:lang==='ar'?'أحزاب كاملة':'Hizb ✓', val:pts.hizbsPeriode, pts:pts.ptsHizb, color:'#085041', bg:'#E1F5EE', icon:'🎯'},
+                  ].map((row,i)=>(
+                    <div key={i} style={{background:row.bg,borderRadius:12,padding:'10px',border:`0.5px solid ${row.color}20`}}>
+                      <div style={{fontSize:16,marginBottom:2}}>{row.icon}</div>
+                      <div style={{fontSize:10,color:'#888'}}>{row.label}</div>
+                      <div style={{fontSize:18,fontWeight:800,color:row.color}}>{row.val}</div>
+                      <div style={{fontSize:10,color:row.color,opacity:0.7}}>{row.pts>0?`+${row.pts} ${lang==='ar'?'ن':'pts'}`:'—'}</div>
+                    </div>
+                  ))}
+                </div>
+                {pts.total===0&&(
+                  <div style={{textAlign:'center',color:'#aaa',padding:'1.5rem',fontSize:12}}>
+                    {lang==='ar'?'لا توجد استظهارات في هذه الفترة':'Aucune récitation sur cette période'}
+                  </div>
+                )}
+              </div>
+            );
+          })()}
 
           {onglet==='historique'&&(
             <div>

@@ -146,6 +146,112 @@ function AcquisSelector({ codeNiveau, hizb, tomon, onHizbChange, onTomonChange, 
 }
 
 
+
+// ══════════════════════════════════════════════════════
+// COMPOSANT PeriodesTab — Gestion des périodes de notes
+// ══════════════════════════════════════════════════════
+function PeriodesTab({ user, lang, periodes, setPeriodes, newPeriode, setNewPeriode, savingPeriode, setSavingPeriode, showMsg }) {
+
+  const ajouterPeriode = async () => {
+    if (!newPeriode.nom_ar.trim()) return showMsg('error', lang==='ar'?'اسم الفترة مطلوب':'Nom de la période requis');
+    if (!newPeriode.date_debut) return showMsg('error', lang==='ar'?'تاريخ البداية مطلوب':'Date de début requise');
+    if (!newPeriode.date_fin) return showMsg('error', lang==='ar'?'تاريخ النهاية مطلوب':'Date de fin requise');
+    if (new Date(newPeriode.date_debut) >= new Date(newPeriode.date_fin)) return showMsg('error', lang==='ar'?'تاريخ البداية يجب أن يكون قبل النهاية':'La date de début doit être avant la fin');
+    setSavingPeriode(true);
+    await supabase.from('periodes_notes').insert({
+      ecole_id: user.ecole_id,
+      nom: newPeriode.nom_ar.trim(),
+      nom_ar: newPeriode.nom_ar.trim(),
+      date_debut: newPeriode.date_debut,
+      date_fin: newPeriode.date_fin,
+      actif: true,
+    });
+    const { data } = await supabase.from('periodes_notes').select('*').eq('ecole_id', user.ecole_id).order('date_debut');
+    if (data) setPeriodes(data);
+    setNewPeriode({ nom_ar: '', date_debut: '', date_fin: '' });
+    setSavingPeriode(false);
+    showMsg('success', lang==='ar'?'تمت إضافة الفترة':'Période ajoutée');
+  };
+
+  const supprimerPeriode = async (id) => {
+    await supabase.from('periodes_notes').delete().eq('id', id);
+    setPeriodes(prev => prev.filter(p => p.id !== id));
+    showMsg('success', lang==='ar'?'تم حذف الفترة':'Période supprimée');
+  };
+
+  const toggleActif = async (p) => {
+    await supabase.from('periodes_notes').update({ actif: !p.actif }).eq('id', p.id);
+    setPeriodes(prev => prev.map(x => x.id === p.id ? {...x, actif: !x.actif} : x));
+  };
+
+  const fmt = (d) => d ? new Date(d).toLocaleDateString(lang==='ar'?'ar-MA':'fr-FR', {day:'2-digit', month:'short', year:'numeric'}) : '—';
+
+  return (
+    <div>
+      <div style={{fontSize:13,color:'#888',marginBottom:'1.25rem'}}>
+        {lang==='ar'?'حدد فترات التقييم (أسابيع، أشهر، فصول دراسية) لحساب النقاط والتصنيف':"Définissez les périodes d'évaluation pour le calcul des points et classements"}
+      </div>
+
+      <div className="card" style={{marginBottom:'1.5rem'}}>
+        <div className="section-label">{lang==='ar'?'إضافة فترة جديدة':'Ajouter une période'}</div>
+        <div className="form-grid">
+          <div className="field-group" style={{gridColumn:'1/-1'}}>
+            <label className="field-lbl">{lang==='ar'?'اسم الفترة':'Nom de la période'} <span style={{color:'#E24B4A'}}>*</span></label>
+            <input className="field-input" value={newPeriode.nom_ar}
+              onChange={e=>setNewPeriode({...newPeriode, nom_ar: e.target.value})}
+              placeholder={lang==='ar'?'مثال: الفصل الأول 2024-2025':'Ex: 1er trimestre 2024-2025'}
+              style={{direction:'rtl', fontFamily:"'Tajawal',Arial,sans-serif"}} />
+          </div>
+          <div className="field-group">
+            <label className="field-lbl">{lang==='ar'?'تاريخ البداية':'Date de début'} <span style={{color:'#E24B4A'}}>*</span></label>
+            <input className="field-input" type="date" value={newPeriode.date_debut}
+              onChange={e=>setNewPeriode({...newPeriode, date_debut: e.target.value})} />
+          </div>
+          <div className="field-group">
+            <label className="field-lbl">{lang==='ar'?'تاريخ النهاية':'Date de fin'} <span style={{color:'#E24B4A'}}>*</span></label>
+            <input className="field-input" type="date" value={newPeriode.date_fin}
+              onChange={e=>setNewPeriode({...newPeriode, date_fin: e.target.value})} />
+          </div>
+        </div>
+        <button className="btn-primary" onClick={ajouterPeriode} disabled={savingPeriode}>
+          {savingPeriode ? '...' : (lang==='ar'?'إضافة الفترة':'Ajouter la période')}
+        </button>
+      </div>
+
+      <div className="section-label">{lang==='ar'?'الفترات المُعرَّفة':'Périodes configurées'} ({periodes.length})</div>
+      {periodes.length === 0 ? (
+        <div className="empty">{lang==='ar'?'لا توجد فترات بعد — أضف أول فترة أعلاه':'Aucune période — ajoutez-en une ci-dessus'}</div>
+      ) : (
+        <div style={{display:'flex',flexDirection:'column',gap:8}}>
+          {periodes.map(p => (
+            <div key={p.id} style={{background:'#fff',border:'0.5px solid #e0e0d8',borderRadius:12,padding:'12px 14px',display:'flex',alignItems:'center',gap:12,opacity:p.actif?1:0.5}}>
+              <div style={{width:44,height:44,borderRadius:12,background:p.actif?'#E6F1FB':'#f0f0ec',display:'flex',alignItems:'center',justifyContent:'center',fontSize:22,flexShrink:0}}>📊</div>
+              <div style={{flex:1}}>
+                <div style={{fontWeight:700,fontSize:14,color:'#1a1a1a',direction:'rtl',fontFamily:"'Tajawal',Arial,sans-serif"}}>{p.nom_ar||p.nom}</div>
+                <div style={{fontSize:11,color:'#378ADD',marginTop:2,fontWeight:600}}>
+                  📅 {fmt(p.date_debut)} → {fmt(p.date_fin)}
+                </div>
+              </div>
+              <div style={{display:'flex',gap:6}}>
+                <button onClick={()=>toggleActif(p)}
+                  style={{padding:'4px 8px',borderRadius:6,fontSize:11,fontWeight:600,cursor:'pointer',
+                    background:p.actif?'#E1F5EE':'#f0f0ec',color:p.actif?'#085041':'#888',
+                    border:`0.5px solid ${p.actif?'#1D9E7530':'#e0e0d8'}`}}>
+                  {p.actif ? (lang==='ar'?'نشطة':'Active') : (lang==='ar'?'غير نشطة':'Inactive')}
+                </button>
+                <button onClick={()=>supprimerPeriode(p.id)}
+                  style={{padding:'4px 8px',borderRadius:6,background:'#FCEBEB',color:'#E24B4A',border:'0.5px solid #E24B4A30',cursor:'pointer',fontSize:11,fontWeight:600}}>
+                  🗑
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ══════════════════════════════════════════════════════
 // COMPOSANT JalonsTab — Gestion des jalons/certificats
 // ══════════════════════════════════════════════════════
@@ -356,6 +462,11 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile 
   const [editInstituteur, setEditInstituteur] = useState(null);
   const [formEditInst, setFormEditInst] = useState({prenom:'',nom:'',identifiant:'',mot_de_passe:''});
 
+  // ── Périodes / Notes ──
+  const [periodes, setPeriodes] = useState([]);
+  const [newPeriode, setNewPeriode] = useState({ nom_ar: '', date_debut: '', date_fin: '' });
+  const [savingPeriode, setSavingPeriode] = useState(false);
+
   // ── Jalons / Certificats ──
   const [jalons, setJalons] = useState([]);
   const [ensemblesDisp, setEnsemblesDisp] = useState([]);
@@ -370,6 +481,8 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile 
       .then(({data}) => { if(data) setNiveauxDyn(data); });
   }, []);
   useEffect(() => {
+    supabase.from('periodes_notes').select('*').eq('ecole_id', user.ecole_id).order('date_debut')
+      .then(({data}) => { if(data) setPeriodes(data); });
     supabase.from('jalons').select('*').eq('ecole_id', user.ecole_id).order('created_at')
       .then(({data}) => { if(data) setJalons(data); });
     supabase.from('ensembles_sourates').select('id,nom').eq('ecole_id', user.ecole_id).order('nom')
@@ -1121,6 +1234,7 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile 
           <div className={`tab ${tab === 'parents' ? 'active' : ''}`} onClick={() => setTab('parents')}>👨‍👩‍👦 {lang==='ar'?'الآباء':(lang==='ar'?'الآباء':'Parents')}</div>
           <div className={`tab ${tab === 'parametres' ? 'active' : ''}`} onClick={() => setTab('parametres')}>⚙️ {lang==='ar'?'إعدادات':'Paramètres'}</div>
           <div className={`tab ${tab === 'jalons' ? 'active' : ''}`} onClick={() => setTab('jalons')}>🏅 {lang==='ar'?'الشهادات':'Jalons'}</div>
+          <div className={`tab ${tab === 'notes' ? 'active' : ''}`} onClick={() => setTab('notes')}>📊 {lang==='ar'?'الفترات':'Périodes'}</div>
         </div>
         <div style={{display:'flex',gap:6}}>
           {tab==='eleves'&&<>
@@ -1620,6 +1734,15 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile 
             {parents.length===0&&<div className="empty">{lang==='ar'?'لا أولياء أمور مسجلون':'Aucun parent enregistré'}</div>}
           </div>
         </div>
+      )}
+      {tab === 'notes' && (
+        <PeriodesTab
+          user={user} lang={lang}
+          periodes={periodes} setPeriodes={setPeriodes}
+          newPeriode={newPeriode} setNewPeriode={setNewPeriode}
+          savingPeriode={savingPeriode} setSavingPeriode={setSavingPeriode}
+          showMsg={showMsg}
+        />
       )}
       {tab === 'jalons' && (
         <JalonsTab
