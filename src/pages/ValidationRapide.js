@@ -16,6 +16,10 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
   const [flash, setFlash] = useState(null);
   const [sessionLog, setSessionLog] = useState([]);
   const [nbTomon, setNbTomon] = useState(1); // nombre de tomons à valider
+  const [sourateSelectionnee, setSourateSelectionnee] = useState(null); // sourate choisie
+  const [typeRec, setTypeRec] = useState('complete'); // 'complete' ou 'sequence'
+  const [versetDebut, setVersetDebut] = useState('');
+  const [versetFin, setVersetFin] = useState('');
   const searchRef = useRef();
 
   useEffect(() => { loadData(); setTimeout(() => searchRef.current?.focus(), 200); }, []);
@@ -42,6 +46,9 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
     setEtat(calcEtatEleve(vals, e.hizb_depart, e.tomon_depart));
     setSearch('');
     setNbTomon(1);
+    setSourateSelectionnee(null);
+    setTypeRec('complete');
+    setVersetDebut(''); setVersetFin('');
   };
 
   const estSourate = selectedEleve ? isSourateNiveauDyn(selectedEleve.code_niveau, niveaux) : false;
@@ -105,23 +112,35 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
     setSaving(false);
   };
 
-  // Valider une sourate complète
-  const validerSourate = async (sourateId, sourateNom) => {
-    if (!selectedEleve || saving) return;
+  // Valider une sourate (complète ou séquence)
+  const validerSourate = async () => {
+    if (!selectedEleve || saving || !sourateSelectionnee) return;
+    if (typeRec === 'sequence' && (!versetDebut || !versetFin)) return;
     setSaving(true);
+    const pts = typeRec === 'complete' ? 30 : 10;
     const { error } = await supabase.from('recitations_sourates').insert({
       eleve_id: selectedEleve.id, ecole_id: user.ecole_id, valide_par: user.id,
-      sourate_id: sourateId, type_recitation: 'complete',
-      date_recitation: new Date().toISOString(),
+      sourate_id: sourateSelectionnee.id,
+      type_recitation: typeRec,
+      verset_debut: typeRec === 'sequence' ? parseInt(versetDebut) : null,
+      verset_fin: typeRec === 'sequence' ? parseInt(versetFin) : null,
+      date_validation: new Date().toISOString(),
+      points: pts,
     });
     if (!error) {
-      setFlash({ msg: `✓ ${sourateNom}`, color: '#1D9E75', pts: 30 });
+      const detail = typeRec === 'complete'
+        ? sourateSelectionnee.nom_ar
+        : `${sourateSelectionnee.nom_ar} (V.${versetDebut}→${versetFin})`;
+      setFlash({ msg: `✓ ${detail}`, color: typeRec === 'complete' ? '#EF9F27' : '#1D9E75', pts });
       setTimeout(() => setFlash(null), 2500);
       setSessionLog(prev => [{
         eleve: `${selectedEleve.prenom} ${selectedEleve.nom}`,
-        detail: sourateNom, pts: 30,
+        detail, pts,
         time: new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })
       }, ...prev.slice(0, 9)]);
+      setSourateSelectionnee(null);
+      setTypeRec('complete');
+      setVersetDebut(''); setVersetFin('');
     }
     setSaving(false);
   };
@@ -295,25 +314,94 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
             )}
 
             {/* ── Élève SOURATES ── */}
-            {estSourate && (
+            {estSourate && !sourateSelectionnee && (
               <div>
-                <div style={{ fontSize: 13, color: '#666', marginBottom: 12, textAlign: 'center' }}>
+                <div style={{ fontSize: 13, color: '#666', marginBottom: 10, textAlign: 'center' }}>
                   {lang === 'ar' ? 'اختر السورة المستظهرة:' : 'Choisissez la sourate récitée :'}
                 </div>
-                <div style={{ maxHeight: 240, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 6 }}>
-                  {souratesDB.slice(0, 30).map(s => (
-                    <button key={s.id} onClick={() => validerSourate(s.id, s.nom_ar)} disabled={saving}
-                      style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px',
-                        background: '#f9f9f6', border: `1px solid ${nc}20`, borderRadius: 10,
-                        cursor: 'pointer', textAlign: 'right', fontFamily: "'Tajawal',Arial,sans-serif" }}
-                      onMouseEnter={ev => { ev.currentTarget.style.background = `${nc}12`; ev.currentTarget.style.border = `1px solid ${nc}40`; }}
-                      onMouseLeave={ev => { ev.currentTarget.style.background = '#f9f9f6'; ev.currentTarget.style.border = `1px solid ${nc}20`; }}>
-                      <span style={{ fontSize: 11, color: '#aaa', minWidth: 24 }}>{s.numero}</span>
+                <div style={{ maxHeight: 260, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 5 }}>
+                  {souratesDB.map(s => (
+                    <button key={s.id} onClick={() => { setSourateSelectionnee(s); setTypeRec('complete'); setVersetDebut(''); setVersetFin(''); }}
+                      style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '9px 14px',
+                        background: '#f9f9f6', border: `1px solid ${nc}15`, borderRadius: 10,
+                        cursor: 'pointer', fontFamily: "'Tajawal',Arial,sans-serif", transition: 'all 0.12s' }}
+                      onMouseEnter={ev => { ev.currentTarget.style.background = `${nc}10`; ev.currentTarget.style.border = `1px solid ${nc}40`; }}
+                      onMouseLeave={ev => { ev.currentTarget.style.background = '#f9f9f6'; ev.currentTarget.style.border = `1px solid ${nc}15`; }}>
+                      <span style={{ fontSize: 11, color: '#aaa', minWidth: 28, textAlign: 'center',
+                        background: '#f0f0ec', borderRadius: 6, padding: '1px 5px' }}>{s.numero}</span>
                       <span style={{ flex: 1, fontSize: 14, fontWeight: 600, color: '#1a1a1a', direction: 'rtl' }}>{s.nom_ar}</span>
-                      <span style={{ fontSize: 11, color: nc, fontWeight: 600 }}>+30 {t(lang, 'pts_abrev')}</span>
+                      <span style={{ fontSize: 10, color: '#aaa' }}>{s.nb_versets} {lang==='ar'?'آية':'v.'}</span>
+                      <span style={{ color: '#ccc', fontSize: 14 }}>›</span>
                     </button>
                   ))}
                 </div>
+              </div>
+            )}
+
+            {/* ── Confirmation sourate ── */}
+            {estSourate && sourateSelectionnee && (
+              <div>
+                {/* Sourate sélectionnée */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 14px',
+                  background: `${nc}12`, borderRadius: 12, marginBottom: 14,
+                  border: `1.5px solid ${nc}30` }}>
+                  <span style={{ fontSize: 11, color: nc, fontWeight: 700, background: `${nc}20`,
+                    padding: '2px 8px', borderRadius: 8 }}>{sourateSelectionnee.numero}</span>
+                  <span style={{ flex: 1, fontSize: 16, fontWeight: 800, color: '#1a1a1a', direction: 'rtl' }}>
+                    {sourateSelectionnee.nom_ar}
+                  </span>
+                  <button onClick={() => setSourateSelectionnee(null)}
+                    style={{ fontSize: 13, color: '#aaa', background: 'none', border: 'none', cursor: 'pointer' }}>✕</button>
+                </div>
+
+                {/* Type : complète ou séquence */}
+                <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
+                  {[
+                    { val: 'complete', label: lang==='ar'?'كاملة':'Complète', pts: 30, icon: '🎯' },
+                    { val: 'sequence', label: lang==='ar'?'مقطع':'Séquence', pts: 10, icon: '📌' },
+                  ].map(opt => (
+                    <button key={opt.val} onClick={() => setTypeRec(opt.val)}
+                      style={{ flex: 1, padding: '10px 8px', borderRadius: 10, cursor: 'pointer',
+                        border: `2px solid ${typeRec === opt.val ? nc : '#e0e0d8'}`,
+                        background: typeRec === opt.val ? `${nc}12` : '#f9f9f6',
+                        fontFamily: "'Tajawal',Arial,sans-serif", transition: 'all 0.15s' }}>
+                      <div style={{ fontSize: 16 }}>{opt.icon}</div>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: typeRec === opt.val ? nc : '#555' }}>{opt.label}</div>
+                      <div style={{ fontSize: 11, color: '#aaa' }}>+{opt.pts} {t(lang, 'pts_abrev')}</div>
+                    </button>
+                  ))}
+                </div>
+
+                {/* Versets si séquence */}
+                {typeRec === 'sequence' && (
+                  <div style={{ display: 'flex', gap: 10, marginBottom: 14 }}>
+                    <div style={{ flex: 1 }}>
+                      <label className="field-lbl">{lang==='ar'?'من الآية':'Verset début'}</label>
+                      <input className="field-input" type="number" min="1" max={sourateSelectionnee.nb_versets}
+                        value={versetDebut} onChange={e => setVersetDebut(e.target.value)}
+                        placeholder="1" style={{ textAlign: 'center' }} />
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <label className="field-lbl">{lang==='ar'?'إلى الآية':'Verset fin'}</label>
+                      <input className="field-input" type="number" min="1" max={sourateSelectionnee.nb_versets}
+                        value={versetFin} onChange={e => setVersetFin(e.target.value)}
+                        placeholder={String(sourateSelectionnee.nb_versets)} style={{ textAlign: 'center' }} />
+                    </div>
+                  </div>
+                )}
+
+                {/* Bouton valider */}
+                <button onClick={validerSourate}
+                  disabled={saving || (typeRec === 'sequence' && (!versetDebut || !versetFin))}
+                  style={{ width: '100%', padding: '15px',
+                    background: (saving || (typeRec === 'sequence' && (!versetDebut || !versetFin)))
+                      ? '#e0e0d8' : `linear-gradient(135deg,${nc},${nc}cc)`,
+                    color: (saving || (typeRec === 'sequence' && (!versetDebut || !versetFin))) ? '#aaa' : '#fff',
+                    border: 'none', borderRadius: 14, fontSize: 15, fontWeight: 800,
+                    cursor: 'pointer', fontFamily: 'inherit',
+                    boxShadow: saving ? 'none' : `0 3px 12px ${nc}40` }}>
+                  {saving ? '...' : `✓ ${lang==='ar'?'تسجيل':'Valider'} ${typeRec==='complete'?(lang==='ar'?'السورة كاملة':'sourate complète'):(lang==='ar'?'المقطع':'la séquence')}`}
+                </button>
               </div>
             )}
           </div>
