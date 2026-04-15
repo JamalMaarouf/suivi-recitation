@@ -969,6 +969,40 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile 
     XLSX.writeFile(wb,'parents_'+new Date().toISOString().split('T')[0]+'.xlsx');
   };
 
+  const exportParentsPDF = () => {
+    const w = window.open('','_blank','width=1000,height=800');
+    if (!w) { toast.warning(lang==='ar'?'يرجى السماح بالنوافذ المنبثقة':'Autorisez les popups pour exporter'); return; }
+    const rows = parents.map((p,i) => {
+      const enfants = eleves.filter(e=>(p.eleve_ids||[]).includes(e.id)).map(e=>e.prenom+' '+e.nom).join(', ') || '—';
+      const bg = i%2===0?'#fff':'#f9f9f6';
+      return '<tr style="background:'+bg+'">'
+        +'<td>'+(i+1)+'</td>'
+        +'<td><strong>'+p.prenom+' '+p.nom+'</strong></td>'
+        +'<td style="color:#888">'+(p.identifiant||'—')+'</td>'
+        +'<td style="color:#888">'+(p.telephone||'—')+'</td>'
+        +'<td style="color:#555;font-size:10px">'+enfants+'</td>'
+        +'</tr>';
+    }).join('');
+    const html = '<!DOCTYPE html><html dir="'+(lang==='ar'?'rtl':'ltr')+'" lang="'+(lang==='ar'?'ar':'fr')+'"><head><meta charset="UTF-8"><title>Liste Parents</title>'
+      +'<style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:Tajawal,Arial,sans-serif;padding:20px;font-size:12px}'
+      +'.header{background:linear-gradient(135deg,#534AB7,#378ADD);color:#fff;padding:16px 20px;border-radius:10px;margin-bottom:16px}'
+      +'h1{font-size:18px;font-weight:800;margin-bottom:4px}'
+      +'table{width:100%;border-collapse:collapse}th{background:#534AB7;color:#fff;padding:8px;text-align:start;font-size:11px}'
+      +'td{padding:7px 8px;border-bottom:1px solid #f0f0ec;font-size:11px}'
+      +'.footer{margin-top:16px;font-size:9px;color:#bbb;border-top:1px solid #e0e0d8;padding-top:8px;text-align:center}'
+      +'</style></head><body>'
+      +'<div class="header"><h1>👨‍👩‍👦 '+(lang==='ar'?'قائمة أولياء الأمور':'Liste des Parents')+'</h1>'
+      +'<div style="font-size:11px;opacity:0.8">'+parents.length+' '+(lang==='ar'?'ولي أمر':'parent(s)')+' · '+new Date().toLocaleDateString('fr-FR')+'</div></div>'
+      +'<table><thead><tr>'
+      +'<th>#</th><th>'+(lang==='ar'?'الاسم':'Nom complet')+'</th><th>'+(lang==='ar'?'المعرف':'Identifiant')+'</th>'
+      +'<th>'+(lang==='ar'?'الهاتف':'Téléphone')+'</th><th>'+(lang==='ar'?'الأبناء':'Enfants')+'</th>'
+      +'</tr></thead><tbody>'+rows+'</tbody></table>'
+      +'<div class="footer">Généré le '+new Date().toLocaleDateString('fr-FR',{day:'2-digit',month:'long',year:'numeric'})+' · متابعة التحفيظ</div>'
+      +'</body></html>';
+    w.document.write(html); w.document.close();
+    setTimeout(function(){ w.print(); }, 600);
+  };
+
   const NIVEAU_LABELS = {'5B':(lang==='ar'?'تمهيدي':'Préscolaire'),'5A':'Primaire 1-2','2M':'Primaire 3-4','2':'Primaire 5-6','1':(lang==='ar'?'إعدادي/ثانوي':'Collège/Lycée')};
 
   // Export élèves Excel
@@ -1989,6 +2023,13 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile 
               onMouseEnter={e=>e.currentTarget.style.background='#E1F5EE'}
               onMouseLeave={e=>e.currentTarget.style.background='#f5f5f0'}>
               📊 Excel
+            </button>
+            <button onClick={exportParentsPDF}
+              style={{display:'flex',alignItems:'center',gap:5,padding:'5px 12px',background:'#f5f5f0',
+                color:'#534AB7',border:'0.5px solid #e0e0d8',borderRadius:8,fontSize:11,fontWeight:600,cursor:'pointer'}}
+              onMouseEnter={e=>e.currentTarget.style.background='#EEEDFE'}
+              onMouseLeave={e=>e.currentTarget.style.background='#f5f5f0'}>
+              🖨️ PDF
             </button>
           </div>
           <div style={{display:'flex',flexDirection:'column',gap:8}}>
