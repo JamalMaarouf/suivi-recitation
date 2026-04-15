@@ -69,42 +69,55 @@ export const BAREME_DEFAUT = {
 
 /**
  * Charge le barème depuis Supabase pour une école.
- * Retourne un objet { tomon, hizb_complet, sourate, examen, ... }
+ * Retourne :
+ *   bareme.unites   = { tomon, hizb_complet, sourate, muraja_tomon, muraja_hizb }
+ *   bareme.examens  = { [examen_id]: points }
+ *   bareme.ensembles= { [ensemble_id]: points }
+ *   bareme.jalons   = { [jalon_id]: points }
  */
 export async function loadBareme(supabase, ecole_id) {
   try {
     const { data } = await supabase
       .from('bareme_notes')
-      .select('type_action, points')
+      .select('type_action, objet_id, points')
       .eq('ecole_id', ecole_id)
       .eq('actif', true);
-    if (!data || data.length === 0) return { ...BAREME_DEFAUT };
-    const bareme = { ...BAREME_DEFAUT };
-    data.forEach(row => { bareme[row.type_action] = row.points; });
-    return bareme;
+    const b = {
+      unites: { ...BAREME_DEFAUT },
+      examens: {},
+      ensembles: {},
+      jalons: {},
+    };
+    (data || []).forEach(row => {
+      if (!row.objet_id) {
+        b.unites[row.type_action] = row.points;
+      } else if (row.type_action === 'examen') {
+        b.examens[row.objet_id] = row.points;
+      } else if (row.type_action === 'ensemble_sourates') {
+        b.ensembles[row.objet_id] = row.points;
+      } else if (row.type_action === 'jalon') {
+        b.jalons[row.objet_id] = row.points;
+      }
+    });
+    return b;
   } catch (e) {
-    return { ...BAREME_DEFAUT };
+    return { unites: { ...BAREME_DEFAUT }, examens: {}, ensembles: {}, jalons: {} };
   }
 }
 
 /**
- * Sauvegarde le barème complet d'une école (upsert).
+ * Sauvegarde une entrée du barème (upsert).
  */
-export async function saveBareme(supabase, ecole_id, bareme) {
-  const rows = Object.entries(bareme).map(([type_action, points]) => ({
-    ecole_id,
-    type_action,
-    points: parseInt(points) || 0,
-    actif: true,
-  }));
-  for (const row of rows) {
-    await supabase.from('bareme_notes')
-      .upsert(row, { onConflict: 'ecole_id,type_action' });
-  }
+export async function saveBaremeItem(supabase, ecole_id, type_action, points, objet_id = null) {
+  const row = { ecole_id, type_action, points: parseInt(points) || 0, actif: true };
+  if (objet_id) row.objet_id = objet_id;
+  await supabase.from('bareme_notes').upsert(row, {
+    onConflict: objet_id ? 'ecole_id,type_action,objet_id' : 'ecole_id,type_action,objet_id',
+  });
 }
 
 export function calcPoints(tomonCumul, hizbsCompletsCount, validations, tomonAcquis=0, hizbAcquisComplets=0, bareme=null) {
-  const B = bareme || BAREME_DEFAUT;
+  const B = (bareme && bareme.unites) ? bareme.unites : (bareme || BAREME_DEFAUT);
   // tomonCumul = total Tomon (acquis + nouveaux)
   // hizbsCompletsCount = total Hizb complets (acquis + nouveaux)
   const ptsTomon = tomonCumul * B.tomon;
@@ -587,7 +600,7 @@ export async function verifierEtCreerCertificats(supabase, {
  * N'inclut PAS les acquis antérieurs — uniquement les validations dans la plage.
  */
 export function calcPointsPeriode(validations, dateDebut, dateFin, bareme=null) {
-  const B = bareme || BAREME_DEFAUT;
+  const B = (bareme && bareme.unites) ? bareme.unites : (bareme || BAREME_DEFAUT);
   const debut = new Date(dateDebut);
   const fin = new Date(dateFin);
   fin.setHours(23, 59, 59, 999);

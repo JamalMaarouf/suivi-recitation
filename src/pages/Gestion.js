@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useToast } from '../lib/toast';
 import { supabase } from '../lib/supabase';
 import ConfirmModal from '../components/ConfirmModal';
-import { getInitiales, calcEtatEleve, calcPoints, BAREME_DEFAUT, loadBareme, saveBareme } from '../lib/helpers';
+import { getInitiales, calcEtatEleve, calcPoints, BAREME_DEFAUT, loadBareme, saveBaremeItem } from '../lib/helpers';
 import { SOURATES_5B, SOURATES_5A, SOURATES_2M, isSourateNiveau } from '../lib/sourates';
 import { t } from '../lib/i18n';
 
@@ -149,96 +149,174 @@ function AcquisSelector({ codeNiveau, hizb, tomon, onHizbChange, onTomonChange, 
 
 
 // ══════════════════════════════════════════════════════
-// COMPOSANT BaremeTab — Paramétrage des points par action
+// COMPOSANT BaremeTab — Paramétrage centralisé des points
 // ══════════════════════════════════════════════════════
 function BaremeTab({ user, lang, bareme, setBareme, saving, setSaving, showMsg }) {
+  const [examens, setExamens] = useState([]);
+  const [ensembles, setEnsembles] = useState([]);
+  const [jalons, setJalons] = useState([]);
+  const [section, setSection] = useState('unites');
 
-  const ACTIONS = [
-    { key: 'tomon',       icon: '📖', label_ar: 'ثمن واحد مُستظهر',       label_fr: '1 Tomon validé',          color: '#378ADD' },
-    { key: 'hizb_complet',icon: '🎯', label_ar: 'حزب كامل مُصحَّح',        label_fr: '1 Hizb complet validé',    color: '#085041' },
-    { key: 'sourate',     icon: '📜', label_ar: 'سورة كاملة (نظام السور)', label_fr: '1 Sourate complète',       color: '#534AB7' },
-    { key: 'examen',      icon: '📝', label_ar: 'امتحان ناجح',              label_fr: 'Examen réussi',            color: '#EF9F27' },
-    { key: 'certificat',  icon: '🏅', label_ar: 'شهادة مُمنوحة',           label_fr: 'Certificat obtenu',        color: '#D85A30' },
-    { key: 'muraja_tomon',icon: '🔄', label_ar: 'ثمن مراجعة',              label_fr: "1 Tomon Muraja'a",        color: '#1D9E75' },
-    { key: 'muraja_hizb', icon: '🔁', label_ar: 'حزب مراجعة كامل',         label_fr: "1 Hizb Muraja'a complet", color: '#1D9E75' },
+  useEffect(() => {
+    supabase.from('examens').select('id,nom').eq('ecole_id', user.ecole_id).eq('actif', true).order('nom')
+      .then(({data}) => setExamens(data||[]));
+    supabase.from('ensembles_sourates').select('id,nom').eq('ecole_id', user.ecole_id).order('nom')
+      .then(({data}) => setEnsembles(data||[]));
+    supabase.from('jalons').select('id,nom,nom_ar,type_jalon').eq('ecole_id', user.ecole_id).eq('actif', true).order('created_at')
+      .then(({data}) => setJalons(data||[]));
+  }, []);
+
+  const saveUnite = async (key, val) => {
+    const pts = parseInt(val)||0;
+    setBareme(prev => ({...prev, unites: {...prev.unites, [key]: pts}}));
+    await saveBaremeItem(supabase, user.ecole_id, key, pts, null);
+  };
+
+  const saveObjet = async (type, id, val, stateKey) => {
+    const pts = parseInt(val)||0;
+    setBareme(prev => ({...prev, [stateKey]: {...prev[stateKey], [id]: pts}}));
+    await saveBaremeItem(supabase, user.ecole_id, type, pts, id);
+  };
+
+  const UNITES = [
+    { key:'tomon',        icon:'📖', label_ar:'ثمن واحد مُستظهر',        color:'#378ADD' },
+    { key:'hizb_complet', icon:'🎯', label_ar:'حزب كامل مُصحَّح',         color:'#085041' },
+    { key:'sourate',      icon:'📜', label_ar:'سورة كاملة (نظام السور)',  color:'#534AB7' },
+    { key:'muraja_tomon', icon:'🔄', label_ar:'ثمن مراجعة',               color:'#1D9E75' },
+    { key:'muraja_hizb',  icon:'🔁', label_ar:'حزب مراجعة كامل',          color:'#1D9E75' },
   ];
 
-  const handleSave = async () => {
-    setSaving(true);
-    await saveBareme(supabase, user.ecole_id, bareme);
-    setSaving(false);
-    showMsg('success', lang==='ar'?'تم حفظ نظام التنقيط بنجاح':'Barème enregistré avec succès');
-  };
+  const SECTIONS = [
+    { id:'unites',    icon:'⚖️',  label: lang==='ar'?'الوحدات الأساسية':'Unités de base' },
+    { id:'examens',   icon:'📝',  label: lang==='ar'?'الامتحانات':'Examens' },
+    { id:'ensembles', icon:'📦',  label: lang==='ar'?'مجموعات السور':'Ensembles' },
+    { id:'jalons',    icon:'🏅',  label: lang==='ar'?'الشهادات':'Jalons' },
+  ];
 
-  const totalExemple = () => {
-    // Exemple : 8 tomon + 1 hizb complet
-    const b = bareme;
-    return 8 * (b.tomon||0) + 1 * (b.hizb_complet||0);
-  };
+  const PtsInput = ({ value, onChange, color='#378ADD' }) => (
+    <div style={{display:'flex',alignItems:'center',gap:4}}>
+      <input type="number" min="0" max="9999"
+        defaultValue={value||0}
+        onBlur={e => onChange(e.target.value)}
+        style={{width:68,padding:'6px 8px',borderRadius:8,border:`1.5px solid ${color}50`,
+          fontSize:15,fontWeight:700,textAlign:'center',color,background:'#fff'}}
+      />
+      <span style={{fontSize:10,color:'#aaa'}}>{lang==='ar'?'ن':'pts'}</span>
+    </div>
+  );
+
+  const Row = ({ icon, label, value, onChange, color, sublabel }) => (
+    <div style={{display:'flex',alignItems:'center',gap:12,padding:'10px 14px',background:'#f9f9f6',borderRadius:10,border:'0.5px solid #e0e0d8',marginBottom:6}}>
+      <div style={{width:34,height:34,borderRadius:9,background:color+'18',display:'flex',alignItems:'center',justifyContent:'center',fontSize:17,flexShrink:0}}>{icon}</div>
+      <div style={{flex:1,minWidth:0}}>
+        <div style={{fontWeight:600,fontSize:13,color:'#1a1a1a',direction:'rtl',fontFamily:"'Tajawal',Arial,sans-serif",overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{label}</div>
+        {sublabel && <div style={{fontSize:10,color:'#aaa'}}>{sublabel}</div>}
+      </div>
+      <PtsInput value={value} onChange={onChange} color={color} />
+    </div>
+  );
 
   return (
     <div>
       <div style={{fontSize:13,color:'#888',marginBottom:'1.25rem'}}>
         {lang==='ar'
-          ? 'حدد عدد النقاط لكل عمل — سيُطبَّق هذا النظام تلقائياً على جميع الطلاب'
-          : "Définissez les points attribués pour chaque action — appliqués automatiquement à tous les élèves"}
+          ? 'حدد النقاط لكل عنصر — تُحفظ فور التغيير تلقائياً'
+          : 'Définissez les points pour chaque élément — sauvegardés automatiquement'}
       </div>
 
-      <div className="card" style={{marginBottom:'1.5rem'}}>
-        <div className="section-label">{lang==='ar'?'نظام التنقيط':'Barème de points'}</div>
-        <div style={{display:'flex',flexDirection:'column',gap:10,marginBottom:'1.25rem'}}>
-          {ACTIONS.map(a => (
-            <div key={a.key} style={{display:'flex',alignItems:'center',gap:12,padding:'10px 14px',background:'#f9f9f6',borderRadius:10,border:'0.5px solid #e0e0d8'}}>
-              <div style={{width:36,height:36,borderRadius:10,background:a.color+'18',display:'flex',alignItems:'center',justifyContent:'center',fontSize:18,flexShrink:0}}>
-                {a.icon}
-              </div>
-              <div style={{flex:1}}>
-                <div style={{fontWeight:600,fontSize:13,color:'#1a1a1a',direction:'rtl',fontFamily:"'Tajawal',Arial,sans-serif"}}>{a.label_ar}</div>
-                <div style={{fontSize:11,color:'#aaa'}}>{a.label_fr}</div>
-              </div>
-              <div style={{display:'flex',alignItems:'center',gap:6}}>
-                <input
-                  type="number" min="0" max="9999"
-                  value={bareme[a.key] ?? 0}
-                  onChange={e => setBareme(prev => ({...prev, [a.key]: parseInt(e.target.value)||0}))}
-                  style={{width:72,padding:'6px 10px',borderRadius:8,border:`1.5px solid ${a.color}50`,
-                    fontSize:16,fontWeight:700,textAlign:'center',color:a.color,background:'#fff'}}
-                />
-                <span style={{fontSize:11,color:'#aaa'}}>{lang==='ar'?'ن':'pts'}</span>
-              </div>
-            </div>
+      {/* Tabs sections */}
+      <div style={{display:'flex',gap:6,marginBottom:'1.25rem',flexWrap:'wrap'}}>
+        {SECTIONS.map(s => (
+          <button key={s.id} onClick={()=>setSection(s.id)}
+            style={{padding:'6px 14px',borderRadius:20,border:`1px solid ${section===s.id?'#378ADD':'#e0e0d8'}`,
+              background:section===s.id?'#E6F1FB':'#fff',
+              color:section===s.id?'#378ADD':'#888',
+              fontSize:12,fontWeight:section===s.id?700:400,cursor:'pointer'}}>
+            {s.icon} {s.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Section Unités */}
+      {section==='unites' && (
+        <div>
+          <div style={{fontSize:11,color:'#888',marginBottom:10}}>
+            {lang==='ar'?'نقاط لكل وحدة أساسية في الاستظهار':'Points attribués pour chaque unité de récitation'}
+          </div>
+          {UNITES.map(u => (
+            <Row key={u.key} icon={u.icon} label={u.label_ar} color={u.color}
+              value={bareme.unites?.[u.key]??0}
+              onChange={v => saveUnite(u.key, v)} />
           ))}
         </div>
+      )}
 
-        {/* Aperçu exemple */}
-        <div style={{background:'#E1F5EE',borderRadius:10,padding:'12px 14px',marginBottom:'1rem',display:'flex',alignItems:'center',gap:10}}>
-          <span style={{fontSize:18}}>💡</span>
-          <div style={{flex:1,fontSize:12,color:'#085041'}}>
-            {lang==='ar'
-              ? `مثال: طالب يستظهر حزباً كاملاً (8 أثمان + تصحيح) = ${totalExemple()} نقطة`
-              : `Ex: élève qui valide 1 Hizb complet (8 Tomon + correction) = ${totalExemple()} pts`}
+      {/* Section Examens */}
+      {section==='examens' && (
+        <div>
+          <div style={{fontSize:11,color:'#888',marginBottom:10}}>
+            {lang==='ar'?'نقاط خاصة لكل امتحان — مستقلة عن نقاط الأثمان والأحزاب':'Points spécifiques par examen — indépendants des unités'}
           </div>
+          {examens.length===0
+            ? <div className="empty">{lang==='ar'?'لا توجد امتحانات — أنشئها أولاً في الإعدادات':'Aucun examen — créez-en dans Paramètres'}</div>
+            : examens.map(e => (
+              <Row key={e.id} icon="📝" label={e.nom} color="#EF9F27"
+                sublabel={lang==='ar'?'نقاط عند اجتياز هذا الامتحان':'Points pour réussite de cet examen'}
+                value={bareme.examens?.[e.id]??0}
+                onChange={v => saveObjet('examen', e.id, v, 'examens')} />
+            ))
+          }
         </div>
+      )}
 
-        <button className="btn-primary" onClick={handleSave} disabled={saving}>
-          {saving ? '...' : (lang==='ar'?'حفظ نظام التنقيط':'Enregistrer le barème')}
-        </button>
-      </div>
-
-      {/* Info barème actif */}
-      <div style={{background:'#FAEEDA',borderRadius:12,padding:'12px 14px',border:'0.5px solid #EF9F2740'}}>
-        <div style={{fontSize:12,color:'#EF9F27',fontWeight:600,marginBottom:6}}>
-          ⚠️ {lang==='ar'?'ملاحظة مهمة':'Note importante'}
+      {/* Section Ensembles */}
+      {section==='ensembles' && (
+        <div>
+          <div style={{fontSize:11,color:'#888',marginBottom:10}}>
+            {lang==='ar'?'نقاط لكل مجموعة سور عند إتمامها':'Points pour chaque ensemble de sourates complété'}
+          </div>
+          {ensembles.length===0
+            ? <div className="empty">{lang==='ar'?'لا توجد مجموعات — أنشئها أولاً في الإعدادات':'Aucun ensemble — créez-en dans Paramètres'}</div>
+            : ensembles.map(e => (
+              <Row key={e.id} icon="📦" label={e.nom} color="#D85A30"
+                sublabel={lang==='ar'?'نقاط عند إتمام هذه المجموعة':'Points pour completion de cet ensemble'}
+                value={bareme.ensembles?.[e.id]??0}
+                onChange={v => saveObjet('ensemble_sourates', e.id, v, 'ensembles')} />
+            ))
+          }
         </div>
-        <div style={{fontSize:11,color:'#633806',lineHeight:1.5}}>
+      )}
+
+      {/* Section Jalons */}
+      {section==='jalons' && (
+        <div>
+          <div style={{fontSize:11,color:'#888',marginBottom:10}}>
+            {lang==='ar'?'نقاط لكل شهادة عند منحها':"Points attribués lors de l'obtention d'un certificat"}
+          </div>
+          {jalons.length===0
+            ? <div className="empty">{lang==='ar'?'لا توجد شهادات — أنشئها في onglet الشهادات':"Aucun jalon — créez-en dans l'onglet Jalons"}</div>
+            : jalons.map(j => (
+              <Row key={j.id} icon="🏅" label={j.nom_ar||j.nom} color="#EF9F27"
+                sublabel={j.type_jalon==='hizb'?(lang==='ar'?'أحزاب محددة':'Hizb spécifiques'):j.type_jalon==='examen'?(lang==='ar'?'امتحان':'Examen'):(lang==='ar'?'مجموعة سور':'Ensemble')}
+                value={bareme.jalons?.[j.id]??0}
+                onChange={v => saveObjet('jalon', j.id, v, 'jalons')} />
+            ))
+          }
+        </div>
+      )}
+
+      <div style={{background:'#E1F5EE',borderRadius:10,padding:'10px 14px',marginTop:'1rem',display:'flex',gap:8,alignItems:'center'}}>
+        <span>💡</span>
+        <div style={{fontSize:11,color:'#085041'}}>
           {lang==='ar'
-            ? 'تغيير النظام يؤثر على جميع النقاط المحسوبة مستقبلاً. النقاط السابقة تُعاد حسابها تلقائياً وفق النظام الجديد.'
-            : 'Modifier le barème recalcule automatiquement tous les points selon les nouvelles valeurs.'}
+            ? 'النقاط تُحفظ فوراً عند تغيير كل خانة — لا حاجة لزر حفظ'
+            : 'Les points sont sauvegardés immédiatement à chaque modification'}
         </div>
       </div>
     </div>
   );
 }
+
 
 // ══════════════════════════════════════════════════════
 // COMPOSANT PeriodesTab — Gestion des périodes de notes
@@ -556,7 +634,7 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile 
   const [formEditInst, setFormEditInst] = useState({prenom:'',nom:'',identifiant:'',mot_de_passe:''});
 
   // ── Barème de notes ──
-  const [bareme, setBareme] = useState({ ...BAREME_DEFAUT });
+  const [bareme, setBareme] = useState({ unites: {...BAREME_DEFAUT}, examens: {}, ensembles: {}, jalons: {} });
   const [baremeLoaded, setBaremeLoaded] = useState(false);
   const [savingBareme, setSavingBareme] = useState(false);
 
