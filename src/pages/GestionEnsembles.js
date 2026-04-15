@@ -14,6 +14,7 @@ export default function GestionEnsembles({ user, navigate, goBack, lang='fr', is
   const [showForm,     setShowForm]     = useState(false);
   const [editing,      setEditing]      = useState(null);
   const [confirmModal, setConfirmModal] = useState({ isOpen: false });
+  const [filtreNiveau, setFiltreNiveau] = useState('all');
   const scrollRef = useRef(null);
 
   const emptyForm = { niveau_id: '', nom: '', ordre: 1, sourates_ids: [] };
@@ -329,36 +330,56 @@ export default function GestionEnsembles({ user, navigate, goBack, lang='fr', is
   const CarteEnsemble = ({ e, cniv }) => {
     const sEns = souratesDB.filter(s => (e.sourates_ids || []).includes(s.id)).sort((a, b) => b.numero - a.numero);
     return (
-      <div style={{ background:'#fff', borderRadius:12, padding:'14px 16px',
-        border:`1px solid ${cniv}20`, boxShadow:'0 1px 4px rgba(0,0,0,0.04)',
-        transition:'box-shadow 0.15s', cursor:'default' }}
-        onMouseEnter={e=>e.currentTarget.style.boxShadow='0 4px 12px rgba(0,0,0,0.08)'}
-        onMouseLeave={e=>e.currentTarget.style.boxShadow='0 1px 4px rgba(0,0,0,0.04)'}>
-        <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:sEns.length?10:0 }}>
-          <div style={{ width:40, height:40, borderRadius:10, background:`${cniv}18`,
-            display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
-            <span style={{ fontSize:15, fontWeight:800, color:cniv, lineHeight:1 }}>{e.ordre}</span>
-            <span style={{ fontSize:8, color:cniv, opacity:0.7 }}>{sEns.length} {lang==='ar'?'سور':'sour.'}</span>
+      <div style={{ background:'#fff', borderRadius:14, overflow:'hidden',
+        border:`1px solid ${cniv}22`, boxShadow:'0 2px 8px rgba(0,0,0,0.05)',
+        transition:'all 0.18s', cursor:'default' }}
+        onMouseEnter={ev=>{ev.currentTarget.style.boxShadow=`0 6px 20px ${cniv}25`;ev.currentTarget.style.transform='translateY(-2px)';}}
+        onMouseLeave={ev=>{ev.currentTarget.style.boxShadow='0 2px 8px rgba(0,0,0,0.05)';ev.currentTarget.style.transform='translateY(0)';}}>
+        {/* Bandeau couleur en haut */}
+        <div style={{ height:4, background:`linear-gradient(90deg,${cniv},${cniv}80)` }} />
+        <div style={{ padding:'12px 14px' }}>
+          {/* Ligne titre */}
+          <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:10 }}>
+            <div style={{ width:32, height:32, borderRadius:8, background:`${cniv}15`,
+              display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+              <span style={{ fontSize:13, fontWeight:900, color:cniv }}>{e.ordre}</span>
+            </div>
+            <div style={{ flex:1 }}>
+              <div style={{ fontWeight:700, fontSize:14, color:'#1a1a1a', lineHeight:1.2 }}>{e.nom}</div>
+              <div style={{ fontSize:10, color:'#aaa', marginTop:1 }}>
+                {sEns.length} {lang==='ar'?'سورة':'sourate(s)'}
+              </div>
+            </div>
+            <div style={{ display:'flex', gap:5 }}>
+              <button onClick={() => openEdit(e)} title="Modifier"
+                style={{ width:30,height:30, background:'#E6F1FB', color:'#378ADD', border:'none',
+                  borderRadius:8, fontSize:13, cursor:'pointer', display:'flex',alignItems:'center',justifyContent:'center' }}>✏️</button>
+              <button onClick={() => supprimer(e)} title="Supprimer"
+                style={{ width:30,height:30, background:'#FCEBEB', color:'#E24B4A', border:'none',
+                  borderRadius:8, fontSize:13, cursor:'pointer', display:'flex',alignItems:'center',justifyContent:'center' }}>🗑</button>
+            </div>
           </div>
-          <div style={{ flex:1, fontWeight:700, fontSize:14, color:'#1a1a1a' }}>{e.nom}</div>
-          <div style={{ display:'flex', gap:6 }}>
-            <button onClick={() => openEdit(e)}
-              style={{ padding:'6px 10px', background:'#E6F1FB', color:'#0C447C', border:'none', borderRadius:8, fontSize:13, cursor:'pointer' }}>✏️</button>
-            <button onClick={() => supprimer(e)}
-              style={{ padding:'6px 10px', background:'#FCEBEB', color:'#E24B4A', border:'none', borderRadius:8, fontSize:13, cursor:'pointer' }}>🗑</button>
-          </div>
+          {/* Sourates — max 5 affichées + compteur */}
+          {sEns.length > 0 && (
+            <div style={{ display:'flex', gap:4, flexWrap:'wrap', paddingTop:8,
+              borderTop:`1px dashed ${cniv}20` }}>
+              {sEns.slice(0,6).map(s => (
+                <span key={s.id} style={{ fontSize:10, padding:'2px 8px', borderRadius:20,
+                  background:`${cniv}10`, color:cniv, fontWeight:700,
+                  fontFamily:"'Tajawal',Arial", direction:'rtl',
+                  border:`0.5px solid ${cniv}30`, letterSpacing:'0.2px' }}>
+                  {s.nom_ar}
+                </span>
+              ))}
+              {sEns.length > 6 && (
+                <span style={{ fontSize:10, padding:'2px 8px', borderRadius:20,
+                  background:'#f5f5f0', color:'#888', fontWeight:600, border:'0.5px solid #e0e0d8' }}>
+                  +{sEns.length-6} {lang==='ar'?'أخرى':'autres'}
+                </span>
+              )}
+            </div>
+          )}
         </div>
-        {sEns.length > 0 && (
-          <div style={{ display:'flex', gap:5, flexWrap:'wrap', paddingTop:10, borderTop:`0.5px solid ${cniv}15` }}>
-            {sEns.map(s => (
-              <span key={s.id} style={{ fontSize:11, padding:'3px 10px', borderRadius:20,
-                background:`${cniv}12`, color:cniv, fontWeight:600,
-                fontFamily:"'Tajawal',Arial", direction:'rtl', border:`0.5px solid ${cniv}25` }}>
-                {s.nom_ar}
-              </span>
-            ))}
-          </div>
-        )}
       </div>
     );
   };
@@ -417,13 +438,20 @@ export default function GestionEnsembles({ user, navigate, goBack, lang='fr', is
   }
 
   // ── PC ──────────────────────────────────────────────────────────
+  const groupesFiltres = filtreNiveau === 'all' ? groupes : groupes.filter(g => g.niv.id === filtreNiveau);
+
   return (
     <div style={{padding:'0 0 2rem'}}>
       {/* Header */}
-      <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'1.5rem' }}>
+      <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'1.25rem' }}>
         <div style={{ display:'flex', alignItems:'center', gap:12 }}>
           <button className="back-link" onClick={() => goBack ? goBack() : navigate('dashboard')}>{t(lang,'retour')}</button>
-          <div style={{ fontSize:22, fontWeight:800, color:'#085041' }}>📦 {lang === 'ar' ? 'مجموعات السور' : 'Ensembles de sourates'}</div>
+          <div>
+            <div style={{ fontSize:20, fontWeight:800, color:'#085041' }}>📦 {lang === 'ar' ? 'مجموعات السور' : 'Ensembles de sourates'}</div>
+            <div style={{ fontSize:11, color:'#aaa', marginTop:1 }}>
+              {ensembles.length} {lang==='ar'?'مجموعة في':'ensemble(s) sur'} {niveaux.length} {lang==='ar'?'مستوى':'niveaux'}
+            </div>
+          </div>
         </div>
         <button onClick={openCreate}
           style={{ padding:'9px 20px', background:'linear-gradient(135deg,#1D9E75,#085041)', color:'#fff',
@@ -433,31 +461,62 @@ export default function GestionEnsembles({ user, navigate, goBack, lang='fr', is
         </button>
       </div>
 
+      {/* Filtres niveaux */}
+      {!loading && niveaux.length > 1 && (
+        <div style={{ display:'flex', gap:6, flexWrap:'wrap', marginBottom:'1.25rem',
+          padding:'10px 14px', background:'#fff', borderRadius:12,
+          border:'0.5px solid #e8e8e0', boxShadow:'0 1px 4px rgba(0,0,0,0.04)' }}>
+          <button onClick={()=>setFiltreNiveau('all')}
+            style={{ padding:'5px 14px', borderRadius:20, border:'none', cursor:'pointer', fontSize:12, fontWeight:600,
+              background: filtreNiveau==='all' ? '#085041' : '#f5f5f0',
+              color: filtreNiveau==='all' ? '#fff' : '#666',
+              transition:'all 0.15s' }}>
+            {lang==='ar'?'الكل':'Tous'} ({ensembles.length})
+          </button>
+          {groupes.map(({niv,items}) => (
+            <button key={niv.id} onClick={()=>setFiltreNiveau(niv.id)}
+              style={{ padding:'5px 14px', borderRadius:20, border:`1.5px solid ${filtreNiveau===niv.id?niv.couleur:'transparent'}`,
+                cursor:'pointer', fontSize:12, fontWeight:600, transition:'all 0.15s',
+                background: filtreNiveau===niv.id ? `${niv.couleur}15` : '#f5f5f0',
+                color: filtreNiveau===niv.id ? niv.couleur : '#666' }}>
+              <span style={{ display:'inline-block', width:7, height:7, borderRadius:'50%',
+                background:niv.couleur, marginLeft:5, verticalAlign:'middle' }} />
+              {niv.code} <span style={{ fontSize:10, opacity:0.7 }}>({items.length})</span>
+            </button>
+          ))}
+        </div>
+      )}
+
       {loading && <div style={{ textAlign:'center', padding:'3rem', color:'#888' }}>...</div>}
 
       {!loading && ensembles.length === 0 && (
         <div style={{ textAlign:'center', padding:'3rem', color:'#aaa', background:'#fff',
-          borderRadius:14, border:'0.5px solid #e0e0d8', boxShadow:'0 1px 6px rgba(0,0,0,0.04)' }}>
+          borderRadius:14, border:'0.5px solid #e0e0d8' }}>
           <div style={{ fontSize:48, marginBottom:12 }}>📦</div>
           <div style={{ marginBottom:8, fontWeight:600 }}>{lang === 'ar' ? 'لا توجد مجموعات' : 'Aucun ensemble configuré'}</div>
           <div style={{ fontSize:13, color:'#bbb' }}>{lang === 'ar' ? 'أضف مجموعة لتنظيم سور المستويات' : 'Groupez les sourates pour organiser la progression'}</div>
         </div>
       )}
 
-      {!loading && groupes.map(({ niv, items }) => (
+      {!loading && groupesFiltres.map(({ niv, items }) => (
         <div key={niv.id} style={{ marginBottom:28 }}>
           {/* Niveau header */}
           <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:12,
-            padding:'8px 14px', borderRadius:10, background:`${niv.couleur}10`,
-            border:`1px solid ${niv.couleur}25` }}>
-            <div style={{ width:10, height:10, borderRadius:'50%', background:niv.couleur, flexShrink:0 }} />
-            <span style={{ fontWeight:700, fontSize:14, color:niv.couleur }}>{niv.code} — {niv.nom}</span>
-            <span style={{ fontSize:11, color:'#888', fontWeight:400, marginRight:'auto' }}>
+            padding:'8px 16px', borderRadius:10,
+            background:`linear-gradient(135deg,${niv.couleur}12,${niv.couleur}06)`,
+            border:`1px solid ${niv.couleur}30` }}>
+            <div style={{ width:8, height:8, borderRadius:'50%', background:niv.couleur, flexShrink:0 }} />
+            <span style={{ fontWeight:800, fontSize:13, color:niv.couleur }}>{niv.code}</span>
+            <span style={{ fontWeight:600, fontSize:13, color:'#333' }}>— {niv.nom}</span>
+            <span style={{ fontSize:11, color:'#aaa', marginRight:'auto' }}>
               {items.length} {lang==='ar'?'مجموعة':'ensemble(s)'}
             </span>
+            <span style={{ fontSize:11, color:niv.couleur, fontWeight:600, opacity:0.7 }}>
+              {items.reduce((acc,e)=>(e.sourates_ids||[]).length+acc,0)} {lang==='ar'?'سورة مُجمَّعة':'sourates groupées'}
+            </span>
           </div>
-          {/* Grille pleine largeur */}
-          <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(340px,1fr))', gap:10 }}>
+          {/* Grille */}
+          <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(280px,1fr))', gap:10 }}>
             {items.map(e => <CarteEnsemble key={e.id} e={e} cniv={niv.couleur || '#1D9E75'} />)}
           </div>
         </div>
