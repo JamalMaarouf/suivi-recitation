@@ -238,17 +238,18 @@ export default function App() {
               {/* Menus navigation */}
               <div style={{display:'flex',alignItems:'center',gap:3,flex:1,overflow:'hidden'}}>
                 {[
-                  {p:'validation_rapide', label:'⚡ '+t(lang,'express'),                          roles:['surveillant','instituteur']},
-                  {p:'muraja',            label:'📖 '+(lang==='ar'?'مراجعة جماعية':"Muraja'a"),   roles:['surveillant','instituteur']},
-                  {p:'seance',            label:'📋 '+t(lang,'seance'),                            roles:['surveillant','instituteur']},
-                  {p:'rapport_mensuel',   label:'📊 '+t(lang,'rapport'),                           roles:['surveillant','instituteur']},
-                  {p:'historique_seances',label:'📈 '+(lang==='ar'?'السجل':(t(lang,'historique')||'Historique')), roles:['surveillant','instituteur']},
-                  {p:'resultats_examens', label:'🏅 '+(lang==='ar'?'نتائج الامتحانات':'Résultats'),roles:['surveillant','instituteur']},
-                  {p:'objectifs',         label:'🎯 '+(lang==='ar'?'الأهداف':'Objectifs'),         roles:['surveillant']},
-                  {p:'finance',           label:'💰 '+(lang==='ar'?'المالية':'Finance'),            roles:['surveillant']},
-                  {p:'liste_certificats', label:'🏅 '+(lang==='ar'?'الشهادات':'Certificats'),      roles:['surveillant']},
-                  {p:'liste_notes',       label:'⭐ '+(lang==='ar'?'النقاط':'Notes'),              roles:['surveillant']},
-                  {p:'gestion',           label:'⚙️ '+t(lang,'gestion'),                           roles:['surveillant']},
+                  {p:'validation_rapide', label:'⚡ '+t(lang,'express'),                                    roles:['surveillant','instituteur']},
+                  {p:'muraja',            label:'📖 '+(lang==='ar'?'مراجعة جماعية':"Muraja'a"),             roles:['surveillant','instituteur']},
+                  {p:'seance',            label:'📋 '+t(lang,'seance'),                                     roles:['surveillant','instituteur']},
+                  {p:'calendrier',        label:'📅 '+t(lang,'calendrier'),                                  roles:['surveillant','instituteur']},
+                  {p:'rapport_mensuel',   label:'📊 '+t(lang,'rapport'),                                     roles:['surveillant','instituteur']},
+                  {p:'historique_seances',label:'📈 '+(t(lang,'historique')||'Historique'),                  roles:['surveillant','instituteur']},
+                  {p:'resultats_examens', label:'🏅 '+(lang==='ar'?'نتائج الامتحانات':'Résultats'),          roles:['surveillant','instituteur']},
+                  {p:'objectifs',         label:'🎯 '+(lang==='ar'?'الأهداف':lang==='en'?'Objectives':'Objectifs'), roles:['surveillant']},
+                  {p:'finance',           label:'💰 '+(lang==='ar'?'المالية':'Finance'),                     roles:['surveillant']},
+                  {p:'liste_certificats', label:'🏅 '+(lang==='ar'?'الشهادات':'Certificats'),                roles:['surveillant']},
+                  {p:'liste_notes',       label:'⭐ '+(lang==='ar'?'النقاط':'Notes'),                       roles:['surveillant']},
+                  {p:'gestion',           label:'⚙️ '+t(lang,'gestion'),                                    roles:['surveillant']},
                 ].filter(b=>b.roles.includes(user.role)).map(b=>(
                   <button key={b.p}
                     className={`nav-btn ${page===b.p?'active':''}`}

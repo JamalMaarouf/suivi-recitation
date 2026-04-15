@@ -676,32 +676,11 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang, isMobi
 
 
             {onglet==='notes' && (() => {
-              const now = new Date();
-              const PERIODES_FIXES = [
-                { id:'semaine',   label_ar:'الأسبوع',           date_debut: new Date(now.getTime()-7*86400000), date_fin: now },
-                { id:'mois',      label_ar:'الشهر الحالي',      date_debut: new Date(now.getFullYear(),now.getMonth(),1), date_fin: now },
-                { id:'trimestre', label_ar:'الفصل (3 أشهر)',    date_debut: new Date(now.getFullYear(),now.getMonth()-3,1), date_fin: now },
-              ];
-              const selP = PERIODES_FIXES.find(p=>p.id===periodeSelectId) || PERIODES_FIXES[1];
-              const pts = calcPointsPeriode(validations||[], selP.date_debut, selP.date_fin, baremeEleve, pointsEvenements);
+              const pts = calcPointsPeriode(validations||[], new Date('2000-01-01'), new Date(), baremeEleve, pointsEvenements);
               const niveauxCtx = typeof niveaux !== 'undefined' ? niveaux : [];
               const estSourate = isSourateNiveauDyn(eleve.code_niveau, niveauxCtx);
               return (
                 <div style={{padding:'1rem 0'}}>
-                  {/* Sélecteur période */}
-                  <div style={{display:'flex',gap:6,flexWrap:'wrap',marginBottom:'1.25rem'}}>
-                    {PERIODES_FIXES.map(p=>(
-                      <button key={p.id} onClick={()=>setPeriodeSelectId(p.id)}
-                        style={{padding:'5px 12px',borderRadius:20,border:`1px solid ${periodeSelectId===p.id?'#378ADD':'#e0e0d8'}`,
-                          background:periodeSelectId===p.id?'#E6F1FB':'#fff',
-                          color:periodeSelectId===p.id?'#378ADD':'#888',
-                          fontSize:11,fontWeight:periodeSelectId===p.id?700:400,cursor:'pointer',
-                          fontFamily:"'Tajawal',Arial,sans-serif",direction:'rtl'}}>
-                        {p.label_ar}
-                      </button>
-                    ))}
-                  </div>
-
                   {/* Total depuis le début */}
                   {(() => {
                     const ptsTotal = calcPointsPeriode(validations||[], new Date('2000-01-01'), new Date(), baremeEleve, pointsEvenements);
@@ -713,12 +692,7 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang, isMobi
                     );
                   })()}
 
-                  {/* Score période */}
-                  <div style={{background:'linear-gradient(135deg,#E6F1FB,#fff)',border:'1px solid #378ADD30',borderRadius:14,padding:'16px',marginBottom:14,textAlign:'center'}}>
-                    <div style={{fontSize:11,color:'#888',marginBottom:4}}>{lang==='ar'?'نقاط هذه الفترة':'Points sur cette période'}</div>
-                    <div style={{fontSize:36,fontWeight:800,color:'#378ADD'}}>{pts.total.toLocaleString()}</div>
-                    <div style={{fontSize:11,color:'#888',marginTop:4}}>{lang==='ar'?'نقطة':'pts'}</div>
-                  </div>
+
 
                   {/* Détail selon type élève */}
                   {estSourate ? (
@@ -1275,31 +1249,11 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang, isMobi
 
 
           {onglet==='notes'&&(()=>{
-            const now = new Date();
-            const PERIODES_FIXES = [
-              { id:'semaine',   label_ar:'الأسبوع',        date_debut: new Date(now.getTime()-7*86400000), date_fin: now },
-              { id:'mois',      label_ar:'الشهر الحالي',   date_debut: new Date(now.getFullYear(),now.getMonth(),1), date_fin: now },
-              { id:'trimestre', label_ar:'الفصل (3 أشهر)', date_debut: new Date(now.getFullYear(),now.getMonth()-3,1), date_fin: now },
-            ];
-            const selP = PERIODES_FIXES.find(p=>p.id===periodeSelectId) || PERIODES_FIXES[1];
-            const pts = calcPointsPeriode(validations||[], selP.date_debut, selP.date_fin, baremeEleve, pointsEvenements);
+            const pts = calcPointsPeriode(validations||[], new Date('2000-01-01'), new Date(), baremeEleve, pointsEvenements);
             const niveauxCtx2 = typeof niveaux !== 'undefined' ? niveaux : [];
             const estSourate2 = isSourateNiveauDyn(eleve.code_niveau, niveauxCtx2);
             return (
               <div style={{padding:'0.5rem 0'}}>
-                {/* Sélecteur période */}
-                <div style={{display:'flex',gap:6,flexWrap:'wrap',marginBottom:'1rem'}}>
-                  {PERIODES_FIXES.map(p=>(
-                    <button key={p.id} onClick={()=>setPeriodeSelectId(p.id)}
-                      style={{padding:'5px 10px',borderRadius:20,border:`1px solid ${periodeSelectId===p.id?'#378ADD':'#e0e0d8'}`,
-                        background:periodeSelectId===p.id?'#E6F1FB':'#fff',
-                        color:periodeSelectId===p.id?'#378ADD':'#888',
-                        fontSize:10,fontWeight:periodeSelectId===p.id?700:400,cursor:'pointer',
-                        fontFamily:"'Tajawal',Arial,sans-serif",direction:'rtl'}}>
-                      {p.label_ar}
-                    </button>
-                  ))}
-                </div>
                 {/* Total depuis le début - mobile */}
                 {(() => {
                   const ptsTot = calcPointsPeriode(validations||[], new Date('2000-01-01'), new Date(), baremeEleve, pointsEvenements);
@@ -1310,12 +1264,7 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang, isMobi
                     </div>
                   );
                 })()}
-                {/* Score période */}
-                <div style={{background:'linear-gradient(135deg,#E6F1FB,#fff)',border:'1px solid #378ADD30',borderRadius:14,padding:'14px',marginBottom:10,textAlign:'center'}}>
-                  <div style={{fontSize:11,color:'#888',marginBottom:4}}>{lang==='ar'?'نقاط هذه الفترة':'Points période'}</div>
-                  <div style={{fontSize:32,fontWeight:800,color:'#378ADD'}}>{pts.total.toLocaleString()}</div>
-                  <div style={{fontSize:11,color:'#888'}}>{lang==='ar'?'نقطة':'pts'}</div>
-                </div>
+
                 {/* Détail */}
                 <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
                   {(estSourate2 ? [
