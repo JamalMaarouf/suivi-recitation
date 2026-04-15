@@ -65,19 +65,9 @@ body {
 
 .page-title { font-size: 20px; font-weight: 500; color: #1a1a1a; margin-bottom: 1.5rem; }
 
-.section-label {
-  font-size: 11px; font-weight: 500;
-  color: #999; text-transform: uppercase;
-  letter-spacing: 1.5px; margin: 1.5rem 0 0.6rem;
-}
 
-.card {
-  background: #fff;
-  border: 0.5px solid #e0e0d8;
-  border-radius: 12px;
-  padding: 1.25rem;
-  margin-bottom: 1rem;
-}
+
+
 
 .stats-grid {
   display: grid;
@@ -136,16 +126,7 @@ tr.inactive td.name-cell { color: #A32D2D; font-weight: 500; }
 .badge-blue { background: #E6F1FB; color: #0C447C; }
 .badge-amber { background: #FAEEDA; color: #633806; }
 
-.btn-primary {
-  width: 100%; padding: 12px;
-  background: #1D9E75; color: #fff;
-  border: none; border-radius: 8px;
-  font-size: 14px; font-weight: 500;
-  cursor: pointer; font-family: 'Tajawal', sans-serif;
-  transition: background 0.15s;
-}
-.btn-primary:hover { background: #0F6E56; }
-.btn-primary:disabled { background: #ccc; cursor: not-allowed; }
+
 
 .btn-secondary {
   padding: 10px 20px;
@@ -173,24 +154,66 @@ tr.inactive td.name-cell { color: #A32D2D; font-weight: 500; }
 
 
 .field-group { margin-bottom: 1rem; }
-.field-lbl { font-size: 12px; color: #888; margin-bottom: 5px; display: block; }
+/* ── Labels ── */
+.field-lbl {
+  font-size: 11px; font-weight: 700; color: #888;
+  margin-bottom: 7px; display: block;
+  text-transform: uppercase; letter-spacing: 0.5px;
+}
+
+/* ── Inputs & Selects ── */
 .field-input, .field-select {
-  width: 100%; padding: 9px 12px;
-  border: 0.5px solid #d0d0c8; border-radius: 8px;
-  background: #f9f9f6; color: #1a1a1a;
+  width: 100%; padding: 10px 14px;
+  border: 0.5px solid #e0e0d8; border-radius: 10px;
+  background: #fff; color: #1a1a1a;
   font-size: 13px; font-family: 'Tajawal', sans-serif;
-  transition: border-color 0.15s;
+  transition: border-color 0.15s, box-shadow 0.15s;
+  box-sizing: border-box;
 }
 .field-input:focus, .field-select:focus {
   outline: none; border-color: #1D9E75;
   box-shadow: 0 0 0 3px #E1F5EE;
 }
+.field-input::placeholder { color: #bbb; }
 
+/* ── Form grid ── */
 .form-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0,1fr));
-  gap: 12px; margin-bottom: 1rem;
+  gap: 16px; margin-bottom: 1.25rem;
 }
+
+/* ── Section label ── */
+.section-label {
+  font-size: 11px; font-weight: 700; color: #888;
+  text-transform: uppercase; letter-spacing: 0.6px;
+  margin-bottom: 12px; margin-top: 4px;
+  padding-bottom: 6px; border-bottom: 1px solid #f0f0ec;
+}
+
+/* ── Card ── */
+.card {
+  background: #fff; border-radius: 14px;
+  border: 0.5px solid #e8e8e0;
+  padding: 1.25rem; margin-bottom: 1.25rem;
+  box-shadow: 0 1px 6px rgba(0,0,0,0.04);
+}
+
+/* ── Primary button ── */
+.btn-primary {
+  width: 100%; padding: 11px 20px;
+  background: linear-gradient(135deg, #1D9E75, #085041);
+  color: #fff; border: none; border-radius: 10px;
+  font-size: 14px; font-weight: 700;
+  font-family: 'Tajawal', sans-serif;
+  cursor: pointer; transition: opacity 0.15s, transform 0.1s;
+  box-shadow: 0 2px 8px rgba(8,80,65,0.2);
+}
+.btn-primary:hover { opacity: 0.92; transform: translateY(-1px); }
+.btn-primary:active { transform: translateY(0); }
+.btn-primary:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+
+
 
 .avatar {
   border-radius: 50%; display: flex;
