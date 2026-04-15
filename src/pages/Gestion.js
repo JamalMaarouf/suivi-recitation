@@ -152,15 +152,15 @@ function AcquisSelector({ codeNiveau, hizb, tomon, onHizbChange, onTomonChange, 
 function JalonsTab({ user, lang, jalons, setJalons, ensembles, examens, newJalon, setNewJalon, savingJalon, setSavingJalon, showMsg }) {
 
   const ajouterJalon = async () => {
-    if (!newJalon.nom.trim()) return showMsg('error', lang==='ar'?'اسم المرحلة مطلوب':'Le nom du jalon est obligatoire');
+    if (!newJalon.nom_ar.trim()) return showMsg('error', lang==='ar'?'اسم الشهادة مطلوب':'Le nom du certificat est obligatoire');
     if (newJalon.type_jalon === 'hizb' && (!newJalon.hizb_ids || newJalon.hizb_ids.length === 0)) return showMsg('error', lang==='ar'?'اختر الأحزاب المطلوبة':'Sélectionnez au moins un Hizb');
     if (newJalon.type_jalon === 'ensemble_sourates' && !newJalon.ensemble_id) return showMsg('error', lang==='ar'?'اختر مجموعة السور':'Choisissez un ensemble de sourates');
     if (newJalon.type_jalon === 'examen' && !newJalon.examen_id) return showMsg('error', lang==='ar'?'اختر الامتحان':'Choisissez un examen');
     setSavingJalon(true);
     const payload = {
       ecole_id: user.ecole_id,
-      nom: newJalon.nom.trim(),
-      nom_ar: newJalon.nom_ar.trim() || null,
+      nom: newJalon.nom_ar.trim(),
+      nom_ar: newJalon.nom_ar.trim(),
       type_jalon: newJalon.type_jalon,
       hizb_ids: newJalon.type_jalon === 'hizb' ? newJalon.hizb_ids : null,
       ensemble_id: newJalon.type_jalon === 'ensemble_sourates' ? newJalon.ensemble_id : null,
@@ -170,7 +170,7 @@ function JalonsTab({ user, lang, jalons, setJalons, ensembles, examens, newJalon
     await supabase.from('jalons').insert(payload);
     const { data } = await supabase.from('jalons').select('*').eq('ecole_id', user.ecole_id).order('created_at');
     if (data) setJalons(data);
-    setNewJalon({ nom: '', nom_ar: '', type_jalon: 'hizb', hizb_ids: [], ensemble_id: '', examen_id: '' });
+    setNewJalon({ nom_ar: '', type_jalon: 'hizb', hizb_ids: [], ensemble_id: '', examen_id: '' });
     setSavingJalon(false);
     showMsg('success', lang==='ar'?'تمت إضافة المرحلة بنجاح':'Jalon ajouté avec succès');
   };
@@ -214,18 +214,18 @@ function JalonsTab({ user, lang, jalons, setJalons, ensembles, examens, newJalon
       <div className="card" style={{marginBottom:'1.5rem'}}>
         <div className="section-label">{lang==='ar'?'إضافة مرحلة جديدة':'Ajouter un jalon'}</div>
         <div className="form-grid">
-          <div className="field-group">
-            <label className="field-lbl">{lang==='ar'?'اسم الشهادة (فرنسية)':'Nom du certificat (français)'} <span style={{color:'#E24B4A'}}>*</span></label>
-            <input className="field-input" value={newJalon.nom} onChange={e=>setNewJalon({...newJalon,nom:e.target.value})} placeholder={lang==='ar'?'مثال: شهادة 5 أحزاب':'Ex: Certificat 5 Hizb'} />
-          </div>
-          <div className="field-group">
-            <label className="field-lbl">{lang==='ar'?'الاسم بالعربية (اختياري)':'Nom en arabe (optionnel)'}</label>
-            <input className="field-input" value={newJalon.nom_ar} onChange={e=>setNewJalon({...newJalon,nom_ar:e.target.value})} placeholder="مثال: شهادة 5 أحزاب" style={{direction:'rtl'}} />
+          <div className="field-group" style={{gridColumn:'1/-1'}}>
+            <label className="field-lbl">
+              {lang==='ar'?'اسم الشهادة':'Nom du certificat'} <span style={{color:'#E24B4A'}}>*</span>
+            </label>
+            <input className="field-input" value={newJalon.nom_ar} onChange={e=>setNewJalon({...newJalon,nom_ar:e.target.value})}
+              placeholder={lang==='ar'?'مثال: شهادة إتمام الأحزاب المقررة':'Ex: شهادة إتمام الأحزاب المقررة'}
+              style={{direction:'rtl',fontFamily:"'Tajawal',Arial,sans-serif",fontSize:14}} />
           </div>
           <div className="field-group">
             <label className="field-lbl">{lang==='ar'?'نوع المرحلة':'Type de jalon'} <span style={{color:'#E24B4A'}}>*</span></label>
-            <select className="field-select" value={newJalon.type_jalon} onChange={e=>setNewJalon({...newJalon,type_jalon:e.target.value,valeur:5,ensemble_id:'',examen_id:''})}>
-              <option value="hizb">{lang==='ar'?'عدد أحزاب مكتملة':'Nombre de Hizb complétés'}</option>
+            <select className="field-select" value={newJalon.type_jalon} onChange={e=>setNewJalon({...newJalon,type_jalon:e.target.value,hizb_ids:[],ensemble_id:'',examen_id:''})}>
+              <option value="hizb">{lang==='ar'?'أحزاب محددة':'Hizb spécifiques'}</option>
               <option value="ensemble_sourates">{lang==='ar'?'مجموعة سور مكتملة':'Ensemble de sourates terminé'}</option>
               <option value="examen">{lang==='ar'?'اجتياز امتحان':'Examen réussi'}</option>
             </select>
@@ -298,9 +298,11 @@ function JalonsTab({ user, lang, jalons, setJalons, ensembles, examens, newJalon
                 {j.type_jalon==='examen'?'📝':'🏅'}
               </div>
               <div style={{flex:1}}>
-                <div style={{fontWeight:700,fontSize:14,color:'#1a1a1a'}}>{j.nom}</div>
-                {j.nom_ar && <div style={{fontSize:12,color:'#888',direction:'rtl',fontFamily:"'Tajawal',Arial,sans-serif"}}>{j.nom_ar}</div>}
+                <div style={{fontWeight:700,fontSize:14,color:'#1a1a1a',direction:'rtl',fontFamily:"'Tajawal',Arial,sans-serif"}}>{j.nom_ar||j.nom}</div>
                 <div style={{fontSize:11,color:'#EF9F27',marginTop:2,fontWeight:600}}>{typeLabel(j)}</div>
+                <div style={{fontSize:10,color:'#bbb',marginTop:2}}>
+                  {lang==='ar'?'تاريخ الإنشاء:':'Créé le:'} {j.created_at ? new Date(j.created_at).toLocaleDateString(lang==='ar'?'ar-MA':'fr-FR',{day:'2-digit',month:'short',year:'numeric'}) : '—'}
+                </div>
               </div>
               <div style={{display:'flex',gap:6}}>
                 <button onClick={()=>toggleActif(j)}
@@ -358,7 +360,7 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile 
   const [jalons, setJalons] = useState([]);
   const [ensemblesDisp, setEnsemblesDisp] = useState([]);
   const [examensDisp, setExamensDisp] = useState([]);
-  const [newJalon, setNewJalon] = useState({ nom: '', nom_ar: '', type_jalon: 'hizb', hizb_ids: [], ensemble_id: '', examen_id: '' });
+  const [newJalon, setNewJalon] = useState({ nom_ar: '', type_jalon: 'hizb', hizb_ids: [], ensemble_id: '', examen_id: '' });
   const [savingJalon, setSavingJalon] = useState(false);
 
   useEffect(() => { loadData(); }, []);

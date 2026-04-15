@@ -171,6 +171,10 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang, isMobi
   const [savingPassage, setSavingPassage] = useState(false); // sourate muraja'a
   const [examens, setExamens] = useState([]);
   const [certificats, setCertificats] = useState([]);
+  const [jalonsDisp, setJalonsDisp] = useState([]);
+  const [showAddCert, setShowAddCert] = useState(false);
+  const [newCertJalonId, setNewCertJalonId] = useState('');
+  const [savingCert, setSavingCert] = useState(false);
   const [showExceptionModal, setShowExceptionModal] = useState(false);
   const now = new Date();
   const [selectedMoisObj, setSelectedMoisObj] = useState(now.getMonth());
@@ -215,6 +219,11 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang, isMobi
             .select('*').eq('eleve_id',eleve.id).order('date_obtention',{ascending:false});
           setCertificats(certRes.data || []);
         } catch(e) { setCertificats([]); }
+        // Charger jalons pour ajout manuel
+        try {
+          const jalRes = await supabase.from('jalons').select('id,nom,nom_ar').eq('ecole_id',eleve.ecole_id).eq('actif',true).order('created_at');
+          setJalonsDisp(jalRes.data || []);
+        } catch(e) { setJalonsDisp([]); }
         if(inst) setInstituteurNom(inst.prenom+' '+inst.nom);
       }
       const e = calcEtatEleve(vals||[],eleve.hizb_depart||1,eleve.tomon_depart||1);
@@ -376,6 +385,26 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang, isMobi
       toast.error(lang==='ar'?'خطأ في تغيير المستوى':'Erreur passage de niveau: '+err.message);
     }
     setSavingPassage(false);
+  };
+
+  const ajouterCertificatManuellement = async () => {
+    if (!newCertJalonId) return;
+    setSavingCert(true);
+    const jalon = jalonsDisp.find(j=>j.id===newCertJalonId);
+    await supabase.from('certificats_eleves').insert({
+      eleve_id: eleve.id,
+      ecole_id: eleve.ecole_id,
+      jalon_id: newCertJalonId,
+      nom_certificat: jalon?.nom_ar || jalon?.nom || 'شهادة',
+      nom_certificat_ar: jalon?.nom_ar || null,
+      date_obtention: new Date().toISOString(),
+      valide_par: user?.id || null,
+    });
+    const certRes = await supabase.from('certificats_eleves').select('*').eq('eleve_id',eleve.id).order('date_obtention',{ascending:false});
+    setCertificats(certRes.data || []);
+    setShowAddCert(false);
+    setNewCertJalonId('');
+    setSavingCert(false);
   };
 
   const _niveauxCtx = typeof niveaux !== 'undefined' ? niveaux : [];
@@ -616,16 +645,49 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang, isMobi
 
             {onglet==='certificats' && (
               <div style={{padding:'1rem 0'}}>
+                {/* Bouton ajout manuel — surveillant seulement */}
+                {(user?.role==='surveillant'||user?.role==='super_admin') && (
+                  <div style={{marginBottom:'1rem'}}>
+                    {!showAddCert ? (
+                      <button onClick={()=>setShowAddCert(true)}
+                        style={{padding:'8px 16px',background:'#FAEEDA',color:'#EF9F27',border:'1px solid #EF9F2750',borderRadius:10,fontWeight:700,fontSize:13,cursor:'pointer'}}>
+                        🏅 {lang==='ar'?'منح شهادة يدوياً':'Délivrer un certificat manuellement'}
+                      </button>
+                    ) : (
+                      <div style={{background:'#fff8ee',border:'1px solid #EF9F2740',borderRadius:12,padding:'14px',marginBottom:8}}>
+                        <div style={{fontSize:13,fontWeight:600,color:'#085041',marginBottom:8,direction:'rtl'}}>
+                          {lang==='ar'?'اختر الشهادة لمنحها:':'Choisir le certificat à délivrer :'}
+                        </div>
+                        <select style={{width:'100%',padding:'8px 12px',borderRadius:8,border:'0.5px solid #e0e0d8',fontSize:13,marginBottom:10,direction:'rtl',fontFamily:"'Tajawal',Arial,sans-serif"}}
+                          value={newCertJalonId} onChange={e=>setNewCertJalonId(e.target.value)}>
+                          <option value="">{lang==='ar'?'اختر شهادة...':'Choisir...'}</option>
+                          {jalonsDisp.filter(j=>!certificats.find(c=>c.jalon_id===j.id)).map(j=>(
+                            <option key={j.id} value={j.id}>{j.nom_ar||j.nom}</option>
+                          ))}
+                        </select>
+                        <div style={{display:'flex',gap:8}}>
+                          <button onClick={ajouterCertificatManuellement} disabled={!newCertJalonId||savingCert}
+                            style={{padding:'7px 16px',background:'#1D9E75',color:'#fff',border:'none',borderRadius:8,fontWeight:700,fontSize:12,cursor:'pointer'}}>
+                            {savingCert?'...':lang==='ar'?'تأكيد المنح':'Confirmer'}
+                          </button>
+                          <button onClick={()=>{setShowAddCert(false);setNewCertJalonId('');}}
+                            style={{padding:'7px 12px',background:'#f0f0ec',color:'#888',border:'none',borderRadius:8,fontSize:12,cursor:'pointer'}}>
+                            {lang==='ar'?'إلغاء':'Annuler'}
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
                 {certificats.length===0 ? (
                   <div style={{textAlign:'center',color:'#aaa',padding:'2rem',fontSize:13}}>
-                    {lang==='ar'?'لا توجد شهادات بعد — ستظهر تلقائياً عند بلوغ مرحلة':'Aucun certificat pour le moment — ils apparaissent automatiquement lors d\'un jalon'}
+                    {lang==='ar'?'لا توجد شهادات بعد — ستظهر تلقائياً عند بلوغ مرحلة':"Aucun certificat — apparaissent automatiquement lors d'un jalon"}
                   </div>
                 ) : certificats.map(cert=>(
                   <div key={cert.id} style={{background:'linear-gradient(135deg,#FAEEDA,#fff8ee)',border:'1px solid #EF9F2740',borderRadius:14,padding:'16px',marginBottom:10,display:'flex',alignItems:'center',gap:14}}>
                     <div style={{width:52,height:52,borderRadius:14,background:'#FAEEDA',display:'flex',alignItems:'center',justifyContent:'center',fontSize:28,flexShrink:0}}>🏅</div>
                     <div style={{flex:1}}>
-                      <div style={{fontSize:14,fontWeight:700,color:'#085041'}}>{cert.nom_certificat}</div>
-                      {cert.nom_certificat_ar&&<div style={{fontSize:12,color:'#888',direction:'rtl',fontFamily:"'Tajawal',Arial,sans-serif",marginTop:2}}>{cert.nom_certificat_ar}</div>}
+                      <div style={{fontSize:14,fontWeight:700,color:'#085041',direction:'rtl',fontFamily:"'Tajawal',Arial,sans-serif"}}>{cert.nom_certificat_ar||cert.nom_certificat}</div>
                       <div style={{fontSize:11,color:'#888',marginTop:4}}>
                         📅 {cert.date_obtention ? new Date(cert.date_obtention).toLocaleDateString(lang==='ar'?'ar-MA':'fr-FR',{day:'2-digit',month:'long',year:'numeric'}) : '—'}
                       </div>
@@ -1124,17 +1186,46 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang, isMobi
 
           {onglet==='certificats'&&(
             <div style={{padding:'0.5rem 0'}}>
+              {(user?.role==='surveillant'||user?.role==='super_admin') && (
+                <div style={{marginBottom:'1rem'}}>
+                  {!showAddCert ? (
+                    <button onClick={()=>setShowAddCert(true)}
+                      style={{width:'100%',padding:'10px',background:'#FAEEDA',color:'#EF9F27',border:'1px solid #EF9F2750',borderRadius:10,fontWeight:700,fontSize:13,cursor:'pointer'}}>
+                      🏅 {lang==='ar'?'منح شهادة يدوياً':'Délivrer un certificat'}
+                    </button>
+                  ) : (
+                    <div style={{background:'#fff8ee',border:'1px solid #EF9F2740',borderRadius:12,padding:'12px'}}>
+                      <select style={{width:'100%',padding:'8px 10px',borderRadius:8,border:'0.5px solid #e0e0d8',fontSize:13,marginBottom:10,direction:'rtl',fontFamily:"'Tajawal',Arial,sans-serif"}}
+                        value={newCertJalonId} onChange={e=>setNewCertJalonId(e.target.value)}>
+                        <option value="">{lang==='ar'?'اختر شهادة...':'Choisir...'}</option>
+                        {jalonsDisp.filter(j=>!certificats.find(c=>c.jalon_id===j.id)).map(j=>(
+                          <option key={j.id} value={j.id}>{j.nom_ar||j.nom}</option>
+                        ))}
+                      </select>
+                      <div style={{display:'flex',gap:8}}>
+                        <button onClick={ajouterCertificatManuellement} disabled={!newCertJalonId||savingCert}
+                          style={{flex:1,padding:'8px',background:'#1D9E75',color:'#fff',border:'none',borderRadius:8,fontWeight:700,fontSize:12,cursor:'pointer'}}>
+                          {savingCert?'...':lang==='ar'?'تأكيد':'Confirmer'}
+                        </button>
+                        <button onClick={()=>{setShowAddCert(false);setNewCertJalonId('');}}
+                          style={{padding:'8px 12px',background:'#f0f0ec',color:'#888',border:'none',borderRadius:8,fontSize:12,cursor:'pointer'}}>
+                          ✕
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
               {certificats.length===0?(
                 <div style={{textAlign:'center',color:'#aaa',padding:'2rem',fontSize:13}}>
-                  {lang==='ar'?'لا توجد شهادات بعد — ستظهر تلقائياً عند بلوغ مرحلة':'Aucun certificat — ils apparaissent automatiquement'}
+                  {lang==='ar'?'لا توجد شهادات بعد':'Aucun certificat pour le moment'}
                 </div>
               ):certificats.map(cert=>(
                 <div key={cert.id} style={{background:'linear-gradient(135deg,#FAEEDA,#fff8ee)',border:'1px solid #EF9F2740',borderRadius:14,padding:'14px',marginBottom:10,display:'flex',alignItems:'center',gap:12}}>
                   <div style={{width:44,height:44,borderRadius:12,background:'#FAEEDA',display:'flex',alignItems:'center',justifyContent:'center',fontSize:24,flexShrink:0}}>🏅</div>
                   <div style={{flex:1}}>
-                    <div style={{fontSize:13,fontWeight:700,color:'#085041'}}>{cert.nom_certificat}</div>
-                    {cert.nom_certificat_ar&&<div style={{fontSize:11,color:'#888',direction:'rtl',fontFamily:"'Tajawal',Arial,sans-serif",marginTop:2}}>{cert.nom_certificat_ar}</div>}
-                    <div style={{fontSize:11,color:'#888',marginTop:3}}>📅 {cert.date_obtention?new Date(cert.date_obtention).toLocaleDateString(lang==='ar'?'ar-MA':'fr-FR'):'—'}</div>
+                    <div style={{fontSize:13,fontWeight:700,color:'#085041',direction:'rtl',fontFamily:"'Tajawal',Arial,sans-serif"}}>{cert.nom_certificat_ar||cert.nom_certificat}</div>
+                    <div style={{fontSize:11,color:'#888',marginTop:3}}>📅 {cert.date_obtention?new Date(cert.date_obtention).toLocaleDateString(lang==='ar'?'ar-MA':'fr-FR',{day:'2-digit',month:'short',year:'numeric'}):'—'}</div>
                   </div>
                 </div>
               ))}
