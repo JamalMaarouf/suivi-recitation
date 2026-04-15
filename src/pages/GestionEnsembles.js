@@ -496,15 +496,19 @@ export default function GestionEnsembles({ user, navigate, goBack, lang='fr', is
         </div>
       )}
 
-      {!loading && groupesFiltres.map(({ niv, items }) => (
-        <div key={niv.id} style={{ marginBottom:28 }}>
-
-          {/* Grille */}
-          <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:10, direction:'ltr' }}>
-            {items.map(e => <CarteEnsemble key={e.id} e={e} cniv={niv.couleur || '#1D9E75'} />)}
-          </div>
+      {!loading && (
+        <div style={{display:'flex', flexDirection:'column', gap:12}}>
+          {groupesFiltres.map(({ niv, items }) => (
+            <div key={niv.id} style={{display:'flex', flexWrap:'wrap', gap:12}}>
+              {items.map(e => (
+                <div key={e.id} style={{flex:'0 0 calc(33.333% - 8px)', minWidth:220}}>
+                  <CarteEnsemble e={e} cniv={niv.couleur || '#1D9E75'} />
+                </div>
+              ))}
+            </div>
+          ))}
         </div>
-      ))}
+      )}
 
       <PanneauForm />
       <ConfirmModal />
