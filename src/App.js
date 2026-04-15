@@ -225,7 +225,7 @@ export default function App() {
                 <span style={{fontSize:13,fontWeight:600}}>{t(lang, 'app_name')}</span>
               </div>
               {/* Droite : langue + user */}
-              <div style={{display:'flex',alignItems:'center',gap:8}}>
+              <div style={{display:'flex',alignItems:'center',gap:8,flexShrink:0}}>
                 {showInstallBtn && <button onClick={handleInstall} style={{padding:'4px 8px',border:'1px solid #e0e0d8',borderRadius:6,fontSize:11,cursor:'pointer',background:'#fff'}}>📲</button>}
                 {/* Langue */}
                 <div style={{position:'relative'}}>
@@ -235,12 +235,12 @@ export default function App() {
                     {LANGS.find(l=>l.code===lang)?.flag||'🇫🇷'} {(lang||'fr').toUpperCase()} ▾
                   </button>
                   {showLangMenu && (
-                    <div style={{position:'absolute',top:'calc(100% + 4px)',right:0,background:'#fff',
-                      border:'0.5px solid #e0e0d8',borderRadius:8,boxShadow:'0 8px 24px rgba(0,0,0,0.12)',
-                      zIndex:9999,minWidth:120,overflow:'hidden'}}>
+                    <div style={{position:'fixed',top:52,right:16,background:'#fff',
+                      border:'0.5px solid #e0e0d8',borderRadius:8,boxShadow:'0 8px 24px rgba(0,0,0,0.15)',
+                      zIndex:99999,minWidth:130,overflow:'hidden'}}>
                       {LANGS.map(l=>(
                         <button key={l.code} onClick={()=>{setLang(l.code);setShowLangMenu(false);}}
-                          style={{display:'flex',alignItems:'center',gap:10,width:'100%',padding:'9px 14px',
+                          style={{display:'flex',alignItems:'center',gap:10,width:'100%',padding:'10px 16px',
                             border:'none',background:lang===l.code?'#E1F5EE':'#fff',
                             color:lang===l.code?'#085041':'#555',fontWeight:lang===l.code?700:400,
                             cursor:'pointer',fontSize:13}}>
@@ -253,27 +253,28 @@ export default function App() {
                 {/* Cercle user */}
                 <div style={{position:'relative'}}>
                   <button onClick={e=>{e.stopPropagation();setShowUserMenu(v=>!v);setShowLangMenu(false);}}
+                    title={user.prenom+' '+user.nom}
                     style={{width:34,height:34,borderRadius:'50%',background:'#1D9E75',color:'#fff',
                       border:'2px solid #085041',cursor:'pointer',fontSize:13,fontWeight:800,
-                      display:'flex',alignItems:'center',justifyContent:'center'}}>
+                      display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
                     {user.prenom?user.prenom[0].toUpperCase():'?'}
                   </button>
                   {showUserMenu && (
-                    <div style={{position:'absolute',top:'calc(100% + 4px)',right:0,background:'#fff',
-                      border:'0.5px solid #e0e0d8',borderRadius:10,boxShadow:'0 8px 24px rgba(0,0,0,0.12)',
-                      zIndex:9999,minWidth:200,overflow:'hidden'}}>
-                      <div style={{padding:'12px 14px',background:'#f9f9f6',borderBottom:'0.5px solid #f0f0ec'}}>
-                        <div style={{fontWeight:700,fontSize:13}}>{user.prenom} {user.nom}</div>
+                    <div style={{position:'fixed',top:52,right:16,background:'#fff',
+                      border:'0.5px solid #e0e0d8',borderRadius:10,boxShadow:'0 8px 24px rgba(0,0,0,0.15)',
+                      zIndex:99999,minWidth:210,overflow:'hidden'}}>
+                      <div style={{padding:'12px 16px',background:'#f9f9f6',borderBottom:'0.5px solid #f0f0ec'}}>
+                        <div style={{fontWeight:700,fontSize:13,color:'#1a1a1a'}}>{user.prenom} {user.nom}</div>
                         <div style={{fontSize:11,color:'#888',marginTop:2}}>{t(lang,user.role==='surveillant'?'role_surveillant':'role_instituteur')}</div>
                       </div>
                       <button onClick={()=>{setShowUserMenu(false);navigate('profil_mobile');}}
-                        style={{display:'flex',alignItems:'center',gap:8,width:'100%',padding:'10px 14px',
-                          border:'none',background:'#fff',color:'#555',cursor:'pointer',fontSize:12}}>
+                        style={{display:'flex',alignItems:'center',gap:10,width:'100%',padding:'11px 16px',
+                          border:'none',background:'#fff',color:'#555',cursor:'pointer',fontSize:13}}>
                         👤 {lang==='ar'?'الملف الشخصي':'Mon profil'}
                       </button>
                       <button onClick={()=>{setShowUserMenu(false);handleLogout();}}
-                        style={{display:'flex',alignItems:'center',gap:8,width:'100%',padding:'10px 14px',
-                          border:'none',background:'#fff',color:'#E24B4A',cursor:'pointer',fontSize:12,
+                        style={{display:'flex',alignItems:'center',gap:10,width:'100%',padding:'11px 16px',
+                          border:'none',background:'#fff',color:'#E24B4A',cursor:'pointer',fontSize:13,
                           borderTop:'0.5px solid #f0f0ec'}}>
                         🚪 {t(lang,'deconnexion')}
                       </button>
