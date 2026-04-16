@@ -982,10 +982,10 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang, isMobi
 
             {/* KPI */}
             <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:8,borderTop:'0.5px solid #e8e8e0',paddingTop:12}}>
-              {estSourateEleve ? [
-                [lang==='ar'?'السورة الحالية':'Sourate', recitations?.filter(r=>r.type_recitation==='complete').length || 0],
-                [lang==='ar'?'السور المنجزة':'Complétées', recitations?.filter(r=>r.type_recitation==='complete').length || 0],
-                [lang==='ar'?'المقاطع':'Séquences', recitations?.filter(r=>r.type_recitation==='sequence').length || 0],
+              {(estSourateEleve ? [
+                [lang==='ar'?'السور المنجزة':'Sourates', (validations||[]).filter(v=>v.type_validation==='sourate_complete').length || 0],
+                [lang==='ar'?'المقاطع':'Séquences', (validations||[]).filter(v=>v.type_validation==='sequence').length || 0],
+                [lang==='ar'?'المحفوظات':'Acquis', eleve.sourates_acquises||0],
                 ['Total', etat?.points?.total || 0],
               ] : [
                 ['Hizb',`Hizb ${etat?.hizbEnCours}`],
