@@ -73,7 +73,7 @@ export default function Comparaison({ navigate, goBack, lang='fr', isMobile, use
             <div style={{fontSize:12,color:'#888',marginBottom:8}}>{t(lang,'selectionner_comparer')} :</div>
             <input className="field-input" style={{marginBottom:10}} placeholder={t(lang,'rechercher_eleve')} value={search} onChange={e=>setSearch(e.target.value)}/>
             <div style={{display:'flex',flexWrap:'wrap',gap:6}}>
-              {filtered.map((e,idx)=>{
+              {(filtered||[]).map((e,idx)=>{
                 const selIdx=selected.findIndex(s=>s.id===e.id);
                 const isSelected=selIdx>=0;
                 const color=isSelected?PALETTE[selIdx]:'#888';
