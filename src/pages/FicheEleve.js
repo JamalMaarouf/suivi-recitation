@@ -318,12 +318,33 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang, isMobi
     setTimeout(()=>{w.print();w.close();},600);
   };
 
-  const sl = etat ? scoreLabel(etat.points.total) : {color:'#888',bg:'#f0f0ec',label:'—'};
+  const totalPtsSourates = recitationsSouratesEleve.reduce((s,r)=>s+(r.points||0),0);
+  const sl = estSourateEleve
+    ? scoreLabel(totalPtsSourates)
+    : (etat ? scoreLabel(etat.points.total) : {color:'#888',bg:'#f0f0ec',label:'—'});
   const badges = etat ? calcBadges(validations,etat) : [];
-  const vitesse = calcVitesse(validations);
-  const streak = calcStreak(validations);
-  const heatmap = calcHeatmap(validations);
-  const evolution = calcEvolution(validations);
+
+  // Pour élèves sourate: utiliser recitationsSouratesEleve pour les stats
+  const validationsOuRecitations = estSourateEleve ? [] : validations;
+  const vitesse = estSourateEleve
+    ? { moyenne: recitationsSouratesEleve.length > 0 ? (recitationsSouratesEleve.filter(r=>r.type_recitation==='complete').length / Math.max(1, Math.ceil((new Date() - new Date(recitationsSouratesEleve[recitationsSouratesEleve.length-1]?.date_validation||new Date())) / (1000*60*60*24*7)))).toFixed(1) : '0', tendance: 'stable' }
+    : calcVitesse(validations);
+  const streak = estSourateEleve ? 0 : calcStreak(validations);
+  // Heatmap sourates: date_validation → nombre de récitations ce jour
+  const heatmapSourates = {};
+  recitationsSouratesEleve.forEach(r => {
+    if (r.date_validation) {
+      const d = new Date(r.date_validation).toLocaleDateString('fr-FR');
+      heatmapSourates[d] = (heatmapSourates[d]||0) + 1;
+    }
+  });
+  const heatmap = estSourateEleve ? heatmapSourates : calcHeatmap(validations);
+  // Evolution sourates: points cumulés par validation
+  const evolutionSourates = (() => {
+    let cumul = 0;
+    return [...recitationsSouratesEleve].reverse().map(r => { cumul += (r.points||0); return { score: cumul, date: r.date_validation }; });
+  })();
+  const evolution = estSourateEleve ? evolutionSourates : calcEvolution(validations);
   const maxScore = Math.max(...evolution.map(p=>p.score),1);
   const last90 = Array.from({length:90},(_,i)=>{const d=new Date();d.setDate(d.getDate()-(89-i));return d.toLocaleDateString('fr-FR');});
   const heatColor = (c) => !c?'#e8e8e0':c>=6?'#085041':c>=4?'#1D9E75':c>=2?'#5DCAA5':'#9FE1CB';
@@ -898,7 +919,7 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang, isMobi
                 </div>
               </div>
               <div style={{textAlign:'right'}}>
-                <div style={{fontSize:38,fontWeight:800,color:sl.color,letterSpacing:'-2px'}}>{etat?.points.total.toLocaleString()}</div>
+                <div style={{fontSize:38,fontWeight:800,color:sl.color,letterSpacing:'-2px'}}>{estSourateEleve?totalPtsSourates.toLocaleString():(etat?.points.total.toLocaleString()||0)}</div>
                 <div style={{fontSize:11,color:'#888'}}>{t(lang,'pts_abrev')}</div>
               </div>
             </div>
@@ -924,8 +945,8 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang, isMobi
               ))}
             </div>
 
-            {/* Acquis antérieurs — bouton accordéon */}
-            {etat?.tomonAcquis>0&&(
+            {/* Acquis antérieurs — bouton accordéon (Hizb uniquement) */}
+            {!estSourateEleve&&etat?.tomonAcquis>0&&(
               <div style={{marginBottom:8}}>
                 <button onClick={()=>setShowAcquis(v=>!v)}
                   style={{display:'flex',alignItems:'center',justifyContent:'space-between',width:'100%',padding:'10px 14px',border:`1.5px solid ${showAcquis?'#1D9E75':'#9FE1CB'}`,borderRadius:showAcquis?'10px 10px 0 0':'10px',background:showAcquis?'#E1F5EE':'#f0faf6',cursor:'pointer',transition:'all 0.2s'}}>
@@ -1097,20 +1118,26 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang, isMobi
           {onglet==='apercu'&&(
             <>
               {estSourateEleve ? (
-                <div className="position-card">
-                  <div className="pos-block">
-                    <div className="pos-val">{recitationsSouratesEleve.filter(r=>r.type_recitation==='complete').length}</div>
-                    <div className="pos-lbl">{lang==='ar'?'سور مكتملة':'Complétées'}</div>
+                <>
+                  <div className="position-card">
+                    <div className="pos-block">
+                      <div className="pos-val" style={{fontSize:14}}>{recitationsSouratesEleve.filter(r=>r.type_recitation==='complete').length}</div>
+                      <div className="pos-lbl">{lang==='ar'?'سور مكتملة':'Complètes'}</div>
+                    </div>
+                    <div className="pos-block">
+                      <div className="pos-val" style={{fontSize:14}}>{recitationsSouratesEleve.filter(r=>r.type_recitation==='sequence').length}</div>
+                      <div className="pos-lbl">{lang==='ar'?'مقاطع':'Séquences'}</div>
+                    </div>
+                    <div className="pos-block">
+                      <div className="pos-val" style={{fontSize:14}}>{eleve.sourates_acquises||0}</div>
+                      <div className="pos-lbl">{lang==='ar'?'محفوظات':'Acquis'}</div>
+                    </div>
+                    <div className="pos-block">
+                      <div className="pos-val" style={{fontSize:14}}>{totalPtsSourates.toLocaleString()}</div>
+                      <div className="pos-lbl">{t(lang,'pts_abrev')}</div>
+                    </div>
                   </div>
-                  <div className="pos-block">
-                    <div className="pos-val">{recitationsSouratesEleve.filter(r=>r.type_recitation==='sequence').length}</div>
-                    <div className="pos-lbl">{lang==='ar'?'مقاطع':'Séquences'}</div>
-                  </div>
-                  <div className="pos-block">
-                    <div className="pos-val">{eleve.sourates_acquises||0}</div>
-                    <div className="pos-lbl">{lang==='ar'?'محفوظات':'Acquis'}</div>
-                  </div>
-                </div>
+                </>
               ) : (
                 <>
                   <div className="position-card">
@@ -1136,51 +1163,61 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang, isMobi
           {/* APPRENTISSAGE */}
           {onglet==='apprentissage'&&(
             <>
-              <div className="section-label">{t(lang,'suivi_apprentissage')}</div>
-              {apprentissages.length===0?<div className="empty">{t(lang,'aucun_suivi')}</div>:(
-                <>
+              <div className="section-label">{estSourateEleve?(lang==='ar'?'سجل التلاوات':'Historique des récitations'):t(lang,'suivi_apprentissage')}</div>
+              {estSourateEleve ? (
+                recitationsSouratesEleve.length===0 ? <div className="empty">{t(lang,'aucune_recitation_label')}</div> : (
                   <div className="table-wrap">
                     <table><thead><tr>
-                      <th style={{width:'22%'}}>{t(lang,'tomon_abrev')}</th>
-                      <th style={{width:'26%'}}>{t(lang,'debut_apprentissage')}</th>
-                      <th style={{width:'26%'}}>{t(lang,'validation_label')}</th>
-                      <th style={{width:'14%'}}>{t(lang,'duree')}</th>
-                      <th style={{width:'12%'}}>{t(lang,'statut')}</th>
+                      <th>{lang==='ar'?'التاريخ':'Date'}</th>
+                      <th>{lang==='ar'?'السورة':'Sourate'}</th>
+                      <th>{lang==='ar'?'النوع':'Type'}</th>
+                      <th>{lang==='ar'?'الآيات':'Versets'}</th>
+                      <th>{lang==='ar'?'النقاط':'Pts'}</th>
+                      <th>{lang==='ar'?'صحَّح بواسطة':'Validé par'}</th>
                     </tr></thead>
                     <tbody>
-                      {apprentissages.map(appr=>{
-                        const validation=validations.find(v=>v.type_validation==='tomon'&&v.hizb_validation===appr.hizb&&v.tomon_debut<=appr.tomon&&(v.tomon_debut+v.nombre_tomon-1)>=appr.tomon);
-                        const jours=validation?Math.round((new Date(validation.date_validation)-new Date(appr.date_debut))/(1000*60*60*24)):Math.round((new Date()-new Date(appr.date_debut))/(1000*60*60*24));
-                        return(
-                          <tr key={appr.id}>
-                            <td style={{fontSize:13,fontWeight:500}}>Hizb {appr.hizb}, T.{appr.tomon}</td>
-                            <td style={{fontSize:12,color:'#888'}}>{formatDate(appr.date_debut)}</td>
-                            <td style={{fontSize:12,color:'#888'}}>{validation?formatDate(validation.date_validation):'—'}</td>
-                            <td><span style={{fontSize:12,fontWeight:600,color:jours>14?'#E24B4A':jours>7?'#EF9F27':'#1D9E75'}}>{jours}{t(lang,'jour')}</span></td>
-                            <td>{validation?<span className="badge badge-green" style={{fontSize:10}}>✓</span>:<span className="badge badge-amber" style={{fontSize:10}}>{t(lang,'en_cours')}</span>}</td>
-                          </tr>
-                        );
-                      })}
+                      {[...recitationsSouratesEleve].sort((a,b)=>new Date(b.date_validation||0)-new Date(a.date_validation||0)).map(r=>(
+                        <tr key={r.id}>
+                          <td style={{fontSize:12,color:'#888'}}>{r.date_validation?new Date(r.date_validation).toLocaleDateString(lang==='ar'?'ar-MA':'fr-FR'):'—'}</td>
+                          <td style={{fontWeight:600,direction:'rtl',fontFamily:"'Tajawal',Arial"}}>{r.sourate?.nom_ar||'—'}</td>
+                          <td><span className={r.type_recitation==='complete'?'badge badge-green':'badge'}>{r.type_recitation==='complete'?(lang==='ar'?'كاملة':'Complète'):(lang==='ar'?'مقطع':'Séquence')}</span></td>
+                          <td style={{fontSize:12,color:'#888'}}>{r.type_recitation==='sequence'&&r.verset_debut?`V.${r.verset_debut}→${r.verset_fin}`:'—'}</td>
+                          <td style={{fontSize:12,fontWeight:600,color:'#1D9E75'}}>{r.points>0?`+${r.points}`:'—'}</td>
+                          <td style={{fontSize:11,color:'#888'}}>{r.valideur?`${r.valideur.prenom} ${r.valideur.nom}`:(r.valide_par?'✓':'—')}</td>
+                        </tr>
+                      ))}
                     </tbody></table>
                   </div>
-                  {(()=>{
-                    const valides=apprentissages.filter(a=>validations.find(v=>v.type_validation==='tomon'&&v.hizb_validation===a.hizb&&v.tomon_debut<=a.tomon&&(v.tomon_debut+v.nombre_tomon-1)>=a.tomon));
-                    const durees=valides.map(a=>{const v=validations.find(vv=>vv.type_validation==='tomon'&&vv.hizb_validation===a.hizb&&vv.tomon_debut<=a.tomon&&(vv.tomon_debut+vv.nombre_tomon-1)>=a.tomon);return Math.round((new Date(v.date_validation)-new Date(a.date_debut))/(1000*60*60*24));});
-                    const moy=durees.length>0?Math.round(durees.reduce((s,d)=>s+d,0)/durees.length):0;
-                    const maxD=durees.length>0?Math.max(...durees):0;
-                    const minD=durees.length>0?Math.min(...durees):0;
-                    return(
-                      <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:10,marginTop:'1rem'}}>
-                        {[{l:t(lang,'duree_moy'),v:`${moy}${t(lang,'jour')}`,c:'#1D9E75',bg:'#E1F5EE'},{l:t(lang,'plus_rapide'),v:`${minD}${t(lang,'jour')}`,c:'#378ADD',bg:'#E6F1FB'},{l:t(lang,'plus_long'),v:`${maxD}${t(lang,'jour')}`,c:maxD>14?'#E24B4A':'#EF9F27',bg:maxD>14?'#FCEBEB':'#FAEEDA'}].map(s=>(
-                          <div key={s.l} style={{background:s.bg,borderRadius:10,padding:'12px',textAlign:'center'}}>
-                            <div style={{fontSize:22,fontWeight:700,color:s.c}}>{s.v}</div>
-                            <div style={{fontSize:11,color:s.c,opacity:0.8}}>{s.l}</div>
-                          </div>
-                        ))}
-                      </div>
-                    );
-                  })()}
-                </>
+                )
+              ) : (
+                apprentissages.length===0?<div className="empty">{t(lang,'aucun_suivi')}</div>:(
+                  <>
+                    <div className="table-wrap">
+                      <table><thead><tr>
+                        <th style={{width:'22%'}}>{t(lang,'tomon_abrev')}</th>
+                        <th style={{width:'26%'}}>{t(lang,'debut_apprentissage')}</th>
+                        <th style={{width:'26%'}}>{t(lang,'validation_label')}</th>
+                        <th style={{width:'14%'}}>{t(lang,'duree')}</th>
+                        <th style={{width:'12%'}}>{t(lang,'statut')}</th>
+                      </tr></thead>
+                      <tbody>
+                        {apprentissages.map(appr=>{
+                          const validation=validations.find(v=>v.type_validation==='tomon'&&v.hizb_validation===appr.hizb&&v.tomon_debut<=appr.tomon&&(v.tomon_debut+v.nombre_tomon-1)>=appr.tomon);
+                          const jours=validation?Math.round((new Date(validation.date_validation)-new Date(appr.date_debut))/(1000*60*60*24)):null;
+                          return(
+                            <tr key={appr.id}>
+                              <td style={{fontWeight:500}}>Hizb {appr.hizb} — T.{appr.tomon}</td>
+                              <td style={{fontSize:12,color:'#888'}}>{formatDateCourt(appr.date_debut)}</td>
+                              <td style={{fontSize:12,color:'#888'}}>{validation?formatDateCourt(validation.date_validation):'—'}</td>
+                              <td>{jours!==null?<span style={{fontSize:12,fontWeight:600,color:jours<=7?'#1D9E75':jours<=14?'#EF9F27':'#E24B4A'}}>{jours}j</span>:'—'}</td>
+                              <td>{validation?<span className="badge badge-green" style={{fontSize:9}}>✓</span>:<span className="badge" style={{fontSize:9}}>⏳</span>}</td>
+                            </tr>
+                          );
+                        })}
+                      </tbody></table>
+                    </div>
+                  </>
+                )
               )}
             </>
           )}
@@ -1226,7 +1263,15 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang, isMobi
                 </div>
               </div>
               <div style={{display:'grid',gridTemplateColumns:'repeat(3,minmax(0,1fr))',gap:10}}>
-                {[{lbl:t(lang,'streak_actuel'),val:`${streak} ${t(lang,+(lang==='ar'?' أسابيع':' semaines'))}`,icon:'🔥',color:'#EF9F27',bg:'#FAEEDA'},{lbl:t(lang,'jours_actifs'),val:Object.keys(heatmap).filter(d=>{const p=d.split('/');return(new Date()-new Date(p[2],p[1]-1,p[0]))/(1000*60*60*24)<=90;}).length,icon:'📅',color:'#1D9E75',bg:'#E1F5EE'},{lbl:t(lang,'moy_seance'),val:validations.filter(v=>v.type_validation==='tomon').length>0?(etat?.tomonCumul/validations.filter(v=>v.type_validation==='tomon').length).toFixed(1):'0',icon:'📊',color:'#378ADD',bg:'#E6F1FB'}].map(s=>(
+                {(estSourateEleve ? [
+                  {lbl:lang==='ar'?'سور مكتملة':'Complètes',val:recitationsSouratesEleve.filter(r=>r.type_recitation==='complete').length,icon:'📖',color:'#1D9E75',bg:'#E1F5EE'},
+                  {lbl:lang==='ar'?'جلسات نشطة':'Jours actifs',val:Object.keys(heatmap).filter(d=>{const p=d.split('/');return(new Date()-new Date(p[2],p[1]-1,p[0]))/(1000*60*60*24)<=90;}).length,icon:'📅',color:'#EF9F27',bg:'#FAEEDA'},
+                  {lbl:lang==='ar'?'مقاطع':'Séquences',val:recitationsSouratesEleve.filter(r=>r.type_recitation==='sequence').length,icon:'📌',color:'#534AB7',bg:'#EEEDFE'},
+                ] : [
+                  {lbl:t(lang,'streak_actuel'),val:`${streak} ${t(lang,+(lang==='ar'?' أسابيع':' semaines'))}`,icon:'🔥',color:'#EF9F27',bg:'#FAEEDA'},
+                  {lbl:t(lang,'jours_actifs'),val:Object.keys(heatmap).filter(d=>{const p=d.split('/');return(new Date()-new Date(p[2],p[1]-1,p[0]))/(1000*60*60*24)<=90;}).length,icon:'📅',color:'#1D9E75',bg:'#E1F5EE'},
+                  {lbl:t(lang,'moy_seance'),val:validations.filter(v=>v.type_validation==='tomon').length>0?(etat?.tomonCumul/validations.filter(v=>v.type_validation==='tomon').length).toFixed(1):'0',icon:'📊',color:'#378ADD',bg:'#E6F1FB'},
+                ]).map(s=>(
                   <div key={s.lbl} style={{background:s.bg,borderRadius:12,padding:'1rem',textAlign:'center'}}>
                     <div style={{fontSize:22,marginBottom:4}}>{s.icon}</div>
                     <div style={{fontSize:22,fontWeight:700,color:s.color}}>{s.val}</div>
@@ -1328,9 +1373,15 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang, isMobi
 
 
           {onglet==='notes'&&(()=>{
-            const pts = calcPointsPeriode(validations||[], new Date('2000-01-01'), new Date(), baremeEleve, pointsEvenements);
             const niveauxCtx2 = typeof niveaux !== 'undefined' ? niveaux : [];
             const estSourate2 = isSourateNiveauDyn(eleve.code_niveau, niveauxCtx2);
+            // Pour élèves sourate : calculer pts depuis recitationsSouratesEleve
+            const ptsSourateTotal = recitationsSouratesEleve.reduce((s,r)=>s+(r.points||0),0);
+            const ptsSourateCompletes = recitationsSouratesEleve.filter(r=>r.type_recitation==='complete').reduce((s,r)=>s+(r.points||0),0);
+            const ptsSourateSequences = recitationsSouratesEleve.filter(r=>r.type_recitation==='sequence').reduce((s,r)=>s+(r.points||0),0);
+            const pts = estSourate2
+              ? { total: ptsSourateTotal, tomonPeriode: recitationsSouratesEleve.filter(r=>r.type_recitation==='complete').length, ptsTomon: ptsSourateCompletes, ptsEnsembles: 0, ptsExamens: examens.reduce((s,e)=>s+(e.score||0),0), ptsCertificats: certificats.length*50, hizbsPeriode:0, ptsHizb:0, ptsRoboe:0, ptsNisf:0, details:{nbRoboe:0,nbNisf:0,nbHizb:0} }
+              : calcPointsPeriode(validations||[], new Date('2000-01-01'), new Date(), baremeEleve, pointsEvenements);
             return (
               <div style={{padding:'0.5rem 0'}}>
                 {/* Total depuis le début - mobile */}
@@ -1339,7 +1390,7 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang, isMobi
                   return (
                     <div style={{background:'linear-gradient(135deg,#085041,#1D9E75)',borderRadius:12,padding:'12px 14px',marginBottom:8,display:'flex',alignItems:'center',justifyContent:'space-between'}}>
                       <div style={{color:'rgba(255,255,255,0.8)',fontSize:10}}>{lang==='ar'?'المجموع الكلي':'Total suivi'}</div>
-                      <div style={{color:'#fff',fontWeight:800,fontSize:18}}>{ptsTot.total.toLocaleString()} <span style={{fontSize:10,opacity:0.8}}>{lang==='ar'?'ن':'pts'}</span></div>
+                      <div style={{color:'#fff',fontWeight:800,fontSize:18}}>{estSourate2 ? ptsSourateTotal.toLocaleString() : ptsTot.total.toLocaleString()} <span style={{fontSize:10,opacity:0.8}}>{lang==='ar'?'ن':'pts'}</span></div>
                     </div>
                   );
                 })()}
