@@ -734,21 +734,23 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang, isMobi
 
 
             {onglet==='notes' && (() => {
-              const pts = calcPointsPeriode(validations||[], new Date('2000-01-01'), new Date(), baremeEleve, pointsEvenements);
               const niveauxCtx = typeof niveaux !== 'undefined' ? niveaux : [];
               const estSourate = isSourateNiveauDyn(eleve.code_niveau, niveauxCtx);
+              // Pour élèves sourate : pts depuis recitationsSouratesEleve
+              const ptsSourTot = recitationsSouratesEleve.reduce((s,r)=>s+(r.points||0),0);
+              const ptsSourCompl = recitationsSouratesEleve.filter(r=>r.type_recitation==='complete').reduce((s,r)=>s+(r.points||0),0);
+              const nbSourCompl = recitationsSouratesEleve.filter(r=>r.type_recitation==='complete').length;
+              const nbSourSeq = recitationsSouratesEleve.filter(r=>r.type_recitation==='sequence').length;
+              const pts = estSourate
+                ? { total: ptsSourTot, tomonPeriode: nbSourCompl, ptsTomon: ptsSourCompl, ptsEnsembles:0, ptsExamens: examens.reduce((s,e)=>s+(e.score||0),0), ptsCertificats: certificats.length*50, hizbsPeriode:0, ptsHizb:0, ptsRoboe:0, ptsNisf:0, details:{nbRoboe:0,nbNisf:0,nbHizb:0} }
+                : calcPointsPeriode(validations||[], new Date('2000-01-01'), new Date(), baremeEleve, pointsEvenements);
               return (
                 <div style={{padding:'1rem 0'}}>
                   {/* Total depuis le début */}
-                  {(() => {
-                    const ptsTotal = calcPointsPeriode(validations||[], new Date('2000-01-01'), new Date(), baremeEleve, pointsEvenements);
-                    return (
-                      <div style={{background:'linear-gradient(135deg,#085041,#1D9E75)',borderRadius:14,padding:'14px 16px',marginBottom:10,display:'flex',alignItems:'center',justifyContent:'space-between'}}>
-                        <div style={{color:'rgba(255,255,255,0.8)',fontSize:11}}>{lang==='ar'?'المجموع الكلي منذ بداية المتابعة':'Total depuis le début du suivi'}</div>
-                        <div style={{color:'#fff',fontWeight:800,fontSize:22}}>{ptsTotal.total.toLocaleString()} <span style={{fontSize:11,opacity:0.8}}>{lang==='ar'?'ن':'pts'}</span></div>
-                      </div>
-                    );
-                  })()}
+                  <div style={{background:'linear-gradient(135deg,#085041,#1D9E75)',borderRadius:14,padding:'14px 16px',marginBottom:10,display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+                    <div style={{color:'rgba(255,255,255,0.8)',fontSize:11}}>{lang==='ar'?'المجموع الكلي منذ بداية المتابعة':'Total depuis le début du suivi'}</div>
+                    <div style={{color:'#fff',fontWeight:800,fontSize:22}}>{pts.total.toLocaleString()} <span style={{fontSize:11,opacity:0.8}}>{lang==='ar'?'ن':'pts'}</span></div>
+                  </div>
 
 
 
@@ -757,10 +759,10 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang, isMobi
                     // ── Élève Sourates ──
                     <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:12}}>
                       {[
-                        {label:lang==='ar'?'السور المستظهرة':'Sourates récitées', val:pts.tomonPeriode, pts:pts.ptsTomon, color:'#534AB7', bg:'#EEEDFE', icon:'📜'},
-                        {label:lang==='ar'?'المجموعات المكتملة':'Ensembles complétés', val:'', pts:pts.ptsEnsembles||0, color:'#D85A30', bg:'#FAECE7', icon:'📦'},
+                        {label:lang==='ar'?'السور المستظهرة':'Sourates récitées', val:nbSourCompl, pts:ptsSourCompl, color:'#534AB7', bg:'#EEEDFE', icon:'📜'},
+                        {label:lang==='ar'?'المقاطع':'Séquences', val:nbSourSeq, pts:recitationsSouratesEleve.filter(r=>r.type_recitation==='sequence').reduce((s,r)=>s+(r.points||0),0), color:'#1D9E75', bg:'#E1F5EE', icon:'📌'},
                         {label:lang==='ar'?'الامتحانات':'Examens', val:'', pts:pts.ptsExamens||0, color:'#EF9F27', bg:'#FAEEDA', icon:'📝'},
-                        {label:lang==='ar'?'الشهادات':'Certificats', val:'', pts:pts.ptsCertificats||0, color:'#085041', bg:'#E1F5EE', icon:'🏅'},
+                        {label:lang==='ar'?'الشهادات':'Certificats', val:certificats.length, pts:pts.ptsCertificats||0, color:'#085041', bg:'#E1F5EE', icon:'🏅'},
                       ].map((row,i)=>(
                         <div key={i} style={{background:row.bg,borderRadius:12,padding:'12px',border:`0.5px solid ${row.color}20`}}>
                           <div style={{fontSize:18,marginBottom:4}}>{row.icon}</div>
