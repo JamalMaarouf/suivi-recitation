@@ -1065,7 +1065,7 @@ function MobilePassageNiveauTab({ user, lang, niveaux, showMsg }) {
 
 export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile, initialTab, setGestionTab }) {
   const { toast } = useToast();
-  const [tab, setTabLocal] = useState(initialTab || 'parametres');
+  const [tab, setTabLocal] = useState(isMobile ? (initialTab && initialTab !== 'parametres' ? initialTab : 'eleves') : (initialTab || 'parametres'));
   const setTab = (t) => { setTabLocal(t); if(setGestionTab) setGestionTab(t); };
   const [searchEleve, setSearchEleve] = useState('');
   const [parents, setParents] = useState([]);
@@ -1565,10 +1565,7 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
   const NL = Object.fromEntries(niveauxActifs.map(n=>[n.code, n.nom||n.code]));
   const NIVEAUX_M = niveauxActifs.map(n=>n.code);
 
-  // For mobile, default tab is 'eleves' not 'parametres'
-  React.useEffect(() => {
-    if (isMobile && tab === 'parametres') setTab('eleves');
-  }, [isMobile]);
+
 
   if (isMobile) {
     // Couleurs dynamiques depuis niveauxActifs, fallback hardcoded
