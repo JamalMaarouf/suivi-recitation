@@ -323,7 +323,7 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
         <div style={{background:'linear-gradient(135deg,#085041,#1D9E75)',padding:'48px 16px 16px',position:'sticky',top:0,zIndex:100}}>
           <div style={{display:'flex',alignItems:'center',gap:12,marginBottom:4}}>
             <button onClick={()=>goBack?goBack():navigate('dashboard')}
-              style={{background:'rgba(255,255,255,0.2)',border:'none',borderRadius:10,padding:'8px 12px',color:'#fff',fontSize:16,cursor:'pointer'}}>←</button>
+              style={{background:'rgba(255,255,255,0.2)',border:'none',borderRadius:10,padding:'8px 12px',color:'#fff',fontSize:16,cursor:'pointer',flexShrink:0}}>←</button>
             <div>
               <div style={{fontSize:18,fontWeight:800,color:'#fff'}}>⚡ {lang==='ar'?'استظهار سريع':'Validation express'}</div>
               <div style={{fontSize:11,color:'rgba(255,255,255,0.75)'}}>{lang==='ar'?'ابحث وسجّل بنقرتين':'Trouvez et validez en 2 clics'}</div>

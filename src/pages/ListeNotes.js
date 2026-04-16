@@ -85,7 +85,7 @@ export default function ListeNotes({ user, navigate, goBack, lang='fr', isMobile
         <div style={{background:'linear-gradient(135deg,#534AB7,#7F77DD)',padding:'48px 16px 16px',marginBottom:12,position:'sticky',top:0,zIndex:100}}>
           <div style={{display:'flex',alignItems:'center',gap:12,marginBottom:4}}>
             <button onClick={()=>goBack?goBack():navigate('dashboard')}
-              style={{background:'rgba(255,255,255,0.2)',border:'none',borderRadius:10,padding:'8px 12px',color:'#fff',fontSize:16,cursor:'pointer'}}>←</button>
+              style={{background:'rgba(255,255,255,0.2)',border:'none',borderRadius:10,padding:'8px 12px',color:'#fff',fontSize:16,cursor:'pointer',flexShrink:0}}>←</button>
             <div style={{flex:1}}>
               <div style={{fontSize:17,fontWeight:800,color:'#fff'}}>⭐ {lang==='ar'?'قائمة النقاط':'Notes & Points'}</div>
               <div style={{fontSize:11,color:'rgba(255,255,255,0.75)'}}>{filtered.length} {lang==='ar'?'طالب':'élève(s)'}</div>

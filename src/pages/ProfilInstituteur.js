@@ -46,7 +46,7 @@ export default function ProfilInstituteur({ instituteur, user, navigate, goBack,
         <div style={{background:'linear-gradient(135deg,#374151,#4B5563)',padding:'48px 16px 16px',position:'sticky',top:0,zIndex:100,marginBottom:12}}>
           <div style={{display:'flex',alignItems:'center',gap:12}}>
             <button onClick={()=>goBack?goBack():navigate('dashboard')}
-              style={{background:'rgba(255,255,255,0.2)',border:'none',borderRadius:10,padding:'8px 12px',color:'#fff',fontSize:18,cursor:'pointer',minWidth:38}}>←</button>
+              style={{background:'rgba(255,255,255,0.2)',border:'none',borderRadius:10,padding:'8px 12px',color:'#fff',fontSize:18,cursor:'pointer',flexShrink:0,minWidth:38}}>←</button>
             <div style={{flex:1,fontSize:17,fontWeight:800,color:'#fff'}}>👨‍🏫 {lang==='ar'?'ملف الأستاذ':'Profil'}</div>
           </div>
         </div>

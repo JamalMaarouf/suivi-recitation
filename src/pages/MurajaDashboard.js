@@ -181,13 +181,13 @@ export default function MurajaDashboard({ user, navigate, goBack, lang='fr', isM
         <div style={{background:'linear-gradient(135deg,#378ADD,#0C447C)',padding:'48px 16px 16px',position:'sticky',top:0,zIndex:100}}>
           <div style={{display:'flex',alignItems:'center',gap:12,marginBottom:12}}>
             <button onClick={()=>goBack?goBack():navigate('dashboard')}
-              style={{background:'rgba(255,255,255,0.2)',border:'none',borderRadius:10,padding:'8px 12px',color:'#fff',fontSize:16,cursor:'pointer'}}></button>
+              style={{background:'rgba(255,255,255,0.2)',border:'none',borderRadius:10,padding:'8px 12px',color:'#fff',fontSize:16,cursor:'pointer',flexShrink:0}}></button>
             <div style={{flex:1}}>
               <div style={{fontSize:17,fontWeight:800,color:'#fff'}}>📖 {lang==='ar'?'المراجعة الجماعية':"Muraja'a"}</div>
               <div style={{fontSize:11,color:'rgba(255,255,255,0.75)'}}>{lang==='ar'?'تتبع المراجعات الجماعية':'Suivi des révisions collectives'}</div>
             </div>
             <button onClick={()=>navigate('muraja')}
-              style={{background:'rgba(255,255,255,0.25)',border:'1px solid rgba(255,255,255,0.3)',borderRadius:10,padding:'8px 14px',color:'#fff',fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
+              style={{background:'rgba(255,255,255,0.25)',border:'1px solid rgba(255,255,255,0.3)',borderRadius:10,padding:'8px 14px',color:'#fff',fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'inherit',flexShrink:0,whiteSpace:'nowrap'}}>
               + {lang==='ar'?'جديد':'Nouveau'}
             </button>
           </div>
@@ -205,7 +205,7 @@ export default function MurajaDashboard({ user, navigate, goBack, lang='fr', isM
               <option value={90} style={{color:'#333'}}>3 {lang==='ar'?'أشهر':'mois'}</option>
               <option value={365} style={{color:'#333'}}>{lang==='ar'?'سنة':'1 an'}</option>
             </select>
-            <button onClick={loadData} style={{padding:'8px 12px',background:'rgba(255,255,255,0.2)',color:'#fff',border:'none',borderRadius:10,cursor:'pointer',fontSize:14}}>🔄</button>
+            <button onClick={loadData} style={{padding:'8px 12px',background:'rgba(255,255,255,0.2)',color:'#fff',border:'none',borderRadius:10,cursor:'pointer',flexShrink:0,fontSize:14}}>🔄</button>
           </div>
         </div>
       ) : (
