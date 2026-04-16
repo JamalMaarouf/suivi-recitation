@@ -21,6 +21,7 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
   const [bareme, setBareme] = useState(null); // barème de l'école
   const [programmeNiveau, setProgrammeNiveau] = useState([]); // hizbs ou sourates du programme
   const [programmeCharge, setProgrammeCharge] = useState(false); // true quand chargement terminé
+  const [currentSourateState, setCurrentSourateState] = useState(null); // calculé après chargement
   const [sourateSelectionnee, setSourateSelectionnee] = useState(null); // sourate choisie
   const [typeRec, setTypeRec] = useState('complete'); // 'complete' ou 'sequence'
   const [versetDebut, setVersetDebut] = useState('');
@@ -57,13 +58,16 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
     setTypeRec('complete');
     setVersetDebut(''); setVersetFin('');
     setProgrammeCharge(false);
-    // Charger récitations + souratesDB en parallèle (garantir que souratesDB est disponible)
+    // Charger en parallèle récitations + souratesDB + programme
     const [{ data: recs }, { data: sourFresh }] = await Promise.all([
       supabase.from('recitations_sourates').select('*').eq('eleve_id', e.id).eq('ecole_id', user.ecole_id),
       supabase.from('sourates').select('id,numero,nom_ar,nb_versets').order('numero', { ascending: false }),
     ]);
-    setSouratesDB(sourFresh || []);
-    setRecitationsSourates(recs || []);
+    // Stocker dans des variables locales pour les utiliser dans currentSourate ci-dessous
+    const souratesLocal = sourFresh || [];
+    const recitationsLocal = recs || [];
+    setSouratesDB(souratesLocal);
+    setRecitationsSourates(recitationsLocal);
     // Charger le programme du niveau de l'élève
     const { data: niv } = await supabase.from('niveaux').select('id').eq('code', e.code_niveau).eq('ecole_id', user.ecole_id).single();
     if (niv) {
@@ -85,36 +89,7 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
     return dbId ? recitationsSourates.some(r => r.sourate_id === dbId && r.type_recitation === 'complete') : false;
   };
 
-  const currentSourate = (() => {
-    if (!estSourate || !selectedEleve || souratesDB.length === 0) return null;
-    const souratesAcquises = selectedEleve.sourates_acquises || 0;
-
-    // Construire la liste depuis le programme du niveau (UUIDs dans programmeNiveau)
-    let souratesOrdonnees;
-    if (programmeNiveau.length > 0) {
-      // Programme défini : récupérer les sourates par UUID, trier décroissant
-      souratesOrdonnees = programmeNiveau
-        .map(p => souratesDB.find(s => s.id === p.reference_id))
-        .filter(Boolean)
-        .sort((a, b) => b.numero - a.numero);
-    } else {
-      // Pas de programme en DB : fallback sur toutes les sourates
-      souratesOrdonnees = [...souratesDB].sort((a, b) => b.numero - a.numero);
-    }
-
-    if (souratesOrdonnees.length === 0) return null;
-
-    // isComplete par id (plus fiable)
-    const isCompleteById = (id) =>
-      recitationsSourates.some(r => r.sourate_id === id && r.type_recitation === 'complete');
-
-    const firstNonComplete = souratesOrdonnees.findIndex((sr, i) => {
-      if (i < souratesAcquises) return false;
-      return !isCompleteById(sr.id);
-    });
-    if (firstNonComplete < 0) return null;
-    return souratesOrdonnees[firstNonComplete];
-  })();
+  const currentSourate = programmeCharge ? currentSourateState : null;
 
   // Vérifier si l'élève a un programme défini
   // Pour sourates : programmeNiveau chargé depuis DB (table programmes)
@@ -274,7 +249,20 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
       setVersetDebut(''); setVersetFin('');
       const { data: newRecs } = await supabase.from('recitations_sourates')
         .select('*').eq('eleve_id', selectedEleve.id).eq('ecole_id', user.ecole_id);
-      setRecitationsSourates(newRecs || []);
+      const newRecsData = newRecs || [];
+      setRecitationsSourates(newRecsData);
+      // Recalculer la sourate suivante
+      const isCompleteLoc2 = (id) =>
+        newRecsData.some(r => r.sourate_id === id && r.type_recitation === 'complete');
+      const souratesAcquises2 = selectedEleve.sourates_acquises || 0;
+      const souratesOrd2 = programmeNiveau.length > 0
+        ? programmeNiveau.map(p => souratesDB.find(s => s.id === p.reference_id)).filter(Boolean).sort((a,b) => b.numero - a.numero)
+        : [...souratesDB].sort((a,b) => b.numero - a.numero);
+      const idx2 = souratesOrd2.findIndex((sr, i) => {
+        if (i < souratesAcquises2) return false;
+        return !isCompleteLoc2(sr.id);
+      });
+      setCurrentSourateState(idx2 >= 0 ? souratesOrd2[idx2] : null);
     }
     setSaving(false);
   };
@@ -527,13 +515,16 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
                   </>
                 ) : (
                   <div style={{ textAlign:'center', padding:'2rem' }}>
-                    <div style={{ fontSize:32, marginBottom:8 }}>🎉</div>
-                    <div style={{ fontSize:14, fontWeight:700, color:'#085041' }}>
-                      {lang==='ar'?'أحسنت! تم الانتهاء من جميع سور البرنامج':'Programme complété !'}
-                    </div>
-                    <div style={{ fontSize:10, color:'#aaa', marginTop:8 }}>
-                      prog:{programmeNiveau.length} · recs:{recitationsSourates.length} · db:{souratesDB.length}
-                    </div>
+                    {souratesDB.length === 0 ? (
+                      <div style={{ color:'#aaa', fontSize:13 }}>...</div>
+                    ) : (
+                      <>
+                        <div style={{ fontSize:32, marginBottom:8 }}>🎉</div>
+                        <div style={{ fontSize:14, fontWeight:700, color:'#085041' }}>
+                          {lang==='ar'?'أحسنت! تم الانتهاء من جميع سور البرنامج':'Programme complété !'}
+                        </div>
+                      </>
+                    )}
                   </div>
                 )}
               </div>
