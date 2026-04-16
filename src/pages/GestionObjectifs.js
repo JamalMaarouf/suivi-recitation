@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { useToast } from '../lib/toast';
 import ConfirmModal from '../components/ConfirmModal';
+import { t } from '../lib/i18n';
 
 const PERIODES = [
   { val:'semaine',   label_fr:'Semaine',              label_ar:'أسبوع',           jours:7   },

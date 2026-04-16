@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { useToast } from '../lib/toast';
 import { getSouratesForNiveau, getSouratesDesc } from '../lib/sourates';
+import { t } from '../lib/i18n';
 
 const HIZB_NUMS = Array.from({length:60}, (_,i) => 60-i);
 
