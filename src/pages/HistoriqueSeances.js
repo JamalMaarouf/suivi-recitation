@@ -406,10 +406,10 @@ export default function HistoriqueSeances({ user, navigate, goBack, lang='fr', i
     return (
       <div style={{paddingBottom:80, background:'#f5f5f0', minHeight:'100vh'}}>
         {/* Header sticky */}
-        <div style={{background:'#fff', borderBottom:'0.5px solid #e0e0d8', position:'sticky', top:0, zIndex:100}}>
+        <div style={{background:'linear-gradient(135deg,#378ADD,#0C447C)',padding:'48px 16px 14px',position:'sticky',top:0,zIndex:100}}>
           <div style={{display:'flex', alignItems:'center', gap:10, padding:'14px 16px 8px'}}>
-            <button onClick={()=>goBack?goBack():navigate('dashboard')} className="back-link">{t(lang,'retour')}</button>
-            <div style={{flex:1,fontSize:17,fontWeight:800,color:'#085041'}}>
+            <button onClick={()=>goBack?goBack():navigate('dashboard')} style={{background:"rgba(255,255,255,0.2)",border:"none",borderRadius:10,padding:"8px 12px",color:"#fff",fontSize:16,cursor:"pointer"}}>{t(lang,'retour')}</button>
+            <div style={{flex:1,fontSize:17,fontWeight:800,color:'#fff'}}>
               📊 {lang==='ar'?'السجل':'Historique'}
             </div>
           </div>
@@ -480,7 +480,7 @@ export default function HistoriqueSeances({ user, navigate, goBack, lang='fr', i
                     <div key={e.id} onClick={()=>{setFilterEleve(e.id);setSearchFiltreEleve('');}}
                       style={{padding:'8px 12px',cursor:'pointer',fontSize:12,borderBottom:'0.5px solid #f0f0ec',display:'flex',gap:8,alignItems:'center'}}
                       onMouseEnter={ev=>ev.currentTarget.style.background='#f5f5f0'} onMouseLeave={ev=>ev.currentTarget.style.background='#fff'}>
-                      {e.eleve_id_ecole&&<span style={{background:'#E1F5EE',color:'#085041',padding:'1px 5px',borderRadius:4,fontSize:10,fontWeight:700}}>#{e.eleve_id_ecole}</span>}
+                      {e.eleve_id_ecole&&<span style={{background:'#E1F5EE',color:'#fff',padding:'1px 5px',borderRadius:4,fontSize:10,fontWeight:700}}>#{e.eleve_id_ecole}</span>}
                       <span>{e.prenom} {e.nom}</span>
                     </div>
                   ))}
@@ -547,7 +547,7 @@ export default function HistoriqueSeances({ user, navigate, goBack, lang='fr', i
   return (
     <div>
       <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'1.25rem',flexWrap:'wrap',gap:8}}>
-        <button className="back-link" onClick={()=>goBack?goBack():navigate('dashboard')}>{t(lang,'retour')}</button>
+        <button style={{background:"rgba(255,255,255,0.2)",border:"none",borderRadius:10,padding:"8px 12px",color:"#fff",fontSize:16,cursor:"pointer",fontFamily:"inherit"}} onClick={()=>goBack?goBack():navigate('dashboard')}>{t(lang,'retour')}</button>
         <div style={{fontSize:18,fontWeight:700,color:'#085041'}}>📊 {lang==='ar'?'تحليل الحصص':lang==='en'?'Session Analysis':lang==='ar'?'تحليل الحصص':lang==='ar'?'تحليل الحصص':(lang==='ar'?'تحليل الحصص':(lang==='ar'?'تحليل الحصص':'Analyse des Séances'))}</div>
         <div style={{display:'flex',gap:6,alignItems:'center'}}>
           <span style={{fontSize:12,color:'#888'}}>{elevesVisibles.length} {lang==='ar'?'طالب':lang==='en'?'students':'élèves'}</span>

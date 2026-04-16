@@ -203,10 +203,9 @@ export default function FicheSourate({ eleve, user, navigate, goBack, lang='fr',
     return (
       <div style={{paddingBottom:80, background:'#f5f5f0', minHeight:'100vh'}}>
         {/* Sticky header */}
-        <div style={{background:'#fff', borderBottom:'0.5px solid #e0e0d8', position:'sticky', top:0, zIndex:100}}>
+        <div style={{background:`linear-gradient(135deg,${nc},${nc}cc)`, position:'sticky', top:0, zIndex:100}}>
           <div style={{display:'flex', alignItems:'center', gap:12, padding:'12px 16px'}}>
-            <button onClick={()=>goBack?goBack():navigate('dashboard')}
-              style={{background:'none',border:'none',cursor:'pointer',fontSize:22,color:'#085041',padding:0,lineHeight:1}}>
+            <button onClick={()=>goBack?goBack():navigate('dashboard')} style={{background:'rgba(255,255,255,0.2)', border:'none', cursor:'pointer', borderRadius:10, padding:'8px 12px', color:'#fff', fontSize:16,padding:0,lineHeight:1}}>
               ←
             </button>
             <div style={{flex:1}}>

@@ -654,11 +654,10 @@ export default function GestionObjectifs({ user, navigate, goBack, lang='fr', is
   // ── MOBILE ────────────────────────────────────────────────────
   if (isMobile) return (
     <div style={{paddingBottom:80,background:'#f5f5f0',minHeight:'100vh'}}>
-      <div style={{background:'#fff',padding:'14px 16px',borderBottom:'0.5px solid #e0e0d8',
-        position:'sticky',top:0,zIndex:100}}>
+      <div style={{background:'linear-gradient(135deg,#534AB7,#7F77DD)',padding:'48px 16px 14px',position:'sticky',top:0,zIndex:100}}>
         <div style={{display:'flex',alignItems:'center',gap:10}}>
-          <button onClick={()=>goBack?goBack():navigate('dashboard')} className="back-link">{t(lang,'retour')}</button>
-          <div style={{flex:1,fontSize:17,fontWeight:800,color:'#085041'}}>🎯 {lang==='ar'?'الأهداف':'Objectifs'}</div>
+          <button onClick={()=>goBack?goBack():navigate('dashboard')} style={{background:"rgba(255,255,255,0.2)",border:"none",borderRadius:10,padding:"8px 12px",color:"#fff",fontSize:16,cursor:"pointer"}}>{t(lang,'retour')}</button>
+          <div style={{flex:1,fontSize:17,fontWeight:800,color:'#fff'}}>🎯 {lang==='ar'?'الأهداف':'Objectifs'}</div>
           <button onClick={showForm?()=>{setShowForm(false);setEditing(null);}:startCreate}
             style={{background:showForm?'#f0f0ec':'#1D9E75',color:showForm?'#666':'#fff',
               border:'none',borderRadius:10,padding:'8px 14px',fontSize:13,fontWeight:700,cursor:'pointer'}}>
@@ -670,7 +669,7 @@ export default function GestionObjectifs({ user, navigate, goBack, lang='fr', is
         {showForm&&(
           <div style={{background:'#fff',borderRadius:16,padding:'18px',marginBottom:14,
             border:`1.5px solid ${editing?'#378ADD':'#1D9E75'}`}}>
-            <div style={{fontSize:15,fontWeight:700,color:'#085041',marginBottom:14}}>
+            <div style={{fontSize:15,fontWeight:700,color:'#fff',marginBottom:14}}>
               {editing?(lang==='ar'?'تعديل الهدف':'✏️ Modifier'):(lang==='ar'?'إضافة هدف جديد':'🎯 Nouvel objectif')}
             </div>
             <FormMobile {...formProps}/>
@@ -687,7 +686,7 @@ export default function GestionObjectifs({ user, navigate, goBack, lang='fr', is
     <div>
       <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'1.25rem'}}>
         <div style={{display:'flex',alignItems:'center',gap:10}}>
-          <button onClick={()=>goBack?goBack():navigate('dashboard')} className="back-link">
+          <button onClick={()=>goBack?goBack():navigate('dashboard')} style={{background:"rgba(255,255,255,0.2)",border:"none",borderRadius:10,padding:"8px 12px",color:"#fff",fontSize:16,cursor:"pointer"}}>
             ← {lang==='ar'?'رجوع':'Retour'}
           </button>
           <div style={{fontSize:20,fontWeight:700}}>🎯 {lang==='ar'?'الأهداف':'Gestion des objectifs'}</div>

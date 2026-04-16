@@ -70,18 +70,27 @@ export default function ElevesInactifs({ navigate, goBack, lang='fr', user, isMo
 
   return (
     <div style={{padding: isMobile ? '0 0 80px' : '1rem',maxWidth:700,margin:'0 auto',background: isMobile ? '#f5f5f0' : 'transparent',minHeight: isMobile ? '100vh' : 'auto'}}>
-      <div style={{display:'flex',alignItems:'center',gap:12,marginBottom: isMobile ? 0 : '1.2rem',
-        position: isMobile ? 'sticky' : 'static', top:0, zIndex:100,
-        background: isMobile ? '#fff' : 'transparent',
-        padding: isMobile ? '14px 16px' : 0,
-        borderBottom: isMobile ? '0.5px solid #e0e0d8' : 'none'}}>
-        <button className="back-link" onClick={()=>goBack?goBack():navigate('dashboard')}>
-          {lang==='ar'?'← رجوع':'← Retour'}
-        </button>
-        <div style={{fontSize:17,fontWeight:700,color:'#1a1a1a'}}>
-          {lang==='ar'?'الطلاب غير النشطين':'Élèves inactifs'} ({inactifs.length})
+      {isMobile ? (
+        <div style={{background:'linear-gradient(135deg,#E24B4A,#A32D2D)',padding:'48px 16px 14px',position:'sticky',top:0,zIndex:100,marginBottom:12}}>
+          <div style={{display:'flex',alignItems:'center',gap:12}}>
+            <button onClick={()=>goBack?goBack():navigate('dashboard')}
+              style={{background:'rgba(255,255,255,0.2)',border:'none',borderRadius:10,padding:'8px 12px',color:'#fff',fontSize:16,cursor:'pointer'}}>←</button>
+            <div style={{flex:1}}>
+              <div style={{fontSize:17,fontWeight:800,color:'#fff'}}>🚨 {lang==='ar'?'الطلاب غير النشطين':'Élèves inactifs'}</div>
+              <div style={{fontSize:11,color:'rgba(255,255,255,0.8)'}}>{inactifs.length} {lang==='ar'?'طالب':'élève(s)'}</div>
+            </div>
+          </div>
         </div>
-      </div>
+      ) : (
+        <div style={{display:'flex',alignItems:'center',gap:12,marginBottom:'1.2rem'}}>
+          <button className="back-link" onClick={()=>goBack?goBack():navigate('dashboard')}>
+            {lang==='ar'?'← رجوع':'← Retour'}
+          </button>
+          <div style={{fontSize:17,fontWeight:700,color:'#1a1a1a'}}>
+            {lang==='ar'?'الطلاب غير النشطين':'Élèves inactifs'} ({inactifs.length})
+          </div>
+        </div>
+      )}
 
       <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:8,marginBottom:'1rem'}}>
         <div style={{padding:'10px',borderRadius:10,background:'#FCEBEB',textAlign:'center'}}>

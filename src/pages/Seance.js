@@ -204,8 +204,8 @@ export default function Seance({ user, navigate, goBack, lang, isMobile=false })
   if (isMobile) {
     return (
       <div style={{paddingBottom:80,background:'#f5f5f0',minHeight:'100vh'}}>
-        <div style={{background:'#fff',padding:'16px 16px 12px',borderBottom:'0.5px solid #e0e0d8',position:'sticky',top:0,zIndex:100}}>
-          <div style={{fontSize:18,fontWeight:800,color:'#085041',marginBottom:10}}>
+        <div style={{background:'linear-gradient(135deg,#085041,#1D9E75)',padding:'48px 16px 14px',position:'sticky',top:0,zIndex:100}}>
+          <div style={{fontSize:18,fontWeight:800,color:'#fff',marginBottom:10}}>
             {new Date().toLocaleDateString(lang==='ar'?'ar-MA':'fr-FR',{weekday:'long',day:'numeric',month:'long'})}
           </div>
           {/* Vue switch: séance / semaine / historique */}
@@ -333,7 +333,7 @@ export default function Seance({ user, navigate, goBack, lang, isMobile=false })
   return (
     <div>
       <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'0.75rem'}}>
-        <button className="back-link" onClick={()=>goBack?goBack():navigate('dashboard')}>{t(lang,'retour')}</button>
+        <button style={{background:"rgba(255,255,255,0.2)",border:"none",borderRadius:10,padding:"8px 12px",color:"#fff",fontSize:16,cursor:"pointer",fontFamily:"inherit"}} onClick={()=>goBack?goBack():navigate('dashboard')}>{t(lang,'retour')}</button>
         <button onClick={()=>navigate('historique_seances')}
           style={{padding:'6px 14px',background:'#085041',color:'#fff',border:'none',borderRadius:8,fontSize:12,fontWeight:600,cursor:'pointer',display:'flex',alignItems:'center',gap:4}}>
           📊 {lang==='ar'?'تحليل الحصص':lang==='en'?'Session analysis':lang==='ar'?'تحليل الحصص':(lang==='ar'?'تحليل الحصص':(lang==='ar'?'تحليل الحصص':'Analyse des séances'))}

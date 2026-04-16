@@ -624,14 +624,13 @@ export default function ResultatsExamens({ user, navigate, goBack, lang='fr', is
   if (isMobile) {
     return (
       <div style={{paddingBottom:80,background:'#f5f5f0',minHeight:'100vh'}}>
-        <div style={{background:'#fff',padding:'14px 16px 12px',
-          borderBottom:'0.5px solid #e0e0d8',position:'sticky',top:0,zIndex:100}}>
+        <div style={{background:'linear-gradient(135deg,#378ADD,#0C447C)',padding:'48px 16px 0',position:'sticky',top:0,zIndex:100}}>
           <Header/>
           <Tabs/>
         </div>
         <div style={{padding:'12px'}}>
           {loading
-            ? <div style={{textAlign:'center',padding:'2rem',color:'#888'}}>...</div>
+            ? <div style={{textAlign:'center',padding:'2rem',color:'rgba(255,255,255,0.75)'}}>...</div>
             : activeTab==='saisir' ? tabSaisirJSX : tabRegistreJSX}
         </div>
       </div>
@@ -646,7 +645,7 @@ export default function ResultatsExamens({ user, navigate, goBack, lang='fr', is
       </div>
       <Tabs/>
       {loading
-        ? <div style={{textAlign:'center',padding:'2rem',color:'#888'}}>...</div>
+        ? <div style={{textAlign:'center',padding:'2rem',color:'rgba(255,255,255,0.75)'}}>...</div>
         : activeTab==='saisir' ? tabSaisirJSX : tabRegistreJSX}
     </div>
   );

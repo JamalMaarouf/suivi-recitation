@@ -487,11 +487,10 @@ export default function GestionExamens({ user, navigate, goBack, lang='fr', isMo
   if (isMobile) {
     return (
       <div style={{paddingBottom:80,background:'#f5f5f0',minHeight:'100vh'}}>
-        <div style={{background:'#fff',padding:'14px 16px 0',
-          borderBottom:'0.5px solid #e0e0d8',position:'sticky',top:0,zIndex:100}}>
+        <div style={{background:'linear-gradient(135deg,#378ADD,#0C447C)',padding:'48px 16px 0',position:'sticky',top:0,zIndex:100}}>
           <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:12}}>
-            <button onClick={()=>goBack?goBack():navigate('dashboard')} className="back-link">{t(lang,'retour')}</button>
-            <div style={{flex:1,fontSize:17,fontWeight:800,color:'#085041'}}>
+            <button onClick={()=>goBack?goBack():navigate('dashboard')} style={{background:"rgba(255,255,255,0.2)",border:"none",borderRadius:10,padding:"8px 12px",color:"#fff",fontSize:16,cursor:"pointer"}}>{t(lang,'retour')}</button>
+            <div style={{flex:1,fontSize:17,fontWeight:800,color:'#fff'}}>
               📝 {lang==='ar'?'الامتحانات':'Examens'}
             </div>
             <button onClick={()=>{if(showForm&&!editing)resetForm();else startCreate();}}
@@ -527,7 +526,7 @@ export default function GestionExamens({ user, navigate, goBack, lang='fr', isMo
           {showForm&&(
             <div style={{background:'#fff',borderRadius:16,padding:'18px',
               marginBottom:14,border:`1.5px solid ${editing?'#378ADD':'#1D9E75'}`}}>
-              <div style={{fontSize:15,fontWeight:700,color:'#085041',marginBottom:14}}>
+              <div style={{fontSize:15,fontWeight:700,color:'#fff',marginBottom:14}}>
                 {editing
                   ?(lang==='ar'?'تعديل الامتحان':'✏️ Modifier l\'examen')
                   :(lang==='ar'?'إضافة امتحان':'📝 Nouvel examen')}
@@ -561,7 +560,7 @@ export default function GestionExamens({ user, navigate, goBack, lang='fr', isMo
                   <div style={{flex:1,minWidth:0}}>
                     <div style={{fontWeight:700,fontSize:15}}>{e.nom}</div>
                     {/* Contenu */}
-                    <div style={{fontSize:12,color:'#085041',marginTop:4,
+                    <div style={{fontSize:12,color:'#fff',marginTop:4,
                       fontFamily:(e.type_contenu||'hizb')==='sourate'?"'Tajawal',Arial":'inherit',
                       direction:(e.type_contenu||'hizb')==='sourate'?'rtl':'ltr'}}>
                       {resumeContenu(e)}
@@ -574,7 +573,7 @@ export default function GestionExamens({ user, navigate, goBack, lang='fr', isMo
                         </span>
                       )}
                       <span style={{fontSize:11,padding:'2px 8px',borderRadius:20,
-                        background:'#E1F5EE',color:'#085041',fontWeight:600}}>
+                        background:'#E1F5EE',color:'#fff',fontWeight:600}}>
                         ✓ min {e.score_minimum}%
                       </span>
                       <span style={{fontSize:11,padding:'2px 8px',borderRadius:20,
@@ -646,7 +645,7 @@ export default function GestionExamens({ user, navigate, goBack, lang='fr', isMo
       <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',
         marginBottom:'1.25rem',flexWrap:'wrap',gap:8}}>
         <div style={{display:'flex',alignItems:'center',gap:10}}>
-          <button className="back-link"
+          <button style={{background:"rgba(255,255,255,0.2)",border:"none",borderRadius:10,padding:"8px 12px",color:"#fff",fontSize:16,cursor:"pointer",fontFamily:"inherit"}}
             onClick={()=>goBack?goBack():navigate('dashboard')}>
             ← {lang==='ar'?'رجوع':'Retour'}
           </button>

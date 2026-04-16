@@ -551,10 +551,10 @@ export default function GestionNiveaux({ user, navigate, goBack, lang='fr', isMo
     return (
       <div style={{paddingBottom:80, background:'#f5f5f0', minHeight:'100vh'}}>
         {/* Header */}
-        <div style={{background:'#fff', padding:'14px 16px 0', borderBottom:'0.5px solid #e0e0d8', position:'sticky', top:0, zIndex:100}}>
+        <div style={{background:'linear-gradient(135deg,#085041,#1D9E75)',padding:'48px 16px 0',position:'sticky',top:0,zIndex:100}}>
           <div style={{display:'flex', alignItems:'center', gap:10, marginBottom:12}}>
-            <button onClick={()=>goBack?goBack():navigate('dashboard')} className="back-link">{t(lang,'retour')}</button>
-            <div style={{flex:1, fontSize:17, fontWeight:800, color:'#085041'}}>
+            <button onClick={()=>goBack?goBack():navigate('dashboard')} style={{background:"rgba(255,255,255,0.2)",border:"none",borderRadius:10,padding:"8px 12px",color:"#fff",fontSize:16,cursor:"pointer"}}>{t(lang,'retour')}</button>
+            <div style={{flex:1, fontSize:17, fontWeight:800, color:'#fff'}}>
               📚 {lang==='ar'?'المستويات':'Niveaux'}
             </div>
             <button onClick={()=>{setEditing(null);setForm({...emptyForm,ordre:niveaux.length+1});setShowForm(v=>!v);}}
@@ -570,7 +570,7 @@ export default function GestionNiveaux({ user, navigate, goBack, lang='fr', isMo
           {showForm && (
             <div style={{background:'#fff',borderRadius:16,padding:'18px',marginBottom:14,
               border:`1.5px solid ${editing?'#378ADD':'#1D9E75'}`}}>
-              <div style={{fontSize:15,fontWeight:700,color:'#085041',marginBottom:14}}>
+              <div style={{fontSize:15,fontWeight:700,color:'#fff',marginBottom:14}}>
                 {editing?(lang==='ar'?'تعديل المستوى':'✏️ Modifier niveau'):(lang==='ar'?'إضافة مستوى':'📚 Nouveau niveau')}
               </div>
 
@@ -832,7 +832,7 @@ export default function GestionNiveaux({ user, navigate, goBack, lang='fr', isMo
     <div>
       <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'1.25rem',flexWrap:'wrap',gap:8}}>
         <div style={{display:'flex',alignItems:'center',gap:10}}>
-          <button className="back-link" onClick={()=>goBack?goBack():navigate('dashboard')}>← {lang==='ar'?'رجوع':'Retour'}</button>
+          <button style={{background:"rgba(255,255,255,0.2)",border:"none",borderRadius:10,padding:"8px 12px",color:"#fff",fontSize:16,cursor:"pointer",fontFamily:"inherit"}} onClick={()=>goBack?goBack():navigate('dashboard')}>← {lang==='ar'?'رجوع':'Retour'}</button>
           <div style={{fontSize:20,fontWeight:700}}>📚 {lang==='ar'?'إدارة المستويات':'Gestion des niveaux'}</div>
         </div>
         <button onClick={()=>{setEditing(null);setForm({...emptyForm,ordre:niveaux.length+1});setShowForm(v=>!v);}}

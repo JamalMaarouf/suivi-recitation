@@ -167,14 +167,13 @@ export default function EnregistrerRecitation({  user, eleve: eleveInitial, navi
   if (isMobile) {
     return (
       <div style={{paddingBottom:80, background:'#f5f5f0', minHeight:'100vh'}}>
-        <div style={{background:'#fff', padding:'14px 16px', borderBottom:'0.5px solid #e0e0d8',
-          position:'sticky', top:0, zIndex:100}}>
-          <div style={{display:'flex', alignItems:'center', gap:12}}>
+        <div style={{background:'linear-gradient(135deg,#085041,#1D9E75)',padding:'48px 16px 14px',position:'sticky',top:0,zIndex:100}}>
+          <div style={{display:'flex',alignItems:'center',gap:12}}>
             <button onClick={()=>goBack?goBack():navigate('dashboard')}
-              style={{background:'none',border:'none',cursor:'pointer',fontSize:22,color:'#085041',padding:0}}>
+              style={{background:'none',border:'none',cursor:'pointer',fontSize:22,color:'#fff',padding:0}}>
               ←
             </button>
-            <div style={{fontSize:16,fontWeight:800,color:'#085041'}}>
+            <div style={{fontSize:16,fontWeight:800,color:'#fff'}}>
               {lang==='ar'?'استظهار':lang==='en'?'Recitation':'Récitation'}
             </div>
           </div>
@@ -292,7 +291,7 @@ export default function EnregistrerRecitation({  user, eleve: eleveInitial, navi
           {done && motivMsg && (
             <div style={{background:'#E1F5EE',borderRadius:14,padding:'24px',textAlign:'center'}}>
               <div style={{fontSize:48,marginBottom:8}}>🎉</div>
-              <div style={{fontSize:20,fontWeight:800,color:'#085041',marginBottom:16}}>
+              <div style={{fontSize:20,fontWeight:800,color:'#fff',marginBottom:16}}>
                 {motivMsg.msg}
               </div>
               <button onClick={()=>goBack?goBack():navigate('dashboard')}
@@ -343,7 +342,7 @@ export default function EnregistrerRecitation({  user, eleve: eleveInitial, navi
           <button className="btn-secondary" onClick={() => navigate('fiche', selectedEleve)}>Voir la fiche</button>
         </div>
         <div style={{ marginTop: 12 }}>
-          <button className="back-link" style={{ margin: '0 auto' }} onClick={() => goBack?goBack():navigate('dashboard')}>{t(lang,'retour')}</button>
+          <button style={{background:"rgba(255,255,255,0.2)",border:"none",borderRadius:10,padding:"8px 12px",color:"#fff",fontSize:16,cursor:"pointer",fontFamily:"inherit"}} style={{ margin: '0 auto' }} onClick={() => goBack?goBack():navigate('dashboard')}>{t(lang,'retour')}</button>
         </div>
       </div>
     );
@@ -352,7 +351,7 @@ export default function EnregistrerRecitation({  user, eleve: eleveInitial, navi
 
   return (
     <div>
-      <button className="back-link" onClick={() => navigate(selectedEleve ? 'fiche' : 'dashboard', selectedEleve)}>t(lang,'retour')</button>
+      <button style={{background:"rgba(255,255,255,0.2)",border:"none",borderRadius:10,padding:"8px 12px",color:"#fff",fontSize:16,cursor:"pointer",fontFamily:"inherit"}} onClick={() => navigate(selectedEleve ? 'fiche' : 'dashboard', selectedEleve)}>t(lang,'retour')</button>
       <div className="page-title">{t(lang,'enregistrer_recitation_titre')}</div>
 
       <div className="steps-row">
@@ -539,7 +538,7 @@ export default function EnregistrerRecitation({  user, eleve: eleveInitial, navi
             {loading ? t(lang,'enregistrement') : t(lang,'confirmer')}
           </button>
           <div style={{ textAlign: 'center', marginTop: 12 }}>
-            <button className="back-link" style={{ margin: '0 auto' }} onClick={() => setStep(2)}>← Modifier</button>
+            <button style={{background:"rgba(255,255,255,0.2)",border:"none",borderRadius:10,padding:"8px 12px",color:"#fff",fontSize:16,cursor:"pointer",fontFamily:"inherit"}} style={{ margin: '0 auto' }} onClick={() => setStep(2)}>← Modifier</button>
           </div>
         </div>
       )}

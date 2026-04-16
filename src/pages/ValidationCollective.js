@@ -187,15 +187,14 @@ export default function ValidationCollective({ user, navigate, goBack, lang='fr'
   if (isMobile) {
     return (
       <div style={{paddingBottom:80, background:'#f5f5f0', minHeight:'100vh'}}>
-        <div style={{background:'#fff', padding:'14px 16px', borderBottom:'0.5px solid #e0e0d8',
-          position:'sticky', top:0, zIndex:100}}>
+        <div style={{background:'linear-gradient(135deg,#534AB7,#7F77DD)',padding:'48px 16px 14px',position:'sticky',top:0,zIndex:100}}>
           <div style={{display:'flex', alignItems:'center', gap:10}}>
-            <button onClick={()=>goBack?goBack():navigate('dashboard')} className="back-link">{t(lang,'retour')}</button>
-            <div style={{flex:1, fontSize:17, fontWeight:800, color:'#085041'}}>
+            <button onClick={()=>goBack?goBack():navigate('dashboard')} style={{background:"rgba(255,255,255,0.2)",border:"none",borderRadius:10,padding:"8px 12px",color:"#fff",fontSize:16,cursor:"pointer"}}>{t(lang,'retour')}</button>
+            <div style={{flex:1, fontSize:17, fontWeight:800, color:'#fff'}}>
               📖 {lang==='ar'?'مراجعة جماعية':"Murajaʼa collective"}
             </div>
             <button onClick={()=>navigate('muraja_dashboard')}
-              style={{background:'#E1F5EE',color:'#085041',border:'none',borderRadius:8,
+              style={{background:'#E1F5EE',color:'#fff',border:'none',borderRadius:8,
                 padding:'6px 10px',fontSize:12,cursor:'pointer',fontWeight:600}}>
               📊
             </button>
@@ -223,7 +222,7 @@ export default function ValidationCollective({ user, navigate, goBack, lang='fr'
               </div>
               {/* Select all button */}
               <button onClick={()=>setSelectedEleves(elevesFiltres.map(e=>e.id))}
-                style={{width:'100%',padding:'12px',background:'#E1F5EE',color:'#085041',border:'1px solid #1D9E7530',
+                style={{width:'100%',padding:'12px',background:'#E1F5EE',color:'#fff',border:'1px solid #1D9E7530',
                   borderRadius:10,fontSize:14,fontWeight:700,cursor:'pointer',fontFamily:'inherit',marginBottom:12}}>
                 {lang==='ar'?'تحديد الكل':'Tout sélectionner'} ({elevesFiltres.length})
               </button>
@@ -264,7 +263,7 @@ export default function ValidationCollective({ user, navigate, goBack, lang='fr'
             <div>
               <div style={{background:'#E1F5EE',borderRadius:12,padding:'12px 14px',marginBottom:16,
                 display:'flex',justifyContent:'space-between',alignItems:'center'}}>
-                <span style={{fontWeight:700,fontSize:14,color:'#085041'}}>{selectedEleves.length} {lang==='ar'?'طالب':'élève(s)'}</span>
+                <span style={{fontWeight:700,fontSize:14,color:'#fff'}}>{selectedEleves.length} {lang==='ar'?'طالب':'élève(s)'}</span>
                 <button onClick={()=>setStep(1)}
                   style={{background:'none',border:'none',cursor:'pointer',color:'#1D9E75',fontSize:13,fontWeight:600}}>
                   ✏️ {lang==='ar'?'تعديل':'Modifier'}
@@ -307,7 +306,7 @@ export default function ValidationCollective({ user, navigate, goBack, lang='fr'
     <div style={{padding:'1rem',maxWidth:700,margin:'0 auto'}}>
       {/* Header */}
       <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'1.5rem'}}>
-        <button className="back-link" onClick={()=>goBack?goBack():navigate('dashboard')}>{t(lang,'retour')}</button>
+        <button style={{background:"rgba(255,255,255,0.2)",border:"none",borderRadius:10,padding:"8px 12px",color:"#fff",fontSize:16,cursor:"pointer",fontFamily:"inherit"}} onClick={()=>goBack?goBack():navigate('dashboard')}>{t(lang,'retour')}</button>
         <div style={{display:'flex',gap:8}}>
           <button onClick={()=>navigate('muraja_dashboard')}
             style={{padding:'6px 14px',background:'#E6F1FB',color:'#378ADD',border:'none',borderRadius:8,fontSize:12,fontWeight:600,cursor:'pointer',fontFamily:'inherit'}}>
@@ -318,7 +317,7 @@ export default function ValidationCollective({ user, navigate, goBack, lang='fr'
 
       {/* Title + Steps */}
       <div style={{background:'#fff',border:'0.5px solid #e0e0d8',borderRadius:14,padding:'1.25rem',marginBottom:'1.5rem'}}>
-        <div style={{fontSize:18,fontWeight:800,color:'#085041',marginBottom:'1rem',textAlign:'center'}}>
+        <div style={{fontSize:18,fontWeight:800,color:'#fff',marginBottom:'1rem',textAlign:'center'}}>
           📖 {lang==='ar' ? 'مراجعة جماعية' : "Muraja'a collective"}
         </div>
         <div style={{display:'flex',gap:6}}>
@@ -466,7 +465,7 @@ export default function ValidationCollective({ user, navigate, goBack, lang='fr'
             </>
           )}
           <div style={{display:'flex',gap:10,marginTop:20}}>
-            <button onClick={()=>setStep(1)} className="back-link">← {lang==='ar'?'رجوع':'Retour'}</button>
+            <button onClick={()=>setStep(1)} style={{background:"rgba(255,255,255,0.2)",border:"none",borderRadius:10,padding:"8px 12px",color:"#fff",fontSize:16,cursor:"pointer",fontFamily:"inherit"}}>← {lang==='ar'?'رجوع':'Retour'}</button>
             <button onClick={()=>setStep(3)} disabled={!canProceedStep2()}
               style={{flex:1,padding:'10px',background:canProceedStep2()?'#085041':'#ccc',color:'#fff',border:'none',borderRadius:10,fontWeight:600,cursor:canProceedStep2()?'pointer':'default'}}>
               {lang==='ar'?'التالي: التأكيد ←':'Suivant : Confirmation →'}
@@ -580,7 +579,7 @@ export default function ValidationCollective({ user, navigate, goBack, lang='fr'
           </div>
 
           <div style={{display:'flex',gap:10}}>
-            <button onClick={()=>setStep(2)} className="back-link">← {lang==='ar'?'رجوع':'Retour'}</button>
+            <button onClick={()=>setStep(2)} style={{background:"rgba(255,255,255,0.2)",border:"none",borderRadius:10,padding:"8px 12px",color:"#fff",fontSize:16,cursor:"pointer",fontFamily:"inherit"}}>← {lang==='ar'?'رجوع':'Retour'}</button>
             <button onClick={handleValider} disabled={saving||(!toutLeNiveau&&elevesRetenus.length===0)}
               style={{flex:1,padding:'12px',
                 background:saving||(!toutLeNiveau&&elevesRetenus.length===0)?'#ccc':'#1D9E75',
