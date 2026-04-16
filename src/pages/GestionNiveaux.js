@@ -69,23 +69,39 @@ export default function GestionNiveaux({ user, navigate, goBack, lang='fr', isMo
         setProgramme(data.map(d => parseInt(d.reference_id)));
       } else {
         const ids = data.map(d => d.reference_id);
-        console.log('Programme chargé depuis DB:', ids.length, 'ids');
-        console.log('Premier id DB:', ids[0]);
-        console.log('Premier id souratesDB:', sDB[0]?.id);
-        // Vérifier que les IDs existent dans souratesDB
-        const idsValides = ids.filter(id => sDB.some(s => s.id === id));
-        console.log('IDs valides:', idsValides.length, '/ fallback?', idsValides.length === 0);
+        // Recharger souratesDB si nécessaire pour avoir les bons UUIDs
+        let sDBFresh = sDB;
+        if (sDBFresh.length === 0) {
+          const { data: sd } = await supabase.from('sourates').select('*');
+          if (sd) { setSouratesDB(sd); sDBFresh = sd; }
+        }
+        // Vérifier que les IDs sont des UUIDs valides dans souratesDB
+        const idsValides = ids.filter(id => sDBFresh.some(s => s.id === id));
         if (idsValides.length > 0) {
           setProgramme(idsValides);
         } else {
-          // Migration : les reference_id sont peut-être des numéros de sourate
+          // Les reference_id sont des numéros (ancienne migration) — convertir en UUIDs
           const idsConvertis = ids.map(id => {
             const num = parseInt(id);
-            if (!isNaN(num)) return sDB.find(s => s.numero === num)?.id || null;
-            return id;
+            if (!isNaN(num) && num > 0 && num <= 114) {
+              return sDBFresh.find(s => s.numero === num)?.id || null;
+            }
+            return null; // UUID invalide → ignorer
           }).filter(Boolean);
-          console.log('IDs convertis (fallback):', idsConvertis.length);
-          setProgramme(idsConvertis);
+          if (idsConvertis.length > 0) {
+            // Resauvegarder avec les vrais UUIDs pour corriger la DB
+            setProgramme(idsConvertis);
+            const rowsFixed = idsConvertis.map((id, idx) => ({
+              niveau_id: n.id, ecole_id: user.ecole_id,
+              type_contenu: n.type, reference_id: id,
+              ordre: idx + 1, obligatoire: true,
+            }));
+            await supabase.from('programmes').delete().eq('niveau_id', n.id).eq('ecole_id', user.ecole_id);
+            await supabase.from('programmes').insert(rowsFixed);
+            console.log('Programme migré vers UUIDs:', idsConvertis.length, 'sourates');
+          } else {
+            setProgramme([]);
+          }
         }
       }
     } else {
