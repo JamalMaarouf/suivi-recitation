@@ -67,16 +67,24 @@ export default function Dashboard({ user, navigate, goBack, lang, isMobile=false
   const loadData = async () => {
     setLoading(true);
     loadBareme(supabase, user.ecole_id).then(b => setBareme(b));
-    const [{ data: ed },{ data: id },{ data: vd }] = await Promise.all([
+    const [{ data: ed },{ data: id },{ data: vd }, { data: rd }] = await Promise.all([
       supabase.from('eleves').select('id,prenom,nom,code_niveau,niveau,hizb_depart,tomon_depart,sourates_acquises,instituteur_referent_id,ecole_id').eq('ecole_id', user.ecole_id).order('nom'),
       supabase.from('utilisateurs').select('id,prenom,nom,role').eq('role','instituteur').eq('ecole_id', user.ecole_id),
-      supabase.from('validations').select('id,eleve_id,type_validation,nombre_tomon,hizb_valide,tomon_debut,date_validation,valide_par,ecole_id,valideur:valide_par(prenom,nom)').eq('ecole_id', user.ecole_id).order('date_validation',{ascending:false})
+      supabase.from('validations').select('id,eleve_id,type_validation,nombre_tomon,hizb_valide,tomon_debut,date_validation,valide_par,ecole_id,valideur:valide_par(prenom,nom)').eq('ecole_id', user.ecole_id).order('date_validation',{ascending:false}),
+      supabase.from('recitations_sourates').select('eleve_id,date_validation').eq('ecole_id', user.ecole_id).order('date_validation',{ascending:false}),
     ]);
     const { data: nv } = await supabase.from('niveaux').select('id,code,nom,type,couleur').eq('ecole_id', user.ecole_id).order('ordre');
+    // Dernière récitation sourate par élève
+    const recSouratesMap = {};
+    (rd||[]).forEach(r => { if (!recSouratesMap[r.eleve_id]) recSouratesMap[r.eleve_id] = r.date_validation; });
     const elevesData = (ed||[]).map(eleve => {
       const vals = (vd||[]).filter(v=>v.eleve_id===eleve.id);
       const etat = calcEtatEleve(vals,eleve.hizb_depart,eleve.tomon_depart);
-      const derniere = vals[0]?.date_validation||null;
+      const derniereHizb = vals[0]?.date_validation||null;
+      const derniereSourate = recSouratesMap[eleve.id]||null;
+      const derniere = derniereHizb && derniereSourate
+        ? (new Date(derniereHizb) > new Date(derniereSourate) ? derniereHizb : derniereSourate)
+        : (derniereHizb || derniereSourate);
       const inst = (id||[]).find(i=>i.id===eleve.instituteur_referent_id);
       return {...eleve,etat,derniere,jours:joursDepuis(derniere),instituteurNom:inst?`${inst.prenom} ${inst.nom}`:'—',instituteur:inst,inactif:isInactif(derniere)};
     });
