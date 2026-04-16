@@ -20,6 +20,7 @@ class DebugErrorBoundary extends React.Component {
 
 // ── Pages critiques — chargées immédiatement ──────────────────────────────
 import Login               from './pages/Login';
+import ElevesMobile        from './pages/ElevesMobile';
 import Dashboard           from './pages/Dashboard';
 import FicheEleve          from './pages/FicheEleve';
 import EnregistrerRecitation from './pages/EnregistrerRecitation';
@@ -438,6 +439,7 @@ export default function App() {
           )}
           {page === 'muraja'            && <ValidationCollective {...pageProps} />}
           {page === 'inactifs'           && <ElevesInactifs navigate={navigate} goBack={goBack} lang={lang} user={user} isMobile={isMobile} />}
+          {page === 'eleves_mobile'      && <ElevesMobile navigate={navigate} goBack={goBack} lang={lang} user={user} niveaux={niveauxApp} />}
           {page === 'muraja_dashboard'  && <MurajaDashboard {...pageProps} />}
           {page === 'profil_mobile'    && <ProfilMobile user={user} lang={lang} onLogout={handleLogout} navigate={navigate} goBack={goBack} isMobile={isMobile}/>}
           {page === 'validation_rapide' && <ValidationRapide {...pageProps} />}

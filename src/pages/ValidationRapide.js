@@ -306,7 +306,7 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
 
   // ── PC ───────────────────────────────────────────────────────────
   return (
-    <div style={{ maxWidth: 720, margin: '0 auto' }}>
+    <div style={{ maxWidth: 720, margin: '0 auto', padding: isMobile?'0 0 80px':'0' }}>
       {/* Flash */}
       {flash && (
         <div style={{ position: 'fixed', top: 70, left: '50%', transform: 'translateX(-50%)', zIndex: 999,
@@ -319,7 +319,19 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
       )}
 
       {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.5rem' }}>
+      {isMobile ? (
+        <div style={{background:'linear-gradient(135deg,#085041,#1D9E75)',padding:'48px 16px 16px',marginBottom:'1rem'}}>
+          <div style={{display:'flex',alignItems:'center',gap:12,marginBottom:4}}>
+            <button onClick={()=>goBack?goBack():navigate('dashboard')}
+              style={{background:'rgba(255,255,255,0.2)',border:'none',borderRadius:10,padding:'8px 12px',color:'#fff',fontSize:16,cursor:'pointer'}}>←</button>
+            <div>
+              <div style={{fontSize:18,fontWeight:800,color:'#fff'}}>⚡ {lang==='ar'?'استظهار سريع':'Validation express'}</div>
+              <div style={{fontSize:11,color:'rgba(255,255,255,0.75)'}}>{lang==='ar'?'ابحث وسجّل بنقرتين':'Trouvez et validez en 2 clics'}</div>
+            </div>
+          </div>
+        </div>
+      ) : (
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.5rem', padding:'1rem 0 0' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <button className="back-link" onClick={() => goBack ? goBack() : navigate('dashboard')} style={{ marginBottom: 0 }}>{t(lang, 'retour')}</button>
           <div>
@@ -328,9 +340,10 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
           </div>
         </div>
       </div>
+      )}
 
       {/* Barre de recherche */}
-      <div style={{ position: 'relative', marginBottom: '1.5rem' }}>
+      <div style={{ position: 'relative', marginBottom: '1.5rem', padding: isMobile?'0 12px':0 }}>
         <input ref={searchRef} className="field-input"
           style={{ fontSize: 15, padding: '13px 16px 13px 44px' }}
           placeholder={`🔍 ${lang === 'ar' ? 'ابحث بالاسم أو رقم التعريف...' : 'Nom ou numéro élève...'}`}

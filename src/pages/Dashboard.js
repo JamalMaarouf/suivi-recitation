@@ -196,7 +196,7 @@ export default function Dashboard({ user, navigate, goBack, lang, isMobile=false
     const navModules = [
       {icon:'⚙️', label:lang==='ar'?'الإدارة':'Administration',  sub:lang==='ar'?'إدارة':'Gestion',        page:'gestion',            color:'#085041', bg:'#E1F5EE'},
       {icon:'💰', label:lang==='ar'?'المالية':'Finance',           sub:lang==='ar'?'الاشتراكات':'Cotisations',page:'finance',            color:'#E24B4A', bg:'#FCEBEB'},
-      {icon:'👥', label:lang==='ar'?'الطلاب':'Élèves',            sub:`${eleves.length} ${lang==='ar'?'طالب':'inscrits'}`,            page:'gestion',  color:'#378ADD', bg:'#E6F1FB'},
+      {icon:'👥', label:lang==='ar'?'الطلاب':'Élèves',            sub:`${eleves.length} ${lang==='ar'?'طالب':'inscrits'}`,            page:'eleves_mobile',  color:'#378ADD', bg:'#E6F1FB'},
       {icon:'🎯', label:lang==='ar'?'الأهداف':'Objectifs',         sub:lang==='ar'?'متابعة':'Suivi',          page:'objectifs',          color:'#534AB7', bg:'#EEEDFE'},
       {icon:'📊', label:lang==='ar'?'السجل':'السجل',               sub:lang==='ar'?'تحليل':'Historique',       page:'historique_seances', color:'#378ADD', bg:'#E6F1FB'},
       {icon:'📖', label:lang==='ar'?'مراجعة':"Murajaʼa",           sub:lang==='ar'?'جماعية':'Collective',      page:'muraja',             color:'#534AB7', bg:'#F0EEFF'},
