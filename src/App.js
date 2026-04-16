@@ -180,9 +180,8 @@ export default function App() {
     window.scrollTo(0, 0);
   };
 
-  // navigateRoot : pour la navbar — ne sauvegarde pas dans navHistory
+  // navigateRoot : pour la navbar — change de page sans sauvegarder dans navHistory
   const navigateRoot = (p) => {
-    setNavHistory([]);
     setPageWithRef(p);
     window.scrollTo(0, 0);
   };
