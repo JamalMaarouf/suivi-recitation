@@ -201,48 +201,43 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
     if (!selectedEleve || saving || !sourateSelectionnee) return;
     if (typeRec === 'sequence' && (!versetDebut || !versetFin)) return;
     setSaving(true);
-    // Récupérer l'id depuis souratesDB par numéro (plus fiable que l'id stocké dans state)
-    const sourateObj = souratesDB.find(s => s.numero === sourateSelectionnee.numero);
-    if (!sourateObj?.id) {
-      // Dernier recours : recharger souratesDB depuis Supabase
+
+    // Trouver l'id Supabase par numero
+    let sourateId = souratesDB.find(s => s.numero === sourateSelectionnee.numero)?.id;
+    if (!sourateId) {
       const { data: freshSour } = await supabase.from('sourates')
-        .select('id,numero,nom_ar,nb_versets').eq('numero', sourateSelectionnee.numero).single();
-      if (!freshSour?.id) {
-        setSaving(false);
-        return;
-      }
-      souratesDB.push(freshSour); // ajouter dans le cache local
+        .select('id,numero').eq('numero', sourateSelectionnee.numero).single();
+      sourateId = freshSour?.id;
     }
-    const sourateId = (souratesDB.find(s => s.numero === sourateSelectionnee.numero))?.id;
     if (!sourateId) { setSaving(false); return; }
-    // Utiliser le barème de l'école si défini, sinon 0
+
     const ptsComplet = bareme?.unites?.sourate || 0;
     const ptsSequence = bareme?.unites?.sequence_sourate || 0;
     const pts = typeRec === 'complete' ? ptsComplet : ptsSequence;
+
     const { error } = await supabase.from('recitations_sourates').insert({
       eleve_id: selectedEleve.id, ecole_id: user.ecole_id, valide_par: user.id,
-      sourate_id: sourateId,
-      type_recitation: typeRec,
+      sourate_id: sourateId, type_recitation: typeRec,
       verset_debut: typeRec === 'sequence' ? parseInt(versetDebut) : null,
       verset_fin: typeRec === 'sequence' ? parseInt(versetFin) : null,
-      date_validation: new Date().toISOString(),
-      points: pts,
+      date_validation: new Date().toISOString(), points: pts,
     });
-    if (!error) {
+
+    if (error) {
+      setFlash({ msg: `❌ ${error.message}`, color: '#E24B4A', pts: 0 });
+      setTimeout(() => setFlash(null), 4000);
+    } else {
       const detail = typeRec === 'complete'
         ? sourateSelectionnee.nom_ar
         : `${sourateSelectionnee.nom_ar} (V.${versetDebut}→${versetFin})`;
       setFlash({ msg: `✓ ${detail}`, color: typeRec === 'complete' ? '#EF9F27' : '#1D9E75', pts });
       setTimeout(() => setFlash(null), 2500);
       setSessionLog(prev => [{
-        eleve: `${selectedEleve.prenom} ${selectedEleve.nom}`,
-        detail, pts,
+        eleve: `${selectedEleve.prenom} ${selectedEleve.nom}`, detail, pts,
         time: new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })
       }, ...prev.slice(0, 9)]);
-      setSourateSelectionnee(null);
-      setTypeRec('complete');
+      setSourateSelectionnee(null); setTypeRec('complete');
       setVersetDebut(''); setVersetFin('');
-      // Recharger les récitations pour avancer à la sourate suivante
       const { data: newRecs } = await supabase.from('recitations_sourates')
         .select('*').eq('eleve_id', selectedEleve.id).eq('ecole_id', user.ecole_id);
       setRecitationsSourates(newRecs || []);
