@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useToast } from '../lib/toast';
 import { t } from '../lib/i18n';
 import { supabase } from '../lib/supabase';
-import { calcEtatEleve, calcPositionAtteinte, calcUnite, formatDate, getInitiales, motivationMsg, verifierBlocageExamen } from '../lib/helpers';
+import { calcEtatEleve, calcPositionAtteinte, calcUnite, formatDate, getInitiales, motivationMsg, verifierBlocageExamen, loadBareme } from '../lib/helpers';
 
 function Avatar({ prenom, nom, size = 36, bg = '#E1F5EE', color = '#085041' }) {
   return (
@@ -15,6 +15,7 @@ function Avatar({ prenom, nom, size = 36, bg = '#E1F5EE', color = '#085041' }) {
 export default function EnregistrerRecitation({  user, eleve: eleveInitial, navigate, goBack, lang="fr", isMobile=false }) {
   const { toast } = useToast();
   const [step, setStep] = useState(eleveInitial ? 2 : 1);
+  const [bareme, setBareme] = useState(null);
   const [blocage, setBlocage] = useState(null); // examen requis avant de continuer
   const [eleves, setEleves] = useState([]);
   const [search, setSearch] = useState('');
@@ -30,6 +31,7 @@ export default function EnregistrerRecitation({  user, eleve: eleveInitial, navi
   useEffect(() => {
     loadEleves();
     if (eleveInitial) loadValidations(eleveInitial);
+    loadBareme(supabase, user.ecole_id).then(b => setBareme(b));
   }, []);
 
   const loadEleves = async () => {
@@ -222,7 +224,7 @@ export default function EnregistrerRecitation({  user, eleve: eleveInitial, navi
                       tomon_debut:etat.prochainTomon,
                       hizb_validation:etat.hizbEnCours
                     });
-                    if (!error) { setDone(true); setMotivMsg({msg:'🎉 Hizb complet ! +100 pts'}); toast.success(lang==='ar'?'🎉 تم تسجيل الحزب الكامل':'🎉 Hizb complet enregistré ! +100 pts'); }
+                    if (!error) { setDone(true); setMotivMsg({msg:`🎉 Hizb complet ! +${bareme?.unites?.hizb_complet||0} pts`}); toast.success(lang==='ar'?'🎉 تم تسجيل الحزب الكامل':`🎉 Hizb complet enregistré ! +${bareme?.unites?.hizb_complet||0} pts`); }
                   }}
                     style={{width:'100%',padding:'18px',background:'#EF9F27',color:'#fff',
                       border:'none',borderRadius:14,fontSize:17,fontWeight:800,cursor:'pointer',fontFamily:'inherit'}}>
@@ -330,7 +332,7 @@ export default function EnregistrerRecitation({  user, eleve: eleveInitial, navi
           <button className="btn-secondary" onClick={() => navigate('fiche', selectedEleve)}>Voir la fiche</button>
         </div>
         <div style={{ marginTop: 12 }}>
-          <button className="back-link" style={{ margin: '0 auto' }} onClick={() => navigate('dashboard')}>Retour au tableau de bord</button>
+          <button className="back-link" style={{ margin: '0 auto' }} onClick={() => goBack?goBack():navigate('dashboard')}>{t(lang,'retour')}</button>
         </div>
       </div>
     );
@@ -473,7 +475,7 @@ export default function EnregistrerRecitation({  user, eleve: eleveInitial, navi
                     <span style={{ color: '#888' }}>Position atteinte →</span>
                     <strong>Hizb {posNouvelle.hizb}, T.{posNouvelle.tomon}</strong>
                     <span className="badge badge-green">{calcUnite(posNouvelle.tomon)}</span>
-                    <span style={{ marginLeft: 'auto', fontWeight: 600, color: '#1D9E75' }}>+{nombreTomon * 10} pts</span>
+                    <span style={{ marginLeft: 'auto', fontWeight: 600, color: '#1D9E75' }}>+{nombreTomon * (bareme?.unites?.tomon||0)} pts</span>
                   </div>
                 )}
 
@@ -510,7 +512,7 @@ export default function EnregistrerRecitation({  user, eleve: eleveInitial, navi
                   </div>
                 )}
                 {posNouvelle && <div className="recap-row"><span className="recap-lbl">Position atteinte</span><span className="recap-val">Hizb {posNouvelle.hizb}, T.{posNouvelle.tomon}</span></div>}
-                <div className="recap-row"><span className="recap-lbl">{t(lang,'points_gagnes')}</span><span className="recap-val green">+{nombreTomon * 10} pts</span></div>
+                <div className="recap-row"><span className="recap-lbl">{t(lang,'points_gagnes')}</span><span className="recap-val green">+{nombreTomon * (bareme?.unites?.tomon||0)} pts</span></div>
               </>
             ) : (
               <>
