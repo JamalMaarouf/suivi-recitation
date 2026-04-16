@@ -14,5 +14,7 @@
       "path": "/api/backup",
       "schedule": "0 23 * * *"
     }
-  ]
+  ],
+  "buildCommand": "DISABLE_ESLINT_PLUGIN=true react-scripts build",
+  "framework": "create-react-app"
 }

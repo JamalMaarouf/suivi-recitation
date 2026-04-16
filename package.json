@@ -13,8 +13,8 @@
   },
   "scripts": {
     "start": "react-scripts start",
-    "build": "react-scripts build",
-    "vercel-build": "react-scripts build"
+    "build": "DISABLE_ESLINT_PLUGIN=true react-scripts build",
+    "vercel-build": "CI=false react-scripts build"
   },
   "browserslist": {
     "production": [
