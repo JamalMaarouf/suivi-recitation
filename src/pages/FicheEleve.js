@@ -220,7 +220,7 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang, isMobi
         // Charger les vrais certificats depuis certificats_eleves
         try {
           const certRes = await supabase.from('certificats_eleves')
-            .select('*').eq('eleve_id',eleve.id).order('date_obtention',{ascending:false});
+            .select('*').eq('eleve_id',eleve.id).order('created_at',{ascending:false});
           setCertificats(certRes.data || []);
         } catch(e) { setCertificats([]); }
         // Charger barème et points événements
@@ -409,7 +409,7 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang, isMobi
       date_obtention: new Date().toISOString(),
       valide_par: user?.id || null,
     });
-    const certRes = await supabase.from('certificats_eleves').select('*').eq('eleve_id',eleve.id).order('date_obtention',{ascending:false});
+    const certRes = await supabase.from('certificats_eleves').select('*').eq('eleve_id',eleve.id).order('created_at',{ascending:false});
     setCertificats(certRes.data || []);
     setShowAddCert(false);
     setNewCertJalonId('');
