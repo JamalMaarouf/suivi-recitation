@@ -698,7 +698,7 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile,
   const [showAcquisSelector, setShowAcquisSelector] = useState(false);
   const [editShowAcquisSelector, setEditShowAcquisSelector] = useState(false);
 
-  const [newEleve, setNewEleve] = useState({ prenom: '', nom: '', niveau: 'Débutant', code_niveau: '1', eleve_id_ecole: '', instituteur_referent_id: '', hizb_depart: 0, tomon_depart: 1, sourates_acquises: 0, telephone: '' });
+  const [newEleve, setNewEleve] = useState({ prenom: '', nom: '', niveau: 'Débutant', code_niveau: '1', eleve_id_ecole: '', instituteur_referent_id: '', hizb_depart: 0, tomon_depart: 1, sourates_acquises: 0, telephone: '', date_inscription: '' });
   const [newInst, setNewInst] = useState({ prenom: '', nom: '', identifiant: '', mot_de_passe: '' });
   const [ecoleConfig, setEcoleConfig] = useState({ mdp_defaut_instituteurs: 'ecole2024', mdp_defaut_parents: 'parent2024' });
   // Hooks niveaux dynamiques
@@ -787,7 +787,8 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile,
       hizb_depart: parseInt(newEleve.hizb_depart) || 0,
       tomon_depart: parseInt(newEleve.tomon_depart) || 1,
       sourates_acquises: parseInt(newEleve.sourates_acquises) || 0,
-      telephone: newEleve.telephone?.trim() || null
+      telephone: newEleve.telephone?.trim() || null,
+      date_inscription: newEleve.date_inscription || null
     });
     if (error) return showMsg('error', t(lang, 'erreur_ajout'));
     // Récupérer l'élève créé par son numéro (RLS bloque .select() après insert)
@@ -1584,43 +1585,51 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile,
             <>
               <div className="section-label">{t(lang, 'ajouter_eleve')}</div>
               <div className="card">
-                <div className="form-grid">
+                <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'10px 20px'}}>
+                  {/* Ligne 1 : Prénom + Nom */}
                   <div className="field-group">
-                    <label className="field-lbl">{t(lang, 'prenom')} <span style={{color:'#E24B4A'}}>*</span></label>
-                    <input className="field-input" value={newEleve.prenom} onChange={e => setNewEleve({ ...newEleve, prenom: e.target.value })} placeholder={t(lang, 'prenom')} />
+                    <label className="field-lbl">{t(lang,'prenom')} <span style={{color:'#E24B4A'}}>*</span></label>
+                    <input className="field-input" value={newEleve.prenom} onChange={e=>setNewEleve({...newEleve,prenom:e.target.value})} placeholder={t(lang,'prenom')}/>
                   </div>
                   <div className="field-group">
-                    <label className="field-lbl">{t(lang, 'nom_label')} <span style={{color:'#E24B4A'}}>*</span></label>
-                    <input className="field-input" value={newEleve.nom} onChange={e => setNewEleve({ ...newEleve, nom: e.target.value })} placeholder={t(lang, 'nom_label')} />
+                    <label className="field-lbl">{t(lang,'nom_label')} <span style={{color:'#E24B4A'}}>*</span></label>
+                    <input className="field-input" value={newEleve.nom} onChange={e=>setNewEleve({...newEleve,nom:e.target.value})} placeholder={t(lang,'nom_label')}/>
                   </div>
+                  {/* Ligne 2 : Niveau + Niveau scolaire */}
                   <div className="field-group">
-                    <label className="field-lbl">{t(lang, 'niveau')} <span style={{color:'#E24B4A'}}>*</span></label>
-                    <select className="field-select" value={newEleve.niveau} onChange={e => setNewEleve({ ...newEleve, niveau: e.target.value })}>
+                    <label className="field-lbl">{t(lang,'niveau')} <span style={{color:'#E24B4A'}}>*</span></label>
+                    <select className="field-select" value={newEleve.niveau} onChange={e=>setNewEleve({...newEleve,niveau:e.target.value})}>
                       <option value="Débutant">{lang==='ar'?'مبتدئ':'Débutant'}</option>
                       <option value="Intermédiaire">{lang==='ar'?'متوسط':'Intermédiaire'}</option>
                       <option value="Avancé">{lang==='ar'?'متقدم':'Avancé'}</option>
                     </select>
                   </div>
                   <div className="field-group">
-                    <label className="field-lbl">{lang==='ar'?'المستوى الدراسي':lang==='en'?'Class level':(lang==='ar'?'الصف الدراسي':'Niveau scolaire')} <span style={{color:'#E24B4A'}}>*</span></label>
-                    <select className="field-select" value={newEleve.code_niveau} onChange={e => setNewEleve({ ...newEleve, code_niveau: e.target.value })}>
+                    <label className="field-lbl">{lang==='ar'?'المستوى الدراسي':'Niveau scolaire'} <span style={{color:'#E24B4A'}}>*</span></label>
+                    <select className="field-select" value={newEleve.code_niveau} onChange={e=>setNewEleve({...newEleve,code_niveau:e.target.value})}>
                       {niveauxActifs.map(n=><option key={n.code} value={n.code}>{n.code} — {n.nom}</option>)}
                     </select>
                   </div>
+                  {/* Ligne 3 : ID + Référent */}
                   <div className="field-group">
-                    <label className="field-lbl">{lang==='ar'?'رقم تعريف الطالب':lang==='en'?'Student ID':(lang==='ar'?'رقم التعريف':'ID Élève')} <span style={{color:'#E24B4A'}}>*</span></label>
-                    <input className="field-input" value={newEleve.eleve_id_ecole} onChange={e => setNewEleve({ ...newEleve, eleve_id_ecole: e.target.value })} placeholder={lang==='ar'?'رقم التعريف':lang==='en'?'Student ID':'ID défini par la direction'}/>
+                    <label className="field-lbl">{lang==='ar'?'رقم تعريف الطالب':'ID Élève'} <span style={{color:'#E24B4A'}}>*</span></label>
+                    <input className="field-input" value={newEleve.eleve_id_ecole} onChange={e=>setNewEleve({...newEleve,eleve_id_ecole:e.target.value})} placeholder={lang==='ar'?'رقم التعريف':'ID défini par la direction'}/>
                   </div>
                   <div className="field-group">
-                    <label className="field-lbl">{t(lang, 'referent')} <span style={{color:'#E24B4A'}}>*</span></label>
-                    <select className="field-select" value={newEleve.instituteur_referent_id} onChange={e => setNewEleve({ ...newEleve, instituteur_referent_id: e.target.value })}>
-                      <option value="">{t(lang, 'choisir')}</option>
-                      {instituteurs.map(i => <option key={i.id} value={i.id}>{i.prenom} {i.nom}</option>)}
+                    <label className="field-lbl">{t(lang,'referent')} <span style={{color:'#E24B4A'}}>*</span></label>
+                    <select className="field-select" value={newEleve.instituteur_referent_id} onChange={e=>setNewEleve({...newEleve,instituteur_referent_id:e.target.value})}>
+                      <option value="">{t(lang,'choisir')}</option>
+                      {instituteurs.map(i=><option key={i.id} value={i.id}>{i.prenom} {i.nom}</option>)}
                     </select>
                   </div>
+                  {/* Ligne 4 : Téléphone parent + Date inscription */}
                   <div className="field-group">
-                    <label className="field-lbl">{lang==='ar'?'رقم الهاتف (اختياري)':lang==='en'?'Phone (optional)':'Téléphone (optionnel)'}</label>
-                    <input className="field-input" type="tel" value={newEleve.telephone||''} onChange={e => setNewEleve({ ...newEleve, telephone: e.target.value })} placeholder={lang==='ar'?'06XXXXXXXX':'06XXXXXXXX'}/>
+                    <label className="field-lbl">{lang==='ar'?'هاتف ولي الأمر (اختياري)':lang==='en'?'Parent phone (optional)':'Tél. parent (optionnel)'}</label>
+                    <input className="field-input" type="tel" value={newEleve.telephone||''} onChange={e=>setNewEleve({...newEleve,telephone:e.target.value})} placeholder="06XXXXXXXX"/>
+                  </div>
+                  <div className="field-group">
+                    <label className="field-lbl">{lang==='ar'?'تاريخ التسجيل (اختياري)':lang==='en'?'Enrollment date (optional)':'Date d'inscription (optionnel)'}</label>
+                    <input className="field-input" type="date" value={newEleve.date_inscription||''} onChange={e=>setNewEleve({...newEleve,date_inscription:e.target.value})}/>
                   </div>
                 </div>
 
@@ -1711,7 +1720,7 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile,
                     </select>
                   </div>
                   <div className="field-group">
-                    <label className="field-lbl">{lang==='ar'?'رقم الهاتف (اختياري)':lang==='en'?'Phone (optional)':'Téléphone (optionnel)'}</label>
+                    <label className="field-lbl">{lang==='ar'?'هاتف ولي الأمر (اختياري)':lang==='en'?'Parent phone (optional)':'Tél. parent (optionnel)'}</label>
                     <input className="field-input" type="tel" value={editEleve.telephone||''} onChange={e => setEditEleve({ ...editEleve, telephone: e.target.value })} placeholder="06XXXXXXXX"/>
                   </div>
                 </div>
