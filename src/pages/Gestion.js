@@ -1628,7 +1628,7 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile,
                     <input className="field-input" type="tel" value={newEleve.telephone||''} onChange={e=>setNewEleve({...newEleve,telephone:e.target.value})} placeholder="06XXXXXXXX"/>
                   </div>
                   <div className="field-group">
-                    <label className="field-lbl">{lang==='ar'?'تاريخ التسجيل (اختياري)':lang==='en'?'Enrollment date (optional)':'Date d'inscription (optionnel)'}</label>
+                    <label className="field-lbl">{lang==='ar'?'تاريخ التسجيل (اختياري)':lang==='en'?'Enrollment date (optional)':"Date d'inscription (optionnel)"}</label>
                     <input className="field-input" type="date" value={newEleve.date_inscription||''} onChange={e=>setNewEleve({...newEleve,date_inscription:e.target.value})}/>
                   </div>
                 </div>
