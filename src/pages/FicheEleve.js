@@ -547,6 +547,11 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang, isMobi
   //   return <FicheSourate eleve={eleve} user={user} navigate={navigate} lang={lang} />;
   // }
 
+  // Helper couleur niveau
+  const getNiveauColor = (code, niveauxList=[]) =>
+    (niveauxList||[]).find(n=>n.code===code)?.couleur ||
+    {'5B':'#534AB7','5A':'#378ADD','2M':'#1D9E75','2':'#EF9F27','1':'#E24B4A'}[code] || '#888';
+
   if (isMobile) {
     const sl2 = estSourateEleve ? scoreLabel(totalPtsSourates) : (etat ? scoreLabel(etat.points.total) : {color:'#888',bg:'#f0f0ec',label:'—'});
     const _niveauxFe = typeof niveaux !== 'undefined' ? niveaux : [];
