@@ -664,7 +664,7 @@ function PassageNiveauTab({ user, lang, niveaux, showMsg }) {
       {/* Liste des règles */}
       <div className="section-label">{lang==='ar'?'القواعد المُعرَّفة':'Règles configurées'} ({regles.length})</div>
       {loading ? <div className="loading">...</div> : regles.length===0 ? (
-        <div className="empty">{lang==='ar'?'لا توجد قواعد — الانتقال الافتراضي: الطالب يستمر من موقعه':'Aucune règle — comportement par défaut : l'élève continue depuis sa position'}</div>
+        <div className="empty">{lang==='ar'?'لا توجد قواعد — الانتقال الافتراضي: الطالب يستمر من موقعه':"Aucune règle — comportement par défaut : l'élève continue depuis sa position"}</div>
       ) : (
         <div style={{display:'flex',flexDirection:'column',gap:8}}>
           {regles.map(r => {
@@ -798,7 +798,7 @@ function JalonsTab({ user, lang, jalons, setJalons, ensembles, examens, newJalon
           </div>
           {/* Condition d'obtention */}
           <div className="field-group" style={{gridColumn:'1/-1'}}>
-            <label className="field-lbl">{lang==='ar'?'شرط الحصول على الشهادة':'Condition d'obtention'} <span style={{color:'#E24B4A'}}>*</span></label>
+            <label className="field-lbl">{lang==='ar'?'شرط الحصول على الشهادة':"Condition d'obtention"} <span style={{color:'#E24B4A'}}>*</span></label>
             <div style={{display:'flex',gap:8,marginTop:4}}>
               {[
                 {val:'cumul', icon:'📚', label:lang==='ar'?'تراكمي (واحداً بواحداً)':'Cumulatif (un par un)', desc:lang==='ar'?'الطالب يستظهر تدريجياً على مدى جلسات متعددة':'L'élève récite progressivement sur plusieurs séances'},
