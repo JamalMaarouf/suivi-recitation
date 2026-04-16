@@ -3,6 +3,9 @@ import { supabase } from '../lib/supabase';
 import { t } from '../lib/i18n';
 import { getSouratesForNiveau } from '../lib/sourates';
 
+const NIVEAU_COLORS = { '5B':'#534AB7','5A':'#378ADD','2M':'#1D9E75','2':'#EF9F27','1':'#E24B4A' };
+const getNiveauColor = (code, niveaux=[]) => niveaux.find(n=>n.code===code)?.couleur || NIVEAU_COLORS[code] || '#888';
+
 const NIVEAUX = [
   { code: '5B', label: 'Préscolaire (5B)',  labelAr: 'تمهيدي (5B)',        type: 'sourate' },
   { code: '5A', label: 'Primaire 1-2 (5A)', labelAr: 'ابتدائي 1-2 (5A)',   type: 'sourate' },
@@ -10,7 +13,6 @@ const NIVEAUX = [
   { code: '2',  label: 'Primaire 5-6 (2)',  labelAr: 'ابتدائي 5-6 (2)',    type: 'hizb' },
   { code: '1',  label: 'Collège/Lycée (1)', labelAr: 'إعدادي/ثانوي (1)',   type: 'hizb' },
 ];
-const NIVEAU_COLORS = { '5B':'#534AB7','5A':'#378ADD','2M':'#1D9E75','2':'#EF9F27','1':'#E24B4A' };
 
 export default function ValidationCollective({ user, navigate, goBack, lang='fr', isMobile }) {
   const [step, setStep]             = useState(1);
