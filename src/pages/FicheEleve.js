@@ -318,36 +318,7 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang, isMobi
     setTimeout(()=>{w.print();w.close();},600);
   };
 
-  const totalPtsSourates = recitationsSouratesEleve.reduce((s,r)=>s+(r.points||0),0);
-  const sl = estSourateEleve
-    ? scoreLabel(totalPtsSourates)
-    : (etat ? scoreLabel(etat.points.total) : {color:'#888',bg:'#f0f0ec',label:'—'});
-  const badges = etat ? calcBadges(validations,etat) : [];
 
-  // Pour élèves sourate: utiliser recitationsSouratesEleve pour les stats
-  const validationsOuRecitations = estSourateEleve ? [] : validations;
-  const vitesse = estSourateEleve
-    ? { moyenne: recitationsSouratesEleve.length > 0 ? (recitationsSouratesEleve.filter(r=>r.type_recitation==='complete').length / Math.max(1, Math.ceil((new Date() - new Date(recitationsSouratesEleve[recitationsSouratesEleve.length-1]?.date_validation||new Date())) / (1000*60*60*24*7)))).toFixed(1) : '0', tendance: 'stable' }
-    : calcVitesse(validations);
-  const streak = estSourateEleve ? 0 : calcStreak(validations);
-  // Heatmap sourates: date_validation → nombre de récitations ce jour
-  const heatmapSourates = {};
-  recitationsSouratesEleve.forEach(r => {
-    if (r.date_validation) {
-      const d = new Date(r.date_validation).toLocaleDateString('fr-FR');
-      heatmapSourates[d] = (heatmapSourates[d]||0) + 1;
-    }
-  });
-  const heatmap = estSourateEleve ? heatmapSourates : calcHeatmap(validations);
-  // Evolution sourates: points cumulés par validation
-  const evolutionSourates = (() => {
-    let cumul = 0;
-    return [...recitationsSouratesEleve].reverse().map(r => { cumul += (r.points||0); return { score: cumul, date: r.date_validation }; });
-  })();
-  const evolution = estSourateEleve ? evolutionSourates : calcEvolution(validations);
-  const maxScore = Math.max(...evolution.map(p=>p.score),1);
-  const last90 = Array.from({length:90},(_,i)=>{const d=new Date();d.setDate(d.getDate()-(89-i));return d.toLocaleDateString('fr-FR');});
-  const heatColor = (c) => !c?'#e8e8e0':c>=6?'#085041':c>=4?'#1D9E75':c>=2?'#5DCAA5':'#9FE1CB';
 
   const objActuel = objectifs.find(o=>o.mois===selectedMoisObj+1&&o.annee===selectedAnneeObj);
   const debutMoisSel = new Date(selectedAnneeObj,selectedMoisObj,1);
@@ -442,6 +413,34 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang, isMobi
 
   const _niveauxCtx = typeof niveaux !== 'undefined' ? niveaux : [];
   const estSourateEleve = isSourateNiveauDyn(eleve.code_niveau, _niveauxCtx);
+
+  const totalPtsSourates = recitationsSouratesEleve.reduce((s,r)=>s+(r.points||0),0);
+  const sl = estSourateEleve
+    ? scoreLabel(totalPtsSourates)
+    : (etat ? scoreLabel(etat.points.total) : {color:'#888',bg:'#f0f0ec',label:'—'});
+  const badges = etat ? calcBadges(validations,etat) : [];
+
+  const validationsOuRecitations = estSourateEleve ? [] : validations;
+  const vitesse = estSourateEleve
+    ? { moyenne: recitationsSouratesEleve.length > 0 ? (recitationsSouratesEleve.filter(r=>r.type_recitation==='complete').length / Math.max(1, Math.ceil((new Date() - new Date(recitationsSouratesEleve[recitationsSouratesEleve.length-1]?.date_validation||new Date())) / (1000*60*60*24*7)))).toFixed(1) : '0', tendance: 'stable' }
+    : calcVitesse(validations);
+  const streak = estSourateEleve ? 0 : calcStreak(validations);
+  const heatmapSourates = {};
+  recitationsSouratesEleve.forEach(r => {
+    if (r.date_validation) {
+      const d = new Date(r.date_validation).toLocaleDateString('fr-FR');
+      heatmapSourates[d] = (heatmapSourates[d]||0) + 1;
+    }
+  });
+  const heatmap = estSourateEleve ? heatmapSourates : calcHeatmap(validations);
+  const evolutionSourates = (() => {
+    let cumul = 0;
+    return [...recitationsSouratesEleve].reverse().map(r => { cumul += (r.points||0); return { score: cumul, date: r.date_validation }; });
+  })();
+  const evolution = estSourateEleve ? evolutionSourates : calcEvolution(validations);
+  const maxScore = Math.max(...evolution.map(p=>p.score),1);
+  const last90 = Array.from({length:90},(_,i)=>{const d=new Date();d.setDate(d.getDate()-(89-i));return d.toLocaleDateString('fr-FR');});
+  const heatColor = (c) => !c?'#e8e8e0':c>=6?'#085041':c>=4?'#1D9E75':c>=2?'#5DCAA5':'#9FE1CB';
   // Tous les élèves utilisent FicheEleve (FicheSourate gardé pour compatibilité)
   // if (_niveauxCtx.some(n=>n.code===eleve.code_niveau&&n.type==='sourate') || ['5B','5A','2M'].includes(eleve.code_niveau)) {
   //   return <FicheSourate eleve={eleve} user={user} navigate={navigate} lang={lang} />;
