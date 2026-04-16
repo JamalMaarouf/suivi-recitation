@@ -80,7 +80,19 @@ export default function ListeNotes({ user, navigate, goBack, lang='fr', isMobile
   ];
 
   return (
-    <div style={{ padding: isMobile?'1rem':'1.5rem', paddingBottom:80 }}>
+    <div style={{ padding: isMobile?'0':'1.5rem', paddingBottom:80, background: isMobile?'#f5f5f0':'transparent', minHeight: isMobile?'100vh':'auto' }}>
+      {isMobile ? (
+        <div style={{background:'linear-gradient(135deg,#378ADD,#0C447C)',padding:'48px 16px 16px',marginBottom:12,position:'sticky',top:0,zIndex:100}}>
+          <div style={{display:'flex',alignItems:'center',gap:12,marginBottom:4}}>
+            <button onClick={()=>goBack?goBack():navigate('dashboard')}
+              style={{background:'rgba(255,255,255,0.2)',border:'none',borderRadius:10,padding:'8px 12px',color:'#fff',fontSize:16,cursor:'pointer'}}>←</button>
+            <div style={{flex:1}}>
+              <div style={{fontSize:17,fontWeight:800,color:'#fff'}}>⭐ {lang==='ar'?'قائمة النقاط':'Notes & Points'}</div>
+              <div style={{fontSize:11,color:'rgba(255,255,255,0.75)'}}>{filtered.length} {lang==='ar'?'طالب':'élève(s)'}</div>
+            </div>
+          </div>
+        </div>
+      ) : (
       <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:'1.25rem' }}>
         <button onClick={()=>goBack?goBack():navigate('dashboard')} className="back-link">{t(lang,'retour')}</button>
         <div>
@@ -88,6 +100,7 @@ export default function ListeNotes({ user, navigate, goBack, lang='fr', isMobile
           <div style={{ fontSize:12, color:'#888' }}>{filtered.length} {lang==='ar'?'طالب':'élève(s)'}</div>
         </div>
       </div>
+      )}
 
       {/* Sélecteur période */}
       <div style={{ display:'flex', gap:6, flexWrap:'wrap', marginBottom:'1rem' }}>
@@ -113,7 +126,7 @@ export default function ListeNotes({ user, navigate, goBack, lang='fr', isMobile
       )}
 
       {/* Filtres */}
-      <div className="card" style={{ marginBottom:'1.25rem' }}>
+      <div className="card" style={{ marginBottom:'1.25rem', margin: isMobile?'0 12px 12px':'', borderRadius: isMobile?12:undefined }}>
         <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(180px,1fr))', gap:8 }}>
           <input className="field-input" placeholder={'🔍 '+(lang==='ar'?'رقم أو اسم الطالب':'N° ou nom élève')}
             value={searchNum} onChange={e=>setSearchNum(e.target.value)} />

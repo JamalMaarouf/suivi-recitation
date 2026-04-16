@@ -213,33 +213,47 @@ export default function RapportMensuel({ user, navigate, goBack, lang='fr', isMo
 
   // ── PREVIEW UI ─────────────────────────────────────────────────
   return (
-    <div style={{paddingBottom:isMobile?80:0}}>
-      {/* Header */}
-      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',
-        marginBottom:'1.25rem',flexWrap:'wrap',gap:8}}>
-        <div style={{display:'flex',alignItems:'center',gap:10}}>
-          <button onClick={()=>goBack?goBack():navigate('dashboard')}
-            className="back-link">← {lang==='ar'?'رجوع':'Retour'}</button>
-          <div style={{fontSize:isMobile?16:20,fontWeight:700}}>
-            📊 {lang==='ar'?'التقرير الشهري':'Rapport mensuel'}
+    <div style={{paddingBottom:isMobile?80:0, background:isMobile?'#f5f5f0':'transparent', minHeight:isMobile?'100vh':'auto'}}>
+      {/* Header mobile */}
+      {isMobile ? (
+        <div style={{background:'linear-gradient(135deg,#085041,#1D9E75)',padding:'48px 16px 14px',position:'sticky',top:0,zIndex:100,marginBottom:12}}>
+          <div style={{display:'flex',alignItems:'center',gap:12,marginBottom:10}}>
+            <button onClick={()=>goBack?goBack():navigate('dashboard')}
+              style={{background:'rgba(255,255,255,0.2)',border:'none',borderRadius:10,padding:'8px 12px',color:'#fff',fontSize:16,cursor:'pointer'}}>←</button>
+            <div style={{flex:1}}>
+              <div style={{fontSize:17,fontWeight:800,color:'#fff'}}>📊 {lang==='ar'?'التقرير الشهري':'Rapport mensuel'}</div>
+            </div>
+            <button onClick={genererRapportPDF} disabled={generating||loading}
+              style={{background:'rgba(255,255,255,0.2)',border:'1px solid rgba(255,255,255,0.3)',borderRadius:10,padding:'7px 12px',color:'#fff',fontSize:11,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
+              {generating?'⏳':'📄 PDF'}
+            </button>
           </div>
+          {/* Navigation mois */}
+          <div style={{display:'flex',alignItems:'center',justifyContent:'center',gap:12}}>
+            <button onClick={prevMois} style={{background:'rgba(255,255,255,0.2)',border:'none',borderRadius:8,padding:'6px 14px',color:'#fff',cursor:'pointer',fontSize:18}}>‹</button>
+            <div style={{fontSize:15,fontWeight:700,color:'#fff',minWidth:140,textAlign:'center'}}>
+              {getMoisNom(mois,lang)} {annee}
+            </div>
+            <button onClick={nextMois} style={{background:'rgba(255,255,255,0.2)',border:'none',borderRadius:8,padding:'6px 14px',color:'#fff',cursor:'pointer',fontSize:18}}>›</button>
+          </div>
+        </div>
+      ) : (
+      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'1.25rem',flexWrap:'wrap',gap:8}}>
+        <div style={{display:'flex',alignItems:'center',gap:10}}>
+          <button onClick={()=>goBack?goBack():navigate('dashboard')} className="back-link">← {lang==='ar'?'رجوع':'Retour'}</button>
+          <div style={{fontSize:20,fontWeight:700}}>📊 {lang==='ar'?'التقرير الشهري':'Rapport mensuel'}</div>
         </div>
         <div style={{display:'flex',alignItems:'center',gap:8}}>
-          <button onClick={prevMois}
-            style={{padding:'6px 12px',border:'0.5px solid #e0e0d8',borderRadius:8,background:'#fff',cursor:'pointer',fontSize:16}}>‹</button>
-          <div style={{fontSize:15,fontWeight:700,minWidth:140,textAlign:'center'}}>
-            {getMoisNom(mois,lang)} {annee}
-          </div>
-          <button onClick={nextMois}
-            style={{padding:'6px 12px',border:'0.5px solid #e0e0d8',borderRadius:8,background:'#fff',cursor:'pointer',fontSize:16}}>›</button>
+          <button onClick={prevMois} style={{padding:'6px 12px',border:'0.5px solid #e0e0d8',borderRadius:8,background:'#fff',cursor:'pointer',fontSize:16}}>‹</button>
+          <div style={{fontSize:15,fontWeight:700,minWidth:140,textAlign:'center'}}>{getMoisNom(mois,lang)} {annee}</div>
+          <button onClick={nextMois} style={{padding:'6px 12px',border:'0.5px solid #e0e0d8',borderRadius:8,background:'#fff',cursor:'pointer',fontSize:16}}>›</button>
         </div>
         <button onClick={genererRapportPDF} disabled={generating||loading}
-          style={{padding:'9px 20px',background:generating?'#ccc':'#1D9E75',color:'#fff',
-            border:'none',borderRadius:10,fontSize:13,fontWeight:700,cursor:'pointer',
-            display:'flex',alignItems:'center',gap:8}}>
+          style={{padding:'9px 20px',background:generating?'#ccc':'#1D9E75',color:'#fff',border:'none',borderRadius:10,fontSize:13,fontWeight:700,cursor:'pointer',display:'flex',alignItems:'center',gap:8}}>
           {generating?'⏳ Génération...':'📄 Exporter PDF'}
         </button>
       </div>
+      )}
 
       {loading ? <div style={{textAlign:'center',padding:'3rem',color:'#888'}}>...</div> : (
         <>

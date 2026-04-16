@@ -47,9 +47,25 @@ export default function Comparaison({ navigate, goBack, lang='fr', isMobile, use
   const filtered = allEleves.filter(e=>`${e.prenom} ${e.nom} ${e.eleve_id_ecole||''}`.toLowerCase().includes(search.toLowerCase()));
 
   return (
-    <div>
-      <button className="back-link" onClick={()=>goBack?goBack():navigate('dashboard')}>{t(lang,'retour')}</button>
-      <div style={{fontSize:20,fontWeight:600,marginBottom:'1.5rem'}}>{t(lang,'comparer_eleves')}</div>
+    <div style={{paddingBottom:isMobile?80:0, background:isMobile?'#f5f5f0':'transparent', minHeight:isMobile?'100vh':'auto'}}>
+      {isMobile ? (
+        <div style={{background:'linear-gradient(135deg,#534AB7,#7F77DD)',padding:'48px 16px 16px',marginBottom:12,position:'sticky',top:0,zIndex:100}}>
+          <div style={{display:'flex',alignItems:'center',gap:12}}>
+            <button onClick={()=>goBack?goBack():navigate('dashboard')}
+              style={{background:'rgba(255,255,255,0.2)',border:'none',borderRadius:10,padding:'8px 12px',color:'#fff',fontSize:16,cursor:'pointer'}}>←</button>
+            <div style={{flex:1}}>
+              <div style={{fontSize:17,fontWeight:800,color:'#fff'}}>📊 {lang==='ar'?'مقارنة الطلاب':'Comparer'}</div>
+              <div style={{fontSize:11,color:'rgba(255,255,255,0.75)'}}>{lang==='ar'?'اختر حتى 6 طلاب':"Sélectionnez jusqu'à 6 élèves"}</div>
+            </div>
+          </div>
+        </div>
+      ) : (
+        <div>
+          <button className="back-link" onClick={()=>goBack?goBack():navigate('dashboard')}>{t(lang,'retour')}</button>
+          <div style={{fontSize:20,fontWeight:600,marginBottom:'1.5rem'}}>{t(lang,'comparer_eleves')}</div>
+        </div>
+      )}
+      <div style={{padding:isMobile?'0 12px':'0'}}>
       {loading?<div className="loading">...</div>:(
         <>
           <div style={{background:'#fff',border:'0.5px solid #e0e0d8',borderRadius:12,padding:'1rem',marginBottom:'1.25rem'}}>
@@ -159,6 +175,7 @@ export default function Comparaison({ navigate, goBack, lang='fr', isMobile, use
           )}
         </>
       )}
+      </div>
     </div>
   );
 }
