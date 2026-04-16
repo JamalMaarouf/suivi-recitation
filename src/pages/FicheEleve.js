@@ -164,6 +164,7 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang, isMobi
   const [exceptionsHizb, setExceptionsHizb] = useState([]);
   const [murajaa, setMurajaa] = useState([]);
   const [murajaaS, setMurajaaS] = useState([]);
+  const [recitationsSouratesEleve, setRecitationsSouratesEleve] = useState([]);
   const [passages, setPassages] = useState([]);
   const [showPassageModal, setShowPassageModal] = useState(false);
   const [nouveauNiveau, setNouveauNiveau] = useState('');
@@ -197,11 +198,13 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang, isMobi
         .eq('ecole_id', user.ecole_id).eq('eleve_id',eleve.id).eq('active',true),
         supabase.from('validations').select('*, valideur:valide_par(prenom,nom)').eq('ecole_id', user.ecole_id).eq('eleve_id',eleve.id).in('type_validation',['tomon_muraja','hizb_muraja']).order('date_validation',{ascending:false}),
         supabase.from('recitations_sourates').select('*, sourate:sourate_id(nom_ar,numero), valideur:valide_par(prenom,nom)').eq('ecole_id', user.ecole_id).eq('eleve_id',eleve.id).eq('is_muraja',true).order('date_validation',{ascending:false}),
+        supabase.from('recitations_sourates').select('id,type_recitation,sourate_id').eq('ecole_id', user.ecole_id).eq('eleve_id',eleve.id),
         supabase.from('passages_niveau').select('*, valide_par_u:valide_par(prenom,nom)').eq('ecole_id', user.ecole_id).eq('eleve_id',eleve.id).order('date_passage',{ascending:false}),
         supabase.from('objectifs').select('*').eq('ecole_id', user.ecole_id).eq('eleve_id',eleve.id).order('created_at',{ascending:false}),
       ]);
-      const [r0,r1,r2,r3,r4,r5,r6] = results.map(r=>r.status==='fulfilled'?r.value:{data:[]});
-      const vals=r0.data||[], appr=r1.data||[], exhizb=r2.data||[], mval=r3.data||[], mrec=r4.data||[], passData=r5.data||[], objData=r6.data||[];
+      const [r0,r1,r2,r3,r4,r5,r6,r7] = results.map(r=>r.status==='fulfilled'?r.value:{data:[]});
+      const vals=r0.data||[], appr=r1.data||[], exhizb=r2.data||[], mval=r3.data||[], mrec=r4.data||[], passData=r5.data||[], objData=r6.data||[], recSourates=r7.data||[];
+      setRecitationsSouratesEleve(recSourates);
       if (eleve.instituteur_referent_id) {
         const {data:inst}=await supabase.from('utilisateurs').select('prenom,nom').eq('id',eleve.instituteur_referent_id).single();
         // Charger examens et certificats (tables optionnelles)
@@ -983,8 +986,8 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang, isMobi
             {/* KPI */}
             <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:8,borderTop:'0.5px solid #e8e8e0',paddingTop:12}}>
               {(estSourateEleve ? [
-                [lang==='ar'?'السور المنجزة':'Sourates', (validations||[]).filter(v=>v.type_validation==='sourate_complete').length || 0],
-                [lang==='ar'?'المقاطع':'Séquences', (validations||[]).filter(v=>v.type_validation==='sequence').length || 0],
+                [lang==='ar'?'السور المنجزة':'Sourates', recitationsSouratesEleve.filter(r=>r.type_recitation==='complete').length],
+                [lang==='ar'?'المقاطع':'Séquences', recitationsSouratesEleve.filter(r=>r.type_recitation==='sequence').length],
                 [lang==='ar'?'المحفوظات':'Acquis', eleve.sourates_acquises||0],
                 ['Total', etat?.points?.total || 0],
               ] : [
@@ -1055,11 +1058,11 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang, isMobi
               {estSourateEleve ? (
                 <div className="position-card">
                   <div className="pos-block">
-                    <div className="pos-val">{recitations?.filter(r=>r.type_recitation==='complete').length||0}</div>
+                    <div className="pos-val">{recitationsSouratesEleve.filter(r=>r.type_recitation==='complete').length}</div>
                     <div className="pos-lbl">{lang==='ar'?'سور مكتملة':'Complétées'}</div>
                   </div>
                   <div className="pos-block">
-                    <div className="pos-val">{recitations?.filter(r=>r.type_recitation==='sequence').length||0}</div>
+                    <div className="pos-val">{recitationsSouratesEleve.filter(r=>r.type_recitation==='sequence').length}</div>
                     <div className="pos-lbl">{lang==='ar'?'مقاطع':'Séquences'}</div>
                   </div>
                   <div className="pos-block">
