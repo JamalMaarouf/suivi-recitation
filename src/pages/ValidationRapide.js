@@ -85,28 +85,45 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
   const currentSourate = (() => {
     if (!estSourate || !selectedEleve || souratesDB.length === 0) return null;
     const souratesAcquises = selectedEleve.sourates_acquises || 0;
-    // Exactement comme RecitationSourate : getSouratesForNiveau + tri décroissant
-    const souratesNiveau = getSouratesForNiveau(selectedEleve.code_niveau || '5B');
-    const souratesOrdonnees = [...souratesNiveau].sort((a, b) => b.numero - a.numero);
+
+    // Construire la liste depuis le programme du niveau (UUIDs dans programmeNiveau)
+    let souratesOrdonnees;
+    if (programmeNiveau.length > 0) {
+      // Programme défini : récupérer les sourates par UUID, trier décroissant
+      souratesOrdonnees = programmeNiveau
+        .map(p => souratesDB.find(s => s.id === p.reference_id))
+        .filter(Boolean)
+        .sort((a, b) => b.numero - a.numero);
+    } else {
+      // Pas de programme en DB : fallback sur toutes les sourates
+      souratesOrdonnees = [...souratesDB].sort((a, b) => b.numero - a.numero);
+    }
+
+    if (souratesOrdonnees.length === 0) return null;
+
+    // isComplete par id (plus fiable)
+    const isCompleteById = (id) =>
+      recitationsSourates.some(r => r.sourate_id === id && r.type_recitation === 'complete');
+
     const firstNonComplete = souratesOrdonnees.findIndex((sr, i) => {
       if (i < souratesAcquises) return false;
-      return !isCompleteNum(sr.numero);
+      return !isCompleteById(sr.id);
     });
     if (firstNonComplete < 0) return null;
-    const s = souratesOrdonnees[firstNonComplete];
-    // Enrichir avec id et nb_versets depuis souratesDB
-    const dbObj = souratesDB.find(sd => sd.numero === s.numero);
-    return dbObj ? { ...s, id: dbObj.id, nb_versets: dbObj.nb_versets } : s;
+    return souratesOrdonnees[firstNonComplete];
   })();
 
   // Vérifier si l'élève a un programme défini
+  // Pour sourates : programmeNiveau chargé depuis DB (table programmes)
+  // Pour hizbs : hizb_depart défini et > 0
+  // Pas de programme = programmeNiveau vide ET souratesDB chargé (pas un problème de timing)
   const aucunProgramme = (() => {
     if (!selectedEleve) return false;
+    // On attend que souratesDB soit chargé avant de conclure
+    if (souratesDB.length === 0) return false;
     if (estSourate) {
-      // Pour sourates : programme = souratesDB chargé + souratesAcquises correct
-      return souratesDB.length === 0;
+      return programmeNiveau.length === 0;
     } else {
-      // Pour hizbs : programme = niveau avec hizb_depart valide
       const hd = selectedEleve.hizb_depart;
       return hd === null || hd === undefined;
     }
