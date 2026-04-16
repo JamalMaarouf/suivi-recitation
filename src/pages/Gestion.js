@@ -1654,18 +1654,21 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
               {msg.text}
             </div>
           )}
-          {/* Tabs scrollables */}
-          <div style={{display:'flex',gap:0,overflowX:'auto',scrollbarWidth:'none',paddingBottom:0}}>
-            {TABS_MOBILE.map(({k,l})=>(
-              <div key={k} onClick={()=>setTab(k)}
-                style={{padding:'10px 14px',fontSize:12,fontWeight:600,cursor:'pointer',flexShrink:0,
-                  color:tab===k?'#1D9E75':'rgba(255,255,255,0.7)',
-                  borderBottom:tab===k?'2.5px solid #1D9E75':'2.5px solid transparent',
-                  background:'transparent',transition:'all 0.15s'}}>
-                {l}
-              </div>
-            ))}
-          </div>
+        </div>
+        {/* Tabs scrollables — barre séparée sous le header */}
+        <div style={{display:'flex',gap:0,overflowX:'auto',scrollbarWidth:'none',
+          background:'#064e3b',position:'sticky',top:72,zIndex:99,
+          borderBottom:'1px solid rgba(255,255,255,0.1)'}}>
+          {TABS_MOBILE.map(({k,l})=>(
+            <div key={k} onClick={()=>setTab(k)}
+              style={{padding:'10px 14px',fontSize:11,fontWeight:600,cursor:'pointer',flexShrink:0,
+                whiteSpace:'nowrap',
+                color:tab===k?'#4AE4A8':'rgba(255,255,255,0.65)',
+                borderBottom:tab===k?'2.5px solid #4AE4A8':'2.5px solid transparent',
+                background:'transparent',transition:'all 0.15s'}}>
+              {l}
+            </div>
+          ))}
         </div>
 
         {/* ─── ONGLET ÉLÈVES ─── */}

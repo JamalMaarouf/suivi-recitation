@@ -194,16 +194,19 @@ export default function Dashboard({ user, navigate, goBack, lang, isMobile=false
     const inactifs14 = eleves.filter(e=>e.jours!=null&&e.jours>14&&e.jours<=30);
     const sansRecit  = eleves.filter(e=>e.jours==null);
     const navModules = [
-      {icon:'⚙️', label:lang==='ar'?'الإدارة':'Administration',  sub:lang==='ar'?'إدارة':'Gestion',        page:'gestion',            color:'#085041', bg:'#E1F5EE'},
-      {icon:'💰', label:lang==='ar'?'المالية':'Finance',           sub:lang==='ar'?'الاشتراكات':'Cotisations',page:'finance',            color:'#E24B4A', bg:'#FCEBEB'},
-      {icon:'👥', label:lang==='ar'?'الطلاب':'Élèves',            sub:`${eleves.length} ${lang==='ar'?'طالب':'inscrits'}`,            page:'eleves_mobile',  color:'#378ADD', bg:'#E6F1FB'},
-      {icon:'🎯', label:lang==='ar'?'الأهداف':'Objectifs',         sub:lang==='ar'?'متابعة':'Suivi',          page:'objectifs',          color:'#534AB7', bg:'#EEEDFE'},
-      {icon:'📊', label:lang==='ar'?'السجل':'السجل',               sub:lang==='ar'?'تحليل':'Historique',       page:'historique_seances', color:'#378ADD', bg:'#E6F1FB'},
-      {icon:'📖', label:lang==='ar'?'مراجعة':"Murajaʼa",           sub:lang==='ar'?'جماعية':'Collective',      page:'muraja',             color:'#534AB7', bg:'#F0EEFF'},
-      {icon:'📋', label:lang==='ar'?'التقرير الشهري':'Rapport mensuel', sub:lang==='ar'?'إحصائيات':'Statistiques',  page:'rapport_mensuel',    color:'#D85A30', bg:'#FAECE7'},
-    ].filter(m => m.page!=='finance'||user.role==='surveillant')
-     .filter(m => m.page!=='objectifs'||user.role==='surveillant')
-     .filter(m => m.page!=='rapport_mensuel'||user.role==='surveillant');
+      {icon:'⚙️', label:lang==='ar'?'الإدارة':'Administration',  sub:lang==='ar'?'إدارة':'Gestion',              page:'gestion',            color:'#085041', bg:'#E1F5EE'},
+      {icon:'👥', label:lang==='ar'?'الطلاب':'Élèves',            sub:`${eleves.length} ${lang==='ar'?'طالب':'inscrits'}`, page:'eleves_mobile', color:'#378ADD', bg:'#E6F1FB'},
+      {icon:'💰', label:lang==='ar'?'المالية':'Finance',           sub:lang==='ar'?'الاشتراكات':'Cotisations',     page:'finance',            color:'#E24B4A', bg:'#FCEBEB', role:'surveillant'},
+      {icon:'🎯', label:lang==='ar'?'الأهداف':'Objectifs',         sub:lang==='ar'?'متابعة':'Suivi',               page:'objectifs',          color:'#534AB7', bg:'#EEEDFE', role:'surveillant'},
+      {icon:'📊', label:lang==='ar'?'السجل':'Historique',          sub:lang==='ar'?'تحليل':'Analyse',              page:'historique_seances', color:'#378ADD', bg:'#E6F1FB'},
+      {icon:'📖', label:lang==='ar'?'مراجعة':"Muraja'a",          sub:lang==='ar'?'جماعية':'Collective',          page:'muraja',             color:'#534AB7', bg:'#F0EEFF'},
+      {icon:'🏅', label:lang==='ar'?'الشهادات':'Certificats',      sub:lang==='ar'?'متابعة':'Suivi',               page:'liste_certificats',  color:'#EF9F27', bg:'#FAEEDA'},
+      {icon:'📝', label:lang==='ar'?'نتائج الامتحانات':'Examens',  sub:lang==='ar'?'النتائج':'Résultats',          page:'resultats_examens',  color:'#378ADD', bg:'#E6F1FB'},
+      {icon:'⭐', label:lang==='ar'?'النقاط':'Notes',              sub:lang==='ar'?'الترتيب':'Classement',         page:'liste_notes',        color:'#EF9F27', bg:'#FAEEDA'},
+      {icon:'🏆', label:lang==='ar'?'لوحة الشرف':'Honneur',        sub:lang==='ar'?'المتصدرون':'Top élèves',       page:'honneur',            color:'#EF9F27', bg:'#FAEEDA'},
+      {icon:'📋', label:lang==='ar'?'التقرير الشهري':'Rapport',     sub:lang==='ar'?'إحصائيات':'Statistiques',     page:'rapport_mensuel',    color:'#D85A30', bg:'#FAECE7', role:'surveillant'},
+      {icon:'📈', label:lang==='ar'?'مقارنة':'Comparer',            sub:lang==='ar'?'بين الطلاب':'Élèves',         page:'comparaison',        color:'#534AB7', bg:'#EEEDFE'},
+    ].filter(m => !m.role || user.role===m.role);
 
     const podiumColors = ['#EF9F27','#B0B0B0','#CD7F32'];
     const podiumBg     = ['#FAEEDA','#f5f5f0','#f9f3ec'];
