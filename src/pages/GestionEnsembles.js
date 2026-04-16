@@ -395,9 +395,6 @@ export default function GestionEnsembles({ user, navigate, goBack, lang='fr', is
         </div>
         <div style={{ padding: '12px' }}>
           {loading && <div style={{ textAlign: 'center', padding: '2rem', color: '#888' }}>...</div>}
-          {!loading && (
-            
-          )}
           {!loading && ensembles.length === 0 && (
             <div style={{ textAlign: 'center', color: '#aaa', padding: '3rem', background: '#fff', borderRadius: 12 }}>
               <div style={{ fontSize: 40, marginBottom: 10 }}>📦</div>
