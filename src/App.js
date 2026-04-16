@@ -131,6 +131,16 @@ export default function App() {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
+  // Charger les niveaux dès que l'utilisateur est connecté
+  useEffect(() => {
+    if (!user?.ecole_id) return;
+    import('./lib/supabase').then(({ supabase }) => {
+      supabase.from('niveaux').select('id,code,nom,type,couleur')
+        .eq('ecole_id', user.ecole_id)
+        .then(({ data }) => { if (data) setNiveauxApp(data); });
+    });
+  }, [user?.ecole_id]);
+
   const setLang = (newLang) => {
     setLangRaw(newLang);
     localStorage.setItem('suivi_lang', newLang);
@@ -208,7 +218,7 @@ export default function App() {
     </ToastProvider>
   );
 
-  const pageProps = { user, navigate, goBack, lang, isMobile };
+  const pageProps = { user, navigate, goBack, lang, isMobile, niveaux: niveauxApp };
 
   return (
     <ToastProvider isMobile={isMobile}>
