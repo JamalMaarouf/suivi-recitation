@@ -70,7 +70,7 @@ export default function ListeCertificats({ user, navigate, goBack, lang='fr', is
             </div>
           </div>
           {/* Recherche */}
-          <input value={searchNum} onChange={e= autoComplete='off'>setSearchNum(e.target.value)}
+          <input value={searchNum} onChange={e=>setSearchNum(e.target.value)}
             placeholder={lang==='ar'?'🔍 بحث بالاسم أو الرقم...':'🔍 Nom ou numéro...'}
             style={{width:'100%',padding:'10px 14px',borderRadius:12,border:'none',fontSize:14,fontFamily:'inherit',
               boxSizing:'border-box',background:'rgba(255,255,255,0.2)',color:'#fff',outline:'none'}}/>
@@ -160,7 +160,7 @@ export default function ListeCertificats({ user, navigate, goBack, lang='fr', is
       <div className="card" style={{ marginBottom:'1.25rem' }}>
         <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(180px,1fr))', gap:8 }}>
           <input className="field-input" placeholder={'🔍 '+(lang==='ar'?'رقم أو اسم الطالب':'N° ou nom élève')}
-            value={searchNum} onChange={e= autoComplete='off'>setSearchNum(e.target.value)} />
+            value={searchNum} onChange={e=>setSearchNum(e.target.value)} />
           <select className="field-select" value={filtreNiveau} onChange={e=>setFiltreNiveau(e.target.value)}>
             <option value="">{lang==='ar'?'كل المستويات':'Tous les niveaux'}</option>
             {niveaux.map(n=><option key={n.code} value={n.code}>{n.code} — {n.nom}</option>)}

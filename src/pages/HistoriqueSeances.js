@@ -462,7 +462,7 @@ export default function HistoriqueSeances({ user, navigate, goBack, lang='fr', i
         {/* Recherche élève — EN DEHORS du header sticky pour éviter le clipping */}
         <div style={{background:'#fff',padding:'10px 12px',borderBottom:'0.5px solid #e0e0d8'}}>
           <input value={filterEleve==='tous'?searchFiltreEleve:
-            ((eleves.find(e= autoComplete='off'>e.id===filterEleve)?.eleve_id_ecole?'#'+eleves.find(e=>e.id===filterEleve).eleve_id_ecole+' — ':'')+
+            ((eleves.find(e=>e.id===filterEleve)?.eleve_id_ecole?'#'+eleves.find(e=>e.id===filterEleve).eleve_id_ecole+' — ':'')+
             (eleves.find(e=>e.id===filterEleve)?.prenom||'')+' '+(eleves.find(e=>e.id===filterEleve)?.nom||''))}
             onChange={e=>{setSearchFiltreEleve(e.target.value);setFilterEleve('tous');}}
             placeholder={lang==='ar'?'🔍 ابحث بالاسم أو رقم التعريف...':'🔍 Nom ou N° élève...'}
@@ -606,7 +606,7 @@ export default function HistoriqueSeances({ user, navigate, goBack, lang='fr', i
           <div className="field-group"><label className="field-lbl">{lang==='ar'?'الطالب':'Élève'}</label>
             <div style={{position:'relative'}}>
               <input className="field-input"
-                value={filterEleve==='tous' ? searchFiltreEleve : (eleves.find(e= autoComplete='off'>e.id===filterEleve) ? (eleves.find(e=>e.id===filterEleve).eleve_id_ecole?'#'+eleves.find(e=>e.id===filterEleve).eleve_id_ecole+' — ':'')+eleves.find(e=>e.id===filterEleve).prenom+' '+eleves.find(e=>e.id===filterEleve).nom : '')}
+                value={filterEleve==='tous' ? searchFiltreEleve : (eleves.find(e=>e.id===filterEleve) ? (eleves.find(e=>e.id===filterEleve).eleve_id_ecole?'#'+eleves.find(e=>e.id===filterEleve).eleve_id_ecole+' — ':'')+eleves.find(e=>e.id===filterEleve).prenom+' '+eleves.find(e=>e.id===filterEleve).nom : '')}
                 onChange={e=>{setSearchFiltreEleve(e.target.value);setFilterEleve('tous');}}
                 placeholder={lang==='ar'?'🔍 كل الطلاب أو رقم التعريف':'🔍 Tous ou N° élève'}/>
               {searchFiltreEleve && filterEleve==='tous' && (
@@ -670,7 +670,7 @@ export default function HistoriqueSeances({ user, navigate, goBack, lang='fr', i
           <div style={{background:'#fff',border:'0.5px solid #e0e0d8',borderRadius:16,padding:'1.25rem',marginBottom:'1rem'}}>
             <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:10,flexWrap:'wrap',gap:8}}>
               <div style={{fontSize:13,fontWeight:600}}>{lang==='ar'?'أداء الطلاب':(lang==='ar'?'الأداء حسب الطالب':(lang==='ar'?'الأداء حسب الطالب':'Performance par élève'))} <span style={{fontSize:11,color:'#888'}}>({actifs.length})</span></div>
-              <input style={{padding:'7px 12px',border:'1.5px solid #e0e0d8',borderRadius:8,fontSize:13,width:220,fontFamily:'inherit'}} placeholder={lang==='ar'?'🔍 اسم أو رقم التعريف...':'🔍 Nom ou N° élève...'} value={searchEleve} onChange={e= autoComplete='off'>setSearchEleve(e.target.value)}/>
+              <input style={{padding:'7px 12px',border:'1.5px solid #e0e0d8',borderRadius:8,fontSize:13,width:220,fontFamily:'inherit'}} placeholder={lang==='ar'?'🔍 اسم أو رقم التعريف...':'🔍 Nom ou N° élève...'} value={searchEleve} onChange={e=>setSearchEleve(e.target.value)}/>
             </div>
             {(searchEleve ? [...actifs, ...inactifs] : actifs).filter(s=>!searchEleve||(`${s.eleve.prenom} ${s.eleve.nom} ${s.eleve.eleve_id_ecole||''}`.toLowerCase().includes(searchEleve.toLowerCase()))||String(s.eleve.eleve_id_ecole||'').includes(searchEleve.trim())).map((s,idx)=>{
               const nc=NIVEAU_COLORS[s.eleve.code_niveau||'1']||'#888';

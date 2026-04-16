@@ -129,7 +129,7 @@ export default function ListeNotes({ user, navigate, goBack, lang='fr', isMobile
       <div className="card" style={{ marginBottom:'1.25rem', margin: isMobile?'0 12px 12px':'', borderRadius: isMobile?12:undefined }}>
         <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(180px,1fr))', gap:8 }}>
           <input className="field-input" placeholder={'🔍 '+(lang==='ar'?'رقم أو اسم الطالب':'N° ou nom élève')}
-            value={searchNum} onChange={e= autoComplete='off'>setSearchNum(e.target.value)} />
+            value={searchNum} onChange={e=>setSearchNum(e.target.value)} />
           <select className="field-select" value={filtreNiveau} onChange={e=>setFiltreNiveau(e.target.value)}>
             <option value="">{lang==='ar'?'كل المستويات':'Tous les niveaux'}</option>
             {niveaux.map(n=><option key={n.code} value={n.code}>{n.code} — {n.nom}</option>)}

@@ -1112,7 +1112,7 @@ export default function Finance({ user, navigate, goBack, lang='fr', isMobile })
             <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:8}}>
             <div className="field-group">
               <label className="field-lbl">{lang==='ar'?'بحث':'Recherche'}</label>
-              <input className="field-input" placeholder={'🔍 '+(lang==='ar'?'اسم أو رقم التعريف...':'Nom ou #ID...')} value={searchEleve} onChange={e= autoComplete='off'>setSearchEleve(e.target.value)}/>
+              <input className="field-input" placeholder={'🔍 '+(lang==='ar'?'اسم أو رقم التعريف...':'Nom ou #ID...')} value={searchEleve} onChange={e=>setSearchEleve(e.target.value)}/>
             </div>
             <div className="field-group">
               <label className="field-lbl">{lang==='ar'?'الحالة':'Statut'}</label>

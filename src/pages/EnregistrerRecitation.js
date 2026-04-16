@@ -371,7 +371,7 @@ export default function EnregistrerRecitation({  user, eleve: eleveInitial, navi
           <div className="section-label">{t(lang,'selectionner_eleve')}</div>
           <div className="card">
             <input className="field-input" style={{ marginBottom: 12 }} type="text"
-              placeholder={t(lang,'rechercher_eleve')} value={search} onChange={e = autoComplete='off'> setSearch(e.target.value)} />
+              placeholder={t(lang,'rechercher_eleve')} value={search} onChange={e => setSearch(e.target.value)} />
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
               {elevesFiltre.length === 0 && <div className="empty">{t(lang,'aucun_eleve')}</div>}
               {elevesFiltre.map(e => (
