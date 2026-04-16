@@ -224,7 +224,23 @@ export default function RecitationSourate({ user, eleve, navigate, goBack, lang=
       });
       setTimeout(() => setFlash(null), 3000);
       await loadData();
-      if (typeRecitation === 'complete') { setStep('liste'); setSelectedSourate(null); }
+      // Vérifier si un jalon/certificat est débloqué
+      if (typeRecitation === 'complete') {
+        const { data: recsNouv } = await supabase.from('recitations_sourates').select('*').eq('eleve_id', eleve.id).eq('ecole_id', user.ecole_id);
+        const { data: valsNouv } = await supabase.from('validations').select('*').eq('eleve_id', eleve.id).eq('ecole_id', user.ecole_id);
+        const nouveauxCerts = await verifierEtCreerCertificats(supabase, {
+          eleve, ecole_id: user.ecole_id, valide_par: user.id,
+          validations: valsNouv || [], recitations: recsNouv || [],
+        });
+        if (nouveauxCerts.length > 0) {
+          setTimeout(() => setFlash({
+            msg: `🏅 ${nouveauxCerts.map(c=>c.nom_certificat_ar||c.nom_certificat).join(', ')} !`,
+            pts: 0, color: '#EF9F27'
+          }), 3100);
+          setTimeout(() => setFlash(null), 7000);
+        }
+        setStep('liste'); setSelectedSourate(null);
+      }
       setVersetDebut(''); setVersetFin('');
     }
   };

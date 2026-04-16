@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useToast } from '../lib/toast';
 import { t } from '../lib/i18n';
 import { supabase } from '../lib/supabase';
-import { calcEtatEleve, calcPositionAtteinte, calcUnite, formatDate, getInitiales, motivationMsg, verifierBlocageExamen, loadBareme } from '../lib/helpers';
+import { calcEtatEleve, calcPositionAtteinte, calcUnite, formatDate, getInitiales, motivationMsg, verifierBlocageExamen, verifierEtCreerCertificats, loadBareme } from '../lib/helpers';
 
 function Avatar({ prenom, nom, size = 36, bg = '#E1F5EE', color = '#085041' }) {
   return (
@@ -144,6 +144,17 @@ export default function EnregistrerRecitation({  user, eleve: eleveInitial, navi
 
     if (blocageDetecte) {
       setBlocage(blocageDetecte);
+    }
+
+    // Vérifier si un jalon/certificat est débloqué
+    const nouveauxCerts = await verifierEtCreerCertificats(supabase, {
+      eleve: selectedEleve, ecole_id: user.ecole_id, valide_par: user.id,
+      validations: valsNouv || [], recitations: recsNouv || [],
+    });
+    if (nouveauxCerts.length > 0) {
+      toast.success(lang==='ar'
+        ? `🏅 شهادة جديدة: ${nouveauxCerts.map(c=>c.nom_certificat_ar||c.nom_certificat).join(', ')} !`
+        : `🏅 Nouveau certificat: ${nouveauxCerts.map(c=>c.nom_certificat).join(', ')} !`);
     }
 
     const msg = motivationMsg(nombreTomon, etat, typeValidation === 'hizb_complet');

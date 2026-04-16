@@ -274,6 +274,17 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
         .select('*').eq('eleve_id', selectedEleve.id).eq('ecole_id', user.ecole_id);
       const newRecsData = newRecs || [];
       setRecitationsSourates(newRecsData);
+      // Vérifier si un jalon/certificat est débloqué
+      const { data: valsForCert } = await supabase.from('validations').select('*')
+        .eq('eleve_id', selectedEleve.id).eq('ecole_id', user.ecole_id);
+      const nouveauxCertsSourate = await verifierEtCreerCertificats(supabase, {
+        eleve: selectedEleve, ecole_id: user.ecole_id, valide_par: user.id,
+        validations: valsForCert || [], recitations: newRecsData,
+      });
+      if (nouveauxCertsSourate.length > 0) {
+        setTimeout(() => setFlash({ msg: `🏅 ${nouveauxCertsSourate.map(c => c.nom_certificat_ar||c.nom_certificat).join(', ')} !`, color: '#EF9F27', pts: 0 }), 2600);
+        setTimeout(() => setFlash(null), 6000);
+      }
       // Recalculer la sourate suivante
       const isCompleteLoc2 = (id) =>
         newRecsData.some(r => r.sourate_id === id && r.type_recitation === 'complete');

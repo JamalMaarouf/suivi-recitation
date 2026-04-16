@@ -121,10 +121,14 @@ export default function ResultatsExamens({ user, navigate, goBack, lang='fr', is
         }
         // Vérifier si un jalon est débloqué
         const { data: valsEleve } = await supabase.from('validations').select('*').eq('eleve_id', selectedEleve.id);
-        await verifierEtCreerCertificats(supabase, {
+        const { data: recsEleve } = await supabase.from('recitations_sourates').select('*').eq('eleve_id', selectedEleve.id).eq('ecole_id', user.ecole_id);
+        const nouveauxCertsExamen = await verifierEtCreerCertificats(supabase, {
           eleve: selectedEleve, ecole_id: user.ecole_id, valide_par: user.id,
-          validations: valsEleve || [], recitations: [],
+          validations: valsEleve || [], recitations: recsEleve || [],
         });
+        if (nouveauxCertsExamen.length > 0) {
+          toast.success(lang==='ar'?`🏅 شهادة جديدة: ${nouveauxCertsExamen.map(c=>c.nom_certificat_ar||c.nom_certificat).join(', ')}`:`🏅 Nouveau certificat: ${nouveauxCertsExamen.map(c=>c.nom_certificat).join(', ')}`);
+        }
       } catch(e) { console.error('points examen error:', e); }
     }
     toast.success(reussi
