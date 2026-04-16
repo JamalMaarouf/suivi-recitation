@@ -186,6 +186,8 @@ export default function App() {
     setPageWithRef(p);
     window.scrollTo(0, 0);
   };
+
+  const [showLangMenu, setShowLangMenu] = React.useState(false);
   const [showUserMenu, setShowUserMenu] = React.useState(false);
   const LANGS = [
     { code: 'fr', flag: '🇫🇷', label: 'FR' },
