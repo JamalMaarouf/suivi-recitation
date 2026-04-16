@@ -860,9 +860,7 @@ export default function Finance({ user, navigate, goBack, lang='fr', isMobile })
                       <div style={{border:'0.5px solid #e0e0d8',borderRadius:8,background:'#fff',maxHeight:160,overflowY:'auto',marginBottom:6}}>
                         {eleves.filter(e=>!searchEleveForm||`${e.prenom} ${e.nom} ${e.eleve_id_ecole||''}`.toLowerCase().includes(searchEleveForm.toLowerCase())||String(e.eleve_id_ecole||'').includes(searchEleveForm)).slice(0,8).map(e=>(
                           <div key={e.id} onClick={()=>{setFormCot(f=>({...f,eleve_id:e.id}));setSearchEleveForm(e.eleve_id_ecole?'#'+e.eleve_id_ecole+' — '+e.prenom+' '+e.nom:e.prenom+' '+e.nom);}}
-                            style={{padding:'8px 12px',cursor:'pointer',fontSize:13,borderBottom:'0.5px solid #f0f0ec',display:'flex',alignItems:'center',gap:8}}
-                            onMouseEnter={e=>e.currentTarget.style.background='#f5f5f0'}
-                            onMouseLeave={e=>e.currentTarget.style.background='#fff'}>
+                            style={{padding:'8px 12px',cursor:'pointer',fontSize:13,borderBottom:'0.5px solid #f0f0ec',display:'flex',alignItems:'center',gap:8}}>
                             {e.eleve_id_ecole&&<span style={{background:'#E1F5EE',color:'#085041',padding:'1px 6px',borderRadius:4,fontSize:11,fontWeight:700}}>#{e.eleve_id_ecole}</span>}
                             <span>{e.prenom} {e.nom}</span>
                             <span style={{fontSize:11,color:'#888',marginRight:'auto'}}>{e.code_niveau}</span>
@@ -879,7 +877,7 @@ export default function Finance({ user, navigate, goBack, lang='fr', isMobile })
                   </div>
                   <div className="field-group">
                     <label className="field-lbl">{lang==='ar'?'المبلغ':'Montant (MAD)'} *</label>
-                    <input className="field-input" type="number" min="0" step="0.01" value={formCot.montant} onChange={e=>setFormCot(f=>({...f,montant:e.target.value}))} placeholder="Ex: 150"/>
+                    <input className="field-input" type="number" min="0" step="0.01" value={formCot.montant} onChange={e= inputMode='numeric'>setFormCot(f=>({...f,montant:e.target.value}))} placeholder="Ex: 150"/>
                   </div>
                   <div className="field-group">
                     <label className="field-lbl">{lang==='ar'?'تاريخ الدفع':'Date de paiement'} *</label>
@@ -1036,7 +1034,7 @@ export default function Finance({ user, navigate, goBack, lang='fr', isMobile })
                 <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12,marginBottom:12}}>
                   <div className="field-group">
                     <label className="field-lbl">{lang==='ar'?'المبلغ':'Montant (MAD)'} *</label>
-                    <input className="field-input" type="number" min="0" step="0.01" value={formDep.montant} onChange={e=>setFormDep(f=>({...f,montant:e.target.value}))} placeholder="Ex: 500"/>
+                    <input className="field-input" type="number" min="0" step="0.01" value={formDep.montant} onChange={e= inputMode='numeric'>setFormDep(f=>({...f,montant:e.target.value}))} placeholder="Ex: 500"/>
                   </div>
                   <div className="field-group">
                     <label className="field-lbl">{lang==='ar'?'التاريخ':'Date'} *</label>
@@ -1114,7 +1112,7 @@ export default function Finance({ user, navigate, goBack, lang='fr', isMobile })
             <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:8}}>
             <div className="field-group">
               <label className="field-lbl">{lang==='ar'?'بحث':'Recherche'}</label>
-              <input className="field-input" placeholder={'🔍 '+(lang==='ar'?'اسم أو رقم التعريف...':'Nom ou #ID...')} value={searchEleve} onChange={e=>setSearchEleve(e.target.value)}/>
+              <input className="field-input" placeholder={'🔍 '+(lang==='ar'?'اسم أو رقم التعريف...':'Nom ou #ID...')} value={searchEleve} onChange={e= autoComplete='off'>setSearchEleve(e.target.value)}/>
             </div>
             <div className="field-group">
               <label className="field-lbl">{lang==='ar'?'الحالة':'Statut'}</label>

@@ -371,14 +371,12 @@ export default function EnregistrerRecitation({  user, eleve: eleveInitial, navi
           <div className="section-label">{t(lang,'selectionner_eleve')}</div>
           <div className="card">
             <input className="field-input" style={{ marginBottom: 12 }} type="text"
-              placeholder={t(lang,'rechercher_eleve')} value={search} onChange={e => setSearch(e.target.value)} />
+              placeholder={t(lang,'rechercher_eleve')} value={search} onChange={e = autoComplete='off'> setSearch(e.target.value)} />
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
               {elevesFiltre.length === 0 && <div className="empty">{t(lang,'aucun_eleve')}</div>}
               {elevesFiltre.map(e => (
                 <div key={e.id} onTouchEnd={()=>selectEleve(e)} onClick={() => selectEleve(e)}
-                  style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', border: '0.5px solid #e0e0d8', borderRadius: 8, cursor: 'pointer' }}
-                  onMouseEnter={ev => ev.currentTarget.style.borderColor = '#1D9E75'}
-                  onMouseLeave={ev => ev.currentTarget.style.borderColor = '#e0e0d8'}>
+                  style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', border: '0.5px solid #e0e0d8', borderRadius: 8, cursor: 'pointer' }}>
                   <Avatar prenom={e.prenom} nom={e.nom} size={32} />
                   <div style={{ flex: 1 }}>
                     <div style={{ fontSize: 13, fontWeight: 500 }}>{e.prenom} {e.nom}</div>

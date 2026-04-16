@@ -557,9 +557,7 @@ export default function RecitationSourate({ user, eleve, navigate, goBack, lang=
                   return (
                     <div key={s.numero}
                       onClick={() => { if(accessible){ setSelectedSourate(s); setStep('valider'); } }}
-                      style={{display:'flex',alignItems:'center',gap:12,padding:'12px 14px',background:bg,border:`${isCurrent?'2px':'0.5px'} solid ${border}`,borderRadius:12,cursor,opacity,transition:'all 0.15s'}}
-                      onMouseEnter={ev => accessible && (ev.currentTarget.style.borderColor='#1D9E75')}
-                      onMouseLeave={ev => accessible && (ev.currentTarget.style.borderColor=border)}>
+                      style={{display:'flex',alignItems:'center',gap:12,padding:'12px 14px',background:bg,border:`${isCurrent?'2px':'0.5px'} solid ${border}`,borderRadius:12,cursor,opacity,transition:'all 0.15s'}}>
                       <div style={{width:38,height:38,borderRadius:'50%',background:iconBg,display:'flex',alignItems:'center',justifyContent:'center',fontSize:13,fontWeight:700,color:iconColor,flexShrink:0}}>
                         {seqs.length > 0 && !comp && status!=='locked' ? seqs.length : iconContent}
                       </div>
@@ -676,11 +674,11 @@ export default function RecitationSourate({ user, eleve, navigate, goBack, lang=
                         <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
                           <div className="field-group">
                             <label className="field-lbl">{lang==='ar'?'من الآية':lang==='en'?'From verse':'Verset début'} <span style={{color:'#E24B4A'}}>*</span></label>
-                            <input className="field-input" type="number" min="1" value={versetDebut} onChange={e=>setVersetDebut(e.target.value)} placeholder="1"/>
+                            <input className="field-input" type="number" min="1" value={versetDebut} onChange={e= inputMode='numeric'>setVersetDebut(e.target.value)} placeholder="1"/>
                           </div>
                           <div className="field-group">
                             <label className="field-lbl">{lang==='ar'?'إلى الآية':lang==='en'?'To verse':'Verset fin'} <span style={{color:'#E24B4A'}}>*</span></label>
-                            <input className="field-input" type="number" min="1" value={versetFin} onChange={e=>setVersetFin(e.target.value)} placeholder="10"/>
+                            <input className="field-input" type="number" min="1" value={versetFin} onChange={e= inputMode='numeric'>setVersetFin(e.target.value)} placeholder="10"/>
                           </div>
                         </div>
                       </div>

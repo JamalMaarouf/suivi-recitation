@@ -66,7 +66,7 @@ export default function ProfilMobile({ user, lang, onLogout, navigate, goBack })
     <div style={{paddingBottom:88, minHeight:'100vh', background:'#f5f5f0'}}>
 
       {/* Header */}
-      <div style={{background:'linear-gradient(135deg,#374151,#4B5563)', padding:'48px 20px 32px', textAlign:'center'}}>
+      <div style={{background:'linear-gradient(135deg,#374151,#4B5563)', padding:'48px 20px 24px', textAlign:'center', position:'sticky', top:0, zIndex:100}}>
         {/* Avatar */}
         <div style={{width:72, height:72, borderRadius:'50%', background:'rgba(255,255,255,0.2)',
           border:'2px solid rgba(255,255,255,0.4)', display:'flex', alignItems:'center',

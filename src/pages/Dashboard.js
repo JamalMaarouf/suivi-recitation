@@ -612,7 +612,7 @@ export default function Dashboard({ user, navigate, goBack, lang, isMobile=false
           {selectedEleves.length>0&&(<div style={{display:'flex',alignItems:'center',gap:8,padding:'10px 14px',background:C.blueBg,border:`0.5px solid ${C.blue}`,borderRadius:10,marginBottom:'1rem'}}><span style={{fontSize:12,color:'#0C447C'}}>{selectedEleves.length} {t(lang,'eleves')}</span><button onClick={()=>navigate('comparaison',selectedEleves)} style={{padding:'4px 12px',background:C.blue,color:'#fff',border:'none',borderRadius:6,fontSize:11,cursor:'pointer',marginLeft:'auto'}}>📈 {t(lang,'comparer')}</button><button onClick={()=>setSelectedEleves([])} style={{padding:'4px 10px',border:`0.5px solid ${C.border}`,borderRadius:6,background:'#fff',fontSize:11,cursor:'pointer'}}>✕</button></div>)}
           <div style={{background:'#fff',border:`0.5px solid ${C.border}`,borderRadius:12,padding:'1rem',marginBottom:'1rem'}}>
             <div style={{display:'flex',gap:8,flexWrap:'wrap',marginBottom:10}}>
-              <input className="field-input" style={{flex:2,minWidth:160}} placeholder={t(lang,'rechercher_eleve')} value={searchEleve} onChange={e=>setSearchEleve(e.target.value)}/>
+              <input className="field-input" style={{flex:2,minWidth:160}} placeholder={t(lang,'rechercher_eleve')} value={searchEleve} onChange={e= autoComplete='off'>setSearchEleve(e.target.value)}/>
               <select className="field-select" style={{flex:1,minWidth:130}} value={filtreInst} onChange={e=>setFiltreInst(e.target.value)}><option value="tous">{t(lang,'tous_instituteurs')}</option>{instituteurs.map(i=><option key={i.id} value={i.id}>{i.prenom} {i.nom}</option>)}</select>
               <select className="field-select" style={{flex:1,minWidth:110}} value={filtreStatut} onChange={e=>setFiltreStatut(e.target.value)}><option value="tous">{t(lang,'tous_statuts')}</option><option value="actifs">{t(lang,'actifs')}</option><option value="inactifs">{t(lang,'inactifs_filter')}</option><option value="attente">{t(lang,'attente_filter')}</option></select>
             </div>
@@ -630,9 +630,7 @@ export default function Dashboard({ user, navigate, goBack, lang, isMobile=false
                 const sl=scoreLabel(eleve.etat.points.total);
                 const isSelected=selectedEleves.find(s=>s.id===eleve.id);
                 return(
-                  <div key={eleve.id} style={{background:'#fff',border:`${isSelected?'2px':'0.5px'} solid ${isSelected?C.blue:eleve.etat.enAttenteHizbComplet?C.amber:eleve.inactif?C.red:C.border}`,borderRadius:14,padding:'1.25rem',cursor:'pointer',transition:'transform 0.15s',position:'relative'}}
-                    onMouseEnter={ev=>ev.currentTarget.style.transform='translateY(-2px)'}
-                    onMouseLeave={ev=>ev.currentTarget.style.transform='translateY(0)'}>
+                  <div key={eleve.id} style={{background:'#fff',border:`${isSelected?'2px':'0.5px'} solid ${isSelected?C.blue:eleve.etat.enAttenteHizbComplet?C.amber:eleve.inactif?C.red:C.border}`,borderRadius:14,padding:'1.25rem',cursor:'pointer',transition:'transform 0.15s',position:'relative'}}>
                     <div onClick={e=>{e.stopPropagation();const isS=selectedEleves.find(s=>s.id===eleve.id);if(isS)setSelectedEleves(selectedEleves.filter(s=>s.id!==eleve.id));else if(selectedEleves.length<6)setSelectedEleves([...selectedEleves,eleve]);}} style={{position:'absolute',top:10,left:10,width:18,height:18,borderRadius:4,border:`1.5px solid ${isSelected?C.blue:C.border}`,background:isSelected?C.blue:'#fff',display:'flex',alignItems:'center',justifyContent:'center'}}>{isSelected&&<span style={{color:'#fff',fontSize:11,fontWeight:700}}>✓</span>}</div>
                     <div onClick={()=>navigate('fiche',eleve)}>
                       <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',marginBottom:12,paddingLeft:24}}>

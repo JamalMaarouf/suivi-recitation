@@ -462,7 +462,7 @@ export default function HistoriqueSeances({ user, navigate, goBack, lang='fr', i
         {/* Recherche élève — EN DEHORS du header sticky pour éviter le clipping */}
         <div style={{background:'#fff',padding:'10px 12px',borderBottom:'0.5px solid #e0e0d8'}}>
           <input value={filterEleve==='tous'?searchFiltreEleve:
-            ((eleves.find(e=>e.id===filterEleve)?.eleve_id_ecole?'#'+eleves.find(e=>e.id===filterEleve).eleve_id_ecole+' — ':'')+
+            ((eleves.find(e= autoComplete='off'>e.id===filterEleve)?.eleve_id_ecole?'#'+eleves.find(e=>e.id===filterEleve).eleve_id_ecole+' — ':'')+
             (eleves.find(e=>e.id===filterEleve)?.prenom||'')+' '+(eleves.find(e=>e.id===filterEleve)?.nom||''))}
             onChange={e=>{setSearchFiltreEleve(e.target.value);setFilterEleve('tous');}}
             placeholder={lang==='ar'?'🔍 ابحث بالاسم أو رقم التعريف...':'🔍 Nom ou N° élève...'}
@@ -606,7 +606,7 @@ export default function HistoriqueSeances({ user, navigate, goBack, lang='fr', i
           <div className="field-group"><label className="field-lbl">{lang==='ar'?'الطالب':'Élève'}</label>
             <div style={{position:'relative'}}>
               <input className="field-input"
-                value={filterEleve==='tous' ? searchFiltreEleve : (eleves.find(e=>e.id===filterEleve) ? (eleves.find(e=>e.id===filterEleve).eleve_id_ecole?'#'+eleves.find(e=>e.id===filterEleve).eleve_id_ecole+' — ':'')+eleves.find(e=>e.id===filterEleve).prenom+' '+eleves.find(e=>e.id===filterEleve).nom : '')}
+                value={filterEleve==='tous' ? searchFiltreEleve : (eleves.find(e= autoComplete='off'>e.id===filterEleve) ? (eleves.find(e=>e.id===filterEleve).eleve_id_ecole?'#'+eleves.find(e=>e.id===filterEleve).eleve_id_ecole+' — ':'')+eleves.find(e=>e.id===filterEleve).prenom+' '+eleves.find(e=>e.id===filterEleve).nom : '')}
                 onChange={e=>{setSearchFiltreEleve(e.target.value);setFilterEleve('tous');}}
                 placeholder={lang==='ar'?'🔍 كل الطلاب أو رقم التعريف':'🔍 Tous ou N° élève'}/>
               {searchFiltreEleve && filterEleve==='tous' && (
@@ -614,8 +614,7 @@ export default function HistoriqueSeances({ user, navigate, goBack, lang='fr', i
                   <div onClick={()=>{setFilterEleve('tous');setSearchFiltreEleve('');}} style={{padding:'8px 12px',cursor:'pointer',fontSize:12,color:'#888',borderBottom:'0.5px solid #f0f0ec'}}>{lang==='ar'?'كل الطلاب':'Tous les élèves'}</div>
                   {elevesVisibles.filter(e=>`${e.prenom} ${e.nom} ${e.eleve_id_ecole||''}`.toLowerCase().includes(searchFiltreEleve.toLowerCase())||String(e.eleve_id_ecole||'').includes(searchFiltreEleve)).map(e=>(
                     <div key={e.id} onTouchEnd={()=>{setFilterEleve(e.id);setSearchFiltreEleve('');}} onClick={()=>{setFilterEleve(e.id);setSearchFiltreEleve('');}}
-                      style={{padding:'8px 12px',cursor:'pointer',fontSize:12,borderBottom:'0.5px solid #f0f0ec',display:'flex',gap:8,alignItems:'center'}}
-                      onMouseEnter={ev=>ev.currentTarget.style.background='#f5f5f0'} onMouseLeave={ev=>ev.currentTarget.style.background='#fff'}>
+                      style={{padding:'8px 12px',cursor:'pointer',fontSize:12,borderBottom:'0.5px solid #f0f0ec',display:'flex',gap:8,alignItems:'center'}}>
                       {e.eleve_id_ecole&&<span style={{background:'#E1F5EE',color:'#085041',padding:'1px 5px',borderRadius:4,fontSize:10,fontWeight:700}}>#{e.eleve_id_ecole}</span>}
                       <span>{e.prenom} {e.nom} ({e.code_niveau||'?'})</span>
                     </div>
@@ -671,13 +670,12 @@ export default function HistoriqueSeances({ user, navigate, goBack, lang='fr', i
           <div style={{background:'#fff',border:'0.5px solid #e0e0d8',borderRadius:16,padding:'1.25rem',marginBottom:'1rem'}}>
             <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:10,flexWrap:'wrap',gap:8}}>
               <div style={{fontSize:13,fontWeight:600}}>{lang==='ar'?'أداء الطلاب':(lang==='ar'?'الأداء حسب الطالب':(lang==='ar'?'الأداء حسب الطالب':'Performance par élève'))} <span style={{fontSize:11,color:'#888'}}>({actifs.length})</span></div>
-              <input style={{padding:'7px 12px',border:'1.5px solid #e0e0d8',borderRadius:8,fontSize:13,width:220,fontFamily:'inherit'}} placeholder={lang==='ar'?'🔍 اسم أو رقم التعريف...':'🔍 Nom ou N° élève...'} value={searchEleve} onChange={e=>setSearchEleve(e.target.value)}/>
+              <input style={{padding:'7px 12px',border:'1.5px solid #e0e0d8',borderRadius:8,fontSize:13,width:220,fontFamily:'inherit'}} placeholder={lang==='ar'?'🔍 اسم أو رقم التعريف...':'🔍 Nom ou N° élève...'} value={searchEleve} onChange={e= autoComplete='off'>setSearchEleve(e.target.value)}/>
             </div>
             {(searchEleve ? [...actifs, ...inactifs] : actifs).filter(s=>!searchEleve||(`${s.eleve.prenom} ${s.eleve.nom} ${s.eleve.eleve_id_ecole||''}`.toLowerCase().includes(searchEleve.toLowerCase()))||String(s.eleve.eleve_id_ecole||'').includes(searchEleve.trim())).map((s,idx)=>{
               const nc=NIVEAU_COLORS[s.eleve.code_niveau||'1']||'#888';
               return(
-                <div key={s.eleve.id} onClick={()=>{setSelectedEleve(s.eleve.id);setDrillDown(true);}} style={{display:'flex',alignItems:'center',gap:10,padding:'10px 12px',borderRadius:10,cursor:'pointer',marginBottom:6,border:'0.5px solid #e0e0d8',background:'#fff'}}
-                  onMouseEnter={e=>e.currentTarget.style.background='#f9f9f6'} onMouseLeave={e=>e.currentTarget.style.background='#fff'}>
+                <div key={s.eleve.id} onClick={()=>{setSelectedEleve(s.eleve.id);setDrillDown(true);}} style={{display:'flex',alignItems:'center',gap:10,padding:'10px 12px',borderRadius:10,cursor:'pointer',marginBottom:6,border:'0.5px solid #e0e0d8',background:'#fff'}}>
                   <div style={{fontSize:13,fontWeight:600,color:'#bbb',minWidth:22}}>{idx+1}</div>
                   <Avatar prenom={s.eleve.prenom} nom={s.eleve.nom} size={34} bg={nc+'18'} color={nc}/>
                   <div style={{flex:1,minWidth:0}}>

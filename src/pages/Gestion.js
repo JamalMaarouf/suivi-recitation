@@ -2377,16 +2377,12 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
             <div style={{display:'flex',gap:6}}>
               <button onClick={exportElevesExcel}
                 style={{display:'flex',alignItems:'center',gap:5,padding:'5px 12px',background:'#f5f5f0',
-                  color:'#085041',border:'0.5px solid #e0e0d8',borderRadius:8,fontSize:11,fontWeight:600,cursor:'pointer'}}
-                onMouseEnter={e=>e.currentTarget.style.background='#E1F5EE'}
-                onMouseLeave={e=>e.currentTarget.style.background='#f5f5f0'}>
+                  color:'#085041',border:'0.5px solid #e0e0d8',borderRadius:8,fontSize:11,fontWeight:600,cursor:'pointer'}}>
                 📊 Excel
               </button>
               <button onClick={exportElevesPDF}
                 style={{display:'flex',alignItems:'center',gap:5,padding:'5px 12px',background:'#f5f5f0',
-                  color:'#534AB7',border:'0.5px solid #e0e0d8',borderRadius:8,fontSize:11,fontWeight:600,cursor:'pointer'}}
-                onMouseEnter={e=>e.currentTarget.style.background='#EEEDFE'}
-                onMouseLeave={e=>e.currentTarget.style.background='#f5f5f0'}>
+                  color:'#534AB7',border:'0.5px solid #e0e0d8',borderRadius:8,fontSize:11,fontWeight:600,cursor:'pointer'}}>
                 🖨️ PDF
               </button>
             </div>
@@ -2512,16 +2508,12 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
             <div style={{display:'flex',gap:6}}>
               <button onClick={exportInstituteursExcel}
                 style={{display:'flex',alignItems:'center',gap:5,padding:'5px 12px',background:'#f5f5f0',
-                  color:'#085041',border:'0.5px solid #e0e0d8',borderRadius:8,fontSize:11,fontWeight:600,cursor:'pointer'}}
-                onMouseEnter={e=>e.currentTarget.style.background='#E1F5EE'}
-                onMouseLeave={e=>e.currentTarget.style.background='#f5f5f0'}>
+                  color:'#085041',border:'0.5px solid #e0e0d8',borderRadius:8,fontSize:11,fontWeight:600,cursor:'pointer'}}>
                 📊 Excel
               </button>
               <button onClick={exportInstituteursPDF}
                 style={{display:'flex',alignItems:'center',gap:5,padding:'5px 12px',background:'#f5f5f0',
-                  color:'#534AB7',border:'0.5px solid #e0e0d8',borderRadius:8,fontSize:11,fontWeight:600,cursor:'pointer'}}
-                onMouseEnter={e=>e.currentTarget.style.background='#EEEDFE'}
-                onMouseLeave={e=>e.currentTarget.style.background='#f5f5f0'}>
+                  color:'#534AB7',border:'0.5px solid #e0e0d8',borderRadius:8,fontSize:11,fontWeight:600,cursor:'pointer'}}>
                 🖨️ PDF
               </button>
             </div>
@@ -2697,16 +2689,12 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
             <div style={{fontSize:12,color:'#888'}}>{parents.length} {lang==='ar'?'ولي أمر':'parent(s)'}</div>
             <button onClick={exportParentsExcel}
               style={{display:'flex',alignItems:'center',gap:5,padding:'5px 12px',background:'#f5f5f0',
-                color:'#085041',border:'0.5px solid #e0e0d8',borderRadius:8,fontSize:11,fontWeight:600,cursor:'pointer'}}
-              onMouseEnter={e=>e.currentTarget.style.background='#E1F5EE'}
-              onMouseLeave={e=>e.currentTarget.style.background='#f5f5f0'}>
+                color:'#085041',border:'0.5px solid #e0e0d8',borderRadius:8,fontSize:11,fontWeight:600,cursor:'pointer'}}>
               📊 Excel
             </button>
             <button onClick={exportParentsPDF}
               style={{display:'flex',alignItems:'center',gap:5,padding:'5px 12px',background:'#f5f5f0',
-                color:'#534AB7',border:'0.5px solid #e0e0d8',borderRadius:8,fontSize:11,fontWeight:600,cursor:'pointer'}}
-              onMouseEnter={e=>e.currentTarget.style.background='#EEEDFE'}
-              onMouseLeave={e=>e.currentTarget.style.background='#f5f5f0'}>
+                color:'#534AB7',border:'0.5px solid #e0e0d8',borderRadius:8,fontSize:11,fontWeight:600,cursor:'pointer'}}>
               🖨️ PDF
             </button>
           </div>

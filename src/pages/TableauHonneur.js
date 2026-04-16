@@ -188,9 +188,7 @@ export default function TableauHonneur({ user, navigate, goBack, lang='fr', isMo
                   const sl = scoreLabel(e.ptsPeriode.total);
                   return (
                     <div key={e.id} onClick={()=>navigate('fiche',e)}
-                      style={{display:'flex',alignItems:'center',gap:12,padding:'12px 16px',background:'rgba(255,255,255,0.04)',border:'0.5px solid rgba(255,255,255,0.08)',borderRadius:12,marginBottom:8,cursor:'pointer'}}
-                      onMouseEnter={ev=>ev.currentTarget.style.background='rgba(255,255,255,0.08)'}
-                      onMouseLeave={ev=>ev.currentTarget.style.background='rgba(255,255,255,0.04)'}>
+                      style={{display:'flex',alignItems:'center',gap:12,padding:'12px 16px',background:'rgba(255,255,255,0.04)',border:'0.5px solid rgba(255,255,255,0.08)',borderRadius:12,marginBottom:8,cursor:'pointer'}}>
                       <div style={{fontSize:18,minWidth:32,textAlign:'center'}}>
                         {medals[idx] || <span style={{color:'#3a6657',fontSize:13,fontWeight:700}}>{idx+1}</span>}
                       </div>
