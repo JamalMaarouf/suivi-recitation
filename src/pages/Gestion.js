@@ -580,7 +580,7 @@ function PassageNiveauTab({ user, lang, niveaux, showMsg }) {
         <div style={{lineHeight:1.6}}>
           {lang==='ar'
             ?'عند تغيير مستوى طالب، يبحث النظام عن قاعدة مطابقة. إذا وُجدت، يطبق موقع الانطلاق المحدد. إذا لم توجد قاعدة، يستمر الطالب من موقعه الحالي تلقائياً.'
-            :'Lors du changement de niveau d'un élève, le système cherche une règle correspondante. Si trouvée, applique le départ configuré. Sinon, l'élève continue depuis sa position actuelle.'}
+            :"Lors du changement de niveau d'un élève, le système cherche une règle correspondante. Si trouvée, applique le départ configuré. Sinon, l'élève continue depuis sa position actuelle."}
         </div>
       </div>
 
