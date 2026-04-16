@@ -803,7 +803,7 @@ function JalonsTab({ user, lang, jalons, setJalons, ensembles, examens, newJalon
             <div style={{display:'flex',gap:8,marginTop:4}}>
               {[
                 {val:'cumul', icon:'📚', label:lang==='ar'?'تراكمي فقط':'Cumulatif seul', desc:lang==='ar'?'يستظهر الطالب حزباً بحزب أو سورة بسورة تلقائياً — الشهادة تُمنح عند اكتمال العدد المطلوب':"L'élève valide progressivement — le certificat est décerné automatiquement au seuil"},
-                {val:'cumul_puis_examen', icon:'🎯', label:lang==='ar'?'تراكمي + امتحان ختامي':'Cumulatif + examen final', desc:lang==='ar'?'يستظهر تدريجياً أولاً، ثم يجب اجتياز امتحان رسمي بتلاوة كاملة أمام لجنة للحصول على الشهادة':'Valide progressivement d'abord, puis doit réussir un examen formel en une seule récitation devant jury'},
+                {val:'cumul_puis_examen', icon:'🎯', label:lang==='ar'?'تراكمي + امتحان ختامي':'Cumulatif + examen final', desc:lang==='ar'?'يستظهر تدريجياً أولاً، ثم يجب اجتياز امتحان رسمي بتلاوة كاملة أمام لجنة للحصول على الشهادة':"Valide progressivement d'abord, puis doit réussir un examen formel en une seule récitation devant jury"},
               ].map(opt=>(
                 <div key={opt.val} onClick={()=>setNewJalon({...newJalon,condition_obtention:opt.val})}
                   style={{flex:1,padding:'10px 12px',borderRadius:10,cursor:'pointer',
@@ -824,7 +824,7 @@ function JalonsTab({ user, lang, jalons, setJalons, ensembles, examens, newJalon
                 {lang==='ar'?'الامتحان الختامي المطلوب':'Examen final requis'} <span style={{color:'#E24B4A'}}>*</span>
               </label>
               <select className="field-select" value={newJalon.examen_final_id||''} onChange={e=>setNewJalon({...newJalon,examen_final_id:e.target.value})}>
-                <option value="">{lang==='ar'?'— اختر الامتحان —':'— Choisir l'examen —'}</option>
+                <option value="">{lang==='ar'?'— اختر الامتحان —':"— Choisir l'examen —"}</option>
                 {(examens||[]).map(e=><option key={e.id} value={e.id}>{e.nom}</option>)}
               </select>
               <div style={{fontSize:11,color:'#888',marginTop:4}}>
