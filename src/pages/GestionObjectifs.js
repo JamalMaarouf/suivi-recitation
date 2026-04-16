@@ -654,7 +654,7 @@ export default function GestionObjectifs({ user, navigate, goBack, lang='fr', is
   // ── MOBILE ────────────────────────────────────────────────────
   if (isMobile) return (
     <div style={{paddingBottom:80,background:'#f5f5f0',minHeight:'100vh'}}>
-      <div style={{background:'linear-gradient(135deg,#534AB7,#7F77DD)',padding:'48px 16px 14px',position:'sticky',top:0,zIndex:100}}>
+      <div style={{background:'linear-gradient(135deg,#3730A3,#6366F1)',padding:'48px 16px 14px',position:'sticky',top:0,zIndex:100}}>
         <div style={{display:'flex',alignItems:'center',gap:10}}>
           <button onClick={()=>goBack?goBack():navigate('dashboard')} style={{background:"rgba(255,255,255,0.2)",border:"none",borderRadius:10,padding:"8px 12px",color:"#fff",fontSize:16,cursor:"pointer"}}>{t(lang,'retour')}</button>
           <div style={{flex:1,fontSize:17,fontWeight:800,color:'#fff'}}>🎯 {lang==='ar'?'الأهداف':'Objectifs'}</div>

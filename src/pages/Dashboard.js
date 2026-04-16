@@ -218,7 +218,7 @@ export default function Dashboard({ user, navigate, goBack, lang, isMobile=false
 
         {/* ── HEADER GRADIENT ── */}
         <div style={{background:'linear-gradient(135deg,#064e3b 0%,#085041 40%,#1D9E75 100%)',
-          padding:'48px 18px 20px', position:'relative', overflow:'hidden'}}>
+          padding:'48px 18px 20px', position:'sticky', top:0, zIndex:100, overflow:'hidden'}}>
           {/* cercles décoratifs */}
           <div style={{position:'absolute',top:-30,right:-30,width:120,height:120,
             borderRadius:'50%',background:'rgba(255,255,255,0.06)'}}/>

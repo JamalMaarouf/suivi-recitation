@@ -624,7 +624,7 @@ export default function ResultatsExamens({ user, navigate, goBack, lang='fr', is
   if (isMobile) {
     return (
       <div style={{paddingBottom:80,background:'#f5f5f0',minHeight:'100vh'}}>
-        <div style={{background:'linear-gradient(135deg,#378ADD,#0C447C)',padding:'48px 16px 0',position:'sticky',top:0,zIndex:100}}>
+        <div style={{background:'linear-gradient(135deg,#0C447C,#378ADD)',padding:'48px 16px 0',position:'sticky',top:0,zIndex:100}}>
           <Header/>
           <Tabs/>
         </div>

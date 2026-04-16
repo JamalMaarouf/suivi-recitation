@@ -559,7 +559,7 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang, isMobi
     return (
       <div style={{paddingBottom:80, background:'#f5f5f0', minHeight:'100vh'}}>
         {/* Sticky header */}
-        <div style={{background:`linear-gradient(135deg,${nc},${nc}cc)`, position:'sticky', top:0, zIndex:100}}>
+        <div style={{background:`linear-gradient(135deg,#0C447C,#378ADD)`, position:'sticky', top:0, zIndex:100}}>
           <div style={{display:'flex', alignItems:'center', gap:12, padding:'48px 16px 12px'}}>
             <button onClick={()=>goBack?goBack():navigate('dashboard')}
               style={{background:'rgba(255,255,255,0.2)', border:'none', cursor:'pointer', borderRadius:10, padding:'8px 12px', color:'#fff', fontSize:16}}>
@@ -823,7 +823,7 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang, isMobi
                     {lang==='ar'?'لا توجد شهادات بعد — ستظهر تلقائياً عند بلوغ مرحلة':"Aucun certificat — apparaissent automatiquement lors d'un jalon"}
                   </div>
                 ) : certificats.map(cert=>(
-                  <div key={cert.id} style={{background:'linear-gradient(135deg,#FAEEDA,#fff8ee)',border:'1px solid #EF9F2740',borderRadius:14,padding:'16px',marginBottom:10,display:'flex',alignItems:'center',gap:14}}>
+                  <div key={cert.id} style={{background:'linear-gradient(135deg,#0C447C,#378ADD)',border:'1px solid #EF9F2740',borderRadius:14,padding:'16px',marginBottom:10,display:'flex',alignItems:'center',gap:14}}>
                     <div style={{width:52,height:52,borderRadius:14,background:'#FAEEDA',display:'flex',alignItems:'center',justifyContent:'center',fontSize:28,flexShrink:0}}>🏅</div>
                     <div style={{flex:1}}>
                       <div style={{fontSize:14,fontWeight:700,color:'#085041',direction:'rtl',fontFamily:"'Tajawal',Arial,sans-serif"}}>{cert.nom_certificat_ar||cert.nom_certificat}</div>
@@ -852,7 +852,7 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang, isMobi
               return (
                 <div style={{padding:'1rem 0'}}>
                   {/* Total depuis le début */}
-                  <div style={{background:'linear-gradient(135deg,#085041,#1D9E75)',borderRadius:14,padding:'14px 16px',marginBottom:10,display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+                  <div style={{background:'linear-gradient(135deg,#0C447C,#378ADD)',borderRadius:14,padding:'14px 16px',marginBottom:10,display:'flex',alignItems:'center',justifyContent:'space-between'}}>
                     <div style={{color:'rgba(255,255,255,0.8)',fontSize:11}}>{lang==='ar'?'المجموع الكلي منذ بداية المتابعة':'Total depuis le début du suivi'}</div>
                     <div style={{color:'#fff',fontWeight:800,fontSize:22}}>{pts.total.toLocaleString()} <span style={{fontSize:11,opacity:0.8}}>{lang==='ar'?'ن':'pts'}</span></div>
                   </div>
@@ -1495,7 +1495,7 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang, isMobi
                   {lang==='ar'?'لا توجد شهادات بعد':'Aucun certificat pour le moment'}
                 </div>
               ):certificats.map(cert=>(
-                <div key={cert.id} style={{background:'linear-gradient(135deg,#FAEEDA,#fff8ee)',border:'1px solid #EF9F2740',borderRadius:14,padding:'14px',marginBottom:10,display:'flex',alignItems:'center',gap:12}}>
+                <div key={cert.id} style={{background:'linear-gradient(135deg,#0C447C,#378ADD)',border:'1px solid #EF9F2740',borderRadius:14,padding:'14px',marginBottom:10,display:'flex',alignItems:'center',gap:12}}>
                   <div style={{width:44,height:44,borderRadius:12,background:'#FAEEDA',display:'flex',alignItems:'center',justifyContent:'center',fontSize:24,flexShrink:0}}>🏅</div>
                   <div style={{flex:1}}>
                     <div style={{fontSize:13,fontWeight:700,color:'#085041',direction:'rtl',fontFamily:"'Tajawal',Arial,sans-serif"}}>{cert.nom_certificat_ar||cert.nom_certificat}</div>
@@ -1520,7 +1520,7 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang, isMobi
             return (
               <div style={{padding:'0.5rem 0'}}>
                 {/* Total depuis le début */}
-                <div style={{background:'linear-gradient(135deg,#085041,#1D9E75)',borderRadius:12,padding:'12px 14px',marginBottom:8,display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+                <div style={{background:'linear-gradient(135deg,#0C447C,#378ADD)',borderRadius:12,padding:'12px 14px',marginBottom:8,display:'flex',alignItems:'center',justifyContent:'space-between'}}>
                   <div style={{color:'rgba(255,255,255,0.8)',fontSize:10}}>{lang==='ar'?'المجموع الكلي':'Total suivi'}</div>
                   <div style={{color:'#fff',fontWeight:800,fontSize:18}}>{pts.total.toLocaleString()} <span style={{fontSize:10,opacity:0.8}}>{lang==='ar'?'ن':'pts'}</span></div>
                 </div>

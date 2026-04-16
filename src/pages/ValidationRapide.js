@@ -306,7 +306,7 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
 
   // ── PC ───────────────────────────────────────────────────────────
   return (
-    <div style={{ maxWidth: 720, margin: '0 auto', padding: isMobile?'0 0 80px':'0' }}>
+    <div style={{ maxWidth: 720, margin: '0 auto', paddingBottom: isMobile?80:0 }}>
       {/* Flash */}
       {flash && (
         <div style={{ position: 'fixed', top: 70, left: '50%', transform: 'translateX(-50%)', zIndex: 999,
@@ -389,9 +389,9 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
           boxShadow: '0 4px 20px rgba(0,0,0,0.08)', overflow: 'hidden', marginBottom: '1.5rem' }}>
 
           {/* Header élève */}
-          <div style={{ background: `linear-gradient(135deg,${nc}15,${nc}05)`, padding: '16px 20px',
+          <div style={{ background: `linear-gradient(135deg,#085041,#1D9E75)`, padding: '16px 20px',
             borderBottom: `1px solid ${nc}20`, display: 'flex', alignItems: 'center', gap: 14 }}>
-            <div style={{ width: 46, height: 46, borderRadius: '50%', background: `linear-gradient(135deg,${nc},${nc}80)`,
+            <div style={{ width: 46, height: 46, borderRadius: '50%', background: `linear-gradient(135deg,#085041,#1D9E75)`,
               color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center',
               fontWeight: 900, fontSize: 16, flexShrink: 0, boxShadow: `0 3px 10px ${nc}40` }}>
               {getInitiales(selectedEleve.prenom, selectedEleve.nom)}
@@ -436,7 +436,7 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
                       🎉 {lang === 'ar' ? `الحزب ${etat.hizbEnCours} مكتمل — انتظار التصحيح` : `Hizb ${etat.hizbEnCours} complet — en attente de validation`}
                     </div>
                     <button onClick={validerHizb} disabled={saving}
-                      style={{ width: '100%', padding: '16px', background: saving ? '#ccc' : 'linear-gradient(135deg,#EF9F27,#d4841a)',
+                      style={{ width: '100%', padding: '16px', background: saving ? '#ccc' : 'linear-gradient(135deg,#085041,#1D9E75)',
                         color: '#fff', border: 'none', borderRadius: 14, fontSize: 16, fontWeight: 800, cursor: 'pointer',
                         boxShadow: '0 3px 12px rgba(239,159,39,0.4)', fontFamily: 'inherit' }}>
                       {saving ? '...' : `✓ ${lang === 'ar' ? `تصحيح الحزب ${etat.hizbEnCours}` : `Valider Hizb ${etat.hizbEnCours}`}${(bareme?.unites?.hizb_complet||0)>0?` (+${bareme.unites.hizb_complet} ${t(lang,'pts_abrev')})`:''}`}
@@ -494,7 +494,7 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
 
                     {/* Bouton valider */}
                     <button onClick={validerTomon} disabled={saving}
-                      style={{ width: '100%', padding: '15px', background: saving ? '#ccc' : `linear-gradient(135deg,${nc},${nc}cc)`,
+                      style={{ width: '100%', padding: '15px', background: saving ? '#ccc' : `linear-gradient(135deg,#085041,#1D9E75)`,
                         color: '#fff', border: 'none', borderRadius: 14, fontSize: 16, fontWeight: 800,
                         cursor: saving ? 'not-allowed' : 'pointer', fontFamily: 'inherit',
                         boxShadow: saving ? 'none' : `0 3px 12px ${nc}40`, transition: 'all 0.15s' }}>
@@ -634,7 +634,7 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
                   disabled={saving || (typeRec === 'sequence' && (!versetDebut || !versetFin))}
                   style={{ width: '100%', padding: '15px',
                     background: (saving || (typeRec === 'sequence' && (!versetDebut || !versetFin)))
-                      ? '#e0e0d8' : `linear-gradient(135deg,${nc},${nc}cc)`,
+                      ? '#e0e0d8' : `linear-gradient(135deg,#085041,#1D9E75)`,
                     color: (saving || (typeRec === 'sequence' && (!versetDebut || !versetFin))) ? '#aaa' : '#fff',
                     border: 'none', borderRadius: 14, fontSize: 15, fontWeight: 800,
                     cursor: 'pointer', fontFamily: 'inherit',

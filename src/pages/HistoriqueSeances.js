@@ -406,7 +406,7 @@ export default function HistoriqueSeances({ user, navigate, goBack, lang='fr', i
     return (
       <div style={{paddingBottom:80, background:'#f5f5f0', minHeight:'100vh'}}>
         {/* Header sticky */}
-        <div style={{background:'linear-gradient(135deg,#378ADD,#0C447C)',padding:'48px 16px 14px',position:'sticky',top:0,zIndex:100}}>
+        <div style={{background:'linear-gradient(135deg,#0C447C,#378ADD)',padding:'48px 16px 14px',position:'sticky',top:0,zIndex:100}}>
           <div style={{display:'flex', alignItems:'center', gap:10, padding:'14px 16px 8px'}}>
             <button onClick={()=>goBack?goBack():navigate('dashboard')} style={{background:"rgba(255,255,255,0.2)",border:"none",borderRadius:10,padding:"8px 12px",color:"#fff",fontSize:16,cursor:"pointer"}}>{t(lang,'retour')}</button>
             <div style={{flex:1,fontSize:17,fontWeight:800,color:'#fff'}}>

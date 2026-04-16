@@ -179,7 +179,7 @@ export default function PortailParent({ parent, navigate, goBack, lang='fr', onL
     return (
       <div style={{paddingBottom:80, background:'#f5f5f0', minHeight:'100vh'}}>
         {/* Mobile header */}
-        <div style={{background:'linear-gradient(135deg,#085041,#1D9E75)', padding:'48px 16px 20px'}}>
+        <div style={{background:'linear-gradient(135deg,#085041,#1D9E75)', padding:'48px 16px 20px', position:'sticky', top:0, zIndex:100}}>
           <div style={{fontSize:13, color:'rgba(255,255,255,0.8)', marginBottom:4}}>
             {lang==='ar'?'مرحباً':'Bonjour'}, <strong>{parent.prenom} {parent.nom}</strong>
           </div>

@@ -580,7 +580,7 @@ export default function Finance({ user, navigate, goBack, lang='fr', isMobile })
     return (
       <div style={{paddingBottom:80,background:'#f5f5f0',minHeight:'100vh'}}>
         {/* Sticky header */}
-        <div style={{background:'linear-gradient(135deg,#E24B4A,#A32D2D)',padding:'48px 16px 14px',position:'sticky',top:0,zIndex:100}}>
+        <div style={{background:'linear-gradient(135deg,#C2410C,#EA580C)',padding:'48px 16px 14px',position:'sticky',top:0,zIndex:100}}>
           <div style={{display:'flex',alignItems:'center',gap:12,marginBottom:8}}>
             <button onClick={()=>goBack?goBack():navigate('dashboard')}
               style={{background:'rgba(255,255,255,0.2)',border:'none',borderRadius:10,padding:'8px 12px',color:'#fff',fontSize:18,cursor:'pointer',minWidth:38}}>←</button>
