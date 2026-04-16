@@ -63,7 +63,7 @@ export default function ElevesInactifs({ navigate, goBack, lang='fr', user, isMo
     <div style={{padding:'2rem',textAlign:'center'}}>
       <div className="loading">...</div>
       <button onClick={()=>goBack?goBack():navigate('dashboard')} className="back-link" style={{marginTop:'1rem'}}>
-        {lang==='ar'?'← رجوع':'← Retour'}
+        ←
       </button>
     </div>
   );
@@ -74,7 +74,7 @@ export default function ElevesInactifs({ navigate, goBack, lang='fr', user, isMo
         <div style={{background:'linear-gradient(135deg,#378ADD,#0C447C)',padding:'48px 16px 14px',position:'sticky',top:0,zIndex:100,marginBottom:12}}>
           <div style={{display:'flex',alignItems:'center',gap:12}}>
             <button onClick={()=>goBack?goBack():navigate('dashboard')}
-              style={{background:'rgba(255,255,255,0.2)',border:'none',borderRadius:10,padding:'8px 12px',color:'#fff',fontSize:16,cursor:'pointer',flexShrink:0}}></button>
+              style={{background:'rgba(255,255,255,0.2)',border:'none',borderRadius:10,padding:'0',color:'#fff',fontSize:20,cursor:'pointer',flexShrink:0,width:38,height:38,display:'flex',alignItems:'center',justifyContent:'center'}}></button>
             <div style={{flex:1}}>
               <div style={{fontSize:17,fontWeight:800,color:'#fff'}}>🚨 {lang==='ar'?'الطلاب غير النشطين':'Élèves inactifs'}</div>
               <div style={{fontSize:11,color:'rgba(255,255,255,0.8)'}}>{inactifs.length} {lang==='ar'?'طالب':'élève(s)'}</div>
@@ -84,7 +84,7 @@ export default function ElevesInactifs({ navigate, goBack, lang='fr', user, isMo
       ) : (
         <div style={{display:'flex',alignItems:'center',gap:12,marginBottom:'1.2rem'}}>
           <button onClick={()=>goBack?goBack():navigate('dashboard')}
-              style={{background:'rgba(255,255,255,0.2)',border:'none',borderRadius:10,padding:'8px 12px',color:'#fff',fontSize:18,cursor:'pointer',flexShrink:0,minWidth:38}}>←</button>
+              style={{background:'rgba(255,255,255,0.2)',border:'none',borderRadius:10,padding:'0',color:'#fff',fontSize:20,cursor:'pointer',flexShrink:0,width:38,height:38,display:'flex',alignItems:'center',justifyContent:'center'}}>←</button>
           <div style={{fontSize:17,fontWeight:700,color:'#1a1a1a'}}>
             {lang==='ar'?'الطلاب غير النشطين':'Élèves inactifs'} ({inactifs.length})
           </div>

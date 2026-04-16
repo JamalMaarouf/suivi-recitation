@@ -189,7 +189,7 @@ export default function ValidationCollective({ user, navigate, goBack, lang='fr'
       <div style={{paddingBottom:80, background:'#f5f5f0', minHeight:'100vh'}}>
         <div style={{background:'linear-gradient(135deg,#534AB7,#7F77DD)',padding:'48px 16px 14px',position:'sticky',top:0,zIndex:100}}>
           <div style={{display:'flex', alignItems:'center', gap:10}}>
-            <button onClick={()=>goBack?goBack():navigate('dashboard')} style={{background:"rgba(255,255,255,0.2)",border:"none",borderRadius:10,padding:"8px 12px",color:"#fff",fontSize:16,cursor:"pointer"}}>{t(lang,'retour')}</button>
+            <button onClick={()=>goBack?goBack():navigate('dashboard')} style={{background:'rgba(255,255,255,0.2)',border:'none',borderRadius:10,padding:'0',color:'#fff',fontSize:20,cursor:'pointer',flexShrink:0,width:38,height:38,display:'flex',alignItems:'center',justifyContent:'center'}}>←</button>
             <div style={{flex:1, fontSize:17, fontWeight:800, color:'#fff'}}>
               📖 {lang==='ar'?'مراجعة جماعية':"Murajaʼa collective"}
             </div>
@@ -306,7 +306,7 @@ export default function ValidationCollective({ user, navigate, goBack, lang='fr'
     <div style={{padding:'1rem',maxWidth:700,margin:'0 auto'}}>
       {/* Header */}
       <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'1.5rem'}}>
-        <button style={{background:"rgba(255,255,255,0.2)",border:"none",borderRadius:10,padding:"8px 12px",color:"#fff",fontSize:16,cursor:"pointer",fontFamily:"inherit"}} onClick={()=>goBack?goBack():navigate('dashboard')}>{t(lang,'retour')}</button>
+        <button style={{background:"rgba(255,255,255,0.2)",border:"none",borderRadius:10,padding:"8px 12px",color:"#fff",fontSize:16,cursor:"pointer",fontFamily:"inherit"}} onClick={()=>goBack?goBack():navigate('dashboard')}>←</button>
         <div style={{display:'flex',gap:8}}>
           <button onClick={()=>navigate('muraja_dashboard')}
             style={{padding:'6px 14px',background:'#E6F1FB',color:'#378ADD',border:'none',borderRadius:8,fontSize:12,fontWeight:600,cursor:'pointer',fontFamily:'inherit'}}>

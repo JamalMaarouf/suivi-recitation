@@ -408,7 +408,7 @@ export default function HistoriqueSeances({ user, navigate, goBack, lang='fr', i
         {/* Header sticky */}
         <div style={{background:'linear-gradient(135deg,#378ADD,#0C447C)',padding:'48px 16px 14px',position:'sticky',top:0,zIndex:100}}>
           <div style={{display:'flex', alignItems:'center', gap:10, padding:'14px 16px 8px'}}>
-            <button onClick={()=>goBack?goBack():navigate('dashboard')} style={{background:"rgba(255,255,255,0.2)",border:"none",borderRadius:10,padding:"8px 12px",color:"#fff",fontSize:16,cursor:"pointer"}}>{t(lang,'retour')}</button>
+            <button onClick={()=>goBack?goBack():navigate('dashboard')} style={{background:'rgba(255,255,255,0.2)',border:'none',borderRadius:10,padding:'0',color:'#fff',fontSize:20,cursor:'pointer',flexShrink:0,width:38,height:38,display:'flex',alignItems:'center',justifyContent:'center'}}>←</button>
             <div style={{flex:1,fontSize:17,fontWeight:800,color:'#fff'}}>
               📊 {lang==='ar'?'السجل':'Historique'}
             </div>
@@ -572,7 +572,7 @@ export default function HistoriqueSeances({ user, navigate, goBack, lang='fr', i
   return (
     <div>
       <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'1.25rem',flexWrap:'wrap',gap:8}}>
-        <button style={{background:"rgba(255,255,255,0.2)",border:"none",borderRadius:10,padding:"8px 12px",color:"#fff",fontSize:16,cursor:"pointer",fontFamily:"inherit"}} onClick={()=>goBack?goBack():navigate('dashboard')}>{t(lang,'retour')}</button>
+        <button style={{background:"rgba(255,255,255,0.2)",border:"none",borderRadius:10,padding:"8px 12px",color:"#fff",fontSize:16,cursor:"pointer",fontFamily:"inherit"}} onClick={()=>goBack?goBack():navigate('dashboard')}>←</button>
         <div style={{fontSize:18,fontWeight:700,color:'#085041'}}>📊 {lang==='ar'?'تحليل الحصص':lang==='en'?'Session Analysis':lang==='ar'?'تحليل الحصص':lang==='ar'?'تحليل الحصص':(lang==='ar'?'تحليل الحصص':(lang==='ar'?'تحليل الحصص':'Analyse des Séances'))}</div>
         <div style={{display:'flex',gap:6,alignItems:'center'}}>
           <span style={{fontSize:12,color:'#888'}}>{elevesVisibles.length} {lang==='ar'?'طالب':lang==='en'?'students':'élèves'}</span>
@@ -739,7 +739,7 @@ export default function HistoriqueSeances({ user, navigate, goBack, lang='fr', i
         {drillDown&&eleveDrillDown&&(
           <div style={{background:'#fff',border:'1.5px solid #1D9E75',borderRadius:16,padding:'1.25rem',marginBottom:'1rem'}}>
             <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:'1rem'}}>
-              <button onClick={()=>{setDrillDown(false);setSelectedEleve(null);setFilterEleve('tous');}} style={{padding:'4px 10px',border:'0.5px solid #e0e0d8',borderRadius:6,background:'#fff',fontSize:11,cursor:'pointer'}}>{t(lang,'retour')}</button>
+              <button onClick={()=>{setDrillDown(false);setSelectedEleve(null);setFilterEleve('tous');}} style={{padding:'4px 10px',border:'0.5px solid #e0e0d8',borderRadius:6,background:'#fff',fontSize:11,cursor:'pointer'}}>←</button>
               <Avatar prenom={eleveDrillDown.prenom} nom={eleveDrillDown.nom} size={38} bg={(NIVEAU_COLORS[eleveDrillDown.code_niveau||'1']||'#888')+'18'} color={NIVEAU_COLORS[eleveDrillDown.code_niveau||'1']||'#888'}/>
               <div style={{flex:1}}><div style={{fontSize:15,fontWeight:700}}>{eleveDrillDown.prenom} {eleveDrillDown.nom}</div><div style={{display:'flex',gap:6,marginTop:2}}><NiveauBadge code={eleveDrillDown.code_niveau}/></div></div>
               <button onClick={()=>navigate('fiche',eleveDrillDown)} style={{padding:'6px 12px',background:'#1D9E75',color:'#fff',border:'none',borderRadius:8,fontSize:11,cursor:'pointer'}}>Fiche →</button>

@@ -656,7 +656,7 @@ export default function GestionObjectifs({ user, navigate, goBack, lang='fr', is
     <div style={{paddingBottom:80,background:'#f5f5f0',minHeight:'100vh'}}>
       <div style={{background:'linear-gradient(135deg,#534AB7,#7F77DD)',padding:'48px 16px 14px',position:'sticky',top:0,zIndex:100}}>
         <div style={{display:'flex',alignItems:'center',gap:10}}>
-          <button onClick={()=>goBack?goBack():navigate('dashboard')} style={{background:"rgba(255,255,255,0.2)",border:"none",borderRadius:10,padding:"8px 12px",color:"#fff",fontSize:16,cursor:"pointer"}}>{t(lang,'retour')}</button>
+          <button onClick={()=>goBack?goBack():navigate('dashboard')} style={{background:'rgba(255,255,255,0.2)',border:'none',borderRadius:10,padding:'0',color:'#fff',fontSize:20,cursor:'pointer',flexShrink:0,width:38,height:38,display:'flex',alignItems:'center',justifyContent:'center'}}>←</button>
           <div style={{flex:1,fontSize:17,fontWeight:800,color:'#fff'}}>🎯 {lang==='ar'?'الأهداف':'Objectifs'}</div>
           <button onClick={showForm?()=>{setShowForm(false);setEditing(null);}:startCreate}
             style={{background:'rgba(255,255,255,0.25)',border:'1px solid rgba(255,255,255,0.3)',color:'#fff',borderRadius:10,padding:'8px 14px',fontSize:13,fontWeight:700,cursor:'pointer',flexShrink:0,whiteSpace:'nowrap'}}>
@@ -685,7 +685,7 @@ export default function GestionObjectifs({ user, navigate, goBack, lang='fr', is
     <div>
       <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'1.25rem'}}>
         <div style={{display:'flex',alignItems:'center',gap:10}}>
-          <button onClick={()=>goBack?goBack():navigate('dashboard')} style={{background:"rgba(255,255,255,0.2)",border:"none",borderRadius:10,padding:"8px 12px",color:"#fff",fontSize:16,cursor:"pointer"}}>←</button>
+          <button onClick={()=>goBack?goBack():navigate('dashboard')} style={{background:'rgba(255,255,255,0.2)',border:'none',borderRadius:10,padding:'0',color:'#fff',fontSize:20,cursor:'pointer',flexShrink:0,width:38,height:38,display:'flex',alignItems:'center',justifyContent:'center'}}>←</button>
           <div style={{fontSize:20,fontWeight:700}}>🎯 {lang==='ar'?'الأهداف':'Gestion des objectifs'}</div>
         </div>
         <button onClick={showForm?()=>{setShowForm(false);setEditing(null);}:startCreate}

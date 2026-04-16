@@ -1627,7 +1627,7 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
         <div style={{background:'linear-gradient(135deg,#085041,#1D9E75)',padding:'48px 16px 14px',position:'sticky',top:0,zIndex:100}}>
           <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:12}}>
             <button onClick={()=>goBack?goBack():navigate('dashboard')}
-              style={{background:'rgba(255,255,255,0.2)',border:'none',cursor:'pointer',flexShrink:0,fontSize:20,color:'#fff',padding:'6px 10px',borderRadius:8}}>←</button>
+              style={{background:'rgba(255,255,255,0.2)',border:'none',borderRadius:10,padding:'0',color:'#fff',fontSize:20,cursor:'pointer',flexShrink:0,width:38,height:38,display:'flex',alignItems:'center',justifyContent:'center'}}>←</button>
             <div style={{flex:1,fontSize:17,fontWeight:800,color:'#fff'}}>⚙️ {lang==='ar'?'الإدارة':'Administration'}</div>
             {tab==='eleves'&&user.role==='surveillant'&&(
               <button onClick={()=>{resetFormEleve();setShowFormEleve(v=>!v);}}

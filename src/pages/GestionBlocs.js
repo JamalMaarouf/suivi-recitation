@@ -280,7 +280,7 @@ export default function GestionBlocs({ user, navigate, goBack, lang='fr', isMobi
           <button onClick={()=>goBack?goBack():navigate('dashboard')}
             style={{background:'none',border:'none',cursor:'pointer',fontSize:isMobile?22:14,
               color:'#085041',padding:0,fontFamily:'inherit',fontWeight:600}}>
-            {isMobile?'←':'← Retour'}
+            ←
           </button>
           {!isMobile&&<div style={{fontSize:20,fontWeight:700}}>🔧 Blocs d'examen</div>}
           {isMobile&&<div style={{flex:1,fontSize:17,fontWeight:800,color:'#085041'}}>🔧 {lang==='ar'?'مجموعات الامتحان':'Blocs'}</div>}

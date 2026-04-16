@@ -181,7 +181,7 @@ export default function MurajaDashboard({ user, navigate, goBack, lang='fr', isM
         <div style={{background:'linear-gradient(135deg,#378ADD,#0C447C)',padding:'48px 16px 16px',position:'sticky',top:0,zIndex:100}}>
           <div style={{display:'flex',alignItems:'center',gap:12,marginBottom:12}}>
             <button onClick={()=>goBack?goBack():navigate('dashboard')}
-              style={{background:'rgba(255,255,255,0.2)',border:'none',borderRadius:10,padding:'8px 12px',color:'#fff',fontSize:16,cursor:'pointer',flexShrink:0}}></button>
+              style={{background:'rgba(255,255,255,0.2)',border:'none',borderRadius:10,padding:'0',color:'#fff',fontSize:20,cursor:'pointer',flexShrink:0,width:38,height:38,display:'flex',alignItems:'center',justifyContent:'center'}}></button>
             <div style={{flex:1}}>
               <div style={{fontSize:17,fontWeight:800,color:'#fff'}}>📖 {lang==='ar'?'المراجعة الجماعية':"Muraja'a"}</div>
               <div style={{fontSize:11,color:'rgba(255,255,255,0.75)'}}>{lang==='ar'?'تتبع المراجعات الجماعية':'Suivi des révisions collectives'}</div>
