@@ -48,6 +48,9 @@ export default function ValidationCollective({ user, navigate, goBack, lang='fr'
     supabase.from('sourates').select('id,numero').then(({ data }) => {
       if (data) setSouratesDB(data);
     });
+    // Charger les niveaux dynamiques
+    supabase.from('niveaux').select('id,code,nom,type,couleur').eq('ecole_id', user.ecole_id).order('ordre')
+      .then(({ data }) => { if (data) setNiveauxDB(data); });
   }, []);
 
   useEffect(() => {
@@ -341,11 +344,9 @@ export default function ValidationCollective({ user, navigate, goBack, lang='fr'
           <div style={{fontSize:13,fontWeight:600,color:'#888',marginBottom:10,textAlign:'center'}}>
             {lang==='ar' ? 'اختر المستوى الدراسي' : 'Choisissez le niveau'}
           </div>
-          {niveauxDB.length===0 ? (
-            <div style={{textAlign:'center',color:'#aaa',padding:'2rem'}}>...</div>
-          ) : (
+          {/* Affiche niveaux DB ou fallback hardcodé pendant le chargement */}
           <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
-            {niveauxDB.map(n=>{
+            {(niveauxDB.length > 0 ? niveauxDB : NIVEAUX.map(n=>({...n,nom:n.label}))).map(n=>{
               const nc=getNiveauColor(n.code, niveauxDB);
               return (
                 <div key={n.code} onClick={()=>{setSelectedNiveau(n.code);setStep(2);}}
@@ -367,7 +368,7 @@ export default function ValidationCollective({ user, navigate, goBack, lang='fr'
                 </div>
               );
             })}
-          </div>)}
+          </div>
         </div>
       )}
 
