@@ -110,7 +110,7 @@ export default function ListeCertificats({ user, navigate, goBack, lang='fr', is
             </div>
           ) : (
             <div style={{padding:'10px 12px'}}>
-              {filtered.map(c=>{
+              {(filtered||[]).map(c=>{
                 const el=getEleve(c.eleve_id);
                 const jal=getJalon(c.jalon_id);
                 const inst=el?getInst(el.instituteur_referent_id):null;
@@ -191,7 +191,7 @@ export default function ListeCertificats({ user, navigate, goBack, lang='fr', is
           <div className="empty">{lang==='ar'?'لا توجد شهادات':'Aucun certificat'}</div>
         ) : (
           <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
-            {filtered.map(c => {
+            {(filtered||[]).map(c => {
               const el = getEleve(c.eleve_id);
               const jal = getJalon(c.jalon_id);
               const inst = el ? getInst(el.instituteur_referent_id) : null;

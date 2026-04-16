@@ -477,7 +477,7 @@ export default function HistoriqueSeances({ user, navigate, goBack, lang='fr', i
                 style={{padding:'10px 14px',fontSize:12,color:'#888',borderBottom:'0.5px solid #f0f0ec',cursor:'pointer'}}>
                 {lang==='ar'?'كل الطلاب':'Tous les élèves'}
               </div>
-              {elevesVisibles.filter(e=>
+              {(elevesVisibles||[]).filter(e=>
                 `${e.prenom} ${e.nom} ${e.eleve_id_ecole||''}`.toLowerCase().includes(searchFiltreEleve.toLowerCase()) ||
                 String(e.eleve_id_ecole||'').includes(searchFiltreEleve)
               ).map(e=>(
@@ -505,9 +505,9 @@ export default function HistoriqueSeances({ user, navigate, goBack, lang='fr', i
             <div style={{display:'grid',gridTemplateColumns:'repeat(2,1fr)',gap:10,marginBottom:14}}>
               {[
                 {label:lang==='ar'?'أيام نشطة':'Jours actifs',val:timelineArr.length,color:'#1D9E75',bg:'#E1F5EE'},
-                {label:lang==='ar'?'إجمالي النقاط':'Total points',val:actifs.reduce((s,e)=>s+e.pts,0).toLocaleString(),color:'#534AB7',bg:'#F0EEFF'},
-                {label:lang==='ar'?'الثُّمنات':'Tomon',val:actifs.reduce((s,e)=>s+e.tomon,0),color:'#378ADD',bg:'#E6F1FB'},
-                {label:lang==='ar'?'الأحزاب':'Hizb',val:actifs.reduce((s,e)=>s+e.hizb,0),color:'#EF9F27',bg:'#FAEEDA'},
+                {label:lang==='ar'?'إجمالي النقاط':'Total points',val:(actifs||[]).reduce((s,e)=>s+(e.pts||0),0).toLocaleString(),color:'#534AB7',bg:'#F0EEFF'},
+                {label:lang==='ar'?'الثُّمنات':'Tomon',val:(actifs||[]).reduce((s,e)=>s+(e.tomon||0),0),color:'#378ADD',bg:'#E6F1FB'},
+                {label:lang==='ar'?'الأحزاب':'Hizb',val:(actifs||[]).reduce((s,e)=>s+(e.hizb||0),0),color:'#EF9F27',bg:'#FAEEDA'},
               ].map((k,i)=>(
                 <div key={i} style={{background:k.bg,borderRadius:12,padding:'14px',textAlign:'center',border:`0.5px solid ${k.color}20`}}>
                   <div style={{fontSize:24,fontWeight:800,color:k.color}}>{k.val}</div>
@@ -612,14 +612,14 @@ export default function HistoriqueSeances({ user, navigate, goBack, lang='fr', i
               {searchFiltreEleve && filterEleve==='tous' && (
                 <div style={{position:'absolute',top:'9999%',right:0,left:0,background:'#fff',border:'0.5px solid #e0e0d8',borderRadius:8,zIndex:9999,maxHeight:200,overflowY:'auto',boxShadow:'0 4px 12px #0001'}}>
                   <div onClick={()=>{setFilterEleve('tous');setSearchFiltreEleve('');}} style={{padding:'8px 12px',cursor:'pointer',fontSize:12,color:'#888',borderBottom:'0.5px solid #f0f0ec'}}>{lang==='ar'?'كل الطلاب':'Tous les élèves'}</div>
-                  {elevesVisibles.filter(e=>`${e.prenom} ${e.nom} ${e.eleve_id_ecole||''}`.toLowerCase().includes(searchFiltreEleve.toLowerCase())||String(e.eleve_id_ecole||'').includes(searchFiltreEleve)).map(e=>(
+                  {(elevesVisibles||[]).filter(e=>`${e.prenom} ${e.nom} ${e.eleve_id_ecole||''}`.toLowerCase().includes(searchFiltreEleve.toLowerCase())||String(e.eleve_id_ecole||'').includes(searchFiltreEleve)).map(e=>(
                     <div key={e.id} onTouchEnd={()=>{setFilterEleve(e.id);setSearchFiltreEleve('');}} onClick={()=>{setFilterEleve(e.id);setSearchFiltreEleve('');}}
                       style={{padding:'8px 12px',cursor:'pointer',fontSize:12,borderBottom:'0.5px solid #f0f0ec',display:'flex',gap:8,alignItems:'center'}}>
                       {e.eleve_id_ecole&&<span style={{background:'#E1F5EE',color:'#085041',padding:'1px 5px',borderRadius:4,fontSize:10,fontWeight:700}}>#{e.eleve_id_ecole}</span>}
                       <span>{e.prenom} {e.nom} ({e.code_niveau||'?'})</span>
                     </div>
                   ))}
-                  {elevesVisibles.filter(e=>`${e.prenom} ${e.nom} ${e.eleve_id_ecole||''}`.toLowerCase().includes(searchFiltreEleve.toLowerCase())).length===0&&
+                  {(elevesVisibles||[]).filter(e=>`${e.prenom} ${e.nom} ${e.eleve_id_ecole||''}`.toLowerCase().includes(searchFiltreEleve.toLowerCase())).length===0&&
                     <div style={{padding:'8px 12px',color:'#aaa',fontSize:12}}>{lang==='ar'?'لا نتائج':'Aucun résultat'}</div>}
                 </div>
               )}

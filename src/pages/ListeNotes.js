@@ -161,7 +161,7 @@ export default function ListeNotes({ user, navigate, goBack, lang='fr', isMobile
               {filtered.length === 0 && (
                 <tr><td colSpan={9} className="empty">{lang==='ar'?'لا توجد بيانات':'Aucune donnée'}</td></tr>
               )}
-              {filtered.map((el, idx) => {
+              {(filtered||[]).map((el, idx) => {
                 const nc = getNivColor(el.code_niveau);
                 return (
                   <tr key={el.id} className="clickable" onClick={()=>navigate('fiche',el)}>
