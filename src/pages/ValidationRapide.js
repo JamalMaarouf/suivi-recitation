@@ -83,18 +83,30 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
   };
 
   const currentSourate = (() => {
-    if (!estSourate || !selectedEleve) return null;
+    if (!estSourate || !selectedEleve || souratesDB.length === 0) return null;
     const souratesAcquises = selectedEleve.sourates_acquises || 0;
-    const souratesNiveau = getSouratesForNiveau(selectedEleve.code_niveau);
-    const souratesOrdonnees = [...souratesNiveau].sort((a, b) => b.numero - a.numero);
+
+    // Construire la liste depuis le programme du niveau (si défini) sinon toutes les sourates
+    let souratesOrdonnees;
+    if (programmeNiveau.length > 0) {
+      // Programme défini : utiliser les sourates du programme triées décroissantes
+      souratesOrdonnees = programmeNiveau
+        .map(p => souratesDB.find(s => s.id === p.reference_id))
+        .filter(Boolean)
+        .sort((a, b) => b.numero - a.numero);
+    } else {
+      // Pas de programme : toutes les sourates de souratesDB triées décroissantes
+      souratesOrdonnees = [...souratesDB].sort((a, b) => b.numero - a.numero);
+    }
+
+    if (souratesOrdonnees.length === 0) return null;
+
     const firstNonComplete = souratesOrdonnees.findIndex((sr, i) => {
       if (i < souratesAcquises) return false;
       return !isCompleteNum(sr.numero);
     });
     if (firstNonComplete < 0) return null;
-    const s = souratesOrdonnees[firstNonComplete];
-    const dbObj = souratesDB.find(sd => sd.numero === s.numero);
-    return dbObj ? { ...s, id: dbObj.id, nb_versets: dbObj.nb_versets } : { ...s };
+    return souratesOrdonnees[firstNonComplete]; // contient déjà id depuis souratesDB
   })();
 
   // Vérifier si c'est le dernier hizb du programme (pas forcément Hizb 1)
