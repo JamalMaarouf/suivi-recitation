@@ -198,7 +198,7 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang, isMobi
         .eq('ecole_id', user.ecole_id).eq('eleve_id',eleve.id).eq('active',true),
         supabase.from('validations').select('*, valideur:valide_par(prenom,nom)').eq('ecole_id', user.ecole_id).eq('eleve_id',eleve.id).in('type_validation',['tomon_muraja','hizb_muraja']).order('date_validation',{ascending:false}),
         supabase.from('recitations_sourates').select('*, sourate:sourate_id(nom_ar,numero), valideur:valide_par(prenom,nom)').eq('ecole_id', user.ecole_id).eq('eleve_id',eleve.id).eq('is_muraja',true).order('date_validation',{ascending:false}),
-        supabase.from('recitations_sourates').select('id,type_recitation,sourate_id,verset_debut,verset_fin,date_validation,valide_par,sourate:sourate_id(nom_ar,numero)').eq('ecole_id', user.ecole_id).eq('eleve_id',eleve.id),
+        supabase.from('recitations_sourates').select('id,type_recitation,sourate_id,verset_debut,verset_fin,date_validation,valide_par,points,sourate:sourate_id(nom_ar,numero),valideur:valide_par(prenom,nom)').eq('ecole_id', user.ecole_id).eq('eleve_id',eleve.id),
         supabase.from('passages_niveau').select('*, valide_par_u:valide_par(prenom,nom)').eq('ecole_id', user.ecole_id).eq('eleve_id',eleve.id).order('date_passage',{ascending:false}),
         supabase.from('objectifs').select('*').eq('ecole_id', user.ecole_id).eq('eleve_id',eleve.id).order('created_at',{ascending:false}),
       ]);
@@ -905,11 +905,21 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang, isMobi
 
             {/* Points breakdown */}
             <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:8,marginBottom:14}}>
-              {[['Tomon',etat?.points.ptsTomon,`${etat?.tomonTotal||etat?.tomonCumul}×10`],['Roboe',etat?.points.ptsRoboe,`${etat?.points.details.nbRoboe}×25`],['Nisf',etat?.points.ptsNisf,`${etat?.points.details.nbNisf}×60`],['Hizb',etat?.points.ptsHizb,`${etat?.points.details.nbHizb}×100`]].map(([l,v,s])=>(
+              {estSourateEleve ? [
+                [lang==='ar'?'سور مكتملة':'Complètes', recitationsSouratesEleve.filter(r=>r.type_recitation==='complete').length, ''],
+                [lang==='ar'?'مقاطع':'Séquences', recitationsSouratesEleve.filter(r=>r.type_recitation==='sequence').length, ''],
+                [lang==='ar'?'محفوظات':'Acquis', eleve.sourates_acquises||0, ''],
+                ['Total pts', etat?.points?.total||0, ''],
+              ] : [
+                ['Tomon',etat?.points.ptsTomon,`${etat?.tomonTotal||etat?.tomonCumul}×10`],
+                ['Roboe',etat?.points.ptsRoboe,`${etat?.points.details?.nbRoboe}×25`],
+                ['Nisf',etat?.points.ptsNisf,`${etat?.points.details?.nbNisf}×60`],
+                ['Hizb',etat?.points.ptsHizb,`${etat?.points.details?.nbHizb}×100`],
+              ].map(([l,v,s])=>(
                 <div key={l} style={{background:'#f9f9f6',borderRadius:8,padding:'10px',textAlign:'center'}}>
                   <div style={{fontSize:18,fontWeight:700}}>{v}</div>
                   <div style={{fontSize:11,color:'#888'}}>{l}</div>
-                  <div style={{fontSize:10,color:'#bbb'}}>{s}</div>
+                  {s&&<div style={{fontSize:10,color:'#bbb'}}>{s}</div>}
                 </div>
               ))}
             </div>
@@ -1412,7 +1422,7 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang, isMobi
                             <td style={{fontWeight:600,direction:'rtl'}}>{r.sourate?.nom_ar||'—'}</td>
                             <td><span className={r.type_recitation==='complete'?'badge badge-green':'badge'}>{r.type_recitation==='complete'?(lang==='ar'?'كاملة':'Complète'):(lang==='ar'?'مقطع':'Séquence')}</span></td>
                             <td style={{fontSize:12,color:'#888'}}>{r.type_recitation==='sequence'&&r.verset_debut?`V.${r.verset_debut}→${r.verset_fin}`:'—'}</td>
-                            <td style={{fontSize:12,color:'#888'}}>{r.valideur?(r.valideur.prenom+' '+r.valideur.nom):'—'}</td>
+                            <td style={{fontSize:12,color:'#888'}}>{r.valideur?(r.valideur.prenom+' '+r.valideur.nom):(r.valide_par?'✓':'—')}</td>
                           </tr>
                         ))}
                       </tbody></table>

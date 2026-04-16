@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useToast } from '../lib/toast';
 import { supabase } from '../lib/supabase';
 import ConfirmModal from '../components/ConfirmModal';
-import { getInitiales, calcEtatEleve, calcPoints, BAREME_DEFAUT, loadBareme, saveBaremeItem } from '../lib/helpers';
+import { getInitiales, calcEtatEleve, calcPoints, BAREME_DEFAUT, loadBareme, saveBaremeItem, isSourateNiveauDyn } from '../lib/helpers';
 import { SOURATES_5B, SOURATES_5A, SOURATES_2M, isSourateNiveau } from '../lib/sourates';
 import { t } from '../lib/i18n';
 
@@ -1308,6 +1308,8 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile 
                     <div style={{display:'flex',gap:6,marginTop:3,alignItems:'center',flexWrap:'wrap'}}>
                       <span style={{padding:'2px 8px',borderRadius:10,background:`${nc}20`,color:nc,fontSize:11,fontWeight:700}}>{e.code_niveau||'?'}</span>
                       {e.eleve_id_ecole&&<span style={{fontSize:11,color:'#aaa'}}>#{e.eleve_id_ecole}</span>}
+                      {isSourateNiveauDyn(e.code_niveau, niveaux||[]) && e.sourates_acquises > 0 &&
+                        <span style={{fontSize:11,color:'#1D9E75',fontWeight:600}}>📖 {e.sourates_acquises} {lang==='ar'?'محفوظ':'acquis'}</span>}
                     </div>
                   </div>
                   {user.role==='surveillant'&&(
