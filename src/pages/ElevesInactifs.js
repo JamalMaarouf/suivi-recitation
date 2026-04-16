@@ -71,7 +71,7 @@ export default function ElevesInactifs({ navigate, goBack, lang='fr', user, isMo
   return (
     <div style={{padding: isMobile ? '0 0 80px' : '1rem',maxWidth:700,margin:'0 auto',background: isMobile ? '#f5f5f0' : 'transparent',minHeight: isMobile ? '100vh' : 'auto'}}>
       {isMobile ? (
-        <div style={{background:'linear-gradient(135deg,#0C447C,#378ADD)',padding:'48px 16px 14px',position:'sticky',top:0,zIndex:100,marginBottom:12}}>
+        <div style={{background:'linear-gradient(135deg,#378ADD,#0C447C)',padding:'48px 16px 14px',position:'sticky',top:0,zIndex:100,marginBottom:12}}>
           <div style={{display:'flex',alignItems:'center',gap:12}}>
             <button onClick={()=>goBack?goBack():navigate('dashboard')}
               style={{background:'rgba(255,255,255,0.2)',border:'none',borderRadius:10,padding:'8px 12px',color:'#fff',fontSize:16,cursor:'pointer'}}></button>

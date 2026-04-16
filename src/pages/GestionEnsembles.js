@@ -386,7 +386,7 @@ export default function GestionEnsembles({ user, navigate, goBack, lang='fr', is
   if (isMobile) {
     return (
       <div style={{ paddingBottom: 80, background: '#f5f5f0', minHeight: '100vh' }}>
-        <div style={{ background:'linear-gradient(135deg,#3730A3,#6366F1)',padding:'48px 16px 14px',position:'sticky',top:0,zIndex:100 }}>
+        <div style={{ background:'linear-gradient(135deg,#D85A30,#E87A50)',padding:'48px 16px 14px',position:'sticky',top:0,zIndex:100 }}>
           <button onClick={() => goBack ? goBack() : navigate('dashboard')} style={{background:"rgba(255,255,255,0.2)",border:"none",borderRadius:10,padding:"8px 12px",color:"#fff",fontSize:16,cursor:"pointer"}}>←</button>
           <div style={{ flex: 1, fontSize: 17, fontWeight: 800, color: '#085041' }}>📦 {lang === 'ar' ? 'مجموعات السور' : 'Ensembles'}</div>
         </div>
@@ -435,7 +435,7 @@ export default function GestionEnsembles({ user, navigate, goBack, lang='fr', is
           </div>
         </div>
         <button onClick={openCreate}
-          style={{ padding:'9px 20px', background:'linear-gradient(135deg,#3730A3,#6366F1)', color:'#fff',
+          style={{ padding:'9px 20px', background:'linear-gradient(135deg,#D85A30,#E87A50)', color:'#fff',
             border:'none', borderRadius:10, fontSize:13, fontWeight:700, cursor:'pointer',
             boxShadow:'0 2px 8px rgba(8,80,65,0.25)', display:'flex', alignItems:'center', gap:6 }}>
           + {lang === 'ar' ? 'إضافة مجموعة' : 'Ajouter un ensemble'}

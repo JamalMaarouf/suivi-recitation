@@ -1624,7 +1624,7 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
       <div style={{paddingBottom:80,background:'#f5f5f0',minHeight:'100vh'}}>
 
         {/* ─── HEADER ─── */}
-        <div style={{background:'linear-gradient(135deg,#3730A3,#6366F1)',padding:'48px 16px 0',position:'sticky',top:0,zIndex:100}}>
+        <div style={{background:'linear-gradient(135deg,#085041,#1D9E75)',padding:'48px 16px 0',position:'sticky',top:0,zIndex:100}}>
           <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:12}}>
             <button onClick={()=>goBack?goBack():navigate('dashboard')}
               style={{background:'rgba(255,255,255,0.2)',border:'none',cursor:'pointer',fontSize:20,color:'#fff',padding:'6px 10px',borderRadius:8}}>←</button>
