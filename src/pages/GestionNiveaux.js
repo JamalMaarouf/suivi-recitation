@@ -114,8 +114,23 @@ export default function GestionNiveaux({ user, navigate, goBack, lang='fr', isMo
     setSavingProg(true);
     // Supprimer l'ancien programme
     await supabase.from('programmes').delete().eq('niveau_id', niveauProgramme.id).eq('ecole_id', user.ecole_id);
+    
+    // Trier le programme avant sauvegarde
+    let programmeTrie = [...programme];
+    if (niveauProgramme.type === 'sourate') {
+      // Trier par numéro de sourate décroissant (114→1)
+      programmeTrie.sort((a, b) => {
+        const numA = souratesDB.find(s => s.id === a)?.numero || 0;
+        const numB = souratesDB.find(s => s.id === b)?.numero || 0;
+        return numB - numA;
+      });
+    } else {
+      // Hizb : trier décroissant (60→1)
+      programmeTrie.sort((a, b) => b - a);
+    }
+    
     // Insérer le nouveau
-    const rows = programme.map((id, idx) => ({
+    const rows = programmeTrie.map((id, idx) => ({
       niveau_id: niveauProgramme.id,
       ecole_id: user.ecole_id,
       type_contenu: niveauProgramme.type,
