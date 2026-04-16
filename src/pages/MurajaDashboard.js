@@ -3,14 +3,14 @@ import { supabase } from '../lib/supabase';
 import { t } from '../lib/i18n';
 import ConfirmModal from '../components/ConfirmModal';
 
-const NIVEAU_COLORS = { '5B':'#534AB7','5A':'#378ADD','2M':'#1D9E75','2':'#EF9F27','1':'#E24B4A' };
-const NIVEAUX = ['5B','5A','2M','2','1'];
+const getNiveauColor = (code, niveaux=[]) => niveaux.find(n=>n.code===code)?.couleur || {'5B':'#534AB7','5A':'#378ADD','2M':'#1D9E75','2':'#EF9F27','1':'#E24B4A'}[code] || '#888';
 
 export default function MurajaDashboard({ user, navigate, goBack, lang='fr', isMobile }) {
   const [recitations, setRecitations] = useState([]);
   const [validations, setValidations] = useState([]);
   const [eleves, setEleves]           = useState([]);
   const [loading, setLoading]         = useState(true);
+  const [niveaux, setNiveaux]           = useState([]);
   const [filterNiveau, setFilterNiveau] = useState('tous');
   const [filterPeriode, setFilterPeriode] = useState(30);
 
@@ -28,7 +28,7 @@ export default function MurajaDashboard({ user, navigate, goBack, lang='fr', isM
 
   const loadData = async () => {
     setLoading(true);
-    const [{ data: recs }, { data: vals }, { data: elevs }] = await Promise.all([
+    const [{ data: recs }, { data: vals }, { data: elevs }, { data: nivs }] = await Promise.all([
       supabase.from('recitations_sourates')
         .select('id,date_validation,type_recitation,verset_debut,verset_fin,points,is_muraja, eleve:eleve_id(id,prenom,nom,code_niveau), sourate:sourate_id(numero,nom_ar), valideur:valide_par(prenom,nom)')
         .eq('ecole_id', user.ecole_id)
@@ -43,10 +43,12 @@ export default function MurajaDashboard({ user, navigate, goBack, lang='fr', isM
         .limit(500),
       supabase.from('eleves').select('id,prenom,nom,code_niveau')
         .eq('ecole_id', user.ecole_id).order('nom'),
+      supabase.from('niveaux').select('id,code,nom,type,couleur').eq('ecole_id', user.ecole_id).order('ordre'),
     ]);
     setRecitations(recs || []);
     setValidations(vals || []);
     setEleves(elevs || []);
+    setNiveaux(nivs || []);
     setLoading(false);
   };
 
@@ -88,7 +90,7 @@ export default function MurajaDashboard({ user, navigate, goBack, lang='fr', isM
     if (!sessions[key]) sessions[key] = {
       key, date: dateKey, contenu: m.contenu, type: m.type,
       niveau: m.niveau, valideur: m.valideur, valideurId: m.valideurId,
-      color: NIVEAU_COLORS[m.niveau]||'#888', source: m.source,
+      color: getNiveauColor(m.niveau, niveaux), source: m.source,
       records: [], eleves: [],
     };
     sessions[key].records.push({ id: m.id, source: m.source });
@@ -97,17 +99,19 @@ export default function MurajaDashboard({ user, navigate, goBack, lang='fr', isM
   const sessionList = Object.values(sessions).sort((a,b) => b.date.localeCompare(a.date));
 
   // Stats per niveau
-  const statsByNiveau = NIVEAUX.map(n => {
-    const items = allMuraja.filter(m => m.niveau === n);
-    const totalEleves = eleves.filter(e => e.code_niveau === n).length;
+  const statsByNiveau = niveaux.map(n => {
+    const items = allMuraja.filter(m => m.niveau === n.code);
+    const totalEleves = eleves.filter(e => e.code_niveau === n.code).length;
     const uniqueEleves = new Set(items.map(m => m.eleve?.id).filter(Boolean)).size;
-    return { niveau:n, nb:items.length, uniqueEleves, totalEleves, taux: totalEleves>0?Math.round(uniqueEleves/totalEleves*100):0, color:NIVEAU_COLORS[n] };
+    const color = n.couleur || getNiveauColor(n.code, niveaux);
+    return { niveau:n.code, label:n.nom, nb:items.length, uniqueEleves, totalEleves, taux: totalEleves>0?Math.round(uniqueEleves/totalEleves*100):0, color };
   }).filter(s => s.totalEleves > 0);
 
   const absenteesParNiveau = filterNiveau !== 'tous' ? eleves.filter(e => {
     if (e.code_niveau !== filterNiveau) return false;
     return !allMuraja.some(m => m.eleve?.id === e.id);
   }) : [];
+  const niveauxCodes = niveaux.map(n => n.code);
 
   // ── DELETE session ──
   const handleDelete = (session) => {
@@ -203,7 +207,7 @@ export default function MurajaDashboard({ user, navigate, goBack, lang='fr', isM
       <div style={{display:'flex',gap:10,marginBottom:16,flexWrap:'wrap'}}>
         <select className="field-select" style={{flex:1,minWidth:120}} value={filterNiveau} onChange={e=>setFilterNiveau(e.target.value)}>
           <option value="tous">{lang==='ar'?'جميع المستويات':'Tous les niveaux'}</option>
-          {NIVEAUX.map(n=><option key={n} value={n}>{n}</option>)}
+          {niveaux.map(n=><option key={n.code} value={n.code}>{n.code} — {n.nom}</option>)}
         </select>
         <select className="field-select" style={{flex:1,minWidth:120}} value={filterPeriode} onChange={e=>setFilterPeriode(parseInt(e.target.value))}>
           <option value={7}>{lang==='ar'?'آخر 7 أيام':'7 derniers jours'}</option>

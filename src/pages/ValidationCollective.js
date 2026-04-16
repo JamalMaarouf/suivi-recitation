@@ -14,6 +14,7 @@ const NIVEAU_COLORS = { '5B':'#534AB7','5A':'#378ADD','2M':'#1D9E75','2':'#EF9F2
 
 export default function ValidationCollective({ user, navigate, goBack, lang='fr', isMobile }) {
   const [step, setStep]             = useState(1);
+  const [niveauxDB, setNiveauxDB]    = useState([]);
   const [selectedNiveau, setSelectedNiveau] = useState(null);
   const [typeRecitation, setTypeRecitation] = useState('');
   const [selectedSourate, setSelectedSourate] = useState(null);
@@ -36,9 +37,9 @@ export default function ValidationCollective({ user, navigate, goBack, lang='fr'
   const [filterNiveau, setFilterNiveau]   = useState('tous');
   const [selectedEleves, setSelectedEleves] = useState([]);
 
-  const niveauInfo = NIVEAUX.find(n => n.code === selectedNiveau);
+  const niveauInfo = niveauxDB.find(n => n.code === selectedNiveau);
   const isSourate  = niveauInfo?.type === 'sourate';
-  const color      = NIVEAU_COLORS[selectedNiveau] || '#085041';
+  const color      = getNiveauColor(selectedNiveau, niveauxDB);
   const sourates   = selectedNiveau ? getSouratesForNiveau(selectedNiveau) : [];
 
   useEffect(() => {
@@ -175,7 +176,7 @@ export default function ValidationCollective({ user, navigate, goBack, lang='fr'
   ];
 
   // Variable calculée pour le bloc mobile
-  const niveauxMobile = ['tous','5B','5A','2M','2','1'];
+  const niveauxMobile = ['tous', ...niveauxDB.map(n=>n.code)];
   const elevesFiltres = filterNiveau === 'tous' ? eleves : eleves.filter(e => e.code_niveau === filterNiveau);
 
   if (isMobile) {
@@ -223,7 +224,7 @@ export default function ValidationCollective({ user, navigate, goBack, lang='fr'
               </button>
               {elevesFiltres.map(e=>{
                 const sel = selectedEleves.includes(e.id);
-                const nc={'5B':'#534AB7','5A':'#378ADD','2M':'#1D9E75','2':'#EF9F27','1':'#E24B4A'}[e.code_niveau||'1']||'#888';
+                const nc=getNiveauColor(e.code_niveau, niveauxDB);
                 return(
                   <div key={e.id} onClick={()=>setSelectedEleves(prev=>sel?prev.filter(id=>id!==e.id):[...prev,e.id])}
                     style={{background:sel?`${nc}08`:'#fff',borderRadius:12,padding:'12px 14px',marginBottom:8,
@@ -338,9 +339,12 @@ export default function ValidationCollective({ user, navigate, goBack, lang='fr'
           <div style={{fontSize:13,fontWeight:600,color:'#888',marginBottom:10,textAlign:'center'}}>
             {lang==='ar' ? 'اختر المستوى الدراسي' : 'Choisissez le niveau'}
           </div>
+          {niveauxDB.length===0 ? (
+            <div style={{textAlign:'center',color:'#aaa',padding:'2rem'}}>...</div>
+          ) : (
           <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
-            {NIVEAUX.map(n=>{
-              const nc=NIVEAU_COLORS[n.code];
+            {niveauxDB.map(n=>{
+              const nc=getNiveauColor(n.code, niveauxDB);
               return (
                 <div key={n.code} onClick={()=>{setSelectedNiveau(n.code);setStep(2);}}
                   style={{display:'flex',alignItems:'center',gap:12,padding:'12px 14px',borderRadius:12,
@@ -352,7 +356,7 @@ export default function ValidationCollective({ user, navigate, goBack, lang='fr'
                     {n.code}
                   </div>
                   <div style={{flex:1,minWidth:0}}>
-                    <div style={{fontWeight:700,fontSize:13,color:'#1a1a1a'}}>{lang==='ar'?n.labelAr:n.label}</div>
+                    <div style={{fontWeight:700,fontSize:13,color:'#1a1a1a'}}>{n.nom}</div>
                     <div style={{fontSize:10,color:nc,marginTop:2,fontWeight:500}}>
                       {n.type==='sourate'?(lang==='ar'?'📖 سور':'📖 Sourates'):(lang==='ar'?'📗 أثمان':'📗 Hizb')}
                     </div>
@@ -361,7 +365,7 @@ export default function ValidationCollective({ user, navigate, goBack, lang='fr'
                 </div>
               );
             })}
-          </div>
+          </div>)}
         </div>
       )}
 
