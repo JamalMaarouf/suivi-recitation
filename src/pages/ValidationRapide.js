@@ -20,6 +20,7 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
   const [nbTomon, setNbTomon] = useState(1); // nombre de tomons à valider
   const [bareme, setBareme] = useState(null); // barème de l'école
   const [programmeNiveau, setProgrammeNiveau] = useState([]); // hizbs ou sourates du programme
+  const [programmeCharge, setProgrammeCharge] = useState(false); // true quand chargement terminé
   const [sourateSelectionnee, setSourateSelectionnee] = useState(null); // sourate choisie
   const [typeRec, setTypeRec] = useState('complete'); // 'complete' ou 'sequence'
   const [versetDebut, setVersetDebut] = useState('');
@@ -55,6 +56,7 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
     setSourateSelectionnee(null);
     setTypeRec('complete');
     setVersetDebut(''); setVersetFin('');
+    setProgrammeCharge(false);
     // Charger récitations + souratesDB en parallèle (garantir que souratesDB est disponible)
     const [{ data: recs }, { data: sourFresh }] = await Promise.all([
       supabase.from('recitations_sourates').select('*').eq('eleve_id', e.id).eq('ecole_id', user.ecole_id),
@@ -71,6 +73,7 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
     } else {
       setProgrammeNiveau([]);
     }
+    setProgrammeCharge(true);
   };
 
   const estSourate = selectedEleve ? isSourateNiveauDyn(selectedEleve.code_niveau, niveaux) : false;
@@ -116,11 +119,10 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
   // Vérifier si l'élève a un programme défini
   // Pour sourates : programmeNiveau chargé depuis DB (table programmes)
   // Pour hizbs : hizb_depart défini et > 0
-  // Pas de programme = programmeNiveau vide ET souratesDB chargé (pas un problème de timing)
+  // Pas de programme = chargement terminé ET programmeNiveau vide
   const aucunProgramme = (() => {
     if (!selectedEleve) return false;
-    // On attend que souratesDB soit chargé avant de conclure
-    if (souratesDB.length === 0) return false;
+    if (!programmeCharge) return false; // attendre fin du chargement
     if (estSourate) {
       return programmeNiveau.length === 0;
     } else {
