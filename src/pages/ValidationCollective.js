@@ -330,30 +330,34 @@ export default function ValidationCollective({ user, navigate, goBack, lang='fr'
         </div>
       </div>
 
-      {msg&&<div style={{padding:'10px 14px',borderRadius:8,background:msg.type==='error'?'#FCEBEB':'#E1F5EE',color:msg.type==='error'?'#E24B4A':'#085041',marginBottom:12,fontSize:13}}>{msg.text}</div>}
+      {msg&&<div style={{padding:'10px 14px',borderRadius:10,background:msg.type==='error'?'#FCEBEB':'#E1F5EE',color:msg.type==='error'?'#E24B4A':'#085041',marginBottom:14,fontSize:13,fontWeight:500,border:`0.5px solid ${msg.type==='error'?'#E24B4A30':'#1D9E7530'}`}}>{msg.text}</div>}
 
       {/* ── STEP 1 : Niveau ── */}
       {step===1&&(
         <div>
-          <div style={{fontSize:14,fontWeight:600,marginBottom:12,color:'#333'}}>
+          <div style={{fontSize:13,fontWeight:600,color:'#888',marginBottom:10,textAlign:'center'}}>
             {lang==='ar' ? 'اختر المستوى الدراسي' : 'Choisissez le niveau'}
           </div>
-          <div style={{display:'flex',flexDirection:'column',gap:10}}>
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
             {NIVEAUX.map(n=>{
               const nc=NIVEAU_COLORS[n.code];
               return (
                 <div key={n.code} onClick={()=>{setSelectedNiveau(n.code);setStep(2);}}
-                  style={{display:'flex',alignItems:'center',gap:14,padding:'14px 16px',borderRadius:12,border:`2px solid ${nc}20`,background:`${nc}08`,cursor:'pointer',transition:'all 0.15s'}}
-                  onMouseEnter={e=>e.currentTarget.style.background=`${nc}18`}
-                  onMouseLeave={e=>e.currentTarget.style.background=`${nc}08`}>
-                  <span style={{padding:'4px 10px',borderRadius:10,background:`${nc}20`,color:nc,fontWeight:700,fontSize:14}}>{n.code}</span>
-                  <div style={{flex:1}}>
-                    <div style={{fontWeight:600,fontSize:14}}>{lang==='ar'?n.labelAr:n.label}</div>
-                    <div style={{fontSize:11,color:'#888',marginTop:2}}>
-                      {n.type==='sourate'?(lang==='ar'?'سور وتسلسلات':'Sourates & Séquences'):(lang==='ar'?'أثمان وأحزاب':'Tomon & Hizb')}
+                  style={{display:'flex',alignItems:'center',gap:12,padding:'12px 14px',borderRadius:12,
+                    border:`1.5px solid ${nc}30`,background:`${nc}08`,cursor:'pointer',transition:'all 0.15s'}}
+                  onMouseEnter={e=>{e.currentTarget.style.background=`${nc}18`;e.currentTarget.style.borderColor=`${nc}60`;}}
+                  onMouseLeave={e=>{e.currentTarget.style.background=`${nc}08`;e.currentTarget.style.borderColor=`${nc}30`;}}>
+                  <div style={{width:40,height:40,borderRadius:10,background:`${nc}20`,color:nc,
+                    display:'flex',alignItems:'center',justifyContent:'center',fontWeight:800,fontSize:14,flexShrink:0}}>
+                    {n.code}
+                  </div>
+                  <div style={{flex:1,minWidth:0}}>
+                    <div style={{fontWeight:700,fontSize:13,color:'#1a1a1a'}}>{lang==='ar'?n.labelAr:n.label}</div>
+                    <div style={{fontSize:10,color:nc,marginTop:2,fontWeight:500}}>
+                      {n.type==='sourate'?(lang==='ar'?'📖 سور':'📖 Sourates'):(lang==='ar'?'📗 أثمان':'📗 Hizb')}
                     </div>
                   </div>
-                  <span style={{color:nc,fontSize:18}}>›</span>
+                  <span style={{color:`${nc}80`,fontSize:16}}>›</span>
                 </div>
               );
             })}
@@ -561,10 +565,11 @@ export default function ValidationCollective({ user, navigate, goBack, lang='fr'
           </div>
 
           {/* Note murajaʼa */}
-          <div style={{padding:'10px 14px',borderRadius:10,background:'#FFF3CD',fontSize:12,color:'#856404',marginBottom:16}}>
-            ℹ️ {lang==='ar'
+          <div style={{padding:'10px 14px',borderRadius:10,background:'#FFF3CD',border:'0.5px solid #FFECB5',fontSize:12,color:'#856404',marginBottom:16,display:'flex',gap:8,alignItems:'flex-start'}}>
+            <span>ℹ️</span>
+            <span>{lang==='ar'
               ?'هذه المراجعة الجماعية تُضاف إلى رصيد كل طالب كمراجعة ولن تغير موضعه في التقدم الفردي.'
-              :"Cette murajaʼa sera enregistrée comme révision. Elle n'affecte pas la progression individuelle."}
+              :"Cette murajaʼa sera enregistrée comme révision. Elle n'affecte pas la progression individuelle."}</span>
           </div>
 
           <div style={{display:'flex',gap:10}}>
