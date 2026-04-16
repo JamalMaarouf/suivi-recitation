@@ -19,6 +19,7 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
   const [sessionLog, setSessionLog] = useState([]);
   const [nbTomon, setNbTomon] = useState(1); // nombre de tomons à valider
   const [bareme, setBareme] = useState(null); // barème de l'école
+  const [programmeNiveau, setProgrammeNiveau] = useState([]); // hizbs ou sourates du programme
   const [sourateSelectionnee, setSourateSelectionnee] = useState(null); // sourate choisie
   const [typeRec, setTypeRec] = useState('complete'); // 'complete' ou 'sequence'
   const [versetDebut, setVersetDebut] = useState('');
@@ -61,6 +62,15 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
     ]);
     setSouratesDB(sourFresh || []);
     setRecitationsSourates(recs || []);
+    // Charger le programme du niveau de l'élève
+    const { data: niv } = await supabase.from('niveaux').select('id').eq('code', e.code_niveau).eq('ecole_id', user.ecole_id).single();
+    if (niv) {
+      const { data: prog } = await supabase.from('programmes').select('reference_id,ordre')
+        .eq('niveau_id', niv.id).eq('ecole_id', user.ecole_id).order('ordre');
+      setProgrammeNiveau(prog || []);
+    } else {
+      setProgrammeNiveau([]);
+    }
   };
 
   const estSourate = selectedEleve ? isSourateNiveauDyn(selectedEleve.code_niveau, niveaux) : false;
@@ -87,16 +97,36 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
     return dbObj ? { ...s, id: dbObj.id, nb_versets: dbObj.nb_versets } : { ...s };
   })();
 
-  // Vérifier si c'est le dernier hizb (Hizb 1)
-  const estDernierHizb = !estSourate && etat && etat.hizbEnCours === 1;
+  // Vérifier si c'est le dernier hizb du programme (pas forcément Hizb 1)
+  const estDernierHizb = (() => {
+    if (estSourate || !etat) return false;
+    if (programmeNiveau.length === 0) return etat.hizbEnCours === 1; // fallback
+    // Programme hizb : reference_id = numéro du hizb, trié par ordre
+    // En ordre décroissant, le dernier hizb = celui avec le plus petit numéro
+    const hizbsProg = programmeNiveau.map(p => parseInt(p.reference_id)).filter(n => !isNaN(n));
+    if (hizbsProg.length === 0) return etat.hizbEnCours === 1;
+    const dernierHizb = Math.min(...hizbsProg); // le plus petit numéro = dernier en ordre décroissant
+    return etat.hizbEnCours === dernierHizb;
+  })();
 
-  // Vérifier si c'est la dernière sourate disponible du programme
+  // Vérifier si c'est la dernière sourate du programme
   const estDerniereSourate = (() => {
     if (!estSourate || !selectedEleve || !currentSourate) return false;
     const souratesAcquises = selectedEleve.sourates_acquises || 0;
     const souratesNiveau = getSouratesForNiveau(selectedEleve.code_niveau);
     const souratesOrdonnees = [...souratesNiveau].sort((a, b) => b.numero - a.numero);
-    // Compter les sourates restantes non complètes après la sourate en cours
+    // Si programme défini : la dernière = sourate avec le plus petit numéro dans le programme
+    if (programmeNiveau.length > 0) {
+      const souratesProg = programmeNiveau.map(p => {
+        const s = souratesDB.find(sd => sd.id === p.reference_id);
+        return s?.numero;
+      }).filter(Boolean);
+      if (souratesProg.length > 0) {
+        const dernierNumero = Math.min(...souratesProg);
+        return currentSourate.numero === dernierNumero;
+      }
+    }
+    // Fallback : pas de sourate restante après la courante
     const restantes = souratesOrdonnees.filter((sr, i) => {
       if (i < souratesAcquises) return false;
       if (sr.numero === currentSourate.numero) return false;
