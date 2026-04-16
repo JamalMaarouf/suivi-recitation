@@ -1015,14 +1015,34 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile,
     }
     const XLSX = window.XLSX;
     const wb = XLSX.utils.book_new();
-    const ws = XLSX.utils.aoa_to_sheet([
-      [lang==='ar'?'#':'#', lang==='ar'?'الاسم':'Prénom', lang==='ar'?'اللقب':'Nom', lang==='ar'?'رقم التعريف':'N° Élève', lang==='ar'?'المستوى':'Niveau', lang==='ar'?'الصف':'Classe', lang==='ar'?'الأستاذ المرجع':'Instituteur'],
-      ...eleves.map((e,i) => {
-        const inst = instituteurs.find(x=>x.id===e.instituteur_referent_id);
-        return [i+1, e.prenom, e.nom, e.eleve_id_ecole||'—', e.code_niveau||'?', NIVEAU_LABELS[e.code_niveau||'']||'—', inst?inst.prenom+' '+inst.nom:'—'];
-      })
-    ]);
-    ws['!cols'] = [{wch:4},{wch:16},{wch:16},{wch:12},{wch:8},{wch:20},{wch:22}];
+    const headers = ['#',
+      lang==='ar'?'الاسم':'Prénom', lang==='ar'?'اللقب':'Nom',
+      lang==='ar'?'رقم التعريف':'N° Élève',
+      lang==='ar'?'المستوى الدراسي':'Niveau scolaire',
+      lang==='ar'?'الصف':'Classe',
+      lang==='ar'?'الأستاذ المرجع':'Instituteur référent',
+      lang==='ar'?'هاتف ولي الأمر':'Tél. parent',
+      lang==='ar'?'تاريخ التسجيل':'Date inscription',
+      lang==='ar'?'المكتسبات':'Acquis antérieurs',
+    ];
+    const rows = eleves.map((e,i) => {
+      const inst = instituteurs.find(x=>x.id===e.instituteur_referent_id);
+      const isSour = (niveauxDyn||[]).find(n=>n.code===e.code_niveau)?.type==='sourate'||['5B','5A','2M'].includes(e.code_niveau||'');
+      const acquis = isSour ? (e.sourates_acquises||0)+' '+(lang==='ar'?'محفوظ':'sourates acquises') : 'Hizb '+e.hizb_depart+', T.'+e.tomon_depart;
+      const dateInscr = e.date_inscription ? new Date(e.date_inscription).toLocaleDateString('fr-FR') : '—';
+      return [i+1, e.prenom, e.nom, e.eleve_id_ecole||'—', e.code_niveau||'?',
+        (niveauxDyn||[]).find(n=>n.code===e.code_niveau)?.nom || NIVEAU_LABELS[e.code_niveau||'']||'—',
+        inst?inst.prenom+' '+inst.nom:'—',
+        e.telephone||'—', dateInscr, acquis];
+    });
+    const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+    ws['!cols'] = [{wch:4},{wch:14},{wch:14},{wch:10},{wch:8},{wch:20},{wch:22},{wch:14},{wch:14},{wch:18}];
+    // Style header row
+    const range = XLSX.utils.decode_range(ws['!ref']);
+    for (let C=range.s.c; C<=range.e.c; C++) {
+      const cell = ws[XLSX.utils.encode_cell({r:0,c:C})];
+      if (cell) cell.s = {font:{bold:true},fill:{fgColor:{rgb:'085041'}},font:{color:{rgb:'FFFFFF'},bold:true}};
+    }
     XLSX.utils.book_append_sheet(wb, ws, lang==='ar'?'الطلاب':'Élèves');
     XLSX.writeFile(wb, 'eleves_'+new Date().toISOString().split('T')[0]+'.xlsx');
   };
@@ -1048,39 +1068,41 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile,
 
   // Export PDF élèves
   const exportElevesPDF = () => {
-    const w = window.open('','_blank','width=1000,height=800');
+    const w = window.open('','_blank','width=1100,height=800');
     if (!w) { toast.warning(lang==='ar'?'يرجى السماح بالنوافذ المنبثقة':'Autorisez les popups pour exporter'); return; }
     const rows = eleves.map((e,i) => {
       const inst = instituteurs.find(x=>x.id===e.instituteur_referent_id);
-      const nc = {'5B':'#534AB7','5A':'#378ADD','2M':'#1D9E75','2':'#EF9F27','1':'#E24B4A'}[e.code_niveau||'']||'#888';
+      const nc = (niveauxDyn||[]).find(n=>n.code===e.code_niveau)?.couleur || {'5B':'#534AB7','5A':'#378ADD','2M':'#1D9E75','2':'#EF9F27','1':'#E24B4A'}[e.code_niveau||'']||'#888';
+      const isSour = (niveauxDyn||[]).find(n=>n.code===e.code_niveau)?.type==='sourate'||['5B','5A','2M'].includes(e.code_niveau||'');
+      const acquis = isSour ? (e.sourates_acquises||0)+' '+(lang==='ar'?'محفوظ':'sour.') : 'H.'+e.hizb_depart+' / T.'+e.tomon_depart;
+      const niveauLabel = e.niveau==='Avancé'||e.niveau==='متقدم'?(lang==='ar'?'متقدم':'Avancé'):e.niveau==='Intermédiaire'||e.niveau==='متوسط'?(lang==='ar'?'متوسط':'Interm.'):(lang==='ar'?'مبتدئ':'Débutant');
+      const niveauColor = e.niveau==='Avancé'||e.niveau==='متقدم'?'#085041':e.niveau==='Intermédiaire'||e.niveau==='متوسط'?'#378ADD':'#EF9F27';
+      const niveauNom = (niveauxDyn||[]).find(n=>n.code===e.code_niveau)?.nom || NIVEAU_LABELS[e.code_niveau||'']||'—';
       const bg = i%2===0?'#fff':'#f9f9f6';
-      return '<tr style="background:'+bg+'">'
-        +'<td>'+(i+1)+'</td>'
-        +'<td><strong>'+e.prenom+' '+e.nom+'</strong></td>'
-        +'<td style="color:#888">'+(e.eleve_id_ecole?'#'+e.eleve_id_ecole:'—')+'</td>'
-        +'<td><span style="padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;background:'+nc+'18;color:'+nc+'">'+(e.code_niveau||'?')+'</span></td>'
-        +'<td style="color:#555">'+(NIVEAU_LABELS[e.code_niveau||'']||'—')+'</td>'
-        +'<td style="color:#888">'+(inst?inst.prenom+' '+inst.nom:'—')+'</td>'
-        +'</tr>';
+      return '<tr style="background:'+bg+'">'        +'<td style="color:#bbb;font-size:10px;text-align:center">'+(i+1)+'</td>'        +'<td><div style="font-weight:700;font-size:12px">'+e.prenom+' '+e.nom+'</div>'        +(e.eleve_id_ecole?'<div style="font-size:9px;color:#bbb">#'+e.eleve_id_ecole+'</div>':'')+'</td>'        +'<td><span style="display:inline-block;padding:2px 8px;border-radius:20px;font-size:10px;font-weight:700;background:'+nc+'20;color:'+nc+'">'+( e.code_niveau||'?')+'</span>'        +'<div style="font-size:9px;color:'+niveauColor+';font-weight:600;margin-top:2px">'+niveauLabel+'</div>'        +'<div style="font-size:9px;color:#888">'+niveauNom+'</div></td>'        +'<td style="font-size:11px;color:#444">'+(inst?inst.prenom+' '+inst.nom:'—')+'</td>'        +'<td style="font-size:11px;color:#534AB7;font-weight:600">'+acquis+'</td>'        +'<td style="font-size:11px;color:#555">'+(e.telephone||'<span style="color:#ddd">—</span>')+'</td>'        +'<td style="font-size:11px;color:#555">'+(e.date_inscription?new Date(e.date_inscription).toLocaleDateString('fr-FR'):'<span style="color:#ddd">—</span>')+'</td>'        +'</tr>';
     }).join('');
 
-    const html = '<!DOCTYPE html><html dir="'+(lang==='ar'?'rtl':'ltr')+'" lang="'+(lang==='ar'?'ar':'fr')+'"><head><meta charset="UTF-8"><title>Liste Élèves</title>'
-      +'<style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:Tajawal,Arial,sans-serif;padding:20px;font-size:12px}'
-      +'.header{background:linear-gradient(135deg,#085041,#1D9E75);color:#fff;padding:16px 20px;border-radius:10px;margin-bottom:16px}'
-      +'h1{font-size:18px;font-weight:800;margin-bottom:4px}'
-      +'table{width:100%;border-collapse:collapse;margin-top:10px}'
-      +'th{background:#085041;color:#fff;padding:8px;text-align:start;font-size:11px}td{padding:6px 8px;border-bottom:1px solid #f0f0ec}'+'th2{font-size:11px}'
-      +'td{padding:7px 8px;border-bottom:1px solid #f0f0ec;font-size:11px}'
-      +'.footer{margin-top:16px;font-size:9px;color:#bbb;border-top:1px solid #e0e0d8;padding-top:8px;text-align:center}'
-      +'@media print{body{padding:10px}}</style></head><body>'
-      +'<div class="header"><h1>👥 '+(lang==='ar'?'قائمة الطلاب':lang==='ar'?'قائمة الطلاب':'Liste des Élèves')+'</h1>'
-      +'<div style="font-size:11px;opacity:0.8">'+eleves.length+' '+(lang==='ar'?'طالب':'élève(s)')+' · '+new Date().toLocaleDateString('fr-FR')+'</div></div>'
-      +'<table><thead><tr>'
-      +'<th>#</th><th>'+(lang==='ar'?'الاسم':'Nom complet')+'</th><th>'+(lang==='ar'?'رقم التعريف':'N° Élève')+'</th>'
-      +'<th>'+(lang==='ar'?'المستوى':'Niv.')+'</th><th>'+(lang==='ar'?'الصف':'Classe')+'</th><th>'+(lang==='ar'?'الأستاذ':'Instituteur')+'</th>'
-      +'</tr></thead><tbody>'+rows+'</tbody></table>'
-      +'<div class="footer">Généré le '+new Date().toLocaleDateString('fr-FR',{day:'2-digit',month:'long',year:'numeric'})+' · متابعة التحفيظ</div>'
-      +'</body></html>';
+    const html = `<!DOCTYPE html><html dir="${lang==='ar'?'rtl':'ltr'}" lang="${lang==='ar'?'ar':'fr'}"><head><meta charset="UTF-8"><title>Liste Élèves</title>`
+      +`<style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:Tajawal,Arial,sans-serif;padding:16px;font-size:12px;color:#1a1a1a}`
+      +`.header{background:linear-gradient(135deg,#085041,#1D9E75);color:#fff;padding:14px 18px;border-radius:10px;margin-bottom:14px;display:flex;justify-content:space-between;align-items:center}`
+      +`h1{font-size:17px;font-weight:800}table{width:100%;border-collapse:collapse}`
+      +`th{background:#085041;color:#fff;padding:7px 10px;text-align:start;font-size:10px;font-weight:600;letter-spacing:0.5px}`
+      +`td{padding:6px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle}`
+      +`.footer{margin-top:14px;font-size:9px;color:#bbb;border-top:1px solid #e0e0d8;padding-top:8px;text-align:center}`
+      +`@media print{body{padding:8px}}</style></head><body>`
+      +`<div class="header"><h1>👥 ${lang==='ar'?'قائمة الطلاب المسجلين':'Liste des Élèves Inscrits'}</h1>`
+      +`<div style="font-size:11px;opacity:0.85">${eleves.length} ${lang==='ar'?'طالب':'élève(s)'} · ${new Date().toLocaleDateString('fr-FR')}</div></div>`
+      +`<table><thead><tr>`
+      +`<th style="width:4%">#</th>`
+      +`<th style="width:18%">${lang==='ar'?'الطالب':'Élève'}</th>`
+      +`<th style="width:14%">${lang==='ar'?'المستوى':'Niveau'}</th>`
+      +`<th style="width:16%">${lang==='ar'?'الأستاذ المرجع':'Instituteur'}</th>`
+      +`<th style="width:12%">${lang==='ar'?'المكتسبات':'Acquis'}</th>`
+      +`<th style="width:18%">${lang==='ar'?'هاتف ولي الأمر':'Tél. parent'}</th>`
+      +`<th style="width:14%">${lang==='ar'?'تاريخ التسجيل':'Date inscription'}</th>`
+      +`</tr></thead><tbody>${rows}</tbody></table>`
+      +`<div class="footer">Généré le ${new Date().toLocaleDateString('fr-FR',{day:'2-digit',month:'long',year:'numeric'})} · متابعة التحفيظ</div>`
+      +`</body></html>`;
     w.document.write(html);
     w.document.close();
     setTimeout(function(){ w.print(); }, 600);
