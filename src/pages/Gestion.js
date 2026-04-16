@@ -1570,6 +1570,13 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
     const getNC = (code) => (niveauxActifs||[]).find(n=>n.code===code)?.couleur ||
       {'5B':'#534AB7','5A':'#378ADD','2M':'#1D9E75','2':'#EF9F27','1':'#E24B4A'}[code] || '#888';
 
+    // Navigation immédiate pour les onglets qui pointent vers d'autres pages
+    React.useEffect(() => {
+      if (tab==='niveaux_link')   { navigate('niveaux',  null, {tab:'parametres'}); setTab('eleves'); }
+      if (tab==='ensembles_link') { navigate('ensembles',null, {tab:'parametres'}); setTab('eleves'); }
+      if (tab==='examens_link')   { navigate('examens',  null, {tab:'parametres'}); setTab('eleves'); }
+    }, [tab]);
+
     const resetFormEleve = () => {
       setNewEleve({prenom:'',nom:'',niveau:'Débutant',code_niveau:'1',eleve_id_ecole:'',
         instituteur_referent_id:'',hizb_depart:0,tomon_depart:1,sourates_acquises:0,
@@ -1586,11 +1593,15 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
     };
 
     const TABS_MOBILE = [
-      {k:'eleves',     l:lang==='ar'?'الطلاب':'Élèves'},
-      {k:'instituteurs',l:lang==='ar'?'الأساتذة':'Profs'},
-      {k:'parents',    l:lang==='ar'?'الآباء':'Parents'},
-      {k:'jalons',     l:lang==='ar'?'الشهادات':'Jalons'},
+      {k:'eleves',        l:lang==='ar'?'الطلاب':'Élèves'},
+      {k:'instituteurs',  l:lang==='ar'?'الأساتذة':'Profs'},
+      {k:'parents',       l:lang==='ar'?'الآباء':'Parents'},
+      {k:'jalons',        l:lang==='ar'?'الشهادات':'Jalons'},
       {k:'passage_niveau',l:lang==='ar'?'الانتقال':'Passage'},
+      {k:'niveaux_link',  l:lang==='ar'?'المستويات':'Niveaux'},
+      {k:'ensembles_link',l:lang==='ar'?'مجموعات السور':'Ensembles'},
+      {k:'bareme',        l:lang==='ar'?'النقاط':'Barème'},
+      {k:'examens_link',  l:lang==='ar'?'الامتحانات':'Examens'},
     ];
 
     if (loading) return <div style={{padding:'3rem',textAlign:'center',color:'#888'}}>...</div>;
@@ -2109,6 +2120,14 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
             <MobilePassageNiveauTab user={user} lang={lang} niveaux={niveauxActifs||[]} showMsg={showMsg}/>
           </div>
         )}
+
+        {/* ─── LIENS VERS PAGES DÉDIÉES ─── */}
+        {tab==='bareme'&&(
+          <div style={{padding:'12px'}}>
+            <BaremeTab user={user} lang={lang} bareme={bareme} setBareme={setBareme} saving={savingBareme} setSaving={setSavingBareme} showMsg={showMsg}/>
+          </div>
+        )}
+
 
       </div>
     );
