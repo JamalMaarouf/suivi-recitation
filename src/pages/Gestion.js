@@ -939,6 +939,130 @@ function JalonsTab({ user, lang, jalons, setJalons, ensembles, examens, newJalon
   );
 }
 
+
+// ── Passage niveau mobile (composant léger) ──
+function MobilePassageNiveauTab({ user, lang, niveaux, showMsg }) {
+  const [regles, setRegles] = React.useState([]);
+  const [loading, setLoading] = React.useState(true);
+  const [showForm, setShowForm] = React.useState(false);
+  const [saving, setSaving] = React.useState(false);
+  const [newR, setNewR] = React.useState({niveau_from:'',niveau_to:'',type_depart:'continuer',hizb_depart_fixe:0,tomon_depart_fixe:1,sourates_acquises_fixe:0,note:''});
+
+  React.useEffect(()=>{ loadRegles(); },[]);
+  const loadRegles = async()=>{
+    setLoading(true);
+    const {data}=await supabase.from('regles_passage_niveau').select('*').eq('ecole_id',user.ecole_id).order('created_at');
+    setRegles(data||[]); setLoading(false);
+  };
+  const getNC=(code)=>niveaux.find(n=>n.code===code)?.couleur||{'5B':'#534AB7','5A':'#378ADD','2M':'#1D9E75','2':'#EF9F27','1':'#E24B4A'}[code]||'#888';
+  const typLabel=(t)=>({'continuer':lang==='ar'?'▶️ يستمر من موقعه':'▶️ Continue','debut':lang==='ar'?'🔄 من البداية':'🔄 Début','personnalise':lang==='ar'?'🎯 موقع محدد':'🎯 Personnalisé'})[t]||t;
+  const typColor=(t)=>({'continuer':'#1D9E75','debut':'#EF9F27','personnalise':'#534AB7'})[t]||'#888';
+
+  return (
+    <div>
+      {user.role==='surveillant'&&(
+        <button onClick={()=>setShowForm(v=>!v)}
+          style={{width:'100%',padding:'13px',background:showForm?'#f5f5f0':'#1D9E75',color:showForm?'#666':'#fff',border:'none',borderRadius:12,fontSize:14,fontWeight:700,cursor:'pointer',fontFamily:'inherit',marginBottom:12}}>
+          {showForm?'✕ '+(lang==='ar'?'إلغاء':'Annuler'):'+ '+(lang==='ar'?'إضافة قاعدة':'Ajouter une règle')}
+        </button>
+      )}
+      {showForm&&user.role==='surveillant'&&(
+        <div style={{background:'#fff',borderRadius:14,padding:'16px',marginBottom:14,border:'1.5px solid #1D9E75'}}>
+          <div style={{marginBottom:12}}>
+            <label style={{fontSize:12,fontWeight:600,color:'#666',display:'block',marginBottom:6}}>{lang==='ar'?'من مستوى':'De niveau'} *</label>
+            <select style={{width:'100%',padding:'11px 12px',borderRadius:10,border:'0.5px solid #e0e0d8',fontSize:14,fontFamily:'inherit',background:'#fff',boxSizing:'border-box'}}
+              value={newR.niveau_from} onChange={e=>setNewR({...newR,niveau_from:e.target.value})}>
+              <option value="">—</option>
+              {niveaux.map(n=><option key={n.code} value={n.code}>{n.code} — {n.nom}</option>)}
+            </select>
+          </div>
+          <div style={{marginBottom:12}}>
+            <label style={{fontSize:12,fontWeight:600,color:'#666',display:'block',marginBottom:6}}>{lang==='ar'?'إلى مستوى':'Vers niveau'} *</label>
+            <select style={{width:'100%',padding:'11px 12px',borderRadius:10,border:'0.5px solid #e0e0d8',fontSize:14,fontFamily:'inherit',background:'#fff',boxSizing:'border-box'}}
+              value={newR.niveau_to} onChange={e=>setNewR({...newR,niveau_to:e.target.value})}>
+              <option value="">—</option>
+              {niveaux.filter(n=>n.code!==newR.niveau_from).map(n=><option key={n.code} value={n.code}>{n.code} — {n.nom}</option>)}
+            </select>
+          </div>
+          <div style={{marginBottom:14}}>
+            <label style={{fontSize:12,fontWeight:600,color:'#666',display:'block',marginBottom:8}}>{lang==='ar'?'موقع الانطلاق':'Départ'} *</label>
+            <div style={{display:'flex',gap:6}}>
+              {[{v:'continuer',icon:'▶️',l:lang==='ar'?'يستمر':'Continue'},{v:'debut',icon:'🔄',l:lang==='ar'?'البداية':'Début'},{v:'personnalise',icon:'🎯',l:lang==='ar'?'محدد':'Perso.'}].map(opt=>(
+                <div key={opt.v} onClick={()=>setNewR({...newR,type_depart:opt.v})}
+                  style={{flex:1,padding:'10px 4px',borderRadius:10,textAlign:'center',cursor:'pointer',
+                    border:`2px solid ${newR.type_depart===opt.v?typColor(opt.v):'#e0e0d8'}`,
+                    background:newR.type_depart===opt.v?typColor(opt.v)+'15':'#fff'}}>
+                  <div style={{fontSize:16}}>{opt.icon}</div>
+                  <div style={{fontSize:10,fontWeight:600,color:newR.type_depart===opt.v?typColor(opt.v):'#666',marginTop:2}}>{opt.l}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+          {newR.type_depart==='personnalise'&&(
+            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:12}}>
+              <div><label style={{fontSize:12,fontWeight:600,color:'#666',display:'block',marginBottom:5}}>Hizb</label>
+                <input type="number" min="0" max="60" style={{width:'100%',padding:'11px',borderRadius:10,border:'0.5px solid #e0e0d8',fontSize:14,fontFamily:'inherit',boxSizing:'border-box'}}
+                  value={newR.hizb_depart_fixe} onChange={e=>setNewR({...newR,hizb_depart_fixe:e.target.value})}/></div>
+              <div><label style={{fontSize:12,fontWeight:600,color:'#666',display:'block',marginBottom:5}}>Tomon</label>
+                <select style={{width:'100%',padding:'11px',borderRadius:10,border:'0.5px solid #e0e0d8',fontSize:13,fontFamily:'inherit',background:'#fff',boxSizing:'border-box'}}
+                  value={newR.tomon_depart_fixe} onChange={e=>setNewR({...newR,tomon_depart_fixe:e.target.value})}>
+                  {[1,2,3,4,5,6,7,8].map(n=><option key={n} value={n}>T.{n}</option>)}
+                </select></div>
+            </div>
+          )}
+          <div style={{marginBottom:12}}>
+            <label style={{fontSize:12,fontWeight:600,color:'#666',display:'block',marginBottom:5}}>{lang==='ar'?'ملاحظة':'Note'}</label>
+            <input style={{width:'100%',padding:'11px 12px',borderRadius:10,border:'0.5px solid #e0e0d8',fontSize:14,fontFamily:'inherit',boxSizing:'border-box'}}
+              value={newR.note} onChange={e=>setNewR({...newR,note:e.target.value})} placeholder={lang==='ar'?'سبب القاعدة...':'Ex: Primaire → Collège'}/>
+          </div>
+          <button onClick={async()=>{
+            if(!newR.niveau_from||!newR.niveau_to) return showMsg('error',lang==='ar'?'اختر المستويين':'Choisissez les niveaux');
+            setSaving(true);
+            await supabase.from('regles_passage_niveau').insert({ecole_id:user.ecole_id,...newR,hizb_depart_fixe:parseInt(newR.hizb_depart_fixe)||0,tomon_depart_fixe:parseInt(newR.tomon_depart_fixe)||1,sourates_acquises_fixe:parseInt(newR.sourates_acquises_fixe)||0,actif:true});
+            await loadRegles();
+            setNewR({niveau_from:'',niveau_to:'',type_depart:'continuer',hizb_depart_fixe:0,tomon_depart_fixe:1,sourates_acquises_fixe:0,note:''});
+            setShowForm(false); setSaving(false);
+            showMsg('success',lang==='ar'?'تمت إضافة القاعدة':'Règle ajoutée !');
+          }} disabled={saving}
+            style={{width:'100%',padding:'13px',background:'#1D9E75',color:'#fff',border:'none',borderRadius:12,fontSize:14,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
+            {saving?'...':(lang==='ar'?'حفظ القاعدة':'Enregistrer la règle')}
+          </button>
+        </div>
+      )}
+      {loading?<div style={{textAlign:'center',padding:'2rem',color:'#888'}}>...</div>
+        :regles.length===0?(
+          <div style={{textAlign:'center',padding:'2rem',background:'#fff',borderRadius:12,color:'#aaa'}}>
+            <div style={{fontSize:32,marginBottom:8}}>🎓</div>
+            <div style={{fontSize:13}}>{lang==='ar'?'لا توجد قواعد بعد':'Aucune règle configurée'}</div>
+            <div style={{fontSize:11,marginTop:4,color:'#ccc'}}>{lang==='ar'?'الطالب يستمر من موقعه افتراضياً':'Par défaut : continue depuis sa position'}</div>
+          </div>
+        ):regles.map(r=>{
+          const fc=getNC(r.niveau_from); const tc=getNC(r.niveau_to); const dc=typColor(r.type_depart);
+          return(
+            <div key={r.id} style={{background:'#fff',borderRadius:12,padding:'12px 14px',marginBottom:8,border:'0.5px solid #e0e0d8',opacity:r.actif?1:0.5}}>
+              <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:6}}>
+                <span style={{padding:'2px 8px',borderRadius:20,fontSize:11,fontWeight:700,background:fc+'20',color:fc}}>{r.niveau_from}</span>
+                <span style={{color:'#aaa'}}>→</span>
+                <span style={{padding:'2px 8px',borderRadius:20,fontSize:11,fontWeight:700,background:tc+'20',color:tc}}>{r.niveau_to}</span>
+                <span style={{flex:1}}/>
+                <span style={{padding:'2px 8px',borderRadius:20,fontSize:10,fontWeight:600,background:dc+'15',color:dc}}>{typLabel(r.type_depart)}</span>
+              </div>
+              {r.note&&<div style={{fontSize:11,color:'#aaa',fontStyle:'italic',marginBottom:6}}>{r.note}</div>}
+              <div style={{display:'flex',gap:6}}>
+                <button onClick={async()=>{await supabase.from('regles_passage_niveau').update({actif:!r.actif}).eq('id',r.id);setRegles(prev=>prev.map(x=>x.id===r.id?{...x,actif:!x.actif}:x));}}
+                  style={{padding:'4px 10px',borderRadius:6,fontSize:10,fontWeight:600,cursor:'pointer',border:'none',background:r.actif?'#E1F5EE':'#f0f0ec',color:r.actif?'#085041':'#888'}}>
+                  {r.actif?(lang==='ar'?'نشط':'Actif'):(lang==='ar'?'غير نشط':'Inactif')}
+                </button>
+                <button onClick={async()=>{await supabase.from('regles_passage_niveau').delete().eq('id',r.id);setRegles(prev=>prev.filter(x=>x.id!==r.id));}}
+                  style={{padding:'4px 8px',borderRadius:6,background:'#FCEBEB',color:'#E24B4A',border:'none',cursor:'pointer',fontSize:11}}>🗑</button>
+              </div>
+            </div>
+          );
+        })}
+    </div>
+  );
+}
+
 export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile, initialTab, setGestionTab }) {
   const { toast } = useToast();
   const [tab, setTabLocal] = useState(initialTab || 'parametres');
@@ -1442,12 +1566,14 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
   const NIVEAUX_M = niveauxActifs.map(n=>n.code);
 
   if (isMobile) {
-    const NC = {'5B':'#534AB7','5A':'#378ADD','2M':'#1D9E75','2':'#EF9F27','1':'#E24B4A'};
-    const NL = {'5B':lang==='ar'?'\u062a\u0645\u0647\u064a\u062f\u064a':'Pr\u00e9scolaire','5A':'Prim. 1-2','2M':'Prim. 3-4','2':'Prim. 5-6','1':lang==='ar'?'\u0625\u0639\u062f\u0627\u062f\u064a':'Coll\u00e8ge'};
-    const NIVEAUX_M = ['5B','5A','2M','2','1'];
+    // Couleurs dynamiques depuis niveauxActifs, fallback hardcoded
+    const getNC = (code) => (niveauxActifs||[]).find(n=>n.code===code)?.couleur ||
+      {'5B':'#534AB7','5A':'#378ADD','2M':'#1D9E75','2':'#EF9F27','1':'#E24B4A'}[code] || '#888';
 
     const resetFormEleve = () => {
-      setNewEleve({prenom:'',nom:'',niveau:'D\u00e9butant',code_niveau:'1',eleve_id_ecole:'',instituteur_referent_id:'',hizb_depart:0,tomon_depart:1,sourates_acquises:0});
+      setNewEleve({prenom:'',nom:'',niveau:'Débutant',code_niveau:'1',eleve_id_ecole:'',
+        instituteur_referent_id:'',hizb_depart:0,tomon_depart:1,sourates_acquises:0,
+        telephone:'',date_inscription:''});
       setEditEleve(null); setMobileEditEleve(null);
     };
     const handleSaveEleve = async () => {
@@ -1459,11 +1585,22 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
       setShowFormEleve(true); window.scrollTo(0,0);
     };
 
+    const TABS_MOBILE = [
+      {k:'eleves',     l:lang==='ar'?'الطلاب':'Élèves'},
+      {k:'instituteurs',l:lang==='ar'?'الأساتذة':'Profs'},
+      {k:'parents',    l:lang==='ar'?'الآباء':'Parents'},
+      {k:'jalons',     l:lang==='ar'?'الشهادات':'Jalons'},
+      {k:'passage_niveau',l:lang==='ar'?'الانتقال':'Passage'},
+    ];
+
     if (loading) return <div style={{padding:'3rem',textAlign:'center',color:'#888'}}>...</div>;
 
-    const FieldInput = ({label, val, onChange, ph, type='text'}) => (
+    // ─── Composant champ input réutilisable ───
+    const FI = ({label, val, onChange, ph, type='text', required=false}) => (
       <div style={{marginBottom:12}}>
-        <label style={{fontSize:12,fontWeight:600,color:'#666',display:'block',marginBottom:5}}>{label}</label>
+        <label style={{fontSize:12,fontWeight:600,color:'#666',display:'block',marginBottom:5}}>
+          {label}{required&&<span style={{color:'#E24B4A'}}> *</span>}
+        </label>
         <input type={type}
           style={{width:'100%',padding:'12px 14px',borderRadius:10,border:'0.5px solid #e0e0d8',
             fontSize:15,fontFamily:'inherit',boxSizing:'border-box'}}
@@ -1473,156 +1610,199 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
 
     return (
       <div style={{paddingBottom:80,background:'#f5f5f0',minHeight:'100vh'}}>
-        {/* HEADER */}
-        <div style={{background:'#fff',padding:'14px 16px 0',borderBottom:'0.5px solid #e0e0d8',position:'sticky',top:0,zIndex:100}}>
+
+        {/* ─── HEADER ─── */}
+        <div style={{background:'linear-gradient(135deg,#085041,#1D9E75)',padding:'48px 16px 0',position:'sticky',top:0,zIndex:100}}>
           <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:12}}>
             <button onClick={()=>goBack?goBack():navigate('dashboard')}
-              style={{background:'none',border:'none',cursor:'pointer',fontSize:22,color:'#085041',padding:0}}>\u2190</button>
-            <div style={{flex:1,fontSize:17,fontWeight:800,color:'#085041'}}>\u2699\ufe0f {lang==='ar'?'\u0627\u0644\u0625\u062f\u0627\u0631\u0629':'Administration'}</div>
+              style={{background:'rgba(255,255,255,0.2)',border:'none',cursor:'pointer',fontSize:20,color:'#fff',padding:'6px 10px',borderRadius:8}}>←</button>
+            <div style={{flex:1,fontSize:17,fontWeight:800,color:'#fff'}}>⚙️ {lang==='ar'?'الإدارة':'Administration'}</div>
             {tab==='eleves'&&user.role==='surveillant'&&(
               <button onClick={()=>{resetFormEleve();setShowFormEleve(v=>!v);}}
-                style={{background:showFormEleve?'#f0f0ec':'#1D9E75',color:showFormEleve?'#666':'#fff',
-                  border:'none',borderRadius:10,padding:'8px 14px',fontSize:13,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
-                {showFormEleve?'\u2715':lang==='ar'?'+ \u0625\u0636\u0627\u0641\u0629':'+ Ajouter'}
+                style={{background:showFormEleve?'rgba(255,255,255,0.15)':'rgba(255,255,255,0.25)',color:'#fff',
+                  border:'1px solid rgba(255,255,255,0.3)',borderRadius:10,padding:'7px 14px',fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
+                {showFormEleve?'✕':(lang==='ar'?'+ إضافة':'+ Ajouter')}
               </button>
             )}
             {tab==='instituteurs'&&user.role==='surveillant'&&(
               <button onClick={()=>setShowFormInst(v=>!v)}
-                style={{background:showFormInst?'#f0f0ec':'#378ADD',color:showFormInst?'#666':'#fff',
-                  border:'none',borderRadius:10,padding:'8px 14px',fontSize:13,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
-                {showFormInst?'\u2715':lang==='ar'?'+ \u0625\u0636\u0627\u0641\u0629':'+ Ajouter'}
+                style={{background:'rgba(255,255,255,0.25)',color:'#fff',border:'1px solid rgba(255,255,255,0.3)',borderRadius:10,padding:'7px 14px',fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
+                {showFormInst?'✕':(lang==='ar'?'+ إضافة':'+ Ajouter')}
               </button>
             )}
             {tab==='parents'&&user.role==='surveillant'&&(
               <button onClick={()=>setShowFormParent(v=>!v)}
-                style={{background:showFormParent?'#f0f0ec':'#EF9F27',color:showFormParent?'#666':'#fff',
-                  border:'none',borderRadius:10,padding:'8px 14px',fontSize:13,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
-                {showFormParent?'\u2715':lang==='ar'?'+ \u0625\u0636\u0627\u0641\u0629':'+ Ajouter'}
+                style={{background:'rgba(255,255,255,0.25)',color:'#fff',border:'1px solid rgba(255,255,255,0.3)',borderRadius:10,padding:'7px 14px',fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
+                {showFormParent?'✕':(lang==='ar'?'+ إضافة':'+ Ajouter')}
               </button>
             )}
           </div>
           {msg.text&&(
             <div style={{margin:'0 0 10px',padding:'10px 14px',borderRadius:10,fontSize:13,
-              background:msg.type==='error'?'#FCEBEB':'#E1F5EE',color:msg.type==='error'?'#E24B4A':'#085041'}}>
+              background:msg.type==='error'?'rgba(226,75,74,0.9)':'rgba(29,158,117,0.9)',color:'#fff'}}>
               {msg.text}
             </div>
           )}
-          <div style={{display:'flex',gap:0,background:'#f0f0ec',borderRadius:10,padding:3}}>
-            {[['eleves',lang==='ar'?'\u0627\u0644\u0637\u0644\u0627\u0628':'\u00c9l\u00e8ves'],['instituteurs',lang==='ar'?'\u0627\u0644\u0623\u0633\u0627\u062a\u0630\u0629':'Profs'],['parents',lang==='ar'?'\u0627\u0644\u0622\u0628\u0627\u0621':'Parents']].map(([k,l])=>(
+          {/* Tabs scrollables */}
+          <div style={{display:'flex',gap:0,overflowX:'auto',scrollbarWidth:'none',paddingBottom:0}}>
+            {TABS_MOBILE.map(({k,l})=>(
               <div key={k} onClick={()=>setTab(k)}
-                style={{flex:1,padding:'8px 4px',borderRadius:8,textAlign:'center',fontSize:12,fontWeight:600,
-                  cursor:'pointer',background:tab===k?'#fff':'transparent',color:tab===k?'#1a1a1a':'#888'}}>
+                style={{padding:'10px 14px',fontSize:12,fontWeight:600,cursor:'pointer',flexShrink:0,
+                  color:tab===k?'#1D9E75':'rgba(255,255,255,0.7)',
+                  borderBottom:tab===k?'2.5px solid #1D9E75':'2.5px solid transparent',
+                  background:'transparent',transition:'all 0.15s'}}>
                 {l}
               </div>
             ))}
           </div>
         </div>
 
-        {/* ELEVES */}
+        {/* ─── ONGLET ÉLÈVES ─── */}
         {tab==='eleves'&&(
           <div style={{padding:'12px'}}>
             {showFormEleve&&user.role==='surveillant'&&(
               <div style={{background:'#fff',borderRadius:16,padding:'18px',marginBottom:14,
                 border:`1.5px solid ${mobileEditEleve?'#378ADD':'#1D9E75'}`}}>
                 <div style={{fontSize:15,fontWeight:700,color:'#085041',marginBottom:14}}>
-                  {mobileEditEleve?(lang==='ar'?'\u062a\u0639\u062f\u064a\u0644 \u0627\u0644\u0637\u0627\u0644\u0628':'\u270f\ufe0f Modifier \u00e9l\u00e8ve'):(lang==='ar'?'\u0625\u0636\u0627\u0641\u0629 \u0637\u0627\u0644\u0628':'\ud83d\udc64 Nouvel \u00e9l\u00e8ve')}
+                  {mobileEditEleve?(lang==='ar'?'تعديل الطالب':'✏️ Modifier'):(lang==='ar'?'إضافة طالب':'👤 Nouvel élève')}
                 </div>
-                {[{label:lang==='ar'?'\u0627\u0644\u0627\u0633\u0645':'Pr\u00e9nom *',key:'prenom',ph:lang==='ar'?'\u0627\u0644\u0627\u0633\u0645':'Pr\u00e9nom'},
-                  {label:lang==='ar'?'\u0627\u0644\u0644\u0642\u0628':'Nom *',key:'nom',ph:lang==='ar'?'\u0627\u0644\u0644\u0642\u0628':'Nom'},
-                ].map(f=>(
-                  <div key={f.key} style={{marginBottom:12}}>
-                    <label style={{fontSize:12,fontWeight:600,color:'#666',display:'block',marginBottom:5}}>{f.label}</label>
-                    <input style={{width:'100%',padding:'12px 14px',borderRadius:10,border:'0.5px solid #e0e0d8',fontSize:15,fontFamily:'inherit',boxSizing:'border-box'}}
-                      value={editEleve?editEleve[f.key]||'':newEleve[f.key]}
-                      onChange={e=>editEleve?setEditEleve(x=>({...x,[f.key]:e.target.value})):setNewEleve(x=>({...x,[f.key]:e.target.value}))}
-                      placeholder={f.ph}/>
-                  </div>
-                ))}
-                <div style={{marginBottom:12}}>
-                  <label style={{fontSize:12,fontWeight:600,color:'#666',display:'block',marginBottom:5}}>{lang==='ar'?'\u0631\u0642\u0645 \u0627\u0644\u062a\u0639\u0631\u064a\u0641':'ID \u00e9l\u00e8ve *'}</label>
-                  <input style={{width:'100%',padding:'12px 14px',borderRadius:10,border:'0.5px solid #e0e0d8',fontSize:15,fontFamily:'inherit',boxSizing:'border-box'}}
-                    value={editEleve?editEleve.eleve_id_ecole||'':newEleve.eleve_id_ecole}
-                    onChange={e=>editEleve?setEditEleve(x=>({...x,eleve_id_ecole:e.target.value})):setNewEleve(x=>({...x,eleve_id_ecole:e.target.value}))}
-                    placeholder="001"/>
+
+                {/* Prénom + Nom côte à côte */}
+                <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:0}}>
+                  {[{label:lang==='ar'?'الاسم':'Prénom',key:'prenom'},{label:lang==='ar'?'اللقب':'Nom',key:'nom'}].map(f=>(
+                    <div key={f.key} style={{marginBottom:12}}>
+                      <label style={{fontSize:12,fontWeight:600,color:'#666',display:'block',marginBottom:5}}>{f.label} <span style={{color:'#E24B4A'}}>*</span></label>
+                      <input style={{width:'100%',padding:'11px 12px',borderRadius:10,border:'0.5px solid #e0e0d8',fontSize:14,fontFamily:'inherit',boxSizing:'border-box'}}
+                        value={editEleve?editEleve[f.key]||'':newEleve[f.key]}
+                        onChange={e=>editEleve?setEditEleve(x=>({...x,[f.key]:e.target.value})):setNewEleve(x=>({...x,[f.key]:e.target.value}))}
+                        placeholder={f.label}/>
+                    </div>
+                  ))}
                 </div>
+
+                {/* Niveau scolaire — chips dynamiques */}
                 <div style={{marginBottom:12}}>
-                  <label style={{fontSize:12,fontWeight:600,color:'#666',display:'block',marginBottom:8}}>{lang==='ar'?'\u0627\u0644\u0645\u0633\u062a\u0648\u0649':'Niveau *'}</label>
+                  <label style={{fontSize:12,fontWeight:600,color:'#666',display:'block',marginBottom:8}}>{lang==='ar'?'المستوى الدراسي':'Niveau scolaire'} <span style={{color:'#E24B4A'}}>*</span></label>
                   <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>
-                    {NIVEAUX_M.map(n=>{
-                      const nc=NC[n]; const cur=editEleve?editEleve.code_niveau:newEleve.code_niveau;
+                    {(niveauxActifs||[]).map(n=>{
+                      const nc=n.couleur||getNC(n.code);
+                      const cur=editEleve?editEleve.code_niveau:newEleve.code_niveau;
                       return(
-                        <div key={n} onClick={()=>editEleve?setEditEleve(x=>({...x,code_niveau:n})):setNewEleve(x=>({...x,code_niveau:n}))}
-                          style={{padding:'8px 12px',borderRadius:20,cursor:'pointer',flexShrink:0,textAlign:'center',
-                            background:cur===n?nc:'#f5f5f0',color:cur===n?'#fff':'#666',
-                            border:`1.5px solid ${cur===n?nc:'#e0e0d8'}`,fontWeight:cur===n?700:400,fontSize:12}}>
-                          <div>{n}</div><div style={{fontSize:9,opacity:0.85}}>{NL[n]}</div>
+                        <div key={n.code} onClick={()=>editEleve?setEditEleve(x=>({...x,code_niveau:n.code})):setNewEleve(x=>({...x,code_niveau:n.code}))}
+                          style={{padding:'7px 12px',borderRadius:20,cursor:'pointer',flexShrink:0,
+                            background:cur===n.code?nc:'#f5f5f0',color:cur===n.code?'#fff':'#666',
+                            border:`1.5px solid ${cur===n.code?nc:'#e0e0d8'}`,fontWeight:cur===n.code?700:400,fontSize:12}}>
+                          {n.code}
                         </div>
                       );
                     })}
                   </div>
                 </div>
-                <div style={{marginBottom:12}}>
-                  <label style={{fontSize:12,fontWeight:600,color:'#666',display:'block',marginBottom:5}}>{lang==='ar'?'\u0627\u0644\u0623\u0633\u062a\u0627\u0630 \u0627\u0644\u0645\u0631\u062c\u0639':'Instituteur r\u00e9f\u00e9rent *'}</label>
-                  <select style={{width:'100%',padding:'12px 14px',borderRadius:10,border:'0.5px solid #e0e0d8',fontSize:14,fontFamily:'inherit',background:'#fff',boxSizing:'border-box'}}
-                    value={editEleve?editEleve.instituteur_referent_id||'':newEleve.instituteur_referent_id}
-                    onChange={e=>editEleve?setEditEleve(x=>({...x,instituteur_referent_id:e.target.value})):setNewEleve(x=>({...x,instituteur_referent_id:e.target.value}))}>
-                    <option value="">\u2014 {lang==='ar'?'\u0627\u062e\u062a\u0631 \u0623\u0633\u062a\u0627\u0630\u0627\u064b':'Choisir'} \u2014</option>
-                    {instituteurs.map(i=><option key={i.id} value={i.id}>{i.prenom} {i.nom}</option>)}
-                  </select>
+
+                {/* ID + Référent */}
+                <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:0}}>
+                  <div style={{marginBottom:12}}>
+                    <label style={{fontSize:12,fontWeight:600,color:'#666',display:'block',marginBottom:5}}>{lang==='ar'?'رقم التعريف':'ID élève'} <span style={{color:'#E24B4A'}}>*</span></label>
+                    <input style={{width:'100%',padding:'11px 12px',borderRadius:10,border:'0.5px solid #e0e0d8',fontSize:14,fontFamily:'inherit',boxSizing:'border-box'}}
+                      value={editEleve?editEleve.eleve_id_ecole||'':newEleve.eleve_id_ecole}
+                      onChange={e=>editEleve?setEditEleve(x=>({...x,eleve_id_ecole:e.target.value})):setNewEleve(x=>({...x,eleve_id_ecole:e.target.value}))}
+                      placeholder="001"/>
+                  </div>
+                  <div style={{marginBottom:12}}>
+                    <label style={{fontSize:12,fontWeight:600,color:'#666',display:'block',marginBottom:5}}>{lang==='ar'?'الأستاذ المرجع':'Référent'} <span style={{color:'#E24B4A'}}>*</span></label>
+                    <select style={{width:'100%',padding:'11px 12px',borderRadius:10,border:'0.5px solid #e0e0d8',fontSize:13,fontFamily:'inherit',background:'#fff',boxSizing:'border-box'}}
+                      value={editEleve?editEleve.instituteur_referent_id||'':newEleve.instituteur_referent_id}
+                      onChange={e=>editEleve?setEditEleve(x=>({...x,instituteur_referent_id:e.target.value})):setNewEleve(x=>({...x,instituteur_referent_id:e.target.value}))}>
+                      <option value="">— {lang==='ar'?'اختر':'Choisir'} —</option>
+                      {instituteurs.map(i=><option key={i.id} value={i.id}>{i.prenom} {i.nom}</option>)}
+                    </select>
+                  </div>
                 </div>
-                {['2','1','2M'].includes(editEleve?editEleve.code_niveau:newEleve.code_niveau)&&(
+
+                {/* Téléphone parent + Date inscription */}
+                <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:0}}>
+                  <div style={{marginBottom:12}}>
+                    <label style={{fontSize:12,fontWeight:600,color:'#666',display:'block',marginBottom:5}}>{lang==='ar'?'هاتف ولي الأمر':'Tél. parent'}</label>
+                    <input type="tel" style={{width:'100%',padding:'11px 12px',borderRadius:10,border:'0.5px solid #e0e0d8',fontSize:14,fontFamily:'inherit',boxSizing:'border-box'}}
+                      value={editEleve?editEleve.telephone||'':newEleve.telephone||''}
+                      onChange={e=>editEleve?setEditEleve(x=>({...x,telephone:e.target.value})):setNewEleve(x=>({...x,telephone:e.target.value}))}
+                      placeholder="06XXXXXXXX"/>
+                  </div>
+                  <div style={{marginBottom:12}}>
+                    <label style={{fontSize:12,fontWeight:600,color:'#666',display:'block',marginBottom:5}}>{lang==='ar'?'تاريخ التسجيل':'Inscription'}</label>
+                    <input type="date" style={{width:'100%',padding:'11px 12px',borderRadius:10,border:'0.5px solid #e0e0d8',fontSize:13,fontFamily:'inherit',boxSizing:'border-box'}}
+                      value={editEleve?editEleve.date_inscription||'':newEleve.date_inscription||''}
+                      onChange={e=>editEleve?setEditEleve(x=>({...x,date_inscription:e.target.value})):setNewEleve(x=>({...x,date_inscription:e.target.value}))}/>
+                  </div>
+                </div>
+
+                {/* Hizb/Tomon si niveau hizb */}
+                {!isSourateNiveauDyn(editEleve?editEleve.code_niveau:newEleve.code_niveau, niveauxActifs||[])&&(
                   <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:12}}>
-                    {[{label:lang==='ar'?'\u0627\u0644\u062d\u0632\u0628 \u0627\u0644\u0627\u0628\u062a\u062f\u0627\u0626\u064a':'Hizb d\u00e9part',key:'hizb_depart',max:60},
-                      {label:lang==='ar'?'\u0627\u0644\u062b\u064f\u0651\u0645\u0646 \u0627\u0644\u0627\u0628\u062a\u062f\u0627\u0626\u064a':'Tomon d\u00e9part',key:'tomon_depart',max:8}
+                    {[{label:lang==='ar'?'حزب الانطلاق':'Hizb départ',key:'hizb_depart',max:60},
+                      {label:lang==='ar'?'الثُّمن':'Tomon',key:'tomon_depart',max:8}
                     ].map(f=>(
                       <div key={f.key}>
                         <label style={{fontSize:12,fontWeight:600,color:'#666',display:'block',marginBottom:5}}>{f.label}</label>
-                        <input type="number" min="1" max={f.max}
-                          style={{width:'100%',padding:'12px 14px',borderRadius:10,border:'0.5px solid #e0e0d8',fontSize:15,fontFamily:'inherit',boxSizing:'border-box'}}
-                          value={editEleve?editEleve[f.key]||1:newEleve[f.key]}
+                        <input type="number" min="0" max={f.max}
+                          style={{width:'100%',padding:'11px 12px',borderRadius:10,border:'0.5px solid #e0e0d8',fontSize:14,fontFamily:'inherit',boxSizing:'border-box'}}
+                          value={editEleve?editEleve[f.key]||0:newEleve[f.key]}
                           onChange={e=>editEleve?setEditEleve(x=>({...x,[f.key]:e.target.value})):setNewEleve(x=>({...x,[f.key]:e.target.value}))}/>
                       </div>
                     ))}
                   </div>
                 )}
+
                 <div style={{display:'flex',gap:8,marginTop:4}}>
                   <button onClick={()=>{setShowFormEleve(false);resetFormEleve();}}
                     style={{flex:1,padding:'13px',background:'#f5f5f0',color:'#666',border:'none',borderRadius:12,fontSize:14,fontWeight:600,cursor:'pointer',fontFamily:'inherit'}}>
-                    {lang==='ar'?'\u0625\u0644\u063a\u0627\u0621':'Annuler'}
+                    {lang==='ar'?'إلغاء':'Annuler'}
                   </button>
                   <button onClick={handleSaveEleve}
                     style={{flex:2,padding:'13px',background:mobileEditEleve?'#378ADD':'#1D9E75',color:'#fff',border:'none',borderRadius:12,fontSize:14,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
-                    {mobileEditEleve?(lang==='ar'?'\u062a\u062d\u062f\u064a\u062b':'Mettre \u00e0 jour \u2713'):(lang==='ar'?'\u062d\u0641\u0638':'Enregistrer')}
+                    {mobileEditEleve?(lang==='ar'?'تحديث ✓':'Mettre à jour ✓'):(lang==='ar'?'حفظ':'Enregistrer')}
                   </button>
                 </div>
               </div>
             )}
+
+            {/* Recherche */}
             <input style={{width:'100%',padding:'12px 16px',borderRadius:12,border:'0.5px solid #e0e0d8',fontSize:15,fontFamily:'inherit',boxSizing:'border-box',background:'#fff',marginBottom:8}}
-              placeholder={lang==='ar'?'\u0628\u062d\u062b \u0639\u0646 \u0637\u0627\u0644\u0628...':'Rechercher un \u00e9l\u00e8ve...'}
+              placeholder={lang==='ar'?'بحث عن طالب...':'Rechercher un élève...'}
               value={searchEleve||''} onChange={e=>setSearchEleve(e.target.value)}/>
             <div style={{fontSize:12,color:'#888',marginBottom:8,paddingLeft:4}}>
-              {eleves.filter(e=>!searchEleve||`${e.prenom} ${e.nom} ${e.eleve_id_ecole||''}`.toLowerCase().includes((searchEleve||'').toLowerCase())).length} {lang==='ar'?'\u0637\u0627\u0644\u0628':'\u00e9l\u00e8ve(s)'}
+              {eleves.filter(e=>!searchEleve||`${e.prenom} ${e.nom} ${e.eleve_id_ecole||''}`.toLowerCase().includes((searchEleve||'').toLowerCase())).length} {lang==='ar'?'طالب':'élève(s)'}
             </div>
+
+            {/* Liste élèves */}
             {eleves.filter(e=>!searchEleve||`${e.prenom} ${e.nom} ${e.eleve_id_ecole||''}`.toLowerCase().includes((searchEleve||'').toLowerCase())).map(e=>{
-              const nc=NC[e.code_niveau||'1']||'#888';
+              const nc=getNC(e.code_niveau);
+              const isSour=isSourateNiveauDyn(e.code_niveau,niveauxActifs||[]);
+              const inst=instituteurs.find(i=>i.id===e.instituteur_referent_id);
               return(
-                <div key={e.id} style={{background:'#fff',borderRadius:12,padding:'13px 14px',marginBottom:8,border:'0.5px solid #e0e0d8',display:'flex',alignItems:'center',gap:12}}>
-                  <div onClick={()=>navigate('fiche',e,{tab})} style={{cursor:'pointer',width:42,height:42,borderRadius:'50%',background:`${nc}20`,color:nc,display:'flex',alignItems:'center',justifyContent:'center',fontWeight:800,fontSize:14,flexShrink:0}}>
+                <div key={e.id} style={{background:'#fff',borderRadius:12,padding:'12px 14px',marginBottom:8,border:'0.5px solid #e0e0d8',display:'flex',alignItems:'center',gap:10,boxShadow:'0 1px 3px rgba(0,0,0,0.04)'}}>
+                  <div onClick={()=>navigate('fiche',e,{tab})} style={{cursor:'pointer',width:40,height:40,borderRadius:'50%',background:`${nc}20`,color:nc,display:'flex',alignItems:'center',justifyContent:'center',fontWeight:800,fontSize:13,flexShrink:0}}>
                     {((e.prenom||'?')[0])+((e.nom||'?')[0])}
                   </div>
                   <div onClick={()=>navigate('fiche',e,{tab})} style={{flex:1,minWidth:0,cursor:'pointer'}}>
-                    <div style={{fontWeight:700,fontSize:14}}>{e.prenom} {e.nom}</div>
-                    <div style={{display:'flex',gap:6,marginTop:3,alignItems:'center',flexWrap:'wrap'}}>
-                      <span style={{padding:'2px 8px',borderRadius:10,background:`${nc}20`,color:nc,fontSize:11,fontWeight:700}}>{e.code_niveau||'?'}</span>
-                      {e.eleve_id_ecole&&<span style={{fontSize:11,color:'#aaa'}}>#{e.eleve_id_ecole}</span>}
-                      {isSourateNiveauDyn(e.code_niveau, niveaux||[]) && e.sourates_acquises > 0 &&
-                        <span style={{fontSize:11,color:'#1D9E75',fontWeight:600}}>📖 {e.sourates_acquises} {lang==='ar'?'محفوظ':'acquis'}</span>}
+                    <div style={{fontWeight:700,fontSize:13}}>{e.prenom} {e.nom}</div>
+                    <div style={{display:'flex',gap:5,marginTop:2,alignItems:'center',flexWrap:'wrap'}}>
+                      <span style={{padding:'1px 6px',borderRadius:10,background:`${nc}20`,color:nc,fontSize:10,fontWeight:700}}>{e.code_niveau||'?'}</span>
+                      {e.eleve_id_ecole&&<span style={{fontSize:10,color:'#bbb'}}>#{e.eleve_id_ecole}</span>}
+                      {isSour&&e.sourates_acquises>0&&<span style={{fontSize:10,color:'#1D9E75',fontWeight:600}}>📖 {e.sourates_acquises}</span>}
+                      {!isSour&&<span style={{fontSize:10,color:'#888'}}>H.{e.hizb_depart} T.{e.tomon_depart}</span>}
                     </div>
+                    {(e.telephone||e.date_inscription)&&(
+                      <div style={{display:'flex',gap:8,marginTop:2,fontSize:10,color:'#aaa'}}>
+                        {e.telephone&&<span>📞 {e.telephone}</span>}
+                        {e.date_inscription&&<span>📅 {new Date(e.date_inscription).toLocaleDateString(lang==='ar'?'ar-MA':'fr-FR',{day:'2-digit',month:'short'})}</span>}
+                      </div>
+                    )}
                   </div>
                   {user.role==='surveillant'&&(
-                    <div style={{display:'flex',gap:6,flexShrink:0}}>
-                      <button onClick={()=>startEditEleve(e)} style={{background:'#E6F1FB',color:'#378ADD',border:'none',borderRadius:8,padding:'7px 10px',fontSize:13,cursor:'pointer',fontWeight:600}}>\u270f\ufe0f</button>
-                      <button onClick={()=>supprimerEleve(e.id)} style={{background:'#FCEBEB',color:'#E24B4A',border:'none',borderRadius:8,padding:'7px 10px',fontSize:13,cursor:'pointer'}}>\ud83d\uddd1</button>
+                    <div style={{display:'flex',gap:5,flexShrink:0}}>
+                      <button onClick={()=>startEditEleve(e)} style={{background:'#E6F1FB',color:'#378ADD',border:'none',borderRadius:8,padding:'7px 9px',fontSize:12,cursor:'pointer'}}>✏️</button>
+                      <button onClick={()=>supprimerEleve(e.id)} style={{background:'#FCEBEB',color:'#E24B4A',border:'none',borderRadius:8,padding:'7px 9px',fontSize:12,cursor:'pointer'}}>🗑</button>
                     </div>
                   )}
                 </div>
@@ -1631,51 +1811,42 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
           </div>
         )}
 
-        {/* INSTITUTEURS */}
+        {/* ─── ONGLET INSTITUTEURS ─── */}
         {tab==='instituteurs'&&(
           <div style={{padding:'12px'}}>
             {showFormInst&&user.role==='surveillant'&&(
               <div style={{background:'#fff',borderRadius:16,padding:'18px',marginBottom:14,border:'1.5px solid #378ADD'}}>
-                <div style={{fontSize:15,fontWeight:700,color:'#085041',marginBottom:14}}>\ud83e\uddd1\u200d\ud83c\udfeb {lang==='ar'?'\u0625\u0636\u0627\u0641\u0629 \u0623\u0633\u062a\u0627\u0630':'Nouvel instituteur'}</div>
-                {[{label:lang==='ar'?'\u0627\u0644\u0627\u0633\u0645':'Pr\u00e9nom *',key:'prenom',ph:lang==='ar'?'\u0627\u0644\u0627\u0633\u0645':'Pr\u00e9nom'},
-                  {label:lang==='ar'?'\u0627\u0644\u0644\u0642\u0628':'Nom *',key:'nom',ph:lang==='ar'?'\u0627\u0644\u0644\u0642\u0628':'Nom'},
-                  {label:lang==='ar'?'\u0627\u0644\u0645\u0639\u0631\u0641':'Identifiant *',key:'identifiant',ph:'ex: m.karim'},
-                ].map(f=>(
-                  <div key={f.key} style={{marginBottom:12}}>
-                    <label style={{fontSize:12,fontWeight:600,color:'#666',display:'block',marginBottom:5}}>{f.label}</label>
-                    <input style={{width:'100%',padding:'12px 14px',borderRadius:10,border:'0.5px solid #e0e0d8',fontSize:15,fontFamily:'inherit',boxSizing:'border-box'}}
-                      value={newInst[f.key]} onChange={e=>setNewInst(x=>({...x,[f.key]:e.target.value}))} placeholder={f.ph}/>
-                  </div>
+                <div style={{fontSize:15,fontWeight:700,color:'#085041',marginBottom:14}}>👨‍🏫 {lang==='ar'?'إضافة أستاذ':'Nouvel instituteur'}</div>
+                {[{label:lang==='ar'?'الاسم':'Prénom',key:'prenom'},{label:lang==='ar'?'اللقب':'Nom',key:'nom'},{label:'Identifiant',key:'identifiant',ph:'ex: m.karim'}].map(f=>(
+                  <FI key={f.key} label={f.label+' *'} val={newInst[f.key]} ph={f.ph||f.label}
+                    onChange={e=>setNewInst(x=>({...x,[f.key]:e.target.value}))} required/>
                 ))}
-                <div style={{marginBottom:14}}>
-                  <label style={{fontSize:12,fontWeight:600,color:'#666',display:'block',marginBottom:5}}>{lang==='ar'?'\u0643\u0644\u0645\u0629 \u0627\u0644\u0645\u0631\u0648\u0631':'Mot de passe *'}</label>
-                  <input type="password" style={{width:'100%',padding:'12px 14px',borderRadius:10,border:'0.5px solid #e0e0d8',fontSize:15,fontFamily:'inherit',boxSizing:'border-box'}}
-                    value={newInst.mot_de_passe} onChange={e=>setNewInst(x=>({...x,mot_de_passe:e.target.value}))} placeholder="\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022"/>
-                </div>
+                <FI label={lang==='ar'?'كلمة المرور':'Mot de passe *'} val={newInst.mot_de_passe} type="password" ph="••••••••"
+                  onChange={e=>setNewInst(x=>({...x,mot_de_passe:e.target.value}))}/>
                 <div style={{display:'flex',gap:8}}>
-                  <button onClick={()=>setShowFormInst(false)} style={{flex:1,padding:'13px',background:'#f5f5f0',color:'#666',border:'none',borderRadius:12,fontSize:14,fontWeight:600,cursor:'pointer',fontFamily:'inherit'}}>{lang==='ar'?'\u0625\u0644\u063a\u0627\u0621':'Annuler'}</button>
-                  <button onClick={async()=>{await ajouterInstituteur();setShowFormInst(false);}} style={{flex:2,padding:'13px',background:'#378ADD',color:'#fff',border:'none',borderRadius:12,fontSize:14,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>{lang==='ar'?'\u062d\u0641\u0638':'Enregistrer'}</button>
+                  <button onClick={()=>setShowFormInst(false)} style={{flex:1,padding:'13px',background:'#f5f5f0',color:'#666',border:'none',borderRadius:12,fontSize:14,fontWeight:600,cursor:'pointer',fontFamily:'inherit'}}>{lang==='ar'?'إلغاء':'Annuler'}</button>
+                  <button onClick={async()=>{await ajouterInstituteur();setShowFormInst(false);}} style={{flex:2,padding:'13px',background:'#378ADD',color:'#fff',border:'none',borderRadius:12,fontSize:14,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>{lang==='ar'?'حفظ':'Enregistrer'}</button>
                 </div>
               </div>
             )}
             {instituteurs.length===0?(
               <div style={{textAlign:'center',color:'#aaa',padding:'3rem',background:'#fff',borderRadius:12}}>
-                <div style={{fontSize:36,marginBottom:10}}>\ud83e\uddd1\u200d\ud83c\udfeb</div>
-                <div style={{fontSize:14}}>{lang==='ar'?'\u0644\u0627 \u064a\u0648\u062c\u062f \u0623\u0633\u0627\u062a\u0630\u0629':'Aucun instituteur'}</div>
+                <div style={{fontSize:36,marginBottom:10}}>👨‍🏫</div>
+                <div style={{fontSize:14}}>{lang==='ar'?'لا يوجد أساتذة':'Aucun instituteur'}</div>
               </div>
             ):instituteurs.map(inst=>{
               const nb=eleves.filter(e=>e.instituteur_referent_id===inst.id).length;
               return(
                 <div key={inst.id} style={{background:'#fff',borderRadius:12,padding:'14px',marginBottom:8,border:'0.5px solid #e0e0d8',display:'flex',alignItems:'center',gap:12}}>
-                  <div style={{width:44,height:44,borderRadius:'50%',background:'#E6F1FB',color:'#0C447C',display:'flex',alignItems:'center',justifyContent:'center',fontWeight:800,fontSize:15,flexShrink:0}}>
+                  <div style={{width:42,height:42,borderRadius:'50%',background:'#E6F1FB',color:'#0C447C',display:'flex',alignItems:'center',justifyContent:'center',fontWeight:800,fontSize:14,flexShrink:0}}>
                     {((inst.prenom||'?')[0])+((inst.nom||'?')[0])}
                   </div>
                   <div style={{flex:1,minWidth:0}}>
                     <div style={{fontWeight:700,fontSize:14}}>{inst.prenom} {inst.nom}</div>
-                    <div style={{fontSize:12,color:'#888',marginTop:2}}>{inst.identifiant} \u00b7 {nb} {lang==='ar'?'\u0637\u0627\u0644\u0628':'\u00e9l\u00e8ve(s)'}</div>
+                    <div style={{fontSize:11,color:'#888',marginTop:2}}>{inst.identifiant} · {nb} {lang==='ar'?'طالب':'élève(s)'}</div>
                   </div>
                   {user.role==='surveillant'&&(
-                    <button onClick={()=>supprimerInstituteur(inst)} style={{background:'#FCEBEB',color:'#E24B4A',border:'none',borderRadius:8,padding:'8px 12px',fontSize:13,cursor:'pointer',fontWeight:600}}>\ud83d\uddd1</button>
+                    <button onClick={()=>supprimerInstituteur(inst)} style={{background:'#FCEBEB',color:'#E24B4A',border:'none',borderRadius:8,padding:'8px 10px',fontSize:12,cursor:'pointer'}}>🗑</button>
                   )}
                 </div>
               );
@@ -1683,117 +1854,87 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
           </div>
         )}
 
-        {/* PARENTS */}
+        {/* ─── ONGLET PARENTS ─── */}
         {tab==='parents'&&(
           <div style={{padding:'12px'}}>
             {showFormParent&&user.role==='surveillant'&&(
               <div style={{background:'#fff',borderRadius:16,padding:'18px',marginBottom:14,border:`1.5px solid ${editingParentId?'#378ADD':'#EF9F27'}`}}>
                 <div style={{fontSize:15,fontWeight:700,color:'#085041',marginBottom:14}}>
-                  {editingParentId?(lang==='ar'?'\u062a\u0639\u062f\u064a\u0644 \u0648\u0644\u064a \u0627\u0644\u0623\u0645\u0631':'\u270f\ufe0f Modifier parent'):(lang==='ar'?'\u0625\u0636\u0627\u0641\u0629 \u0648\u0644\u064a \u0623\u0645\u0631':'\ud83d\udc68\u200d\ud83d\udc69\u200d\ud83d\udc66 Nouveau parent')}
+                  {editingParentId?(lang==='ar'?'تعديل ولي الأمر':'✏️ Modifier parent'):(lang==='ar'?'إضافة ولي أمر':'👨‍👩‍👦 Nouveau parent')}
                 </div>
-                {[{label:lang==='ar'?'\u0627\u0644\u0627\u0633\u0645':'Pr\u00e9nom *',key:'prenom',ph:lang==='ar'?'\u0627\u0644\u0627\u0633\u0645':'Pr\u00e9nom'},
-                  {label:lang==='ar'?'\u0627\u0644\u0644\u0642\u0628':'Nom *',key:'nom',ph:lang==='ar'?'\u0627\u0644\u0644\u0642\u0628':'Nom'},
-                  {label:lang==='ar'?'\u0627\u0644\u0645\u0639\u0631\u0641':'Identifiant *',key:'identifiant',ph:'parent.nom'},
-                  {label:lang==='ar'?'\u0627\u0644\u0647\u0627\u062a\u0641':'T\u00e9l\u00e9phone',key:'telephone',ph:'06xxxxxxxx'},
-                ].map(f=>(
-                  <div key={f.key} style={{marginBottom:12}}>
-                    <label style={{fontSize:12,fontWeight:600,color:'#666',display:'block',marginBottom:5}}>{f.label}</label>
-                    <input style={{width:'100%',padding:'12px 14px',borderRadius:10,border:'0.5px solid #e0e0d8',fontSize:15,fontFamily:'inherit',boxSizing:'border-box'}}
-                      value={formParent[f.key]} onChange={e=>setFormParent(x=>({...x,[f.key]:e.target.value}))} placeholder={f.ph}/>
-                  </div>
+                {[{label:lang==='ar'?'الاسم':'Prénom',key:'prenom'},{label:lang==='ar'?'اللقب':'Nom',key:'nom'},{label:'Identifiant',key:'identifiant',ph:'parent.nom'},{label:lang==='ar'?'الهاتف':'Téléphone',key:'telephone',ph:'06xxxxxxxx',type:'tel'}].map(f=>(
+                  <FI key={f.key} label={f.key==='telephone'?f.label:f.label+' *'} val={formParent[f.key]||''} ph={f.ph||f.label} type={f.type||'text'}
+                    onChange={e=>setFormParent(x=>({...x,[f.key]:e.target.value}))}/>
                 ))}
                 {!editingParentId&&(
-                  <div style={{marginBottom:14}}>
-                    <label style={{fontSize:12,fontWeight:600,color:'#666',display:'block',marginBottom:5}}>{lang==='ar'?'\u0643\u0644\u0645\u0629 \u0627\u0644\u0645\u0631\u0648\u0631':'Mot de passe *'}</label>
-                    <input type="password" style={{width:'100%',padding:'12px 14px',borderRadius:10,border:'0.5px solid #e0e0d8',fontSize:15,fontFamily:'inherit',boxSizing:'border-box'}}
-                      value={formParent.mot_de_passe} onChange={e=>setFormParent(x=>({...x,mot_de_passe:e.target.value}))} placeholder="\u2022\u2022\u2022\u2022\u2022\u2022"/>
-                  </div>
+                  <FI label={lang==='ar'?'كلمة المرور *':'Mot de passe *'} val={formParent.mot_de_passe||''} type="password" ph="••••••••"
+                    onChange={e=>setFormParent(x=>({...x,mot_de_passe:e.target.value}))}/>
                 )}
                 <div style={{marginBottom:14}}>
-                  <label style={{fontSize:12,fontWeight:600,color:'#666',display:'block',marginBottom:8}}>
-                    {lang==='ar'?'\u0631\u0628\u0637 \u0628\u0627\u0644\u0637\u0644\u0627\u0628':'Lier aux \u00e9l\u00e8ves'}
-                    {formParent.eleve_ids?.length>0&&<span style={{marginRight:8,fontSize:11,color:'#1D9E75',fontWeight:700}}> ({formParent.eleve_ids.length} \u2713)</span>}
-                  </label>
-                  <div style={{maxHeight:160,overflowY:'auto',display:'flex',flexDirection:'column',gap:6}}>
-                    {eleves.map(el=>{
-                      const nc=NC[el.code_niveau||'1']||'#888';
-                      const sel=(formParent.eleve_ids||[]).includes(el.id);
-                      return(
-                        <div key={el.id} onClick={()=>setFormParent(f=>({...f,eleve_ids:sel?f.eleve_ids.filter(id=>id!==el.id):[...(f.eleve_ids||[]),el.id]}))}
-                          style={{display:'flex',alignItems:'center',gap:10,padding:'9px 12px',borderRadius:10,cursor:'pointer',
-                            background:sel?`${nc}10`:'#f5f5f0',border:`1.5px solid ${sel?nc:'#e0e0d8'}`}}>
-                          <div style={{width:20,height:20,borderRadius:5,flexShrink:0,border:`1.5px solid ${sel?nc:'#ccc'}`,background:sel?nc:'#fff',display:'flex',alignItems:'center',justifyContent:'center'}}>
-                            {sel&&<span style={{color:'#fff',fontSize:12,fontWeight:700}}>\u2713</span>}
-                          </div>
-                          <div style={{width:30,height:30,borderRadius:'50%',background:`${nc}20`,color:nc,display:'flex',alignItems:'center',justifyContent:'center',fontWeight:700,fontSize:12,flexShrink:0}}>
-                            {((el.prenom||'?')[0])+((el.nom||'?')[0])}
-                          </div>
-                          <div style={{flex:1}}>
-                            <div style={{fontSize:13,fontWeight:600}}>{el.prenom} {el.nom}</div>
-                            <span style={{fontSize:11,padding:'1px 6px',borderRadius:8,background:`${nc}20`,color:nc,fontWeight:700}}>{el.code_niveau||'?'}</span>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
+                  <label style={{fontSize:12,fontWeight:600,color:'#666',display:'block',marginBottom:8}}>{lang==='ar'?'الأبناء المرتبطون':'Enfants liés'}</label>
+                  {eleves.map(e=>{
+                    const sel=(formParent.eleve_ids||[]).includes(e.id);
+                    const nc=getNC(e.code_niveau);
+                    return(
+                      <div key={e.id} onClick={()=>{
+                        const ids=formParent.eleve_ids||[];
+                        setFormParent(x=>({...x,eleve_ids:sel?ids.filter(i=>i!==e.id):[...ids,e.id]}));
+                      }} style={{display:'flex',alignItems:'center',gap:10,padding:'9px 12px',marginBottom:5,
+                        borderRadius:10,background:sel?`${nc}10`:'#f9f9f6',border:`1px solid ${sel?nc:'#e0e0d8'}`,cursor:'pointer'}}>
+                        <div style={{width:8,height:8,borderRadius:'50%',background:sel?nc:'#ddd',flexShrink:0}}/>
+                        <div style={{flex:1,fontSize:13,fontWeight:sel?700:400}}>{e.prenom} {e.nom}</div>
+                        <span style={{padding:'1px 6px',borderRadius:8,fontSize:10,background:`${nc}20`,color:nc,fontWeight:700}}>{e.code_niveau}</span>
+                        {sel&&<span style={{color:nc,fontSize:14}}>✓</span>}
+                      </div>
+                    );
+                  })}
                 </div>
                 <div style={{display:'flex',gap:8}}>
                   <button onClick={()=>{setShowFormParent(false);setEditingParentId(null);setFormParent({prenom:'',nom:'',identifiant:'',mot_de_passe:'',telephone:'',eleve_ids:[]});}}
-                    style={{flex:1,padding:'13px',background:'#f5f5f0',color:'#666',border:'none',borderRadius:12,fontSize:14,fontWeight:600,cursor:'pointer',fontFamily:'inherit'}}>
-                    {lang==='ar'?'\u0625\u0644\u063a\u0627\u0621':'Annuler'}
-                  </button>
+                    style={{flex:1,padding:'13px',background:'#f5f5f0',color:'#666',border:'none',borderRadius:12,fontSize:14,fontWeight:600,cursor:'pointer',fontFamily:'inherit'}}>{lang==='ar'?'إلغاء':'Annuler'}</button>
                   <button onClick={async()=>{
-                    if(!formParent.prenom||!formParent.nom||!formParent.identifiant){toast.warning(lang==='ar'?'\u064a\u0631\u062c\u0649 \u0645\u0644\u0621 \u0627\u0644\u062d\u0642\u0648\u0644 \u0627\u0644\u0645\u0637\u0644\u0648\u0628\u0629':'Remplissez les champs obligatoires');return;}
-                    if(!editingParentId&&!formParent.mot_de_passe){toast.warning(lang==='ar'?'\u0643\u0644\u0645\u0629 \u0627\u0644\u0645\u0631\u0648\u0631 \u0645\u0637\u0644\u0648\u0628\u0629':'Mot de passe requis');return;}
-                    let userId=editingParentId;
-                    if(!editingParentId){
-                      const{data:ud,error:ue}=await supabase.from('utilisateurs').insert({prenom:formParent.prenom,nom:formParent.nom,identifiant:formParent.identifiant,mot_de_passe:formParent.mot_de_passe,role:'parent',ecole_id:user.ecole_id}).select().single();
-                      if(ue){toast.error(ue.message||'Erreur');return;}
-                      userId=ud.id;
-                    } else {
-                      const{error:pe}=await supabase.from('utilisateurs').update({prenom:formParent.prenom,nom:formParent.nom}).eq('id',userId);
-                      if(pe){toast.error(pe.message||'Erreur');return;}
-                    }
-                    await supabase.from('parent_eleve').delete().eq('parent_id',userId);
-                    for(const eid of(formParent.eleve_ids||[])){await supabase.from('parent_eleve').insert({parent_id:userId,eleve_id:eid,ecole_id:user.ecole_id}).catch(()=>{});}
-                    toast.success(lang==='ar'?'\u062a\u0645 \u0627\u0644\u062d\u0641\u0638':'\u2705 Enregistr\u00e9 !');
+                    if(editingParentId) await modifierParent();
+                    else await ajouterParent();
                     setShowFormParent(false);setEditingParentId(null);setFormParent({prenom:'',nom:'',identifiant:'',mot_de_passe:'',telephone:'',eleve_ids:[]});loadData();
-                  }}
-                    style={{flex:2,padding:'13px',background:editingParentId?'#378ADD':'#EF9F27',color:'#fff',border:'none',borderRadius:12,fontSize:14,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
-                    {editingParentId?(lang==='ar'?'\u062a\u062d\u062f\u064a\u062b':'Mettre \u00e0 jour \u2713'):(lang==='ar'?'\u062d\u0641\u0638':'Enregistrer')}
+                  }} style={{flex:2,padding:'13px',background:editingParentId?'#378ADD':'#EF9F27',color:'#fff',border:'none',borderRadius:12,fontSize:14,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
+                    {lang==='ar'?'حفظ':'Enregistrer'}
                   </button>
                 </div>
               </div>
             )}
             {parents.length===0?(
               <div style={{textAlign:'center',color:'#aaa',padding:'3rem',background:'#fff',borderRadius:12}}>
-                <div style={{fontSize:36,marginBottom:10}}>\ud83d\udc68\u200d\ud83d\udc69\u200d\ud83d\udc66</div>
-                <div style={{fontSize:14}}>{lang==='ar'?'\u0644\u0627 \u064a\u0648\u062c\u062f \u0622\u0628\u0627\u0621':'Aucun parent'}</div>
+                <div style={{fontSize:36,marginBottom:10}}>👨‍👩‍👦</div>
+                <div style={{fontSize:14}}>{lang==='ar'?'لا يوجد آباء':'Aucun parent'}</div>
               </div>
             ):parents.map(p=>{
               const enfants=eleves.filter(e=>(p.eleve_ids||[]).includes(e.id));
               return(
-                <div key={p.id} style={{background:'#fff',borderRadius:12,padding:'14px',marginBottom:8,border:'0.5px solid #e0e0d8'}}>
-                  <div style={{display:'flex',alignItems:'center',gap:12,marginBottom:enfants.length?8:0}}>
-                    <div style={{width:44,height:44,borderRadius:'50%',background:'#FAEEDA',color:'#633806',display:'flex',alignItems:'center',justifyContent:'center',fontWeight:800,fontSize:15,flexShrink:0}}>
+                <div key={p.id} style={{background:'#fff',borderRadius:12,padding:'13px 14px',marginBottom:8,border:'0.5px solid #e0e0d8'}}>
+                  <div style={{display:'flex',alignItems:'center',gap:10}}>
+                    <div style={{width:40,height:40,borderRadius:'50%',background:'#FAEEDA',color:'#EF9F27',display:'flex',alignItems:'center',justifyContent:'center',fontWeight:800,fontSize:13,flexShrink:0}}>
                       {((p.prenom||'?')[0])+((p.nom||'?')[0])}
                     </div>
                     <div style={{flex:1}}>
-                      <div style={{fontWeight:700,fontSize:14}}>{p.prenom} {p.nom}</div>
-                      <div style={{fontSize:12,color:'#888'}}>{p.telephone||p.identifiant}</div>
+                      <div style={{fontWeight:700,fontSize:13}}>{p.prenom} {p.nom}</div>
+                      <div style={{fontSize:11,color:'#888',marginTop:1}}>{p.telephone||p.identifiant}</div>
                     </div>
                     {user.role==='surveillant'&&(
-                      <div style={{display:'flex',gap:6}}>
+                      <div style={{display:'flex',gap:5}}>
                         <button onClick={()=>{setEditingParentId(p.id);setFormParent({prenom:p.prenom,nom:p.nom,identifiant:p.identifiant,mot_de_passe:'',telephone:p.telephone||'',eleve_ids:eleves.filter(e=>(p.eleve_ids||[]).includes(e.id)).map(e=>e.id)});setShowFormParent(true);window.scrollTo(0,0);}}
-                          style={{background:'#E6F1FB',color:'#378ADD',border:'none',borderRadius:8,padding:'7px 10px',fontSize:13,cursor:'pointer',fontWeight:600}}>\u270f\ufe0f</button>
-                        <button onClick={()=>supprimerParent&&supprimerParent(p.id)}
-                          style={{background:'#FCEBEB',color:'#E24B4A',border:'none',borderRadius:8,padding:'7px 10px',fontSize:13,cursor:'pointer'}}>\ud83d\uddd1</button>
+                          style={{background:'#E6F1FB',color:'#378ADD',border:'none',borderRadius:8,padding:'6px 9px',fontSize:12,cursor:'pointer'}}>✏️</button>
+                        <button onClick={async()=>{await supabase.from('utilisateurs').delete().eq('id',p.id);loadData();}}
+                          style={{background:'#FCEBEB',color:'#E24B4A',border:'none',borderRadius:8,padding:'6px 9px',fontSize:12,cursor:'pointer'}}>🗑</button>
                       </div>
                     )}
                   </div>
                   {enfants.length>0&&(
-                    <div style={{display:'flex',gap:6,flexWrap:'wrap',paddingLeft:56}}>
-                      {enfants.map(e=>{const nc=NC[e.code_niveau||'1']||'#888';return(<span key={e.id} style={{fontSize:11,padding:'2px 8px',borderRadius:20,background:`${nc}20`,color:nc,fontWeight:600}}>{e.prenom} {e.nom}</span>);})}
+                    <div style={{marginTop:8,display:'flex',gap:5,flexWrap:'wrap'}}>
+                      {enfants.map(e=>{const nc=getNC(e.code_niveau);return(
+                        <span key={e.id} style={{padding:'2px 8px',borderRadius:20,fontSize:10,fontWeight:600,background:`${nc}15`,color:nc}}>
+                          {e.prenom} {e.nom}
+                        </span>
+                      );})}
                     </div>
                   )}
                 </div>
@@ -1802,23 +1943,176 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
           </div>
         )}
 
-        {confirmModal.isOpen&&(
-          <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.5)',zIndex:1000,display:'flex',alignItems:'center',justifyContent:'center',padding:20}}>
-            <div style={{background:'#fff',borderRadius:16,padding:24,maxWidth:320,width:'100%'}}>
-              <div style={{fontWeight:700,fontSize:16,marginBottom:8}}>{confirmModal.title}</div>
-              <div style={{fontSize:13,color:'#666',marginBottom:20}}>{confirmModal.message}</div>
-              <div style={{display:'flex',gap:8}}>
-                <button onClick={hideConfirm} style={{flex:1,padding:'12px',background:'#f5f5f0',border:'none',borderRadius:10,fontSize:14,fontWeight:600,cursor:'pointer'}}>{lang==='ar'?'\u0625\u0644\u063a\u0627\u0621':'Annuler'}</button>
-                <button onClick={confirmModal.onConfirm} style={{flex:1,padding:'12px',background:confirmModal.confirmColor||'#E24B4A',color:'#fff',border:'none',borderRadius:10,fontSize:14,fontWeight:700,cursor:'pointer'}}>{confirmModal.confirmLabel}</button>
-              </div>
+        {/* ─── ONGLET JALONS/CERTIFICATS ─── */}
+        {tab==='jalons'&&(
+          <div style={{padding:'12px'}}>
+            <div style={{fontSize:12,color:'#888',marginBottom:12,padding:'10px 12px',background:'#fff',borderRadius:10}}>
+              {lang==='ar'?'تكوين المراحل التي تُمنح عندها شهادة للطالب تلقائياً':'Jalons déclenchant automatiquement un certificat'}
             </div>
+            {user.role==='surveillant'&&(
+              <div style={{background:'#fff',borderRadius:14,padding:'16px',marginBottom:14,border:'0.5px solid #e0e0d8'}}>
+                <div style={{fontSize:14,fontWeight:700,color:'#534AB7',marginBottom:12}}>🏅 {lang==='ar'?'إضافة مرحلة':'Ajouter un jalon'}</div>
+                <FI label={lang==='ar'?'اسم الشهادة *':'Nom certificat *'} val={newJalon.nom_ar}
+                  ph={lang==='ar'?'مثال: شهادة إتمام الأحزاب':'Ex: Certificat Hizb 1-10'}
+                  onChange={e=>setNewJalon({...newJalon,nom_ar:e.target.value})}/>
+                {/* Type */}
+                <div style={{marginBottom:12}}>
+                  <label style={{fontSize:12,fontWeight:600,color:'#666',display:'block',marginBottom:8}}>{lang==='ar'?'نوع المرحلة':'Type'} *</label>
+                  <div style={{display:'flex',gap:6}}>
+                    {[{v:'hizb',l:'🕌 Hizb'},{v:'ensemble_sourates',l:'📖 '+( lang==='ar'?'سور':'Sourates')},{v:'examen',l:'📝 '+(lang==='ar'?'امتحان':'Examen')}].map(opt=>(
+                      <div key={opt.v} onClick={()=>setNewJalon({...newJalon,type_jalon:opt.v,hizb_ids:[],ensemble_id:'',examen_id:''})}
+                        style={{flex:1,padding:'8px 4px',borderRadius:10,textAlign:'center',cursor:'pointer',fontSize:11,fontWeight:600,
+                          border:`2px solid ${newJalon.type_jalon===opt.v?'#534AB7':'#e0e0d8'}`,
+                          background:newJalon.type_jalon===opt.v?'#EEEDFE':'#fff',
+                          color:newJalon.type_jalon===opt.v?'#534AB7':'#666'}}>
+                        {opt.l}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                {/* Condition */}
+                <div style={{marginBottom:12}}>
+                  <label style={{fontSize:12,fontWeight:600,color:'#666',display:'block',marginBottom:8}}>{lang==='ar'?'شرط الحصول':'Condition'} *</label>
+                  <div style={{display:'flex',gap:6}}>
+                    {[{v:'cumul',icon:'📚',l:lang==='ar'?'تراكمي':'Cumulatif'},{v:'cumul_puis_examen',icon:'🎯',l:lang==='ar'?'تراكمي+امتحان':'Cumul+examen'}].map(opt=>(
+                      <div key={opt.v} onClick={()=>setNewJalon({...newJalon,condition_obtention:opt.v})}
+                        style={{flex:1,padding:'10px 8px',borderRadius:10,textAlign:'center',cursor:'pointer',
+                          border:`2px solid ${newJalon.condition_obtention===opt.v?'#534AB7':'#e0e0d8'}`,
+                          background:newJalon.condition_obtention===opt.v?'#EEEDFE':'#fff'}}>
+                        <div style={{fontSize:18,marginBottom:3}}>{opt.icon}</div>
+                        <div style={{fontSize:10,fontWeight:600,color:newJalon.condition_obtention===opt.v?'#534AB7':'#666'}}>{opt.l}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                {/* Examen final si cumul_puis_examen */}
+                {newJalon.condition_obtention==='cumul_puis_examen'&&(
+                  <div style={{marginBottom:12}}>
+                    <label style={{fontSize:12,fontWeight:600,color:'#666',display:'block',marginBottom:5}}>{lang==='ar'?'الامتحان الختامي *':'Examen final *'}</label>
+                    <select style={{width:'100%',padding:'11px 12px',borderRadius:10,border:'0.5px solid #e0e0d8',fontSize:13,fontFamily:'inherit',background:'#fff',boxSizing:'border-box'}}
+                      value={newJalon.examen_final_id||''} onChange={e=>setNewJalon({...newJalon,examen_final_id:e.target.value})}>
+                      <option value="">{lang==='ar'?'— اختر —':'— Choisir —'}</option>
+                      {(examensDisp||[]).map(e=><option key={e.id} value={e.id}>{e.nom}</option>)}
+                    </select>
+                  </div>
+                )}
+                {/* Hizb selector */}
+                {newJalon.type_jalon==='hizb'&&(
+                  <div style={{marginBottom:12}}>
+                    <label style={{fontSize:12,fontWeight:600,color:'#666',display:'block',marginBottom:8}}>
+                      {lang==='ar'?'الأحزاب المطلوبة':'Hizb requis'} *
+                      {newJalon.hizb_ids.length>0&&<span style={{color:'#1D9E75',marginRight:6}}> ({newJalon.hizb_ids.length})</span>}
+                    </label>
+                    <div style={{display:'grid',gridTemplateColumns:'repeat(8,1fr)',gap:4}}>
+                      {Array.from({length:60},(_,i)=>60-i).map(n=>{
+                        const sel=(newJalon.hizb_ids||[]).includes(n);
+                        return(
+                          <div key={n} onClick={()=>{const ids=newJalon.hizb_ids||[];setNewJalon({...newJalon,hizb_ids:sel?ids.filter(h=>h!==n):[...ids,n]});}}
+                            style={{borderRadius:6,padding:'5px 2px',textAlign:'center',cursor:'pointer',fontSize:10,fontWeight:700,
+                              background:sel?'#085041':'#f0f0ec',color:sel?'#fff':'#888',border:`0.5px solid ${sel?'#085041':'#e0e0d8'}`}}>
+                            {n}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+                {/* Ensemble sourates */}
+                {newJalon.type_jalon==='ensemble_sourates'&&(
+                  <div style={{marginBottom:12}}>
+                    <label style={{fontSize:12,fontWeight:600,color:'#666',display:'block',marginBottom:5}}>{lang==='ar'?'مجموعة السور *':'Ensemble *'}</label>
+                    <select style={{width:'100%',padding:'11px 12px',borderRadius:10,border:'0.5px solid #e0e0d8',fontSize:13,fontFamily:'inherit',background:'#fff',boxSizing:'border-box'}}
+                      value={newJalon.ensemble_id} onChange={e=>setNewJalon({...newJalon,ensemble_id:e.target.value})}>
+                      <option value="">{lang==='ar'?'— اختر مجموعة —':'— Choisir —'}</option>
+                      {(ensemblesDisp||[]).map(e=><option key={e.id} value={e.id}>{e.nom}</option>)}
+                    </select>
+                  </div>
+                )}
+                {/* Examen direct */}
+                {newJalon.type_jalon==='examen'&&(
+                  <div style={{marginBottom:12}}>
+                    <label style={{fontSize:12,fontWeight:600,color:'#666',display:'block',marginBottom:5}}>{lang==='ar'?'الامتحان *':'Examen *'}</label>
+                    <select style={{width:'100%',padding:'11px 12px',borderRadius:10,border:'0.5px solid #e0e0d8',fontSize:13,fontFamily:'inherit',background:'#fff',boxSizing:'border-box'}}
+                      value={newJalon.examen_id} onChange={e=>setNewJalon({...newJalon,examen_id:e.target.value})}>
+                      <option value="">{lang==='ar'?'— اختر امتحاناً —':'— Choisir —'}</option>
+                      {(examensDisp||[]).map(e=><option key={e.id} value={e.id}>{e.nom}</option>)}
+                    </select>
+                  </div>
+                )}
+                <button onClick={async()=>{
+                  setSavingJalon(true);
+                  const payload={ecole_id:user.ecole_id,nom:newJalon.nom_ar.trim(),nom_ar:newJalon.nom_ar.trim(),
+                    type_jalon:newJalon.type_jalon,hizb_ids:newJalon.type_jalon==='hizb'?newJalon.hizb_ids:null,
+                    ensemble_id:newJalon.type_jalon==='ensemble_sourates'?newJalon.ensemble_id:null,
+                    examen_id:newJalon.type_jalon==='examen'?newJalon.examen_id:null,
+                    condition_obtention:newJalon.condition_obtention||'cumul',
+                    examen_final_id:newJalon.condition_obtention==='cumul_puis_examen'?(newJalon.examen_final_id||null):null,
+                    actif:true};
+                  await supabase.from('jalons').insert(payload);
+                  const {data}=await supabase.from('jalons').select('*').eq('ecole_id',user.ecole_id).order('created_at');
+                  if(data)setJalons(data);
+                  setNewJalon({nom_ar:'',type_jalon:'hizb',hizb_ids:[],ensemble_id:'',examen_id:'',condition_obtention:'cumul',examen_final_id:'',description_condition:''});
+                  setSavingJalon(false);
+                  showMsg('success',lang==='ar'?'تمت إضافة المرحلة':'Jalon ajouté !');
+                }} disabled={savingJalon}
+                  style={{width:'100%',padding:'13px',background:'#534AB7',color:'#fff',border:'none',borderRadius:12,fontSize:14,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
+                  {savingJalon?'...':(lang==='ar'?'إضافة المرحلة':'Ajouter le jalon')}
+                </button>
+              </div>
+            )}
+            {/* Liste jalons */}
+            {jalons.length===0?(
+              <div style={{textAlign:'center',color:'#aaa',padding:'2rem',background:'#fff',borderRadius:12}}>
+                <div style={{fontSize:32,marginBottom:8}}>🏅</div>
+                <div style={{fontSize:13}}>{lang==='ar'?'لا توجد مراحل بعد':'Aucun jalon'}</div>
+              </div>
+            ):jalons.map(j=>(
+              <div key={j.id} style={{background:'#fff',borderRadius:12,padding:'13px 14px',marginBottom:8,border:'0.5px solid #e0e0d8',opacity:j.actif?1:0.5}}>
+                <div style={{display:'flex',alignItems:'center',gap:10}}>
+                  <span style={{fontSize:22}}>{j.type_jalon==='examen'?'📝':'🏅'}</span>
+                  <div style={{flex:1}}>
+                    <div style={{fontWeight:700,fontSize:13,direction:'rtl',fontFamily:"'Tajawal',Arial,sans-serif"}}>{j.nom_ar||j.nom}</div>
+                    <div style={{fontSize:10,color:'#EF9F27',marginTop:2,fontWeight:600}}>
+                      {j.type_jalon==='hizb'?`Hizb: ${(j.hizb_ids||[]).sort((a,b)=>a-b).join(', ')}`
+                        :j.type_jalon==='ensemble_sourates'?`📖 ${(ensemblesDisp||[]).find(e=>e.id===j.ensemble_id)?.nom||'—'}`
+                        :`📝 ${(examensDisp||[]).find(e=>e.id===j.examen_id)?.nom||'—'}`}
+                    </div>
+                    <span style={{display:'inline-block',marginTop:3,padding:'1px 7px',borderRadius:10,fontSize:9,fontWeight:600,
+                      background:j.condition_obtention==='cumul_puis_examen'?'#EEEDFE':'#E1F5EE',
+                      color:j.condition_obtention==='cumul_puis_examen'?'#534AB7':'#085041'}}>
+                      {j.condition_obtention==='cumul_puis_examen'?(lang==='ar'?'🎯 تراكمي+امتحان':'🎯 Cumul+examen'):(lang==='ar'?'📚 تراكمي':'📚 Cumulatif')}
+                    </span>
+                  </div>
+                  <div style={{display:'flex',gap:5}}>
+                    <button onClick={async()=>{await supabase.from('jalons').update({actif:!j.actif}).eq('id',j.id);setJalons(prev=>prev.map(x=>x.id===j.id?{...x,actif:!x.actif}:x));}}
+                      style={{padding:'5px 8px',borderRadius:6,fontSize:10,fontWeight:600,cursor:'pointer',border:'none',
+                        background:j.actif?'#E1F5EE':'#f0f0ec',color:j.actif?'#085041':'#888'}}>
+                      {j.actif?(lang==='ar'?'نشط':'Actif'):(lang==='ar'?'غير نشط':'Inactif')}
+                    </button>
+                    <button onClick={async()=>{await supabase.from('jalons').delete().eq('id',j.id);setJalons(prev=>prev.filter(x=>x.id!==j.id));}}
+                      style={{padding:'5px 7px',borderRadius:6,background:'#FCEBEB',color:'#E24B4A',border:'none',cursor:'pointer',fontSize:11}}>🗑</button>
+                  </div>
+                </div>
+              </div>
+            ))}
           </div>
         )}
+
+        {/* ─── ONGLET PASSAGE NIVEAU ─── */}
+        {tab==='passage_niveau'&&(
+          <div style={{padding:'12px'}}>
+            <div style={{background:'#E1F5EE',borderRadius:12,padding:'12px',marginBottom:12,fontSize:12,color:'#085041'}}>
+              ℹ️ {lang==='ar'
+                ?'عند تغيير مستوى طالب، يبحث النظام عن قاعدة مطابقة ويطبق موقع الانطلاق المحدد تلقائياً.'
+                :"Lors du changement de niveau, le système applique automatiquement la règle configurée."}
+            </div>
+            <MobilePassageNiveauTab user={user} lang={lang} niveaux={niveauxActifs||[]} showMsg={showMsg}/>
+          </div>
+        )}
+
       </div>
     );
   }
-
-
 
   return (
     <div>
