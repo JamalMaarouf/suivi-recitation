@@ -931,17 +931,17 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang, isMobi
 
             {/* Points breakdown */}
             <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:8,marginBottom:14}}>
-              {estSourateEleve ? [
+              {(estSourateEleve ? [
                 [lang==='ar'?'سور مكتملة':'Complètes', recitationsSouratesEleve.filter(r=>r.type_recitation==='complete').length, ''],
                 [lang==='ar'?'مقاطع':'Séquences', recitationsSouratesEleve.filter(r=>r.type_recitation==='sequence').length, ''],
                 [lang==='ar'?'محفوظات':'Acquis', eleve.sourates_acquises||0, ''],
-                ['Total pts', totalPtsSourates||0, ''],
+                [lang==='ar'?'المجموع':'Total pts', totalPtsSourates||0, ''],
               ] : [
                 ['Tomon',etat?.points.ptsTomon,`${etat?.tomonTotal||etat?.tomonCumul}×10`],
                 ['Roboe',etat?.points.ptsRoboe,`${etat?.points.details?.nbRoboe}×25`],
                 ['Nisf',etat?.points.ptsNisf,`${etat?.points.details?.nbNisf}×60`],
                 ['Hizb',etat?.points.ptsHizb,`${etat?.points.details?.nbHizb}×100`],
-              ].map(([l,v,s])=>(
+              ]).map(([l,v,s])=>(
                 <div key={l} style={{background:'#f9f9f6',borderRadius:8,padding:'10px',textAlign:'center'}}>
                   <div style={{fontSize:18,fontWeight:700}}>{v}</div>
                   <div style={{fontSize:11,color:'#888'}}>{l}</div>
