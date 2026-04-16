@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
-import { getInitiales, formatDate } from '../lib/helpers';
+import { getInitiales, formatDate , loadBareme, BAREME_DEFAUT } from '../lib/helpers';
 import { t } from '../lib/i18n';
 
 const MOIS_FR=['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
@@ -12,6 +12,7 @@ export default function Calendrier({ user, navigate, goBack, lang='fr', isMobile
   const [validations, setValidations] = useState([]);
   const [eleves, setEleves] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [bareme, setBareme] = React.useState({...BAREME_DEFAUT});
   const [mois, setMois] = useState(new Date().getMonth());
   const [annee, setAnnee] = useState(new Date().getFullYear());
   const [selectedDay, setSelectedDay] = useState(null);
@@ -19,6 +20,7 @@ export default function Calendrier({ user, navigate, goBack, lang='fr', isMobile
   useEffect(() => { loadData(); }, []);
 
   const loadData = async () => {
+    loadBareme(supabase, user.ecole_id).then(b=>setBareme({...BAREME_DEFAUT,...b.unites}));
     setLoading(true);
     const { data: vd } = await supabase.from('validations').select('*, valideur:valide_par(prenom,nom)')
         .eq('ecole_id', user.ecole_id).order('date_validation',{ascending:false});
@@ -125,7 +127,7 @@ export default function Calendrier({ user, navigate, goBack, lang='fr', isMobile
                       </div>
                       <div style={{textAlign:'right'}}>
                         {v.type_validation==='hizb_complet'?<span className="badge badge-green" style={{fontSize:10}}>Hizb</span>:<span className="badge badge-blue" style={{fontSize:10}}>{v.nombre_tomon}{t(lang,'tomon_abrev')}</span>}
-                        <div style={{fontSize:11,fontWeight:600,color:'#1D9E75',marginTop:2}}>+{v.type_validation==='hizb_complet'?100:v.nombre_tomon*10} {t(lang,'pts_abrev')}</div>
+                        <div style={{fontSize:11,fontWeight:600,color:'#1D9E75',marginTop:2}}>+{v.type_validation==='hizb_complet'?(bareme.hizb_complet||100):v.nombre_tomon*(bareme.tomon||10)} {t(lang,'pts_abrev')}</div>
                       </div>
                     </div>
                   );

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useToast } from '../lib/toast';
 import { supabase } from '../lib/supabase';
-import { calcEtatEleve, getInitiales, joursDepuis, isInactif, scoreLabel } from '../lib/helpers';
+import { calcEtatEleve, getInitiales, joursDepuis, isInactif, scoreLabel , loadBareme, BAREME_DEFAUT } from '../lib/helpers';
 import { t } from '../lib/i18n';
 import { getSouratesForNiveau } from '../lib/sourates';
 
@@ -26,6 +26,7 @@ export default function Seance({ user, navigate, goBack, lang, isMobile=false })
   const [allRecitations, setAllRecitations] = useState([]);
   const [souratesDB, setSouratesDB] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [bareme, setBareme] = React.useState({...BAREME_DEFAUT});
   const [elevesDataState, setElevesDataState] = useState([]);
   const [vue, setVue] = useState('seance');
   const [filterNiveau, setFilterNiveau] = useState('tous');
@@ -33,6 +34,7 @@ export default function Seance({ user, navigate, goBack, lang, isMobile=false })
   useEffect(() => { loadData(); }, []);
 
   const loadData = async () => {
+    loadBareme(supabase, user.ecole_id).then(b=>setBareme({...BAREME_DEFAUT,...b.unites}));
     setLoading(true);
     const debutJour = new Date(); debutJour.setHours(0,0,0,0);
     const debutSemaine = new Date(); debutSemaine.setDate(debutSemaine.getDate()-7);
@@ -93,7 +95,7 @@ export default function Seance({ user, navigate, goBack, lang, isMobile=false })
         const valsSemaine = (vd||[]).filter(v => v.eleve_id === e.id && new Date(v.date_validation) >= debutSemaine);
         const tomonAujourdhui = valsAujourdhui.filter(v=>v.type_validation==='tomon').reduce((s,v)=>s+v.nombre_tomon,0);
         const hizbAujourdhui = valsAujourdhui.filter(v=>v.type_validation==='hizb_complet').length;
-        const ptsAujourdhui = tomonAujourdhui*10+Math.floor(tomonAujourdhui/2)*25+Math.floor(tomonAujourdhui/4)*60+hizbAujourdhui*100;
+        const ptsAujourdhui = tomonAujourdhui*(bareme.tomon||10)+hizbAujourdhui*(bareme.hizb_complet||100);
         const tomonSemaine = valsSemaine.filter(v=>v.type_validation==='tomon').reduce((s,v)=>s+v.nombre_tomon,0);
         const derniere = vals[0]?.date_validation || null;
         return {
@@ -149,7 +151,7 @@ export default function Seance({ user, navigate, goBack, lang, isMobile=false })
     // Classement du jour
     const data = elevesDataState.length > 0 ? elevesDataState : [];
     const rows = data.map((e,i)=>{
-      const pts = e.isSourate ? e.ptsAujourdhui : (e.valsAujourdhui||[]).reduce((s,v)=>s+(v.type_validation==='hizb_complet'?100:v.nombre_tomon*10),0);
+      const pts = e.isSourate ? e.ptsAujourdhui : (e.valsAujourdhui||[]).reduce((s,v)=>s+(v.type_validation==='hizb_complet'?(bareme.hizb_complet||100):v.nombre_tomon*(bareme.tomon||10)),0);
       return [i+1, e.prenom+' '+e.nom, e.code_niveau||'?', e.isSourate?(e.souratesCompletesAujourdhui+'S / '+e.sequencesAujourdhui+'seq'):(e.tomonAujourdhui||0)+'T / '+((e.valsAujourdhui||[]).filter(v=>v.type_validation==='hizb_complet').length)+'H', pts, e.jours!=null?e.jours+' j':'—'];
     });
     const ws = XLSX.utils.aoa_to_sheet([
@@ -167,7 +169,7 @@ export default function Seance({ user, navigate, goBack, lang, isMobile=false })
     const dateStr = new Date().toLocaleDateString(lang==='ar'?'ar-MA':'fr-FR',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
     const data2 = elevesDataState.length > 0 ? elevesDataState : [];
     const rows = data2.slice(0,30).map((e,i)=>{
-      const pts = e.isSourate ? e.ptsAujourdhui : (e.valsAujourdhui||[]).reduce((s,v)=>s+(v.type_validation==='hizb_complet'?100:v.nombre_tomon*10),0);
+      const pts = e.isSourate ? e.ptsAujourdhui : (e.valsAujourdhui||[]).reduce((s,v)=>s+(v.type_validation==='hizb_complet'?(bareme.hizb_complet||100):v.nombre_tomon*(bareme.tomon||10)),0);
       const nc={'5B':'#534AB7','5A':'#378ADD','2M':'#1D9E75','2':'#EF9F27','1':'#E24B4A'}[e.code_niveau||'1']||'#888';
       const bg = i%2===0?'#fff':'#f9f9f6';
       const realise = e.isSourate?(e.souratesCompletesAujourdhui+'S / '+e.sequencesAujourdhui+' seq'):(e.tomonAujourdhui||0)+'T / '+((e.valsAujourdhui||[]).filter(v=>v.type_validation==='hizb_complet').length)+'H';
@@ -241,7 +243,7 @@ export default function Seance({ user, navigate, goBack, lang, isMobile=false })
                   .filter(e=>e.valsAujourdhui?.length>0||e.souratesCompletesAujourdhui>0)
                   .map((e,idx)=>{
                     const nc=NIVEAU_COLORS[e.code_niveau||'1']||'#888';
-                    const pts=e.isSourate?(e.souratesCompletesAujourdhui*30+e.sequencesAujourdhui*10):(e.valsAujourdhui?.reduce((s,v)=>s+(v.type_validation==='hizb_complet'?100:30),0)||0);
+                    const pts=e.isSourate?(e.souratesCompletesAujourdhui*(bareme.sourate||30)+e.sequencesAujourdhui*(bareme.sequence_sourate||10)):(e.valsAujourdhui?.reduce((s,v)=>s+(v.type_validation==='hizb_complet'?(bareme.hizb_complet||100):(bareme.tomon||10)),0)||0);
                     return(
                       <div key={e.id} onClick={()=>navigate('fiche',e)}
                         style={{background:'#fff',borderRadius:12,padding:'13px 14px',marginBottom:8,
@@ -290,7 +292,7 @@ export default function Seance({ user, navigate, goBack, lang, isMobile=false })
                 </div>
               ) : elevesVus.map((e,idx)=>{
                 const nc=NIVEAU_COLORS[e.code_niveau||'1']||'#888';
-                const pts=e.isSourate?(e.souratesCompletesAujourdhui*30+e.sequencesAujourdhui*10):(e.valsAujourdhui?.reduce((s,v)=>s+(v.type_validation==='hizb_complet'?100:30),0)||0);
+                const pts=e.isSourate?(e.souratesCompletesAujourdhui*(bareme.sourate||30)+e.sequencesAujourdhui*(bareme.sequence_sourate||10)):(e.valsAujourdhui?.reduce((s,v)=>s+(v.type_validation==='hizb_complet'?(bareme.hizb_complet||100):(bareme.tomon||10)),0)||0);
                 return(
                   <div key={e.id} onClick={()=>navigate('fiche',e)}
                     style={{background:'#fff',borderRadius:12,padding:'13px 14px',marginBottom:8,
@@ -476,7 +478,7 @@ export default function Seance({ user, navigate, goBack, lang, isMobile=false })
                             <td><NiveauBadge code={eleve?.code_niveau}/></td>
                             <td>{v.type_validation==='hizb_complet'?<span className="badge badge-green">Hizb {v.hizb_valide}</span>:<span className="badge badge-blue">{v.nombre_tomon} {t(lang,'tomon_abrev')}{v.tomon_debut?` (T.${v.tomon_debut}→T.${v.tomon_debut+v.nombre_tomon-1})`:''}</span>}</td>
                             <td style={{fontSize:12,color:'#888'}}>{v.valideur?`${v.valideur.prenom} ${v.valideur.nom}`:'—'}</td>
-                            <td><span style={{fontSize:12,fontWeight:600,color:'#1D9E75'}}>+{v.type_validation==='hizb_complet'?100:v.nombre_tomon*10}</span></td>
+                            <td><span style={{fontSize:12,fontWeight:600,color:'#1D9E75'}}>+{v.type_validation==='hizb_complet'?(bareme.hizb_complet||100):v.nombre_tomon*(bareme.tomon||10)}</span></td>
                           </tr>
                         );
                       })}

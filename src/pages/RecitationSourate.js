@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
-import { getInitiales, scoreLabel, loadBareme } from '../lib/helpers';
+import { getInitiales, scoreLabel, loadBareme, verifierEtCreerCertificats } from '../lib/helpers';
 import { t } from '../lib/i18n';
 import { getSouratesForNiveau, isSourateNiveau } from '../lib/sourates';
 import { useToast } from '../lib/toast';

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
-import { calcEtatEleve, getInitiales } from '../lib/helpers';
+import { calcEtatEleve, getInitiales , loadBareme, BAREME_DEFAUT } from '../lib/helpers';
 
 const MOIS_FR = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
 const MOIS_AR = ['يناير','فبراير','مارس','أبريل','مايو','يونيو','يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر'];
@@ -34,6 +34,7 @@ export default function RapportMensuel({ user, navigate, goBack, lang='fr', isMo
   const [resultats,  setResultats]  = useState([]);
   const [ecole,      setEcole]      = useState(null);
   const [loading,    setLoading]    = useState(true);
+  const [bareme, setBareme] = React.useState({...BAREME_DEFAUT});
   const [generating, setGenerating] = useState(false);
 
   useEffect(() => { loadAll(); }, []);
@@ -88,7 +89,7 @@ export default function RapportMensuel({ user, navigate, goBack, lang='fr', isMo
                         new Set(rMois.map(r=>new Date(r.date_validation).toDateString())).size;
     const ptsMois     = isSourate
       ? rMois.reduce((s,r)=>s+(r.points||0),0)
-      : tomonMois*10 + Math.floor(tomonMois/2)*25 + Math.floor(tomonMois/4)*60 + hizbMois*100;
+      : tomonMois*(bareme.tomon||10) + Math.floor(tomonMois/2)*25 + Math.floor(tomonMois/4)*60 + hizbMois*100;
 
     // Objectifs
     const objNiveau = objectifs.find(o=>
