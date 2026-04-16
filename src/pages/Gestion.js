@@ -679,7 +679,8 @@ function JalonsTab({ user, lang, jalons, setJalons, ensembles, examens, newJalon
 
 export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile }) {
   const { toast } = useToast();
-  const [tab, setTab] = useState('parametres');
+  const [tab, setTabLocal] = useState(initialTab || 'parametres');
+  const setTab = (t) => { setTabLocal(t); if(setGestionTab) setGestionTab(t); };
   const [searchEleve, setSearchEleve] = useState('');
   const [parents, setParents] = useState([]);
   const [formParent, setFormParent] = useState({prenom:'',nom:'',identifiant:'',mot_de_passe:'',telephone:'',eleve_ids:[]});
@@ -1300,10 +1301,10 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile 
               const nc=NC[e.code_niveau||'1']||'#888';
               return(
                 <div key={e.id} style={{background:'#fff',borderRadius:12,padding:'13px 14px',marginBottom:8,border:'0.5px solid #e0e0d8',display:'flex',alignItems:'center',gap:12}}>
-                  <div onClick={()=>navigate('fiche',e)} style={{cursor:'pointer',width:42,height:42,borderRadius:'50%',background:`${nc}20`,color:nc,display:'flex',alignItems:'center',justifyContent:'center',fontWeight:800,fontSize:14,flexShrink:0}}>
+                  <div onClick={()=>navigate('fiche',e,{tab})} style={{cursor:'pointer',width:42,height:42,borderRadius:'50%',background:`${nc}20`,color:nc,display:'flex',alignItems:'center',justifyContent:'center',fontWeight:800,fontSize:14,flexShrink:0}}>
                     {((e.prenom||'?')[0])+((e.nom||'?')[0])}
                   </div>
-                  <div onClick={()=>navigate('fiche',e)} style={{flex:1,minWidth:0,cursor:'pointer'}}>
+                  <div onClick={()=>navigate('fiche',e,{tab})} style={{flex:1,minWidth:0,cursor:'pointer'}}>
                     <div style={{fontWeight:700,fontSize:14}}>{e.prenom} {e.nom}</div>
                     <div style={{display:'flex',gap:6,marginTop:3,alignItems:'center',flexWrap:'wrap'}}>
                       <span style={{padding:'2px 8px',borderRadius:10,background:`${nc}20`,color:nc,fontSize:11,fontWeight:700}}>{e.code_niveau||'?'}</span>

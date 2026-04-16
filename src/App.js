@@ -113,6 +113,7 @@ export default function App() {
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
   const [lang, setLangRaw] = useState(() => localStorage.getItem('suivi_lang') || 'fr');
   const [navHistory, setNavHistory] = useState([]);
+  const [gestionTab, setGestionTab] = useState('parametres');
 
   const handleInstall = async () => {
     if (!deferredPrompt) return;
@@ -157,13 +158,14 @@ export default function App() {
   const handleLogout = () => { setUser(null); localStorage.removeItem('suivi_user'); setPageWithRef('dashboard'); };
 
 
-  const navigate = (p, data = null) => {
+  const navigate = (p, data = null, extraData = null) => {
     // Save current page to history before navigating
-    setNavHistory(h => [...h.slice(-19), { page: pageRef.current, selectedEleve, selectedInstituteur }]);
+    setNavHistory(h => [...h.slice(-19), { page: pageRef.current, selectedEleve, selectedInstituteur, extraData: extraData }]);
     setPageWithRef(p);
     if (p === 'fiche' || p === 'enregistrer') setSelectedEleve(data);
     if (p === 'profil_instituteur') setSelectedInstituteur(data);
     if (p === 'comparaison') setCompareEleves(data || []);
+    if (extraData?.tab) setGestionTab(extraData.tab);
     window.scrollTo(0, 0);
   };
 
@@ -174,6 +176,7 @@ export default function App() {
     setPageWithRef(prev.page);
     if (prev.selectedEleve !== undefined) setSelectedEleve(prev.selectedEleve);
     if (prev.selectedInstituteur !== undefined) setSelectedInstituteur(prev.selectedInstituteur);
+    if (prev.extraData?.tab) setGestionTab(prev.extraData.tab);
     window.scrollTo(0, 0);
   };
 
@@ -438,7 +441,7 @@ export default function App() {
           {page === 'profil_instituteur'&& selectedInstituteur && <ProfilInstituteur instituteur={selectedInstituteur} {...pageProps} />}
           {page === 'comparaison'       && <Comparaison eleves={compareEleves} {...pageProps} />}
           {page === 'rapport_mensuel'   && <RapportMensuel {...pageProps} />}
-          {page === 'gestion'           && <Gestion {...pageProps} />}
+          {page === 'gestion'           && <Gestion {...pageProps} initialTab={gestionTab} setGestionTab={setGestionTab} />}
           {page === 'niveaux'           && user.role === 'surveillant' && <GestionNiveaux {...pageProps} />}
           {page === 'ensembles'         && user.role === 'surveillant' && <GestionEnsembles {...pageProps} />}
           {page === 'examens'           && user.role === 'surveillant' && <GestionExamens {...pageProps} />}
