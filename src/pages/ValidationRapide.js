@@ -87,7 +87,7 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
       let souratesOrd;
       if (progData.length > 0) {
         souratesOrd = progData
-          .map(p => souratesLocal.find(s => s.id === p.reference_id))
+          .map(p => souratesLocal.find(s => String(s.id) === String(p.reference_id)))
           .filter(Boolean)
           .sort((a, b) => b.numero - a.numero);
       } else {
@@ -279,7 +279,7 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
         newRecsData.some(r => r.sourate_id === id && r.type_recitation === 'complete');
       const souratesAcquises2 = selectedEleve.sourates_acquises || 0;
       const souratesOrd2 = programmeNiveau.length > 0
-        ? programmeNiveau.map(p => souratesDB.find(s => s.id === p.reference_id)).filter(Boolean).sort((a,b) => b.numero - a.numero)
+        ? programmeNiveau.map(p => souratesDB.find(s => String(s.id) === String(p.reference_id))).filter(Boolean).sort((a,b) => b.numero - a.numero)
         : [...souratesDB].sort((a,b) => b.numero - a.numero);
       const idx2 = souratesOrd2.findIndex((sr, i) => {
         if (i < souratesAcquises2) return false;

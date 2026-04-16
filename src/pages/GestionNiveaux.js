@@ -68,41 +68,11 @@ export default function GestionNiveaux({ user, navigate, goBack, lang='fr', isMo
       if (n.type === 'hizb') {
         setProgramme(data.map(d => parseInt(d.reference_id)));
       } else {
-        const ids = data.map(d => d.reference_id);
-        // Recharger souratesDB si nécessaire pour avoir les bons UUIDs
-        let sDBFresh = sDB;
-        if (sDBFresh.length === 0) {
-          const { data: sd } = await supabase.from('sourates').select('*');
-          if (sd) { setSouratesDB(sd); sDBFresh = sd; }
-        }
-        // Vérifier que les IDs sont des UUIDs valides dans souratesDB
-        const idsValides = ids.filter(id => sDBFresh.some(s => s.id === id));
-        if (idsValides.length > 0) {
-          setProgramme(idsValides);
-        } else {
-          // Les reference_id sont des numéros (ancienne migration) — convertir en UUIDs
-          const idsConvertis = ids.map(id => {
-            const num = parseInt(id);
-            if (!isNaN(num) && num > 0 && num <= 114) {
-              return sDBFresh.find(s => s.numero === num)?.id || null;
-            }
-            return null; // UUID invalide → ignorer
-          }).filter(Boolean);
-          if (idsConvertis.length > 0) {
-            // Resauvegarder avec les vrais UUIDs pour corriger la DB
-            setProgramme(idsConvertis);
-            const rowsFixed = idsConvertis.map((id, idx) => ({
-              niveau_id: n.id, ecole_id: user.ecole_id,
-              type_contenu: n.type, reference_id: id,
-              ordre: idx + 1, obligatoire: true,
-            }));
-            await supabase.from('programmes').delete().eq('niveau_id', n.id).eq('ecole_id', user.ecole_id);
-            await supabase.from('programmes').insert(rowsFixed);
-            console.log('Programme migré vers UUIDs:', idsConvertis.length, 'sourates');
-          } else {
-            setProgramme([]);
-          }
-        }
+        // reference_id = id de la sourate dans la table sourates (clé primaire)
+        // On utilise directement ces ids sans conversion
+        // Normaliser en strings pour cohérence
+        const ids = data.map(d => String(d.reference_id));
+        setProgramme(ids);
       }
     } else {
       setProgramme([]);
@@ -141,8 +111,8 @@ export default function GestionNiveaux({ user, navigate, goBack, lang='fr', isMo
     if (niveauProgramme.type === 'sourate') {
       // Trier par numéro de sourate décroissant (114→1)
       programmeTrie.sort((a, b) => {
-        const numA = souratesDB.find(s => s.id === a)?.numero || 0;
-        const numB = souratesDB.find(s => s.id === b)?.numero || 0;
+        const numA = souratesDB.find(s => String(s.id) === String(a))?.numero || 0;
+        const numB = souratesDB.find(s => String(s.id) === String(b))?.numero || 0;
         return numB - numA;
       });
     } else {
@@ -503,7 +473,7 @@ export default function GestionNiveaux({ user, navigate, goBack, lang='fr', isMo
               <>
                 {/* Barre de sélection rapide */}
                 <div style={{display:'flex',gap:8,marginBottom:10,alignItems:'center',flexWrap:'wrap'}}>
-                  <button onClick={()=>setProgramme(souratesDB.map(s=>s.id))}
+                  <button onClick={()=>setProgramme(souratesDB.map(s=>String(s.id)))}
                     style={{padding:'4px 12px',borderRadius:20,border:`0.5px solid ${nc}`,
                       background:`${nc}20`,color:nc,fontSize:11,cursor:'pointer',fontWeight:600,fontFamily:'inherit'}}>
                     {lang==='ar'?'تحديد الكل':'Tout sélectionner'} ({souratesDB.length})
@@ -527,9 +497,9 @@ export default function GestionNiveaux({ user, navigate, goBack, lang='fr', isMo
                     </div>
                   )}
                   {[...souratesDB].sort((a,b)=>b.numero-a.numero).map(s=>{
-                    const sel = programme.includes(s.id);
+                    const sel = programme.includes(String(s.id));
                     return(
-                      <div key={s.id} onClick={()=>toggleProgrammeItem(s.id)}
+                      <div key={s.id} onClick={()=>toggleProgrammeItem(String(s.id))}
                         style={{display:'flex',alignItems:'center',gap:10,
                           padding:'10px 12px',borderRadius:10,cursor:'pointer',
                           background:sel?`${nc}10`:'#f5f5f0',
