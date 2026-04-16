@@ -493,12 +493,17 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang, isMobi
               <div>
                 {/* KPI cards */}
                 <div style={{display:'grid', gridTemplateColumns:'repeat(2,1fr)', gap:10, marginBottom:12}}>
-                  {[
+                  {(estSourateEleve ? [
+                    {label:lang==='ar'?'السور المكتملة':'Sourates complètes', val:recitationsSouratesEleve.filter(r=>r.type_recitation==='complete').length, color:'#1D9E75', bg:'#E1F5EE'},
+                    {label:lang==='ar'?'المقاطع':'Séquences', val:recitationsSouratesEleve.filter(r=>r.type_recitation==='sequence').length, color:'#534AB7', bg:'#F0EEFF'},
+                    {label:lang==='ar'?'المحفوظات':'Acquis', val:eleve.sourates_acquises||0, color:'#378ADD', bg:'#E6F1FB'},
+                    {label:'Total', val:etat?.points?.total||0, color:'#EF9F27', bg:'#FAEEDA'},
+                  ] : [
                     {label:lang==='ar'?'الثُّمن الحالي':'Tomon actuel', val:`T.${etat?.prochainTomon||'—'}`, color:'#1D9E75', bg:'#E1F5EE'},
                     {label:lang==='ar'?'الحزب الحالي':'Hizb en cours', val:`H.${etat?.hizbEnCours||'—'}`, color:'#534AB7', bg:'#F0EEFF'},
                     {label:lang==='ar'?'الثُّمنات المكتملة':'Tomon cumulés', val:etat?.tomonCumul||0, color:'#378ADD', bg:'#E6F1FB'},
                     {label:lang==='ar'?'الأحزاب المكتملة':'Hizb complets', val:etat?.hizbsComplets?.size||0, color:'#EF9F27', bg:'#FAEEDA'},
-                  ].map((k,i)=>(
+                  ]).map((k,i)=>(
                     <div key={i} style={{background:k.bg, borderRadius:12, padding:'14px', textAlign:'center', border:`0.5px solid ${k.color}20`}}>
                       <div style={{fontSize:24, fontWeight:800, color:k.color}}>{k.val}</div>
                       <div style={{fontSize:11, color:k.color, marginTop:4, opacity:0.8}}>{k.label}</div>
@@ -554,24 +559,50 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang, isMobi
                 <div style={{fontSize:12,fontWeight:700,color:'#888',marginBottom:6}}>
                   {lang==='ar'?'آخر الاستظهارات':'Dernières récitations'}
                 </div>
-                {validations.slice(0,20).map(v=>(
-                  <div key={v.id} style={{background:'#fff',borderRadius:10,padding:'10px 12px',marginBottom:6,
-                    border:'0.5px solid #e0e0d8',display:'flex',alignItems:'center',gap:10}}>
-                    <div style={{flex:1}}>
-                      <div style={{fontWeight:600,fontSize:13}}>
-                        {v.type_validation==='hizb_complet'?'Hizb complet':`T.${v.tomon_debut} ×${v.nombre_tomon}`}
+                {estSourateEleve ? (
+                  <>
+                    {recitationsSouratesEleve.slice(0,20).map(r=>(
+                      <div key={r.id} style={{background:'#fff',borderRadius:10,padding:'10px 12px',marginBottom:6,
+                        border:'0.5px solid #e0e0d8',display:'flex',alignItems:'center',gap:10}}>
+                        <div style={{flex:1}}>
+                          <div style={{fontWeight:600,fontSize:13,direction:'rtl'}}>
+                            {r.sourate?.nom_ar || '—'}
+                            {r.type_recitation==='sequence'&&r.verset_debut&&
+                              <span style={{fontSize:11,color:'#888',marginRight:6}}> (V.{r.verset_debut}→{r.verset_fin})</span>}
+                          </div>
+                          <div style={{fontSize:11,color:'#888'}}>{new Date(r.date_validation||r.created_at).toLocaleDateString(lang==='ar'?'ar-MA':'fr-FR')}</div>
+                        </div>
+                        <span style={{fontSize:11,padding:'2px 8px',borderRadius:20,
+                          background:r.type_recitation==='complete'?'#E1F5EE':'#F0EEFF',
+                          color:r.type_recitation==='complete'?'#1D9E75':'#534AB7',fontWeight:600}}>
+                          {r.type_recitation==='complete'?(lang==='ar'?'كاملة':'Complète'):(lang==='ar'?'مقطع':'Séquence')}
+                        </span>
                       </div>
-                      <div style={{fontSize:11,color:'#888'}}>{new Date(v.date_validation).toLocaleDateString(lang==='ar'?'ar-MA':'fr-FR')}</div>
-                    </div>
-                    <span style={{fontSize:13,fontWeight:700,color:'#1D9E75'}}>
-                      +{v.type_validation==='hizb_complet'?100:v.nombre_tomon*30} pts
-                    </span>
-                  </div>
-                ))}
-                {validations.length===0 && (
-                  <div style={{textAlign:'center',color:'#aaa',padding:'2rem'}}>
-                    {t(lang,'aucune_recitation_label')}
-                  </div>
+                    ))}
+                    {recitationsSouratesEleve.length===0&&(
+                      <div style={{textAlign:'center',color:'#aaa',padding:'2rem'}}>{t(lang,'aucune_recitation_label')}</div>
+                    )}
+                  </>
+                ) : (
+                  <>
+                    {validations.slice(0,20).map(v=>(
+                      <div key={v.id} style={{background:'#fff',borderRadius:10,padding:'10px 12px',marginBottom:6,
+                        border:'0.5px solid #e0e0d8',display:'flex',alignItems:'center',gap:10}}>
+                        <div style={{flex:1}}>
+                          <div style={{fontWeight:600,fontSize:13}}>
+                            {v.type_validation==='hizb_complet'?'Hizb complet':`T.${v.tomon_debut} ×${v.nombre_tomon}`}
+                          </div>
+                          <div style={{fontSize:11,color:'#888'}}>{new Date(v.date_validation).toLocaleDateString(lang==='ar'?'ar-MA':'fr-FR')}</div>
+                        </div>
+                        <span style={{fontSize:13,fontWeight:700,color:'#1D9E75'}}>
+                          +{v.type_validation==='hizb_complet'?100:v.nombre_tomon*30} pts
+                        </span>
+                      </div>
+                    ))}
+                    {validations.length===0&&(
+                      <div style={{textAlign:'center',color:'#aaa',padding:'2rem'}}>{t(lang,'aucune_recitation_label')}</div>
+                    )}
+                  </>
                 )}
               </div>
             )}
@@ -1362,7 +1393,33 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang, isMobi
                   ))}
                 </div>
               )}
-              {validations.length===0
+              {estSourateEleve ? (
+                recitationsSouratesEleve.length===0
+                  ? <div className="empty">{t(lang,'aucune_recitation_label')}</div>
+                  : (
+                    <div className="table-wrap">
+                      <table><thead><tr>
+                        <th>{t(lang,'date_heure')}</th>
+                        <th>{lang==='ar'?'السورة':'Sourate'}</th>
+                        <th>{lang==='ar'?'النوع':'Type'}</th>
+                        <th>{lang==='ar'?'الآيات':'Versets'}</th>
+                        <th>{t(lang,'valide_par')}</th>
+                      </tr></thead>
+                      <tbody>
+                        {recitationsSouratesEleve.map(r=>(
+                          <tr key={r.id}>
+                            <td style={{fontSize:12,color:'#888'}}>{formatDate(r.date_validation||r.created_at)}</td>
+                            <td style={{fontWeight:600,direction:'rtl'}}>{r.sourate?.nom_ar||'—'}</td>
+                            <td><span className={r.type_recitation==='complete'?'badge badge-green':'badge'}>{r.type_recitation==='complete'?(lang==='ar'?'كاملة':'Complète'):(lang==='ar'?'مقطع':'Séquence')}</span></td>
+                            <td style={{fontSize:12,color:'#888'}}>{r.type_recitation==='sequence'&&r.verset_debut?`V.${r.verset_debut}→${r.verset_fin}`:'—'}</td>
+                            <td style={{fontSize:12,color:'#888'}}>{r.valideur?(r.valideur.prenom+' '+r.valideur.nom):'—'}</td>
+                          </tr>
+                        ))}
+                      </tbody></table>
+                    </div>
+                  )
+              ) : (
+                validations.length===0
                 ?<div className="empty">{t(lang,'aucune_recitation_label')}</div>
                 :(
                   <div className="table-wrap">
@@ -1392,7 +1449,7 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang, isMobi
                     </tbody></table>
                   </div>
                 )
-              }
+              )}
             </div>
           )}
         </>
