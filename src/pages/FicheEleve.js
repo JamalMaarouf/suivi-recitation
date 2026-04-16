@@ -104,46 +104,85 @@ function ExceptionHizbModal({ etat, eleve, user, onConfirm, onCancel, lang }) {
 }
 
 
-function PassageNiveauModal({ show, onClose, eleve, etat, user, lang, niveauxDisponibles, NIVEAUX_LABELS, nouveauNiveau, setNouveauNiveau, notePassage, setNotePassage, onConfirm, saving }) {
+function PassageNiveauModal({ show, onClose, eleve, etat, user, lang, niveauxDisponibles, niveauxDyn, NIVEAUX_LABELS, nouveauNiveau, setNouveauNiveau, notePassage, setNotePassage, onConfirm, saving, nbSouratesCompletes, totalPtsSourates }) {
   if (!show) return null;
+  const estSourateActuel = (niveauxDyn||[]).find(n=>n.code===eleve.code_niveau)?.type==='sourate' || ['5B','5A','2M'].includes(eleve.code_niveau||'');
+  const estSourateCible  = nouveauNiveau ? ((niveauxDyn||[]).find(n=>n.code===nouveauNiveau)?.type==='sourate' || ['5B','5A','2M'].includes(nouveauNiveau)) : null;
+
+  // Calcul position de départ dans le nouveau niveau
+  const getPositionDepart = () => {
+    if (!nouveauNiveau) return null;
+    if (estSourateActuel && estSourateCible) {
+      return lang==='ar'
+        ? `📖 سيبدأ من السورة رقم ${nbSouratesCompletes + 1} في برنامج المستوى الجديد`
+        : `📖 Commencera à la sourate n°${nbSouratesCompletes + 1} du programme du nouveau niveau`;
+    } else if (!estSourateActuel && !estSourateCible) {
+      return lang==='ar'
+        ? `📍 سيبدأ من الحزب ${etat?.hizbEnCours||1} الثُّمن ${etat?.prochainTomon||1}`
+        : `📍 Commencera au Hizb ${etat?.hizbEnCours||1} T.${etat?.prochainTomon||1}`;
+    } else if (estSourateActuel && !estSourateCible) {
+      return lang==='ar' ? '📍 سيبدأ من بداية نظام الأحزاب (Hizb 60)' : '📍 Commencera au début du système Hizb (Hizb 60)';
+    } else {
+      return lang==='ar' ? '📍 سيبدأ من بداية برنامج السور' : '📍 Commencera au début du programme Sourates';
+    }
+  };
+  const positionDepart = getPositionDepart();
+
   return (
     <div style={{position:'fixed',top:0,left:0,right:0,bottom:0,background:'rgba(0,0,0,0.5)',zIndex:1000,display:'flex',alignItems:'center',justifyContent:'center',padding:'1rem'}} onClick={onClose}>
       <div style={{background:'#fff',borderRadius:16,padding:'1.5rem',maxWidth:500,width:'100%'}} onClick={e=>e.stopPropagation()}>
         <div style={{fontSize:16,fontWeight:700,color:'#534AB7',marginBottom:'1rem'}}>
-          {lang==='ar'?'\u062a\u063a\u064a\u064a\u0631 \u0645\u0633\u062a\u0648\u0649 \u0627\u0644\u0637\u0627\u0644\u0628':'\ud83c\udf93 Passage de niveau'}
+          🎓 {lang==='ar'?'تغيير مستوى الطالب':'Passage de niveau'}
         </div>
+
+        {/* Acquis actuels */}
         <div style={{background:'#F0EEFF',borderRadius:10,padding:'12px',marginBottom:'1rem',fontSize:13}}>
           <div style={{fontWeight:600,color:'#534AB7',marginBottom:8}}>
-            {lang==='ar'?'\u0627\u0644\u0627\u0643\u062a\u0633\u0627\u0628\u0627\u062a \u0627\u0644\u062d\u0627\u0644\u064a\u0629 (\u0633\u064a\u062a\u0645 \u062d\u0641\u0638\u0647\u0627):':'Acquis actuels (seront archiv\u00e9s) :'}
+            {lang==='ar'?'المكتسبات الحالية (ستُحفظ في الأرشيف):':'Acquis actuels (seront archivés) :'}
           </div>
-          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:6}}>
-            <div style={{color:'#555'}}>{lang==='ar'?'\u0627\u0644\u0645\u0633\u062a\u0648\u0649:':'Niveau :'} <strong>{eleve.code_niveau}</strong></div>
-            <div style={{color:'#555'}}>Pts: <strong>{etat&&etat.points?etat.points.total:0}</strong></div>
-            <div style={{color:'#555'}}>Tomon: <strong>{etat?etat.tomonCumul||0:0}</strong></div>
-            <div style={{color:'#555'}}>Hizb: <strong>{etat&&etat.hizbsComplets?etat.hizbsComplets.size:0}</strong></div>
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:6,fontSize:12}}>
+            <div style={{color:'#555'}}>{lang==='ar'?'المستوى:':'Niveau :'} <strong>{eleve.code_niveau}</strong></div>
+            <div style={{color:'#555'}}>Pts: <strong>{estSourateActuel ? totalPtsSourates : (etat?.points?.total||0)}</strong></div>
+            {estSourateActuel
+              ? <div style={{color:'#1D9E75',fontWeight:600}}>📖 {nbSouratesCompletes} {lang==='ar'?'سورة مكتملة':'sourates complètes'}</div>
+              : <>
+                  <div style={{color:'#555'}}>Tomon: <strong>{etat?.tomonCumul||0}</strong></div>
+                  <div style={{color:'#555'}}>Hizb ✓: <strong>{etat?.hizbsComplets?.size||0}</strong></div>
+                </>
+            }
           </div>
         </div>
-        <div style={{background:'#FCEBEB',borderRadius:10,padding:'10px 12px',marginBottom:'1rem',fontSize:12,color:'#E24B4A'}}>
-          {lang==='ar'?'\u26a0\ufe0f \u0633\u064a\u062a\u0645 \u0625\u0639\u0627\u062f\u0629 \u062a\u0639\u064a\u064a\u0646 \u0627\u0644\u0627\u0643\u062a\u0633\u0627\u0628\u0627\u062a \u0625\u0644\u0649 \u0627\u0644\u0635\u0641\u0631. \u0644\u0627 \u064a\u0645\u0643\u0646 \u0627\u0644\u062a\u0631\u0627\u062c\u0639.':'\u26a0\ufe0f Les acquis seront remis \u00e0 z\u00e9ro. Action irr\u00e9versible.'}
-        </div>
+
+        {/* Nouveau niveau */}
         <div className="field-group" style={{marginBottom:'1rem'}}>
-          <label className="field-lbl">{lang==='ar'?'\u0627\u0644\u0645\u0633\u062a\u0648\u0649 \u0627\u0644\u062c\u062f\u064a\u062f:':'Nouveau niveau :'}</label>
+          <label className="field-lbl">{lang==='ar'?'المستوى الجديد:':'Nouveau niveau :'}</label>
           <select className="field-select" value={nouveauNiveau} onChange={e=>setNouveauNiveau(e.target.value)}>
-            <option value="">{lang==='ar'?'\u2014 \u0627\u062e\u062a\u0631 \u0627\u0644\u0645\u0633\u062a\u0648\u0649 \u2014':'\u2014 Choisir le niveau \u2014'}</option>
+            <option value="">{lang==='ar'?'— اختر المستوى —':'— Choisir le niveau —'}</option>
             {niveauxDisponibles.map(n=>(
               <option key={n} value={n}>{NIVEAUX_LABELS[n]||n}</option>
             ))}
           </select>
         </div>
+
+        {/* Position de départ calculée */}
+        {positionDepart && (
+          <div style={{background:'#E1F5EE',borderRadius:10,padding:'10px 12px',marginBottom:'1rem',fontSize:12,color:'#085041',fontWeight:500}}>
+            {positionDepart}
+            <div style={{fontSize:11,color:'#1D9E75',marginTop:4,opacity:0.8}}>
+              {lang==='ar'?'سيستمر الطالب من حيث توقف تلقائياً':'L\'élève reprend automatiquement là où il s\'est arrêté'}
+            </div>
+          </div>
+        )}
+
         <div className="field-group" style={{marginBottom:'1.2rem'}}>
-          <label className="field-lbl">{lang==='ar'?'\u0645\u0644\u0627\u062d\u0638\u0629:':'Note (optionnelle) :'}</label>
-          <input className="field-input" value={notePassage} onChange={e=>setNotePassage(e.target.value)} placeholder={lang==='ar'?'\u0633\u0628\u0628 \u0627\u0644\u0627\u0646\u062a\u0642\u0627\u0644...':'Raison du passage...'}/>
+          <label className="field-lbl">{lang==='ar'?'ملاحظة (اختياري):':'Note (optionnelle) :'}</label>
+          <input className="field-input" value={notePassage} onChange={e=>setNotePassage(e.target.value)} placeholder={lang==='ar'?'سبب الانتقال...':'Raison du passage...'}/>
         </div>
         <div style={{display:'flex',gap:10}}>
-          <button onClick={onClose} className="back-link">{lang==='ar'?'\u0625\u0644\u063a\u0627\u0621':'Annuler'}</button>
+          <button onClick={onClose} className="back-link">{lang==='ar'?'إلغاء':'Annuler'}</button>
           <button onClick={onConfirm} disabled={!nouveauNiveau||saving}
             style={{flex:1,padding:'10px',background:nouveauNiveau&&!saving?'#534AB7':'#ccc',color:'#fff',border:'none',borderRadius:10,fontWeight:700,cursor:nouveauNiveau?'pointer':'default'}}>
-            {saving?'...':(lang==='ar'?'\u2713 \u062a\u0623\u0643\u064a\u062f \u0627\u0644\u0627\u0646\u062a\u0642\u0627\u0644':'\u2713 Confirmer le passage')}
+            {saving?'...':(lang==='ar'?'✓ تأكيد الانتقال':'✓ Confirmer le passage')}
           </button>
         </div>
       </div>
@@ -349,41 +388,72 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang, isMobi
     if (!nouveauNiveau) return;
     setSavingPassage(true);
     try {
-      // 1. Archive acquis
+      // Déterminer le type du niveau actuel et du niveau cible
+      const niveauxCtxP = typeof niveaux !== 'undefined' ? niveaux : [];
+      const estSourateActuel = isSourateNiveauDyn(eleve.code_niveau, niveauxCtxP);
+      const estSourateCible  = isSourateNiveauDyn(nouveauNiveau, niveauxCtxP);
+
+      // Calcul des acquis actuels
+      const nbSouratesActuelles = recitationsSouratesEleve.filter(r=>r.type_recitation==='complete').length;
+      const hizbActuel  = etat?.hizbEnCours || 1;
+      const tomonActuel = etat?.prochainTomon || 1;
+
+      // 1. Archive les acquis du niveau actuel
       const acquis = {
         eleve_id: eleve.id,
         ecole_id: user.ecole_id,
         niveau_from: eleve.code_niveau,
         niveau_to: nouveauNiveau,
         valide_par: user.id,
-        acquis_tomon: etat.tomonCumul||0,
-        acquis_hizb: etat.hizbsComplets?.size||0,
-        acquis_sourates: parseInt(eleve.sourates_acquises)||0,
-        acquis_points: etat.points?.total||0,
+        acquis_tomon: etat?.tomonCumul||0,
+        acquis_hizb: etat?.hizbsComplets?.size||0,
+        acquis_sourates: estSourateActuel ? nbSouratesActuelles : parseInt(eleve.sourates_acquises)||0,
+        acquis_points: estSourateActuel ? totalPtsSourates : (etat?.points?.total||0),
         note: notePassage||null,
         date_passage: new Date().toISOString(),
-        ecole_id: user.ecole_id,
       };
       const { error: errPassage } = await supabase.from('passages_niveau').insert(acquis);
       if (errPassage) throw errPassage;
 
-      // 2. Reset eleve: nouveau niveau, hizb/tomon à 1, sourates à 0
-      const resetData = {
-        code_niveau: nouveauNiveau,
-        hizb_depart: 1,
-        tomon_depart: 1,
-        sourates_acquises: 0,
-      };
+      // 2. Calculer la position de départ dans le nouveau niveau
+      // L'élève ne repart PAS de zéro — il continue depuis ses acquis
+      let resetData = { code_niveau: nouveauNiveau };
+
+      if (estSourateActuel && estSourateCible) {
+        // Sourate → Sourate : sourates_acquises = nb sourates complétées
+        // Le programme du nouveau niveau commencera après ses acquis
+        resetData.sourates_acquises = nbSouratesActuelles;
+        resetData.hizb_depart = 0;
+        resetData.tomon_depart = 1;
+      } else if (!estSourateActuel && !estSourateCible) {
+        // Hizb → Hizb : hizb_depart = hizb actuel, tomon_depart = tomon actuel
+        // L'élève continue depuis sa position actuelle
+        resetData.hizb_depart = hizbActuel;
+        resetData.tomon_depart = tomonActuel;
+        resetData.sourates_acquises = 0;
+      } else if (estSourateActuel && !estSourateCible) {
+        // Sourate → Hizb : démarre au début du programme Hizb
+        resetData.hizb_depart = 0;
+        resetData.tomon_depart = 1;
+        resetData.sourates_acquises = 0;
+      } else {
+        // Hizb → Sourate : démarre au début du programme Sourate
+        resetData.sourates_acquises = 0;
+        resetData.hizb_depart = 0;
+        resetData.tomon_depart = 1;
+      }
+
       const { error: errEleve } = await supabase.from('eleves').update(resetData).eq('id', eleve.id);
       if (errEleve) throw errEleve;
+
+      // 3. Archiver les validations du niveau actuel (optionnel — on les garde pour historique)
+      // Les recitations_sourates et validations restent en DB pour l'historique
 
       setShowPassageModal(false);
       setNouveauNiveau('');
       setNotePassage('');
-      // Reload data
       await loadData();
       toast.success(lang==='ar'?'✅ تم تغيير المستوى بنجاح':'✅ Passage de niveau enregistré !');
-      // Update eleve object in parent
       navigate('dashboard');
     } catch(err) {
       toast.error(lang==='ar'?'خطأ في تغيير المستوى':'Erreur passage de niveau: '+err.message);
@@ -853,6 +923,13 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang, isMobi
               <div style={{fontSize:16,fontWeight:700,color:'#534AB7',marginBottom:'1rem'}}>
                 🎓 {lang==='ar'?'تغيير مستوى الطالب':'Passage de niveau'}
               </div>
+              <div style={{background:'#F0EEFF',borderRadius:10,padding:'10px 12px',marginBottom:'1rem',fontSize:12}}>
+                <div style={{fontWeight:600,color:'#534AB7',marginBottom:6}}>{lang==='ar'?'المكتسبات الحالية:':'Acquis actuels :'}</div>
+                {estSourateEleve
+                  ? <div style={{color:'#1D9E75',fontWeight:600}}>📖 {nbSouratesCompletes} {lang==='ar'?'سورة مكتملة':'sourates'} · {totalPtsSourates} pts</div>
+                  : <div style={{color:'#555'}}>Hizb {etat?.hizbEnCours} · T.{etat?.prochainTomon} · {etat?.points?.total||0} pts</div>
+                }
+              </div>
               <div style={{marginBottom:'1rem'}}>
                 <label style={{fontSize:13,fontWeight:600,color:'#444',display:'block',marginBottom:6}}>
                   {lang==='ar'?'المستوى الجديد:':'Nouveau niveau :'}
@@ -865,6 +942,15 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang, isMobi
                   ))}
                 </select>
               </div>
+              {nouveauNiveau&&(()=>{
+                const cible = isSourateNiveauDyn(nouveauNiveau, _niveauxCtx);
+                let msg = '';
+                if (estSourateEleve && cible) msg = lang==='ar'?`📖 سيبدأ من السورة رقم ${nbSouratesCompletes+1}`:`📖 Départ sourate n°${nbSouratesCompletes+1}`;
+                else if (!estSourateEleve && !cible) msg = lang==='ar'?`📍 سيبدأ من Hizb ${etat?.hizbEnCours||1} T.${etat?.prochainTomon||1}`:`📍 Départ Hizb ${etat?.hizbEnCours||1} T.${etat?.prochainTomon||1}`;
+                else if (estSourateEleve && !cible) msg = lang==='ar'?'📍 بداية نظام الأحزاب':'📍 Début système Hizb';
+                else msg = lang==='ar'?'📍 بداية برنامج السور':'📍 Début programme Sourates';
+                return <div style={{background:'#E1F5EE',borderRadius:10,padding:'10px 12px',marginBottom:'1rem',fontSize:12,color:'#085041',fontWeight:500}}>{msg}</div>;
+              })()}
               <div style={{marginBottom:'1.2rem'}}>
                 <label style={{fontSize:13,fontWeight:600,color:'#444',display:'block',marginBottom:6}}>
                   {lang==='ar'?'ملاحظة:':'Note :'}
@@ -880,7 +966,7 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang, isMobi
                 </button>
                 <button onClick={handlePassageNiveau} disabled={!nouveauNiveau||savingPassage}
                   style={{flex:2,padding:'14px',background:nouveauNiveau&&!savingPassage?'#534AB7':'#ccc',color:'#fff',border:'none',borderRadius:12,fontWeight:700,cursor:'pointer',fontFamily:'inherit',fontSize:15}}>
-                  {savingPassage?'...':(lang==='ar'?'تأكيد':'Confirmer')}
+                  {savingPassage?'...':(lang==='ar'?'✓ تأكيد الانتقال':'✓ Confirmer')}
                 </button>
               </div>
             </div>
@@ -1535,6 +1621,7 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang, isMobi
         user={user}
         lang={lang}
         niveauxDisponibles={niveauxDisponibles}
+        niveauxDyn={_niveauxCtx}
         NIVEAUX_LABELS={NIVEAUX_LABELS}
         nouveauNiveau={nouveauNiveau}
         setNouveauNiveau={setNouveauNiveau}
@@ -1542,6 +1629,8 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang, isMobi
         setNotePassage={setNotePassage}
         onConfirm={handlePassageNiveau}
         saving={savingPassage}
+        nbSouratesCompletes={nbSouratesCompletes}
+        totalPtsSourates={totalPtsSourates}
       />
     </div>
   );
