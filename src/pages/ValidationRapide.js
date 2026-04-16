@@ -35,7 +35,7 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
       supabase.from('eleves').select('*').eq('ecole_id', user.ecole_id).order('nom'),
       supabase.from('validations').select('*').eq('ecole_id', user.ecole_id),
       supabase.from('niveaux').select('id,code,nom,type,couleur').eq('ecole_id', user.ecole_id),
-      supabase.from('sourates').select('id,numero,nom_ar,nb_versets').order('numero', { ascending: false }),
+      supabase.from('sourates').select('*'),
     ]);
     setEleves(ed || []); setAllValidations(vd || []);
     setNiveaux(niv || []); setSouratesDB(sour || []);
@@ -61,7 +61,7 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
     // Charger en parallèle récitations + souratesDB + programme
     const [{ data: recs }, { data: sourFresh }] = await Promise.all([
       supabase.from('recitations_sourates').select('*').eq('eleve_id', e.id).eq('ecole_id', user.ecole_id),
-      supabase.from('sourates').select('id,numero,nom_ar,nb_versets').order('numero', { ascending: false }),
+      supabase.from('sourates').select('*'),
     ]);
     // Stocker dans des variables locales pour les utiliser dans currentSourate ci-dessous
     const souratesLocal = sourFresh || [];
