@@ -55,8 +55,99 @@ export default function ListeCertificats({ user, navigate, goBack, lang='fr', is
     return true;
   });
 
+  // ─── Mobile render ───────────────────────────────────────────
+  if (isMobile) {
+    return (
+      <div style={{paddingBottom:80,background:'#f5f5f0',minHeight:'100vh'}}>
+        {/* Header */}
+        <div style={{background:'linear-gradient(135deg,#EF9F27,#d4850f)',padding:'48px 16px 16px',position:'sticky',top:0,zIndex:100}}>
+          <div style={{display:'flex',alignItems:'center',gap:12,marginBottom:12}}>
+            <button onClick={()=>goBack?goBack():navigate('dashboard')}
+              style={{background:'rgba(255,255,255,0.2)',border:'none',borderRadius:10,padding:'8px 12px',color:'#fff',fontSize:16,cursor:'pointer'}}>←</button>
+            <div style={{flex:1}}>
+              <div style={{fontSize:17,fontWeight:800,color:'#fff'}}>🏅 {lang==='ar'?'الشهادات':'Certificats'}</div>
+              <div style={{fontSize:11,color:'rgba(255,255,255,0.8)'}}>{filtered.length} {lang==='ar'?'شهادة':'certificat(s)'}</div>
+            </div>
+          </div>
+          {/* Recherche */}
+          <input value={searchNum} onChange={e=>setSearchNum(e.target.value)}
+            placeholder={lang==='ar'?'🔍 بحث بالاسم أو الرقم...':'🔍 Nom ou numéro...'}
+            style={{width:'100%',padding:'10px 14px',borderRadius:12,border:'none',fontSize:14,fontFamily:'inherit',
+              boxSizing:'border-box',background:'rgba(255,255,255,0.2)',color:'#fff',outline:'none'}}/>
+        </div>
+
+        {/* Filtres chips */}
+        <div style={{display:'flex',gap:6,overflowX:'auto',padding:'10px 12px',scrollbarWidth:'none',background:'#fff',borderBottom:'0.5px solid #e0e0d8'}}>
+          <select value={filtreNiveau} onChange={e=>setFiltreNiveau(e.target.value)}
+            style={{padding:'5px 10px',borderRadius:20,border:'0.5px solid #e0e0d8',fontSize:11,fontFamily:'inherit',background:filtreNiveau?'#EF9F27':'#f0f0ec',color:filtreNiveau?'#fff':'#666',flexShrink:0}}>
+            <option value="">{lang==='ar'?'كل المستويات':'Niveaux'}</option>
+            {niveaux.map(n=><option key={n.code} value={n.code}>{n.code}</option>)}
+          </select>
+          <select value={filtreJalon} onChange={e=>setFiltreJalon(e.target.value)}
+            style={{padding:'5px 10px',borderRadius:20,border:'0.5px solid #e0e0d8',fontSize:11,fontFamily:'inherit',background:filtreJalon?'#EF9F27':'#f0f0ec',color:filtreJalon?'#fff':'#666',flexShrink:0}}>
+            <option value="">{lang==='ar'?'كل الشهادات':'Jalons'}</option>
+            {jalons.map(j=><option key={j.id} value={j.id}>{j.nom_ar||j.nom}</option>)}
+          </select>
+          <select value={filtreInst} onChange={e=>setFiltreInst(e.target.value)}
+            style={{padding:'5px 10px',borderRadius:20,border:'0.5px solid #e0e0d8',fontSize:11,fontFamily:'inherit',background:filtreInst?'#EF9F27':'#f0f0ec',color:filtreInst?'#fff':'#666',flexShrink:0}}>
+            <option value="">{lang==='ar'?'كل الأساتذة':'Instituteurs'}</option>
+            {instituteurs.map(i=><option key={i.id} value={i.id}>{i.prenom} {i.nom}</option>)}
+          </select>
+          {(searchNum||filtreNiveau||filtreJalon||filtreInst)&&(
+            <div onClick={()=>{setSearchNum('');setFiltreNiveau('');setFiltreJalon('');setFiltreInst('');}}
+              style={{padding:'5px 10px',borderRadius:20,background:'#FCEBEB',color:'#E24B4A',fontSize:11,fontWeight:600,cursor:'pointer',flexShrink:0,border:'none'}}>
+              ✕
+            </div>
+          )}
+        </div>
+
+        {/* Liste */}
+        {loading ? <div style={{textAlign:'center',padding:'3rem',color:'#888'}}>...</div>
+          : filtered.length===0 ? (
+            <div style={{textAlign:'center',padding:'3rem',color:'#aaa'}}>
+              <div style={{fontSize:36,marginBottom:8}}>🏅</div>
+              <div style={{fontSize:13}}>{lang==='ar'?'لا توجد شهادات':'Aucun certificat'}</div>
+            </div>
+          ) : (
+            <div style={{padding:'10px 12px'}}>
+              {filtered.map(c=>{
+                const el=getEleve(c.eleve_id);
+                const jal=getJalon(c.jalon_id);
+                const inst=el?getInst(el.instituteur_referent_id):null;
+                const nc=el?getNivColor(el.code_niveau):'#888';
+                return(
+                  <div key={c.id} onClick={()=>el&&navigate('fiche',el)}
+                    style={{background:'#fff',borderRadius:13,padding:'12px 14px',marginBottom:8,
+                      border:'0.5px solid #e0e0d8',display:'flex',alignItems:'center',gap:12,cursor:'pointer',
+                      boxShadow:'0 1px 4px rgba(0,0,0,0.04)'}}>
+                    <div style={{width:42,height:42,borderRadius:12,background:'#FAEEDA',display:'flex',alignItems:'center',justifyContent:'center',fontSize:20,flexShrink:0}}>🏅</div>
+                    <div style={{flex:1,minWidth:0}}>
+                      <div style={{fontWeight:700,fontSize:13,color:'#085041',direction:'rtl',fontFamily:"'Tajawal',Arial,sans-serif",lineHeight:1.3}}>
+                        {jal?.nom_ar||jal?.nom||c.nom_certificat_ar||c.nom_certificat}
+                      </div>
+                      <div style={{display:'flex',gap:6,marginTop:3,alignItems:'center',flexWrap:'wrap'}}>
+                        {el&&<span style={{fontSize:12,fontWeight:600,color:'#1a1a1a'}}>{el.prenom} {el.nom}</span>}
+                        {el&&<span style={{padding:'1px 6px',borderRadius:10,fontSize:10,fontWeight:700,background:`${nc}20`,color:nc}}>{el.code_niveau}</span>}
+                        {el?.eleve_id_ecole&&<span style={{fontSize:10,color:'#bbb'}}>#{el.eleve_id_ecole}</span>}
+                      </div>
+                      <div style={{fontSize:11,color:'#aaa',marginTop:2}}>
+                        {inst&&<span>👨‍🏫 {inst.prenom} {inst.nom} · </span>}
+                        📅 {c.date_obtention?new Date(c.date_obtention).toLocaleDateString(lang==='ar'?'ar-MA':'fr-FR',{day:'2-digit',month:'short',year:'numeric'}):'—'}
+                      </div>
+                    </div>
+                    <span style={{color:'#ccc',fontSize:18}}>›</span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+      </div>
+    );
+  }
+
+  // ─── PC render ────────────────────────────────────────────────
   return (
-    <div style={{ padding: isMobile?'1rem':'1.5rem', paddingBottom: 80 }}>
+    <div style={{ padding:'1.5rem', paddingBottom: 80 }}>
       <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:'1.25rem' }}>
         <button onClick={()=>goBack?goBack():navigate('dashboard')} className="back-link">{t(lang,'retour')}</button>
         <div>

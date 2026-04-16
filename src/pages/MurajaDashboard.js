@@ -177,21 +177,40 @@ export default function MurajaDashboard({ user, navigate, goBack, lang='fr', isM
 
   return (
     <div style={{padding: isMobile ? '0 0 80px' : '1rem',maxWidth:800,margin:'0 auto',background: isMobile ? '#f5f5f0' : 'transparent',minHeight: isMobile ? '100vh' : 'auto'}}>
-      {isMobile && (
-        <div style={{background:'linear-gradient(135deg,#534AB7,#7F77DD)',padding:'48px 16px 20px',marginBottom:12}}>
-          <div style={{fontSize:20,fontWeight:800,color:'#fff',marginBottom:4}}>
-            📖 {lang==='ar'?'المراجعة الجماعية':"Murajaʼa"}
-          </div>
-          <div style={{display:'flex',gap:8,marginTop:10}}>
+      {isMobile ? (
+        <div style={{background:'linear-gradient(135deg,#534AB7,#7F77DD)',padding:'48px 16px 16px',position:'sticky',top:0,zIndex:100}}>
+          <div style={{display:'flex',alignItems:'center',gap:12,marginBottom:12}}>
+            <button onClick={()=>goBack?goBack():navigate('dashboard')}
+              style={{background:'rgba(255,255,255,0.2)',border:'none',borderRadius:10,padding:'8px 12px',color:'#fff',fontSize:16,cursor:'pointer'}}>←</button>
+            <div style={{flex:1}}>
+              <div style={{fontSize:17,fontWeight:800,color:'#fff'}}>📖 {lang==='ar'?'المراجعة الجماعية':"Muraja'a"}</div>
+              <div style={{fontSize:11,color:'rgba(255,255,255,0.75)'}}>{lang==='ar'?'تتبع المراجعات الجماعية':'Suivi des révisions collectives'}</div>
+            </div>
             <button onClick={()=>navigate('muraja')}
-              style={{padding:'10px 16px',background:'rgba(255,255,255,0.2)',color:'#fff',border:'1px solid rgba(255,255,255,0.3)',
-                borderRadius:10,fontSize:13,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
-              + {lang==='ar'?'مراجعة جديدة':'Nouvelle révision'}
+              style={{background:'rgba(255,255,255,0.25)',border:'1px solid rgba(255,255,255,0.3)',borderRadius:10,padding:'8px 14px',color:'#fff',fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
+              + {lang==='ar'?'جديد':'Nouveau'}
             </button>
           </div>
+          {/* Filtres mobiles */}
+          <div style={{display:'flex',gap:6}}>
+            <select value={filterNiveau} onChange={e=>setFilterNiveau(e.target.value)}
+              style={{flex:1,padding:'8px 10px',borderRadius:10,border:'none',fontSize:12,fontFamily:'inherit',background:'rgba(255,255,255,0.2)',color:'#fff',outline:'none'}}>
+              <option value="tous" style={{color:'#333'}}>{lang==='ar'?'كل المستويات':'Tous niveaux'}</option>
+              {niveaux.map(n=><option key={n.code} value={n.code} style={{color:'#333'}}>{n.code} — {n.nom}</option>)}
+            </select>
+            <select value={filterPeriode} onChange={e=>setFilterPeriode(parseInt(e.target.value))}
+              style={{flex:1,padding:'8px 10px',borderRadius:10,border:'none',fontSize:12,fontFamily:'inherit',background:'rgba(255,255,255,0.2)',color:'#fff',outline:'none'}}>
+              <option value={7} style={{color:'#333'}}>7j</option>
+              <option value={30} style={{color:'#333'}}>30j</option>
+              <option value={90} style={{color:'#333'}}>3 {lang==='ar'?'أشهر':'mois'}</option>
+              <option value={365} style={{color:'#333'}}>{lang==='ar'?'سنة':'1 an'}</option>
+            </select>
+            <button onClick={loadData} style={{padding:'8px 12px',background:'rgba(255,255,255,0.2)',color:'#fff',border:'none',borderRadius:10,cursor:'pointer',fontSize:14}}>🔄</button>
+          </div>
         </div>
-      )}
-      {/* Header */}
+      ) : (
+      <>
+      {/* Header PC */}
       <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'1.5rem'}}>
         <button className="back-link" onClick={()=>goBack?goBack():navigate('dashboard')}>{t(lang,'retour')}</button>
         <div style={{fontSize:18,fontWeight:800,color:'#085041'}}>
@@ -202,8 +221,7 @@ export default function MurajaDashboard({ user, navigate, goBack, lang='fr', isM
           + {lang==='ar'?'مراجعة جديدة':'Nouvelle'}
         </button>
       </div>
-
-      {/* Filters */}
+      {/* Filters PC */}
       <div style={{display:'flex',gap:10,marginBottom:16,flexWrap:'wrap'}}>
         <select className="field-select" style={{flex:1,minWidth:120}} value={filterNiveau} onChange={e=>setFilterNiveau(e.target.value)}>
           <option value="tous">{lang==='ar'?'جميع المستويات':'Tous les niveaux'}</option>
@@ -217,6 +235,8 @@ export default function MurajaDashboard({ user, navigate, goBack, lang='fr', isM
         </select>
         <button onClick={loadData} style={{padding:'6px 14px',background:'#E1F5EE',color:'#085041',border:'none',borderRadius:8,fontWeight:600,cursor:'pointer'}}>🔄</button>
       </div>
+      </>
+      )}
 
       {/* Stats */}
       <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(130px,1fr))',gap:10,marginBottom:20}}>
