@@ -830,7 +830,8 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile,
       hizb_depart: parseInt(editEleve.hizb_depart) || 0,
       tomon_depart: parseInt(editEleve.tomon_depart) || 1,
       sourates_acquises: parseInt(editEleve.sourates_acquises) || 0,
-      telephone: editEleve.telephone?.trim() || null
+      telephone: editEleve.telephone?.trim() || null,
+      date_inscription: editEleve.date_inscription || null
     }).eq('id', editEleve.id);
     if (error) return showMsg('error', t(lang, 'erreur_ajout'));
     showMsg('success', t(lang, 'eleve_modifie'));
@@ -1664,64 +1665,57 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile,
             <>
               <div className="section-label">{t(lang, 'modifier_eleve')}</div>
               <div className="card">
-                <div className="form-grid">
+                <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'10px 20px'}}>
                   <div className="field-group">
-                    <label className="field-lbl">{t(lang, 'prenom')} <span style={{color:'#E24B4A'}}>*</span></label>
-                    <input className="field-input" value={editEleve.prenom} onChange={e => setEditEleve({ ...editEleve, prenom: e.target.value })} />
+                    <label className="field-lbl">{t(lang,'prenom')} <span style={{color:'#E24B4A'}}>*</span></label>
+                    <input className="field-input" value={editEleve.prenom} onChange={e=>setEditEleve({...editEleve,prenom:e.target.value})}/>
                   </div>
                   <div className="field-group">
-                    <label className="field-lbl">{t(lang, 'nom_label')} <span style={{color:'#E24B4A'}}>*</span></label>
-                    <input className="field-input" value={editEleve.nom} onChange={e => setEditEleve({ ...editEleve, nom: e.target.value })} />
+                    <label className="field-lbl">{t(lang,'nom_label')} <span style={{color:'#E24B4A'}}>*</span></label>
+                    <input className="field-input" value={editEleve.nom} onChange={e=>setEditEleve({...editEleve,nom:e.target.value})}/>
                   </div>
                   <div className="field-group">
-                    <label className="field-lbl">{t(lang, 'niveau')} <span style={{color:'#E24B4A'}}>*</span></label>
-                    <select className="field-select" value={editEleve.niveau} onChange={e => setEditEleve({ ...editEleve, niveau: e.target.value })}>
+                    <label className="field-lbl">{t(lang,'niveau')} <span style={{color:'#E24B4A'}}>*</span></label>
+                    <select className="field-select" value={editEleve.niveau} onChange={e=>setEditEleve({...editEleve,niveau:e.target.value})}>
                       <option value="Débutant">{lang==='ar'?'مبتدئ':'Débutant'}</option>
                       <option value="Intermédiaire">{lang==='ar'?'متوسط':'Intermédiaire'}</option>
                       <option value="Avancé">{lang==='ar'?'متقدم':'Avancé'}</option>
                     </select>
                   </div>
                   <div className="field-group">
-                    <label className="field-lbl">{lang==='ar'?'المستوى الدراسي':lang==='en'?'Class level':(lang==='ar'?'الصف الدراسي':'Niveau scolaire')} <span style={{color:'#E24B4A'}}>*</span></label>
-                    <select className="field-select" value={editEleve.code_niveau||'1'} onChange={e => {
-                      const oldNiv = editEleve.code_niveau||'1';
-                      const newNiv = e.target.value;
-                      const wasSourate = ['5B','5A','2M'].includes(oldNiv);
-                      const isNowHizb = ['2M','2','1'].includes(newNiv);
-                      if (wasSourate && isNowHizb) {
-                        showConfirm(
-                          lang==='ar'?'⚠️ تغيير نظام الطالب':'⚠️ Changement de système',
-                          lang==='ar'?'هذا الطالب ينتقل من نظام السور إلى نظام الحزب والثُّمن. يجب تحديد المكتسبات بالحزب والثُّمن.':'Cet élève passe du système Sourates au système Hizb/Tomon. Les acquis doivent être redéfinis.',
-                          ()=>{ setEditEleve({ ...editEleve, code_niveau: newNiv, hizb_depart: 0, tomon_depart: 1, sourates_acquises: 0 });
-                          setEditShowAcquisSelector(true);; hideConfirm(); },
-                          lang==='ar'?'متابعة':'Continuer',
-                          '#EF9F27'
-                        );
-                      } else {
-                        setEditEleve({ ...editEleve, code_niveau: newNiv });
-                      }
+                    <label className="field-lbl">{lang==='ar'?'المستوى الدراسي':'Niveau scolaire'} <span style={{color:'#E24B4A'}}>*</span></label>
+                    <select className="field-select" value={editEleve.code_niveau||'1'} onChange={e=>{
+                      const oldNiv=editEleve.code_niveau||'1'; const newNiv=e.target.value;
+                      const wasSourate=['5B','5A','2M'].includes(oldNiv);
+                      const isNowHizb=!['5B','5A'].includes(newNiv)&&niveauxActifs.find(n=>n.code===newNiv)?.type!=='sourate';
+                      if(wasSourate&&isNowHizb){
+                        showConfirm(lang==='ar'?'⚠️ تغيير نظام الطالب':'⚠️ Changement de système',
+                          lang==='ar'?'هذا الطالب ينتقل من نظام السور إلى نظام الحزب والثُّمن.':'Cet élève passe du système Sourates au système Hizb/Tomon.',
+                          ()=>{setEditEleve({...editEleve,code_niveau:newNiv,hizb_depart:0,tomon_depart:1,sourates_acquises:0});setEditShowAcquisSelector(true);hideConfirm();},
+                          lang==='ar'?'متابعة':'Continuer','#EF9F27');
+                      } else { setEditEleve({...editEleve,code_niveau:newNiv}); }
                     }}>
-                      <option value="5B">5B — {lang==='ar'?'تمهيدي':lang==='en'?'Preschool':(lang==='ar'?'تمهيدي':'Préscolaire')}</option>
-                      <option value="5A">5A — {lang==='ar'?'ابتدائي 1-2':lang==='en'?'Primary 1-2':'Primaire 1-2'}</option>
-                      <option value="2M">2M — {lang==='ar'?'ابتدائي 3-4':lang==='en'?'Primary 3-4':'Primaire 3-4'}</option>
-                      <option value="2">2 — {lang==='ar'?'ابتدائي 5-6':lang==='en'?'Primary 5-6':'Primaire 5-6'}</option>
-                      <option value="1">1 — {lang==='ar'?'إعدادي/ثانوي':lang==='en'?'Middle/High school':(lang==='ar'?'إعدادي/ثانوي':'Collège/Lycée')}</option>
+                      {niveauxActifs.map(n=><option key={n.code} value={n.code}>{n.code} — {n.nom}</option>)}
                     </select>
                   </div>
                   <div className="field-group">
-                    <label className="field-lbl">{lang==='ar'?'رقم تعريف الطالب':lang==='en'?'Student ID':(lang==='ar'?'رقم التعريف':'ID Élève')} <span style={{color:'#E24B4A'}}>*</span></label>
-                    <input className="field-input" value={editEleve.eleve_id_ecole||''} onChange={e => setEditEleve({ ...editEleve, eleve_id_ecole: e.target.value })} placeholder={lang==='ar'?'رقم التعريف':lang==='en'?'Student ID':'ID défini par la direction'}/>
+                    <label className="field-lbl">{lang==='ar'?'رقم تعريف الطالب':'ID Élève'} <span style={{color:'#E24B4A'}}>*</span></label>
+                    <input className="field-input" value={editEleve.eleve_id_ecole||''} onChange={e=>setEditEleve({...editEleve,eleve_id_ecole:e.target.value})} placeholder={lang==='ar'?'رقم التعريف':'ID élève'}/>
                   </div>
                   <div className="field-group">
-                    <label className="field-lbl">{t(lang, 'referent')} <span style={{color:'#E24B4A'}}>*</span></label>
-                    <select className="field-select" value={editEleve.instituteur_referent_id || ''} onChange={e => setEditEleve({ ...editEleve, instituteur_referent_id: e.target.value })}>
-                      <option value="">{t(lang, 'choisir')}</option>
-                      {instituteurs.map(i => <option key={i.id} value={i.id}>{i.prenom} {i.nom}</option>)}
+                    <label className="field-lbl">{t(lang,'referent')} <span style={{color:'#E24B4A'}}>*</span></label>
+                    <select className="field-select" value={editEleve.instituteur_referent_id||''} onChange={e=>setEditEleve({...editEleve,instituteur_referent_id:e.target.value})}>
+                      <option value="">{t(lang,'choisir')}</option>
+                      {instituteurs.map(i=><option key={i.id} value={i.id}>{i.prenom} {i.nom}</option>)}
                     </select>
                   </div>
                   <div className="field-group">
-                    <label className="field-lbl">{lang==='ar'?'هاتف ولي الأمر (اختياري)':lang==='en'?'Parent phone (optional)':'Tél. parent (optionnel)'}</label>
-                    <input className="field-input" type="tel" value={editEleve.telephone||''} onChange={e => setEditEleve({ ...editEleve, telephone: e.target.value })} placeholder="06XXXXXXXX"/>
+                    <label className="field-lbl">{lang==='ar'?'هاتف ولي الأمر (اختياري)':'Tél. parent (optionnel)'}</label>
+                    <input className="field-input" type="tel" value={editEleve.telephone||''} onChange={e=>setEditEleve({...editEleve,telephone:e.target.value})} placeholder="06XXXXXXXX"/>
+                  </div>
+                  <div className="field-group">
+                    <label className="field-lbl">{lang==='ar'?'تاريخ التسجيل (اختياري)':"Date d'inscription (optionnel)"}</label>
+                    <input className="field-input" type="date" value={editEleve.date_inscription||''} onChange={e=>setEditEleve({...editEleve,date_inscription:e.target.value})}/>
                   </div>
                 </div>
 
@@ -1777,37 +1771,52 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile,
             <div className="table-wrap">
               <table>
                 <thead><tr>
-                  <th style={{width:'28%'}}>{t(lang, 'eleve')}</th>
-                  <th style={{width:'16%'}}>{t(lang, 'niveau')}</th>
-                  <th style={{width:'20%'}}>{t(lang, 'referent')}</th>
-                  <th style={{width:'22%'}}>{t(lang, 'acquis_anterieurs')}</th>
-                  <th style={{width:'14%'}}></th>
+                  <th style={{width:'26%'}}>{t(lang,'eleve')}</th>
+                  <th style={{width:'14%'}}>{lang==='ar'?'المستوى الدراسي':'Niveau'}</th>
+                  <th style={{width:'18%'}}>{t(lang,'referent')}</th>
+                  <th style={{width:'26%'}}>{t(lang,'acquis_anterieurs')}</th>
+                  <th style={{width:'16%'}}></th>
                 </tr></thead>
                 <tbody>
                   {eleves.length === 0 && <tr><td colSpan={5} className="empty">{t(lang, 'aucun_eleve')}</td></tr>}
-                  {eleves.map(e => (
+                  {eleves.map(e => {
+                    const nc = (niveauxDyn||[]).find(n=>n.code===e.code_niveau)?.couleur || {'5B':'#534AB7','5A':'#378ADD','2M':'#1D9E75','2':'#EF9F27','1':'#E24B4A'}[e.code_niveau]||'#888';
+                    const isSour = ['5B','5A','2M'].includes(e.code_niveau||'');
+                    return (
                     <tr key={e.id} style={{ background: editEleve?.id === e.id ? '#E1F5EE' : '' }}>
-                      <td><div style={{display:'flex',alignItems:'center',gap:8}}><Avatar prenom={e.prenom} nom={e.nom}/>{e.prenom} {e.nom}</div></td>
-                      <td><span className={`badge ${e.niveau==='Avancé'||e.niveau==='متقدم'||e.niveau==='Advanced'?'badge-green':e.niveau==='Intermédiaire'||e.niveau==='متوسط'||e.niveau==='Intermediate'?'badge-blue':'badge-amber'}`} style={{fontSize:10}}>{e.niveau}</span></td>
-                      <td style={{fontSize:12,color:'#888'}}>{instNom(e.instituteur_referent_id)}</td>
                       <td>
-                        <div style={{display:'flex',gap:6,alignItems:'center',flexWrap:'wrap'}}>
-                          <span style={{padding:'2px 8px',borderRadius:20,fontSize:11,fontWeight:700,background:'#E1F5EE',color:'#085041'}}>{e.code_niveau||'1'}</span>
-                          {e.eleve_id_ecole&&<span style={{fontSize:11,color:'#888'}}>#{e.eleve_id_ecole}</span>}
+                        <div style={{display:'flex',alignItems:'center',gap:8}}>
+                          <Avatar prenom={e.prenom} nom={e.nom}/>
+                          <div>
+                            <div style={{fontWeight:600,fontSize:13}}>{e.prenom} {e.nom}</div>
+                            <div style={{fontSize:11,color:'#aaa'}}>{e.eleve_id_ecole?`#${e.eleve_id_ecole}`:''}{e.telephone?` · 📞 ${e.telephone}`:''}</div>
+                          </div>
                         </div>
-                        {['1','2','2M'].includes(e.code_niveau||'1')&&<div style={{fontSize:10,color:'#bbb',marginTop:2}}>Hizb {e.hizb_depart}, T.{e.tomon_depart}</div>}
+                      </td>
+                      <td>
+                        <span style={{padding:'2px 8px',borderRadius:20,fontSize:11,fontWeight:700,background:`${nc}20`,color:nc}}>{e.code_niveau||'?'}</span>
+                        <div style={{fontSize:10,color:'#888',marginTop:2}}>{(niveauxDyn||[]).find(n=>n.code===e.code_niveau)?.nom||''}</div>
+                      </td>
+                      <td style={{fontSize:12,color:'#555'}}>{instNom(e.instituteur_referent_id)}</td>
+                      <td>
+                        {isSour
+                          ? <span style={{fontSize:12,color:'#1D9E75',fontWeight:600}}>📖 {e.sourates_acquises||0} {lang==='ar'?'محفوظ':'acquis'}</span>
+                          : <div style={{fontSize:11,color:'#888'}}>Hizb {e.hizb_depart} · T.{e.tomon_depart}</div>
+                        }
+                        {e.date_inscription&&<div style={{fontSize:10,color:'#bbb',marginTop:2}}>📅 {new Date(e.date_inscription).toLocaleDateString(lang==='ar'?'ar-MA':'fr-FR')}</div>}
                       </td>
                       <td>
                         <div style={{display:'flex',gap:4}}>
-                          <button className="action-btn" onClick={() => { setEditEleve({...e}); setEditShowAcquisSelector(false); window.scrollTo(0,0); }}>{t(lang, 'modifier_btn')}</button>
-                          <button onClick={() => supprimerEleve(e.id)}
+                          <button className="action-btn" onClick={()=>{setEditEleve({...e});setEditShowAcquisSelector(false);window.scrollTo(0,0);}}>{t(lang,'modifier_btn')}</button>
+                          <button onClick={()=>supprimerEleve(e.id)}
                             style={{padding:'4px 10px',background:'#FCEBEB',color:'#E24B4A',border:'0.5px solid #E24B4A40',borderRadius:6,cursor:'pointer',fontSize:11,fontWeight:600}}>
-                            🗑 {lang==='ar'?'حذف':'Supprimer'}
+                            🗑
                           </button>
                         </div>
                       </td>
                     </tr>
-                  ))}
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
