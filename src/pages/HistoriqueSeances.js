@@ -480,21 +480,37 @@ export default function HistoriqueSeances({ user, navigate, goBack, lang='fr', i
               {(elevesVisibles||[]).filter(e=>
                 `${e.prenom} ${e.nom} ${e.eleve_id_ecole||''}`.toLowerCase().includes(searchFiltreEleve.toLowerCase()) ||
                 String(e.eleve_id_ecole||'').includes(searchFiltreEleve)
-              ).map(e=>(
+              ).map(e=>{
+                // Sur mobile : trouver l'objet élève complet pour naviguer vers la fiche
+                const eleveComplet = eleves.find(el=>el.id===e.id) || e;
+                const nc = (niveaux||[]).find(n=>n.code===eleveComplet.code_niveau)?.couleur ||
+                  {'5B':'#534AB7','5A':'#378ADD','2M':'#1D9E75','2':'#EF9F27','1':'#E24B4A'}[eleveComplet.code_niveau||''] || '#888';
+                return (
                 <div key={e.id}
-                  onTouchEnd={()=>{setFilterEleve(e.id);setSearchFiltreEleve('');}}
-                  onClick={()=>{setFilterEleve(e.id);setSearchFiltreEleve('');}}
-                  style={{padding:'10px 14px',fontSize:13,borderBottom:'0.5px solid #f0f0ec',
-                    display:'flex',gap:10,alignItems:'center',cursor:'pointer'}}>
-                  {e.eleve_id_ecole&&(
-                    <span style={{background:'#E1F5EE',color:'#085041',padding:'2px 7px',
-                      borderRadius:8,fontSize:11,fontWeight:700,flexShrink:0}}>
-                      #{e.eleve_id_ecole}
-                    </span>
-                  )}
-                  <span style={{fontWeight:500}}>{e.prenom} {e.nom}</span>
+                  onTouchEnd={()=>{ setSearchFiltreEleve(''); navigate('fiche', eleveComplet); }}
+                  onClick={()=>{ setSearchFiltreEleve(''); navigate('fiche', eleveComplet); }}
+                  style={{padding:'12px 14px',fontSize:13,borderBottom:'0.5px solid #f0f0ec',
+                    display:'flex',gap:12,alignItems:'center',cursor:'pointer',background:'#fff'}}>
+                  <div style={{width:36,height:36,borderRadius:'50%',background:`${nc}20`,color:nc,
+                    display:'flex',alignItems:'center',justifyContent:'center',fontWeight:800,fontSize:12,flexShrink:0}}>
+                    {(eleveComplet.prenom||'?')[0]}{(eleveComplet.nom||'?')[0]}
+                  </div>
+                  <div style={{flex:1,minWidth:0}}>
+                    <div style={{fontWeight:700,fontSize:14}}>{eleveComplet.prenom} {eleveComplet.nom}</div>
+                    <div style={{display:'flex',gap:6,marginTop:2,alignItems:'center'}}>
+                      {eleveComplet.eleve_id_ecole&&(
+                        <span style={{background:`${nc}20`,color:nc,padding:'1px 6px',
+                          borderRadius:6,fontSize:10,fontWeight:700}}>
+                          #{eleveComplet.eleve_id_ecole}
+                        </span>
+                      )}
+                      <span style={{fontSize:10,color:'#888'}}>{eleveComplet.code_niveau||'?'}</span>
+                    </div>
+                  </div>
+                  <span style={{color:'#ccc',fontSize:18}}>›</span>
                 </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>
