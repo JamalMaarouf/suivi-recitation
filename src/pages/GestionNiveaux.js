@@ -558,8 +558,7 @@ export default function GestionNiveaux({ user, navigate, goBack, lang='fr', isMo
               📚 {lang==='ar'?'المستويات':'Niveaux'}
             </div>
             <button onClick={()=>{setEditing(null);setForm({...emptyForm,ordre:niveaux.length+1});setShowForm(v=>!v);}}
-              style={{background:showForm&&!editing?'#f0f0ec':'#1D9E75',color:showForm&&!editing?'#666':'#fff',
-                border:'none',borderRadius:10,padding:'8px 14px',fontSize:13,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
+              style={{background:'rgba(255,255,255,0.25)',border:'1px solid rgba(255,255,255,0.3)',borderRadius:10,padding:'8px 14px',color:'#fff',fontSize:13,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
               {showForm&&!editing?'✕':'+ Ajouter'}
             </button>
           </div>

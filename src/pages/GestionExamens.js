@@ -494,9 +494,7 @@ export default function GestionExamens({ user, navigate, goBack, lang='fr', isMo
               📝 {lang==='ar'?'الامتحانات':'Examens'}
             </div>
             <button onClick={()=>{if(showForm&&!editing)resetForm();else startCreate();}}
-              style={{background:showForm&&!editing?'#f0f0ec':'#1D9E75',
-                color:showForm&&!editing?'#666':'#fff',border:'none',borderRadius:10,
-                padding:'8px 14px',fontSize:13,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
+              style={{background:showForm&&!editing?'rgba(255,255,255,0.15)':'rgba(255,255,255,0.25)',border:'1px solid rgba(255,255,255,0.3)',borderRadius:10,padding:'8px 14px',color:'#fff',fontSize:13,fontWeight:700,cursor:'pointer',fontFamily:'inherit',flexShrink:0}}>
               {showForm&&!editing?'✕':'+ Ajouter'}
             </button>
           </div>

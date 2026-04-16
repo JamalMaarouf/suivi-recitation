@@ -659,8 +659,7 @@ export default function GestionObjectifs({ user, navigate, goBack, lang='fr', is
           <button onClick={()=>goBack?goBack():navigate('dashboard')} style={{background:"rgba(255,255,255,0.2)",border:"none",borderRadius:10,padding:"8px 12px",color:"#fff",fontSize:16,cursor:"pointer"}}>{t(lang,'retour')}</button>
           <div style={{flex:1,fontSize:17,fontWeight:800,color:'#fff'}}>🎯 {lang==='ar'?'الأهداف':'Objectifs'}</div>
           <button onClick={showForm?()=>{setShowForm(false);setEditing(null);}:startCreate}
-            style={{background:showForm?'#f0f0ec':'#1D9E75',color:showForm?'#666':'#fff',
-              border:'none',borderRadius:10,padding:'8px 14px',fontSize:13,fontWeight:700,cursor:'pointer'}}>
+            style={{background:'rgba(255,255,255,0.25)',border:'1px solid rgba(255,255,255,0.3)',color:'#fff',borderRadius:10,padding:'8px 14px',fontSize:13,fontWeight:700,cursor:'pointer'}}>
             {showForm?'✕':(lang==='ar'?'+ إضافة':'+ Ajouter')}
           </button>
         </div>

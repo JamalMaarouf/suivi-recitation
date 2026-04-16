@@ -138,7 +138,7 @@ export default function ElevesMobile({ user, navigate, goBack, lang='ar' }) {
           </div>
           {user.role==='surveillant' && (
             <button onClick={showForm ? ()=>{ setShowForm(false); setEditEleve(null); } : startAdd}
-              style={{background: showForm ? 'rgba(255,255,255,0.15)' : 'rgba(255,255,255,0.25)',
+              style={{background:'rgba(255,255,255,0.25)',
                 border:'1px solid rgba(255,255,255,0.3)', borderRadius:10, padding:'8px 14px',
                 color:'#fff', fontSize:12, fontWeight:700, cursor:'pointer', fontFamily:'inherit'}}>
               {showForm ? '✕' : `+ ${lang==='ar'?'إضافة':'Ajouter'}`}
