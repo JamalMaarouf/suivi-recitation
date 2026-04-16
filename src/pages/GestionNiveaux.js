@@ -69,8 +69,12 @@ export default function GestionNiveaux({ user, navigate, goBack, lang='fr', isMo
         setProgramme(data.map(d => parseInt(d.reference_id)));
       } else {
         const ids = data.map(d => d.reference_id);
+        console.log('Programme chargé depuis DB:', ids.length, 'ids');
+        console.log('Premier id DB:', ids[0]);
+        console.log('Premier id souratesDB:', sDB[0]?.id);
         // Vérifier que les IDs existent dans souratesDB
         const idsValides = ids.filter(id => sDB.some(s => s.id === id));
+        console.log('IDs valides:', idsValides.length, '/ fallback?', idsValides.length === 0);
         if (idsValides.length > 0) {
           setProgramme(idsValides);
         } else {
@@ -80,6 +84,7 @@ export default function GestionNiveaux({ user, navigate, goBack, lang='fr', isMo
             if (!isNaN(num)) return sDB.find(s => s.numero === num)?.id || null;
             return id;
           }).filter(Boolean);
+          console.log('IDs convertis (fallback):', idsConvertis.length);
           setProgramme(idsConvertis);
         }
       }
