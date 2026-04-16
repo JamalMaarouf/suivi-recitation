@@ -203,7 +203,7 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang, isMobi
         supabase.from('objectifs').select('*').eq('ecole_id', user.ecole_id).eq('eleve_id',eleve.id).order('created_at',{ascending:false}),
       ]);
       const [r0,r1,r2,r3,r4,r5,r6,r7] = results.map(r=>r.status==='fulfilled'?r.value:{data:[]});
-      const vals=r0.data||[], appr=r1.data||[], exhizb=r2.data||[], mval=r3.data||[], mrec=r4.data||[], passData=r5.data||[], objData=r6.data||[], recSourates=r7.data||[];
+      const vals=r0.data||[], appr=r1.data||[], exhizb=r2.data||[], mval=r3.data||[], mrec=r4.data||[], recSourates=r5.data||[], passData=r6.data||[], objData=r7.data||[];
       setRecitationsSouratesEleve(recSourates);
       if (eleve.instituteur_referent_id) {
         const {data:inst}=await supabase.from('utilisateurs').select('prenom,nom').eq('id',eleve.instituteur_referent_id).single();
