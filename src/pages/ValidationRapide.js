@@ -531,6 +531,9 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
                     <div style={{ fontSize:14, fontWeight:700, color:'#085041' }}>
                       {lang==='ar'?'أحسنت! تم الانتهاء من جميع سور البرنامج':'Programme complété !'}
                     </div>
+                    <div style={{ fontSize:10, color:'#aaa', marginTop:8 }}>
+                      prog:{programmeNiveau.length} · recs:{recitationsSourates.length} · db:{souratesDB.length}
+                    </div>
                   </div>
                 )}
               </div>
