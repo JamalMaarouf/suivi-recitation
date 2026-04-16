@@ -198,7 +198,7 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang, isMobi
         .eq('ecole_id', user.ecole_id).eq('eleve_id',eleve.id).eq('active',true),
         supabase.from('validations').select('*, valideur:valide_par(prenom,nom)').eq('ecole_id', user.ecole_id).eq('eleve_id',eleve.id).in('type_validation',['tomon_muraja','hizb_muraja']).order('date_validation',{ascending:false}),
         supabase.from('recitations_sourates').select('*, sourate:sourate_id(nom_ar,numero), valideur:valide_par(prenom,nom)').eq('ecole_id', user.ecole_id).eq('eleve_id',eleve.id).eq('is_muraja',true).order('date_validation',{ascending:false}),
-        supabase.from('recitations_sourates').select('id,type_recitation,sourate_id').eq('ecole_id', user.ecole_id).eq('eleve_id',eleve.id),
+        supabase.from('recitations_sourates').select('id,type_recitation,sourate_id,verset_debut,verset_fin,date_validation,valide_par,sourate:sourate_id(nom_ar,numero)').eq('ecole_id', user.ecole_id).eq('eleve_id',eleve.id),
         supabase.from('passages_niveau').select('*, valide_par_u:valide_par(prenom,nom)').eq('ecole_id', user.ecole_id).eq('eleve_id',eleve.id).order('date_passage',{ascending:false}),
         supabase.from('objectifs').select('*').eq('ecole_id', user.ecole_id).eq('eleve_id',eleve.id).order('created_at',{ascending:false}),
       ]);
