@@ -1781,35 +1781,60 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile,
                   {eleves.length === 0 && <tr><td colSpan={5} className="empty">{t(lang, 'aucun_eleve')}</td></tr>}
                   {eleves.map(e => {
                     const nc = (niveauxDyn||[]).find(n=>n.code===e.code_niveau)?.couleur || {'5B':'#534AB7','5A':'#378ADD','2M':'#1D9E75','2':'#EF9F27','1':'#E24B4A'}[e.code_niveau]||'#888';
-                    const isSour = ['5B','5A','2M'].includes(e.code_niveau||'');
+                    const isSour = (niveauxDyn||[]).find(n=>n.code===e.code_niveau)?.type==='sourate' || ['5B','5A','2M'].includes(e.code_niveau||'');
+                    const niveauLabel = e.niveau==='Avancé'||e.niveau==='متقدم' ? {label:lang==='ar'?'متقدم':'Avancé',bg:'#E1F5EE',color:'#085041'} : e.niveau==='Intermédiaire'||e.niveau==='متوسط' ? {label:lang==='ar'?'متوسط':'Interm.',bg:'#E6F1FB',color:'#378ADD'} : {label:lang==='ar'?'مبتدئ':'Débutant',bg:'#FAEEDA',color:'#EF9F27'};
                     return (
-                    <tr key={e.id} style={{ background: editEleve?.id === e.id ? '#E1F5EE' : '' }}>
-                      <td>
-                        <div style={{display:'flex',alignItems:'center',gap:8}}>
-                          <Avatar prenom={e.prenom} nom={e.nom}/>
+                    <tr key={e.id} style={{background:editEleve?.id===e.id?'#E1F5EE':'',cursor:'default'}}>
+                      {/* Élève */}
+                      <td style={{padding:'10px 12px'}}>
+                        <div style={{display:'flex',alignItems:'center',gap:10}}>
+                          <div style={{width:36,height:36,borderRadius:'50%',background:`${nc}20`,color:nc,display:'flex',alignItems:'center',justifyContent:'center',fontWeight:700,fontSize:12,flexShrink:0}}>
+                            {((e.prenom||'?')[0])+((e.nom||'?')[0])}
+                          </div>
                           <div>
-                            <div style={{fontWeight:600,fontSize:13}}>{e.prenom} {e.nom}</div>
-                            <div style={{fontSize:11,color:'#aaa'}}>{e.eleve_id_ecole?`#${e.eleve_id_ecole}`:''}{e.telephone?` · 📞 ${e.telephone}`:''}</div>
+                            <div style={{fontWeight:700,fontSize:13}}>{e.prenom} {e.nom}</div>
+                            <div style={{display:'flex',gap:6,marginTop:3,alignItems:'center',flexWrap:'wrap'}}>
+                              {e.eleve_id_ecole&&<span style={{fontSize:10,color:'#aaa',fontWeight:500}}>#{e.eleve_id_ecole}</span>}
+                              {e.telephone&&<span style={{fontSize:10,color:'#888'}}>📞 {e.telephone}</span>}
+                              {e.date_inscription&&<span style={{fontSize:10,color:'#aaa'}}>📅 {new Date(e.date_inscription).toLocaleDateString(lang==='ar'?'ar-MA':'fr-FR',{day:'2-digit',month:'short',year:'numeric'})}</span>}
+                            </div>
                           </div>
                         </div>
                       </td>
-                      <td>
-                        <span style={{padding:'2px 8px',borderRadius:20,fontSize:11,fontWeight:700,background:`${nc}20`,color:nc}}>{e.code_niveau||'?'}</span>
-                        <div style={{fontSize:10,color:'#888',marginTop:2}}>{(niveauxDyn||[]).find(n=>n.code===e.code_niveau)?.nom||''}</div>
+                      {/* Niveau */}
+                      <td style={{padding:'10px 12px'}}>
+                        <div style={{display:'flex',flexDirection:'column',gap:4,alignItems:'flex-start'}}>
+                          <span style={{padding:'2px 8px',borderRadius:20,fontSize:11,fontWeight:700,background:`${nc}20`,color:nc}}>{e.code_niveau||'?'}</span>
+                          <span style={{padding:'1px 7px',borderRadius:20,fontSize:10,fontWeight:500,background:niveauLabel.bg,color:niveauLabel.color}}>{niveauLabel.label}</span>
+                        </div>
                       </td>
-                      <td style={{fontSize:12,color:'#555'}}>{instNom(e.instituteur_referent_id)}</td>
-                      <td>
+                      {/* Référent */}
+                      <td style={{fontSize:12,color:'#555',padding:'10px 12px'}}>{instNom(e.instituteur_referent_id)}</td>
+                      {/* Acquis */}
+                      <td style={{padding:'10px 12px'}}>
                         {isSour
-                          ? <span style={{fontSize:12,color:'#1D9E75',fontWeight:600}}>📖 {e.sourates_acquises||0} {lang==='ar'?'محفوظ':'acquis'}</span>
-                          : <div style={{fontSize:11,color:'#888'}}>Hizb {e.hizb_depart} · T.{e.tomon_depart}</div>
+                          ? <div style={{display:'flex',alignItems:'center',gap:6}}>
+                              <span style={{fontSize:18}}>📖</span>
+                              <div>
+                                <div style={{fontSize:12,fontWeight:700,color:'#1D9E75'}}>{e.sourates_acquises||0} {lang==='ar'?'محفوظ':'acquis'}</div>
+                                <div style={{fontSize:10,color:'#aaa'}}>{lang==='ar'?'سور':'Sourates'}</div>
+                              </div>
+                            </div>
+                          : <div>
+                              <div style={{fontSize:11,color:'#534AB7',fontWeight:600}}>Hizb {e.hizb_depart}</div>
+                              <div style={{fontSize:10,color:'#888'}}>T.{e.tomon_depart}</div>
+                            </div>
                         }
-                        {e.date_inscription&&<div style={{fontSize:10,color:'#bbb',marginTop:2}}>📅 {new Date(e.date_inscription).toLocaleDateString(lang==='ar'?'ar-MA':'fr-FR')}</div>}
                       </td>
-                      <td>
+                      {/* Actions */}
+                      <td style={{padding:'10px 12px'}}>
                         <div style={{display:'flex',gap:4}}>
-                          <button className="action-btn" onClick={()=>{setEditEleve({...e});setEditShowAcquisSelector(false);window.scrollTo(0,0);}}>{t(lang,'modifier_btn')}</button>
+                          <button onClick={()=>{setEditEleve({...e});setEditShowAcquisSelector(false);window.scrollTo(0,0);}}
+                            style={{padding:'5px 10px',background:'#E6F1FB',color:'#378ADD',border:'none',borderRadius:6,cursor:'pointer',fontSize:11,fontWeight:600}}>
+                            ✏️ {t(lang,'modifier_btn')}
+                          </button>
                           <button onClick={()=>supprimerEleve(e.id)}
-                            style={{padding:'4px 10px',background:'#FCEBEB',color:'#E24B4A',border:'0.5px solid #E24B4A40',borderRadius:6,cursor:'pointer',fontSize:11,fontWeight:600}}>
+                            style={{padding:'5px 8px',background:'#FCEBEB',color:'#E24B4A',border:'none',borderRadius:6,cursor:'pointer',fontSize:13}}>
                             🗑
                           </button>
                         </div>
