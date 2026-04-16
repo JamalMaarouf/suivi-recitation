@@ -92,12 +92,16 @@ export default function TableauHonneur({ user, navigate, goBack, lang='fr', isMo
 
   return (
     <div style={{minHeight:'100vh',background:'linear-gradient(135deg,#0a0a0f 0%,#0d1f1a 100%)',padding:'1.5rem 1rem',paddingBottom:80}}>
-      <button onClick={()=>goBack?goBack():navigate('dashboard')} style={{color:'#9FE1CB',background:'none',border:'none',cursor:'pointer',fontSize:14,marginBottom:'1.5rem',display:'block'}}>{t(lang,'retour')}</button>
-
-      <div style={{textAlign:'center',marginBottom:'1.5rem'}}>
-        <div style={{fontSize:36,marginBottom:6}}>🏆</div>
-        <div style={{fontSize:26,fontWeight:800,color:'#fff',letterSpacing:'-1px'}}>{t(lang,'tableau_honneur')}</div>
-        <div style={{fontSize:12,color:'#5DCAA5',marginTop:4}}>{periodeLabel()}</div>
+      {/* Sticky header */}
+      <div style={{position:'sticky',top:0,zIndex:100,background:'rgba(10,10,15,0.95)',padding:'48px 16px 14px',backdropFilter:'blur(8px)',borderBottom:'0.5px solid rgba(255,255,255,0.05)'}}>
+        <div style={{display:'flex',alignItems:'center',gap:12}}>
+          <button onClick={()=>goBack?goBack():navigate('dashboard')}
+            style={{background:'rgba(255,255,255,0.1)',border:'none',borderRadius:10,padding:'8px 12px',color:'#9FE1CB',fontSize:18,cursor:'pointer',minWidth:38}}>←</button>
+          <div style={{flex:1,textAlign:'center'}}>
+            <div style={{fontSize:20,fontWeight:800,color:'#fff'}}>🏆 {t(lang,'tableau_honneur')}</div>
+            <div style={{fontSize:11,color:'#5DCAA5',marginTop:2}}>{periodeLabel()}</div>
+          </div>
+        </div>
       </div>
 
       {/* Sélecteur période */}

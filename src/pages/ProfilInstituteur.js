@@ -41,9 +41,18 @@ export default function ProfilInstituteur({ instituteur, user, navigate, goBack,
   const meilleur=[...eleves].sort((a,b)=>b.etat.points.total-a.etat.points.total)[0]||null;
 
   return (
-    <div>
-      <button onClick={()=>goBack?goBack():navigate('dashboard')}
+    <div style={{paddingBottom:isMobile?80:0,background:isMobile?'#f5f5f0':'transparent',minHeight:isMobile?'100vh':'auto'}}>
+      {isMobile ? (
+        <div style={{background:'linear-gradient(135deg,#374151,#4B5563)',padding:'48px 16px 16px',position:'sticky',top:0,zIndex:100,marginBottom:12}}>
+          <div style={{display:'flex',alignItems:'center',gap:12}}>
+            <button onClick={()=>goBack?goBack():navigate('dashboard')}
               style={{background:'rgba(255,255,255,0.2)',border:'none',borderRadius:10,padding:'8px 12px',color:'#fff',fontSize:18,cursor:'pointer',minWidth:38}}>←</button>
+            <div style={{flex:1,fontSize:17,fontWeight:800,color:'#fff'}}>👨‍🏫 {lang==='ar'?'ملف الأستاذ':'Profil'}</div>
+          </div>
+        </div>
+      ) : (
+        <button onClick={()=>goBack?goBack():navigate('dashboard')} className="back-link">{t(lang,'retour')}</button>
+      )}
       <div style={{background:'#fff',border:'0.5px solid #e0e0d8',borderRadius:16,padding:'1.5rem',marginBottom:'1rem'}}>
         <div style={{display:'flex',alignItems:'center',gap:14,marginBottom:16}}>
           <Avatar prenom={instituteur.prenom} nom={instituteur.nom} size={60}/>

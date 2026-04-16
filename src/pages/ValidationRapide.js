@@ -306,7 +306,7 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
 
   // ── PC ───────────────────────────────────────────────────────────
   return (
-    <div style={{ maxWidth: 720, margin: '0 auto', paddingBottom: isMobile?80:0 }}>
+    <div style={{ maxWidth: 720, margin: '0 auto', paddingBottom: isMobile?80:0, background: isMobile?'#f5f5f0':'transparent', minHeight: isMobile?'100vh':'auto' }}>
       {/* Flash */}
       {flash && (
         <div style={{ position: 'fixed', top: 70, left: '50%', transform: 'translateX(-50%)', zIndex: 999,

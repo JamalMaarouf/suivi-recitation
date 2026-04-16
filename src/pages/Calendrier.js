@@ -55,9 +55,17 @@ export default function Calendrier({ user, navigate, goBack, lang='fr', isMobile
   const nextMois=()=>{setSelectedDay(null);if(mois===11){setMois(0);setAnnee(a=>a+1);}else setMois(m=>m+1);};
 
   return (
-    <div>
-      <button onClick={()=>goBack?goBack():navigate('dashboard')}
+    <div style={{paddingBottom:80,background:isMobile?'#f5f5f0':'transparent',minHeight:isMobile?'100vh':'auto'}}>
+      {isMobile && (
+        <div style={{background:'linear-gradient(135deg,#085041,#1D9E75)',padding:'48px 16px 16px',position:'sticky',top:0,zIndex:100,marginBottom:12}}>
+          <div style={{display:'flex',alignItems:'center',gap:12}}>
+            <button onClick={()=>goBack?goBack():navigate('dashboard')}
               style={{background:'rgba(255,255,255,0.2)',border:'none',borderRadius:10,padding:'8px 12px',color:'#fff',fontSize:18,cursor:'pointer',minWidth:38}}>←</button>
+            <div style={{flex:1,fontSize:17,fontWeight:800,color:'#fff'}}>📅 {lang==='ar'?'التقويم':'Calendrier'}</div>
+          </div>
+        </div>
+      )}
+      {!isMobile && <button onClick={()=>goBack?goBack():navigate('dashboard')} className="back-link">{t(lang,'retour')}</button>}
       <div style={{display:'grid',gridTemplateColumns:'repeat(3,minmax(0,1fr))',gap:8,marginBottom:'1.25rem'}}>
         {[{val:tomonMois,lbl:t(lang,'tomon_recites'),color:'#1D9E75',bg:'#E1F5EE'},{val:hizbMois,lbl:t(lang,'hizb_complets_label'),color:'#378ADD',bg:'#E6F1FB'},{val:joursActifsMois,lbl:t(lang,'jours_actifs'),color:'#EF9F27',bg:'#FAEEDA'}].map((k,i)=>(
           <div key={i} style={{background:k.bg,borderRadius:10,padding:'12px',textAlign:'center'}}>

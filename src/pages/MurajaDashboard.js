@@ -176,7 +176,7 @@ export default function MurajaDashboard({ user, navigate, goBack, lang='fr', isM
   if (loading) return <div style={{padding:'2rem',textAlign:'center'}}><div className="loading">...</div></div>;
 
   return (
-    <div style={{padding: isMobile ? '0 0 80px' : '1rem',maxWidth:800,margin:'0 auto',background: isMobile ? '#f5f5f0' : 'transparent',minHeight: isMobile ? '100vh' : 'auto'}}>
+    <div style={{paddingBottom: isMobile ? 80 : 0, padding: isMobile ? 0 : '1rem',maxWidth:800,margin:'0 auto',background: isMobile ? '#f5f5f0' : 'transparent',minHeight: isMobile ? '100vh' : 'auto'}}>
       {isMobile ? (
         <div style={{background:'linear-gradient(135deg,#378ADD,#0C447C)',padding:'48px 16px 16px',position:'sticky',top:0,zIndex:100}}>
           <div style={{display:'flex',alignItems:'center',gap:12,marginBottom:12}}>

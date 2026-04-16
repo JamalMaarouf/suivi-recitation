@@ -280,7 +280,7 @@ export default function RecitationSourate({ user, eleve, navigate, goBack, lang=
           </div>
         )}
         {/* Header sticky */}
-        <div style={{background:`linear-gradient(135deg,#085041,#1D9E75)`, position:'sticky', top:0, zIndex:100}}>
+        <div style={{background:`linear-gradient(135deg,#085041,#1D9E75)`, padding:'48px 0 0', position:'sticky', top:0, zIndex:100}}>
           <div style={{display:'flex', alignItems:'center', gap:12, padding:'12px 16px'}}>
             <button onClick={()=>goBack?goBack():navigate('dashboard')}
               style={{background:'none',border:'none',cursor:'pointer',fontSize:22,color:'#085041',padding:0,lineHeight:1}}>
