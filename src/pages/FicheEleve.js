@@ -417,6 +417,7 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang, isMobi
   };
 
   const _niveauxCtx = typeof niveaux !== 'undefined' ? niveaux : [];
+  const estSourateEleve = isSourateNiveauDyn(eleve.code_niveau, _niveauxCtx);
   // Tous les élèves utilisent FicheEleve (FicheSourate gardé pour compatibilité)
   // if (_niveauxCtx.some(n=>n.code===eleve.code_niveau&&n.type==='sourate') || ['5B','5A','2M'].includes(eleve.code_niveau)) {
   //   return <FicheSourate eleve={eleve} user={user} navigate={navigate} lang={lang} />;
@@ -981,7 +982,17 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang, isMobi
 
             {/* KPI */}
             <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:8,borderTop:'0.5px solid #e8e8e0',paddingTop:12}}>
-              {[['Hizb',`Hizb ${etat?.hizbEnCours}`],['Tomon/Hizb',`${etat?.tomonDansHizbActuel}/8`],[t(lang,'hizb_complets'),etat?.hizbsComplets.size],['Total',etat?.tomonTotal||etat?.tomonCumul]].map(([l,v])=>(
+              {estSourateEleve ? [
+                [lang==='ar'?'السورة الحالية':'Sourate', recitations?.filter(r=>r.type_recitation==='complete').length || 0],
+                [lang==='ar'?'السور المنجزة':'Complétées', recitations?.filter(r=>r.type_recitation==='complete').length || 0],
+                [lang==='ar'?'المقاطع':'Séquences', recitations?.filter(r=>r.type_recitation==='sequence').length || 0],
+                ['Total', etat?.points?.total || 0],
+              ] : [
+                ['Hizb',`Hizb ${etat?.hizbEnCours}`],
+                ['Tomon/Hizb',`${etat?.tomonDansHizbActuel}/8`],
+                [t(lang,'hizb_complets'),etat?.hizbsComplets?.size],
+                ['Total',etat?.tomonTotal||etat?.tomonCumul]
+              ]).map(([l,v])=>(
                 <div key={l}><div style={{fontSize:10,color:'#999',textTransform:'uppercase',letterSpacing:'0.8px',marginBottom:2}}>{l}</div><div style={{fontSize:14,fontWeight:500}}>{v}</div></div>
               ))}
             </div>
@@ -1041,21 +1052,40 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang, isMobi
           {/* APERÇU */}
           {onglet==='apercu'&&(
             <>
-              <div className="position-card">
-                <div className="pos-block"><div className="pos-val">{etat?.hizbEnCours}</div><div className="pos-lbl">Hizb</div></div>
-                <div className="pos-block"><div className="pos-val">{etat?.tomonDansHizbActuel}/8</div><div className="pos-lbl">{t(lang,'tomon_abrev')}</div></div>
-                <div className="pos-block"><div className="pos-val" style={{fontSize:14}}>{etat?.enAttenteHizbComplet?'⏳':etat?.prochainTomon?`T.${etat.prochainTomon}`:'✓'}</div><div className="pos-lbl">{t(lang,'prochain')}</div></div>
-              </div>
-              <div className="card">
-                <div style={{display:'flex',gap:4,marginBottom:8}}>
-                  {[1,2,3,4,5,6,7,8].map(n=>(
-                    <div key={n} style={{flex:1,height:14,borderRadius:4,background:n<=(etat?.tomonDansHizbActuel||0)?(etat?.enAttenteHizbComplet?'#EF9F27':'#1D9E75'):'#e8e8e0',display:'flex',alignItems:'center',justifyContent:'center'}}>
-                      {n<=(etat?.tomonDansHizbActuel||0)&&<span style={{fontSize:9,color:'#fff'}}>✓</span>}
-                    </div>
-                  ))}
+              {estSourateEleve ? (
+                <div className="position-card">
+                  <div className="pos-block">
+                    <div className="pos-val">{recitations?.filter(r=>r.type_recitation==='complete').length||0}</div>
+                    <div className="pos-lbl">{lang==='ar'?'سور مكتملة':'Complétées'}</div>
+                  </div>
+                  <div className="pos-block">
+                    <div className="pos-val">{recitations?.filter(r=>r.type_recitation==='sequence').length||0}</div>
+                    <div className="pos-lbl">{lang==='ar'?'مقاطع':'Séquences'}</div>
+                  </div>
+                  <div className="pos-block">
+                    <div className="pos-val">{eleve.sourates_acquises||0}</div>
+                    <div className="pos-lbl">{lang==='ar'?'محفوظات':'Acquis'}</div>
+                  </div>
                 </div>
-                {etat?.enAttenteHizbComplet&&<div style={{padding:'8px 12px',background:'#FAEEDA',borderRadius:8,fontSize:12,color:'#633806'}}>{t(lang,'validation_hizb_requise')}</div>}
-              </div>
+              ) : (
+                <>
+                  <div className="position-card">
+                    <div className="pos-block"><div className="pos-val">{etat?.hizbEnCours}</div><div className="pos-lbl">Hizb</div></div>
+                    <div className="pos-block"><div className="pos-val">{etat?.tomonDansHizbActuel}/8</div><div className="pos-lbl">{t(lang,'tomon_abrev')}</div></div>
+                    <div className="pos-block"><div className="pos-val" style={{fontSize:14}}>{etat?.enAttenteHizbComplet?'⏳':etat?.prochainTomon?`T.${etat.prochainTomon}`:'✓'}</div><div className="pos-lbl">{t(lang,'prochain')}</div></div>
+                  </div>
+                  <div className="card">
+                    <div style={{display:'flex',gap:4,marginBottom:8}}>
+                      {[1,2,3,4,5,6,7,8].map(n=>(
+                        <div key={n} style={{flex:1,height:14,borderRadius:4,background:n<=(etat?.tomonDansHizbActuel||0)?(etat?.enAttenteHizbComplet?'#EF9F27':'#1D9E75'):'#e8e8e0',display:'flex',alignItems:'center',justifyContent:'center'}}>
+                          {n<=(etat?.tomonDansHizbActuel||0)&&<span style={{fontSize:9,color:'#fff'}}>✓</span>}
+                        </div>
+                      ))}
+                    </div>
+                    {etat?.enAttenteHizbComplet&&<div style={{padding:'8px 12px',background:'#FAEEDA',borderRadius:8,fontSize:12,color:'#633806'}}>{t(lang,'validation_hizb_requise')}</div>}
+                  </div>
+                </>
+              )}
             </>
           )}
 

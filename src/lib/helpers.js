@@ -485,10 +485,9 @@ export function clearNiveauxCache() {
 
 // Vérifier si un code_niveau correspond à un niveau sourate (dynamique)
 export function isSourateNiveauDyn(code_niveau, niveaux) {
-  if (!niveaux || niveaux.length === 0) {
-    // Fallback sur les codes historiques
-    return ['5B','5A','2M'].includes(code_niveau);
-  }
+  // Codes historiques toujours considérés sourate
+  if (['5B','5A','2M'].includes(code_niveau)) return true;
+  if (!niveaux || niveaux.length === 0) return false;
   return niveaux.some(n => n.code === code_niveau && n.type === 'sourate');
 }
 
