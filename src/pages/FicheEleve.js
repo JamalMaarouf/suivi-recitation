@@ -421,9 +421,13 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang, isMobi
   const badges = etat ? calcBadges(validations,etat) : [];
 
   const validationsOuRecitations = estSourateEleve ? [] : validations;
-  const vitesse = estSourateEleve
-    ? { moyenne: recitationsSouratesEleve.length > 0 ? (recitationsSouratesEleve.filter(r=>r.type_recitation==='complete').length / Math.max(1, Math.ceil((new Date() - new Date(recitationsSouratesEleve[recitationsSouratesEleve.length-1]?.date_validation||new Date())) / (1000*60*60*24*7)))).toFixed(1) : '0', tendance: 'stable' }
-    : calcVitesse(validations);
+  const vitesse = estSourateEleve ? (() => {
+    const nbCompletes = recitationsSouratesEleve.filter(r=>r.type_recitation==='complete').length;
+    if (nbCompletes === 0) return { moyenne: 0, tendance: 'stable' };
+    const oldest = recitationsSouratesEleve.filter(r=>r.date_validation).sort((a,b)=>new Date(a.date_validation)-new Date(b.date_validation))[0];
+    const semaines = oldest ? Math.max(1, Math.ceil((new Date() - new Date(oldest.date_validation)) / (1000*60*60*24*7))) : 1;
+    return { moyenne: (nbCompletes / semaines).toFixed(1), tendance: 'stable' };
+  })() : calcVitesse(validations);
   const streak = estSourateEleve ? 0 : calcStreak(validations);
   const heatmapSourates = {};
   recitationsSouratesEleve.forEach(r => {
@@ -447,7 +451,7 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang, isMobi
   // }
 
   if (isMobile) {
-    const sl2 = etat ? scoreLabel(etat.points.total) : {color:'#888',bg:'#f0f0ec',label:'—'};
+    const sl2 = estSourateEleve ? scoreLabel(totalPtsSourates) : (etat ? scoreLabel(etat.points.total) : {color:'#888',bg:'#f0f0ec',label:'—'});
     const _niveauxFe = typeof niveaux !== 'undefined' ? niveaux : [];
     const nc = getNiveauColor(eleve.code_niveau||'1', _niveauxFe);
     return (
@@ -477,7 +481,7 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang, isMobi
           {/* Score banner */}
           <div style={{background:`${sl2.bg}`, padding:'8px 16px', display:'flex', justifyContent:'space-between', alignItems:'center'}}>
             <div style={{fontSize:13, color:sl2.color, fontWeight:600}}>{sl2.label}</div>
-            <div style={{fontSize:26, fontWeight:800, color:sl2.color}}>{etat?.points?.total?.toLocaleString()||0} pts</div>
+            <div style={{fontSize:26, fontWeight:800, color:sl2.color}}>{estSourateEleve?totalPtsSourates.toLocaleString():(etat?.points?.total?.toLocaleString()||0)} pts</div>
           </div>
           {/* Onglets scrollables */}
           <div style={{display:'flex', overflowX:'auto', scrollbarWidth:'none', borderTop:'0.5px solid #f0f0ec'}}>
@@ -517,7 +521,7 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang, isMobi
                     {label:lang==='ar'?'السور المكتملة':'Sourates complètes', val:recitationsSouratesEleve.filter(r=>r.type_recitation==='complete').length, color:'#1D9E75', bg:'#E1F5EE'},
                     {label:lang==='ar'?'المقاطع':'Séquences', val:recitationsSouratesEleve.filter(r=>r.type_recitation==='sequence').length, color:'#534AB7', bg:'#F0EEFF'},
                     {label:lang==='ar'?'المحفوظات':'Acquis', val:eleve.sourates_acquises||0, color:'#378ADD', bg:'#E6F1FB'},
-                    {label:'Total', val:etat?.points?.total||0, color:'#EF9F27', bg:'#FAEEDA'},
+                    {label:'Total', val:totalPtsSourates||0, color:'#EF9F27', bg:'#FAEEDA'},
                   ] : [
                     {label:lang==='ar'?'الثُّمن الحالي':'Tomon actuel', val:`T.${etat?.prochainTomon||'—'}`, color:'#1D9E75', bg:'#E1F5EE'},
                     {label:lang==='ar'?'الحزب الحالي':'Hizb en cours', val:`H.${etat?.hizbEnCours||'—'}`, color:'#534AB7', bg:'#F0EEFF'},
@@ -915,8 +919,8 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang, isMobi
                   {passages.length>0&&<span style={{padding:'2px 10px',borderRadius:20,fontSize:11,fontWeight:500,background:'#EEEDFE',color:'#534AB7'}}>
                     🎓 {passages.length} {lang==='ar'?'مستوى سابق':'passage(s)'}
                   </span>}
-                  {streak>0&&<span style={{padding:'2px 10px',borderRadius:20,fontSize:11,background:'#E6F1FB',color:'#0C447C'}}>🔥 {streak} {t(lang,+(lang==='ar'?' أسابيع':' semaines'))}</span>}
-                  {vitesse.moyenne>0&&<span style={{padding:'2px 10px',borderRadius:20,fontSize:11,background:'#f5f5f0',color:'#666'}}>{vitesse.tendance==='hausse'?'📈':vitesse.tendance==='baisse'?'📉':'➡️'} {vitesse.moyenne}T/{t(lang,+(lang==='ar'?' أسابيع':' semaines'))}</span>}
+                  {streak>0&&<span style={{padding:'2px 10px',borderRadius:20,fontSize:11,background:'#E6F1FB',color:'#0C447C'}}>🔥 {streak} {lang==='ar'?'أسابيع':'semaines'}</span>}
+                  {vitesse.moyenne>0&&<span style={{padding:'2px 10px',borderRadius:20,fontSize:11,background:'#f5f5f0',color:'#666'}}>{vitesse.tendance==='hausse'?'📈':vitesse.tendance==='baisse'?'📉':'➡️'} {vitesse.moyenne} {estSourateEleve?(lang==='ar'?'سورة/أسبوع':'sur./sem.'):(lang==='ar'?'ثمن/أسبوع':'t./sem.')}</span>}
                 </div>
               </div>
               <div style={{textAlign:'right'}}>
@@ -931,7 +935,7 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang, isMobi
                 [lang==='ar'?'سور مكتملة':'Complètes', recitationsSouratesEleve.filter(r=>r.type_recitation==='complete').length, ''],
                 [lang==='ar'?'مقاطع':'Séquences', recitationsSouratesEleve.filter(r=>r.type_recitation==='sequence').length, ''],
                 [lang==='ar'?'محفوظات':'Acquis', eleve.sourates_acquises||0, ''],
-                ['Total pts', etat?.points?.total||0, ''],
+                ['Total pts', totalPtsSourates||0, ''],
               ] : [
                 ['Tomon',etat?.points.ptsTomon,`${etat?.tomonTotal||etat?.tomonCumul}×10`],
                 ['Roboe',etat?.points.ptsRoboe,`${etat?.points.details?.nbRoboe}×25`],
@@ -1005,8 +1009,8 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang, isMobi
               </div>
             )}
 
-            {/* Exception Hizb/Tomon — Surveillant uniquement */}
-            {user.role==='surveillant'&&(
+            {/* Exception Hizb/Tomon — Hizb uniquement */}
+            {user.role==='surveillant'&&!estSourateEleve&&(
               <div style={{marginBottom:8}}>
                 <button onClick={()=>setShowExceptionModal(true)}
                   style={{padding:'6px 12px',border:'1px solid #E24B4A',borderRadius:8,background:'#fff',color:'#E24B4A',fontSize:11,cursor:'pointer',fontWeight:500}}>
@@ -1052,7 +1056,7 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang, isMobi
                 [lang==='ar'?'السور المنجزة':'Sourates', recitationsSouratesEleve.filter(r=>r.type_recitation==='complete').length],
                 [lang==='ar'?'المقاطع':'Séquences', recitationsSouratesEleve.filter(r=>r.type_recitation==='sequence').length],
                 [lang==='ar'?'المحفوظات':'Acquis', eleve.sourates_acquises||0],
-                ['Total', etat?.points?.total || 0],
+                ['Total', totalPtsSourates || 0],
               ] : [
                 ['Hizb',`Hizb ${etat?.hizbEnCours}`],
                 ['Tomon/Hizb',`${etat?.tomonDansHizbActuel}/8`],
@@ -1241,7 +1245,7 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang, isMobi
                 </div>
               )}
               <div style={{marginTop:12,display:'flex',gap:16,fontSize:12,color:'#888',flexWrap:'wrap'}}>
-                <span>{t(lang,'score_total')}: <strong style={{color:'#1D9E75'}}>{etat?.points.total.toLocaleString()} {t(lang,'pts_abrev')}</strong></span>
+                <span>{t(lang,'score_total')}: <strong style={{color:'#1D9E75'}}>{estSourateEleve?totalPtsSourates.toLocaleString():(etat?.points.total.toLocaleString()||0)} {t(lang,'pts_abrev')}</strong></span>
                 <span>{lang==='ar'?'السرعة':lang==='en'?'Speed':(lang==='ar'?'الوتيرة':'Vitesse')}: <strong style={{color:vitesse.tendance==='hausse'?'#1D9E75':vitesse.tendance==='baisse'?'#E24B4A':'#888'}}>{vitesse.moyenne} T/{t(lang,+(lang==='ar'?' أسابيع':' semaines'))} {vitesse.tendance==='hausse'?'📈':vitesse.tendance==='baisse'?'📉':'➡️'}</strong></span>
               </div>
             </div>
