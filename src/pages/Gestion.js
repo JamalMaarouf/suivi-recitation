@@ -677,7 +677,7 @@ function JalonsTab({ user, lang, jalons, setJalons, ensembles, examens, newJalon
   );
 }
 
-export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile }) {
+export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile, initialTab, setGestionTab }) {
   const { toast } = useToast();
   const [tab, setTabLocal] = useState(initialTab || 'parametres');
   const setTab = (t) => { setTabLocal(t); if(setGestionTab) setGestionTab(t); };
