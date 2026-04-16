@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
-import { getInitiales, scoreLabel } from '../lib/helpers';
+import { getInitiales, scoreLabel, loadBareme } from '../lib/helpers';
 import { t } from '../lib/i18n';
 import { getSouratesForNiveau, isSourateNiveau } from '../lib/sourates';
 import { useToast } from '../lib/toast';
@@ -80,6 +80,7 @@ export default function RecitationSourate({ user, eleve, navigate, goBack, lang=
   const [versetFin, setVersetFin] = useState('');
   const [saving, setSaving] = useState(false);
   const [flash, setFlash] = useState(null);
+  const [bareme, setBareme] = useState(null);
   const [showExceptionModal, setShowExceptionModal] = useState(false);
 
   const codeNiveau = eleve.code_niveau || '5B';
@@ -88,7 +89,10 @@ export default function RecitationSourate({ user, eleve, navigate, goBack, lang=
   const souratesOrdonnees = [...souratesNiveau].sort((a,b) => b.numero - a.numero);
   const isPrivilegied = user.role === 'surveillant';
 
-  useEffect(() => { loadData(); }, [eleve.id]);
+  useEffect(() => {
+    loadData();
+    loadBareme(supabase, user.ecole_id).then(b => setBareme(b));
+  }, [eleve.id]);
 
   // Auto-select current sourate when arriving from outside (e.g. from FicheSourate)
   useEffect(() => {
@@ -184,7 +188,8 @@ export default function RecitationSourate({ user, eleve, navigate, goBack, lang=
     return ['current', 'complete', 'unlocked'].includes(status);
   };
 
-  const totalPoints = recitations.reduce((s,r) => s + (r.points||0), 0) + (souratesAcquises * 30);
+  const ptsParSourate = bareme?.unites?.sourate||0;
+  const totalPoints = recitations.reduce((s,r) => s + (r.points||0), 0) + (souratesAcquises * ptsParSourate);
   const souratesCompletes = souratesOrdonnees.filter(s => isComplete(s.numero)).length + souratesAcquises;
   // The current sourate index
   const currentIdx = souratesOrdonnees.findIndex((sr, i) => i >= souratesAcquises && !isComplete(sr.numero));
@@ -198,7 +203,7 @@ export default function RecitationSourate({ user, eleve, navigate, goBack, lang=
       if (parseInt(versetFin) < parseInt(versetDebut)) { toast.warning(lang==='ar'?'الآية الأخيرة يجب أن تكون أكبر':'Le verset de fin doit être supérieur'); return; }
     }
     setSaving(true);
-    const pts = typeRecitation === 'complete' ? 30 : 10;
+    const pts = typeRecitation === 'complete' ? (bareme?.unites?.sourate||0) : (bareme?.unites?.sequence_sourate||0);
     const { error } = await supabase.from('recitations_sourates').insert({
       eleve_id: eleve.id,
       ecole_id: user.ecole_id,
@@ -341,15 +346,15 @@ export default function RecitationSourate({ user, eleve, navigate, goBack, lang=
                                   if (dbId) {
                                     const {error} = await supabase.from('recitations_sourates')
                                       .insert({eleve_id:eleve.id,ecole_id:user.ecole_id,sourate_id:dbId,
-                                        type_recitation:'complete',points:30,valide_par:user.id,
+                                        type_recitation:'complete',points:bareme?.unites?.sourate||0,valide_par:user.id,
                                         date_validation:new Date().toISOString()});
-                                    if (!error) { setFlash({msg:'✅ +30 pts',color:'#1D9E75'}); setTimeout(()=>setFlash(null),2000); loadData(); }
+                                    if (!error) { setFlash({msg:`✅ +${bareme?.unites?.sourate||0} pts`,color:'#1D9E75'}); setTimeout(()=>setFlash(null),2000); loadData(); }
                                   }
                                   setSaving(false); setSelectedSourate(null);
                                 }}
                                 style={{padding:'10px',background:nc,color:'#fff',border:'none',borderRadius:10,
                                   fontSize:13,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
-                                ✅ {lang==='ar'?'استظهار كامل':'Complète (+30pts)'}
+                                `✅ ${lang==='ar'?'استظهار كامل':'Complète'} (+${bareme?.unites?.sourate||0} pts)`
                               </button>
                             )}
                             <button onClick={async e=>{
@@ -359,7 +364,7 @@ export default function RecitationSourate({ user, eleve, navigate, goBack, lang=
                                 if (dbId) {
                                   const {error} = await supabase.from('recitations_sourates')
                                     .insert({eleve_id:eleve.id,ecole_id:user.ecole_id,sourate_id:dbId,
-                                      type_recitation:'sequence',points:10,valide_par:user.id,
+                                      type_recitation:'sequence',points:bareme?.unites?.sequence_sourate||0,valide_par:user.id,
                                       date_validation:new Date().toISOString(),verset_debut:1,verset_fin:1});
                                   if (!error) { setFlash({msg:'📝 +10 pts',color:'#378ADD'}); setTimeout(()=>setFlash(null),2000); loadData(); }
                                 }
@@ -641,7 +646,7 @@ export default function RecitationSourate({ user, eleve, navigate, goBack, lang=
                         <div style={{fontSize:24,marginBottom:6}}>🎉</div>
                         <div style={{fontSize:13,fontWeight:600}}>{lang==='ar'?'سورة كاملة':lang==='en'?'Full surah':'Sourate complète'}</div>
                         <div style={{fontSize:11,color:'#888',marginTop:2}}>{lang==='ar'?'للانتقال للسورة التالية':lang==='en'?'To advance to next':'Pour passer à la suivante'}</div>
-                        <div style={{fontSize:11,fontWeight:600,color:'#EF9F27',marginTop:4}}>+30 {t(lang,'pts_abrev')}</div>
+                        <div style={{fontSize:11,fontWeight:600,color:'#EF9F27',marginTop:4}}>{(bareme?.unites?.sourate||0)>0?`+${bareme.unites.sourate} ${t(lang,'pts_abrev')}`:''}</div>
                       </div>
                     </div>
 
