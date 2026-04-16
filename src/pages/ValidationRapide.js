@@ -87,6 +87,9 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
     return dbObj ? { ...s, id: dbObj.id, nb_versets: dbObj.nb_versets } : { ...s };
   })();
 
+  // Vérifier si c'est le dernier hizb (Hizb 1)
+  const estDernierHizb = !estSourate && etat && etat.hizbEnCours === 1;
+
   // Vérifier si c'est la dernière sourate disponible du programme
   const estDerniereSourate = (() => {
     if (!estSourate || !selectedEleve || !currentSourate) return false;
@@ -325,6 +328,16 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
                 ) : (
                   /* Validation tomons */
                   <div>
+                    {/* Avertissement dernier hizb */}
+                    {estDernierHizb && (
+                      <div style={{ background:'#FAEEDA', borderRadius:10, padding:'10px 14px',
+                        marginBottom:12, fontSize:12, color:'#633806', textAlign:'center', fontWeight:600 }}>
+                        ⚠️ {lang==='ar'
+                          ? 'هذا آخر حزب في البرنامج — تأكد من صحة الاستظهار قبل التسجيل'
+                          : 'Dernier hizb du programme — vérifiez avant de valider'}
+                      </div>
+                    )}
+
                     {/* Barre progression hizb */}
                     <div style={{ marginBottom: 16 }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: '#aaa', marginBottom: 6 }}>
