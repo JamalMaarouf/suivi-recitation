@@ -1386,16 +1386,11 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang, isMobi
               : calcPointsPeriode(validations||[], new Date('2000-01-01'), new Date(), baremeEleve, pointsEvenements);
             return (
               <div style={{padding:'0.5rem 0'}}>
-                {/* Total depuis le début - mobile */}
-                {(() => {
-                  const ptsTot = calcPointsPeriode(validations||[], new Date('2000-01-01'), new Date(), baremeEleve, pointsEvenements);
-                  return (
-                    <div style={{background:'linear-gradient(135deg,#085041,#1D9E75)',borderRadius:12,padding:'12px 14px',marginBottom:8,display:'flex',alignItems:'center',justifyContent:'space-between'}}>
-                      <div style={{color:'rgba(255,255,255,0.8)',fontSize:10}}>{lang==='ar'?'المجموع الكلي':'Total suivi'}</div>
-                      <div style={{color:'#fff',fontWeight:800,fontSize:18}}>{estSourate2 ? ptsSourateTotal.toLocaleString() : ptsTot.total.toLocaleString()} <span style={{fontSize:10,opacity:0.8}}>{lang==='ar'?'ن':'pts'}</span></div>
-                    </div>
-                  );
-                })()}
+                {/* Total depuis le début */}
+                <div style={{background:'linear-gradient(135deg,#085041,#1D9E75)',borderRadius:12,padding:'12px 14px',marginBottom:8,display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+                  <div style={{color:'rgba(255,255,255,0.8)',fontSize:10}}>{lang==='ar'?'المجموع الكلي':'Total suivi'}</div>
+                  <div style={{color:'#fff',fontWeight:800,fontSize:18}}>{pts.total.toLocaleString()} <span style={{fontSize:10,opacity:0.8}}>{lang==='ar'?'ن':'pts'}</span></div>
+                </div>
 
                 {/* Détail */}
                 <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
