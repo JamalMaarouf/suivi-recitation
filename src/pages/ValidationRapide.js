@@ -201,17 +201,27 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
     if (!selectedEleve || saving || !sourateSelectionnee) return;
     if (typeRec === 'sequence' && (!versetDebut || !versetFin)) return;
     setSaving(true);
+    // Récupérer l'id depuis souratesDB par numéro (plus fiable que l'id stocké dans state)
+    const sourateObj = souratesDB.find(s => s.numero === sourateSelectionnee.numero);
+    if (!sourateObj?.id) {
+      // Dernier recours : recharger souratesDB depuis Supabase
+      const { data: freshSour } = await supabase.from('sourates')
+        .select('id,numero,nom_ar,nb_versets').eq('numero', sourateSelectionnee.numero).single();
+      if (!freshSour?.id) {
+        setSaving(false);
+        return;
+      }
+      souratesDB.push(freshSour); // ajouter dans le cache local
+    }
+    const sourateId = (souratesDB.find(s => s.numero === sourateSelectionnee.numero))?.id;
+    if (!sourateId) { setSaving(false); return; }
     // Utiliser le barème de l'école si défini, sinon 0
     const ptsComplet = bareme?.unites?.sourate || 0;
     const ptsSequence = bareme?.unites?.sequence_sourate || 0;
     const pts = typeRec === 'complete' ? ptsComplet : ptsSequence;
-    if (!sourateSelectionnee.id) {
-      console.error('ERREUR: sourate sans id', sourateSelectionnee);
-      setSaving(false); return;
-    }
     const { error } = await supabase.from('recitations_sourates').insert({
       eleve_id: selectedEleve.id, ecole_id: user.ecole_id, valide_par: user.id,
-      sourate_id: sourateSelectionnee.id,
+      sourate_id: sourateId,
       type_recitation: typeRec,
       verset_debut: typeRec === 'sequence' ? parseInt(versetDebut) : null,
       verset_fin: typeRec === 'sequence' ? parseInt(versetFin) : null,
