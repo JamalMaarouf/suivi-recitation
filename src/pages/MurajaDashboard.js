@@ -212,7 +212,7 @@ export default function MurajaDashboard({ user, navigate, goBack, lang='fr', isM
       <>
       {/* Header PC */}
       <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'1.5rem'}}>
-        <button className="back-link" onClick={()=>goBack?goBack():navigate('dashboard')}>{t(lang,'retour')}</button>
+        <button style={{background:"rgba(255,255,255,0.2)",border:"none",borderRadius:10,padding:"8px 12px",color:"#fff",fontSize:18,cursor:"pointer",lineHeight:1,minWidth:38}} onClick={()=>←</button>
         <div style={{fontSize:18,fontWeight:800,color:'#085041'}}>
           📖 {lang==='ar'?'المراجعة الجماعية':"Muraja'a"}
         </div>

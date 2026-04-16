@@ -83,9 +83,7 @@ export default function ElevesInactifs({ navigate, goBack, lang='fr', user, isMo
         </div>
       ) : (
         <div style={{display:'flex',alignItems:'center',gap:12,marginBottom:'1.2rem'}}>
-          <button className="back-link" onClick={()=>goBack?goBack():navigate('dashboard')}>
-            {lang==='ar'?'← رجوع':'← Retour'}
-          </button>
+          <button style={{background:"rgba(255,255,255,0.2)",border:"none",borderRadius:10,padding:"8px 12px",color:"#fff",fontSize:18,cursor:"pointer",lineHeight:1,minWidth:38}} onClick={()=>←</button>
           <div style={{fontSize:17,fontWeight:700,color:'#1a1a1a'}}>
             {lang==='ar'?'الطلاب غير النشطين':'Élèves inactifs'} ({inactifs.length})
           </div>

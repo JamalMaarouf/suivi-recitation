@@ -463,7 +463,7 @@ export default function RecitationSourate({ user, eleve, navigate, goBack, lang=
       )}
 
       <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'1.25rem',flexWrap:'wrap',gap:8}}>
-        <button className="back-link" onClick={()=>goBack?goBack():navigate('dashboard')}>{t(lang,'retour')}</button>
+        <button style={{background:"rgba(255,255,255,0.2)",border:"none",borderRadius:10,padding:"8px 12px",color:"#fff",fontSize:18,cursor:"pointer",lineHeight:1,minWidth:38}} onClick={()=>←</button>
         <div style={{display:'flex',gap:6,alignItems:'center'}}>
           <NiveauBadge code={codeNiveau}/>
           {isPrivilegied && (
@@ -599,7 +599,7 @@ export default function RecitationSourate({ user, eleve, navigate, goBack, lang=
 
             return (
               <div>
-                <button className="back-link" onClick={()=>{setStep('liste');setSelectedSourate(null);setVersetDebut('');setVersetFin('');}}>{t(lang,'retour')}</button>
+                <button style={{background:"rgba(255,255,255,0.2)",border:"none",borderRadius:10,padding:"8px 12px",color:"#fff",fontSize:18,cursor:"pointer",lineHeight:1,minWidth:38}} onClick={()=>←</button>
 
                 {/* Sourate header */}
                 <div style={{textAlign:'center',padding:'1.5rem',background:'linear-gradient(135deg,#085041,#1D9E75)',borderRadius:16,marginBottom:'1.25rem',color:'#fff'}}>

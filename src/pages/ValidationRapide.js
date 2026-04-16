@@ -333,7 +333,7 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
       ) : (
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.5rem', padding:'1rem 0 0' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <button className="back-link" onClick={() => goBack ? goBack() : navigate('dashboard')} style={{ marginBottom: 0 }}>{t(lang, 'retour')}</button>
+          <button style={{background:"rgba(255,255,255,0.2)",border:"none",borderRadius:10,padding:"8px 12px",color:"#fff",fontSize:18,cursor:"pointer",lineHeight:1,minWidth:38}} onClick={() =>←</button>
           <div>
             <div style={{ fontSize: 20, fontWeight: 800, color: '#085041' }}>⚡ {lang === 'ar' ? 'تسجيل سريع' : 'Validation express'}</div>
             <div style={{ fontSize: 12, color: '#aaa' }}>{lang === 'ar' ? 'ابحث عن طالب وسجّل استظهاره بنقرتين' : 'Trouvez un élève et validez en 2 clics'}</div>

@@ -581,6 +581,11 @@ export default function Finance({ user, navigate, goBack, lang='fr', isMobile })
       <div style={{paddingBottom:80,background:'#f5f5f0',minHeight:'100vh'}}>
         {/* Sticky header */}
         <div style={{background:'linear-gradient(135deg,#E24B4A,#A32D2D)',padding:'48px 16px 14px',position:'sticky',top:0,zIndex:100}}>
+          <div style={{display:'flex',alignItems:'center',gap:12,marginBottom:8}}>
+            <button onClick={()=>goBack?goBack():navigate('dashboard')}
+              style={{background:'rgba(255,255,255,0.2)',border:'none',borderRadius:10,padding:'8px 12px',color:'#fff',fontSize:18,cursor:'pointer',minWidth:38}}>←</button>
+            <div style={{flex:1,fontSize:16,fontWeight:800,color:'#fff'}}>💰 {lang==='ar'?'المالية':'Finance'}</div>
+          </div>
           <div style={{fontSize:18,fontWeight:800,color:'#fff',marginBottom:10}}>
             💰 {lang==='ar'?'المالية':lang==='en'?'Finance':'Finance'}
           </div>

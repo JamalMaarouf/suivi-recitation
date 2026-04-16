@@ -61,7 +61,7 @@ export default function Comparaison({ navigate, goBack, lang='fr', isMobile, use
         </div>
       ) : (
         <div>
-          <button className="back-link" onClick={()=>goBack?goBack():navigate('dashboard')}>{t(lang,'retour')}</button>
+          <button style={{background:"rgba(255,255,255,0.2)",border:"none",borderRadius:10,padding:"8px 12px",color:"#fff",fontSize:18,cursor:"pointer",lineHeight:1,minWidth:38}} onClick={()=>←</button>
           <div style={{fontSize:20,fontWeight:600,marginBottom:'1.5rem'}}>{t(lang,'comparer_eleves')}</div>
         </div>
       )}

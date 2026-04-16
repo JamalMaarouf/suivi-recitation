@@ -241,7 +241,7 @@ export default function RapportMensuel({ user, navigate, goBack, lang='fr', isMo
       ) : (
       <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'1.25rem',flexWrap:'wrap',gap:8}}>
         <div style={{display:'flex',alignItems:'center',gap:10}}>
-          <button onClick={()=>goBack?goBack():navigate('dashboard')} className="back-link">← {lang==='ar'?'رجوع':'Retour'}</button>
+          <button onClick={()=>goBack?goBack():navigate('dashboard')} className="back-link">←</button>
           <div style={{fontSize:20,fontWeight:700}}>📊 {lang==='ar'?'التقرير الشهري':'Rapport mensuel'}</div>
         </div>
         <div style={{display:'flex',alignItems:'center',gap:8}}>

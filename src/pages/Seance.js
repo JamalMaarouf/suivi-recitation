@@ -205,6 +205,11 @@ export default function Seance({ user, navigate, goBack, lang, isMobile=false })
     return (
       <div style={{paddingBottom:80,background:'#f5f5f0',minHeight:'100vh'}}>
         <div style={{background:'linear-gradient(135deg,#085041,#1D9E75)',padding:'48px 16px 14px',position:'sticky',top:0,zIndex:100}}>
+          <div style={{display:'flex',alignItems:'center',gap:12,marginBottom:8}}>
+            <button onClick={()=>goBack?goBack():navigate('dashboard')}
+              style={{background:'rgba(255,255,255,0.2)',border:'none',borderRadius:10,padding:'8px 12px',color:'#fff',fontSize:18,cursor:'pointer',minWidth:38}}>←</button>
+            <div style={{flex:1,fontSize:16,fontWeight:800,color:'#fff'}}>📋 {lang==='ar'?'الحصة':'Séance'}</div>
+          </div>
           <div style={{fontSize:18,fontWeight:800,color:'#fff',marginBottom:10}}>
             {new Date().toLocaleDateString(lang==='ar'?'ar-MA':'fr-FR',{weekday:'long',day:'numeric',month:'long'})}
           </div>

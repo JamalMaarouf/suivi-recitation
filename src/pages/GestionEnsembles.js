@@ -387,7 +387,7 @@ export default function GestionEnsembles({ user, navigate, goBack, lang='fr', is
     return (
       <div style={{ paddingBottom: 80, background: '#f5f5f0', minHeight: '100vh' }}>
         <div style={{ background:'linear-gradient(135deg,#D85A30,#E87A50)',padding:'48px 16px 14px',position:'sticky',top:0,zIndex:100 }}>
-          <button onClick={() => goBack ? goBack() : navigate('dashboard')} style={{background:"rgba(255,255,255,0.2)",border:"none",borderRadius:10,padding:"8px 12px",color:"#fff",fontSize:16,cursor:"pointer"}}>{t(lang,'retour')}</button>
+          <button onClick={() => goBack ? goBack() : navigate('dashboard')} style={{background:"rgba(255,255,255,0.2)",border:"none",borderRadius:10,padding:"8px 12px",color:"#fff",fontSize:16,cursor:"pointer"}}>←</button>
           <div style={{ flex: 1, fontSize: 17, fontWeight: 800, color: '#085041' }}>📦 {lang === 'ar' ? 'مجموعات السور' : 'Ensembles'}</div>
         </div>
         <div style={{ padding: '12px' }}>
