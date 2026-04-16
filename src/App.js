@@ -71,19 +71,42 @@ class ErrorBoundary extends React.Component {
   componentDidCatch(error, info) { console.error('App Error:', error, info); }
   render() {
     if (this.state.error) {
+      const isChunkError = this.state.error.toString().includes('ChunkLoadError') ||
+                           this.state.error.toString().includes('Loading chunk');
       return (
-        <div style={{padding:20,background:'#fff',color:'#E24B4A',fontFamily:'Arial'}}>
-          <h2>🚨 Erreur de rendu</h2>
-          <pre style={{fontSize:12,background:'#f5f5f5',padding:10,borderRadius:8,overflowX:'auto'}}>
-            {this.state.error.toString()}
-          </pre>
-          <div style={{display:'flex',gap:8,marginTop:10}}>
-            <button onClick={()=>this.setState({error:null})} style={{padding:'6px 12px',cursor:'pointer',borderRadius:6,border:'1px solid #ccc'}}>
-              🔄 Réessayer
-            </button>
-            <button onClick={()=>{this.setState({error:null});window.history.back();}} style={{padding:'6px 12px',cursor:'pointer',borderRadius:6,border:'1px solid #ccc',background:'#f5f5f0'}}>
-              ← Retour
-            </button>
+        <div style={{padding:24,background:'#fff',fontFamily:'Tajawal,Arial,sans-serif',
+          maxWidth:500,margin:'40px auto',borderRadius:16,boxShadow:'0 4px 20px rgba(0,0,0,0.08)',
+          border:'0.5px solid #e0e0d8',textAlign:'center'}}>
+          <div style={{fontSize:48,marginBottom:12}}>{isChunkError?'🔄':'🚨'}</div>
+          <h2 style={{color:isChunkError?'#085041':'#E24B4A',fontSize:18,fontWeight:800,marginBottom:8}}>
+            {isChunkError?'تحديث التطبيق':'Erreur de rendu 🚨'}
+          </h2>
+          <p style={{fontSize:13,color:'#888',marginBottom:16}}>
+            {isChunkError
+              ? 'تم تحديث التطبيق. يرجى إعادة التحميل للاستمرار.
+L'application a été mise à jour. Veuillez recharger.'
+              : this.state.error.toString()}
+          </p>
+          <div style={{display:'flex',gap:8,justifyContent:'center'}}>
+            {isChunkError ? (
+              <button onClick={()=>window.location.reload()}
+                style={{padding:'10px 24px',cursor:'pointer',borderRadius:10,border:'none',
+                  background:'#1D9E75',color:'#fff',fontWeight:700,fontSize:14,fontFamily:'inherit'}}>
+                🔄 Recharger / إعادة التحميل
+              </button>
+            ) : (
+              <>
+                <button onClick={()=>this.setState({error:null})}
+                  style={{padding:'8px 16px',cursor:'pointer',borderRadius:8,border:'1px solid #ccc',fontSize:13}}>
+                  🔄 Réessayer
+                </button>
+                <button onClick={()=>{this.setState({error:null});window.history.back();}}
+                  style={{padding:'8px 16px',cursor:'pointer',borderRadius:8,border:'1px solid #ccc',
+                    background:'#f5f5f0',fontSize:13}}>
+                  ← Retour
+                </button>
+              </>
+            )}
           </div>
         </div>
       );
