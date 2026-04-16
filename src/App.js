@@ -180,7 +180,12 @@ export default function App() {
     window.scrollTo(0, 0);
   };
 
-  const [showLangMenu, setShowLangMenu] = React.useState(false);
+  // navigateRoot : pour la navbar — ne sauvegarde pas dans navHistory
+  const navigateRoot = (p) => {
+    setNavHistory([]);
+    setPageWithRef(p);
+    window.scrollTo(0, 0);
+  };
   const [showUserMenu, setShowUserMenu] = React.useState(false);
   const LANGS = [
     { code: 'fr', flag: '🇫🇷', label: 'FR' },
@@ -378,7 +383,7 @@ export default function App() {
                 ].filter(b=>b.roles.includes(user.role)).map(b=>{
                   const isActive = page===b.p;
                   return (
-                    <button key={b.p} onClick={() => navigate(b.p)}
+                    <button key={b.p} onClick={() => navigateRoot(b.p)}
                       style={{display:'flex',flexDirection:'row',alignItems:'center',gap:5,
                         padding:'9px 11px',border:'none',
                         borderBottom:isActive?'2.5px solid #1D9E75':'2.5px solid transparent',
@@ -392,7 +397,7 @@ export default function App() {
               </div>
 
               {/* Logo متابعة التحفيظ — à droite physique (dernier enfant en LTR) */}
-              <div onClick={() => navigate('dashboard')}
+              <div onClick={() => navigateRoot('dashboard')}
                 style={{display:'flex',flexDirection:'row',alignItems:'center',gap:8,
                   padding:'6px 16px',cursor:'pointer',flexShrink:0,
                   borderLeft:'1px solid #f0f0ec'}}>
@@ -477,7 +482,7 @@ export default function App() {
             ]).map(tab => (
               <div key={tab.key}
                 className={`bottom-nav-item ${page === tab.key ? 'active' : ''}`}
-                onClick={() => navigate(tab.key)}>
+                onClick={() => navigateRoot(tab.key)}>
                 <span className="bottom-nav-icon">{tab.icon}</span>
                 <span className="bottom-nav-label">{tab.label}</span>
               </div>
