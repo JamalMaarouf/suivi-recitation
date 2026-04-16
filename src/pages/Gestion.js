@@ -1568,9 +1568,10 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
   // Navigation immédiate pour onglets liens mobiles (DOIT être avant if(isMobile) — règle hooks React)
   useEffect(() => {
     if (!isMobile) return;
-    if (tab==='niveaux_link')   { navigate('niveaux',  null, {tab:'parametres'}); setTab('eleves'); }
-    if (tab==='ensembles_link') { navigate('ensembles',null, {tab:'parametres'}); setTab('eleves'); }
-    if (tab==='examens_link')   { navigate('examens',  null, {tab:'parametres'}); setTab('eleves'); }
+    // Naviguer vers la page dédiée en sauvegardant tab:'eleves' pour que goBack revienne correctement
+    if (tab==='niveaux_link')   { navigate('niveaux',  null, {tab:'eleves'}); setTab('eleves'); }
+    if (tab==='ensembles_link') { navigate('ensembles',null, {tab:'eleves'}); setTab('eleves'); }
+    if (tab==='examens_link')   { navigate('examens',  null, {tab:'eleves'}); setTab('eleves'); }
   }, [tab, isMobile]); // eslint-disable-line
 
   if (isMobile) {

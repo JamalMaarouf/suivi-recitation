@@ -387,15 +387,16 @@ export default function GestionEnsembles({ user, navigate, goBack, lang='fr', is
     return (
       <div style={{ paddingBottom: 80, background: '#f5f5f0', minHeight: '100vh' }}>
         <div style={{ background:'linear-gradient(135deg,#085041,#1D9E75)',padding:'48px 16px 14px',position:'sticky',top:0,zIndex:100 }}>
-          <button onClick={() => goBack ? goBack() : navigate('dashboard')} style={{background:'rgba(255,255,255,0.2)',border:'none',borderRadius:10,padding:'0',color:'#fff',fontSize:20,cursor:'pointer',flexShrink:0,width:38,height:38,display:'flex',alignItems:'center',justifyContent:'center'}}>←</button>
-          <div style={{ flex: 1, fontSize: 17, fontWeight: 800, color: '#085041' }}>📦 {lang === 'ar' ? 'مجموعات السور' : 'Ensembles'}</div>
+          <div style={{display:'flex',alignItems:'center',gap:12}}>
+            <button onClick={() => goBack ? goBack() : navigate('dashboard')} style={{background:'rgba(255,255,255,0.2)',border:'none',borderRadius:10,padding:'0',color:'#fff',fontSize:20,cursor:'pointer',flexShrink:0,width:38,height:38,display:'flex',alignItems:'center',justifyContent:'center'}}>←</button>
+            <div style={{flex:1, fontSize:17, fontWeight:800, color:'#fff'}}>📦 {lang === 'ar' ? 'مجموعات السور' : 'Ensembles'}</div>
+            <button onClick={openCreate} style={{background:'rgba(255,255,255,0.25)',border:'1px solid rgba(255,255,255,0.3)',borderRadius:10,padding:'8px 14px',color:'#fff',fontSize:13,fontWeight:700,cursor:'pointer',fontFamily:'inherit',flexShrink:0,whiteSpace:'nowrap'}}>+ {lang==='ar'?'إضافة':'Ajouter'}</button>
+          </div>
         </div>
         <div style={{ padding: '12px' }}>
           {loading && <div style={{ textAlign: 'center', padding: '2rem', color: '#888' }}>...</div>}
           {!loading && (
-            <button onClick={openCreate} style={{ width: '100%', padding: '13px', background: '#1D9E75', color: '#fff', border: 'none', borderRadius: 12, fontSize: 14, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', marginBottom: 14, boxShadow: '0 3px 10px rgba(29,158,117,0.3)' }}>
-              + {lang === 'ar' ? 'إضافة مجموعة جديدة' : 'Ajouter un ensemble'}
-            </button>
+            
           )}
           {!loading && ensembles.length === 0 && (
             <div style={{ textAlign: 'center', color: '#aaa', padding: '3rem', background: '#fff', borderRadius: 12 }}>

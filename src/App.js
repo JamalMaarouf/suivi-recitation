@@ -136,7 +136,7 @@ export default function App() {
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
   const [lang, setLangRaw] = useState(() => localStorage.getItem('suivi_lang') || 'fr');
   const [navHistory, setNavHistory] = useState([]);
-  const [gestionTab, setGestionTab] = useState('parametres');
+  const [gestionTab, setGestionTab] = useState(isMobile ? 'eleves' : 'parametres');
 
   const handleInstall = async () => {
     if (!deferredPrompt) return;
