@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { supabase } from '../lib/supabase';
-import { calcEtatEleve, niveauTraduit, calcStats, formatDate, formatDateCourt, isInactif, joursDepuis, getInitiales, scoreLabel, loadBareme, BAREME_DEFAUT } from '../lib/helpers';
+import { calcEtatEleve, isSourateNiveauDyn, niveauTraduit, calcStats, formatDate, formatDateCourt, isInactif, joursDepuis, getInitiales, scoreLabel, loadBareme, BAREME_DEFAUT } from '../lib/helpers';
 import { t } from '../lib/i18n';
 
 const C = { green:'#1D9E75',greenBg:'#E1F5EE',blue:'#378ADD',blueBg:'#E6F1FB',amber:'#EF9F27',amberBg:'#FAEEDA',red:'#E24B4A',redBg:'#FCEBEB',border:'#e0e0d8',muted:'#888',dark:'#1a1a1a' };
@@ -77,6 +77,10 @@ export default function Dashboard({ user, navigate, goBack, lang, isMobile=false
     // Dernière récitation sourate par élève
     const recSouratesMap = {};
     (rd||[]).forEach(r => { if (!recSouratesMap[r.eleve_id]) recSouratesMap[r.eleve_id] = r.date_validation; });
+    const recSouratesCountMap = {};
+    (rd||[]).filter(r=>r.type_recitation==='complete').forEach(r=>{
+      recSouratesCountMap[r.eleve_id] = (recSouratesCountMap[r.eleve_id]||0)+1;
+    });
     const elevesData = (ed||[]).map(eleve => {
       const vals = (vd||[]).filter(v=>v.eleve_id===eleve.id);
       const etat = calcEtatEleve(vals,eleve.hizb_depart,eleve.tomon_depart);
@@ -86,7 +90,7 @@ export default function Dashboard({ user, navigate, goBack, lang, isMobile=false
         ? (new Date(derniereHizb) > new Date(derniereSourate) ? derniereHizb : derniereSourate)
         : (derniereHizb || derniereSourate);
       const inst = (id||[]).find(i=>i.id===eleve.instituteur_referent_id);
-      return {...eleve,etat,derniere,jours:joursDepuis(derniere),instituteurNom:inst?`${inst.prenom} ${inst.nom}`:'—',instituteur:inst,inactif:isInactif(derniere)};
+      return {...eleve,etat,derniere,jours:joursDepuis(derniere),instituteurNom:inst?`${inst.prenom} ${inst.nom}`:'—',instituteur:inst,inactif:isInactif(derniere),recSouratesCount:recSouratesCountMap[eleve.id]||0};
     });
     setNiveaux(nv||[]); setEleves(elevesData); setInstituteurs(id||[]); setAllValidations(vd||[]); setStats(calcStats(vd||[])); setLoading(false);
   };
@@ -639,9 +643,20 @@ export default function Dashboard({ user, navigate, goBack, lang, isMobile=false
                         </div>
                         <Medaille idx={rang-1}/>
                       </div>
-                      <div style={{display:'flex',alignItems:'baseline',gap:4,marginBottom:10}}><span style={{fontSize:28,fontWeight:800,color:sl.color,letterSpacing:'-1px'}}>{eleve.etat.points.total.toLocaleString()}</span><span style={{fontSize:12,color:C.muted}}>{t(lang,'pts_abrev')}</span></div>
-                      {['5B','5A','2M'].includes(eleve.code_niveau||'')?(<div style={{fontSize:11,color:C.muted,marginBottom:6}}>{lang==='ar'?'سور':lang==='en'?'Surahs':'Sourates'}</div>):(<div style={{fontSize:11,color:C.muted,marginBottom:6}}>Hizb {eleve.etat.hizbEnCours} · {eleve.etat.tomonCumul} {t(lang,'tomon_abrev')} · {eleve.etat.hizbsComplets.size} {t(lang,'hizb_abrev')}</div>)}
-                      <Bar8 done={eleve.etat.tomonDansHizbActuel} color={eleve.etat.enAttenteHizbComplet?C.amber:C.green}/>
+                      <div style={{display:'flex',alignItems:'baseline',gap:4,marginBottom:10}}>
+                        <span style={{fontSize:28,fontWeight:800,color:sl.color,letterSpacing:'-1px'}}>
+                          {isSourateNiveauDyn(eleve.code_niveau,niveaux)?eleve.recSouratesCount.toLocaleString():eleve.etat.points.total.toLocaleString()}
+                        </span>
+                        <span style={{fontSize:12,color:C.muted}}>{isSourateNiveauDyn(eleve.code_niveau,niveaux)?(lang==='ar'?'سورة':'sour.'):t(lang,'pts_abrev')}</span>
+                      </div>
+                      {isSourateNiveauDyn(eleve.code_niveau,niveaux)?(
+                        <div style={{fontSize:11,color:C.muted,marginBottom:6}}>
+                          {eleve.recSouratesCount} {lang==='ar'?'سورة مكتملة':'sourates'} · {eleve.etat.points.total||0} {t(lang,'pts_abrev')}
+                        </div>
+                      ):(
+                        <div style={{fontSize:11,color:C.muted,marginBottom:6}}>Hizb {eleve.etat.hizbEnCours} · {eleve.etat.tomonCumul} {t(lang,'tomon_abrev')} · {eleve.etat.hizbsComplets.size} {t(lang,'hizb_abrev')}</div>
+                      )}
+                      {!isSourateNiveauDyn(eleve.code_niveau,niveaux)&&<Bar8 done={eleve.etat.tomonDansHizbActuel} color={eleve.etat.enAttenteHizbComplet?C.amber:C.green}/>}
                       <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginTop:8}}>
                         <div style={{fontSize:11,color:C.muted}}>{eleve.derniere?formatDateCourt(eleve.derniere):t(lang,'jamais')}</div>
                         {eleve.etat.enAttenteHizbComplet?<span className="badge badge-amber" style={{fontSize:9}}>{t(lang,'en_attente')}</span>:eleve.inactif?<span className="badge badge-alert" style={{fontSize:9}}>{eleve.jours}{t(lang,'jours')}</span>:<span className="badge badge-green" style={{fontSize:9}}>{t(lang,'actif')}</span>}
