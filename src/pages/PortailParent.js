@@ -7,6 +7,7 @@ import { t } from '../lib/i18n';
 
 const IS_SOURATE = (code) => ['5B','5A','2M'].includes(code||'');
 const NIVEAU_COLORS = {'5B':'#534AB7','5A':'#378ADD','2M':'#1D9E75','2':'#EF9F27','1':'#E24B4A'};
+const NIVEAUX_LABELS = {'5B':'Préscolaire','5A':'Primaire 1-2','2M':'Primaire 3-4','2':'Primaire 5-6','1':'Collège/Lycée'};
 
 function Avatar({ prenom, nom, size=40, bg='#E1F5EE', color='#085041' }) {
   return <div style={{width:size,height:size,borderRadius:'50%',background:bg,color,display:'flex',alignItems:'center',justifyContent:'center',fontWeight:700,fontSize:size*0.35,flexShrink:0}}>{getInitiales(prenom,nom)}</div>;
@@ -50,7 +51,7 @@ export default function PortailParent({ parent, navigate, goBack, lang='fr', onL
   useEffect(() => { if (enfants.length>0 && !selectedEnfant) setSelectedEnfant(enfants[0]); }, [enfants]);
 
   const loadData = async () => {
-    loadBareme(supabase, user.ecole_id).then(b=>setBareme({...BAREME_DEFAUT,...b.unites}));
+    loadBareme(supabase, parent.ecole_id).then(b=>setBareme({...BAREME_DEFAUT,...b.unites}));
     setLoading(true);
     try {
       // Load linked children

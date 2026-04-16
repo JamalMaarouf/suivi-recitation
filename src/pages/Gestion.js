@@ -1565,19 +1565,18 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
   const NL = Object.fromEntries(niveauxActifs.map(n=>[n.code, n.nom||n.code]));
   const NIVEAUX_M = niveauxActifs.map(n=>n.code);
 
-
+  // Navigation immédiate pour onglets liens mobiles (DOIT être avant if(isMobile) — règle hooks React)
+  useEffect(() => {
+    if (!isMobile) return;
+    if (tab==='niveaux_link')   { navigate('niveaux',  null, {tab:'parametres'}); setTab('eleves'); }
+    if (tab==='ensembles_link') { navigate('ensembles',null, {tab:'parametres'}); setTab('eleves'); }
+    if (tab==='examens_link')   { navigate('examens',  null, {tab:'parametres'}); setTab('eleves'); }
+  }, [tab, isMobile]); // eslint-disable-line
 
   if (isMobile) {
     // Couleurs dynamiques depuis niveauxActifs, fallback hardcoded
     const getNC = (code) => (niveauxActifs||[]).find(n=>n.code===code)?.couleur ||
       {'5B':'#534AB7','5A':'#378ADD','2M':'#1D9E75','2':'#EF9F27','1':'#E24B4A'}[code] || '#888';
-
-    // Navigation immédiate pour les onglets qui pointent vers d'autres pages
-    React.useEffect(() => {
-      if (tab==='niveaux_link')   { navigate('niveaux',  null, {tab:'parametres'}); setTab('eleves'); }
-      if (tab==='ensembles_link') { navigate('ensembles',null, {tab:'parametres'}); setTab('eleves'); }
-      if (tab==='examens_link')   { navigate('examens',  null, {tab:'parametres'}); setTab('eleves'); }
-    }, [tab]);
 
     const resetFormEleve = () => {
       setNewEleve({prenom:'',nom:'',niveau:'Débutant',code_niveau:'1',eleve_id_ecole:'',
