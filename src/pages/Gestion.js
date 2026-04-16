@@ -1128,43 +1128,45 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile,
 
   // Export PDF instituteurs
   const exportInstituteursPDF = () => {
-    const w = window.open('','_blank','width=1000,height=800');
+    const w = window.open('','_blank','width=900,height=700');
     if (!w) { toast.warning(lang==='ar'?'يرجى السماح بالنوافذ المنبثقة':'Autorisez les popups pour exporter'); return; }
     const rows = instituteurs.map((inst,i) => {
       const nbEleves = eleves.filter(e=>e.instituteur_referent_id===inst.id).length;
       const elevesInst = eleves.filter(e=>e.instituteur_referent_id===inst.id);
-      const niveaux = [...new Set(elevesInst.map(e=>e.code_niveau||'?'))].join(', ');
+      const niveauxCodes = [...new Set(elevesInst.map(e=>e.code_niveau||'?'))].map(c=>`<span style="display:inline-block;padding:1px 6px;border-radius:10px;font-size:9px;font-weight:700;background:#E1F5EE;color:#085041;margin:1px">${c}</span>`).join(' ');
+      const elevesListe = elevesInst.slice(0,8).map(e=>e.prenom+' '+e.nom).join(' · ')+(elevesInst.length>8?` (+${elevesInst.length-8})`:'') || '—';
       const bg = i%2===0?'#fff':'#f9f9f6';
-      return '<tr style="background:'+bg+'">'
-        +'<td>'+(i+1)+'</td>'
-        +'<td><strong>'+inst.prenom+' '+inst.nom+'</strong></td>'
-        +'<td style="color:#888">'+(inst.identifiant||'—')+'</td>'
-        +'<td style="color:#1D9E75;font-weight:700">'+nbEleves+'</td>'
-        +'<td style="color:#555">'+niveaux+'</td>'
-        +'</tr>';
+      return `<tr style="background:${bg}">
+        <td style="color:#bbb;text-align:center;font-size:10px">${i+1}</td>
+        <td><strong>${inst.prenom} ${inst.nom}</strong><div style="font-size:9px;color:#aaa">${inst.identifiant||''}</div></td>
+        <td style="text-align:center"><span style="font-size:16px;font-weight:800;color:#1D9E75">${nbEleves}</span></td>
+        <td>${niveauxCodes}</td>
+        <td style="font-size:10px;color:#888">${elevesListe}</td>
+      </tr>`;
     }).join('');
-
-    const html = '<!DOCTYPE html><html dir="'+(lang==='ar'?'rtl':'ltr')+'" lang="'+(lang==='ar'?'ar':'fr')+'"><head><meta charset="UTF-8"><title>Liste Instituteurs</title>'
-      +'<style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:Tajawal,Arial,sans-serif;padding:20px;font-size:12px}'
-      +'.header{background:linear-gradient(135deg,#085041,#1D9E75);color:#fff;padding:16px 20px;border-radius:10px;margin-bottom:16px}'
-      +'h1{font-size:18px;font-weight:800;margin-bottom:4px}'
-      +'table{width:100%;border-collapse:collapse;margin-top:10px}'
-      +'th{background:#085041;color:#fff;padding:8px;text-align:start;font-size:11px}td{padding:6px 8px;border-bottom:1px solid #f0f0ec}'+'th2{font-size:11px}'
-      +'td{padding:7px 8px;border-bottom:1px solid #f0f0ec;font-size:11px}'
-      +'.footer{margin-top:16px;font-size:9px;color:#bbb;border-top:1px solid #e0e0d8;padding-top:8px;text-align:center}'
-      +'</style></head><body>'
-      +'<div class="header"><h1>👨‍🏫 '+(lang==='ar'?'قائمة الأساتذة':'Liste des Instituteurs')+'</h1>'
-      +'<div style="font-size:11px;opacity:0.8">'+instituteurs.length+' '+(lang==='ar'?'أستاذ':'instituteur(s)')+' · '+new Date().toLocaleDateString('fr-FR')+'</div></div>'
-      +'<table><thead><tr>'
-      +'<th>#</th><th>'+(lang==='ar'?'الاسم':'Nom complet')+'</th><th>'+(lang==='ar'?'المعرف':'Identifiant')+'</th>'
-      +'<th>'+(lang==='ar'?'عدد الطلاب':'Nb élèves')+'</th><th>'+(lang==='ar'?'المستويات':'Niveaux')+'</th>'
-      +'</tr></thead><tbody>'+rows+'</tbody></table>'
-      +'<div class="footer">Généré le '+new Date().toLocaleDateString('fr-FR',{day:'2-digit',month:'long',year:'numeric'})+' · متابعة التحفيظ</div>'
-      +'</body></html>';
-    w.document.write(html);
-    w.document.close();
+    const html = `<!DOCTYPE html><html dir="${lang==='ar'?'rtl':'ltr'}" lang="${lang==='ar'?'ar':'fr'}">
+<head><meta charset="UTF-8"><title>Liste Instituteurs</title>
+<style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:Tajawal,Arial,sans-serif;padding:16px;font-size:12px}
+.header{background:linear-gradient(135deg,#085041,#1D9E75);color:#fff;padding:14px 20px;border-radius:10px;margin-bottom:14px;display:flex;justify-content:space-between;align-items:center}
+h1{font-size:17px;font-weight:800}table{width:100%;border-collapse:collapse}
+th{background:#085041;color:#fff;padding:7px 10px;text-align:start;font-size:10px;font-weight:600}
+td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-size:11px}
+.footer{margin-top:14px;font-size:9px;color:#bbb;border-top:1px solid #e0e0d8;padding-top:8px;text-align:center}
+@media print{body{padding:8px}}</style></head><body>
+<div class="header"><h1>👨‍🏫 ${lang==='ar'?'قائمة الأساتذة':'Liste des Instituteurs'}</h1>
+<div style="font-size:11px;opacity:0.85">${instituteurs.length} ${lang==='ar'?'أستاذ':'instituteur(s)'} · ${new Date().toLocaleDateString('fr-FR')}</div></div>
+<table><thead><tr>
+  <th style="width:4%">#</th>
+  <th style="width:20%">${lang==='ar'?'الأستاذ':'Instituteur'}</th>
+  <th style="width:8%">${lang==='ar'?'عدد الطلاب':'Élèves'}</th>
+  <th style="width:14%">${lang==='ar'?'المستويات':'Niveaux'}</th>
+  <th>${lang==='ar'?'قائمة الطلاب':'Liste élèves'}</th>
+</tr></thead><tbody>${rows}</tbody></table>
+<div class="footer">Généré le ${new Date().toLocaleDateString('fr-FR',{day:'2-digit',month:'long',year:'numeric'})} · متابعة التحفيظ</div>
+</body></html>`;
+    w.document.write(html); w.document.close();
     setTimeout(function(){ w.print(); }, 600);
-  };
+  }
 
 
 
