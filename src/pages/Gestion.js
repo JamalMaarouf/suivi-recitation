@@ -801,8 +801,8 @@ function JalonsTab({ user, lang, jalons, setJalons, ensembles, examens, newJalon
             <label className="field-lbl">{lang==='ar'?'شرط الحصول على الشهادة':"Condition d'obtention"} <span style={{color:'#E24B4A'}}>*</span></label>
             <div style={{display:'flex',gap:8,marginTop:4}}>
               {[
-                {val:'cumul', icon:'📚', label:lang==='ar'?'تراكمي (واحداً بواحداً)':'Cumulatif (un par un)', desc:lang==='ar'?'الطالب يستظهر تدريجياً على مدى جلسات متعددة':'L'élève récite progressivement sur plusieurs séances'},
-                {val:'seance_unique', icon:'🎯', label:lang==='ar'?'تراكمي + استظهار كامل في جلسة واحدة':'Cumulatif + récitation complète en une séance', desc:lang==='ar'?'يجب استظهار كل المحتوى مرة واحدة في جلسة واحدة للحصول على الشهادة':'Doit réciter tout le contenu en une seule séance pour obtenir le certificat'},
+                {val:'cumul', icon:'📚', label:lang==='ar'?'تراكمي (واحداً بواحداً)':'Cumulatif (un par un)', desc:lang==='ar'?'الطالب يستظهر تدريجياً على مدى جلسات متعددة':"L'élève récite progressivement sur plusieurs séances"},
+                {val:'seance_unique', icon:'🎯', label:lang==='ar'?'تراكمي + استظهار كامل في جلسة واحدة':'Cumulatif + récitation complète en une séance', desc:lang==='ar'?'يجب استظهار كل المحتوى مرة واحدة في جلسة واحدة للحصول على الشهادة':"Doit réciter tout le contenu en une seule séance pour obtenir le certificat"},
               ].map(opt=>(
                 <div key={opt.val} onClick={()=>setNewJalon({...newJalon,condition_obtention:opt.val})}
                   style={{flex:1,padding:'10px 12px',borderRadius:10,cursor:'pointer',
