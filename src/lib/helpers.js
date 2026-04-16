@@ -563,45 +563,56 @@ export async function verifierEtCreerCertificats(supabase, {
       const conditionObtention = jalon.condition_obtention || 'cumul';
 
       if (jalon.type_jalon === 'hizb') {
+        // ── Étape 1 : vérifier le cumul progressif ──
         const requiredHizb = jalon.hizb_ids || [];
-        const conditionCumul = requiredHizb.length > 0 && requiredHizb.every(h => hizbsComplets.has(Number(h)));
-        if (!conditionCumul) { jalonAtteint = false; }
-        else if (conditionObtention === 'seance_unique') {
-          // Vérifier que tous les hizb requis ont été validés lors d'une même journée
-          const validationsHizb = (validations||[]).filter(v=>v.type_validation==='hizb_complet'&&requiredHizb.includes(Number(v.hizb_valide)));
-          const datesCounts = {};
-          validationsHizb.forEach(v=>{const d=v.date_validation?.slice(0,10);if(d)datesCounts[d]=(datesCounts[d]||0)+1;});
-          jalonAtteint = Object.values(datesCounts).some(count=>count>=requiredHizb.length);
+        const cumulOK = requiredHizb.length > 0 && requiredHizb.every(h => hizbsComplets.has(Number(h)));
+
+        if (!cumulOK) {
+          jalonAtteint = false; // prérequis pas remplis
+        } else if (conditionObtention === 'cumul_puis_examen' && jalon.examen_final_id) {
+          // ── Étape 2 : vérifier que l'examen final est réussi ──
+          const { data: resultatFinal } = await supabase
+            .from('resultats_examens').select('id')
+            .eq('eleve_id', eleve.id)
+            .eq('examen_id', jalon.examen_final_id)
+            .eq('statut', 'reussi').maybeSingle();
+          jalonAtteint = !!resultatFinal;
         } else {
-          jalonAtteint = conditionCumul;
+          // condition='cumul' — le cumul suffit
+          jalonAtteint = cumulOK;
         }
+
       } else if (jalon.type_jalon === 'ensemble_sourates' && jalon.ensemble_id) {
         const { data: ensemble } = await supabase
-          .from('ensembles_sourates')
-          .select('sourates_ids')
-          .eq('id', jalon.ensemble_id)
-          .maybeSingle();
+          .from('ensembles_sourates').select('sourates_ids')
+          .eq('id', jalon.ensemble_id).maybeSingle();
+
         if (ensemble && ensemble.sourates_ids && ensemble.sourates_ids.length > 0) {
-          const conditionCumul = ensemble.sourates_ids.every(sid => souratesCompletes.has(sid));
-          if (!conditionCumul) { jalonAtteint = false; }
-          else if (conditionObtention === 'seance_unique') {
-            // Vérifier que toutes les sourates de l'ensemble ont été récitées lors d'une même journée
-            const recsEnsemble = (recitations||[]).filter(r=>r.type_recitation==='complete'&&ensemble.sourates_ids.includes(r.sourate_id));
-            const datesCounts = {};
-            recsEnsemble.forEach(r=>{const d=r.date_validation?.slice(0,10);if(d)datesCounts[d]=(datesCounts[d]||0)+1;});
-            jalonAtteint = Object.values(datesCounts).some(count=>count>=ensemble.sourates_ids.length);
+          // ── Étape 1 : vérifier le cumul progressif ──
+          const cumulOK = ensemble.sourates_ids.every(sid => souratesCompletes.has(sid));
+
+          if (!cumulOK) {
+            jalonAtteint = false;
+          } else if (conditionObtention === 'cumul_puis_examen' && jalon.examen_final_id) {
+            // ── Étape 2 : vérifier que l'examen final est réussi ──
+            const { data: resultatFinal } = await supabase
+              .from('resultats_examens').select('id')
+              .eq('eleve_id', eleve.id)
+              .eq('examen_id', jalon.examen_final_id)
+              .eq('statut', 'reussi').maybeSingle();
+            jalonAtteint = !!resultatFinal;
           } else {
-            jalonAtteint = conditionCumul;
+            jalonAtteint = cumulOK;
           }
         }
+
       } else if (jalon.type_jalon === 'examen' && jalon.examen_id) {
+        // Jalon déclenché directement par réussite d'examen (sans cumul requis)
         const { data: resultat } = await supabase
-          .from('resultats_examens')
-          .select('id')
+          .from('resultats_examens').select('id')
           .eq('eleve_id', eleve.id)
           .eq('examen_id', jalon.examen_id)
-          .eq('statut', 'reussi')
-          .maybeSingle();
+          .eq('statut', 'reussi').maybeSingle();
         jalonAtteint = !!resultat;
       }
 

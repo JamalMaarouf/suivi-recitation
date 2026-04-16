@@ -730,13 +730,14 @@ function JalonsTab({ user, lang, jalons, setJalons, ensembles, examens, newJalon
       ensemble_id: newJalon.type_jalon === 'ensemble_sourates' ? newJalon.ensemble_id : null,
       examen_id: newJalon.type_jalon === 'examen' ? newJalon.examen_id : null,
       condition_obtention: newJalon.condition_obtention || 'cumul',
+      examen_final_id: newJalon.condition_obtention === 'cumul_puis_examen' ? (newJalon.examen_final_id||null) : null,
       description_condition: newJalon.description_condition || null,
       actif: true,
     };
     await supabase.from('jalons').insert(payload);
     const { data } = await supabase.from('jalons').select('*').eq('ecole_id', user.ecole_id).order('created_at');
     if (data) setJalons(data);
-    setNewJalon({ nom_ar: '', type_jalon: 'hizb', hizb_ids: [], ensemble_id: '', examen_id: '', condition_obtention: 'cumul', description_condition: '' });
+    setNewJalon({ nom_ar: '', type_jalon: 'hizb', hizb_ids: [], ensemble_id: '', examen_id: '', condition_obtention: 'cumul', examen_final_id: '', description_condition: '' });
     setSavingJalon(false);
     showMsg('success', lang==='ar'?'تمت إضافة المرحلة بنجاح':'Jalon ajouté avec succès');
   };
@@ -801,8 +802,8 @@ function JalonsTab({ user, lang, jalons, setJalons, ensembles, examens, newJalon
             <label className="field-lbl">{lang==='ar'?'شرط الحصول على الشهادة':"Condition d'obtention"} <span style={{color:'#E24B4A'}}>*</span></label>
             <div style={{display:'flex',gap:8,marginTop:4}}>
               {[
-                {val:'cumul', icon:'📚', label:lang==='ar'?'تراكمي (واحداً بواحداً)':'Cumulatif (un par un)', desc:lang==='ar'?'الطالب يستظهر تدريجياً على مدى جلسات متعددة':"L'élève récite progressivement sur plusieurs séances"},
-                {val:'seance_unique', icon:'🎯', label:lang==='ar'?'تراكمي + استظهار كامل في جلسة واحدة':'Cumulatif + récitation complète en une séance', desc:lang==='ar'?'يجب استظهار كل المحتوى مرة واحدة في جلسة واحدة للحصول على الشهادة':"Doit réciter tout le contenu en une seule séance pour obtenir le certificat"},
+                {val:'cumul', icon:'📚', label:lang==='ar'?'تراكمي فقط':'Cumulatif seul', desc:lang==='ar'?'يستظهر الطالب حزباً بحزب أو سورة بسورة تلقائياً — الشهادة تُمنح عند اكتمال العدد المطلوب':"L'élève valide progressivement — le certificat est décerné automatiquement au seuil"},
+                {val:'cumul_puis_examen', icon:'🎯', label:lang==='ar'?'تراكمي + امتحان ختامي':'Cumulatif + examen final', desc:lang==='ar'?'يستظهر تدريجياً أولاً، ثم يجب اجتياز امتحان رسمي بتلاوة كاملة أمام لجنة للحصول على الشهادة':'Valide progressivement d'abord, puis doit réussir un examen formel en une seule récitation devant jury'},
               ].map(opt=>(
                 <div key={opt.val} onClick={()=>setNewJalon({...newJalon,condition_obtention:opt.val})}
                   style={{flex:1,padding:'10px 12px',borderRadius:10,cursor:'pointer',
@@ -815,6 +816,22 @@ function JalonsTab({ user, lang, jalons, setJalons, ensembles, examens, newJalon
               ))}
             </div>
           </div>
+
+          {/* Si cumul_puis_examen : sélectionner l'examen final */}
+          {newJalon.condition_obtention === 'cumul_puis_examen' && (
+            <div className="field-group" style={{gridColumn:'1/-1'}}>
+              <label className="field-lbl">
+                {lang==='ar'?'الامتحان الختامي المطلوب':'Examen final requis'} <span style={{color:'#E24B4A'}}>*</span>
+              </label>
+              <select className="field-select" value={newJalon.examen_final_id||''} onChange={e=>setNewJalon({...newJalon,examen_final_id:e.target.value})}>
+                <option value="">{lang==='ar'?'— اختر الامتحان —':'— Choisir l'examen —'}</option>
+                {(examens||[]).map(e=><option key={e.id} value={e.id}>{e.nom}</option>)}
+              </select>
+              <div style={{fontSize:11,color:'#888',marginTop:4}}>
+                {lang==='ar'?'سيُمنح الشهادة فقط عند اجتياز هذا الامتحان بعد اكتمال الاستظهار التراكمي':'Le certificat sera décerné seulement après réussite de cet examen, une fois le cumul complété'}
+              </div>
+            </div>
+          )}
 
           {newJalon.type_jalon === 'hizb' && (
             <div className="field-group" style={{gridColumn:'1/-1'}}>
@@ -886,11 +903,16 @@ function JalonsTab({ user, lang, jalons, setJalons, ensembles, examens, newJalon
               <div style={{flex:1}}>
                 <div style={{fontWeight:700,fontSize:14,color:'#1a1a1a',direction:'rtl',fontFamily:"'Tajawal',Arial,sans-serif"}}>{j.nom_ar||j.nom}</div>
                 <div style={{fontSize:11,color:'#EF9F27',marginTop:2,fontWeight:600}}>{typeLabel(j)}</div>
+                {j.condition_obtention==='cumul_puis_examen'&&j.examen_final_id&&(
+                  <div style={{fontSize:10,color:'#534AB7',marginTop:2}}>
+                    🎯 {lang==='ar'?'الامتحان الختامي:':'Examen final:'} {(examens||[]).find(e=>e.id===j.examen_final_id)?.nom||'—'}
+                  </div>
+                )}
                 <div style={{fontSize:10,marginTop:2,display:'flex',alignItems:'center',gap:4}}>
                   <span style={{padding:'1px 6px',borderRadius:10,fontSize:9,fontWeight:600,
                     background:j.condition_obtention==='seance_unique'?'#EEEDFE':'#E1F5EE',
                     color:j.condition_obtention==='seance_unique'?'#534AB7':'#085041'}}>
-                    {j.condition_obtention==='seance_unique'?(lang==='ar'?'🎯 جلسة واحدة':'🎯 Séance unique'):(lang==='ar'?'📚 تراكمي':'📚 Cumulatif')}
+                    {j.condition_obtention==='cumul_puis_examen'?(lang==='ar'?'🎯 تراكمي + امتحان':'🎯 Cumul + examen'):(lang==='ar'?'📚 تراكمي فقط':'📚 Cumulatif seul')}
                   </span>
                 </div>
                 <div style={{fontSize:10,color:'#bbb',marginTop:2}}>
