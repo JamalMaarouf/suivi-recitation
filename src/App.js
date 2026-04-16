@@ -114,7 +114,6 @@ export default function App() {
   const [lang, setLangRaw] = useState(() => localStorage.getItem('suivi_lang') || 'fr');
   const [navHistory, setNavHistory] = useState([]);
   const [gestionTab, setGestionTab] = useState('parametres');
-  const [dashboardVue, setDashboardVue] = useState('general');
 
   const handleInstall = async () => {
     if (!deferredPrompt) return;
@@ -178,7 +177,6 @@ export default function App() {
     if (prev.selectedEleve !== undefined) setSelectedEleve(prev.selectedEleve);
     if (prev.selectedInstituteur !== undefined) setSelectedInstituteur(prev.selectedInstituteur);
     if (prev.extraData?.tab) setGestionTab(prev.extraData.tab);
-    if (prev.extraData?.dashboardVue) setDashboardVue(prev.extraData.dashboardVue);
     window.scrollTo(0, 0);
   };
 
