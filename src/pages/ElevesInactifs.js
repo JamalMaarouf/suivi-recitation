@@ -11,7 +11,7 @@ const getNiveauColor = (code, niveaux) => {
   return NIVEAU_COLORS_FALLBACK[code] || '#888';
 };
 
-export default function ElevesInactifs({ navigate, goBack, lang='fr', user, isMobile }) {
+export default function ElevesInactifs({ navigate, goBack, lang='fr', user, isMobile  }) {
   const { toast } = useToast();
   const [inactifs, setInactifs] = useState([]);
   const [niveaux,  setNiveaux]  = useState([]);

@@ -446,7 +446,7 @@ function FormMobile({ form, setForm, setFormField, niveaux, eleves, metriques,
 }
 
 // ── COMPOSANT PRINCIPAL ────────────────────────────────────────
-export default function GestionObjectifs({ user, navigate, goBack, lang='fr', isMobile }) {
+export default function GestionObjectifs({ user, navigate, goBack, lang='fr', isMobile  }) {
   const { toast } = useToast();
   const [niveaux,   setNiveaux]   = useState([]);
   const [eleves,    setEleves]    = useState([]);
