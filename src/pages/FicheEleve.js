@@ -398,6 +398,15 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang, isMobi
       const hizbActuel  = etat?.hizbEnCours || 1;
       const tomonActuel = etat?.prochainTomon || 1;
 
+      // Chercher une règle configurée pour ce passage
+      const { data: regleData } = await supabase.from('regles_passage_niveau')
+        .select('*')
+        .eq('ecole_id', user.ecole_id)
+        .eq('niveau_from', eleve.code_niveau)
+        .eq('niveau_to', nouveauNiveau)
+        .eq('actif', true)
+        .maybeSingle();
+
       // 1. Archive les acquis du niveau actuel
       const acquis = {
         eleve_id: eleve.id,
@@ -416,31 +425,48 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang, isMobi
       if (errPassage) throw errPassage;
 
       // 2. Calculer la position de départ dans le nouveau niveau
-      // L'élève ne repart PAS de zéro — il continue depuis ses acquis
       let resetData = { code_niveau: nouveauNiveau };
 
-      if (estSourateActuel && estSourateCible) {
-        // Sourate → Sourate : sourates_acquises = nb sourates complétées
-        // Le programme du nouveau niveau commencera après ses acquis
-        resetData.sourates_acquises = nbSouratesActuelles;
-        resetData.hizb_depart = 0;
-        resetData.tomon_depart = 1;
-      } else if (!estSourateActuel && !estSourateCible) {
-        // Hizb → Hizb : hizb_depart = hizb actuel, tomon_depart = tomon actuel
-        // L'élève continue depuis sa position actuelle
-        resetData.hizb_depart = hizbActuel;
-        resetData.tomon_depart = tomonActuel;
-        resetData.sourates_acquises = 0;
-      } else if (estSourateActuel && !estSourateCible) {
-        // Sourate → Hizb : démarre au début du programme Hizb
-        resetData.hizb_depart = 0;
-        resetData.tomon_depart = 1;
-        resetData.sourates_acquises = 0;
+      if (regleData) {
+        // Règle configurée par l'école — s'applique en priorité
+        if (regleData.type_depart === 'personnalise') {
+          resetData.hizb_depart = regleData.hizb_depart_fixe || 0;
+          resetData.tomon_depart = regleData.tomon_depart_fixe || 1;
+          resetData.sourates_acquises = regleData.sourates_acquises_fixe || 0;
+        } else if (regleData.type_depart === 'debut') {
+          resetData.hizb_depart = 0;
+          resetData.tomon_depart = 1;
+          resetData.sourates_acquises = 0;
+        } else { // 'continuer' — comportement intelligent
+          if (estSourateActuel && estSourateCible) {
+            resetData.sourates_acquises = nbSouratesActuelles;
+            resetData.hizb_depart = 0;
+            resetData.tomon_depart = 1;
+          } else if (!estSourateActuel && !estSourateCible) {
+            resetData.hizb_depart = hizbActuel;
+            resetData.tomon_depart = tomonActuel;
+            resetData.sourates_acquises = 0;
+          } else {
+            resetData.hizb_depart = 0;
+            resetData.tomon_depart = 1;
+            resetData.sourates_acquises = 0;
+          }
+        }
       } else {
-        // Hizb → Sourate : démarre au début du programme Sourate
-        resetData.sourates_acquises = 0;
-        resetData.hizb_depart = 0;
-        resetData.tomon_depart = 1;
+        // Pas de règle → comportement par défaut : continuer depuis position actuelle
+        if (estSourateActuel && estSourateCible) {
+          resetData.sourates_acquises = nbSouratesActuelles;
+          resetData.hizb_depart = 0;
+          resetData.tomon_depart = 1;
+        } else if (!estSourateActuel && !estSourateCible) {
+          resetData.hizb_depart = hizbActuel;
+          resetData.tomon_depart = tomonActuel;
+          resetData.sourates_acquises = 0;
+        } else {
+          resetData.hizb_depart = 0;
+          resetData.tomon_depart = 1;
+          resetData.sourates_acquises = 0;
+        }
       }
 
       const { error: errEleve } = await supabase.from('eleves').update(resetData).eq('id', eleve.id);

@@ -500,6 +500,217 @@ function PeriodesTab({ user, lang, periodes, setPeriodes, newPeriode, setNewPeri
 }
 
 // ══════════════════════════════════════════════════════
+
+// ══════════════════════════════════════════════════════
+// COMPOSANT PassageNiveauTab — Règles de passage de niveau
+// ══════════════════════════════════════════════════════
+function PassageNiveauTab({ user, lang, niveaux, showMsg }) {
+  const [regles, setRegles] = React.useState([]);
+  const [loading, setLoading] = React.useState(true);
+  const [saving, setSaving] = React.useState(false);
+  const [newRegle, setNewRegle] = React.useState({
+    niveau_from: '', niveau_to: '', type_depart: 'continuer',
+    hizb_depart_fixe: 0, tomon_depart_fixe: 1, sourates_acquises_fixe: 0, note: ''
+  });
+
+  React.useEffect(() => { loadRegles(); }, []);
+
+  const loadRegles = async () => {
+    setLoading(true);
+    const { data } = await supabase.from('regles_passage_niveau')
+      .select('*').eq('ecole_id', user.ecole_id).order('created_at');
+    setRegles(data || []);
+    setLoading(false);
+  };
+
+  const ajouterRegle = async () => {
+    if (!newRegle.niveau_from || !newRegle.niveau_to)
+      return showMsg('error', lang==='ar'?'اختر المستوى المصدر والهدف':'Choisissez les niveaux source et cible');
+    if (newRegle.niveau_from === newRegle.niveau_to)
+      return showMsg('error', lang==='ar'?'لا يمكن أن يكون المستويان متطابقين':'Les niveaux ne peuvent pas être identiques');
+    setSaving(true);
+    const payload = {
+      ecole_id: user.ecole_id,
+      niveau_from: newRegle.niveau_from,
+      niveau_to: newRegle.niveau_to,
+      type_depart: newRegle.type_depart,
+      hizb_depart_fixe: parseInt(newRegle.hizb_depart_fixe)||0,
+      tomon_depart_fixe: parseInt(newRegle.tomon_depart_fixe)||1,
+      sourates_acquises_fixe: parseInt(newRegle.sourates_acquises_fixe)||0,
+      note: newRegle.note||null,
+      actif: true,
+    };
+    await supabase.from('regles_passage_niveau').insert(payload);
+    await loadRegles();
+    setNewRegle({ niveau_from:'', niveau_to:'', type_depart:'continuer', hizb_depart_fixe:0, tomon_depart_fixe:1, sourates_acquises_fixe:0, note:'' });
+    setSaving(false);
+    showMsg('success', lang==='ar'?'تمت إضافة قاعدة الانتقال':'Règle de passage ajoutée');
+  };
+
+  const supprimerRegle = async (id) => {
+    await supabase.from('regles_passage_niveau').delete().eq('id', id);
+    setRegles(prev => prev.filter(r => r.id !== id));
+  };
+
+  const toggleActif = async (regle) => {
+    await supabase.from('regles_passage_niveau').update({ actif: !regle.actif }).eq('id', regle.id);
+    setRegles(prev => prev.map(r => r.id===regle.id ? {...r, actif: !r.actif} : r));
+  };
+
+  const getNiveauNom = (code) => niveaux.find(n=>n.code===code)?.nom || code;
+  const getNiveauColor = (code) => niveaux.find(n=>n.code===code)?.couleur || '#888';
+
+  const typeDepartLabel = (type) => ({
+    'continuer': lang==='ar'?'يستمر من موقعه الحالي':'Continue depuis sa position actuelle',
+    'debut': lang==='ar'?'يبدأ من بداية البرنامج':'Repart du début du programme',
+    'personnalise': lang==='ar'?'موقع مخصص':'Position personnalisée',
+  })[type] || type;
+
+  const typeDepartColor = (type) => ({'continuer':'#1D9E75','debut':'#EF9F27','personnalise':'#534AB7'})[type]||'#888';
+
+  return (
+    <div>
+      <div style={{fontSize:13,color:'#888',marginBottom:'1.25rem'}}>
+        {lang==='ar'?'حدد قواعد انتقال الطلاب من مستوى إلى آخر وموقع انطلاقهم في البرنامج الجديد':'Définissez les règles de passage entre niveaux et la position de départ dans le nouveau programme'}
+      </div>
+
+      {/* Info box */}
+      <div style={{background:'#E1F5EE',borderRadius:10,padding:'12px 14px',marginBottom:'1.5rem',fontSize:12,color:'#085041',border:'0.5px solid #1D9E7530'}}>
+        <div style={{fontWeight:700,marginBottom:6}}>ℹ️ {lang==='ar'?'كيف يعمل هذا؟':'Comment ça fonctionne ?'}</div>
+        <div style={{lineHeight:1.6}}>
+          {lang==='ar'
+            ?'عند تغيير مستوى طالب، يبحث النظام عن قاعدة مطابقة. إذا وُجدت، يطبق موقع الانطلاق المحدد. إذا لم توجد قاعدة، يستمر الطالب من موقعه الحالي تلقائياً.'
+            :'Lors du changement de niveau d'un élève, le système cherche une règle correspondante. Si trouvée, applique le départ configuré. Sinon, l'élève continue depuis sa position actuelle.'}
+        </div>
+      </div>
+
+      {/* Formulaire */}
+      <div className="card" style={{marginBottom:'1.5rem'}}>
+        <div className="section-label">{lang==='ar'?'إضافة قاعدة انتقال':'Ajouter une règle de passage'}</div>
+        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'10px 20px',marginBottom:14}}>
+          <div className="field-group">
+            <label className="field-lbl">{lang==='ar'?'المستوى المصدر (من)':'Niveau source (de)'} <span style={{color:'#E24B4A'}}>*</span></label>
+            <select className="field-select" value={newRegle.niveau_from} onChange={e=>setNewRegle({...newRegle,niveau_from:e.target.value})}>
+              <option value="">{lang==='ar'?'— اختر —':'— Choisir —'}</option>
+              {niveaux.map(n=><option key={n.code} value={n.code}>{n.code} — {n.nom}</option>)}
+            </select>
+          </div>
+          <div className="field-group">
+            <label className="field-lbl">{lang==='ar'?'المستوى الهدف (إلى)':'Niveau cible (vers)'} <span style={{color:'#E24B4A'}}>*</span></label>
+            <select className="field-select" value={newRegle.niveau_to} onChange={e=>setNewRegle({...newRegle,niveau_to:e.target.value})}>
+              <option value="">{lang==='ar'?'— اختر —':'— Choisir —'}</option>
+              {niveaux.filter(n=>n.code!==newRegle.niveau_from).map(n=><option key={n.code} value={n.code}>{n.code} — {n.nom}</option>)}
+            </select>
+          </div>
+        </div>
+
+        {/* Type de départ */}
+        <div className="field-group" style={{marginBottom:14}}>
+          <label className="field-lbl">{lang==='ar'?'موقع الانطلاق في البرنامج الجديد':'Position de départ dans le nouveau programme'} <span style={{color:'#E24B4A'}}>*</span></label>
+          <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:8,marginTop:4}}>
+            {[
+              {val:'continuer', icon:'▶️', label:lang==='ar'?'يستمر من موقعه':'Continue', desc:lang==='ar'?'يبدأ من الحزب/السورة التي وصل إليها':'Repart du Hizb/Sourate où il en était'},
+              {val:'debut', icon:'🔄', label:lang==='ar'?'من البداية':'Début', desc:lang==='ar'?'يبدأ من أول الثُّمن أو أول سورة في البرنامج':'Repart du premier Tomon/Sourate du programme'},
+              {val:'personnalise', icon:'🎯', label:lang==='ar'?'موقع محدد':'Personnalisé', desc:lang==='ar'?'تحديد موقع البداية يدوياً':'Définir manuellement la position de départ'},
+            ].map(opt=>(
+              <div key={opt.val} onClick={()=>setNewRegle({...newRegle,type_depart:opt.val})}
+                style={{padding:'10px',borderRadius:10,cursor:'pointer',textAlign:'center',
+                  border:`2px solid ${newRegle.type_depart===opt.val?typeDepartColor(opt.val):'#e0e0d8'}`,
+                  background:newRegle.type_depart===opt.val?typeDepartColor(opt.val)+'15':'#fff'}}>
+                <div style={{fontSize:20,marginBottom:4}}>{opt.icon}</div>
+                <div style={{fontWeight:700,fontSize:12,color:newRegle.type_depart===opt.val?typeDepartColor(opt.val):'#333'}}>{opt.label}</div>
+                <div style={{fontSize:10,color:'#888',marginTop:2}}>{opt.desc}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Position personnalisée */}
+        {newRegle.type_depart==='personnalise' && (() => {
+          const cibleType = niveaux.find(n=>n.code===newRegle.niveau_to)?.type;
+          return cibleType==='sourate' ? (
+            <div className="field-group" style={{marginBottom:14}}>
+              <label className="field-lbl">{lang==='ar'?'عدد السور المحفوظة كمكتسبات':'Nb sourates acquises au départ'}</label>
+              <input className="field-input" type="number" min="0" value={newRegle.sourates_acquises_fixe}
+                onChange={e=>setNewRegle({...newRegle,sourates_acquises_fixe:e.target.value})}/>
+            </div>
+          ) : (
+            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'10px 20px',marginBottom:14}}>
+              <div className="field-group">
+                <label className="field-lbl">{lang==='ar'?'حزب الانطلاق':'Hizb de départ'}</label>
+                <input className="field-input" type="number" min="0" max="60" value={newRegle.hizb_depart_fixe}
+                  onChange={e=>setNewRegle({...newRegle,hizb_depart_fixe:e.target.value})}/>
+              </div>
+              <div className="field-group">
+                <label className="field-lbl">{lang==='ar'?'الثُّمن':'Tomon'}</label>
+                <select className="field-select" value={newRegle.tomon_depart_fixe} onChange={e=>setNewRegle({...newRegle,tomon_depart_fixe:e.target.value})}>
+                  {[1,2,3,4,5,6,7,8].map(n=><option key={n} value={n}>T.{n}</option>)}
+                </select>
+              </div>
+            </div>
+          );
+        })()}
+
+        <div className="field-group" style={{marginBottom:14}}>
+          <label className="field-lbl">{lang==='ar'?'ملاحظة (اختياري)':'Note (optionnelle)'}</label>
+          <input className="field-input" value={newRegle.note} onChange={e=>setNewRegle({...newRegle,note:e.target.value})}
+            placeholder={lang==='ar'?'مثال: انتقال من الابتدائي إلى الإعدادي':'Ex: Passage du primaire au collège'}/>
+        </div>
+        <button className="btn-primary" onClick={ajouterRegle} disabled={saving}>
+          {saving?'...':(lang==='ar'?'إضافة القاعدة':'Ajouter la règle')}
+        </button>
+      </div>
+
+      {/* Liste des règles */}
+      <div className="section-label">{lang==='ar'?'القواعد المُعرَّفة':'Règles configurées'} ({regles.length})</div>
+      {loading ? <div className="loading">...</div> : regles.length===0 ? (
+        <div className="empty">{lang==='ar'?'لا توجد قواعد — الانتقال الافتراضي: الطالب يستمر من موقعه':'Aucune règle — comportement par défaut : l'élève continue depuis sa position'}</div>
+      ) : (
+        <div style={{display:'flex',flexDirection:'column',gap:8}}>
+          {regles.map(r => {
+            const fromColor = getNiveauColor(r.niveau_from);
+            const toColor = getNiveauColor(r.niveau_to);
+            const dColor = typeDepartColor(r.type_depart);
+            return (
+              <div key={r.id} style={{background:'#fff',border:'0.5px solid #e0e0d8',borderRadius:12,padding:'12px 14px',opacity:r.actif?1:0.5}}>
+                <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:8}}>
+                  <span style={{padding:'2px 8px',borderRadius:20,fontSize:12,fontWeight:700,background:fromColor+'20',color:fromColor}}>{r.niveau_from}</span>
+                  <span style={{fontSize:16,color:'#888'}}>→</span>
+                  <span style={{padding:'2px 8px',borderRadius:20,fontSize:12,fontWeight:700,background:toColor+'20',color:toColor}}>{r.niveau_to}</span>
+                  <span style={{flex:1}}/>
+                  <span style={{padding:'2px 8px',borderRadius:20,fontSize:10,fontWeight:600,background:dColor+'15',color:dColor}}>
+                    {r.type_depart==='continuer'?'▶️':r.type_depart==='debut'?'🔄':'🎯'} {typeDepartLabel(r.type_depart)}
+                  </span>
+                </div>
+                {r.type_depart==='personnalise'&&(
+                  <div style={{fontSize:11,color:'#888',marginBottom:6}}>
+                    {niveaux.find(n=>n.code===r.niveau_to)?.type==='sourate'
+                      ? `📖 ${lang==='ar'?'السور المحفوظة:':'Sourates acquises:'} ${r.sourates_acquises_fixe}`
+                      : `📍 Hizb ${r.hizb_depart_fixe} · T.${r.tomon_depart_fixe}`
+                    }
+                  </div>
+                )}
+                {r.note&&<div style={{fontSize:11,color:'#aaa',fontStyle:'italic',marginBottom:6}}>{r.note}</div>}
+                <div style={{display:'flex',gap:6}}>
+                  <button onClick={()=>toggleActif(r)}
+                    style={{padding:'3px 8px',borderRadius:6,fontSize:10,fontWeight:600,cursor:'pointer',
+                      background:r.actif?'#E1F5EE':'#f0f0ec',color:r.actif?'#085041':'#888',border:'none'}}>
+                    {r.actif?(lang==='ar'?'نشط':'Actif'):(lang==='ar'?'غير نشط':'Inactif')}
+                  </button>
+                  <button onClick={()=>supprimerRegle(r.id)}
+                    style={{padding:'3px 8px',borderRadius:6,background:'#FCEBEB',color:'#E24B4A',border:'none',cursor:'pointer',fontSize:10,fontWeight:600}}>
+                    🗑 {lang==='ar'?'حذف':'Supprimer'}
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // COMPOSANT JalonsTab — Gestion des jalons/certificats
 // ══════════════════════════════════════════════════════
 function JalonsTab({ user, lang, jalons, setJalons, ensembles, examens, newJalon, setNewJalon, savingJalon, setSavingJalon, showMsg }) {
@@ -518,12 +729,14 @@ function JalonsTab({ user, lang, jalons, setJalons, ensembles, examens, newJalon
       hizb_ids: newJalon.type_jalon === 'hizb' ? newJalon.hizb_ids : null,
       ensemble_id: newJalon.type_jalon === 'ensemble_sourates' ? newJalon.ensemble_id : null,
       examen_id: newJalon.type_jalon === 'examen' ? newJalon.examen_id : null,
+      condition_obtention: newJalon.condition_obtention || 'cumul',
+      description_condition: newJalon.description_condition || null,
       actif: true,
     };
     await supabase.from('jalons').insert(payload);
     const { data } = await supabase.from('jalons').select('*').eq('ecole_id', user.ecole_id).order('created_at');
     if (data) setJalons(data);
-    setNewJalon({ nom_ar: '', type_jalon: 'hizb', hizb_ids: [], ensemble_id: '', examen_id: '' });
+    setNewJalon({ nom_ar: '', type_jalon: 'hizb', hizb_ids: [], ensemble_id: '', examen_id: '', condition_obtention: 'cumul', description_condition: '' });
     setSavingJalon(false);
     showMsg('success', lang==='ar'?'تمت إضافة المرحلة بنجاح':'Jalon ajouté avec succès');
   };
@@ -583,6 +796,26 @@ function JalonsTab({ user, lang, jalons, setJalons, ensembles, examens, newJalon
               <option value="examen">{lang==='ar'?'اجتياز امتحان':'Examen réussi'}</option>
             </select>
           </div>
+          {/* Condition d'obtention */}
+          <div className="field-group" style={{gridColumn:'1/-1'}}>
+            <label className="field-lbl">{lang==='ar'?'شرط الحصول على الشهادة':'Condition d'obtention'} <span style={{color:'#E24B4A'}}>*</span></label>
+            <div style={{display:'flex',gap:8,marginTop:4}}>
+              {[
+                {val:'cumul', icon:'📚', label:lang==='ar'?'تراكمي (واحداً بواحداً)':'Cumulatif (un par un)', desc:lang==='ar'?'الطالب يستظهر تدريجياً على مدى جلسات متعددة':'L'élève récite progressivement sur plusieurs séances'},
+                {val:'seance_unique', icon:'🎯', label:lang==='ar'?'تراكمي + استظهار كامل في جلسة واحدة':'Cumulatif + récitation complète en une séance', desc:lang==='ar'?'يجب استظهار كل المحتوى مرة واحدة في جلسة واحدة للحصول على الشهادة':'Doit réciter tout le contenu en une seule séance pour obtenir le certificat'},
+              ].map(opt=>(
+                <div key={opt.val} onClick={()=>setNewJalon({...newJalon,condition_obtention:opt.val})}
+                  style={{flex:1,padding:'10px 12px',borderRadius:10,cursor:'pointer',
+                    border:`2px solid ${newJalon.condition_obtention===opt.val?'#534AB7':'#e0e0d8'}`,
+                    background:newJalon.condition_obtention===opt.val?'#EEEDFE':'#fff'}}>
+                  <div style={{fontSize:16,marginBottom:4}}>{opt.icon}</div>
+                  <div style={{fontWeight:700,fontSize:12,color:newJalon.condition_obtention===opt.val?'#534AB7':'#333'}}>{opt.label}</div>
+                  <div style={{fontSize:10,color:'#888',marginTop:3}}>{opt.desc}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+
           {newJalon.type_jalon === 'hizb' && (
             <div className="field-group" style={{gridColumn:'1/-1'}}>
               <label className="field-lbl">
@@ -653,6 +886,13 @@ function JalonsTab({ user, lang, jalons, setJalons, ensembles, examens, newJalon
               <div style={{flex:1}}>
                 <div style={{fontWeight:700,fontSize:14,color:'#1a1a1a',direction:'rtl',fontFamily:"'Tajawal',Arial,sans-serif"}}>{j.nom_ar||j.nom}</div>
                 <div style={{fontSize:11,color:'#EF9F27',marginTop:2,fontWeight:600}}>{typeLabel(j)}</div>
+                <div style={{fontSize:10,marginTop:2,display:'flex',alignItems:'center',gap:4}}>
+                  <span style={{padding:'1px 6px',borderRadius:10,fontSize:9,fontWeight:600,
+                    background:j.condition_obtention==='seance_unique'?'#EEEDFE':'#E1F5EE',
+                    color:j.condition_obtention==='seance_unique'?'#534AB7':'#085041'}}>
+                    {j.condition_obtention==='seance_unique'?(lang==='ar'?'🎯 جلسة واحدة':'🎯 Séance unique'):(lang==='ar'?'📚 تراكمي':'📚 Cumulatif')}
+                  </span>
+                </div>
                 <div style={{fontSize:10,color:'#bbb',marginTop:2}}>
                   {lang==='ar'?'تاريخ الإنشاء:':'Créé le:'} {j.created_at ? new Date(j.created_at).toLocaleDateString(lang==='ar'?'ar-MA':'fr-FR',{day:'2-digit',month:'short',year:'numeric'}) : '—'}
                 </div>
@@ -1592,6 +1832,9 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
             {icon:'👨‍👩‍👦', label:lang==='ar'?'الآباء':'Parents',
              desc:lang==='ar'?'إدارة حسابات أولياء الأمور':'Gérer les comptes parents',
              action:()=>setTab('parents'), color:'#534AB7', bg:'#EEEDFE'},
+            {icon:'🎓', label:lang==='ar'?'قواعد الانتقال':'Règles passage',
+             desc:lang==='ar'?'تكوين قواعد انتقال الطلاب بين المستويات':'Configurer les règles de passage de niveau',
+             action:()=>setTab('passage_niveau'), color:'#1D9E75', bg:'#E1F5EE'},
 
           ].map((item,idx)=>(
             <div key={idx} onClick={item.action}
@@ -2189,6 +2432,13 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
           examens={examensDisp}
           newJalon={newJalon} setNewJalon={setNewJalon}
           savingJalon={savingJalon} setSavingJalon={setSavingJalon}
+          showMsg={showMsg}
+        />
+      )}
+      {tab === 'passage_niveau' && (
+        <PassageNiveauTab
+          user={user} lang={lang}
+          niveaux={niveauxActifs||[]}
           showMsg={showMsg}
         />
       )}

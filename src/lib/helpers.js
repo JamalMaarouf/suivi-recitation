@@ -560,10 +560,21 @@ export async function verifierEtCreerCertificats(supabase, {
 
       let jalonAtteint = false;
 
+      const conditionObtention = jalon.condition_obtention || 'cumul';
+
       if (jalon.type_jalon === 'hizb') {
-        // Tous les hizb spécifiques du jalon doivent être complétés
         const requiredHizb = jalon.hizb_ids || [];
-        jalonAtteint = requiredHizb.length > 0 && requiredHizb.every(h => hizbsComplets.has(Number(h)));
+        const conditionCumul = requiredHizb.length > 0 && requiredHizb.every(h => hizbsComplets.has(Number(h)));
+        if (!conditionCumul) { jalonAtteint = false; }
+        else if (conditionObtention === 'seance_unique') {
+          // Vérifier que tous les hizb requis ont été validés lors d'une même journée
+          const validationsHizb = (validations||[]).filter(v=>v.type_validation==='hizb_complet'&&requiredHizb.includes(Number(v.hizb_valide)));
+          const datesCounts = {};
+          validationsHizb.forEach(v=>{const d=v.date_validation?.slice(0,10);if(d)datesCounts[d]=(datesCounts[d]||0)+1;});
+          jalonAtteint = Object.values(datesCounts).some(count=>count>=requiredHizb.length);
+        } else {
+          jalonAtteint = conditionCumul;
+        }
       } else if (jalon.type_jalon === 'ensemble_sourates' && jalon.ensemble_id) {
         const { data: ensemble } = await supabase
           .from('ensembles_sourates')
@@ -571,10 +582,19 @@ export async function verifierEtCreerCertificats(supabase, {
           .eq('id', jalon.ensemble_id)
           .maybeSingle();
         if (ensemble && ensemble.sourates_ids && ensemble.sourates_ids.length > 0) {
-          jalonAtteint = ensemble.sourates_ids.every(sid => souratesCompletes.has(sid));
+          const conditionCumul = ensemble.sourates_ids.every(sid => souratesCompletes.has(sid));
+          if (!conditionCumul) { jalonAtteint = false; }
+          else if (conditionObtention === 'seance_unique') {
+            // Vérifier que toutes les sourates de l'ensemble ont été récitées lors d'une même journée
+            const recsEnsemble = (recitations||[]).filter(r=>r.type_recitation==='complete'&&ensemble.sourates_ids.includes(r.sourate_id));
+            const datesCounts = {};
+            recsEnsemble.forEach(r=>{const d=r.date_validation?.slice(0,10);if(d)datesCounts[d]=(datesCounts[d]||0)+1;});
+            jalonAtteint = Object.values(datesCounts).some(count=>count>=ensemble.sourates_ids.length);
+          } else {
+            jalonAtteint = conditionCumul;
+          }
         }
       } else if (jalon.type_jalon === 'examen' && jalon.examen_id) {
-        // Jalon atteint si l'élève a réussi cet examen
         const { data: resultat } = await supabase
           .from('resultats_examens')
           .select('id')
