@@ -56,7 +56,8 @@ export default function Calendrier({ user, navigate, goBack, lang='fr', isMobile
 
   return (
     <div>
-      <button style={{background:"rgba(255,255,255,0.2)",border:"none",borderRadius:10,padding:"8px 12px",color:"#fff",fontSize:18,cursor:"pointer",lineHeight:1,minWidth:38}} onClick={()=>←</button>
+      <button onClick={()=>goBack?goBack():navigate('dashboard')}
+              style={{background:'rgba(255,255,255,0.2)',border:'none',borderRadius:10,padding:'8px 12px',color:'#fff',fontSize:18,cursor:'pointer',minWidth:38}}>←</button>
       <div style={{display:'grid',gridTemplateColumns:'repeat(3,minmax(0,1fr))',gap:8,marginBottom:'1.25rem'}}>
         {[{val:tomonMois,lbl:t(lang,'tomon_recites'),color:'#1D9E75',bg:'#E1F5EE'},{val:hizbMois,lbl:t(lang,'hizb_complets_label'),color:'#378ADD',bg:'#E6F1FB'},{val:joursActifsMois,lbl:t(lang,'jours_actifs'),color:'#EF9F27',bg:'#FAEEDA'}].map((k,i)=>(
           <div key={i} style={{background:k.bg,borderRadius:10,padding:'12px',textAlign:'center'}}>

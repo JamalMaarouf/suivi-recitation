@@ -284,7 +284,7 @@ export default function RecitationSourate({ user, eleve, navigate, goBack, lang=
           <div style={{display:'flex', alignItems:'center', gap:12, padding:'12px 16px'}}>
             <button onClick={()=>goBack?goBack():navigate('dashboard')}
               style={{background:'none',border:'none',cursor:'pointer',fontSize:22,color:'#085041',padding:0,lineHeight:1}}>
-              ←
+              
             </button>
             <div style={{flex:1}}>
               <div style={{fontSize:17,fontWeight:800}}>{eleve.prenom} {eleve.nom}</div>
@@ -463,7 +463,8 @@ export default function RecitationSourate({ user, eleve, navigate, goBack, lang=
       )}
 
       <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'1.25rem',flexWrap:'wrap',gap:8}}>
-        <button style={{background:"rgba(255,255,255,0.2)",border:"none",borderRadius:10,padding:"8px 12px",color:"#fff",fontSize:18,cursor:"pointer",lineHeight:1,minWidth:38}} onClick={()=>←</button>
+        <button onClick={()=>goBack?goBack():navigate('dashboard')}
+              style={{background:'rgba(255,255,255,0.2)',border:'none',borderRadius:10,padding:'8px 12px',color:'#fff',fontSize:18,cursor:'pointer',minWidth:38}}>←</button>
         <div style={{display:'flex',gap:6,alignItems:'center'}}>
           <NiveauBadge code={codeNiveau}/>
           {isPrivilegied && (
@@ -599,7 +600,8 @@ export default function RecitationSourate({ user, eleve, navigate, goBack, lang=
 
             return (
               <div>
-                <button style={{background:"rgba(255,255,255,0.2)",border:"none",borderRadius:10,padding:"8px 12px",color:"#fff",fontSize:18,cursor:"pointer",lineHeight:1,minWidth:38}} onClick={()=>←</button>
+                <button onClick={()=>goBack?goBack():navigate('dashboard')}
+              style={{background:'rgba(255,255,255,0.2)',border:'none',borderRadius:10,padding:'8px 12px',color:'#fff',fontSize:18,cursor:'pointer',minWidth:38}}>←</button>
 
                 {/* Sourate header */}
                 <div style={{textAlign:'center',padding:'1.5rem',background:'linear-gradient(135deg,#085041,#1D9E75)',borderRadius:16,marginBottom:'1.25rem',color:'#fff'}}>

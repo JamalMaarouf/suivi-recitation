@@ -42,7 +42,8 @@ export default function ProfilInstituteur({ instituteur, user, navigate, goBack,
 
   return (
     <div>
-      <button style={{background:"rgba(255,255,255,0.2)",border:"none",borderRadius:10,padding:"8px 12px",color:"#fff",fontSize:18,cursor:"pointer",lineHeight:1,minWidth:38}} onClick={()=>←</button>
+      <button onClick={()=>goBack?goBack():navigate('dashboard')}
+              style={{background:'rgba(255,255,255,0.2)',border:'none',borderRadius:10,padding:'8px 12px',color:'#fff',fontSize:18,cursor:'pointer',minWidth:38}}>←</button>
       <div style={{background:'#fff',border:'0.5px solid #e0e0d8',borderRadius:16,padding:'1.5rem',marginBottom:'1rem'}}>
         <div style={{display:'flex',alignItems:'center',gap:14,marginBottom:16}}>
           <Avatar prenom={instituteur.prenom} nom={instituteur.nom} size={60}/>
