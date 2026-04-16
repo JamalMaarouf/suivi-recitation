@@ -99,6 +99,19 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
     return dbObj ? { ...s, id: dbObj.id, nb_versets: dbObj.nb_versets } : s;
   })();
 
+  // Vérifier si l'élève a un programme défini
+  const aucunProgramme = (() => {
+    if (!selectedEleve) return false;
+    if (estSourate) {
+      // Pour sourates : programme = souratesDB chargé + souratesAcquises correct
+      return souratesDB.length === 0;
+    } else {
+      // Pour hizbs : programme = niveau avec hizb_depart valide
+      const hd = selectedEleve.hizb_depart;
+      return hd === null || hd === undefined;
+    }
+  })();
+
   // Vérifier si c'est le dernier hizb du programme (pas forcément Hizb 1)
   const estDernierHizb = (() => {
     if (estSourate || !etat) return false;
@@ -345,8 +358,21 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
           </div>
 
           <div style={{ padding: '20px' }}>
+            {/* ── Pas de programme ── */}
+            {aucunProgramme && (
+              <div style={{ textAlign:'center', padding:'1.5rem', background:'#FCEBEB',
+                borderRadius:12, border:'1px solid #E24B4A20' }}>
+                <div style={{ fontSize:28, marginBottom:8 }}>⚠️</div>
+                <div style={{ fontSize:14, fontWeight:700, color:'#E24B4A', marginBottom:4 }}>
+                  {lang==='ar'?'لا يوجد برنامج لهذا الطالب':'Aucun programme défini pour cet élève'}
+                </div>
+                <div style={{ fontSize:12, color:'#888' }}>
+                  {lang==='ar'?'يرجى إعداد البرنامج من الإدارة ← المستويات':'Configurez le programme dans الإدارة → المستويات'}
+                </div>
+              </div>
+            )}
             {/* ── Élève HIZB ── */}
-            {!estSourate && (
+            {!estSourate && !aucunProgramme && (
               <>
                 {etat.enAttenteHizbComplet ? (
                   /* Validation hizb complet */
@@ -426,7 +452,7 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
             )}
 
             {/* ── Élève SOURATES — affiche la sourate en cours directement ── */}
-            {estSourate && !sourateSelectionnee && (
+            {estSourate && !sourateSelectionnee && !aucunProgramme && (
               <div>
                 {currentSourate ? (
                   <>
@@ -481,16 +507,18 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
                     </div>
                   </>
                 ) : (
-                  <div style={{ textAlign:'center', padding:'2rem', color:'#aaa' }}>
+                  <div style={{ textAlign:'center', padding:'2rem' }}>
                     <div style={{ fontSize:32, marginBottom:8 }}>🎉</div>
-                    <div style={{ fontSize:13 }}>{lang==='ar'?'أحسنت! تم الانتهاء من جميع السور':'Toutes les sourates complétées !'}</div>
+                    <div style={{ fontSize:14, fontWeight:700, color:'#085041' }}>
+                      {lang==='ar'?'أحسنت! تم الانتهاء من جميع سور البرنامج':'Programme complété !'}
+                    </div>
                   </div>
                 )}
               </div>
             )}
 
             {/* ── Confirmation sourate ── */}
-            {estSourate && sourateSelectionnee && (
+            {estSourate && sourateSelectionnee && !aucunProgramme && (
               <div>
                 {/* Sourate sélectionnée */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 14px',
