@@ -250,7 +250,7 @@ export default function Seance({ user, navigate, goBack, lang, isMobile=false })
                     const nc=NIVEAU_COLORS[e.code_niveau||'1']||'#888';
                     const pts=e.isSourate?(e.souratesCompletesAujourdhui*(bareme.sourate||30)+e.sequencesAujourdhui*(bareme.sequence_sourate||10)):(e.valsAujourdhui?.reduce((s,v)=>s+(v.type_validation==='hizb_complet'?(bareme.hizb_complet||100):(bareme.tomon||10)),0)||0);
                     return(
-                      <div key={e.id} onClick={()=>navigate('fiche',e)}
+                      <div key={e.id} onTouchEnd={()=>navigate('fiche',e)} onClick={()=>navigate('fiche',e)}
                         style={{background:'#fff',borderRadius:12,padding:'13px 14px',marginBottom:8,
                           border:`0.5px solid ${nc}20`,display:'flex',alignItems:'center',gap:12,cursor:'pointer'}}>
                         <div style={{width:36,height:36,borderRadius:'50%',background:`${nc}20`,color:nc,
@@ -299,7 +299,7 @@ export default function Seance({ user, navigate, goBack, lang, isMobile=false })
                 const nc=NIVEAU_COLORS[e.code_niveau||'1']||'#888';
                 const pts=e.isSourate?(e.souratesCompletesAujourdhui*(bareme.sourate||30)+e.sequencesAujourdhui*(bareme.sequence_sourate||10)):(e.valsAujourdhui?.reduce((s,v)=>s+(v.type_validation==='hizb_complet'?(bareme.hizb_complet||100):(bareme.tomon||10)),0)||0);
                 return(
-                  <div key={e.id} onClick={()=>navigate('fiche',e)}
+                  <div key={e.id} onTouchEnd={()=>navigate('fiche',e)} onClick={()=>navigate('fiche',e)}
                     style={{background:'#fff',borderRadius:12,padding:'13px 14px',marginBottom:8,
                       border:`0.5px solid ${nc}20`,display:'flex',alignItems:'center',gap:12,cursor:'pointer'}}>
                     <div style={{width:36,height:36,borderRadius:'50%',background:`${nc}20`,color:nc,
@@ -421,7 +421,7 @@ export default function Seance({ user, navigate, goBack, lang, isMobile=false })
                         ?(e.recsAujourdhui[0]?.date_validation?new Date(e.recsAujourdhui[0].date_validation).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'}):'')
                         :(e.valsAujourdhui?.[0]?.date_validation?new Date(e.valsAujourdhui[0].date_validation).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'}):'');
                       return(
-                        <div key={e.id} onClick={()=>navigate('fiche',e)}
+                        <div key={e.id} onTouchEnd={()=>navigate('fiche',e)} onClick={()=>navigate('fiche',e)}
                           style={{display:'flex',alignItems:'center',gap:12,padding:'14px',background:'#fff',border:`0.5px solid ${idx===0?'#EF9F27':'#e0e0d8'}`,borderRadius:12,cursor:'pointer'}}>
                           <div style={{fontSize:22,minWidth:30,textAlign:'center'}}>{medals[idx]||`${idx+1}`}</div>
                           <Avatar prenom={e.prenom} nom={e.nom} size={40} bg={nc+'18'} color={nc}/>
@@ -532,7 +532,7 @@ export default function Seance({ user, navigate, goBack, lang, isMobile=false })
                   const urgence=e.jours!=null&&e.jours>14;
                   const nc=NIVEAU_COLORS[e.code_niveau||'1']||'#888';
                   return(
-                    <div key={e.id} onClick={()=>navigate('enregistrer',e)}
+                    <div key={e.id} onTouchEnd={()=>navigate('enregistrer',e)} onClick={()=>navigate('enregistrer',e)}
                       style={{display:'flex',alignItems:'center',gap:12,padding:'11px 14px',background:urgence?'#fff8f8':'#fff',border:`0.5px solid ${urgence?'#E24B4A30':'#e0e0d8'}`,borderRadius:10,cursor:'pointer'}}>
                       <Avatar prenom={e.prenom} nom={e.nom} size={34} bg={urgence?'#FCEBEB':nc+'15'} color={urgence?'#A32D2D':nc}/>
                       <div style={{flex:1}}>
@@ -593,7 +593,7 @@ export default function Seance({ user, navigate, goBack, lang, isMobile=false })
                       const val=group.key==='sourate'?e.souratesSemaine:e.tomonSemaine;
                       const maxVal=group.elevs[0]?(group.key==='sourate'?group.elevs[0].souratesSemaine:group.elevs[0].tomonSemaine):1;
                       return(
-                        <div key={e.id} onClick={()=>navigate('fiche',e)} style={{display:'flex',alignItems:'center',gap:12,padding:'12px 14px',background:'#fff',border:'0.5px solid #e0e0d8',borderRadius:12,cursor:'pointer'}}>
+                        <div key={e.id} onTouchEnd={()=>navigate('fiche',e)} onClick={()=>navigate('fiche',e)} style={{display:'flex',alignItems:'center',gap:12,padding:'12px 14px',background:'#fff',border:'0.5px solid #e0e0d8',borderRadius:12,cursor:'pointer'}}>
                           <div style={{fontSize:20,minWidth:28,textAlign:'center'}}>{medals[idx]||`${idx+1}`}</div>
                           <Avatar prenom={e.prenom} nom={e.nom} size={36} bg={nc+'18'} color={nc}/>
                           <div style={{flex:1}}>

@@ -350,7 +350,7 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
           value={search} onChange={e => setSearch(e.target.value)} autoComplete="off" />
         {filteredEleves.length > 0 && (
           <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: '#fff',
-            border: '0.5px solid #e0e0d8', borderRadius: '0 0 14px 14px', zIndex: 200,
+            border: '0.5px solid #e0e0d8', borderRadius: '0 0 14px 14px', zIndex: 9999,
             boxShadow: '0 8px 24px rgba(0,0,0,0.1)', overflow: 'hidden' }}>
             {filteredEleves.map(e => {
               const vals = allValidations.filter(v => v.eleve_id === e.id);
@@ -358,7 +358,7 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
               const isSour = isSourateNiveauDyn(e.code_niveau, niveaux);
               const nivColor = ({ '5B': '#534AB7', '5A': '#378ADD', '2M': '#1D9E75', '2': '#EF9F27', '1': '#E24B4A' }[e.code_niveau] || '#888');
               return (
-                <div key={e.id} onClick={() => selectEleve(e)}
+                <div key={e.id} onTouchEnd={()=>selectEleve(e)} onClick={() => selectEleve(e)}
                   style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 16px',
                     cursor: 'pointer', borderBottom: '0.5px solid #f0f0ec' }}
                   onMouseEnter={ev => ev.currentTarget.style.background = '#f9f9f6'}

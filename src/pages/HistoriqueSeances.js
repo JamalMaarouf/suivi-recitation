@@ -443,51 +443,60 @@ export default function HistoriqueSeances({ user, navigate, goBack, lang='fr', i
             </div>
           </div>
 
-          {/* Filtres */}
+          {/* Filtres rapides dans le header */}
           <div style={{padding:'0 12px 12px',display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
             <select value={filterNiveau} onChange={e=>setFilterNiveau(e.target.value)}
-              style={{padding:'8px 10px',borderRadius:10,border:'0.5px solid #e0e0d8',
-                fontSize:13,fontFamily:'inherit',background:'#fff'}}>
-              <option value="tous">{lang==='ar'?'كل المستويات':'Tous niveaux'}</option>
-              {['5B','5A','2M','2','1'].map(n=><option key={n} value={n}>{n}</option>)}
+              style={{padding:'8px 10px',borderRadius:10,border:'none',fontSize:13,fontFamily:'inherit',background:'rgba(255,255,255,0.2)',color:'#fff'}}>
+              <option value="tous" style={{color:'#333'}}>{lang==='ar'?'كل المستويات':'Tous niveaux'}</option>
+              {(niveaux||[]).map(n=><option key={n.code} value={n.code} style={{color:'#333'}}>{n.code}</option>)}
             </select>
             <select value={filterType} onChange={e=>setFilterType(e.target.value)}
-              style={{padding:'8px 10px',borderRadius:10,border:'0.5px solid #e0e0d8',
-                fontSize:13,fontFamily:'inherit',background:'#fff'}}>
-              <option value="tous">{lang==='ar'?'كل الأنواع':'Tous types'}</option>
-              <option value="sourate">{lang==='ar'?'سور':'Sourates'}</option>
-              <option value="sequence">{lang==='ar'?'مقاطع':'Séquences'}</option>
-              <option value="tomon">Tomon</option>
-              <option value="hizb">Hizb</option>
+              style={{padding:'8px 10px',borderRadius:10,border:'none',fontSize:13,fontFamily:'inherit',background:'rgba(255,255,255,0.2)',color:'#fff'}}>
+              <option value="tous" style={{color:'#333'}}>{lang==='ar'?'كل الأنواع':'Tous types'}</option>
+              <option value="sourate" style={{color:'#333'}}>{lang==='ar'?'سور':'Sourates'}</option>
+              <option value="tomon" style={{color:'#333'}}>Tomon</option>
+              <option value="hizb" style={{color:'#333'}}>Hizb</option>
             </select>
-            {user.role==='surveillant'&&(
-              <select value={filterInstituteur} onChange={e=>setFilterInstituteur(e.target.value)}
-                style={{padding:'8px 10px',borderRadius:10,border:'0.5px solid #e0e0d8',
-                  fontSize:13,fontFamily:'inherit',background:'#fff'}}>
-                <option value="tous">{lang==='ar'?'كل الأساتذة':'Tous inst.'}</option>
-                {instituteurs.map(i=><option key={i.id} value={i.id}>{i.prenom} {i.nom}</option>)}
-              </select>
-            )}
-            <div style={{position:'relative',minWidth:180}}>
-              <input value={filterEleve==='tous'?searchFiltreEleve:((eleves.find(e=>e.id===filterEleve)||{prenom:'',nom:'',eleve_id_ecole:''})&&(eleves.find(e=>e.id===filterEleve)?.eleve_id_ecole?'#'+eleves.find(e=>e.id===filterEleve).eleve_id_ecole+' — ':'')+eleves.find(e=>e.id===filterEleve)?.prenom+' '+eleves.find(e=>e.id===filterEleve)?.nom)}
-                onChange={e=>{setSearchFiltreEleve(e.target.value);setFilterEleve('tous');}}
-                placeholder={lang==='ar'?'🔍 كل الطلاب أو رقم التعريف':'🔍 Tous ou N° élève'}
-                style={{padding:'8px 10px',borderRadius:10,border:'0.5px solid #e0e0d8',fontSize:13,fontFamily:'inherit',background:'#fff',width:'100%'}}/>
-              {searchFiltreEleve && filterEleve==='tous' && (
-                <div style={{position:'absolute',top:'100%',right:0,left:0,background:'#fff',border:'0.5px solid #e0e0d8',borderRadius:8,zIndex:100,maxHeight:200,overflowY:'auto',boxShadow:'0 4px 12px #0001'}}>
-                  <div onClick={()=>{setFilterEleve('tous');setSearchFiltreEleve('');}} style={{padding:'8px 12px',cursor:'pointer',fontSize:12,color:'#888',borderBottom:'0.5px solid #f0f0ec'}}>{lang==='ar'?'كل الطلاب':'Tous les élèves'}</div>
-                  {elevesVisibles.filter(e=>`${e.prenom} ${e.nom} ${e.eleve_id_ecole||''}`.toLowerCase().includes(searchFiltreEleve.toLowerCase())||String(e.eleve_id_ecole||'').includes(searchFiltreEleve)).map(e=>(
-                    <div key={e.id} onClick={()=>{setFilterEleve(e.id);setSearchFiltreEleve('');}}
-                      style={{padding:'8px 12px',cursor:'pointer',fontSize:12,borderBottom:'0.5px solid #f0f0ec',display:'flex',gap:8,alignItems:'center'}}
-                      onMouseEnter={ev=>ev.currentTarget.style.background='#f5f5f0'} onMouseLeave={ev=>ev.currentTarget.style.background='#fff'}>
-                      {e.eleve_id_ecole&&<span style={{background:'#E1F5EE',color:'#fff',padding:'1px 5px',borderRadius:4,fontSize:10,fontWeight:700}}>#{e.eleve_id_ecole}</span>}
-                      <span>{e.prenom} {e.nom}</span>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
           </div>
+        </div>
+        {/* Recherche élève — EN DEHORS du header sticky pour éviter le clipping */}
+        <div style={{background:'#fff',padding:'10px 12px',borderBottom:'0.5px solid #e0e0d8'}}>
+          <input value={filterEleve==='tous'?searchFiltreEleve:
+            ((eleves.find(e=>e.id===filterEleve)?.eleve_id_ecole?'#'+eleves.find(e=>e.id===filterEleve).eleve_id_ecole+' — ':'')+
+            (eleves.find(e=>e.id===filterEleve)?.prenom||'')+' '+(eleves.find(e=>e.id===filterEleve)?.nom||''))}
+            onChange={e=>{setSearchFiltreEleve(e.target.value);setFilterEleve('tous');}}
+            placeholder={lang==='ar'?'🔍 ابحث بالاسم أو رقم التعريف...':'🔍 Nom ou N° élève...'}
+            style={{width:'100%',padding:'10px 14px',borderRadius:12,border:'0.5px solid #e0e0d8',
+              fontSize:14,fontFamily:'inherit',boxSizing:'border-box',background:'#f9f9f6'}}/>
+          {/* Liste résultats — plus de position:absolute, liste inline */}
+          {searchFiltreEleve && filterEleve==='tous' && (
+            <div style={{background:'#fff',borderRadius:12,border:'0.5px solid #e0e0d8',
+              marginTop:6,maxHeight:220,overflowY:'auto',boxShadow:'0 4px 16px rgba(0,0,0,0.08)'}}>
+              <div onTouchEnd={()=>{setFilterEleve('tous');setSearchFiltreEleve('');}}
+                onClick={()=>{setFilterEleve('tous');setSearchFiltreEleve('');}}
+                style={{padding:'10px 14px',fontSize:12,color:'#888',borderBottom:'0.5px solid #f0f0ec',cursor:'pointer'}}>
+                {lang==='ar'?'كل الطلاب':'Tous les élèves'}
+              </div>
+              {elevesVisibles.filter(e=>
+                `${e.prenom} ${e.nom} ${e.eleve_id_ecole||''}`.toLowerCase().includes(searchFiltreEleve.toLowerCase()) ||
+                String(e.eleve_id_ecole||'').includes(searchFiltreEleve)
+              ).map(e=>(
+                <div key={e.id}
+                  onTouchEnd={()=>{setFilterEleve(e.id);setSearchFiltreEleve('');}}
+                  onClick={()=>{setFilterEleve(e.id);setSearchFiltreEleve('');}}
+                  style={{padding:'10px 14px',fontSize:13,borderBottom:'0.5px solid #f0f0ec',
+                    display:'flex',gap:10,alignItems:'center',cursor:'pointer'}}>
+                  {e.eleve_id_ecole&&(
+                    <span style={{background:'#E1F5EE',color:'#085041',padding:'2px 7px',
+                      borderRadius:8,fontSize:11,fontWeight:700,flexShrink:0}}>
+                      #{e.eleve_id_ecole}
+                    </span>
+                  )}
+                  <span style={{fontWeight:500}}>{e.prenom} {e.nom}</span>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
         {loading ? <div style={{textAlign:'center',padding:'2rem',color:'#888'}}>...</div> : (
@@ -514,7 +523,7 @@ export default function HistoriqueSeances({ user, navigate, goBack, lang='fr', i
             {(elevesVisibles||[]).map((e,idx)=>{
               const nc={'5B':'#534AB7','5A':'#378ADD','2M':'#1D9E75','2':'#EF9F27','1':'#E24B4A'}[e.code_niveau||'1']||'#888';
               return(
-                <div key={e.id} onClick={()=>navigate('fiche',e)}
+                <div key={e.id} onTouchEnd={()=>navigate('fiche',e)} onClick={()=>navigate('fiche',e)}
                   style={{background:'#fff',borderRadius:12,padding:'13px 14px',marginBottom:8,
                     border:'0.5px solid #e0e0d8',display:'flex',alignItems:'center',gap:12,cursor:'pointer'}}>
                   <div style={{width:32,height:32,borderRadius:'50%',background:`${nc}20`,color:nc,
@@ -601,10 +610,10 @@ export default function HistoriqueSeances({ user, navigate, goBack, lang='fr', i
                 onChange={e=>{setSearchFiltreEleve(e.target.value);setFilterEleve('tous');}}
                 placeholder={lang==='ar'?'🔍 كل الطلاب أو رقم التعريف':'🔍 Tous ou N° élève'}/>
               {searchFiltreEleve && filterEleve==='tous' && (
-                <div style={{position:'absolute',top:'100%',right:0,left:0,background:'#fff',border:'0.5px solid #e0e0d8',borderRadius:8,zIndex:100,maxHeight:200,overflowY:'auto',boxShadow:'0 4px 12px #0001'}}>
+                <div style={{position:'absolute',top:'9999%',right:0,left:0,background:'#fff',border:'0.5px solid #e0e0d8',borderRadius:8,zIndex:9999,maxHeight:200,overflowY:'auto',boxShadow:'0 4px 12px #0001'}}>
                   <div onClick={()=>{setFilterEleve('tous');setSearchFiltreEleve('');}} style={{padding:'8px 12px',cursor:'pointer',fontSize:12,color:'#888',borderBottom:'0.5px solid #f0f0ec'}}>{lang==='ar'?'كل الطلاب':'Tous les élèves'}</div>
                   {elevesVisibles.filter(e=>`${e.prenom} ${e.nom} ${e.eleve_id_ecole||''}`.toLowerCase().includes(searchFiltreEleve.toLowerCase())||String(e.eleve_id_ecole||'').includes(searchFiltreEleve)).map(e=>(
-                    <div key={e.id} onClick={()=>{setFilterEleve(e.id);setSearchFiltreEleve('');}}
+                    <div key={e.id} onTouchEnd={()=>{setFilterEleve(e.id);setSearchFiltreEleve('');}} onClick={()=>{setFilterEleve(e.id);setSearchFiltreEleve('');}}
                       style={{padding:'8px 12px',cursor:'pointer',fontSize:12,borderBottom:'0.5px solid #f0f0ec',display:'flex',gap:8,alignItems:'center'}}
                       onMouseEnter={ev=>ev.currentTarget.style.background='#f5f5f0'} onMouseLeave={ev=>ev.currentTarget.style.background='#fff'}>
                       {e.eleve_id_ecole&&<span style={{background:'#E1F5EE',color:'#085041',padding:'1px 5px',borderRadius:4,fontSize:10,fontWeight:700}}>#{e.eleve_id_ecole}</span>}

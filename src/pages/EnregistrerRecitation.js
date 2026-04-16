@@ -375,7 +375,7 @@ export default function EnregistrerRecitation({  user, eleve: eleveInitial, navi
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
               {elevesFiltre.length === 0 && <div className="empty">{t(lang,'aucun_eleve')}</div>}
               {elevesFiltre.map(e => (
-                <div key={e.id} onClick={() => selectEleve(e)}
+                <div key={e.id} onTouchEnd={()=>selectEleve(e)} onClick={() => selectEleve(e)}
                   style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', border: '0.5px solid #e0e0d8', borderRadius: 8, cursor: 'pointer' }}
                   onMouseEnter={ev => ev.currentTarget.style.borderColor = '#1D9E75'}
                   onMouseLeave={ev => ev.currentTarget.style.borderColor = '#e0e0d8'}>
