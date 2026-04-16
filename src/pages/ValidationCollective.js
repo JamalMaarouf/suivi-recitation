@@ -300,28 +300,34 @@ export default function ValidationCollective({ user, navigate, goBack, lang='fr'
   return (
     <div style={{padding:'1rem',maxWidth:700,margin:'0 auto'}}>
       {/* Header */}
-      <div style={{display:'flex',alignItems:'center',gap:12,marginBottom:'1.2rem'}}>
+      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'1.5rem'}}>
         <button className="back-link" onClick={()=>goBack?goBack():navigate('dashboard')}>{t(lang,'retour')}</button>
-        <div style={{fontSize:17,fontWeight:700,color:'#085041'}}>
-          📖 {lang==='ar' ? 'مراجعة جماعية' : "Muraja'a collective"}
+        <div style={{display:'flex',gap:8}}>
+          <button onClick={()=>navigate('muraja_dashboard')}
+            style={{padding:'6px 14px',background:'#E6F1FB',color:'#378ADD',border:'none',borderRadius:8,fontSize:12,fontWeight:600,cursor:'pointer',fontFamily:'inherit'}}>
+            📊 {lang==='ar'?'لوحة المراجعات':'Tableau de bord'}
+          </button>
         </div>
-        <button onClick={()=>navigate('muraja_dashboard')} style={{marginRight:0,marginLeft:'auto',padding:'5px 12px',background:'#E6F1FB',color:'#378ADD',border:'none',borderRadius:8,fontSize:12,fontWeight:600,cursor:'pointer'}}>
-          📊 {lang==='ar'?'لوحة المراجعات':'Tableau de bord'}
-        </button>
       </div>
 
-      {/* Steps */}
-      <div style={{display:'flex',gap:6,marginBottom:'1.5rem'}}>
-        {STEPS.map(s=>(
-          <div key={s.n} onClick={()=>step>s.n&&setStep(s.n)}
-            style={{flex:1,padding:'6px 4px',borderRadius:8,textAlign:'center',fontSize:11,
-              fontWeight: step>=s.n?700:400,
-              background: step===s.n?'#085041':step>s.n?'#E1F5EE':'#f5f5f0',
-              color: step===s.n?'#fff':step>s.n?'#1D9E75':'#aaa',
-              cursor: step>s.n?'pointer':'default'}}>
-            {step>s.n?'✓ ':''}{s.label}
-          </div>
-        ))}
+      {/* Title + Steps */}
+      <div style={{background:'#fff',border:'0.5px solid #e0e0d8',borderRadius:14,padding:'1.25rem',marginBottom:'1.5rem'}}>
+        <div style={{fontSize:18,fontWeight:800,color:'#085041',marginBottom:'1rem',textAlign:'center'}}>
+          📖 {lang==='ar' ? 'مراجعة جماعية' : "Muraja'a collective"}
+        </div>
+        <div style={{display:'flex',gap:6}}>
+          {STEPS.map(s=>(
+            <div key={s.n} onClick={()=>step>s.n&&setStep(s.n)}
+              style={{flex:1,padding:'8px 4px',borderRadius:10,textAlign:'center',fontSize:12,
+                fontWeight: step>=s.n?700:400,
+                background: step===s.n?'#085041':step>s.n?'#E1F5EE':'#f5f5f0',
+                color: step===s.n?'#fff':step>s.n?'#1D9E75':'#aaa',
+                cursor: step>s.n?'pointer':'default',
+                transition:'all 0.2s'}}>
+              {step>s.n?'✓ ':''}{s.label}
+            </div>
+          ))}
+        </div>
       </div>
 
       {msg&&<div style={{padding:'10px 14px',borderRadius:8,background:msg.type==='error'?'#FCEBEB':'#E1F5EE',color:msg.type==='error'?'#E24B4A':'#085041',marginBottom:12,fontSize:13}}>{msg.text}</div>}

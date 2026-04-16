@@ -188,13 +188,14 @@ export default function MurajaDashboard({ user, navigate, goBack, lang='fr', isM
         </div>
       )}
       {/* Header */}
-      <div style={{display:'flex',alignItems:'center',gap:12,marginBottom:'1.2rem'}}>
+      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'1.5rem'}}>
         <button className="back-link" onClick={()=>goBack?goBack():navigate('dashboard')}>{t(lang,'retour')}</button>
-        <div style={{fontSize:17,fontWeight:700,color:'#085041'}}>
-          📊 {lang==='ar'?'لوحة تتبع المراجعة الجماعية':'Tableau de bord Muraja\u02bca'}
+        <div style={{fontSize:18,fontWeight:800,color:'#085041'}}>
+          📖 {lang==='ar'?'المراجعة الجماعية':"Muraja'a"}
         </div>
-        <button onClick={()=>navigate('muraja')} style={{marginLeft:'auto',padding:'6px 14px',background:'#085041',color:'#fff',border:'none',borderRadius:8,fontSize:12,fontWeight:600,cursor:'pointer'}}>
-          + {lang==='ar'?'مراجعة جديدة':'Nouvelle muraja\u02bca'}
+        <button onClick={()=>navigate('muraja')}
+          style={{padding:'6px 16px',background:'#085041',color:'#fff',border:'none',borderRadius:8,fontSize:12,fontWeight:600,cursor:'pointer',fontFamily:'inherit'}}>
+          + {lang==='ar'?'مراجعة جديدة':'Nouvelle'}
         </button>
       </div>
 
