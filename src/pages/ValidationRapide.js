@@ -78,6 +78,28 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
       setProgrammeNiveau([]);
     }
     setProgrammeCharge(true);
+    // Calculer la sourate en cours avec données LOCALES fraîches (évite timing React)
+    const isSourateEleve = niveaux.some(n => n.code === e.code_niveau && n.type === 'sourate');
+    if (isSourateEleve && souratesLocal.length > 0) {
+      const souratesAcquises = e.sourates_acquises || 0;
+      const progFinal = (niv && prog) ? prog : [];
+      let souratesOrd;
+      if (progFinal.length > 0) {
+        souratesOrd = progFinal
+          .map(p => souratesLocal.find(s => s.id === p.reference_id))
+          .filter(Boolean)
+          .sort((a, b) => b.numero - a.numero);
+      } else {
+        souratesOrd = [...souratesLocal].sort((a, b) => b.numero - a.numero);
+      }
+      const isCompleteLoc = (id) =>
+        recitationsLocal.some(r => r.sourate_id === id && r.type_recitation === 'complete');
+      const idx = souratesOrd.findIndex((sr, i) => {
+        if (i < souratesAcquises) return false;
+        return !isCompleteLoc(sr.id);
+      });
+      setCurrentSourateState(idx >= 0 ? souratesOrd[idx] : null);
+    }
   };
 
   const estSourate = selectedEleve ? isSourateNiveauDyn(selectedEleve.code_niveau, niveaux) : false;
