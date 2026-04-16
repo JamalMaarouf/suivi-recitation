@@ -69,11 +69,13 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
     setSouratesDB(souratesLocal);
     setRecitationsSourates(recitationsLocal);
     // Charger le programme du niveau de l'élève
+    let progData = [];
     const { data: niv } = await supabase.from('niveaux').select('id').eq('code', e.code_niveau).eq('ecole_id', user.ecole_id).single();
     if (niv) {
       const { data: prog } = await supabase.from('programmes').select('reference_id,ordre')
         .eq('niveau_id', niv.id).eq('ecole_id', user.ecole_id).order('ordre');
-      setProgrammeNiveau(prog || []);
+      progData = prog || [];
+      setProgrammeNiveau(progData);
     } else {
       setProgrammeNiveau([]);
     }
@@ -82,10 +84,9 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
     const isSourateEleve = niveaux.some(n => n.code === e.code_niveau && n.type === 'sourate');
     if (isSourateEleve && souratesLocal.length > 0) {
       const souratesAcquises = e.sourates_acquises || 0;
-      const progFinal = (niv && prog) ? prog : [];
       let souratesOrd;
-      if (progFinal.length > 0) {
-        souratesOrd = progFinal
+      if (progData.length > 0) {
+        souratesOrd = progData
           .map(p => souratesLocal.find(s => s.id === p.reference_id))
           .filter(Boolean)
           .sort((a, b) => b.numero - a.numero);
