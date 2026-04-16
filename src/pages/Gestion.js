@@ -1565,6 +1565,11 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
   const NL = Object.fromEntries(niveauxActifs.map(n=>[n.code, n.nom||n.code]));
   const NIVEAUX_M = niveauxActifs.map(n=>n.code);
 
+  // For mobile, default tab is 'eleves' not 'parametres'
+  React.useEffect(() => {
+    if (isMobile && tab === 'parametres') setTab('eleves');
+  }, [isMobile]);
+
   if (isMobile) {
     // Couleurs dynamiques depuis niveauxActifs, fallback hardcoded
     const getNC = (code) => (niveauxActifs||[]).find(n=>n.code===code)?.couleur ||

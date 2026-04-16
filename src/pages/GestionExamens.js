@@ -225,7 +225,7 @@ export default function GestionExamens({ user, navigate, goBack, lang='fr', isMo
     : examens.filter(e=>e.niveau_id===filtreNiveau);
 
   // ── FORMULAIRE (partagé PC+Mobile) ────────────────────────────────
-  const FormContent = () => (
+  const renderFormContent = () => (
     <div>
       {/* Nom */}
       <div style={{marginBottom:13}}>
@@ -531,7 +531,7 @@ export default function GestionExamens({ user, navigate, goBack, lang='fr', isMo
                   ?(lang==='ar'?'تعديل الامتحان':'✏️ Modifier l\'examen')
                   :(lang==='ar'?'إضافة امتحان':'📝 Nouvel examen')}
               </div>
-              <FormContent/>
+              {renderFormContent()}
             </div>
           )}
 
@@ -686,7 +686,7 @@ export default function GestionExamens({ user, navigate, goBack, lang='fr', isMo
               ?(lang==='ar'?'تعديل الامتحان':'✏️ Modifier l\'examen')
               :(lang==='ar'?'إضافة امتحان جديد':'📝 Nouvel examen')}
           </div>
-          <FormContent/>
+          {renderFormContent()}
         </div>
       )}
 
