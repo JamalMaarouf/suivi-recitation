@@ -415,8 +415,9 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang, isMobi
   const estSourateEleve = isSourateNiveauDyn(eleve.code_niveau, _niveauxCtx);
 
   const totalPtsSourates = recitationsSouratesEleve.reduce((s,r)=>s+(r.points||0),0);
+  const nbSouratesCompletes = recitationsSouratesEleve.filter(r=>r.type_recitation==='complete').length;
   const sl = estSourateEleve
-    ? scoreLabel(totalPtsSourates)
+    ? scoreLabel(nbSouratesCompletes * 30) // simulate score for label color
     : (etat ? scoreLabel(etat.points.total) : {color:'#888',bg:'#f0f0ec',label:'—'});
   const badges = etat ? calcBadges(validations,etat) : [];
 
@@ -924,8 +925,14 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang, isMobi
                 </div>
               </div>
               <div style={{textAlign:'right'}}>
-                <div style={{fontSize:38,fontWeight:800,color:sl.color,letterSpacing:'-2px'}}>{estSourateEleve?totalPtsSourates.toLocaleString():(etat?.points.total.toLocaleString()||0)}</div>
-                <div style={{fontSize:11,color:'#888'}}>{t(lang,'pts_abrev')}</div>
+                <div style={{fontSize:38,fontWeight:800,color:sl.color,letterSpacing:'-2px'}}>
+                  {estSourateEleve
+                    ? recitationsSouratesEleve.filter(r=>r.type_recitation==='complete').length
+                    : (etat?.points.total.toLocaleString()||0)}
+                </div>
+                <div style={{fontSize:11,color:'#888'}}>
+                  {estSourateEleve?(lang==='ar'?'سورة مكتملة':'sourates'):t(lang,'pts_abrev')}
+                </div>
               </div>
             </div>
 
