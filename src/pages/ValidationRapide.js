@@ -54,15 +54,13 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
     setSourateSelectionnee(null);
     setTypeRec('complete');
     setVersetDebut(''); setVersetFin('');
-    // Charger récitations sourates pour cet élève
-    const { data: recs } = await supabase.from('recitations_sourates')
-      .select('*').eq('eleve_id', e.id).eq('ecole_id', user.ecole_id);
+    // Charger récitations + souratesDB en parallèle (garantir que souratesDB est disponible)
+    const [{ data: recs }, { data: sourFresh }] = await Promise.all([
+      supabase.from('recitations_sourates').select('*').eq('eleve_id', e.id).eq('ecole_id', user.ecole_id),
+      supabase.from('sourates').select('id,numero,nom_ar,nb_versets').order('numero', { ascending: false }),
+    ]);
+    setSouratesDB(sourFresh || []);
     setRecitationsSourates(recs || []);
-    // Recharger souratesDB si vide (race condition)
-    if (souratesDB.length === 0) {
-      const { data: sour } = await supabase.from('sourates').select('id,numero,nom_ar,nb_versets').order('numero', { ascending: false });
-      if (sour) setSouratesDB(sour);
-    }
   };
 
   const estSourate = selectedEleve ? isSourateNiveauDyn(selectedEleve.code_niveau, niveaux) : false;
@@ -77,7 +75,6 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
   const currentSourate = (() => {
     if (!estSourate || !selectedEleve) return null;
     const souratesAcquises = selectedEleve.sourates_acquises || 0;
-    // Sourates du niveau triées décroissantes (114→1)
     const souratesNiveau = getSouratesForNiveau(selectedEleve.code_niveau);
     const souratesOrdonnees = [...souratesNiveau].sort((a, b) => b.numero - a.numero);
     const firstNonComplete = souratesOrdonnees.findIndex((sr, i) => {
@@ -87,8 +84,22 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
     if (firstNonComplete < 0) return null;
     const s = souratesOrdonnees[firstNonComplete];
     const dbObj = souratesDB.find(sd => sd.numero === s.numero);
-    // Si souratesDB pas encore chargé, on retourne quand même la sourate sans id
     return dbObj ? { ...s, id: dbObj.id, nb_versets: dbObj.nb_versets } : { ...s };
+  })();
+
+  // Vérifier si c'est la dernière sourate disponible du programme
+  const estDerniereSourate = (() => {
+    if (!estSourate || !selectedEleve || !currentSourate) return false;
+    const souratesAcquises = selectedEleve.sourates_acquises || 0;
+    const souratesNiveau = getSouratesForNiveau(selectedEleve.code_niveau);
+    const souratesOrdonnees = [...souratesNiveau].sort((a, b) => b.numero - a.numero);
+    // Compter les sourates restantes non complètes après la sourate en cours
+    const restantes = souratesOrdonnees.filter((sr, i) => {
+      if (i < souratesAcquises) return false;
+      if (sr.numero === currentSourate.numero) return false;
+      return !isCompleteNum(sr.numero);
+    });
+    return restantes.length === 0;
   })();
 
   // Valider N tomons
@@ -389,6 +400,16 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
                         {currentSourate.numero}
                       </div>
                     </div>
+
+                {/* Avertissement dernière sourate */}
+                {estDerniereSourate && (
+                  <div style={{ background:'#FAEEDA', borderRadius:10, padding:'10px 14px',
+                    marginBottom:12, fontSize:12, color:'#633806', textAlign:'center', fontWeight:600 }}>
+                    ⚠️ {lang==='ar'
+                      ? 'هذه آخر سورة في البرنامج — تأكد من صحة الاستظهار قبل التسجيل'
+                      : 'Dernière sourate du programme — vérifiez avant de valider'}
+                  </div>
+                )}
 
                     {/* Choix : complète ou séquence */}
                     <div style={{ display:'flex', gap:8, marginBottom:14 }}>
