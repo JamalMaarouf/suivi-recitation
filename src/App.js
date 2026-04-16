@@ -83,8 +83,7 @@ class ErrorBoundary extends React.Component {
           </h2>
           <p style={{fontSize:13,color:'#888',marginBottom:16}}>
             {isChunkError
-              ? 'تم تحديث التطبيق. يرجى إعادة التحميل للاستمرار.
-L'application a été mise à jour. Veuillez recharger.'
+              ? 'تم تحديث التطبيق — يرجى إعادة التحميل للاستمرار'
               : this.state.error.toString()}
           </p>
           <div style={{display:'flex',gap:8,justifyContent:'center'}}>
