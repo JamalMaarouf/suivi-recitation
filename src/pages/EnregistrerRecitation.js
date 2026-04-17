@@ -60,28 +60,13 @@ export default function EnregistrerRecitation({  user, eleve: eleveInitial, navi
   };
 
   const loadValidations = async (el) => {
-    console.log('[DEBUG EnregistrerRecitation] Élève reçu:', {
-      id: el.id,
-      nom: `${el.prenom} ${el.nom}`,
-      hizb_depart: el.hizb_depart,
-      tomon_depart: el.tomon_depart,
-      code_niveau: el.code_niveau,
-    });
     const [{ data: vals }, { data: appr }] = await Promise.all([
       supabase.from('validations').select('*')
         .eq('ecole_id', user.ecole_id).eq('eleve_id', el.id),
       supabase.from('apprentissages').select('*')
         .eq('ecole_id', user.ecole_id).eq('eleve_id', el.id)
     ]);
-    console.log('[DEBUG EnregistrerRecitation] Validations récupérées:', vals?.length, 'total');
     const e = calcEtatEleve(vals || [], el.hizb_depart, el.tomon_depart);
-    console.log('[DEBUG EnregistrerRecitation] État calculé:', {
-      hizbEnCours: e.hizbEnCours,
-      prochainTomon: e.prochainTomon,
-      tomonCumul: e.tomonCumul,
-      hizbDepartUtilise: el.hizb_depart,
-      tomonDepartUtilise: el.tomon_depart,
-    });
     setEtat(e);
     setApprentissages(appr || []);
   };

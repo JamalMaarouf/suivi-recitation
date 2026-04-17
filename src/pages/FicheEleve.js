@@ -344,6 +344,16 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang, isMobi
         prochainTomon: e.prochainTomon,
         tomonCumul: e.tomonCumul,
       });
+      console.log('[DEBUG FicheEleve] Toutes les validations brutes:');
+      console.table((vals||[]).map(v => ({
+        id: v.id,
+        type: v.type_validation,
+        nombre_tomon: v.nombre_tomon,
+        tomon_debut: v.tomon_debut,
+        hizb_validation: v.hizb_validation,
+        hizb_valide: v.hizb_valide,
+        date: v.date_validation,
+      })));
 
       // PROTECTION CRITIQUE : si on avait déjà un état avec des validations
       // et que le reload ne retourne rien, c'est un signal d'erreur transitoire.

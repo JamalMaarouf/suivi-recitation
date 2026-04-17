@@ -180,7 +180,10 @@ export function calcEtatEleve(validations, hizbDepart, tomonDepart) {
   for (const v of valsChron) {
     if (v.type_validation === 'hizb_complet') {
       hizbsComplets.add(v.hizb_valide);
-    } else if (v.nombre_tomon > 0) {
+    } else if (v.type_validation === 'tomon' && v.nombre_tomon > 0) {
+      // On compte UNIQUEMENT les validations type='tomon' dans la progression.
+      // Les type='tomon_muraja' et 'hizb_muraja' sont des révisions, pas de la
+      // nouvelle mémorisation — elles ne font pas avancer le hizb en cours.
       tomonCumul += v.nombre_tomon;
     }
   }
