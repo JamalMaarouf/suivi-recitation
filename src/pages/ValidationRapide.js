@@ -1,10 +1,13 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from '../lib/supabase';
+import { useToast } from '../lib/toast';
+import { withRetryToast } from '../lib/retry';
 import { calcEtatEleve, getInitiales, scoreLabel, motivationMsg, verifierEtCreerCertificats, isSourateNiveauDyn, loadBareme, BAREME_DEFAUT } from '../lib/helpers';
 import { getSouratesForNiveau } from '../lib/sourates';
 import { t } from '../lib/i18n';
 
 export default function ValidationRapide({ user, navigate, goBack, lang='fr', isMobile }) {
+  const { toast } = useToast();
   const [eleves, setEleves] = useState([]);
   const [niveaux, setNiveaux] = useState([]);
   const [allValidations, setAllValidations] = useState([]);
@@ -171,12 +174,15 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
   const validerTomon = async () => {
     if (!selectedEleve || !etat || saving || etat.enAttenteHizbComplet) return;
     setSaving(true);
-    const { error } = await supabase.from('validations').insert({
-      eleve_id: selectedEleve.id, ecole_id: user.ecole_id, valide_par: user.id,
-      nombre_tomon: nbTomon, type_validation: 'tomon',
-      date_validation: new Date().toISOString(),
-      tomon_debut: etat.prochainTomon, hizb_validation: etat.hizbEnCours
-    });
+    const { error } = await withRetryToast(
+      () => supabase.from('validations').insert({
+        eleve_id: selectedEleve.id, ecole_id: user.ecole_id, valide_par: user.id,
+        nombre_tomon: nbTomon, type_validation: 'tomon',
+        date_validation: new Date().toISOString(),
+        tomon_debut: etat.prochainTomon, hizb_validation: etat.hizbEnCours
+      }),
+      toast, lang
+    );
     if (!error) {
       const ptsParTomon = bareme?.unites?.tomon || 0;
       const pts = nbTomon * ptsParTomon;
@@ -199,11 +205,14 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
   const validerHizb = async () => {
     if (!selectedEleve || !etat || saving || !etat.enAttenteHizbComplet) return;
     setSaving(true);
-    const { error } = await supabase.from('validations').insert({
-      eleve_id: selectedEleve.id, ecole_id: user.ecole_id, valide_par: user.id,
-      nombre_tomon: 0, type_validation: 'hizb_complet',
-      date_validation: new Date().toISOString(), hizb_valide: etat.hizbEnCours
-    });
+    const { error } = await withRetryToast(
+      () => supabase.from('validations').insert({
+        eleve_id: selectedEleve.id, ecole_id: user.ecole_id, valide_par: user.id,
+        nombre_tomon: 0, type_validation: 'hizb_complet',
+        date_validation: new Date().toISOString(), hizb_valide: etat.hizbEnCours
+      }),
+      toast, lang
+    );
     if (!error) {
       const ptsHizb = bareme?.unites?.hizb_complet || 0;
       setFlash({ msg: `🎉 الحزب ${etat.hizbEnCours} مكتمل !`, color: '#EF9F27', pts: ptsHizb });
@@ -247,13 +256,16 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
     const ptsSequence = bareme?.unites?.sequence_sourate || 0;
     const pts = typeRec === 'complete' ? ptsComplet : ptsSequence;
 
-    const { error } = await supabase.from('recitations_sourates').insert({
-      eleve_id: selectedEleve.id, ecole_id: user.ecole_id, valide_par: user.id,
-      sourate_id: sourateId, type_recitation: typeRec,
-      verset_debut: typeRec === 'sequence' ? parseInt(versetDebut) : null,
-      verset_fin: typeRec === 'sequence' ? parseInt(versetFin) : null,
-      date_validation: new Date().toISOString(), points: pts,
-    });
+    const { error } = await withRetryToast(
+      () => supabase.from('recitations_sourates').insert({
+        eleve_id: selectedEleve.id, ecole_id: user.ecole_id, valide_par: user.id,
+        sourate_id: sourateId, type_recitation: typeRec,
+        verset_debut: typeRec === 'sequence' ? parseInt(versetDebut) : null,
+        verset_fin: typeRec === 'sequence' ? parseInt(versetFin) : null,
+        date_validation: new Date().toISOString(), points: pts,
+      }),
+      toast, lang
+    );
 
     if (error) {
       setFlash({ msg: `❌ ${error.message}`, color: '#E24B4A', pts: 0 });

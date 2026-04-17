@@ -56,6 +56,7 @@ const ListeNotes          = lazy(() => import('./pages/ListeNotes'));
 import { t, getDir } from './lib/i18n';
 import { isSourateNiveauDyn } from './lib/helpers';
 import { ToastProvider } from './lib/toast';
+import { NetworkBanner } from './lib/NetworkStatus';
 import { supabase } from './lib/supabase';
 import './App.css';
 
@@ -221,6 +222,7 @@ export default function App() {
   if (!user) return (
     <ToastProvider isMobile={isMobile}>
     <LangContext.Provider value={{ lang, setLang }}>
+      <NetworkBanner lang={lang} />
       {showInscription
         ? <InscriptionEcole onBack={()=>setShowInscription(false)} lang={lang}/>
         : <Login onLogin={handleLogin} lang={lang} LangSelector={() => (
@@ -244,6 +246,7 @@ export default function App() {
   if (user.role === 'super_admin') return (
     <ToastProvider isMobile={isMobile}>
     <LangContext.Provider value={{ lang, setLang }}>
+      <NetworkBanner lang={lang} />
       <div className="app-container">
         <SuperAdminDashboard user={user} navigate={navigate} lang={lang} onLogout={handleLogout}/>
       </div>
@@ -256,6 +259,7 @@ export default function App() {
   return (
     <ToastProvider isMobile={isMobile}>
     <LangContext.Provider value={{ lang, setLang }}>
+      <NetworkBanner lang={lang} />
       <div className="app-container" dir={getDir(lang)}>
 
         {!isMobile && user.role !== 'parent' && (
