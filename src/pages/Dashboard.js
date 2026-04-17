@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { supabase } from '../lib/supabase';
+import { getCachedSWR } from '../lib/cache';
 import { calcEtatEleve, isSourateNiveauDyn, niveauTraduit, calcStats, formatDate, formatDateCourt, isInactif, joursDepuis, getInitiales, scoreLabel, loadBareme, BAREME_DEFAUT } from '../lib/helpers';
 import { t } from '../lib/i18n';
 
@@ -64,25 +65,15 @@ export default function Dashboard({ user, navigate, goBack, lang, isMobile=false
 
   useEffect(() => { loadData(); }, []);
 
-  const loadData = async () => {
-    setLoading(true);
-    try {
-    loadBareme(supabase, user.ecole_id).then(b => setBareme(b));
-    const [{ data: ed },{ data: id },{ data: vd }, { data: rd }] = await Promise.all([
-      supabase.from('eleves').select('id,prenom,nom,code_niveau,niveau,hizb_depart,tomon_depart,sourates_acquises,instituteur_referent_id,ecole_id').eq('ecole_id', user.ecole_id).order('nom'),
-      supabase.from('utilisateurs').select('id,prenom,nom,role').eq('role','instituteur').eq('ecole_id', user.ecole_id),
-      supabase.from('validations').select('id,eleve_id,type_validation,nombre_tomon,hizb_valide,tomon_debut,date_validation,valide_par,ecole_id,valideur:valide_par(prenom,nom)').eq('ecole_id', user.ecole_id).limit(5000).order('created_at', {ascending:false}).order('date_validation',{ascending:false}),
-      supabase.from('recitations_sourates').select('eleve_id,date_validation').eq('ecole_id', user.ecole_id).limit(3000).order('created_at', {ascending:false}).order('date_validation',{ascending:false}),
-    ]);
-    const { data: nv } = await supabase.from('niveaux').select('id,code,nom,type,couleur').eq('ecole_id', user.ecole_id).order('ordre');
-    // Dernière récitation sourate par élève
+  // Transforme les données brutes en format d'affichage
+  const buildElevesData = (ed, id, vd, rd) => {
     const recSouratesMap = {};
     (rd||[]).forEach(r => { if (!recSouratesMap[r.eleve_id]) recSouratesMap[r.eleve_id] = r.date_validation; });
     const recSouratesCountMap = {};
     (rd||[]).filter(r=>r.type_recitation==='complete').forEach(r=>{
       recSouratesCountMap[r.eleve_id] = (recSouratesCountMap[r.eleve_id]||0)+1;
     });
-    const elevesData = (ed||[]).map(eleve => {
+    return (ed||[]).map(eleve => {
       const vals = (vd||[]).filter(v=>v.eleve_id===eleve.id);
       const etat = calcEtatEleve(vals,eleve.hizb_depart,eleve.tomon_depart);
       const derniereHizb = vals[0]?.date_validation||null;
@@ -93,7 +84,46 @@ export default function Dashboard({ user, navigate, goBack, lang, isMobile=false
       const inst = (id||[]).find(i=>i.id===eleve.instituteur_referent_id);
       return {...eleve,etat,derniere,jours:joursDepuis(derniere),instituteurNom:inst?`${inst.prenom} ${inst.nom}`:'—',instituteur:inst,inactif:isInactif(derniere),recSouratesCount:recSouratesCountMap[eleve.id]||0};
     });
-    setNiveaux(nv||[]); setEleves(elevesData); setInstituteurs(id||[]); setAllValidations(vd||[]); setStats(calcStats(vd||[])); setLoading(false);
+  };
+
+  // Applique les données chargées au state
+  const applyData = (ed, id, vd, rd, nv) => {
+    const elevesData = buildElevesData(ed, id, vd, rd);
+    setNiveaux(nv||[]);
+    setEleves(elevesData);
+    setInstituteurs(id||[]);
+    setAllValidations(vd||[]);
+    setStats(calcStats(vd||[]));
+  };
+
+  const loadData = async () => {
+    setLoading(true);
+    try {
+      loadBareme(supabase, user.ecole_id).then(b => setBareme(b));
+
+      // SWR : affichage instantané depuis le cache, refresh en arrière-plan
+      // Si le cache est frais (<60s), pas de requête réseau du tout.
+      const refreshFromFresh = (key, fresh) => {
+        // Stocker temporairement, puis appliquer quand tous les refresh sont prêts
+        // Simple : recharger au complet si un élément a changé
+      };
+
+      const [ed, id, vd, rd, nv] = await Promise.all([
+        getCachedSWR('eleves', user.ecole_id,
+          () => supabase.from('eleves').select('id,prenom,nom,code_niveau,niveau,hizb_depart,tomon_depart,sourates_acquises,instituteur_referent_id,ecole_id').eq('ecole_id', user.ecole_id).order('nom'),
+          (fresh) => { /* refresh silencieux */ }),
+        getCachedSWR('instituteurs', user.ecole_id,
+          () => supabase.from('utilisateurs').select('id,prenom,nom,role').eq('role','instituteur').eq('ecole_id', user.ecole_id)),
+        getCachedSWR('validations', user.ecole_id,
+          () => supabase.from('validations').select('id,eleve_id,type_validation,nombre_tomon,hizb_valide,tomon_debut,date_validation,valide_par,ecole_id,valideur:valide_par(prenom,nom)').eq('ecole_id', user.ecole_id).limit(5000).order('created_at', {ascending:false}).order('date_validation',{ascending:false})),
+        getCachedSWR('recitations_sourates_min', user.ecole_id,
+          () => supabase.from('recitations_sourates').select('eleve_id,date_validation,type_recitation').eq('ecole_id', user.ecole_id).limit(3000).order('created_at', {ascending:false}).order('date_validation',{ascending:false})),
+        getCachedSWR('niveaux', user.ecole_id,
+          () => supabase.from('niveaux').select('id,code,nom,type,couleur').eq('ecole_id', user.ecole_id).order('ordre')),
+      ]);
+
+      applyData(ed, id, vd, rd, nv);
+      setLoading(false);
     } catch (e) {
       console.error('[Dashboard.js] Erreur chargement:', e);
       setLoading(false);

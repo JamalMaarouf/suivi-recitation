@@ -19,20 +19,21 @@ class DebugErrorBoundary extends React.Component {
 }
 
 // ── Pages critiques — chargées immédiatement ──────────────────────────────
+// (Login + première page après login)
 import Login               from './pages/Login';
-import ElevesMobile        from './pages/ElevesMobile';
 import Dashboard           from './pages/Dashboard';
-import DashboardDirection  from './pages/DashboardDirection';
-import FicheEleve          from './pages/FicheEleve';
-import EnregistrerRecitation from './pages/EnregistrerRecitation';
-import Seance              from './pages/Seance';
-import ValidationRapide    from './pages/ValidationRapide';
-import PortailParent       from './pages/PortailParent';
-import ProfilMobile        from './pages/ProfilMobile';
+import ElevesMobile        from './pages/ElevesMobile';
 import SuperAdminDashboard from './pages/SuperAdminDashboard';
 import InscriptionEcole    from './pages/InscriptionEcole';
+import PortailParent       from './pages/PortailParent';
 
 // ── Pages secondaires — chargées à la demande (lazy) ─────────────────────
+const DashboardDirection  = lazy(() => import('./pages/DashboardDirection'));
+const FicheEleve          = lazy(() => import('./pages/FicheEleve'));
+const EnregistrerRecitation = lazy(() => import('./pages/EnregistrerRecitation'));
+const Seance              = lazy(() => import('./pages/Seance'));
+const ValidationRapide    = lazy(() => import('./pages/ValidationRapide'));
+const ProfilMobile        = lazy(() => import('./pages/ProfilMobile'));
 const Gestion             = lazy(() => import('./pages/Gestion'));
 const TableauHonneur      = lazy(() => import('./pages/TableauHonneur'));
 const Calendrier          = lazy(() => import('./pages/Calendrier'));
@@ -57,6 +58,7 @@ import { t, getDir } from './lib/i18n';
 import { isSourateNiveauDyn } from './lib/helpers';
 import { ToastProvider } from './lib/toast';
 import { NetworkBanner } from './lib/NetworkStatus';
+import { invalidateAll } from './lib/cache';
 import { supabase } from './lib/supabase';
 import './App.css';
 
@@ -180,7 +182,12 @@ export default function App() {
   }, [lang]);
 
   const handleLogin = (u) => { setUser(u); localStorage.setItem('suivi_user', JSON.stringify(u)); };
-  const handleLogout = () => { setUser(null); localStorage.removeItem('suivi_user'); setPageWithRef('dashboard'); };
+  const handleLogout = () => {
+    invalidateAll(); // vider tout le cache lors de la déconnexion
+    setUser(null);
+    localStorage.removeItem('suivi_user');
+    setPageWithRef('dashboard');
+  };
 
 
   const navigate = (p, data = null, extraData = null) => {

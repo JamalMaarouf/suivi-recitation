@@ -3,6 +3,7 @@ import { useToast } from '../lib/toast';
 import { t } from '../lib/i18n';
 import { supabase } from '../lib/supabase';
 import { withRetryToast } from '../lib/retry';
+import { invalidateMany } from '../lib/cache';
 import { calcEtatEleve, calcPositionAtteinte, calcUnite, formatDate, getInitiales, motivationMsg, verifierBlocageExamen, verifierEtCreerCertificats, loadBareme } from '../lib/helpers';
 
 function Avatar({ prenom, nom, size = 36, bg = '#E1F5EE', color = '#085041' }) {
@@ -125,6 +126,16 @@ export default function EnregistrerRecitation({  user, eleve: eleveInitial, navi
       }
     }
 
+    // Invalider les caches impactés par cette validation
+    if (!error) {
+      const eid = selectedEleve?.id;
+      invalidateMany(
+        ['validations', 'recitations_sourates_min',
+         ...(eid ? [`validations_${eid}`, `recitations_eleve_${eid}`] : [])],
+        user.ecole_id
+      );
+    }
+
     setLoading(false);
     if (error) {
       toast.error(error.message || 'Erreur de validation');
@@ -242,7 +253,7 @@ export default function EnregistrerRecitation({  user, eleve: eleveInitial, navi
                       }),
                       toast, lang
                     );
-                    if (!error) { setDone(true); setMotivMsg({msg:`🎉 Hizb complet ! +${bareme?.unites?.hizb_complet||0} pts`}); toast.success(lang==='ar'?'🎉 تم تسجيل الحزب الكامل':`🎉 Hizb complet enregistré ! +${bareme?.unites?.hizb_complet||0} pts`); }
+                    if (!error) { setDone(true); setMotivMsg({msg:`🎉 Hizb complet ! +${bareme?.unites?.hizb_complet||0} pts`}); toast.success(lang==='ar'?'🎉 تم تسجيل الحزب الكامل':`🎉 Hizb complet enregistré ! +${bareme?.unites?.hizb_complet||0} pts`); invalidateMany(['validations', 'recitations_sourates_min', `validations_${eleveInitial.id}`, `recitations_eleve_${eleveInitial.id}`], user.ecole_id); }
                   }}
                     style={{width:'100%',padding:'18px',background:'#EF9F27',color:'#fff',
                       border:'none',borderRadius:14,fontSize:17,fontWeight:800,cursor:'pointer',fontFamily:'inherit'}}>
@@ -268,7 +279,7 @@ export default function EnregistrerRecitation({  user, eleve: eleveInitial, navi
                           }),
                           toast, lang
                         );
-                        if (!error) { setDone(true); setMotivMsg({msg:`✅ +${n*30} pts !`}); toast.success(`✅ +${n*30} pts enregistrés !`); }
+                        if (!error) { setDone(true); setMotivMsg({msg:`✅ +${n*30} pts !`}); toast.success(`✅ +${n*30} pts enregistrés !`); invalidateMany(['validations', 'recitations_sourates_min', `validations_${eleveInitial.id}`, `recitations_eleve_${eleveInitial.id}`], user.ecole_id); }
                       }}
                         style={{padding:'20px 8px',background:'#1D9E75',color:'#fff',
                           border:'none',borderRadius:14,fontSize:16,fontWeight:800,

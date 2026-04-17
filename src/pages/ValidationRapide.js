@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 import { useToast } from '../lib/toast';
 import { withRetryToast } from '../lib/retry';
+import { invalidateMany } from '../lib/cache';
 import { calcEtatEleve, getInitiales, scoreLabel, motivationMsg, verifierEtCreerCertificats, isSourateNiveauDyn, loadBareme, BAREME_DEFAUT } from '../lib/helpers';
 import { getSouratesForNiveau } from '../lib/sourates';
 import { t } from '../lib/i18n';
@@ -197,6 +198,7 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
         .eq('ecole_id', user.ecole_id).eq('eleve_id', selectedEleve.id);
       setEtat(calcEtatEleve(newVals || [], selectedEleve.hizb_depart, selectedEleve.tomon_depart));
       setNbTomon(1);
+      invalidateMany(['validations', 'recitations_sourates_min', `validations_${selectedEleve.id}`, `recitations_eleve_${selectedEleve.id}`], user.ecole_id);
     }
     setSaving(false);
   };

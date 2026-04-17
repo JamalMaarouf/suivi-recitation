@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase';
 import { calcEtatEleve, isSourateNiveauDyn, calcPositionAtteinte, calcUnite, calcPoints, formatDate, formatDateCourt, getInitiales, scoreLabel, calcBadges, calcVitesse, niveauTraduit, calcPointsPeriode, loadBareme, BAREME_DEFAUT } from '../lib/helpers';
 import { t } from '../lib/i18n';
 import { openPDF } from '../lib/pdf';
+import { getCachedSWR } from '../lib/cache';
 import FicheSourate from './FicheSourate';
 
 function Avatar({ prenom, nom, size=44, bg='#E1F5EE', color='#085041' }) {
@@ -231,19 +232,30 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang, isMobi
   const loadData = async () => {
     setLoading(true);
     try {
+      // Cache par élève — clé distincte pour chaque élève
+      const cacheKey = (name) => `${name}_${eleve.id}`;
       const results = await Promise.allSettled([
-        supabase.from('validations').select('*, valideur:valide_par(prenom,nom)').eq('ecole_id', user.ecole_id).limit(5000).order('created_at', {ascending:false}).eq('eleve_id',eleve.id).order('date_validation',{ascending:false}),
+        getCachedSWR(cacheKey('validations'), user.ecole_id,
+          () => supabase.from('validations').select('*, valideur:valide_par(prenom,nom)').eq('ecole_id', user.ecole_id).limit(5000).order('created_at', {ascending:false}).eq('eleve_id',eleve.id).order('date_validation',{ascending:false})),
         supabase.from('apprentissages').select('*')
-        .eq('ecole_id', user.ecole_id).eq('eleve_id',eleve.id).order('date_debut',{ascending:false}),
+          .eq('ecole_id', user.ecole_id).eq('eleve_id',eleve.id).order('date_debut',{ascending:false}),
         supabase.from('exceptions_hizb').select('*')
-        .eq('ecole_id', user.ecole_id).eq('eleve_id',eleve.id).eq('active',true),
+          .eq('ecole_id', user.ecole_id).eq('eleve_id',eleve.id).eq('active',true),
         supabase.from('validations').select('*, valideur:valide_par(prenom,nom)').eq('ecole_id', user.ecole_id).limit(5000).order('created_at', {ascending:false}).eq('eleve_id',eleve.id).in('type_validation',['tomon_muraja','hizb_muraja']).order('date_validation',{ascending:false}),
         supabase.from('recitations_sourates').select('*, sourate:sourate_id(nom_ar,numero), valideur:valide_par(prenom,nom)').eq('ecole_id', user.ecole_id).limit(3000).order('created_at', {ascending:false}).eq('eleve_id',eleve.id).eq('is_muraja',true).order('date_validation',{ascending:false}),
-        supabase.from('recitations_sourates').select('id,type_recitation,sourate_id,verset_debut,verset_fin,date_validation,valide_par,points,sourate:sourate_id(nom_ar,numero),valideur:valide_par(prenom,nom)').eq('ecole_id', user.ecole_id).limit(3000).order('created_at', {ascending:false}).eq('eleve_id',eleve.id),
+        getCachedSWR(cacheKey('recitations_eleve'), user.ecole_id,
+          () => supabase.from('recitations_sourates').select('id,type_recitation,sourate_id,verset_debut,verset_fin,date_validation,valide_par,points,sourate:sourate_id(nom_ar,numero),valideur:valide_par(prenom,nom)').eq('ecole_id', user.ecole_id).limit(3000).order('created_at', {ascending:false}).eq('eleve_id',eleve.id)),
         supabase.from('passages_niveau').select('*, valide_par_u:valide_par(prenom,nom)').eq('ecole_id', user.ecole_id).eq('eleve_id',eleve.id).order('date_passage',{ascending:false}),
         supabase.from('objectifs').select('*').eq('ecole_id', user.ecole_id).eq('eleve_id',eleve.id).order('created_at',{ascending:false}),
       ]);
-      const [r0,r1,r2,r3,r4,r5,r6,r7] = results.map(r=>r.status==='fulfilled'?r.value:{data:[]});
+      // getCachedSWR retourne directement les données (pas {data,error}),
+      // tandis que les appels Supabase directs retournent {data,error}.
+      // On normalise :
+      const [r0,r1,r2,r3,r4,r5,r6,r7] = results.map(r => {
+        if (r.status !== 'fulfilled') return { data: [] };
+        if (Array.isArray(r.value)) return { data: r.value };
+        return r.value;
+      });
       const vals=r0.data||[], appr=r1.data||[], exhizb=r2.data||[], mval=r3.data||[], mrec=r4.data||[], recSourates=r5.data||[], passData=r6.data||[], objData=r7.data||[];
       setRecitationsSouratesEleve(recSourates);
       if (eleve.instituteur_referent_id) {
