@@ -60,11 +60,24 @@ export default function ListeNotes({ user, navigate, goBack, lang='fr', isMobile
 
   const elevesAvecPts = useMemo(() => {
     const { debut, fin } = getPeriodeDates();
+    // Index O(1) au lieu de filtrer n fois
+    const valsByEleve = new Map();
+    allValidations.forEach(v => {
+      if (!valsByEleve.has(v.eleve_id)) valsByEleve.set(v.eleve_id, []);
+      valsByEleve.get(v.eleve_id).push(v);
+    });
+    const evtsByEleve = new Map();
+    pointsEvts.forEach(p => {
+      if (!evtsByEleve.has(p.eleve_id)) evtsByEleve.set(p.eleve_id, []);
+      evtsByEleve.get(p.eleve_id).push(p);
+    });
+    const instById = new Map(instituteurs.map(i => [i.id, i]));
+
     return eleves.map(el => {
-      const vals = allValidations.filter(v => v.eleve_id === el.id);
-      const evts = pointsEvts.filter(p => p.eleve_id === el.id);
+      const vals = valsByEleve.get(el.id) || [];
+      const evts = evtsByEleve.get(el.id) || [];
       const pts = calcPointsPeriode(vals, debut, fin, bareme, evts);
-      const inst = instituteurs.find(i => i.id === el.instituteur_referent_id);
+      const inst = instById.get(el.instituteur_referent_id);
       return { ...el, pts, instNom: inst ? `${inst.prenom} ${inst.nom}` : '—' };
     }).sort((a, b) => b.pts.total - a.pts.total);
   }, [eleves, allValidations, pointsEvts, bareme, periode, dateDebut, dateFin]);

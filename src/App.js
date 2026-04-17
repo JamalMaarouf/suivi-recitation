@@ -176,6 +176,23 @@ export default function App() {
     });
   }, [user?.ecole_id]);
 
+  // Précharger en arrière-plan les pages fréquemment visitées.
+  // Le chunk JS sera telecharge pendant que l'utilisateur regarde le Dashboard,
+  // pour que la navigation vers ces pages soit instantanee (pas d'attente reseau).
+  useEffect(() => {
+    if (!user) return;
+    const t = setTimeout(() => {
+      // Les lazy() ci-dessus exposent un preload() implicite : appeler la factory
+      // de import() commence le fetch du chunk sans attendre.
+      import('./pages/FicheEleve').catch(()=>{});
+      import('./pages/EnregistrerRecitation').catch(()=>{});
+      import('./pages/ValidationRapide').catch(()=>{});
+      import('./pages/ListeNotes').catch(()=>{});
+      import('./pages/ListeCertificats').catch(()=>{});
+    }, 2500); // 2.5s apres login, l'utilisateur est sur Dashboard
+    return () => clearTimeout(t);
+  }, [user?.id]);
+
   const setLang = (newLang) => {
     setLangRaw(newLang);
     localStorage.setItem('suivi_lang', newLang);

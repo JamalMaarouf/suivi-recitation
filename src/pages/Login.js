@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { t } from '../lib/i18n';
+import { getCachedSWR } from '../lib/cache';
+import { fetchAll } from '../lib/fetchAll';
 
 export default function Login({ onLogin, lang, LangSelector, onShowInscription }) {
   const [identifiant, setIdentifiant] = useState('');
@@ -64,6 +66,24 @@ export default function Login({ onLogin, lang, LangSelector, onShowInscription }
       }
 
       setLoading(false);
+
+      // Précharger en arrière-plan les données du Dashboard
+      // Quand Dashboard s'affichera, les données seront déjà dans le cache SWR
+      const ecoleId = data.user.ecole_id;
+      if (ecoleId) {
+        // Fire and forget — ne pas attendre, laisser tourner en parallèle du render
+        Promise.all([
+          getCachedSWR('instituteurs', ecoleId,
+            () => supabase.from('utilisateurs').select('id,prenom,nom,role').eq('role','instituteur').eq('ecole_id', ecoleId)),
+          getCachedSWR('niveaux', ecoleId,
+            () => supabase.from('niveaux').select('id,code,nom,type,couleur').eq('ecole_id', ecoleId).order('ordre')),
+          getCachedSWR('validations', ecoleId,
+            () => fetchAll(supabase.from('validations').select('id,eleve_id,type_validation,nombre_tomon,hizb_valide,tomon_debut,date_validation,valide_par,ecole_id,valideur:valide_par(prenom,nom)').eq('ecole_id', ecoleId).order('date_validation',{ascending:false}))),
+          getCachedSWR('recitations_sourates_min', ecoleId,
+            () => fetchAll(supabase.from('recitations_sourates').select('eleve_id,date_validation,type_recitation').eq('ecole_id', ecoleId).order('date_validation',{ascending:false}))),
+        ]).catch(() => { /* silencieux — Dashboard fera le retry normal si échec */ });
+      }
+
       onLogin(data.user);
     } catch (err) {
       // API indisponible — message d'erreur réseau

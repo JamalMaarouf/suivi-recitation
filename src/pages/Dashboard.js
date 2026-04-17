@@ -77,22 +77,34 @@ export default function Dashboard({ user, navigate, goBack, lang, isMobile=false
   }, []);
 
   // Transforme les données brutes en format d'affichage
+  // Optimisé O(n+m) au lieu de O(n*m) via Map
   const buildElevesData = (ed, id, vd, rd) => {
-    const recSouratesMap = {};
-    (rd||[]).forEach(r => { if (!recSouratesMap[r.eleve_id]) recSouratesMap[r.eleve_id] = r.date_validation; });
-    const recSouratesCountMap = {};
-    (rd||[]).filter(r=>r.type_recitation==='complete').forEach(r=>{
-      recSouratesCountMap[r.eleve_id] = (recSouratesCountMap[r.eleve_id]||0)+1;
+    // Index des validations par eleve_id pour un lookup O(1) au lieu de filtrer n fois
+    const valsByEleve = new Map();
+    (vd||[]).forEach(v => {
+      if (!valsByEleve.has(v.eleve_id)) valsByEleve.set(v.eleve_id, []);
+      valsByEleve.get(v.eleve_id).push(v);
     });
+    const instById = new Map((id||[]).map(i => [i.id, i]));
+
+    const recSouratesMap = {};
+    const recSouratesCountMap = {};
+    (rd||[]).forEach(r => {
+      if (!recSouratesMap[r.eleve_id]) recSouratesMap[r.eleve_id] = r.date_validation;
+      if (r.type_recitation === 'complete') {
+        recSouratesCountMap[r.eleve_id] = (recSouratesCountMap[r.eleve_id]||0)+1;
+      }
+    });
+
     return (ed||[]).map(eleve => {
-      const vals = (vd||[]).filter(v=>v.eleve_id===eleve.id);
-      const etat = calcEtatEleve(vals,eleve.hizb_depart,eleve.tomon_depart);
+      const vals = valsByEleve.get(eleve.id) || [];
+      const etat = calcEtatEleve(vals, eleve.hizb_depart, eleve.tomon_depart);
       const derniereHizb = vals[0]?.date_validation||null;
       const derniereSourate = recSouratesMap[eleve.id]||null;
       const derniere = derniereHizb && derniereSourate
         ? (new Date(derniereHizb) > new Date(derniereSourate) ? derniereHizb : derniereSourate)
         : (derniereHizb || derniereSourate);
-      const inst = (id||[]).find(i=>i.id===eleve.instituteur_referent_id);
+      const inst = instById.get(eleve.instituteur_referent_id);
       return {...eleve,etat,derniere,jours:joursDepuis(derniere),instituteurNom:inst?`${inst.prenom} ${inst.nom}`:'—',instituteur:inst,inactif:isInactif(derniere),recSouratesCount:recSouratesCountMap[eleve.id]||0};
     });
   };
