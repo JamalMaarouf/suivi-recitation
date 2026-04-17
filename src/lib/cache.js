@@ -90,7 +90,10 @@ export async function getCachedSWR(key, ecoleId, loader, onFresh) {
     (async () => {
       try {
         const result = await loader();
+        // Ne rien mettre en cache si Supabase a renvoyé une erreur
+        if (result?.error) return;
         const data = result?.data !== undefined ? result.data : result;
+        if (data === null || data === undefined) return;
         cache.set(fullKey, { data, timestamp: Date.now() });
         if (onFresh) onFresh(data);
       } catch (e) { /* silencieux */ }
@@ -99,8 +102,19 @@ export async function getCachedSWR(key, ecoleId, loader, onFresh) {
   }
 
   // Pas de cache du tout → attendre le fetch
-  const result = await loader();
-  const data = result?.data !== undefined ? result.data : result;
-  cache.set(fullKey, { data, timestamp: Date.now() });
-  return data;
+  try {
+    const result = await loader();
+    // En cas d'erreur Supabase, renvoyer [] plutôt que de casser
+    if (result?.error) {
+      console.warn(`[cache] fetch error for ${fullKey}:`, result.error.message);
+      return [];
+    }
+    const data = result?.data !== undefined ? result.data : result;
+    if (data === null || data === undefined) return [];
+    cache.set(fullKey, { data, timestamp: Date.now() });
+    return data;
+  } catch (e) {
+    console.warn(`[cache] fetch exception for ${fullKey}:`, e.message);
+    return []; // Ne pas casser la page, renvoyer array vide
+  }
 }

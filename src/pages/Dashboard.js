@@ -65,6 +65,16 @@ export default function Dashboard({ user, navigate, goBack, lang, isMobile=false
 
   useEffect(() => { loadData(); }, []);
 
+  // Au retour online après une sync offline, invalider le cache et recharger
+  useEffect(() => {
+    const handler = () => {
+      // Le cache est déjà invalidé par les callers, mais par prudence :
+      loadData();
+    };
+    window.addEventListener('offline-synced', handler);
+    return () => window.removeEventListener('offline-synced', handler);
+  }, []);
+
   // Transforme les données brutes en format d'affichage
   const buildElevesData = (ed, id, vd, rd) => {
     const recSouratesMap = {};

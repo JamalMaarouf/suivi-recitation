@@ -229,6 +229,13 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang, isMobi
 
   useEffect(() => { loadData(); }, [eleve.id]);
 
+  // Rafraîchir après une sync offline réussie (validations faites sans réseau)
+  useEffect(() => {
+    const handler = () => loadData();
+    window.addEventListener('offline-synced', handler);
+    return () => window.removeEventListener('offline-synced', handler);
+  }, [eleve.id]);
+
   const loadData = async () => {
     setLoading(true);
     try {
@@ -259,7 +266,12 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang, isMobi
       const vals=r0.data||[], appr=r1.data||[], exhizb=r2.data||[], mval=r3.data||[], mrec=r4.data||[], recSourates=r5.data||[], passData=r6.data||[], objData=r7.data||[];
       setRecitationsSouratesEleve(recSourates);
       if (eleve.instituteur_referent_id) {
-        const {data:inst}=await supabase.from('utilisateurs').select('prenom,nom').eq('id',eleve.instituteur_referent_id).single();
+        // .single() plante dur si réseau instable → on utilise .maybeSingle() + try
+        let inst = null;
+        try {
+          const { data } = await supabase.from('utilisateurs').select('prenom,nom').eq('id',eleve.instituteur_referent_id).maybeSingle();
+          inst = data;
+        } catch(e) { inst = null; }
         // Charger examens et certificats (tables optionnelles)
         try {
           const exRes = await supabase.from('resultats_examens')
@@ -279,10 +291,11 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang, isMobi
             .select('*').eq('eleve_id',eleve.id).order('created_at',{ascending:false});
           setCertificats(certRes.data || []);
         } catch(e) { setCertificats([]); }
-        // Charger barème et points événements
-        loadBareme(supabase, eleve.ecole_id).then(b => setBaremeEleve(b));
+        // Charger barème et points événements (avec .catch pour ne pas casser)
+        loadBareme(supabase, eleve.ecole_id).then(b => setBaremeEleve(b)).catch(()=>{});
         supabase.from('points_eleves').select('*').eq('eleve_id', eleve.id).order('date_event')
-          .then(({data}) => setPointsEvenements(data||[]));
+          .then(({data}) => setPointsEvenements(data||[]))
+          .catch(()=> setPointsEvenements([]));
         // Charger jalons
         try {
           const jalRes = await supabase.from('jalons').select('id,nom,nom_ar').eq('ecole_id',eleve.ecole_id).eq('actif',true).order('created_at');

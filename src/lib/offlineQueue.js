@@ -283,17 +283,28 @@ export async function syncPending(supabase) {
  * Déclenche la sync auto au retour online et au démarrage.
  */
 export function installAutoSync(supabase, onSynced) {
+  const emitSynced = (res) => {
+    if (res.synced > 0 && typeof window !== 'undefined') {
+      // Invalider le cache côté lecture pour que les nouvelles données apparaissent
+      // (import dynamique pour éviter une dépendance circulaire)
+      import('./cache').then(({ invalidateAll }) => invalidateAll());
+      // Signal global pour que les pages ouvertes rafraîchissent leurs données
+      window.dispatchEvent(new CustomEvent('offline-synced', { detail: res }));
+    }
+    if (onSynced) onSynced(res);
+  };
+
   // Sync au retour online
   window.addEventListener('online', async () => {
     const res = await syncPending(supabase);
-    if (onSynced && res.synced > 0) onSynced(res);
+    emitSynced(res);
   });
 
   // Sync au démarrage (si des ops étaient en attente d'une session précédente)
   if (navigator.onLine) {
     setTimeout(async () => {
       const res = await syncPending(supabase);
-      if (onSynced && res.synced > 0) onSynced(res);
+      emitSynced(res);
     }, 2000); // petit délai pour laisser l'app s'initialiser
   }
 
@@ -302,7 +313,7 @@ export function installAutoSync(supabase, onSynced) {
     const count = await pendingCount();
     if (count > 0 && navigator.onLine) {
       const res = await syncPending(supabase);
-      if (onSynced && res.synced > 0) onSynced(res);
+      emitSynced(res);
     }
   }, 60000);
 }
