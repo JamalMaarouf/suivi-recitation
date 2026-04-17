@@ -280,19 +280,6 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang, isMobi
       });
       const vals=r0.data||[], appr=r1.data||[], exhizb=r2.data||[], mval=r3.data||[], mrec=r4.data||[], recSourates=r5.data||[], passData=r6.data||[], objData=r7.data||[];
 
-      // Protection anti-flash : si on avait des validations et que le reload renvoie vide,
-      // c'est probablement une erreur réseau transitoire — on garde l'ancien state
-      // et on retente plus tard (déclenché par les listeners offline-synced).
-      const statusFailed = results.some(r => r.status === 'rejected');
-      const previousVals = validations;
-      if (statusFailed && vals.length === 0 && previousVals.length > 0) {
-        console.warn('[FicheEleve] reload partiel, conservation de l\'etat precedent');
-        setLoading(false);
-        // Retry dans 2s
-        setTimeout(() => loadData().catch(()=>{}), 2000);
-        return;
-      }
-
       setRecitationsSouratesEleve(recSourates);
       if (eleve.instituteur_referent_id) {
         // .single() plante dur si réseau instable → on utilise .maybeSingle() + try
@@ -334,6 +321,21 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang, isMobi
         if(inst) setInstituteurNom(inst.prenom+' '+inst.nom);
       }
       const e = calcEtatEleve(vals||[],eleve.hizb_depart,eleve.tomon_depart);
+
+      // PROTECTION CRITIQUE : si on avait déjà un état avec des validations
+      // et que le reload ne retourne rien, c'est un signal d'erreur transitoire.
+      // On NE remplace PAS l'état existant (sinon les points disparaissent visuellement
+      // après sync offline, alors que tout est bien coté serveur).
+      const hadData = (validations && validations.length > 0) || (etat && etat.points && etat.points.total > 0);
+      const gotNothing = (vals || []).length === 0 && (recSourates || []).length === 0;
+      if (hadData && gotNothing) {
+        console.warn('[FicheEleve] reload vide alors qu\'on avait des donnees, on conserve l\'etat');
+        setLoading(false);
+        // Retenter dans 2.5s
+        setTimeout(() => loadData().catch(()=>{}), 2500);
+        return;
+      }
+
       setEtat(e);
       setValidations(vals||[]);
       setApprentissages(appr||[]);
@@ -343,9 +345,17 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang, isMobi
       setPassages(passData||[]);
       setObjectifs(objData||[]);
     } catch(err) {
-      toast.error(lang==='ar'?'خطأ في تحميل البيانات':'Erreur de chargement des données');
-      // Set minimal etat so page renders
-      setEtat(calcEtatEleve([],eleve.hizb_depart,eleve.tomon_depart));
+      console.error('[FicheEleve.js] Erreur chargement:', err);
+      // IMPORTANT: ne PAS reset les données déjà affichées si on avait un état précédent.
+      // Sinon, après une sync offline, les points remis à 0 alors que tout va bien côté serveur.
+      if (!etat) {
+        // Premier chargement raté : afficher un état minimal pour que la page ne crash pas
+        setEtat(calcEtatEleve([],eleve.hizb_depart,eleve.tomon_depart));
+      }
+      // Si etat existe deja, on le laisse tel quel et on retry plus tard
+      if (typeof navigator !== 'undefined' && navigator.onLine) {
+        setTimeout(() => loadData().catch(()=>{}), 2500);
+      }
     } finally {
       setLoading(false);
     }

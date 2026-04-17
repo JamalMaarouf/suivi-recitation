@@ -149,21 +149,33 @@ export default function EnregistrerRecitation({  user, eleve: eleveInitial, navi
       return;
     }
 
+    // Si on est offline (opération en queue), on saute les vérifications serveur
+    // (blocage examen, nouveaux certificats). Elles seront refaites à la sync.
+    if (wasQueued || (typeof navigator !== 'undefined' && navigator.onLine === false)) {
+      const msg = motivationMsg(nombreTomon, etat, typeValidation === 'hizb_complet');
+      setMotivMsg(msg);
+      setDone(true);
+      return;
+    }
+
     // Vérifier si un examen de bloc est maintenant requis
     // On recharge les validations fraîches pour avoir l'état à jour
-    const { data: valsNouv } = await supabase
-      .from('validations').select('*')
-      .eq('eleve_id', selectedEleve.id).eq('ecole_id', user.ecole_id);
-    const { data: recsNouv } = await supabase
-      .from('recitations_sourates').select('*')
-      .eq('eleve_id', selectedEleve.id).eq('ecole_id', user.ecole_id);
+    let valsNouv = [], recsNouv = [];
+    try {
+      const r1 = await supabase.from('validations').select('*')
+        .eq('eleve_id', selectedEleve.id).eq('ecole_id', user.ecole_id);
+      valsNouv = r1.data || [];
+      const r2 = await supabase.from('recitations_sourates').select('*')
+        .eq('eleve_id', selectedEleve.id).eq('ecole_id', user.ecole_id);
+      recsNouv = r2.data || [];
+    } catch (e) { /* réseau instable, on continue sans verif */ }
 
     const blocageDetecte = await verifierBlocageExamen(supabase, {
       eleve: selectedEleve,   // contient code_niveau
       ecole_id: user.ecole_id,
-      validations: valsNouv || [],
-      recitations: recsNouv || [],
-    });
+      validations: valsNouv,
+      recitations: recsNouv,
+    }).catch(() => null);
 
     if (blocageDetecte) {
       setBlocage(blocageDetecte);
@@ -172,9 +184,9 @@ export default function EnregistrerRecitation({  user, eleve: eleveInitial, navi
     // Vérifier si un jalon/certificat est débloqué
     const nouveauxCerts = await verifierEtCreerCertificats(supabase, {
       eleve: selectedEleve, ecole_id: user.ecole_id, valide_par: user.id,
-      validations: valsNouv || [], recitations: recsNouv || [],
-    });
-    if (nouveauxCerts.length > 0) {
+      validations: valsNouv, recitations: recsNouv,
+    }).catch(() => []);
+    if (nouveauxCerts && nouveauxCerts.length > 0) {
       toast.success(lang==='ar'
         ? `🏅 شهادة جديدة: ${(nouveauxCerts||[]).map(c=>c.nom_certificat_ar||c.nom_certificat).join(', ')} !`
         : `🏅 Nouveau certificat: ${(nouveauxCerts||[]).map(c=>c.nom_certificat).join(', ')} !`);
