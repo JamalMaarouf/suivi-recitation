@@ -120,6 +120,8 @@ export default function Dashboard({ user, navigate, goBack, lang, isMobile=false
   };
 
   const loadData = async () => {
+    const t0 = performance.now();
+    const mark = (label) => console.log(`[PERF Dashboard] ${label}: ${Math.round(performance.now() - t0)}ms`);
     setLoading(true);
     try {
       loadBareme(supabase, user.ecole_id).then(b => setBareme(b));
@@ -129,7 +131,10 @@ export default function Dashboard({ user, navigate, goBack, lang, isMobile=false
       // Étape 2 : données détaillées (~1-2s) → recalcul précis en remplacement
 
       const rpcPromise = supabase.rpc('get_eleves_stats', { p_ecole_id: user.ecole_id })
-        .then(res => (!res.error && Array.isArray(res.data)) ? res.data : null)
+        .then(res => {
+          mark('RPC get_eleves_stats répondu');
+          return (!res.error && Array.isArray(res.data)) ? res.data : null;
+        })
         .catch(() => null);
 
       const [rpcEleves, id, nv] = await Promise.all([
@@ -139,6 +144,7 @@ export default function Dashboard({ user, navigate, goBack, lang, isMobile=false
         getCachedSWR('niveaux', user.ecole_id,
           () => supabase.from('niveaux').select('id,code,nom,type,couleur').eq('ecole_id', user.ecole_id).order('ordre')),
       ]);
+      mark(`Phase 1 terminée (RPC + inst + niveaux). rpcEleves=${rpcEleves?rpcEleves.length:'null'}`);
 
       // Affichage rapide avec données RPC si disponibles
       if (rpcEleves) {
@@ -148,13 +154,10 @@ export default function Dashboard({ user, navigate, goBack, lang, isMobile=false
           const derniere = r.derniere_validation && r.derniere_recitation
             ? (new Date(r.derniere_validation) > new Date(r.derniere_recitation) ? r.derniere_validation : r.derniere_recitation)
             : (r.derniere_validation || r.derniere_recitation);
-          // État simplifié basé sur les stats pré-agrégées
-          // (on utilise calcEtatEleve avec une validation synthétique pour que hizb/tomon soient calculés)
           const fakeVals = r.tomon_cumul > 0
             ? [{ type_validation: 'tomon', nombre_tomon: r.tomon_cumul, date_validation: r.derniere_validation || new Date().toISOString() }]
             : [];
           const etat = calcEtatEleve(fakeVals, r.hizb_depart, r.tomon_depart);
-          // Forcer hizbsComplets.size car calcEtatEleve ne connaît pas les vrais Hizb complets ici
           etat.hizbsComplets = new Set();
           for (let i = 0; i < (r.hizb_complets_count || 0); i++) etat.hizbsComplets.add(i);
           return {
@@ -178,9 +181,10 @@ export default function Dashboard({ user, navigate, goBack, lang, isMobile=false
         setInstituteurs(id || []);
         setEleves(elevesFromRpc);
         setLoading(false); // Affichage immédiat
+        mark(`✓ AFFICHAGE RAPIDE (Phase 1) - ${elevesFromRpc.length} élèves`);
       }
 
-      // Charger les validations détaillées en arrière-plan (sert aux alertes, stats mois, etc.)
+      // Charger les validations détaillées en arrière-plan
       const [edRes, vd, rd] = await Promise.all([
         supabase.from('eleves').select('id,prenom,nom,code_niveau,niveau,hizb_depart,tomon_depart,sourates_acquises,instituteur_referent_id,ecole_id').eq('ecole_id', user.ecole_id).order('nom'),
         getCachedSWR('validations', user.ecole_id,
@@ -188,9 +192,11 @@ export default function Dashboard({ user, navigate, goBack, lang, isMobile=false
         getCachedSWR('recitations_sourates_min', user.ecole_id,
           () => fetchAll(supabase.from('recitations_sourates').select('eleve_id,date_validation,type_recitation').eq('ecole_id', user.ecole_id).order('date_validation',{ascending:false}))),
       ]);
+      mark(`Phase 2 requêtes terminées. eleves=${(edRes.data||[]).length} validations=${(vd||[]).length} recitations=${(rd||[]).length}`);
 
       // Recalcul précis avec toutes les données (remplace l'affichage RPC)
       applyData(edRes.data || [], id, vd, rd, nv);
+      mark('✓ TERMINÉ (Phase 2 applyData)');
       if (!rpcEleves) setLoading(false);
     } catch (e) {
       console.error('[Dashboard.js] Erreur chargement:', e);
