@@ -19,10 +19,10 @@ export default function TableauHonneur({ user, navigate, goBack, lang='fr', isMo
     loadBareme(supabase, user.ecole_id).then(b => setBareme(b));
     const [{ data: ed }, { data: vd }, { data: pd }, { data: nv }, { data: pe }] = await Promise.all([
       supabase.from('eleves').select('id,prenom,nom,code_niveau,niveau,hizb_depart,tomon_depart,ecole_id').eq('ecole_id', user.ecole_id).order('nom'),
-      supabase.from('validations').select('id,eleve_id,type_validation,nombre_tomon,hizb_valide,date_validation').eq('ecole_id', user.ecole_id),
+      supabase.from('validations').select('id,eleve_id,type_validation,nombre_tomon,hizb_valide,date_validation').eq('ecole_id', user.ecole_id).limit(5000).order('created_at', {ascending:false}),
       supabase.from('periodes_notes').select('*').eq('ecole_id', user.ecole_id).eq('actif', true).order('date_debut'),
       supabase.from('niveaux').select('id,code,nom,couleur').eq('ecole_id', user.ecole_id).order('ordre'),
-      supabase.from('points_eleves').select('*').eq('ecole_id', user.ecole_id),
+      supabase.from('points_eleves').select('*').eq('ecole_id', user.ecole_id).limit(2000).order('created_at', {ascending:false}),
     ]);
     const elevesData = (ed||[]).map(e => {
       const vals = (vd||[]).filter(v => v.eleve_id === e.id);

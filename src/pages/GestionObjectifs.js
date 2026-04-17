@@ -466,7 +466,7 @@ export default function GestionObjectifs({ user, navigate, goBack, lang='fr', is
     setLoading(true);
     const [{data:nv},{data:el},{data:ob}] = await Promise.all([
       supabase.from('niveaux').select('id,code,nom,type,couleur').eq('ecole_id',user.ecole_id).order('ordre'),
-      supabase.from('eleves').select('id,prenom,nom,code_niveau,eleve_id_ecole').eq('ecole_id',user.ecole_id).order('nom'),
+      supabase.from('eleves').select('id,prenom,nom,code_niveau,eleve_id_ecole').eq('ecole_id',user.ecole_id).limit(500).order('nom').order('nom'),
       supabase.from('objectifs').select('*').eq('ecole_id',user.ecole_id).order('created_at',{ascending:false}),
     ]);
     setNiveaux(nv||[]);
