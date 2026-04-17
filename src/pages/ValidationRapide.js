@@ -7,6 +7,7 @@ import { enqueueOrRun } from '../lib/offlineQueue';
 import { calcEtatEleve, getInitiales, scoreLabel, motivationMsg, verifierEtCreerCertificats, isSourateNiveauDyn, loadBareme, BAREME_DEFAUT } from '../lib/helpers';
 import { getSouratesForNiveau } from '../lib/sourates';
 import { t } from '../lib/i18n';
+import { fetchAll } from '../lib/fetchAll';
 
 export default function ValidationRapide({ user, navigate, goBack, lang='fr', isMobile }) {
   const { toast } = useToast();
@@ -38,7 +39,7 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
   const loadData = async () => {
     const [{ data: ed }, { data: vd }, { data: niv }, { data: sour }] = await Promise.all([
       supabase.from('eleves').select('*').eq('ecole_id', user.ecole_id).order('nom'),
-      supabase.from('validations').select('*').eq('ecole_id', user.ecole_id).limit(5000),
+      fetchAll(supabase.from('validations').select('*').eq('ecole_id', user.ecole_id)).then(data=>({data})),
       supabase.from('niveaux').select('id,code,nom,type,couleur').eq('ecole_id', user.ecole_id),
       supabase.from('sourates').select('*'),
     ]);

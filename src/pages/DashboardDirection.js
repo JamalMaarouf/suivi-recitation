@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { supabase } from '../lib/supabase';
 import { t } from '../lib/i18n';
 import { BAREME_DEFAUT, loadBareme } from '../lib/helpers';
+import { fetchAll } from '../lib/fetchAll';
 
 // ─── Couleurs par niveau ───────────────────────────────────────────────────
 const NC = { '5B':'#534AB7','5A':'#378ADD','2M':'#1D9E75','2':'#EF9F27','1':'#E24B4A' };
@@ -114,10 +115,10 @@ export default function DashboardDirection({ user, navigate, goBack, lang='fr', 
       ] = await Promise.all([
         supabase.from('eleves').select('*').eq('ecole_id', user.ecole_id).order('nom'),
         supabase.from('utilisateurs').select('id,prenom,nom,role').eq('ecole_id', user.ecole_id).eq('role','instituteur'),
-        supabase.from('validations').select('id,eleve_id,type_validation,nombre_tomon,hizb_valide,date_validation,valide_par,ecole_id').eq('ecole_id', user.ecole_id).limit(5000).order('date_validation',{ascending:false}),
+        fetchAll(supabase.from('validations').select('id,eleve_id,type_validation,nombre_tomon,hizb_valide,date_validation,valide_par,ecole_id').eq('ecole_id', user.ecole_id).order('date_validation',{ascending:false})).then(data=>({data})),
         supabase.from('niveaux').select('*').eq('ecole_id', user.ecole_id).order('ordre'),
         supabase.from('certificats_eleves').select('id,eleve_id,jalon_id,date_obtention').eq('ecole_id', user.ecole_id).limit(500),
-        supabase.from('recitations_sourates').select('eleve_id,date_validation,type_recitation').eq('ecole_id', user.ecole_id).limit(3000).order('date_validation',{ascending:false}),
+        fetchAll(supabase.from('recitations_sourates').select('eleve_id,date_validation,type_recitation').eq('ecole_id', user.ecole_id).order('date_validation',{ascending:false})).then(data=>({data})),
         supabase.from('passages_niveau').select('eleve_id,niveau_avant,niveau_apres,created_at').eq('ecole_id', user.ecole_id).limit(500),
         supabase.from('ecoles').select('*').eq('id', user.ecole_id).single(),
       ]);

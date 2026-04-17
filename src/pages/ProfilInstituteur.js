@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { calcEtatEleve, getInitiales, scoreLabel, formatDateCourt, isInactif, joursDepuis, niveauTraduit , loadBareme, BAREME_DEFAUT } from '../lib/helpers';
 import { t } from '../lib/i18n';
+import { fetchAll } from '../lib/fetchAll';
 
 function Avatar({ prenom, nom, size=44, bg='#E1F5EE', color='#085041' }) {
   return <div style={{width:size,height:size,borderRadius:'50%',background:bg,color,display:'flex',alignItems:'center',justifyContent:'center',fontWeight:600,fontSize:size*0.33,flexShrink:0}}>{getInitiales(prenom,nom)}</div>;
@@ -20,10 +21,10 @@ export default function ProfilInstituteur({ instituteur, user, navigate, goBack,
     setLoading(true);
     const {data:ed}=await supabase.from('eleves').select('*')
         .eq('ecole_id', user.ecole_id).eq('instituteur_referent_id',instituteur.id);
-    const {data:vd}=await supabase.from('validations').select('*, valideur:valide_par(prenom,nom)')
-        .eq('ecole_id', user.ecole_id).eq('valide_par',instituteur.id).order('date_validation',{ascending:false});
-    const {data:allVd}=await supabase.from('validations').select('*')
-        .eq('ecole_id', user.ecole_id);
+    const vd = await fetchAll(supabase.from('validations').select('*, valideur:valide_par(prenom,nom)')
+        .eq('ecole_id', user.ecole_id).eq('valide_par',instituteur.id).order('date_validation',{ascending:false}));
+    const allVd = await fetchAll(supabase.from('validations').select('*')
+        .eq('ecole_id', user.ecole_id));
     const elevesData=(ed||[]).map(e=>{
       const vals=(allVd||[]).filter(v=>v.eleve_id===e.id);
       const etat=calcEtatEleve(vals,e.hizb_depart,e.tomon_depart);

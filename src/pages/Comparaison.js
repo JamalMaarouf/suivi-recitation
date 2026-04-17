@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { calcEtatEleve, getInitiales, scoreLabel, formatDateCourt, niveauTraduit } from '../lib/helpers';
 import { t } from '../lib/i18n';
+import { fetchAll } from '../lib/fetchAll';
 
 const PALETTE = ['#1D9E75','#378ADD','#EF9F27','#E24B4A','#534AB7','#D85A30'];
 
@@ -16,9 +17,10 @@ export default function Comparaison({ navigate, goBack, lang='fr', isMobile, use
   const loadData = async () => {
     setLoading(true);
     try {
-    const [{data:ed},{data:vd}] = await Promise.all([supabase.from('eleves').select('*')
-        .eq('ecole_id', user.ecole_id).order('nom'),supabase.from('validations').select('*')
-        .eq('ecole_id', user.ecole_id).order('date_validation')]);
+    const [{data:ed}, vd] = await Promise.all([
+      supabase.from('eleves').select('*').eq('ecole_id', user.ecole_id).order('nom'),
+      fetchAll(supabase.from('validations').select('*').eq('ecole_id', user.ecole_id).order('date_validation'))
+    ]);
     setAllEleves((ed||[]).map(e => {
       const vals=(vd||[]).filter(v=>v.eleve_id===e.id);
       const etat=calcEtatEleve(vals,e.hizb_depart,e.tomon_depart);

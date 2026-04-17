@@ -3,6 +3,7 @@ import { useToast } from '../lib/toast';
 import { supabase } from '../lib/supabase';
 import { getInitiales, joursDepuis, scoreLabel, formatDateCourt , loadBareme, BAREME_DEFAUT } from '../lib/helpers';
 import { t } from '../lib/i18n';
+import { fetchAll } from '../lib/fetchAll';
 
 const IS_SOURATE = (code) => ['5B','5A','2M'].includes(code||'');
 const NIVEAU_COLORS = { '5B':'#534AB7','5A':'#378ADD','2M':'#1D9E75','2':'#EF9F27','1':'#E24B4A' };
@@ -75,22 +76,22 @@ export default function HistoriqueSeances({ user, navigate, goBack, lang='fr', i
     loadBareme(supabase, user.ecole_id).then(b=>setBareme({...BAREME_DEFAUT,...b.unites}));
     setLoading(true);
     try {
-      const [r1, r2, r3, r4, r5, r6] = await Promise.all([
+      const [r1, r2, r3Data, r4Data, r5, r6] = await Promise.all([
         supabase.from('eleves').select('*')
         .eq('ecole_id', user.ecole_id).order('nom'),
         supabase.from('utilisateurs').select('*').eq('role','instituteur').eq('ecole_id', user.ecole_id),
-        supabase.from('validations').select('*, valideur:valide_par(prenom,nom)')
-        .eq('ecole_id', user.ecole_id).order('date_validation',{ascending:false}),
-        supabase.from('recitations_sourates').select('*, valideur:valide_par(prenom,nom)')
-        .eq('ecole_id', user.ecole_id).order('date_validation',{ascending:false}),
+        fetchAll(supabase.from('validations').select('*, valideur:valide_par(prenom,nom)')
+          .eq('ecole_id', user.ecole_id).order('date_validation',{ascending:false})),
+        fetchAll(supabase.from('recitations_sourates').select('*, valideur:valide_par(prenom,nom)')
+          .eq('ecole_id', user.ecole_id).order('date_validation',{ascending:false})),
         supabase.from('sourates').select('*'),
         supabase.from('objectifs_globaux').select('*')
         .eq('ecole_id', user.ecole_id).order('created_at',{ascending:false}),
       ]);
       setEleves(r1.data||[]);
       setInstituteurs(r2.data||[]);
-      setValidations(r3.data||[]);
-      setRecitations(r4.data||[]);
+      setValidations(r3Data||[]);
+      setRecitations(r4Data||[]);
       setSouratesDB(r5.data||[]);
       setObjectifs(r6.data||[]);
     } catch(e) { toast.error('Erreur de chargement'); }

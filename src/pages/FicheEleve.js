@@ -6,6 +6,7 @@ import { t } from '../lib/i18n';
 import { openPDF } from '../lib/pdf';
 import { getCachedSWR } from '../lib/cache';
 import FicheSourate from './FicheSourate';
+import { fetchAll } from '../lib/fetchAll';
 
 function Avatar({ prenom, nom, size=44, bg='#E1F5EE', color='#085041' }) {
   return <div style={{width:size,height:size,borderRadius:'50%',background:bg,color,display:'flex',alignItems:'center',justifyContent:'center',fontWeight:600,fontSize:size*0.33,flexShrink:0}}>{getInitiales(prenom,nom)}</div>;
@@ -271,15 +272,15 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang, isMobi
       const cacheKey = (name) => `${name}_${eleve.id}`;
       const results = await Promise.allSettled([
         getCachedSWR(cacheKey('validations'), user.ecole_id,
-          () => supabase.from('validations').select('*, valideur:valide_par(prenom,nom)').eq('ecole_id', user.ecole_id).limit(5000).eq('eleve_id',eleve.id).order('date_validation',{ascending:false})),
+          () => fetchAll(supabase.from('validations').select('*, valideur:valide_par(prenom,nom)').eq('ecole_id', user.ecole_id).eq('eleve_id',eleve.id).order('date_validation',{ascending:false}))),
         supabase.from('apprentissages').select('*')
           .eq('ecole_id', user.ecole_id).eq('eleve_id',eleve.id).order('date_debut',{ascending:false}),
         supabase.from('exceptions_hizb').select('*')
           .eq('ecole_id', user.ecole_id).eq('eleve_id',eleve.id).eq('active',true),
-        supabase.from('validations').select('*, valideur:valide_par(prenom,nom)').eq('ecole_id', user.ecole_id).limit(5000).eq('eleve_id',eleve.id).in('type_validation',['tomon_muraja','hizb_muraja']).order('date_validation',{ascending:false}),
-        supabase.from('recitations_sourates').select('*, sourate:sourate_id(nom_ar,numero), valideur:valide_par(prenom,nom)').eq('ecole_id', user.ecole_id).limit(3000).eq('eleve_id',eleve.id).eq('is_muraja',true).order('date_validation',{ascending:false}),
+        supabase.from('validations').select('*, valideur:valide_par(prenom,nom)').eq('ecole_id', user.ecole_id).eq('eleve_id',eleve.id).in('type_validation',['tomon_muraja','hizb_muraja']).order('date_validation',{ascending:false}),
+        supabase.from('recitations_sourates').select('*, sourate:sourate_id(nom_ar,numero), valideur:valide_par(prenom,nom)').eq('ecole_id', user.ecole_id).eq('eleve_id',eleve.id).eq('is_muraja',true).order('date_validation',{ascending:false}),
         getCachedSWR(cacheKey('recitations_eleve'), user.ecole_id,
-          () => supabase.from('recitations_sourates').select('id,type_recitation,sourate_id,verset_debut,verset_fin,date_validation,valide_par,points,sourate:sourate_id(nom_ar,numero),valideur:valide_par(prenom,nom)').eq('ecole_id', user.ecole_id).limit(3000).eq('eleve_id',eleve.id)),
+          () => fetchAll(supabase.from('recitations_sourates').select('id,type_recitation,sourate_id,verset_debut,verset_fin,date_validation,valide_par,points,sourate:sourate_id(nom_ar,numero),valideur:valide_par(prenom,nom)').eq('ecole_id', user.ecole_id).eq('eleve_id',eleve.id))),
         supabase.from('passages_niveau').select('*, valide_par_u:valide_par(prenom,nom)').eq('ecole_id', user.ecole_id).eq('eleve_id',eleve.id).order('date_passage',{ascending:false}),
         supabase.from('objectifs').select('*').eq('ecole_id', user.ecole_id).eq('eleve_id',eleve.id).order('created_at',{ascending:false}),
       ]);

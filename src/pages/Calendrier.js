@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { getInitiales, formatDate , loadBareme, BAREME_DEFAUT } from '../lib/helpers';
 import { t } from '../lib/i18n';
+import { fetchAll } from '../lib/fetchAll';
 
 const MOIS_FR=['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
 const MOIS_AR=['يناير','فبراير','مارس','أبريل','مايو','يونيو','يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر'];
@@ -22,8 +23,8 @@ export default function Calendrier({ user, navigate, goBack, lang='fr', isMobile
   const loadData = async () => {
     loadBareme(supabase, user.ecole_id).then(b=>setBareme({...BAREME_DEFAUT,...b.unites}));
     setLoading(true);
-    const { data: vd } = await supabase.from('validations').select('*, valideur:valide_par(prenom,nom)')
-        .eq('ecole_id', user.ecole_id).order('date_validation',{ascending:false});
+    const vd = await fetchAll(supabase.from('validations').select('*, valideur:valide_par(prenom,nom)')
+        .eq('ecole_id', user.ecole_id).order('date_validation',{ascending:false}));
     const { data: ed } = await supabase.from('eleves').select('*')
         .eq('ecole_id', user.ecole_id);
     setValidations(vd||[]); setEleves(ed||[]); setLoading(false);

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { supabase } from '../lib/supabase';
 import { getCachedSWR } from '../lib/cache';
+import { fetchAll } from '../lib/fetchAll';
 import { calcEtatEleve, isSourateNiveauDyn, niveauTraduit, calcStats, formatDate, formatDateCourt, isInactif, joursDepuis, getInitiales, scoreLabel, loadBareme, BAREME_DEFAUT } from '../lib/helpers';
 import { t } from '../lib/i18n';
 
@@ -125,9 +126,9 @@ export default function Dashboard({ user, navigate, goBack, lang, isMobile=false
         getCachedSWR('instituteurs', user.ecole_id,
           () => supabase.from('utilisateurs').select('id,prenom,nom,role').eq('role','instituteur').eq('ecole_id', user.ecole_id)),
         getCachedSWR('validations', user.ecole_id,
-          () => supabase.from('validations').select('id,eleve_id,type_validation,nombre_tomon,hizb_valide,tomon_debut,date_validation,valide_par,ecole_id,valideur:valide_par(prenom,nom)').eq('ecole_id', user.ecole_id).limit(5000).order('date_validation',{ascending:false})),
+          () => fetchAll(supabase.from('validations').select('id,eleve_id,type_validation,nombre_tomon,hizb_valide,tomon_debut,date_validation,valide_par,ecole_id,valideur:valide_par(prenom,nom)').eq('ecole_id', user.ecole_id).order('date_validation',{ascending:false}))),
         getCachedSWR('recitations_sourates_min', user.ecole_id,
-          () => supabase.from('recitations_sourates').select('eleve_id,date_validation,type_recitation').eq('ecole_id', user.ecole_id).limit(3000).order('date_validation',{ascending:false})),
+          () => fetchAll(supabase.from('recitations_sourates').select('eleve_id,date_validation,type_recitation').eq('ecole_id', user.ecole_id).order('date_validation',{ascending:false}))),
         getCachedSWR('niveaux', user.ecole_id,
           () => supabase.from('niveaux').select('id,code,nom,type,couleur').eq('ecole_id', user.ecole_id).order('ordre')),
       ]);
@@ -151,7 +152,7 @@ export default function Dashboard({ user, navigate, goBack, lang, isMobile=false
       if (!jalons || jalons.length === 0) return;
       const { data: certsEmis } = await supabase.from('certificats_eleves').select('eleve_id,jalon_id').eq('ecole_id', user.ecole_id);
       const emis = new Set((certsEmis||[]).map(c => c.eleve_id+'_'+c.jalon_id));
-      const { data: recitations } = await supabase.from('recitations_sourates').select('eleve_id,sourate_id,type_recitation,complete').eq('ecole_id', user.ecole_id).limit(3000);
+      const recitations = await fetchAll(supabase.from('recitations_sourates').select('eleve_id,sourate_id,type_recitation,complete').eq('ecole_id', user.ecole_id));
       const notifs = [];
       for (const eleve of eleves) {
         for (const jalon of jalons) {
@@ -227,7 +228,11 @@ export default function Dashboard({ user, navigate, goBack, lang, isMobile=false
     setExportMsg('✓'); setTimeout(()=>setExportMsg(''),2000);
   };
   const backupJSON = async () => {
-    const [{data:ea},{data:va},{data:ua}]=await Promise.all([supabase.from('eleves').select('*').eq('ecole_id', user.ecole_id),supabase.from('validations').select('*').eq('ecole_id', user.ecole_id).limit(5000),supabase.from('utilisateurs').select('id,prenom,nom,identifiant,role')]);
+    const [ea, va, {data:ua}] = await Promise.all([
+      fetchAll(supabase.from('eleves').select('*').eq('ecole_id', user.ecole_id)),
+      fetchAll(supabase.from('validations').select('*').eq('ecole_id', user.ecole_id)),
+      supabase.from('utilisateurs').select('id,prenom,nom,identifiant,role')
+    ]);
     const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([JSON.stringify({date:new Date().toISOString(),eleves:ea,validations:va,utilisateurs:ua},null,2)],{type:'application/json'})); a.download=`backup-${new Date().toLocaleDateString('fr-FR').replace(/\//g,'-')}.json`; a.click();
     setExportMsg('✓ Backup'); setTimeout(()=>setExportMsg(''),2000);
   };

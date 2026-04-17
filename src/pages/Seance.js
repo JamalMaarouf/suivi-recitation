@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase';
 import { calcEtatEleve, getInitiales, joursDepuis, isInactif, scoreLabel , loadBareme, BAREME_DEFAUT } from '../lib/helpers';
 import { t } from '../lib/i18n';
 import { getSouratesForNiveau } from '../lib/sourates';
+import { fetchAll } from '../lib/fetchAll';
 
 const IS_SOURATE = (code) => ['5B','5A','2M'].includes(code||'');
 const NIVEAU_COLORS = { '5B':'#534AB7','5A':'#378ADD','2M':'#1D9E75','2':'#EF9F27','1':'#E24B4A' };
@@ -39,29 +40,28 @@ export default function Seance({ user, navigate, goBack, lang, isMobile=false })
     const debutJour = new Date(); debutJour.setHours(0,0,0,0);
     const debutSemaine = new Date(); debutSemaine.setDate(debutSemaine.getDate()-7);
 
-    const [{ data: ed }, { data: instData }, { data: vd }, rdResult, { data: sdb }] = await Promise.all([
+    const [{ data: ed }, { data: instData }, vd, rd, { data: sdb }] = await Promise.all([
       supabase.from('eleves').select('id,prenom,nom,code_niveau,hizb_depart,tomon_depart,sourates_acquises,instituteur_referent_id,ecole_id')
         .eq('ecole_id', user.ecole_id).order('nom'),
       supabase.from('utilisateurs').select('id,prenom,nom').eq('role','instituteur').eq('ecole_id', user.ecole_id),
-      supabase.from('validations').select('*, valideur:valide_par(prenom,nom)')
-        .eq('ecole_id', user.ecole_id).order('date_validation',{ascending:false}),
-      supabase.from('recitations_sourates').select('*, valideur:valide_par(prenom,nom)')
-        .eq('ecole_id', user.ecole_id).order('date_validation',{ascending:false}),
+      fetchAll(supabase.from('validations').select('*, valideur:valide_par(prenom,nom)')
+        .eq('ecole_id', user.ecole_id).order('date_validation',{ascending:false})),
+      fetchAll(supabase.from('recitations_sourates').select('*, valideur:valide_par(prenom,nom)')
+        .eq('ecole_id', user.ecole_id).order('date_validation',{ascending:false})),
       supabase.from('sourates').select('*'),
     ]);
 
-    const rd = rdResult.data || [];
     const vAujourdhui = (vd||[]).filter(v => new Date(v.date_validation) >= debutJour);
-    const rAujourdhui = rd.filter(r => new Date(r.date_validation) >= debutJour);
+    const rAujourdhui = (rd||[]).filter(r => new Date(r.date_validation) >= debutJour);
 
     const elevesData = (ed||[]).map(e => {
       const isSourate = IS_SOURATE(e.code_niveau);
       const inst = (instData||[]).find(i => i.id === e.instituteur_referent_id);
 
       if (isSourate) {
-        const recs = rd.filter(r => r.eleve_id === e.id);
+        const recs = (rd||[]).filter(r => r.eleve_id === e.id);
         const recsAujourdhui = rAujourdhui.filter(r => r.eleve_id === e.id);
-        const recsSemaine = rd.filter(r => r.eleve_id === e.id && new Date(r.date_validation) >= debutSemaine);
+        const recsSemaine = (rd||[]).filter(r => r.eleve_id === e.id && new Date(r.date_validation) >= debutSemaine);
         const souratesCompletesAujourdhui = recsAujourdhui.filter(r=>r.type_recitation==='complete').length;
         const sequencesAujourdhui = recsAujourdhui.filter(r=>r.type_recitation==='sequence').length;
         const ptsAujourdhui = recsAujourdhui.reduce((s,r)=>s+(r.points||0),0);

@@ -3,6 +3,7 @@ import { useToast } from '../lib/toast';
 import { supabase } from '../lib/supabase';
 import { calcEtatEleve, joursDepuis, isInactif } from '../lib/helpers';
 import { t } from '../lib/i18n';
+import { fetchAll } from '../lib/fetchAll';
 
 // Couleurs niveaux — fallback sur des valeurs par défaut si niveaux pas encore chargés
 const NIVEAU_COLORS_FALLBACK = { '5B':'#534AB7','5A':'#378ADD','2M':'#1D9E75','2':'#EF9F27','1':'#E24B4A' };
@@ -25,7 +26,7 @@ export default function ElevesInactifs({ navigate, goBack, lang='fr', user, isMo
       const results = await Promise.all([
         supabase.from('eleves').select('*').eq('ecole_id', user.ecole_id).order('nom'),
         supabase.from('utilisateurs').select('id,prenom,nom').eq('role','instituteur').eq('ecole_id', user.ecole_id),
-        supabase.from('validations').select('eleve_id,date_validation,nombre_tomon,type_validation,hizb_valide').eq('ecole_id', user.ecole_id).limit(5000).order('date_validation',{ascending:false}),
+        fetchAll(supabase.from('validations').select('eleve_id,date_validation,nombre_tomon,type_validation,hizb_valide').eq('ecole_id', user.ecole_id).order('date_validation',{ascending:false})).then(data=>({data})),
         supabase.from('niveaux').select('id,code,couleur').eq('ecole_id', user.ecole_id),
       ]);
       const ed = results[0]?.data;

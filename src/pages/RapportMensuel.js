@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { calcEtatEleve, getInitiales , loadBareme, BAREME_DEFAUT } from '../lib/helpers';
+import { fetchAll } from '../lib/fetchAll';
 
 const MOIS_FR = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
 const MOIS_AR = ['يناير','فبراير','مارس','أبريل','مايو','يونيو','يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر'];
@@ -49,8 +50,8 @@ export default function RapportMensuel({ user, navigate, goBack, lang='fr', isMo
       supabase.from('eleves').select('*').eq('ecole_id',user.ecole_id).order('nom'),
       supabase.from('niveaux').select('*').eq('ecole_id',user.ecole_id).order('ordre'),
       supabase.from('utilisateurs').select('*').eq('role','instituteur').eq('ecole_id',user.ecole_id),
-      supabase.from('validations').select('*').eq('ecole_id',user.ecole_id).limit(5000),
-      supabase.from('recitations_sourates').select('*').eq('ecole_id',user.ecole_id).limit(3000),
+      fetchAll(supabase.from('validations').select('*').eq('ecole_id',user.ecole_id)).then(data=>({data})),
+      fetchAll(supabase.from('recitations_sourates').select('*').eq('ecole_id',user.ecole_id)).then(data=>({data})),
       supabase.from('objectifs').select('*').eq('ecole_id',user.ecole_id).eq('actif',true),
       supabase.from('examens').select('*').eq('ecole_id',user.ecole_id),
       supabase.from('resultats_examens').select('*').eq('ecole_id',user.ecole_id),
