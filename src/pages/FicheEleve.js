@@ -231,12 +231,27 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang, isMobi
 
   // Rafraîchir après une sync offline réussie (validations faites sans réseau)
   useEffect(() => {
-    const handler = () => loadData();
+    const handler = async () => {
+      // Petit délai pour laisser Supabase finir de traiter les INSERT de la queue
+      await new Promise(r => setTimeout(r, 800));
+      try {
+        await loadData();
+      } catch (e) {
+        // Si ça rate, retry après 2s
+        setTimeout(() => loadData().catch(()=>{}), 2000);
+      }
+    };
     window.addEventListener('offline-synced', handler);
     return () => window.removeEventListener('offline-synced', handler);
   }, [eleve.id]);
 
   const loadData = async () => {
+    // Si hors-ligne, on garde les données déjà affichées et on ne tente pas de recharger.
+    // La sync automatique déclenchera un reload au retour online.
+    if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     try {
       // Cache par élève — clé distincte pour chaque élève
@@ -264,6 +279,20 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang, isMobi
         return r.value;
       });
       const vals=r0.data||[], appr=r1.data||[], exhizb=r2.data||[], mval=r3.data||[], mrec=r4.data||[], recSourates=r5.data||[], passData=r6.data||[], objData=r7.data||[];
+
+      // Protection anti-flash : si on avait des validations et que le reload renvoie vide,
+      // c'est probablement une erreur réseau transitoire — on garde l'ancien state
+      // et on retente plus tard (déclenché par les listeners offline-synced).
+      const statusFailed = results.some(r => r.status === 'rejected');
+      const previousVals = validations;
+      if (statusFailed && vals.length === 0 && previousVals.length > 0) {
+        console.warn('[FicheEleve] reload partiel, conservation de l\'etat precedent');
+        setLoading(false);
+        // Retry dans 2s
+        setTimeout(() => loadData().catch(()=>{}), 2000);
+        return;
+      }
+
       setRecitationsSouratesEleve(recSourates);
       if (eleve.instituteur_referent_id) {
         // .single() plante dur si réseau instable → on utilise .maybeSingle() + try

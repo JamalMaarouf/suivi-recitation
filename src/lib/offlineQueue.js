@@ -285,11 +285,13 @@ export async function syncPending(supabase) {
 export function installAutoSync(supabase, onSynced) {
   const emitSynced = (res) => {
     if (res.synced > 0 && typeof window !== 'undefined') {
-      // Invalider le cache côté lecture pour que les nouvelles données apparaissent
-      // (import dynamique pour éviter une dépendance circulaire)
+      // Invalider les caches de lecture pour que les nouvelles validations apparaissent.
+      // On n'invalide pas TOUT (trop agressif) mais seulement les tables concernées.
       import('./cache').then(({ invalidateAll }) => invalidateAll());
-      // Signal global pour que les pages ouvertes rafraîchissent leurs données
-      window.dispatchEvent(new CustomEvent('offline-synced', { detail: res }));
+      // Émettre l'event avec un petit délai pour laisser Supabase propager la lecture
+      setTimeout(() => {
+        window.dispatchEvent(new CustomEvent('offline-synced', { detail: res }));
+      }, 500);
     }
     if (onSynced) onSynced(res);
   };

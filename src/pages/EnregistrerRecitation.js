@@ -110,9 +110,10 @@ export default function EnregistrerRecitation({  user, eleve: eleveInitial, navi
     const wasQueued = res.status === 'queued';
 
     if (wasQueued) {
-      toast.info?.(lang === 'ar'
-        ? '💾 تم الحفظ محلياً — ستتم المزامنة عند عودة الاتصال'
-        : '💾 Enregistré localement — synchronisation au retour de la connexion');
+      // Toast de succès pour ne pas inquiéter l'utilisateur — la validation est bien enregistrée
+      toast.success(lang === 'ar'
+        ? '✓ تم الحفظ (سيتم المزامنة تلقائياً)'
+        : '✓ Enregistré (synchro auto au retour du réseau)');
     }
 
     if (!error && !wasQueued && typeValidation === 'tomon') {

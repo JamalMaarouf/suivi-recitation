@@ -187,9 +187,9 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
     const wasQueued = res.status === 'queued';
 
     if (wasQueued) {
-      toast.info?.(lang === 'ar'
-        ? '💾 تم الحفظ محلياً'
-        : '💾 Enregistré localement — sync auto');
+      toast.success(lang === 'ar'
+        ? '✓ تم الحفظ (مزامنة تلقائية)'
+        : '✓ Enregistré (sync auto)');
     }
     if (!error) {
       const ptsParTomon = bareme?.unites?.tomon || 0;
