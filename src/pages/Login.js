@@ -48,16 +48,11 @@ export default function Login({ onLogin, lang, LangSelector, onShowInscription }
       setLoading(false);
       onLogin(data.user);
     } catch (err) {
-      // Fallback sur Supabase direct si API indisponible
-      const { data: fallback, error: fbErr } = await supabase
-        .from('utilisateurs')
-        .select('*, ecole:ecole_id(id,nom,ville,statut)')
-        .eq('identifiant', identifiant.trim())
-        .eq('mot_de_passe', motDePasse)
-        .maybeSingle();
+      // API indisponible — message d'erreur réseau
       setLoading(false);
-      if (fallback) { onLogin(fallback); return; }
-      setError(t(lang, 'identifiant_incorrect'));
+      setError(lang==='ar'
+        ? 'خطأ في الاتصال، يرجى المحاولة مجدداً'
+        : 'Erreur de connexion, veuillez réessayer.');
     }
   };
 

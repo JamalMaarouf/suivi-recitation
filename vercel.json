@@ -3,10 +3,6 @@
   "outputDirectory": "build",
   "rewrites": [
     {
-      "source": "/api/(.*)",
-      "destination": "/api/$1"
-    },
-    {
       "source": "/((?!api/).*)",
       "destination": "/index.html"
     }
@@ -21,5 +17,6 @@
     "CI": "false",
     "DISABLE_ESLINT_PLUGIN": "true",
     "GENERATE_SOURCEMAP": "false"
-  }
+  },
+  "framework": "create-react-app"
 }

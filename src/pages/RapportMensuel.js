@@ -165,53 +165,63 @@ export default function RapportMensuel({ user, navigate, goBack, lang='fr', isMo
   const prevMois = () => { if(mois===0){setMois(11);setAnnee(a=>a-1);}else setMois(m=>m-1); };
   const nextMois = () => { if(mois===11){setMois(0);setAnnee(a=>a+1);}else setMois(m=>m+1); };
 
-  // ── GÉNÉRATION PDF ROYAL ───────────────────────────────────────
+  // ── GÉNÉRATION PDF CÔTÉ SERVEUR ────────────────────────────────
   const genererRapportPDF = async () => {
     setGenerating(true);
     try {
-      const jspdfMod = await import('jspdf');
-      const h2cMod   = await import('html2canvas');
-      const jsPDF    = jspdfMod.jsPDF || jspdfMod.default?.jsPDF || jspdfMod.default;
-      const html2canvasFn = h2cMod.default || h2cMod;
+      const moisLabel = getMoisNom(mois, lang);
+      const ecolNom   = ecole?.nom || 'École Coranique';
 
-      const moisLabel  = getMoisNom(mois, lang);
-      const ecolNom    = ecole?.nom || 'École Coranique';
-      const medals = ['🥇','🥈','🥉'];
+      // Préparer les données pour l'API
+      const elevesData = (statsEleves||[]).map(e => ({
+        prenom: e.prenom, nom: e.nom,
+        code_niveau: e.code_niveau,
+        pts: e.pts || 0,
+        tomon: e.tomon || 0,
+        hizb: e.hizb || 0,
+        jours: e.joursActifs || 0,
+      }));
 
-      // Créer le HTML du rapport
-      const container = document.createElement('div');
-      container.style.cssText = 'position:fixed;left:-9999px;top:0;width:1122px;background:#fff;z-index:-1;font-family:Tajawal,Arial,sans-serif;';
-
-      container.innerHTML = buildRapportHTML({
-        ecolNom, moisLabel, annee, lang,
-        nbActifs, tauxActivite, totalTomon, totalHizb, totalSourates,
-        exReussis, exTotal, tauxExamens, tauxAtteinte, elevesAvecObj,
-        statsEleves, statsByNiveau, statsByInst, reMois, examens,
-        niveaux, medals,
+      const res = await fetch('/api/pdf', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: 'rapport_mensuel',
+          lang,
+          data: {
+            ecole: { nom: ecolNom },
+            mois: moisLabel,
+            annee,
+            eleves: elevesData,
+            stats: {
+              totalPts: elevesData.reduce((s,e)=>s+e.pts,0),
+              totalTomon: totalTomon,
+              totalHizb: totalHizb,
+            },
+          },
+        }),
       });
 
-      document.body.appendChild(container);
-      await document.fonts.ready;
-      await new Promise(r=>setTimeout(r,500));
+      if (!res.ok) throw new Error('Erreur serveur PDF');
 
-      const pages = container.querySelectorAll('.rapport-page');
-      const doc = new jsPDF({orientation:'portrait', unit:'mm', format:'a4'});
-
-      for (let i=0; i<pages.length; i++) {
-        if (i>0) doc.addPage();
-        const canvas = await html2canvasFn(pages[i], {
-          scale:2, useCORS:true, backgroundColor:'#fff',
-          width:794, logging:false,
-        });
-        const img = canvas.toDataURL('image/jpeg',0.92);
-        doc.addImage(img,'JPEG',0,0,210,297);
+      const html = await res.text();
+      const win = window.open('', '_blank');
+      if (win) {
+        win.document.write(html);
+        win.document.close();
+      } else {
+        // Popup bloqué → téléchargement direct
+        const blob = new Blob([html], { type: 'text/html' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `rapport_${moisLabel}_${annee}.html`;
+        a.click();
+        setTimeout(() => URL.revokeObjectURL(url), 3000);
       }
-
-      document.body.removeChild(container);
-      doc.save(`rapport_${moisLabel}_${annee}_${ecolNom.replace(/\s+/g,'_')}.pdf`);
     } catch(err) {
       console.error(err);
-      alert('Erreur génération PDF : '+err.message);
+      alert('Erreur génération PDF : ' + err.message);
     }
     setGenerating(false);
   };
