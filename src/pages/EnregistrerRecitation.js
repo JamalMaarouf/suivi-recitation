@@ -33,9 +33,25 @@ export default function EnregistrerRecitation({  user, eleve: eleveInitial, navi
 
   useEffect(() => {
     loadEleves();
-    if (eleveInitial) loadValidations(eleveInitial);
+    if (eleveInitial) refreshAndLoadValidations(eleveInitial);
     loadBareme(supabase, user.ecole_id).then(b => setBareme(b));
   }, []);
+
+  // Recharge l'élève frais depuis la DB (hizb_depart/tomon_depart peuvent avoir changé
+  // suite à un passage de niveau), puis charge ses validations.
+  const refreshAndLoadValidations = async (el) => {
+    try {
+      const { data: fresh } = await supabase.from('eleves').select('*')
+        .eq('id', el.id).maybeSingle();
+      if (fresh) {
+        setSelectedEleve(fresh);
+        await loadValidations(fresh);
+        return;
+      }
+    } catch(e) { /* fallback ci-dessous */ }
+    // Fallback : on utilise l'objet reçu si le refresh échoue
+    await loadValidations(el);
+  };
 
   const loadEleves = async () => {
     const { data } = await supabase.from('eleves').select('*')
@@ -44,13 +60,28 @@ export default function EnregistrerRecitation({  user, eleve: eleveInitial, navi
   };
 
   const loadValidations = async (el) => {
+    console.log('[DEBUG EnregistrerRecitation] Élève reçu:', {
+      id: el.id,
+      nom: `${el.prenom} ${el.nom}`,
+      hizb_depart: el.hizb_depart,
+      tomon_depart: el.tomon_depart,
+      code_niveau: el.code_niveau,
+    });
     const [{ data: vals }, { data: appr }] = await Promise.all([
       supabase.from('validations').select('*')
         .eq('ecole_id', user.ecole_id).eq('eleve_id', el.id),
       supabase.from('apprentissages').select('*')
         .eq('ecole_id', user.ecole_id).eq('eleve_id', el.id)
     ]);
+    console.log('[DEBUG EnregistrerRecitation] Validations récupérées:', vals?.length, 'total');
     const e = calcEtatEleve(vals || [], el.hizb_depart, el.tomon_depart);
+    console.log('[DEBUG EnregistrerRecitation] État calculé:', {
+      hizbEnCours: e.hizbEnCours,
+      prochainTomon: e.prochainTomon,
+      tomonCumul: e.tomonCumul,
+      hizbDepartUtilise: el.hizb_depart,
+      tomonDepartUtilise: el.tomon_depart,
+    });
     setEtat(e);
     setApprentissages(appr || []);
   };

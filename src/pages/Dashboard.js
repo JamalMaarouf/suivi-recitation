@@ -119,9 +119,9 @@ export default function Dashboard({ user, navigate, goBack, lang, isMobile=false
       };
 
       const [ed, id, vd, rd, nv] = await Promise.all([
-        getCachedSWR('eleves', user.ecole_id,
-          () => supabase.from('eleves').select('id,prenom,nom,code_niveau,niveau,hizb_depart,tomon_depart,sourates_acquises,instituteur_referent_id,ecole_id').eq('ecole_id', user.ecole_id).order('nom'),
-          (fresh) => { /* refresh silencieux */ }),
+        // Pas de cache sur eleves : les hizb_depart/tomon_depart peuvent avoir change
+        // (passage de niveau, modif admin). Toujours recharger frais.
+        supabase.from('eleves').select('id,prenom,nom,code_niveau,niveau,hizb_depart,tomon_depart,sourates_acquises,instituteur_referent_id,ecole_id').eq('ecole_id', user.ecole_id).order('nom').then(r => r.data || []),
         getCachedSWR('instituteurs', user.ecole_id,
           () => supabase.from('utilisateurs').select('id,prenom,nom,role').eq('role','instituteur').eq('ecole_id', user.ecole_id)),
         getCachedSWR('validations', user.ecole_id,

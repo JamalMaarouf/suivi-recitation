@@ -253,6 +253,19 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang, isMobi
       return;
     }
     setLoading(true);
+
+    // Recharger l'eleve frais depuis la DB (ses hizb_depart/tomon_depart peuvent avoir
+    // change depuis le render parent). Sinon on calcule etat a partir de donnees periees.
+    try {
+      const { data: freshEleve } = await supabase.from('eleves').select('*')
+        .eq('id', eleve.id).maybeSingle();
+      if (freshEleve) {
+        // On mute les proprietes critiques de l'objet eleve en place pour que le reste
+        // de la fonction (qui utilise eleve.hizb_depart etc.) voie les valeurs fraiches.
+        Object.assign(eleve, freshEleve);
+      }
+    } catch (e) { /* continue avec l'objet reçu */ }
+
     try {
       // Cache par élève — clé distincte pour chaque élève
       const cacheKey = (name) => `${name}_${eleve.id}`;
@@ -321,6 +334,16 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang, isMobi
         if(inst) setInstituteurNom(inst.prenom+' '+inst.nom);
       }
       const e = calcEtatEleve(vals||[],eleve.hizb_depart,eleve.tomon_depart);
+      console.log('[DEBUG FicheEleve] État calculé:', {
+        id: eleve.id,
+        nom: `${eleve.prenom} ${eleve.nom}`,
+        hizb_depart: eleve.hizb_depart,
+        tomon_depart: eleve.tomon_depart,
+        nbValidations: (vals||[]).length,
+        hizbEnCours: e.hizbEnCours,
+        prochainTomon: e.prochainTomon,
+        tomonCumul: e.tomonCumul,
+      });
 
       // PROTECTION CRITIQUE : si on avait déjà un état avec des validations
       // et que le reload ne retourne rien, c'est un signal d'erreur transitoire.

@@ -54,9 +54,18 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
     : [];
 
   const selectEleve = async (e) => {
-    const vals = allValidations.filter(v => v.eleve_id === e.id);
-    setSelectedEleve(e);
-    setEtat(calcEtatEleve(vals, e.hizb_depart, e.tomon_depart));
+    // Recharger l'eleve frais depuis la DB (ses hizb_depart/tomon_depart peuvent avoir
+    // change suite a un passage de niveau). Sinon on calcule a partir de donnees periees.
+    let freshEleve = e;
+    try {
+      const { data: fresh } = await supabase.from('eleves').select('*')
+        .eq('id', e.id).maybeSingle();
+      if (fresh) freshEleve = fresh;
+    } catch (err) { /* on garde l'objet initial */ }
+
+    const vals = allValidations.filter(v => v.eleve_id === freshEleve.id);
+    setSelectedEleve(freshEleve);
+    setEtat(calcEtatEleve(vals, freshEleve.hizb_depart, freshEleve.tomon_depart));
     setSearch('');
     setNbTomon(1);
     setSourateSelectionnee(null);
@@ -65,7 +74,7 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
     setProgrammeCharge(false);
     // Charger en parallèle récitations + souratesDB + programme
     const [{ data: recs }, { data: sourFresh }] = await Promise.all([
-      supabase.from('recitations_sourates').select('*').eq('eleve_id', e.id).eq('ecole_id', user.ecole_id),
+      supabase.from('recitations_sourates').select('*').eq('eleve_id', freshEleve.id).eq('ecole_id', user.ecole_id),
       supabase.from('sourates').select('*'),
     ]);
     // Stocker dans des variables locales pour les utiliser dans currentSourate ci-dessous
@@ -75,7 +84,7 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
     setRecitationsSourates(recitationsLocal);
     // Charger le programme du niveau de l'élève
     let progData = [];
-    const { data: niv } = await supabase.from('niveaux').select('id').eq('code', e.code_niveau).eq('ecole_id', user.ecole_id).single();
+    const { data: niv } = await supabase.from('niveaux').select('id').eq('code', freshEleve.code_niveau).eq('ecole_id', user.ecole_id).maybeSingle();
     if (niv) {
       const { data: prog } = await supabase.from('programmes').select('reference_id,ordre')
         .eq('niveau_id', niv.id).eq('ecole_id', user.ecole_id).order('ordre');
@@ -86,9 +95,9 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
     }
     setProgrammeCharge(true);
     // Calculer la sourate en cours avec données LOCALES fraîches (évite timing React)
-    const isSourateEleve = niveaux.some(n => n.code === e.code_niveau && n.type === 'sourate');
+    const isSourateEleve = niveaux.some(n => n.code === freshEleve.code_niveau && n.type === 'sourate');
     if (isSourateEleve && souratesLocal.length > 0) {
-      const souratesAcquises = e.sourates_acquises || 0;
+      const souratesAcquises = freshEleve.sourates_acquises || 0;
       let souratesOrd;
       if (progData.length > 0) {
         souratesOrd = progData
