@@ -231,7 +231,7 @@ export default function ValidationCollective({ user, navigate, goBack, lang='fr'
                   borderRadius:10,fontSize:14,fontWeight:700,cursor:'pointer',fontFamily:'inherit',marginBottom:12}}>
                 {lang==='ar'?'تحديد الكل':'Tout sélectionner'} ({elevesFiltres.length})
               </button>
-              {elevesFiltres.map(e=>{
+              {(elevesFiltres||[]).map(e=>{
                 const sel = selectedEleves.includes(e.id);
                 const nc=getNiveauColor(e.code_niveau, niveauxDB);
                 return(

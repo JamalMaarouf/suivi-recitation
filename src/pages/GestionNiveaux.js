@@ -116,8 +116,8 @@ export default function GestionNiveaux({ user, navigate, goBack, lang='fr', isMo
     if (niveauProgramme.type === 'sourate') {
       // Trier par numéro de sourate décroissant (114→1)
       programmeTrie.sort((a, b) => {
-        const numA = souratesDB.find(s => String(s.id) === String(a))?.numero || 0;
-        const numB = souratesDB.find(s => String(s.id) === String(b))?.numero || 0;
+        const numA = (souratesDB||[]).find(s => String(s.id) === String(a))?.numero || 0;
+        const numB = (souratesDB||[]).find(s => String(s.id) === String(b))?.numero || 0;
         return numB - numA;
       });
     } else {
@@ -293,7 +293,7 @@ export default function GestionNiveaux({ user, navigate, goBack, lang='fr', isMo
     if (!niveauProgramme) return null;
     const nc = niveauProgramme.couleur || '#1D9E75';
     const souratesNiveau = niveauProgramme.type === 'sourate'
-      ? souratesDB.filter(s => programme.includes(s.id)).sort((a,b)=>b.numero-a.numero)
+      ? (souratesDB||[]).filter(s => programme.includes(s.id)).sort((a,b)=>b.numero-a.numero)
       : [];
 
     // Mode affichage
@@ -694,7 +694,7 @@ export default function GestionNiveaux({ user, navigate, goBack, lang='fr', isMo
                 {form.type==='sourate'&&(
                   <div style={{maxHeight:180,overflowY:'auto',display:'flex',flexDirection:'column',gap:4}}>
                     {getSouratesDesc().map(s=>{
-                      const dbS=souratesDB.find(x=>x.numero===s.numero);
+                      const dbS=(souratesDB||[]).find(x=>x.numero===s.numero);
                       if(!dbS) return null;
                       const sel=formProgramme.includes(dbS.id);
                       return(
@@ -978,7 +978,7 @@ export default function GestionNiveaux({ user, navigate, goBack, lang='fr', isMo
             {form.type==='sourate'&&(
               <>
                 <div style={{display:'flex',gap:8,marginBottom:8,alignItems:'center'}}>
-                  <button onClick={()=>setFormProgramme(getSouratesDesc().map(s=>{const dbS=souratesDB.find(x=>x.numero===s.numero);return dbS?dbS.id:null;}).filter(Boolean))}
+                  <button onClick={()=>setFormProgramme(getSouratesDesc().map(s=>{const dbS=(souratesDB||[]).find(x=>x.numero===s.numero);return dbS?dbS.id:null;}).filter(Boolean))}
                     style={{padding:'4px 12px',borderRadius:20,border:`0.5px solid ${form.couleur}`,
                       background:`${form.couleur}20`,color:form.couleur,fontSize:11,cursor:'pointer',fontWeight:600}}>
                     {lang==='ar'?'تحديد الكل':'Tout sélectionner'}
@@ -993,7 +993,7 @@ export default function GestionNiveaux({ user, navigate, goBack, lang='fr', isMo
                 </div>
                 <div style={{maxHeight:200,overflowY:'auto',display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:4}}>
                   {getSouratesDesc().map(s=>{
-                    const dbS=souratesDB.find(x=>x.numero===s.numero);
+                    const dbS=(souratesDB||[]).find(x=>x.numero===s.numero);
                     if(!dbS) return null;
                     const sel=formProgramme.includes(dbS.id);
                     return(

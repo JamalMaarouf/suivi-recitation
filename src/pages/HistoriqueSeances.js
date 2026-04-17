@@ -157,7 +157,7 @@ export default function HistoriqueSeances({ user, navigate, goBack, lang='fr', i
   const ptsPrec = valsPrec.filter(v=>v.type_validation==='tomon').reduce((s,v)=>s+v.nombre_tomon,0)*10+recsPrec.reduce((s,r)=>s+(r.points||0),0);
   const ptsDelta = ptsTotal - ptsPrec;
 
-  const statsParEleve = elevesVisibles.map(eleve => {
+  const statsParEleve = (elevesVisibles||[]).map(eleve => {
     const vE = valsFiltrees.filter(v=>v.eleve_id===eleve.id);
     const rE = recsFiltrees.filter(r=>r.eleve_id===eleve.id);
     const tomon = vE.filter(v=>v.type_validation==='tomon').reduce((s,v)=>s+v.nombre_tomon,0);

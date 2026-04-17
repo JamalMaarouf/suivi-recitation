@@ -365,7 +365,7 @@ export default function GestionExamens({ user, navigate, goBack, lang='fr', isMo
                       :"Sélectionnez les ensembles couverts par l'examen :"}
                   </div>
                   <div style={{display:'flex',gap:6,marginBottom:8,flexWrap:'wrap',alignItems:'center'}}>
-                    <button onClick={()=>setForm(f=>({...f,contenu_ids:ensemblesNiveau.map(e=>e.id)}))}
+                    <button onClick={()=>setForm(f=>({...f,contenu_ids:(ensemblesNiveau||[]).map(e=>e.id)}))}
                       style={{padding:'4px 12px',borderRadius:20,border:'0.5px solid #1D9E75',
                         background:'#E1F5EE',color:'#085041',fontSize:12,cursor:'pointer',fontWeight:600}}>
                       {lang==='ar'?'تحديد الكل':'Tout sélectionner'}
@@ -382,7 +382,7 @@ export default function GestionExamens({ user, navigate, goBack, lang='fr', isMo
                     </span>
                   </div>
                   <div style={{maxHeight:260,overflowY:'auto',display:'flex',flexDirection:'column',gap:6}}>
-                    {ensemblesNiveau.map(ens=>{
+                    {(ensemblesNiveau||[]).map(ens=>{
                       const sel=form.contenu_ids.includes(ens.id);
                       const nb=(ens.sourates_ids||[]).length;
                       return(
@@ -549,7 +549,7 @@ export default function GestionExamens({ user, navigate, goBack, lang='fr', isMo
             </div>
           )}
 
-          {!loading&&examsFiltres.map(e=>{
+          {!loading&&(examsFiltres||[]).map(e=>{
             const nc=e.niveau?.couleur||'#888';
             return(
               <div key={e.id} style={{background:'#fff',borderRadius:14,
@@ -699,7 +699,7 @@ export default function GestionExamens({ user, navigate, goBack, lang='fr', isMo
         </div>
       ):(
         <div style={{display:'flex',flexDirection:'column',gap:10}}>
-          {examsFiltres.map(e=>{
+          {(examsFiltres||[]).map(e=>{
             const nc=e.niveau?.couleur||'#888';
             return(
               <div key={e.id} style={{background:'#fff',borderRadius:14,

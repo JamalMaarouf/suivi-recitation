@@ -226,7 +226,7 @@ export default function GestionEnsembles({ user, navigate, goBack, lang='fr', is
               )}
               <div style={{ marginRight: 'auto', display: 'flex', gap: 6 }}>
                 {nonAffectees.length > 0 && (
-                  <button onClick={() => setForm(f => ({ ...f, sourates_ids: nonAffectees.map(s => s.id) }))}
+                  <button onClick={() => setForm(f => ({ ...f, sourates_ids: (nonAffectees||[]).map(s => s.id) }))}
                     style={{ padding: '3px 10px', borderRadius: 20, border: `0.5px solid ${ncForm}`, background: `${ncForm}15`, color: ncForm, fontSize: 11, cursor: 'pointer', fontWeight: 600, fontFamily: 'inherit' }}>
                     {lang === 'ar' ? 'تحديد المتاحة' : 'Sél. disponibles'}
                   </button>
@@ -268,7 +268,7 @@ export default function GestionEnsembles({ user, navigate, goBack, lang='fr', is
                   <div className="section-label" style={{marginTop:8}}>
                     ③ {lang === 'ar' ? 'متاحة' : 'Disponibles'} ({nonAffectees.length})
                   </div>
-                  {nonAffectees.map(s => {
+                  {(nonAffectees||[]).map(s => {
                     const sel = form.sourates_ids.includes(s.id);
                     return (
                       <div key={s.id} onClick={() => toggleSourate(s.id)}
@@ -406,7 +406,7 @@ export default function GestionEnsembles({ user, navigate, goBack, lang='fr', is
               <div style={{ fontSize: 11, fontWeight: 700, color: niv.couleur, marginBottom: 8, padding: '3px 12px', borderRadius: 20, background: `${niv.couleur}15`, display: 'inline-block', border: `1px solid ${niv.couleur}30` }}>
                 {niv.code} — {niv.nom}
               </div>
-              {items.map(e => <CarteEnsemble key={e.id} e={e} cniv={niv.couleur || '#1D9E75'} />)}
+              {(items||[]).map(e => <CarteEnsemble key={e.id} e={e} cniv={niv.couleur || '#1D9E75'} />)}
             </div>
           ))}
         </div>
@@ -480,7 +480,7 @@ export default function GestionEnsembles({ user, navigate, goBack, lang='fr', is
       {!loading && (
         <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(280px,1fr))', gap:12}}>
           {groupesFiltres.flatMap(({ niv, items }) =>
-            items.map(e => <CarteEnsemble key={e.id} e={e} cniv={niv.couleur || '#1D9E75'} />)
+            (items||[]).map(e => <CarteEnsemble key={e.id} e={e} cniv={niv.couleur || '#1D9E75'} />)
           )}
         </div>
       )}
