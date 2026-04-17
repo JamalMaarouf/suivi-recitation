@@ -421,15 +421,81 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang, isMobi
   const tomonMoisSel = validations.filter(v=>v.type_validation==='tomon'&&new Date(v.date_validation)>=debutMoisSel&&new Date(v.date_validation)<=finMoisSel).reduce((s,v)=>s+v.nombre_tomon,0);
   const pctObj = objActuel?Math.min(100,Math.round(tomonMoisSel/objActuel.nombre_tomon*100)):null;
   // Guard: wait for data to load
-  if (loading || !etat) return (
-    <div style={{padding:'2rem',textAlign:'center'}}>
-      <div className="loading">...</div>
-      <div style={{marginTop:'1rem',fontSize:13,color:'#888'}}>{eleve?.prenom} {eleve?.nom}</div>
-      <button onClick={()=>goBack?goBack():navigate('dashboard')} className="back-link" style={{marginTop:'1rem'}}>
-        ← {lang==='ar'?'رجوع':'Retour'}
-      </button>
-    </div>
-  );
+  if (loading || !etat) {
+    // Skeleton loader : silhouette de la page pour ressenti instantané
+    const skelBg = '#e5e5df';
+    const skelRow = (w, h=14, mt=8) => (
+      <div style={{background:skelBg, borderRadius:6, width:w, height:h, marginTop:mt, animation:'skelPulse 1.2s ease-in-out infinite'}} />
+    );
+    return (
+      <div style={{paddingBottom:80, background:'#f5f5f0', minHeight:'100vh'}}>
+        <style>{`@keyframes skelPulse{0%,100%{opacity:1}50%{opacity:0.55}}`}</style>
+        {isMobile ? (
+          <>
+            {/* Header sticky avec infos élève (pas de skeleton ici, on a déjà les infos) */}
+            <div style={{background:'linear-gradient(135deg,#378ADD,#0C447C)', position:'sticky', top:0, zIndex:100, padding:'48px 16px 14px'}}>
+              <div style={{display:'flex', alignItems:'center', gap:12}}>
+                <button onClick={()=>goBack?goBack():navigate('dashboard')}
+                  style={{background:'rgba(255,255,255,0.2)', border:'none', cursor:'pointer',flexShrink:0, borderRadius:10, width:38, height:38, color:'#fff', fontSize:20, display:'flex', alignItems:'center', justifyContent:'center'}}>←</button>
+                <div style={{flex:1}}>
+                  <div style={{fontSize:17, fontWeight:800, color:'#fff'}}>{eleve?.prenom} {eleve?.nom}</div>
+                  <div style={{fontSize:11, color:'rgba(255,255,255,0.75)', marginTop:2}}>{lang==='ar'?'جاري التحميل...':'Chargement...'}</div>
+                </div>
+              </div>
+            </div>
+            {/* Skeleton corps */}
+            <div style={{padding:16}}>
+              <div style={{background:'#fff', borderRadius:12, padding:16, marginBottom:12}}>
+                {skelRow('40%', 12, 0)}
+                {skelRow('80%', 28, 10)}
+                <div style={{display:'flex', gap:8, marginTop:14}}>
+                  {skelRow('31%', 48, 0)}
+                  {skelRow('31%', 48, 0)}
+                  {skelRow('31%', 48, 0)}
+                </div>
+              </div>
+              <div style={{background:'#fff', borderRadius:12, padding:16, marginBottom:12}}>
+                {skelRow('50%', 14, 0)}
+                {skelRow('100%', 80, 12)}
+              </div>
+              <div style={{background:'#fff', borderRadius:12, padding:16}}>
+                {skelRow('60%', 14, 0)}
+                {skelRow('100%', 20, 10)}
+                {skelRow('100%', 20, 6)}
+                {skelRow('100%', 20, 6)}
+              </div>
+            </div>
+          </>
+        ) : (
+          <div style={{padding:'1.5rem'}}>
+            <button onClick={()=>goBack?goBack():navigate('dashboard')} className="back-link" style={{marginBottom:16}}>
+              ← {lang==='ar'?'رجوع':'Retour'}
+            </button>
+            <div style={{background:'#fff', borderRadius:12, padding:20, marginBottom:14}}>
+              <div style={{fontSize:22, fontWeight:800}}>{eleve?.prenom} {eleve?.nom}</div>
+              <div style={{fontSize:12, color:'#888', marginTop:4}}>{lang==='ar'?'جاري التحميل...':'Chargement des données…'}</div>
+              <div style={{display:'flex', gap:12, marginTop:18}}>
+                {skelRow('24%', 60, 0)}
+                {skelRow('24%', 60, 0)}
+                {skelRow('24%', 60, 0)}
+                {skelRow('24%', 60, 0)}
+              </div>
+            </div>
+            <div style={{background:'#fff', borderRadius:12, padding:20, marginBottom:14}}>
+              {skelRow('40%', 16, 0)}
+              {skelRow('100%', 120, 14)}
+            </div>
+            <div style={{background:'#fff', borderRadius:12, padding:20}}>
+              {skelRow('50%', 16, 0)}
+              {skelRow('100%', 28, 12)}
+              {skelRow('100%', 28, 8)}
+              {skelRow('100%', 28, 8)}
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
 
   const pctColor=(p)=>p>=100?'#1D9E75':p>=60?'#EF9F27':'#E24B4A';
 

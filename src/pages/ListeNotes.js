@@ -199,7 +199,19 @@ export default function ListeNotes({ user, navigate, goBack, lang='fr', isMobile
         </div>
       </div>
 
-      {loading ? <div style={{textAlign:'center',color:'#aaa',padding:'3rem'}}>...</div> : (
+      {loading ? (
+        <div>
+          <style>{`@keyframes skelPulse{0%,100%{opacity:1}50%{opacity:0.55}}`}</style>
+          {[0,1,2,3,4,5,6,7].map(i => (
+            <div key={i} style={{display:'flex', alignItems:'center', gap:10, padding:'10px 14px', background:'#fff', borderBottom:'1px solid #eee', animation:'skelPulse 1.2s ease-in-out infinite'}}>
+              <div style={{width:28, height:16, background:'#e5e5df', borderRadius:4}} />
+              <div style={{flex:1, height:16, background:'#e5e5df', borderRadius:4}} />
+              <div style={{width:60, height:16, background:'#e5e5df', borderRadius:4}} />
+              <div style={{width:40, height:16, background:'#e5e5df', borderRadius:4}} />
+            </div>
+          ))}
+        </div>
+      ) : (
         <div className="table-wrap">
           <table>
             <thead>

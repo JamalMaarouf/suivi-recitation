@@ -120,8 +120,6 @@ export default function Dashboard({ user, navigate, goBack, lang, isMobile=false
   };
 
   const loadData = async () => {
-    const t0 = performance.now();
-    const mark = (label) => console.log(`[PERF Dashboard] ${label}: ${Math.round(performance.now() - t0)}ms`);
     setLoading(true);
     try {
       loadBareme(supabase, user.ecole_id).then(b => setBareme(b));
@@ -131,10 +129,7 @@ export default function Dashboard({ user, navigate, goBack, lang, isMobile=false
       // Étape 2 : données détaillées (~1-2s) → recalcul précis en remplacement
 
       const rpcPromise = supabase.rpc('get_eleves_stats', { p_ecole_id: user.ecole_id })
-        .then(res => {
-          mark('RPC get_eleves_stats répondu');
-          return (!res.error && Array.isArray(res.data)) ? res.data : null;
-        })
+        .then(res => (!res.error && Array.isArray(res.data)) ? res.data : null)
         .catch(() => null);
 
       const [rpcEleves, id, nv] = await Promise.all([
@@ -144,7 +139,6 @@ export default function Dashboard({ user, navigate, goBack, lang, isMobile=false
         getCachedSWR('niveaux', user.ecole_id,
           () => supabase.from('niveaux').select('id,code,nom,type,couleur').eq('ecole_id', user.ecole_id).order('ordre')),
       ]);
-      mark(`Phase 1 terminée (RPC + inst + niveaux). rpcEleves=${rpcEleves?rpcEleves.length:'null'}`);
 
       // Affichage rapide avec données RPC si disponibles
       if (rpcEleves) {
@@ -181,7 +175,6 @@ export default function Dashboard({ user, navigate, goBack, lang, isMobile=false
         setInstituteurs(id || []);
         setEleves(elevesFromRpc);
         setLoading(false); // Affichage immédiat
-        mark(`✓ AFFICHAGE RAPIDE (Phase 1) - ${elevesFromRpc.length} élèves`);
       }
 
       // Charger les validations détaillées en arrière-plan
@@ -192,11 +185,11 @@ export default function Dashboard({ user, navigate, goBack, lang, isMobile=false
         getCachedSWR('recitations_sourates_min', user.ecole_id,
           () => fetchAll(supabase.from('recitations_sourates').select('eleve_id,date_validation,type_recitation').eq('ecole_id', user.ecole_id).order('date_validation',{ascending:false}))),
       ]);
-      mark(`Phase 2 requêtes terminées. eleves=${(edRes.data||[]).length} validations=${(vd||[]).length} recitations=${(rd||[]).length}`);
+
 
       // Recalcul précis avec toutes les données (remplace l'affichage RPC)
       applyData(edRes.data || [], id, vd, rd, nv);
-      mark('✓ TERMINÉ (Phase 2 applyData)');
+
       if (!rpcEleves) setLoading(false);
     } catch (e) {
       console.error('[Dashboard.js] Erreur chargement:', e);
@@ -248,6 +241,22 @@ export default function Dashboard({ user, navigate, goBack, lang, isMobile=false
   const nbInactifs = eleves.filter(e=>e.inactif).length;
   const nbAttente = eleves.filter(e=>e.etat.enAttenteHizbComplet).length;
   const nbActifsSemaine = eleves.filter(e=>e.jours!=null&&e.jours<=7).length;
+
+  // Préchargement au survol : quand la souris passe sur un élève, on précharge
+  // ses validations et récitations en arrière-plan. Quand l'utilisateur clique,
+  // les données sont déjà dans le cache SWR → affichage quasi instantané.
+  const prefetchedRef = React.useRef(new Set());
+  const prefetchEleve = (eleveId) => {
+    if (!eleveId || prefetchedRef.current.has(eleveId)) return;
+    prefetchedRef.current.add(eleveId);
+    // Fire-and-forget : on utilise les mêmes clés de cache que FicheEleve
+    getCachedSWR(`validations_${eleveId}`, user.ecole_id,
+      () => fetchAll(supabase.from('validations').select('*, valideur:valide_par(prenom,nom)').eq('ecole_id', user.ecole_id).eq('eleve_id', eleveId).order('date_validation',{ascending:false}))
+    ).catch(()=>{});
+    getCachedSWR(`recitations_eleve_${eleveId}`, user.ecole_id,
+      () => fetchAll(supabase.from('recitations_sourates').select('id,type_recitation,sourate_id,verset_debut,verset_fin,date_validation,valide_par,points,sourate:sourate_id(nom_ar,numero),valideur:valide_par(prenom,nom)').eq('ecole_id', user.ecole_id).eq('eleve_id', eleveId))
+    ).catch(()=>{});
+  };
   const tauxSemaine = eleves.length>0 ? Math.round(nbActifsSemaine/eleves.length*100) : 0;
   const debutMois = new Date(); debutMois.setDate(1); debutMois.setHours(0,0,0,0);
 
@@ -488,7 +497,7 @@ export default function Dashboard({ user, navigate, goBack, lang, isMobile=false
                   {podiumOrder.map(rank=>{
                     const e=podium[rank]; if(!e) return null;
                     return(
-                      <div key={e.id} onClick={()=>navigate('fiche',e)}
+                      <div key={e.id} onClick={()=>navigate('fiche',e)} onMouseEnter={()=>prefetchEleve(e.id)} onTouchStart={()=>prefetchEleve(e.id)}
                         style={{flex:1,display:'flex',flexDirection:'column',
                           alignItems:'center',cursor:'pointer'}}>
                         {rank===0&&<div style={{fontSize:18,marginBottom:4}}>👑</div>}
@@ -590,7 +599,7 @@ export default function Dashboard({ user, navigate, goBack, lang, isMobile=false
               </div>
               {[...eleves].filter(e=>e.inactif)
                 .sort((a,b)=>(b.jours||0)-(a.jours||0)).slice(0,4).map(e=>(
-                <div key={e.id} onClick={()=>navigate('fiche',e)}
+                <div key={e.id} onClick={()=>navigate('fiche',e)} onMouseEnter={()=>prefetchEleve(e.id)} onTouchStart={()=>prefetchEleve(e.id)}
                   style={{background:'#fff',borderRadius:12,padding:'11px 14px',
                     marginBottom:8,border:`0.5px solid ${e.jours>30?'#E24B4A30':'#EF9F2730'}`,
                     display:'flex',alignItems:'center',gap:12,cursor:'pointer'}}>
@@ -682,7 +691,7 @@ export default function Dashboard({ user, navigate, goBack, lang, isMobile=false
               </div>
               <div style={{display:'flex',flexDirection:'column',gap:6}}>
                 {certifNotifs.map((n,i)=>(
-                  <div key={i} onClick={()=>navigate('fiche',n.eleve)}
+                  <div key={i} onClick={()=>navigate('fiche',n.eleve)} onMouseEnter={()=>prefetchEleve(n.eleve.id)} onTouchStart={()=>prefetchEleve(n.eleve.id)}
                     style={{display:'flex',alignItems:'center',gap:12,padding:'12px 14px',
                       background:'#FAEEDA',borderLeft:'4px solid #EF9F27',
                       borderRadius:'0 12px 12px 0',cursor:'pointer'}}>
@@ -703,18 +712,18 @@ export default function Dashboard({ user, navigate, goBack, lang, isMobile=false
               </div>
             </div>
           )}
-          {alertes.length>0&&(<><div className="section-label">{t(lang,'alertes')} ({alertes.length})</div><div style={{display:'flex',flexDirection:'column',gap:6,marginBottom:'1.25rem'}}>{alertes.slice(0,5).map((a,i)=>(<div key={i} onClick={()=>navigate('fiche',a.eleve)} style={{display:'flex',alignItems:'center',gap:12,padding:'10px 14px',background:a.bg,borderLeft:`4px solid ${a.color}`,borderRadius:'0 10px 10px 0',cursor:'pointer'}}><span style={{fontSize:18}}>{a.icon}</span><span style={{fontSize:13,color:a.color,flex:1}}>{a.msg}</span><span style={{fontSize:11,color:a.color,opacity:0.6}}>›</span></div>))}</div></>)}
+          {alertes.length>0&&(<><div className="section-label">{t(lang,'alertes')} ({alertes.length})</div><div style={{display:'flex',flexDirection:'column',gap:6,marginBottom:'1.25rem'}}>{alertes.slice(0,5).map((a,i)=>(<div key={i} onClick={()=>navigate('fiche',a.eleve)} onMouseEnter={()=>prefetchEleve(a.eleve.id)} onTouchStart={()=>prefetchEleve(a.eleve.id)} style={{display:'flex',alignItems:'center',gap:12,padding:'10px 14px',background:a.bg,borderLeft:`4px solid ${a.color}`,borderRadius:'0 10px 10px 0',cursor:'pointer'}}><span style={{fontSize:18}}>{a.icon}</span><span style={{fontSize:13,color:a.color,flex:1}}>{a.msg}</span><span style={{fontSize:11,color:a.color,opacity:0.6}}>›</span></div>))}</div></>)}
           <div className="section-label">{t(lang,'podium')}</div>
           <div style={{display:'flex',alignItems:'flex-end',justifyContent:'center',gap:10,marginBottom:'1.5rem'}}>
             {[1,0,2].map(rank=>{
               const e=[...eleves].sort((a,b)=>b.etat.points.total-a.etat.points.total)[rank];
               if(!e) return null;
               const pc=['#EF9F27','#B0B0B0','#CD7F32'],pb=['#FAEEDA','#f5f5f0','#f9f3ec'],ph=[140,110,90];
-              return(<div key={e.id} onClick={()=>navigate('fiche',e)} style={{flex:1,display:'flex',flexDirection:'column',alignItems:'center',cursor:'pointer',maxWidth:160}}>{rank===0&&<div style={{fontSize:20,marginBottom:2}}>👑</div>}<Avatar prenom={e.prenom} nom={e.nom} size={rank===0?52:42} bg={pb[rank]} color={pc[rank]}/><div style={{fontSize:rank===0?13:12,fontWeight:600,marginTop:6,textAlign:'center'}}>{e.prenom} {e.nom}</div><div style={{fontSize:rank===0?15:13,fontWeight:700,color:pc[rank],margin:'4px 0'}}>{e.etat.points.total.toLocaleString()} {t(lang,'pts_abrev')}</div><div style={{width:'100%',height:ph[rank],background:pb[rank],border:`0.5px solid ${pc[rank]}40`,borderRadius:'8px 8px 0 0',display:'flex',alignItems:'center',justifyContent:'center'}}><span style={{fontSize:rank===0?36:28,fontWeight:800,color:pc[rank],opacity:0.7}}>{rank+1}</span></div></div>);
+              return(<div key={e.id} onClick={()=>navigate('fiche',e)} onMouseEnter={()=>prefetchEleve(e.id)} onTouchStart={()=>prefetchEleve(e.id)} style={{flex:1,display:'flex',flexDirection:'column',alignItems:'center',cursor:'pointer',maxWidth:160}}>{rank===0&&<div style={{fontSize:20,marginBottom:2}}>👑</div>}<Avatar prenom={e.prenom} nom={e.nom} size={rank===0?52:42} bg={pb[rank]} color={pc[rank]}/><div style={{fontSize:rank===0?13:12,fontWeight:600,marginTop:6,textAlign:'center'}}>{e.prenom} {e.nom}</div><div style={{fontSize:rank===0?15:13,fontWeight:700,color:pc[rank],margin:'4px 0'}}>{e.etat.points.total.toLocaleString()} {t(lang,'pts_abrev')}</div><div style={{width:'100%',height:ph[rank],background:pb[rank],border:`0.5px solid ${pc[rank]}40`,borderRadius:'8px 8px 0 0',display:'flex',alignItems:'center',justifyContent:'center'}}><span style={{fontSize:rank===0?36:28,fontWeight:800,color:pc[rank],opacity:0.7}}>{rank+1}</span></div></div>);
             })}
           </div>
           <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'1rem'}}>
-            <div><div className="section-label">{t(lang,'a_relancer')}</div>{eleves.filter(e=>e.inactif).length===0?<div style={{padding:'1rem',background:C.greenBg,borderRadius:10,fontSize:13,color:'#085041',textAlign:'center'}}>{t(lang,'tous_actifs')}</div>:(<div style={{display:'flex',flexDirection:'column',gap:6}}>{[...eleves].filter(e=>e.inactif).sort((a,b)=>(b.jours||0)-(a.jours||0)).slice(0,5).map(e=>(<div key={e.id} onClick={()=>navigate('fiche',e)} style={{display:'flex',alignItems:'center',gap:10,padding:'10px 12px',background:e.jours>30?C.redBg:C.amberBg,borderRadius:10,cursor:'pointer'}}><Avatar prenom={e.prenom} nom={e.nom} size={30} bg="transparent" color={e.jours>30?C.red:'#633806'}/><div style={{flex:1}}><div style={{fontSize:13,fontWeight:500,color:e.jours>30?C.red:'#412402'}}>{e.prenom} {e.nom}</div><div style={{fontSize:11,color:e.jours>30?'#A32D2D':'#854F0B',opacity:0.8}}>{e.instituteurNom}</div></div><div style={{fontSize:13,fontWeight:700,color:e.jours>30?C.red:'#633806'}}>{e.jours!=null?`${e.jours} ${t(lang,'jour')}`:'∞'}</div></div>))}</div>)}</div>
+            <div><div className="section-label">{t(lang,'a_relancer')}</div>{eleves.filter(e=>e.inactif).length===0?<div style={{padding:'1rem',background:C.greenBg,borderRadius:10,fontSize:13,color:'#085041',textAlign:'center'}}>{t(lang,'tous_actifs')}</div>:(<div style={{display:'flex',flexDirection:'column',gap:6}}>{[...eleves].filter(e=>e.inactif).sort((a,b)=>(b.jours||0)-(a.jours||0)).slice(0,5).map(e=>(<div key={e.id} onClick={()=>navigate('fiche',e)} onMouseEnter={()=>prefetchEleve(e.id)} onTouchStart={()=>prefetchEleve(e.id)} style={{display:'flex',alignItems:'center',gap:10,padding:'10px 12px',background:e.jours>30?C.redBg:C.amberBg,borderRadius:10,cursor:'pointer'}}><Avatar prenom={e.prenom} nom={e.nom} size={30} bg="transparent" color={e.jours>30?C.red:'#633806'}/><div style={{flex:1}}><div style={{fontSize:13,fontWeight:500,color:e.jours>30?C.red:'#412402'}}>{e.prenom} {e.nom}</div><div style={{fontSize:11,color:e.jours>30?'#A32D2D':'#854F0B',opacity:0.8}}>{e.instituteurNom}</div></div><div style={{fontSize:13,fontWeight:700,color:e.jours>30?C.red:'#633806'}}>{e.jours!=null?`${e.jours} ${t(lang,'jour')}`:'∞'}</div></div>))}</div>)}</div>
             <div><div className="section-label">{t(lang,'attente_hizb')}</div>{nbAttente===0?<div style={{padding:'1rem',background:C.greenBg,borderRadius:10,fontSize:13,color:'#085041',textAlign:'center'}}>{t(lang,'aucun_attente')}</div>:(<div style={{display:'flex',flexDirection:'column',gap:6}}>{eleves.filter(e=>e.etat.enAttenteHizbComplet).map(e=>(<div key={e.id} onClick={()=>navigate('enregistrer',e)} style={{display:'flex',alignItems:'center',gap:10,padding:'10px 12px',background:C.amberBg,border:`0.5px solid ${C.amber}40`,borderRadius:10,cursor:'pointer'}}><Avatar prenom={e.prenom} nom={e.nom} size={30} bg="#FAC775" color="#412402"/><div style={{flex:1}}><div style={{fontSize:13,fontWeight:500,color:'#412402'}}>{e.prenom} {e.nom}</div><div style={{fontSize:11,color:'#854F0B'}}>Hizb {e.etat.hizbEnCours} · {e.instituteurNom}</div></div><span style={{fontSize:10,background:C.amber,color:'#fff',borderRadius:20,padding:'2px 8px',fontWeight:600}}>{t(lang,'valider')}</span></div>))}</div>)}</div>
           </div>
           <div className="section-label">{t(lang,'activite_recente')}</div>
@@ -746,7 +755,7 @@ export default function Dashboard({ user, navigate, goBack, lang, isMobile=false
                 return(
                   <div key={eleve.id} style={{background:'#fff',border:`${isSelected?'2px':'0.5px'} solid ${isSelected?C.blue:eleve.etat.enAttenteHizbComplet?C.amber:eleve.inactif?C.red:C.border}`,borderRadius:14,padding:'1.25rem',cursor:'pointer',transition:'transform 0.15s',position:'relative'}}>
                     <div onClick={e=>{e.stopPropagation();const isS=selectedEleves.find(s=>s.id===eleve.id);if(isS)setSelectedEleves((selectedEleves||[]).filter(s=>s.id!==eleve.id));else if(selectedEleves.length<6)setSelectedEleves([...selectedEleves,eleve]);}} style={{position:'absolute',top:10,left:10,width:18,height:18,borderRadius:4,border:`1.5px solid ${isSelected?C.blue:C.border}`,background:isSelected?C.blue:'#fff',display:'flex',alignItems:'center',justifyContent:'center'}}>{isSelected&&<span style={{color:'#fff',fontSize:11,fontWeight:700}}>✓</span>}</div>
-                    <div onClick={()=>navigate('fiche',eleve)}>
+                    <div onClick={()=>navigate('fiche',eleve)} onMouseEnter={()=>prefetchEleve(eleve.id)} onTouchStart={()=>prefetchEleve(eleve.id)}>
                       <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',marginBottom:12,paddingLeft:24}}>
                         <div style={{display:'flex',alignItems:'center',gap:10}}>
                           <Avatar prenom={eleve.prenom} nom={eleve.nom} size={42} bg={sl.bg} color={sl.color}/>
@@ -800,7 +809,7 @@ export default function Dashboard({ user, navigate, goBack, lang, isMobile=false
         <>
           <div style={{display:'grid',gridTemplateColumns:'repeat(4,minmax(0,1fr))',gap:8,marginBottom:'1.5rem'}}>{[{val:totalPoints.toLocaleString(),lbl:t(lang,'score_total'),color:C.green},{val:stats.hizbsCompletsMois||0,lbl:t(lang,'hizb_ce_mois'),color:C.blue},{val:stats.tomonSemaine||0,lbl:t(lang,'tomon_semaine'),color:C.amber},{val:stats.recitationsMois||0,lbl:t(lang,'recitations_ce_mois'),color:C.muted}].map((k,i)=>(<div key={i} style={{background:'#fff',border:`0.5px solid ${C.border}`,borderRadius:12,padding:'14px',borderTop:`3px solid ${k.color}`}}><div style={{fontSize:22,fontWeight:700,color:k.color}}>{k.val}</div><div style={{fontSize:11,color:C.muted,marginTop:2}}>{k.lbl}</div></div>))}</div>
           <div className="section-label">{t(lang,'classement_complet')}</div>
-          <div className="table-wrap" style={{marginBottom:'1.5rem'}}><table><thead><tr><th style={{width:'5%'}}>#</th><th style={{width:'22%'}}>{t(lang,'eleve')}</th><th style={{width:'14%'}}>{t(lang,'niveau')}</th><th style={{width:'15%'}}>{t(lang,'referent')}</th><th style={{width:'10%'}}>{t(lang,'hizb_en_cours')}</th><th style={{width:'8%'}}>{t(lang,'tomon_abrev')}</th><th style={{width:'10%'}}>{t(lang,'hizb_complets')}</th><th style={{width:'16%'}}>{t(lang,'score_total')}</th></tr></thead><tbody>{[...eleves].sort((a,b)=>b.etat.points.total-a.etat.points.total).map((e,idx)=>{const sl=scoreLabel(e.etat.points.total);return(<tr key={e.id} className="clickable" onClick={()=>navigate('fiche',e)}><td><Medaille idx={idx}/></td><td><div style={{display:'flex',alignItems:'center',gap:6}}><Avatar prenom={e.prenom} nom={e.nom} size={24}/><span style={{fontSize:13}}>{e.prenom} {e.nom}</span></div></td><td><span className={`badge ${['Avancé','Advanced','متقدم'].some(v=>v.toLowerCase()===e.niveau?.toLowerCase())?'badge-green':['Intermédiaire','Intermediate','متوسط'].some(v=>v.toLowerCase()===e.niveau?.toLowerCase())?'badge-blue':'badge-amber'}`} style={{fontSize:10}}>{niveauTraduit(e.niveau,lang,t)}</span></td><td style={{fontSize:11,color:C.muted}}>{e.instituteurNom}</td><td style={{fontSize:12}}>Hizb {e.etat.hizbEnCours}</td><td><span className="badge badge-blue" style={{fontSize:10}}>{e.etat.tomonCumul}</span></td><td><span className="badge badge-green" style={{fontSize:10}}>{e.etat.hizbsComplets.size}</span></td><td><span style={{fontSize:13,fontWeight:700,color:sl.color}}>{e.etat.points.total.toLocaleString()}</span></td></tr>);})}</tbody></table></div>
+          <div className="table-wrap" style={{marginBottom:'1.5rem'}}><table><thead><tr><th style={{width:'5%'}}>#</th><th style={{width:'22%'}}>{t(lang,'eleve')}</th><th style={{width:'14%'}}>{t(lang,'niveau')}</th><th style={{width:'15%'}}>{t(lang,'referent')}</th><th style={{width:'10%'}}>{t(lang,'hizb_en_cours')}</th><th style={{width:'8%'}}>{t(lang,'tomon_abrev')}</th><th style={{width:'10%'}}>{t(lang,'hizb_complets')}</th><th style={{width:'16%'}}>{t(lang,'score_total')}</th></tr></thead><tbody>{[...eleves].sort((a,b)=>b.etat.points.total-a.etat.points.total).map((e,idx)=>{const sl=scoreLabel(e.etat.points.total);return(<tr key={e.id} className="clickable" onClick={()=>navigate('fiche',e)} onMouseEnter={()=>prefetchEleve(e.id)} onTouchStart={()=>prefetchEleve(e.id)}><td><Medaille idx={idx}/></td><td><div style={{display:'flex',alignItems:'center',gap:6}}><Avatar prenom={e.prenom} nom={e.nom} size={24}/><span style={{fontSize:13}}>{e.prenom} {e.nom}</span></div></td><td><span className={`badge ${['Avancé','Advanced','متقدم'].some(v=>v.toLowerCase()===e.niveau?.toLowerCase())?'badge-green':['Intermédiaire','Intermediate','متوسط'].some(v=>v.toLowerCase()===e.niveau?.toLowerCase())?'badge-blue':'badge-amber'}`} style={{fontSize:10}}>{niveauTraduit(e.niveau,lang,t)}</span></td><td style={{fontSize:11,color:C.muted}}>{e.instituteurNom}</td><td style={{fontSize:12}}>Hizb {e.etat.hizbEnCours}</td><td><span className="badge badge-blue" style={{fontSize:10}}>{e.etat.tomonCumul}</span></td><td><span className="badge badge-green" style={{fontSize:10}}>{e.etat.hizbsComplets.size}</span></td><td><span style={{fontSize:13,fontWeight:700,color:sl.color}}>{e.etat.points.total.toLocaleString()}</span></td></tr>);})}</tbody></table></div>
         </>
       )}
     </div>
