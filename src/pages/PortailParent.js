@@ -39,12 +39,17 @@ export default function PortailParent({ parent, navigate, goBack, lang='fr', onL
     if (!oldPwd || !newPwd || !confirmPwd) return toast.error(lang==='ar'?'يرجى ملء جميع الحقول':'Remplissez tous les champs');
     if (newPwd !== confirmPwd) return toast.error(lang==='ar'?'كلمتا المرور غير متطابقتين':'Les mots de passe ne correspondent pas');
     if (newPwd.length < 4) return toast.error(lang==='ar'?'كلمة المرور قصيرة جداً':'Mot de passe trop court');
-    const { data: check } = await supabase.from('utilisateurs').select('id').eq('id', parent.id).eq('mot_de_passe', oldPwd).maybeSingle();
-    if (!check) return toast.error(lang==='ar'?'كلمة المرور الحالية غير صحيحة':'Mot de passe actuel incorrect');
-    const { error } = await supabase.from('utilisateurs').update({ mot_de_passe: newPwd }).eq('id', parent.id);
-    if (error) return toast.error('Erreur: '+error.message);
-    toast.success(lang==='ar'?'✅ تم تغيير كلمة المرور':'✅ Mot de passe modifié');
-    setShowChangeMdp(false); setOldPwd(''); setNewPwd(''); setConfirmPwd('');
+    try {
+      const res = await fetch('/api/auth', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'change_password', user_id: parent.id, old_password: oldPwd, new_password: newPwd }),
+      });
+      const data = await res.json();
+      if (!res.ok) return toast.error(data.error || 'Erreur');
+      toast.success(lang==='ar'?'✅ تم تغيير كلمة المرور':'✅ Mot de passe modifié');
+      setShowChangeMdp(false); setOldPwd(''); setNewPwd(''); setConfirmPwd('');
+    } catch(e) { toast.error('Erreur réseau'); }
   };
 
   useEffect(() => { loadData(); }, []);

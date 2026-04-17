@@ -4,10 +4,19 @@
 const { Resend } = require('resend');
 
 const TABLES = [
-  'ecoles', 'utilisateurs', 'eleves', 'validations',
-  'recitations_sourates', 'apprentissages', 'objectifs_globaux',
-  'cotisations', 'depenses', 'parents', 'parent_eleve',
-  'passages_niveau', 'exceptions_recitation', 'exceptions_hizb', 'sourates',
+  // Données école
+  'ecoles', 'utilisateurs', 'eleves', 'parent_eleve',
+  // Pédagogie - configuration
+  'niveaux', 'programmes', 'jalons', 'examens', 'ensembles_sourates',
+  'regles_passage_niveau', 'bareme_ecole', 'objectifs',
+  // Pédagogie - données élèves
+  'validations', 'recitations_sourates', 'apprentissages',
+  'objectifs_globaux', 'certificats_eleves', 'resultats_examens',
+  'points_eleves', 'passages_niveau',
+  // Finance
+  'cotisations', 'depenses', 'periodes_notes',
+  // Référentiels
+  'sourates', 'exceptions_recitation', 'exceptions_hizb',
 ];
 
 async function exportTable(supabaseUrl, serviceKey, table) {
@@ -47,6 +56,13 @@ module.exports = async function handler(req, res) {
   const resendKey = process.env.RESEND_API_KEY;
   const backupEmail = process.env.BACKUP_EMAIL;
   const cronSecret = process.env.CRON_SECRET;
+
+  // Ping anti-suspension Supabase Free (maintient le projet actif)
+  try {
+    await fetch(`${supabaseUrl}/rest/v1/ecoles?select=id&limit=1`, {
+      headers: { 'apikey': serviceKey, 'Authorization': `Bearer ${serviceKey}` }
+    });
+  } catch(e) { /* non bloquant */ }
 
   // Validate env vars
   if (!supabaseUrl || !serviceKey) {
@@ -92,6 +108,15 @@ module.exports = async function handler(req, res) {
     data: Object.fromEntries(results.map(r => [r.table, r.data])),
   };
 
+  // Statistiques intégrité
+  const totalRows = backup.tables.reduce((s, t) => s + (t.count||0), 0);
+  const errorTables = backup.tables.filter(t => t.error);
+  backup.integrity = {
+    total_rows: totalRows,
+    error_count: errorTables.length,
+    errors: errorTables.map(t => ({ table: t.table, error: t.error })),
+    generated_at: new Date().toISOString(),
+  };
   const jsonStr = JSON.stringify(backup, null, 2);
   const sizeBytes = Buffer.byteLength(jsonStr, 'utf8');
 

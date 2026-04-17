@@ -14,47 +14,51 @@ export default function Login({ onLogin, lang, LangSelector, onShowInscription }
     if (!identifiant.trim() || !motDePasse) { setError(t(lang, 'remplir_champs')); return; }
     setLoading(true);
 
-    // Check utilisateurs (surveillant / instituteur / super_admin)
-    const { data, error: err } = await supabase
-      .from('utilisateurs')
-      .select('*, ecole:ecole_id(id,nom,ville,statut)')
-      .eq('identifiant', identifiant.trim())
-      .eq('mot_de_passe', motDePasse)
-      .single();
+    try {
+      const res = await fetch('/api/auth', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'login',
+          identifiant: identifiant.trim(),
+          mot_de_passe: motDePasse,
+        }),
+      });
 
-    if (!err && data) {
-      // Compte en attente de validation
-      if (data.statut_compte === 'en_attente') {
+      const data = await res.json();
+
+      if (res.status === 403 && data.error === 'compte_en_attente') {
         setError(lang==='ar'
           ? 'حسابك في انتظار التفعيل من طرف المشرف العام'
           : 'Votre compte est en attente de validation par le super admin.');
         setLoading(false);
         return;
       }
-      // Compte suspendu
-      if (data.statut_compte === 'suspendu') {
+      if (res.status === 403 && data.error === 'compte_suspendu') {
         setError(lang==='ar' ? 'تم تعليق حسابك' : 'Votre compte a été suspendu.');
         setLoading(false);
         return;
       }
+      if (!res.ok || !data.user) {
+        setError(t(lang, 'identifiant_incorrect'));
+        setLoading(false);
+        return;
+      }
+
       setLoading(false);
-      onLogin(data);
-      return;
+      onLogin(data.user);
+    } catch (err) {
+      // Fallback sur Supabase direct si API indisponible
+      const { data: fallback, error: fbErr } = await supabase
+        .from('utilisateurs')
+        .select('*, ecole:ecole_id(id,nom,ville,statut)')
+        .eq('identifiant', identifiant.trim())
+        .eq('mot_de_passe', motDePasse)
+        .maybeSingle();
+      setLoading(false);
+      if (fallback) { onLogin(fallback); return; }
+      setError(t(lang, 'identifiant_incorrect'));
     }
-
-    // Check parents table
-    const { data: parentData, error: parentErr } = await supabase
-      .from('utilisateurs')
-      .select('*')
-      .eq('identifiant', identifiant.trim())
-      .eq('mot_de_passe', motDePasse)
-      .eq('role', 'parent')
-      .maybeSingle();
-
-    setLoading(false);
-    if (parentData) { onLogin({...parentData, role: 'parent'}); return; }
-
-    setError(t(lang, 'identifiant_incorrect'));
   };
 
   return (

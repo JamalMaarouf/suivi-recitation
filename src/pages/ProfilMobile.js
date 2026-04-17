@@ -34,14 +34,24 @@ export default function ProfilMobile({ user, lang, onLogout, navigate, goBack })
       return;
     }
     setSaving(true);
-    // Verify old password
-    const { data } = await supabase.from('utilisateurs')
-      .select('id').eq('id', user.id).eq('mot_de_passe', oldPwd).single();
-    if (!data) {
-      setPwdMsg({ ok: false, text: lang==='ar'?'كلمة المرور الحالية غير صحيحة':'Mot de passe actuel incorrect' });
+    try {
+      const res = await fetch('/api/auth', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'change_password', user_id: user.id, old_password: oldPwd, new_password: newPwd }),
+      });
+      const resData = await res.json();
+      if (!res.ok) {
+        setPwdMsg({ ok: false, text: resData.error || 'Erreur' });
+        setSaving(false);
+        return;
+      }
+      setPwdMsg({ ok: true, text: lang==='ar'?'✅ تم تغيير كلمة المرور':'✅ Mot de passe modifié' });
+      setOldPwd(''); setNewPwd(''); setConfirmPwd('');
       setSaving(false);
       return;
-    }
+    } catch(e) {}
+    // Fallback
     const { error } = await supabase.from('utilisateurs')
       .update({ mot_de_passe: newPwd }).eq('id', user.id);
     if (error) {
