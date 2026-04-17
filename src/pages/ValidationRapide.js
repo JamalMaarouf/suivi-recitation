@@ -226,34 +226,42 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
   const validerHizb = async () => {
     if (!selectedEleve || !etat || saving || !etat.enAttenteHizbComplet) return;
     setSaving(true);
-    const { error } = await withRetryToast(
-      () => supabase.from('validations').insert({
-        eleve_id: selectedEleve.id, ecole_id: user.ecole_id, valide_par: user.id,
-        nombre_tomon: 0, type_validation: 'hizb_complet',
-        date_validation: new Date().toISOString(), hizb_valide: etat.hizbEnCours
-      }),
-      toast, lang
-    );
+    const res = await enqueueOrRun(supabase, 'validations', 'insert', {
+      eleve_id: selectedEleve.id, ecole_id: user.ecole_id, valide_par: user.id,
+      nombre_tomon: 0, type_validation: 'hizb_complet',
+      date_validation: new Date().toISOString(), hizb_valide: etat.hizbEnCours
+    }, user.ecole_id);
+    const error = res.error;
+    const wasQueued = res.status === 'queued';
+
+    if (wasQueued) {
+      toast.success(lang === 'ar' ? '✓ تم الحفظ (مزامنة تلقائية)' : '✓ Enregistré (sync auto)');
+    }
     if (!error) {
       const ptsHizb = bareme?.unites?.hizb_complet || 0;
-      setFlash({ msg: `🎉 الحزب ${etat.hizbEnCours} مكتمل !`, color: '#EF9F27', pts: ptsHizb });
+      setFlash({ msg: `🎉 الحزب ${etat.hizbEnCours} مكتمل !${wasQueued ? ' 💾' : ''}`, color: '#EF9F27', pts: ptsHizb });
       setTimeout(() => setFlash(null), 2500);
       setSessionLog(prev => [{
         eleve: `${selectedEleve.prenom} ${selectedEleve.nom}`,
-        detail: `الحزب ${etat.hizbEnCours} مكتمل`, pts: ptsHizb,
+        detail: `الحزب ${etat.hizbEnCours} مكتمل${wasQueued ? ' 💾' : ''}`, pts: ptsHizb,
         time: new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })
       }, ...prev.slice(0, 9)]);
-      const { data: newVals } = await supabase.from('validations').select('*')
-        .eq('ecole_id', user.ecole_id).eq('eleve_id', selectedEleve.id);
-      setEtat(calcEtatEleve(newVals || [], selectedEleve.hizb_depart, selectedEleve.tomon_depart));
-      const nouveauxCerts = await verifierEtCreerCertificats(supabase, {
-        eleve: selectedEleve, ecole_id: user.ecole_id, valide_par: user.id,
-        validations: newVals || [], recitations: [],
-      });
-      if (nouveauxCerts.length > 0) {
-        setTimeout(() => setFlash({ msg: `🏅 ${(nouveauxCerts||[]).map(c => c.nom_certificat).join(', ')} !`, color: '#EF9F27', pts: 0 }), 2600);
-        setTimeout(() => setFlash(null), 6000);
+      if (!wasQueued) {
+        const { data: newVals } = await supabase.from('validations').select('*')
+          .eq('ecole_id', user.ecole_id).eq('eleve_id', selectedEleve.id);
+        setEtat(calcEtatEleve(newVals || [], selectedEleve.hizb_depart, selectedEleve.tomon_depart));
+        try {
+          const nouveauxCerts = await verifierEtCreerCertificats(supabase, {
+            eleve: selectedEleve, ecole_id: user.ecole_id, valide_par: user.id,
+            validations: newVals || [], recitations: [],
+          });
+          if (nouveauxCerts && nouveauxCerts.length > 0) {
+            setTimeout(() => setFlash({ msg: `🏅 ${(nouveauxCerts||[]).map(c => c.nom_certificat).join(', ')} !`, color: '#EF9F27', pts: 0 }), 2600);
+            setTimeout(() => setFlash(null), 6000);
+          }
+        } catch (e) { /* silencieux */ }
       }
+      invalidateMany(['validations', 'recitations_sourates_min', `validations_${selectedEleve.id}`, `recitations_eleve_${selectedEleve.id}`], user.ecole_id);
     }
     setSaving(false);
   };
@@ -277,16 +285,19 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
     const ptsSequence = bareme?.unites?.sequence_sourate || 0;
     const pts = typeRec === 'complete' ? ptsComplet : ptsSequence;
 
-    const { error } = await withRetryToast(
-      () => supabase.from('recitations_sourates').insert({
-        eleve_id: selectedEleve.id, ecole_id: user.ecole_id, valide_par: user.id,
-        sourate_id: sourateId, type_recitation: typeRec,
-        verset_debut: typeRec === 'sequence' ? parseInt(versetDebut) : null,
-        verset_fin: typeRec === 'sequence' ? parseInt(versetFin) : null,
-        date_validation: new Date().toISOString(), points: pts,
-      }),
-      toast, lang
-    );
+    const res = await enqueueOrRun(supabase, 'recitations_sourates', 'insert', {
+      eleve_id: selectedEleve.id, ecole_id: user.ecole_id, valide_par: user.id,
+      sourate_id: sourateId, type_recitation: typeRec,
+      verset_debut: typeRec === 'sequence' ? parseInt(versetDebut) : null,
+      verset_fin: typeRec === 'sequence' ? parseInt(versetFin) : null,
+      date_validation: new Date().toISOString(), points: pts,
+    }, user.ecole_id);
+    const error = res.error;
+    const wasQueued = res.status === 'queued';
+
+    if (wasQueued) {
+      toast.success(lang === 'ar' ? '✓ تم الحفظ (مزامنة تلقائية)' : '✓ Enregistré (sync auto)');
+    }
 
     if (error) {
       setFlash({ msg: `❌ ${error.message}`, color: '#E24B4A', pts: 0 });

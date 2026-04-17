@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { supabase } from '../lib/supabase';
 import { calcEtatEleve, calcPointsPeriode, loadBareme, BAREME_DEFAUT } from '../lib/helpers';
 import { t } from '../lib/i18n';
+import { openPDF } from '../lib/pdf';
 
 export default function ListeNotes({ user, navigate, goBack, lang='fr', isMobile }) {
   const [eleves, setEleves] = useState([]);
@@ -11,6 +12,7 @@ export default function ListeNotes({ user, navigate, goBack, lang='fr', isMobile
   const [niveaux, setNiveaux] = useState([]);
   const [bareme, setBareme] = useState({ unites:{...BAREME_DEFAUT}, examens:{}, ensembles:{}, jalons:{} });
   const [loading, setLoading] = useState(true);
+  const [genPdf, setGenPdf] = useState(false);
 
   // Filtres
   const [searchNum, setSearchNum] = useState('');
@@ -75,6 +77,36 @@ export default function ListeNotes({ user, navigate, goBack, lang='fr', isMobile
 
   const getNivColor = (code) => niveaux.find(n=>n.code===code)?.couleur || '#888';
 
+  // ── PDF export ─────────────────────────────────────────────
+  const handlePdfExport = async () => {
+    if (genPdf || filtered.length === 0) return;
+    setGenPdf(true);
+    try {
+      const periodeLabel = PERIODES.find(p => p.id === periode)?.label || '';
+      const elevesData = filtered.map(el => ({
+        prenom: el.prenom || '',
+        nom: el.nom || '',
+        eleve_id_ecole: el.eleve_id_ecole || '',
+        code_niveau: el.code_niveau || '',
+        couleur: getNivColor(el.code_niveau),
+        instituteur: el.instNom || '—',
+        points: el.pts?.total || 0,
+        tomon: el.pts?.details?.nbTomon || 0,
+        hizb: el.pts?.details?.nbHizb || 0,
+      }));
+      await openPDF('liste_notes', {
+        ecole: { nom: user?.ecole?.nom || '' },
+        titre: lang === 'ar' ? 'قائمة النقاط' : 'Classement des points',
+        periodeLabel,
+        eleves: elevesData,
+      }, lang);
+    } catch (err) {
+      console.error('PDF liste notes:', err);
+      alert((lang === 'ar' ? 'خطأ: ' : 'Erreur : ') + err.message);
+    }
+    setGenPdf(false);
+  };
+
   const PERIODES = [
     { id:'total',    label: lang==='ar'?'منذ البداية':'Depuis le début' },
     { id:'semaine',  label: lang==='ar'?'الأسبوع':'Semaine' },
@@ -94,15 +126,23 @@ export default function ListeNotes({ user, navigate, goBack, lang='fr', isMobile
               <div style={{fontSize:17,fontWeight:800,color:'#fff'}}>⭐ {lang==='ar'?'قائمة النقاط':'Notes & Points'}</div>
               <div style={{fontSize:11,color:'rgba(255,255,255,0.75)'}}>{filtered.length} {lang==='ar'?'طالب':'élève(s)'}</div>
             </div>
+            <button onClick={handlePdfExport} disabled={genPdf||filtered.length===0}
+              style={{background:'rgba(255,255,255,0.25)',border:'1px solid rgba(255,255,255,0.3)',borderRadius:10,padding:'7px 11px',color:'#fff',fontSize:12,fontWeight:600,cursor:(genPdf||filtered.length===0)?'default':'pointer',opacity:(genPdf||filtered.length===0)?0.5:1,flexShrink:0,whiteSpace:'nowrap',fontFamily:'inherit'}}>
+              {genPdf ? '⏳' : '📄 PDF'}
+            </button>
           </div>
         </div>
       ) : (
       <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:'1.25rem' }}>
         <button onClick={()=>goBack?goBack():navigate('dashboard')} className="back-link">←</button>
-        <div>
+        <div style={{flex:1}}>
           <div style={{ fontSize:20, fontWeight:800, color:'#1a1a1a' }}>⭐ {lang==='ar'?'قائمة النقاط':'Liste des notes'}</div>
           <div style={{ fontSize:12, color:'#888' }}>{filtered.length} {lang==='ar'?'طالب':'élève(s)'}</div>
         </div>
+        <button onClick={handlePdfExport} disabled={genPdf||filtered.length===0}
+          style={{padding:'8px 16px',background:'#534AB7',color:'#fff',border:'none',borderRadius:8,fontSize:13,fontWeight:600,cursor:(genPdf||filtered.length===0)?'default':'pointer',opacity:(genPdf||filtered.length===0)?0.5:1,fontFamily:'inherit'}}>
+          {genPdf ? (lang==='ar'?'⏳ جاري...':'⏳ Génération...') : (lang==='ar'?'📄 تصدير PDF':'📄 Exporter PDF')}
+        </button>
       </div>
       )}
 

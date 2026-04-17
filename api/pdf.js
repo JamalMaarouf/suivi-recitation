@@ -20,6 +20,8 @@ module.exports = async function handler(req, res) {
       html = generateListeEleves(data, lang);
     } else if (type === 'liste_certificats') {
       html = generateListeCertificats(data, lang);
+    } else if (type === 'liste_notes') {
+      html = generateListeNotes(data, lang);
     } else if (type === 'certificat') {
       html = generateCertificat(data, lang);
     } else if (type === 'certificat_examen') {
@@ -421,6 +423,73 @@ function generateCertificatExamen(data, lang) {
         </div>
       </div>
     </div>
+  </div>
+  </body></html>`;
+}
+
+function generateListeNotes(data, lang) {
+  const { ecole, eleves = [], titre, periodeLabel } = data || {};
+  const isAr = lang === 'ar';
+  const dir = isAr ? 'rtl' : 'ltr';
+
+  // Top 3 en surbrillance (or, argent, bronze)
+  const medalColors = ['#EF9F27', '#C0C0C0', '#CD7F32'];
+
+  const rows = eleves.map((e, i) => {
+    const rang = i + 1;
+    const medal = rang <= 3 ? medalColors[rang - 1] : null;
+    return `
+      <tr>
+        <td style="text-align:center;font-weight:700;color:${medal || '#888'};font-size:14px">
+          ${rang <= 3 ? '🏅' : ''} ${rang}
+        </td>
+        <td style="font-weight:700">${e.prenom || ''} ${e.nom || ''}</td>
+        <td>${e.eleve_id_ecole || '—'}</td>
+        <td><span class="badge" style="background:${e.couleur || '#085041'}20;color:${e.couleur || '#085041'}">${e.code_niveau || '—'}</span></td>
+        <td>${e.instituteur || '—'}</td>
+        <td style="text-align:center;color:#085041;font-weight:700;font-size:14px">${(e.points || 0).toLocaleString()}</td>
+        <td style="text-align:center;color:#888">${e.tomon || 0}</td>
+        <td style="text-align:center;color:#888">${e.hizb || 0}</td>
+      </tr>
+    `;
+  }).join('');
+
+  const totalPts = eleves.reduce((s, e) => s + (e.points || 0), 0);
+  const moyennePts = eleves.length > 0 ? Math.round(totalPts / eleves.length) : 0;
+
+  return `<!DOCTYPE html><html dir="${dir}"><head><meta charset="UTF-8"><title>${titre || 'Liste des notes'}</title>${baseStyles()}</head>
+  <body>
+  ${printButton(lang)}
+  <div class="page">
+    <div class="header">
+      <div>
+        <div class="logo">⭐ ${ecole?.nom || 'École'}</div>
+        <div class="subtitle">${titre || (isAr ? 'قائمة النقاط' : 'Classement des points')} — ${periodeLabel || ''}</div>
+      </div>
+      <div style="font-size:12px;color:#888;text-align:right">
+        <div>${new Date().toLocaleDateString(isAr ? 'ar-MA' : 'fr-FR')}</div>
+        <div style="margin-top:2px">${eleves.length} ${isAr ? 'طالب' : 'élève(s)'}</div>
+      </div>
+    </div>
+    <div class="kpi-grid" style="grid-template-columns:repeat(3,1fr)">
+      <div class="kpi"><div class="kpi-val">${eleves.length}</div><div class="kpi-lbl">${isAr ? 'طلاب' : 'Élèves'}</div></div>
+      <div class="kpi"><div class="kpi-val">${totalPts.toLocaleString()}</div><div class="kpi-lbl">${isAr ? 'مجموع النقاط' : 'Total points'}</div></div>
+      <div class="kpi"><div class="kpi-val">${moyennePts.toLocaleString()}</div><div class="kpi-lbl">${isAr ? 'المعدل' : 'Moyenne / élève'}</div></div>
+    </div>
+    <table>
+      <thead><tr>
+        <th style="width:60px;text-align:center">#</th>
+        <th>${isAr ? 'الطالب' : 'Élève'}</th>
+        <th>${isAr ? 'الرقم' : 'N°'}</th>
+        <th>${isAr ? 'المستوى' : 'Niveau'}</th>
+        <th>${isAr ? 'الأستاذ' : 'Instituteur'}</th>
+        <th style="text-align:center">${isAr ? 'النقاط' : 'Points'}</th>
+        <th style="text-align:center">${isAr ? 'الثُّمنات' : 'Tomon'}</th>
+        <th style="text-align:center">${isAr ? 'الأحزاب' : 'Hizb'}</th>
+      </tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+    <div class="footer">${ecole?.nom || ''} · ${isAr ? 'سري — للاستخدام الداخلي' : 'Confidentiel — Usage interne'}</div>
   </div>
   </body></html>`;
 }

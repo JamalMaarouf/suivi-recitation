@@ -277,18 +277,25 @@ export default function EnregistrerRecitation({  user, eleve: eleveInitial, navi
                     🎉 {t(lang,'hizb_complet_en_attente')}
                   </div>
                   <button onClick={async ()=>{
-                    const {error} = await withRetryToast(
-                      () => supabase.from('validations').insert({
-                        eleve_id:eleveInitial.id, ecole_id:user.ecole_id,
-                        valide_par:user.id, nombre_tomon:0,
-                        type_validation:'hizb_complet',
-                        date_validation:new Date().toISOString(),
-                        tomon_debut:etat.prochainTomon,
-                        hizb_validation:etat.hizbEnCours
-                      }),
-                      toast, lang
-                    );
-                    if (!error) { setDone(true); setMotivMsg({msg:`🎉 Hizb complet ! +${bareme?.unites?.hizb_complet||0} pts`}); toast.success(lang==='ar'?'🎉 تم تسجيل الحزب الكامل':`🎉 Hizb complet enregistré ! +${bareme?.unites?.hizb_complet||0} pts`); invalidateMany(['validations', 'recitations_sourates_min', `validations_${eleveInitial.id}`, `recitations_eleve_${eleveInitial.id}`], user.ecole_id); }
+                    const res = await enqueueOrRun(supabase, 'validations', 'insert', {
+                      eleve_id:eleveInitial.id, ecole_id:user.ecole_id,
+                      valide_par:user.id, nombre_tomon:0,
+                      type_validation:'hizb_complet',
+                      date_validation:new Date().toISOString(),
+                      tomon_debut:etat.prochainTomon,
+                      hizb_validation:etat.hizbEnCours
+                    }, user.ecole_id);
+                    const wasQueued = res.status === 'queued';
+                    if (!res.error) {
+                      setDone(true);
+                      setMotivMsg({msg:`🎉 Hizb complet ! +${bareme?.unites?.hizb_complet||0} pts`});
+                      if (wasQueued) {
+                        toast.success(lang==='ar'?'✓ تم الحفظ (مزامنة تلقائية)':'✓ Enregistré (sync auto)');
+                      } else {
+                        toast.success(lang==='ar'?'🎉 تم تسجيل الحزب الكامل':`🎉 Hizb complet enregistré ! +${bareme?.unites?.hizb_complet||0} pts`);
+                      }
+                      invalidateMany(['validations', 'recitations_sourates_min', `validations_${eleveInitial.id}`, `recitations_eleve_${eleveInitial.id}`], user.ecole_id);
+                    }
                   }}
                     style={{width:'100%',padding:'18px',background:'#EF9F27',color:'#fff',
                       border:'none',borderRadius:14,fontSize:17,fontWeight:800,cursor:'pointer',fontFamily:'inherit'}}>
@@ -303,18 +310,25 @@ export default function EnregistrerRecitation({  user, eleve: eleveInitial, navi
                   <div style={{display:'grid',gridTemplateColumns:'repeat(2,1fr)',gap:12}}>
                     {Array.from({length:Math.min(etat.tomonRestants||8,4)},(_,i)=>i+1).map(n=>(
                       <button key={n} onClick={async ()=>{
-                        const {error} = await withRetryToast(
-                          () => supabase.from('validations').insert({
-                            eleve_id:eleveInitial.id, ecole_id:user.ecole_id,
-                            valide_par:user.id, nombre_tomon:n,
-                            type_validation:'tomon',
-                            date_validation:new Date().toISOString(),
-                            tomon_debut:etat.prochainTomon,
-                            hizb_validation:etat.hizbEnCours
-                          }),
-                          toast, lang
-                        );
-                        if (!error) { setDone(true); setMotivMsg({msg:`✅ +${n*30} pts !`}); toast.success(`✅ +${n*30} pts enregistrés !`); invalidateMany(['validations', 'recitations_sourates_min', `validations_${eleveInitial.id}`, `recitations_eleve_${eleveInitial.id}`], user.ecole_id); }
+                        const res = await enqueueOrRun(supabase, 'validations', 'insert', {
+                          eleve_id:eleveInitial.id, ecole_id:user.ecole_id,
+                          valide_par:user.id, nombre_tomon:n,
+                          type_validation:'tomon',
+                          date_validation:new Date().toISOString(),
+                          tomon_debut:etat.prochainTomon,
+                          hizb_validation:etat.hizbEnCours
+                        }, user.ecole_id);
+                        const wasQueued = res.status === 'queued';
+                        if (!res.error) {
+                          setDone(true);
+                          setMotivMsg({msg:`✅ +${n*30} pts !`});
+                          if (wasQueued) {
+                            toast.success(lang==='ar'?'✓ تم الحفظ (مزامنة تلقائية)':'✓ Enregistré (sync auto)');
+                          } else {
+                            toast.success(`✅ +${n*30} pts enregistrés !`);
+                          }
+                          invalidateMany(['validations', 'recitations_sourates_min', `validations_${eleveInitial.id}`, `recitations_eleve_${eleveInitial.id}`], user.ecole_id);
+                        }
                       }}
                         style={{padding:'20px 8px',background:'#1D9E75',color:'#fff',
                           border:'none',borderRadius:14,fontSize:16,fontWeight:800,
