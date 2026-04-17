@@ -861,7 +861,7 @@ export default function GestionNiveaux({ user, navigate, goBack, lang='fr', isMo
             <div>
               <label className="field-lbl">Ordre</label>
               <input className="field-input" type="number" min="1" value={form.ordre}
-                onChange={e= inputMode='numeric'>setForm(f=>({...f,ordre:e.target.value}))}/>
+                onChange={e=>setForm(f=>({...f,ordre:e.target.value}))} inputMode='numeric'/>
             </div>
           </div>
           <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12,marginBottom:16}}>

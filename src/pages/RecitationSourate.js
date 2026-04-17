@@ -674,11 +674,11 @@ export default function RecitationSourate({ user, eleve, navigate, goBack, lang=
                         <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
                           <div className="field-group">
                             <label className="field-lbl">{lang==='ar'?'من الآية':lang==='en'?'From verse':'Verset début'} <span style={{color:'#E24B4A'}}>*</span></label>
-                            <input className="field-input" type="number" min="1" value={versetDebut} onChange={e= inputMode='numeric'>setVersetDebut(e.target.value)} placeholder="1"/>
+                            <input className="field-input" type="number" min="1" value={versetDebut} onChange={e=>setVersetDebut(e.target.value)} inputMode='numeric' placeholder="1"/>
                           </div>
                           <div className="field-group">
                             <label className="field-lbl">{lang==='ar'?'إلى الآية':lang==='en'?'To verse':'Verset fin'} <span style={{color:'#E24B4A'}}>*</span></label>
-                            <input className="field-input" type="number" min="1" value={versetFin} onChange={e= inputMode='numeric'>setVersetFin(e.target.value)} placeholder="10"/>
+                            <input className="field-input" type="number" min="1" value={versetFin} onChange={e=>setVersetFin(e.target.value)} inputMode='numeric' placeholder="10"/>
                           </div>
                         </div>
                       </div>

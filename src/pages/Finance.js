@@ -877,7 +877,7 @@ export default function Finance({ user, navigate, goBack, lang='fr', isMobile })
                   </div>
                   <div className="field-group">
                     <label className="field-lbl">{lang==='ar'?'المبلغ':'Montant (MAD)'} *</label>
-                    <input className="field-input" type="number" min="0" step="0.01" value={formCot.montant} onChange={e= inputMode='numeric'>setFormCot(f=>({...f,montant:e.target.value}))} placeholder="Ex: 150"/>
+                    <input className="field-input" type="number" min="0" step="0.01" value={formCot.montant} onChange={e=>setFormCot(f=>({...f,montant:e.target.value}))} inputMode='numeric' placeholder="Ex: 150"/>
                   </div>
                   <div className="field-group">
                     <label className="field-lbl">{lang==='ar'?'تاريخ الدفع':'Date de paiement'} *</label>
@@ -1034,7 +1034,7 @@ export default function Finance({ user, navigate, goBack, lang='fr', isMobile })
                 <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12,marginBottom:12}}>
                   <div className="field-group">
                     <label className="field-lbl">{lang==='ar'?'المبلغ':'Montant (MAD)'} *</label>
-                    <input className="field-input" type="number" min="0" step="0.01" value={formDep.montant} onChange={e= inputMode='numeric'>setFormDep(f=>({...f,montant:e.target.value}))} placeholder="Ex: 500"/>
+                    <input className="field-input" type="number" min="0" step="0.01" value={formDep.montant} onChange={e=>setFormDep(f=>({...f,montant:e.target.value}))} inputMode='numeric' placeholder="Ex: 500"/>
                   </div>
                   <div className="field-group">
                     <label className="field-lbl">{lang==='ar'?'التاريخ':'Date'} *</label>
