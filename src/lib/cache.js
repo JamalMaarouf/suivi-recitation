@@ -9,6 +9,7 @@
 
 const TTL_MS = 60 * 1000; // 60 secondes — rafraîchissement auto après 1 min
 const cache = new Map(); // key -> { data, timestamp }
+const inflight = new Map(); // key -> Promise en cours (pour dédupliquer)
 
 function makeKey(key, ecoleId) {
   return `${key}:${ecoleId || 'global'}`;
@@ -101,20 +102,32 @@ export async function getCachedSWR(key, ecoleId, loader, onFresh) {
     return entry.data;
   }
 
-  // Pas de cache du tout → attendre le fetch
-  try {
-    const result = await loader();
-    // En cas d'erreur Supabase, renvoyer [] plutôt que de casser
-    if (result?.error) {
-      console.warn(`[cache] fetch error for ${fullKey}:`, result.error.message);
-      return [];
-    }
-    const data = result?.data !== undefined ? result.data : result;
-    if (data === null || data === undefined) return [];
-    cache.set(fullKey, { data, timestamp: Date.now() });
-    return data;
-  } catch (e) {
-    console.warn(`[cache] fetch exception for ${fullKey}:`, e.message);
-    return []; // Ne pas casser la page, renvoyer array vide
+  // Pas de cache du tout → attendre le fetch.
+  // DÉDUP : si une requête pour la même clé est déjà en cours, on attend
+  // celle-là au lieu d'en lancer une nouvelle. Évite les doublons quand
+  // le login précharge en parallèle du chargement Dashboard.
+  if (inflight.has(fullKey)) {
+    return inflight.get(fullKey);
   }
+
+  const p = (async () => {
+    try {
+      const result = await loader();
+      if (result?.error) {
+        console.warn(`[cache] fetch error for ${fullKey}:`, result.error.message);
+        return [];
+      }
+      const data = result?.data !== undefined ? result.data : result;
+      if (data === null || data === undefined) return [];
+      cache.set(fullKey, { data, timestamp: Date.now() });
+      return data;
+    } catch (e) {
+      console.warn(`[cache] fetch exception for ${fullKey}:`, e.message);
+      return []; // Ne pas casser la page, renvoyer array vide
+    } finally {
+      inflight.delete(fullKey);
+    }
+  })();
+  inflight.set(fullKey, p);
+  return p;
 }

@@ -167,12 +167,16 @@ export default function App() {
   }, []);
 
   // Charger les niveaux dès que l'utilisateur est connecté
+  // (passe par le cache SWR pour partager avec Dashboard qui charge les mêmes niveaux)
   useEffect(() => {
     if (!user?.ecole_id) return;
-    import('./lib/supabase').then(({ supabase }) => {
-      supabase.from('niveaux').select('id,code,nom,type,couleur')
-        .eq('ecole_id', user.ecole_id)
-        .then(({ data }) => { if (data) setNiveauxApp(data); });
+    Promise.all([
+      import('./lib/supabase'),
+      import('./lib/cache'),
+    ]).then(([{ supabase }, { getCachedSWR }]) => {
+      getCachedSWR('niveaux', user.ecole_id,
+        () => supabase.from('niveaux').select('id,code,nom,type,couleur').eq('ecole_id', user.ecole_id).order('ordre')
+      ).then(data => { if (data) setNiveauxApp(data); });
     });
   }, [user?.ecole_id]);
 
