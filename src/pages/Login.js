@@ -39,8 +39,26 @@ export default function Login({ onLogin, lang, LangSelector, onShowInscription }
         setLoading(false);
         return;
       }
+      // Rate limit dépassé (5 échecs / 15 min)
+      if (res.status === 429) {
+        const mins = Math.ceil((data.retryAfter || 900) / 60);
+        setError(lang==='ar'
+          ? `محاولات كثيرة. أعد المحاولة بعد ${mins} دقيقة.`
+          : `Trop de tentatives. Réessayez dans ${mins} minute(s).`);
+        setLoading(false);
+        return;
+      }
       if (!res.ok || !data.user) {
-        setError(t(lang, 'identifiant_incorrect'));
+        // Si le serveur renvoie le nombre de tentatives restantes, on l'affiche
+        // pour avertir l'utilisateur avant le blocage.
+        const rem = typeof data.remaining === 'number' ? data.remaining : null;
+        if (rem !== null && rem <= 2 && rem > 0) {
+          setError(lang==='ar'
+            ? `معرف أو كلمة مرور خاطئة. محاولات متبقية: ${rem}`
+            : `Identifiant ou mot de passe incorrect. Tentatives restantes : ${rem}.`);
+        } else {
+          setError(t(lang, 'identifiant_incorrect'));
+        }
         setLoading(false);
         return;
       }

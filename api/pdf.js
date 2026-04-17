@@ -18,6 +18,8 @@ module.exports = async function handler(req, res) {
       html = generateRapportMensuel(data, lang);
     } else if (type === 'liste_eleves') {
       html = generateListeEleves(data, lang);
+    } else if (type === 'liste_certificats') {
+      html = generateListeCertificats(data, lang);
     } else if (type === 'certificat') {
       html = generateCertificat(data, lang);
     } else if (type === 'fiche_eleve') {
@@ -164,6 +166,51 @@ function generateListeEleves(data, lang) {
         <th>${isAr ? 'الأستاذ' : 'Instituteur'}</th>
         <th>${isAr ? 'الهاتف' : 'Téléphone'}</th>
         <th>${isAr ? 'تاريخ التسجيل' : 'Inscription'}</th>
+      </tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+    <div class="footer">${ecole?.nom || ''} · ${isAr ? 'سري' : 'Confidentiel'}</div>
+  </div>
+  </body></html>`;
+}
+
+function generateListeCertificats(data, lang) {
+  const { ecole, certificats = [], titre } = data || {};
+  const isAr = lang === 'ar';
+  const dir = isAr ? 'rtl' : 'ltr';
+
+  const rows = certificats.map((c, i) => `
+    <tr>
+      <td style="text-align:center;color:#888">${i + 1}</td>
+      <td style="font-weight:700">${c.prenom || ''} ${c.nom || ''}</td>
+      <td>${c.eleve_id_ecole || '—'}</td>
+      <td><span class="badge" style="background:${c.couleur || '#085041'}20;color:${c.couleur || '#085041'}">${c.code_niveau || '—'}</span></td>
+      <td style="direction:rtl;font-family:'Tajawal',Arial,sans-serif;font-weight:700">${c.jalon || '—'}</td>
+      <td>${c.instituteur || '—'}</td>
+      <td>${c.date_obtention ? new Date(c.date_obtention).toLocaleDateString(isAr ? 'ar-MA' : 'fr-FR') : '—'}</td>
+    </tr>
+  `).join('');
+
+  return `<!DOCTYPE html><html dir="${dir}"><head><meta charset="UTF-8"><title>${titre || 'Liste certificats'}</title>${baseStyles()}</head>
+  <body>
+  ${printButton(lang)}
+  <div class="page">
+    <div class="header">
+      <div>
+        <div class="logo">🏅 ${ecole?.nom || 'École'}</div>
+        <div class="subtitle">${titre || (isAr ? 'قائمة الشهادات' : 'Liste des certificats')} — ${certificats.length} ${isAr ? 'شهادة' : 'certificat(s)'}</div>
+      </div>
+      <div style="font-size:12px;color:#888">${new Date().toLocaleDateString(isAr ? 'ar-MA' : 'fr-FR')}</div>
+    </div>
+    <table>
+      <thead><tr>
+        <th style="width:40px">#</th>
+        <th>${isAr ? 'الاسم' : 'Élève'}</th>
+        <th>${isAr ? 'الرقم' : 'N°'}</th>
+        <th>${isAr ? 'المستوى' : 'Niveau'}</th>
+        <th>${isAr ? 'الشهادة' : 'Jalon / Certificat'}</th>
+        <th>${isAr ? 'الأستاذ' : 'Instituteur'}</th>
+        <th>${isAr ? 'تاريخ الحصول' : 'Date obtention'}</th>
       </tr></thead>
       <tbody>${rows}</tbody>
     </table>

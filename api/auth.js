@@ -6,6 +6,72 @@ const bcrypt = require('bcryptjs');
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY;
 
+// ── RATE LIMITING LOGIN ──────────────────────────────────────────
+// 5 tentatives échouées / 15 minutes par combinaison IP + identifiant
+// Stockage en mémoire du container serverless (Vercel warm start conserve la Map)
+// Pour un usage multi-container, passer à Supabase ou Upstash — pour l'échelle
+// actuelle (<10 écoles × quelques logins/jour), la mémoire suffit largement.
+const WINDOW_MS = 15 * 60 * 1000; // 15 minutes
+const MAX_ATTEMPTS = 5;
+const rateLimitStore = new Map(); // key -> { count, firstAttempt, blockedUntil }
+
+function getClientIp(req) {
+  const xff = req.headers['x-forwarded-for'];
+  if (xff) return xff.split(',')[0].trim();
+  return req.headers['x-real-ip'] || req.socket?.remoteAddress || 'unknown';
+}
+
+function rateLimitKey(ip, identifiant) {
+  return `${ip}:${(identifiant || '').toLowerCase().trim()}`;
+}
+
+function checkRateLimit(key) {
+  const now = Date.now();
+  const entry = rateLimitStore.get(key);
+
+  // Nettoyage occasionnel pour éviter la fuite mémoire (1% de chance par appel)
+  if (Math.random() < 0.01) {
+    for (const [k, v] of rateLimitStore.entries()) {
+      if (v.blockedUntil && v.blockedUntil < now) rateLimitStore.delete(k);
+      else if (!v.blockedUntil && now - v.firstAttempt > WINDOW_MS) rateLimitStore.delete(k);
+    }
+  }
+
+  if (!entry) return { blocked: false, remaining: MAX_ATTEMPTS };
+
+  // Si bloqué et fenêtre pas expirée
+  if (entry.blockedUntil && entry.blockedUntil > now) {
+    return { blocked: true, retryAfter: Math.ceil((entry.blockedUntil - now) / 1000) };
+  }
+
+  // Fenêtre expirée → reset
+  if (now - entry.firstAttempt > WINDOW_MS) {
+    rateLimitStore.delete(key);
+    return { blocked: false, remaining: MAX_ATTEMPTS };
+  }
+
+  return { blocked: false, remaining: Math.max(0, MAX_ATTEMPTS - entry.count) };
+}
+
+function recordFailedAttempt(key) {
+  const now = Date.now();
+  const entry = rateLimitStore.get(key);
+
+  if (!entry || now - entry.firstAttempt > WINDOW_MS) {
+    rateLimitStore.set(key, { count: 1, firstAttempt: now, blockedUntil: null });
+    return;
+  }
+
+  entry.count += 1;
+  if (entry.count >= MAX_ATTEMPTS) {
+    entry.blockedUntil = now + WINDOW_MS;
+  }
+}
+
+function clearRateLimit(key) {
+  rateLimitStore.delete(key);
+}
+
 async function query(table, filters = {}, select = '*') {
   const params = new URLSearchParams({ select });
   Object.entries(filters).forEach(([k, v]) => params.set(k, `eq.${v}`));
@@ -48,17 +114,33 @@ module.exports = async function handler(req, res) {
       return res.status(400).json({ error: 'Champs manquants' });
     }
 
+    // Rate limit check AVANT toute requête DB
+    const ip = getClientIp(req);
+    const rlKey = rateLimitKey(ip, identifiant);
+    const rlState = checkRateLimit(rlKey);
+
+    if (rlState.blocked) {
+      res.setHeader('Retry-After', String(rlState.retryAfter));
+      return res.status(429).json({
+        error: 'too_many_attempts',
+        retryAfter: rlState.retryAfter, // secondes
+        message: `Trop de tentatives. Réessayez dans ${Math.ceil(rlState.retryAfter / 60)} minute(s).`,
+      });
+    }
+
     // Chercher l'utilisateur par identifiant
-    const users = await query('utilisateurs', { identifiant: identifiant.trim() }, 
+    const users = await query('utilisateurs', { identifiant: identifiant.trim() },
       '*,ecole:ecole_id(id,nom,ville,statut)');
-    
+
     if (!users || users.length === 0) {
+      recordFailedAttempt(rlKey);
       return res.status(401).json({ error: 'Identifiant ou mot de passe incorrect' });
     }
 
     const user = users[0];
 
-    // Vérification statut compte
+    // Vérification statut compte (on ne compte PAS ces cas dans le rate limit —
+    // le compte existe et le mot de passe n'a pas encore été testé)
     if (user.statut_compte === 'en_attente') {
       return res.status(403).json({ error: 'compte_en_attente' });
     }
@@ -82,8 +164,17 @@ module.exports = async function handler(req, res) {
     }
 
     if (!passwordOk) {
-      return res.status(401).json({ error: 'Identifiant ou mot de passe incorrect' });
+      recordFailedAttempt(rlKey);
+      const after = checkRateLimit(rlKey);
+      const remaining = after.blocked ? 0 : after.remaining;
+      return res.status(401).json({
+        error: 'Identifiant ou mot de passe incorrect',
+        remaining, // tentatives restantes avant blocage (pour UX côté client)
+      });
     }
+
+    // Succès → on clear le compteur pour cette combinaison
+    clearRateLimit(rlKey);
 
     // Retourner l'utilisateur sans le mot de passe
     const { mot_de_passe: _, ...safeUser } = user;

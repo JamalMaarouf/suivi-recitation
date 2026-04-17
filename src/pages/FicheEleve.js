@@ -3,6 +3,7 @@ import { useToast } from '../lib/toast';
 import { supabase } from '../lib/supabase';
 import { calcEtatEleve, isSourateNiveauDyn, calcPositionAtteinte, calcUnite, calcPoints, formatDate, formatDateCourt, getInitiales, scoreLabel, calcBadges, calcVitesse, niveauTraduit, calcPointsPeriode, loadBareme, BAREME_DEFAUT } from '../lib/helpers';
 import { t } from '../lib/i18n';
+import { openPDF } from '../lib/pdf';
 import FicheSourate from './FicheSourate';
 
 function Avatar({ prenom, nom, size=44, bg='#E1F5EE', color='#085041' }) {
@@ -298,64 +299,40 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang, isMobi
 
 
 
-  const handlePrint = () => {
-    const w = window.open('','','width=800,height=900');
-    if (!w || !etat) return;
-    const pts = etat.points;
-    const dir = lang==='ar'?'rtl':'ltr';
-    const arabicFont = lang==='ar'?"'Tajawal',Arial,sans-serif":"Arial,sans-serif";
-    const dateLocale = lang==='ar'?'ar-MA':lang==='en'?'en-GB':'fr-FR';
-    const thAlign = lang==='ar'?'right':'left';
-    w.document.write(`<!DOCTYPE html><html dir="${dir}" lang="${lang}"><head>
-    <meta charset="UTF-8"><title>${eleve.prenom} ${eleve.nom}</title>
-    <style>
-      body{font-family:${arabicFont};color:#1a1a1a;padding:30px;direction:${dir}}
-      h1{font-size:22px;color:#085041}h2{font-size:14px;margin:20px 0 10px;border-bottom:2px solid #1D9E75;padding-bottom:6px}
-      .grid{display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:10px;margin-bottom:20px}
-      .box{border:1px solid #e0e0d8;border-radius:8px;padding:12px;text-align:center}
-      .box-title{font-size:10px;text-transform:uppercase;color:#888;margin-bottom:4px}
-      .box-val{font-size:20px;font-weight:700;color:#1D9E75}
-      .acquis{background:#E1F5EE;border:1px solid #9FE1CB;border-radius:8px;padding:12px;margin-bottom:16px;display:flex;gap:16px;flex-wrap:wrap}
-      table{width:100%;border-collapse:collapse;font-size:12px}
-      th{background:#f9f9f6;text-align:${thAlign};padding:8px;border-bottom:1px solid #e0e0d8;font-size:10px;text-transform:uppercase}
-      td{padding:8px;border-bottom:1px solid #f0f0ec;text-align:${thAlign}}
-      .pts{color:#1D9E75;font-weight:600}
-      .footer{margin-top:30px;font-size:11px;color:#bbb;border-top:1px solid #e0e0d8;padding-top:12px}
-    </style></head><body>
-    <h1>${eleve.prenom} ${eleve.nom}</h1>
-    <p style="color:#888;font-size:13px">${niveauTraduit(eleve.niveau,lang,t)} · ${instituteurNom}</p>
-    ${etat.tomonAcquis>0?`<div class="acquis">
-      <div><div style="font-size:11px;color:#085041;font-weight:600">🎓 ${t(lang,'acquis_anterieurs')}</div>
-      <div style="font-size:13px;color:#0F6E56">${etat.tomonAcquis} ${t(lang,'tomon_abrev')} + ${etat.hizbAcquisComplets} Hizb</div></div>
-      <div><div style="font-size:11px;color:#888">${lang==='ar'?'النقاط المقابلة':lang==='en'?lang==='ar'?'النقاط السابقة':'Prior points':lang==='ar'?'النقاط السابقة':'Points antérieurs'}</div>
-      <div style="font-size:18px;font-weight:700;color:#1D9E75">+${(pts.ptsAcquisTotal||0).toLocaleString()} ${t(lang,'pts_abrev')}</div></div>
-      <div><div style="font-size:11px;color:#888">${lang==='ar'?'منذ بدء المتابعة':lang==='en'?lang==='ar'?'منذ المتابعة':'Since tracking':lang==='ar'?'منذ المتابعة':'Depuis le suivi'}</div>
-      <div style="font-size:18px;font-weight:700;color:#378ADD">+${(pts.ptsDepuisSuivi||0).toLocaleString()} ${t(lang,'pts_abrev')}</div></div>
-    </div>`:''}
-    <div class="grid">
-      <div class="box"><div class="box-title">${t(lang,'score_total')}</div><div class="box-val">${pts.total.toLocaleString()} ${t(lang,'pts_abrev')}</div></div>
-      <div class="box"><div class="box-title">${t(lang,'hizb_en_cours')}</div><div class="box-val">Hizb ${etat.hizbEnCours}</div></div>
-      <div class="box"><div class="box-title">${t(lang,'tomon_valides')}</div><div class="box-val">${etat.tomonTotal||etat.tomonCumul}</div></div>
-      <div class="box"><div class="box-title">${t(lang,'hizb_complets')}</div><div class="box-val">${etat.hizbsComplets.size}</div></div>
-    </div>
-    <h2>${t(lang,'historique')}</h2>
-    <table><thead><tr>
-      <th>${t(lang,'date_heure')}</th><th>${lang==='ar'?'النوع':(lang==='ar'?'النوع':'Type')}</th><th>${t(lang,'detail')}</th>
-      <th>${t(lang,'duree_apprentissage_col')}</th><th>${t(lang,'points_gagnes')}</th><th>${t(lang,'valide_par')}</th>
-    </tr></thead><tbody>
-    ${validations.map(v=>{
-      const appr=apprentissages.find(a=>a.hizb===v.hizb_validation&&a.tomon===v.tomon_debut);
-      const joursAppr=appr?Math.round((new Date(v.date_validation)-new Date(appr.date_debut))/(1000*60*60*24)):null;
-      const typeLabel=v.type_validation==='hizb_complet'?t(lang,'hizb_complets_label'):v.nombre_tomon+' '+t(lang,'tomon_abrev');
-      const detailLabel=v.type_validation==='hizb_complet'?'Hizb '+v.hizb_valide:(v.tomon_debut?'T.'+v.tomon_debut+'→T.'+(v.tomon_debut+v.nombre_tomon-1):v.nombre_tomon+' '+t(lang,'tomon_abrev'));
-      const dureeLabel=joursAppr!==null?joursAppr+' '+t(lang,'jours'):'—';
-      return '<tr><td>'+new Date(v.date_validation).toLocaleDateString(dateLocale)+'</td><td>'+typeLabel+'</td><td>'+detailLabel+'</td><td>'+dureeLabel+'</td><td class="pts">+'+(v.type_validation==='hizb_complet'?100:v.nombre_tomon*10)+' '+t(lang,'pts_abrev')+'</td><td>'+(v.valideur?v.valideur.prenom+' '+v.valideur.nom:'—')+'</td></tr>';
-    }).join('')}
-    </tbody></table>
-    <div class="footer">${t(lang,'genere_le')} ${new Date().toLocaleDateString(dateLocale)} · ${t(lang,'app_name')}</div>
-    </body></html>`);
-    w.document.close();
-    setTimeout(()=>{w.print();w.close();},600);
+  const handlePrint = async () => {
+    if (!etat) return;
+    try {
+      const pts = etat.points || {};
+      // Préparer le payload pour l'API PDF serveur
+      const payload = {
+        eleve: {
+          prenom: eleve.prenom,
+          nom: eleve.nom,
+          code_niveau: eleve.code_niveau,
+          eleve_id_ecole: eleve.eleve_id_ecole,
+        },
+        stats: {
+          totalPts: pts.total || 0,
+          tomon: etat.tomonTotal || etat.tomonCumul || 0,
+          hizb: etat.hizbsComplets?.size || 0,
+          jours: (validations || []).reduce((set, v) => {
+            if (v.date_validation) set.add(String(v.date_validation).slice(0, 10));
+            return set;
+          }, new Set()).size,
+        },
+        validations: (validations || []).slice(0, 30).map(v => ({
+          date_validation: v.date_validation,
+          type_validation: v.type_validation,
+          nombre_tomon: v.nombre_tomon,
+          points: v.type_validation === 'hizb_complet' ? 100 : (v.nombre_tomon || 0) * 10,
+        })),
+        ecole: { nom: user?.ecole?.nom || '' },
+      };
+      await openPDF('fiche_eleve', payload, lang);
+    } catch (e) {
+      console.error('PDF fiche élève:', e);
+      alert((lang === 'ar' ? 'خطأ في توليد PDF: ' : 'Erreur PDF : ') + e.message);
+    }
   };
 
 

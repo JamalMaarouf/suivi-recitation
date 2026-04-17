@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { getInitiales, formatDate } from '../lib/helpers';
 import { t } from '../lib/i18n';
+import { openPDF } from '../lib/pdf';
 
 export default function ListeCertificats({ user, navigate, goBack, lang='fr', isMobile }) {
   const [certificats, setCertificats] = useState([]);
@@ -10,6 +11,8 @@ export default function ListeCertificats({ user, navigate, goBack, lang='fr', is
   const [jalons, setJalons] = useState([]);
   const [niveaux, setNiveaux] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [genPdfId, setGenPdfId] = useState(null); // id du certificat en cours de génération
+  const [genListe, setGenListe] = useState(false);
 
   // Filtres
   const [searchNum, setSearchNum] = useState('');
@@ -47,6 +50,61 @@ export default function ListeCertificats({ user, navigate, goBack, lang='fr', is
   const getInst = (id) => instituteurs.find(i => i.id === id);
   const getNivColor = (code) => niveaux.find(n => n.code === code)?.couleur || '#888';
 
+  // ── PDF certificat individuel ────────────────────────────────
+  const handlePdfCertificat = async (c, e) => {
+    e?.stopPropagation?.(); // ne pas naviguer vers la fiche en cliquant le bouton
+    if (genPdfId) return;
+    const el = getEleve(c.eleve_id);
+    const jal = getJalon(c.jalon_id);
+    setGenPdfId(c.id);
+    try {
+      await openPDF('certificat', {
+        eleve: el ? { prenom: el.prenom, nom: el.nom } : { prenom: '', nom: '' },
+        jalon: jal ? { nom: jal.nom, nom_ar: jal.nom_ar } : { nom: c.nom_certificat, nom_ar: c.nom_certificat_ar },
+        date: c.date_obtention,
+        ecole: { nom: user?.ecole?.nom || '' },
+        directeur: c.directeur || '',
+      }, lang);
+    } catch (err) {
+      console.error('PDF certificat:', err);
+      alert((lang === 'ar' ? 'خطأ: ' : 'Erreur : ') + err.message);
+    }
+    setGenPdfId(null);
+  };
+
+  // ── PDF liste complète (après filtres) ───────────────────────
+  const handlePdfListe = async () => {
+    if (genListe || filtered.length === 0) return;
+    setGenListe(true);
+    try {
+      const certificatsData = filtered.map(c => {
+        const el = getEleve(c.eleve_id) || {};
+        const jal = getJalon(c.jalon_id) || {};
+        const inst = el.instituteur_referent_id ? getInst(el.instituteur_referent_id) : null;
+        const jalonLabel = lang === 'ar' ? (jal.nom_ar || jal.nom || '—') : (jal.nom || jal.nom_ar || '—');
+        return {
+          prenom: el.prenom || '',
+          nom: el.nom || '',
+          eleve_id_ecole: el.eleve_id_ecole || '',
+          code_niveau: el.code_niveau || '',
+          couleur: getNivColor(el.code_niveau),
+          jalon: jalonLabel,
+          instituteur: inst ? `${inst.prenom} ${inst.nom}` : '—',
+          date_obtention: c.date_obtention,
+        };
+      });
+      await openPDF('liste_certificats', {
+        ecole: { nom: user?.ecole?.nom || '' },
+        titre: lang === 'ar' ? 'قائمة الشهادات' : 'Liste des certificats',
+        certificats: certificatsData,
+      }, lang);
+    } catch (err) {
+      console.error('PDF liste certificats:', err);
+      alert((lang === 'ar' ? 'خطأ: ' : 'Erreur : ') + err.message);
+    }
+    setGenListe(false);
+  };
+
   const filtered = certificats.filter(c => {
     const el = getEleve(c.eleve_id);
     if (!el) return false;
@@ -72,6 +130,10 @@ export default function ListeCertificats({ user, navigate, goBack, lang='fr', is
               <div style={{fontSize:17,fontWeight:800,color:'#fff'}}>🏅 {lang==='ar'?'الشهادات':'Certificats'}</div>
               <div style={{fontSize:11,color:'rgba(255,255,255,0.8)'}}>{filtered.length} {lang==='ar'?'شهادة':'certificat(s)'}</div>
             </div>
+            <button onClick={handlePdfListe} disabled={genListe||filtered.length===0}
+              style={{background:'rgba(255,255,255,0.25)',border:'1px solid rgba(255,255,255,0.3)',borderRadius:10,padding:'7px 11px',color:'#fff',fontSize:12,fontWeight:600,cursor:(genListe||filtered.length===0)?'default':'pointer',opacity:(genListe||filtered.length===0)?0.5:1,flexShrink:0,whiteSpace:'nowrap',fontFamily:'inherit'}}>
+              {genListe ? '⏳' : '📄 PDF'}
+            </button>
           </div>
           {/* Recherche */}
           <input value={searchNum} onChange={e=>setSearchNum(e.target.value)}
@@ -139,7 +201,11 @@ export default function ListeCertificats({ user, navigate, goBack, lang='fr', is
                         📅 {c.date_obtention?new Date(c.date_obtention).toLocaleDateString(lang==='ar'?'ar-MA':'fr-FR',{day:'2-digit',month:'short',year:'numeric'}):'—'}
                       </div>
                     </div>
-                    <span style={{color:'#ccc',fontSize:18}}>›</span>
+                    <button onClick={(ev)=>handlePdfCertificat(c,ev)} disabled={genPdfId===c.id}
+                      style={{background:'#FAEEDA',border:'none',borderRadius:10,width:36,height:36,display:'flex',alignItems:'center',justifyContent:'center',fontSize:15,cursor:genPdfId===c.id?'default':'pointer',flexShrink:0,opacity:genPdfId===c.id?0.5:1}}
+                      title={lang==='ar'?'تحميل PDF':'Télécharger PDF'}>
+                      {genPdfId===c.id?'⏳':'📄'}
+                    </button>
                   </div>
                 );
               })}
@@ -154,10 +220,14 @@ export default function ListeCertificats({ user, navigate, goBack, lang='fr', is
     <div style={{ padding:'1.5rem', paddingBottom: 80 }}>
       <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:'1.25rem' }}>
         <button onClick={()=>goBack?goBack():navigate('dashboard')} className="back-link">{t(lang,'retour')}</button>
-        <div>
+        <div style={{flex:1}}>
           <div style={{ fontSize:20, fontWeight:800, color:'#1a1a1a' }}>🏅 {lang==='ar'?'قائمة الشهادات':'Liste des certificats'}</div>
           <div style={{ fontSize:12, color:'#888' }}>{filtered.length} {lang==='ar'?'شهادة':'certificat(s)'}</div>
         </div>
+        <button onClick={handlePdfListe} disabled={genListe||filtered.length===0}
+          style={{padding:'8px 16px',background:'#534AB7',color:'#fff',border:'none',borderRadius:8,fontSize:13,fontWeight:600,cursor:(genListe||filtered.length===0)?'default':'pointer',opacity:(genListe||filtered.length===0)?0.5:1,fontFamily:'inherit'}}>
+          {genListe ? (lang==='ar'?'⏳ جاري...':'⏳ Génération...') : (lang==='ar'?'📄 تصدير PDF':'📄 Exporter PDF')}
+        </button>
       </div>
 
       {/* Filtres */}
@@ -219,6 +289,11 @@ export default function ListeCertificats({ user, navigate, goBack, lang='fr', is
                     </div>
                     {el && <div style={{fontSize:10,color:'#aaa',marginTop:2}}>{lang==='ar'?'رقم':'N°'} {el.eleve_id_ecole}</div>}
                   </div>
+                  <button onClick={(ev)=>handlePdfCertificat(c,ev)} disabled={genPdfId===c.id}
+                    style={{background:'#FAEEDA',border:'none',borderRadius:10,padding:'8px 12px',fontSize:13,fontWeight:600,color:'#A85F10',cursor:genPdfId===c.id?'default':'pointer',flexShrink:0,opacity:genPdfId===c.id?0.5:1,fontFamily:'inherit'}}
+                    title={lang==='ar'?'تحميل PDF':'Télécharger PDF'}>
+                    {genPdfId===c.id?'⏳':'📄 PDF'}
+                  </button>
                 </div>
               );
             })}
