@@ -38,7 +38,7 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
   const loadData = async () => {
     const [{ data: ed }, { data: vd }, { data: niv }, { data: sour }] = await Promise.all([
       supabase.from('eleves').select('*').eq('ecole_id', user.ecole_id).order('nom'),
-      supabase.from('validations').select('*').eq('ecole_id', user.ecole_id).limit(5000).order('created_at', {ascending:false}),
+      supabase.from('validations').select('*').eq('ecole_id', user.ecole_id).limit(5000),
       supabase.from('niveaux').select('id,code,nom,type,couleur').eq('ecole_id', user.ecole_id),
       supabase.from('sourates').select('*'),
     ]);

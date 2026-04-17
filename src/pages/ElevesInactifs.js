@@ -25,7 +25,7 @@ export default function ElevesInactifs({ navigate, goBack, lang='fr', user, isMo
       const results = await Promise.all([
         supabase.from('eleves').select('*').eq('ecole_id', user.ecole_id).order('nom'),
         supabase.from('utilisateurs').select('id,prenom,nom').eq('role','instituteur').eq('ecole_id', user.ecole_id),
-        supabase.from('validations').select('eleve_id,date_validation,nombre_tomon,type_validation,hizb_valide').eq('ecole_id', user.ecole_id).limit(5000).order('created_at', {ascending:false}).order('date_validation',{ascending:false}),
+        supabase.from('validations').select('eleve_id,date_validation,nombre_tomon,type_validation,hizb_valide').eq('ecole_id', user.ecole_id).limit(5000).order('date_validation',{ascending:false}),
         supabase.from('niveaux').select('id,code,couleur').eq('ecole_id', user.ecole_id),
       ]);
       const ed = results[0]?.data;

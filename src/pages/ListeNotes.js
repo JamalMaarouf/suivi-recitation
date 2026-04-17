@@ -27,7 +27,7 @@ export default function ListeNotes({ user, navigate, goBack, lang='fr', isMobile
     try {
     const [{ data: el }, { data: vd }, { data: pe }, { data: inst }, { data: niv }] = await Promise.all([
       supabase.from('eleves').select('id,prenom,nom,code_niveau,eleve_id_ecole,hizb_depart,tomon_depart,instituteur_referent_id').eq('ecole_id', user.ecole_id).order('nom'),
-      supabase.from('validations').select('id,eleve_id,type_validation,nombre_tomon,hizb_valide,date_validation').eq('ecole_id', user.ecole_id).limit(5000).order('created_at', {ascending:false}),
+      supabase.from('validations').select('id,eleve_id,type_validation,nombre_tomon,hizb_valide,date_validation').eq('ecole_id', user.ecole_id).limit(5000),
       supabase.from('points_eleves').select('*').eq('ecole_id', user.ecole_id).limit(2000).order('created_at', {ascending:false}),
       supabase.from('utilisateurs').select('id,prenom,nom').eq('role','instituteur').eq('ecole_id', user.ecole_id),
       supabase.from('niveaux').select('id,code,nom,couleur').eq('ecole_id', user.ecole_id).order('ordre'),
