@@ -1,26 +1,28 @@
 // Service Worker - Suivi Récitation
-const CACHE_NAME = 'suivi-recitation-v1';
+// Stratégie:
+// - index.html et manifest : TOUJOURS réseau d'abord (detection de nouvelle version)
+// - assets JS/CSS hashés : cache-first (immuable car hash dans le nom)
+// - API Supabase/Resend : jamais cachée (direct fetch)
 
-// Resources to cache for offline use
+const CACHE_VERSION = 'v5-2026-04-17';
+const CACHE_NAME = `suivi-recitation-${CACHE_VERSION}`;
+
+// Resources de base pour mode offline
 const STATIC_ASSETS = [
-  '/',
-  '/index.html',
   '/manifest.json',
   '/icon-192.png',
   '/icon-512.png',
 ];
 
-// Install: cache static assets
+// Install: cache les assets de base, SKIP waiting pour activation immediate
 self.addEventListener('install', (event) => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => {
-      return cache.addAll(STATIC_ASSETS);
-    })
+    caches.open(CACHE_NAME).then((cache) => cache.addAll(STATIC_ASSETS))
   );
   self.skipWaiting();
 });
 
-// Activate: clean old caches
+// Activate: supprimer TOUS les anciens caches
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((keys) =>
@@ -29,39 +31,78 @@ self.addEventListener('activate', (event) => {
           .filter((key) => key !== CACHE_NAME)
           .map((key) => caches.delete(key))
       )
-    )
+    ).then(() => self.clients.claim())
   );
-  self.clients.claim();
 });
 
-// Fetch: network first, fallback to cache
+// Fetch strategy
 self.addEventListener('fetch', (event) => {
-  // Skip non-GET and Supabase API calls (always need fresh data)
-  if (event.request.method !== 'GET') return;
-  if (event.request.url.includes('supabase.co')) return;
-  if (event.request.url.includes('resend.com')) return;
+  const url = new URL(event.request.url);
 
+  if (event.request.method !== 'GET') return;
+
+  // NE PAS intercepter les APIs
+  if (url.hostname.includes('supabase.co')) return;
+  if (url.hostname.includes('resend.com')) return;
+  if (url.pathname.startsWith('/api/')) return;
+
+  // Navigation / HTML : NETWORK FIRST (voir les mises a jour tout de suite)
+  const isNavigation = event.request.mode === 'navigate';
+  const isHtml = url.pathname === '/' || url.pathname.endsWith('.html');
+
+  if (isNavigation || isHtml) {
+    event.respondWith(
+      fetch(event.request, { cache: 'no-store' })
+        .then((response) => {
+          if (response.ok) {
+            const clone = response.clone();
+            caches.open(CACHE_NAME).then((c) => c.put(event.request, clone));
+          }
+          return response;
+        })
+        .catch(() => {
+          return caches.match(event.request)
+            .then((cached) => cached || caches.match('/index.html') || caches.match('/'));
+        })
+    );
+    return;
+  }
+
+  // Assets hashés (immutables) : CACHE FIRST
+  const isHashedAsset = /\.[0-9a-f]{8,}\.(js|css|woff2?|ttf|otf|png|jpg|svg)$/i.test(url.pathname);
+  if (isHashedAsset) {
+    event.respondWith(
+      caches.match(event.request).then((cached) => {
+        if (cached) return cached;
+        return fetch(event.request).then((response) => {
+          if (response.ok) {
+            const clone = response.clone();
+            caches.open(CACHE_NAME).then((c) => c.put(event.request, clone));
+          }
+          return response;
+        });
+      })
+    );
+    return;
+  }
+
+  // Par defaut : NETWORK FIRST
   event.respondWith(
     fetch(event.request)
       .then((response) => {
-        // Cache successful responses
         if (response.ok) {
           const clone = response.clone();
-          caches.open(CACHE_NAME).then((cache) => {
-            cache.put(event.request, clone);
-          });
+          caches.open(CACHE_NAME).then((c) => c.put(event.request, clone));
         }
         return response;
       })
-      .catch(() => {
-        // Network failed: serve from cache
-        return caches.match(event.request).then((cached) => {
-          if (cached) return cached;
-          // Fallback to index.html for navigation requests
-          if (event.request.mode === 'navigate') {
-            return caches.match('/index.html');
-          }
-        });
-      })
+      .catch(() => caches.match(event.request))
   );
+});
+
+// Messages pour forcer update
+self.addEventListener('message', (event) => {
+  if (event.data && event.data.type === 'SKIP_WAITING') {
+    self.skipWaiting();
+  }
 });

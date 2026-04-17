@@ -280,15 +280,13 @@ export async function syncPending(supabase) {
 
 /**
  * Installe les listeners globaux (à appeler une seule fois dans App.js).
- * Déclenche la sync auto au retour online et au démarrage.
+ * Robuste pour mobile : plusieurs mécanismes de détection en parallèle car
+ * les events online/offline sont peu fiables sur Android PWA et iOS Safari.
  */
 export function installAutoSync(supabase, onSynced) {
   const emitSynced = (res) => {
     if (res.synced > 0 && typeof window !== 'undefined') {
-      // Invalider les caches de lecture pour que les nouvelles validations apparaissent.
-      // On n'invalide pas TOUT (trop agressif) mais seulement les tables concernées.
       import('./cache').then(({ invalidateAll }) => invalidateAll());
-      // Émettre l'event avec un petit délai pour laisser Supabase propager la lecture
       setTimeout(() => {
         window.dispatchEvent(new CustomEvent('offline-synced', { detail: res }));
       }, 500);
@@ -296,26 +294,45 @@ export function installAutoSync(supabase, onSynced) {
     if (onSynced) onSynced(res);
   };
 
-  // Sync au retour online
-  window.addEventListener('online', async () => {
+  const trySync = async () => {
+    if (!navigator.onLine) return;
+    const count = await pendingCount();
+    if (count === 0) return;
     const res = await syncPending(supabase);
     emitSynced(res);
-  });
+  };
 
-  // Sync au démarrage (si des ops étaient en attente d'une session précédente)
+  // 1. Event natif 'online' (marche sur PC, parfois sur mobile)
+  window.addEventListener('online', trySync);
+
+  // 2. Sync au démarrage si des ops attendent d'une session précédente
   if (navigator.onLine) {
-    setTimeout(async () => {
-      const res = await syncPending(supabase);
-      emitSynced(res);
-    }, 2000); // petit délai pour laisser l'app s'initialiser
+    setTimeout(trySync, 2000);
   }
 
-  // Sync périodique (toutes les 60s) en cas d'échec précédent
-  setInterval(async () => {
-    const count = await pendingCount();
-    if (count > 0 && navigator.onLine) {
-      const res = await syncPending(supabase);
-      emitSynced(res);
+  // 3. Sync périodique toutes les 15 secondes (crucial sur mobile ou les
+  //    events online/offline peuvent etre absents ou tres en retard)
+  setInterval(trySync, 15 * 1000);
+
+  // 4. Sync quand l'app revient en premier plan — PWA mobile apprecie
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') {
+      trySync();
     }
-  }, 60000);
+  });
+
+  // 5. Sync au focus de la fenetre
+  window.addEventListener('focus', trySync);
+
+  // 6. Sync lors d'une interaction utilisateur (filet de securite)
+  //    Rate limit a 1 fois par minute pour ne pas spammer
+  let lastInteractionSync = 0;
+  const interactionSync = () => {
+    const now = Date.now();
+    if (now - lastInteractionSync < 60000) return;
+    lastInteractionSync = now;
+    trySync();
+  };
+  window.addEventListener('touchstart', interactionSync, { passive: true });
+  window.addEventListener('click', interactionSync, { passive: true });
 }
