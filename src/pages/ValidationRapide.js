@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase';
 import { useToast } from '../lib/toast';
 import { withRetryToast } from '../lib/retry';
 import { invalidateMany } from '../lib/cache';
+import { enqueueOrRun } from '../lib/offlineQueue';
 import { calcEtatEleve, getInitiales, scoreLabel, motivationMsg, verifierEtCreerCertificats, isSourateNiveauDyn, loadBareme, BAREME_DEFAUT } from '../lib/helpers';
 import { getSouratesForNiveau } from '../lib/sourates';
 import { t } from '../lib/i18n';
@@ -175,15 +176,21 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
   const validerTomon = async () => {
     if (!selectedEleve || !etat || saving || etat.enAttenteHizbComplet) return;
     setSaving(true);
-    const { error } = await withRetryToast(
-      () => supabase.from('validations').insert({
-        eleve_id: selectedEleve.id, ecole_id: user.ecole_id, valide_par: user.id,
-        nombre_tomon: nbTomon, type_validation: 'tomon',
-        date_validation: new Date().toISOString(),
-        tomon_debut: etat.prochainTomon, hizb_validation: etat.hizbEnCours
-      }),
-      toast, lang
-    );
+    const payload = {
+      eleve_id: selectedEleve.id, ecole_id: user.ecole_id, valide_par: user.id,
+      nombre_tomon: nbTomon, type_validation: 'tomon',
+      date_validation: new Date().toISOString(),
+      tomon_debut: etat.prochainTomon, hizb_validation: etat.hizbEnCours
+    };
+    const res = await enqueueOrRun(supabase, 'validations', 'insert', payload, user.ecole_id);
+    const error = res.error;
+    const wasQueued = res.status === 'queued';
+
+    if (wasQueued) {
+      toast.info?.(lang === 'ar'
+        ? '💾 تم الحفظ محلياً'
+        : '💾 Enregistré localement — sync auto');
+    }
     if (!error) {
       const ptsParTomon = bareme?.unites?.tomon || 0;
       const pts = nbTomon * ptsParTomon;
@@ -191,12 +198,15 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
       setTimeout(() => setFlash(null), 2500);
       setSessionLog(prev => [{
         eleve: `${selectedEleve.prenom} ${selectedEleve.nom}`,
-        detail: `${nbTomon} ثمن · الحزب ${etat.hizbEnCours}`, pts,
+        detail: `${nbTomon} ثمن · الحزب ${etat.hizbEnCours}${wasQueued ? ' 💾' : ''}`, pts,
         time: new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })
       }, ...prev.slice(0, 9)]);
-      const { data: newVals } = await supabase.from('validations').select('*')
-        .eq('ecole_id', user.ecole_id).eq('eleve_id', selectedEleve.id);
-      setEtat(calcEtatEleve(newVals || [], selectedEleve.hizb_depart, selectedEleve.tomon_depart));
+      // Si online, recharger l'état depuis la base ; sinon, on ajoute l'op localement à etat
+      if (!wasQueued) {
+        const { data: newVals } = await supabase.from('validations').select('*')
+          .eq('ecole_id', user.ecole_id).eq('eleve_id', selectedEleve.id);
+        setEtat(calcEtatEleve(newVals || [], selectedEleve.hizb_depart, selectedEleve.tomon_depart));
+      }
       setNbTomon(1);
       invalidateMany(['validations', 'recitations_sourates_min', `validations_${selectedEleve.id}`, `recitations_eleve_${selectedEleve.id}`], user.ecole_id);
     }

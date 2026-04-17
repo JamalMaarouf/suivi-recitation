@@ -4,6 +4,7 @@ import { t } from '../lib/i18n';
 import { supabase } from '../lib/supabase';
 import { withRetryToast } from '../lib/retry';
 import { invalidateMany } from '../lib/cache';
+import { enqueueOrRun } from '../lib/offlineQueue';
 import { calcEtatEleve, calcPositionAtteinte, calcUnite, formatDate, getInitiales, motivationMsg, verifierBlocageExamen, verifierEtCreerCertificats, loadBareme } from '../lib/helpers';
 
 function Avatar({ prenom, nom, size = 36, bg = '#E1F5EE', color = '#085041' }) {
@@ -103,30 +104,35 @@ export default function EnregistrerRecitation({  user, eleve: eleveInitial, navi
       hizb_validation: typeValidation === 'tomon' ? etat.hizbEnCours : null
     };
     if (typeValidation === 'hizb_complet') insertData.hizb_valide = etat.hizbEnCours;
-    // Retry automatique en cas de coupure réseau (3 tentatives max)
-    const { error } = await withRetryToast(
-      () => supabase.from('validations').insert(insertData),
-      toast, lang
-    );
+    // Online : tente direct avec retry. Offline : met en queue et synchronisera plus tard.
+    const res = await enqueueOrRun(supabase, 'validations', 'insert', insertData, user.ecole_id);
+    const error = res.error;
+    const wasQueued = res.status === 'queued';
 
-    if (!error && typeValidation === 'tomon') {
-      // Enregistrer l'apprentissage du prochain Tomon
+    if (wasQueued) {
+      toast.info?.(lang === 'ar'
+        ? '💾 تم الحفظ محلياً — ستتم المزامنة عند عودة الاتصال'
+        : '💾 Enregistré localement — synchronisation au retour de la connexion');
+    }
+
+    if (!error && !wasQueued && typeValidation === 'tomon') {
+      // Enregistrer l'apprentissage du prochain Tomon (seulement si online)
       const prochainApresValidation = etat.prochainTomon + nombreTomon;
       if (prochainApresValidation <= 8) {
         const existant = apprentissages.find(a => a.hizb === etat.hizbEnCours && a.tomon === prochainApresValidation);
         if (!existant) {
-          await supabase.from('apprentissages').insert({
+          await enqueueOrRun(supabase, 'apprentissages', 'insert', {
             eleve_id: selectedEleve.id,
             ecole_id: user.ecole_id,
             hizb: etat.hizbEnCours,
             tomon: prochainApresValidation,
             date_debut: new Date().toISOString()
-          });
+          }, user.ecole_id);
         }
       }
     }
 
-    // Invalider les caches impactés par cette validation
+    // Invalider les caches impactés par cette validation (online ou queued)
     if (!error) {
       const eid = selectedEleve?.id;
       invalidateMany(

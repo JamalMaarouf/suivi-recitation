@@ -59,6 +59,7 @@ import { isSourateNiveauDyn } from './lib/helpers';
 import { ToastProvider } from './lib/toast';
 import { NetworkBanner } from './lib/NetworkStatus';
 import { invalidateAll } from './lib/cache';
+import { installAutoSync } from './lib/offlineQueue';
 import { supabase } from './lib/supabase';
 import './App.css';
 
@@ -156,6 +157,12 @@ export default function App() {
     if (saved) setUser(JSON.parse(saved));
     const handleResize = () => setIsMobile(window.innerWidth < 768);
     window.addEventListener('resize', handleResize);
+
+    // Installer la sync automatique offline (une seule fois)
+    installAutoSync(supabase, ({ synced }) => {
+      if (synced > 0) console.log(`[offline-sync] ${synced} opérations synchronisées`);
+    });
+
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
