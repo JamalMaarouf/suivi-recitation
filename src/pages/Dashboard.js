@@ -210,6 +210,7 @@ export default function Dashboard({ user, navigate, goBack, lang, isMobile=false
       {icon:'⭐', label:lang==='ar'?'النقاط':'Notes',              sub:lang==='ar'?'الترتيب':'Classement',         page:'liste_notes',        color:'#EF9F27', bg:'#FAEEDA'},
       {icon:'🏆', label:lang==='ar'?'لوحة الشرف':'Honneur',        sub:lang==='ar'?'المتصدرون':'Top élèves',       page:'honneur',            color:'#EF9F27', bg:'#FAEEDA'},
       {icon:'📋', label:lang==='ar'?'التقرير الشهري':'Rapport',     sub:lang==='ar'?'إحصائيات':'Statistiques',     page:'rapport_mensuel',    color:'#374151', bg:'#F3F4F6', role:'surveillant'},
+      {icon:'📊', label:lang==='ar'?'لوحة القيادة':'Direction',     sub:lang==='ar'?'تحليلات':'Analytics',     page:'dashboard_direction', color:'#085041', bg:'#E1F5EE', role:'surveillant'},
       {icon:'📈', label:lang==='ar'?'مقارنة':'Comparer',            sub:lang==='ar'?'بين الطلاب':'Élèves',         page:'comparaison',        color:'#534AB7', bg:'#EEEDFE'},
     ].filter(m => !m.role || user.role===m.role);
 

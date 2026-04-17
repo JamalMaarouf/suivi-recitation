@@ -22,6 +22,7 @@ class DebugErrorBoundary extends React.Component {
 import Login               from './pages/Login';
 import ElevesMobile        from './pages/ElevesMobile';
 import Dashboard           from './pages/Dashboard';
+import DashboardDirection  from './pages/DashboardDirection';
 import FicheEleve          from './pages/FicheEleve';
 import EnregistrerRecitation from './pages/EnregistrerRecitation';
 import Seance              from './pages/Seance';
@@ -444,6 +445,7 @@ export default function App() {
           {user.role !== 'parent' && <>
           <Suspense fallback={<div style={{display:'flex',alignItems:'center',justifyContent:'center',padding:'3rem',color:'#888',fontSize:13}}><span style={{marginRight:8}}>⏳</span>{lang==='ar'?'جاري التحميل...':'Chargement...'}</div>}>
           {page === 'dashboard'         && <Dashboard {...pageProps} />}
+          {page === 'dashboard_direction'  && user.role==='surveillant' && <DashboardDirection {...pageProps} />}
           {page === 'fiche'             && (selectedEleve
             ? <ErrorBoundary><FicheEleve eleve={selectedEleve} {...pageProps} /></ErrorBoundary>
             : <div style={{padding:'2rem',textAlign:'center'}}>
