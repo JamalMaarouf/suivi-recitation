@@ -1,4 +1,6 @@
 {
+  "buildCommand": "react-scripts build",
+  "outputDirectory": "build",
   "rewrites": [
     {
       "source": "/api/(.*)",
@@ -15,7 +17,9 @@
       "schedule": "0 23 * * *"
     }
   ],
-  "buildCommand": "CI=false DISABLE_ESLINT_PLUGIN=true react-scripts build",
-  "framework": "create-react-app",
-  "installCommand": "npm install --legacy-peer-deps"
+  "env": {
+    "CI": "false",
+    "DISABLE_ESLINT_PLUGIN": "true",
+    "GENERATE_SOURCEMAP": "false"
+  }
 }

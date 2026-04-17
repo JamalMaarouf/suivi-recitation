@@ -13,8 +13,8 @@
   },
   "scripts": {
     "start": "react-scripts start",
-    "build": "CI=false DISABLE_ESLINT_PLUGIN=true react-scripts build",
-    "vercel-build": "CI=false DISABLE_ESLINT_PLUGIN=true react-scripts build"
+    "build": "react-scripts build",
+    "vercel-build": "react-scripts build"
   },
   "browserslist": {
     "production": [
@@ -30,5 +30,8 @@
     "@babel/core": "^7.29.0",
     "@babel/parser": "^7.29.2",
     "@babel/plugin-transform-react-jsx": "^7.28.6"
+  },
+  "engines": {
+    "node": ">=18.0.0"
   }
 }
