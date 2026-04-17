@@ -124,29 +124,74 @@ export default function Dashboard({ user, navigate, goBack, lang, isMobile=false
     try {
       loadBareme(supabase, user.ecole_id).then(b => setBareme(b));
 
-      // SWR : affichage instantané depuis le cache, refresh en arrière-plan
-      // Si le cache est frais (<60s), pas de requête réseau du tout.
-      const refreshFromFresh = (key, fresh) => {
-        // Stocker temporairement, puis appliquer quand tous les refresh sont prêts
-        // Simple : recharger au complet si un élément a changé
-      };
+      // OPTIM Phase 2 : rendu progressif
+      // Étape 1 : RPC pré-calculée (~200ms) → affichage rapide des stats de base
+      // Étape 2 : données détaillées (~1-2s) → recalcul précis en remplacement
 
-      const [ed, id, vd, rd, nv] = await Promise.all([
-        // Pas de cache sur eleves : les hizb_depart/tomon_depart peuvent avoir change
-        // (passage de niveau, modif admin). Toujours recharger frais.
-        supabase.from('eleves').select('id,prenom,nom,code_niveau,niveau,hizb_depart,tomon_depart,sourates_acquises,instituteur_referent_id,ecole_id').eq('ecole_id', user.ecole_id).order('nom').then(r => r.data || []),
+      const rpcPromise = supabase.rpc('get_eleves_stats', { p_ecole_id: user.ecole_id })
+        .then(res => (!res.error && Array.isArray(res.data)) ? res.data : null)
+        .catch(() => null);
+
+      const [rpcEleves, id, nv] = await Promise.all([
+        rpcPromise,
         getCachedSWR('instituteurs', user.ecole_id,
           () => supabase.from('utilisateurs').select('id,prenom,nom,role').eq('role','instituteur').eq('ecole_id', user.ecole_id)),
-        getCachedSWR('validations', user.ecole_id,
-          () => fetchAll(supabase.from('validations').select('id,eleve_id,type_validation,nombre_tomon,hizb_valide,tomon_debut,date_validation,valide_par,ecole_id,valideur:valide_par(prenom,nom)').eq('ecole_id', user.ecole_id).order('date_validation',{ascending:false}))),
-        getCachedSWR('recitations_sourates_min', user.ecole_id,
-          () => fetchAll(supabase.from('recitations_sourates').select('eleve_id,date_validation,type_recitation').eq('ecole_id', user.ecole_id).order('date_validation',{ascending:false}))),
         getCachedSWR('niveaux', user.ecole_id,
           () => supabase.from('niveaux').select('id,code,nom,type,couleur').eq('ecole_id', user.ecole_id).order('ordre')),
       ]);
 
-      applyData(ed, id, vd, rd, nv);
-      setLoading(false);
+      // Affichage rapide avec données RPC si disponibles
+      if (rpcEleves) {
+        const instById = new Map((id||[]).map(i => [i.id, i]));
+        const elevesFromRpc = rpcEleves.map(r => {
+          const inst = instById.get(r.instituteur_referent_id);
+          const derniere = r.derniere_validation && r.derniere_recitation
+            ? (new Date(r.derniere_validation) > new Date(r.derniere_recitation) ? r.derniere_validation : r.derniere_recitation)
+            : (r.derniere_validation || r.derniere_recitation);
+          // État simplifié basé sur les stats pré-agrégées
+          // (on utilise calcEtatEleve avec une validation synthétique pour que hizb/tomon soient calculés)
+          const fakeVals = r.tomon_cumul > 0
+            ? [{ type_validation: 'tomon', nombre_tomon: r.tomon_cumul, date_validation: r.derniere_validation || new Date().toISOString() }]
+            : [];
+          const etat = calcEtatEleve(fakeVals, r.hizb_depart, r.tomon_depart);
+          // Forcer hizbsComplets.size car calcEtatEleve ne connaît pas les vrais Hizb complets ici
+          etat.hizbsComplets = new Set();
+          for (let i = 0; i < (r.hizb_complets_count || 0); i++) etat.hizbsComplets.add(i);
+          return {
+            id: r.eleve_id,
+            prenom: r.prenom, nom: r.nom,
+            code_niveau: r.code_niveau, niveau: r.niveau,
+            hizb_depart: r.hizb_depart, tomon_depart: r.tomon_depart,
+            sourates_acquises: r.sourates_acquises,
+            instituteur_referent_id: r.instituteur_referent_id,
+            eleve_id_ecole: r.eleve_id_ecole,
+            ecole_id: user.ecole_id,
+            etat, derniere,
+            jours: joursDepuis(derniere),
+            instituteurNom: inst ? `${inst.prenom} ${inst.nom}` : '—',
+            instituteur: inst,
+            inactif: isInactif(derniere),
+            recSouratesCount: r.recitations_completes_count || 0,
+          };
+        });
+        setNiveaux(nv || []);
+        setInstituteurs(id || []);
+        setEleves(elevesFromRpc);
+        setLoading(false); // Affichage immédiat
+      }
+
+      // Charger les validations détaillées en arrière-plan (sert aux alertes, stats mois, etc.)
+      const [edRes, vd, rd] = await Promise.all([
+        supabase.from('eleves').select('id,prenom,nom,code_niveau,niveau,hizb_depart,tomon_depart,sourates_acquises,instituteur_referent_id,ecole_id').eq('ecole_id', user.ecole_id).order('nom'),
+        getCachedSWR('validations', user.ecole_id,
+          () => fetchAll(supabase.from('validations').select('id,eleve_id,type_validation,nombre_tomon,hizb_valide,tomon_debut,date_validation,valide_par,ecole_id,valideur:valide_par(prenom,nom)').eq('ecole_id', user.ecole_id).order('date_validation',{ascending:false}))),
+        getCachedSWR('recitations_sourates_min', user.ecole_id,
+          () => fetchAll(supabase.from('recitations_sourates').select('eleve_id,date_validation,type_recitation').eq('ecole_id', user.ecole_id).order('date_validation',{ascending:false}))),
+      ]);
+
+      // Recalcul précis avec toutes les données (remplace l'affichage RPC)
+      applyData(edRes.data || [], id, vd, rd, nv);
+      if (!rpcEleves) setLoading(false);
     } catch (e) {
       console.error('[Dashboard.js] Erreur chargement:', e);
       setLoading(false);
