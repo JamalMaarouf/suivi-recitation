@@ -22,6 +22,8 @@ module.exports = async function handler(req, res) {
       html = generateListeCertificats(data, lang);
     } else if (type === 'certificat') {
       html = generateCertificat(data, lang);
+    } else if (type === 'certificat_examen') {
+      html = generateCertificatExamen(data, lang);
     } else if (type === 'fiche_eleve') {
       html = generateFicheEleve(data, lang);
     } else {
@@ -315,6 +317,110 @@ function generateCertificat(data, lang) {
       ${date ? new Date(date).toLocaleDateString(isAr ? 'ar-MA' : 'fr-FR', {day:'2-digit',month:'long',year:'numeric'}) : ''}
     </div>
     ${directeur ? `<div class="signature">${isAr ? 'المدير' : 'Le directeur'}: ${directeur}</div>` : ''}
+  </div>
+  </body></html>`;
+}
+
+function generateCertificatExamen(data, lang) {
+  const { eleve, examen, niveau, ecole, resultat } = data || {};
+  if (!eleve || !examen || !resultat) return '<html><body>Données manquantes</body></html>';
+
+  const d = new Date(resultat.date_examen || resultat.created_at || new Date());
+  const date = `${d.getDate()} ${d.toLocaleDateString('fr-FR', { month: 'long' })} ${d.getFullYear()}`;
+  const ecolNom = ecole?.nom || 'École Coranique';
+  const niveauNom = niveau ? `${niveau.code} — ${niveau.nom}` : (eleve.code_niveau || '');
+  const score = resultat.score;
+  const scoreColor = score >= 90 ? '#1D9E75' : score >= 70 ? '#378ADD' : '#EF9F27';
+
+  return `<!DOCTYPE html><html dir="${lang === 'ar' ? 'rtl' : 'ltr'}"><head><meta charset="UTF-8"><title>Certificat ${eleve.prenom} ${eleve.nom}</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Tajawal:wght@400;600;700;800;900&display=swap');
+    @page { size: A4 landscape; margin: 0; }
+    * { margin:0; padding:0; box-sizing:border-box; }
+    body { font-family:'Tajawal',Arial,sans-serif; background:#f0f0ec; }
+    .cert {
+      width: 1122px; height: 794px;
+      margin: 0 auto; background: #fff;
+      border: 6px solid #1D9E75; position: relative;
+      overflow: hidden;
+    }
+    .inner-border { position:absolute; inset:12px; border:1.5px solid #1D9E7560; pointer-events:none; }
+    .bg { position:absolute; inset:0; background:linear-gradient(135deg,#f9fff9 0%,#fff 50%,#f0f8f0 100%); }
+    .content { position:relative; z-index:1; height:100%; display:flex; flex-direction:column; align-items:center; justify-content:space-between; padding:30px 60px; }
+    .header { text-align:center; border-bottom:2px solid #1D9E75; width:100%; padding-bottom:16px; }
+    .ecole-nom { font-size:14px; color:#888; font-weight:600; margin-bottom:4px; }
+    .title-ar { font-size:38px; font-weight:800; color:#085041; direction:rtl; }
+    .title-fr { font-size:12px; color:#aaa; letter-spacing:3px; font-weight:600; }
+    .body { text-align:center; flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:12px; }
+    .medal { font-size:60px; line-height:1; }
+    .line-ar { font-size:16px; color:#666; direction:rtl; }
+    .name { font-size:34px; font-weight:800; color:#085041; direction:rtl; border-bottom:2px solid #1D9E75; padding-bottom:4px; }
+    .examen { font-size:22px; font-weight:700; color:#1D9E75; border:2px solid #1D9E75; border-radius:10px; padding:6px 24px; background:#E1F5EE; direction:rtl; }
+    .details { width:100%; background:#f9f9f6; border-radius:12px; padding:14px 24px; display:flex; justify-content:space-around; align-items:center; margin:10px 0; }
+    .detail-label { font-size:10px; color:#aaa; letter-spacing:1px; text-transform:uppercase; unicode-bidi:plaintext; }
+    .detail-value { font-size:16px; font-weight:700; color:#1a1a1a; }
+    .score-value { font-size:32px; font-weight:800; color:${scoreColor}; }
+    .separator { width:1px; height:40px; background:#e0e0d8; }
+    .note { font-style:italic; color:#888; font-size:13px; text-align:center; direction:rtl; }
+    .footer { width:100%; display:flex; justify-content:space-between; align-items:flex-end; padding-top:10px; border-top:1px solid #e0e0d8; }
+    .date-edit { font-size:12px; color:#aaa; direction:rtl; }
+    .sign { text-align:center; }
+    .sign-line { width:200px; border-bottom:1.5px solid #333; margin-bottom:6px; }
+    .sign-label { font-size:11px; color:#666; direction:rtl; }
+    @media print {
+      body { background:#fff; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+      .cert { border-color:#1D9E75; box-shadow:none; }
+      .no-print { display:none; }
+    }
+  </style></head>
+  <body>
+  <div class="no-print" style="position:fixed;top:16px;right:16px;z-index:999;display:flex;gap:8px;">
+    <button onclick="window.print()" style="padding:10px 20px;background:#1D9E75;color:#fff;border:none;border-radius:8px;font-size:14px;cursor:pointer;font-family:'Tajawal',Arial,sans-serif;font-weight:700;">
+      🖨️ ${lang === 'ar' ? 'طباعة / تحميل PDF' : 'Imprimer / Télécharger PDF'}
+    </button>
+    <button onclick="window.close()" style="padding:10px 16px;background:#f0f0ec;color:#666;border:none;border-radius:8px;font-size:14px;cursor:pointer;">✕</button>
+  </div>
+  <div class="cert">
+    <div class="inner-border"></div>
+    <div class="bg"></div>
+    <div class="content">
+      <div class="header">
+        <div class="ecole-nom">${ecolNom}</div>
+        <div class="title-ar">شهادة نجاح</div>
+        <div class="title-fr">CERTIFICAT DE RÉUSSITE</div>
+      </div>
+      <div class="body">
+        <div class="medal">🏅</div>
+        <div class="line-ar">يُشهد بأن الطالب / الطالبة</div>
+        <div class="name">${eleve.prenom} ${eleve.nom}</div>
+        <div class="line-ar">قد اجتاز بنجاح امتحان</div>
+        <div class="examen">${examen.nom}</div>
+      </div>
+      <div class="details">
+        <div>
+          <div class="detail-label">المستوى · Niveau</div>
+          <div class="detail-value">${niveauNom}</div>
+        </div>
+        <div class="separator"></div>
+        <div>
+          <div class="detail-label">النقاط · Score</div>
+          <div class="score-value">${score}%</div>
+        </div>
+        <div class="separator"></div>
+        <div>
+          <div class="detail-label">التاريخ · Date</div>
+          <div class="detail-value">${date}</div>
+        </div>
+      </div>
+      ${resultat.notes_examinateur ? `<div class="note">"${resultat.notes_examinateur}"</div>` : ''}
+      <div class="footer">
+        <div class="date-edit">أصدر بتاريخ: ${date}</div>
+        <div class="sign">
+          <div class="sign-line"></div>
+          <div class="sign-label">توقيع المشرف العام · Signature du Surveillant</div>
+        </div>
+      </div>
+    </div>
   </div>
   </body></html>`;
 }
