@@ -21,6 +21,16 @@ module.exports = async function handler(req, res) {
     'Content-Type': 'application/json',
   };
 
+  // Debug: vérifier les variables d'environnement
+  if (!SUPABASE_URL || !SERVICE_KEY) {
+    return res.status(500).json({ 
+      error: 'Variables manquantes',
+      has_url: !!SUPABASE_URL,
+      has_key: !!SERVICE_KEY,
+      url_preview: SUPABASE_URL ? SUPABASE_URL.slice(0,30)+'...' : null,
+    });
+  }
+
   try {
     // 1. Charger tous les utilisateurs
     const r = await fetch(`${SUPABASE_URL}/rest/v1/utilisateurs?select=id,identifiant,mot_de_passe,role`, { headers });
