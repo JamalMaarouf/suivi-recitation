@@ -464,6 +464,7 @@ export default function GestionObjectifs({ user, navigate, goBack, lang='fr', is
 
   const loadAll = async () => {
     setLoading(true);
+    try {
     const [{data:nv},{data:el},{data:ob}] = await Promise.all([
       supabase.from('niveaux').select('id,code,nom,type,couleur').eq('ecole_id',user.ecole_id).order('ordre'),
       supabase.from('eleves').select('id,prenom,nom,code_niveau,eleve_id_ecole').eq('ecole_id',user.ecole_id).limit(500).order('nom').order('nom'),
@@ -472,6 +473,9 @@ export default function GestionObjectifs({ user, navigate, goBack, lang='fr', is
     setNiveaux(nv||[]);
     setEleves(el||[]);
     setObjectifs(ob||[]);
+    } catch (e) {
+      console.error("Erreur:", e);
+    }
     setLoading(false);
   };
 

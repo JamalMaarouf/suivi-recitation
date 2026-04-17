@@ -280,7 +280,7 @@ export default function Finance({ user, navigate, goBack, lang='fr', isMobile })
   })).filter(c=>c.total>0);
 
   // Cotisations filtrées
-  const cotFiltrees = cotisations.filter(c => {
+  const cotFiltrees = (cotisations||[]).filter(c => {
     if (filterEleve!=='tous' && c.eleve_id!==filterEleve) return false;
     if (filterStatut!=='tous' && c.statut!==filterStatut) return false;
     if (filterPeriode && c.periode && !c.periode.toLowerCase().includes(filterPeriode.toLowerCase())) return false;
@@ -289,7 +289,7 @@ export default function Finance({ user, navigate, goBack, lang='fr', isMobile })
   });
 
   // Par élève (pour tableau de suivi)
-  const parEleve = eleves.filter(e => {
+  const parEleve = (eleves||[]).filter(e => {
     if(filterSuiviApplied.search && !`${e.prenom} ${e.nom} ${e.eleve_id_ecole||''}`.toLowerCase().includes(filterSuiviApplied.search.toLowerCase()) && !String(e.eleve_id_ecole||'').includes(filterSuiviApplied.search)) return false;
     return true;
   }).map(e => {
@@ -302,7 +302,7 @@ export default function Finance({ user, navigate, goBack, lang='fr', isMobile })
   }).filter(p => filterSuiviApplied.statut==='tous' || p.statutDernier===filterSuiviApplied.statut);
 
   // Depenses filtrées
-  const depFiltrees = depenses.filter(d => {
+  const depFiltrees = (depenses||[]).filter(d => {
     if (filterCat!=='tous' && d.categorie!==filterCat) return false;
     return true;
   });

@@ -291,7 +291,7 @@ export default function GestionEnsembles({ user, navigate, goBack, lang='fr', is
                   </div>
                   {dejaDansAutre.map(s => {
                     const sel = form.sourates_ids.includes(s.id);
-                    const autreEns = ensembles.find(e => e.niveau_id === form.niveau_id && e.id !== editing && (e.sourates_ids || []).includes(s.id));
+                    const autreEns = ensembles.find(e => e.niveau_id === form.niveau_id && e.id !== editing && (e.sourates_ids || [])?.includes(s.id));
                     return (
                       <div key={s.id} onClick={() => toggleSourate(s.id)}
                         style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', borderRadius: 10, cursor: 'pointer', marginBottom: 5, background: sel ? `${ncForm}12` : '#FAEEDA30', border: `1.5px solid ${sel ? ncForm : '#EF9F2750'}` }}>

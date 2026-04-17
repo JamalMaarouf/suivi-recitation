@@ -225,7 +225,7 @@ export default function Seance({ user, navigate, goBack, lang, isMobile=false })
           </div>
           {/* Filtre niveau */}
           <div style={{display:'flex',gap:6,overflowX:'auto',paddingBottom:4,scrollbarWidth:'none'}}>
-            {niveaux.map(n=>(
+            {(niveaux||[]).map(n=>(
               <div key={n} onClick={()=>setFilterNiveau(n)}
                 style={{padding:'6px 14px',borderRadius:20,fontSize:12,fontWeight:600,flexShrink:0,cursor:'pointer',
                   background:filterNiveau===n?(n==='tous'?'#1D9E75':NIVEAU_COLORS[n]||'#1D9E75'):'#f0f0ec',
@@ -359,7 +359,7 @@ export default function Seance({ user, navigate, goBack, lang, isMobile=false })
               <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'1rem',flexWrap:'wrap',gap:8}}>
                 <div style={{fontSize:13,color:'#888'}}>{new Date().toLocaleDateString(lang==='ar'?'ar-MA':lang==='en'?'en-GB':'fr-FR',{weekday:'long',day:'numeric',month:'long',year:'numeric'})}</div>
                 <div style={{display:'flex',gap:4,flexWrap:'wrap'}}>
-                  {niveaux.map(n=>(
+                  {(niveaux||[]).map(n=>(
                     <div key={n} onClick={()=>setFilterNiveau(n)}
                       style={{padding:'4px 10px',borderRadius:20,fontSize:11,fontWeight:filterNiveau===n?700:400,cursor:'pointer',
                         background:filterNiveau===n?(n==='tous'?'#1D9E75':NIVEAU_COLORS[n]||'#1D9E75'):'#f0f0ec',
@@ -415,7 +415,7 @@ export default function Seance({ user, navigate, goBack, lang, isMobile=false })
                 <>
                   <div className="section-label">{t(lang,'classement_seance')} ({elevesVus.length})</div>
                   <div style={{display:'flex',flexDirection:'column',gap:8,marginBottom:'1.5rem'}}>
-                    {elevesVus.map((e,idx)=>{
+                    {(elevesVus||[]).map((e,idx)=>{
                       const nc=NIVEAU_COLORS[e.code_niveau||'1']||'#888';
                       const heure=e.isSourate
                         ?(e.recsAujourdhui[0]?.date_validation?new Date(e.recsAujourdhui[0].date_validation).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'}):'')

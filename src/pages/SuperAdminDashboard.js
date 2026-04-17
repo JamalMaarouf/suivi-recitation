@@ -21,6 +21,7 @@ export default function SuperAdminDashboard({ user, navigate, lang, onLogout, is
 
   const loadData = async () => {
     setLoading(true);
+    try {
     const [{ data: ecolesData }, { data: survsData }, { data: elevesData }, { data: instsData }] = await Promise.all([
       supabase.from('ecoles').select('*').order('created_at', { ascending: false }),
       supabase.from('utilisateurs').select('id,prenom,nom,identifiant,statut_compte,ecole_id').eq('role','surveillant'),
@@ -41,6 +42,10 @@ export default function SuperAdminDashboard({ user, navigate, lang, onLogout, is
       nb_instituteurs: instCounts[e.id]||0,
     })));
     setLoading(false);
+    } catch (e) {
+      console.error('[SuperAdminDashboard.js] Erreur chargement:', e);
+      setLoading(false);
+    }
   };
 
   const runBackup = async () => {

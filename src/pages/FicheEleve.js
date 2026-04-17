@@ -191,6 +191,7 @@ function PassageNiveauModal({ show, onClose, eleve, etat, user, lang, niveauxDis
 }
 
 export default function FicheEleve({ eleve, user, navigate, goBack, lang, isMobile='fr' }) {
+  if (!eleve) return <div style={{padding:'2rem',textAlign:'center',color:'#888'}}>...</div>;
   const { toast } = useToast();
   const [validations, setValidations] = useState([]);
   const [apprentissages, setApprentissages] = useState([]);

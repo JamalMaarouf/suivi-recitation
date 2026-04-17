@@ -15,6 +15,7 @@ export default function Comparaison({ navigate, goBack, lang='fr', isMobile, use
 
   const loadData = async () => {
     setLoading(true);
+    try {
     const [{data:ed},{data:vd}] = await Promise.all([supabase.from('eleves').select('*')
         .eq('ecole_id', user.ecole_id).order('nom'),supabase.from('validations').select('*')
         .eq('ecole_id', user.ecole_id).order('date_validation')]);
@@ -23,6 +24,9 @@ export default function Comparaison({ navigate, goBack, lang='fr', isMobile, use
       const etat=calcEtatEleve(vals,e.hizb_depart,e.tomon_depart);
       return {...e,etat,validations:vals};
     }));
+    } catch (e) {
+      console.error("Erreur:", e);
+    }
     setLoading(false);
   };
 
@@ -110,7 +114,7 @@ export default function Comparaison({ navigate, goBack, lang='fr', isMobile, use
                     </div>
                   ))}
                   <svg style={{position:'absolute',left:30,top:0,width:'calc(100% - 30px)',height:'90%'}}>
-                    {evolutions.map((ev,idx)=>{
+                    {(evolutions||[]).map((ev,idx)=>{
                       if(ev.points.length<2) return null;
                       const color=PALETTE[idx];
                       const w=100/(ev.points.length-1);

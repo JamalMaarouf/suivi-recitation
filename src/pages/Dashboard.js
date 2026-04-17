@@ -66,6 +66,7 @@ export default function Dashboard({ user, navigate, goBack, lang, isMobile=false
 
   const loadData = async () => {
     setLoading(true);
+    try {
     loadBareme(supabase, user.ecole_id).then(b => setBareme(b));
     const [{ data: ed },{ data: id },{ data: vd }, { data: rd }] = await Promise.all([
       supabase.from('eleves').select('id,prenom,nom,code_niveau,niveau,hizb_depart,tomon_depart,sourates_acquises,instituteur_referent_id,ecole_id').eq('ecole_id', user.ecole_id).order('nom'),
@@ -93,6 +94,10 @@ export default function Dashboard({ user, navigate, goBack, lang, isMobile=false
       return {...eleve,etat,derniere,jours:joursDepuis(derniere),instituteurNom:inst?`${inst.prenom} ${inst.nom}`:'—',instituteur:inst,inactif:isInactif(derniere),recSouratesCount:recSouratesCountMap[eleve.id]||0};
     });
     setNiveaux(nv||[]); setEleves(elevesData); setInstituteurs(id||[]); setAllValidations(vd||[]); setStats(calcStats(vd||[])); setLoading(false);
+    } catch (e) {
+      console.error('[Dashboard.js] Erreur chargement:', e);
+      setLoading(false);
+    }
   };
 
   const alertes = useMemo(() => calcAlertes(eleves, allValidations, lang), [eleves, allValidations, lang]);

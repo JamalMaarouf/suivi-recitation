@@ -104,6 +104,7 @@ export default function RecitationSourate({ user, eleve, navigate, goBack, lang=
 
   const loadData = async () => {
     setLoading(true);
+    try {
     const [{ data: sdb }, { data: rd }] = await Promise.all([
       supabase.from('sourates').select('*'),
       supabase.from('recitations_sourates').select('*, valideur:valide_par(prenom,nom)')
@@ -123,6 +124,10 @@ export default function RecitationSourate({ user, eleve, navigate, goBack, lang=
     setRecitations(rdData);
     setExceptions(exData);
     setLoading(false);
+    } catch (e) {
+      console.error('[RecitationSourate.js] Erreur chargement:', e);
+      setLoading(false);
+    }
     
     // Auto-navigate to current sourate after loading
     // Only if we're still on liste (not already on a specific sourate)
@@ -234,7 +239,7 @@ export default function RecitationSourate({ user, eleve, navigate, goBack, lang=
         });
         if (nouveauxCerts.length > 0) {
           setTimeout(() => setFlash({
-            msg: `🏅 ${nouveauxCerts.map(c=>c.nom_certificat_ar||c.nom_certificat).join(', ')} !`,
+            msg: `🏅 ${(nouveauxCerts||[]).map(c=>c.nom_certificat_ar||c.nom_certificat).join(', ')} !`,
             pts: 0, color: '#EF9F27'
           }), 3100);
           setTimeout(() => setFlash(null), 7000);
@@ -325,7 +330,7 @@ export default function RecitationSourate({ user, eleve, navigate, goBack, lang=
                   {lang==='ar'?'السور المقررة':'Sourates du niveau'} ({souratesOrdonnees.length})
                 </div>
                 <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
-                  {souratesOrdonnees.map((s, sIdx)=>{
+                  {(souratesOrdonnees||[]).map((s, sIdx)=>{
                     const recs = recitations.filter(r=>r.sourate_id===s.id||getDbId(s.numero)===r.sourate_id);
                     const complete = recs.some(r=>r.type_recitation==='complete');
                     const sequences = recs.filter(r=>r.type_recitation==='sequence').length;
@@ -536,7 +541,7 @@ export default function RecitationSourate({ user, eleve, navigate, goBack, lang=
             <>
               <div className="section-label">{lang==='ar'?'قائمة السور':lang==='en'?'Surah list':'Liste des sourates'}</div>
               <div style={{display:'flex',flexDirection:'column',gap:6}}>
-                {souratesOrdonnees.map((s, idx) => {
+                {(souratesOrdonnees||[]).map((s, idx) => {
                   const status = getSourateStatus(s, idx);
                   const recs = getRecsSourate(s.numero);
                   const seqs = getSequences(s.numero);
@@ -574,7 +579,7 @@ export default function RecitationSourate({ user, eleve, navigate, goBack, lang=
                         </div>
                         {seqs.length > 0 && !comp && (
                           <div style={{display:'flex',gap:3,marginTop:4}}>
-                            {seqs.map((sq,i) => (
+                            {(seqs||[]).map((sq,i) => (
                               <span key={i} style={{fontSize:10,background:'#E1F5EE',color:'#085041',padding:'1px 6px',borderRadius:10}}>V.{sq.verset_debut}→{sq.verset_fin}</span>
                             ))}
                           </div>
@@ -616,7 +621,7 @@ export default function RecitationSourate({ user, eleve, navigate, goBack, lang=
                   <div style={{marginBottom:'1.25rem'}}>
                     <div className="section-label">{lang==='ar'?'السجل':lang==='en'?'History':'Historique'}</div>
                     <div style={{display:'flex',flexDirection:'column',gap:6}}>
-                      {recs.map((r,i) => (
+                      {(recs||[]).map((r,i) => (
                         <div key={r.id} style={{display:'flex',alignItems:'center',gap:10,padding:'10px 14px',background:'#fff',border:`0.5px solid ${r.type_recitation==='complete'?'#EF9F27':'#e0e0d8'}`,borderRadius:10}}>
                           <span style={{fontSize:18}}>{r.type_recitation==='complete'?'🎉':'📍'}</span>
                           <div style={{flex:1}}>

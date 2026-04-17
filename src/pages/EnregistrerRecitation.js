@@ -153,8 +153,8 @@ export default function EnregistrerRecitation({  user, eleve: eleveInitial, navi
     });
     if (nouveauxCerts.length > 0) {
       toast.success(lang==='ar'
-        ? `🏅 شهادة جديدة: ${nouveauxCerts.map(c=>c.nom_certificat_ar||c.nom_certificat).join(', ')} !`
-        : `🏅 Nouveau certificat: ${nouveauxCerts.map(c=>c.nom_certificat).join(', ')} !`);
+        ? `🏅 شهادة جديدة: ${(nouveauxCerts||[]).map(c=>c.nom_certificat_ar||c.nom_certificat).join(', ')} !`
+        : `🏅 Nouveau certificat: ${(nouveauxCerts||[]).map(c=>c.nom_certificat).join(', ')} !`);
     }
 
     const msg = motivationMsg(nombreTomon, etat, typeValidation === 'hizb_complet');
@@ -323,7 +323,7 @@ export default function EnregistrerRecitation({  user, eleve: eleveInitial, navi
         {dureesApprentissage.length > 0 && (
           <div style={{ background: '#E6F1FB', border: '0.5px solid #85B7EB', borderRadius: 10, padding: '10px 16px', margin: '0 auto 1.5rem', maxWidth: 400, fontSize: 13 }}>
             <div style={{ fontWeight: 600, color: '#0C447C', marginBottom: 4 }}>{t(lang,'durees_apprentissage')}</div>
-            {dureesApprentissage.map(d => (
+            {(dureesApprentissage||[]).map(d => (
               <div key={d.tomon} style={{ color: '#185FA5' }}>Tomon {d.tomon} : {d.jours} jour{d.jours > 1 ? 's' : ''}</div>
             ))}
           </div>
@@ -374,7 +374,7 @@ export default function EnregistrerRecitation({  user, eleve: eleveInitial, navi
               placeholder={t(lang,'rechercher_eleve')} value={search} onChange={e => setSearch(e.target.value)} />
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
               {elevesFiltre.length === 0 && <div className="empty">{t(lang,'aucun_eleve')}</div>}
-              {elevesFiltre.map(e => (
+              {(elevesFiltre||[]).map(e => (
                 <div key={e.id} onTouchEnd={()=>selectEleve(e)} onClick={() => selectEleve(e)}
                   style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', border: '0.5px solid #e0e0d8', borderRadius: 8, cursor: 'pointer' }}>
                   <Avatar prenom={e.prenom} nom={e.nom} size={32} />
@@ -515,7 +515,7 @@ export default function EnregistrerRecitation({  user, eleve: eleveInitial, navi
                   <div className="recap-row">
                     <span className="recap-lbl">{t(lang,'durees_apprentissage')}</span>
                     <span className="recap-val" style={{ fontSize: 12 }}>
-                      {dureesApprentissage.map(d => `T.${d.tomon}: ${d.jours}j`).join(' · ')}
+                      {(dureesApprentissage||[]).map(d => `T.${d.tomon}: ${d.jours}j`).join(' · ')}
                     </span>
                   </div>
                 )}

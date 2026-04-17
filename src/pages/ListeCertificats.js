@@ -23,6 +23,7 @@ export default function ListeCertificats({ user, navigate, goBack, lang='fr', is
 
   const loadData = async () => {
     setLoading(true);
+    try {
     const [{ data: certs }, { data: el }, { data: inst }, { data: jal }, { data: niv }] = await Promise.all([
       supabase.from('certificats_eleves').select('*').eq('ecole_id', user.ecole_id).order('created_at', { ascending: false }),
       supabase.from('eleves').select('id,prenom,nom,code_niveau,eleve_id_ecole,instituteur_referent_id').eq('ecole_id', user.ecole_id).limit(500).order('nom'),
@@ -35,6 +36,9 @@ export default function ListeCertificats({ user, navigate, goBack, lang='fr', is
     setInstituteurs(inst || []);
     setJalons(jal || []);
     setNiveaux(niv || []);
+    } catch (e) {
+      console.error("Erreur:", e);
+    }
     setLoading(false);
   };
 

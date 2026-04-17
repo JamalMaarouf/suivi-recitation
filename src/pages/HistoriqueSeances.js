@@ -190,8 +190,8 @@ export default function HistoriqueSeances({ user, navigate, goBack, lang='fr', i
     return { eleve, tomon, hizb, sourates, seqs, pts, nbSeances, derniere, isSourate, obj, pctObj, trend, instituteurNom:inst?inst.prenom+' '+inst.nom:'—' };
   });
 
-  const actifs = statsParEleve.filter(s=>s.pts>0||s.nbSeances>0).sort((a,b)=>b.pts-a.pts);
-  const inactifs = statsParEleve.filter(s=>s.pts===0&&s.nbSeances===0);
+  const actifs = (statsParEleve||[]).filter(s=>s.pts>0||s.nbSeances>0).sort((a,b)=>b.pts-a.pts);
+  const inactifs = (statsParEleve||[]).filter(s=>s.pts===0&&s.nbSeances===0);
 
   const timeline = {};
   [...valsFiltrees,...recsFiltrees].forEach(item=>{
@@ -462,7 +462,7 @@ export default function HistoriqueSeances({ user, navigate, goBack, lang='fr', i
         {/* Recherche élève — EN DEHORS du header sticky pour éviter le clipping */}
         <div style={{background:'#fff',padding:'10px 12px',borderBottom:'0.5px solid #e0e0d8'}}>
           <input value={filterEleve==='tous'?searchFiltreEleve:
-            ((eleves.find(e=>e.id===filterEleve)?.eleve_id_ecole?'#'+eleves.find(e=>e.id===filterEleve).eleve_id_ecole+' — ':'')+
+            ((eleves.find(e=>e.id===filterEleve)?.eleve_id_ecole?'#'+eleves.find(e=>e.id===filterEleve)?.eleve_id_ecole+' — ':'')+
             (eleves.find(e=>e.id===filterEleve)?.prenom||'')+' '+(eleves.find(e=>e.id===filterEleve)?.nom||''))}
             onChange={e=>{setSearchFiltreEleve(e.target.value);setFilterEleve('tous');}}
             placeholder={lang==='ar'?'🔍 ابحث بالاسم أو رقم التعريف...':'🔍 Nom ou N° élève...'}
@@ -622,7 +622,7 @@ export default function HistoriqueSeances({ user, navigate, goBack, lang='fr', i
           <div className="field-group"><label className="field-lbl">{lang==='ar'?'الطالب':'Élève'}</label>
             <div style={{position:'relative'}}>
               <input className="field-input"
-                value={filterEleve==='tous' ? searchFiltreEleve : (eleves.find(e=>e.id===filterEleve) ? (eleves.find(e=>e.id===filterEleve).eleve_id_ecole?'#'+eleves.find(e=>e.id===filterEleve).eleve_id_ecole+' — ':'')+eleves.find(e=>e.id===filterEleve).prenom+' '+eleves.find(e=>e.id===filterEleve).nom : '')}
+                value={filterEleve==='tous' ? searchFiltreEleve : (eleves.find(e=>e.id===filterEleve) ? (eleves.find(e=>e.id===filterEleve)?.eleve_id_ecole?'#'+eleves.find(e=>e.id===filterEleve)?.eleve_id_ecole+' — ':'')+eleves.find(e=>e.id===filterEleve)?.prenom+' '+eleves.find(e=>e.id===filterEleve)?.nom : '')}
                 onChange={e=>{setSearchFiltreEleve(e.target.value);setFilterEleve('tous');}}
                 placeholder={lang==='ar'?'🔍 كل الطلاب أو رقم التعريف':'🔍 Tous ou N° élève'}/>
               {searchFiltreEleve && filterEleve==='tous' && (

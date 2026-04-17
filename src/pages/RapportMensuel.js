@@ -41,6 +41,7 @@ export default function RapportMensuel({ user, navigate, goBack, lang='fr', isMo
 
   const loadAll = async () => {
     setLoading(true);
+    try {
     const [
       {data:el},{data:nv},{data:inst},{data:vd},{data:rd},
       {data:ob},{data:ex},{data:re},{data:ec}
@@ -64,6 +65,9 @@ export default function RapportMensuel({ user, navigate, goBack, lang='fr', isMo
     setExamens(ex||[]);
     setResultats(re||[]);
     setEcole(ec);
+    } catch (e) {
+      console.error("Erreur:", e);
+    }
     setLoading(false);
   };
 
@@ -71,7 +75,7 @@ export default function RapportMensuel({ user, navigate, goBack, lang='fr', isMo
   const finMois   = new Date(annee, mois+1, 0, 23, 59, 59);
 
   // ── Calcul stats par élève ─────────────────────────────────────
-  const statsEleves = eleves.map(e => {
+  const statsEleves = (eleves||[]).map(e => {
     const vals  = validations.filter(v=>v.eleve_id===e.id);
     const etat  = calcEtatEleve(vals, e.hizb_depart, e.tomon_depart);
     const inst  = instituteurs.find(i=>i.id===e.instituteur_referent_id);
@@ -137,7 +141,7 @@ export default function RapportMensuel({ user, navigate, goBack, lang='fr', isMo
     : null;
 
   // ── Stats par niveau ───────────────────────────────────────────
-  const statsByNiveau = niveaux.map(niv => {
+  const statsByNiveau = (niveaux||[]).map(niv => {
     const el = statsEleves.filter(e=>e.code_niveau===niv.code);
     const actifs = el.filter(e=>e.actif).length;
     const moy = el.length>0?Math.round(el.reduce((s,e)=>s+e.ptsMois,0)/el.length):0;
@@ -149,7 +153,7 @@ export default function RapportMensuel({ user, navigate, goBack, lang='fr', isMo
   }).filter(s=>s.el.length>0);
 
   // ── Stats par instituteur ──────────────────────────────────────
-  const statsByInst = instituteurs.map(inst => {
+  const statsByInst = (instituteurs||[]).map(inst => {
     const el = statsEleves.filter(e=>e.instituteur_referent_id===inst.id);
     const actifs = el.filter(e=>e.actif).length;
     const tomon  = el.reduce((s,e)=>s+e.tomonMois,0);

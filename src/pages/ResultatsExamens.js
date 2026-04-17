@@ -42,6 +42,7 @@ export default function ResultatsExamens({ user, navigate, goBack, lang='fr', is
 
   const loadAll = async () => {
     setLoading(true);
+    try {
     const [{ data:el },{ data:ex },{ data:re },{ data:nv },{ data:en },{ data:sd }] = await Promise.all([
       supabase.from('eleves').select('id,prenom,nom,code_niveau,niveau,instituteur_referent_id,eleve_id_ecole').eq('ecole_id',user.ecole_id).order('nom'),
       supabase.from('examens').select('*').eq('ecole_id',user.ecole_id).order('nom'),
@@ -61,6 +62,9 @@ export default function ResultatsExamens({ user, navigate, goBack, lang='fr', is
     setNiveaux(niveauxData);
     setEnsembles(en||[]);
     setSouratesDB(sd||[]);
+    } catch (e) {
+      console.error("Erreur:", e);
+    }
     setLoading(false);
     // Charger les données de l'école
     if (user.ecole_id) {

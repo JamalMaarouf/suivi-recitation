@@ -23,6 +23,7 @@ export default function ElevesMobile({ user, navigate, goBack, lang='ar' }) {
 
   const loadData = async () => {
     setLoading(true);
+    try {
     const [{ data: ed }, { data: id }, { data: niv }] = await Promise.all([
       supabase.from('eleves').select('*').eq('ecole_id', user.ecole_id).limit(500).order('nom').order('nom'),
       supabase.from('utilisateurs').select('id,prenom,nom').eq('role','instituteur').eq('ecole_id', user.ecole_id),
@@ -34,6 +35,9 @@ export default function ElevesMobile({ user, navigate, goBack, lang='ar' }) {
     // Set default code_niveau to first niveau
     if (niv && niv.length > 0) {
       setForm(f => f.code_niveau ? f : { ...f, code_niveau: niv[0].code });
+    }
+    } catch (e) {
+      console.error("Erreur:", e);
     }
     setLoading(false);
   };

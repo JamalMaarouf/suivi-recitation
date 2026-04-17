@@ -28,6 +28,7 @@ export default function MurajaDashboard({ user, navigate, goBack, lang='fr', isM
 
   const loadData = async () => {
     setLoading(true);
+    try {
     const [{ data: recs }, { data: vals }, { data: elevs }, { data: nivs }] = await Promise.all([
       supabase.from('recitations_sourates')
         .select('id,date_validation,type_recitation,verset_debut,verset_fin,points,is_muraja, eleve:eleve_id(id,prenom,nom,code_niveau), sourate:sourate_id(numero,nom_ar), valideur:valide_par(prenom,nom)')
@@ -49,6 +50,9 @@ export default function MurajaDashboard({ user, navigate, goBack, lang='fr', isM
     setValidations(vals || []);
     setEleves(elevs || []);
     setNiveaux(nivs || []);
+    } catch (e) {
+      console.error("Erreur:", e);
+    }
     setLoading(false);
   };
 

@@ -32,6 +32,7 @@ export default function GestionExamens({ user, navigate, goBack, lang='fr', isMo
 
   const loadData = async () => {
     setLoading(true);
+    try {
     const [{data:nd},{data:ed},{data:sd}] = await Promise.all([
       supabase.from('niveaux').select('id,code,nom,type,couleur').eq('ecole_id',user.ecole_id).order('ordre'),
       supabase.from('examens').select('*').eq('ecole_id',user.ecole_id).order('ordre'),
@@ -45,6 +46,9 @@ export default function GestionExamens({ user, navigate, goBack, lang='fr', isMo
     }));
     setExamens(examensenrichis);
     setSouratesDB(sd||[]);
+    } catch (e) {
+      console.error("Erreur:", e);
+    }
     setLoading(false);
     // Si filtreNiveau actif, charger son programme avec la liste fraîche
     if (filtreNiveau && filtreNiveau!=='tous' && nd) {

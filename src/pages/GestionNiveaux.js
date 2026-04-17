@@ -37,12 +37,16 @@ export default function GestionNiveaux({ user, navigate, goBack, lang='fr', isMo
 
   const loadData = async () => {
     setLoading(true);
+    try {
     const [{ data }, { data: sd }] = await Promise.all([
       supabase.from('niveaux').select('*').eq('ecole_id', user.ecole_id).order('ordre'),
       supabase.from('sourates').select('*').order('numero'),
     ]);
     setNiveaux(data || []);
     setSouratesDB(sd || []);
+    } catch (e) {
+      console.error("Erreur:", e);
+    }
     setLoading(false);
   };
 

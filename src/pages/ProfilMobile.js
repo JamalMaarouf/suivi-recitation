@@ -92,7 +92,7 @@ export default function ProfilMobile({ user, lang, onLogout, navigate, goBack })
         </span>
         {user.ecole && (
           <div style={{fontSize:12, color:'rgba(255,255,255,0.75)', marginTop:8}}>
-            🏫 {user.ecole.nom}
+            🏫 {user.ecole?.nom}
           </div>
         )}
       </div>

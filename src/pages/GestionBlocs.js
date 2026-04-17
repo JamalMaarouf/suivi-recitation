@@ -29,6 +29,7 @@ export default function GestionBlocs({ user, navigate, goBack, lang='fr', isMobi
 
   const loadData = async () => {
     setLoading(true);
+    try {
     const [{ data:nd },{ data:ed },{ data:bd },{ data:sd }] = await Promise.all([
       supabase.from('niveaux').select('id,code,nom,type,couleur').eq('ecole_id',user.ecole_id).order('ordre'),
       supabase.from('examens').select('id,nom,niveau_id,type_seuil').eq('ecole_id',user.ecole_id).order('ordre'),
@@ -40,6 +41,9 @@ export default function GestionBlocs({ user, navigate, goBack, lang='fr', isMobi
     setBlocs(bd||[]);
     setSouratesDB(sd||[]);
     if (!filtreNiveau && nd?.length > 0) setFiltreNiveau(nd[0].id);
+    } catch (e) {
+      console.error("Erreur:", e);
+    }
     setLoading(false);
   };
 

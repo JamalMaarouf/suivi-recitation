@@ -24,6 +24,7 @@ export default function ListeNotes({ user, navigate, goBack, lang='fr', isMobile
 
   const loadData = async () => {
     setLoading(true);
+    try {
     const [{ data: el }, { data: vd }, { data: pe }, { data: inst }, { data: niv }] = await Promise.all([
       supabase.from('eleves').select('id,prenom,nom,code_niveau,eleve_id_ecole,hizb_depart,tomon_depart,instituteur_referent_id').eq('ecole_id', user.ecole_id).order('nom'),
       supabase.from('validations').select('id,eleve_id,type_validation,nombre_tomon,hizb_valide,date_validation').eq('ecole_id', user.ecole_id).limit(5000).order('created_at', {ascending:false}),
@@ -38,6 +39,9 @@ export default function ListeNotes({ user, navigate, goBack, lang='fr', isMobile
     setNiveaux(niv || []);
     const b = await loadBareme(supabase, user.ecole_id);
     setBareme(b);
+    } catch (e) {
+      console.error("Erreur:", e);
+    }
     setLoading(false);
   };
 

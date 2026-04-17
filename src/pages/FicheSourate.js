@@ -42,6 +42,7 @@ export default function FicheSourate({ eleve, user, navigate, goBack, lang='fr',
 
   const loadData = async () => {
     setLoading(true);
+    try {
     const [{ data: rd }, { data: sdb }, { data: mrec }, { data: mval }] = await Promise.all([
       supabase.from('recitations_sourates').select('*, valideur:valide_par(prenom,nom)')
         .eq('ecole_id', user.ecole_id).eq('eleve_id', eleve.id).eq('is_muraja', false).order('date_validation', {ascending:false}),
@@ -63,6 +64,10 @@ export default function FicheSourate({ eleve, user, navigate, goBack, lang='fr',
     try { const r=await supabase.from('resultats_examens').select('*, examen:examen_id(titre,date_examen)').eq('eleve_id',eleve.id).order('created_at',{ascending:false}); setExamens(r.data||[]); } catch(e){setExamens([]);}
     try { const r=await supabase.from('certificats_eleves').select('*').eq('eleve_id',eleve.id).order('created_at',{ascending:false}); setCertificats(r.data||[]); } catch(e){setCertificats([]);}
     setLoading(false);
+    } catch (e) {
+      console.error('[FicheSourate.js] Erreur chargement:', e);
+      setLoading(false);
+    }
   };
 
   // Match static sourate to DB id

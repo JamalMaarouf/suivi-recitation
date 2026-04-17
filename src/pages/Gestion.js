@@ -517,10 +517,15 @@ function PassageNiveauTab({ user, lang, niveaux, showMsg }) {
 
   const loadRegles = async () => {
     setLoading(true);
-    const { data } = await supabase.from('regles_passage_niveau')
-      .select('*').eq('ecole_id', user.ecole_id).order('created_at');
-    setRegles(data || []);
-    setLoading(false);
+    try {
+      const { data } = await supabase.from('regles_passage_niveau')
+        .select('*').eq('ecole_id', user.ecole_id).order('created_at');
+      setRegles(data || []);
+    } catch (e) {
+      console.error('[Gestion] Erreur loadRegles:', e);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const ajouterRegle = async () => {
@@ -1135,6 +1140,7 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile,
     const { data: ecData } = await supabase.from('ecoles').select('mdp_defaut_instituteurs,mdp_defaut_parents').eq('id', user.ecole_id).maybeSingle();
     if (ecData) setEcoleConfig(prev => ({...prev, ...ecData}));
     setLoading(true);
+    try {
     const { data: e } = await supabase.from('eleves').select('id,prenom,nom,code_niveau,eleve_id_ecole,hizb_depart,tomon_depart,sourates_acquises,instituteur_referent_id,ecole_id')
         .eq('ecole_id', user.ecole_id).order('nom');
     const { data: i } = await supabase.from('utilisateurs').select('id,prenom,nom,identifiant,role').eq('role', 'instituteur').eq('ecole_id', user.ecole_id);
@@ -1149,7 +1155,11 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile,
     (pliens||[]).forEach(l => { if(!liensMap[l.parent_id]) liensMap[l.parent_id]=[]; liensMap[l.parent_id].push(l.eleve_id); });
     setParents((pd||[]).map(p=>({...p, eleve_ids:liensMap[p.id]||[]})));
     setLoading(false);
-  };
+  } catch (e) {
+    console.error('[Gestion] Erreur chargement:', e);
+    setLoading(false);
+  }
+};
 
   const showMsg = (type, text) => { setMsg({ type, text }); setTimeout(() => setMsg({ type: '', text: '' }), 3000); };
 

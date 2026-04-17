@@ -221,7 +221,7 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
         validations: newVals || [], recitations: [],
       });
       if (nouveauxCerts.length > 0) {
-        setTimeout(() => setFlash({ msg: `🏅 ${nouveauxCerts.map(c => c.nom_certificat).join(', ')} !`, color: '#EF9F27', pts: 0 }), 2600);
+        setTimeout(() => setFlash({ msg: `🏅 ${(nouveauxCerts||[]).map(c => c.nom_certificat).join(', ')} !`, color: '#EF9F27', pts: 0 }), 2600);
         setTimeout(() => setFlash(null), 6000);
       }
     }
@@ -282,7 +282,7 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
         validations: valsForCert || [], recitations: newRecsData,
       });
       if (nouveauxCertsSourate.length > 0) {
-        setTimeout(() => setFlash({ msg: `🏅 ${nouveauxCertsSourate.map(c => c.nom_certificat_ar||c.nom_certificat).join(', ')} !`, color: '#EF9F27', pts: 0 }), 2600);
+        setTimeout(() => setFlash({ msg: `🏅 ${(nouveauxCertsSourate||[]).map(c => c.nom_certificat_ar||c.nom_certificat).join(', ')} !`, color: '#EF9F27', pts: 0 }), 2600);
         setTimeout(() => setFlash(null), 6000);
       }
       // Recalculer la sourate suivante
@@ -352,7 +352,7 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
           <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: '#fff',
             border: '0.5px solid #e0e0d8', borderRadius: '0 0 14px 14px', zIndex: 9999,
             boxShadow: '0 8px 24px rgba(0,0,0,0.1)', overflow: 'hidden' }}>
-            {filteredEleves.map(e => {
+            {(filteredEleves||[]).map(e => {
               const vals = allValidations.filter(v => v.eleve_id === e.id);
               const et = calcEtatEleve(vals, e.hizb_depart, e.tomon_depart);
               const isSour = isSourateNiveauDyn(e.code_niveau, niveaux);
