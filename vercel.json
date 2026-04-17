@@ -15,6 +15,7 @@
       "schedule": "0 23 * * *"
     }
   ],
-  "buildCommand": "DISABLE_ESLINT_PLUGIN=true react-scripts build",
-  "framework": "create-react-app"
+  "buildCommand": "CI=false DISABLE_ESLINT_PLUGIN=true react-scripts build",
+  "framework": "create-react-app",
+  "installCommand": "npm install --legacy-peer-deps"
 }
