@@ -90,21 +90,26 @@ export default function ImportMasse({ user, navigate, goBack, lang='fr', isMobil
       // Lignes du fichier par onglet, pour les validations croisées (élèves peuvent référencer niveaux du fichier)
       const fileData = {};
 
+      // Fonction de nettoyage des clés (enlever suffixe " *" pour colonnes obligatoires)
+      const cleanKeys = (row) => {
+        const out = {};
+        Object.entries(row || {}).forEach(([k, v]) => {
+          out[k.replace(/\s*\*\s*$/, '').trim()] = v;
+        });
+        return out;
+      };
+
       // Première passe : parser tous les onglets connus
       ALL_TEMPLATES.forEach(t => {
         const ws = wb.Sheets[t.sheet_name];
         if (!ws) return;
         const rows = XLSX.utils.sheet_to_json(ws, { header: 0, defval: '' });
-        // Retirer les lignes d'aide et exemple (on détecte par la présence d'un ':' ou de mots-clés d'aide)
-        const realRows = rows.filter((r, idx) => {
-          // La ligne est un exemple / aide si elle contient des mots comme "obligatoire", "format", etc. dans plusieurs colonnes
-          // Ou simplement si c'est une des 2 premières lignes et qu'elle ressemble à de l'aide
-          return true; // on laisse tout passer, c'est au validateur de rejeter l'exemple
-        });
-        fileData[t.sheet_name] = realRows.map(r => normalizeRow(r));
+        // Normaliser + nettoyer les clés dès le début
+        fileData[t.sheet_name] = rows.map(r => cleanKeys(normalizeRow(r)));
       });
 
       // Deuxième passe : validation + transformation
+      // Les "xxxFichier" du ctx contiennent les lignes avec clés propres (sans " *")
       const ctx = {
         ecole_id: user.ecole_id,
         niveauxDB: niveauxDB || [],
@@ -121,26 +126,18 @@ export default function ImportMasse({ user, navigate, goBack, lang='fr', isMobil
         const rawRows = fileData[t.sheet_name];
         if (!rawRows || rawRows.length === 0) return;
 
-        // Détecter ligne d'aide/exemple (colonne key absente ou heuristique)
-        const parsed = rawRows.map((row, idx) => {
+        // rawRows a déjà les clés nettoyées (sans " *") grâce au pré-traitement
+        const parsed = rawRows.map((cleanRow, idx) => {
           const errors = [];
-          // Ignorer les lignes "aide" et "exemple" (positions 0 et 1 souvent)
-          // Heuristique : si la valeur d'une colonne required est une chaîne qui ressemble à un texte d'aide
+
+          // Détection ligne d'aide/exemple : si une valeur required fait plus de 40 chars ou contient des mots d'aide
           const firstReq = t.columns.find(c => c.required);
           if (firstReq) {
-            const v = (row[firstReq.key] || row[`${firstReq.key} *`] || '').toString();
-            // Si la valeur contient "(" ou "unique" ou fait plus de 40 chars sans espace-like, c'est de l'aide
-            if (v.length > 40 || /obligatoire|format|example|help|\(|\)/i.test(v)) {
-              // Probablement une ligne d'aide, on skip
+            const v = (cleanRow[firstReq.key] || '').toString();
+            if (v.length > 40 || /obligatoire|format|example|help/i.test(v)) {
               return { rowNum: idx + 2, skip: true };
             }
           }
-
-          // Nettoyer les clés (enlever " *" suffixe)
-          const cleanRow = {};
-          Object.entries(row).forEach(([k, v]) => {
-            cleanRow[k.replace(/\s*\*\s*$/, '').trim()] = v;
-          });
 
           // Ligne entièrement vide → skip silencieux
           const hasAnyValue = t.columns.some(c => {
