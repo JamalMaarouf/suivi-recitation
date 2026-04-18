@@ -145,7 +145,7 @@ export default function Login({ onLogin, lang, LangSelector, onShowInscription }
             {lang==='ar' ? 'مدرسة جديدة ؟' : lang==='en' ? 'New school?' : 'Nouvelle école ?'}
           </div>
           <button onClick={onShowInscription}
-            style={{padding:'8px 20px',background:'#534AB7',color:'#fff',border:'none',borderRadius:8,fontSize:12,fontWeight:600,cursor:'pointer'}}>
+            style={{padding:'8px 20px',background:'#085041',color:'#fff',border:'none',borderRadius:8,fontSize:12,fontWeight:600,cursor:'pointer'}}>
             {lang==='ar' ? '📝 طلب تسجيل مدرسة' : lang==='en' ? '📝 Register your school' : '📝 Inscrire mon école'}
           </button>
         </div>

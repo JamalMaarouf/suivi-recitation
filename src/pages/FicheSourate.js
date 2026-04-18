@@ -208,7 +208,7 @@ export default function FicheSourate({ eleve, user, navigate, goBack, lang='fr',
     return (
       <div style={{paddingBottom:80, background:'#f5f5f0', minHeight:'100vh'}}>
         {/* Sticky header */}
-        <div style={{background:`linear-gradient(135deg,#378ADD,#0C447C)`, padding:'48px 0 0', position:'sticky', top:0, zIndex:100}}>
+        <div style={{background:`linear-gradient(135deg,#085041,#1D9E75)`, padding:'48px 0 0', position:'sticky', top:0, zIndex:100}}>
           <div style={{display:'flex', alignItems:'center', gap:12, padding:'12px 16px'}}>
             <button onClick={()=>goBack?goBack():navigate('dashboard')} style={{background:'rgba(255,255,255,0.2)', border:'none', cursor:'pointer',flexShrink:0, borderRadius:10, padding:'8px 12px', color:'#fff', fontSize:16,padding:0,lineHeight:1}}>
               
@@ -325,7 +325,7 @@ export default function FicheSourate({ eleve, user, navigate, goBack, lang='fr',
                 <div>
                   {certificats.length===0?<div style={{textAlign:'center',color:'#aaa',padding:'2rem',fontSize:13}}>{lang==='ar'?'لا توجد شهادات':'Aucun certificat'}</div>
                   :certificats.map(cert=>(
-                    <div key={cert.id} style={{background:'linear-gradient(135deg,#378ADD,#0C447C)',border:'1px solid #1D9E7530',borderRadius:12,padding:'14px',marginBottom:8,display:'flex',gap:12,alignItems:'center'}}>
+                    <div key={cert.id} style={{background:'linear-gradient(135deg,#085041,#1D9E75)',border:'1px solid #1D9E7530',borderRadius:12,padding:'14px',marginBottom:8,display:'flex',gap:12,alignItems:'center'}}>
                       <span style={{fontSize:28}}>🏅</span>
                       <div>
                         <div style={{fontSize:13,fontWeight:700,color:'#085041'}}>{cert.titre||lang==='ar'?'شهادة إتمام':'Certificat'}</div>
@@ -358,7 +358,7 @@ export default function FicheSourate({ eleve, user, navigate, goBack, lang='fr',
         {/* FAB passage niveau */}
         {user.role==='surveillant' && (
           <button onClick={()=>{setNouveauNiveau('');setNotePassage('');setShowPassageModal(true);}}
-            style={{position:'fixed',bottom:80,right:16,background:'#534AB7',color:'#fff',
+            style={{position:'fixed',bottom:80,right:16,background:'#085041',color:'#fff',
               border:'none',borderRadius:14,padding:'10px 16px',fontSize:14,fontWeight:700,
               cursor:'pointer',zIndex:150,boxShadow:'0 4px 16px rgba(83,74,183,0.4)',fontFamily:'inherit'}}>
             🎓 Niveau
@@ -376,7 +376,7 @@ export default function FicheSourate({ eleve, user, navigate, goBack, lang='fr',
         <div style={{display:'flex',gap:8}}>
           {user.role==='surveillant'&&(
             <button onClick={()=>{setNouveauNiveau('');setNotePassage('');setShowPassageModal(true);}}
-              style={{padding:'6px 14px',fontSize:12,background:'#534AB7',color:'#fff',border:'none',borderRadius:8,cursor:'pointer',fontWeight:600,fontFamily:'inherit'}}>
+              style={{padding:'6px 14px',fontSize:12,background:'#085041',color:'#fff',border:'none',borderRadius:8,cursor:'pointer',fontWeight:600,fontFamily:'inherit'}}>
               🎓 {lang==='ar'?'تغيير المستوى':'Changer niveau'}
             </button>
           )}
@@ -501,7 +501,7 @@ export default function FicheSourate({ eleve, user, navigate, goBack, lang='fr',
                 <div>
                   <button onClick={()=>goBack?goBack():navigate('dashboard')}
               style={{background:'rgba(255,255,255,0.22)',border:'1px solid rgba(255,255,255,0.25)',borderRadius:10,padding:'8px 12px',color:'#fff',fontSize:18,cursor:'pointer',minWidth:38}}>←</button>
-                  <div style={{textAlign:'center',padding:'1.25rem',background:'linear-gradient(135deg,#378ADD,#0C447C)',borderRadius:16,marginBottom:'1.25rem',color:'#fff'}}>
+                  <div style={{textAlign:'center',padding:'1.25rem',background:'linear-gradient(135deg,#085041,#1D9E75)',borderRadius:16,marginBottom:'1.25rem',color:'#fff'}}>
                     <div style={{fontSize:26,fontWeight:800,fontFamily:"'Amiri','Traditional Arabic',serif",direction:'rtl'}}>{selectedSourate.nom_ar}</div>
                     <div style={{fontSize:12,opacity:0.7,marginTop:4}}>Sourate {selectedSourate.numero}</div>
                     <div style={{fontSize:13,marginTop:6}}>
@@ -663,7 +663,7 @@ export default function FicheSourate({ eleve, user, navigate, goBack, lang='fr',
           <div>
             {certificats.length===0?<div style={{textAlign:'center',color:'#aaa',padding:'2rem',fontSize:13}}>{lang==='ar'?'لا توجد شهادات':'Aucun certificat'}</div>
             :certificats.map(cert=>(
-              <div key={cert.id} style={{background:'linear-gradient(135deg,#378ADD,#0C447C)',border:'1px solid #1D9E7530',borderRadius:12,padding:'14px',marginBottom:8,display:'flex',gap:12,alignItems:'center'}}>
+              <div key={cert.id} style={{background:'linear-gradient(135deg,#085041,#1D9E75)',border:'1px solid #1D9E7530',borderRadius:12,padding:'14px',marginBottom:8,display:'flex',gap:12,alignItems:'center'}}>
                 <span style={{fontSize:28}}>🏅</span>
                 <div>
                   <div style={{fontSize:13,fontWeight:700,color:'#085041'}}>{cert.titre||lang==='ar'?'شهادة إتمام':'Certificat'}</div>

@@ -110,7 +110,7 @@ export default function InscriptionEcole({ onBack, lang }) {
 
         {/* Progress bar */}
         <div style={{height:4,background:'#e0e0d8',borderRadius:2,marginBottom:'1.5rem'}}>
-          <div style={{height:'100%',width:step===1?'50%':'100%',background:'#534AB7',borderRadius:2,transition:'width 0.3s'}}/>
+          <div style={{height:'100%',width:step===1?'50%':'100%',background:'#085041',borderRadius:2,transition:'width 0.3s'}}/>
         </div>
 
         {error && <div style={{background:'#FCEBEB',border:'0.5px solid #E24B4A30',borderRadius:8,padding:'10px 12px',marginBottom:'1rem',fontSize:12,color:'#E24B4A'}}>{error}</div>}
@@ -145,7 +145,7 @@ export default function InscriptionEcole({ onBack, lang }) {
               </div>
             </div>
             <button type="submit"
-              style={{width:'100%',marginTop:'1.25rem',padding:'11px',background:'#534AB7',color:'#fff',border:'none',borderRadius:10,fontWeight:700,cursor:'pointer',fontSize:13}}>
+              style={{width:'100%',marginTop:'1.25rem',padding:'11px',background:'#085041',color:'#fff',border:'none',borderRadius:10,fontWeight:700,cursor:'pointer',fontSize:13}}>
               {lang==='ar' ? 'التالي ←' : 'Suivant →'}
             </button>
           </form>

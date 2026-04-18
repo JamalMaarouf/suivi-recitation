@@ -1384,7 +1384,7 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile,
     }).join('');
     const html = '<!DOCTYPE html><html dir="'+(lang==='ar'?'rtl':'ltr')+'" lang="'+(lang==='ar'?'ar':'fr')+'"><head><meta charset="UTF-8"><title>Liste Parents</title>'
       +'<style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:Tajawal,Arial,sans-serif;padding:20px;font-size:12px}'
-      +'.header{background:linear-gradient(135deg,#534AB7,#378ADD);color:#fff;padding:16px 20px;border-radius:10px;margin-bottom:16px}'
+      +'.header{background:linear-gradient(135deg,#085041,#1D9E75);color:#fff;padding:16px 20px;border-radius:10px;margin-bottom:16px}'
       +'h1{font-size:18px;font-weight:800;margin-bottom:4px}'
       +'table{width:100%;border-collapse:collapse}th{background:#534AB7;color:#fff;padding:8px;text-align:start;font-size:11px}'
       +'td{padding:7px 8px;border-bottom:1px solid #f0f0ec;font-size:11px}'
@@ -1851,7 +1851,7 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
                   onChange={e=>setNewInst(x=>({...x,mot_de_passe:e.target.value}))}/>
                 <div style={{display:'flex',gap:8}}>
                   <button onClick={()=>setShowFormInst(false)} style={{flex:1,padding:'13px',background:'#f5f5f0',color:'#666',border:'none',borderRadius:12,fontSize:14,fontWeight:600,cursor:'pointer',fontFamily:'inherit'}}>{lang==='ar'?'إلغاء':'Annuler'}</button>
-                  <button onClick={async()=>{await ajouterInstituteur();setShowFormInst(false);}} style={{flex:2,padding:'13px',background:'#378ADD',color:'#fff',border:'none',borderRadius:12,fontSize:14,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>{lang==='ar'?'حفظ':'Enregistrer'}</button>
+                  <button onClick={async()=>{await ajouterInstituteur();setShowFormInst(false);}} style={{flex:2,padding:'13px',background:'#085041',color:'#fff',border:'none',borderRadius:12,fontSize:14,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>{lang==='ar'?'حفظ':'Enregistrer'}</button>
                 </div>
               </div>
             )}
@@ -2081,7 +2081,7 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
                   setSavingJalon(false);
                   showMsg('success',lang==='ar'?'تمت إضافة المرحلة':'Jalon ajouté !');
                 }} disabled={savingJalon}
-                  style={{width:'100%',padding:'13px',background:'#534AB7',color:'#fff',border:'none',borderRadius:12,fontSize:14,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
+                  style={{width:'100%',padding:'13px',background:'#085041',color:'#fff',border:'none',borderRadius:12,fontSize:14,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
                   {savingJalon?'...':(lang==='ar'?'إضافة المرحلة':'Ajouter le jalon')}
                 </button>
               </div>

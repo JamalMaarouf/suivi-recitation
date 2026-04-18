@@ -167,7 +167,7 @@ export default function ValidationCollective({ user, navigate, goBack, lang='fr'
           <button onClick={resetForm} style={{padding:'10px 20px',background:'#085041',color:'#fff',border:'none',borderRadius:10,fontWeight:600,cursor:'pointer'}}>
             {lang==='ar' ? '+ مراجعة جديدة' : "+ Nouvelle murajaʼa"}
           </button>
-          <button onClick={()=>navigate('muraja_dashboard')} style={{padding:'10px 20px',background:'#378ADD',color:'#fff',border:'none',borderRadius:10,fontWeight:600,cursor:'pointer'}}>
+          <button onClick={()=>navigate('muraja_dashboard')} style={{padding:'10px 20px',background:'#085041',color:'#fff',border:'none',borderRadius:10,fontWeight:600,cursor:'pointer'}}>
             📊 {lang==='ar' ? 'لوحة المراجعات' : 'Tableau de bord'}
           </button>
           <button onClick={()=>goBack?goBack():navigate('dashboard')} className="back-link">
@@ -192,7 +192,7 @@ export default function ValidationCollective({ user, navigate, goBack, lang='fr'
   if (isMobile) {
     return (
       <div style={{paddingBottom:80, background:'#f5f5f0', minHeight:'100vh'}}>
-        <div style={{background:'linear-gradient(135deg,#534AB7,#7F77DD)',padding:'48px 16px 14px',position:'sticky',top:0,zIndex:100}}>
+        <div style={{background:'linear-gradient(135deg,#085041,#1D9E75)',padding:'48px 16px 14px',position:'sticky',top:0,zIndex:100}}>
           <div style={{display:'flex', alignItems:'center', gap:10}}>
             <button onClick={()=>goBack?goBack():navigate('dashboard')} style={{background:'rgba(255,255,255,0.22)',border:'1px solid rgba(255,255,255,0.25)',borderRadius:10,padding:'0',color:'#fff',fontSize:20,cursor:'pointer',flexShrink:0,width:38,height:38,display:'flex',alignItems:'center',justifyContent:'center'}}>←</button>
             <div style={{flex:1, fontSize:17, fontWeight:800, color:'#fff'}}>

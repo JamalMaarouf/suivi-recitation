@@ -252,7 +252,7 @@ export default function SuperAdminDashboard({ user, navigate, lang, onLogout, is
   return (
     <div style={{maxWidth:800,margin:'0 auto',padding: isMobile ? '0 0 80px' : '1rem',background: isMobile ? '#f5f5f0' : 'transparent',minHeight: isMobile ? '100vh' : 'auto'}}>
       {isMobile && (
-        <div style={{background:'linear-gradient(135deg,#534AB7,#7F77DD)',padding:'48px 16px 20px',marginBottom:0}}>
+        <div style={{background:'linear-gradient(135deg,#085041,#1D9E75)',padding:'48px 16px 20px',marginBottom:0}}>
           <div style={{fontSize:13,color:'rgba(255,255,255,0.8)',marginBottom:4}}>Super Admin</div>
           <div style={{fontSize:22,fontWeight:800,color:'#fff',marginBottom:12}}>Vue globale</div>
           <div style={{display:'flex',gap:8}}>

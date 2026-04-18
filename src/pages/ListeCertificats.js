@@ -122,7 +122,7 @@ export default function ListeCertificats({ user, navigate, goBack, lang='fr', is
     return (
       <div style={{paddingBottom:80,background:'#f5f5f0',minHeight:'100vh'}}>
         {/* Header */}
-        <div style={{background:'linear-gradient(135deg,#534AB7,#7F77DD)',padding:'48px 16px 16px',position:'sticky',top:0,zIndex:100}}>
+        <div style={{background:'linear-gradient(135deg,#085041,#1D9E75)',padding:'48px 16px 16px',position:'sticky',top:0,zIndex:100}}>
           <div style={{display:'flex',alignItems:'center',gap:12,marginBottom:12}}>
             <button onClick={()=>goBack?goBack():navigate('dashboard')}
               style={{background:'rgba(255,255,255,0.22)',border:'1px solid rgba(255,255,255,0.25)',borderRadius:10,padding:'0',color:'#fff',fontSize:20,cursor:'pointer',flexShrink:0,width:38,height:38,display:'flex',alignItems:'center',justifyContent:'center'}}>←</button>
@@ -225,7 +225,7 @@ export default function ListeCertificats({ user, navigate, goBack, lang='fr', is
           <div style={{ fontSize:12, color:'#888' }}>{filtered.length} {lang==='ar'?'شهادة':'certificat(s)'}</div>
         </div>
         <button onClick={handlePdfListe} disabled={genListe||filtered.length===0}
-          style={{padding:'8px 16px',background:'#534AB7',color:'#fff',border:'none',borderRadius:8,fontSize:13,fontWeight:600,cursor:(genListe||filtered.length===0)?'default':'pointer',opacity:(genListe||filtered.length===0)?0.5:1,fontFamily:'inherit'}}>
+          style={{padding:'8px 16px',background:'#085041',color:'#fff',border:'none',borderRadius:8,fontSize:13,fontWeight:600,cursor:(genListe||filtered.length===0)?'default':'pointer',opacity:(genListe||filtered.length===0)?0.5:1,fontFamily:'inherit'}}>
           {genListe ? (lang==='ar'?'⏳ جاري...':'⏳ Génération...') : (lang==='ar'?'📄 تصدير PDF':'📄 Exporter PDF')}
         </button>
       </div>

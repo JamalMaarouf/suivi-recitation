@@ -232,7 +232,7 @@ export default function RapportMensuel({ user, navigate, goBack, lang='fr', isMo
     <div style={{paddingBottom:isMobile?80:0, background:isMobile?'#f5f5f0':'transparent', minHeight:isMobile?'100vh':'auto'}}>
       {/* Header mobile */}
       {isMobile ? (
-        <div style={{background:'linear-gradient(135deg,#374151,#4B5563)',padding:'48px 16px 14px',position:'sticky',top:0,zIndex:100,marginBottom:12}}>
+        <div style={{background:'linear-gradient(135deg,#085041,#1D9E75)',padding:'48px 16px 14px',position:'sticky',top:0,zIndex:100,marginBottom:12}}>
           <div style={{display:'flex',alignItems:'center',gap:12,marginBottom:10}}>
             <button onClick={()=>goBack?goBack():navigate('dashboard')}
               style={{background:'rgba(255,255,255,0.22)',border:'1px solid rgba(255,255,255,0.25)',borderRadius:10,padding:'8px 12px',color:'#fff',fontSize:16,cursor:'pointer'}}>←</button>
@@ -503,7 +503,7 @@ function buildRapportHTML({
     font-family:'Tajawal',Arial,sans-serif; color:#1a1a1a;
   `;
   const headerBand = `
-    <div style="background:linear-gradient(135deg,#374151,#4B5563);color:#fff;
+    <div style="background:linear-gradient(135deg,#085041,#1D9E75);color:#fff;
       padding:28px 36px;border-radius:12px;margin-bottom:28px;">
       <div style="font-size:11px;opacity:0.8;letter-spacing:2px;text-transform:uppercase;margin-bottom:4px;">${ecolNom}</div>
       <div style="font-size:28px;font-weight:800;margin-bottom:4px;">
@@ -611,7 +611,7 @@ function buildRapportHTML({
 
       <table style="width:100%;border-collapse:collapse;font-size:11px;">
         <thead>
-          <tr style="background:linear-gradient(135deg,#374151,#4B5563);color:#fff;">
+          <tr style="background:linear-gradient(135deg,#085041,#1D9E75);color:#fff;">
             <th style="padding:10px 8px;text-align:right;border-radius:8px 0 0 0;">#</th>
             <th style="padding:10px 8px;text-align:right;">${lang==='ar'?'الطالب':'Élève'}</th>
             <th style="padding:10px 8px;text-align:center;">${lang==='ar'?'المستوى':'Niveau'}</th>
