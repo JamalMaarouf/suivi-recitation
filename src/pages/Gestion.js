@@ -2479,6 +2479,9 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
             {icon:'🔄', label:lang==='ar'?'اتجاه التحفيظ':'Sens de récitation',
              desc:lang==='ar'?'تحديد اتجاه الحفظ للمستويات (تنازلي / تصاعدي)':'Définir le sens (décroissant / croissant) par niveau',
              action:()=>setTab('sens_recitation'), color:'#085041', bg:'#E1F5EE'},
+            {icon:'📥', label:lang==='ar'?'استيراد جماعي':'Import en masse',
+             desc:lang==='ar'?'استيراد المستويات والطلاب والمدرسين والآباء من ملف Excel':'Importer niveaux, élèves, instituteurs, parents depuis Excel',
+             action:()=>navigate('import_masse',null,{tab}), color:'#EF9F27', bg:'#FAEEDA'},
 
           ].map((item,idx)=>(
             <div key={idx} onClick={item.action}

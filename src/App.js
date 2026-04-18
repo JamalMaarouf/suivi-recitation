@@ -51,6 +51,7 @@ const GestionNiveaux      = lazy(() => import('./pages/GestionNiveaux'));
 const GestionExamens      = lazy(() => import('./pages/GestionExamens'));
 const GestionEnsembles    = lazy(() => import('./pages/GestionEnsembles'));
 const GestionBlocs        = lazy(() => import('./pages/GestionBlocs'));
+const ImportMasse         = lazy(() => import('./pages/ImportMasse'));
 const ResultatsExamens    = lazy(() => import('./pages/ResultatsExamens'));
 const ListeCertificats    = lazy(() => import('./pages/ListeCertificats'));
 const ListeNotes          = lazy(() => import('./pages/ListeNotes'));
@@ -517,6 +518,7 @@ export default function App() {
           {page === 'ensembles'         && user.role === 'surveillant' && <GestionEnsembles {...pageProps} />}
           {page === 'examens'           && user.role === 'surveillant' && <GestionExamens {...pageProps} />}
           {page === 'blocs'             && user.role === 'surveillant' && <GestionBlocs {...pageProps} />}
+          {page === 'import_masse'      && user.role === 'surveillant' && <ImportMasse {...pageProps} />}
           {page === 'resultats_examens' && <ResultatsExamens {...pageProps} data={selectedEleve} />}
           {page === 'liste_certificats' && <ErrorBoundary><Suspense fallback={<div className="loading">...</div>}><ListeCertificats {...pageProps} /></Suspense></ErrorBoundary>}
           {page === 'liste_notes'       && <ErrorBoundary><Suspense fallback={<div className="loading">...</div>}><ListeNotes       {...pageProps} /></Suspense></ErrorBoundary>}
