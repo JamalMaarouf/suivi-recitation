@@ -503,7 +503,7 @@ function PeriodesTab({ user, lang, periodes, setPeriodes, newPeriode, setNewPeri
 // COMPOSANT SensRecitationTab — Sens de récitation (desc/asc)
 // par école et par niveau
 // ══════════════════════════════════════════════════════
-function SensRecitationTab({ user, lang, ecoleConfig, setEcoleConfig, niveaux, showMsg }) {
+function SensRecitationTab({ user, lang, ecoleConfig, setEcoleConfig, niveaux, setNiveaux, showMsg }) {
   const [saving, setSaving] = React.useState(false);
   const [validationsCount, setValidationsCount] = React.useState({}); // { niveau_id: nbValidations }
   const [loading, setLoading] = React.useState(true);
@@ -585,8 +585,13 @@ function SensRecitationTab({ user, lang, ecoleConfig, setEcoleConfig, niveaux, s
       showMsg('error', lang === 'ar' ? 'خطأ في الحفظ' : 'Erreur de sauvegarde');
       return;
     }
-    // Mise à jour locale via reload du parent ? Pour l'instant, message puis rechargement
-    showMsg('success', lang === 'ar' ? 'تم الحفظ — أعد تحميل الصفحة لتحديث المستويات' : 'Enregistré — rechargez pour voir la mise à jour');
+    // Mise à jour IMMÉDIATE du state local (le parent reflète le changement)
+    if (typeof setNiveaux === 'function') {
+      setNiveaux(prev => (prev || []).map(n =>
+        n.id === niveauId ? { ...n, sens_recitation: newSens } : n
+      ));
+    }
+    showMsg('success', lang === 'ar' ? 'تم الحفظ' : 'Enregistré');
   };
 
   return (
@@ -3011,7 +3016,7 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
         <SensRecitationTab
           user={user} lang={lang}
           ecoleConfig={ecoleConfig} setEcoleConfig={setEcoleConfig}
-          niveaux={niveauxActifs||[]}
+          niveaux={niveauxActifs||[]} setNiveaux={setNiveauxDyn}
           showMsg={showMsg}
         />
       )}
