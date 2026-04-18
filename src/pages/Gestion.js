@@ -14,16 +14,19 @@ function Avatar({ prenom, nom, size = 28 }) {
   );
 }
 
-// Sélecteur acquis antérieurs — adapté selon le niveau
-function AcquisSelector({ codeNiveau, hizb, tomon, onHizbChange, onTomonChange, souratesAcquises, onSouratesChange, lang, niveauxDyn=[] }) {
+// Sélecteur acquis antérieurs — adapté selon le niveau et le sens de récitation
+function AcquisSelector({ codeNiveau, hizb, tomon, onHizbChange, onTomonChange, souratesAcquises, onSouratesChange, lang, niveauxDyn=[], sens='desc' }) {
   const _niv = niveauxDyn.find(n=>n.code===codeNiveau);
   const isSourate = _niv ? _niv.type==='sourate' : ['5B','5A','2M'].includes(codeNiveau);
 
   if (isSourate) {
     const souratesNiveau = codeNiveau === '5B' ? SOURATES_5B : codeNiveau === '5A' ? SOURATES_5A : SOURATES_2M;
-    const souratesOrdonnees = [...souratesNiveau].sort((a,b) => b.numero - a.numero);
+    // desc : on commence par 114 → 1 (les plus courtes d'abord)
+    // asc  : on commence par 1 → 114 (Al-Fatiha d'abord)
+    const souratesOrdonnees = [...souratesNiveau].sort((a,b) =>
+      sens === 'asc' ? a.numero - b.numero : b.numero - a.numero);
     const nbAcquis = souratesAcquises || 0;
-    // Sourates acquired = last N sourates (from 114 downward)
+    // Sourates acquired = first N sourates in order (selon sens)
     const ptsAcquis = nbAcquis * 30; // 30 pts per complete sourate
 
     return (
@@ -89,23 +92,40 @@ function AcquisSelector({ codeNiveau, hizb, tomon, onHizbChange, onTomonChange, 
   }
 
   // Hizb/Tomon selector for 2M, 2, 1
+  const hizbList = sens === 'asc'
+    ? Array.from({length:60},(_,i)=>i+1)   // 1, 2, ..., 60
+    : Array.from({length:60},(_,i)=>60-i); // 60, 59, ..., 1
+  const senshHintFR = sens === 'asc' ? '1 → 60' : '60 → 1';
+  const senshHintAR = sens === 'asc' ? 'من 1 نحو 60' : 'من 60 نحو 1';
+  // Pour "Acquis = X à Y", les bornes dépendent du sens :
+  // desc : déjà mémorisé de hizb à 60 (ex: Hizb 5 sélectionné = Hizb 5 à 60 acquis)
+  // asc  : déjà mémorisé de 1 à hizb (ex: Hizb 5 sélectionné = Hizb 1 à 5 acquis)
+  const acquisLabel = hizb === 0 ? (lang==='ar'?'لا توجد مكتسبات سابقة':'Aucun acquis antérieur')
+    : `${lang==='ar'?'الحزب المختار':'Hizb sélectionné'} : ${hizb} — ${lang==='ar'?'المحفوظ':'Acquis'} : ${sens === 'asc' ? `1 ${lang==='ar'?'إلى':'à'} ${hizb}` : `${hizb} ${lang==='ar'?'إلى 60':'à 60'}`}`;
+
   return (
     <div style={{background:'#f9f9f6',borderRadius:12,padding:'1rem',border:'0.5px solid #e0e0d8'}}>
       <div style={{fontSize:11,color:'#888',marginBottom:10,textAlign:'center'}}>{lang==='ar'?'موقع الطالب في القرآن قبل بدء المتابعة':lang==='en'?'Position in Quran before tracking':'Position dans le Coran avant de commencer le suivi'}</div>
       <div style={{marginBottom:12}}>
-        <div style={{fontSize:12,color:'#888',marginBottom:6,fontWeight:500}}>{lang==='ar'?'انقر على أول حزب محفوظ (من 60 نحو 1)':'Cliquez sur le premier Hizb mémorisé (60 → 1)'}</div>
+        <div style={{fontSize:12,color:'#888',marginBottom:6,fontWeight:500}}>{lang==='ar'?`انقر على أول حزب محفوظ (${senshHintAR})`:`Cliquez sur le premier Hizb mémorisé (${senshHintFR})`}</div>
         <div style={{display:'flex',alignItems:'center',gap:8}}>
           <button onClick={()=>onHizbChange(Math.min(60,hizb+1))} style={{width:32,height:32,border:'0.5px solid #e0e0d8',borderRadius:6,background:'#fff',cursor:'pointer',fontSize:16,fontWeight:700}}>−</button>
           <div style={{flex:1,display:'grid',gridTemplateColumns:'repeat(10,1fr)',gap:3}}>
-            {Array.from({length:60},(_,i)=>60-i).map(n=>(
-              <div key={n} onClick={()=>onHizbChange(n===hizb?0:n)} style={{height:28,borderRadius:4,display:'flex',alignItems:'center',justifyContent:'center',fontSize:11,fontWeight:n===hizb?700:400,cursor:'pointer',background:(hizb>0&&n>=hizb)?'#1D9E75':'#f0f0ec',color:(hizb>0&&n>=hizb)?'#fff':'#999',fontWeight:n===hizb?800:400,border:n===hizb&&hizb>0?'2px solid #085041':'none',transition:'all 0.1s'}}>
-                {n}
-              </div>
-            ))}
+            {hizbList.map(n=>{
+              // "déjà acquis" :
+              // desc : tous les Hizb >= hizb (de hizb à 60)
+              // asc  : tous les Hizb <= hizb (de 1 à hizb)
+              const isAcquis = hizb > 0 && (sens === 'asc' ? n <= hizb : n >= hizb);
+              return (
+                <div key={n} onClick={()=>onHizbChange(n===hizb?0:n)} style={{height:28,borderRadius:4,display:'flex',alignItems:'center',justifyContent:'center',fontSize:11,cursor:'pointer',background:isAcquis?'#1D9E75':'#f0f0ec',color:isAcquis?'#fff':'#999',fontWeight:n===hizb?800:400,border:n===hizb&&hizb>0?'2px solid #085041':'none',transition:'all 0.1s'}}>
+                  {n}
+                </div>
+              );
+            })}
           </div>
           <button onClick={()=>onHizbChange(Math.max(0,hizb-1))} style={{width:32,height:32,border:'0.5px solid #e0e0d8',borderRadius:6,background:'#fff',cursor:'pointer',fontSize:16,fontWeight:700}}>+</button>
         </div>
-        <div style={{textAlign:'center',marginTop:6,fontSize:14,fontWeight:700,color:'#1D9E75'}}>{hizb===0?(lang==='ar'?'لا توجد مكتسبات سابقة':'Aucun acquis antérieur'):`${lang==='ar'?'الحزب المختار':'Hizb sélectionné'} : ${hizb} — ${lang==='ar'?'المحفوظ':'Acquis'} : ${hizb} ${lang==='ar'?'إلى 60':'à 60'}`}</div>
+        <div style={{textAlign:'center',marginTop:6,fontSize:14,fontWeight:700,color:'#1D9E75'}}>{acquisLabel}</div>
       </div>
       {hizb > 0 && <div>
         <div style={{fontSize:12,color:'#888',marginBottom:6,fontWeight:500}}>{lang==='ar'?'الثُّمن (1-8)':lang==='en'?'Tomon (1-8)':'Tomon (1-8)'}</div>
@@ -1104,7 +1124,12 @@ function JalonsTab({ user, lang, jalons, setJalons, ensembles, examens, newJalon
                 )}
               </label>
               <div style={{display:'grid',gridTemplateColumns:'repeat(10,1fr)',gap:3,marginTop:6}}>
-                {Array.from({length:60},(_,i)=>60-i).map(n=>{
+                {(() => {
+                  const sensEcole = ecoleConfig?.sens_recitation_defaut || 'desc';
+                  const hizbList = sensEcole === 'asc'
+                    ? Array.from({length:60},(_,i)=>i+1)
+                    : Array.from({length:60},(_,i)=>60-i);
+                  return hizbList.map(n=>{
                   const sel = (newJalon.hizb_ids||[]).includes(n);
                   return (
                     <div key={n} onClick={()=>toggleHizb(n)}
@@ -1116,7 +1141,8 @@ function JalonsTab({ user, lang, jalons, setJalons, ensembles, examens, newJalon
                       {n}
                     </div>
                   );
-                })}
+                });
+                })()}
               </div>
               {newJalon.hizb_ids.length > 0 && (
                 <div style={{marginTop:6,fontSize:11,color:'#085041',fontWeight:600}}>
@@ -1375,7 +1401,7 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile,
 
   useEffect(() => { loadData(); }, []);
   useEffect(() => {
-    supabase.from('niveaux').select('id,code,nom,type,couleur')
+    supabase.from('niveaux').select('id,code,nom,type,couleur,sens_recitation')
       .eq('ecole_id', user.ecole_id).order('ordre')
       .then(({data}) => { if(data) setNiveauxDyn(data); });
   }, []);
@@ -2285,7 +2311,12 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
                       {newJalon.hizb_ids.length>0&&<span style={{color:'#1D9E75',marginRight:6}}> ({newJalon.hizb_ids.length})</span>}
                     </label>
                     <div style={{display:'grid',gridTemplateColumns:'repeat(8,1fr)',gap:4}}>
-                      {Array.from({length:60},(_,i)=>60-i).map(n=>{
+                      {(() => {
+                        const sensEcole = ecoleConfig?.sens_recitation_defaut || 'desc';
+                        const hizbList = sensEcole === 'asc'
+                          ? Array.from({length:60},(_,i)=>i+1)
+                          : Array.from({length:60},(_,i)=>60-i);
+                        return hizbList.map(n=>{
                         const sel=(newJalon.hizb_ids||[]).includes(n);
                         return(
                           <div key={n} onClick={()=>{const ids=newJalon.hizb_ids||[];setNewJalon({...newJalon,hizb_ids:sel?ids.filter(h=>h!==n):[...ids,n]});}}
@@ -2294,7 +2325,8 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
                             {n}
                           </div>
                         );
-                      })}
+                      });
+                      })()}
                     </div>
                   </div>
                 )}
@@ -2540,6 +2572,7 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
                     <AcquisSelector
                       codeNiveau={newEleve.code_niveau} niveauxDyn={niveauxDyn}
                       hizb={newEleve.hizb_depart} tomon={newEleve.tomon_depart} lang={lang}
+                      sens={(niveauxDyn.find(n=>n.code===newEleve.code_niveau)?.sens_recitation) || ecoleConfig?.sens_recitation_defaut || 'desc'}
                       onHizbChange={h => setNewEleve({ ...newEleve, hizb_depart: h })}
                       onTomonChange={tv => setNewEleve({ ...newEleve, tomon_depart: tv })}
                       souratesAcquises={newEleve.sourates_acquises}
@@ -2622,8 +2655,9 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
                   </div>
                   {editShowAcquisSelector && (
                     <AcquisSelector
-                      codeNiveau={editEleve.code_niveau||'1'}
+                      codeNiveau={editEleve.code_niveau||'1'} niveauxDyn={niveauxDyn}
                       hizb={editEleve.hizb_depart} tomon={editEleve.tomon_depart} lang={lang}
+                      sens={(niveauxDyn.find(n=>n.code===editEleve.code_niveau)?.sens_recitation) || ecoleConfig?.sens_recitation_defaut || 'desc'}
                       onHizbChange={h => setEditEleve({ ...editEleve, hizb_depart: h })}
                       onTomonChange={tv => setEditEleve({ ...editEleve, tomon_depart: tv })}
                       souratesAcquises={editEleve.sourates_acquises||0}
