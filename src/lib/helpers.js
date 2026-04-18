@@ -1,28 +1,83 @@
-export function calcPosition(hizbDepart, tomonDepart, totalTomonValides) {
-  // Règle : sans acquis (hizb_depart=0 ou 1 et tomon_depart=1) → départ Hizb 60 T.1
-  // Ordre décroissant : Hizb 60→1, donc index 0 = Hizb 60 T.1, index 7 = Hizb 60 T.8
-  // index 8 = Hizb 59 T.1 ... index 479 = Hizb 1 T.8
-  const hizbD = (hizbDepart === 0 || hizbDepart === null || hizbDepart === undefined) ? 60 : hizbDepart;
-  const tomonD = (tomonDepart === 0 || tomonDepart === null || tomonDepart === undefined) ? 1 : tomonDepart;
-  // Index dans l'ordre décroissant : Hizb 60 T.1 = index 0
-  const indexDepart = (60 - hizbD) * 8 + (tomonD - 1);
-  const indexActuel = indexDepart + totalTomonValides;
-  const hizbIndex = Math.floor(indexActuel / 8); // 0 = Hizb 60, 59 = Hizb 1
-  const tomon = (indexActuel % 8) + 1;
-  const hizb = Math.max(1, 60 - hizbIndex);
+// ═══════════════════════════════════════════════════════════════════
+// SENS DE RÉCITATION
+// ═══════════════════════════════════════════════════════════════════
+// 'desc' (défaut historique) : Hizb 60 → Hizb 1 (Sourate An-Nas → Al-Fatiha)
+// 'asc'                      : Hizb 1  → Hizb 60 (Sourate Al-Fatiha → An-Nas)
+//
+// Les fonctions acceptent toujours un sens optionnel (défaut 'desc').
+// L'index interne 0 = Hizb 60 T.1 en desc, ou Hizb 1 T.1 en asc.
+// Index max = 479 (60 Hizb × 8 tomons - 1)
+// ═══════════════════════════════════════════════════════════════════
+
+/**
+ * Résout le sens effectif à partir d'un niveau et de l'école.
+ * Accepte un objet niveau (avec .sens_recitation) ou le sens directement.
+ * Retourne 'desc' par défaut si rien n'est défini.
+ */
+export function resolveSens(niveau, ecole) {
+  // Si on a reçu une string directement
+  if (typeof niveau === 'string' && (niveau === 'desc' || niveau === 'asc')) return niveau;
+  // Sinon on regarde niveau.sens_recitation, puis ecole.sens_recitation_defaut
+  const fromNiveau = niveau && niveau.sens_recitation;
+  if (fromNiveau === 'desc' || fromNiveau === 'asc') return fromNiveau;
+  const fromEcole = ecole && ecole.sens_recitation_defaut;
+  if (fromEcole === 'desc' || fromEcole === 'asc') return fromEcole;
+  return 'desc';
+}
+
+/**
+ * Convertit une position (hizb, tomon) en index interne [0..479]
+ * selon le sens.
+ * - desc : Hizb 60 T.1 = 0,  Hizb 1 T.8 = 479
+ * - asc  : Hizb 1 T.1  = 0,  Hizb 60 T.8 = 479
+ */
+export function positionToIndex(hizb, tomon, sens = 'desc') {
+  const h = Math.max(1, Math.min(60, hizb || 1));
+  const t = Math.max(1, Math.min(8, tomon || 1));
+  if (sens === 'asc') return (h - 1) * 8 + (t - 1);
+  return (60 - h) * 8 + (t - 1);
+}
+
+/**
+ * Inverse de positionToIndex : convertit un index en {hizb, tomon}.
+ */
+export function indexToPosition(index, sens = 'desc') {
+  const idx = Math.max(0, Math.min(479, index));
+  const hizbIndex = Math.floor(idx / 8);
+  const tomon = (idx % 8) + 1;
+  const hizb = sens === 'asc' ? hizbIndex + 1 : Math.max(1, 60 - hizbIndex);
   return { hizb, tomon };
 }
 
-export function calcPositionAtteinte(hizbDepart, tomonDepart, totalTomonValides) {
-  if (totalTomonValides === 0) return null;
-  const hizbD = (hizbDepart === 0 || hizbDepart === null || hizbDepart === undefined) ? 60 : hizbDepart;
+/**
+ * Calcule la position courante (prochain tomon à valider) d'un élève.
+ * @param hizbDepart/tomonDepart : position de départ (acquis avant l'école)
+ * @param totalTomonValides : nombre de tomons validés depuis l'arrivée
+ * @param sens : 'desc' (défaut) ou 'asc'
+ * @returns { hizb, tomon }
+ */
+export function calcPosition(hizbDepart, tomonDepart, totalTomonValides, sens = 'desc') {
+  // Valeur par défaut du départ selon le sens
+  const defaultHizb = sens === 'asc' ? 1 : 60;
+  const hizbD = (hizbDepart === 0 || hizbDepart === null || hizbDepart === undefined) ? defaultHizb : hizbDepart;
   const tomonD = (tomonDepart === 0 || tomonDepart === null || tomonDepart === undefined) ? 1 : tomonDepart;
-  const indexDepart = (60 - hizbD) * 8 + (tomonD - 1);
+  const indexDepart = positionToIndex(hizbD, tomonD, sens);
+  const indexActuel = indexDepart + (totalTomonValides || 0);
+  return indexToPosition(indexActuel, sens);
+}
+
+/**
+ * Dernière position atteinte (dernier tomon validé).
+ * Retourne null si aucun tomon n'a encore été validé.
+ */
+export function calcPositionAtteinte(hizbDepart, tomonDepart, totalTomonValides, sens = 'desc') {
+  if (!totalTomonValides || totalTomonValides === 0) return null;
+  const defaultHizb = sens === 'asc' ? 1 : 60;
+  const hizbD = (hizbDepart === 0 || hizbDepart === null || hizbDepart === undefined) ? defaultHizb : hizbDepart;
+  const tomonD = (tomonDepart === 0 || tomonDepart === null || tomonDepart === undefined) ? 1 : tomonDepart;
+  const indexDepart = positionToIndex(hizbD, tomonD, sens);
   const indexAtteint = indexDepart + totalTomonValides - 1;
-  const hizbIndex = Math.floor(indexAtteint / 8);
-  const tomon = (indexAtteint % 8) + 1;
-  const hizb = Math.max(1, 60 - hizbIndex);
-  return { hizb, tomon };
+  return indexToPosition(indexAtteint, sens);
 }
 
 export function calcUnite(tomon) {
@@ -166,11 +221,18 @@ export function calcPoints(tomonCumul, hizbsCompletsCount, validations, tomonAcq
   };
 }
 
-export function calcEtatEleve(validations, hizbDepart, tomonDepart) {
-  // Normaliser : hizb_depart=0 → départ Hizb 60 T.1 (pas d'acquis antérieurs)
-  const hizbD = (hizbDepart === 0 || hizbDepart === null || hizbDepart === undefined) ? 60 : hizbDepart;
+/**
+ * Calcule l'état courant d'un élève (Hizb en cours, progression, points).
+ * @param validations : liste des validations (tomon, hizb_complet, muraja...)
+ * @param hizbDepart/tomonDepart : acquis avant suivi (0 = aucun)
+ * @param sens : 'desc' (défaut) ou 'asc' — sens de progression du niveau
+ */
+export function calcEtatEleve(validations, hizbDepart, tomonDepart, sens = 'desc') {
+  // Valeurs par défaut selon le sens
+  const defaultHizb = sens === 'asc' ? 1 : 60;
+  const hizbD = (hizbDepart === 0 || hizbDepart === null || hizbDepart === undefined) ? defaultHizb : hizbDepart;
   const tomonD = (tomonDepart === 0 || tomonDepart === null || tomonDepart === undefined) ? 1 : tomonDepart;
-  // Si hizb_depart était 0 → pas d'acquis antérieurs (l'élève commence de zéro)
+  // sansAcquis : l'élève démarre de zéro (aucun hizb mémorisé avant)
   const sansAcquis = (hizbDepart === 0 || hizbDepart === null || hizbDepart === undefined);
 
   const valsChron = [...validations].sort((a, b) => new Date(a.date_validation) - new Date(b.date_validation));
@@ -188,25 +250,33 @@ export function calcEtatEleve(validations, hizbDepart, tomonDepart) {
     }
   }
 
-  const pos = calcPosition(hizbD, tomonD, tomonCumul);
-  // En ordre décroissant: pos.hizb est le PROCHAIN hizb quand tous8Faits
-  // hizbBrut = le hizb EN COURS (celui dont on vient de finir les 8 tomons)
-  const hizbBrut = (pos.tomon === 1 && tomonCumul > 0) ? pos.hizb + 1 : pos.hizb;
+  const pos = calcPosition(hizbD, tomonD, tomonCumul, sens);
+  // hizbBrut = le Hizb EN COURS (celui dont on vient de finir les 8 tomons)
+  // En desc : hizb courant = pos.hizb + 1 (car on est déjà passé au suivant décroissant)
+  // En asc  : hizb courant = pos.hizb - 1 (car on est déjà passé au suivant croissant)
   const tous8Faits = pos.tomon === 1 && tomonCumul > 0;
+  const hizbBrut = tous8Faits
+    ? (sens === 'asc' ? pos.hizb - 1 : pos.hizb + 1)
+    : pos.hizb;
   const hizbCompletValide = hizbsComplets.has(hizbBrut);
 
-  // Acquis antérieurs : seulement si hizb_depart > 0 (l'élève avait déjà mémorisé quelque chose)
-  const tomonAcquis = sansAcquis ? 0 : (60 - hizbD) * 8 + (tomonD - 1);
-  const hizbAcquisComplets = sansAcquis ? 0 : (60 - hizbD); // Hizb 60 à (hizbD+1) déjà complets
+  // Acquis antérieurs : nombre de tomons mémorisés avant l'arrivée à l'école
+  // En desc : de Hizb 60 à Hizb (hizbD+1) complets, + (tomonD-1) dans Hizb hizbD
+  // En asc  : de Hizb 1 à Hizb (hizbD-1) complets, + (tomonD-1) dans Hizb hizbD
+  const tomonAcquis = sansAcquis ? 0 : (sens === 'asc' ? (hizbD - 1) * 8 + (tomonD - 1) : (60 - hizbD) * 8 + (tomonD - 1));
+  const hizbAcquisComplets = sansAcquis ? 0 : (sens === 'asc' ? (hizbD - 1) : (60 - hizbD));
   // Points totaux = acquis antérieurs + nouveaux validés depuis le suivi
   const tomonTotal = tomonAcquis + tomonCumul;
   const hizbCompletsTotal = hizbAcquisComplets + hizbsComplets.size;
   const points = calcPoints(tomonTotal, hizbCompletsTotal, validations, tomonAcquis, hizbAcquisComplets);
 
   if (tous8Faits && hizbCompletValide) {
-    // Hizb complet validé → passer au hizb SUIVANT en ordre décroissant = hizbBrut - 1
+    // Hizb complet validé → passer au hizb SUIVANT selon le sens
+    const prochainHizb = sens === 'asc'
+      ? Math.min(60, hizbBrut + 1)
+      : Math.max(1, hizbBrut - 1);
     return {
-      hizbEnCours: Math.max(1, hizbBrut - 1),
+      hizbEnCours: prochainHizb,
       prochainTomon: 1,
       tomonDansHizbActuel: 0,
       tomonRestants: 8,
@@ -219,7 +289,8 @@ export function calcEtatEleve(validations, hizbDepart, tomonDepart) {
       tomonAcquis,
       hizbAcquisComplets,
       points,
-      positionReelle: pos
+      positionReelle: pos,
+      sens
     };
   }
 
@@ -240,7 +311,8 @@ export function calcEtatEleve(validations, hizbDepart, tomonDepart) {
     tomonAcquis,
     hizbAcquisComplets,
     points,
-    positionReelle: pos
+    positionReelle: pos,
+    sens
   };
 }
 
