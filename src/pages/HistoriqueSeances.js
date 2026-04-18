@@ -37,7 +37,7 @@ const PERIODES = [
   { label: 'Trimestre', labelAr: 'فصل', jours: 90 },
 ];
 
-export default function HistoriqueSeances({ user, navigate, goBack, lang='fr', isMobile , niveaux=[] }) {
+export default function HistoriqueSeances({ user, navigate, goBack, lang='fr', isMobile }) {
   const { toast } = useToast();
   const [eleves, setEleves] = useState([]);
   const [instituteurs, setInstituteurs] = useState([]);
@@ -45,6 +45,7 @@ export default function HistoriqueSeances({ user, navigate, goBack, lang='fr', i
   const [recitations, setRecitations] = useState([]);
   const [souratesDB, setSouratesDB] = useState([]);
   const [objectifs, setObjectifs] = useState([]);
+  const [niveaux, setNiveaux] = useState([]);
   const [loading, setLoading] = useState(true);
   const [bareme, setBareme] = React.useState({...BAREME_DEFAUT});
 
@@ -76,7 +77,7 @@ export default function HistoriqueSeances({ user, navigate, goBack, lang='fr', i
     loadBareme(supabase, user.ecole_id).then(b=>setBareme({...BAREME_DEFAUT,...b.unites}));
     setLoading(true);
     try {
-      const [r1, r2, r3Data, r4Data, r5, r6] = await Promise.all([
+      const [r1, r2, r3Data, r4Data, r5, r6, r7] = await Promise.all([
         supabase.from('eleves').select('*')
         .eq('ecole_id', user.ecole_id).order('nom'),
         supabase.from('utilisateurs').select('*').eq('role','instituteur').eq('ecole_id', user.ecole_id),
@@ -87,6 +88,8 @@ export default function HistoriqueSeances({ user, navigate, goBack, lang='fr', i
         supabase.from('sourates').select('*'),
         supabase.from('objectifs_globaux').select('*')
         .eq('ecole_id', user.ecole_id).order('created_at',{ascending:false}),
+        supabase.from('niveaux').select('id,code,nom,couleur,ordre')
+          .eq('ecole_id', user.ecole_id).order('ordre'),
       ]);
       setEleves(r1.data||[]);
       setInstituteurs(r2.data||[]);
@@ -94,6 +97,7 @@ export default function HistoriqueSeances({ user, navigate, goBack, lang='fr', i
       setRecitations(r4Data||[]);
       setSouratesDB(r5.data||[]);
       setObjectifs(r6.data||[]);
+      setNiveaux(r7.data||[]);
     } catch(e) { toast.error('Erreur de chargement'); }
     setLoading(false);
   };
