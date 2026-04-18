@@ -640,7 +640,7 @@ export default function Finance({ user, navigate, goBack, lang='fr', isMobile })
                       border:'0.5px solid #e0e0d8',display:'flex',alignItems:'center',gap:12}}>
                       <div style={{width:40,height:40,borderRadius:'50%',background:'#E1F5EE',color:'#085041',
                         display:'flex',alignItems:'center',justifyContent:'center',fontWeight:800,fontSize:12,flexShrink:0}}>
-                        {el?el.prenom[0]+el.nom[0]:'?'}
+                        {el ? getInitiales(el.prenom, el.nom) : '?'}
                       </div>
                       <div style={{flex:1,minWidth:0}}>
                         <div style={{fontWeight:700,fontSize:14}}>{el?`${el.prenom} ${el.nom}`:'—'}</div>
@@ -693,22 +693,26 @@ export default function Finance({ user, navigate, goBack, lang='fr', isMobile })
                 <div style={{fontSize:13,fontWeight:700,color:'#888',marginBottom:8}}>
                   {lang==='ar'?'الطلاب غير المدفوعين':'Élèves en retard'} ({elevesNonPayes.length})
                 </div>
-                {elevesNonPayes.map(e=>(
+                {elevesNonPayes.map(p=>{
+                  const e = p.eleve;
+                  if (!e) return null;
+                  return (
                   <div key={e.id} style={{background:'#fff',borderRadius:12,padding:'13px 14px',marginBottom:8,
                     border:'0.5px solid #EF9F2730',display:'flex',alignItems:'center',gap:12}}>
                     <div style={{width:40,height:40,borderRadius:'50%',background:'#FAEEDA',color:'#633806',
                       display:'flex',alignItems:'center',justifyContent:'center',fontWeight:800,fontSize:12,flexShrink:0}}>
-                      {e.prenom[0]+e.nom[0]}
+                      {getInitiales(e.prenom, e.nom)}
                     </div>
                     <div style={{flex:1}}>
                       <div style={{fontWeight:700,fontSize:14}}>{e.prenom} {e.nom}</div>
                       <div style={{fontSize:12,color:'#888'}}>
-                        {lang==='ar'?'آخر دفع:':'Dernier paiement :'} {e.dernierPaiement ? new Date(e.dernierPaiement).toLocaleDateString(lang==='ar'?'ar-MA':'fr-FR') : (lang==='ar'?'أبداً':'Jamais')}
+                        {lang==='ar'?'آخر دفع:':'Dernier paiement :'} {p.dernierPaiement ? new Date(p.dernierPaiement).toLocaleDateString(lang==='ar'?'ar-MA':'fr-FR') : (lang==='ar'?'أبداً':'Jamais')}
                       </div>
                     </div>
                     <span style={{fontSize:20}}>⚠️</span>
                   </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>
