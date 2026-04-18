@@ -687,32 +687,75 @@ export default function Finance({ user, navigate, goBack, lang='fr', isMobile })
               </div>
             )}
 
-            {/* Suivi des impayés */}
+            {/* Suivi des élèves - même contenu que PC */}
             {onglet==='suivi' && (
               <div>
-                <div style={{fontSize:13,fontWeight:700,color:'#888',marginBottom:8}}>
-                  {lang==='ar'?'الطلاب غير المدفوعين':'Élèves en retard'} ({elevesNonPayes.length})
+                {/* Filtres : recherche + statut */}
+                <div style={{display:'flex',gap:8,marginBottom:10}}>
+                  <input type="text" value={searchEleve}
+                    onChange={e=>setSearchEleve(e.target.value)}
+                    placeholder={'🔍 '+(lang==='ar'?'اسم أو رقم':'Nom ou #ID...')}
+                    style={{flex:2,padding:'9px 12px',borderRadius:10,border:'1px solid #e0e0d8',fontSize:13,fontFamily:'inherit',boxSizing:'border-box'}}/>
+                  <select value={filterSuiviStatut} onChange={e=>setFilterSuiviStatut(e.target.value)}
+                    style={{flex:1,padding:'9px 8px',borderRadius:10,border:'1px solid #e0e0d8',fontSize:12,fontFamily:'inherit',background:'#fff'}}>
+                    <option value="tous">{lang==='ar'?'الكل':'Tous'}</option>
+                    {STATUTS.map(s=><option key={s.val} value={s.val}>{lang==='ar'?s.labelAr:s.label}</option>)}
+                  </select>
                 </div>
-                {elevesNonPayes.map(p=>{
-                  const e = p.eleve;
-                  if (!e) return null;
-                  return (
-                  <div key={e.id} style={{background:'#fff',borderRadius:12,padding:'13px 14px',marginBottom:8,
-                    border:'0.5px solid #EF9F2730',display:'flex',alignItems:'center',gap:12}}>
-                    <div style={{width:40,height:40,borderRadius:'50%',background:'#FAEEDA',color:'#633806',
-                      display:'flex',alignItems:'center',justifyContent:'center',fontWeight:800,fontSize:12,flexShrink:0}}>
-                      {getInitiales(e.prenom, e.nom)}
-                    </div>
-                    <div style={{flex:1}}>
-                      <div style={{fontWeight:700,fontSize:14}}>{e.prenom} {e.nom}</div>
-                      <div style={{fontSize:12,color:'#888'}}>
-                        {lang==='ar'?'آخر دفع:':'Dernier paiement :'} {p.dernierPaiement ? new Date(p.dernierPaiement).toLocaleDateString(lang==='ar'?'ar-MA':'fr-FR') : (lang==='ar'?'أبداً':'Jamais')}
-                      </div>
-                    </div>
-                    <span style={{fontSize:20}}>⚠️</span>
+                <button onClick={()=>setFilterSuiviApplied({search:searchEleve,statut:filterSuiviStatut})}
+                  style={{width:'100%',padding:'10px',background:'#1e3a5f',color:'#fff',border:'none',borderRadius:10,fontSize:13,fontWeight:700,cursor:'pointer',marginBottom:12,fontFamily:'inherit'}}>
+                  🔍 {lang==='ar'?'بحث':'Rechercher'}
+                </button>
+
+                {/* Filtre actif */}
+                {(filterSuiviApplied.search||filterSuiviApplied.statut!=='tous')&&(
+                  <div style={{fontSize:11,color:'#888',marginBottom:10,display:'flex',alignItems:'center',gap:6,flexWrap:'wrap'}}>
+                    {filterSuiviApplied.search&&<span style={{padding:'2px 8px',borderRadius:10,background:'#E8EDF5',color:'#1e3a5f'}}>🔍 {filterSuiviApplied.search}</span>}
+                    {filterSuiviApplied.statut!=='tous'&&<span style={{padding:'2px 8px',borderRadius:10,background:'#FAEEDA',color:'#EF9F27'}}>{STATUTS.find(s=>s.val===filterSuiviApplied.statut)?.label}</span>}
+                    <button onClick={()=>{setSearchEleve('');setFilterSuiviStatut('tous');setFilterSuiviApplied({search:'',statut:'tous'});}} style={{fontSize:10,color:'#E24B4A',background:'none',border:'none',cursor:'pointer'}}>✕ {lang==='ar'?'مسح':'Effacer'}</button>
                   </div>
-                  );
-                })}
+                )}
+
+                {/* 3 KPI par statut (comme PC) */}
+                <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:6,marginBottom:12}}>
+                  {STATUTS.map(st=>(
+                    <div key={st.val} style={{background:st.bg,borderRadius:10,padding:'10px 8px',textAlign:'center'}}>
+                      <div style={{fontSize:18,fontWeight:800,color:st.color}}>{parEleve.filter(p=>p.statutDernier===st.val).length}</div>
+                      <div style={{fontSize:10,color:st.color,opacity:0.85,fontWeight:600}}>{lang==='ar'?st.labelAr:st.label}</div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Liste : tous les élèves (comme PC, plus seulement non-payés) */}
+                <div style={{display:'flex',flexDirection:'column',gap:6}}>
+                  {parEleve.map(p=>{
+                    const e = p.eleve;
+                    if (!e) return null;
+                    const st = STATUTS.find(s=>s.val===p.statutDernier)||STATUTS[2];
+                    return (
+                      <div key={e.id} style={{background:'#fff',border:'0.5px solid #e0e0d8',borderRadius:12,padding:'11px 12px',display:'flex',alignItems:'center',gap:10}}>
+                        <Avatar prenom={e.prenom} nom={e.nom} bg={st.bg} color={st.color}/>
+                        <div style={{flex:1,minWidth:0}}>
+                          <div style={{display:'flex',alignItems:'center',gap:5,flexWrap:'wrap'}}>
+                            <span style={{fontSize:13,fontWeight:700,whiteSpace:'nowrap'}}>{e.prenom} {e.nom}</span>
+                            {e.eleve_id_ecole&&<span style={{fontSize:10,color:'#bbb'}}>#{e.eleve_id_ecole}</span>}
+                            <span style={{padding:'1px 6px',borderRadius:10,fontSize:9,fontWeight:700,background:'#E8EDF5',color:'#1e3a5f'}}>{e.code_niveau||'?'}</span>
+                          </div>
+                          <div style={{fontSize:10,color:'#888',marginTop:2,display:'flex',alignItems:'center',gap:6}}>
+                            <span>{p.cotisations.length} {lang==='ar'?'دفعة':'versement(s)'}</span>
+                            <span style={{padding:'1px 6px',borderRadius:8,fontSize:9,fontWeight:700,background:st.bg,color:st.color}}>{lang==='ar'?st.labelAr:st.label}</span>
+                          </div>
+                        </div>
+                        <div style={{fontSize:13,fontWeight:800,color:'#085041',textAlign:'right',flexShrink:0}}>{fmtMAD(p.totalVerse)}</div>
+                      </div>
+                    );
+                  })}
+                  {parEleve.length===0&&(
+                    <div style={{textAlign:'center',padding:'2rem',color:'#aaa',fontSize:13}}>
+                      {lang==='ar'?'لا توجد نتائج':'Aucun résultat'}
+                    </div>
+                  )}
+                </div>
               </div>
             )}
           </div>
