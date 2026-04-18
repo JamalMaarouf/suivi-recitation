@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useToast } from '../lib/toast';
 import { supabase } from '../lib/supabase';
-import { getInitiales, joursDepuis, scoreLabel, formatDateCourt , loadBareme, BAREME_DEFAUT } from '../lib/helpers';
+import { getInitiales, joursDepuis, scoreLabel, formatDateCourt , loadBareme, BAREME_DEFAUT, getSensForEleve, calcEtatEleve } from '../lib/helpers';
 import { getSouratesForNiveau } from '../lib/sourates';
 import { t } from '../lib/i18n';
 
@@ -27,6 +27,8 @@ export default function PortailParent({ parent, navigate, goBack, lang='fr', onL
   const [objectifs, setObjectifs] = useState([]);
   const [cotisations, setCotisations] = useState([]);
   const [souratesDB, setSouratesDB] = useState([]);
+  const [niveauxEcole, setNiveauxEcole] = useState([]);
+  const [ecoleConfig, setEcoleConfig] = useState(null);
   const [loading, setLoading] = useState(true);
   const [bareme, setBareme] = React.useState({...BAREME_DEFAUT});
   const [onglet, setOnglet] = useState('progression');
@@ -79,12 +81,16 @@ export default function PortailParent({ parent, navigate, goBack, lang='fr', onL
           supabase.from('cotisations').select('*')
         .in('eleve_id', ids).order('date_paiement',{ascending:false}),
           supabase.from('sourates').select('*'),
+          supabase.from('niveaux').select('id,code,sens_recitation').eq('ecole_id', parent.ecole_id),
+          supabase.from('ecoles').select('sens_recitation_defaut').eq('id', parent.ecole_id).maybeSingle(),
         ]);
         setValidations(results[0].status==='fulfilled'?results[0].value.data||[]:[]);
         setRecitations(results[1].status==='fulfilled'?results[1].value.data||[]:[]);
         setObjectifs(results[2].status==='fulfilled'?results[2].value.data||[]:[]);
         setCotisations(results[3].status==='fulfilled'?results[3].value.data||[]:[]);
         setSouratesDB(results[4].status==='fulfilled'?results[4].value.data||[]:[]);
+        setNiveauxEcole(results[5].status==='fulfilled'?results[5].value.data||[]:[]);
+        setEcoleConfig(results[6].status==='fulfilled'?results[6].value.data||null:null);
       }
     } catch(e) { toast.error('Erreur de chargement'); }
     setLoading(false);
@@ -482,7 +488,15 @@ export default function PortailParent({ parent, navigate, goBack, lang='fr', onL
                 </div>
               );
             })():(()=>{
-              const totalTomon = (60-((eleve.hizb_depart||1)-1))*8 - ((eleve.tomon_depart||1)-1);
+              // Le total à mémoriser dépend du sens :
+              // desc : de hizb_depart jusqu'à Hizb 1 = (hizb_depart*8) - (tomon_depart-1)
+              // asc  : de hizb_depart jusqu'à Hizb 60 = ((60-hizb_depart+1)*8) - (tomon_depart-1)
+              const sensE = getSensForEleve(eleve, niveauxEcole, ecoleConfig);
+              const hD = eleve.hizb_depart || (sensE === 'asc' ? 1 : 60);
+              const tD = eleve.tomon_depart || 1;
+              const totalTomon = sensE === 'asc'
+                ? (60 - hD + 1) * 8 - (tD - 1)
+                : hD * 8 - (tD - 1);
               const pct = Math.min(100, Math.round(tomon/Math.max(totalTomon,1)*100));
               return(
                 <div>

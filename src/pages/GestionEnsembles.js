@@ -9,6 +9,7 @@ export default function GestionEnsembles({ user, navigate, goBack, lang='fr', is
   const [ensembles,    setEnsembles]    = useState([]);
   const [souratesDB,   setSouratesDB]   = useState([]);
   const [programmeIds, setProgrammeIds] = useState([]);
+  const [ecoleConfig,  setEcoleConfig]  = useState(null);
   const [loading,      setLoading]      = useState(true);
   const [saving,       setSaving]       = useState(false);
   const [showForm,     setShowForm]     = useState(false);
@@ -25,16 +26,18 @@ export default function GestionEnsembles({ user, navigate, goBack, lang='fr', is
 
   const loadAll = async (niveauAafficher) => {
     setLoading(true);
-    const [{ data: nd }, { data: ed }, { data: sd }] = await Promise.all([
-      supabase.from('niveaux').select('id,code,nom,type,couleur')
+    const [{ data: nd }, { data: ed }, { data: sd }, { data: ec }] = await Promise.all([
+      supabase.from('niveaux').select('id,code,nom,type,couleur,sens_recitation')
         .eq('ecole_id', user.ecole_id).eq('type', 'sourate').order('ordre'),
       supabase.from('ensembles_sourates').select('*')
         .eq('ecole_id', user.ecole_id).order('niveau_id,ordre'),
       supabase.from('sourates').select('*').order('numero'),
+      supabase.from('ecoles').select('sens_recitation_defaut').eq('id', user.ecole_id).maybeSingle(),
     ]);
     setNiveaux(nd || []);
     setEnsembles(ed || []);
     setSouratesDB(sd || []);
+    setEcoleConfig(ec || null);
     setLoading(false);
   };
 
@@ -131,7 +134,12 @@ export default function GestionEnsembles({ user, navigate, goBack, lang='fr', is
   // ── DONNÉES CALCULÉES ──────────────────────────────────────────
   const niveauForm = niveaux.find(n => n.id === form.niveau_id);
   const ncForm = niveauForm?.couleur || '#1D9E75';
-  const souratesProg = souratesDB.filter(s => programmeIds.includes(s.id)).sort((a, b) => b.numero - a.numero);
+  const sensForm = niveauForm?.sens_recitation || ecoleConfig?.sens_recitation_defaut || 'desc';
+  // Tri des sourates selon le sens du niveau :
+  // desc = 114 → 1 (on commence par An-Nas)
+  // asc  = 1 → 114 (on commence par Al-Fatiha)
+  const souratesProg = souratesDB.filter(s => programmeIds.includes(s.id))
+    .sort((a, b) => sensForm === 'asc' ? a.numero - b.numero : b.numero - a.numero);
   const sAffectees = ensembles
     .filter(e => e.niveau_id === form.niveau_id && e.id !== editing)
     .flatMap(e => e.sourates_ids || []);
@@ -328,7 +336,10 @@ export default function GestionEnsembles({ user, navigate, goBack, lang='fr', is
 
   // ── CARTE ENSEMBLE ─────────────────────────────────────────────
   const CarteEnsemble = ({ e, cniv }) => {
-    const sEns = souratesDB.filter(s => (e.sourates_ids || []).includes(s.id)).sort((a, b) => b.numero - a.numero);
+    const niveauE = niveaux.find(n => n.id === e.niveau_id);
+    const sensE = niveauE?.sens_recitation || ecoleConfig?.sens_recitation_defaut || 'desc';
+    const sEns = souratesDB.filter(s => (e.sourates_ids || []).includes(s.id))
+      .sort((a, b) => sensE === 'asc' ? a.numero - b.numero : b.numero - a.numero);
     return (
       <div onClick={()=>openEdit(e)}
         style={{ background:'#fff', borderRadius:14, padding:'1.1rem',

@@ -82,11 +82,13 @@ export default function RecitationSourate({ user, eleve, navigate, goBack, lang=
   const [flash, setFlash] = useState(null);
   const [bareme, setBareme] = useState(null);
   const [showExceptionModal, setShowExceptionModal] = useState(false);
+  const [sensRecitation, setSensRecitation] = useState('desc');
 
   const codeNiveau = eleve.code_niveau || '5B';
   const souratesNiveau = getSouratesForNiveau(codeNiveau);
-  // Order: 114 first → descending (start from shortest)
-  const souratesOrdonnees = [...souratesNiveau].sort((a,b) => b.numero - a.numero);
+  // Ordre selon le sens : desc = 114→1 (plus courtes d'abord), asc = 1→114
+  const souratesOrdonnees = [...souratesNiveau].sort((a,b) =>
+    sensRecitation === 'asc' ? a.numero - b.numero : b.numero - a.numero);
   const isPrivilegied = user.role === 'surveillant';
 
   useEffect(() => {
@@ -105,11 +107,16 @@ export default function RecitationSourate({ user, eleve, navigate, goBack, lang=
   const loadData = async () => {
     setLoading(true);
     try {
-    const [{ data: sdb }, { data: rd }] = await Promise.all([
+    const [{ data: sdb }, { data: rd }, { data: nv }, { data: ec }] = await Promise.all([
       supabase.from('sourates').select('*'),
       supabase.from('recitations_sourates').select('*, valideur:valide_par(prenom,nom)')
         .eq('ecole_id', user.ecole_id).eq('eleve_id', eleve.id).order('date_validation', { ascending: false }),
+      supabase.from('niveaux').select('code,sens_recitation').eq('ecole_id', user.ecole_id).eq('code', codeNiveau).maybeSingle(),
+      supabase.from('ecoles').select('sens_recitation_defaut').eq('id', user.ecole_id).maybeSingle(),
     ]);
+    // Résolution du sens : niveau > école > desc
+    const resolvedSens = nv?.sens_recitation || ec?.sens_recitation_defaut || 'desc';
+    setSensRecitation(resolvedSens);
     // Safe load for exceptions (table may not exist)
     let ex = [];
     try {
@@ -134,7 +141,8 @@ export default function RecitationSourate({ user, eleve, navigate, goBack, lang=
     // Find the current sourate based on acquis and completions
     const souratesAcq = eleve.sourates_acquises || 0;
     const souratesNiv = getSouratesForNiveau(eleve.code_niveau || '5B');
-    const souratesOrd = [...souratesNiv].sort((a,b) => b.numero - a.numero);
+    const souratesOrd = [...souratesNiv].sort((a,b) =>
+      resolvedSens === 'asc' ? a.numero - b.numero : b.numero - a.numero);
     
     const getDbIdLocal = (numero) => sdbData.find(s => s.numero === numero)?.id;
     const isCompleteLocal = (numero) => {

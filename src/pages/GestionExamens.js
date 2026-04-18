@@ -4,13 +4,12 @@ import { useToast } from '../lib/toast';
 import { getSouratesForNiveau } from '../lib/sourates';
 import { t } from '../lib/i18n';
 
-const HIZB_NUMS = Array.from({length:60}, (_,i) => 60-i);
-
 export default function GestionExamens({ user, navigate, goBack, lang='fr', isMobile }) {
   const { toast } = useToast();
   const [niveaux,    setNiveaux]    = useState([]);
   const [examens,    setExamens]    = useState([]);
   const [souratesDB, setSouratesDB] = useState([]);
+  const [ecoleConfig, setEcoleConfig] = useState(null);
   const [loading,    setLoading]    = useState(true);
   const [saving,     setSaving]     = useState(false);
   const [showForm,   setShowForm]   = useState(false);
@@ -33,12 +32,14 @@ export default function GestionExamens({ user, navigate, goBack, lang='fr', isMo
   const loadData = async () => {
     setLoading(true);
     try {
-    const [{data:nd},{data:ed},{data:sd}] = await Promise.all([
-      supabase.from('niveaux').select('id,code,nom,type,couleur').eq('ecole_id',user.ecole_id).order('ordre'),
+    const [{data:nd},{data:ed},{data:sd},{data:ec}] = await Promise.all([
+      supabase.from('niveaux').select('id,code,nom,type,couleur,sens_recitation').eq('ecole_id',user.ecole_id).order('ordre'),
       supabase.from('examens').select('*').eq('ecole_id',user.ecole_id).order('ordre'),
       supabase.from('sourates').select('*').order('numero'),
+      supabase.from('ecoles').select('sens_recitation_defaut').eq('id',user.ecole_id).maybeSingle(),
     ]);
     setNiveaux(nd||[]);
+    setEcoleConfig(ec||null);
     // Enrichir chaque examen avec les données de son niveau
     const examensenrichis = (ed||[]).map(e=>({
       ...e,
@@ -319,9 +320,12 @@ export default function GestionExamens({ user, navigate, goBack, lang='fr', isMo
                       {lang==='ar'?'من برنامج المستوى':'Du programme du niveau'}
                     </span>
                   </div>
-                  {/* Grille des Hizb du programme uniquement */}
+                  {/* Grille des Hizb du programme uniquement, triés selon le sens du niveau */}
                   <div style={{display:'grid',gridTemplateColumns:'repeat(10,1fr)',gap:4}}>
-                    {[...programmeNiveau].sort((a,b)=>b-a).map(h=>{
+                    {(() => {
+                      const sensNiv = niveauDuForm?.sens_recitation || ecoleConfig?.sens_recitation_defaut || 'desc';
+                      const sorted = [...programmeNiveau].sort((a,b) => sensNiv === 'asc' ? a - b : b - a);
+                      return sorted.map(h=>{
                       const sel=form.contenu_ids.includes(h);
                       return(
                         <div key={h} onClick={()=>toggleItem(h)}
@@ -334,7 +338,8 @@ export default function GestionExamens({ user, navigate, goBack, lang='fr', isMo
                           {h}
                         </div>
                       );
-                    })}
+                    });
+                    })()}
                   </div>
                 </>
               )}
