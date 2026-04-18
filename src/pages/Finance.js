@@ -439,12 +439,12 @@ export default function Finance({ user, navigate, goBack, lang='fr', isMobile })
           +'<td>'+cat.icon+' '+(lang==='ar'?cat.labelAr:cat.label)+'</td>'
           +'<td>'+d.description+'</td>'
           +'<td>'+(d.beneficiaire?d.beneficiaire.prenom+' '+d.beneficiaire.nom:'—')+'</td>'
-          +'<td><strong style="color:#E24B4A">'+parseFloat(d.montant||0).toLocaleString()+' MAD</strong></td>'
+          +'<td><strong style="color:#1e3a5f">'+parseFloat(d.montant||0).toLocaleString()+' MAD</strong></td>'
           +'<td style="color:#888">'+d.date_depense+'</td></tr>';
       }).join('');
       const total = depFiltrees.reduce((s,d)=>s+parseFloat(d.montant||0),0);
       const html = '<!DOCTYPE html><html dir="'+(lang==='ar'?'rtl':'ltr')+'" lang="'+(lang==='ar'?'ar':'fr')+'"><head><meta charset="UTF-8"><title>Dépenses</title>'
-        +'<style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:Tajawal,Arial,sans-serif;padding:20px;font-size:12px}.header{background:linear-gradient(135deg,#A32D2D,#E24B4A);color:#fff;padding:16px 20px;border-radius:10px;margin-bottom:16px}table{width:100%;border-collapse:collapse}th{background:#A32D2D;color:#fff;padding:8px;text-align:start;font-size:11px}td{padding:6px 8px;border-bottom:1px solid #f0f0ec}.footer{margin-top:14px;font-size:9px;color:#bbb;border-top:1px solid #e0e0d8;padding-top:8px;text-align:center}</style></head><body>'
+        +'<style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:Tajawal,Arial,sans-serif;padding:20px;font-size:12px}.header{background:linear-gradient(135deg,#1e3a5f,#3b5a82);color:#fff;padding:16px 20px;border-radius:10px;margin-bottom:16px}table{width:100%;border-collapse:collapse}th{background:#1e3a5f;color:#fff;padding:8px;text-align:start;font-size:11px}td{padding:6px 8px;border-bottom:1px solid #f0f0ec}.footer{margin-top:14px;font-size:9px;color:#bbb;border-top:1px solid #e0e0d8;padding-top:8px;text-align:center}</style></head><body>'
         +'<div class="header"><h1 style="font-size:18px;font-weight:800">📤 '+(lang==='ar'?'المصاريف':'Dépenses')+'</h1><div style="font-size:11px;opacity:0.8">'+dateDebut+' → '+dateFin+' · '+depFiltrees.length+' entrées · Total: '+total.toLocaleString()+' MAD</div></div>'
         +'<table><thead><tr><th>#</th><th>'+(lang==='ar'?'الفئة':'Catégorie')+'</th><th>'+(lang==='ar'?'الوصف':'Description')+'</th><th>'+(lang==='ar'?'المستفيد':'Bénéficiaire')+'</th><th>'+(lang==='ar'?'المبلغ':'Montant')+'</th><th>'+(lang==='ar'?'التاريخ':'Date')+'</th></tr></thead><tbody>'+rows+'</tbody></table>'
         +'<div class="footer">Généré le '+new Date().toLocaleDateString('fr-FR',{day:'2-digit',month:'long',year:'numeric'})+' · متابعة التحفيظ</div></body></html>';
@@ -508,7 +508,7 @@ export default function Finance({ user, navigate, goBack, lang='fr', isMobile })
         +'<td>'+cat.icon+' '+(lang==='ar'?cat.labelAr:cat.label)+'</td>'
         +'<td>'+d.description+'</td>'
         +'<td>'+(d.beneficiaire?d.beneficiaire.prenom+' '+d.beneficiaire.nom:'—')+'</td>'
-        +'<td><strong style="color:#E24B4A">'+parseFloat(d.montant||0).toLocaleString()+' MAD</strong></td>'
+        +'<td><strong style="color:#1e3a5f">'+parseFloat(d.montant||0).toLocaleString()+' MAD</strong></td>'
         +'<td style="color:#888">'+d.date_depense+'</td></tr>';
     }).join('');
 
@@ -580,7 +580,7 @@ export default function Finance({ user, navigate, goBack, lang='fr', isMobile })
     return (
       <div style={{paddingBottom:80,background:'#f5f5f0',minHeight:'100vh'}}>
         {/* Sticky header */}
-        <div style={{background:'linear-gradient(135deg,#E24B4A,#A32D2D)',padding:'48px 16px 14px',position:'sticky',top:0,zIndex:100}}>
+        <div style={{background:'linear-gradient(135deg,#1e3a5f,#3b5a82)',padding:'48px 16px 14px',position:'sticky',top:0,zIndex:100}}>
           <div style={{display:'flex',alignItems:'center',gap:12,marginBottom:8}}>
             <button onClick={()=>goBack?goBack():navigate('dashboard')}
               style={{background:'rgba(255,255,255,0.22)',border:'1px solid rgba(255,255,255,0.25)',borderRadius:10,padding:'0',color:'#fff',fontSize:20,cursor:'pointer',flexShrink:0,width:38,height:38,display:'flex',alignItems:'center',justifyContent:'center'}}>←</button>
@@ -609,7 +609,7 @@ export default function Finance({ user, navigate, goBack, lang='fr', isMobile })
                 <div style={{display:'grid',gridTemplateColumns:'repeat(2,1fr)',gap:10,marginBottom:12}}>
                   {[
                     {icon:'📥',label:lang==='ar'?'إجمالي الاشتراكات':'Cotisations',val:fmtMAD(totalCotisations),color:'#1D9E75',bg:'#E1F5EE'},
-                    {icon:'📤',label:lang==='ar'?'إجمالي المصاريف':'Dépenses',val:fmtMAD(totalDepenses),color:'#E24B4A',bg:'#FCEBEB'},
+                    {icon:'📤',label:lang==='ar'?'إجمالي المصاريف':'Dépenses',val:fmtMAD(totalDepenses),color:'#1e3a5f',bg:'#E8EDF5'},
                     {icon:'💵',label:lang==='ar'?'الرصيد':'Solde',val:fmtMAD(totalCotisations-totalDepenses),
                       color:(totalCotisations-totalDepenses)>=0?'#085041':'#E24B4A',
                       bg:(totalCotisations-totalDepenses)>=0?'#E1F5EE':'#FCEBEB'},
@@ -662,7 +662,7 @@ export default function Finance({ user, navigate, goBack, lang='fr', isMobile })
             {onglet==='depenses' && (
               <div>
                 <button onClick={()=>setShowFormDep(true)}
-                  style={{width:'100%',padding:'14px',background:'#E24B4A',color:'#fff',border:'none',
+                  style={{width:'100%',padding:'14px',background:'#1e3a5f',color:'#fff',border:'none',
                     borderRadius:12,fontSize:15,fontWeight:700,cursor:'pointer',fontFamily:'inherit',marginBottom:12}}>
                   + {lang==='ar'?'إضافة مصروف':'Ajouter dépense'}
                 </button>
@@ -680,7 +680,7 @@ export default function Finance({ user, navigate, goBack, lang='fr', isMobile })
                       </div>
                     </div>
                     <div style={{textAlign:'right',flexShrink:0}}>
-                      <div style={{fontSize:16,fontWeight:800,color:'#E24B4A'}}>{fmtMAD(d.montant)}</div>
+                      <div style={{fontSize:16,fontWeight:800,color:'#1e3a5f'}}>{fmtMAD(d.montant)}</div>
                     </div>
                   </div>
                 ))}
@@ -763,13 +763,13 @@ export default function Finance({ user, navigate, goBack, lang='fr', isMobile })
           <>
             <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:10,marginBottom:'1rem'}}>
               <StatCard icon="📥" val={fmtMAD(totalCotisations)} lbl={lang==='ar'?'إجمالي الاشتراكات':'Total cotisations'} color="#1D9E75" bg="#E1F5EE" sub={cotPeriode.length+(lang==='ar'?' دفعة':' versements')}/>
-              <StatCard icon="📤" val={fmtMAD(totalDepenses)} lbl={lang==='ar'?'إجمالي المصاريف':'Total dépenses'} color="#E24B4A" bg="#FCEBEB" sub={depPeriode.length+(lang==='ar'?' عملية':' opérations')}/>
+              <StatCard icon="📤" val={fmtMAD(totalDepenses)} lbl={lang==='ar'?'إجمالي المصاريف':'Total dépenses'} color="#1e3a5f" bg="#E8EDF5" sub={depPeriode.length+(lang==='ar'?' عملية':' opérations')}/>
               <StatCard icon={solde>=0?'✅':'⚠️'} val={fmtMAD(Math.abs(solde))} lbl={lang==='ar'?'الرصيد':'Solde'} color={solde>=0?'#085041':'#E24B4A'} bg={solde>=0?'#E1F5EE':'#FCEBEB'} sub={solde>=0?(lang==='ar'?'فائض':'Excédent'):(lang==='ar'?'عجز':'Déficit')}/>
             </div>
             <div style={{display:'grid',gridTemplateColumns:'repeat(5,1fr)',gap:8,marginBottom:'1rem'}}>
               {[
                 {val:cotPeriode.length, lbl:lang==='ar'?'اشتراك في الفترة':'Cotisations période', color:'#1D9E75', bg:'#E1F5EE'},
-                {val:depPeriode.length, lbl:lang==='ar'?'مصروف في الفترة':'Dépenses période', color:'#E24B4A', bg:'#FCEBEB'},
+                {val:depPeriode.length, lbl:lang==='ar'?'مصروف في الفترة':'Dépenses période', color:'#1e3a5f', bg:'#E8EDF5'},
                 {val:nbElevesPayes, lbl:lang==='ar'?'طالب مدفوع':'Élèves payés', color:'#378ADD', bg:'#E6F1FB'},
                 {val:nbElevesPartiel, lbl:lang==='ar'?'جزئي':'Partiels', color:'#EF9F27', bg:'#FAEEDA'},
                 {val:nbElevesExoneres, lbl:lang==='ar'?'معفى':'Exonérés', color:'#888', bg:'#f5f5f0'},
@@ -816,14 +816,14 @@ export default function Finance({ user, navigate, goBack, lang='fr', isMobile })
                 {cotPeriode.length===0&&<div className="empty" style={{fontSize:12}}>Aucune cotisation</div>}
               </div>
               <div style={{background:'#fff',border:'0.5px solid #e0e0d8',borderRadius:14,padding:'1rem'}}>
-                <div style={{fontSize:13,fontWeight:600,marginBottom:8,color:'#E24B4A'}}>📤 {lang==='ar'?'آخر المصاريف':'Dernières dépenses'}</div>
+                <div style={{fontSize:13,fontWeight:600,marginBottom:8,color:'#1e3a5f'}}>📤 {lang==='ar'?'آخر المصاريف':'Dernières dépenses'}</div>
                 {depPeriode.slice(0,5).map(d=>{
                   const cat=CATEGORIES.find(c=>c.val===d.categorie)||CATEGORIES[5];
                   return(
                     <div key={d.id} style={{display:'flex',alignItems:'center',gap:8,padding:'7px 0',borderBottom:'0.5px solid #f0f0ec'}}>
                       <span style={{fontSize:14}}>{cat.icon}</span>
                       <div style={{flex:1,fontSize:12,fontWeight:500,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{d.description}</div>
-                      <span style={{fontSize:12,fontWeight:700,color:'#E24B4A'}}>{fmtMAD(d.montant)}</span>
+                      <span style={{fontSize:12,fontWeight:700,color:'#1e3a5f'}}>{fmtMAD(d.montant)}</span>
                     </div>
                   );
                 })}
@@ -1019,8 +1019,8 @@ export default function Finance({ user, navigate, goBack, lang='fr', isMobile })
             </div>
 
             {showFormDep&&(
-              <div style={{background:'#fff',border:'1.5px solid #E24B4A',borderRadius:16,padding:'1.5rem',marginBottom:'1.25rem'}}>
-                <div style={{fontSize:14,fontWeight:600,color:'#A32D2D',marginBottom:'1rem'}}>{editingDepId?'✏️':'📤'} {editingDepId?(lang==='ar'?'تعديل المصروف':'Modifier dépense'):(lang==='ar'?'تسجيل مصروف جديد':'Nouvelle dépense')}</div>
+              <div style={{background:'#fff',border:'1.5px solid #1e3a5f',borderRadius:16,padding:'1.5rem',marginBottom:'1.25rem'}}>
+                <div style={{fontSize:14,fontWeight:600,color:'#1e3a5f',marginBottom:'1rem'}}>{editingDepId?'✏️':'📤'} {editingDepId?(lang==='ar'?'تعديل المصروف':'Modifier dépense'):(lang==='ar'?'تسجيل مصروف جديد':'Nouvelle dépense')}</div>
                 {/* Catégorie */}
                 <div style={{marginBottom:12}}>
                   <label className="field-lbl">{lang==='ar'?'الفئة':'Catégorie'} *</label>
@@ -1062,7 +1062,7 @@ export default function Finance({ user, navigate, goBack, lang='fr', isMobile })
                     <input className="field-input" value={formDep.reference} onChange={e=>setFormDep(f=>({...f,reference:e.target.value}))} placeholder="Numéro facture, bon..."/>
                   </div>
                 </div>
-                <button className="btn-primary" style={{background:'#E24B4A'}} onClick={saveDepense} disabled={saving}>
+                <button className="btn-primary" style={{background:'#1e3a5f'}} onClick={saveDepense} disabled={saving}>
                   {saving?'...':(editingDepId?'✓ '+(lang==='ar'?'تحديث':'Mettre à jour'):'✓ '+(lang==='ar'?'حفظ':'Enregistrer'))}
                 </button>
               </div>
@@ -1323,7 +1323,7 @@ export default function Finance({ user, navigate, goBack, lang='fr', isMobile })
           <div style={{background:'#fff',width:'100%',maxHeight:'92vh',overflowY:'auto',borderRadius:'16px 16px 0 0',padding:'16px 16px 24px',animation:'slideUp 0.2s ease-out'}}
                onClick={e=>e.stopPropagation()}>
             <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:14,paddingBottom:10,borderBottom:'1px solid #f0f0ec'}}>
-              <div style={{fontSize:16,fontWeight:800,color:'#A32D2D'}}>
+              <div style={{fontSize:16,fontWeight:800,color:'#1e3a5f'}}>
                 {editingDepId?'✏️ ':'📤 '}{editingDepId?(lang==='ar'?'تعديل مصروف':'Modifier dépense'):(lang==='ar'?'مصروف جديد':'Nouvelle dépense')}
               </div>
               <button onClick={()=>{setShowFormDep(false);setEditingDepId(null);}}
@@ -1401,7 +1401,7 @@ export default function Finance({ user, navigate, goBack, lang='fr', isMobile })
               </button>
               <button onClick={saveDepense} disabled={saving||!formDep.montant||!formDep.date_depense||!formDep.categorie}
                 style={{flex:2,padding:'14px',borderRadius:12,border:'none',
-                  background:(saving||!formDep.montant||!formDep.date_depense||!formDep.categorie)?'#ccc':'#A32D2D',
+                  background:(saving||!formDep.montant||!formDep.date_depense||!formDep.categorie)?'#ccc':'#1e3a5f',
                   color:'#fff',fontSize:14,fontWeight:700,cursor:(saving||!formDep.montant||!formDep.date_depense||!formDep.categorie)?'default':'pointer',fontFamily:'inherit'}}>
                 {saving?'...':(editingDepId?'✓ '+(lang==='ar'?'تحديث':'Mettre à jour'):'✓ '+(lang==='ar'?'حفظ':'Enregistrer'))}
               </button>
