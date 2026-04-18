@@ -603,8 +603,8 @@ function SensRecitationTab({ user, lang, ecoleConfig, setEcoleConfig, niveaux, s
         </div>
         <div style={{fontSize:12,color:'#666',marginBottom:12,lineHeight:1.5}}>
           {lang === 'ar'
-            ? 'يُطبَّق هذا الاتجاه على جميع المستويات التي لم تحدد اتجاهها الخاص.'
-            : 'Ce sens s\'applique à tous les niveaux qui n\'ont pas défini leur propre sens.'}
+            ? 'يُطبَّق هذا الاتجاه تلقائيًا عند إنشاء مستوى جديد. يمكنك تغيير اتجاه كل مستوى بشكل فردي أدناه.'
+            : 'Ce sens sera appliqué automatiquement à tout nouveau niveau créé. Vous pouvez modifier le sens de chaque niveau individuellement plus bas.'}
         </div>
         <div style={{display:'flex',gap:10,flexWrap:'wrap'}}>
           {['desc','asc'].map(s => (
@@ -634,8 +634,8 @@ function SensRecitationTab({ user, lang, ecoleConfig, setEcoleConfig, niveaux, s
         </div>
         <div style={{fontSize:12,color:'#666',marginBottom:14,lineHeight:1.5}}>
           {lang === 'ar'
-            ? 'يمكنك تخصيص اتجاه التحفيظ لكل مستوى على حدة. المستويات التي تحتوي على استظهارات مسجلة لا يمكن تغيير اتجاهها.'
-            : 'Vous pouvez surcharger le sens pour chaque niveau. Les niveaux avec des validations déjà enregistrées ne peuvent plus changer de sens.'}
+            ? 'حدد اتجاه التحفيظ لكل مستوى. المستويات التي تحتوي على استظهارات مسجلة لا يمكن تغيير اتجاهها.'
+            : 'Définissez le sens de récitation pour chaque niveau. Les niveaux avec des validations déjà enregistrées ne peuvent plus changer de sens.'}
         </div>
         {loading ? (
           <div style={{padding:'1rem',color:'#888',fontSize:12}}>
@@ -672,15 +672,9 @@ function SensRecitationTab({ user, lang, ecoleConfig, setEcoleConfig, niveaux, s
                       {n.nom || n.code}
                     </div>
                     <div style={{fontSize:11,color:'#888',marginTop:2}}>
-                      {sensSurcharge ? (
-                        <span style={{color:'#085041',fontWeight:600}}>
-                          {lang === 'ar' ? 'مخصص: ' : 'Surchargé : '}{libelleShort(sensSurcharge)}
-                        </span>
-                      ) : (
-                        <span>
-                          {lang === 'ar' ? 'يستخدم الافتراضي: ' : 'Utilise le défaut : '}{libelleShort(sensDefaut)}
-                        </span>
-                      )}
+                      <span style={{color:'#085041',fontWeight:600}}>
+                        {libelleShort(sensEffectif)}
+                      </span>
                       {bloque && (
                         <span style={{marginInlineStart:6,color:'#EF9F27',fontWeight:600}}>
                           · 🔒 {nbVal} {lang === 'ar' ? 'استظهار' : 'validation(s)'}
@@ -690,14 +684,13 @@ function SensRecitationTab({ user, lang, ecoleConfig, setEcoleConfig, niveaux, s
                   </div>
                   <div style={{display:'flex',gap:4,flexWrap:'wrap'}}>
                     {[
-                      { val: null, label: lang === 'ar' ? 'افتراضي' : 'Défaut', icon: '🏫' },
                       { val: 'desc', label: lang === 'ar' ? 'تنازلي' : 'Décroissant', icon: '📉' },
                       { val: 'asc', label: lang === 'ar' ? 'تصاعدي' : 'Croissant', icon: '📈' },
                     ].map(opt => {
-                      const isCurrent = sensSurcharge === opt.val;
-                      // bloqué si le niveau a des validations ET que ce choix changerait le sens effectif
-                      const nouveauEffectif = opt.val === null ? sensDefaut : opt.val;
-                      const changeSens = sensEffectif !== nouveauEffectif;
+                      // Le bouton "actif" est celui qui correspond au sens effectif du niveau
+                      const isCurrent = sensEffectif === opt.val;
+                      // bloqué si le niveau a des validations ET que ce choix changerait le sens
+                      const changeSens = sensEffectif !== opt.val;
                       const disabled = saving || isCurrent || (bloque && changeSens);
                       return (
                         <button key={String(opt.val)}
