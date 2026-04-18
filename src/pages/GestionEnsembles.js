@@ -424,10 +424,10 @@ export default function GestionEnsembles({ user, navigate, goBack, lang='fr', is
       {/* Header */}
       <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'1.25rem' }}>
         <div style={{ display:'flex', alignItems:'center', gap:12 }}>
-          <button style={{background:'rgba(255,255,255,0.22)',border:'1px solid rgba(255,255,255,0.25)',borderRadius:10,padding:'0',color:'#fff',fontSize:20,cursor:'pointer',flexShrink:0,width:38,height:38,display:'flex',alignItems:'center',justifyContent:'center',fontFamily:"inherit"}} onClick={() => goBack ? goBack() : navigate('dashboard')}>←</button>
+          <button className="back-link" onClick={() => goBack ? goBack() : navigate('dashboard')}></button>
           <div>
-            <div style={{ fontSize:20, fontWeight:800, color:'#fff' }}>📦 {lang === 'ar' ? 'مجموعات السور' : 'Ensembles de sourates'}</div>
-            <div style={{ fontSize:11, color:'#aaa', marginTop:1 }}>
+            <div style={{ fontSize:20, fontWeight:800, color:'#085041' }}>📦 {lang === 'ar' ? 'مجموعات السور' : 'Ensembles de sourates'}</div>
+            <div style={{ fontSize:11, color:'#888', marginTop:1 }}>
               {ensembles.length} {lang==='ar'?'مجموعة في':'ensemble(s) sur'} {niveaux.length} {lang==='ar'?'مستوى':'niveaux'}
             </div>
           </div>

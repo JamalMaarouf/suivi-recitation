@@ -689,8 +689,8 @@ export default function GestionObjectifs({ user, navigate, goBack, lang='fr', is
     <div>
       <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'1.25rem'}}>
         <div style={{display:'flex',alignItems:'center',gap:10}}>
-          <button onClick={()=>goBack?goBack():navigate('dashboard')} style={{background:'rgba(255,255,255,0.22)',border:'1px solid rgba(255,255,255,0.25)',borderRadius:10,padding:'0',color:'#fff',fontSize:20,cursor:'pointer',flexShrink:0,width:38,height:38,display:'flex',alignItems:'center',justifyContent:'center'}}>←</button>
-          <div style={{fontSize:20,fontWeight:700}}>🎯 {lang==='ar'?'الأهداف':'Gestion des objectifs'}</div>
+          <button className="back-link" onClick={()=>goBack?goBack():navigate('dashboard')}></button>
+          <div style={{fontSize:20,fontWeight:700,color:'#085041'}}>🎯 {lang==='ar'?'الأهداف':'Gestion des objectifs'}</div>
         </div>
         <button onClick={showForm?()=>{setShowForm(false);setEditing(null);}:startCreate}
           style={{padding:'8px 18px',background:showForm?'#f0f0ec':'#1D9E75',

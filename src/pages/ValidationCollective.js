@@ -470,7 +470,7 @@ export default function ValidationCollective({ user, navigate, goBack, lang='fr'
             </>
           )}
           <div style={{display:'flex',gap:10,marginTop:20}}>
-            <button onClick={()=>setStep(1)} style={{background:"rgba(255,255,255,0.2)",border:"none",borderRadius:10,padding:"8px 12px",color:"#fff",fontSize:16,cursor:"pointer",fontFamily:"inherit"}}>←</button>
+            <button onClick={()=>setStep(1)} style={{background:'#f5f5f0',border:'1px solid #d0d0c8',borderRadius:10,padding:'8px 14px',color:'#374151',fontSize:16,cursor:'pointer',fontFamily:"inherit",fontWeight:600}}>←</button>
             <button onClick={()=>setStep(3)} disabled={!canProceedStep2()}
               style={{flex:1,padding:'10px',background:canProceedStep2()?'#085041':'#ccc',color:'#fff',border:'none',borderRadius:10,fontWeight:600,cursor:canProceedStep2()?'pointer':'default'}}>
               {lang==='ar'?'التالي: التأكيد ←':'Suivant : Confirmation →'}
@@ -584,7 +584,7 @@ export default function ValidationCollective({ user, navigate, goBack, lang='fr'
           </div>
 
           <div style={{display:'flex',gap:10}}>
-            <button onClick={()=>setStep(2)} style={{background:"rgba(255,255,255,0.2)",border:"none",borderRadius:10,padding:"8px 12px",color:"#fff",fontSize:16,cursor:"pointer",fontFamily:"inherit"}}>←</button>
+            <button onClick={()=>setStep(2)} style={{background:'#f5f5f0',border:'1px solid #d0d0c8',borderRadius:10,padding:'8px 14px',color:'#374151',fontSize:16,cursor:'pointer',fontFamily:"inherit",fontWeight:600}}>←</button>
             <button onClick={handleValider} disabled={saving||(!toutLeNiveau&&elevesRetenus.length===0)}
               style={{flex:1,padding:'12px',
                 background:saving||(!toutLeNiveau&&elevesRetenus.length===0)?'#ccc':'#1D9E75',
