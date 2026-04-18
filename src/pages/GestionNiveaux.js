@@ -4,7 +4,10 @@ import { useToast } from '../lib/toast';
 import { getSouratesForNiveau, getSouratesDesc } from '../lib/sourates';
 import { t } from '../lib/i18n';
 
-const HIZB_NUMS = Array.from({length:60}, (_,i) => 60-i);
+// Liste des Hizb selon un sens donne (desc = 60->1, asc = 1->60)
+const makeHizbList = (sens) => sens === 'asc'
+  ? Array.from({length:60}, (_,i) => i+1)
+  : Array.from({length:60}, (_,i) => 60-i);
 
 const COULEURS_PRESET = [
   '#534AB7','#378ADD','#1D9E75','#EF9F27','#E24B4A',
@@ -30,6 +33,7 @@ export default function GestionNiveaux({ user, navigate, goBack, lang='fr', isMo
   const panneauScrollRef = React.useRef(null);
   const [souratesDB, setSouratesDB]           = useState([]);
   const [savingProg, setSavingProg]           = useState(false);
+  const [ecoleConfig, setEcoleConfig]         = useState(null);
 
   useEffect(() => { loadData(); }, []);
 
@@ -38,12 +42,14 @@ export default function GestionNiveaux({ user, navigate, goBack, lang='fr', isMo
   const loadData = async () => {
     setLoading(true);
     try {
-    const [{ data }, { data: sd }] = await Promise.all([
+    const [{ data }, { data: sd }, { data: ec }] = await Promise.all([
       supabase.from('niveaux').select('*').eq('ecole_id', user.ecole_id).order('ordre'),
       supabase.from('sourates').select('*').order('numero'),
+      supabase.from('ecoles').select('sens_recitation_defaut').eq('id', user.ecole_id).maybeSingle(),
     ]);
     setNiveaux(data || []);
     setSouratesDB(sd || []);
+    setEcoleConfig(ec || null);
     } catch (e) {
       console.error("Erreur:", e);
     }
@@ -455,7 +461,7 @@ export default function GestionNiveaux({ user, navigate, goBack, lang='fr', isMo
             {/* Grille Hizb */}
             {niveauProgramme.type==='hizb'&&(
               <div style={{display:'grid',gridTemplateColumns:'repeat(10,1fr)',gap:5}}>
-                {HIZB_NUMS.map(h=>{
+                {makeHizbList(niveauProgramme.sens_recitation || ecoleConfig?.sens_recitation_defaut || 'desc').map(h=>{
                   const sel = programme.includes(h);
                   return(
                     <div key={h} onClick={()=>toggleProgrammeItem(h)}
@@ -675,7 +681,10 @@ export default function GestionNiveaux({ user, navigate, goBack, lang='fr', isMo
                       )}
                     </div>
                     <div style={{display:'grid',gridTemplateColumns:'repeat(10,1fr)',gap:3}}>
-                      {HIZB_NUMS.map(h=>{
+                      {(() => {
+                        const nivEdit = editing ? niveaux.find(n=>n.id===editing) : null;
+                        const sensForm = nivEdit?.sens_recitation || ecoleConfig?.sens_recitation_defaut || 'desc';
+                        return makeHizbList(sensForm).map(h=>{
                         const sel=formProgramme.includes(h);
                         return(
                           <div key={h} onClick={()=>toggleFormProgramme(h)}
@@ -687,7 +696,8 @@ export default function GestionNiveaux({ user, navigate, goBack, lang='fr', isMo
                             {h}
                           </div>
                         );
-                      })}
+                      });
+                      })()}
                     </div>
                   </>
                 )}
@@ -959,7 +969,10 @@ export default function GestionNiveaux({ user, navigate, goBack, lang='fr', isMo
                   )}
                 </div>
                 <div style={{display:'grid',gridTemplateColumns:'repeat(12,1fr)',gap:4}}>
-                  {HIZB_NUMS.map(h=>{
+                  {(() => {
+                    const nivEdit = editing ? niveaux.find(n=>n.id===editing) : null;
+                    const sensForm = nivEdit?.sens_recitation || ecoleConfig?.sens_recitation_defaut || 'desc';
+                    return makeHizbList(sensForm).map(h=>{
                     const sel=formProgramme.includes(h);
                     return(
                       <div key={h} onClick={()=>toggleFormProgramme(h)}
@@ -970,7 +983,8 @@ export default function GestionNiveaux({ user, navigate, goBack, lang='fr', isMo
                         {h}
                       </div>
                     );
-                  })}
+                  });
+                  })()}
                 </div>
               </>
             )}

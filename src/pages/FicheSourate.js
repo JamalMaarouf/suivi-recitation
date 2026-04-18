@@ -33,17 +33,19 @@ export default function FicheSourate({ eleve, user, navigate, goBack, lang='fr',
   const [nouveauNiveau, setNouveauNiveau] = useState('');
   const [notePassage, setNotePassage] = useState('');
   const [savingPassage, setSavingPassage] = useState(false);
+  const [sensRecitation, setSensRecitation] = useState('desc');
   const codeNiveau = eleve.code_niveau || '5B';
   const souratesNiveau = getSouratesForNiveau(codeNiveau);
-  // Order: 114 → 72 (start from shortest)
-  const souratesOrdonnees = [...souratesNiveau].sort((a,b) => b.numero - a.numero);
+  // Ordre selon le sens : desc = 114→1 (plus courtes d'abord), asc = 1→114
+  const souratesOrdonnees = [...souratesNiveau].sort((a,b) =>
+    sensRecitation === 'asc' ? a.numero - b.numero : b.numero - a.numero);
 
   useEffect(() => { loadData(); }, [eleve.id]);
 
   const loadData = async () => {
     setLoading(true);
     try {
-    const [{ data: rd }, { data: sdb }, { data: mrec }, { data: mval }] = await Promise.all([
+    const [{ data: rd }, { data: sdb }, { data: mrec }, { data: mval }, { data: nv }, { data: ec }] = await Promise.all([
       supabase.from('recitations_sourates').select('*, valideur:valide_par(prenom,nom)')
         .eq('ecole_id', user.ecole_id).eq('eleve_id', eleve.id).eq('is_muraja', false).order('date_validation', {ascending:false}),
       supabase.from('sourates').select('*'),
@@ -51,7 +53,10 @@ export default function FicheSourate({ eleve, user, navigate, goBack, lang='fr',
         .eq('ecole_id', user.ecole_id).eq('eleve_id', eleve.id).eq('is_muraja', true).order('date_validation', {ascending:false}),
       supabase.from('validations').select('*, valideur:valide_par(prenom,nom)')
         .eq('ecole_id', user.ecole_id).eq('eleve_id', eleve.id).in('type_validation',['tomon_muraja','hizb_muraja']).order('date_validation', {ascending:false}),
+      supabase.from('niveaux').select('code,sens_recitation').eq('ecole_id', user.ecole_id).eq('code', codeNiveau).maybeSingle(),
+      supabase.from('ecoles').select('sens_recitation_defaut').eq('id', user.ecole_id).maybeSingle(),
     ]);
+    setSensRecitation(nv?.sens_recitation || ec?.sens_recitation_defaut || 'desc');
     if (eleve.instituteur_referent_id) {
       const { data: inst } = await supabase.from('utilisateurs').select('prenom,nom').eq('id', eleve.instituteur_referent_id).single();
       if (inst) setInstituteurNom(inst.prenom+' '+inst.nom);

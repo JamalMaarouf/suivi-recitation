@@ -3,7 +3,9 @@ import { supabase } from '../lib/supabase';
 import { useToast } from '../lib/toast';
 import { getSouratesForNiveau } from '../lib/sourates';
 
-const HIZB_NUMS = Array.from({length:60}, (_,i) => 60-i);
+const makeHizbList = (sens) => sens === 'asc'
+  ? Array.from({length:60}, (_,i) => i+1)
+  : Array.from({length:60}, (_,i) => 60-i);
 
 export default function GestionBlocs({ user, navigate, goBack, lang='fr', isMobile }) {
   const { toast } = useToast();
@@ -11,6 +13,7 @@ export default function GestionBlocs({ user, navigate, goBack, lang='fr', isMobi
   const [examens,   setExamens]   = useState([]);
   const [blocs,     setBlocs]     = useState([]);
   const [souratesDB,setSouratesDB]= useState([]);
+  const [ecoleConfig, setEcoleConfig] = useState(null);
   const [loading,   setLoading]   = useState(true);
   const [saving,    setSaving]    = useState(false);
 
@@ -30,16 +33,18 @@ export default function GestionBlocs({ user, navigate, goBack, lang='fr', isMobi
   const loadData = async () => {
     setLoading(true);
     try {
-    const [{ data:nd },{ data:ed },{ data:bd },{ data:sd }] = await Promise.all([
-      supabase.from('niveaux').select('id,code,nom,type,couleur').eq('ecole_id',user.ecole_id).order('ordre'),
+    const [{ data:nd },{ data:ed },{ data:bd },{ data:sd },{ data:ec }] = await Promise.all([
+      supabase.from('niveaux').select('id,code,nom,type,couleur,sens_recitation').eq('ecole_id',user.ecole_id).order('ordre'),
       supabase.from('examens').select('id,nom,niveau_id,type_seuil').eq('ecole_id',user.ecole_id).order('ordre'),
       supabase.from('blocs_examen').select('*, examen:examen_id(nom), niveau:niveau_id(code,nom,couleur)').eq('ecole_id',user.ecole_id).order('ordre'),
       supabase.from('sourates').select('*').order('numero'),
+      supabase.from('ecoles').select('sens_recitation_defaut').eq('id',user.ecole_id).maybeSingle(),
     ]);
     setNiveaux(nd||[]);
     setExamens(ed||[]);
     setBlocs(bd||[]);
     setSouratesDB(sd||[]);
+    setEcoleConfig(ec||null);
     if (!filtreNiveau && nd?.length > 0) setFiltreNiveau(nd[0].id);
     } catch (e) {
       console.error("Erreur:", e);
@@ -208,7 +213,10 @@ export default function GestionBlocs({ user, navigate, goBack, lang='fr', isMobi
             </div>
             <div style={{display:'grid',gridTemplateColumns:'repeat(10,1fr)',gap:4,
               maxHeight:180,overflowY:'auto',padding:'4px'}}>
-              {HIZB_NUMS.map(h=>{
+              {(() => {
+                const nivForm = niveaux.find(n=>n.id===form.niveau_id);
+                const sensBloc = nivForm?.sens_recitation || ecoleConfig?.sens_recitation_defaut || 'desc';
+                return makeHizbList(sensBloc).map(h=>{
                 const sel = form.contenu_ids.includes(h);
                 return(
                   <div key={h} onClick={()=>toggleItem(h)}
@@ -221,7 +229,8 @@ export default function GestionBlocs({ user, navigate, goBack, lang='fr', isMobi
                     {h}
                   </div>
                 );
-              })}
+              });
+              })()}
             </div>
           </>
         )}
