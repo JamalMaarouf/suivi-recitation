@@ -199,7 +199,7 @@ export default function ValidationCollective({ user, navigate, goBack, lang='fr'
               📖 {lang==='ar'?'مراجعة جماعية':"Murajaʼa collective"}
             </div>
             <button onClick={()=>navigate('muraja_dashboard')}
-              style={{background:'#E1F5EE',color:'#fff',border:'none',borderRadius:8,
+              style={{background:'rgba(255,255,255,0.22)',color:'#fff',border:'1px solid rgba(255,255,255,0.25)',borderRadius:8,
                 padding:'6px 10px',fontSize:12,cursor:'pointer',fontWeight:600}}>
               📊
             </button>
@@ -227,7 +227,7 @@ export default function ValidationCollective({ user, navigate, goBack, lang='fr'
               </div>
               {/* Select all button */}
               <button onClick={()=>setSelectedEleves(elevesFiltres.map(e=>e.id))}
-                style={{width:'100%',padding:'12px',background:'#E1F5EE',color:'#fff',border:'1px solid #1D9E7530',
+                style={{width:'100%',padding:'12px',background:'#085041',color:'#fff',border:'none',
                   borderRadius:10,fontSize:14,fontWeight:700,cursor:'pointer',fontFamily:'inherit',marginBottom:12}}>
                 {lang==='ar'?'تحديد الكل':'Tout sélectionner'} ({elevesFiltres.length})
               </button>
@@ -311,10 +311,10 @@ export default function ValidationCollective({ user, navigate, goBack, lang='fr'
     <div style={{padding:'1rem',maxWidth:700,margin:'0 auto'}}>
       {/* Header */}
       <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'1.5rem'}}>
-        <button style={{background:"rgba(255,255,255,0.2)",border:"none",borderRadius:10,padding:"8px 12px",color:"#fff",fontSize:16,cursor:"pointer",fontFamily:"inherit"}} onClick={()=>goBack?goBack():navigate('dashboard')}>←</button>
+        <button className="back-link" onClick={()=>goBack?goBack():navigate('dashboard')}></button>
         <div style={{display:'flex',gap:8}}>
           <button onClick={()=>navigate('muraja_dashboard')}
-            style={{padding:'6px 14px',background:'#E6F1FB',color:'#378ADD',border:'none',borderRadius:8,fontSize:12,fontWeight:600,cursor:'pointer',fontFamily:'inherit'}}>
+            style={{padding:'8px 16px',background:'#085041',color:'#fff',border:'none',borderRadius:8,fontSize:12,fontWeight:600,cursor:'pointer',fontFamily:'inherit'}}>
             📊 {lang==='ar'?'لوحة المراجعات':'Tableau de bord'}
           </button>
         </div>
@@ -322,7 +322,7 @@ export default function ValidationCollective({ user, navigate, goBack, lang='fr'
 
       {/* Title + Steps */}
       <div style={{background:'#fff',border:'0.5px solid #e0e0d8',borderRadius:14,padding:'1.25rem',marginBottom:'1.5rem'}}>
-        <div style={{fontSize:18,fontWeight:800,color:'#fff',marginBottom:'1rem',textAlign:'center'}}>
+        <div style={{fontSize:18,fontWeight:800,color:'#085041',marginBottom:'1rem',textAlign:'center'}}>
           📖 {lang==='ar' ? 'مراجعة جماعية' : "Muraja'a collective"}
         </div>
         <div style={{display:'flex',gap:6}}>

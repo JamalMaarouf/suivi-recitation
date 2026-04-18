@@ -638,7 +638,7 @@ export default function Finance({ user, navigate, goBack, lang='fr', isMobile })
                   return(
                     <div key={c.id} style={{background:'#fff',borderRadius:12,padding:'13px 14px',marginBottom:8,
                       border:'0.5px solid #e0e0d8',display:'flex',alignItems:'center',gap:12}}>
-                      <div style={{width:40,height:40,borderRadius:'50%',background:'#E1F5EE',color:'#fff',
+                      <div style={{width:40,height:40,borderRadius:'50%',background:'#E1F5EE',color:'#085041',
                         display:'flex',alignItems:'center',justifyContent:'center',fontWeight:800,fontSize:12,flexShrink:0}}>
                         {el?el.prenom[0]+el.nom[0]:'?'}
                       </div>
@@ -721,7 +721,7 @@ export default function Finance({ user, navigate, goBack, lang='fr', isMobile })
     <div>
       {/* Header */}
       <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'1rem',flexWrap:'wrap',gap:8}}>
-        <button style={{background:"rgba(255,255,255,0.2)",border:"none",borderRadius:10,padding:"8px 12px",color:"#fff",fontSize:16,cursor:"pointer",fontFamily:"inherit"}} onClick={()=>goBack?goBack():navigate('dashboard')}>{t(lang,'retour')}</button>
+        <button className="back-link" onClick={()=>goBack?goBack():navigate('dashboard')}></button>
         <div style={{fontSize:18,fontWeight:700,color:'#085041'}}>💰 {lang==='ar'?'الإدارة المالية':lang==='en'?'Finance':'Gestion Financière'}</div>
         <div style={{display:'flex',gap:6}}>
           {onglet==='cotisations'&&<button onClick={exportCotisationsExcel} style={{display:'flex',alignItems:'center',gap:5,padding:'5px 12px',background:'#f5f5f0',color:'#085041',border:'0.5px solid #e0e0d8',borderRadius:8,fontSize:11,fontWeight:600,cursor:'pointer'}}>📊 Excel</button>}

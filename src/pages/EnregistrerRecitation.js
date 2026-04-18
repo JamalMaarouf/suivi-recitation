@@ -413,7 +413,7 @@ export default function EnregistrerRecitation({  user, eleve: eleveInitial, navi
           <button className="btn-secondary" onClick={() => navigate('fiche', selectedEleve)}>Voir la fiche</button>
         </div>
         <div style={{ marginTop: 12 }}>
-          <button style={{background:"rgba(255,255,255,0.2)",border:"none",borderRadius:10,padding:"8px 12px",color:"#fff",fontSize:16,cursor:"pointer",fontFamily:"inherit"}} style={{ margin: '0 auto' }} onClick={() => goBack?goBack():navigate('dashboard')}>{t(lang,'retour')}</button>
+          <button className="back-link" style={{ margin: '0 auto' }} onClick={() => goBack?goBack():navigate('dashboard')}></button>
         </div>
       </div>
     );
@@ -422,7 +422,7 @@ export default function EnregistrerRecitation({  user, eleve: eleveInitial, navi
 
   return (
     <div>
-      <button style={{background:"rgba(255,255,255,0.2)",border:"none",borderRadius:10,padding:"8px 12px",color:"#fff",fontSize:16,cursor:"pointer",fontFamily:"inherit"}} onClick={() => navigate(selectedEleve ? 'fiche' : 'dashboard', selectedEleve)}>t(lang,'retour')</button>
+      <button className="back-link" onClick={() => navigate(selectedEleve ? 'fiche' : 'dashboard', selectedEleve)}></button>
       <div className="page-title">{t(lang,'enregistrer_recitation_titre')}</div>
 
       <div className="steps-row">

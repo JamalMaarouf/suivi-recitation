@@ -835,7 +835,7 @@ export default function GestionNiveaux({ user, navigate, goBack, lang='fr', isMo
     <div>
       <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'1.25rem',flexWrap:'wrap',gap:8}}>
         <div style={{display:'flex',alignItems:'center',gap:10}}>
-          <button style={{background:"rgba(255,255,255,0.2)",border:"none",borderRadius:10,padding:"8px 12px",color:"#fff",fontSize:16,cursor:"pointer",fontFamily:"inherit"}} onClick={()=>goBack?goBack():navigate('dashboard')}>←</button>
+          <button className="back-link" onClick={()=>goBack?goBack():navigate('dashboard')}></button>
           <div style={{fontSize:20,fontWeight:700}}>📚 {lang==='ar'?'إدارة المستويات':'Gestion des niveaux'}</div>
         </div>
         <button onClick={()=>{setEditing(null);setForm({...emptyForm,ordre:niveaux.length+1});setShowForm(v=>!v);}}
