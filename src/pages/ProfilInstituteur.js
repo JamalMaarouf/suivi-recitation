@@ -25,9 +25,14 @@ export default function ProfilInstituteur({ instituteur, user, navigate, goBack,
         .eq('ecole_id', user.ecole_id).eq('valide_par',instituteur.id).order('date_validation',{ascending:false}));
     const allVd = await fetchAll(supabase.from('validations').select('*')
         .eq('ecole_id', user.ecole_id));
+    const [{data:nv}, {data:ec}] = await Promise.all([
+      supabase.from('niveaux').select('id,code,nom,sens_recitation').eq('ecole_id', user.ecole_id),
+      supabase.from('ecoles').select('sens_recitation_defaut').eq('id', user.ecole_id).maybeSingle(),
+    ]);
     const elevesData=(ed||[]).map(e=>{
       const vals=(allVd||[]).filter(v=>v.eleve_id===e.id);
-      const etat=calcEtatEleve(vals,e.hizb_depart,e.tomon_depart);
+      const sensE = getSensForEleve(e, nv, ec);
+      const etat=calcEtatEleve(vals,e.hizb_depart,e.tomon_depart, sensE);
       const derniere=vals[0]?.date_validation||null;
       return {...e,etat,derniere,jours:joursDepuis(derniere),inactif:isInactif(derniere)};
     });

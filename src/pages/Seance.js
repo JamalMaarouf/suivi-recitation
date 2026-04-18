@@ -40,7 +40,7 @@ export default function Seance({ user, navigate, goBack, lang, isMobile=false })
     const debutJour = new Date(); debutJour.setHours(0,0,0,0);
     const debutSemaine = new Date(); debutSemaine.setDate(debutSemaine.getDate()-7);
 
-    const [{ data: ed }, { data: instData }, vd, rd, { data: sdb }] = await Promise.all([
+    const [{ data: ed }, { data: instData }, vd, rd, { data: sdb }, { data: nvData }, { data: ecData }] = await Promise.all([
       supabase.from('eleves').select('id,prenom,nom,code_niveau,hizb_depart,tomon_depart,sourates_acquises,instituteur_referent_id,ecole_id')
         .eq('ecole_id', user.ecole_id).order('nom'),
       supabase.from('utilisateurs').select('id,prenom,nom').eq('role','instituteur').eq('ecole_id', user.ecole_id),
@@ -49,6 +49,8 @@ export default function Seance({ user, navigate, goBack, lang, isMobile=false })
       fetchAll(supabase.from('recitations_sourates').select('*, valideur:valide_par(prenom,nom)')
         .eq('ecole_id', user.ecole_id).order('date_validation',{ascending:false})),
       supabase.from('sourates').select('*'),
+      supabase.from('niveaux').select('id,code,nom,sens_recitation').eq('ecole_id', user.ecole_id),
+      supabase.from('ecoles').select('sens_recitation_defaut').eq('id', user.ecole_id).maybeSingle(),
     ]);
 
     const vAujourdhui = (vd||[]).filter(v => new Date(v.date_validation) >= debutJour);
@@ -57,6 +59,7 @@ export default function Seance({ user, navigate, goBack, lang, isMobile=false })
     const elevesData = (ed||[]).map(e => {
       const isSourate = IS_SOURATE(e.code_niveau);
       const inst = (instData||[]).find(i => i.id === e.instituteur_referent_id);
+      const sensE = getSensForEleve(e, nvData, ecData);
 
       if (isSourate) {
         const recs = (rd||[]).filter(r => r.eleve_id === e.id);
@@ -86,11 +89,11 @@ export default function Seance({ user, navigate, goBack, lang, isMobile=false })
           souratesSemaine, actifAujourdhui: recsAujourdhui.length > 0,
           derniere: dernierRec, jours: joursDepuis(dernierRec), inactif: isInactif(dernierRec),
           currentSourate, instituteurNom: inst?`${inst.prenom} ${inst.nom}`:'—',
-          etat: calcEtatEleve([], e.hizb_depart, e.tomon_depart),
+          etat: calcEtatEleve([], e.hizb_depart, e.tomon_depart, sensE),
         };
       } else {
         const vals = (vd||[]).filter(v => v.eleve_id === e.id);
-        const etat = calcEtatEleve(vals, e.hizb_depart, e.tomon_depart);
+        const etat = calcEtatEleve(vals, e.hizb_depart, e.tomon_depart, sensE);
         const valsAujourdhui = vAujourdhui.filter(v => v.eleve_id === e.id);
         const valsSemaine = (vd||[]).filter(v => v.eleve_id === e.id && new Date(v.date_validation) >= debutSemaine);
         const tomonAujourdhui = valsAujourdhui.filter(v=>v.type_validation==='tomon').reduce((s,v)=>s+v.nombre_tomon,0);

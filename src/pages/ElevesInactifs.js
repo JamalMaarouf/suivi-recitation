@@ -27,15 +27,18 @@ export default function ElevesInactifs({ navigate, goBack, lang='fr', user, isMo
         supabase.from('eleves').select('*').eq('ecole_id', user.ecole_id).order('nom'),
         supabase.from('utilisateurs').select('id,prenom,nom').eq('role','instituteur').eq('ecole_id', user.ecole_id),
         fetchAll(supabase.from('validations').select('eleve_id,date_validation,nombre_tomon,type_validation,hizb_valide').eq('ecole_id', user.ecole_id).order('date_validation',{ascending:false})).then(data=>({data})),
-        supabase.from('niveaux').select('id,code,couleur').eq('ecole_id', user.ecole_id),
+        supabase.from('niveaux').select('id,code,couleur,sens_recitation').eq('ecole_id', user.ecole_id),
+        supabase.from('ecoles').select('sens_recitation_defaut').eq('id', user.ecole_id).maybeSingle(),
       ]);
       const ed = results[0]?.data;
       const id = results[1]?.data;
       const vd = results[2]?.data;
       const nv = results[3]?.data;
+      const ec = results[4]?.data;
       const elevesData = (ed||[]).map(eleve => {
         const vals = (vd||[]).filter(v=>v.eleve_id===eleve.id);
-        const etat = calcEtatEleve(vals, eleve.hizb_depart, eleve.tomon_depart);
+        const sensE = getSensForEleve(eleve, nv, ec);
+        const etat = calcEtatEleve(vals, eleve.hizb_depart, eleve.tomon_depart, sensE);
         const derniere = vals[0]?.date_validation || null;
         const inst = (id||[]).find(i=>i.id===eleve.instituteur_referent_id);
         const jours = joursDepuis(derniere);

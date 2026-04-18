@@ -17,13 +17,16 @@ export default function Comparaison({ navigate, goBack, lang='fr', isMobile, use
   const loadData = async () => {
     setLoading(true);
     try {
-    const [{data:ed}, vd] = await Promise.all([
+    const [{data:ed}, vd, {data:nv}, {data:ec}] = await Promise.all([
       supabase.from('eleves').select('*').eq('ecole_id', user.ecole_id).order('nom'),
-      fetchAll(supabase.from('validations').select('*').eq('ecole_id', user.ecole_id).order('date_validation'))
+      fetchAll(supabase.from('validations').select('*').eq('ecole_id', user.ecole_id).order('date_validation')),
+      supabase.from('niveaux').select('id,code,nom,sens_recitation').eq('ecole_id', user.ecole_id),
+      supabase.from('ecoles').select('sens_recitation_defaut').eq('id', user.ecole_id).maybeSingle(),
     ]);
     setAllEleves((ed||[]).map(e => {
       const vals=(vd||[]).filter(v=>v.eleve_id===e.id);
-      const etat=calcEtatEleve(vals,e.hizb_depart,e.tomon_depart);
+      const sensE = getSensForEleve(e, nv, ec);
+      const etat=calcEtatEleve(vals,e.hizb_depart,e.tomon_depart, sensE);
       return {...e,etat,validations:vals};
     }));
     } catch (e) {
