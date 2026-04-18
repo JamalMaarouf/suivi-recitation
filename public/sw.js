@@ -3,7 +3,7 @@
 // Priorité absolue : toujours servir le dernier code déployé.
 // Le cache est un simple filet de sécurité pour le mode offline.
 
-const CACHE_VERSION = 'v7-2026-04-17-b';
+const CACHE_VERSION = 'v8-2026-04-19-offline';
 const CACHE_NAME = `suivi-recitation-${CACHE_VERSION}`;
 
 self.addEventListener('install', (event) => {

@@ -60,6 +60,7 @@ import { isSourateNiveauDyn } from './lib/helpers';
 import { ToastProvider } from './lib/toast';
 import { NetworkBanner } from './lib/NetworkStatus';
 import { invalidateAll } from './lib/cache';
+import { cacheClearAll } from './lib/offlineCache';
 import { installAutoSync } from './lib/offlineQueue';
 import { supabase } from './lib/supabase';
 import './App.css';
@@ -212,7 +213,8 @@ export default function App() {
 
   const handleLogin = (u) => { setUser(u); localStorage.setItem('suivi_user', JSON.stringify(u)); };
   const handleLogout = () => {
-    invalidateAll(); // vider tout le cache lors de la déconnexion
+    invalidateAll(); // vider tout le cache RAM lors de la déconnexion
+    cacheClearAll().catch(() => {}); // vider aussi le cache persistant IndexedDB
     setUser(null);
     localStorage.removeItem('suivi_user');
     setPageWithRef('dashboard');

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useToast } from '../lib/toast';
 import { supabase } from '../lib/supabase';
 import { getInitiales, joursDepuis, scoreLabel, formatDateCourt , loadBareme, BAREME_DEFAUT, getSensForEleve, calcEtatEleve } from '../lib/helpers';
+import { swr } from '../lib/offlineCache';
 import { getSouratesForNiveau } from '../lib/sourates';
 import { t } from '../lib/i18n';
 
@@ -30,6 +31,7 @@ export default function PortailParent({ parent, navigate, goBack, lang='fr', onL
   const [niveauxEcole, setNiveauxEcole] = useState([]);
   const [ecoleConfig, setEcoleConfig] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [cacheAge, setCacheAge] = useState(null); // null = données fraîches, sinon âge en ms
   const [bareme, setBareme] = React.useState({...BAREME_DEFAUT});
   const [onglet, setOnglet] = useState('progression');
   const [showChangeMdp, setShowChangeMdp] = useState(false);
@@ -60,39 +62,72 @@ export default function PortailParent({ parent, navigate, goBack, lang='fr', onL
   const loadData = async () => {
     loadBareme(supabase, parent.ecole_id).then(b=>setBareme({...BAREME_DEFAUT,...b.unites}));
     setLoading(true);
-    try {
-      // Load linked children
-      const { data: links } = await supabase
-        .from('parent_eleve')
-        .select('eleve_id, eleve:eleve_id(*)')
-        .eq('parent_id', parent.id);
+    const ecoleId = parent.ecole_id;
+    const parentId = parent.id;
 
-      const elevesData = (links||[]).map(l=>l.eleve).filter(Boolean);
-      setEnfants(elevesData);
+    try {
+      // 1) Charger les enfants liés avec SWR
+      let elevesData = [];
+      await swr(
+        `pp_links_${parentId}`,
+        () => supabase.from('parent_eleve').select('eleve_id, eleve:eleve_id(*)').eq('parent_id', parentId),
+        (data, meta) => {
+          if (data) {
+            elevesData = (data||[]).map(l => l.eleve).filter(Boolean);
+            setEnfants(elevesData);
+            if (meta?.fromCache && meta?.age_ms) setCacheAge(meta.age_ms);
+            else if (!meta?.fromCache) setCacheAge(null);
+          }
+        }
+      ).catch(() => {});
 
       if (elevesData.length > 0) {
-        const ids = elevesData.map(e=>e.id);
-        const results = await Promise.allSettled([
-          supabase.from('validations').select('*, valideur:valide_par(prenom,nom)')
-        .in('eleve_id', ids).order('date_validation',{ascending:false}),
-          supabase.from('recitations_sourates').select('*, valideur:valide_par(prenom,nom)')
-        .in('eleve_id', ids).order('date_validation',{ascending:false}),
-          supabase.from('objectifs_globaux').select('*').limit(100),
-          supabase.from('cotisations').select('*')
-        .in('eleve_id', ids).order('date_paiement',{ascending:false}),
-          supabase.from('sourates').select('*'),
-          supabase.from('niveaux').select('id,code,sens_recitation').eq('ecole_id', parent.ecole_id),
-          supabase.from('ecoles').select('sens_recitation_defaut').eq('id', parent.ecole_id).maybeSingle(),
+        const ids = elevesData.map(e => e.id);
+        const idsKey = ids.sort().join('_').substring(0, 100); // clé unique par combinaison d'enfants
+
+        // 2) Charger toutes les données enfants en parallèle avec SWR
+        await Promise.all([
+          swr(
+            `pp_validations_${idsKey}`,
+            () => supabase.from('validations').select('*, valideur:valide_par(prenom,nom)').in('eleve_id', ids).order('date_validation',{ascending:false}),
+            (data) => { if (data) setValidations(data); }
+          ).catch(()=>{}),
+          swr(
+            `pp_recitations_${idsKey}`,
+            () => supabase.from('recitations_sourates').select('*, valideur:valide_par(prenom,nom)').in('eleve_id', ids).order('date_validation',{ascending:false}),
+            (data) => { if (data) setRecitations(data); }
+          ).catch(()=>{}),
+          swr(
+            `pp_objectifs`,
+            () => supabase.from('objectifs_globaux').select('*').limit(100),
+            (data) => { if (data) setObjectifs(data); }
+          ).catch(()=>{}),
+          swr(
+            `pp_cotisations_${idsKey}`,
+            () => supabase.from('cotisations').select('*').in('eleve_id', ids).order('date_paiement',{ascending:false}),
+            (data) => { if (data) setCotisations(data); }
+          ).catch(()=>{}),
+          swr(
+            `pp_sourates`,
+            () => supabase.from('sourates').select('*'),
+            (data) => { if (data) setSouratesDB(data); }
+          ).catch(()=>{}),
+          swr(
+            `pp_niveaux_${ecoleId}`,
+            () => supabase.from('niveaux').select('id,code,sens_recitation').eq('ecole_id', ecoleId),
+            (data) => { if (data) setNiveauxEcole(data); }
+          ).catch(()=>{}),
+          swr(
+            `pp_ecole_${ecoleId}`,
+            () => supabase.from('ecoles').select('sens_recitation_defaut').eq('id', ecoleId).maybeSingle(),
+            (data) => { if (data) setEcoleConfig(data); }
+          ).catch(()=>{}),
         ]);
-        setValidations(results[0].status==='fulfilled'?results[0].value.data||[]:[]);
-        setRecitations(results[1].status==='fulfilled'?results[1].value.data||[]:[]);
-        setObjectifs(results[2].status==='fulfilled'?results[2].value.data||[]:[]);
-        setCotisations(results[3].status==='fulfilled'?results[3].value.data||[]:[]);
-        setSouratesDB(results[4].status==='fulfilled'?results[4].value.data||[]:[]);
-        setNiveauxEcole(results[5].status==='fulfilled'?results[5].value.data||[]:[]);
-        setEcoleConfig(results[6].status==='fulfilled'?results[6].value.data||null:null);
       }
-    } catch(e) { toast.error('Erreur de chargement'); }
+    } catch(e) {
+      console.error('[PortailParent] Erreur chargement:', e);
+      // Pas de toast.error : en offline c'est normal que ça échoue, les données du cache sont déjà affichées
+    }
     setLoading(false);
   };
 
@@ -363,6 +398,28 @@ export default function PortailParent({ parent, navigate, goBack, lang='fr', onL
           </div>
         )}
       </div>
+
+      {/* Indicateur fraîcheur du cache (mode hors ligne) */}
+      {cacheAge !== null && cacheAge > 60000 && (() => {
+        // Formater l'âge en lisible
+        const mins = Math.floor(cacheAge / 60000);
+        const hrs = Math.floor(mins / 60);
+        const days = Math.floor(hrs / 24);
+        let ageLabel;
+        if (days >= 1) ageLabel = lang==='ar' ? `${days} يوم` : `${days} jour${days>1?'s':''}`;
+        else if (hrs >= 1) ageLabel = lang==='ar' ? `${hrs} ساعة` : `${hrs} heure${hrs>1?'s':''}`;
+        else ageLabel = lang==='ar' ? `${mins} دقيقة` : `${mins} min`;
+        return (
+          <div style={{background:'#FAEEDA',border:'0.5px solid #EF9F27',borderRadius:10,padding:'8px 12px',marginBottom:12,fontSize:12,color:'#633806',display:'flex',alignItems:'center',gap:8}}>
+            <span>📡</span>
+            <span>
+              {lang==='ar'
+                ? `وضع عدم الاتصال · آخر تحديث: منذ ${ageLabel}`
+                : `Mode hors ligne · Dernière mise à jour : il y a ${ageLabel}`}
+            </span>
+          </div>
+        );
+      })()}
 
       {/* Sélecteur enfant (si plusieurs) */}
       {enfants.length > 1 && (

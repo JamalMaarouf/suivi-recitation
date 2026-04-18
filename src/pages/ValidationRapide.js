@@ -4,6 +4,7 @@ import { useToast } from '../lib/toast';
 import { withRetryToast } from '../lib/retry';
 import { invalidateMany } from '../lib/cache';
 import { enqueueOrRun } from '../lib/offlineQueue';
+import { swr } from '../lib/offlineCache';
 import { calcEtatEleve, getInitiales, scoreLabel, motivationMsg, verifierEtCreerCertificats, isSourateNiveauDyn, loadBareme, BAREME_DEFAUT, getSensForEleve} from '../lib/helpers';
 import { getSouratesForNiveau } from '../lib/sourates';
 import { t } from '../lib/i18n';
@@ -39,17 +40,37 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
   useEffect(() => { loadData(); setTimeout(() => searchRef.current?.focus(), 200); }, []);
 
   const loadData = async () => {
-    const [{ data: ed }, { data: vd }, { data: niv }, { data: sour }, { data: ec }] = await Promise.all([
-      supabase.from('eleves').select('*').eq('ecole_id', user.ecole_id).order('nom'),
-      fetchAll(supabase.from('validations').select('*').eq('ecole_id', user.ecole_id)).then(data=>({data})),
-      supabase.from('niveaux').select('id,code,nom,type,couleur,sens_recitation').eq('ecole_id', user.ecole_id),
-      supabase.from('sourates').select('*'),
-      supabase.from('ecoles').select('sens_recitation_defaut').eq('id', user.ecole_id).maybeSingle().then(data=>({data})),
+    const ecoleId = user.ecole_id;
+    // SWR : affichage immédiat depuis cache IndexedDB + refresh réseau en tâche de fond
+    // Chaque swr() appelle onUpdate 1 ou 2 fois : cache puis réseau
+    await Promise.all([
+      swr(
+        `vr_eleves_${ecoleId}`,
+        () => supabase.from('eleves').select('*').eq('ecole_id', ecoleId).order('nom'),
+        (data) => { if (data) setEleves(data); }
+      ).catch(()=>{}),
+      swr(
+        `vr_validations_${ecoleId}`,
+        () => fetchAll(supabase.from('validations').select('*').eq('ecole_id', ecoleId)),
+        (data) => { if (data) setAllValidations(data); }
+      ).catch(()=>{}),
+      swr(
+        `vr_niveaux_${ecoleId}`,
+        () => supabase.from('niveaux').select('id,code,nom,type,couleur,sens_recitation').eq('ecole_id', ecoleId),
+        (data) => { if (data) setNiveaux(data); }
+      ).catch(()=>{}),
+      swr(
+        `vr_sourates`,
+        () => supabase.from('sourates').select('*'),
+        (data) => { if (data) setSouratesDB(data); }
+      ).catch(()=>{}),
+      swr(
+        `vr_ecole_${ecoleId}`,
+        () => supabase.from('ecoles').select('sens_recitation_defaut').eq('id', ecoleId).maybeSingle(),
+        (data) => { if (data) setEcoleConfig(data); }
+      ).catch(()=>{}),
     ]);
-    setEleves(ed || []); setAllValidations(vd || []);
-    setNiveaux(niv || []); setSouratesDB(sour || []);
-    setEcoleConfig(ec || null);
-    const b = await loadBareme(supabase, user.ecole_id);
+    const b = await loadBareme(supabase, ecoleId);
     setBareme(b);
     setLoading(false);
   };
