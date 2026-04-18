@@ -603,8 +603,8 @@ function SensRecitationTab({ user, lang, ecoleConfig, setEcoleConfig, niveaux, s
         </div>
         <div style={{fontSize:12,color:'#666',marginBottom:12,lineHeight:1.5}}>
           {lang === 'ar'
-            ? 'يُطبَّق هذا الاتجاه تلقائيًا عند إنشاء مستوى جديد. يمكنك تغيير اتجاه كل مستوى بشكل فردي أدناه.'
-            : 'Ce sens sera appliqué automatiquement à tout nouveau niveau créé. Vous pouvez modifier le sens de chaque niveau individuellement plus bas.'}
+            ? 'هذا الإعداد يحدد الاتجاه الافتراضي لجميع مستويات المدرسة. المستويات التي تستخدم "افتراضي" ستتغير تلقائيًا عند تغيير هذا الإعداد.'
+            : 'Ce réglage définit le sens par défaut pour tous les niveaux de l\'école. Les niveaux réglés sur "Défaut" suivront automatiquement tout changement de cette valeur.'}
         </div>
         <div style={{display:'flex',gap:10,flexWrap:'wrap'}}>
           {['desc','asc'].map(s => (
@@ -634,8 +634,8 @@ function SensRecitationTab({ user, lang, ecoleConfig, setEcoleConfig, niveaux, s
         </div>
         <div style={{fontSize:12,color:'#666',marginBottom:14,lineHeight:1.5}}>
           {lang === 'ar'
-            ? 'حدد اتجاه التحفيظ لكل مستوى. المستويات التي تحتوي على استظهارات مسجلة لا يمكن تغيير اتجاهها.'
-            : 'Définissez le sens de récitation pour chaque niveau. Les niveaux avec des validations déjà enregistrées ne peuvent plus changer de sens.'}
+            ? '🏫 "افتراضي": يتبع إعداد المدرسة (يتغير إذا غيرت الإعداد العام). 🔒 "تنازلي" أو "تصاعدي": يثبت هذا المستوى على اتجاه محدد. المستويات التي تحتوي على استظهارات مسجلة لا يمكن تغيير اتجاهها.'
+            : '🏫 "Défaut" : suit le réglage école (change si vous modifiez le réglage global). 🔒 "Décroissant" ou "Croissant" : verrouille ce niveau sur un sens spécifique. Les niveaux avec validations enregistrées ne peuvent plus changer.'}
         </div>
         {loading ? (
           <div style={{padding:'1rem',color:'#888',fontSize:12}}>
@@ -672,9 +672,21 @@ function SensRecitationTab({ user, lang, ecoleConfig, setEcoleConfig, niveaux, s
                       {n.nom || n.code}
                     </div>
                     <div style={{fontSize:11,color:'#888',marginTop:2}}>
-                      <span style={{color:'#085041',fontWeight:600}}>
-                        {libelleShort(sensEffectif)}
-                      </span>
+                      {sensSurcharge ? (
+                        <span style={{color:'#085041',fontWeight:600}}>
+                          🔒 {libelleShort(sensSurcharge)}
+                          <span style={{color:'#888',fontWeight:400}}>
+                            {lang === 'ar' ? ' (مثبت)' : ' (verrouillé)'}
+                          </span>
+                        </span>
+                      ) : (
+                        <span style={{color:'#555'}}>
+                          🏫 {libelleShort(sensDefaut)}
+                          <span style={{color:'#888'}}>
+                            {lang === 'ar' ? ' (يتبع المدرسة)' : ' (suit l\'école)'}
+                          </span>
+                        </span>
+                      )}
                       {bloque && (
                         <span style={{marginInlineStart:6,color:'#EF9F27',fontWeight:600}}>
                           · 🔒 {nbVal} {lang === 'ar' ? 'استظهار' : 'validation(s)'}
@@ -684,21 +696,42 @@ function SensRecitationTab({ user, lang, ecoleConfig, setEcoleConfig, niveaux, s
                   </div>
                   <div style={{display:'flex',gap:4,flexWrap:'wrap'}}>
                     {[
-                      { val: 'desc', label: lang === 'ar' ? 'تنازلي' : 'Décroissant', icon: '📉' },
-                      { val: 'asc', label: lang === 'ar' ? 'تصاعدي' : 'Croissant', icon: '📈' },
+                      {
+                        val: null,
+                        label: lang === 'ar' ? 'افتراضي' : 'Défaut',
+                        icon: '🏫',
+                        tooltip: lang === 'ar'
+                          ? `يتبع هذا المستوى الإعداد العام للمدرسة تلقائيًا (حاليا: ${libelleShort(sensDefaut)}). إذا قمت بتغيير الإعداد العام، سيتغير هذا المستوى تلقائيًا.`
+                          : `Ce niveau suit automatiquement le réglage de l'école (actuellement : ${libelleShort(sensDefaut)}). Si vous changez le réglage école, ce niveau changera aussi.`
+                      },
+                      {
+                        val: 'desc',
+                        label: lang === 'ar' ? 'تنازلي' : 'Décroissant',
+                        icon: '📉',
+                        tooltip: lang === 'ar'
+                          ? 'تثبيت الاتجاه على تنازلي لهذا المستوى بغض النظر عن إعداد المدرسة العام.'
+                          : 'Verrouille ce niveau en décroissant, indépendamment du réglage école.'
+                      },
+                      {
+                        val: 'asc',
+                        label: lang === 'ar' ? 'تصاعدي' : 'Croissant',
+                        icon: '📈',
+                        tooltip: lang === 'ar'
+                          ? 'تثبيت الاتجاه على تصاعدي لهذا المستوى بغض النظر عن إعداد المدرسة العام.'
+                          : 'Verrouille ce niveau en croissant, indépendamment du réglage école.'
+                      },
                     ].map(opt => {
-                      // Le bouton "actif" est celui qui correspond au sens effectif du niveau
-                      const isCurrent = sensEffectif === opt.val;
-                      // bloqué si le niveau a des validations ET que ce choix changerait le sens
-                      const changeSens = sensEffectif !== opt.val;
+                      const isCurrent = sensSurcharge === opt.val;
+                      // bloqué si le niveau a des validations ET que ce choix changerait le sens effectif
+                      const nouveauEffectif = opt.val === null ? sensDefaut : opt.val;
+                      const changeSens = sensEffectif !== nouveauEffectif;
                       const disabled = saving || isCurrent || (bloque && changeSens);
+                      const tooltipBloque = lang === 'ar' ? 'لا يمكن التغيير: يوجد استظهارات' : 'Bloqué : validations existantes';
                       return (
                         <button key={String(opt.val)}
                           onClick={() => saveNiveauSens(n.id, n.code, opt.val)}
                           disabled={disabled}
-                          title={disabled && bloque && changeSens
-                            ? (lang === 'ar' ? 'لا يمكن التغيير: يوجد استظهارات' : 'Bloqué : validations existantes')
-                            : ''}
+                          title={disabled && bloque && changeSens ? tooltipBloque : opt.tooltip}
                           style={{
                             padding:'6px 10px',borderRadius:8,fontSize:11,fontWeight:700,
                             border: `1px solid ${isCurrent ? '#085041' : '#e0e0d8'}`,
