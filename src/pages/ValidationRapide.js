@@ -4,7 +4,7 @@ import { useToast } from '../lib/toast';
 import { withRetryToast } from '../lib/retry';
 import { invalidateMany } from '../lib/cache';
 import { enqueueOrRun } from '../lib/offlineQueue';
-import { calcEtatEleve, getInitiales, scoreLabel, motivationMsg, verifierEtCreerCertificats, isSourateNiveauDyn, loadBareme, BAREME_DEFAUT } from '../lib/helpers';
+import { calcEtatEleve, getInitiales, scoreLabel, motivationMsg, verifierEtCreerCertificats, isSourateNiveauDyn, loadBareme, BAREME_DEFAUT, getSensForEleve} from '../lib/helpers';
 import { getSouratesForNiveau } from '../lib/sourates';
 import { t } from '../lib/i18n';
 import { fetchAll } from '../lib/fetchAll';
@@ -32,19 +32,23 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
   const [typeRec, setTypeRec] = useState('complete'); // 'complete' ou 'sequence'
   const [versetDebut, setVersetDebut] = useState('');
   const [versetFin, setVersetFin] = useState('');
+  const [ecoleConfig, setEcoleConfig] = useState(null);
+
   const searchRef = useRef();
 
   useEffect(() => { loadData(); setTimeout(() => searchRef.current?.focus(), 200); }, []);
 
   const loadData = async () => {
-    const [{ data: ed }, { data: vd }, { data: niv }, { data: sour }] = await Promise.all([
+    const [{ data: ed }, { data: vd }, { data: niv }, { data: sour }, { data: ec }] = await Promise.all([
       supabase.from('eleves').select('*').eq('ecole_id', user.ecole_id).order('nom'),
       fetchAll(supabase.from('validations').select('*').eq('ecole_id', user.ecole_id)).then(data=>({data})),
-      supabase.from('niveaux').select('id,code,nom,type,couleur').eq('ecole_id', user.ecole_id),
+      supabase.from('niveaux').select('id,code,nom,type,couleur,sens_recitation').eq('ecole_id', user.ecole_id),
       supabase.from('sourates').select('*'),
+      supabase.from('ecoles').select('sens_recitation_defaut').eq('id', user.ecole_id).maybeSingle().then(data=>({data})),
     ]);
     setEleves(ed || []); setAllValidations(vd || []);
     setNiveaux(niv || []); setSouratesDB(sour || []);
+    setEcoleConfig(ec || null);
     const b = await loadBareme(supabase, user.ecole_id);
     setBareme(b);
     setLoading(false);
@@ -66,7 +70,8 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
 
     const vals = allValidations.filter(v => v.eleve_id === freshEleve.id);
     setSelectedEleve(freshEleve);
-    setEtat(calcEtatEleve(vals, freshEleve.hizb_depart, freshEleve.tomon_depart));
+    const sensEl = getSensForEleve(freshEleve, niveaux, ecoleConfig);
+    setEtat(calcEtatEleve(vals, freshEleve.hizb_depart, freshEleve.tomon_depart, sensEl));
     setSearch('');
     setNbTomon(1);
     setSourateSelectionnee(null);
@@ -215,7 +220,8 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
       if (!wasQueued) {
         const { data: newVals } = await supabase.from('validations').select('*')
           .eq('ecole_id', user.ecole_id).eq('eleve_id', selectedEleve.id);
-        setEtat(calcEtatEleve(newVals || [], selectedEleve.hizb_depart, selectedEleve.tomon_depart));
+        const sensEl = getSensForEleve(selectedEleve, niveaux, ecoleConfig);
+        setEtat(calcEtatEleve(newVals || [], selectedEleve.hizb_depart, selectedEleve.tomon_depart, sensEl));
       }
       setNbTomon(1);
       invalidateMany(['validations', 'recitations_sourates_min', `validations_${selectedEleve.id}`, `recitations_eleve_${selectedEleve.id}`], user.ecole_id);
@@ -250,7 +256,8 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
       if (!wasQueued) {
         const { data: newVals } = await supabase.from('validations').select('*')
           .eq('ecole_id', user.ecole_id).eq('eleve_id', selectedEleve.id);
-        setEtat(calcEtatEleve(newVals || [], selectedEleve.hizb_depart, selectedEleve.tomon_depart));
+        const sensEl = getSensForEleve(selectedEleve, niveaux, ecoleConfig);
+        setEtat(calcEtatEleve(newVals || [], selectedEleve.hizb_depart, selectedEleve.tomon_depart, sensEl));
         try {
           const nouveauxCerts = await verifierEtCreerCertificats(supabase, {
             eleve: selectedEleve, ecole_id: user.ecole_id, valide_par: user.id,
@@ -399,7 +406,8 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
             boxShadow: '0 8px 24px rgba(0,0,0,0.1)', overflow: 'hidden' }}>
             {(filteredEleves||[]).map(e => {
               const vals = allValidations.filter(v => v.eleve_id === e.id);
-              const et = calcEtatEleve(vals, e.hizb_depart, e.tomon_depart);
+              const sensEl = getSensForEleve(e, niveaux, ecoleConfig);
+              const et = calcEtatEleve(vals, e.hizb_depart, e.tomon_depart, sensEl);
               const isSour = isSourateNiveauDyn(e.code_niveau, niveaux);
               const nivColor = ({ '5B': '#534AB7', '5A': '#378ADD', '2M': '#1D9E75', '2': '#EF9F27', '1': '#E24B4A' }[e.code_niveau] || '#888');
               return (

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useToast } from '../lib/toast';
 import { supabase } from '../lib/supabase';
-import { calcEtatEleve, isSourateNiveauDyn, calcPositionAtteinte, calcUnite, calcPoints, formatDate, formatDateCourt, getInitiales, scoreLabel, calcBadges, calcVitesse, niveauTraduit, calcPointsPeriode, loadBareme, BAREME_DEFAUT } from '../lib/helpers';
+import { calcEtatEleve, isSourateNiveauDyn, calcPositionAtteinte, calcUnite, calcPoints, formatDate, formatDateCourt, getInitiales, scoreLabel, calcBadges, calcVitesse, niveauTraduit, calcPointsPeriode, loadBareme, BAREME_DEFAUT, getSensForEleve} from '../lib/helpers';
 import { t } from '../lib/i18n';
 import { openPDF } from '../lib/pdf';
 import { getCachedSWR } from '../lib/cache';
@@ -224,6 +224,8 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang, isMobi
   const [newCertJalonId, setNewCertJalonId] = useState('');
   const [savingCert, setSavingCert] = useState(false);
   const [showExceptionModal, setShowExceptionModal] = useState(false);
+  const [niveaux, setNiveaux] = useState([]);
+  const [ecoleConfig, setEcoleConfig] = useState(null);
   const now = new Date();
   const [selectedMoisObj, setSelectedMoisObj] = useState(now.getMonth());
   const [selectedAnneeObj, setSelectedAnneeObj] = useState(now.getFullYear());
@@ -332,9 +334,20 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang, isMobi
           setJalonsDisp(jalRes.data || []);
         } catch(e) { setJalonsDisp([]); }
 
+        // Charger niveaux + config école pour le sens de récitation
+        try {
+          const [{ data: nivData }, { data: ecData }] = await Promise.all([
+            supabase.from('niveaux').select('id,code,nom,sens_recitation').eq('ecole_id', eleve.ecole_id),
+            supabase.from('ecoles').select('sens_recitation_defaut').eq('id', eleve.ecole_id).maybeSingle(),
+          ]);
+          setNiveaux(nivData || []);
+          setEcoleConfig(ecData || null);
+        } catch(e) { /* gardé par défaut */ }
+
         if(inst) setInstituteurNom(inst.prenom+' '+inst.nom);
       }
-      const e = calcEtatEleve(vals||[],eleve.hizb_depart,eleve.tomon_depart);
+      const sensE = getSensForEleve(eleve, niveaux, ecoleConfig);
+      const e = calcEtatEleve(vals||[],eleve.hizb_depart,eleve.tomon_depart, sensE);
 
       // PROTECTION CRITIQUE : si on avait déjà un état avec des validations
       // et que le reload ne retourne rien, c'est un signal d'erreur transitoire.
@@ -364,7 +377,8 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang, isMobi
       // Sinon, après une sync offline, les points remis à 0 alors que tout va bien côté serveur.
       if (!etat) {
         // Premier chargement raté : afficher un état minimal pour que la page ne crash pas
-        setEtat(calcEtatEleve([],eleve.hizb_depart,eleve.tomon_depart));
+        const sensE = getSensForEleve(eleve, niveaux, ecoleConfig);
+        setEtat(calcEtatEleve([],eleve.hizb_depart,eleve.tomon_depart, sensE));
       }
       // Si etat existe deja, on le laisse tel quel et on retry plus tard
       if (typeof navigator !== 'undefined' && navigator.onLine) {

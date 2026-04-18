@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { supabase } from '../lib/supabase';
 import { getCachedSWR } from '../lib/cache';
 import { fetchAll } from '../lib/fetchAll';
-import { calcEtatEleve, isSourateNiveauDyn, niveauTraduit, calcStats, formatDate, formatDateCourt, isInactif, joursDepuis, getInitiales, scoreLabel, loadBareme, BAREME_DEFAUT } from '../lib/helpers';
+import { calcEtatEleve, isSourateNiveauDyn, niveauTraduit, calcStats, formatDate, formatDateCourt, isInactif, joursDepuis, getInitiales, scoreLabel, loadBareme, BAREME_DEFAUT, getSensForEleve} from '../lib/helpers';
 import { t } from '../lib/i18n';
 
 const C = { green:'#1D9E75',greenBg:'#E1F5EE',blue:'#378ADD',blueBg:'#E6F1FB',amber:'#EF9F27',amberBg:'#FAEEDA',red:'#E24B4A',redBg:'#FCEBEB',border:'#e0e0d8',muted:'#888',dark:'#1a1a1a' };
@@ -49,6 +49,7 @@ function calcAlertes(eleves, allValidations, lang) {
 
 export default function Dashboard({ user, navigate, goBack, lang, isMobile=false }) {
   const [niveaux, setNiveaux] = useState([]);
+  const [ecoleConfig, setEcoleConfig] = useState(null);
   const [eleves, setEleves] = useState([]);
   const [instituteurs, setInstituteurs] = useState([]);
   const [allValidations, setAllValidations] = useState([]);
@@ -78,7 +79,7 @@ export default function Dashboard({ user, navigate, goBack, lang, isMobile=false
 
   // Transforme les données brutes en format d'affichage
   // Optimisé O(n+m) au lieu de O(n*m) via Map
-  const buildElevesData = (ed, id, vd, rd) => {
+  const buildElevesData = (ed, id, vd, rd, nv, ec) => {
     // Index des validations par eleve_id pour un lookup O(1) au lieu de filtrer n fois
     const valsByEleve = new Map();
     (vd||[]).forEach(v => {
@@ -98,7 +99,8 @@ export default function Dashboard({ user, navigate, goBack, lang, isMobile=false
 
     return (ed||[]).map(eleve => {
       const vals = valsByEleve.get(eleve.id) || [];
-      const etat = calcEtatEleve(vals, eleve.hizb_depart, eleve.tomon_depart);
+      const sensE = getSensForEleve(eleve, nv, ec);
+      const etat = calcEtatEleve(vals, eleve.hizb_depart, eleve.tomon_depart, sensE);
       const derniereHizb = vals[0]?.date_validation||null;
       const derniereSourate = recSouratesMap[eleve.id]||null;
       const derniere = derniereHizb && derniereSourate
@@ -110,9 +112,10 @@ export default function Dashboard({ user, navigate, goBack, lang, isMobile=false
   };
 
   // Applique les données chargées au state
-  const applyData = (ed, id, vd, rd, nv) => {
-    const elevesData = buildElevesData(ed, id, vd, rd);
+  const applyData = (ed, id, vd, rd, nv, ec) => {
+    const elevesData = buildElevesData(ed, id, vd, rd, nv, ec);
     setNiveaux(nv||[]);
+    if (ec !== undefined) setEcoleConfig(ec);
     setEleves(elevesData);
     setInstituteurs(id||[]);
     setAllValidations(vd||[]);
@@ -151,7 +154,8 @@ export default function Dashboard({ user, navigate, goBack, lang, isMobile=false
           const fakeVals = r.tomon_cumul > 0
             ? [{ type_validation: 'tomon', nombre_tomon: r.tomon_cumul, date_validation: r.derniere_validation || new Date().toISOString() }]
             : [];
-          const etat = calcEtatEleve(fakeVals, r.hizb_depart, r.tomon_depart);
+          const sensE = getSensForEleve({ code_niveau: r.code_niveau }, nv, ecoleConfig);
+          const etat = calcEtatEleve(fakeVals, r.hizb_depart, r.tomon_depart, sensE);
           etat.hizbsComplets = new Set();
           for (let i = 0; i < (r.hizb_complets_count || 0); i++) etat.hizbsComplets.add(i);
           return {
@@ -178,17 +182,18 @@ export default function Dashboard({ user, navigate, goBack, lang, isMobile=false
       }
 
       // Charger les validations détaillées en arrière-plan
-      const [edRes, vd, rd] = await Promise.all([
+      const [edRes, vd, rd, ecRes] = await Promise.all([
         supabase.from('eleves').select('id,prenom,nom,code_niveau,niveau,hizb_depart,tomon_depart,sourates_acquises,instituteur_referent_id,ecole_id').eq('ecole_id', user.ecole_id).order('nom'),
         getCachedSWR('validations', user.ecole_id,
           () => fetchAll(supabase.from('validations').select('id,eleve_id,type_validation,nombre_tomon,hizb_valide,tomon_debut,date_validation,valide_par,ecole_id,valideur:valide_par(prenom,nom)').eq('ecole_id', user.ecole_id).order('date_validation',{ascending:false}))),
         getCachedSWR('recitations_sourates_min', user.ecole_id,
           () => fetchAll(supabase.from('recitations_sourates').select('eleve_id,date_validation,type_recitation').eq('ecole_id', user.ecole_id).order('date_validation',{ascending:false}))),
+        supabase.from('ecoles').select('sens_recitation_defaut').eq('id', user.ecole_id).maybeSingle(),
       ]);
 
 
       // Recalcul précis avec toutes les données (remplace l'affichage RPC)
-      applyData(edRes.data || [], id, vd, rd, nv);
+      applyData(edRes.data || [], id, vd, rd, nv, ecRes?.data || null);
 
       if (!rpcEleves) setLoading(false);
     } catch (e) {

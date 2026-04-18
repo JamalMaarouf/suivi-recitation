@@ -5,7 +5,7 @@ import { supabase } from '../lib/supabase';
 import { withRetryToast } from '../lib/retry';
 import { invalidateMany } from '../lib/cache';
 import { enqueueOrRun } from '../lib/offlineQueue';
-import { calcEtatEleve, calcPositionAtteinte, calcUnite, formatDate, getInitiales, motivationMsg, verifierBlocageExamen, verifierEtCreerCertificats, loadBareme } from '../lib/helpers';
+import { calcEtatEleve, calcPositionAtteinte, calcUnite, formatDate, getInitiales, motivationMsg, verifierBlocageExamen, verifierEtCreerCertificats, loadBareme, getSensForEleve } from '../lib/helpers';
 
 function Avatar({ prenom, nom, size = 36, bg = '#E1F5EE', color = '#085041' }) {
   return (
@@ -30,11 +30,18 @@ export default function EnregistrerRecitation({  user, eleve: eleveInitial, navi
   const [loading, setLoading] = useState(false);
   const [done, setDone] = useState(false);
   const [motivMsg, setMotivMsg] = useState(null);
+  const [niveaux, setNiveaux] = useState([]);
+  const [ecoleConfig, setEcoleConfig] = useState(null);
 
   useEffect(() => {
     loadEleves();
     if (eleveInitial) refreshAndLoadValidations(eleveInitial);
     loadBareme(supabase, user.ecole_id).then(b => setBareme(b));
+    // Charger niveaux + config école pour le sens de récitation
+    supabase.from('niveaux').select('id,code,nom,sens_recitation').eq('ecole_id', user.ecole_id)
+      .then(({ data }) => setNiveaux(data || []));
+    supabase.from('ecoles').select('sens_recitation_defaut').eq('id', user.ecole_id).maybeSingle()
+      .then(({ data }) => setEcoleConfig(data || null));
   }, []);
 
   // Recharge l'élève frais depuis la DB (hizb_depart/tomon_depart peuvent avoir changé
@@ -66,7 +73,8 @@ export default function EnregistrerRecitation({  user, eleve: eleveInitial, navi
       supabase.from('apprentissages').select('*')
         .eq('ecole_id', user.ecole_id).eq('eleve_id', el.id)
     ]);
-    const e = calcEtatEleve(vals || [], el.hizb_depart, el.tomon_depart);
+    const sens = getSensForEleve(el, niveaux, ecoleConfig);
+    const e = calcEtatEleve(vals || [], el.hizb_depart, el.tomon_depart, sens);
     setEtat(e);
     setApprentissages(appr || []);
   };
@@ -90,8 +98,9 @@ export default function EnregistrerRecitation({  user, eleve: eleveInitial, navi
   };
 
   const nombreTomon = tomonSelectionnes.length;
+  const sensEleve = selectedEleve ? getSensForEleve(selectedEleve, niveaux, ecoleConfig) : 'desc';
   const posNouvelle = selectedEleve && etat && nombreTomon > 0
-    ? calcPositionAtteinte(selectedEleve.hizb_depart, selectedEleve.tomon_depart, etat.tomonCumul + nombreTomon)
+    ? calcPositionAtteinte(selectedEleve.hizb_depart, selectedEleve.tomon_depart, etat.tomonCumul + nombreTomon, sensEleve)
     : null;
 
   // Trouver l'apprentissage en cours pour les Tomon sélectionnés

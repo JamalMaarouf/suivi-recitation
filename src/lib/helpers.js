@@ -50,6 +50,25 @@ export function indexToPosition(index, sens = 'desc') {
 }
 
 /**
+ * Trouve le sens de récitation à appliquer pour un élève.
+ * Priorité : niveau.sens_recitation → ecole.sens_recitation_defaut → 'desc'
+ *
+ * @param eleve   { code_niveau, ... } l'élève
+ * @param niveaux liste des niveaux de l'école (avec code et sens_recitation)
+ * @param ecole   objet école avec sens_recitation_defaut (optionnel)
+ * @returns 'desc' | 'asc'
+ */
+export function getSensForEleve(eleve, niveaux, ecole) {
+  if (!eleve) return 'desc';
+  const n = (niveaux || []).find(x => x.code === eleve.code_niveau);
+  const fromNiveau = n && n.sens_recitation;
+  if (fromNiveau === 'desc' || fromNiveau === 'asc') return fromNiveau;
+  const fromEcole = ecole && ecole.sens_recitation_defaut;
+  if (fromEcole === 'desc' || fromEcole === 'asc') return fromEcole;
+  return 'desc';
+}
+
+/**
  * Calcule la position courante (prochain tomon à valider) d'un élève.
  * @param hizbDepart/tomonDepart : position de départ (acquis avant l'école)
  * @param totalTomonValides : nombre de tomons validés depuis l'arrivée
