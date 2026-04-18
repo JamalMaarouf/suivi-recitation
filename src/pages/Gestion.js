@@ -563,8 +563,12 @@ function SensRecitationTab({ user, lang, ecoleConfig, setEcoleConfig, niveaux, s
   const sensDefaut = ecoleConfig?.sens_recitation_defaut || 'desc';
 
   const libelle = (s) => {
-    if (s === 'asc') return lang === 'ar' ? 'تصاعدي (من الحزب 1 إلى 60)' : 'Croissant (Hizb 1 → 60)';
-    return lang === 'ar' ? 'تنازلي (من الحزب 60 إلى 1)' : 'Décroissant (Hizb 60 → 1)';
+    if (s === 'asc') return lang === 'ar'
+      ? 'تصاعدي (من الحزب 1 إلى 60 · من السورة 1 إلى 114)'
+      : 'Croissant (Hizb 1 → 60 · Sourate 1 → 114)';
+    return lang === 'ar'
+      ? 'تنازلي (من الحزب 60 إلى 1 · من السورة 114 إلى 1)'
+      : 'Décroissant (Hizb 60 → 1 · Sourate 114 → 1)';
   };
   const libelleShort = (s) => s === 'asc'
     ? (lang === 'ar' ? 'تصاعدي' : 'Croissant')
