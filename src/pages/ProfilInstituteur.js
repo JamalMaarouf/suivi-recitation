@@ -47,12 +47,12 @@ export default function ProfilInstituteur({ instituteur, user, navigate, goBack,
         <div style={{background:'linear-gradient(135deg,#374151,#4B5563)',padding:'48px 16px 16px',position:'sticky',top:0,zIndex:100,marginBottom:12}}>
           <div style={{display:'flex',alignItems:'center',gap:12}}>
             <button onClick={()=>goBack?goBack():navigate('dashboard')}
-              style={{background:'rgba(255,255,255,0.2)',border:'none',borderRadius:10,padding:'0',color:'#fff',fontSize:20,cursor:'pointer',flexShrink:0,width:38,height:38,display:'flex',alignItems:'center',justifyContent:'center'}}>←</button>
+              style={{background:'rgba(255,255,255,0.22)',border:'1px solid rgba(255,255,255,0.25)',borderRadius:10,padding:'0',color:'#fff',fontSize:20,cursor:'pointer',flexShrink:0,width:38,height:38,display:'flex',alignItems:'center',justifyContent:'center'}}>←</button>
             <div style={{flex:1,fontSize:17,fontWeight:800,color:'#fff'}}>👨‍🏫 {lang==='ar'?'ملف الأستاذ':'Profil'}</div>
           </div>
         </div>
       ) : (
-        <button onClick={()=>goBack?goBack():navigate('dashboard')} className="back-link">←</button>
+        <button onClick={()=>goBack?goBack():navigate('dashboard')} className="back-link"></button>
       )}
       <div style={{background:'#fff',border:'0.5px solid #e0e0d8',borderRadius:16,padding:'1.5rem',marginBottom:'1rem'}}>
         <div style={{display:'flex',alignItems:'center',gap:14,marginBottom:16}}>

@@ -235,7 +235,7 @@ export default function RapportMensuel({ user, navigate, goBack, lang='fr', isMo
         <div style={{background:'linear-gradient(135deg,#374151,#4B5563)',padding:'48px 16px 14px',position:'sticky',top:0,zIndex:100,marginBottom:12}}>
           <div style={{display:'flex',alignItems:'center',gap:12,marginBottom:10}}>
             <button onClick={()=>goBack?goBack():navigate('dashboard')}
-              style={{background:'rgba(255,255,255,0.2)',border:'none',borderRadius:10,padding:'8px 12px',color:'#fff',fontSize:16,cursor:'pointer'}}>←</button>
+              style={{background:'rgba(255,255,255,0.22)',border:'1px solid rgba(255,255,255,0.25)',borderRadius:10,padding:'8px 12px',color:'#fff',fontSize:16,cursor:'pointer'}}>←</button>
             <div style={{flex:1}}>
               <div style={{fontSize:17,fontWeight:800,color:'#fff'}}>📊 {lang==='ar'?'التقرير الشهري':'Rapport mensuel'}</div>
             </div>
@@ -246,17 +246,17 @@ export default function RapportMensuel({ user, navigate, goBack, lang='fr', isMo
           </div>
           {/* Navigation mois */}
           <div style={{display:'flex',alignItems:'center',justifyContent:'center',gap:12}}>
-            <button onClick={prevMois} style={{background:'rgba(255,255,255,0.2)',border:'none',borderRadius:8,padding:'6px 14px',color:'#fff',cursor:'pointer',fontSize:18}}>‹</button>
+            <button onClick={prevMois} style={{background:'rgba(255,255,255,0.22)',border:'1px solid rgba(255,255,255,0.25)',borderRadius:8,padding:'6px 14px',color:'#fff',cursor:'pointer',fontSize:18}}>‹</button>
             <div style={{fontSize:15,fontWeight:700,color:'#fff',minWidth:140,textAlign:'center'}}>
               {getMoisNom(mois,lang)} {annee}
             </div>
-            <button onClick={nextMois} style={{background:'rgba(255,255,255,0.2)',border:'none',borderRadius:8,padding:'6px 14px',color:'#fff',cursor:'pointer',fontSize:18}}>›</button>
+            <button onClick={nextMois} style={{background:'rgba(255,255,255,0.22)',border:'1px solid rgba(255,255,255,0.25)',borderRadius:8,padding:'6px 14px',color:'#fff',cursor:'pointer',fontSize:18}}>›</button>
           </div>
         </div>
       ) : (
       <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'1.25rem',flexWrap:'wrap',gap:8}}>
         <div style={{display:'flex',alignItems:'center',gap:10}}>
-          <button onClick={()=>goBack?goBack():navigate('dashboard')} className="back-link">←</button>
+          <button onClick={()=>goBack?goBack():navigate('dashboard')} className="back-link"></button>
           <div style={{fontSize:20,fontWeight:700}}>📊 {lang==='ar'?'التقرير الشهري':'Rapport mensuel'}</div>
         </div>
         <div style={{display:'flex',alignItems:'center',gap:8}}>

@@ -140,16 +140,17 @@ tr.inactive td.name-cell { color: #A32D2D; font-weight: 500; }
 
 .back-link {
   display: inline-flex; align-items: center; gap: 8px;
-  font-size: 13px; color: #555; cursor: pointer;
+  font-size: 13px; color: #374151; cursor: pointer;
   margin-bottom: 1.25rem; background: #f5f5f0;
-  border: 0.5px solid #e0e0d8; border-radius: 20px;
-  padding: 6px 14px 6px 10px;
+  border: 1px solid #d0d0c8; border-radius: 20px;
+  padding: 7px 16px 7px 12px;
   font-family: 'Tajawal', sans-serif; font-weight: 600;
   transition: all 0.15s;
+  min-height: 34px;
 }
-.back-link::before { content: '←'; font-size: 15px; color: #1D9E75; }
+.back-link::before { content: '←'; font-size: 16px; color: #1D9E75; font-weight: 700; }
 .back-link:hover { background: #E1F5EE; border-color: #1D9E75; color: #085041; }
-[dir="rtl"] .back-link { flex-direction: row-reverse; padding: 6px 10px 6px 14px; }
+[dir="rtl"] .back-link { flex-direction: row-reverse; padding: 7px 12px 7px 16px; }
 [dir="rtl"] .back-link::before { content: '→'; }
 
 

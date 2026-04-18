@@ -583,7 +583,7 @@ export default function Finance({ user, navigate, goBack, lang='fr', isMobile })
         <div style={{background:'linear-gradient(135deg,#E24B4A,#A32D2D)',padding:'48px 16px 14px',position:'sticky',top:0,zIndex:100}}>
           <div style={{display:'flex',alignItems:'center',gap:12,marginBottom:8}}>
             <button onClick={()=>goBack?goBack():navigate('dashboard')}
-              style={{background:'rgba(255,255,255,0.2)',border:'none',borderRadius:10,padding:'0',color:'#fff',fontSize:20,cursor:'pointer',flexShrink:0,width:38,height:38,display:'flex',alignItems:'center',justifyContent:'center'}}>←</button>
+              style={{background:'rgba(255,255,255,0.22)',border:'1px solid rgba(255,255,255,0.25)',borderRadius:10,padding:'0',color:'#fff',fontSize:20,cursor:'pointer',flexShrink:0,width:38,height:38,display:'flex',alignItems:'center',justifyContent:'center'}}>←</button>
             <div style={{flex:1,fontSize:16,fontWeight:800,color:'#fff'}}>💰 {lang==='ar'?'المالية':'Finance'}</div>
           </div>
           <div style={{fontSize:18,fontWeight:800,color:'#fff',marginBottom:10}}>

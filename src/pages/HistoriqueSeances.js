@@ -409,7 +409,7 @@ export default function HistoriqueSeances({ user, navigate, goBack, lang='fr', i
         {/* Header sticky */}
         <div style={{background:'linear-gradient(135deg,#378ADD,#0C447C)',padding:'48px 16px 14px',position:'sticky',top:0,zIndex:100}}>
           <div style={{display:'flex', alignItems:'center', gap:10, padding:'14px 16px 8px'}}>
-            <button onClick={()=>goBack?goBack():navigate('dashboard')} style={{background:'rgba(255,255,255,0.2)',border:'none',borderRadius:10,padding:'0',color:'#fff',fontSize:20,cursor:'pointer',flexShrink:0,width:38,height:38,display:'flex',alignItems:'center',justifyContent:'center'}}>←</button>
+            <button onClick={()=>goBack?goBack():navigate('dashboard')} style={{background:'rgba(255,255,255,0.22)',border:'1px solid rgba(255,255,255,0.25)',borderRadius:10,padding:'0',color:'#fff',fontSize:20,cursor:'pointer',flexShrink:0,width:38,height:38,display:'flex',alignItems:'center',justifyContent:'center'}}>←</button>
             <div style={{flex:1,fontSize:17,fontWeight:800,color:'#fff'}}>
               📊 {lang==='ar'?'السجل':'Historique'}
             </div>

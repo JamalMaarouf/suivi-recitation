@@ -372,7 +372,7 @@ export default function FicheSourate({ eleve, user, navigate, goBack, lang='fr',
     <div>
       <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'1.25rem',flexWrap:'wrap',gap:8}}>
         <button onClick={()=>goBack?goBack():navigate('dashboard')}
-              style={{background:'rgba(255,255,255,0.2)',border:'none',borderRadius:10,padding:'8px 12px',color:'#fff',fontSize:18,cursor:'pointer',minWidth:38}}>←</button>
+              style={{background:'rgba(255,255,255,0.22)',border:'1px solid rgba(255,255,255,0.25)',borderRadius:10,padding:'8px 12px',color:'#fff',fontSize:18,cursor:'pointer',minWidth:38}}>←</button>
         <div style={{display:'flex',gap:8}}>
           {user.role==='surveillant'&&(
             <button onClick={()=>{setNouveauNiveau('');setNotePassage('');setShowPassageModal(true);}}
@@ -500,7 +500,7 @@ export default function FicheSourate({ eleve, user, navigate, goBack, lang='fr',
                 // Détail d'une sourate
                 <div>
                   <button onClick={()=>goBack?goBack():navigate('dashboard')}
-              style={{background:'rgba(255,255,255,0.2)',border:'none',borderRadius:10,padding:'8px 12px',color:'#fff',fontSize:18,cursor:'pointer',minWidth:38}}>←</button>
+              style={{background:'rgba(255,255,255,0.22)',border:'1px solid rgba(255,255,255,0.25)',borderRadius:10,padding:'8px 12px',color:'#fff',fontSize:18,cursor:'pointer',minWidth:38}}>←</button>
                   <div style={{textAlign:'center',padding:'1.25rem',background:'linear-gradient(135deg,#378ADD,#0C447C)',borderRadius:16,marginBottom:'1.25rem',color:'#fff'}}>
                     <div style={{fontSize:26,fontWeight:800,fontFamily:"'Amiri','Traditional Arabic',serif",direction:'rtl'}}>{selectedSourate.nom_ar}</div>
                     <div style={{fontSize:12,opacity:0.7,marginTop:4}}>Sourate {selectedSourate.numero}</div>
