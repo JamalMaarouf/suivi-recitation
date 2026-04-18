@@ -1176,6 +1176,239 @@ export default function Finance({ user, navigate, goBack, lang='fr', isMobile })
       <ConfirmModal isOpen={confirmModal.isOpen} title={confirmModal.title} message={confirmModal.message}
         onConfirm={confirmModal.onConfirm} onCancel={hideConfirm}
         confirmLabel={confirmModal.confirmLabel} confirmColor={confirmModal.confirmColor} lang={lang}/>
+
+      {/* ═══ MODALE AJOUT/EDIT COTISATION MOBILE ═══ */}
+      {showFormCot && (
+        <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.5)',zIndex:1000,display:'flex',alignItems:'flex-end'}}
+             onClick={()=>{setShowFormCot(false);setEditingCotId(null);}}>
+          <div style={{background:'#fff',width:'100%',maxHeight:'92vh',overflowY:'auto',borderRadius:'16px 16px 0 0',padding:'16px 16px 24px',animation:'slideUp 0.2s ease-out'}}
+               onClick={e=>e.stopPropagation()}>
+            <style>{`@keyframes slideUp{from{transform:translateY(100%)}to{transform:translateY(0)}}`}</style>
+            <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:14,paddingBottom:10,borderBottom:'1px solid #f0f0ec'}}>
+              <div style={{fontSize:16,fontWeight:800,color:'#085041'}}>
+                {editingCotId?'✏️ ':'📥 '}{editingCotId?(lang==='ar'?'تعديل اشتراك':'Modifier cotisation'):(lang==='ar'?'اشتراك جديد':'Nouvelle cotisation')}
+              </div>
+              <button onClick={()=>{setShowFormCot(false);setEditingCotId(null);}}
+                style={{background:'#f5f5f0',border:'1px solid #d0d0c8',borderRadius:20,width:32,height:32,cursor:'pointer',fontSize:16,fontWeight:600,color:'#374151',display:'flex',alignItems:'center',justifyContent:'center'}}>✕</button>
+            </div>
+
+            {/* Élève */}
+            <div style={{marginBottom:12}}>
+              <label style={{display:'block',fontSize:12,fontWeight:600,color:'#555',marginBottom:4}}>{lang==='ar'?'الطالب *':'Élève *'}</label>
+              <input type="text" value={searchEleveForm}
+                onChange={e=>{
+                  const val=e.target.value;
+                  setSearchEleveForm(val);
+                  const found=eleves.find(x=>String(x.eleve_id_ecole||'')===val.trim());
+                  if(found) setFormCot(f=>({...f,eleve_id:found.id}));
+                  else if(val==='') setFormCot(f=>({...f,eleve_id:''}));
+                }}
+                placeholder={'🔍 '+(lang==='ar'?'بحث بالاسم أو الرقم':'Nom ou #ID...')}
+                style={{width:'100%',padding:'10px 12px',borderRadius:10,border:'1px solid #e0e0d8',fontSize:14,fontFamily:'inherit',boxSizing:'border-box'}}/>
+              {searchEleveForm && !eleves.find(x=>String(x.eleve_id_ecole||'')===searchEleveForm.trim()) && (
+                <div style={{border:'1px solid #e0e0d8',borderRadius:8,background:'#fff',maxHeight:180,overflowY:'auto',marginTop:6}}>
+                  {eleves.filter(e=>`${e.prenom} ${e.nom} ${e.eleve_id_ecole||''}`.toLowerCase().includes(searchEleveForm.toLowerCase())||String(e.eleve_id_ecole||'').includes(searchEleveForm)).slice(0,8).map(e=>(
+                    <div key={e.id} onClick={()=>{setFormCot(f=>({...f,eleve_id:e.id}));setSearchEleveForm(e.eleve_id_ecole?'#'+e.eleve_id_ecole+' — '+e.prenom+' '+e.nom:e.prenom+' '+e.nom);}}
+                      style={{padding:'10px 12px',cursor:'pointer',fontSize:13,borderBottom:'0.5px solid #f0f0ec',display:'flex',alignItems:'center',gap:8}}>
+                      {e.eleve_id_ecole&&<span style={{background:'#E1F5EE',color:'#085041',padding:'1px 6px',borderRadius:4,fontSize:10,fontWeight:700}}>#{e.eleve_id_ecole}</span>}
+                      <span>{e.prenom} {e.nom}</span>
+                      <span style={{fontSize:10,color:'#888',marginLeft:'auto'}}>{e.code_niveau}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {formCot.eleve_id && (()=>{
+                const el=eleves.find(x=>x.id===formCot.eleve_id);
+                return el?<div style={{marginTop:6,padding:'8px 12px',background:'#E1F5EE',borderRadius:8,fontSize:12,color:'#085041',fontWeight:600}}>✓ #{el.eleve_id_ecole||'—'} — {el.prenom} {el.nom}</div>:null;
+              })()}
+            </div>
+
+            {/* Montant */}
+            <div style={{marginBottom:12}}>
+              <label style={{display:'block',fontSize:12,fontWeight:600,color:'#555',marginBottom:4}}>{lang==='ar'?'المبلغ (درهم) *':'Montant (MAD) *'}</label>
+              <input type="number" inputMode="numeric" min="0" step="0.01" value={formCot.montant}
+                onChange={e=>setFormCot(f=>({...f,montant:e.target.value}))}
+                placeholder="150"
+                style={{width:'100%',padding:'10px 12px',borderRadius:10,border:'1px solid #e0e0d8',fontSize:14,fontFamily:'inherit',boxSizing:'border-box'}}/>
+            </div>
+
+            {/* Date */}
+            <div style={{marginBottom:12}}>
+              <label style={{display:'block',fontSize:12,fontWeight:600,color:'#555',marginBottom:4}}>{lang==='ar'?'تاريخ الدفع *':'Date de paiement *'}</label>
+              <input type="date" value={formCot.date_paiement}
+                onChange={e=>setFormCot(f=>({...f,date_paiement:e.target.value}))}
+                style={{width:'100%',padding:'10px 12px',borderRadius:10,border:'1px solid #e0e0d8',fontSize:14,fontFamily:'inherit',boxSizing:'border-box'}}/>
+            </div>
+
+            {/* Période */}
+            <div style={{marginBottom:12}}>
+              <label style={{display:'block',fontSize:12,fontWeight:600,color:'#555',marginBottom:6}}>{lang==='ar'?'الفترة':'Période'}</label>
+              <div style={{display:'flex',gap:6,marginBottom:6}}>
+                {TYPE_PERIODES.map(tp=>(
+                  <div key={tp.val} onClick={()=>setFormCot(f=>({...f,typePeriode:tp.val,valPeriode:''}))}
+                    style={{flex:1,padding:'8px 4px',borderRadius:8,fontSize:11,fontWeight:formCot.typePeriode===tp.val?700:500,cursor:'pointer',textAlign:'center',
+                      background:formCot.typePeriode===tp.val?'#085041':'#f5f5f0',color:formCot.typePeriode===tp.val?'#fff':'#555',
+                      border:'1px solid '+(formCot.typePeriode===tp.val?'#085041':'#e0e0d8')}}>
+                    {lang==='ar'?tp.labelAr:tp.label}
+                  </div>
+                ))}
+              </div>
+              <div style={{display:'flex',gap:6}}>
+                {formCot.typePeriode!=='annee'&&(
+                  <select value={formCot.valPeriode} onChange={e=>setFormCot(f=>({...f,valPeriode:e.target.value}))}
+                    style={{flex:2,padding:'10px',borderRadius:10,border:'1px solid #e0e0d8',fontSize:13,fontFamily:'inherit',background:'#fff'}}>
+                    <option value="">— {lang==='ar'?'اختر':'Choisir'} —</option>
+                    {formCot.typePeriode==='mois' && MOIS.map(m=><option key={m.val} value={m.val}>{lang==='ar'?m.ar:m.fr}</option>)}
+                    {formCot.typePeriode==='trimestre' && TRIMESTRES.map(t=><option key={t.val} value={t.val}>{lang==='ar'?t.ar:t.fr}</option>)}
+                    {formCot.typePeriode==='semestre' && SEMESTRES.map(s=><option key={s.val} value={s.val}>{lang==='ar'?s.ar:s.fr}</option>)}
+                  </select>
+                )}
+                <select value={formCot.annee} onChange={e=>setFormCot(f=>({...f,annee:e.target.value}))}
+                  style={{flex:1,padding:'10px',borderRadius:10,border:'1px solid #e0e0d8',fontSize:13,fontFamily:'inherit',background:'#fff'}}>
+                  {getAnnees().map(a=><option key={a.val} value={a.val}>{a.fr}</option>)}
+                </select>
+              </div>
+              {buildPeriodeStr(formCot.typePeriode,formCot.valPeriode,formCot.annee)&&(
+                <div style={{marginTop:6,fontSize:11,color:'#085041',fontWeight:600}}>
+                  📅 {buildPeriodeStr(formCot.typePeriode,formCot.valPeriode,formCot.annee)}
+                </div>
+              )}
+            </div>
+
+            {/* Statut */}
+            <div style={{marginBottom:14}}>
+              <label style={{display:'block',fontSize:12,fontWeight:600,color:'#555',marginBottom:6}}>{lang==='ar'?'الحالة':'Statut'}</label>
+              <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>
+                {STATUTS.map(s=>(
+                  <div key={s.val} onClick={()=>setFormCot(f=>({...f,statut:s.val}))}
+                    style={{padding:'7px 14px',borderRadius:20,fontSize:12,fontWeight:formCot.statut===s.val?700:500,cursor:'pointer',
+                      background:formCot.statut===s.val?s.bg:'#f5f5f0',color:formCot.statut===s.val?s.color:'#666',
+                      border:'1.5px solid '+(formCot.statut===s.val?s.color:'#e0e0d8')}}>
+                    {lang==='ar'?s.labelAr:s.label}
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Note */}
+            <div style={{marginBottom:16}}>
+              <label style={{display:'block',fontSize:12,fontWeight:600,color:'#555',marginBottom:4}}>{lang==='ar'?'ملاحظات':'Note'}</label>
+              <input type="text" value={formCot.note}
+                onChange={e=>setFormCot(f=>({...f,note:e.target.value}))}
+                placeholder={lang==='ar'?'اختياري...':'Optionnel...'}
+                style={{width:'100%',padding:'10px 12px',borderRadius:10,border:'1px solid #e0e0d8',fontSize:14,fontFamily:'inherit',boxSizing:'border-box'}}/>
+            </div>
+
+            {/* Boutons */}
+            <div style={{display:'flex',gap:8}}>
+              <button onClick={()=>{setShowFormCot(false);setEditingCotId(null);}}
+                style={{flex:1,padding:'14px',borderRadius:12,border:'1px solid #d0d0c8',background:'#f5f5f0',fontSize:14,fontWeight:700,cursor:'pointer',fontFamily:'inherit',color:'#374151'}}>
+                {lang==='ar'?'إلغاء':'Annuler'}
+              </button>
+              <button onClick={saveCotisation} disabled={saving||!formCot.eleve_id||!formCot.montant||!formCot.date_paiement}
+                style={{flex:2,padding:'14px',borderRadius:12,border:'none',
+                  background:(saving||!formCot.eleve_id||!formCot.montant||!formCot.date_paiement)?'#ccc':'#085041',
+                  color:'#fff',fontSize:14,fontWeight:700,cursor:(saving||!formCot.eleve_id||!formCot.montant||!formCot.date_paiement)?'default':'pointer',fontFamily:'inherit'}}>
+                {saving?'...':(editingCotId?'✓ '+(lang==='ar'?'تحديث':'Mettre à jour'):'✓ '+(lang==='ar'?'حفظ':'Enregistrer'))}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ═══ MODALE AJOUT/EDIT DÉPENSE MOBILE ═══ */}
+      {showFormDep && (
+        <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.5)',zIndex:1000,display:'flex',alignItems:'flex-end'}}
+             onClick={()=>{setShowFormDep(false);setEditingDepId(null);}}>
+          <div style={{background:'#fff',width:'100%',maxHeight:'92vh',overflowY:'auto',borderRadius:'16px 16px 0 0',padding:'16px 16px 24px',animation:'slideUp 0.2s ease-out'}}
+               onClick={e=>e.stopPropagation()}>
+            <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:14,paddingBottom:10,borderBottom:'1px solid #f0f0ec'}}>
+              <div style={{fontSize:16,fontWeight:800,color:'#A32D2D'}}>
+                {editingDepId?'✏️ ':'📤 '}{editingDepId?(lang==='ar'?'تعديل مصروف':'Modifier dépense'):(lang==='ar'?'مصروف جديد':'Nouvelle dépense')}
+              </div>
+              <button onClick={()=>{setShowFormDep(false);setEditingDepId(null);}}
+                style={{background:'#f5f5f0',border:'1px solid #d0d0c8',borderRadius:20,width:32,height:32,cursor:'pointer',fontSize:16,fontWeight:600,color:'#374151',display:'flex',alignItems:'center',justifyContent:'center'}}>✕</button>
+            </div>
+
+            {/* Catégorie */}
+            <div style={{marginBottom:12}}>
+              <label style={{display:'block',fontSize:12,fontWeight:600,color:'#555',marginBottom:6}}>{lang==='ar'?'الفئة *':'Catégorie *'}</label>
+              <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>
+                {CATEGORIES.map(c=>(
+                  <div key={c.val} onClick={()=>setFormDep(f=>({...f,categorie:c.val}))}
+                    style={{padding:'8px 12px',borderRadius:20,fontSize:12,fontWeight:formDep.categorie===c.val?700:500,cursor:'pointer',
+                      background:formDep.categorie===c.val?c.color+'20':'#f5f5f0',color:formDep.categorie===c.val?c.color:'#666',
+                      border:'1.5px solid '+(formDep.categorie===c.val?c.color:'#e0e0d8'),display:'flex',alignItems:'center',gap:5}}>
+                    <span>{c.icon}</span>
+                    <span>{lang==='ar'?c.labelAr:c.label}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Bénéficiaire (si salaire) */}
+            {formDep.categorie==='salaire' && (
+              <div style={{marginBottom:12}}>
+                <label style={{display:'block',fontSize:12,fontWeight:600,color:'#555',marginBottom:4}}>{lang==='ar'?'المستفيد (الأستاذ)':'Bénéficiaire (instituteur)'}</label>
+                <select value={formDep.beneficiaire_id||''} onChange={e=>setFormDep(f=>({...f,beneficiaire_id:e.target.value}))}
+                  style={{width:'100%',padding:'10px 12px',borderRadius:10,border:'1px solid #e0e0d8',fontSize:14,fontFamily:'inherit',background:'#fff',boxSizing:'border-box'}}>
+                  <option value="">— {lang==='ar'?'اختر':'Choisir'} —</option>
+                  {instituteurs.map(i=><option key={i.id} value={i.id}>{i.prenom} {i.nom}</option>)}
+                </select>
+              </div>
+            )}
+
+            {/* Montant */}
+            <div style={{marginBottom:12}}>
+              <label style={{display:'block',fontSize:12,fontWeight:600,color:'#555',marginBottom:4}}>{lang==='ar'?'المبلغ (درهم) *':'Montant (MAD) *'}</label>
+              <input type="number" inputMode="numeric" min="0" step="0.01" value={formDep.montant}
+                onChange={e=>setFormDep(f=>({...f,montant:e.target.value}))}
+                placeholder="500"
+                style={{width:'100%',padding:'10px 12px',borderRadius:10,border:'1px solid #e0e0d8',fontSize:14,fontFamily:'inherit',boxSizing:'border-box'}}/>
+            </div>
+
+            {/* Date */}
+            <div style={{marginBottom:12}}>
+              <label style={{display:'block',fontSize:12,fontWeight:600,color:'#555',marginBottom:4}}>{lang==='ar'?'تاريخ المصروف *':'Date *'}</label>
+              <input type="date" value={formDep.date_depense}
+                onChange={e=>setFormDep(f=>({...f,date_depense:e.target.value}))}
+                style={{width:'100%',padding:'10px 12px',borderRadius:10,border:'1px solid #e0e0d8',fontSize:14,fontFamily:'inherit',boxSizing:'border-box'}}/>
+            </div>
+
+            {/* Description */}
+            <div style={{marginBottom:12}}>
+              <label style={{display:'block',fontSize:12,fontWeight:600,color:'#555',marginBottom:4}}>{lang==='ar'?'الوصف':'Description'}</label>
+              <input type="text" value={formDep.description}
+                onChange={e=>setFormDep(f=>({...f,description:e.target.value}))}
+                placeholder={lang==='ar'?'وصف قصير...':'Courte description...'}
+                style={{width:'100%',padding:'10px 12px',borderRadius:10,border:'1px solid #e0e0d8',fontSize:14,fontFamily:'inherit',boxSizing:'border-box'}}/>
+            </div>
+
+            {/* Référence */}
+            <div style={{marginBottom:16}}>
+              <label style={{display:'block',fontSize:12,fontWeight:600,color:'#555',marginBottom:4}}>{lang==='ar'?'المرجع (اختياري)':'Référence (optionnel)'}</label>
+              <input type="text" value={formDep.reference}
+                onChange={e=>setFormDep(f=>({...f,reference:e.target.value}))}
+                placeholder={lang==='ar'?'رقم الفاتورة...':'N° facture...'}
+                style={{width:'100%',padding:'10px 12px',borderRadius:10,border:'1px solid #e0e0d8',fontSize:14,fontFamily:'inherit',boxSizing:'border-box'}}/>
+            </div>
+
+            {/* Boutons */}
+            <div style={{display:'flex',gap:8}}>
+              <button onClick={()=>{setShowFormDep(false);setEditingDepId(null);}}
+                style={{flex:1,padding:'14px',borderRadius:12,border:'1px solid #d0d0c8',background:'#f5f5f0',fontSize:14,fontWeight:700,cursor:'pointer',fontFamily:'inherit',color:'#374151'}}>
+                {lang==='ar'?'إلغاء':'Annuler'}
+              </button>
+              <button onClick={saveDepense} disabled={saving||!formDep.montant||!formDep.date_depense||!formDep.categorie}
+                style={{flex:2,padding:'14px',borderRadius:12,border:'none',
+                  background:(saving||!formDep.montant||!formDep.date_depense||!formDep.categorie)?'#ccc':'#A32D2D',
+                  color:'#fff',fontSize:14,fontWeight:700,cursor:(saving||!formDep.montant||!formDep.date_depense||!formDep.categorie)?'default':'pointer',fontFamily:'inherit'}}>
+                {saving?'...':(editingDepId?'✓ '+(lang==='ar'?'تحديث':'Mettre à jour'):'✓ '+(lang==='ar'?'حفظ':'Enregistrer'))}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
