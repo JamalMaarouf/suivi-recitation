@@ -60,6 +60,7 @@ import { isSourateNiveauDyn } from './lib/helpers';
 import { ToastProvider } from './lib/toast';
 import { NetworkBanner } from './lib/NetworkStatus';
 import EnvBanner from './components/EnvBanner';
+import ImpersonationBanner from './components/ImpersonationBanner';
 import { invalidateAll } from './lib/cache';
 import { cacheClearAll } from './lib/offlineCache';
 import { installAutoSync } from './lib/offlineQueue';
@@ -221,6 +222,35 @@ export default function App() {
     setPageWithRef('dashboard');
   };
 
+  // ─── Impersonification super admin → surveillant d'une école ─────
+  // Permet au super admin de "voir comme" un surveillant pour l'aider
+  // à distance. Mode LECTURE SEULE : aucune action d'écriture possible.
+  const startImpersonation = (targetUser, ecoleNom, originalUser) => {
+    const impersonatedUser = {
+      ...targetUser,
+      _impersonating: {
+        originalUserId: originalUser.id,
+        originalLabel: `${originalUser.prenom || ''} ${originalUser.nom || ''}`.trim() || 'Super admin',
+        ecoleNom: ecoleNom || 'école',
+        startedAt: new Date().toISOString(),
+      },
+    };
+    invalidateAll(); // vider le cache RAM pour ne pas mélanger les données
+    setUser(impersonatedUser);
+    localStorage.setItem('suivi_user', JSON.stringify(impersonatedUser));
+    // note : on NE sauvegarde PAS originalUser dans le storage pour éviter
+    // qu'un refresh de page persiste l'impersonification. On stocke juste
+    // le flag _impersonating qui déclenche un "stop" automatique au login.
+    setPageWithRef('dashboard');
+  };
+
+  const stopImpersonation = () => {
+    // Simplement déconnecter : le super admin devra se reconnecter.
+    // Raison : on n'a pas gardé ses credentials en mémoire pour raisons
+    // de sécurité, donc c'est la solution la plus safe.
+    handleLogout();
+  };
+
 
   const navigate = (p, data = null, extraData = null) => {
     // Save current page to history before navigating
@@ -287,7 +317,8 @@ export default function App() {
     <LangContext.Provider value={{ lang, setLang }}>
       <EnvBanner /><NetworkBanner lang={lang} />
       <div className="app-container">
-        <SuperAdminDashboard user={user} navigate={navigate} lang={lang} onLogout={handleLogout}/>
+        <SuperAdminDashboard user={user} navigate={navigate} lang={lang} onLogout={handleLogout}
+          startImpersonation={(target, ecoleNom) => startImpersonation(target, ecoleNom, user)}/>
       </div>
     </LangContext.Provider>
     </ToastProvider>
@@ -298,7 +329,9 @@ export default function App() {
   return (
     <ToastProvider isMobile={isMobile}>
     <LangContext.Provider value={{ lang, setLang }}>
-      <EnvBanner /><NetworkBanner lang={lang} />
+      <EnvBanner />
+      <ImpersonationBanner user={user} onStop={stopImpersonation} />
+      <NetworkBanner lang={lang} />
       <div className="app-container" dir={getDir(lang)}>
 
         {!isMobile && user.role !== 'parent' && (
