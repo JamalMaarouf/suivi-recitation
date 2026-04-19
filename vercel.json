@@ -14,11 +14,11 @@
     },
     {
       "path": "/api/ping-supabase",
-      "schedule": "0 10 * * 1,3,5"
+      "schedule": "0 10 * * *"
     },
     {
       "path": "/api/alertes",
-      "schedule": "0 */6 * * *"
+      "schedule": "0 8 * * *"
     }
   ],
   "env": {
