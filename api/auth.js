@@ -176,6 +176,12 @@ module.exports = async function handler(req, res) {
     // Succès → on clear le compteur pour cette combinaison
     clearRateLimit(rlKey);
 
+    // Mise à jour derniere_connexion (pour le cockpit SuperAdmin)
+    // Non bloquant : si ça échoue le login continue normalement
+    try {
+      await update('utilisateurs', user.id, { derniere_connexion: new Date().toISOString() });
+    } catch (e) { /* non bloquant */ }
+
     // Retourner l'utilisateur sans le mot de passe
     const { mot_de_passe: _, ...safeUser } = user;
     return res.status(200).json({ user: safeUser });

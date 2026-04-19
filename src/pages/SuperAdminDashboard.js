@@ -1,47 +1,95 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
+import { logAudit } from '../lib/auditLog';
 
 const S = { green:'#1D9E75', purple:'#534AB7', amber:'#EF9F27', red:'#E24B4A', gray:'#888', border:'#e0e0d8' };
 
 export default function SuperAdminDashboard({ user, navigate, lang, onLogout, isMobile }) {
   const [ecoles, setEcoles] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [vue, setVue] = useState('ecoles'); // 'ecoles' | 'attente' | 'creer'
+  const [vue, setVue] = useState('ecoles'); // 'ecoles' | 'attente' | 'creer' | 'audit'
   const [msg, setMsg] = useState('');
   const [form, setForm] = useState({ nom:'', ville:'', pays:'Maroc', telephone:'', email:'', identifiant:'', mot_de_passe:'', prenom_surveillant:'', nom_surveillant:'' });
   const [saving, setSaving] = useState(false);
-  const [editingEcole, setEditingEcole] = useState(null); // ecole being edited
+  const [editingEcole, setEditingEcole] = useState(null);
   const [editForm, setEditForm] = useState({});
   const [editSaving, setEditSaving] = useState(false);
   const [resetPwd, setResetPwd] = useState('');
   const [backupLoading, setBackupLoading] = useState(false);
   const [backupResult, setBackupResult] = useState(null);
 
+  // NEW : santé système + KPIs
+  const [sante, setSante] = useState({ supabase: 'loading', backup: 'loading' });
+  const [kpisGlobaux, setKpisGlobaux] = useState({ total_eleves: 0, total_instituteurs: 0, total_parents: 0, total_validations_7j: 0, total_ecoles_actives: 0 });
+  const [auditLogs, setAuditLogs] = useState([]);
+  const [confirmAction, setConfirmAction] = useState(null); // pour confirmation forte
+
   useEffect(() => { loadData(); }, []);
 
   const loadData = async () => {
     setLoading(true);
     try {
-    const [{ data: ecolesData }, { data: survsData }, { data: elevesData }, { data: instsData }] = await Promise.all([
-      supabase.from('ecoles').select('*').order('created_at', { ascending: false }),
-      supabase.from('utilisateurs').select('id,prenom,nom,identifiant,statut_compte,ecole_id').eq('role','surveillant'),
-      supabase.from('eleves').select('ecole_id'),
-      supabase.from('utilisateurs').select('ecole_id').eq('role','instituteur'),
-    ]);
-    // Map surveillants and eleve counts per ecole
-    const survByEcole = {};
-    (survsData||[]).forEach(s => { survByEcole[s.ecole_id] = s; });
-    const counts = {};
-    (elevesData||[]).forEach(e => { counts[e.ecole_id] = (counts[e.ecole_id]||0)+1; });
-    const instCounts = {};
-    (instsData||[]).forEach(i => { instCounts[i.ecole_id] = (instCounts[i.ecole_id]||0)+1; });
-    setEcoles((ecolesData||[]).map(e => ({
-      ...e,
-      surveillant: survByEcole[e.id] || null,
-      nb_eleves: counts[e.id]||0,
-      nb_instituteurs: instCounts[e.id]||0,
-    })));
-    setLoading(false);
+      // 1) Charger KPIs consolidés via RPC (optimisé, 1 seule requête)
+      const [statsRes, ecolesRes, survsRes, santeRes] = await Promise.all([
+        supabase.rpc('get_stats_ecoles_super_admin'),
+        supabase.from('ecoles').select('*').order('created_at', { ascending: false }),
+        supabase.from('utilisateurs').select('id,prenom,nom,identifiant,statut_compte,ecole_id').eq('role','surveillant'),
+        supabase.from('sante_systeme').select('*').eq('check_type', 'ping_supabase').order('created_at', { ascending: false }).limit(1),
+      ]);
+
+      const statsMap = {};
+      (statsRes?.data || []).forEach(s => { statsMap[s.ecole_id] = s; });
+
+      const survByEcole = {};
+      (survsRes?.data || []).forEach(s => { survByEcole[s.ecole_id] = s; });
+
+      // Enrichir chaque école avec ses stats
+      const ecolesEnrichies = (ecolesRes?.data || []).map(e => {
+        const s = statsMap[e.id] || {};
+        return {
+          ...e,
+          surveillant: survByEcole[e.id] || null,
+          nb_eleves: Number(s.nb_eleves || 0),
+          nb_instituteurs: Number(s.nb_instituteurs || 0),
+          nb_parents: Number(s.nb_parents || 0),
+          nb_validations_total: Number(s.nb_validations_total || 0),
+          nb_validations_7j: Number(s.nb_validations_7j || 0),
+          nb_validations_30j: Number(s.nb_validations_30j || 0),
+          derniere_validation: s.derniere_validation,
+          derniere_connexion: s.derniere_connexion,
+          nb_certificats: Number(s.nb_certificats || 0),
+        };
+      });
+      setEcoles(ecolesEnrichies);
+
+      // 2) KPIs globaux (somme de toutes les écoles actives)
+      const actives = ecolesEnrichies.filter(e => (e.statut || 'active') === 'active');
+      setKpisGlobaux({
+        total_ecoles_actives: actives.length,
+        total_eleves: actives.reduce((sum, e) => sum + e.nb_eleves, 0),
+        total_instituteurs: actives.reduce((sum, e) => sum + e.nb_instituteurs, 0),
+        total_parents: actives.reduce((sum, e) => sum + e.nb_parents, 0),
+        total_validations_7j: actives.reduce((sum, e) => sum + e.nb_validations_7j, 0),
+      });
+
+      // 3) Santé Supabase (dernier ping)
+      const lastPing = santeRes?.data?.[0];
+      let supabaseStatus = 'unknown';
+      if (lastPing) {
+        const ageHours = (Date.now() - new Date(lastPing.created_at).getTime()) / (1000 * 60 * 60);
+        if (lastPing.status === 'ok' && ageHours < 72) supabaseStatus = 'ok';
+        else if (ageHours < 168) supabaseStatus = 'warning';
+        else supabaseStatus = 'error';
+      } else {
+        supabaseStatus = 'unknown'; // aucun ping enregistré
+      }
+      setSante({
+        supabase: supabaseStatus,
+        supabaseLastPing: lastPing,
+        backup: 'unknown', // à remplir via une prochaine table
+      });
+
+      setLoading(false);
     } catch (e) {
       console.error('[SuperAdminDashboard.js] Erreur chargement:', e);
       setLoading(false);
@@ -124,21 +172,84 @@ export default function SuperAdminDashboard({ user, navigate, lang, onLogout, is
     loadData();
   };
 
-  const suspendreEcole = async (ecole) => {
-    await supabase.from('ecoles').update({ statut: 'suspendue' }).eq('id', ecole.id);
+  // ─── Actions critiques avec confirmation forte + audit ──────────
+
+  // Demande de confirmation (ouvre la modal)
+  const demanderConfirmation = (type, ecole) => {
+    const configs = {
+      suspendre: {
+        title: '⚠️ Suspendre l\'école',
+        description: `L'école "${ecole.nom}" sera marquée comme suspendue. Le surveillant ne pourra plus se connecter tant qu'elle n'est pas réactivée.`,
+        warnings: [
+          `${ecole.nb_eleves || 0} élève(s) concerné(s)`,
+          `${ecole.nb_instituteurs || 0} instituteur(s) concerné(s)`,
+          `Les données ne sont PAS supprimées`,
+        ],
+        confirmLabel: 'Suspendre',
+        confirmColor: S.amber,
+        expectedText: ecole.nom,
+        onConfirm: () => executeSuspendreEcole(ecole),
+      },
+      reactiver: {
+        title: '✅ Réactiver l\'école',
+        description: `L'école "${ecole.nom}" redeviendra active. Le surveillant pourra à nouveau se connecter.`,
+        warnings: [],
+        confirmLabel: 'Réactiver',
+        confirmColor: S.green,
+        expectedText: null, // pas besoin de retaper le nom pour une action réversible
+        onConfirm: () => executeReactiverEcole(ecole),
+      },
+    };
+    setConfirmAction({ type, ecole, ...configs[type], typedText: '', checked1: false, checked2: false });
+  };
+
+  const executeSuspendreEcole = async (ecole) => {
+    const { error: e1 } = await supabase.from('ecoles').update({ statut: 'suspendue' }).eq('id', ecole.id);
+    if (e1) { showMsg('Erreur: ' + e1.message); return; }
     const surv = ecole.surveillant || null;
     if (surv) await supabase.from('utilisateurs').update({ statut_compte: 'suspendu' }).eq('id', surv.id);
-    showMsg('École suspendue.');
+
+    // Audit log
+    await logAudit(supabase, {
+      actor: user,
+      action: 'suspendre_ecole',
+      target_type: 'ecole',
+      target_id: ecole.id,
+      target_label: ecole.nom,
+      metadata: {
+        surveillant_id: surv?.id || null,
+        nb_eleves: ecole.nb_eleves || 0,
+        nb_instituteurs: ecole.nb_instituteurs || 0,
+      },
+    });
+
+    showMsg('✅ École suspendue');
+    setConfirmAction(null);
     loadData();
   };
 
-  const reactiverEcole = async (ecole) => {
-    await supabase.from('ecoles').update({ statut: 'active' }).eq('id', ecole.id);
+  const executeReactiverEcole = async (ecole) => {
+    const { error } = await supabase.from('ecoles').update({ statut: 'active' }).eq('id', ecole.id);
+    if (error) { showMsg('Erreur: ' + error.message); return; }
     const surv = ecole.surveillant || null;
     if (surv) await supabase.from('utilisateurs').update({ statut_compte: 'actif' }).eq('id', surv.id);
-    showMsg('✅ École réactivée.');
+
+    await logAudit(supabase, {
+      actor: user,
+      action: 'reactiver_ecole',
+      target_type: 'ecole',
+      target_id: ecole.id,
+      target_label: ecole.nom,
+    });
+
+    showMsg('✅ École réactivée');
+    setConfirmAction(null);
     loadData();
   };
+
+  // Anciennes fonctions : on les redirige vers la nouvelle confirmation
+  const suspendreEcole = (ecole) => demanderConfirmation('suspendre', ecole);
+  const reactiverEcole = (ecole) => demanderConfirmation('reactiver', ecole);
 
   const saveEditEcole = async () => {
     setEditSaving(true);
@@ -198,6 +309,39 @@ export default function SuperAdminDashboard({ user, navigate, lang, onLogout, is
       <div style={{fontSize:11,color:'#888',marginTop:2}}>{label}</div>
     </div>
   );
+
+  // ─── Helpers santé système ──────────────────────────────────────
+  const formatAgeShort = (timestamp) => {
+    if (!timestamp) return 'inconnu';
+    const age = Date.now() - new Date(timestamp).getTime();
+    const mins = Math.floor(age / 60000);
+    const hrs = Math.floor(mins / 60);
+    const days = Math.floor(hrs / 24);
+    if (days >= 1) return `il y a ${days}j`;
+    if (hrs >= 1) return `il y a ${hrs}h`;
+    if (mins >= 1) return `il y a ${mins}min`;
+    return 'à l\'instant';
+  };
+
+  const SanteIndicator = ({ label, status, detail }) => {
+    const config = {
+      ok:      { bg:'#E1F5EE', border:'#1D9E7540', color:'#085041', icon:'🟢', text:'OK' },
+      warning: { bg:'#FAEEDA', border:'#EF9F2740', color:'#633806', icon:'🟡', text:'Warning' },
+      error:   { bg:'#FCEBEB', border:'#E24B4A40', color:'#A32D2D', icon:'🔴', text:'Erreur' },
+      loading: { bg:'#f5f5f0', border:'#e0e0d8',  color:'#888',    icon:'⏳', text:'Chargement...' },
+      unknown: { bg:'#f5f5f0', border:'#e0e0d8',  color:'#888',    icon:'⚪', text:'Inconnu' },
+    };
+    const c = config[status] || config.unknown;
+    return (
+      <div style={{background:c.bg,border:`0.5px solid ${c.border}`,borderRadius:10,padding:'10px 12px'}}>
+        <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:3}}>
+          <span style={{fontSize:14}}>{c.icon}</span>
+          <span style={{fontSize:12,fontWeight:700,color:c.color}}>{label}</span>
+        </div>
+        <div style={{fontSize:11,color:c.color,opacity:0.8,lineHeight:1.4}}>{detail}</div>
+      </div>
+    );
+  };
 
   const EcoleCard = ({ecole}) => {
     const surv = ecole.surveillant || null;
@@ -301,14 +445,43 @@ export default function SuperAdminDashboard({ user, navigate, lang, onLogout, is
       {/* Message flash */}
       {msg && <div style={{background:'#E1F5EE',border:'0.5px solid #1D9E7530',borderRadius:8,padding:'10px 14px',marginBottom:'1rem',fontSize:13,color:'#085041'}}>{msg}</div>}
 
-      {/* Stats */}
+      {/* ─── Santé système ───────────────────────────────────── */}
       {!loading && (
-        <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(120px,1fr))',gap:10,marginBottom:'1.25rem'}}>
+        <div style={{background:'#fff',border:'0.5px solid #e0e0d8',borderRadius:12,padding:'1rem 1.25rem',marginBottom:'1.25rem'}}>
+          <div style={{fontSize:12,fontWeight:700,color:'#888',marginBottom:10,textTransform:'uppercase',letterSpacing:0.5}}>
+            🏥 Santé système
+          </div>
+          <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(180px,1fr))',gap:10}}>
+            <SanteIndicator
+              label="Supabase"
+              status={sante.supabase}
+              detail={sante.supabaseLastPing
+                ? `Dernier ping : ${formatAgeShort(sante.supabaseLastPing.created_at)}`
+                : 'Aucun ping enregistré'}
+            />
+            <SanteIndicator
+              label="Vercel"
+              status="ok"
+              detail="Application en ligne"
+            />
+            <SanteIndicator
+              label="Backup"
+              status={sante.backup}
+              detail={sante.backup === 'unknown' ? 'Statut à configurer' : 'OK'}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* ─── KPIs globaux ────────────────────────────────────── */}
+      {!loading && (
+        <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(130px,1fr))',gap:10,marginBottom:'1.25rem'}}>
           <StatCard icon="🏫" val={ecoles.length} label="Écoles total"/>
           <StatCard icon="✅" val={actives.length} label="Actives" color={S.green}/>
           <StatCard icon="⏳" val={enAttente.length} label="En attente" color={S.amber}/>
           <StatCard icon="🚫" val={suspendues.length} label="Suspendues" color={S.red}/>
-          <StatCard icon="🎓" val={ecoles.reduce((a,e)=>a+e.nb_eleves,0)} label="Élèves total" color={S.purple}/>
+          <StatCard icon="🎓" val={kpisGlobaux.total_eleves} label="Élèves actifs" color={S.purple}/>
+          <StatCard icon="⚡" val={kpisGlobaux.total_validations_7j} label="Validations 7j" color="#378ADD"/>
         </div>
       )}
 
@@ -443,6 +616,85 @@ export default function SuperAdminDashboard({ user, navigate, lang, onLogout, is
                 style={{flex:1,padding:'9px',background:editSaving||!editForm.nom.trim()?'#ccc':S.green,color:'#fff',border:'none',borderRadius:10,fontWeight:700,cursor:'pointer',fontSize:13}}>
                 {editSaving?'...':'✅ Enregistrer'}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ─── MODAL DE CONFIRMATION FORTE ─────────────────────────── */}
+      {confirmAction && (
+        <div style={{position:'fixed',top:0,left:0,right:0,bottom:0,background:'rgba(0,0,0,0.6)',zIndex:10000,display:'flex',alignItems:'center',justifyContent:'center',padding:'1rem'}}>
+          <div style={{background:'#fff',borderRadius:16,maxWidth:500,width:'100%',maxHeight:'90vh',overflowY:'auto'}}>
+            <div style={{padding:'1.5rem',borderBottom:'0.5px solid #e0e0d8'}}>
+              <div style={{fontSize:18,fontWeight:800,color:confirmAction.confirmColor,marginBottom:6}}>
+                {confirmAction.title}
+              </div>
+              <div style={{fontSize:13,color:'#555',lineHeight:1.5}}>
+                {confirmAction.description}
+              </div>
+            </div>
+
+            {confirmAction.warnings.length > 0 && (
+              <div style={{padding:'1rem 1.5rem',background:'#FAEEDA',borderBottom:'0.5px solid #e0e0d8'}}>
+                <div style={{fontSize:12,fontWeight:700,color:'#633806',marginBottom:6}}>
+                  ⚠️ Conséquences :
+                </div>
+                {confirmAction.warnings.map((w, i) => (
+                  <div key={i} style={{fontSize:12,color:'#633806',marginBottom:3}}>• {w}</div>
+                ))}
+              </div>
+            )}
+
+            <div style={{padding:'1.25rem 1.5rem'}}>
+              {confirmAction.expectedText && (
+                <div style={{marginBottom:14}}>
+                  <label style={{fontSize:12,fontWeight:600,color:'#555',display:'block',marginBottom:6}}>
+                    Tapez <strong style={{color:confirmAction.confirmColor,fontFamily:'monospace'}}>{confirmAction.expectedText}</strong> pour confirmer :
+                  </label>
+                  <input type="text" value={confirmAction.typedText || ''}
+                    onChange={e => setConfirmAction({...confirmAction, typedText: e.target.value})}
+                    style={{width:'100%',padding:'10px 12px',borderRadius:8,border:'1px solid #e0e0d8',fontSize:14,fontFamily:'inherit'}}
+                    placeholder={confirmAction.expectedText}
+                    autoFocus
+                  />
+                </div>
+              )}
+
+              <label style={{display:'flex',alignItems:'center',gap:8,marginBottom:8,cursor:'pointer',fontSize:12,color:'#555'}}>
+                <input type="checkbox" checked={confirmAction.checked1 || false}
+                  onChange={e => setConfirmAction({...confirmAction, checked1: e.target.checked})} />
+                Je comprends les conséquences de cette action
+              </label>
+              <label style={{display:'flex',alignItems:'center',gap:8,marginBottom:14,cursor:'pointer',fontSize:12,color:'#555'}}>
+                <input type="checkbox" checked={confirmAction.checked2 || false}
+                  onChange={e => setConfirmAction({...confirmAction, checked2: e.target.checked})} />
+                Cette action sera enregistrée dans le journal d'audit
+              </label>
+
+              <div style={{display:'flex',gap:10}}>
+                <button onClick={() => setConfirmAction(null)}
+                  style={{flex:1,padding:'11px',background:'#fff',color:'#666',border:'1px solid #e0e0d8',borderRadius:10,fontSize:13,fontWeight:600,cursor:'pointer',fontFamily:'inherit'}}>
+                  Annuler
+                </button>
+                <button
+                  onClick={() => confirmAction.onConfirm()}
+                  disabled={
+                    !confirmAction.checked1 ||
+                    !confirmAction.checked2 ||
+                    (confirmAction.expectedText && confirmAction.typedText !== confirmAction.expectedText)
+                  }
+                  style={{
+                    flex:1, padding:'11px',
+                    background: (!confirmAction.checked1 || !confirmAction.checked2 || (confirmAction.expectedText && confirmAction.typedText !== confirmAction.expectedText))
+                      ? '#e0e0d8'
+                      : confirmAction.confirmColor,
+                    color:'#fff', border:'none', borderRadius:10, fontSize:13, fontWeight:700,
+                    cursor: (!confirmAction.checked1 || !confirmAction.checked2 || (confirmAction.expectedText && confirmAction.typedText !== confirmAction.expectedText)) ? 'not-allowed' : 'pointer',
+                    fontFamily:'inherit'
+                  }}>
+                  {confirmAction.confirmLabel}
+                </button>
+              </div>
             </div>
           </div>
         </div>
