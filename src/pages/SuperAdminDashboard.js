@@ -18,10 +18,11 @@ export default function SuperAdminDashboard({ user, navigate, lang, onLogout, is
   const [backupLoading, setBackupLoading] = useState(false);
   const [backupResult, setBackupResult] = useState(null);
 
-  // NEW : santé système + KPIs
+  // NEW : santé système + KPIs + alertes
   const [sante, setSante] = useState({ supabase: 'loading', backup: 'loading' });
   const [kpisGlobaux, setKpisGlobaux] = useState({ total_eleves: 0, total_instituteurs: 0, total_parents: 0, total_validations_7j: 0, total_ecoles_actives: 0 });
   const [auditLogs, setAuditLogs] = useState([]);
+  const [alertesActives, setAlertesActives] = useState([]);
   const [confirmAction, setConfirmAction] = useState(null); // pour confirmation forte
 
   useEffect(() => { loadData(); }, []);
@@ -30,11 +31,13 @@ export default function SuperAdminDashboard({ user, navigate, lang, onLogout, is
     setLoading(true);
     try {
       // 1) Charger KPIs consolidés via RPC (optimisé, 1 seule requête)
-      const [statsRes, ecolesRes, survsRes, santeRes] = await Promise.all([
+      const [statsRes, ecolesRes, survsRes, santeRes, backupRes, alertesRes] = await Promise.all([
         supabase.rpc('get_stats_ecoles_super_admin'),
         supabase.from('ecoles').select('*').order('created_at', { ascending: false }),
         supabase.from('utilisateurs').select('id,prenom,nom,identifiant,statut_compte,ecole_id').eq('role','surveillant'),
         supabase.from('sante_systeme').select('*').eq('check_type', 'ping_supabase').order('created_at', { ascending: false }).limit(1),
+        supabase.from('sante_systeme').select('*').eq('check_type', 'backup').order('created_at', { ascending: false }).limit(1),
+        supabase.from('alertes').select('*').is('resolved_at', null).order('created_at', { ascending: false }).limit(20),
       ]);
 
       const statsMap = {};
@@ -81,13 +84,37 @@ export default function SuperAdminDashboard({ user, navigate, lang, onLogout, is
         else if (ageHours < 168) supabaseStatus = 'warning';
         else supabaseStatus = 'error';
       } else {
-        supabaseStatus = 'unknown'; // aucun ping enregistré
+        supabaseStatus = 'unknown';
       }
+
+      // 4) Santé Backup (dernier backup)
+      const lastBackup = backupRes?.data?.[0];
+      let backupStatus = 'unknown';
+      let backupDetail = 'Aucun backup enregistré';
+      if (lastBackup) {
+        const ageHours = (Date.now() - new Date(lastBackup.created_at).getTime()) / (1000 * 60 * 60);
+        if (lastBackup.status === 'ok' && ageHours < 28) {
+          backupStatus = 'ok';
+          backupDetail = `Dernier : ${formatAgeShort(lastBackup.created_at)}`;
+        } else if (ageHours < 48) {
+          backupStatus = 'warning';
+          backupDetail = `${formatAgeShort(lastBackup.created_at)} (bientôt manqué)`;
+        } else {
+          backupStatus = 'error';
+          backupDetail = `Manqué depuis ${Math.round(ageHours)}h`;
+        }
+      }
+
       setSante({
         supabase: supabaseStatus,
         supabaseLastPing: lastPing,
-        backup: 'unknown', // à remplir via une prochaine table
+        backup: backupStatus,
+        backupDetail: backupDetail,
+        backupLast: lastBackup,
       });
+
+      // 5) Alertes actives
+      setAlertesActives(alertesRes?.data || []);
 
       setLoading(false);
     } catch (e) {
@@ -467,8 +494,44 @@ export default function SuperAdminDashboard({ user, navigate, lang, onLogout, is
             <SanteIndicator
               label="Backup"
               status={sante.backup}
-              detail={sante.backup === 'unknown' ? 'Statut à configurer' : 'OK'}
+              detail={sante.backupDetail || 'Aucun backup enregistré'}
             />
+          </div>
+        </div>
+      )}
+
+      {/* ─── Alertes actives ─────────────────────────────────── */}
+      {!loading && alertesActives.length > 0 && (
+        <div style={{marginBottom:'1.25rem'}}>
+          <div style={{fontSize:12,fontWeight:700,color:'#888',marginBottom:10,textTransform:'uppercase',letterSpacing:0.5,display:'flex',alignItems:'center',gap:6}}>
+            🚨 Alertes actives ({alertesActives.length})
+          </div>
+          <div style={{display:'flex',flexDirection:'column',gap:8}}>
+            {alertesActives.slice(0, 5).map(a => {
+              const bg = a.niveau === 'critique' ? '#FCEBEB' : a.niveau === 'warning' ? '#FAEEDA' : '#E1F5EE';
+              const border = a.niveau === 'critique' ? '#E24B4A40' : a.niveau === 'warning' ? '#EF9F2740' : '#1D9E7540';
+              const color = a.niveau === 'critique' ? '#A32D2D' : a.niveau === 'warning' ? '#633806' : '#085041';
+              const emoji = a.niveau === 'critique' ? '🔴' : a.niveau === 'warning' ? '🟠' : '🔵';
+              return (
+                <div key={a.id} style={{background:bg,border:`0.5px solid ${border}`,borderRadius:10,padding:'10px 14px'}}>
+                  <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:4}}>
+                    <span style={{fontSize:14}}>{emoji}</span>
+                    <span style={{fontSize:13,fontWeight:700,color}}>{a.titre}</span>
+                    <span style={{fontSize:10,color:color,opacity:0.7,marginLeft:'auto'}}>
+                      {formatAgeShort(a.created_at)}
+                    </span>
+                  </div>
+                  <div style={{fontSize:11,color,opacity:0.85,whiteSpace:'pre-wrap',lineHeight:1.4}}>
+                    {a.message.length > 200 ? a.message.substring(0, 200) + '...' : a.message}
+                  </div>
+                </div>
+              );
+            })}
+            {alertesActives.length > 5 && (
+              <div style={{fontSize:11,color:'#888',textAlign:'center',padding:6}}>
+                ... et {alertesActives.length - 5} autre(s) alerte(s)
+              </div>
+            )}
           </div>
         </div>
       )}

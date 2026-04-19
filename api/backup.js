@@ -181,8 +181,52 @@ module.exports = async function handler(req, res) {
       }],
     });
     console.log(`[Backup] Email sent to ${backupEmail}`);
+
+    // Logger le succès dans sante_systeme (pour le cockpit + alertes)
+    try {
+      await fetch(`${supabaseUrl}/rest/v1/sante_systeme`, {
+        method: 'POST',
+        headers: {
+          'apikey': serviceKey,
+          'Authorization': `Bearer ${serviceKey}`,
+          'Content-Type': 'application/json',
+          'Prefer': 'return=minimal',
+        },
+        body: JSON.stringify({
+          check_type: 'backup',
+          status: 'ok',
+          latency_ms: Date.now() - startTime,
+          message: `Backup OK · ${backup.metadata.total_records} enregistrements · ${formatSize(jsonStr.length)}`,
+          metadata: {
+            total_records: backup.metadata.total_records,
+            tables_with_data: results.filter(r => r.count > 0).length,
+            tables_error: results.filter(r => r.error).length,
+          },
+        }),
+      });
+    } catch (e) { /* non bloquant */ }
   } catch (emailErr) {
     console.error('[Backup] Email error:', emailErr.message);
+
+    // Logger l'échec dans sante_systeme
+    try {
+      await fetch(`${supabaseUrl}/rest/v1/sante_systeme`, {
+        method: 'POST',
+        headers: {
+          'apikey': serviceKey,
+          'Authorization': `Bearer ${serviceKey}`,
+          'Content-Type': 'application/json',
+          'Prefer': 'return=minimal',
+        },
+        body: JSON.stringify({
+          check_type: 'backup',
+          status: 'error',
+          latency_ms: Date.now() - startTime,
+          message: `Backup échoué : ${emailErr.message}`,
+        }),
+      });
+    } catch (e) { /* non bloquant */ }
+
     return res.status(200).json({
       success: true,
       email_error: emailErr.message,
