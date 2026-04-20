@@ -757,10 +757,11 @@ export default function GestionNiveaux({ user, navigate, goBack, lang='fr', isMo
                           onCommit={(v) => setBlocs(prev => prev.map((b, i) => i === idx ? { ...b, nom: v } : b))}
                           placeholder={lang==='ar' ? 'اسم البلوك (اختياري)' : 'Nom du bloc (optionnel)'}
                         />
-                        {/* Toggle sens ASC/DESC */}
+                        {/* Toggle sens ASC/DESC — onMouseDown pour que le clic prenne
+                            effet AVANT le blur de BlocNomInput (sinon 2 clics necessaires) */}
                         <div style={{display:'flex',gap:3,padding:3,background:'#fff',borderRadius:7,border:'0.5px solid #e0e0d8'}}>
                           <button type="button"
-                            onClick={() => setBlocs(prev => prev.map((b, i) => i === idx ? { ...b, sens: 'asc' } : b))}
+                            onMouseDown={(e) => { e.preventDefault(); modifierBloc(idx, 'sens', 'asc'); }}
                             style={{padding:'4px 8px',borderRadius:5,border:'none',cursor:'pointer',fontSize:11,
                               background: bloc.sens==='asc' ? nc : 'transparent',
                               color: bloc.sens==='asc' ? '#fff' : '#888',
@@ -768,7 +769,7 @@ export default function GestionNiveaux({ user, navigate, goBack, lang='fr', isMo
                             ↑ {lang==='ar' ? 'تصاعدي' : 'Asc'}
                           </button>
                           <button type="button"
-                            onClick={() => setBlocs(prev => prev.map((b, i) => i === idx ? { ...b, sens: 'desc' } : b))}
+                            onMouseDown={(e) => { e.preventDefault(); modifierBloc(idx, 'sens', 'desc'); }}
                             style={{padding:'4px 8px',borderRadius:5,border:'none',cursor:'pointer',fontSize:11,
                               background: bloc.sens==='desc' ? nc : 'transparent',
                               color: bloc.sens==='desc' ? '#fff' : '#888',
@@ -777,9 +778,11 @@ export default function GestionNiveaux({ user, navigate, goBack, lang='fr', isMo
                           </button>
                         </div>
                         {blocs.length > 1 && (
-                          <button type="button" onClick={() => {
-                            if (window.confirm(lang==='ar' ? 'حذف هذا البلوك؟' : 'Supprimer ce bloc ?')) supprimerBloc(idx);
-                          }}
+                          <button type="button"
+                            onMouseDown={(e) => {
+                              e.preventDefault();
+                              if (window.confirm(lang==='ar' ? 'حذف هذا البلوك؟' : 'Supprimer ce bloc ?')) supprimerBloc(idx);
+                            }}
                             style={{padding:'5px 8px',borderRadius:6,border:'none',background:'#FCEBEB',color:'#E24B4A',
                               cursor:'pointer',fontSize:12}}>
                             🗑
@@ -801,7 +804,10 @@ export default function GestionNiveaux({ user, navigate, goBack, lang='fr', isMo
                           )}
                         </div>
                         <button type="button"
-                          onClick={() => preserveScroll(() => setBlocEnEdition(prev => prev === idx ? null : idx))}
+                          onMouseDown={(e) => {
+                            e.preventDefault();
+                            preserveScroll(() => setBlocEnEdition(prev => prev === idx ? null : idx));
+                          }}
                           style={{padding:'5px 12px',borderRadius:7,border:`0.5px solid ${nc}40`,
                             background: isOpen ? nc : '#fff',
                             color: isOpen ? '#fff' : nc,
