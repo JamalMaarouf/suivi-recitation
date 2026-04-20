@@ -35,6 +35,18 @@ export default function GestionNiveaux({ user, navigate, goBack, lang='fr', isMo
   const [savingProg, setSavingProg]           = useState(false);
   const [ecoleConfig, setEcoleConfig]         = useState(null);
 
+  // ─── NOTION DE BLOCS PÉDAGOGIQUES ──────────────────────────
+  // Un programme peut être organisé en plusieurs blocs (ex: 60 Hizb
+  // découpés en 4 blocs de 15). Chaque bloc a son propre nom et son
+  // propre sens de récitation (asc/desc).
+  // useBlocs = false : programme continu (1 seul bloc, comportement classique)
+  // useBlocs = true  : programme organisé en N blocs pédagogiques
+  const [useBlocs, setUseBlocs] = useState(false);
+  const [blocs, setBlocs] = useState([
+    { numero: 1, nom: '', sens: 'asc', hizbs: [] }
+  ]);
+  const [blocEnEdition, setBlocEnEdition] = useState(null); // index du bloc dont on édite les hizbs
+
   useEffect(() => { loadData(); }, []);
 
   const [formProgramme, setFormProgramme] = useState([]);
@@ -67,27 +79,56 @@ export default function GestionNiveaux({ user, navigate, goBack, lang='fr', isMo
       if (sd && sd.length > 0) { setSouratesDB(sd); sDB = sd; }
     }
 
-    // Charger le programme
-    const { data } = await supabase
-      .from('programmes')
-      .select('reference_id, ordre')
-      .eq('niveau_id', n.id)
-      .eq('ecole_id', user.ecole_id)
-      .order('ordre');
+  // Charger le programme
+  const { data } = await supabase
+    .from('programmes')
+    .select('reference_id, ordre, bloc_numero, bloc_nom, bloc_sens')
+    .eq('niveau_id', n.id)
+    .eq('ecole_id', user.ecole_id)
+    .order('ordre');
 
-    if (data && data.length > 0) {
-      if (n.type === 'hizb') {
-        setProgramme(data.map(d => parseInt(d.reference_id)));
-      } else {
-        // reference_id = id de la sourate dans la table sourates (clé primaire)
-        // On utilise directement ces ids sans conversion
-        // Normaliser en strings pour cohérence
-        const ids = data.map(d => String(d.reference_id));
-        setProgramme(ids);
-      }
+  if (data && data.length > 0) {
+    if (n.type === 'hizb') {
+      setProgramme(data.map(d => parseInt(d.reference_id)));
     } else {
-      setProgramme([]);
+      // reference_id = id de la sourate dans la table sourates (clé primaire)
+      // On utilise directement ces ids sans conversion
+      // Normaliser en strings pour cohérence
+      const ids = data.map(d => String(d.reference_id));
+      setProgramme(ids);
     }
+
+    // ─── Reconstituer les blocs depuis les données BDD ───
+    // Regroupe les lignes par bloc_numero et reconstruit la liste de blocs
+    const blocsMap = new Map();
+    data.forEach(d => {
+      const numBloc = d.bloc_numero || 1;
+      if (!blocsMap.has(numBloc)) {
+        blocsMap.set(numBloc, {
+          numero: numBloc,
+          nom: d.bloc_nom || '',
+          sens: d.bloc_sens || 'asc',
+          hizbs: [],
+        });
+      }
+      blocsMap.get(numBloc).hizbs.push(parseInt(d.reference_id));
+    });
+    const blocsArray = Array.from(blocsMap.values()).sort((a, b) => a.numero - b.numero);
+
+    // Active le mode blocs si plus d'un bloc détecté
+    if (blocsArray.length > 1) {
+      setUseBlocs(true);
+      setBlocs(blocsArray);
+    } else {
+      setUseBlocs(false);
+      // On garde les blocs vides pour le cas où l'user active le mode blocs
+      setBlocs([{ numero: 1, nom: '', sens: 'asc', hizbs: [] }]);
+    }
+  } else {
+    setProgramme([]);
+    setUseBlocs(false);
+    setBlocs([{ numero: 1, nom: '', sens: 'asc', hizbs: [] }]);
+  }
   };
 
   const fermerProgramme = () => {
@@ -110,13 +151,109 @@ export default function GestionNiveaux({ user, navigate, goBack, lang='fr', isMo
     });
   };
 
+  // ─── Helpers gestion des blocs ──────────────────────────
+  const ajouterBloc = () => {
+    setBlocs(prev => [...prev, {
+      numero: prev.length + 1,
+      nom: '',
+      sens: 'asc',
+      hizbs: [],
+    }]);
+  };
+
+  const supprimerBloc = (index) => {
+    setBlocs(prev => {
+      const nouveau = prev.filter((_, i) => i !== index);
+      // Renuméroter les blocs restants
+      return nouveau.map((b, i) => ({ ...b, numero: i + 1 }));
+    });
+  };
+
+  const modifierBloc = (index, champ, valeur) => {
+    setBlocs(prev => prev.map((b, i) => i === index ? { ...b, [champ]: valeur } : b));
+  };
+
+  const toggleHizbDansBloc = (indexBloc, hizb) => {
+    setBlocs(prev => prev.map((b, i) => {
+      if (i !== indexBloc) return b;
+      const hizbs = b.hizbs.includes(hizb)
+        ? b.hizbs.filter(h => h !== hizb)
+        : [...b.hizbs, hizb];
+      return { ...b, hizbs };
+    }));
+  };
+
+  // Retourne les hizbs déjà pris par d'autres blocs (pour les griser)
+  const hizbsPrisParAutresBlocs = (indexBlocCourant) => {
+    const pris = new Set();
+    blocs.forEach((b, i) => {
+      if (i !== indexBlocCourant) {
+        (b.hizbs || []).forEach(h => pris.add(h));
+      }
+    });
+    return pris;
+  };
+
   const sauvegarderProgramme = async () => {
     if (!niveauProgramme) return;
+
+    // ─── Mode BLOCS ───────────────────────────────────────────
+    // Valide chaque bloc, trie son contenu selon son sens, puis
+    // construit un ordre global qui concatène tous les blocs.
+    if (useBlocs && niveauProgramme.type === 'hizb') {
+      // Validation : au moins 1 bloc avec des hizbs
+      const blocsNonVides = blocs.filter(b => (b.hizbs || []).length > 0);
+      if (blocsNonVides.length === 0) {
+        return toast.warning(lang==='ar' ? 'أضف على الأقل حزباً واحداً في بلوك' : 'Ajoutez au moins un Hizb dans un bloc');
+      }
+
+      setSavingProg(true);
+      // Supprimer l'ancien programme
+      await supabase.from('programmes').delete().eq('niveau_id', niveauProgramme.id).eq('ecole_id', user.ecole_id);
+
+      // Construire les lignes : pour chaque bloc, trier ses hizbs selon son sens
+      // puis incrémenter l'ordre globalement
+      const rows = [];
+      let ordreGlobal = 1;
+      blocsNonVides.forEach((bloc, idxBloc) => {
+        const hizbsTries = [...bloc.hizbs];
+        if (bloc.sens === 'asc') {
+          hizbsTries.sort((a, b) => a - b);
+        } else {
+          hizbsTries.sort((a, b) => b - a);
+        }
+        hizbsTries.forEach(h => {
+          rows.push({
+            niveau_id: niveauProgramme.id,
+            ecole_id: user.ecole_id,
+            type_contenu: 'hizb',
+            reference_id: String(h),
+            ordre: ordreGlobal++,
+            obligatoire: true,
+            bloc_numero: idxBloc + 1,
+            bloc_nom: bloc.nom || null,
+            bloc_sens: bloc.sens,
+          });
+        });
+      });
+
+      const { error } = await supabase.from('programmes').insert(rows);
+      setSavingProg(false);
+      if (error) { toast.error(error.message || 'Erreur'); return; }
+      toast.success(lang==='ar' ? '✅ تم حفظ البرنامج مع البلوكات' : '✅ Programme enregistré avec blocs !');
+      setModeEditionProgramme(false);
+      // Recharger
+      await ouvrirProgramme(niveauProgramme);
+      loadData();
+      return;
+    }
+
+    // ─── Mode CONTINU (comportement classique) ────────────────
     if (programme.length === 0) return toast.warning(lang==='ar'?'اختر عناصر البرنامج':'Sélectionnez au moins un élément');
     setSavingProg(true);
     // Supprimer l'ancien programme
     await supabase.from('programmes').delete().eq('niveau_id', niveauProgramme.id).eq('ecole_id', user.ecole_id);
-    
+
     // Trier le programme avant sauvegarde
     let programmeTrie = [...programme];
     if (niveauProgramme.type === 'sourate') {
@@ -130,8 +267,8 @@ export default function GestionNiveaux({ user, navigate, goBack, lang='fr', isMo
       // Hizb : trier décroissant (60→1)
       programmeTrie.sort((a, b) => b - a);
     }
-    
-    // Insérer le nouveau
+
+    // Insérer le nouveau (bloc_numero=1 par défaut, bloc_sens=asc par défaut)
     const rows = programmeTrie.map((id, idx) => ({
       niveau_id: niveauProgramme.id,
       ecole_id: user.ecole_id,
@@ -139,6 +276,9 @@ export default function GestionNiveaux({ user, navigate, goBack, lang='fr', isMo
       reference_id: String(id),
       ordre: idx + 1,
       obligatoire: true,
+      bloc_numero: 1,
+      bloc_nom: null,
+      bloc_sens: 'asc',
     }));
     const { error } = await supabase.from('programmes').insert(rows);
     setSavingProg(false);
@@ -354,18 +494,61 @@ export default function GestionNiveaux({ user, navigate, goBack, lang='fr', isMo
                 </div>
               ):niveauProgramme.type==='hizb'?(
                 <>
-                  <div style={{fontSize:12,color:'#888',marginBottom:12}}>
-                    {lang==='ar'?'الأحزاب المحددة:':'Hizb sélectionnés :'}
-                  </div>
-                  <div style={{display:'grid',gridTemplateColumns:'repeat(10,1fr)',gap:4}}>
-                    {[...programme].sort((a,b)=>a-b).map(h=>(
-                      <div key={h} style={{height:36,borderRadius:8,display:'flex',alignItems:'center',
-                        justifyContent:'center',fontSize:12,fontWeight:700,
-                        background:`${nc}20`,color:nc,border:`1.5px solid ${nc}40`}}>
-                        {h}
+                  {useBlocs && blocs.filter(b => (b.hizbs||[]).length>0).length > 1 ? (
+                    // ─── Affichage par BLOCS ──────────────────
+                    <>
+                      <div style={{fontSize:12,color:'#888',marginBottom:12,display:'flex',alignItems:'center',gap:6}}>
+                        <span>📚</span>
+                        <span>{lang==='ar'?'البرنامج مقسم إلى ':'Programme en '}<strong>{blocs.filter(b=>(b.hizbs||[]).length>0).length}</strong>{lang==='ar'?' بلوكات':' blocs'}</span>
                       </div>
-                    ))}
-                  </div>
+                      {blocs.filter(b => (b.hizbs||[]).length>0).map((bloc, idx) => {
+                        const hizbsTries = [...bloc.hizbs].sort((a,b) => bloc.sens==='asc' ? a-b : b-a);
+                        return (
+                          <div key={idx} style={{marginBottom:14,padding:'12px',borderRadius:10,background:`${nc}08`,border:`1px solid ${nc}25`}}>
+                            <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:8}}>
+                              <div style={{width:24,height:24,borderRadius:6,background:nc,color:'#fff',fontSize:11,fontWeight:700,display:'flex',alignItems:'center',justifyContent:'center'}}>
+                                {bloc.numero}
+                              </div>
+                              <div style={{flex:1}}>
+                                <div style={{fontSize:13,fontWeight:700,color:'#1a1a1a'}}>
+                                  {bloc.nom || (lang==='ar'?`البلوك ${bloc.numero}`:`Bloc ${bloc.numero}`)}
+                                </div>
+                                <div style={{fontSize:10,color:'#888'}}>
+                                  {bloc.hizbs.length} {lang==='ar'?'حزب · ':'Hizb · '}
+                                  {bloc.sens==='asc'?(lang==='ar'?'تصاعدي ↑':'Asc ↑'):(lang==='ar'?'تنازلي ↓':'Desc ↓')}
+                                </div>
+                              </div>
+                            </div>
+                            <div style={{display:'grid',gridTemplateColumns:'repeat(10,1fr)',gap:3}}>
+                              {hizbsTries.map(h => (
+                                <div key={h} style={{height:30,borderRadius:6,display:'flex',alignItems:'center',
+                                  justifyContent:'center',fontSize:11,fontWeight:700,
+                                  background:`${nc}20`,color:nc,border:`1px solid ${nc}40`}}>
+                                  {h}
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </>
+                  ) : (
+                    // ─── Affichage CONTINU (classique) ─────────
+                    <>
+                      <div style={{fontSize:12,color:'#888',marginBottom:12}}>
+                        {lang==='ar'?'الأحزاب المحددة:':'Hizb sélectionnés :'}
+                      </div>
+                      <div style={{display:'grid',gridTemplateColumns:'repeat(10,1fr)',gap:4}}>
+                        {[...programme].sort((a,b)=>a-b).map(h=>(
+                          <div key={h} style={{height:36,borderRadius:8,display:'flex',alignItems:'center',
+                            justifyContent:'center',fontSize:12,fontWeight:700,
+                            background:`${nc}20`,color:nc,border:`1.5px solid ${nc}40`}}>
+                            {h}
+                          </div>
+                        ))}
+                      </div>
+                    </>
+                  )}
                 </>
               ):(
                 <>
@@ -428,8 +611,39 @@ export default function GestionNiveaux({ user, navigate, goBack, lang='fr', isMo
                 color:'#888',padding:0,lineHeight:1}}>×</button>
           </div>
 
-          {/* Sélection rapide Hizb */}
+          {/* ─── Toggle Mode Continu / Mode Blocs (niveaux Hizb uniquement) ─── */}
           {niveauProgramme.type==='hizb'&&(
+            <div style={{padding:'12px 18px 0',flexShrink:0}}>
+              <div style={{display:'flex',gap:6,padding:4,background:'#f5f5f0',borderRadius:10}}>
+                <button onClick={()=>setUseBlocs(false)}
+                  style={{flex:1,padding:'7px 10px',borderRadius:7,border:'none',cursor:'pointer',
+                    background:!useBlocs?'#fff':'transparent',
+                    color:!useBlocs?nc:'#888',
+                    fontSize:12,fontWeight:!useBlocs?700:500,
+                    boxShadow:!useBlocs?'0 1px 3px rgba(0,0,0,0.08)':'none',
+                    fontFamily:'inherit'}}>
+                  📄 {lang==='ar'?'برنامج متصل':'Continu'}
+                </button>
+                <button onClick={()=>setUseBlocs(true)}
+                  style={{flex:1,padding:'7px 10px',borderRadius:7,border:'none',cursor:'pointer',
+                    background:useBlocs?'#fff':'transparent',
+                    color:useBlocs?nc:'#888',
+                    fontSize:12,fontWeight:useBlocs?700:500,
+                    boxShadow:useBlocs?'0 1px 3px rgba(0,0,0,0.08)':'none',
+                    fontFamily:'inherit'}}>
+                  📚 {lang==='ar'?'بلوكات متعددة':'Par blocs'}
+                </button>
+              </div>
+              <div style={{fontSize:10,color:'#888',marginTop:6,fontStyle:'italic'}}>
+                {useBlocs
+                  ? (lang==='ar'?'كل بلوك له اسم واتجاه خاص (تصاعدي/تنازلي)':'Chaque bloc a son nom et son sens de récitation')
+                  : (lang==='ar'?'برنامج عادي بدون تقسيم':'Programme classique sans découpage')}
+              </div>
+            </div>
+          )}
+
+          {/* Sélection rapide Hizb — mode CONTINU uniquement */}
+          {niveauProgramme.type==='hizb'&&!useBlocs&&(
             <div style={{padding:'12px 18px 0',flexShrink:0}}>
               <div style={{display:'flex',gap:6,flexWrap:'wrap',marginBottom:4}}>
                 <span style={{fontSize:11,color:'#888',alignSelf:'center'}}>
@@ -458,8 +672,8 @@ export default function GestionNiveaux({ user, navigate, goBack, lang='fr', isMo
           {/* Contenu scrollable */}
           <div ref={panneauScrollRef} style={{flex:1,overflowY:'auto',padding:'12px 18px',overscrollBehavior:'contain'}}>
 
-            {/* Grille Hizb */}
-            {niveauProgramme.type==='hizb'&&(
+            {/* Grille Hizb — Mode CONTINU */}
+            {niveauProgramme.type==='hizb'&&!useBlocs&&(
               <div style={{display:'grid',gridTemplateColumns:'repeat(10,1fr)',gap:5}}>
                 {makeHizbList(niveauProgramme.sens_recitation || ecoleConfig?.sens_recitation_defaut || 'desc').map(h=>{
                   const sel = programme.includes(h);
@@ -476,6 +690,104 @@ export default function GestionNiveaux({ user, navigate, goBack, lang='fr', isMo
                     </div>
                   );
                 })}
+              </div>
+            )}
+
+            {/* Grille Hizb — Mode BLOCS */}
+            {niveauProgramme.type==='hizb'&&useBlocs&&(
+              <div style={{display:'flex',flexDirection:'column',gap:12}}>
+                {blocs.map((bloc, idx) => {
+                  const hizbsPris = hizbsPrisParAutresBlocs(idx);
+                  const isOpen = blocEnEdition === idx;
+                  return (
+                    <div key={idx} style={{borderRadius:12,background:'#fff',border:`1.5px solid ${nc}40`,overflow:'hidden'}}>
+                      {/* En-tête du bloc */}
+                      <div style={{padding:'10px 12px',background:`${nc}10`,display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}>
+                        <div style={{width:28,height:28,borderRadius:7,background:nc,color:'#fff',fontSize:12,fontWeight:800,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
+                          {idx+1}
+                        </div>
+                        <input type="text" autoComplete="off"
+                          value={bloc.nom}
+                          onChange={e=>modifierBloc(idx, 'nom', e.target.value)}
+                          placeholder={lang==='ar'?`اسم البلوك (اختياري)`:`Nom du bloc (optionnel)`}
+                          style={{flex:1,minWidth:120,padding:'6px 10px',borderRadius:8,border:'0.5px solid #e0e0d8',fontSize:12,fontFamily:'inherit'}}/>
+                        {/* Toggle sens ASC/DESC */}
+                        <div style={{display:'flex',gap:3,padding:3,background:'#fff',borderRadius:7,border:'0.5px solid #e0e0d8'}}>
+                          <button onClick={()=>modifierBloc(idx,'sens','asc')}
+                            style={{padding:'4px 8px',borderRadius:5,border:'none',cursor:'pointer',fontSize:11,
+                              background:bloc.sens==='asc'?nc:'transparent',
+                              color:bloc.sens==='asc'?'#fff':'#888',fontWeight:bloc.sens==='asc'?700:500}}>
+                            ↑ {lang==='ar'?'تصاعدي':'Asc'}
+                          </button>
+                          <button onClick={()=>modifierBloc(idx,'sens','desc')}
+                            style={{padding:'4px 8px',borderRadius:5,border:'none',cursor:'pointer',fontSize:11,
+                              background:bloc.sens==='desc'?nc:'transparent',
+                              color:bloc.sens==='desc'?'#fff':'#888',fontWeight:bloc.sens==='desc'?700:500}}>
+                            ↓ {lang==='ar'?'تنازلي':'Desc'}
+                          </button>
+                        </div>
+                        {/* Bouton supprimer */}
+                        {blocs.length > 1 && (
+                          <button onClick={()=>{if(window.confirm(lang==='ar'?'حذف هذا البلوك؟':'Supprimer ce bloc ?')) supprimerBloc(idx);}}
+                            style={{padding:'5px 8px',borderRadius:6,border:'none',background:'#FCEBEB',color:'#E24B4A',cursor:'pointer',fontSize:12}}>
+                            🗑
+                          </button>
+                        )}
+                      </div>
+
+                      {/* Compteur + bouton ouvrir/fermer */}
+                      <div style={{padding:'8px 12px',display:'flex',alignItems:'center',gap:8,borderBottom:isOpen?'0.5px solid #e0e0d8':'none'}}>
+                        <div style={{fontSize:11,color:'#666',flex:1}}>
+                          <strong style={{color:nc}}>{(bloc.hizbs||[]).length}</strong> {lang==='ar'?'حزب محدد':'Hizb sélectionnés'}
+                          {(bloc.hizbs||[]).length>0 && (
+                            <span style={{color:'#aaa',marginLeft:8}}>
+                              · {[...bloc.hizbs].sort((a,b)=>bloc.sens==='asc'?a-b:b-a).slice(0,8).join(', ')}{bloc.hizbs.length>8?'...':''}
+                            </span>
+                          )}
+                        </div>
+                        <button onClick={()=>setBlocEnEdition(isOpen?null:idx)}
+                          style={{padding:'5px 12px',borderRadius:7,border:`0.5px solid ${nc}40`,background:isOpen?nc:'#fff',color:isOpen?'#fff':nc,cursor:'pointer',fontSize:11,fontWeight:600}}>
+                          {isOpen ? (lang==='ar'?'إغلاق':'Fermer') : (lang==='ar'?'اختيار الأحزاب':'Choisir Hizb')}
+                        </button>
+                      </div>
+
+                      {/* Grille de sélection des Hizb (uniquement si ouvert) */}
+                      {isOpen && (
+                        <div style={{padding:'10px 12px'}}>
+                          <div style={{fontSize:10,color:'#888',marginBottom:6}}>
+                            {lang==='ar'?'الأحزاب بالرمادي محجوزة في بلوكات أخرى':'Les Hizb grisés sont pris par d\'autres blocs'}
+                          </div>
+                          <div style={{display:'grid',gridTemplateColumns:'repeat(10,1fr)',gap:4}}>
+                            {Array.from({length:60},(_,i)=>i+1).map(h => {
+                              const selDansBloc = (bloc.hizbs||[]).includes(h);
+                              const prisAilleurs = hizbsPris.has(h);
+                              return (
+                                <div key={h}
+                                  onClick={()=>{if(!prisAilleurs) toggleHizbDansBloc(idx, h);}}
+                                  style={{height:32,borderRadius:6,display:'flex',alignItems:'center',justifyContent:'center',
+                                    fontSize:11,fontWeight:selDansBloc?700:400,
+                                    cursor:prisAilleurs?'not-allowed':'pointer',
+                                    opacity:prisAilleurs?0.35:1,
+                                    background:selDansBloc?nc:(prisAilleurs?'#f0f0ec':'#f5f5f0'),
+                                    color:selDansBloc?'#fff':(prisAilleurs?'#aaa':'#666'),
+                                    border:`1px solid ${selDansBloc?nc:'#e0e0d8'}`}}>
+                                  {h}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+
+                {/* Bouton ajouter un bloc */}
+                <button onClick={ajouterBloc}
+                  style={{padding:'12px',borderRadius:12,border:`1.5px dashed ${nc}80`,background:`${nc}08`,color:nc,cursor:'pointer',fontSize:13,fontWeight:600,fontFamily:'inherit',display:'flex',alignItems:'center',justifyContent:'center',gap:6}}>
+                  <span style={{fontSize:16}}>+</span>
+                  {lang==='ar'?'إضافة بلوك':'Ajouter un bloc'}
+                </button>
               </div>
             )}
 
