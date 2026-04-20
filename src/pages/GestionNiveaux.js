@@ -201,6 +201,8 @@ export default function GestionNiveaux({ user, navigate, goBack, lang='fr', isMo
   };
 
   const toggleHizbDansBloc = (indexBloc, hizb) => {
+    // Sauvegarder la position de scroll avant le re-render (sinon le scroll remonte en haut)
+    const scrollTop = panneauScrollRef.current?.scrollTop || 0;
     setBlocs(prev => prev.map((b, i) => {
       if (i !== indexBloc) return b;
       const hizbs = b.hizbs.includes(hizb)
@@ -208,6 +210,12 @@ export default function GestionNiveaux({ user, navigate, goBack, lang='fr', isMo
         : [...b.hizbs, hizb];
       return { ...b, hizbs };
     }));
+    // Restaurer la position après le re-render
+    requestAnimationFrame(() => {
+      if (panneauScrollRef.current) {
+        panneauScrollRef.current.scrollTop = scrollTop;
+      }
+    });
   };
 
   // Retourne les hizbs déjà pris par d'autres blocs (pour les griser)
