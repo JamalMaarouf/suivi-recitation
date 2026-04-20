@@ -14,6 +14,116 @@ const COULEURS_PRESET = [
   '#D85A30','#085041','#0C447C','#633806','#888'
 ];
 
+// ═══════════════════════════════════════════════════════════
+// BlocEditor — composant isolé et mémoïsé pour éviter que les inputs
+// perdent le focus lors de la frappe. En extrayant ce composant
+// du composant principal, React ne re-render qu'UN seul BlocEditor
+// à la fois (celui dont les props changent), au lieu de re-construire
+// tous les blocs à chaque frappe.
+// ═══════════════════════════════════════════════════════════
+const BlocEditor = React.memo(function BlocEditor({
+  bloc, idx, nc, lang, isOpen, canDelete, hizbsPris,
+  onNomChange, onSensChange, onDelete, onToggleOpen, onToggleHizb,
+}) {
+  return (
+    <div style={{borderRadius:12,background:'#fff',border:`1.5px solid ${nc}40`,overflow:'hidden'}}>
+      {/* En-tête du bloc */}
+      <div style={{padding:'10px 12px',background:`${nc}10`,display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}>
+        <div style={{width:28,height:28,borderRadius:7,background:nc,color:'#fff',fontSize:12,fontWeight:800,
+          display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
+          {idx+1}
+        </div>
+        <input
+          type="text"
+          autoComplete="off"
+          dir="auto"
+          value={bloc.nom || ''}
+          onChange={e => onNomChange(idx, e.target.value)}
+          placeholder={lang==='ar' ? 'اسم البلوك (اختياري)' : 'Nom du bloc (optionnel)'}
+          style={{flex:1,minWidth:120,padding:'6px 10px',borderRadius:8,border:'0.5px solid #e0e0d8',
+            fontSize:12,fontFamily:'inherit'}}
+        />
+        {/* Toggle sens ASC/DESC */}
+        <div style={{display:'flex',gap:3,padding:3,background:'#fff',borderRadius:7,border:'0.5px solid #e0e0d8'}}>
+          <button type="button" onClick={() => onSensChange(idx, 'asc')}
+            style={{padding:'4px 8px',borderRadius:5,border:'none',cursor:'pointer',fontSize:11,
+              background: bloc.sens==='asc' ? nc : 'transparent',
+              color: bloc.sens==='asc' ? '#fff' : '#888',
+              fontWeight: bloc.sens==='asc' ? 700 : 500}}>
+            ↑ {lang==='ar' ? 'تصاعدي' : 'Asc'}
+          </button>
+          <button type="button" onClick={() => onSensChange(idx, 'desc')}
+            style={{padding:'4px 8px',borderRadius:5,border:'none',cursor:'pointer',fontSize:11,
+              background: bloc.sens==='desc' ? nc : 'transparent',
+              color: bloc.sens==='desc' ? '#fff' : '#888',
+              fontWeight: bloc.sens==='desc' ? 700 : 500}}>
+            ↓ {lang==='ar' ? 'تنازلي' : 'Desc'}
+          </button>
+        </div>
+        {canDelete && (
+          <button type="button" onClick={() => {
+            if (window.confirm(lang==='ar' ? 'حذف هذا البلوك؟' : 'Supprimer ce bloc ?')) onDelete(idx);
+          }}
+            style={{padding:'5px 8px',borderRadius:6,border:'none',background:'#FCEBEB',color:'#E24B4A',
+              cursor:'pointer',fontSize:12}}>
+            🗑
+          </button>
+        )}
+      </div>
+
+      {/* Compteur + bouton ouvrir/fermer */}
+      <div style={{padding:'8px 12px',display:'flex',alignItems:'center',gap:8,
+        borderBottom: isOpen ? '0.5px solid #e0e0d8' : 'none'}}>
+        <div style={{fontSize:11,color:'#666',flex:1}}>
+          <strong style={{color:nc}}>{(bloc.hizbs||[]).length}</strong>{' '}
+          {lang==='ar' ? 'حزب محدد' : 'Hizb sélectionnés'}
+          {(bloc.hizbs||[]).length > 0 && (
+            <span style={{color:'#aaa',marginLeft:8}}>
+              · {[...bloc.hizbs].sort((a,b) => bloc.sens==='asc' ? a-b : b-a).slice(0,8).join(', ')}
+              {bloc.hizbs.length > 8 ? '...' : ''}
+            </span>
+          )}
+        </div>
+        <button type="button" onClick={() => onToggleOpen(idx)}
+          style={{padding:'5px 12px',borderRadius:7,border:`0.5px solid ${nc}40`,
+            background: isOpen ? nc : '#fff',
+            color: isOpen ? '#fff' : nc,
+            cursor:'pointer',fontSize:11,fontWeight:600}}>
+          {isOpen ? (lang==='ar' ? 'إغلاق' : 'Fermer') : (lang==='ar' ? 'اختيار الأحزاب' : 'Choisir Hizb')}
+        </button>
+      </div>
+
+      {/* Grille de sélection des Hizb (uniquement si ouvert) */}
+      {isOpen && (
+        <div style={{padding:'10px 12px'}}>
+          <div style={{fontSize:10,color:'#888',marginBottom:6}}>
+            {lang==='ar' ? 'الأحزاب بالرمادي محجوزة في بلوكات أخرى' : 'Les Hizb grisés sont pris par d\'autres blocs'}
+          </div>
+          <div style={{display:'grid',gridTemplateColumns:'repeat(10,1fr)',gap:4}}>
+            {Array.from({length:60}, (_,i) => i+1).map(h => {
+              const selDansBloc = (bloc.hizbs||[]).includes(h);
+              const prisAilleurs = hizbsPris.has(h);
+              return (
+                <div key={h}
+                  onClick={() => { if (!prisAilleurs) onToggleHizb(idx, h); }}
+                  style={{height:32,borderRadius:6,display:'flex',alignItems:'center',justifyContent:'center',
+                    fontSize:11,fontWeight: selDansBloc ? 700 : 400,
+                    cursor: prisAilleurs ? 'not-allowed' : 'pointer',
+                    opacity: prisAilleurs ? 0.35 : 1,
+                    background: selDansBloc ? nc : (prisAilleurs ? '#f0f0ec' : '#f5f5f0'),
+                    color: selDansBloc ? '#fff' : (prisAilleurs ? '#aaa' : '#666'),
+                    border: `1px solid ${selDansBloc ? nc : '#e0e0d8'}`}}>
+                  {h}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+});
+
 export default function GestionNiveaux({ user, navigate, goBack, lang='fr', isMobile }) {
   const { toast } = useToast();
   const [niveaux, setNiveaux]       = useState([]);
@@ -696,102 +806,29 @@ export default function GestionNiveaux({ user, navigate, goBack, lang='fr', isMo
             {/* Grille Hizb — Mode BLOCS */}
             {niveauProgramme.type==='hizb'&&useBlocs&&(
               <div style={{display:'flex',flexDirection:'column',gap:12}}>
-                {blocs.map((bloc, idx) => {
-                  const hizbsPris = hizbsPrisParAutresBlocs(idx);
-                  const isOpen = blocEnEdition === idx;
-                  // Key stable : basée sur la position uniquement, pas sur le contenu
-                  // (sinon taper dans l'input recrée le composant et perd le focus)
-                  return (
-                    <div key={`bloc-${idx}`} style={{borderRadius:12,background:'#fff',border:`1.5px solid ${nc}40`,overflow:'hidden'}}>
-                      {/* En-tête du bloc */}
-                      <div style={{padding:'10px 12px',background:`${nc}10`,display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}>
-                        <div style={{width:28,height:28,borderRadius:7,background:nc,color:'#fff',fontSize:12,fontWeight:800,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
-                          {idx+1}
-                        </div>
-                        <input
-                          key={`bloc-nom-${idx}`}
-                          type="text"
-                          autoComplete="off"
-                          dir="auto"
-                          value={bloc.nom || ''}
-                          onChange={e=>modifierBloc(idx, 'nom', e.target.value)}
-                          placeholder={lang==='ar'?'اسم البلوك (اختياري)':'Nom du bloc (optionnel)'}
-                          style={{flex:1,minWidth:120,padding:'6px 10px',borderRadius:8,border:'0.5px solid #e0e0d8',fontSize:12,fontFamily:'inherit'}}
-                        />
-                        {/* Toggle sens ASC/DESC */}
-                        <div style={{display:'flex',gap:3,padding:3,background:'#fff',borderRadius:7,border:'0.5px solid #e0e0d8'}}>
-                          <button onClick={()=>modifierBloc(idx,'sens','asc')}
-                            style={{padding:'4px 8px',borderRadius:5,border:'none',cursor:'pointer',fontSize:11,
-                              background:bloc.sens==='asc'?nc:'transparent',
-                              color:bloc.sens==='asc'?'#fff':'#888',fontWeight:bloc.sens==='asc'?700:500}}>
-                            ↑ {lang==='ar'?'تصاعدي':'Asc'}
-                          </button>
-                          <button onClick={()=>modifierBloc(idx,'sens','desc')}
-                            style={{padding:'4px 8px',borderRadius:5,border:'none',cursor:'pointer',fontSize:11,
-                              background:bloc.sens==='desc'?nc:'transparent',
-                              color:bloc.sens==='desc'?'#fff':'#888',fontWeight:bloc.sens==='desc'?700:500}}>
-                            ↓ {lang==='ar'?'تنازلي':'Desc'}
-                          </button>
-                        </div>
-                        {/* Bouton supprimer */}
-                        {blocs.length > 1 && (
-                          <button onClick={()=>{if(window.confirm(lang==='ar'?'حذف هذا البلوك؟':'Supprimer ce bloc ?')) supprimerBloc(idx);}}
-                            style={{padding:'5px 8px',borderRadius:6,border:'none',background:'#FCEBEB',color:'#E24B4A',cursor:'pointer',fontSize:12}}>
-                            🗑
-                          </button>
-                        )}
-                      </div>
-
-                      {/* Compteur + bouton ouvrir/fermer */}
-                      <div style={{padding:'8px 12px',display:'flex',alignItems:'center',gap:8,borderBottom:isOpen?'0.5px solid #e0e0d8':'none'}}>
-                        <div style={{fontSize:11,color:'#666',flex:1}}>
-                          <strong style={{color:nc}}>{(bloc.hizbs||[]).length}</strong> {lang==='ar'?'حزب محدد':'Hizb sélectionnés'}
-                          {(bloc.hizbs||[]).length>0 && (
-                            <span style={{color:'#aaa',marginLeft:8}}>
-                              · {[...bloc.hizbs].sort((a,b)=>bloc.sens==='asc'?a-b:b-a).slice(0,8).join(', ')}{bloc.hizbs.length>8?'...':''}
-                            </span>
-                          )}
-                        </div>
-                        <button onClick={()=>setBlocEnEdition(isOpen?null:idx)}
-                          style={{padding:'5px 12px',borderRadius:7,border:`0.5px solid ${nc}40`,background:isOpen?nc:'#fff',color:isOpen?'#fff':nc,cursor:'pointer',fontSize:11,fontWeight:600}}>
-                          {isOpen ? (lang==='ar'?'إغلاق':'Fermer') : (lang==='ar'?'اختيار الأحزاب':'Choisir Hizb')}
-                        </button>
-                      </div>
-
-                      {/* Grille de sélection des Hizb (uniquement si ouvert) */}
-                      {isOpen && (
-                        <div style={{padding:'10px 12px'}}>
-                          <div style={{fontSize:10,color:'#888',marginBottom:6}}>
-                            {lang==='ar'?'الأحزاب بالرمادي محجوزة في بلوكات أخرى':'Les Hizb grisés sont pris par d\'autres blocs'}
-                          </div>
-                          <div style={{display:'grid',gridTemplateColumns:'repeat(10,1fr)',gap:4}}>
-                            {Array.from({length:60},(_,i)=>i+1).map(h => {
-                              const selDansBloc = (bloc.hizbs||[]).includes(h);
-                              const prisAilleurs = hizbsPris.has(h);
-                              return (
-                                <div key={h}
-                                  onClick={()=>{if(!prisAilleurs) toggleHizbDansBloc(idx, h);}}
-                                  style={{height:32,borderRadius:6,display:'flex',alignItems:'center',justifyContent:'center',
-                                    fontSize:11,fontWeight:selDansBloc?700:400,
-                                    cursor:prisAilleurs?'not-allowed':'pointer',
-                                    opacity:prisAilleurs?0.35:1,
-                                    background:selDansBloc?nc:(prisAilleurs?'#f0f0ec':'#f5f5f0'),
-                                    color:selDansBloc?'#fff':(prisAilleurs?'#aaa':'#666'),
-                                    border:`1px solid ${selDansBloc?nc:'#e0e0d8'}`}}>
-                                  {h}
-                                </div>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
+                {blocs.map((bloc, idx) => (
+                  <BlocEditor
+                    key={`bloc-${idx}`}
+                    bloc={bloc}
+                    idx={idx}
+                    nc={nc}
+                    lang={lang}
+                    isOpen={blocEnEdition === idx}
+                    canDelete={blocs.length > 1}
+                    hizbsPris={hizbsPrisParAutresBlocs(idx)}
+                    onNomChange={(i, v) => modifierBloc(i, 'nom', v)}
+                    onSensChange={(i, v) => modifierBloc(i, 'sens', v)}
+                    onDelete={supprimerBloc}
+                    onToggleOpen={(i) => setBlocEnEdition(prev => prev === i ? null : i)}
+                    onToggleHizb={toggleHizbDansBloc}
+                  />
+                ))}
 
                 {/* Bouton ajouter un bloc */}
                 <button onClick={ajouterBloc}
-                  style={{padding:'12px',borderRadius:12,border:`1.5px dashed ${nc}80`,background:`${nc}08`,color:nc,cursor:'pointer',fontSize:13,fontWeight:600,fontFamily:'inherit',display:'flex',alignItems:'center',justifyContent:'center',gap:6}}>
+                  style={{padding:'12px',borderRadius:12,border:`1.5px dashed ${nc}80`,background:`${nc}08`,
+                    color:nc,cursor:'pointer',fontSize:13,fontWeight:600,fontFamily:'inherit',
+                    display:'flex',alignItems:'center',justifyContent:'center',gap:6}}>
                   <span style={{fontSize:16}}>+</span>
                   {lang==='ar'?'إضافة بلوك':'Ajouter un bloc'}
                 </button>
