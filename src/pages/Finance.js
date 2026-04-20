@@ -114,6 +114,7 @@ export default function Finance({ user, navigate, goBack, lang='fr', isMobile })
   // Les entrées restent modifiables après coup via les onglets classiques.
   const [showExpressCot, setShowExpressCot] = useState(false);
   const [showExpressDep, setShowExpressDep] = useState(false);
+  const [showExpressMenu, setShowExpressMenu] = useState(false); // dropdown choix Cotisation/Dépense
   const [expressCot, setExpressCot] = useState({ eleve_id: '', montant: '' });
   const [expressDep, setExpressDep] = useState({ description: '', montant: '', categorie: 'salaire' });
   const [expressSearchEleve, setExpressSearchEleve] = useState('');
@@ -1075,7 +1076,45 @@ export default function Finance({ user, navigate, goBack, lang='fr', isMobile })
       <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'1rem',flexWrap:'wrap',gap:8}}>
         <button className="back-link" onClick={()=>goBack?goBack():navigate('dashboard')}></button>
         <div style={{fontSize:18,fontWeight:700,color:'#085041'}}>💰 {lang==='ar'?'الإدارة المالية':lang==='en'?'Finance':'Gestion Financière'}</div>
-        <div style={{display:'flex',gap:6}}>
+        <div style={{display:'flex',gap:6,alignItems:'center',position:'relative'}}>
+          {/* ⚡ Bouton Saisie Rapide (dropdown) — toujours visible, tous onglets */}
+          <button onClick={()=>setShowExpressMenu(v=>!v)}
+            style={{display:'flex',alignItems:'center',gap:5,padding:'5px 12px',background:showExpressMenu?'#085041':'#1D9E75',color:'#fff',border:'none',borderRadius:8,fontSize:11,fontWeight:700,cursor:'pointer',boxShadow:'0 1px 3px rgba(29,158,117,0.3)'}}>
+            ⚡ {lang==='ar'?'إدخال سريع':'Saisie rapide'}
+            <span style={{fontSize:9,opacity:0.8,marginLeft:2}}>{showExpressMenu?'▲':'▼'}</span>
+          </button>
+
+          {/* Dropdown qui s'ouvre sous le bouton ⚡ */}
+          {showExpressMenu && (
+            <>
+              {/* Overlay invisible pour fermer au clic extérieur */}
+              <div onClick={()=>setShowExpressMenu(false)}
+                style={{position:'fixed',inset:0,zIndex:50}}/>
+              <div style={{position:'absolute',top:'calc(100% + 6px)',right:0,background:'#fff',border:'0.5px solid #e0e0d8',borderRadius:10,boxShadow:'0 4px 16px rgba(0,0,0,0.12)',minWidth:200,zIndex:51,overflow:'hidden'}}>
+                <div onClick={()=>{setShowExpressMenu(false);setShowExpressCot(true);}}
+                  style={{padding:'10px 14px',cursor:'pointer',display:'flex',alignItems:'center',gap:10,fontSize:13,fontWeight:600,color:'#085041',borderBottom:'0.5px solid #f0f0ec',transition:'background 0.15s'}}
+                  onMouseEnter={e=>e.currentTarget.style.background='#E1F5EE'}
+                  onMouseLeave={e=>e.currentTarget.style.background='#fff'}>
+                  <span style={{fontSize:16}}>💰</span>
+                  <div>
+                    <div>{lang==='ar'?'اشتراك':'Cotisation'}</div>
+                    <div style={{fontSize:10,color:'#888',fontWeight:400}}>{lang==='ar'?'طالب + مبلغ':'Élève + montant'}</div>
+                  </div>
+                </div>
+                <div onClick={()=>{setShowExpressMenu(false);setShowExpressDep(true);}}
+                  style={{padding:'10px 14px',cursor:'pointer',display:'flex',alignItems:'center',gap:10,fontSize:13,fontWeight:600,color:'#1e3a5f',transition:'background 0.15s'}}
+                  onMouseEnter={e=>e.currentTarget.style.background='#E8EDF5'}
+                  onMouseLeave={e=>e.currentTarget.style.background='#fff'}>
+                  <span style={{fontSize:16}}>💸</span>
+                  <div>
+                    <div>{lang==='ar'?'مصروف':'Dépense'}</div>
+                    <div style={{fontSize:10,color:'#888',fontWeight:400}}>{lang==='ar'?'وصف + مبلغ + فئة':'Description + montant + catégorie'}</div>
+                  </div>
+                </div>
+              </div>
+            </>
+          )}
+
           {onglet==='cotisations'&&<button onClick={exportCotisationsExcel} style={{display:'flex',alignItems:'center',gap:5,padding:'5px 12px',background:'#f5f5f0',color:'#085041',border:'0.5px solid #e0e0d8',borderRadius:8,fontSize:11,fontWeight:600,cursor:'pointer'}}>📊 Excel</button>}
           {onglet==='depenses'&&<button onClick={exportDepensesExcel} style={{display:'flex',alignItems:'center',gap:5,padding:'5px 12px',background:'#f5f5f0',color:'#085041',border:'0.5px solid #e0e0d8',borderRadius:8,fontSize:11,fontWeight:600,cursor:'pointer'}}>📊 Excel</button>}
           {onglet==='suivi'&&<button onClick={exportSuiviExcel} style={{display:'flex',alignItems:'center',gap:5,padding:'5px 12px',background:'#f5f5f0',color:'#085041',border:'0.5px solid #e0e0d8',borderRadius:8,fontSize:11,fontWeight:600,cursor:'pointer'}}>📊 Excel</button>}
@@ -1113,31 +1152,6 @@ export default function Finance({ user, navigate, goBack, lang='fr', isMobile })
               <StatCard icon="📥" val={fmtMAD(totalCotisations)} lbl={lang==='ar'?'إجمالي الاشتراكات':'Total cotisations'} color="#1D9E75" bg="#E1F5EE" sub={cotPeriode.length+(lang==='ar'?' دفعة':' versements')}/>
               <StatCard icon="📤" val={fmtMAD(totalDepenses)} lbl={lang==='ar'?'إجمالي المصاريف':'Total dépenses'} color="#1e3a5f" bg="#E8EDF5" sub={depPeriode.length+(lang==='ar'?' عملية':' opérations')}/>
               <StatCard icon={solde>=0?'✅':'⚠️'} val={fmtMAD(Math.abs(solde))} lbl={lang==='ar'?'الرصيد':'Solde'} color={solde>=0?'#085041':'#E24B4A'} bg={solde>=0?'#E1F5EE':'#FCEBEB'} sub={solde>=0?(lang==='ar'?'فائض':'Excédent'):(lang==='ar'?'عجز':'Déficit')}/>
-            </div>
-
-            {/* ═══ SAISIE RAPIDE ═══ */}
-            {/* Bloc accessible uniquement au surveillant (déjà garanti par le guard en haut de la page) */}
-            <div style={{background:'linear-gradient(135deg,#085041,#1D9E75)',borderRadius:14,padding:'14px 16px',marginBottom:'1rem',boxShadow:'0 2px 8px rgba(8,80,65,0.15)'}}>
-              <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:12,flexWrap:'wrap'}}>
-                <div>
-                  <div style={{fontSize:14,fontWeight:700,color:'#fff',marginBottom:2}}>
-                    ⚡ {lang==='ar'?'إدخال سريع':'Saisie rapide'}
-                  </div>
-                  <div style={{fontSize:11,color:'rgba(255,255,255,0.8)'}}>
-                    {lang==='ar'?'تسجيل اشتراك أو مصروف في ثوانٍ':'Enregistrer une cotisation ou une dépense en quelques secondes'}
-                  </div>
-                </div>
-                <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
-                  <button onClick={()=>setShowExpressCot(true)}
-                    style={{padding:'8px 14px',background:'#fff',color:'#085041',border:'none',borderRadius:8,fontSize:12,fontWeight:700,cursor:'pointer',display:'flex',alignItems:'center',gap:6}}>
-                    💰 {lang==='ar'?'اشتراك':'Cotisation'}
-                  </button>
-                  <button onClick={()=>setShowExpressDep(true)}
-                    style={{padding:'8px 14px',background:'rgba(255,255,255,0.2)',color:'#fff',border:'1px solid rgba(255,255,255,0.4)',borderRadius:8,fontSize:12,fontWeight:700,cursor:'pointer',display:'flex',alignItems:'center',gap:6}}>
-                    💸 {lang==='ar'?'مصروف':'Dépense'}
-                  </button>
-                </div>
-              </div>
             </div>
 
             <div style={{display:'grid',gridTemplateColumns:'repeat(5,1fr)',gap:8,marginBottom:'1rem'}}>
