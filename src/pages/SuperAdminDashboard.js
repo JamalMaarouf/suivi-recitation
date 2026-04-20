@@ -4,7 +4,7 @@ import { logAudit } from '../lib/auditLog';
 
 const S = { green:'#1D9E75', purple:'#534AB7', amber:'#EF9F27', red:'#E24B4A', gray:'#888', border:'#e0e0d8' };
 
-export default function SuperAdminDashboard({ user, navigate, lang, onLogout, isMobile }) {
+export default function SuperAdminDashboard({ user, navigate, lang, onLogout, isMobile, startImpersonation }) {
   const [ecoles, setEcoles] = useState([]);
   const [loading, setLoading] = useState(true);
   const [vue, setVue] = useState('ecoles'); // 'ecoles' | 'attente' | 'creer' | 'audit'
@@ -326,6 +326,48 @@ export default function SuperAdminDashboard({ user, navigate, lang, onLogout, is
   const actives   = ecoles.filter(e => e.statut === 'active');
   const suspendues= ecoles.filter(e => e.statut === 'suspendue');
 
+  // ─── Impersonification : "Voir comme surveillant" ──────────
+  // Bascule l'utilisateur vers le compte surveillant de l'école,
+  // avec un flag _impersonating pour tracer l'action et afficher
+  // le bandeau rouge. Tout est logué dans audit_log (traçabilité).
+  const handleImpersonate = async (ecole) => {
+    if (!startImpersonation) return;
+    const surv = ecole.surveillant;
+    if (!surv) {
+      showMsg("Erreur : cette école n'a pas de surveillant associé");
+      return;
+    }
+    // Log audit AVANT de basculer (tant qu'on est encore super admin)
+    try {
+      await logAudit({
+        actor_user_id: user.id,
+        actor_role: 'super_admin',
+        action: 'impersonate_start',
+        target_type: 'utilisateur',
+        target_id: surv.id,
+        target_label: `Voir comme ${surv.prenom} ${surv.nom} (${ecole.nom})`,
+        metadata: {
+          ecole_id: ecole.id,
+          ecole_nom: ecole.nom,
+          surveillant_identifiant: surv.identifiant,
+        },
+      });
+    } catch (err) {
+      console.warn('[impersonate] audit log failed', err);
+    }
+    // Charger les infos complètes du surveillant (mot_de_passe exclu)
+    const { data: fullUser, error } = await supabase
+      .from('utilisateurs')
+      .select('id,prenom,nom,identifiant,role,statut_compte,ecole_id,email,telephone')
+      .eq('id', surv.id)
+      .single();
+    if (error || !fullUser) {
+      showMsg('Erreur : impossible de charger le surveillant');
+      return;
+    }
+    startImpersonation(fullUser, ecole.nom);
+  };
+
   const inp = {width:'100%',padding:'8px 12px',borderRadius:8,border:'0.5px solid #e0e0d8',fontSize:13,fontFamily:'inherit',boxSizing:'border-box'};
   const lbl = {fontSize:12,fontWeight:600,color:'#444',display:'block',marginBottom:4};
 
@@ -404,10 +446,18 @@ export default function SuperAdminDashboard({ user, navigate, lang, onLogout, is
             </button>
           )}
           {ecole.statut === 'active' && (
-            <button onClick={()=>suspendreEcole(ecole)}
-              style={{padding:'7px 14px',background:'#FCEBEB',color:S.red,border:`0.5px solid ${S.red}30`,borderRadius:8,fontSize:12,fontWeight:600,cursor:'pointer'}}>
-              🚫 Suspendre
-            </button>
+            <>
+              <button onClick={()=>handleImpersonate(ecole)}
+                disabled={!ecole.surveillant}
+                title={!ecole.surveillant ? 'Pas de surveillant associé' : 'Consulter cette école en tant que surveillant (lecture seule)'}
+                style={{padding:'7px 12px',background:ecole.surveillant?'#FFF5D9':'#f5f5f0',color:ecole.surveillant?'#B7791F':'#bbb',border:`0.5px solid ${ecole.surveillant?'#EF9F27':'#e0e0d8'}30`,borderRadius:8,fontSize:12,fontWeight:600,cursor:ecole.surveillant?'pointer':'not-allowed'}}>
+                👁️ Voir comme
+              </button>
+              <button onClick={()=>suspendreEcole(ecole)}
+                style={{padding:'7px 14px',background:'#FCEBEB',color:S.red,border:`0.5px solid ${S.red}30`,borderRadius:8,fontSize:12,fontWeight:600,cursor:'pointer'}}>
+                🚫 Suspendre
+              </button>
+            </>
           )}
           {ecole.statut === 'suspendue' && (
             <button onClick={()=>reactiverEcole(ecole)}

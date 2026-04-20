@@ -107,6 +107,19 @@ export default function Finance({ user, navigate, goBack, lang='fr', isMobile })
     categorie: 'salaire', beneficiaire_id: '', description: '', reference: ''
   });
 
+  // ─── SAISIE RAPIDE (Menu express) ────────────────────────────
+  // Formulaire minimaliste accessible au surveillant depuis le dashboard
+  // - Cotisation : élève + montant (date auto = aujourd'hui, mois auto = mois courant)
+  // - Dépense : description + montant + catégorie (date auto = aujourd'hui)
+  // Les entrées restent modifiables après coup via les onglets classiques.
+  const [showExpressCot, setShowExpressCot] = useState(false);
+  const [showExpressDep, setShowExpressDep] = useState(false);
+  const [showExpressMenu, setShowExpressMenu] = useState(false); // dropdown choix Cotisation/Dépense
+  const [expressCot, setExpressCot] = useState({ eleve_id: '', montant: '' });
+  const [expressDep, setExpressDep] = useState({ description: '', montant: '', categorie: 'salaire' });
+  const [expressSearchEleve, setExpressSearchEleve] = useState('');
+  const [expressSaving, setExpressSaving] = useState(false);
+
   // Filters
   const [filterEleve, setFilterEleve] = useState('tous');
   const [filterStatut, setFilterStatut] = useState('tous');
@@ -201,6 +214,66 @@ export default function Finance({ user, navigate, goBack, lang='fr', isMobile })
     setShowFormDep(false);
     setEditingDepId(null);
     setFormDep({ montant:'', date_depense:new Date().toISOString().split('T')[0], categorie:'salaire', beneficiaire_id:'', description:'', reference:'' });
+    await loadData();
+  };
+
+  // ─── Sauvegarde cotisation express ───────────────────────────
+  // Insère une cotisation minimale : élève + montant.
+  // Date = aujourd'hui. Mois comptable = mois courant (auto-calculé).
+  // Statut par défaut = 'paye' (cas le plus fréquent).
+  const saveExpressCotisation = async () => {
+    if (!expressCot.eleve_id || !expressCot.montant) {
+      return showMsg('error', lang==='ar' ? 'يرجى تحديد الطالب والمبلغ' : 'Veuillez sélectionner l\'élève et saisir le montant');
+    }
+    setExpressSaving(true);
+    const now = new Date();
+    const mois = now.getMonth() + 1; // 1-12
+    const annee = now.getFullYear();
+    const payload = {
+      eleve_id: expressCot.eleve_id,
+      ecole_id: user.ecole_id,
+      montant: parseFloat(expressCot.montant),
+      date_paiement: now.toISOString().split('T')[0],
+      periode: buildPeriodeStr('mois', String(mois), String(annee)),
+      statut: 'paye',
+      note: null,
+      created_by: user.id,
+    };
+    const { error } = await supabase.from('cotisations').insert(payload);
+    setExpressSaving(false);
+    if (error) return showMsg('error', error.message || 'Erreur');
+    showMsg('success', lang==='ar' ? 'تم تسجيل الاشتراك' : 'Cotisation enregistrée');
+    setShowExpressCot(false);
+    setExpressCot({ eleve_id: '', montant: '' });
+    setExpressSearchEleve('');
+    await loadData();
+  };
+
+  // ─── Sauvegarde dépense express ──────────────────────────────
+  // Insère une dépense minimale : description + montant + catégorie.
+  // Date = aujourd'hui (auto).
+  const saveExpressDepense = async () => {
+    if (!expressDep.description.trim() || !expressDep.montant) {
+      return showMsg('error', lang==='ar' ? 'يرجى ملء الوصف والمبلغ' : 'Veuillez saisir description et montant');
+    }
+    setExpressSaving(true);
+    const now = new Date();
+    const payload = {
+      ecole_id: user.ecole_id,
+      montant: parseFloat(expressDep.montant),
+      date_depense: now.toISOString().split('T')[0],
+      categorie: expressDep.categorie,
+      description: expressDep.description.trim(),
+      beneficiaire_id: null,
+      reference: null,
+      created_by: user.id,
+    };
+    const { error } = await supabase.from('depenses').insert(payload);
+    setExpressSaving(false);
+    if (error) return showMsg('error', error.message || 'Erreur');
+    showMsg('success', lang==='ar' ? 'تم تسجيل المصروف' : 'Dépense enregistrée');
+    setShowExpressDep(false);
+    setExpressDep({ description: '', montant: '', categorie: 'salaire' });
     await loadData();
   };
 
@@ -1003,7 +1076,45 @@ export default function Finance({ user, navigate, goBack, lang='fr', isMobile })
       <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'1rem',flexWrap:'wrap',gap:8}}>
         <button className="back-link" onClick={()=>goBack?goBack():navigate('dashboard')}></button>
         <div style={{fontSize:18,fontWeight:700,color:'#085041'}}>💰 {lang==='ar'?'الإدارة المالية':lang==='en'?'Finance':'Gestion Financière'}</div>
-        <div style={{display:'flex',gap:6}}>
+        <div style={{display:'flex',gap:6,alignItems:'center',position:'relative'}}>
+          {/* ⚡ Bouton Saisie Rapide (dropdown) — toujours visible, tous onglets */}
+          <button onClick={()=>setShowExpressMenu(v=>!v)}
+            style={{display:'flex',alignItems:'center',gap:5,padding:'5px 12px',background:showExpressMenu?'#085041':'#1D9E75',color:'#fff',border:'none',borderRadius:8,fontSize:11,fontWeight:700,cursor:'pointer',boxShadow:'0 1px 3px rgba(29,158,117,0.3)'}}>
+            ⚡ {lang==='ar'?'إدخال سريع':'Saisie rapide'}
+            <span style={{fontSize:9,opacity:0.8,marginLeft:2}}>{showExpressMenu?'▲':'▼'}</span>
+          </button>
+
+          {/* Dropdown qui s'ouvre sous le bouton ⚡ */}
+          {showExpressMenu && (
+            <>
+              {/* Overlay invisible pour fermer au clic extérieur */}
+              <div onClick={()=>setShowExpressMenu(false)}
+                style={{position:'fixed',inset:0,zIndex:50}}/>
+              <div style={{position:'absolute',top:'calc(100% + 6px)',right:0,background:'#fff',border:'0.5px solid #e0e0d8',borderRadius:10,boxShadow:'0 4px 16px rgba(0,0,0,0.12)',minWidth:200,zIndex:51,overflow:'hidden'}}>
+                <div onClick={()=>{setShowExpressMenu(false);setShowExpressCot(true);}}
+                  style={{padding:'10px 14px',cursor:'pointer',display:'flex',alignItems:'center',gap:10,fontSize:13,fontWeight:600,color:'#085041',borderBottom:'0.5px solid #f0f0ec',transition:'background 0.15s'}}
+                  onMouseEnter={e=>e.currentTarget.style.background='#E1F5EE'}
+                  onMouseLeave={e=>e.currentTarget.style.background='#fff'}>
+                  <span style={{fontSize:16}}>💰</span>
+                  <div>
+                    <div>{lang==='ar'?'اشتراك':'Cotisation'}</div>
+                    <div style={{fontSize:10,color:'#888',fontWeight:400}}>{lang==='ar'?'طالب + مبلغ':'Élève + montant'}</div>
+                  </div>
+                </div>
+                <div onClick={()=>{setShowExpressMenu(false);setShowExpressDep(true);}}
+                  style={{padding:'10px 14px',cursor:'pointer',display:'flex',alignItems:'center',gap:10,fontSize:13,fontWeight:600,color:'#1e3a5f',transition:'background 0.15s'}}
+                  onMouseEnter={e=>e.currentTarget.style.background='#E8EDF5'}
+                  onMouseLeave={e=>e.currentTarget.style.background='#fff'}>
+                  <span style={{fontSize:16}}>💸</span>
+                  <div>
+                    <div>{lang==='ar'?'مصروف':'Dépense'}</div>
+                    <div style={{fontSize:10,color:'#888',fontWeight:400}}>{lang==='ar'?'وصف + مبلغ + فئة':'Description + montant + catégorie'}</div>
+                  </div>
+                </div>
+              </div>
+            </>
+          )}
+
           {onglet==='cotisations'&&<button onClick={exportCotisationsExcel} style={{display:'flex',alignItems:'center',gap:5,padding:'5px 12px',background:'#f5f5f0',color:'#085041',border:'0.5px solid #e0e0d8',borderRadius:8,fontSize:11,fontWeight:600,cursor:'pointer'}}>📊 Excel</button>}
           {onglet==='depenses'&&<button onClick={exportDepensesExcel} style={{display:'flex',alignItems:'center',gap:5,padding:'5px 12px',background:'#f5f5f0',color:'#085041',border:'0.5px solid #e0e0d8',borderRadius:8,fontSize:11,fontWeight:600,cursor:'pointer'}}>📊 Excel</button>}
           {onglet==='suivi'&&<button onClick={exportSuiviExcel} style={{display:'flex',alignItems:'center',gap:5,padding:'5px 12px',background:'#f5f5f0',color:'#085041',border:'0.5px solid #e0e0d8',borderRadius:8,fontSize:11,fontWeight:600,cursor:'pointer'}}>📊 Excel</button>}
@@ -1042,6 +1153,7 @@ export default function Finance({ user, navigate, goBack, lang='fr', isMobile })
               <StatCard icon="📤" val={fmtMAD(totalDepenses)} lbl={lang==='ar'?'إجمالي المصاريف':'Total dépenses'} color="#1e3a5f" bg="#E8EDF5" sub={depPeriode.length+(lang==='ar'?' عملية':' opérations')}/>
               <StatCard icon={solde>=0?'✅':'⚠️'} val={fmtMAD(Math.abs(solde))} lbl={lang==='ar'?'الرصيد':'Solde'} color={solde>=0?'#085041':'#E24B4A'} bg={solde>=0?'#E1F5EE':'#FCEBEB'} sub={solde>=0?(lang==='ar'?'فائض':'Excédent'):(lang==='ar'?'عجز':'Déficit')}/>
             </div>
+
             <div style={{display:'grid',gridTemplateColumns:'repeat(5,1fr)',gap:8,marginBottom:'1rem'}}>
               {[
                 {val:cotPeriode.length, lbl:lang==='ar'?'اشتراك في الفترة':'Cotisations période', color:'#1D9E75', bg:'#E1F5EE'},
@@ -1452,6 +1564,165 @@ export default function Finance({ user, navigate, goBack, lang='fr', isMobile })
       <ConfirmModal isOpen={confirmModal.isOpen} title={confirmModal.title} message={confirmModal.message}
         onConfirm={confirmModal.onConfirm} onCancel={hideConfirm}
         confirmLabel={confirmModal.confirmLabel} confirmColor={confirmModal.confirmColor} lang={lang}/>
+
+      {/* ═══ MODAL SAISIE RAPIDE COTISATION ═══ */}
+      {showExpressCot && (
+        <div onClick={()=>!expressSaving&&setShowExpressCot(false)}
+          style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.5)',zIndex:10000,display:'flex',alignItems:'center',justifyContent:'center',padding:16}}>
+          <div onClick={e=>e.stopPropagation()}
+            style={{background:'#fff',borderRadius:14,padding:'20px 22px',maxWidth:440,width:'100%',maxHeight:'90vh',overflowY:'auto',boxShadow:'0 10px 40px rgba(0,0,0,0.3)'}}>
+            <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:14}}>
+              <div style={{fontSize:16,fontWeight:700,color:'#085041'}}>
+                ⚡💰 {lang==='ar'?'اشتراك سريع':'Cotisation rapide'}
+              </div>
+              <button onClick={()=>!expressSaving&&setShowExpressCot(false)}
+                style={{background:'none',border:'none',fontSize:20,cursor:'pointer',color:'#888',padding:0,lineHeight:1}}>✕</button>
+            </div>
+
+            {/* Info date/mois auto */}
+            <div style={{background:'#E1F5EE',border:'0.5px solid #1D9E7530',borderRadius:8,padding:'8px 10px',marginBottom:14,fontSize:11,color:'#085041'}}>
+              📅 {lang==='ar'?'التاريخ والشهر المحاسبي محددان تلقائياً ':'Date et mois comptable auto : '}
+              <strong>{new Date().toLocaleDateString(lang==='ar'?'ar-MA':'fr-FR',{day:'numeric',month:'long',year:'numeric'})}</strong>
+            </div>
+
+            {/* Recherche élève */}
+            <div style={{marginBottom:12}}>
+              <label style={{fontSize:12,fontWeight:600,color:'#666',display:'block',marginBottom:5}}>
+                {lang==='ar'?'الطالب':'Élève'} <span style={{color:'#E24B4A'}}>*</span>
+              </label>
+              <input type="text" autoComplete="off"
+                value={expressSearchEleve}
+                onChange={e=>setExpressSearchEleve(e.target.value)}
+                placeholder={lang==='ar'?'ابحث باسم الطالب...':'Rechercher par nom...'}
+                style={{width:'100%',padding:'10px 12px',borderRadius:10,border:'0.5px solid #e0e0d8',fontSize:13,fontFamily:'inherit',boxSizing:'border-box',marginBottom:6}}/>
+              {expressSearchEleve.trim() && (
+                <div style={{maxHeight:160,overflowY:'auto',border:'0.5px solid #e0e0d8',borderRadius:8,background:'#fafaf7'}}>
+                  {eleves
+                    .filter(e=>{
+                      const s = expressSearchEleve.toLowerCase().trim();
+                      return (e.prenom||'').toLowerCase().includes(s) || (e.nom||'').toLowerCase().includes(s) || String(e.eleve_id_ecole||'').includes(s);
+                    })
+                    .slice(0,8)
+                    .map(e=>(
+                      <div key={e.id}
+                        onClick={()=>{setExpressCot(c=>({...c,eleve_id:e.id}));setExpressSearchEleve(`${e.prenom} ${e.nom}`);}}
+                        style={{padding:'8px 12px',cursor:'pointer',borderBottom:'0.5px solid #f0f0ec',fontSize:12,display:'flex',alignItems:'center',gap:8,background:expressCot.eleve_id===e.id?'#E1F5EE':'transparent'}}>
+                        <Avatar prenom={e.prenom} nom={e.nom} size={28}/>
+                        <div>
+                          <div style={{fontWeight:600,color:'#1a1a1a'}}>{e.prenom} {e.nom}</div>
+                          <div style={{fontSize:10,color:'#888'}}>#{e.eleve_id_ecole} · {e.code_niveau}</div>
+                        </div>
+                      </div>
+                    ))}
+                </div>
+              )}
+            </div>
+
+            {/* Montant */}
+            <div style={{marginBottom:16}}>
+              <label style={{fontSize:12,fontWeight:600,color:'#666',display:'block',marginBottom:5}}>
+                {lang==='ar'?'المبلغ':'Montant'} (MAD) <span style={{color:'#E24B4A'}}>*</span>
+              </label>
+              <input type="number" inputMode="decimal" min="0" step="0.01"
+                value={expressCot.montant}
+                onChange={e=>setExpressCot(c=>({...c,montant:e.target.value}))}
+                placeholder="0.00"
+                style={{width:'100%',padding:'10px 12px',borderRadius:10,border:'0.5px solid #e0e0d8',fontSize:15,fontFamily:'inherit',boxSizing:'border-box',fontWeight:600}}/>
+            </div>
+
+            {/* Boutons */}
+            <div style={{display:'flex',gap:8}}>
+              <button onClick={()=>setShowExpressCot(false)} disabled={expressSaving}
+                style={{flex:1,padding:'10px',background:'#f5f5f0',color:'#666',border:'0.5px solid #e0e0d8',borderRadius:10,fontSize:13,fontWeight:600,cursor:expressSaving?'not-allowed':'pointer'}}>
+                {lang==='ar'?'إلغاء':'Annuler'}
+              </button>
+              <button onClick={saveExpressCotisation} disabled={expressSaving||!expressCot.eleve_id||!expressCot.montant}
+                style={{flex:2,padding:'10px',background:(expressSaving||!expressCot.eleve_id||!expressCot.montant)?'#a0d4c2':'#1D9E75',color:'#fff',border:'none',borderRadius:10,fontSize:13,fontWeight:700,cursor:(expressSaving||!expressCot.eleve_id||!expressCot.montant)?'not-allowed':'pointer'}}>
+                {expressSaving?(lang==='ar'?'جارٍ الحفظ...':'Enregistrement...'):(lang==='ar'?'✓ حفظ':'✓ Enregistrer')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ═══ MODAL SAISIE RAPIDE DÉPENSE ═══ */}
+      {showExpressDep && (
+        <div onClick={()=>!expressSaving&&setShowExpressDep(false)}
+          style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.5)',zIndex:10000,display:'flex',alignItems:'center',justifyContent:'center',padding:16}}>
+          <div onClick={e=>e.stopPropagation()}
+            style={{background:'#fff',borderRadius:14,padding:'20px 22px',maxWidth:440,width:'100%',maxHeight:'90vh',overflowY:'auto',boxShadow:'0 10px 40px rgba(0,0,0,0.3)'}}>
+            <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:14}}>
+              <div style={{fontSize:16,fontWeight:700,color:'#1e3a5f'}}>
+                ⚡💸 {lang==='ar'?'مصروف سريع':'Dépense rapide'}
+              </div>
+              <button onClick={()=>!expressSaving&&setShowExpressDep(false)}
+                style={{background:'none',border:'none',fontSize:20,cursor:'pointer',color:'#888',padding:0,lineHeight:1}}>✕</button>
+            </div>
+
+            {/* Info date auto */}
+            <div style={{background:'#E8EDF5',border:'0.5px solid #1e3a5f30',borderRadius:8,padding:'8px 10px',marginBottom:14,fontSize:11,color:'#1e3a5f'}}>
+              📅 {lang==='ar'?'التاريخ محدد تلقائياً ':'Date auto : '}
+              <strong>{new Date().toLocaleDateString(lang==='ar'?'ar-MA':'fr-FR',{day:'numeric',month:'long',year:'numeric'})}</strong>
+            </div>
+
+            {/* Description */}
+            <div style={{marginBottom:12}}>
+              <label style={{fontSize:12,fontWeight:600,color:'#666',display:'block',marginBottom:5}}>
+                {lang==='ar'?'الوصف':'Description'} <span style={{color:'#E24B4A'}}>*</span>
+              </label>
+              <input type="text" autoComplete="off"
+                value={expressDep.description}
+                onChange={e=>setExpressDep(d=>({...d,description:e.target.value}))}
+                placeholder={lang==='ar'?'مثلاً: شراء كتب':'ex. Achat de livres'}
+                style={{width:'100%',padding:'10px 12px',borderRadius:10,border:'0.5px solid #e0e0d8',fontSize:13,fontFamily:'inherit',boxSizing:'border-box'}}/>
+            </div>
+
+            {/* Montant */}
+            <div style={{marginBottom:12}}>
+              <label style={{fontSize:12,fontWeight:600,color:'#666',display:'block',marginBottom:5}}>
+                {lang==='ar'?'المبلغ':'Montant'} (MAD) <span style={{color:'#E24B4A'}}>*</span>
+              </label>
+              <input type="number" inputMode="decimal" min="0" step="0.01"
+                value={expressDep.montant}
+                onChange={e=>setExpressDep(d=>({...d,montant:e.target.value}))}
+                placeholder="0.00"
+                style={{width:'100%',padding:'10px 12px',borderRadius:10,border:'0.5px solid #e0e0d8',fontSize:15,fontFamily:'inherit',boxSizing:'border-box',fontWeight:600}}/>
+            </div>
+
+            {/* Catégorie */}
+            <div style={{marginBottom:16}}>
+              <label style={{fontSize:12,fontWeight:600,color:'#666',display:'block',marginBottom:5}}>
+                {lang==='ar'?'الفئة':'Catégorie'} <span style={{color:'#E24B4A'}}>*</span>
+              </label>
+              <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>
+                {CATEGORIES.map(c=>(
+                  <div key={c.val} onClick={()=>setExpressDep(d=>({...d,categorie:c.val}))}
+                    style={{padding:'7px 12px',borderRadius:20,cursor:'pointer',fontSize:12,fontWeight:600,
+                      background:expressDep.categorie===c.val?c.color:'#f5f5f0',
+                      color:expressDep.categorie===c.val?'#fff':'#666',
+                      border:`1.5px solid ${expressDep.categorie===c.val?c.color:'#e0e0d8'}`,
+                      display:'flex',alignItems:'center',gap:5}}>
+                    <span>{c.icon}</span>
+                    <span>{lang==='ar'?c.labelAr:c.label}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Boutons */}
+            <div style={{display:'flex',gap:8}}>
+              <button onClick={()=>setShowExpressDep(false)} disabled={expressSaving}
+                style={{flex:1,padding:'10px',background:'#f5f5f0',color:'#666',border:'0.5px solid #e0e0d8',borderRadius:10,fontSize:13,fontWeight:600,cursor:expressSaving?'not-allowed':'pointer'}}>
+                {lang==='ar'?'إلغاء':'Annuler'}
+              </button>
+              <button onClick={saveExpressDepense} disabled={expressSaving||!expressDep.description.trim()||!expressDep.montant}
+                style={{flex:2,padding:'10px',background:(expressSaving||!expressDep.description.trim()||!expressDep.montant)?'#a0b5cf':'#1e3a5f',color:'#fff',border:'none',borderRadius:10,fontSize:13,fontWeight:700,cursor:(expressSaving||!expressDep.description.trim()||!expressDep.montant)?'not-allowed':'pointer'}}>
+                {expressSaving?(lang==='ar'?'جارٍ الحفظ...':'Enregistrement...'):(lang==='ar'?'✓ حفظ':'✓ Enregistrer')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   );
