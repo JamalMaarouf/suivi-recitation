@@ -14,6 +14,33 @@ const COULEURS_PRESET = [
   '#D85A30','#085041','#0C447C','#633806','#888'
 ];
 
+// ═══════════════════════════════════════════════════════════
+// BlocNomInput — Input isolé avec state local.
+//
+// Pourquoi ce composant ?
+// Dans certains cas (rendering complexe, RTL, clavier arabe), un input
+// contrôlé classique peut perdre le focus à chaque frappe. Ce composant
+// gère sa valeur en local pendant la frappe et ne synchronise avec le
+// parent qu'au blur (quand l'utilisateur quitte le champ). Résultat :
+// le parent ne re-render pas pendant la frappe = focus préservé.
+// ═══════════════════════════════════════════════════════════
+function BlocNomInput({ value, onCommit, placeholder }) {
+  const [local, setLocal] = React.useState(value || '');
+  // Si la valeur parent change (ex: reset, suppression de bloc), on sync
+  React.useEffect(() => { setLocal(value || ''); }, [value]);
+  return (
+    <input
+      className="field-input"
+      type="text"
+      value={local}
+      onChange={e => setLocal(e.target.value)}
+      onBlur={() => { if (local !== value) onCommit(local); }}
+      placeholder={placeholder}
+      style={{flex:1,minWidth:120,fontSize:12}}
+    />
+  );
+}
+
 export default function GestionNiveaux({ user, navigate, goBack, lang='fr', isMobile }) {
   const { toast } = useToast();
   const [niveaux, setNiveaux]       = useState([]);
@@ -707,12 +734,12 @@ export default function GestionNiveaux({ user, navigate, goBack, lang='fr', isMo
                           display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
                           {idx+1}
                         </div>
-                        {/* Input nom du bloc — même pattern que form.nom plus haut dans cette page */}
-                        <input className="field-input"
-                          value={bloc.nom}
-                          onChange={e => setBlocs(prev => prev.map((b, i) => i === idx ? { ...b, nom: e.target.value } : b))}
+                        {/* Input nom du bloc — utilise un state local pour contourner le bug de focus */}
+                        <BlocNomInput
+                          value={bloc.nom || ''}
+                          onCommit={(v) => setBlocs(prev => prev.map((b, i) => i === idx ? { ...b, nom: v } : b))}
                           placeholder={lang==='ar' ? 'اسم البلوك (اختياري)' : 'Nom du bloc (optionnel)'}
-                          style={{flex:1,minWidth:120,fontSize:12}}/>
+                        />
                         {/* Toggle sens ASC/DESC */}
                         <div style={{display:'flex',gap:3,padding:3,background:'#fff',borderRadius:7,border:'0.5px solid #e0e0d8'}}>
                           <button type="button"
