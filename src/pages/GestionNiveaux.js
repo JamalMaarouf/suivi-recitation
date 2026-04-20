@@ -15,13 +15,11 @@ const COULEURS_PRESET = [
 ];
 
 // ═══════════════════════════════════════════════════════════
-// BlocEditor — composant isolé et mémoïsé pour éviter que les inputs
-// perdent le focus lors de la frappe. En extrayant ce composant
-// du composant principal, React ne re-render qu'UN seul BlocEditor
-// à la fois (celui dont les props changent), au lieu de re-construire
-// tous les blocs à chaque frappe.
+// BlocEditor — composant extrait pour isoler la logique.
+// Note : PAS de React.memo ici car ça cassait l'input en RTL.
+// Le composant est simplement extrait pour lisibilité.
 // ═══════════════════════════════════════════════════════════
-const BlocEditor = React.memo(function BlocEditor({
+function BlocEditor({
   bloc, idx, nc, lang, isOpen, canDelete, hizbsPris,
   onNomChange, onSensChange, onDelete, onToggleOpen, onToggleHizb,
 }) {
@@ -122,7 +120,7 @@ const BlocEditor = React.memo(function BlocEditor({
       )}
     </div>
   );
-});
+}
 
 export default function GestionNiveaux({ user, navigate, goBack, lang='fr', isMobile }) {
   const { toast } = useToast();
