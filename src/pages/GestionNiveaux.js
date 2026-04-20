@@ -196,25 +196,34 @@ export default function GestionNiveaux({ user, navigate, goBack, lang='fr', isMo
     });
   };
 
-  const modifierBloc = (index, champ, valeur) => {
-    setBlocs(prev => prev.map((b, i) => i === index ? { ...b, [champ]: valeur } : b));
-  };
-
-  const toggleHizbDansBloc = (indexBloc, hizb) => {
-    // Sauvegarder la position de scroll avant le re-render (sinon le scroll remonte en haut)
+  // ─── Helper : préserver la position de scroll du panneau ──
+  // Utilisé sur tous les setters qui re-rendent le panneau d'édition
+  // pour éviter que le scroll remonte en haut à chaque clic.
+  const preserveScroll = (fn) => {
     const scrollTop = panneauScrollRef.current?.scrollTop || 0;
-    setBlocs(prev => prev.map((b, i) => {
-      if (i !== indexBloc) return b;
-      const hizbs = b.hizbs.includes(hizb)
-        ? b.hizbs.filter(h => h !== hizb)
-        : [...b.hizbs, hizb];
-      return { ...b, hizbs };
-    }));
-    // Restaurer la position après le re-render
+    fn();
     requestAnimationFrame(() => {
       if (panneauScrollRef.current) {
         panneauScrollRef.current.scrollTop = scrollTop;
       }
+    });
+  };
+
+  const modifierBloc = (index, champ, valeur) => {
+    preserveScroll(() => {
+      setBlocs(prev => prev.map((b, i) => i === index ? { ...b, [champ]: valeur } : b));
+    });
+  };
+
+  const toggleHizbDansBloc = (indexBloc, hizb) => {
+    preserveScroll(() => {
+      setBlocs(prev => prev.map((b, i) => {
+        if (i !== indexBloc) return b;
+        const hizbs = b.hizbs.includes(hizb)
+          ? b.hizbs.filter(h => h !== hizb)
+          : [...b.hizbs, hizb];
+        return { ...b, hizbs };
+      }));
     });
   };
 
@@ -792,7 +801,7 @@ export default function GestionNiveaux({ user, navigate, goBack, lang='fr', isMo
                           )}
                         </div>
                         <button type="button"
-                          onClick={() => setBlocEnEdition(prev => prev === idx ? null : idx)}
+                          onClick={() => preserveScroll(() => setBlocEnEdition(prev => prev === idx ? null : idx))}
                           style={{padding:'5px 12px',borderRadius:7,border:`0.5px solid ${nc}40`,
                             background: isOpen ? nc : '#fff',
                             color: isOpen ? '#fff' : nc,
@@ -905,12 +914,24 @@ export default function GestionNiveaux({ user, navigate, goBack, lang='fr', isMo
               {lang==='ar'?'إلغاء':'Annuler'}
             </button>
             <button onClick={async()=>{await sauvegarderProgramme();setModeEditionProgramme(false);}}
-              disabled={savingProg||programme.length===0}
+              disabled={(() => {
+                if (savingProg) return true;
+                // Mode blocs : au moins un bloc doit avoir des Hizb
+                if (useBlocs && niveauProgramme.type === 'hizb') {
+                  return blocs.filter(b => (b.hizbs||[]).length > 0).length === 0;
+                }
+                // Mode continu : au moins 1 item sélectionné
+                return programme.length === 0;
+              })()}
               style={{flex:2,padding:'14px',
-                background:savingProg||programme.length===0?'#ccc':nc,
+                background: (savingProg || (useBlocs && niveauProgramme.type==='hizb'
+                  ? blocs.filter(b=>(b.hizbs||[]).length>0).length === 0
+                  : programme.length===0)) ? '#ccc' : nc,
                 color:'#fff',border:'none',borderRadius:12,
                 fontSize:15,fontWeight:700,
-                cursor:savingProg||programme.length===0?'not-allowed':'pointer',
+                cursor: (savingProg || (useBlocs && niveauProgramme.type==='hizb'
+                  ? blocs.filter(b=>(b.hizbs||[]).length>0).length === 0
+                  : programme.length===0)) ? 'not-allowed' : 'pointer',
                 fontFamily:'inherit'}}>
               {savingProg?'...':(lang==='ar'?'حفظ البرنامج':'Enregistrer le programme')}
             </button>
