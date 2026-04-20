@@ -699,18 +699,25 @@ export default function GestionNiveaux({ user, navigate, goBack, lang='fr', isMo
                 {blocs.map((bloc, idx) => {
                   const hizbsPris = hizbsPrisParAutresBlocs(idx);
                   const isOpen = blocEnEdition === idx;
+                  // Key stable : basée sur la position uniquement, pas sur le contenu
+                  // (sinon taper dans l'input recrée le composant et perd le focus)
                   return (
-                    <div key={idx} style={{borderRadius:12,background:'#fff',border:`1.5px solid ${nc}40`,overflow:'hidden'}}>
+                    <div key={`bloc-${idx}`} style={{borderRadius:12,background:'#fff',border:`1.5px solid ${nc}40`,overflow:'hidden'}}>
                       {/* En-tête du bloc */}
                       <div style={{padding:'10px 12px',background:`${nc}10`,display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}>
                         <div style={{width:28,height:28,borderRadius:7,background:nc,color:'#fff',fontSize:12,fontWeight:800,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
                           {idx+1}
                         </div>
-                        <input type="text" autoComplete="off"
-                          value={bloc.nom}
+                        <input
+                          key={`bloc-nom-${idx}`}
+                          type="text"
+                          autoComplete="off"
+                          dir="auto"
+                          value={bloc.nom || ''}
                           onChange={e=>modifierBloc(idx, 'nom', e.target.value)}
-                          placeholder={lang==='ar'?`اسم البلوك (اختياري)`:`Nom du bloc (optionnel)`}
-                          style={{flex:1,minWidth:120,padding:'6px 10px',borderRadius:8,border:'0.5px solid #e0e0d8',fontSize:12,fontFamily:'inherit'}}/>
+                          placeholder={lang==='ar'?'اسم البلوك (اختياري)':'Nom du bloc (optionnel)'}
+                          style={{flex:1,minWidth:120,padding:'6px 10px',borderRadius:8,border:'0.5px solid #e0e0d8',fontSize:12,fontFamily:'inherit'}}
+                        />
                         {/* Toggle sens ASC/DESC */}
                         <div style={{display:'flex',gap:3,padding:3,background:'#fff',borderRadius:7,border:'0.5px solid #e0e0d8'}}>
                           <button onClick={()=>modifierBloc(idx,'sens','asc')}
