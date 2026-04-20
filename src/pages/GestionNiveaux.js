@@ -659,7 +659,7 @@ export default function GestionNiveaux({ user, navigate, goBack, lang='fr', isMo
           {niveauProgramme.type==='hizb'&&(
             <div style={{padding:'12px 18px 0',flexShrink:0}}>
               <div style={{display:'flex',gap:6,padding:4,background:'#f5f5f0',borderRadius:10}}>
-                <button onClick={()=>setUseBlocs(false)}
+                <button onClick={() => preserveScroll(() => setUseBlocs(false))}
                   style={{flex:1,padding:'7px 10px',borderRadius:7,border:'none',cursor:'pointer',
                     background:!useBlocs?'#fff':'transparent',
                     color:!useBlocs?nc:'#888',
@@ -668,7 +668,7 @@ export default function GestionNiveaux({ user, navigate, goBack, lang='fr', isMo
                     fontFamily:'inherit'}}>
                   📄 {lang==='ar'?'برنامج متصل':'Continu'}
                 </button>
-                <button onClick={()=>setUseBlocs(true)}
+                <button onClick={() => preserveScroll(() => setUseBlocs(true))}
                   style={{flex:1,padding:'7px 10px',borderRadius:7,border:'none',cursor:'pointer',
                     background:useBlocs?'#fff':'transparent',
                     color:useBlocs?nc:'#888',
@@ -695,7 +695,7 @@ export default function GestionNiveaux({ user, navigate, goBack, lang='fr', isMo
                 </span>
                 {[1,5,10,15,20,30,60].map(n=>(
                   <button key={n}
-                    onClick={()=>setProgramme(Array.from({length:n},(_,i)=>i+1))}
+                    onClick={() => preserveScroll(() => setProgramme(Array.from({length:n},(_,i)=>i+1)))}
                     style={{padding:'3px 10px',borderRadius:20,
                       border:'0.5px solid #e0e0d8',background:'#f5f5f0',
                       fontSize:11,cursor:'pointer',color:'#666'}}>
@@ -703,7 +703,7 @@ export default function GestionNiveaux({ user, navigate, goBack, lang='fr', isMo
                   </button>
                 ))}
                 {programme.length>0&&(
-                  <button onClick={()=>setProgramme([])}
+                  <button onClick={() => preserveScroll(() => setProgramme([]))}
                     style={{padding:'3px 10px',borderRadius:20,border:'0.5px solid #e0e0d8',
                       background:'#FCEBEB',fontSize:11,cursor:'pointer',color:'#E24B4A'}}>
                     ✕ {lang==='ar'?'مسح':'Effacer'}
@@ -781,7 +781,9 @@ export default function GestionNiveaux({ user, navigate, goBack, lang='fr', isMo
                           <button type="button"
                             onMouseDown={(e) => {
                               e.preventDefault();
-                              if (window.confirm(lang==='ar' ? 'حذف هذا البلوك؟' : 'Supprimer ce bloc ?')) supprimerBloc(idx);
+                              if (window.confirm(lang==='ar' ? 'حذف هذا البلوك؟' : 'Supprimer ce bloc ?')) {
+                                preserveScroll(() => supprimerBloc(idx));
+                              }
                             }}
                             style={{padding:'5px 8px',borderRadius:6,border:'none',background:'#FCEBEB',color:'#E24B4A',
                               cursor:'pointer',fontSize:12}}>
@@ -848,7 +850,7 @@ export default function GestionNiveaux({ user, navigate, goBack, lang='fr', isMo
                 })}
 
                 {/* Bouton ajouter un bloc */}
-                <button onClick={ajouterBloc}
+                <button onClick={() => preserveScroll(ajouterBloc)}
                   style={{padding:'12px',borderRadius:12,border:`1.5px dashed ${nc}80`,background:`${nc}08`,
                     color:nc,cursor:'pointer',fontSize:13,fontWeight:600,fontFamily:'inherit',
                     display:'flex',alignItems:'center',justifyContent:'center',gap:6}}>
@@ -863,13 +865,13 @@ export default function GestionNiveaux({ user, navigate, goBack, lang='fr', isMo
               <>
                 {/* Barre de sélection rapide */}
                 <div style={{display:'flex',gap:8,marginBottom:10,alignItems:'center',flexWrap:'wrap'}}>
-                  <button onClick={()=>setProgramme(souratesDB.map(s=>String(s.id)))}
+                  <button onClick={() => preserveScroll(() => setProgramme(souratesDB.map(s=>String(s.id))))}
                     style={{padding:'4px 12px',borderRadius:20,border:`0.5px solid ${nc}`,
                       background:`${nc}20`,color:nc,fontSize:11,cursor:'pointer',fontWeight:600,fontFamily:'inherit'}}>
                     {lang==='ar'?'تحديد الكل':'Tout sélectionner'} ({souratesDB.length})
                   </button>
                   {programme.length>0&&(
-                    <button onClick={()=>setProgramme([])}
+                    <button onClick={() => preserveScroll(() => setProgramme([]))}
                       style={{padding:'4px 12px',borderRadius:20,border:'0.5px solid #e0e0d8',
                         background:'#FCEBEB',fontSize:11,cursor:'pointer',color:'#E24B4A',fontFamily:'inherit'}}>
                       ✕ {lang==='ar'?'مسح الكل':'Tout décocher'}
