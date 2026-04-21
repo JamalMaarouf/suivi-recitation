@@ -5,7 +5,7 @@ import { supabase } from '../lib/supabase';
 import { withRetryToast } from '../lib/retry';
 import { invalidateMany } from '../lib/cache';
 import { enqueueOrRun } from '../lib/offlineQueue';
-import { calcEtatEleve, calcPositionAtteinte, calcUnite, formatDate, getInitiales, motivationMsg, verifierBlocageExamen, verifierEtCreerCertificats, loadBareme, getSensForEleve, calcBlocProgression, prochainHizbDansBloc } from '../lib/helpers';
+import { calcEtatEleve, calcPositionAtteinte, calcUnite, formatDate, getInitiales, motivationMsg, verifierBlocageExamen, verifierEtCreerCertificats, verifierEtCreerCertificatsBlocs, loadBareme, getSensForEleve, calcBlocProgression, prochainHizbDansBloc } from '../lib/helpers';
 
 function Avatar({ prenom, nom, size = 36, bg = '#E1F5EE', color = '#085041' }) {
   return (
@@ -279,6 +279,20 @@ export default function EnregistrerRecitation({  user, eleve: eleveInitial, navi
       toast.success(lang==='ar'
         ? `🏅 شهادة جديدة: ${(nouveauxCerts||[]).map(c=>c.nom_certificat_ar||c.nom_certificat).join(', ')} !`
         : `🏅 Nouveau certificat: ${(nouveauxCerts||[]).map(c=>c.nom_certificat).join(', ')} !`);
+    }
+
+    // ─── Étape D — Certificats automatiques fin de bloc ──────
+    // Si l'élève vient de terminer un ou plusieurs blocs, génère automatiquement
+    // les certificats correspondants. Fonctionne seulement si le niveau a plus
+    // d'un bloc configuré (multi-blocs). Zéro impact sur niveaux mono-bloc.
+    const certsBlocs = await verifierEtCreerCertificatsBlocs(supabase, {
+      eleve: selectedEleve, ecole_id: user.ecole_id, valide_par: user.id,
+      validations: valsNouv, niveauxList: niveaux,
+    }).catch(() => []);
+    if (certsBlocs && certsBlocs.length > 0) {
+      toast.success(lang==='ar'
+        ? `🎖️ شهادة بلوك: ${(certsBlocs||[]).map(c=>c.nom_certificat_ar||c.nom_certificat).join(', ')} !`
+        : `🎖️ Certificat de bloc : ${(certsBlocs||[]).map(c=>c.nom_certificat).join(', ')} !`);
     }
 
     // ─── Détection fin de bloc (Étape B-4) ────────────────

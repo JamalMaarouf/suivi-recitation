@@ -748,6 +748,138 @@ export async function verifierEtCreerCertificats(supabase, {
 }
 
 // ══════════════════════════════════════════════════════════════════
+// CERTIFICATS FIN DE BLOC — Étape D
+// ══════════════════════════════════════════════════════════════════
+/**
+ * Détecte automatiquement si l'élève vient de terminer un bloc pédagogique
+ * de son niveau et crée les certificats manquants.
+ *
+ * Principe :
+ *   - Charge le programme du niveau de l'élève (avec ses blocs)
+ *   - Si le niveau est en multi-blocs uniquement
+ *   - Pour chaque bloc dont tous les Hizb sont maintenant validés
+ *     ET qui n'a pas encore de certificat émis
+ *     → création automatique d'un certificat
+ *
+ * La distinction avec les jalons classiques :
+ *   - jalon_id = null (ce n'est pas un jalon configuré par l'école)
+ *   - metadata marquée type='bloc' (dans le nom pour l'instant, futur : colonne dédiée)
+ *
+ * @returns Array des certificats nouvellement créés
+ */
+export async function verifierEtCreerCertificatsBlocs(supabase, {
+  eleve,
+  ecole_id,
+  valide_par,
+  validations,
+  niveauxList, // optionnel : la liste des niveaux (évite une requête)
+}) {
+  try {
+    // 1. Trouver le niveau de l'élève
+    let niveauEleve = (niveauxList || []).find(n => n.code === eleve.code_niveau);
+    if (!niveauEleve) {
+      const { data: niveauxAll } = await supabase.from('niveaux')
+        .select('id, code, sens_recitation')
+        .eq('ecole_id', ecole_id);
+      niveauEleve = (niveauxAll || []).find(n => n.code === eleve.code_niveau);
+    }
+    if (!niveauEleve) return [];
+
+    // 2. Charger le programme du niveau
+    const { data: progData } = await supabase.from('programmes')
+      .select('reference_id, ordre, bloc_numero, bloc_nom, bloc_sens, type_contenu')
+      .eq('niveau_id', niveauEleve.id)
+      .eq('ecole_id', ecole_id)
+      .order('ordre');
+
+    if (!progData || progData.length === 0) return [];
+
+    // 3. Vérifier qu'on est en multi-blocs (sinon pas de certificat de bloc)
+    const distinctBlocs = new Set(progData.map(p => p.bloc_numero || 1));
+    if (distinctBlocs.size <= 1) return []; // mono-bloc = pas applicable
+
+    // 4. Calculer les Hizb validés (complets + acquis antérieurs)
+    const hizbsValides = new Set(
+      (validations || [])
+        .filter(v => v.type_validation === 'hizb_complet')
+        .map(v => v.hizb_valide)
+    );
+    const sens = niveauEleve.sens_recitation || 'desc';
+    const hizbDep = eleve.hizb_depart;
+    if (hizbDep && hizbDep > 0) {
+      if (sens === 'asc') {
+        for (let h = 1; h < hizbDep; h++) hizbsValides.add(h);
+      } else {
+        for (let h = 60; h > hizbDep; h--) hizbsValides.add(h);
+      }
+    }
+
+    // 5. Grouper par bloc et identifier ceux qui sont terminés
+    const blocsMap = new Map();
+    for (const ligne of progData) {
+      const n = ligne.bloc_numero || 1;
+      if (!blocsMap.has(n)) {
+        blocsMap.set(n, {
+          numero: n,
+          nom: ligne.bloc_nom || null,
+          hizbs: [],
+        });
+      }
+      const h = parseInt(ligne.reference_id);
+      if (!isNaN(h)) blocsMap.get(n).hizbs.push(h);
+    }
+    const blocsList = Array.from(blocsMap.values()).sort((a,b) => a.numero - b.numero);
+
+    // 6. Charger les certificats existants pour ce niveau (éviter doublons)
+    // Convention : on marque les certificats de bloc avec un nom préfixé
+    // 'Bloc N - <niveau>' pour pouvoir les retrouver
+    const { data: certsExistants } = await supabase.from('certificats_eleves')
+      .select('nom_certificat')
+      .eq('eleve_id', eleve.id)
+      .eq('ecole_id', ecole_id);
+    const nomsDejaEmis = new Set((certsExistants || []).map(c => c.nom_certificat));
+
+    const nouveauxCerts = [];
+    for (const bloc of blocsList) {
+      // Bloc terminé si tous ses Hizb sont validés
+      const estTermine = bloc.hizbs.length > 0 && bloc.hizbs.every(h => hizbsValides.has(h));
+      if (!estTermine) continue;
+
+      // Nom du certificat = convention explicite
+      const nomBloc = bloc.nom || `Bloc ${bloc.numero}`;
+      const nomCertificat = `${nomBloc} — ${niveauEleve.code}`;
+      const nomCertificatAr = bloc.nom
+        ? `${bloc.nom} — ${niveauEleve.code}`
+        : `البلوك ${bloc.numero} — ${niveauEleve.code}`;
+
+      // Déjà émis ? skip
+      if (nomsDejaEmis.has(nomCertificat)) continue;
+
+      // Créer le certificat
+      const payload = {
+        eleve_id: eleve.id,
+        ecole_id,
+        jalon_id: null, // pas un jalon configuré, c'est un certificat de bloc
+        nom_certificat: nomCertificat,
+        nom_certificat_ar: nomCertificatAr,
+        date_obtention: new Date().toISOString(),
+        valide_par: valide_par || null,
+      };
+      const { error } = await supabase.from('certificats_eleves').insert(payload);
+      if (!error) {
+        nouveauxCerts.push({ ...payload, bloc });
+        nomsDejaEmis.add(nomCertificat); // éviter double-insertion dans cette même boucle
+      }
+    }
+
+    return nouveauxCerts;
+  } catch (err) {
+    console.error('verifierEtCreerCertificatsBlocs error:', err);
+    return [];
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════
 // NOTES PAR PÉRIODE — calcul des points sur une plage de dates
 // ══════════════════════════════════════════════════════════════════
 
