@@ -1630,15 +1630,43 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile,
           lang==='ar'?'تأكيد نهائي — حذف '+nom:'Confirmation finale — Supprimer '+nom,
           lang==='ar'?'هل أنت متأكد تماماً؟ لا يمكن التراجع عن هذا الإجراء.':'Êtes-vous absolument sûr ? Cette action est définitive et irréversible.',
           async () => {
-            await supabase.from('exceptions_recitation').delete().eq('eleve_id', id).catch(()=>{});
-            await supabase.from('exceptions_hizb').delete().eq('eleve_id', id).catch(()=>{});
-            await supabase.from('recitations_sourates').delete().eq('eleve_id', id).catch(()=>{});
-            await supabase.from('validations').delete().eq('eleve_id', id);
-            await supabase.from('apprentissages').delete().eq('eleve_id', id).catch(()=>{});
-            await supabase.from('cotisations').delete().eq('eleve_id', id).catch(()=>{});
+            // Supprimer toutes les données liées (ordre important pour contourner les FK)
+            const tablesLiees = [
+              'exceptions_recitation',
+              'exceptions_hizb',
+              'recitations_sourates',
+              'validations',
+              'apprentissages',
+              'cotisations',
+              'parent_eleve',
+              'certificats_eleves',  // Étape D - les certificats doivent être supprimés
+              'points_eleves',       // points/bonus/malus liés
+              'passages_niveaux',    // historique passages
+              'resultats_examens',   // résultats examens
+            ];
+            const erreurs = [];
+            for (const table of tablesLiees) {
+              try {
+                const { error } = await supabase.from(table).delete().eq('eleve_id', id);
+                if (error) erreurs.push(`${table}: ${error.message}`);
+              } catch(e) {
+                // Table n'existe peut-être pas - on ignore silencieusement
+                console.warn(`[supprimerEleve] ${table} ignorée:`, e.message);
+              }
+            }
+            // Détacher des objectifs (ne pas supprimer, juste null)
             await supabase.from('objectifs_globaux').update({eleve_id:null}).eq('eleve_id', id).catch(()=>{});
-            await supabase.from('parent_eleve').delete().eq('eleve_id', id).catch(()=>{});
-            await supabase.from('eleves').delete().eq('id', id);
+            // Enfin supprimer l'élève lui-même
+            const { error: errFinal } = await supabase.from('eleves').delete().eq('id', id);
+            if (errFinal) {
+              console.error('[supprimerEleve] Echec suppression:', errFinal);
+              showMsg('error', (lang==='ar' ? 'خطأ في الحذف: ' : 'Erreur suppression: ') + (errFinal.message || 'inconnue'));
+              hideConfirm();
+              return;
+            }
+            if (erreurs.length > 0) {
+              console.warn('[supprimerEleve] Erreurs liées (élève supprimé malgré tout):', erreurs);
+            }
             showMsg('success', t(lang, 'eleve_retire'));
             hideConfirm();
             loadData();
@@ -1695,13 +1723,31 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile,
       lang==='ar'?'حذف الأستاذ':"Supprimer instituteur",
       msg,
       async () => {
-        // Detach all eleves first
+        // Détacher tous les élèves d'abord
         if (nbEleves > 0) {
-          await supabase.from('eleves').update({instituteur_referent_id: null}).eq('instituteur_referent_id', inst.id);
+          const { error: errDetach } = await supabase.from('eleves')
+            .update({instituteur_referent_id: null})
+            .eq('instituteur_referent_id', inst.id);
+          if (errDetach) {
+            console.error('[supprimerInstituteur] Detachement eleves:', errDetach);
+            showMsg('error', (lang==='ar' ? 'خطأ في فصل الطلاب: ' : 'Erreur détachement élèves: ') + errDetach.message);
+            hideConfirm();
+            return;
+          }
         }
-        // Remove from parent_eleve if any
+        // Détacher des objectifs
         await supabase.from('objectifs_globaux').update({instituteur_id: null}).eq('instituteur_id', inst.id).catch(()=>{});
-        await supabase.from('utilisateurs').delete().eq('id', inst.id);
+        // Autres tables qui référencent l'instituteur (si elles existent)
+        await supabase.from('validations').update({valide_par: null}).eq('valide_par', inst.id).catch(()=>{});
+        await supabase.from('certificats_eleves').update({valide_par: null}).eq('valide_par', inst.id).catch(()=>{});
+        // Enfin supprimer l'instituteur
+        const { error: errFinal } = await supabase.from('utilisateurs').delete().eq('id', inst.id);
+        if (errFinal) {
+          console.error('[supprimerInstituteur] Echec suppression:', errFinal);
+          showMsg('error', (lang==='ar' ? 'خطأ في الحذف: ' : 'Erreur suppression: ') + (errFinal.message || 'inconnue'));
+          hideConfirm();
+          return;
+        }
         showMsg('success', t(lang, 'instituteur_retire'));
         hideConfirm();
         loadData();
