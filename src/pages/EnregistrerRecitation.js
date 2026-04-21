@@ -281,6 +281,62 @@ export default function EnregistrerRecitation({  user, eleve: eleveInitial, navi
         : `🏅 Nouveau certificat: ${(nouveauxCerts||[]).map(c=>c.nom_certificat).join(', ')} !`);
     }
 
+    // ─── Détection fin de bloc (Étape B-4) ────────────────
+    // Si la validation vient de compléter un bloc pédagogique, on affiche
+    // un toast informatif pour motiver l'élève et signaler le passage au bloc suivant.
+    if (typeValidation === 'hizb_complet' && etat._blocActuel) {
+      try {
+        const niveauEleve = (niveaux || []).find(n => n.code === selectedEleve.code_niveau);
+        if (niveauEleve) {
+          const { data: progData } = await supabase.from('programmes')
+            .select('reference_id, ordre, bloc_numero, bloc_nom, bloc_sens, type_contenu')
+            .eq('niveau_id', niveauEleve.id)
+            .eq('ecole_id', user.ecole_id)
+            .order('ordre');
+          if (progData && progData.length > 0) {
+            // Recalculer la progression après cette validation
+            const sens = getSensForEleve(selectedEleve, niveaux, ecoleConfig);
+            const eNouv = calcEtatEleve(valsNouv, selectedEleve.hizb_depart, selectedEleve.tomon_depart, sens);
+            const hizbsFaits = new Set(eNouv.hizbsComplets || []);
+            const hizbDep = selectedEleve.hizb_depart;
+            if (hizbDep && hizbDep > 0) {
+              if (sens === 'asc') {
+                for (let h = 1; h < hizbDep; h++) hizbsFaits.add(h);
+              } else {
+                for (let h = 60; h > hizbDep; h--) hizbsFaits.add(h);
+              }
+            }
+            const progNouv = calcBlocProgression(progData, hizbsFaits, eNouv.hizbEnCours);
+            if (progNouv && !progNouv.estMonoBloc) {
+              // Chercher le bloc qui vient d'être terminé (= celui qui contient le Hizb validé
+              // ET qui est maintenant "estTermine")
+              const blocTermine = progNouv.blocs.find(b =>
+                b.estTermine && b.hizbs.includes(etat.hizbEnCours)
+              );
+              if (blocTermine) {
+                // Y a-t-il un bloc suivant ?
+                const suivant = progNouv.blocs.find(b => b.numero > blocTermine.numero && !b.estTermine);
+                const nomTermine = blocTermine.nom || `Bloc ${blocTermine.numero}`;
+                if (suivant) {
+                  const nomSuivant = suivant.nom || `Bloc ${suivant.numero}`;
+                  toast.success(lang==='ar'
+                    ? `🎉 تم إتمام ${nomTermine} ! الانتقال إلى ${nomSuivant}`
+                    : `🎉 ${nomTermine} terminé ! Passage au ${nomSuivant}`);
+                } else {
+                  // Dernier bloc terminé = programme entier complété
+                  toast.success(lang==='ar'
+                    ? `🏆 ${nomTermine} ! تم إتمام جميع البلوكات !`
+                    : `🏆 ${nomTermine} ! Tous les blocs sont terminés !`);
+                }
+              }
+            }
+          }
+        }
+      } catch(err) {
+        console.warn('[EnregistrerRecitation] détection fin de bloc échouée:', err);
+      }
+    }
+
     const msg = motivationMsg(nombreTomon, etat, typeValidation === 'hizb_complet');
     setMotivMsg(msg);
     setDone(true);
