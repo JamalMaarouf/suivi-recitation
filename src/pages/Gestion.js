@@ -1736,6 +1736,8 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile,
       lang==='ar'?'حذف الأستاذ':"Supprimer instituteur",
       msg,
       async () => {
+        // [DIAG] Confirmation visuelle que onConfirm est bien appelé
+        alert('[DIAG] onConfirm appelée pour ' + (inst.prenom || '') + ' ' + (inst.nom || ''));
         // Détacher tous les élèves d'abord
         if (nbEleves > 0) {
           const { error: errDetach } = await supabase.from('eleves')
@@ -1744,6 +1746,7 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile,
           if (errDetach) {
             console.error('[supprimerInstituteur] Detachement eleves:', errDetach);
             showMsg('error', (lang==='ar' ? 'خطأ في فصل الطلاب: ' : 'Erreur détachement élèves: ') + errDetach.message);
+            alert('[DIAG] Erreur détachement: ' + errDetach.message);
             hideConfirm();
             return;
           }
@@ -1755,7 +1758,8 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile,
         // Note : certificats_eleves utilise la colonne 'cree_par' (pas 'valide_par')
         await supabase.from('certificats_eleves').update({cree_par: null}).eq('cree_par', inst.id).catch(()=>{});
         // Enfin supprimer l'instituteur
-        const { error: errFinal } = await supabase.from('utilisateurs').delete().eq('id', inst.id);
+        const { error: errFinal, count } = await supabase.from('utilisateurs').delete({count:'exact'}).eq('id', inst.id);
+        alert('[DIAG] DELETE terminé — error=' + (errFinal ? errFinal.message : 'null') + ' — count=' + count);
         if (errFinal) {
           console.error('[supprimerInstituteur] Echec suppression:', errFinal);
           showMsg('error', (lang==='ar' ? 'خطأ في الحذف: ' : 'Erreur suppression: ') + (errFinal.message || 'inconnue'));
