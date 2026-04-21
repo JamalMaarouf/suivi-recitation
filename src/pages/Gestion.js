@@ -1752,7 +1752,8 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile,
         await supabase.from('objectifs_globaux').update({instituteur_id: null}).eq('instituteur_id', inst.id).catch(()=>{});
         // Autres tables qui référencent l'instituteur (si elles existent)
         await supabase.from('validations').update({valide_par: null}).eq('valide_par', inst.id).catch(()=>{});
-        await supabase.from('certificats_eleves').update({valide_par: null}).eq('valide_par', inst.id).catch(()=>{});
+        // Note : certificats_eleves utilise la colonne 'cree_par' (pas 'valide_par')
+        await supabase.from('certificats_eleves').update({cree_par: null}).eq('cree_par', inst.id).catch(()=>{});
         // Enfin supprimer l'instituteur
         const { error: errFinal } = await supabase.from('utilisateurs').delete().eq('id', inst.id);
         if (errFinal) {
@@ -3241,6 +3242,20 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
           showMsg={showMsg}
         />
       )}
+
+      {/* ─── Modale de confirmation (utilisée par showConfirm) ─── */}
+      {/* Sans ce rendu, tous les boutons 🗑 Supprimer sont silencieux */}
+      {/* car le state passe bien à isOpen:true mais rien ne l'affiche. */}
+      <ConfirmModal
+        isOpen={confirmModal.isOpen}
+        title={confirmModal.title}
+        message={confirmModal.message}
+        onConfirm={confirmModal.onConfirm}
+        onCancel={hideConfirm}
+        confirmLabel={confirmModal.confirmLabel}
+        confirmColor={confirmModal.confirmColor}
+        lang={lang}
+      />
     </div>
   );
 }
