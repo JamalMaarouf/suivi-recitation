@@ -1436,7 +1436,7 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile,
   const [showAcquisSelector, setShowAcquisSelector] = useState(false);
   const [editShowAcquisSelector, setEditShowAcquisSelector] = useState(false);
 
-  const [newEleve, setNewEleve] = useState({ prenom: '', nom: '', niveau: 'Débutant', code_niveau: '1', eleve_id_ecole: '', instituteur_referent_id: '', hizb_depart: 0, tomon_depart: 1, sourates_acquises: 0, telephone: '', date_inscription: '' });
+  const [newEleve, setNewEleve] = useState({ prenom: '', nom: '', niveau: 'Débutant', code_niveau: '', eleve_id_ecole: '', instituteur_referent_id: '', hizb_depart: 0, tomon_depart: 1, sourates_acquises: 0, telephone: '', date_inscription: '' });
   const [newInst, setNewInst] = useState({ prenom: '', nom: '', identifiant: '', mot_de_passe: '' });
   const [ecoleConfig, setEcoleConfig] = useState({ mdp_defaut_instituteurs: 'ecole2024', mdp_defaut_parents: 'parent2024', sens_recitation_defaut: 'desc' });
   // Hooks niveaux dynamiques
@@ -1475,6 +1475,11 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile,
       .then(async ({data}) => {
         if(data) {
           setNiveauxDyn(data);
+          // Auto-select du premier niveau si le formulaire est vide
+          // Évite que le dropdown affiche une valeur fantôme comme '1' inexistant
+          if (data.length > 0) {
+            setNewEleve(prev => prev.code_niveau ? prev : { ...prev, code_niveau: data[0].code });
+          }
           // Charger tous les programmes de l'école et les grouper par niveau (pour Étape C)
           try {
             const { data: progData } = await supabase.from('programmes')
@@ -1540,6 +1545,14 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile,
     if (!newEleve.prenom?.trim()) return showMsg('error', t(lang, 'prenom_nom_obligatoires'));
     if (!newEleve.nom?.trim()) return showMsg('error', t(lang, 'prenom_nom_obligatoires'));
     if (!newEleve.code_niveau) return showMsg('error', t(lang, 'tous_champs_obligatoires'));
+    // Protection : le code_niveau DOIT correspondre à un niveau réellement existant
+    // (évite les valeurs fantômes comme '1' quand le niveau n'existe pas)
+    const niveauExiste = (niveauxDyn || []).some(n => n.code === newEleve.code_niveau);
+    if (!niveauExiste) {
+      return showMsg('error', lang==='ar'
+        ? `المستوى "${newEleve.code_niveau}" غير موجود. اختر مستوى من القائمة.`
+        : `Niveau "${newEleve.code_niveau}" inexistant. Choisissez un niveau dans la liste.`);
+    }
     if (!newEleve.eleve_id_ecole?.trim()) return showMsg('error', lang==='ar'?'رقم تعريف الطالب إلزامي':"L'ID élève est obligatoire");
     if (!newEleve.instituteur_referent_id) return showMsg('error', lang==='ar'?'يجب اختيار الأستاذ المرجع':'Veuillez sélectionner un instituteur référent');
 
@@ -1550,7 +1563,7 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile,
 
     const { error } = await supabase.from('eleves').insert({
       prenom: newEleve.prenom, nom: newEleve.nom, niveau: newEleve.niveau, ecole_id: user.ecole_id,
-      code_niveau: newEleve.code_niveau || '1',
+      code_niveau: newEleve.code_niveau,  // garanti valide par validation ci-dessus
       eleve_id_ecole: newEleve.eleve_id_ecole || null,
       instituteur_referent_id: newEleve.instituteur_referent_id || null,
       hizb_depart: parseInt(newEleve.hizb_depart) || 0,
@@ -1585,7 +1598,7 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile,
     }
 
     showMsg('success', lang==='ar'?`✅ تم إضافة الطالب — حساب ولي الأمر: ${loginParent} / ${mdpParent}`:`✅ Élève ajouté — Compte parent: ${loginParent} / ${mdpParent}`);
-    setNewEleve({ prenom: '', nom: '', niveau: 'Débutant', code_niveau: '1', eleve_id_ecole: '', instituteur_referent_id: '', hizb_depart: 0, tomon_depart: 1, sourates_acquises: 0 });
+    setNewEleve({ prenom: '', nom: '', niveau: 'Débutant', code_niveau: (niveauxDyn && niveauxDyn[0]?.code) || '', eleve_id_ecole: '', instituteur_referent_id: '', hizb_depart: 0, tomon_depart: 1, sourates_acquises: 0 });
     setShowAcquisSelector(false);
     loadData();
   };
@@ -2014,7 +2027,7 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
       {'5B':'#534AB7','5A':'#378ADD','2M':'#1D9E75','2':'#EF9F27','1':'#E24B4A'}[code] || '#888';
 
     const resetFormEleve = () => {
-      setNewEleve({prenom:'',nom:'',niveau:'Débutant',code_niveau:'1',eleve_id_ecole:'',
+      setNewEleve({prenom:'',nom:'',niveau:'Débutant',code_niveau:(niveauxDyn && niveauxDyn[0]?.code) || '',eleve_id_ecole:'',
         instituteur_referent_id:'',hizb_depart:0,tomon_depart:1,sourates_acquises:0,
         telephone:'',date_inscription:''});
       setEditEleve(null); setMobileEditEleve(null);
