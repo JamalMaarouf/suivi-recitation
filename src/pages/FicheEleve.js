@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useToast } from '../lib/toast';
 import { supabase } from '../lib/supabase';
-import { calcEtatEleve, isSourateNiveauDyn, calcPositionAtteinte, calcUnite, calcPoints, formatDate, formatDateCourt, getInitiales, scoreLabel, calcBadges, calcVitesse, niveauTraduit, calcPointsPeriode, loadBareme, BAREME_DEFAUT, getSensForEleve} from '../lib/helpers';
+import { calcEtatEleve, isSourateNiveauDyn, calcPositionAtteinte, calcUnite, calcPoints, formatDate, formatDateCourt, getInitiales, scoreLabel, calcBadges, calcVitesse, niveauTraduit, calcPointsPeriode, loadBareme, BAREME_DEFAUT, getSensForEleve, calcBlocProgression} from '../lib/helpers';
 import { t } from '../lib/i18n';
 import { openPDF } from '../lib/pdf';
 import { getCachedSWR } from '../lib/cache';
@@ -226,11 +226,42 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang, isMobi
   const [showExceptionModal, setShowExceptionModal] = useState(false);
   const [niveaux, setNiveaux] = useState([]);
   const [ecoleConfig, setEcoleConfig] = useState(null);
+  // Programme du niveau (pour calcul progression par blocs pédagogiques — Étape B)
+  const [programmeNiveau, setProgrammeNiveau] = useState([]);
   const now = new Date();
   const [selectedMoisObj, setSelectedMoisObj] = useState(now.getMonth());
   const [selectedAnneeObj, setSelectedAnneeObj] = useState(now.getFullYear());
 
   useEffect(() => { loadData(); }, [eleve.id]);
+
+  // ─── Progression par blocs pédagogiques (Étape B) ────────────
+  // Calcule à quel bloc l'élève en est, combien de Hizb il a validé dans
+  // chaque bloc, et quel est le bloc "en cours". Retourne null si :
+  //   - Programme vide
+  //   - Niveau de type sourate
+  //   - Un seul bloc configuré (= comportement classique, pas besoin d'afficher)
+  const blocProgression = useMemo(() => {
+    if (!etat || !programmeNiveau || programmeNiveau.length === 0) return null;
+    // Rassembler TOUS les Hizbs considérés comme "faits" :
+    // - Les Hizb validés complets pendant le suivi
+    // - Les Hizb acquis AVANT l'arrivée (via hizb_depart + sens)
+    const sens = getSensForEleve(eleve, niveaux, ecoleConfig);
+    const hizbsFaits = new Set(etat.hizbsComplets || []);
+    const hizbDep = eleve.hizb_depart;
+    if (hizbDep && hizbDep > 0) {
+      // En asc : acquis = Hizb 1 à (hizbDep - 1)
+      // En desc : acquis = Hizb 60 à (hizbDep + 1)
+      if (sens === 'asc') {
+        for (let h = 1; h < hizbDep; h++) hizbsFaits.add(h);
+      } else {
+        for (let h = 60; h > hizbDep; h--) hizbsFaits.add(h);
+      }
+    }
+    const prog = calcBlocProgression(programmeNiveau, hizbsFaits, etat.hizbEnCours);
+    // On ne montre pas l'UI blocs si monobloc (comportement classique inchangé)
+    if (!prog || prog.estMonoBloc) return null;
+    return prog;
+  }, [etat, programmeNiveau, eleve, niveaux, ecoleConfig]);
 
   // Rafraîchir après une sync offline réussie (validations faites sans réseau)
   useEffect(() => {
@@ -297,6 +328,34 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang, isMobi
       const vals=r0.data||[], appr=r1.data||[], exhizb=r2.data||[], mval=r3.data||[], mrec=r4.data||[], recSourates=r5.data||[], passData=r6.data||[], objData=r7.data||[];
 
       setRecitationsSouratesEleve(recSourates);
+
+      // ─── Chargement niveaux + programme (TOUJOURS, hors du if instituteur) ──
+      // Important : on charge toujours pour que la progression par blocs
+      // s'affiche même si l'élève n'a pas encore d'instituteur assigné.
+      try {
+        const [{ data: nivData }, { data: ecData }] = await Promise.all([
+          supabase.from('niveaux').select('id,code,nom,sens_recitation').eq('ecole_id', eleve.ecole_id),
+          supabase.from('ecoles').select('sens_recitation_defaut').eq('id', eleve.ecole_id).maybeSingle(),
+        ]);
+        setNiveaux(nivData || []);
+        setEcoleConfig(ecData || null);
+
+        // Charger le programme du niveau de l'élève (pour progression par blocs)
+        const niveauEleve = (nivData || []).find(n => n.code === eleve.code_niveau);
+        if (niveauEleve) {
+          try {
+            const { data: progData } = await supabase.from('programmes')
+              .select('reference_id, ordre, bloc_numero, bloc_nom, bloc_sens, type_contenu')
+              .eq('niveau_id', niveauEleve.id)
+              .eq('ecole_id', eleve.ecole_id)
+              .order('ordre');
+            setProgrammeNiveau(progData || []);
+          } catch(e) {
+            setProgrammeNiveau([]);
+          }
+        }
+      } catch(e) { /* gardé par défaut */ }
+
       if (eleve.instituteur_referent_id) {
         // .single() plante dur si réseau instable → on utilise .maybeSingle() + try
         let inst = null;
@@ -334,15 +393,8 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang, isMobi
           setJalonsDisp(jalRes.data || []);
         } catch(e) { setJalonsDisp([]); }
 
-        // Charger niveaux + config école pour le sens de récitation
-        try {
-          const [{ data: nivData }, { data: ecData }] = await Promise.all([
-            supabase.from('niveaux').select('id,code,nom,sens_recitation').eq('ecole_id', eleve.ecole_id),
-            supabase.from('ecoles').select('sens_recitation_defaut').eq('id', eleve.ecole_id).maybeSingle(),
-          ]);
-          setNiveaux(nivData || []);
-          setEcoleConfig(ecData || null);
-        } catch(e) { /* gardé par défaut */ }
+        // Charger niveaux + config école : deja fait plus haut (hors du if instituteur)
+        // pour que la vue par blocs s'affiche même sans instituteur assigne.
 
         if(inst) setInstituteurNom(inst.prenom+' '+inst.nom);
       }
@@ -753,6 +805,81 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang, isMobi
           <div style={{padding:'12px 12px'}}>
             {onglet==='progression' && (
               <div>
+                {/* ─── Progression par BLOCS pédagogiques (Étape B) ─── */}
+                {/* N'apparaît que si le niveau a plusieurs blocs configurés. */}
+                {blocProgression && (
+                  <div style={{background:'#fff', borderRadius:14, padding:'14px', marginBottom:12,
+                    border:'1.5px solid #1D9E7530', boxShadow:'0 1px 3px rgba(0,0,0,0.04)'}}>
+                    {/* En-tête */}
+                    <div style={{display:'flex', alignItems:'center', justifyContent:'space-between',
+                      marginBottom:12, flexWrap:'wrap', gap:8}}>
+                      <div style={{display:'flex', alignItems:'center', gap:8}}>
+                        <span style={{fontSize:18}}>📚</span>
+                        <div>
+                          <div style={{fontSize:13, fontWeight:700, color:'#085041'}}>
+                            {lang==='ar'?'التقدم حسب البلوكات':'Progression par blocs'}
+                          </div>
+                          <div style={{fontSize:11, color:'#666'}}>
+                            {blocProgression.blocsTerminesCount}/{blocProgression.totalBlocs} {lang==='ar'?'بلوكات مكتملة':'blocs terminés'}
+                            {' · '}
+                            {blocProgression.progressionTotale.valides}/{blocProgression.progressionTotale.total} {lang==='ar'?'حزب':'Hizb'}
+                          </div>
+                        </div>
+                      </div>
+                      {/* Badge bloc actuel */}
+                      {blocProgression.blocActuel && !blocProgression.blocActuel.estTermine && (
+                        <div style={{padding:'4px 10px', borderRadius:12, background:'#EF9F2720',
+                          color:'#EF9F27', fontSize:11, fontWeight:700}}>
+                          {lang==='ar'?'البلوك الحالي: ':'Bloc actuel : '}
+                          {blocProgression.blocActuel.nom || `#${blocProgression.blocActuel.numero}`}
+                        </div>
+                      )}
+                    </div>
+                    {/* Liste des blocs */}
+                    <div style={{display:'flex', flexDirection:'column', gap:8}}>
+                      {blocProgression.blocs.map(bloc => {
+                        const pct = bloc.total > 0 ? Math.round((bloc.hizbsValidesCount / bloc.total) * 100) : 0;
+                        const color = bloc.estTermine ? '#1D9E75' : (bloc.estEnCours ? '#EF9F27' : '#888');
+                        const bg = bloc.estTermine ? '#E1F5EE' : (bloc.estEnCours ? '#FAEEDA' : '#f5f5f0');
+                        return (
+                          <div key={bloc.numero} style={{padding:'10px 12px', borderRadius:10, background:bg,
+                            border:`1px solid ${color}30`}}>
+                            <div style={{display:'flex', alignItems:'center', gap:10, marginBottom:6}}>
+                              {/* Numéro bloc */}
+                              <div style={{width:26, height:26, borderRadius:6, background:color, color:'#fff',
+                                fontSize:12, fontWeight:800, display:'flex', alignItems:'center',
+                                justifyContent:'center', flexShrink:0}}>
+                                {bloc.estTermine ? '✓' : bloc.numero}
+                              </div>
+                              {/* Nom + sens */}
+                              <div style={{flex:1, minWidth:0}}>
+                                <div style={{fontSize:12, fontWeight:700, color:'#1a1a1a',
+                                  overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap'}}>
+                                  {bloc.nom || `${lang==='ar'?'البلوك':'Bloc'} ${bloc.numero}`}
+                                </div>
+                                <div style={{fontSize:10, color:'#666'}}>
+                                  {bloc.hizbsValidesCount}/{bloc.total} {lang==='ar'?'حزب':'Hizb'}
+                                  {' · '}
+                                  {bloc.sens==='asc' ? (lang==='ar'?'تصاعدي ↑':'Asc ↑') : (lang==='ar'?'تنازلي ↓':'Desc ↓')}
+                                </div>
+                              </div>
+                              {/* % ou statut */}
+                              <div style={{fontSize:12, fontWeight:700, color, flexShrink:0}}>
+                                {bloc.estTermine ? (lang==='ar'?'مكتمل':'Terminé') : `${pct}%`}
+                              </div>
+                            </div>
+                            {/* Barre de progression */}
+                            <div style={{height:5, background:'#fff', borderRadius:3, overflow:'hidden',
+                              border:'0.5px solid #e0e0d8'}}>
+                              <div style={{height:'100%', width:`${pct}%`, background:color,
+                                transition:'width 0.4s ease'}}/>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
                 {/* KPI cards */}
                 <div style={{display:'grid', gridTemplateColumns:'repeat(2,1fr)', gap:10, marginBottom:12}}>
                   {(estSourateEleve ? [
@@ -1387,6 +1514,73 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang, isMobi
           {/* APERÇU */}
           {onglet==='apercu'&&(
             <>
+              {/* ─── Progression par BLOCS pédagogiques (desktop) ─── */}
+              {/* Affichée en tête d'Aperçu si le niveau a plusieurs blocs. */}
+              {blocProgression && (
+                <div style={{background:'#fff', borderRadius:14, padding:'14px', marginBottom:12,
+                  border:'1.5px solid #1D9E7530', boxShadow:'0 1px 3px rgba(0,0,0,0.04)'}}>
+                  <div style={{display:'flex', alignItems:'center', justifyContent:'space-between',
+                    marginBottom:12, flexWrap:'wrap', gap:8}}>
+                    <div style={{display:'flex', alignItems:'center', gap:8}}>
+                      <span style={{fontSize:18}}>📚</span>
+                      <div>
+                        <div style={{fontSize:13, fontWeight:700, color:'#085041'}}>
+                          {lang==='ar'?'التقدم حسب البلوكات':'Progression par blocs'}
+                        </div>
+                        <div style={{fontSize:11, color:'#666'}}>
+                          {blocProgression.blocsTerminesCount}/{blocProgression.totalBlocs} {lang==='ar'?'بلوكات مكتملة':'blocs terminés'}
+                          {' · '}
+                          {blocProgression.progressionTotale.valides}/{blocProgression.progressionTotale.total} {lang==='ar'?'حزب':'Hizb'}
+                        </div>
+                      </div>
+                    </div>
+                    {blocProgression.blocActuel && !blocProgression.blocActuel.estTermine && (
+                      <div style={{padding:'4px 10px', borderRadius:12, background:'#EF9F2720',
+                        color:'#EF9F27', fontSize:11, fontWeight:700}}>
+                        {lang==='ar'?'البلوك الحالي: ':'Bloc actuel : '}
+                        {blocProgression.blocActuel.nom || `#${blocProgression.blocActuel.numero}`}
+                      </div>
+                    )}
+                  </div>
+                  <div style={{display:'flex', flexDirection:'column', gap:8}}>
+                    {blocProgression.blocs.map(bloc => {
+                      const pct = bloc.total > 0 ? Math.round((bloc.hizbsValidesCount / bloc.total) * 100) : 0;
+                      const color = bloc.estTermine ? '#1D9E75' : (bloc.estEnCours ? '#EF9F27' : '#888');
+                      const bg = bloc.estTermine ? '#E1F5EE' : (bloc.estEnCours ? '#FAEEDA' : '#f5f5f0');
+                      return (
+                        <div key={bloc.numero} style={{padding:'10px 12px', borderRadius:10, background:bg,
+                          border:`1px solid ${color}30`}}>
+                          <div style={{display:'flex', alignItems:'center', gap:10, marginBottom:6}}>
+                            <div style={{width:26, height:26, borderRadius:6, background:color, color:'#fff',
+                              fontSize:12, fontWeight:800, display:'flex', alignItems:'center',
+                              justifyContent:'center', flexShrink:0}}>
+                              {bloc.estTermine ? '✓' : bloc.numero}
+                            </div>
+                            <div style={{flex:1, minWidth:0}}>
+                              <div style={{fontSize:12, fontWeight:700, color:'#1a1a1a',
+                                overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap'}}>
+                                {bloc.nom || `${lang==='ar'?'البلوك':'Bloc'} ${bloc.numero}`}
+                              </div>
+                              <div style={{fontSize:10, color:'#666'}}>
+                                {bloc.hizbsValidesCount}/{bloc.total} {lang==='ar'?'حزب':'Hizb'}
+                                {' · '}
+                                {bloc.sens==='asc' ? (lang==='ar'?'تصاعدي ↑':'Asc ↑') : (lang==='ar'?'تنازلي ↓':'Desc ↓')}
+                              </div>
+                            </div>
+                            <div style={{fontSize:12, fontWeight:700, color, flexShrink:0}}>
+                              {bloc.estTermine ? (lang==='ar'?'مكتمل':'Terminé') : `${pct}%`}
+                            </div>
+                          </div>
+                          <div style={{height:5, background:'#fff', borderRadius:3, overflow:'hidden'}}>
+                            <div style={{height:'100%', width:`${pct}%`, background:color,
+                              transition:'width 0.3s'}}></div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
               {estSourateEleve ? (
                 <>
                   <div className="position-card">

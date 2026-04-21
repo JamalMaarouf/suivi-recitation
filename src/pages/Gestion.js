@@ -15,7 +15,9 @@ function Avatar({ prenom, nom, size = 28 }) {
 }
 
 // Sélecteur acquis antérieurs — adapté selon le niveau et le sens de récitation
-function AcquisSelector({ codeNiveau, hizb, tomon, onHizbChange, onTomonChange, souratesAcquises, onSouratesChange, lang, niveauxDyn=[], sens='desc' }) {
+// Prop programmeNiveau (optionnel) : si fourni et contient plusieurs blocs, affiche une
+// aide contextuelle indiquant dans quel bloc pédagogique le Hizb choisi se situe.
+function AcquisSelector({ codeNiveau, hizb, tomon, onHizbChange, onTomonChange, souratesAcquises, onSouratesChange, lang, niveauxDyn=[], sens='desc', programmeNiveau=[] }) {
   const _niv = niveauxDyn.find(n=>n.code===codeNiveau);
   const isSourate = _niv ? _niv.type==='sourate' : ['5B','5A','2M'].includes(codeNiveau);
 
@@ -127,6 +129,66 @@ function AcquisSelector({ codeNiveau, hizb, tomon, onHizbChange, onTomonChange, 
         </div>
         <div style={{textAlign:'center',marginTop:6,fontSize:14,fontWeight:700,color:'#1D9E75'}}>{acquisLabel}</div>
       </div>
+
+      {/* ─── Aide par BLOCS pédagogiques (Étape C) ─────────────── */}
+      {/* N'apparaît que si le programme du niveau contient plusieurs blocs.
+          Indique graphiquement à quel bloc l'élève appartient selon son hizb_depart. */}
+      {programmeNiveau && programmeNiveau.length > 0 && (()=>{
+        // Grouper le programme par bloc
+        const blocsMap = new Map();
+        for (const l of programmeNiveau) {
+          const n = l.bloc_numero || 1;
+          if (!blocsMap.has(n)) blocsMap.set(n, { numero:n, nom:l.bloc_nom, sens:l.bloc_sens||'asc', hizbs:[] });
+          const h = parseInt(l.reference_id);
+          if (!isNaN(h)) blocsMap.get(n).hizbs.push(h);
+        }
+        const blocsList = Array.from(blocsMap.values()).sort((a,b)=>a.numero-b.numero);
+        if (blocsList.length <= 1) return null; // Mono-bloc : on n'affiche rien
+
+        // Calculer pour chaque bloc : combien de Hizb seront déjà acquis si on garde ce hizb_depart
+        // Acquis : en asc, tous les Hizb < hizb ; en desc, tous les Hizb > hizb
+        const blocsStat = blocsList.map(b => {
+          const hizbsAcquis = hizb === 0 ? [] : b.hizbs.filter(h => sens === 'asc' ? h < hizb : h > hizb);
+          const estDansBloc = hizb > 0 && b.hizbs.includes(hizb);
+          const total = b.hizbs.length;
+          const estComplet = hizbsAcquis.length === total && total > 0;
+          return { ...b, nbAcquis: hizbsAcquis.length, total, estComplet, estDansBloc };
+        });
+
+        return (
+          <div style={{marginTop:10, background:'#F0EEFF', borderRadius:10, padding:'10px 12px', border:'0.5px solid #534AB740'}}>
+            <div style={{fontSize:11, color:'#534AB7', fontWeight:600, marginBottom:8, display:'flex', alignItems:'center', gap:6}}>
+              <span>📚</span>
+              <span>{lang==='ar'?'موقع الطالب حسب البلوكات':'Position par blocs pédagogiques'}</span>
+            </div>
+            <div style={{display:'flex', flexDirection:'column', gap:5}}>
+              {blocsStat.map(b => {
+                const color = b.estComplet ? '#1D9E75' : (b.estDansBloc ? '#EF9F27' : (b.nbAcquis > 0 ? '#378ADD' : '#888'));
+                const bg = b.estComplet ? '#E1F5EE' : (b.estDansBloc ? '#FAEEDA' : (b.nbAcquis > 0 ? '#E6F1FB' : '#f5f5f0'));
+                const statut = b.estComplet
+                  ? (lang==='ar' ? 'مكتسب كامل' : 'Entièrement acquis')
+                  : b.estDansBloc
+                    ? (lang==='ar' ? 'البلوك الحالي' : 'Bloc actuel')
+                    : b.nbAcquis > 0
+                      ? (lang==='ar' ? 'جزئي' : 'Partiel')
+                      : (lang==='ar' ? 'غير مبدوء' : 'Non commencé');
+                return (
+                  <div key={b.numero} style={{display:'flex', alignItems:'center', gap:8, padding:'6px 9px', borderRadius:7, background:bg, border:`0.5px solid ${color}30`}}>
+                    <div style={{width:22, height:22, borderRadius:5, background:color, color:'#fff', fontSize:11, fontWeight:800, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0}}>
+                      {b.estComplet ? '✓' : b.numero}
+                    </div>
+                    <div style={{flex:1, fontSize:11}}>
+                      <div style={{fontWeight:600, color:'#1a1a1a'}}>{b.nom || `${lang==='ar'?'البلوك':'Bloc'} ${b.numero}`}</div>
+                      <div style={{color:'#666', fontSize:10}}>{b.nbAcquis}/{b.total} · {statut}</div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })()}
+
       {hizb > 0 && <div>
         <div style={{fontSize:12,color:'#888',marginBottom:6,fontWeight:500}}>{lang==='ar'?'الثُّمن (1-8)':lang==='en'?'Tomon (1-8)':'Tomon (1-8)'}</div>
         <div style={{display:'grid',gridTemplateColumns:'repeat(8,1fr)',gap:4}}>
@@ -1374,11 +1436,14 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile,
   const [showAcquisSelector, setShowAcquisSelector] = useState(false);
   const [editShowAcquisSelector, setEditShowAcquisSelector] = useState(false);
 
-  const [newEleve, setNewEleve] = useState({ prenom: '', nom: '', niveau: 'Débutant', code_niveau: '1', eleve_id_ecole: '', instituteur_referent_id: '', hizb_depart: 0, tomon_depart: 1, sourates_acquises: 0, telephone: '', date_inscription: '' });
+  const [newEleve, setNewEleve] = useState({ prenom: '', nom: '', niveau: 'Débutant', code_niveau: '', eleve_id_ecole: '', instituteur_referent_id: '', hizb_depart: 0, tomon_depart: 1, sourates_acquises: 0, telephone: '', date_inscription: '' });
   const [newInst, setNewInst] = useState({ prenom: '', nom: '', identifiant: '', mot_de_passe: '' });
   const [ecoleConfig, setEcoleConfig] = useState({ mdp_defaut_instituteurs: 'ecole2024', mdp_defaut_parents: 'parent2024', sens_recitation_defaut: 'desc' });
   // Hooks niveaux dynamiques
   const [niveauxDyn, setNiveauxDyn] = useState([]);
+  // Programmes de chaque niveau (map code_niveau => liste de lignes programmes)
+  // Utilisé pour afficher l'aide "acquis par bloc" dans AcquisSelector (Étape C)
+  const [programmesParNiveau, setProgrammesParNiveau] = useState({});
   // Hooks formulaires mobiles
   const [showFormEleve,  setShowFormEleve]  = useState(false);
   const [showFormInst,   setShowFormInst]   = useState(false);
@@ -1407,7 +1472,35 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile,
   useEffect(() => {
     supabase.from('niveaux').select('id,code,nom,type,couleur,sens_recitation')
       .eq('ecole_id', user.ecole_id).order('ordre')
-      .then(({data}) => { if(data) setNiveauxDyn(data); });
+      .then(async ({data}) => {
+        if(data) {
+          setNiveauxDyn(data);
+          // Auto-select du premier niveau si le formulaire est vide
+          // Évite que le dropdown affiche une valeur fantôme comme '1' inexistant
+          if (data.length > 0) {
+            setNewEleve(prev => prev.code_niveau ? prev : { ...prev, code_niveau: data[0].code });
+          }
+          // Charger tous les programmes de l'école et les grouper par niveau (pour Étape C)
+          try {
+            const { data: progData } = await supabase.from('programmes')
+              .select('niveau_id, reference_id, ordre, bloc_numero, bloc_nom, bloc_sens, type_contenu')
+              .eq('ecole_id', user.ecole_id)
+              .order('ordre');
+            if (progData) {
+              const map = {};
+              const niveauxById = Object.fromEntries(data.map(n => [n.id, n]));
+              for (const ligne of progData) {
+                const niveau = niveauxById[ligne.niveau_id];
+                if (niveau) {
+                  if (!map[niveau.code]) map[niveau.code] = [];
+                  map[niveau.code].push(ligne);
+                }
+              }
+              setProgrammesParNiveau(map);
+            }
+          } catch(e) { /* silencieux, l'aide bloc ne s'affichera juste pas */ }
+        }
+      });
   }, []);
   useEffect(() => {
     loadBareme(supabase, user.ecole_id).then(b => { setBareme(b); setBaremeLoaded(true); });
@@ -1426,7 +1519,7 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile,
     if (ecData) setEcoleConfig(prev => ({...prev, ...ecData}));
     setLoading(true);
     try {
-    const { data: e } = await supabase.from('eleves').select('id,prenom,nom,code_niveau,eleve_id_ecole,hizb_depart,tomon_depart,sourates_acquises,instituteur_referent_id,ecole_id')
+    const { data: e } = await supabase.from('eleves').select('id,prenom,nom,code_niveau,eleve_id_ecole,hizb_depart,tomon_depart,sourates_acquises,instituteur_referent_id,ecole_id,telephone,date_inscription')
         .eq('ecole_id', user.ecole_id).order('nom');
     const { data: i } = await supabase.from('utilisateurs').select('id,prenom,nom,identifiant,role').eq('role', 'instituteur').eq('ecole_id', user.ecole_id);
     setEleves(e || []);
@@ -1452,6 +1545,14 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile,
     if (!newEleve.prenom?.trim()) return showMsg('error', t(lang, 'prenom_nom_obligatoires'));
     if (!newEleve.nom?.trim()) return showMsg('error', t(lang, 'prenom_nom_obligatoires'));
     if (!newEleve.code_niveau) return showMsg('error', t(lang, 'tous_champs_obligatoires'));
+    // Protection : le code_niveau DOIT correspondre à un niveau réellement existant
+    // (évite les valeurs fantômes comme '1' quand le niveau n'existe pas)
+    const niveauExiste = (niveauxDyn || []).some(n => n.code === newEleve.code_niveau);
+    if (!niveauExiste) {
+      return showMsg('error', lang==='ar'
+        ? `المستوى "${newEleve.code_niveau}" غير موجود. اختر مستوى من القائمة.`
+        : `Niveau "${newEleve.code_niveau}" inexistant. Choisissez un niveau dans la liste.`);
+    }
     if (!newEleve.eleve_id_ecole?.trim()) return showMsg('error', lang==='ar'?'رقم تعريف الطالب إلزامي':"L'ID élève est obligatoire");
     if (!newEleve.instituteur_referent_id) return showMsg('error', lang==='ar'?'يجب اختيار الأستاذ المرجع':'Veuillez sélectionner un instituteur référent');
 
@@ -1462,7 +1563,7 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile,
 
     const { error } = await supabase.from('eleves').insert({
       prenom: newEleve.prenom, nom: newEleve.nom, niveau: newEleve.niveau, ecole_id: user.ecole_id,
-      code_niveau: newEleve.code_niveau || '1',
+      code_niveau: newEleve.code_niveau,  // garanti valide par validation ci-dessus
       eleve_id_ecole: newEleve.eleve_id_ecole || null,
       instituteur_referent_id: newEleve.instituteur_referent_id || null,
       hizb_depart: parseInt(newEleve.hizb_depart) || 0,
@@ -1471,7 +1572,12 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile,
       telephone: newEleve.telephone?.trim() || null,
       date_inscription: newEleve.date_inscription || null
     });
-    if (error) return showMsg('error', t(lang, 'erreur_ajout'));
+    if (error) {
+      // Afficher la vraie cause de l'erreur pour faciliter le debug
+      console.error('[ajouterEleve] Erreur insertion élève:', error);
+      const detail = error.message || error.details || error.hint || 'inconnue';
+      return showMsg('error', (lang==='ar' ? 'خطأ: ' : 'Erreur: ') + detail);
+    }
     // Récupérer l'élève créé par son numéro (RLS bloque .select() après insert)
     const { data: eleveData } = await supabase.from('eleves')
       .select('id').eq('eleve_id_ecole', newEleve.eleve_id_ecole.trim()).eq('ecole_id', user.ecole_id).maybeSingle();
@@ -1492,7 +1598,7 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile,
     }
 
     showMsg('success', lang==='ar'?`✅ تم إضافة الطالب — حساب ولي الأمر: ${loginParent} / ${mdpParent}`:`✅ Élève ajouté — Compte parent: ${loginParent} / ${mdpParent}`);
-    setNewEleve({ prenom: '', nom: '', niveau: 'Débutant', code_niveau: '1', eleve_id_ecole: '', instituteur_referent_id: '', hizb_depart: 0, tomon_depart: 1, sourates_acquises: 0 });
+    setNewEleve({ prenom: '', nom: '', niveau: 'Débutant', code_niveau: (niveauxDyn && niveauxDyn[0]?.code) || '', eleve_id_ecole: '', instituteur_referent_id: '', hizb_depart: 0, tomon_depart: 1, sourates_acquises: 0 });
     setShowAcquisSelector(false);
     loadData();
   };
@@ -1537,15 +1643,44 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile,
           lang==='ar'?'تأكيد نهائي — حذف '+nom:'Confirmation finale — Supprimer '+nom,
           lang==='ar'?'هل أنت متأكد تماماً؟ لا يمكن التراجع عن هذا الإجراء.':'Êtes-vous absolument sûr ? Cette action est définitive et irréversible.',
           async () => {
-            await supabase.from('exceptions_recitation').delete().eq('eleve_id', id).catch(()=>{});
-            await supabase.from('exceptions_hizb').delete().eq('eleve_id', id).catch(()=>{});
-            await supabase.from('recitations_sourates').delete().eq('eleve_id', id).catch(()=>{});
-            await supabase.from('validations').delete().eq('eleve_id', id);
-            await supabase.from('apprentissages').delete().eq('eleve_id', id).catch(()=>{});
-            await supabase.from('cotisations').delete().eq('eleve_id', id).catch(()=>{});
-            await supabase.from('objectifs_globaux').update({eleve_id:null}).eq('eleve_id', id).catch(()=>{});
-            await supabase.from('parent_eleve').delete().eq('eleve_id', id).catch(()=>{});
-            await supabase.from('eleves').delete().eq('id', id);
+            // Supprimer toutes les données liées (ordre important pour contourner les FK)
+            const tablesLiees = [
+              'exceptions_recitation',
+              'exceptions_hizb',
+              'recitations_sourates',
+              'validations',
+              'apprentissages',
+              'cotisations',
+              'parent_eleve',
+              'certificats_eleves',  // Étape D - les certificats doivent être supprimés
+              'points_eleves',       // points/bonus/malus liés
+              'passages_niveaux',    // historique passages
+              'resultats_examens',   // résultats examens
+            ];
+            const erreurs = [];
+            for (const table of tablesLiees) {
+              try {
+                const { error } = await supabase.from(table).delete().eq('eleve_id', id);
+                if (error) erreurs.push(`${table}: ${error.message}`);
+              } catch(e) {
+                // Table n'existe peut-être pas - on ignore silencieusement
+                console.warn(`[supprimerEleve] ${table} ignorée:`, e.message);
+              }
+            }
+            // Détacher des objectifs (ne pas supprimer, juste null)
+            // try/catch car .catch() sur une requete Supabase plante (voir note supprimerInstituteur)
+            try { await supabase.from('objectifs_globaux').update({eleve_id:null}).eq('eleve_id', id); } catch(e) { console.warn('[supprimerEleve] objectifs_globaux ignoré:', e); }
+            // Enfin supprimer l'élève lui-même
+            const { error: errFinal } = await supabase.from('eleves').delete().eq('id', id);
+            if (errFinal) {
+              console.error('[supprimerEleve] Echec suppression:', errFinal);
+              showMsg('error', (lang==='ar' ? 'خطأ في الحذف: ' : 'Erreur suppression: ') + (errFinal.message || 'inconnue'));
+              hideConfirm();
+              return;
+            }
+            if (erreurs.length > 0) {
+              console.warn('[supprimerEleve] Erreurs liées (élève supprimé malgré tout):', erreurs);
+            }
             showMsg('success', t(lang, 'eleve_retire'));
             hideConfirm();
             loadData();
@@ -1602,13 +1737,33 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile,
       lang==='ar'?'حذف الأستاذ':"Supprimer instituteur",
       msg,
       async () => {
-        // Detach all eleves first
+        // Détacher tous les élèves d'abord
         if (nbEleves > 0) {
-          await supabase.from('eleves').update({instituteur_referent_id: null}).eq('instituteur_referent_id', inst.id);
+          const { error: errDetach } = await supabase.from('eleves')
+            .update({instituteur_referent_id: null})
+            .eq('instituteur_referent_id', inst.id);
+          if (errDetach) {
+            console.error('[supprimerInstituteur] Detachement eleves:', errDetach);
+            showMsg('error', (lang==='ar' ? 'خطأ في فصل الطلاب: ' : 'Erreur détachement élèves: ') + errDetach.message);
+            hideConfirm();
+            return;
+          }
         }
-        // Remove from parent_eleve if any
-        await supabase.from('objectifs_globaux').update({instituteur_id: null}).eq('instituteur_id', inst.id).catch(()=>{});
-        await supabase.from('utilisateurs').delete().eq('id', inst.id);
+        // Détacher des objectifs + autres tables qui peuvent ne pas exister ou
+        // contenir des colonnes différentes. On wrap chaque requete dans try/catch
+        // car Supabase ne renvoie pas une Promise catchable — il renvoie {data, error}.
+        // Utiliser .catch() dessus faisait planter silencieusement tout le reste.
+        try { await supabase.from('objectifs_globaux').update({instituteur_id: null}).eq('instituteur_id', inst.id); } catch(e) { console.warn('[supprimerInstituteur] objectifs_globaux ignoré:', e); }
+        try { await supabase.from('validations').update({valide_par: null}).eq('valide_par', inst.id); } catch(e) { console.warn('[supprimerInstituteur] validations ignoré:', e); }
+        try { await supabase.from('certificats_eleves').update({cree_par: null}).eq('cree_par', inst.id); } catch(e) { console.warn('[supprimerInstituteur] certificats_eleves ignoré:', e); }
+        // Enfin supprimer l'instituteur
+        const { error: errFinal } = await supabase.from('utilisateurs').delete().eq('id', inst.id);
+        if (errFinal) {
+          console.error('[supprimerInstituteur] Echec suppression:', errFinal);
+          showMsg('error', (lang==='ar' ? 'خطأ في الحذف: ' : 'Erreur suppression: ') + (errFinal.message || 'inconnue'));
+          hideConfirm();
+          return;
+        }
         showMsg('success', t(lang, 'instituteur_retire'));
         hideConfirm();
         loadData();
@@ -1875,7 +2030,7 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
       {'5B':'#534AB7','5A':'#378ADD','2M':'#1D9E75','2':'#EF9F27','1':'#E24B4A'}[code] || '#888';
 
     const resetFormEleve = () => {
-      setNewEleve({prenom:'',nom:'',niveau:'Débutant',code_niveau:'1',eleve_id_ecole:'',
+      setNewEleve({prenom:'',nom:'',niveau:'Débutant',code_niveau:(niveauxDyn && niveauxDyn[0]?.code) || '',eleve_id_ecole:'',
         instituteur_referent_id:'',hizb_depart:0,tomon_depart:1,sourates_acquises:0,
         telephone:'',date_inscription:''});
       setEditEleve(null); setMobileEditEleve(null);
@@ -2580,6 +2735,7 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
                       codeNiveau={newEleve.code_niveau} niveauxDyn={niveauxDyn}
                       hizb={newEleve.hizb_depart} tomon={newEleve.tomon_depart} lang={lang}
                       sens={(niveauxDyn.find(n=>n.code===newEleve.code_niveau)?.sens_recitation) || ecoleConfig?.sens_recitation_defaut || 'desc'}
+                      programmeNiveau={programmesParNiveau[newEleve.code_niveau] || []}
                       onHizbChange={h => setNewEleve({ ...newEleve, hizb_depart: h })}
                       onTomonChange={tv => setNewEleve({ ...newEleve, tomon_depart: tv })}
                       souratesAcquises={newEleve.sourates_acquises}
@@ -2665,6 +2821,7 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
                       codeNiveau={editEleve.code_niveau||'1'} niveauxDyn={niveauxDyn}
                       hizb={editEleve.hizb_depart} tomon={editEleve.tomon_depart} lang={lang}
                       sens={(niveauxDyn.find(n=>n.code===editEleve.code_niveau)?.sens_recitation) || ecoleConfig?.sens_recitation_defaut || 'desc'}
+                      programmeNiveau={programmesParNiveau[editEleve.code_niveau] || []}
                       onHizbChange={h => setEditEleve({ ...editEleve, hizb_depart: h })}
                       onTomonChange={tv => setEditEleve({ ...editEleve, tomon_depart: tv })}
                       souratesAcquises={editEleve.sourates_acquises||0}
@@ -3087,6 +3244,20 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
           showMsg={showMsg}
         />
       )}
+
+      {/* ─── Modale de confirmation (utilisée par showConfirm) ─── */}
+      {/* Sans ce rendu, tous les boutons 🗑 Supprimer sont silencieux */}
+      {/* car le state passe bien à isOpen:true mais rien ne l'affiche. */}
+      <ConfirmModal
+        isOpen={confirmModal.isOpen}
+        title={confirmModal.title}
+        message={confirmModal.message}
+        onConfirm={confirmModal.onConfirm}
+        onCancel={hideConfirm}
+        confirmLabel={confirmModal.confirmLabel}
+        confirmColor={confirmModal.confirmColor}
+        lang={lang}
+      />
     </div>
   );
 }
