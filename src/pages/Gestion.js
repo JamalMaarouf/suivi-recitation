@@ -1514,7 +1514,7 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile,
     if (ecData) setEcoleConfig(prev => ({...prev, ...ecData}));
     setLoading(true);
     try {
-    const { data: e } = await supabase.from('eleves').select('id,prenom,nom,code_niveau,eleve_id_ecole,hizb_depart,tomon_depart,sourates_acquises,instituteur_referent_id,ecole_id')
+    const { data: e } = await supabase.from('eleves').select('id,prenom,nom,code_niveau,eleve_id_ecole,hizb_depart,tomon_depart,sourates_acquises,instituteur_referent_id,ecole_id,telephone,date_inscription')
         .eq('ecole_id', user.ecole_id).order('nom');
     const { data: i } = await supabase.from('utilisateurs').select('id,prenom,nom,identifiant,role').eq('role', 'instituteur').eq('ecole_id', user.ecole_id);
     setEleves(e || []);
