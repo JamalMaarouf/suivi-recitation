@@ -1668,7 +1668,8 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile,
               }
             }
             // Détacher des objectifs (ne pas supprimer, juste null)
-            await supabase.from('objectifs_globaux').update({eleve_id:null}).eq('eleve_id', id).catch(()=>{});
+            // try/catch car .catch() sur une requete Supabase plante (voir note supprimerInstituteur)
+            try { await supabase.from('objectifs_globaux').update({eleve_id:null}).eq('eleve_id', id); } catch(e) { console.warn('[supprimerEleve] objectifs_globaux ignoré:', e); }
             // Enfin supprimer l'élève lui-même
             const { error: errFinal } = await supabase.from('eleves').delete().eq('id', id);
             if (errFinal) {
@@ -1736,8 +1737,6 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile,
       lang==='ar'?'حذف الأستاذ':"Supprimer instituteur",
       msg,
       async () => {
-        // [DIAG] Confirmation visuelle que onConfirm est bien appelé
-        alert('[DIAG] onConfirm appelée pour ' + (inst.prenom || '') + ' ' + (inst.nom || ''));
         // Détacher tous les élèves d'abord
         if (nbEleves > 0) {
           const { error: errDetach } = await supabase.from('eleves')
@@ -1746,20 +1745,19 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile,
           if (errDetach) {
             console.error('[supprimerInstituteur] Detachement eleves:', errDetach);
             showMsg('error', (lang==='ar' ? 'خطأ في فصل الطلاب: ' : 'Erreur détachement élèves: ') + errDetach.message);
-            alert('[DIAG] Erreur détachement: ' + errDetach.message);
             hideConfirm();
             return;
           }
         }
-        // Détacher des objectifs
-        await supabase.from('objectifs_globaux').update({instituteur_id: null}).eq('instituteur_id', inst.id).catch(()=>{});
-        // Autres tables qui référencent l'instituteur (si elles existent)
-        await supabase.from('validations').update({valide_par: null}).eq('valide_par', inst.id).catch(()=>{});
-        // Note : certificats_eleves utilise la colonne 'cree_par' (pas 'valide_par')
-        await supabase.from('certificats_eleves').update({cree_par: null}).eq('cree_par', inst.id).catch(()=>{});
+        // Détacher des objectifs + autres tables qui peuvent ne pas exister ou
+        // contenir des colonnes différentes. On wrap chaque requete dans try/catch
+        // car Supabase ne renvoie pas une Promise catchable — il renvoie {data, error}.
+        // Utiliser .catch() dessus faisait planter silencieusement tout le reste.
+        try { await supabase.from('objectifs_globaux').update({instituteur_id: null}).eq('instituteur_id', inst.id); } catch(e) { console.warn('[supprimerInstituteur] objectifs_globaux ignoré:', e); }
+        try { await supabase.from('validations').update({valide_par: null}).eq('valide_par', inst.id); } catch(e) { console.warn('[supprimerInstituteur] validations ignoré:', e); }
+        try { await supabase.from('certificats_eleves').update({cree_par: null}).eq('cree_par', inst.id); } catch(e) { console.warn('[supprimerInstituteur] certificats_eleves ignoré:', e); }
         // Enfin supprimer l'instituteur
-        const { error: errFinal, count } = await supabase.from('utilisateurs').delete({count:'exact'}).eq('id', inst.id);
-        alert('[DIAG] DELETE terminé — error=' + (errFinal ? errFinal.message : 'null') + ' — count=' + count);
+        const { error: errFinal } = await supabase.from('utilisateurs').delete().eq('id', inst.id);
         if (errFinal) {
           console.error('[supprimerInstituteur] Echec suppression:', errFinal);
           showMsg('error', (lang==='ar' ? 'خطأ في الحذف: ' : 'Erreur suppression: ') + (errFinal.message || 'inconnue'));
