@@ -1559,7 +1559,12 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile,
       telephone: newEleve.telephone?.trim() || null,
       date_inscription: newEleve.date_inscription || null
     });
-    if (error) return showMsg('error', t(lang, 'erreur_ajout'));
+    if (error) {
+      // Afficher la vraie cause de l'erreur pour faciliter le debug
+      console.error('[ajouterEleve] Erreur insertion élève:', error);
+      const detail = error.message || error.details || error.hint || 'inconnue';
+      return showMsg('error', (lang==='ar' ? 'خطأ: ' : 'Erreur: ') + detail);
+    }
     // Récupérer l'élève créé par son numéro (RLS bloque .select() après insert)
     const { data: eleveData } = await supabase.from('eleves')
       .select('id').eq('eleve_id_ecole', newEleve.eleve_id_ecole.trim()).eq('ecole_id', user.ecole_id).maybeSingle();
