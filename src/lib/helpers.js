@@ -844,3 +844,163 @@ export function calcPointsToutes(validations) {
     trimestre: calcPointsPeriode(validations, debutTrimestre, now),
   };
 }
+
+// ═══════════════════════════════════════════════════════════════════
+// calcBlocProgression — progression d'un élève par blocs pédagogiques
+// ═══════════════════════════════════════════════════════════════════
+//
+// But : déterminer dans quel bloc l'élève se trouve actuellement et
+// combien il a validé dans chaque bloc, en se basant sur :
+//   - les Hizb validés (ses validations + ses acquis antérieurs)
+//   - la configuration des blocs du niveau (table programmes)
+//
+// Entrées :
+//   - programme : lignes de la table programmes pour ce niveau, avec
+//                 leurs colonnes bloc_numero, bloc_nom, bloc_sens et
+//                 reference_id (le hizb)
+//   - hizbsValides : Set de numéros de Hizb considérés comme "faits"
+//                   (complets + acquis antérieurs)
+//   - hizbEnCours : numéro du Hizb actuellement en cours (optionnel,
+//                   utilisé pour décider du bloc actif si plusieurs
+//                   blocs contiennent ce Hizb)
+//
+// Retour :
+//   - null si programme vide ou type sourate
+//   - { blocs: [...], blocActuelIdx, blocsTerminesCount, progressionTotale }
+//     où chaque bloc = {
+//       numero, nom, sens, hizbs (triés), hizbsValides (count),
+//       total (count), estTermine, estEnCours, hizbsValidesSet
+//     }
+//
+// Rétrocompatibilité :
+//   - Si tous les programmes ont bloc_numero=1, on retourne 1 seul bloc
+//     qui englobe tout le programme (comportement effectif identique
+//     à avant : pas de découpage)
+// ═══════════════════════════════════════════════════════════════════
+export function calcBlocProgression(programme, hizbsValidesInput, hizbEnCours = null) {
+  if (!programme || programme.length === 0) return null;
+
+  // Cette fonction ne s'applique qu'aux niveaux type 'hizb'
+  const firstType = programme[0]?.type_contenu;
+  if (firstType && firstType !== 'hizb') return null;
+
+  // hizbsValides peut être un Set ou un tableau
+  const hizbsValidesSet = hizbsValidesInput instanceof Set
+    ? hizbsValidesInput
+    : new Set(hizbsValidesInput || []);
+
+  // Regrouper le programme par bloc_numero
+  const blocsMap = new Map();
+  for (const ligne of programme) {
+    const numBloc = ligne.bloc_numero || 1;
+    if (!blocsMap.has(numBloc)) {
+      blocsMap.set(numBloc, {
+        numero: numBloc,
+        nom: ligne.bloc_nom || null,
+        sens: ligne.bloc_sens || 'asc',
+        hizbs: [],
+        ordreMin: ligne.ordre || 9999,
+      });
+    }
+    const hizb = parseInt(ligne.reference_id);
+    if (!isNaN(hizb)) {
+      blocsMap.get(numBloc).hizbs.push(hizb);
+      if ((ligne.ordre || 9999) < blocsMap.get(numBloc).ordreMin) {
+        blocsMap.get(numBloc).ordreMin = ligne.ordre || 9999;
+      }
+    }
+  }
+
+  // Trier les blocs par ordre d'apparition (le bloc 1 = premier dans le parcours)
+  const blocs = Array.from(blocsMap.values())
+    .sort((a, b) => a.numero - b.numero)
+    .map(bloc => {
+      // Trier les Hizb DANS le bloc selon son sens
+      const hizbsTries = [...bloc.hizbs].sort((a, b) =>
+        bloc.sens === 'asc' ? a - b : b - a
+      );
+      // Compter les Hizb validés dans ce bloc
+      const hizbsValidesDuBloc = hizbsTries.filter(h => hizbsValidesSet.has(h));
+      return {
+        numero: bloc.numero,
+        nom: bloc.nom,
+        sens: bloc.sens,
+        hizbs: hizbsTries,
+        hizbsValidesSet: new Set(hizbsValidesDuBloc),
+        hizbsValidesCount: hizbsValidesDuBloc.length,
+        total: hizbsTries.length,
+        estTermine: hizbsValidesDuBloc.length === hizbsTries.length && hizbsTries.length > 0,
+        estEnCours: false, // calculé ensuite
+      };
+    });
+
+  // Déterminer le bloc actuel : premier bloc non terminé
+  let blocActuelIdx = blocs.findIndex(b => !b.estTermine);
+  if (blocActuelIdx === -1) {
+    // Tous les blocs sont terminés -> on pointe sur le dernier
+    blocActuelIdx = blocs.length - 1;
+  }
+  if (blocs[blocActuelIdx]) {
+    blocs[blocActuelIdx].estEnCours = true;
+  }
+
+  // Si un hizbEnCours est fourni et qu'il appartient à un bloc spécifique,
+  // on peut préférer ce bloc-là (utile pour cas tordus)
+  if (hizbEnCours) {
+    const idxFromCurrent = blocs.findIndex(b => b.hizbs.includes(hizbEnCours) && !b.estTermine);
+    if (idxFromCurrent !== -1 && idxFromCurrent !== blocActuelIdx) {
+      // On fait confiance au hizbEnCours calculé par calcEtatEleve
+      blocs[blocActuelIdx].estEnCours = false;
+      blocActuelIdx = idxFromCurrent;
+      blocs[blocActuelIdx].estEnCours = true;
+    }
+  }
+
+  const blocsTerminesCount = blocs.filter(b => b.estTermine).length;
+  const totalHizb = blocs.reduce((s, b) => s + b.total, 0);
+  const totalValides = blocs.reduce((s, b) => s + b.hizbsValidesCount, 0);
+
+  return {
+    blocs,
+    blocActuelIdx,
+    blocActuel: blocs[blocActuelIdx] || null,
+    blocsTerminesCount,
+    totalBlocs: blocs.length,
+    progressionTotale: { valides: totalValides, total: totalHizb },
+    // Indique si le programme est en 1 seul bloc (comportement classique)
+    estMonoBloc: blocs.length === 1,
+  };
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// prochainHizbDansBloc — donne le prochain Hizb à réciter en tenant
+// compte des blocs pédagogiques
+// ═══════════════════════════════════════════════════════════════════
+//
+// Logique :
+//   1. On regarde le bloc actuel de l'élève (premier non terminé)
+//   2. Dans ce bloc, on trouve le premier Hizb non validé, selon le
+//      sens du bloc (asc/desc)
+//   3. Si le bloc est terminé, on passe au bloc suivant
+//   4. Si tous les blocs sont terminés, on retourne null
+//
+// Rétrocompatibilité : si monobloc, comportement = ancien
+//   (premier Hizb non validé dans le sens du niveau)
+//
+// Retourne : { hizb: number | null, bloc: blocObj | null }
+// ═══════════════════════════════════════════════════════════════════
+export function prochainHizbDansBloc(progression) {
+  if (!progression || !progression.blocs || progression.blocs.length === 0) {
+    return { hizb: null, bloc: null };
+  }
+  // Chercher dans chaque bloc dans l'ordre, le premier Hizb non validé
+  for (const bloc of progression.blocs) {
+    if (bloc.estTermine) continue;
+    // Hizbs du bloc sont déjà triés selon le sens du bloc
+    const prochainHizb = bloc.hizbs.find(h => !bloc.hizbsValidesSet.has(h));
+    if (prochainHizb !== undefined) {
+      return { hizb: prochainHizb, bloc };
+    }
+  }
+  return { hizb: null, bloc: null };
+}
