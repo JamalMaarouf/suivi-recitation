@@ -15,7 +15,9 @@ function Avatar({ prenom, nom, size = 28 }) {
 }
 
 // Sélecteur acquis antérieurs — adapté selon le niveau et le sens de récitation
-function AcquisSelector({ codeNiveau, hizb, tomon, onHizbChange, onTomonChange, souratesAcquises, onSouratesChange, lang, niveauxDyn=[], sens='desc' }) {
+// Prop programmeNiveau (optionnel) : si fourni et contient plusieurs blocs, affiche une
+// aide contextuelle indiquant dans quel bloc pédagogique le Hizb choisi se situe.
+function AcquisSelector({ codeNiveau, hizb, tomon, onHizbChange, onTomonChange, souratesAcquises, onSouratesChange, lang, niveauxDyn=[], sens='desc', programmeNiveau=[] }) {
   const _niv = niveauxDyn.find(n=>n.code===codeNiveau);
   const isSourate = _niv ? _niv.type==='sourate' : ['5B','5A','2M'].includes(codeNiveau);
 
@@ -127,6 +129,66 @@ function AcquisSelector({ codeNiveau, hizb, tomon, onHizbChange, onTomonChange, 
         </div>
         <div style={{textAlign:'center',marginTop:6,fontSize:14,fontWeight:700,color:'#1D9E75'}}>{acquisLabel}</div>
       </div>
+
+      {/* ─── Aide par BLOCS pédagogiques (Étape C) ─────────────── */}
+      {/* N'apparaît que si le programme du niveau contient plusieurs blocs.
+          Indique graphiquement à quel bloc l'élève appartient selon son hizb_depart. */}
+      {programmeNiveau && programmeNiveau.length > 0 && (()=>{
+        // Grouper le programme par bloc
+        const blocsMap = new Map();
+        for (const l of programmeNiveau) {
+          const n = l.bloc_numero || 1;
+          if (!blocsMap.has(n)) blocsMap.set(n, { numero:n, nom:l.bloc_nom, sens:l.bloc_sens||'asc', hizbs:[] });
+          const h = parseInt(l.reference_id);
+          if (!isNaN(h)) blocsMap.get(n).hizbs.push(h);
+        }
+        const blocsList = Array.from(blocsMap.values()).sort((a,b)=>a.numero-b.numero);
+        if (blocsList.length <= 1) return null; // Mono-bloc : on n'affiche rien
+
+        // Calculer pour chaque bloc : combien de Hizb seront déjà acquis si on garde ce hizb_depart
+        // Acquis : en asc, tous les Hizb < hizb ; en desc, tous les Hizb > hizb
+        const blocsStat = blocsList.map(b => {
+          const hizbsAcquis = hizb === 0 ? [] : b.hizbs.filter(h => sens === 'asc' ? h < hizb : h > hizb);
+          const estDansBloc = hizb > 0 && b.hizbs.includes(hizb);
+          const total = b.hizbs.length;
+          const estComplet = hizbsAcquis.length === total && total > 0;
+          return { ...b, nbAcquis: hizbsAcquis.length, total, estComplet, estDansBloc };
+        });
+
+        return (
+          <div style={{marginTop:10, background:'#F0EEFF', borderRadius:10, padding:'10px 12px', border:'0.5px solid #534AB740'}}>
+            <div style={{fontSize:11, color:'#534AB7', fontWeight:600, marginBottom:8, display:'flex', alignItems:'center', gap:6}}>
+              <span>📚</span>
+              <span>{lang==='ar'?'موقع الطالب حسب البلوكات':'Position par blocs pédagogiques'}</span>
+            </div>
+            <div style={{display:'flex', flexDirection:'column', gap:5}}>
+              {blocsStat.map(b => {
+                const color = b.estComplet ? '#1D9E75' : (b.estDansBloc ? '#EF9F27' : (b.nbAcquis > 0 ? '#378ADD' : '#888'));
+                const bg = b.estComplet ? '#E1F5EE' : (b.estDansBloc ? '#FAEEDA' : (b.nbAcquis > 0 ? '#E6F1FB' : '#f5f5f0'));
+                const statut = b.estComplet
+                  ? (lang==='ar' ? 'مكتسب كامل' : 'Entièrement acquis')
+                  : b.estDansBloc
+                    ? (lang==='ar' ? 'البلوك الحالي' : 'Bloc actuel')
+                    : b.nbAcquis > 0
+                      ? (lang==='ar' ? 'جزئي' : 'Partiel')
+                      : (lang==='ar' ? 'غير مبدوء' : 'Non commencé');
+                return (
+                  <div key={b.numero} style={{display:'flex', alignItems:'center', gap:8, padding:'6px 9px', borderRadius:7, background:bg, border:`0.5px solid ${color}30`}}>
+                    <div style={{width:22, height:22, borderRadius:5, background:color, color:'#fff', fontSize:11, fontWeight:800, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0}}>
+                      {b.estComplet ? '✓' : b.numero}
+                    </div>
+                    <div style={{flex:1, fontSize:11}}>
+                      <div style={{fontWeight:600, color:'#1a1a1a'}}>{b.nom || `${lang==='ar'?'البلوك':'Bloc'} ${b.numero}`}</div>
+                      <div style={{color:'#666', fontSize:10}}>{b.nbAcquis}/{b.total} · {statut}</div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })()}
+
       {hizb > 0 && <div>
         <div style={{fontSize:12,color:'#888',marginBottom:6,fontWeight:500}}>{lang==='ar'?'الثُّمن (1-8)':lang==='en'?'Tomon (1-8)':'Tomon (1-8)'}</div>
         <div style={{display:'grid',gridTemplateColumns:'repeat(8,1fr)',gap:4}}>
@@ -1379,6 +1441,9 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile,
   const [ecoleConfig, setEcoleConfig] = useState({ mdp_defaut_instituteurs: 'ecole2024', mdp_defaut_parents: 'parent2024', sens_recitation_defaut: 'desc' });
   // Hooks niveaux dynamiques
   const [niveauxDyn, setNiveauxDyn] = useState([]);
+  // Programmes de chaque niveau (map code_niveau => liste de lignes programmes)
+  // Utilisé pour afficher l'aide "acquis par bloc" dans AcquisSelector (Étape C)
+  const [programmesParNiveau, setProgrammesParNiveau] = useState({});
   // Hooks formulaires mobiles
   const [showFormEleve,  setShowFormEleve]  = useState(false);
   const [showFormInst,   setShowFormInst]   = useState(false);
@@ -1407,7 +1472,30 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile,
   useEffect(() => {
     supabase.from('niveaux').select('id,code,nom,type,couleur,sens_recitation')
       .eq('ecole_id', user.ecole_id).order('ordre')
-      .then(({data}) => { if(data) setNiveauxDyn(data); });
+      .then(async ({data}) => {
+        if(data) {
+          setNiveauxDyn(data);
+          // Charger tous les programmes de l'école et les grouper par niveau (pour Étape C)
+          try {
+            const { data: progData } = await supabase.from('programmes')
+              .select('niveau_id, reference_id, ordre, bloc_numero, bloc_nom, bloc_sens, type_contenu')
+              .eq('ecole_id', user.ecole_id)
+              .order('ordre');
+            if (progData) {
+              const map = {};
+              const niveauxById = Object.fromEntries(data.map(n => [n.id, n]));
+              for (const ligne of progData) {
+                const niveau = niveauxById[ligne.niveau_id];
+                if (niveau) {
+                  if (!map[niveau.code]) map[niveau.code] = [];
+                  map[niveau.code].push(ligne);
+                }
+              }
+              setProgrammesParNiveau(map);
+            }
+          } catch(e) { /* silencieux, l'aide bloc ne s'affichera juste pas */ }
+        }
+      });
   }, []);
   useEffect(() => {
     loadBareme(supabase, user.ecole_id).then(b => { setBareme(b); setBaremeLoaded(true); });
@@ -2580,6 +2668,7 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
                       codeNiveau={newEleve.code_niveau} niveauxDyn={niveauxDyn}
                       hizb={newEleve.hizb_depart} tomon={newEleve.tomon_depart} lang={lang}
                       sens={(niveauxDyn.find(n=>n.code===newEleve.code_niveau)?.sens_recitation) || ecoleConfig?.sens_recitation_defaut || 'desc'}
+                      programmeNiveau={programmesParNiveau[newEleve.code_niveau] || []}
                       onHizbChange={h => setNewEleve({ ...newEleve, hizb_depart: h })}
                       onTomonChange={tv => setNewEleve({ ...newEleve, tomon_depart: tv })}
                       souratesAcquises={newEleve.sourates_acquises}
@@ -2665,6 +2754,7 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
                       codeNiveau={editEleve.code_niveau||'1'} niveauxDyn={niveauxDyn}
                       hizb={editEleve.hizb_depart} tomon={editEleve.tomon_depart} lang={lang}
                       sens={(niveauxDyn.find(n=>n.code===editEleve.code_niveau)?.sens_recitation) || ecoleConfig?.sens_recitation_defaut || 'desc'}
+                      programmeNiveau={programmesParNiveau[editEleve.code_niveau] || []}
                       onHizbChange={h => setEditEleve({ ...editEleve, hizb_depart: h })}
                       onTomonChange={tv => setEditEleve({ ...editEleve, tomon_depart: tv })}
                       souratesAcquises={editEleve.sourates_acquises||0}
