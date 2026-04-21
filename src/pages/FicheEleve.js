@@ -241,7 +241,22 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang, isMobi
   //   - Niveau de type sourate
   //   - Un seul bloc configuré (= comportement classique, pas besoin d'afficher)
   const blocProgression = useMemo(() => {
-    if (!etat || !programmeNiveau || programmeNiveau.length === 0) return null;
+    // [DIAG-BLOCS] Log temporaire pour diagnostiquer bug #1 (vue par blocs invisible)
+    // À retirer dès que le bug est identifié.
+    console.log('[DIAG-BLOCS] entrée useMemo', {
+      eleve_id: eleve?.id,
+      eleve_prenom: eleve?.prenom,
+      code_niveau: eleve?.code_niveau,
+      hizb_depart: eleve?.hizb_depart,
+      etat_present: !!etat,
+      programmeNiveau_length: programmeNiveau?.length,
+      niveaux_length: niveaux?.length,
+      ecoleConfig_present: !!ecoleConfig,
+    });
+    if (!etat || !programmeNiveau || programmeNiveau.length === 0) {
+      console.log('[DIAG-BLOCS] EARLY RETURN : etat ou programmeNiveau vide');
+      return null;
+    }
     // Rassembler TOUS les Hizbs considérés comme "faits" :
     // - Les Hizb validés complets pendant le suivi
     // - Les Hizb acquis AVANT l'arrivée (via hizb_depart + sens)
@@ -257,9 +272,27 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang, isMobi
         for (let h = 60; h > hizbDep; h--) hizbsFaits.add(h);
       }
     }
+    console.log('[DIAG-BLOCS] avant calcBlocProgression', {
+      sens,
+      hizbsFaits_count: hizbsFaits.size,
+      hizbsFaits: Array.from(hizbsFaits).sort((a,b)=>a-b),
+      hizbEnCours: etat.hizbEnCours,
+      programme_sample: programmeNiveau.slice(0, 3),
+      blocs_detectes: [...new Set(programmeNiveau.map(p => p.bloc_numero))],
+    });
     const prog = calcBlocProgression(programmeNiveau, hizbsFaits, etat.hizbEnCours);
+    console.log('[DIAG-BLOCS] résultat calcBlocProgression', {
+      prog_null: !prog,
+      estMonoBloc: prog?.estMonoBloc,
+      totalBlocs: prog?.totalBlocs,
+      blocsTerminesCount: prog?.blocsTerminesCount,
+    });
     // On ne montre pas l'UI blocs si monobloc (comportement classique inchangé)
-    if (!prog || prog.estMonoBloc) return null;
+    if (!prog || prog.estMonoBloc) {
+      console.log('[DIAG-BLOCS] RETURN null : prog null ou monobloc');
+      return null;
+    }
+    console.log('[DIAG-BLOCS] ✅ AFFICHAGE de la vue blocs');
     return prog;
   }, [etat, programmeNiveau, eleve, niveaux, ecoleConfig]);
 
