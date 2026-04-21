@@ -328,6 +328,34 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang, isMobi
       const vals=r0.data||[], appr=r1.data||[], exhizb=r2.data||[], mval=r3.data||[], mrec=r4.data||[], recSourates=r5.data||[], passData=r6.data||[], objData=r7.data||[];
 
       setRecitationsSouratesEleve(recSourates);
+
+      // ─── Chargement niveaux + programme (TOUJOURS, hors du if instituteur) ──
+      // Important : on charge toujours pour que la progression par blocs
+      // s'affiche même si l'élève n'a pas encore d'instituteur assigné.
+      try {
+        const [{ data: nivData }, { data: ecData }] = await Promise.all([
+          supabase.from('niveaux').select('id,code,nom,sens_recitation').eq('ecole_id', eleve.ecole_id),
+          supabase.from('ecoles').select('sens_recitation_defaut').eq('id', eleve.ecole_id).maybeSingle(),
+        ]);
+        setNiveaux(nivData || []);
+        setEcoleConfig(ecData || null);
+
+        // Charger le programme du niveau de l'élève (pour progression par blocs)
+        const niveauEleve = (nivData || []).find(n => n.code === eleve.code_niveau);
+        if (niveauEleve) {
+          try {
+            const { data: progData } = await supabase.from('programmes')
+              .select('reference_id, ordre, bloc_numero, bloc_nom, bloc_sens, type_contenu')
+              .eq('niveau_id', niveauEleve.id)
+              .eq('ecole_id', eleve.ecole_id)
+              .order('ordre');
+            setProgrammeNiveau(progData || []);
+          } catch(e) {
+            setProgrammeNiveau([]);
+          }
+        }
+      } catch(e) { /* gardé par défaut */ }
+
       if (eleve.instituteur_referent_id) {
         // .single() plante dur si réseau instable → on utilise .maybeSingle() + try
         let inst = null;
@@ -365,31 +393,8 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang, isMobi
           setJalonsDisp(jalRes.data || []);
         } catch(e) { setJalonsDisp([]); }
 
-        // Charger niveaux + config école pour le sens de récitation
-        try {
-          const [{ data: nivData }, { data: ecData }] = await Promise.all([
-            supabase.from('niveaux').select('id,code,nom,sens_recitation').eq('ecole_id', eleve.ecole_id),
-            supabase.from('ecoles').select('sens_recitation_defaut').eq('id', eleve.ecole_id).maybeSingle(),
-          ]);
-          setNiveaux(nivData || []);
-          setEcoleConfig(ecData || null);
-
-          // Charger le programme du niveau de l'élève (pour progression par blocs)
-          // Rétrocompatible : si pas de blocs configurés, bloc_numero=1 partout = comportement classique
-          const niveauEleve = (nivData || []).find(n => n.code === eleve.code_niveau);
-          if (niveauEleve) {
-            try {
-              const { data: progData } = await supabase.from('programmes')
-                .select('reference_id, ordre, bloc_numero, bloc_nom, bloc_sens, type_contenu')
-                .eq('niveau_id', niveauEleve.id)
-                .eq('ecole_id', eleve.ecole_id)
-                .order('ordre');
-              setProgrammeNiveau(progData || []);
-            } catch(e) {
-              setProgrammeNiveau([]);
-            }
-          }
-        } catch(e) { /* gardé par défaut */ }
+        // Charger niveaux + config école : deja fait plus haut (hors du if instituteur)
+        // pour que la vue par blocs s'affiche même sans instituteur assigne.
 
         if(inst) setInstituteurNom(inst.prenom+' '+inst.nom);
       }
