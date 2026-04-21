@@ -241,22 +241,7 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang, isMobi
   //   - Niveau de type sourate
   //   - Un seul bloc configuré (= comportement classique, pas besoin d'afficher)
   const blocProgression = useMemo(() => {
-    // [DIAG-BLOCS] Log temporaire pour diagnostiquer bug #1 (vue par blocs invisible)
-    // À retirer dès que le bug est identifié.
-    console.log('[DIAG-BLOCS] entrée useMemo', {
-      eleve_id: eleve?.id,
-      eleve_prenom: eleve?.prenom,
-      code_niveau: eleve?.code_niveau,
-      hizb_depart: eleve?.hizb_depart,
-      etat_present: !!etat,
-      programmeNiveau_length: programmeNiveau?.length,
-      niveaux_length: niveaux?.length,
-      ecoleConfig_present: !!ecoleConfig,
-    });
-    if (!etat || !programmeNiveau || programmeNiveau.length === 0) {
-      console.log('[DIAG-BLOCS] EARLY RETURN : etat ou programmeNiveau vide');
-      return null;
-    }
+    if (!etat || !programmeNiveau || programmeNiveau.length === 0) return null;
     // Rassembler TOUS les Hizbs considérés comme "faits" :
     // - Les Hizb validés complets pendant le suivi
     // - Les Hizb acquis AVANT l'arrivée (via hizb_depart + sens)
@@ -272,27 +257,9 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang, isMobi
         for (let h = 60; h > hizbDep; h--) hizbsFaits.add(h);
       }
     }
-    console.log('[DIAG-BLOCS] avant calcBlocProgression', {
-      sens,
-      hizbsFaits_count: hizbsFaits.size,
-      hizbsFaits: Array.from(hizbsFaits).sort((a,b)=>a-b),
-      hizbEnCours: etat.hizbEnCours,
-      programme_sample: programmeNiveau.slice(0, 3),
-      blocs_detectes: [...new Set(programmeNiveau.map(p => p.bloc_numero))],
-    });
     const prog = calcBlocProgression(programmeNiveau, hizbsFaits, etat.hizbEnCours);
-    console.log('[DIAG-BLOCS] résultat calcBlocProgression', {
-      prog_null: !prog,
-      estMonoBloc: prog?.estMonoBloc,
-      totalBlocs: prog?.totalBlocs,
-      blocsTerminesCount: prog?.blocsTerminesCount,
-    });
     // On ne montre pas l'UI blocs si monobloc (comportement classique inchangé)
-    if (!prog || prog.estMonoBloc) {
-      console.log('[DIAG-BLOCS] RETURN null : prog null ou monobloc');
-      return null;
-    }
-    console.log('[DIAG-BLOCS] ✅ AFFICHAGE de la vue blocs');
+    if (!prog || prog.estMonoBloc) return null;
     return prog;
   }, [etat, programmeNiveau, eleve, niveaux, ecoleConfig]);
 
@@ -1547,6 +1514,73 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang, isMobi
           {/* APERÇU */}
           {onglet==='apercu'&&(
             <>
+              {/* ─── Progression par BLOCS pédagogiques (desktop) ─── */}
+              {/* Affichée en tête d'Aperçu si le niveau a plusieurs blocs. */}
+              {blocProgression && (
+                <div style={{background:'#fff', borderRadius:14, padding:'14px', marginBottom:12,
+                  border:'1.5px solid #1D9E7530', boxShadow:'0 1px 3px rgba(0,0,0,0.04)'}}>
+                  <div style={{display:'flex', alignItems:'center', justifyContent:'space-between',
+                    marginBottom:12, flexWrap:'wrap', gap:8}}>
+                    <div style={{display:'flex', alignItems:'center', gap:8}}>
+                      <span style={{fontSize:18}}>📚</span>
+                      <div>
+                        <div style={{fontSize:13, fontWeight:700, color:'#085041'}}>
+                          {lang==='ar'?'التقدم حسب البلوكات':'Progression par blocs'}
+                        </div>
+                        <div style={{fontSize:11, color:'#666'}}>
+                          {blocProgression.blocsTerminesCount}/{blocProgression.totalBlocs} {lang==='ar'?'بلوكات مكتملة':'blocs terminés'}
+                          {' · '}
+                          {blocProgression.progressionTotale.valides}/{blocProgression.progressionTotale.total} {lang==='ar'?'حزب':'Hizb'}
+                        </div>
+                      </div>
+                    </div>
+                    {blocProgression.blocActuel && !blocProgression.blocActuel.estTermine && (
+                      <div style={{padding:'4px 10px', borderRadius:12, background:'#EF9F2720',
+                        color:'#EF9F27', fontSize:11, fontWeight:700}}>
+                        {lang==='ar'?'البلوك الحالي: ':'Bloc actuel : '}
+                        {blocProgression.blocActuel.nom || `#${blocProgression.blocActuel.numero}`}
+                      </div>
+                    )}
+                  </div>
+                  <div style={{display:'flex', flexDirection:'column', gap:8}}>
+                    {blocProgression.blocs.map(bloc => {
+                      const pct = bloc.total > 0 ? Math.round((bloc.hizbsValidesCount / bloc.total) * 100) : 0;
+                      const color = bloc.estTermine ? '#1D9E75' : (bloc.estEnCours ? '#EF9F27' : '#888');
+                      const bg = bloc.estTermine ? '#E1F5EE' : (bloc.estEnCours ? '#FAEEDA' : '#f5f5f0');
+                      return (
+                        <div key={bloc.numero} style={{padding:'10px 12px', borderRadius:10, background:bg,
+                          border:`1px solid ${color}30`}}>
+                          <div style={{display:'flex', alignItems:'center', gap:10, marginBottom:6}}>
+                            <div style={{width:26, height:26, borderRadius:6, background:color, color:'#fff',
+                              fontSize:12, fontWeight:800, display:'flex', alignItems:'center',
+                              justifyContent:'center', flexShrink:0}}>
+                              {bloc.estTermine ? '✓' : bloc.numero}
+                            </div>
+                            <div style={{flex:1, minWidth:0}}>
+                              <div style={{fontSize:12, fontWeight:700, color:'#1a1a1a',
+                                overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap'}}>
+                                {bloc.nom || `${lang==='ar'?'البلوك':'Bloc'} ${bloc.numero}`}
+                              </div>
+                              <div style={{fontSize:10, color:'#666'}}>
+                                {bloc.hizbsValidesCount}/{bloc.total} {lang==='ar'?'حزب':'Hizb'}
+                                {' · '}
+                                {bloc.sens==='asc' ? (lang==='ar'?'تصاعدي ↑':'Asc ↑') : (lang==='ar'?'تنازلي ↓':'Desc ↓')}
+                              </div>
+                            </div>
+                            <div style={{fontSize:12, fontWeight:700, color, flexShrink:0}}>
+                              {bloc.estTermine ? (lang==='ar'?'مكتمل':'Terminé') : `${pct}%`}
+                            </div>
+                          </div>
+                          <div style={{height:5, background:'#fff', borderRadius:3, overflow:'hidden'}}>
+                            <div style={{height:'100%', width:`${pct}%`, background:color,
+                              transition:'width 0.3s'}}></div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
               {estSourateEleve ? (
                 <>
                   <div className="position-card">
