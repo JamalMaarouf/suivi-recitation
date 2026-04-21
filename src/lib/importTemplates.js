@@ -104,7 +104,7 @@ export const TEMPLATE_ELEVES = {
     { key: 'nom',                     required: true,  type: 'string',  help_fr: 'Nom de famille',                   help_ar: 'الاسم العائلي',    example: 'Benali' },
     { key: 'eleve_id_ecole',          required: true,  type: 'string',  help_fr: 'Numéro d\'élève dans l\'école (unique)', help_ar: 'رقم الطالب (فريد)', example: 'EL001' },
     { key: 'code_niveau',             required: true,  type: 'string',  help_fr: 'Code du niveau (doit exister)',    help_ar: 'رمز المستوى',       example: '1' },
-    { key: 'hizb_depart',             required: false, type: 'integer', help_fr: 'Hizb de départ (0-60)',            help_ar: 'حزب الانطلاق',      example: '0' },
+    { key: 'hizb_depart',             required: false, type: 'integer', help_fr: 'Hizb de départ (0-60). Converti auto en bloc si niveau multi-blocs',            help_ar: 'حزب الانطلاق (يحول تلقائيا إلى البلوك)',      example: '0' },
     { key: 'tomon_depart',            required: false, type: 'integer', help_fr: 'Tomon de départ (1-8)',            help_ar: 'الثُمن',             example: '1' },
     { key: 'sourates_acquises',       required: false, type: 'integer', help_fr: 'Nombre de sourates déjà acquises', help_ar: 'عدد السور المكتسبة', example: '0' },
     { key: 'instituteur_identifiant', required: false, type: 'string',  help_fr: 'Identifiant de l\'instituteur référent', help_ar: 'معرف المدرس المرجعي', example: 'ahmed.alami' },
@@ -237,6 +237,11 @@ export const TEMPLATE_PROGRAMMES = {
     { key: 'code_niveau',  required: true, type: 'string', help_fr: 'Code du niveau',                              help_ar: 'رمز المستوى',  example: '1' },
     { key: 'reference',    required: true, type: 'string', help_fr: 'Numéro de Hizb (1-60) ou numéro de sourate',  help_ar: 'رقم الحزب أو السورة', example: '60' },
     { key: 'ordre',        required: false, type: 'integer', help_fr: 'Ordre dans le programme',                    help_ar: 'الترتيب',        example: '1' },
+    // ─── Colonnes BLOCS (Étape E) — optionnelles ─────────────
+    // Si laissées vides, tout le programme est en 1 seul bloc (comportement classique).
+    { key: 'bloc_numero', required: false, type: 'integer', help_fr: 'Numéro du bloc pédagogique (optionnel, défaut=1)', help_ar: 'رقم البلوك (اختياري)', example: '1' },
+    { key: 'bloc_nom',    required: false, type: 'string',  help_fr: 'Nom libre du bloc (ex: "Juz Amma")',               help_ar: 'اسم البلوك',            example: 'Juz Amma' },
+    { key: 'bloc_sens',   required: false, type: 'string',  help_fr: 'Sens du bloc : asc ou desc (défaut=asc)',          help_ar: 'اتجاه البلوك: asc أو desc', example: 'asc' },
   ],
   validate(row, ctx) {
     const errs = [];
@@ -254,6 +259,14 @@ export const TEMPLATE_PROGRAMMES = {
         else if (niv.type === 'sourate' && (ref < 1 || ref > 114)) errs.push('Pour un niveau sourate, référence doit être entre 1 et 114');
       }
     }
+    // Validation blocs
+    if (row.bloc_numero !== undefined && row.bloc_numero !== '' && row.bloc_numero !== null) {
+      const bn = parseInt(row.bloc_numero);
+      if (isNaN(bn) || bn < 1) errs.push('bloc_numero doit être un entier ≥ 1');
+    }
+    if (row.bloc_sens && !['asc', 'desc'].includes(row.bloc_sens.toString().trim().toLowerCase())) {
+      errs.push('bloc_sens doit être "asc" ou "desc"');
+    }
     return errs;
   },
   toDBRow(row, ctx) {
@@ -270,12 +283,18 @@ export const TEMPLATE_PROGRAMMES = {
     } else {
       refId = ref.toString();
     }
+    // Colonnes blocs : valeurs par défaut si non fournies (= 1 seul bloc)
+    const blocNum = parseInt(row.bloc_numero);
+    const blocSensRaw = row.bloc_sens ? row.bloc_sens.toString().trim().toLowerCase() : null;
     return {
       ecole_id: ctx.ecole_id,
       niveau_id: niv?.id || null, // sera résolu après que le niveau existe
       type_contenu: niv?.type || 'hizb',
       reference_id: refId,
       ordre: parseInt(row.ordre) || 99,
+      bloc_numero: !isNaN(blocNum) && blocNum > 0 ? blocNum : 1,
+      bloc_nom: row.bloc_nom ? row.bloc_nom.toString().trim() : null,
+      bloc_sens: (blocSensRaw === 'asc' || blocSensRaw === 'desc') ? blocSensRaw : 'asc',
       // marqueur interne
       _code_niveau_attente: niv?.id ? null : codeN,
     };
