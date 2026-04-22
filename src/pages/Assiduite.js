@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase';
 import { useToast } from '../lib/toast';
 import { t } from '../lib/i18n';
 import KioskExitModal from '../components/KioskExitModal';
+import ConfirmModal from '../components/ConfirmModal';
 
 // ══════════════════════════════════════════════════════════════════════
 // PAGE ASSIDUITÉ — الحضور
@@ -23,6 +24,10 @@ import KioskExitModal from '../components/KioskExitModal';
 export default function Assiduite({ user, navigate, goBack, lang, isMobile, kioskMode, enterKiosk, exitKiosk }) {
   const [onglet, setOnglet] = useState('saisie');  // 'saisie' | 'suivi'
   const [showExitModal, setShowExitModal] = useState(false);  // popup PIN de sortie kiosque
+  // Modal generique pour info/confirmation (remplace window.confirm et alert
+  // qui sont laids et pas coherents avec le design de l'app).
+  const [modal, setModal] = useState({ isOpen: false, title: '', message: '', onConfirm: null, confirmLabel: null, cancelLabel: null, confirmColor: null, hideCancel: false });
+  const closeModal = () => setModal(m => ({ ...m, isOpen: false }));
 
   // Active le kiosque APRES vérification qu'un PIN est bien configuré.
   // Sans PIN, on ne peut pas sortir → on bloque l'activation avec un message.
@@ -33,15 +38,32 @@ export default function Assiduite({ user, navigate, goBack, lang, isMobile, kios
       .eq('id', user.ecole_id)
       .maybeSingle();
     if (!data?.pin_kiosque) {
-      alert(lang === 'ar'
-        ? 'يجب تعريف رمز الكشك أولاً في إعدادات الحضور (قسم رمز وضع الكشك)'
-        : 'Tu dois d\'abord définir un PIN dans Paramètres → Assiduité (section PIN mode kiosque)');
+      // Pas de PIN configure : modal d'info avec bouton unique 'Compris'
+      setModal({
+        isOpen: true,
+        title: lang === 'ar' ? '⚠️ الرمز غير محدد' : '⚠️ PIN non défini',
+        message: lang === 'ar'
+          ? 'يجب أولاً تعريف رمز الكشك في : الإعدادات ← الحضور ← قسم رمز وضع الكشك'
+          : 'Tu dois d\'abord définir un PIN dans : Paramètres → Assiduité → section PIN mode kiosque',
+        onConfirm: () => { closeModal(); navigate('gestion_assiduite'); },
+        confirmLabel: lang === 'ar' ? '📝 الذهاب إلى الإعدادات' : '📝 Aller aux paramètres',
+        cancelLabel: lang === 'ar' ? 'إغلاق' : 'Fermer',
+        confirmColor: '#1D9E75',
+      });
       return;
     }
-    const confirmed = window.confirm(lang === 'ar'
-      ? '⚠️ تفعيل وضع الكشك سيقفل الوصول إلى قوائم أخرى. للخروج ستحتاج إلى الرمز. هل تريد المتابعة؟'
-      : '⚠️ Activer le mode kiosque va verrouiller l\'accès aux autres menus. Pour sortir il faudra le PIN. Continuer ?');
-    if (confirmed) enterKiosk();
+    // PIN configure : modal de confirmation avant activation
+    setModal({
+      isOpen: true,
+      title: lang === 'ar' ? '🔒 تفعيل وضع الكشك' : '🔒 Activer le mode kiosque',
+      message: lang === 'ar'
+        ? 'سيتم قفل الوصول إلى القوائم الأخرى (المالية، الإدارة...). للخروج ستحتاج إلى إدخال الرمز. هل تريد المتابعة؟'
+        : 'L\'accès aux autres menus (Finance, Gestion...) sera verrouillé. Pour sortir, il faudra saisir le PIN. Continuer ?',
+      onConfirm: () => { closeModal(); enterKiosk(); },
+      confirmLabel: lang === 'ar' ? '🔒 تفعيل' : '🔒 Activer',
+      cancelLabel: lang === 'ar' ? 'إلغاء' : 'Annuler',
+      confirmColor: '#EF9F27',
+    });
   };
 
   const handleExitValidate = async (pin) => {
@@ -145,6 +167,19 @@ export default function Assiduite({ user, navigate, goBack, lang, isMobile, kios
           onValidate={handleExitValidate}
           lang={lang}
         />
+
+        {/* Modal generique (info / confirmation) */}
+        <ConfirmModal
+          isOpen={modal.isOpen}
+          title={modal.title}
+          message={modal.message}
+          onConfirm={modal.onConfirm || closeModal}
+          onCancel={closeModal}
+          confirmLabel={modal.confirmLabel}
+          cancelLabel={modal.cancelLabel}
+          confirmColor={modal.confirmColor}
+          lang={lang}
+        />
       </div>
     );
   }
@@ -233,6 +268,19 @@ export default function Assiduite({ user, navigate, goBack, lang, isMobile, kios
         isOpen={showExitModal}
         onClose={() => setShowExitModal(false)}
         onValidate={handleExitValidate}
+        lang={lang}
+      />
+
+      {/* Modal generique (info / confirmation) */}
+      <ConfirmModal
+        isOpen={modal.isOpen}
+        title={modal.title}
+        message={modal.message}
+        onConfirm={modal.onConfirm || closeModal}
+        onCancel={closeModal}
+        confirmLabel={modal.confirmLabel}
+        cancelLabel={modal.cancelLabel}
+        confirmColor={modal.confirmColor}
         lang={lang}
       />
     </div>
