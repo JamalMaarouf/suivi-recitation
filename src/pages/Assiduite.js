@@ -965,7 +965,7 @@ function OngletSuivi({ lang, user }) {
           onClick={() => setFiltreKpi(filtreKpi === 'risque' ? null : 'risque')}
         />
 
-        {/* KPI 3 : Absences cumulées — cliquable */}
+        {/* KPI 3 : Absences cumulées — cliquable (même à 0 pour feedback UX) */}
         <KpiCard
           label={lang === 'ar' ? 'الغيابات' : 'Absences'}
           value={globalStats.absences}
@@ -974,17 +974,17 @@ function OngletSuivi({ lang, user }) {
             : `sur ${globalStats.attendues} séances attendues`}
           color="#EF9F27" bg="#FAEEDA"
           active={filtreKpi === 'absences'}
-          onClick={() => globalStats.absences > 0 && setFiltreKpi(filtreKpi === 'absences' ? null : 'absences')}
+          onClick={() => setFiltreKpi(filtreKpi === 'absences' ? null : 'absences')}
         />
 
-        {/* KPI 4 : Élèves parfaits — cliquable */}
+        {/* KPI 4 : Élèves parfaits — cliquable (même à 0 pour feedback UX) */}
         <KpiCard
           label={lang === 'ar' ? 'المواظبة التامة' : 'Assiduité parfaite'}
           value={globalStats.nbParfaits}
           hint={lang === 'ar' ? '100% حضور' : '100% de présence'}
           color="#1D9E75" bg="#E1F5EE"
           active={filtreKpi === 'parfait'}
-          onClick={() => globalStats.nbParfaits > 0 && setFiltreKpi(filtreKpi === 'parfait' ? null : 'parfait')}
+          onClick={() => setFiltreKpi(filtreKpi === 'parfait' ? null : 'parfait')}
         />
       </div>
 
@@ -1036,12 +1036,51 @@ function OngletSuivi({ lang, user }) {
       {/* Liste élèves — collée à la bannière filtre KPI si elle est affichée */}
       {filtered.length === 0 ? (
         <div style={{
-          padding: 40, textAlign: 'center', color: '#888',
+          padding: 30, textAlign: 'center', color: '#888',
           background: '#fff',
           borderRadius: filtreKpi ? '0 0 12px 12px' : 12,
           border: '1px dashed #ccc',
         }}>
-          {lang === 'ar' ? 'لا يوجد طلاب' : 'Aucun élève'}
+          {filtreKpi === 'parfait' ? (
+            <>
+              <div style={{ fontSize: 32, marginBottom: 8 }}>💪</div>
+              <div style={{ fontSize: 14, fontWeight: 600, color: '#666' }}>
+                {lang === 'ar'
+                  ? 'لا يوجد طلاب بمواظبة تامة بعد'
+                  : 'Aucun élève avec une assiduité parfaite pour le moment'}
+              </div>
+              <div style={{ fontSize: 12, color: '#999', marginTop: 4 }}>
+                {lang === 'ar'
+                  ? 'استمروا في تشجيعهم !'
+                  : 'Continuez à les encourager !'}
+              </div>
+            </>
+          ) : filtreKpi === 'risque' ? (
+            <>
+              <div style={{ fontSize: 32, marginBottom: 8 }}>🎉</div>
+              <div style={{ fontSize: 14, fontWeight: 600, color: '#666' }}>
+                {lang === 'ar'
+                  ? 'لا يوجد طلاب في خطر'
+                  : 'Aucun élève à risque'}
+              </div>
+              <div style={{ fontSize: 12, color: '#999', marginTop: 4 }}>
+                {lang === 'ar' ? 'أحسنت !' : 'Bravo !'}
+              </div>
+            </>
+          ) : filtreKpi === 'absences' ? (
+            <>
+              <div style={{ fontSize: 32, marginBottom: 8 }}>👌</div>
+              <div style={{ fontSize: 14, fontWeight: 600, color: '#666' }}>
+                {lang === 'ar'
+                  ? 'لا يوجد طلاب غائبون'
+                  : 'Aucun élève absent'}
+              </div>
+            </>
+          ) : (
+            <div style={{ fontSize: 14 }}>
+              {lang === 'ar' ? 'لا يوجد طلاب' : 'Aucun élève'}
+            </div>
+          )}
         </div>
       ) : (
         <div style={{
