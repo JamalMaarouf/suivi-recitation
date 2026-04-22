@@ -23,6 +23,9 @@ import ConfirmModal from '../components/ConfirmModal';
 
 export default function Assiduite({ user, navigate, goBack, lang, isMobile, kioskMode, enterKiosk, exitKiosk }) {
   const [onglet, setOnglet] = useState('saisie');  // 'saisie' | 'suivi'
+  // Cible de la saisie : 'eleves' (par defaut) ou 'instituteurs'
+  // Permet d'enregistrer les presences des 2 populations sur le meme kiosque.
+  const [cible, setCible] = useState('eleves');
   const [showExitModal, setShowExitModal] = useState(false);  // popup PIN de sortie kiosque
   // Modal generique pour info/confirmation (remplace window.confirm et alert
   // qui sont laids et pas coherents avec le design de l'app).
@@ -157,7 +160,38 @@ export default function Assiduite({ user, navigate, goBack, lang, isMobile, kios
           </div>
         </div>
 
-        {onglet === 'saisie' && <SaisieKiosque user={user} lang={lang} />}
+        {onglet === 'saisie' && (
+          <>
+            {/* Selecteur Eleves / Instituteurs (kiosque uniquement) */}
+            <div style={{
+              display: 'flex', gap: 6, padding: '10px 14px 0',
+            }}>
+              {[
+                { k: 'eleves',       label: lang === 'ar' ? '👨‍🎓 الطلاب'   : '👨‍🎓 Élèves',       color: '#085041' },
+                { k: 'instituteurs', label: lang === 'ar' ? '👨‍🏫 الأساتذة' : '👨‍🏫 Instituteurs', color: '#534AB7' },
+              ].map(c => {
+                const active = cible === c.k;
+                return (
+                  <button key={c.k} onClick={() => setCible(c.k)}
+                    style={{
+                      flex: 1, padding: '10px 12px',
+                      borderRadius: 10,
+                      background: active ? c.color : '#fff',
+                      color: active ? '#fff' : c.color,
+                      fontSize: 13, fontWeight: 700,
+                      cursor: 'pointer', fontFamily: 'inherit',
+                      border: `1.5px solid ${c.color}${active ? '' : '30'}`,
+                      boxShadow: active ? `0 2px 8px ${c.color}40` : 'none',
+                      transition: 'all 0.15s',
+                    }}>
+                    {c.label}
+                  </button>
+                );
+              })}
+            </div>
+            <SaisieKiosque user={user} lang={lang} cible={cible} />
+          </>
+        )}
         {onglet === 'suivi'  && <SuiviPlaceholder lang={lang} user={user} isMobile={true} />}
 
         {/* Popup PIN de sortie kiosque (mobile) */}
@@ -260,7 +294,37 @@ export default function Assiduite({ user, navigate, goBack, lang, isMobile, kios
         })}
       </div>
 
-      {onglet === 'saisie' && <SaisieDesktop user={user} lang={lang} />}
+      {onglet === 'saisie' && (
+        <>
+          {/* Selecteur Eleves / Instituteurs (kiosque uniquement) */}
+          <div style={{
+            display: 'flex', gap: 8, marginBottom: '1.25rem', flexWrap: 'wrap',
+          }}>
+            {[
+              { k: 'eleves',       label: lang === 'ar' ? '👨‍🎓 الطلاب'   : '👨‍🎓 Élèves',       color: '#085041', bg: '#E1F5EE' },
+              { k: 'instituteurs', label: lang === 'ar' ? '👨‍🏫 الأساتذة' : '👨‍🏫 Instituteurs', color: '#534AB7', bg: '#EDE9FE' },
+            ].map(c => {
+              const active = cible === c.k;
+              return (
+                <button key={c.k} onClick={() => setCible(c.k)}
+                  style={{
+                    padding: '10px 20px', borderRadius: 10,
+                    border: `1.5px solid ${active ? c.color : '#e0e0d8'}`,
+                    background: active ? c.bg : '#fff',
+                    color: active ? c.color : '#666',
+                    fontSize: 13, fontWeight: active ? 700 : 500,
+                    cursor: 'pointer', fontFamily: 'inherit',
+                    boxShadow: active ? `0 2px 6px ${c.color}25` : 'none',
+                    transition: 'all 0.15s',
+                  }}>
+                  {c.label}
+                </button>
+              );
+            })}
+          </div>
+          <SaisieDesktop user={user} lang={lang} cible={cible} />
+        </>
+      )}
       {onglet === 'suivi'  && <SuiviPlaceholder lang={lang} user={user} />}
 
       {/* Popup PIN de sortie kiosque (desktop) */}
@@ -290,7 +354,13 @@ export default function Assiduite({ user, navigate, goBack, lang, isMobile, kios
 // ══════════════════════════════════════════════════════════════════════
 // HOOK PARTAGÉ : charger élèves + présences du jour
 // ══════════════════════════════════════════════════════════════════════
-function useAssiduiteData(user) {
+// Hook partagé : charge les "sujets" (élèves ou instituteurs) + leurs
+// présences du jour selon le paramètre cible.
+// cible = 'eleves' (defaut) : table eleves + table presences
+// cible = 'instituteurs'     : table utilisateurs (role=instituteur) + table seances_instituteurs
+function useAssiduiteData(user, cible = 'eleves') {
+  // On garde le nom 'eleves' pour la rétrocompatibilité mais ça contient
+  // des élèves OU des instituteurs selon la cible.
   const [eleves, setEleves] = useState([]);
   const [presencesToday, setPresencesToday] = useState(new Set());
   const [loading, setLoading] = useState(true);
@@ -302,23 +372,52 @@ function useAssiduiteData(user) {
 
   const loadData = async () => {
     setLoading(true);
-    const [elevesRes, presRes] = await Promise.all([
-      supabase.from('eleves')
-        .select('id, prenom, nom, eleve_id_ecole, code_niveau')
-        .eq('ecole_id', user.ecole_id)
-        .order('eleve_id_ecole', { ascending: true })
-        .limit(500),
-      supabase.from('presences')
-        .select('eleve_id')
-        .eq('ecole_id', user.ecole_id)
-        .eq('date_presence', today),
-    ]);
-    setEleves(elevesRes.data || []);
-    setPresencesToday(new Set((presRes.data || []).map(p => p.eleve_id)));
+    if (cible === 'instituteurs') {
+      // Charger instituteurs + séances du jour
+      const [instRes, seancesRes] = await Promise.all([
+        supabase.from('utilisateurs')
+          .select('id, prenom, nom, instituteur_id_ecole')
+          .eq('ecole_id', user.ecole_id)
+          .eq('role', 'instituteur')
+          .order('instituteur_id_ecole', { ascending: true })
+          .limit(500),
+        supabase.from('seances_instituteurs')
+          .select('instituteur_id')
+          .eq('ecole_id', user.ecole_id)
+          .eq('date_seance', today),
+      ]);
+      // On normalise le format pour avoir un 'eleve_id_ecole' utilisable par l'UI
+      // existante (le kiosque cherche sur cette colonne). On alimente aussi
+      // 'code_niveau' à vide pour ne pas casser l'affichage.
+      const normalized = (instRes.data || []).map(i => ({
+        id: i.id,
+        prenom: i.prenom,
+        nom: i.nom,
+        eleve_id_ecole: i.instituteur_id_ecole || '',  // clé de recherche unique
+        code_niveau: '',  // pas de niveau pour les instituteurs
+      }));
+      setEleves(normalized);
+      setPresencesToday(new Set((seancesRes.data || []).map(s => s.instituteur_id)));
+    } else {
+      // Par défaut : élèves + présences
+      const [elevesRes, presRes] = await Promise.all([
+        supabase.from('eleves')
+          .select('id, prenom, nom, eleve_id_ecole, code_niveau')
+          .eq('ecole_id', user.ecole_id)
+          .order('eleve_id_ecole', { ascending: true })
+          .limit(500),
+        supabase.from('presences')
+          .select('eleve_id')
+          .eq('ecole_id', user.ecole_id)
+          .eq('date_presence', today),
+      ]);
+      setEleves(elevesRes.data || []);
+      setPresencesToday(new Set((presRes.data || []).map(p => p.eleve_id)));
+    }
     setLoading(false);
   };
 
-  useEffect(() => { loadData(); }, []);
+  useEffect(() => { loadData(); /* eslint-disable-next-line */ }, [cible]);
 
   return { eleves, presencesToday, setPresencesToday, loading, today, loadData };
 }
@@ -326,8 +425,24 @@ function useAssiduiteData(user) {
 // ══════════════════════════════════════════════════════════════════════
 // ENREGISTREMENT (partagé desktop/mobile)
 // Retourne { ok, alreadyPresent, error } pour que chaque UI adapte son feedback
+// cible = 'eleves' → table presences, colonne eleve_id
+// cible = 'instituteurs' → table seances_instituteurs, colonne instituteur_id
 // ══════════════════════════════════════════════════════════════════════
-async function insertPresence({ eleveId, ecoleId, date, saisiPar }) {
+async function insertPresence({ eleveId, ecoleId, date, saisiPar, cible = 'eleves' }) {
+  if (cible === 'instituteurs') {
+    const { error } = await supabase.from('seances_instituteurs').insert({
+      instituteur_id: eleveId,   // eleveId ici = id de l'instituteur
+      ecole_id: ecoleId,
+      date_seance: date,
+      saisi_par: saisiPar || null,
+    });
+    if (error) {
+      if (error.code === '23505') return { ok: false, alreadyPresent: true, error: null };
+      return { ok: false, alreadyPresent: false, error };
+    }
+    return { ok: true, alreadyPresent: false, error: null };
+  }
+  // Par défaut : élèves
   const { error } = await supabase.from('presences').insert({
     eleve_id: eleveId,
     ecole_id: ecoleId,
@@ -345,8 +460,8 @@ async function insertPresence({ eleveId, ecoleId, date, saisiPar }) {
 // 📱 INTERFACE MOBILE / TABLETTE : KIOSQUE TACTILE
 // ══════════════════════════════════════════════════════════════════════
 
-function SaisieKiosque({ user, lang }) {
-  const { eleves, presencesToday, setPresencesToday, loading, today } = useAssiduiteData(user);
+function SaisieKiosque({ user, lang, cible = 'eleves' }) {
+  const { eleves, presencesToday, setPresencesToday, loading, today } = useAssiduiteData(user, cible);
   const [idTape, setIdTape] = useState('');
   const [clavierMode, setClavierMode] = useState('abc');
   const [saisieLoading, setSaisieLoading] = useState(false);
@@ -376,7 +491,7 @@ function SaisieKiosque({ user, lang }) {
       return;
     }
     setSaisieLoading(true);
-    const res = await insertPresence({ eleveId: eleveMatch.id, ecoleId: user.ecole_id, date: today, saisiPar: user.id });
+    const res = await insertPresence({ eleveId: eleveMatch.id, ecoleId: user.ecole_id, date: today, saisiPar: user.id, cible });
     setSaisieLoading(false);
     if (res.alreadyPresent) {
       setPresencesToday(prev => new Set([...prev, eleveMatch.id]));
@@ -389,7 +504,9 @@ function SaisieKiosque({ user, lang }) {
       return;
     }
     setPresencesToday(prev => new Set([...prev, eleveMatch.id]));
-    showFlash('success', nomComplet, lang === 'ar' ? 'تم تسجيل الحضور' : 'Présence enregistrée');
+    showFlash('success', nomComplet, cible === 'instituteurs'
+      ? (lang === 'ar' ? 'تم تسجيل الحصة' : 'Séance enregistrée')
+      : (lang === 'ar' ? 'تم تسجيل الحضور' : 'Présence enregistrée'));
   };
 
   if (loading) return <div style={{ padding: 40, textAlign: 'center', color: '#888' }}>{lang === 'ar' ? '...جاري التحميل' : 'Chargement...'}</div>;
@@ -446,7 +563,9 @@ function SaisieKiosque({ user, lang }) {
         boxShadow: 'inset 0 2px 8px rgba(0,0,0,0.2)',
       }}>
         <div style={{ fontSize: 11, opacity: 0.7, marginBottom: 6, textAlign: 'center', letterSpacing: 1 }}>
-          {lang === 'ar' ? 'رقم تعريف الطالب' : 'IDENTIFIANT ÉLÈVE'}
+          {cible === 'instituteurs'
+            ? (lang === 'ar' ? 'رقم تعريف الأستاذ' : 'IDENTIFIANT INSTITUTEUR')
+            : (lang === 'ar' ? 'رقم تعريف الطالب' : 'IDENTIFIANT ÉLÈVE')}
         </div>
         <div style={{
           fontSize: 38, fontWeight: 800, textAlign: 'center', letterSpacing: 2,
@@ -467,7 +586,9 @@ function SaisieKiosque({ user, lang }) {
           border: '1px solid #E24B4A40', minHeight: 60,
           display: 'flex', alignItems: 'center', justifyContent: 'center',
         }}>
-          {lang === 'ar' ? '❌ لا يوجد طالب بهذا الرقم' : '❌ Aucun élève avec cet identifiant'}
+          {cible === 'instituteurs'
+            ? (lang === 'ar' ? '❌ لا يوجد أستاذ بهذا الرقم' : '❌ Aucun instituteur avec cet identifiant')
+            : (lang === 'ar' ? '❌ لا يوجد طالب بهذا الرقم' : '❌ Aucun élève avec cet identifiant')}
         </div>
       ) : (
         <div style={{
@@ -485,10 +606,14 @@ function SaisieKiosque({ user, lang }) {
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ fontSize: 18, fontWeight: 700, color: '#1a1a1a' }}>{eleveMatch.prenom} {eleveMatch.nom}</div>
             <div style={{ fontSize: 12, color: '#666', marginTop: 2 }}>
-              {eleveMatch.code_niveau || '—'}
+              {cible === 'instituteurs'
+                ? (lang === 'ar' ? 'أستاذ' : 'Instituteur')
+                : (eleveMatch.code_niveau || '—')}
               {presencesToday.has(eleveMatch.id) && (
                 <span style={{ marginLeft: 8, color: '#1D9E75', fontWeight: 700 }}>
-                  · ✓ {lang === 'ar' ? 'حاضر' : 'Déjà présent'}
+                  · ✓ {cible === 'instituteurs'
+                    ? (lang === 'ar' ? 'حصة مسجلة' : 'Séance enregistrée')
+                    : (lang === 'ar' ? 'حاضر' : 'Déjà présent')}
                 </span>
               )}
             </div>
@@ -600,9 +725,9 @@ function TouchButton({ children, onClick, variant = 'default', size = 'default' 
 // 🖥️ INTERFACE ORDINATEUR : recherche clavier + liste compacte
 // ══════════════════════════════════════════════════════════════════════
 
-function SaisieDesktop({ user, lang }) {
+function SaisieDesktop({ user, lang, cible = 'eleves' }) {
   const { toast } = useToast();
-  const { eleves, presencesToday, setPresencesToday, loading, today } = useAssiduiteData(user);
+  const { eleves, presencesToday, setPresencesToday, loading, today } = useAssiduiteData(user, cible);
   const [recherche, setRecherche] = useState('');
   const [filtreStatut, setFiltreStatut] = useState('tous'); // 'tous' | 'presents' | 'absents'
   const [saisieLoadingId, setSaisieLoadingId] = useState(null);
@@ -632,7 +757,7 @@ function SaisieDesktop({ user, lang }) {
       return;
     }
     setSaisieLoadingId(eleve.id);
-    const res = await insertPresence({ eleveId: eleve.id, ecoleId: user.ecole_id, date: today, saisiPar: user.id });
+    const res = await insertPresence({ eleveId: eleve.id, ecoleId: user.ecole_id, date: today, saisiPar: user.id, cible });
     setSaisieLoadingId(null);
     if (res.alreadyPresent) {
       setPresencesToday(prev => new Set([...prev, eleve.id]));
@@ -645,9 +770,15 @@ function SaisieDesktop({ user, lang }) {
       return;
     }
     setPresencesToday(prev => new Set([...prev, eleve.id]));
-    toast.success(lang === 'ar'
-      ? `✅ تم تسجيل حضور ${eleve.prenom} ${eleve.nom}`
-      : `✅ Présence enregistrée : ${eleve.prenom} ${eleve.nom}`);
+    if (cible === 'instituteurs') {
+      toast.success(lang === 'ar'
+        ? `✅ تم تسجيل حصة ${eleve.prenom} ${eleve.nom}`
+        : `✅ Séance enregistrée : ${eleve.prenom} ${eleve.nom}`);
+    } else {
+      toast.success(lang === 'ar'
+        ? `✅ تم تسجيل حضور ${eleve.prenom} ${eleve.nom}`
+        : `✅ Présence enregistrée : ${eleve.prenom} ${eleve.nom}`);
+    }
   };
 
   if (loading) return <div style={{ padding: 40, textAlign: 'center', color: '#888' }}>{lang === 'ar' ? '...جاري التحميل' : 'Chargement...'}</div>;
@@ -673,7 +804,9 @@ function SaisieDesktop({ user, lang }) {
       <div style={{ display: 'flex', gap: 8, marginBottom: 14, flexWrap: 'wrap', alignItems: 'center' }}>
         <input ref={inputRef}
           type="text" value={recherche} onChange={e => setRecherche(e.target.value)}
-          placeholder={lang === 'ar' ? '🔍 ابحث برقم أو اسم الطالب' : '🔍 Chercher par numéro ou nom'}
+          placeholder={cible === 'instituteurs'
+            ? (lang === 'ar' ? '🔍 ابحث برقم أو اسم الأستاذ' : '🔍 Chercher par numéro ou nom d\'instituteur')
+            : (lang === 'ar' ? '🔍 ابحث برقم أو اسم الطالب' : '🔍 Chercher par numéro ou nom')}
           style={{
             flex: '1 1 260px', padding: '10px 14px', fontSize: 14,
             borderRadius: 10, border: '1px solid #e0e0d8', background: '#fff',
@@ -706,8 +839,12 @@ function SaisieDesktop({ user, lang }) {
           background: '#fff', borderRadius: 12, border: '1px dashed #ccc',
         }}>
           {r
-            ? (lang === 'ar' ? '❌ لا يوجد طالب مطابق' : '❌ Aucun élève ne correspond')
-            : (lang === 'ar' ? 'لا يوجد طلاب' : 'Aucun élève')}
+            ? (cible === 'instituteurs'
+                ? (lang === 'ar' ? '❌ لا يوجد أستاذ مطابق' : '❌ Aucun instituteur ne correspond')
+                : (lang === 'ar' ? '❌ لا يوجد طالب مطابق' : '❌ Aucun élève ne correspond'))
+            : (cible === 'instituteurs'
+                ? (lang === 'ar' ? 'لا يوجد أساتذة' : 'Aucun instituteur')
+                : (lang === 'ar' ? 'لا يوجد طلاب' : 'Aucun élève'))}
         </div>
       ) : (
         <div style={{
