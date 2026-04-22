@@ -140,7 +140,10 @@ function useAssiduiteData(user) {
   const [presencesToday, setPresencesToday] = useState(new Set());
   const [loading, setLoading] = useState(true);
 
-  const today = new Date().toISOString().slice(0, 10);
+  // Date d'aujourd'hui au format YYYY-MM-DD en HEURE LOCALE
+  // (pas toISOString() qui convertit en UTC et décale d'un jour selon le fuseau)
+  const now = new Date();
+  const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
 
   const loadData = async () => {
     setLoading(true);
@@ -755,11 +758,18 @@ function OngletSuivi({ lang, user }) {
     const result = {};
     // Construction de l'ensemble des dates non travaillees (YYYY-MM-DD)
     const datesNonTravailles = new Set();
+    // Helper pour ISO local (fix fuseau horaire)
+    const toIsoLocal = (d) => {
+      const y = d.getFullYear();
+      const m = String(d.getMonth() + 1).padStart(2, '0');
+      const dd = String(d.getDate()).padStart(2, '0');
+      return `${y}-${m}-${dd}`;
+    };
     joursNonTravailles.forEach(p => {
       const d1 = new Date(p.date_debut);
       const d2 = new Date(p.date_fin);
       for (let d = new Date(d1); d <= d2; d.setDate(d.getDate() + 1)) {
-        datesNonTravailles.add(d.toISOString().slice(0, 10));
+        datesNonTravailles.add(toIsoLocal(d));
       }
     });
     // Regrouper les presences par eleve
@@ -777,9 +787,16 @@ function OngletSuivi({ lang, user }) {
       const presEleve = presParEleve[e.id] || new Set();
       let attendues = 0, presentes = 0;
       const datesAbsences = [];
+      // Helper local qui utilise les composants LOCAUX (évite le bug fuseau horaire UTC)
+      const isoLocal = (d) => {
+        const y = d.getFullYear();
+        const m = String(d.getMonth() + 1).padStart(2, '0');
+        const dd = String(d.getDate()).padStart(2, '0');
+        return `${y}-${m}-${dd}`;
+      };
       if (aDesJours) {
         for (let d = new Date(d1); d <= d2; d.setDate(d.getDate() + 1)) {
-          const iso = d.toISOString().slice(0, 10);
+          const iso = isoLocal(d);
           if (datesNonTravailles.has(iso)) continue;  // jour ferie
           // getDay() : 0=Dim, 1=Lun, 2=Mar, 3=Mer, 4=Jeu, 5=Ven, 6=Sam
           // jours_souhaites ordre : [Sam, Dim, Lun, Mar, Mer, Jeu, Ven]
@@ -971,12 +988,27 @@ function OngletSuivi({ lang, user }) {
         />
       </div>
 
-      {/* Bannière filtre KPI actif (s'affiche uniquement si un KPI est cliqué) */}
+      {/* Filtres (recherche + niveau) — placés AVANT la bannière filtre KPI
+          pour que la bannière soit collée à la liste qui en découle */}
+      <div style={{ display: 'flex', gap: 8, marginBottom: 14, flexWrap: 'wrap' }}>
+        <input type="text" value={recherche} onChange={e => setRecherche(e.target.value)}
+          placeholder={lang === 'ar' ? '🔍 ابحث طالب' : '🔍 Chercher un élève'}
+          style={{ flex: '1 1 240px', padding: '9px 13px', fontSize: 13, borderRadius: 8, border: '1px solid #e0e0d8', fontFamily: 'inherit', outline: 'none' }} />
+        <select value={filtreNiveau} onChange={e => setFiltreNiveau(e.target.value)}
+          style={{ padding: '9px 13px', fontSize: 13, borderRadius: 8, border: '1px solid #e0e0d8', fontFamily: 'inherit', background: '#fff' }}>
+          <option value="">{lang === 'ar' ? 'جميع المستويات' : 'Tous les niveaux'}</option>
+          {niveaux.map(n => <option key={n.code} value={n.code}>{n.nom || n.code}</option>)}
+        </select>
+      </div>
+
+      {/* Bannière filtre KPI actif (s'affiche uniquement si un KPI est cliqué)
+          Placée juste au-dessus de la liste, avec marginBottom:0 pour etre collee */}
       {filtreKpi && (
         <div style={{
           display: 'flex', alignItems: 'center', gap: 10,
-          padding: '10px 14px', marginBottom: 14,
-          background: '#E6F1FB', border: '1px solid #378ADD30', borderRadius: 10,
+          padding: '10px 14px', marginBottom: 0,
+          background: '#E6F1FB', border: '1px solid #378ADD30',
+          borderRadius: '10px 10px 0 0', borderBottom: 'none',
           fontSize: 13, color: '#0C447C',
         }}>
           <span style={{ fontSize: 16 }}>🔎</span>
@@ -1001,25 +1033,24 @@ function OngletSuivi({ lang, user }) {
         </div>
       )}
 
-      {/* Filtres (recherche + niveau) */}
-      <div style={{ display: 'flex', gap: 8, marginBottom: 14, flexWrap: 'wrap' }}>
-        <input type="text" value={recherche} onChange={e => setRecherche(e.target.value)}
-          placeholder={lang === 'ar' ? '🔍 ابحث طالب' : '🔍 Chercher un élève'}
-          style={{ flex: '1 1 240px', padding: '9px 13px', fontSize: 13, borderRadius: 8, border: '1px solid #e0e0d8', fontFamily: 'inherit', outline: 'none' }} />
-        <select value={filtreNiveau} onChange={e => setFiltreNiveau(e.target.value)}
-          style={{ padding: '9px 13px', fontSize: 13, borderRadius: 8, border: '1px solid #e0e0d8', fontFamily: 'inherit', background: '#fff' }}>
-          <option value="">{lang === 'ar' ? 'جميع المستويات' : 'Tous les niveaux'}</option>
-          {niveaux.map(n => <option key={n.code} value={n.code}>{n.nom || n.code}</option>)}
-        </select>
-      </div>
-
-      {/* Liste élèves */}
+      {/* Liste élèves — collée à la bannière filtre KPI si elle est affichée */}
       {filtered.length === 0 ? (
-        <div style={{ padding: 40, textAlign: 'center', color: '#888', background: '#fff', borderRadius: 12, border: '1px dashed #ccc' }}>
+        <div style={{
+          padding: 40, textAlign: 'center', color: '#888',
+          background: '#fff',
+          borderRadius: filtreKpi ? '0 0 12px 12px' : 12,
+          border: '1px dashed #ccc',
+        }}>
           {lang === 'ar' ? 'لا يوجد طلاب' : 'Aucun élève'}
         </div>
       ) : (
-        <div style={{ background: '#fff', borderRadius: 12, overflow: 'hidden', border: '1px solid #e0e0d8' }}>
+        <div style={{
+          background: '#fff',
+          borderRadius: filtreKpi ? '0 0 12px 12px' : 12,
+          overflow: 'hidden',
+          border: '1px solid #e0e0d8',
+          borderTop: filtreKpi ? '1px solid #378ADD30' : '1px solid #e0e0d8',
+        }}>
           {filtered.map((e, idx) => {
             const s = statsParEleve[e.id] || { aDesJours: false, attendues: 0, presentes: 0, absences: 0, taux: null, datesAbsences: [] };
             const isOpen = eleveDetail === e.id;
@@ -1122,7 +1153,15 @@ function OngletSuivi({ lang, user }) {
 
 function calcBornesPeriode(periode, customDebut, customFin) {
   const today = new Date();
-  const iso = (d) => d.toISOString().slice(0, 10);
+  // FIX fuseau horaire : ne pas utiliser .toISOString() car il convertit en UTC
+  // et décale la date d'un jour en arrière si on est dans un fuseau GMT+X.
+  // On construit la date YYYY-MM-DD en utilisant les composants LOCAUX.
+  const iso = (d) => {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const dd = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${dd}`;
+  };
   if (periode === 'custom') {
     return {
       debut: customDebut || null,
