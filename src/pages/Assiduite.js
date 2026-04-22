@@ -80,7 +80,7 @@ export default function Assiduite({ user, navigate, goBack, lang, isMobile }) {
         </div>
 
         {onglet === 'saisie' && <SaisieKiosque user={user} lang={lang} />}
-        {onglet === 'suivi'  && <SuiviPlaceholder lang={lang} user={user} />}
+        {onglet === 'suivi'  && <SuiviPlaceholder lang={lang} user={user} isMobile={true} />}
       </div>
     );
   }
@@ -689,11 +689,11 @@ function KpiCard({ label, value, hint, color, bg, onClick, active, big }) {
 // de l'élève, on verifie si une presence existe. Les jours non travailles
 // (jours_non_travailles de l'ecole) sont exclus du calcul.
 // ══════════════════════════════════════════════════════════════════════
-function SuiviPlaceholder({ lang, user }) {
-  return <OngletSuivi lang={lang} user={user} />;
+function SuiviPlaceholder({ lang, user, isMobile }) {
+  return <OngletSuivi lang={lang} user={user} isMobile={isMobile} />;
 }
 
-function OngletSuivi({ lang, user }) {
+function OngletSuivi({ lang, user, isMobile }) {
   const [loading, setLoading] = useState(true);
   const [eleves, setEleves] = useState([]);
   const [presences, setPresences] = useState([]);         // toutes les presences sur la periode
@@ -898,7 +898,7 @@ function OngletSuivi({ lang, user }) {
   if (loading) return <div style={{ padding: 40, textAlign: 'center', color: '#888' }}>{lang === 'ar' ? '...جاري التحميل' : 'Chargement...'}</div>;
 
   return (
-    <div>
+    <div style={{ padding: isMobile ? '14px' : 0 }}>
 
       {/* Sélecteur période */}
       <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 12 }}>
@@ -907,11 +907,13 @@ function OngletSuivi({ lang, user }) {
           return (
             <button key={p.id} onClick={() => setPeriode(p.id)}
               style={{
-                padding: '6px 14px', borderRadius: 20,
+                padding: isMobile ? '7px 12px' : '6px 14px',
+                borderRadius: 20,
                 border: `1px solid ${active ? '#1D9E75' : '#e0e0d8'}`,
                 background: active ? '#E1F5EE' : '#fff',
                 color: active ? '#085041' : '#888',
-                fontSize: 12, fontWeight: active ? 700 : 500,
+                fontSize: isMobile ? 11 : 12,
+                fontWeight: active ? 700 : 500,
                 cursor: 'pointer', fontFamily: 'inherit',
               }}>{p.label}</button>
           );
@@ -941,8 +943,14 @@ function OngletSuivi({ lang, user }) {
       </div>
 
       {/* ─── KPIs globaux (cliquables) ─── */}
-      {/* Le KPI 'Taux' est le plus gros (info phare). Les autres filtrent la liste au clic. */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 10, marginBottom: 14 }}>
+      {/* Mobile : grille fixe 2x2 (meilleure visibilité sur petit écran).
+          Desktop : auto-fit avec minmax pour s'adapter à la largeur. */}
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(auto-fit, minmax(150px, 1fr))',
+        gap: isMobile ? 8 : 10,
+        marginBottom: 14,
+      }}>
 
         {/* KPI 1 : Taux global — non cliquable, gros chiffre */}
         <KpiCard
