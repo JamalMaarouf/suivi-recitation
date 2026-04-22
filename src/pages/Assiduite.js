@@ -625,6 +625,59 @@ function StatCard({ label, value, color, bg }) {
   );
 }
 
+// ─── KpiCard : carte KPI cliquable et élégante pour le dashboard Suivi ──────
+// Features : hover + active visuel, hint en sous-titre, mode 'big' pour le KPI phare
+function KpiCard({ label, value, hint, color, bg, onClick, active, big }) {
+  const clickable = typeof onClick === 'function';
+  return (
+    <div
+      onClick={clickable ? onClick : undefined}
+      style={{
+        background: active ? color : bg,
+        padding: big ? '14px 18px' : '12px 16px',
+        borderRadius: 12,
+        border: `1.5px solid ${active ? color : color + '30'}`,
+        cursor: clickable ? 'pointer' : 'default',
+        transition: 'transform 0.08s, box-shadow 0.15s, background 0.15s',
+        boxShadow: active ? `0 4px 14px ${color}40` : 'none',
+        display: 'flex', flexDirection: 'column', alignItems: 'flex-start',
+        minWidth: 0,
+        position: 'relative',
+      }}
+      onMouseEnter={e => { if (clickable && !active) { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = `0 4px 10px ${color}25`; } }}
+      onMouseLeave={e => { if (clickable && !active) { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = 'none'; } }}
+    >
+      <div style={{
+        fontSize: 11,
+        color: active ? '#fff' : '#666',
+        fontWeight: 600,
+        opacity: active ? 0.9 : 1,
+        marginBottom: 2,
+      }}>{label}</div>
+      <div style={{
+        fontSize: big ? 32 : 26,
+        fontWeight: 800,
+        color: active ? '#fff' : color,
+        lineHeight: 1.1,
+      }}>{value}</div>
+      {hint && (
+        <div style={{
+          fontSize: 10,
+          color: active ? '#fff' : '#888',
+          opacity: active ? 0.85 : 1,
+          marginTop: 3,
+        }}>{hint}</div>
+      )}
+      {clickable && !active && (
+        <div style={{
+          position: 'absolute', top: 10, right: 10,
+          fontSize: 10, color: color, opacity: 0.5,
+        }}>👆</div>
+      )}
+    </div>
+  );
+}
+
 // ══════════════════════════════════════════════════════════════════════
 // ONGLET SUIVI — dashboard de suivi des présences
 //
@@ -651,6 +704,7 @@ function OngletSuivi({ lang, user }) {
   const [filtreNiveau, setFiltreNiveau] = useState('');
   const [recherche, setRecherche] = useState('');
   const [eleveDetail, setEleveDetail] = useState(null);   // id de l'élève dont on montre le détail
+  const [filtreKpi, setFiltreKpi] = useState(null);       // null | 'risque' | 'parfait' — filtre actif depuis un clic KPI
 
   // ─── Calcul des bornes de la periode ─────────────────────────
   const { debut, fin } = calcBornesPeriode(periode, dateDebut, dateFin);
@@ -750,13 +804,31 @@ function OngletSuivi({ lang, user }) {
   }, [eleves, presences, joursNonTravailles, debut, fin]);
 
   // ─── Stats globales ───────────────────────────────────────────
+  // Inclut : totaux de séances + compteurs d'élèves par catégorie d'assiduité
+  // Seuils par défaut : risque < 80%, parfait = 100% (paramétrables à l'étape 5)
+  const SEUIL_RISQUE = 80;
+  const SEUIL_PARFAIT = 100;
   const globalStats = React.useMemo(() => {
     let attendues = 0, presentes = 0;
-    Object.values(statsParEleve).forEach(s => { attendues += s.attendues; presentes += s.presentes; });
+    let nbRisque = 0, nbParfaits = 0, nbSansJours = 0, nbAvecJours = 0;
+    Object.values(statsParEleve).forEach(s => {
+      attendues += s.attendues;
+      presentes += s.presentes;
+      if (!s.aDesJours) {
+        nbSansJours++;
+      } else {
+        nbAvecJours++;
+        // Un élève "à risque" est un élève avec des jours déclarés ET un taux < seuil
+        if (s.taux !== null && s.taux < SEUIL_RISQUE) nbRisque++;
+        // Un élève "parfait" a un taux de 100% (et au moins 1 séance attendue)
+        if (s.taux !== null && s.taux >= SEUIL_PARFAIT && s.attendues > 0) nbParfaits++;
+      }
+    });
     return {
       attendues, presentes,
       absences: attendues - presentes,
       taux: attendues > 0 ? Math.round((presentes / attendues) * 100) : 0,
+      nbRisque, nbParfaits, nbSansJours, nbAvecJours,
     };
   }, [statsParEleve]);
 
@@ -768,6 +840,23 @@ function OngletSuivi({ lang, user }) {
       const num = (e.eleve_id_ecole || '').toLowerCase();
       const nom = `${e.prenom || ''} ${e.nom || ''}`.toLowerCase();
       if (!num.includes(r) && !nom.includes(r)) return false;
+    }
+    // Filtre KPI : si un KPI est cliqué, on filtre la liste en conséquence
+    if (filtreKpi) {
+      const s = statsParEleve[e.id];
+      if (!s) return false;
+      if (filtreKpi === 'risque') {
+        // Élèves avec jours déclarés ET taux < seuil
+        if (!s.aDesJours || s.taux === null || s.taux >= SEUIL_RISQUE) return false;
+      }
+      if (filtreKpi === 'parfait') {
+        // Élèves avec jours déclarés ET taux = 100% ET au moins 1 séance
+        if (!s.aDesJours || s.taux === null || s.taux < SEUIL_PARFAIT || s.attendues === 0) return false;
+      }
+      if (filtreKpi === 'absences') {
+        // Élèves ayant au moins 1 absence
+        if (!s.aDesJours || s.absences === 0) return false;
+      }
     }
     return true;
   }).sort((a, b) => {
@@ -834,13 +923,83 @@ function OngletSuivi({ lang, user }) {
         )}
       </div>
 
-      {/* KPIs globaux */}
-      <div style={{ display: 'flex', gap: 10, marginBottom: 14, flexWrap: 'wrap' }}>
-        <StatCard label={lang === 'ar' ? 'المتوقع' : 'Attendues'} value={globalStats.attendues} color="#0C447C" bg="#E6F1FB" />
-        <StatCard label={lang === 'ar' ? 'الحاضرون' : 'Présences'} value={globalStats.presentes} color="#1D9E75" bg="#E1F5EE" />
-        <StatCard label={lang === 'ar' ? 'الغيابات' : 'Absences'}  value={globalStats.absences}  color="#E24B4A" bg="#FCEBEB" />
-        <StatCard label={lang === 'ar' ? 'نسبة الحضور' : 'Taux'}   value={`${globalStats.taux}%`} color="#534AB7" bg="#EDE9FE" />
+      {/* ─── KPIs globaux (cliquables) ─── */}
+      {/* Le KPI 'Taux' est le plus gros (info phare). Les autres filtrent la liste au clic. */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 10, marginBottom: 14 }}>
+
+        {/* KPI 1 : Taux global — non cliquable, gros chiffre */}
+        <KpiCard
+          label={lang === 'ar' ? 'نسبة الحضور' : 'Taux de présence'}
+          value={`${globalStats.taux}%`}
+          hint={lang === 'ar'
+            ? `${globalStats.presentes}/${globalStats.attendues} حصة`
+            : `${globalStats.presentes}/${globalStats.attendues} séances`}
+          color="#534AB7" bg="#EDE9FE"
+          big={true}
+        />
+
+        {/* KPI 2 : Élèves à risque — cliquable */}
+        <KpiCard
+          label={lang === 'ar' ? `طلاب في خطر (<${SEUIL_RISQUE}%)` : `À risque (<${SEUIL_RISQUE}%)`}
+          value={globalStats.nbRisque}
+          hint={lang === 'ar' ? 'يحتاجون متابعة' : 'À suivre de près'}
+          color="#E24B4A" bg="#FCEBEB"
+          active={filtreKpi === 'risque'}
+          onClick={() => setFiltreKpi(filtreKpi === 'risque' ? null : 'risque')}
+        />
+
+        {/* KPI 3 : Absences cumulées — cliquable */}
+        <KpiCard
+          label={lang === 'ar' ? 'الغيابات' : 'Absences'}
+          value={globalStats.absences}
+          hint={lang === 'ar'
+            ? `من ${globalStats.attendues} حصة متوقعة`
+            : `sur ${globalStats.attendues} séances attendues`}
+          color="#EF9F27" bg="#FAEEDA"
+          active={filtreKpi === 'absences'}
+          onClick={() => globalStats.absences > 0 && setFiltreKpi(filtreKpi === 'absences' ? null : 'absences')}
+        />
+
+        {/* KPI 4 : Élèves parfaits — cliquable */}
+        <KpiCard
+          label={lang === 'ar' ? 'المواظبة التامة' : 'Assiduité parfaite'}
+          value={globalStats.nbParfaits}
+          hint={lang === 'ar' ? '100% حضور' : '100% de présence'}
+          color="#1D9E75" bg="#E1F5EE"
+          active={filtreKpi === 'parfait'}
+          onClick={() => globalStats.nbParfaits > 0 && setFiltreKpi(filtreKpi === 'parfait' ? null : 'parfait')}
+        />
       </div>
+
+      {/* Bannière filtre KPI actif (s'affiche uniquement si un KPI est cliqué) */}
+      {filtreKpi && (
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 10,
+          padding: '10px 14px', marginBottom: 14,
+          background: '#E6F1FB', border: '1px solid #378ADD30', borderRadius: 10,
+          fontSize: 13, color: '#0C447C',
+        }}>
+          <span style={{ fontSize: 16 }}>🔎</span>
+          <div style={{ flex: 1 }}>
+            <strong>
+              {filtreKpi === 'risque'   && (lang === 'ar' ? `عرض الطلاب في خطر (<${SEUIL_RISQUE}%)`  : `Filtré : élèves à risque (<${SEUIL_RISQUE}%)`)}
+              {filtreKpi === 'absences' && (lang === 'ar' ? 'عرض الطلاب الذين لديهم غيابات'         : 'Filtré : élèves ayant au moins une absence')}
+              {filtreKpi === 'parfait'  && (lang === 'ar' ? 'عرض الطلاب بمواظبة تامة'                : 'Filtré : élèves avec assiduité parfaite')}
+            </strong>
+            <span style={{ marginLeft: 8, color: '#666' }}>
+              · {filtered.length} {lang === 'ar' ? 'طالب' : 'élève(s)'}
+            </span>
+          </div>
+          <button onClick={() => setFiltreKpi(null)}
+            style={{
+              padding: '4px 12px', background: '#fff', color: '#0C447C',
+              border: '1px solid #378ADD40', borderRadius: 6,
+              fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
+            }}>
+            ✕ {lang === 'ar' ? 'إزالة' : 'Effacer'}
+          </button>
+        </div>
+      )}
 
       {/* Filtres (recherche + niveau) */}
       <div style={{ display: 'flex', gap: 8, marginBottom: 14, flexWrap: 'wrap' }}>
