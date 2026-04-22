@@ -1436,7 +1436,7 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile,
   const [showAcquisSelector, setShowAcquisSelector] = useState(false);
   const [editShowAcquisSelector, setEditShowAcquisSelector] = useState(false);
 
-  const [newEleve, setNewEleve] = useState({ prenom: '', nom: '', niveau: 'Débutant', code_niveau: '', eleve_id_ecole: '', instituteur_referent_id: '', hizb_depart: 0, tomon_depart: 1, sourates_acquises: 0, telephone: '', date_inscription: '' });
+  const [newEleve, setNewEleve] = useState({ prenom: '', nom: '', niveau: 'Débutant', code_niveau: '', eleve_id_ecole: '', instituteur_referent_id: '', hizb_depart: 0, tomon_depart: 1, sourates_acquises: 0, telephone: '', date_inscription: '', jours_souhaites: [false,false,false,false,false,false,false] });
   const [newInst, setNewInst] = useState({ prenom: '', nom: '', identifiant: '', mot_de_passe: '' });
   const [ecoleConfig, setEcoleConfig] = useState({ mdp_defaut_instituteurs: 'ecole2024', mdp_defaut_parents: 'parent2024', sens_recitation_defaut: 'desc' });
   // Hooks niveaux dynamiques
@@ -1519,7 +1519,7 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile,
     if (ecData) setEcoleConfig(prev => ({...prev, ...ecData}));
     setLoading(true);
     try {
-    const { data: e } = await supabase.from('eleves').select('id,prenom,nom,code_niveau,eleve_id_ecole,hizb_depart,tomon_depart,sourates_acquises,instituteur_referent_id,ecole_id,telephone,date_inscription')
+    const { data: e } = await supabase.from('eleves').select('id,prenom,nom,code_niveau,eleve_id_ecole,hizb_depart,tomon_depart,sourates_acquises,instituteur_referent_id,ecole_id,telephone,date_inscription,jours_souhaites')
         .eq('ecole_id', user.ecole_id).order('nom');
     const { data: i } = await supabase.from('utilisateurs').select('id,prenom,nom,identifiant,role').eq('role', 'instituteur').eq('ecole_id', user.ecole_id);
     setEleves(e || []);
@@ -1570,7 +1570,8 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile,
       tomon_depart: parseInt(newEleve.tomon_depart) || 1,
       sourates_acquises: parseInt(newEleve.sourates_acquises) || 0,
       telephone: newEleve.telephone?.trim() || null,
-      date_inscription: newEleve.date_inscription || null
+      date_inscription: newEleve.date_inscription || null,
+      jours_souhaites: newEleve.jours_souhaites || [false,false,false,false,false,false,false]
     });
     if (error) {
       // Afficher la vraie cause de l'erreur pour faciliter le debug
@@ -1618,7 +1619,8 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile,
       tomon_depart: parseInt(editEleve.tomon_depart) || 1,
       sourates_acquises: parseInt(editEleve.sourates_acquises) || 0,
       telephone: editEleve.telephone?.trim() || null,
-      date_inscription: editEleve.date_inscription || null
+      date_inscription: editEleve.date_inscription || null,
+      jours_souhaites: editEleve.jours_souhaites || [false,false,false,false,false,false,false]
     }).eq('id', editEleve.id);
     if (error) return showMsg('error', t(lang, 'erreur_ajout'));
     showMsg('success', t(lang, 'eleve_modifie'));
@@ -2032,7 +2034,7 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
     const resetFormEleve = () => {
       setNewEleve({prenom:'',nom:'',niveau:'Débutant',code_niveau:(niveauxDyn && niveauxDyn[0]?.code) || '',eleve_id_ecole:'',
         instituteur_referent_id:'',hizb_depart:0,tomon_depart:1,sourates_acquises:0,
-        telephone:'',date_inscription:''});
+        telephone:'',date_inscription:'',jours_souhaites:[false,false,false,false,false,false,false]});
       setEditEleve(null); setMobileEditEleve(null);
     };
     const handleSaveEleve = async () => {
@@ -2201,6 +2203,60 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
                       onChange={e=>editEleve?setEditEleve(x=>({...x,date_inscription:e.target.value})):setNewEleve(x=>({...x,date_inscription:e.target.value}))}/>
                   </div>
                 </div>
+
+                {/* ─── Jours souhaités (Assiduité) ─── */}
+                {/* Ordre : Sam · Dim · Lun · Mar · Mer · Jeu · Ven (semaine scolaire marocaine) */}
+                {(() => {
+                  const joursLabels = lang==='ar'
+                    ? ['السبت','الأحد','الاثنين','الثلاثاء','الأربعاء','الخميس','الجمعة']
+                    : ['Sam','Dim','Lun','Mar','Mer','Jeu','Ven'];
+                  const source = editEleve ? editEleve : newEleve;
+                  const jours = Array.isArray(source.jours_souhaites)
+                    ? source.jours_souhaites
+                    : [false,false,false,false,false,false,false];
+                  const toggleJour = (idx) => {
+                    const next = [...jours];
+                    next[idx] = !next[idx];
+                    if (editEleve) setEditEleve(x=>({...x,jours_souhaites:next}));
+                    else setNewEleve(x=>({...x,jours_souhaites:next}));
+                  };
+                  return (
+                    <div style={{marginBottom:12,padding:'12px',background:'#E1F5EE',borderRadius:10,border:'1px solid #1D9E7540'}}>
+                      <label style={{fontSize:12,fontWeight:700,color:'#085041',display:'block',marginBottom:8}}>
+                        {lang==='ar'?'📅 أيام الحضور المرغوبة':'📅 Jours de présence souhaités'}
+                      </label>
+                      <div style={{display:'flex',flexWrap:'wrap',gap:6}}>
+                        {joursLabels.map((label, idx) => {
+                          const actif = !!jours[idx];
+                          return (
+                            <button key={idx} type="button"
+                              onClick={()=>toggleJour(idx)}
+                              style={{
+                                padding:'8px 12px',
+                                borderRadius:8,
+                                border: actif ? '2px solid #1D9E75' : '1px solid #c0c0b8',
+                                background: actif ? '#1D9E75' : '#fff',
+                                color: actif ? '#fff' : '#666',
+                                fontSize: 12,
+                                fontWeight: 600,
+                                cursor: 'pointer',
+                                fontFamily: 'inherit',
+                                flex: '1 1 auto',
+                                minWidth: 56,
+                              }}>
+                              {label}
+                            </button>
+                          );
+                        })}
+                      </div>
+                      <div style={{fontSize:11,color:'#666',marginTop:8}}>
+                        {lang==='ar'
+                          ? 'اختر الأيام التي يحضر فيها الطالب. تُستعمل لحساب الغياب.'
+                          : 'Sélectionne les jours où l\'élève vient. Utilisé pour calculer les absences.'}
+                      </div>
+                    </div>
+                  );
+                })()}
 
                 {/* Hizb/Tomon si niveau hizb */}
                 {!isSourateNiveauDyn(editEleve?editEleve.code_niveau:newEleve.code_niveau, niveauxActifs||[])&&(
