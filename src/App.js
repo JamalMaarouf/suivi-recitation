@@ -55,6 +55,8 @@ const ImportMasse         = lazy(() => import('./pages/ImportMasse'));
 const ResultatsExamens    = lazy(() => import('./pages/ResultatsExamens'));
 const ListeCertificats    = lazy(() => import('./pages/ListeCertificats'));
 const ListeNotes          = lazy(() => import('./pages/ListeNotes'));
+const Assiduite           = lazy(() => import('./pages/Assiduite'));
+const GestionAssiduite    = lazy(() => import('./pages/GestionAssiduite'));
 import { t, getDir } from './lib/i18n';
 import { isSourateNiveauDyn } from './lib/helpers';
 import { ToastProvider } from './lib/toast';
@@ -480,6 +482,7 @@ export default function App() {
                   {p:'seance',            icon:'📋', text:t(lang,'seance'),                                           roles:['surveillant','instituteur']},
                   {p:'objectifs',         icon:'🎯', text:lang==='ar'?'الأهداف':lang==='en'?'Objectives':'Objectifs', roles:['surveillant']},
                   {p:'finance',           icon:'💰', text:lang==='ar'?'المالية':'Finance',                            roles:['surveillant']},
+                  {p:'assiduite',         icon:'📅', text:lang==='ar'?'الحضور':'Assiduité',                           roles:['surveillant']},
                   {p:'gestion',           icon:'⚙️', text:t(lang,'gestion'),                                          roles:['surveillant']},
                 ].filter(b=>b.roles.includes(user.role)).map(b=>{
                   const isActive = page===b.p;
@@ -532,6 +535,8 @@ export default function App() {
           {page === 'objectifs'          && <ErrorBoundary><GestionObjectifs user={user} navigate={navigate} goBack={goBack} lang={lang} isMobile={isMobile} /></ErrorBoundary>}
           {page === 'historique_seances'   && <ErrorBoundary><HistoriqueSeances user={user} navigate={navigate} goBack={goBack} lang={lang} isMobile={isMobile} /></ErrorBoundary>}
           {page === 'finance'             && user.role==='surveillant' && <ErrorBoundary><Finance user={user} navigate={navigate} goBack={goBack} lang={lang} isMobile={isMobile} /></ErrorBoundary>}
+          {page === 'assiduite'           && user.role==='surveillant' && <ErrorBoundary><Assiduite user={user} navigate={navigate} goBack={goBack} lang={lang} isMobile={isMobile} /></ErrorBoundary>}
+          {page === 'gestion_assiduite'   && user.role==='surveillant' && <ErrorBoundary><GestionAssiduite user={user} navigate={navigate} goBack={goBack} lang={lang} isMobile={isMobile} /></ErrorBoundary>}
           {page === 'enregistrer'       && (
             isSourateNiveauDyn(selectedEleve?.code_niveau||'', niveauxApp)
               ? <RecitationSourate eleve={selectedEleve} {...pageProps} />
