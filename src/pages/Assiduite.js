@@ -1623,6 +1623,8 @@ function OngletSuiviInstituteurs({ lang, user, isMobile }) {
   const [periode, setPeriode] = useState('mois');
   const [dateDebut, setDateDebut] = useState('');
   const [dateFin, setDateFin] = useState('');
+  // Popup de details calendrier d'un instituteur (mode cartes)
+  const [detailsInst, setDetailsInst] = useState(null);  // objet instituteur ou null
 
   const { debut, fin } = calcBornesPeriode(periode, dateDebut, dateFin);
 
@@ -1908,7 +1910,10 @@ function OngletSuiviInstituteurs({ lang, user, isMobile }) {
         </div>
       )}
 
-      {/* Tableau principal */}
+      {/* ═══ DISPATCH AFFICHAGE ═══
+          - Vue TABLEAU uniquement en 'semaine' + desktop (7 jours = lisible)
+          - Vue CARTES pour toutes les autres périodes + toutes les situations mobile
+            (mois+ = trop de colonnes pour un tableau lisible) */}
       {instituteurs.length === 0 ? (
         <div style={{ padding: 30, textAlign: 'center', color: '#888', background: '#fff', borderRadius: 12, border: '1px dashed #ccc' }}>
           <div style={{ fontSize: 32, marginBottom: 8 }}>👨‍🏫</div>
@@ -1920,7 +1925,8 @@ function OngletSuiviInstituteurs({ lang, user, isMobile }) {
         <div style={{ padding: 30, textAlign: 'center', color: '#888', background: '#fff', borderRadius: 12, border: '1px dashed #ccc' }}>
           {lang === 'ar' ? 'لا توجد أيام عمل في الفترة' : 'Aucun jour travaillé dans la période'}
         </div>
-      ) : (
+      ) : (periode === 'semaine' && !isMobile) ? (
+        // ═══ VUE TABLEAU (semaine desktop) ═══
         <div style={{
           background: '#fff', borderRadius: 12,
           border: '1px solid #e0e0d8', overflow: 'auto',
@@ -2065,6 +2071,24 @@ function OngletSuiviInstituteurs({ lang, user, isMobile }) {
             </tbody>
           </table>
         </div>
+      ) : (
+        // ═══ VUE CARTES (mois+ ou mobile) ═══
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {instituteurs.map(inst => {
+            const stats = statsInst[inst.id] || { total: 0, valides: 0, enAttente: 0, payees: 0, montantDu: 0, tarif: 0 };
+            return (
+              <InstituteurCard
+                key={inst.id}
+                inst={inst}
+                stats={stats}
+                lang={lang}
+                isMobile={isMobile}
+                onValidateRow={() => validerLigne(inst.id)}
+                onShowDetails={() => setDetailsInst(inst)}
+              />
+            );
+          })}
+        </div>
       )}
 
       {/* Légende */}
@@ -2078,6 +2102,321 @@ function OngletSuiviInstituteurs({ lang, user, isMobile }) {
         <span>✅ {lang === 'ar' ? 'مُتحقق منها (قابلة للدفع)' : 'Validée (payable)'}</span>
         <span>💰 {lang === 'ar' ? 'مدفوعة' : 'Payée'}</span>
         <span style={{ color: '#999' }}>· {lang === 'ar' ? 'لا حصة' : 'Aucune séance'}</span>
+      </div>
+
+      {/* Popup details instituteur (mode cartes) */}
+      {detailsInst && (
+        <DetailsInstituteurModal
+          inst={detailsInst}
+          seances={seancesParInst[detailsInst.id] || {}}
+          joursOuvres={joursOuvres}
+          stats={statsInst[detailsInst.id]}
+          onClose={() => setDetailsInst(null)}
+          onToggleSeance={async (s) => { await toggleSeance(s); }}
+          onValidateRow={() => { validerLigne(detailsInst.id); setDetailsInst(null); }}
+          lang={lang}
+        />
+      )}
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// Carte synthese d'un instituteur (mode cartes)
+// Utilisee en mois/trimestre/semestre/annee et toujours en mobile.
+// ══════════════════════════════════════════════════════════════════════
+function InstituteurCard({ inst, stats, lang, isMobile, onValidateRow, onShowDetails }) {
+  const pctValides = stats.total > 0 ? Math.round((stats.valides / stats.total) * 100) : 0;
+  const pctPayees  = stats.total > 0 ? Math.round((stats.payees  / stats.total) * 100) : 0;
+
+  return (
+    <div style={{
+      background: '#fff', borderRadius: 14, padding: 16,
+      border: '1px solid #e0e0d8',
+      boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+    }}>
+      {/* Ligne 1 : identité + numéro */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12, flexWrap: 'wrap' }}>
+        <div style={{
+          width: 44, height: 44, borderRadius: 12,
+          background: '#EDE9FE', color: '#534AB7',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          fontSize: 20, flexShrink: 0,
+        }}>👨‍🏫</div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: 15, fontWeight: 700, color: '#1a1a1a' }}>
+            {inst.prenom} {inst.nom}
+          </div>
+          {inst.instituteur_id_ecole && (
+            <div style={{
+              display: 'inline-block', marginTop: 2,
+              padding: '2px 8px', background: '#EDE9FE', color: '#534AB7',
+              borderRadius: 6, fontSize: 10, fontWeight: 700,
+            }}>{inst.instituteur_id_ecole}</div>
+          )}
+        </div>
+        {stats.tarif > 0 && (
+          <div style={{ fontSize: 11, color: '#888', textAlign: 'right' }}>
+            <div style={{ fontWeight: 600, color: '#534AB7', fontSize: 13 }}>
+              {stats.tarif.toFixed(0)} {lang === 'ar' ? 'د.' : 'DH'}
+            </div>
+            <div>{lang === 'ar' ? 'للحصة' : '/ séance'}</div>
+          </div>
+        )}
+      </div>
+
+      {/* Ligne 2 : barre de progression visuelle
+          Decomposition : payées (bleu) + validées non payées (vert) + en attente (orange) + vide */}
+      {stats.total > 0 ? (
+        <div style={{ marginBottom: 12 }}>
+          <div style={{
+            height: 10, background: '#f0f0ec', borderRadius: 999,
+            overflow: 'hidden', display: 'flex',
+          }}>
+            {stats.payees > 0 && (
+              <div title={`${stats.payees} ${lang === 'ar' ? 'مدفوعة' : 'payées'}`}
+                style={{ width: `${(stats.payees / stats.total) * 100}%`, background: '#378ADD' }} />
+            )}
+            {(stats.valides - stats.payees) > 0 && (
+              <div title={`${stats.valides - stats.payees} ${lang === 'ar' ? 'قابلة للدفع' : 'à payer'}`}
+                style={{ width: `${((stats.valides - stats.payees) / stats.total) * 100}%`, background: '#1D9E75' }} />
+            )}
+            {stats.enAttente > 0 && (
+              <div title={`${stats.enAttente} ${lang === 'ar' ? 'في الانتظار' : 'en attente'}`}
+                style={{ width: `${(stats.enAttente / stats.total) * 100}%`, background: '#EF9F27' }} />
+            )}
+          </div>
+          <div style={{ fontSize: 11, color: '#888', marginTop: 4, textAlign: 'center' }}>
+            {stats.valides}/{stats.total} {lang === 'ar' ? 'حصة تم التحقق منها' : 'séances validées'}
+            {' '}({pctValides}%)
+          </div>
+        </div>
+      ) : (
+        <div style={{
+          padding: '10px 12px', marginBottom: 12,
+          background: '#f9f9f5', borderRadius: 8,
+          fontSize: 12, color: '#888', textAlign: 'center',
+        }}>
+          {lang === 'ar' ? 'لم تسجل حصص بعد' : 'Aucune séance enregistrée sur la période'}
+        </div>
+      )}
+
+      {/* Ligne 3 : stats compactes + montant à payer */}
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(4, 1fr)',
+        gap: 8, marginBottom: 12,
+      }}>
+        <MiniStatCard icon="📋" label={lang === 'ar' ? 'الإجمالي' : 'Total'}
+          value={stats.total} color="#534AB7" />
+        <MiniStatCard icon="✅" label={lang === 'ar' ? 'مُتحقق' : 'Validées'}
+          value={stats.valides} color="#1D9E75" />
+        <MiniStatCard icon="⏳" label={lang === 'ar' ? 'منتظر' : 'En attente'}
+          value={stats.enAttente} color="#EF9F27" highlight={stats.enAttente > 0} />
+        <MiniStatCard icon="💰" label={lang === 'ar' ? 'مستحق' : 'À payer'}
+          value={stats.montantDu > 0 ? `${stats.montantDu.toFixed(0)}` : '—'}
+          color="#E24B4A" highlight={stats.montantDu > 0}
+          suffix={stats.montantDu > 0 ? (lang === 'ar' ? 'د.' : 'DH') : null} />
+      </div>
+
+      {/* Ligne 4 : boutons d'action */}
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+        {stats.enAttente > 0 && (
+          <button onClick={onValidateRow}
+            style={{
+              flex: 1, minWidth: 160, padding: '10px 14px',
+              background: '#1D9E75', color: '#fff',
+              border: 'none', borderRadius: 10,
+              fontSize: 12, fontWeight: 700, cursor: 'pointer',
+              fontFamily: 'inherit',
+            }}>
+            ✓ {lang === 'ar'
+              ? `التحقق من الحصص المنتظرة (${stats.enAttente})`
+              : `Valider en attente (${stats.enAttente})`}
+          </button>
+        )}
+        <button onClick={onShowDetails}
+          style={{
+            flex: stats.enAttente > 0 ? '0 1 auto' : 1,
+            padding: '10px 14px',
+            background: '#fff', color: '#534AB7',
+            border: '1px solid #534AB740', borderRadius: 10,
+            fontSize: 12, fontWeight: 700, cursor: 'pointer',
+            fontFamily: 'inherit',
+          }}>
+          📋 {lang === 'ar' ? 'التفاصيل' : 'Détails'}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// Mini stat card pour l'interieur d'une InstituteurCard
+function MiniStatCard({ icon, label, value, color, highlight, suffix }) {
+  return (
+    <div style={{
+      padding: '8px 10px',
+      background: highlight ? `${color}15` : '#f9f9f5',
+      border: `1px solid ${highlight ? color + '40' : '#e0e0d8'}`,
+      borderRadius: 8,
+      textAlign: 'center',
+    }}>
+      <div style={{ fontSize: 11, color: '#888', marginBottom: 2 }}>
+        {icon} {label}
+      </div>
+      <div style={{ fontSize: 16, fontWeight: 800, color: highlight ? color : '#1a1a1a' }}>
+        {value}{suffix && <span style={{ fontSize: 10, fontWeight: 600, marginLeft: 3 }}>{suffix}</span>}
+      </div>
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// Modale de details : mini-calendrier d'un instituteur sur la periode
+// ══════════════════════════════════════════════════════════════════════
+function DetailsInstituteurModal({ inst, seances, joursOuvres, stats, onClose, onToggleSeance, onValidateRow, lang }) {
+  // Grouper les jours ouvres par semaine pour un affichage calendrier
+  // Une semaine = lignes de 7 cellules (ici on affiche juste les jours ouvres donc pas 7 strict,
+  // mais on groupe par semaine ISO pour la lisibilite)
+
+  return (
+    <div
+      onClick={onClose}
+      style={{
+        position: 'fixed', inset: 0, zIndex: 10000,
+        background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        padding: 16,
+      }}
+    >
+      <div onClick={e => e.stopPropagation()}
+        style={{
+          background: '#fff', borderRadius: 16,
+          padding: 24, maxWidth: 600, width: '100%',
+          maxHeight: '90vh', overflow: 'auto',
+          boxShadow: '0 20px 60px rgba(0,0,0,0.3)',
+        }}>
+        {/* Header */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
+          <div style={{
+            width: 48, height: 48, borderRadius: 12,
+            background: '#EDE9FE', color: '#534AB7',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            fontSize: 24, flexShrink: 0,
+          }}>👨‍🏫</div>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 17, fontWeight: 800, color: '#1a1a1a' }}>
+              {inst.prenom} {inst.nom}
+            </div>
+            {inst.instituteur_id_ecole && (
+              <div style={{
+                display: 'inline-block', marginTop: 2,
+                padding: '2px 8px', background: '#EDE9FE', color: '#534AB7',
+                borderRadius: 6, fontSize: 10, fontWeight: 700,
+              }}>{inst.instituteur_id_ecole}</div>
+            )}
+          </div>
+          <button onClick={onClose}
+            style={{
+              width: 36, height: 36, borderRadius: 10,
+              background: '#f5f5f0', color: '#666', border: 'none',
+              fontSize: 18, cursor: 'pointer', fontFamily: 'inherit',
+              flexShrink: 0,
+            }}>✕</button>
+        </div>
+
+        {/* Stats en ligne */}
+        {stats && (
+          <div style={{
+            display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)',
+            gap: 6, marginBottom: 16,
+          }}>
+            <MiniStatCard icon="📋" label={lang === 'ar' ? 'الإجمالي' : 'Total'} value={stats.total} color="#534AB7" />
+            <MiniStatCard icon="✅" label={lang === 'ar' ? 'مُتحقق' : 'Valid.'} value={stats.valides} color="#1D9E75" />
+            <MiniStatCard icon="⏳" label={lang === 'ar' ? 'منتظر' : 'Attente'} value={stats.enAttente} color="#EF9F27" highlight={stats.enAttente > 0} />
+            <MiniStatCard icon="💰" label={lang === 'ar' ? 'مستحق' : 'À payer'}
+              value={stats.montantDu > 0 ? stats.montantDu.toFixed(0) : '—'}
+              color="#E24B4A" highlight={stats.montantDu > 0}
+              suffix={stats.montantDu > 0 ? (lang === 'ar' ? 'د.' : 'DH') : null} />
+          </div>
+        )}
+
+        {/* Calendrier : liste des jours avec statut */}
+        <div style={{ marginBottom: 16 }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: '#666', marginBottom: 8 }}>
+            📅 {lang === 'ar' ? 'التقويم اليومي' : 'Calendrier jour par jour'}
+          </div>
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fill, minmax(80px, 1fr))',
+            gap: 6,
+          }}>
+            {joursOuvres.map(d => {
+              const s = seances[d];
+              const date = new Date(d);
+              const jourNom = date.toLocaleDateString(lang === 'ar' ? 'ar-MA' : 'fr-FR', { weekday: 'short' });
+              let bg = '#f9f9f5', color = '#ccc', icon = '·', title = lang === 'ar' ? 'لا حصة' : 'Aucune séance';
+              if (s) {
+                if (s.paye) {
+                  bg = '#E6F1FB'; color = '#378ADD'; icon = '💰'; title = lang === 'ar' ? 'مدفوعة' : 'Payée';
+                } else if (s.valide) {
+                  bg = '#E1F5EE'; color = '#1D9E75'; icon = '✅'; title = lang === 'ar' ? 'مُتحقق منها' : 'Validée';
+                } else {
+                  bg = '#FAEEDA'; color = '#EF9F27'; icon = '⏳'; title = lang === 'ar' ? 'في الانتظار — انقر للتحقق' : 'En attente — clic pour valider';
+                }
+              }
+              return (
+                <div key={d}
+                  onClick={() => s && onToggleSeance(s)}
+                  title={title}
+                  style={{
+                    padding: '8px 4px', borderRadius: 8,
+                    background: bg, border: `1px solid ${color}40`,
+                    textAlign: 'center',
+                    cursor: s && !s.paye ? 'pointer' : 'default',
+                    transition: 'transform 0.08s',
+                  }}>
+                  <div style={{ fontSize: 9, color: '#888', fontWeight: 600 }}>
+                    {jourNom}
+                  </div>
+                  <div style={{ fontSize: 13, fontWeight: 800, color: '#1a1a1a' }}>
+                    {date.getDate()}/{date.getMonth() + 1}
+                  </div>
+                  <div style={{ fontSize: 16, marginTop: 2 }}>{icon}</div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Actions */}
+        <div style={{ display: 'flex', gap: 8 }}>
+          {stats && stats.enAttente > 0 && (
+            <button onClick={onValidateRow}
+              style={{
+                flex: 1, padding: '11px',
+                background: '#1D9E75', color: '#fff',
+                border: 'none', borderRadius: 10,
+                fontSize: 13, fontWeight: 700,
+                cursor: 'pointer', fontFamily: 'inherit',
+              }}>
+              ✓ {lang === 'ar'
+                ? `التحقق من ${stats.enAttente} حصة منتظرة`
+                : `Valider ${stats.enAttente} en attente`}
+            </button>
+          )}
+          <button onClick={onClose}
+            style={{
+              flex: stats && stats.enAttente > 0 ? '0 1 auto' : 1,
+              padding: '11px 20px',
+              background: '#f5f5f0', color: '#666',
+              border: 'none', borderRadius: 10,
+              fontSize: 13, fontWeight: 600,
+              cursor: 'pointer', fontFamily: 'inherit',
+            }}>
+            {lang === 'ar' ? 'إغلاق' : 'Fermer'}
+          </button>
+        </div>
       </div>
     </div>
   );
