@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 import { useToast } from '../lib/toast';
 import { t } from '../lib/i18n';
+import KioskExitModal from '../components/KioskExitModal';
 
 // ══════════════════════════════════════════════════════════════════════
 // PAGE ASSIDUITÉ — الحضور
@@ -19,8 +20,33 @@ import { t } from '../lib/i18n';
 // Feature retour surveillant 22/04/2026 (sujet 1/5 : Absences élèves)
 // ══════════════════════════════════════════════════════════════════════
 
-export default function Assiduite({ user, navigate, goBack, lang, isMobile }) {
+export default function Assiduite({ user, navigate, goBack, lang, isMobile, kioskMode, enterKiosk, exitKiosk }) {
   const [onglet, setOnglet] = useState('saisie');  // 'saisie' | 'suivi'
+  const [showExitModal, setShowExitModal] = useState(false);  // popup PIN de sortie kiosque
+
+  // Active le kiosque APRES vérification qu'un PIN est bien configuré.
+  // Sans PIN, on ne peut pas sortir → on bloque l'activation avec un message.
+  const askActivateKiosk = async () => {
+    if (!user?.ecole_id) return;
+    const { data } = await supabase.from('ecoles')
+      .select('pin_kiosque')
+      .eq('id', user.ecole_id)
+      .maybeSingle();
+    if (!data?.pin_kiosque) {
+      alert(lang === 'ar'
+        ? 'يجب تعريف رمز الكشك أولاً في إعدادات الحضور (قسم رمز وضع الكشك)'
+        : 'Tu dois d\'abord définir un PIN dans Paramètres → Assiduité (section PIN mode kiosque)');
+      return;
+    }
+    const confirmed = window.confirm(lang === 'ar'
+      ? '⚠️ تفعيل وضع الكشك سيقفل الوصول إلى قوائم أخرى. للخروج ستحتاج إلى الرمز. هل تريد المتابعة؟'
+      : '⚠️ Activer le mode kiosque va verrouiller l\'accès aux autres menus. Pour sortir il faudra le PIN. Continuer ?');
+    if (confirmed) enterKiosk();
+  };
+
+  const handleExitValidate = async (pin) => {
+    return await exitKiosk(pin);  // retourne true/false
+  };
 
   // ─── Rendu MOBILE / TABLETTE : header vert plein largeur ──────
   if (isMobile) {
@@ -33,22 +59,52 @@ export default function Assiduite({ user, navigate, goBack, lang, isMobile }) {
           position: 'sticky', top: 0, zIndex: 100,
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 10 }}>
-            <button onClick={() => goBack ? goBack() : navigate('dashboard')}
-              style={{
-                width: 38, height: 38,
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                background: 'rgba(255,255,255,0.2)',
-                border: 'none', borderRadius: 10, padding: 0, flexShrink: 0,
-                color: '#fff', fontSize: 18, cursor: 'pointer',
-              }}>←</button>
+            {!kioskMode && (
+              <button onClick={() => goBack ? goBack() : navigate('dashboard')}
+                style={{
+                  width: 38, height: 38,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  background: 'rgba(255,255,255,0.2)',
+                  border: 'none', borderRadius: 10, padding: 0, flexShrink: 0,
+                  color: '#fff', fontSize: 18, cursor: 'pointer',
+                }}>←</button>
+            )}
             <div style={{ flex: 1 }}>
               <div style={{ fontSize: 18, fontWeight: 700, lineHeight: 1.2 }}>
                 {lang === 'ar' ? '📅 الحضور' : '📅 Assiduité'}
+                {kioskMode && (
+                  <span style={{
+                    marginLeft: 8, fontSize: 10, fontWeight: 700,
+                    background: 'rgba(255,255,255,0.25)', padding: '2px 8px',
+                    borderRadius: 10, verticalAlign: 'middle',
+                  }}>🔒 {lang === 'ar' ? 'كشك' : 'KIOSQUE'}</span>
+                )}
               </div>
               <div style={{ fontSize: 12, opacity: 0.85, marginTop: 2 }}>
                 {lang === 'ar' ? 'تسجيل و متابعة حضور الطلاب' : 'Saisie et suivi des présences'}
               </div>
             </div>
+            {/* Bouton kiosque */}
+            {kioskMode ? (
+              <button onClick={() => setShowExitModal(true)}
+                style={{
+                  padding: '8px 12px',
+                  background: '#EF9F27', color: '#fff',
+                  border: 'none', borderRadius: 10,
+                  fontSize: 12, fontWeight: 700, cursor: 'pointer',
+                  flexShrink: 0, fontFamily: 'inherit',
+                }}>🔓</button>
+            ) : (
+              <button onClick={() => askActivateKiosk()}
+                title={lang === 'ar' ? 'تفعيل وضع الكشك' : 'Activer mode kiosque'}
+                style={{
+                  padding: '8px 12px',
+                  background: 'rgba(255,255,255,0.2)', color: '#fff',
+                  border: '1px solid rgba(255,255,255,0.3)', borderRadius: 10,
+                  fontSize: 12, fontWeight: 700, cursor: 'pointer',
+                  flexShrink: 0, fontFamily: 'inherit',
+                }}>🔒</button>
+            )}
           </div>
 
           {/* Onglets */}
@@ -81,6 +137,14 @@ export default function Assiduite({ user, navigate, goBack, lang, isMobile }) {
 
         {onglet === 'saisie' && <SaisieKiosque user={user} lang={lang} />}
         {onglet === 'suivi'  && <SuiviPlaceholder lang={lang} user={user} isMobile={true} />}
+
+        {/* Popup PIN de sortie kiosque (mobile) */}
+        <KioskExitModal
+          isOpen={showExitModal}
+          onClose={() => setShowExitModal(false)}
+          onValidate={handleExitValidate}
+          lang={lang}
+        />
       </div>
     );
   }
@@ -91,15 +155,50 @@ export default function Assiduite({ user, navigate, goBack, lang, isMobile }) {
 
       {/* Header classique comme ListeNotes */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: '1.25rem' }}>
-        <button onClick={() => goBack ? goBack() : navigate('dashboard')} className="back-link"></button>
+        {!kioskMode && (
+          <button onClick={() => goBack ? goBack() : navigate('dashboard')} className="back-link"></button>
+        )}
         <div style={{ flex: 1 }}>
-          <div style={{ fontSize: 20, fontWeight: 800, color: '#1a1a1a' }}>
+          <div style={{ fontSize: 20, fontWeight: 800, color: '#1a1a1a', display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
             📅 {lang === 'ar' ? 'الحضور' : 'Assiduité'}
+            {kioskMode && (
+              <span style={{
+                fontSize: 11, fontWeight: 700,
+                background: '#FAEEDA', color: '#633806',
+                padding: '3px 10px', borderRadius: 12,
+                border: '1px solid #EF9F2750',
+              }}>🔒 {lang === 'ar' ? 'وضع الكشك مفعل' : 'Mode kiosque activé'}</span>
+            )}
           </div>
           <div style={{ fontSize: 12, color: '#888' }}>
             {lang === 'ar' ? 'تسجيل و متابعة حضور الطلاب' : 'Saisie et suivi des présences'}
           </div>
         </div>
+        {/* Bouton kiosque */}
+        {kioskMode ? (
+          <button onClick={() => setShowExitModal(true)}
+            style={{
+              padding: '8px 16px',
+              background: '#EF9F27', color: '#fff',
+              border: 'none', borderRadius: 10,
+              fontSize: 12, fontWeight: 700, cursor: 'pointer',
+              fontFamily: 'inherit', flexShrink: 0,
+            }}>
+            🔓 {lang === 'ar' ? 'خروج' : 'Quitter kiosque'}
+          </button>
+        ) : (
+          <button onClick={askActivateKiosk}
+            title={lang === 'ar' ? 'تفعيل وضع الكشك' : 'Activer mode kiosque'}
+            style={{
+              padding: '8px 14px',
+              background: '#fff', color: '#085041',
+              border: '1px solid #1D9E7540', borderRadius: 10,
+              fontSize: 12, fontWeight: 700, cursor: 'pointer',
+              fontFamily: 'inherit', flexShrink: 0,
+            }}>
+            🔒 {lang === 'ar' ? 'وضع الكشك' : 'Mode kiosque'}
+          </button>
+        )}
       </div>
 
       {/* Onglets en pilules (comme le sélecteur de période de ListeNotes) */}
@@ -128,6 +227,14 @@ export default function Assiduite({ user, navigate, goBack, lang, isMobile }) {
 
       {onglet === 'saisie' && <SaisieDesktop user={user} lang={lang} />}
       {onglet === 'suivi'  && <SuiviPlaceholder lang={lang} user={user} />}
+
+      {/* Popup PIN de sortie kiosque (desktop) */}
+      <KioskExitModal
+        isOpen={showExitModal}
+        onClose={() => setShowExitModal(false)}
+        onValidate={handleExitValidate}
+        lang={lang}
+      />
     </div>
   );
 }

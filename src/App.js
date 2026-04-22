@@ -150,6 +150,40 @@ export default function App() {
   const [navHistory, setNavHistory] = useState([]);
   const [gestionTab, setGestionTab] = useState(isMobile ? 'eleves' : 'parametres');
 
+  // ─── MODE KIOSQUE ────────────────────────────────────────────
+  // Quand activé : la navbar est masquée, la page est verrouillée sur
+  // 'assiduite', et sortir requiert de saisir le PIN kiosque de l'école.
+  // Persisté dans sessionStorage pour survivre à un refresh accidentel.
+  const [kioskMode, setKioskMode] = useState(() => sessionStorage.getItem('kioskMode') === '1');
+  const enterKiosk = () => {
+    sessionStorage.setItem('kioskMode', '1');
+    setKioskMode(true);
+    setPageWithRef('assiduite');
+    setNavHistory([]);
+    window.scrollTo(0, 0);
+  };
+  // Retourne true si le PIN est valide (comparaison avec la base)
+  const exitKiosk = async (pinTyped) => {
+    if (!user?.ecole_id) return false;
+    try {
+      const { data } = await supabase.from('ecoles')
+        .select('pin_kiosque')
+        .eq('id', user.ecole_id)
+        .maybeSingle();
+      if (data?.pin_kiosque && String(data.pin_kiosque) === String(pinTyped)) {
+        sessionStorage.removeItem('kioskMode');
+        setKioskMode(false);
+        setPageWithRef('dashboard');
+        setNavHistory([]);
+        return true;
+      }
+      return false;
+    } catch (e) {
+      console.error('[exitKiosk]', e);
+      return false;
+    }
+  };
+
   const handleInstall = async () => {
     if (!deferredPrompt) return;
     deferredPrompt.prompt();
@@ -337,7 +371,7 @@ export default function App() {
       <NetworkBanner lang={lang} />
       <div className="app-container" dir={getDir(lang)}>
 
-        {!isMobile && user.role !== 'parent' && (
+        {!isMobile && user.role !== 'parent' && !kioskMode && (
           <nav style={{background:'#fff',borderBottom:'0.5px solid #e0e0d8',position:'sticky',top:0,zIndex:200,direction:'ltr'}}>
 
             {/* LIGNE 1 — direction forcée LTR: gauche=langue, droite=profil */}
@@ -536,7 +570,7 @@ export default function App() {
           {page === 'objectifs'          && <ErrorBoundary><GestionObjectifs user={user} navigate={navigate} goBack={goBack} lang={lang} isMobile={isMobile} /></ErrorBoundary>}
           {page === 'historique_seances'   && <ErrorBoundary><HistoriqueSeances user={user} navigate={navigate} goBack={goBack} lang={lang} isMobile={isMobile} /></ErrorBoundary>}
           {page === 'finance'             && user.role==='surveillant' && <ErrorBoundary><Finance user={user} navigate={navigate} goBack={goBack} lang={lang} isMobile={isMobile} /></ErrorBoundary>}
-          {page === 'assiduite'           && user.role==='surveillant' && <ErrorBoundary><Assiduite user={user} navigate={navigate} goBack={goBack} lang={lang} isMobile={isMobile} /></ErrorBoundary>}
+          {page === 'assiduite'           && user.role==='surveillant' && <ErrorBoundary><Assiduite user={user} navigate={navigate} goBack={goBack} lang={lang} isMobile={isMobile} kioskMode={kioskMode} enterKiosk={enterKiosk} exitKiosk={exitKiosk} /></ErrorBoundary>}
           {page === 'gestion_assiduite'   && user.role==='surveillant' && <ErrorBoundary><GestionAssiduite user={user} navigate={navigate} goBack={goBack} lang={lang} isMobile={isMobile} /></ErrorBoundary>}
           {page === 'gestion_tarifs'      && user.role==='surveillant' && <ErrorBoundary><GestionTarifs user={user} navigate={navigate} goBack={goBack} lang={lang} isMobile={isMobile} /></ErrorBoundary>}
           {page === 'enregistrer'       && (
@@ -570,7 +604,7 @@ export default function App() {
           }
         </main>
 
-        {isMobile && user.role !== 'parent' && (
+        {isMobile && user.role !== 'parent' && !kioskMode && (
           <nav className="bottom-nav" dir={getDir(lang)}>
             {(user.role === 'surveillant' ? [
               { key: 'dashboard',        icon: '🏠', label: lang==='ar'?'الرئيسية':'Accueil' },
