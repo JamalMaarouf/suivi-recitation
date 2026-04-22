@@ -192,7 +192,7 @@ export default function Assiduite({ user, navigate, goBack, lang, isMobile, kios
             <SaisieKiosque user={user} lang={lang} cible={cible} />
           </>
         )}
-        {onglet === 'suivi'  && <SuiviPlaceholder lang={lang} user={user} isMobile={true} />}
+        {onglet === 'suivi'  && <SuiviPlaceholder lang={lang} user={user} isMobile={true} cible={cible} setCible={setCible} />}
 
         {/* Popup PIN de sortie kiosque (mobile) */}
         <KioskExitModal
@@ -325,7 +325,7 @@ export default function Assiduite({ user, navigate, goBack, lang, isMobile, kios
           <SaisieDesktop user={user} lang={lang} cible={cible} />
         </>
       )}
-      {onglet === 'suivi'  && <SuiviPlaceholder lang={lang} user={user} />}
+      {onglet === 'suivi'  && <SuiviPlaceholder lang={lang} user={user} cible={cible} setCible={setCible} />}
 
       {/* Popup PIN de sortie kiosque (desktop) */}
       <KioskExitModal
@@ -981,8 +981,47 @@ function KpiCard({ label, value, hint, color, bg, onClick, active, big }) {
 // de l'élève, on verifie si une presence existe. Les jours non travailles
 // (jours_non_travailles de l'ecole) sont exclus du calcul.
 // ══════════════════════════════════════════════════════════════════════
-function SuiviPlaceholder({ lang, user, isMobile }) {
-  return <OngletSuivi lang={lang} user={user} isMobile={isMobile} />;
+function SuiviPlaceholder({ lang, user, isMobile, cible, setCible }) {
+  // Sélecteur [Eleves] / [Instituteurs] + dispatch vers le bon Onglet
+  // Le sélecteur est affiché dans les 2 cas (onglet ouvert sur eleves
+  // par defaut, le surveillant peut switcher pour voir les seances
+  // des instituteurs).
+  return (
+    <div>
+      {/* Selecteur cible — memes couleurs que dans la Saisie */}
+      <div style={{
+        display: 'flex', gap: 8,
+        marginBottom: isMobile ? 12 : 14,
+        padding: isMobile ? '10px 14px 0' : 0,
+        flexWrap: 'wrap',
+      }}>
+        {[
+          { k: 'eleves',       label: lang === 'ar' ? '👨‍🎓 الطلاب'   : '👨‍🎓 Élèves',       color: '#085041', bg: '#E1F5EE' },
+          { k: 'instituteurs', label: lang === 'ar' ? '👨‍🏫 الأساتذة' : '👨‍🏫 Instituteurs', color: '#534AB7', bg: '#EDE9FE' },
+        ].map(c => {
+          const active = cible === c.k;
+          return (
+            <button key={c.k} onClick={() => setCible(c.k)}
+              style={{
+                flex: isMobile ? 1 : '0 1 auto',
+                padding: isMobile ? '10px 12px' : '10px 20px',
+                borderRadius: 10,
+                border: `1.5px solid ${active ? c.color : '#e0e0d8'}`,
+                background: active ? c.bg : '#fff',
+                color: active ? c.color : '#666',
+                fontSize: 13, fontWeight: active ? 700 : 500,
+                cursor: 'pointer', fontFamily: 'inherit',
+                boxShadow: active ? `0 2px 6px ${c.color}25` : 'none',
+                transition: 'all 0.15s',
+              }}>{c.label}</button>
+          );
+        })}
+      </div>
+      {cible === 'instituteurs'
+        ? <OngletSuiviInstituteurs lang={lang} user={user} isMobile={isMobile} />
+        : <OngletSuivi lang={lang} user={user} isMobile={isMobile} />}
+    </div>
+  );
 }
 
 function OngletSuivi({ lang, user, isMobile }) {
@@ -1560,4 +1599,486 @@ function formatDateAr(iso) {
   if (!iso) return '';
   const d = new Date(iso);
   return d.toLocaleDateString('ar-MA', { day: '2-digit', month: 'short', year: 'numeric' });
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// ONGLET SUIVI INSTITUTEURS — dashboard séances + validation + paiement
+//
+// Affiche un tableau : lignes = instituteurs, colonnes = jours ouvrés
+// de la période choisie, cellules = statut (validé / en attente / vide).
+// Actions groupées : valider toute une ligne, toute une colonne, ou tout.
+// Totaux par instituteur : nb séances × tarif = montant dû.
+// ══════════════════════════════════════════════════════════════════════
+
+function OngletSuiviInstituteurs({ lang, user, isMobile }) {
+  const { toast } = useToast();
+  const [loading, setLoading] = useState(true);
+  const [instituteurs, setInstituteurs] = useState([]);
+  const [seances, setSeances] = useState([]);  // toutes les seances de la periode
+  const [joursNonTravailles, setJoursNonTravailles] = useState([]);
+  const [modeTarif, setModeTarif] = useState(null);
+  const [tarifEcole, setTarifEcole] = useState(null);
+
+  // Filtres
+  const [periode, setPeriode] = useState('mois');
+  const [dateDebut, setDateDebut] = useState('');
+  const [dateFin, setDateFin] = useState('');
+
+  const { debut, fin } = calcBornesPeriode(periode, dateDebut, dateFin);
+
+  // Helper ISO local (fix fuseau horaire)
+  const isoLocal = (d) => {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const dd = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${dd}`;
+  };
+
+  // ─── Chargement initial ────────────────────────────────────
+  useEffect(() => {
+    const load = async () => {
+      setLoading(true);
+      const [instRes, jntRes, ecoleRes] = await Promise.all([
+        supabase.from('utilisateurs')
+          .select('id, prenom, nom, instituteur_id_ecole, tarif_seance')
+          .eq('ecole_id', user.ecole_id)
+          .eq('role', 'instituteur')
+          .order('nom'),
+        supabase.from('jours_non_travailles')
+          .select('date_debut, date_fin')
+          .eq('ecole_id', user.ecole_id),
+        supabase.from('ecoles')
+          .select('mode_tarif_instituteur, tarif_seance_ecole')
+          .eq('id', user.ecole_id)
+          .maybeSingle(),
+      ]);
+      setInstituteurs(instRes.data || []);
+      setJoursNonTravailles(jntRes.data || []);
+      if (ecoleRes.data) {
+        setModeTarif(ecoleRes.data.mode_tarif_instituteur || null);
+        setTarifEcole(ecoleRes.data.tarif_seance_ecole);
+      }
+      setLoading(false);
+    };
+    load();
+  }, [user.ecole_id]);
+
+  // ─── Chargement séances sur la période ─────────────────────
+  const loadSeances = async () => {
+    if (!debut || !fin) return;
+    const { data } = await supabase.from('seances_instituteurs')
+      .select('id, instituteur_id, date_seance, valide, paye')
+      .eq('ecole_id', user.ecole_id)
+      .gte('date_seance', debut)
+      .lte('date_seance', fin);
+    setSeances(data || []);
+  };
+  useEffect(() => { loadSeances(); /* eslint-disable-next-line */ }, [user.ecole_id, debut, fin]);
+
+  // ─── Calcul des jours ouvrés de la période (exclure fériés) ─
+  const joursOuvres = React.useMemo(() => {
+    if (!debut || !fin) return [];
+    const datesNT = new Set();
+    joursNonTravailles.forEach(p => {
+      const d1 = new Date(p.date_debut);
+      const d2 = new Date(p.date_fin);
+      for (let d = new Date(d1); d <= d2; d.setDate(d.getDate() + 1)) {
+        datesNT.add(isoLocal(d));
+      }
+    });
+    const dates = [];
+    const d1 = new Date(debut);
+    const d2 = new Date(fin);
+    for (let d = new Date(d1); d <= d2; d.setDate(d.getDate() + 1)) {
+      const iso = isoLocal(d);
+      if (datesNT.has(iso)) continue;  // jour non travaille
+      dates.push(iso);
+    }
+    return dates;
+  }, [debut, fin, joursNonTravailles]);
+
+  // ─── Map seances : instituteurId → { date → seance } ──────
+  const seancesParInst = React.useMemo(() => {
+    const m = {};
+    seances.forEach(s => {
+      if (!m[s.instituteur_id]) m[s.instituteur_id] = {};
+      m[s.instituteur_id][s.date_seance] = s;
+    });
+    return m;
+  }, [seances]);
+
+  // ─── Tarif effectif d'un instituteur ───────────────────────
+  const tarifInst = (inst) => {
+    if (modeTarif === 'individuel') return inst.tarif_seance || 0;
+    if (modeTarif === 'ecole') return tarifEcole || 0;
+    return 0;
+  };
+
+  // ─── Stats par instituteur ────────────────────────────────
+  const statsInst = React.useMemo(() => {
+    const result = {};
+    instituteurs.forEach(i => {
+      const seancesI = seancesParInst[i.id] || {};
+      const arr = Object.values(seancesI);
+      const total = arr.length;
+      const valides = arr.filter(s => s.valide).length;
+      const payees = arr.filter(s => s.paye).length;
+      const tarif = tarifInst(i);
+      result[i.id] = {
+        total,
+        valides,
+        enAttente: total - valides,
+        payees,
+        aPayer: valides - payees,  // validées non encore payées
+        tarif,
+        montantDu: (valides - payees) * tarif,
+      };
+    });
+    return result;
+    // eslint-disable-next-line
+  }, [instituteurs, seancesParInst, modeTarif, tarifEcole]);
+
+  // ─── Actions : valider une ligne / colonne / tout ─────────
+  // Logique : valider = passer valide=true (et saisir valide_par + valide_le)
+  // sur toutes les seances non encore validees concernees.
+  const doValidate = async (seanceIds) => {
+    if (seanceIds.length === 0) return;
+    const { error } = await supabase.from('seances_instituteurs')
+      .update({ valide: true, valide_par: user.id || null, valide_le: new Date().toISOString() })
+      .in('id', seanceIds);
+    if (error) {
+      console.error('[doValidate]', error);
+      toast.error((lang === 'ar' ? 'خطأ: ' : 'Erreur : ') + error.message);
+      return;
+    }
+    toast.success(lang === 'ar'
+      ? `✅ تم التحقق من ${seanceIds.length} حصة`
+      : `✅ ${seanceIds.length} séance${seanceIds.length > 1 ? 's' : ''} validée${seanceIds.length > 1 ? 's' : ''}`);
+    loadSeances();
+  };
+
+  const validerLigne = (instituteurId) => {
+    const toValidate = (seances || [])
+      .filter(s => s.instituteur_id === instituteurId && !s.valide)
+      .map(s => s.id);
+    doValidate(toValidate);
+  };
+
+  const validerColonne = (date) => {
+    const toValidate = (seances || [])
+      .filter(s => s.date_seance === date && !s.valide)
+      .map(s => s.id);
+    doValidate(toValidate);
+  };
+
+  const validerTout = () => {
+    const toValidate = (seances || [])
+      .filter(s => !s.valide)
+      .map(s => s.id);
+    doValidate(toValidate);
+  };
+
+  // ─── Toggle d'une cellule individuelle ─────────────────────
+  // Clic sur une cellule → si séance existe : toggle validation.
+  // Pas de création/suppression (le surveillant doit passer par la saisie).
+  const toggleSeance = async (seance) => {
+    if (!seance) return;
+    if (seance.paye) {
+      toast.warning(lang === 'ar' ? '⚠️ الحصة مدفوعة، لا يمكن التعديل' : '⚠️ Séance déjà payée, non modifiable');
+      return;
+    }
+    const { error } = await supabase.from('seances_instituteurs')
+      .update({
+        valide: !seance.valide,
+        valide_par: !seance.valide ? (user.id || null) : null,
+        valide_le: !seance.valide ? new Date().toISOString() : null,
+      })
+      .eq('id', seance.id);
+    if (error) {
+      toast.error((lang === 'ar' ? 'خطأ: ' : 'Erreur : ') + error.message);
+      return;
+    }
+    loadSeances();
+  };
+
+  const PERIODES = [
+    { id: 'semaine',   label: lang === 'ar' ? 'الأسبوع'       : 'Semaine' },
+    { id: 'mois',      label: lang === 'ar' ? 'الشهر'          : 'Mois' },
+    { id: 'trimestre', label: lang === 'ar' ? 'الفصل (3 أشهر)' : 'Trimestre' },
+    { id: 'semestre',  label: lang === 'ar' ? 'النصف (6 أشهر)' : 'Semestre' },
+    { id: 'annee',     label: lang === 'ar' ? 'السنة'          : 'Année' },
+    { id: 'custom',    label: lang === 'ar' ? 'فترة محددة'     : 'Personnalisée' },
+  ];
+
+  if (loading) return <div style={{ padding: 40, textAlign: 'center', color: '#888' }}>{lang === 'ar' ? '...جاري التحميل' : 'Chargement...'}</div>;
+
+  // ─── Alerte si mode tarif pas configuré ────────────────────
+  if (!modeTarif) {
+    return (
+      <div style={{ padding: isMobile ? 14 : 0 }}>
+        <div style={{
+          background: '#FAEEDA', border: '1px solid #EF9F2740',
+          borderRadius: 12, padding: 20, textAlign: 'center',
+        }}>
+          <div style={{ fontSize: 32, marginBottom: 8 }}>⚙️</div>
+          <div style={{ fontSize: 14, fontWeight: 700, color: '#633806', marginBottom: 6 }}>
+            {lang === 'ar' ? 'التعرفات غير محددة' : 'Tarifs non configurés'}
+          </div>
+          <div style={{ fontSize: 12, color: '#666', marginBottom: 14 }}>
+            {lang === 'ar'
+              ? 'يجب تحديد نمط التعرفة قبل عرض المبالغ المستحقة'
+              : 'Tu dois configurer le mode de tarification avant de voir les montants dus'}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ─── Totaux globaux ────────────────────────────────────────
+  const totalSeances = seances.length;
+  const totalValides = seances.filter(s => s.valide).length;
+  const totalEnAttente = totalSeances - totalValides;
+  const totalMontantDu = Object.values(statsInst).reduce((sum, s) => sum + s.montantDu, 0);
+
+  return (
+    <div style={{ padding: isMobile ? 14 : 0 }}>
+
+      {/* Sélecteur période */}
+      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 12 }}>
+        {PERIODES.map(p => {
+          const active = periode === p.id;
+          return (
+            <button key={p.id} onClick={() => setPeriode(p.id)}
+              style={{
+                padding: isMobile ? '7px 12px' : '6px 14px',
+                borderRadius: 20,
+                border: `1px solid ${active ? '#534AB7' : '#e0e0d8'}`,
+                background: active ? '#EDE9FE' : '#fff',
+                color: active ? '#534AB7' : '#888',
+                fontSize: isMobile ? 11 : 12, fontWeight: active ? 700 : 500,
+                cursor: 'pointer', fontFamily: 'inherit',
+              }}>{p.label}</button>
+          );
+        })}
+      </div>
+
+      {/* Dates custom */}
+      {periode === 'custom' && (
+        <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
+          <input type="date" value={dateDebut} onChange={e => setDateDebut(e.target.value)}
+            style={{ padding: '8px 12px', borderRadius: 8, border: '1px solid #e0e0d8', fontSize: 13 }} />
+          <span style={{ alignSelf: 'center', color: '#888' }}>→</span>
+          <input type="date" value={dateFin} onChange={e => setDateFin(e.target.value)}
+            style={{ padding: '8px 12px', borderRadius: 8, border: '1px solid #e0e0d8', fontSize: 13 }} />
+        </div>
+      )}
+
+      {/* Période calculée */}
+      <div style={{ fontSize: 11, color: '#888', marginBottom: 14 }}>
+        {debut && fin
+          ? (lang === 'ar'
+              ? `من ${formatDateAr(debut)} إلى ${formatDateAr(fin)}`
+              : `Du ${formatDateFr(debut)} au ${formatDateFr(fin)}`)
+          : (lang === 'ar' ? 'اختر فترة' : 'Choisir une période')}
+      </div>
+
+      {/* KPIs globaux */}
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(auto-fit, minmax(150px, 1fr))',
+        gap: isMobile ? 8 : 10, marginBottom: 14,
+      }}>
+        <StatCard label={lang === 'ar' ? 'الحصص المسجلة' : 'Séances enregistrées'} value={totalSeances} color="#534AB7" bg="#EDE9FE" />
+        <StatCard label={lang === 'ar' ? 'تم التحقق منها' : 'Validées'} value={totalValides} color="#1D9E75" bg="#E1F5EE" />
+        <StatCard label={lang === 'ar' ? 'في انتظار التحقق' : 'En attente'} value={totalEnAttente} color="#EF9F27" bg="#FAEEDA" />
+        <StatCard label={lang === 'ar' ? 'المبلغ المستحق' : 'À payer'} value={`${totalMontantDu.toFixed(0)} ${lang === 'ar' ? 'د.' : 'DH'}`} color="#E24B4A" bg="#FCEBEB" />
+      </div>
+
+      {/* Bouton "Tout valider" */}
+      {totalEnAttente > 0 && (
+        <div style={{ marginBottom: 14 }}>
+          <button onClick={validerTout}
+            style={{
+              padding: '9px 16px', background: '#1D9E75', color: '#fff',
+              border: 'none', borderRadius: 10,
+              fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit',
+            }}>
+            ✓ {lang === 'ar' ? `التحقق من كل الحصص (${totalEnAttente})` : `Tout valider (${totalEnAttente})`}
+          </button>
+        </div>
+      )}
+
+      {/* Tableau principal */}
+      {instituteurs.length === 0 ? (
+        <div style={{ padding: 30, textAlign: 'center', color: '#888', background: '#fff', borderRadius: 12, border: '1px dashed #ccc' }}>
+          <div style={{ fontSize: 32, marginBottom: 8 }}>👨‍🏫</div>
+          <div style={{ fontSize: 13, fontWeight: 600 }}>
+            {lang === 'ar' ? 'لا يوجد أساتذة' : 'Aucun instituteur'}
+          </div>
+        </div>
+      ) : joursOuvres.length === 0 ? (
+        <div style={{ padding: 30, textAlign: 'center', color: '#888', background: '#fff', borderRadius: 12, border: '1px dashed #ccc' }}>
+          {lang === 'ar' ? 'لا توجد أيام عمل في الفترة' : 'Aucun jour travaillé dans la période'}
+        </div>
+      ) : (
+        <div style={{
+          background: '#fff', borderRadius: 12,
+          border: '1px solid #e0e0d8', overflow: 'auto',
+        }}>
+          <table style={{
+            width: '100%', borderCollapse: 'collapse',
+            fontSize: 12, minWidth: 600,
+          }}>
+            <thead>
+              <tr style={{ background: '#f5f5f0' }}>
+                <th style={{
+                  padding: '10px 12px', textAlign: 'left', fontWeight: 700, color: '#666',
+                  position: 'sticky', left: 0, background: '#f5f5f0', zIndex: 2,
+                  borderRight: '1px solid #e0e0d8',
+                  minWidth: 140,
+                }}>
+                  {lang === 'ar' ? 'الأستاذ' : 'Instituteur'}
+                </th>
+                {joursOuvres.map(d => {
+                  const date = new Date(d);
+                  return (
+                    <th key={d}
+                      onClick={() => validerColonne(d)}
+                      title={lang === 'ar' ? 'التحقق من كل الحصص لهذا اليوم' : 'Valider toutes les séances de ce jour'}
+                      style={{
+                        padding: '8px 4px', textAlign: 'center',
+                        fontWeight: 600, color: '#666', fontSize: 10,
+                        cursor: 'pointer', borderBottom: '1px solid #e0e0d8',
+                        minWidth: 38,
+                      }}>
+                      <div style={{ fontSize: 10, color: '#999' }}>
+                        {date.toLocaleDateString(lang === 'ar' ? 'ar-MA' : 'fr-FR', { weekday: 'short' })}
+                      </div>
+                      <div style={{ fontWeight: 700, color: '#1a1a1a' }}>
+                        {date.getDate()}
+                      </div>
+                    </th>
+                  );
+                })}
+                <th style={{
+                  padding: '8px 10px', textAlign: 'center', fontWeight: 700,
+                  color: '#666', borderLeft: '1px solid #e0e0d8',
+                  minWidth: 70,
+                }}>
+                  {lang === 'ar' ? 'الإجمالي' : 'Total'}
+                </th>
+                <th style={{
+                  padding: '8px 10px', textAlign: 'center', fontWeight: 700,
+                  color: '#666', minWidth: 90,
+                }}>
+                  {lang === 'ar' ? 'مستحق' : 'À payer'}
+                </th>
+                <th style={{
+                  padding: '8px 10px', textAlign: 'center', fontWeight: 700,
+                  color: '#666', minWidth: 50,
+                }}></th>
+              </tr>
+            </thead>
+            <tbody>
+              {instituteurs.map(inst => {
+                const stats = statsInst[inst.id] || { total: 0, valides: 0, enAttente: 0, montantDu: 0, tarif: 0 };
+                const seancesI = seancesParInst[inst.id] || {};
+                return (
+                  <tr key={inst.id} style={{ borderTop: '1px solid #f0f0ec' }}>
+                    <td style={{
+                      padding: '8px 12px',
+                      position: 'sticky', left: 0, background: '#fff', zIndex: 1,
+                      borderRight: '1px solid #e0e0d8',
+                    }}>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: '#1a1a1a' }}>
+                        {inst.prenom} {inst.nom}
+                      </div>
+                      {inst.instituteur_id_ecole && (
+                        <div style={{
+                          display: 'inline-block', marginTop: 2,
+                          padding: '1px 6px', background: '#EDE9FE', color: '#534AB7',
+                          borderRadius: 4, fontSize: 10, fontWeight: 700,
+                        }}>{inst.instituteur_id_ecole}</div>
+                      )}
+                    </td>
+                    {joursOuvres.map(d => {
+                      const s = seancesI[d];
+                      return (
+                        <td key={d}
+                          onClick={() => toggleSeance(s)}
+                          style={{
+                            padding: '6px 2px', textAlign: 'center',
+                            cursor: s ? 'pointer' : 'default',
+                            fontSize: 16,
+                          }}>
+                          {!s ? (
+                            <span style={{ color: '#ddd' }}>·</span>
+                          ) : s.paye ? (
+                            <span title={lang === 'ar' ? 'مدفوع' : 'Payée'}>💰</span>
+                          ) : s.valide ? (
+                            <span style={{ color: '#1D9E75' }}
+                              title={lang === 'ar' ? 'مُتحقق منها' : 'Validée'}>✅</span>
+                          ) : (
+                            <span style={{ color: '#EF9F27' }}
+                              title={lang === 'ar' ? 'في انتظار التحقق — انقر للتحقق' : 'En attente — clic pour valider'}>⏳</span>
+                          )}
+                        </td>
+                      );
+                    })}
+                    <td style={{
+                      padding: '8px 10px', textAlign: 'center',
+                      borderLeft: '1px solid #e0e0d8',
+                      fontWeight: 700, color: '#1a1a1a',
+                    }}>
+                      <div>{stats.total}</div>
+                      {stats.valides < stats.total && (
+                        <div style={{ fontSize: 10, color: '#EF9F27', fontWeight: 600 }}>
+                          {stats.enAttente} {lang === 'ar' ? 'منتظر' : 'en att.'}
+                        </div>
+                      )}
+                    </td>
+                    <td style={{
+                      padding: '8px 10px', textAlign: 'center',
+                      fontWeight: 700,
+                      color: stats.montantDu > 0 ? '#E24B4A' : '#999',
+                    }}>
+                      {stats.montantDu > 0
+                        ? `${stats.montantDu.toFixed(0)} ${lang === 'ar' ? 'د.' : 'DH'}`
+                        : '—'}
+                    </td>
+                    <td style={{ padding: '8px 6px', textAlign: 'center' }}>
+                      {stats.enAttente > 0 && (
+                        <button onClick={() => validerLigne(inst.id)}
+                          title={lang === 'ar' ? 'التحقق من كل حصصه' : 'Valider toutes ses séances'}
+                          style={{
+                            padding: '4px 8px', background: '#1D9E75', color: '#fff',
+                            border: 'none', borderRadius: 6, fontSize: 10, fontWeight: 700,
+                            cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap',
+                          }}>
+                          ✓ {stats.enAttente}
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* Légende */}
+      <div style={{
+        marginTop: 14, padding: '10px 14px',
+        background: '#f9f9f5', borderRadius: 10,
+        fontSize: 11, color: '#666',
+        display: 'flex', flexWrap: 'wrap', gap: 14,
+      }}>
+        <span>⏳ {lang === 'ar' ? 'في انتظار التحقق' : 'En attente de validation'}</span>
+        <span>✅ {lang === 'ar' ? 'مُتحقق منها (قابلة للدفع)' : 'Validée (payable)'}</span>
+        <span>💰 {lang === 'ar' ? 'مدفوعة' : 'Payée'}</span>
+        <span style={{ color: '#999' }}>· {lang === 'ar' ? 'لا حصة' : 'Aucune séance'}</span>
+      </div>
+    </div>
+  );
 }
