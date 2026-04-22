@@ -699,6 +699,10 @@ function OngletSuivi({ lang, user, isMobile }) {
   const [presences, setPresences] = useState([]);         // toutes les presences sur la periode
   const [joursNonTravailles, setJoursNonTravailles] = useState([]); // periodes fériées/vacances
   const [niveaux, setNiveaux] = useState([]);
+  // Seuils d'assiduité chargés depuis la table ecoles (paramétrables par école)
+  // Défauts 80/100 si jamais rien n'est lu (compatibilité avec écoles créées avant l'étape 5)
+  const [SEUIL_RISQUE, setSEUIL_RISQUE] = useState(80);
+  const [SEUIL_PARFAIT, setSEUIL_PARFAIT] = useState(100);
 
   // Filtres
   const [periode, setPeriode] = useState('mois');         // 'semaine'|'mois'|'trimestre'|'semestre'|'annee'|'custom'
@@ -712,11 +716,11 @@ function OngletSuivi({ lang, user, isMobile }) {
   // ─── Calcul des bornes de la periode ─────────────────────────
   const { debut, fin } = calcBornesPeriode(periode, dateDebut, dateFin);
 
-  // ─── Chargement initial des elèves + niveaux + jours non travailles ──
+  // ─── Chargement initial des elèves + niveaux + jours non travailles + seuils ──
   useEffect(() => {
     const load = async () => {
       setLoading(true);
-      const [elevesRes, niveauxRes, jntRes] = await Promise.all([
+      const [elevesRes, niveauxRes, jntRes, ecoleRes] = await Promise.all([
         supabase.from('eleves')
           .select('id, prenom, nom, eleve_id_ecole, code_niveau, jours_souhaites')
           .eq('ecole_id', user.ecole_id)
@@ -728,10 +732,23 @@ function OngletSuivi({ lang, user, isMobile }) {
         supabase.from('jours_non_travailles')
           .select('date_debut, date_fin, label')
           .eq('ecole_id', user.ecole_id),
+        supabase.from('ecoles')
+          .select('seuil_assiduite_risque, seuil_assiduite_parfait')
+          .eq('id', user.ecole_id)
+          .maybeSingle(),
       ]);
       setEleves(elevesRes.data || []);
       setNiveaux(niveauxRes.data || []);
       setJoursNonTravailles(jntRes.data || []);
+      // Seuils : si renseignés dans la base, on les utilise, sinon on garde les défauts 80/100
+      if (ecoleRes.data) {
+        if (typeof ecoleRes.data.seuil_assiduite_risque === 'number') {
+          setSEUIL_RISQUE(ecoleRes.data.seuil_assiduite_risque);
+        }
+        if (typeof ecoleRes.data.seuil_assiduite_parfait === 'number') {
+          setSEUIL_PARFAIT(ecoleRes.data.seuil_assiduite_parfait);
+        }
+      }
       setLoading(false);
     };
     load();
@@ -822,9 +839,7 @@ function OngletSuivi({ lang, user, isMobile }) {
 
   // ─── Stats globales ───────────────────────────────────────────
   // Inclut : totaux de séances + compteurs d'élèves par catégorie d'assiduité
-  // Seuils par défaut : risque < 80%, parfait = 100% (paramétrables à l'étape 5)
-  const SEUIL_RISQUE = 80;
-  const SEUIL_PARFAIT = 100;
+  // Seuils lus depuis la table ecoles (paramétrage école) ou défauts 80/100
   const globalStats = React.useMemo(() => {
     let attendues = 0, presentes = 0;
     let nbRisque = 0, nbParfaits = 0, nbSansJours = 0, nbAvecJours = 0;
@@ -847,7 +862,7 @@ function OngletSuivi({ lang, user, isMobile }) {
       taux: attendues > 0 ? Math.round((presentes / attendues) * 100) : 0,
       nbRisque, nbParfaits, nbSansJours, nbAvecJours,
     };
-  }, [statsParEleve]);
+  }, [statsParEleve, SEUIL_RISQUE, SEUIL_PARFAIT]);
 
   // ─── Filtre + tri des elèves ─────────────────────────────────
   const r = recherche.trim().toLowerCase();
