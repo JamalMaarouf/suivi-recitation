@@ -14,6 +14,57 @@ function Avatar({ prenom, nom, size = 28 }) {
   );
 }
 
+// ─── Composant : zone "Jours souhaités" (feature Assiduité) ───
+// Utilisé dans les 3 variantes du formulaire élève (mobile, desktop création, desktop modification).
+// Ordre des jours : Sam → Ven (semaine scolaire marocaine).
+function JoursSouhaitesField({ value, onChange, lang }) {
+  const joursLabels = lang === 'ar'
+    ? ['السبت', 'الأحد', 'الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة']
+    : ['Sam', 'Dim', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven'];
+  const jours = Array.isArray(value) ? value : [false, false, false, false, false, false, false];
+  const toggleJour = (idx) => {
+    const next = [...jours];
+    next[idx] = !next[idx];
+    onChange(next);
+  };
+  return (
+    <div style={{ marginBottom: 12, padding: '12px', background: '#E1F5EE', borderRadius: 10, border: '1px solid #1D9E7540' }}>
+      <label style={{ fontSize: 12, fontWeight: 700, color: '#085041', display: 'block', marginBottom: 8 }}>
+        {lang === 'ar' ? '📅 أيام الحضور المرغوبة' : '📅 Jours de présence souhaités'}
+      </label>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+        {joursLabels.map((label, idx) => {
+          const actif = !!jours[idx];
+          return (
+            <button key={idx} type="button"
+              onClick={() => toggleJour(idx)}
+              style={{
+                padding: '8px 12px',
+                borderRadius: 8,
+                border: actif ? '2px solid #1D9E75' : '1px solid #c0c0b8',
+                background: actif ? '#1D9E75' : '#fff',
+                color: actif ? '#fff' : '#666',
+                fontSize: 12,
+                fontWeight: 600,
+                cursor: 'pointer',
+                fontFamily: 'inherit',
+                flex: '1 1 auto',
+                minWidth: 56,
+              }}>
+              {label}
+            </button>
+          );
+        })}
+      </div>
+      <div style={{ fontSize: 11, color: '#666', marginTop: 8 }}>
+        {lang === 'ar'
+          ? 'اختر الأيام التي يحضر فيها الطالب. تُستعمل لحساب الغياب.'
+          : 'Sélectionne les jours où l\'élève vient. Utilisé pour calculer les absences.'}
+      </div>
+    </div>
+  );
+}
+
 // Sélecteur acquis antérieurs — adapté selon le niveau et le sens de récitation
 // Prop programmeNiveau (optionnel) : si fourni et contient plusieurs blocs, affiche une
 // aide contextuelle indiquant dans quel bloc pédagogique le Hizb choisi se situe.
@@ -2205,58 +2256,13 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
                 </div>
 
                 {/* ─── Jours souhaités (Assiduité) ─── */}
-                {/* Ordre : Sam · Dim · Lun · Mar · Mer · Jeu · Ven (semaine scolaire marocaine) */}
-                {(() => {
-                  const joursLabels = lang==='ar'
-                    ? ['السبت','الأحد','الاثنين','الثلاثاء','الأربعاء','الخميس','الجمعة']
-                    : ['Sam','Dim','Lun','Mar','Mer','Jeu','Ven'];
-                  const source = editEleve ? editEleve : newEleve;
-                  const jours = Array.isArray(source.jours_souhaites)
-                    ? source.jours_souhaites
-                    : [false,false,false,false,false,false,false];
-                  const toggleJour = (idx) => {
-                    const next = [...jours];
-                    next[idx] = !next[idx];
-                    if (editEleve) setEditEleve(x=>({...x,jours_souhaites:next}));
-                    else setNewEleve(x=>({...x,jours_souhaites:next}));
-                  };
-                  return (
-                    <div style={{marginBottom:12,padding:'12px',background:'#E1F5EE',borderRadius:10,border:'1px solid #1D9E7540'}}>
-                      <label style={{fontSize:12,fontWeight:700,color:'#085041',display:'block',marginBottom:8}}>
-                        {lang==='ar'?'📅 أيام الحضور المرغوبة':'📅 Jours de présence souhaités'}
-                      </label>
-                      <div style={{display:'flex',flexWrap:'wrap',gap:6}}>
-                        {joursLabels.map((label, idx) => {
-                          const actif = !!jours[idx];
-                          return (
-                            <button key={idx} type="button"
-                              onClick={()=>toggleJour(idx)}
-                              style={{
-                                padding:'8px 12px',
-                                borderRadius:8,
-                                border: actif ? '2px solid #1D9E75' : '1px solid #c0c0b8',
-                                background: actif ? '#1D9E75' : '#fff',
-                                color: actif ? '#fff' : '#666',
-                                fontSize: 12,
-                                fontWeight: 600,
-                                cursor: 'pointer',
-                                fontFamily: 'inherit',
-                                flex: '1 1 auto',
-                                minWidth: 56,
-                              }}>
-                              {label}
-                            </button>
-                          );
-                        })}
-                      </div>
-                      <div style={{fontSize:11,color:'#666',marginTop:8}}>
-                        {lang==='ar'
-                          ? 'اختر الأيام التي يحضر فيها الطالب. تُستعمل لحساب الغياب.'
-                          : 'Sélectionne les jours où l\'élève vient. Utilisé pour calculer les absences.'}
-                      </div>
-                    </div>
-                  );
-                })()}
+                <JoursSouhaitesField
+                  lang={lang}
+                  value={editEleve ? editEleve.jours_souhaites : newEleve.jours_souhaites}
+                  onChange={(next) => editEleve
+                    ? setEditEleve(x => ({ ...x, jours_souhaites: next }))
+                    : setNewEleve(x => ({ ...x, jours_souhaites: next }))}
+                />
 
                 {/* Hizb/Tomon si niveau hizb */}
                 {!isSourateNiveauDyn(editEleve?editEleve.code_niveau:newEleve.code_niveau, niveauxActifs||[])&&(
@@ -2777,6 +2783,13 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
                   </div>
                 </div>
 
+                {/* ─── Jours souhaités (Assiduité) — formulaire desktop création ─── */}
+                <JoursSouhaitesField
+                  lang={lang}
+                  value={newEleve.jours_souhaites}
+                  onChange={(next) => setNewEleve({...newEleve, jours_souhaites: next})}
+                />
+
                 {/* Acquis antérieurs */}
                 <div style={{ marginBottom: '1rem' }}>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
@@ -2863,6 +2876,13 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
                     <input className="field-input" type="date" value={editEleve.date_inscription||''} onChange={e=>setEditEleve({...editEleve,date_inscription:e.target.value})}/>
                   </div>
                 </div>
+
+                {/* ─── Jours souhaités (Assiduité) — formulaire desktop modification ─── */}
+                <JoursSouhaitesField
+                  lang={lang}
+                  value={editEleve.jours_souhaites}
+                  onChange={(next) => setEditEleve({...editEleve, jours_souhaites: next})}
+                />
 
                 <div style={{ marginBottom: '1rem' }}>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
