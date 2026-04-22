@@ -80,7 +80,7 @@ export default function Assiduite({ user, navigate, goBack, lang, isMobile }) {
         </div>
 
         {onglet === 'saisie' && <SaisieKiosque user={user} lang={lang} />}
-        {onglet === 'suivi'  && <SuiviPlaceholder lang={lang} />}
+        {onglet === 'suivi'  && <SuiviPlaceholder lang={lang} user={user} />}
       </div>
     );
   }
@@ -127,7 +127,7 @@ export default function Assiduite({ user, navigate, goBack, lang, isMobile }) {
       </div>
 
       {onglet === 'saisie' && <SaisieDesktop user={user} lang={lang} />}
-      {onglet === 'suivi'  && <SuiviPlaceholder lang={lang} />}
+      {onglet === 'suivi'  && <SuiviPlaceholder lang={lang} user={user} />}
     </div>
   );
 }
@@ -626,20 +626,386 @@ function StatCard({ label, value, color, bg }) {
 }
 
 // ══════════════════════════════════════════════════════════════════════
-// PLACEHOLDER onglet Suivi (étape 4/7)
+// ONGLET SUIVI — dashboard de suivi des présences
+//
+// Affiche les stats d'assiduité par élève sur une période donnée.
+// Calcul : pour chaque jour de la période qui tombe sur un jour souhaité
+// de l'élève, on verifie si une presence existe. Les jours non travailles
+// (jours_non_travailles de l'ecole) sont exclus du calcul.
 // ══════════════════════════════════════════════════════════════════════
-function SuiviPlaceholder({ lang }) {
+function SuiviPlaceholder({ lang, user }) {
+  return <OngletSuivi lang={lang} user={user} />;
+}
+
+function OngletSuivi({ lang, user }) {
+  const [loading, setLoading] = useState(true);
+  const [eleves, setEleves] = useState([]);
+  const [presences, setPresences] = useState([]);         // toutes les presences sur la periode
+  const [joursNonTravailles, setJoursNonTravailles] = useState([]); // periodes fériées/vacances
+  const [niveaux, setNiveaux] = useState([]);
+
+  // Filtres
+  const [periode, setPeriode] = useState('mois');         // 'semaine'|'mois'|'trimestre'|'semestre'|'annee'|'custom'
+  const [dateDebut, setDateDebut] = useState('');
+  const [dateFin, setDateFin] = useState('');
+  const [filtreNiveau, setFiltreNiveau] = useState('');
+  const [recherche, setRecherche] = useState('');
+  const [eleveDetail, setEleveDetail] = useState(null);   // id de l'élève dont on montre le détail
+
+  // ─── Calcul des bornes de la periode ─────────────────────────
+  const { debut, fin } = calcBornesPeriode(periode, dateDebut, dateFin);
+
+  // ─── Chargement initial des elèves + niveaux + jours non travailles ──
+  useEffect(() => {
+    const load = async () => {
+      setLoading(true);
+      const [elevesRes, niveauxRes, jntRes] = await Promise.all([
+        supabase.from('eleves')
+          .select('id, prenom, nom, eleve_id_ecole, code_niveau, jours_souhaites')
+          .eq('ecole_id', user.ecole_id)
+          .order('nom'),
+        supabase.from('niveaux')
+          .select('code, nom')
+          .eq('ecole_id', user.ecole_id)
+          .order('ordre'),
+        supabase.from('jours_non_travailles')
+          .select('date_debut, date_fin, label')
+          .eq('ecole_id', user.ecole_id),
+      ]);
+      setEleves(elevesRes.data || []);
+      setNiveaux(niveauxRes.data || []);
+      setJoursNonTravailles(jntRes.data || []);
+      setLoading(false);
+    };
+    load();
+  }, [user.ecole_id]);
+
+  // ─── Chargement des presences pour la periode ────────────────
+  useEffect(() => {
+    if (!debut || !fin) return;
+    const loadPres = async () => {
+      const { data } = await supabase.from('presences')
+        .select('eleve_id, date_presence')
+        .eq('ecole_id', user.ecole_id)
+        .gte('date_presence', debut)
+        .lte('date_presence', fin);
+      setPresences(data || []);
+    };
+    loadPres();
+  }, [user.ecole_id, debut, fin]);
+
+  // ─── Calcul des stats par elève ─────────────────────────────
+  // Pour chaque eleve : nb seances attendues, nb presences, nb absences, liste des dates absences
+  const statsParEleve = React.useMemo(() => {
+    if (!debut || !fin) return {};
+    const result = {};
+    // Construction de l'ensemble des dates non travaillees (YYYY-MM-DD)
+    const datesNonTravailles = new Set();
+    joursNonTravailles.forEach(p => {
+      const d1 = new Date(p.date_debut);
+      const d2 = new Date(p.date_fin);
+      for (let d = new Date(d1); d <= d2; d.setDate(d.getDate() + 1)) {
+        datesNonTravailles.add(d.toISOString().slice(0, 10));
+      }
+    });
+    // Regrouper les presences par eleve
+    const presParEleve = {};
+    presences.forEach(p => {
+      if (!presParEleve[p.eleve_id]) presParEleve[p.eleve_id] = new Set();
+      presParEleve[p.eleve_id].add(p.date_presence);
+    });
+    // Pour chaque eleve, iterer sur chaque jour de la periode
+    const d1 = new Date(debut);
+    const d2 = new Date(fin);
+    eleves.forEach(e => {
+      const jours = Array.isArray(e.jours_souhaites) ? e.jours_souhaites : [false, false, false, false, false, false, false];
+      const aDesJours = jours.some(j => j === true);
+      const presEleve = presParEleve[e.id] || new Set();
+      let attendues = 0, presentes = 0;
+      const datesAbsences = [];
+      if (aDesJours) {
+        for (let d = new Date(d1); d <= d2; d.setDate(d.getDate() + 1)) {
+          const iso = d.toISOString().slice(0, 10);
+          if (datesNonTravailles.has(iso)) continue;  // jour ferie
+          // getDay() : 0=Dim, 1=Lun, 2=Mar, 3=Mer, 4=Jeu, 5=Ven, 6=Sam
+          // jours_souhaites ordre : [Sam, Dim, Lun, Mar, Mer, Jeu, Ven]
+          const mapDayToIdx = [1, 2, 3, 4, 5, 6, 0]; // Dim→1, Lun→2, ..., Sam→0
+          const idx = mapDayToIdx[d.getDay()];
+          if (!jours[idx]) continue;  // pas un jour souhaite pour cet eleve
+          attendues++;
+          if (presEleve.has(iso)) presentes++;
+          else datesAbsences.push(iso);
+        }
+      }
+      result[e.id] = {
+        aDesJours,
+        attendues,
+        presentes,
+        absences: attendues - presentes,
+        taux: attendues > 0 ? Math.round((presentes / attendues) * 100) : null,
+        datesAbsences,
+      };
+    });
+    return result;
+  }, [eleves, presences, joursNonTravailles, debut, fin]);
+
+  // ─── Stats globales ───────────────────────────────────────────
+  const globalStats = React.useMemo(() => {
+    let attendues = 0, presentes = 0;
+    Object.values(statsParEleve).forEach(s => { attendues += s.attendues; presentes += s.presentes; });
+    return {
+      attendues, presentes,
+      absences: attendues - presentes,
+      taux: attendues > 0 ? Math.round((presentes / attendues) * 100) : 0,
+    };
+  }, [statsParEleve]);
+
+  // ─── Filtre + tri des elèves ─────────────────────────────────
+  const r = recherche.trim().toLowerCase();
+  const filtered = eleves.filter(e => {
+    if (filtreNiveau && e.code_niveau !== filtreNiveau) return false;
+    if (r) {
+      const num = (e.eleve_id_ecole || '').toLowerCase();
+      const nom = `${e.prenom || ''} ${e.nom || ''}`.toLowerCase();
+      if (!num.includes(r) && !nom.includes(r)) return false;
+    }
+    return true;
+  }).sort((a, b) => {
+    const sa = statsParEleve[a.id] || { absences: 0, aDesJours: false };
+    const sb = statsParEleve[b.id] || { absences: 0, aDesJours: false };
+    // Les eleves sans jours declares sont en bas
+    if (!sa.aDesJours && sb.aDesJours) return 1;
+    if (sa.aDesJours && !sb.aDesJours) return -1;
+    // Ensuite par nombre d'absences décroissant
+    return sb.absences - sa.absences;
+  });
+
+  const PERIODES = [
+    { id: 'semaine',   label: lang === 'ar' ? 'الأسبوع'      : 'Semaine' },
+    { id: 'mois',      label: lang === 'ar' ? 'الشهر'         : 'Mois' },
+    { id: 'trimestre', label: lang === 'ar' ? 'الفصل (3 أشهر)': 'Trimestre' },
+    { id: 'semestre',  label: lang === 'ar' ? 'النصف (6 أشهر)': 'Semestre' },
+    { id: 'annee',     label: lang === 'ar' ? 'السنة'         : 'Année' },
+    { id: 'custom',    label: lang === 'ar' ? 'فترة محددة'    : 'Personnalisée' },
+  ];
+
+  if (loading) return <div style={{ padding: 40, textAlign: 'center', color: '#888' }}>{lang === 'ar' ? '...جاري التحميل' : 'Chargement...'}</div>;
+
   return (
-    <div style={{ padding: '60px 20px', textAlign: 'center', color: '#888' }}>
-      <div style={{ fontSize: 48, marginBottom: 12 }}>🚧</div>
-      <div style={{ fontSize: 14, fontWeight: 600, color: '#666' }}>
-        {lang === 'ar' ? 'قيد التطوير' : 'En cours de développement'}
+    <div>
+
+      {/* Sélecteur période */}
+      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 12 }}>
+        {PERIODES.map(p => {
+          const active = periode === p.id;
+          return (
+            <button key={p.id} onClick={() => setPeriode(p.id)}
+              style={{
+                padding: '6px 14px', borderRadius: 20,
+                border: `1px solid ${active ? '#1D9E75' : '#e0e0d8'}`,
+                background: active ? '#E1F5EE' : '#fff',
+                color: active ? '#085041' : '#888',
+                fontSize: 12, fontWeight: active ? 700 : 500,
+                cursor: 'pointer', fontFamily: 'inherit',
+              }}>{p.label}</button>
+          );
+        })}
       </div>
-      <div style={{ fontSize: 12, color: '#999', marginTop: 6 }}>
-        {lang === 'ar'
-          ? 'لوحة متابعة الحضور — قريبا'
-          : 'Dashboard de suivi des présences — bientôt disponible'}
+
+      {/* Dates personnalisees */}
+      {periode === 'custom' && (
+        <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
+          <input type="date" value={dateDebut} onChange={e => setDateDebut(e.target.value)}
+            style={{ padding: '8px 12px', borderRadius: 8, border: '1px solid #e0e0d8', fontSize: 13 }} />
+          <span style={{ alignSelf: 'center', color: '#888' }}>→</span>
+          <input type="date" value={dateFin} onChange={e => setDateFin(e.target.value)}
+            style={{ padding: '8px 12px', borderRadius: 8, border: '1px solid #e0e0d8', fontSize: 13 }} />
+        </div>
+      )}
+
+      {/* Affichage de la période calculée */}
+      <div style={{ fontSize: 11, color: '#888', marginBottom: 14 }}>
+        {debut && fin ? (
+          lang === 'ar'
+            ? `من ${formatDateAr(debut)} إلى ${formatDateAr(fin)}`
+            : `Du ${formatDateFr(debut)} au ${formatDateFr(fin)}`
+        ) : (
+          lang === 'ar' ? 'اختر فترة' : 'Choisir une période'
+        )}
       </div>
+
+      {/* KPIs globaux */}
+      <div style={{ display: 'flex', gap: 10, marginBottom: 14, flexWrap: 'wrap' }}>
+        <StatCard label={lang === 'ar' ? 'المتوقع' : 'Attendues'} value={globalStats.attendues} color="#0C447C" bg="#E6F1FB" />
+        <StatCard label={lang === 'ar' ? 'الحاضرون' : 'Présences'} value={globalStats.presentes} color="#1D9E75" bg="#E1F5EE" />
+        <StatCard label={lang === 'ar' ? 'الغيابات' : 'Absences'}  value={globalStats.absences}  color="#E24B4A" bg="#FCEBEB" />
+        <StatCard label={lang === 'ar' ? 'نسبة الحضور' : 'Taux'}   value={`${globalStats.taux}%`} color="#534AB7" bg="#EDE9FE" />
+      </div>
+
+      {/* Filtres (recherche + niveau) */}
+      <div style={{ display: 'flex', gap: 8, marginBottom: 14, flexWrap: 'wrap' }}>
+        <input type="text" value={recherche} onChange={e => setRecherche(e.target.value)}
+          placeholder={lang === 'ar' ? '🔍 ابحث طالب' : '🔍 Chercher un élève'}
+          style={{ flex: '1 1 240px', padding: '9px 13px', fontSize: 13, borderRadius: 8, border: '1px solid #e0e0d8', fontFamily: 'inherit', outline: 'none' }} />
+        <select value={filtreNiveau} onChange={e => setFiltreNiveau(e.target.value)}
+          style={{ padding: '9px 13px', fontSize: 13, borderRadius: 8, border: '1px solid #e0e0d8', fontFamily: 'inherit', background: '#fff' }}>
+          <option value="">{lang === 'ar' ? 'جميع المستويات' : 'Tous les niveaux'}</option>
+          {niveaux.map(n => <option key={n.code} value={n.code}>{n.nom || n.code}</option>)}
+        </select>
+      </div>
+
+      {/* Liste élèves */}
+      {filtered.length === 0 ? (
+        <div style={{ padding: 40, textAlign: 'center', color: '#888', background: '#fff', borderRadius: 12, border: '1px dashed #ccc' }}>
+          {lang === 'ar' ? 'لا يوجد طلاب' : 'Aucun élève'}
+        </div>
+      ) : (
+        <div style={{ background: '#fff', borderRadius: 12, overflow: 'hidden', border: '1px solid #e0e0d8' }}>
+          {filtered.map((e, idx) => {
+            const s = statsParEleve[e.id] || { aDesJours: false, attendues: 0, presentes: 0, absences: 0, taux: null, datesAbsences: [] };
+            const isOpen = eleveDetail === e.id;
+            // Couleur basee sur le taux
+            let statutColor = '#888', statutBg = '#f5f5f0', statutLabel = '—';
+            if (!s.aDesJours) {
+              statutColor = '#888'; statutBg = '#f5f5f0';
+              statutLabel = lang === 'ar' ? '⚠️ لا أيام' : '⚠️ Aucun jour';
+            } else if (s.taux === null || s.attendues === 0) {
+              statutColor = '#888'; statutBg = '#f5f5f0';
+              statutLabel = lang === 'ar' ? '—' : '—';
+            } else if (s.taux >= 95) {
+              statutColor = '#1D9E75'; statutBg = '#E1F5EE';
+              statutLabel = `${s.taux}%`;
+            } else if (s.taux >= 80) {
+              statutColor = '#EF9F27'; statutBg = '#FAEEDA';
+              statutLabel = `${s.taux}%`;
+            } else {
+              statutColor = '#E24B4A'; statutBg = '#FCEBEB';
+              statutLabel = `${s.taux}%`;
+            }
+            return (
+              <div key={e.id}>
+                <div style={{
+                  display: 'flex', alignItems: 'center', gap: 12,
+                  padding: '10px 14px',
+                  borderBottom: idx === filtered.length - 1 && !isOpen ? 'none' : '1px solid #f0f0ec',
+                  cursor: s.datesAbsences.length > 0 ? 'pointer' : 'default',
+                }}
+                  onClick={() => s.datesAbsences.length > 0 && setEleveDetail(isOpen ? null : e.id)}>
+                  {/* Numéro */}
+                  <div style={{
+                    minWidth: 60, padding: '6px 10px', borderRadius: 8,
+                    background: '#E1F5EE', color: '#085041',
+                    fontSize: 12, fontWeight: 700, textAlign: 'center',
+                    overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                  }}>{e.eleve_id_ecole || '—'}</div>
+                  {/* Nom */}
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 14, fontWeight: 600, color: '#1a1a1a' }}>{e.prenom} {e.nom}</div>
+                    <div style={{ fontSize: 11, color: '#888' }}>
+                      {e.code_niveau || '—'}
+                      {s.aDesJours && (
+                        <span style={{ marginLeft: 8 }}>
+                          · {s.presentes}/{s.attendues} {lang === 'ar' ? 'حصة' : 'séances'}
+                          {s.absences > 0 && (
+                            <span style={{ color: '#E24B4A', fontWeight: 700 }}>
+                              {' · '}{s.absences} {lang === 'ar' ? 'غياب' : 'abs.'}
+                            </span>
+                          )}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  {/* Statut */}
+                  <div style={{
+                    padding: '6px 12px', background: statutBg, color: statutColor,
+                    borderRadius: 8, fontSize: 12, fontWeight: 700, flexShrink: 0,
+                  }}>{statutLabel}</div>
+                  {/* Flèche si cliquable */}
+                  {s.datesAbsences.length > 0 && (
+                    <div style={{ fontSize: 11, color: '#888', flexShrink: 0, width: 14 }}>
+                      {isOpen ? '▲' : '▼'}
+                    </div>
+                  )}
+                </div>
+                {/* Détail des dates d'absence */}
+                {isOpen && (
+                  <div style={{
+                    padding: '10px 14px 12px 86px', background: '#FCEBEB22',
+                    borderBottom: idx === filtered.length - 1 ? 'none' : '1px solid #f0f0ec',
+                  }}>
+                    <div style={{ fontSize: 11, color: '#888', marginBottom: 6, fontWeight: 600 }}>
+                      {lang === 'ar' ? 'أيام الغياب:' : 'Jours d\'absence :'}
+                    </div>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                      {s.datesAbsences.map(d => (
+                        <div key={d} style={{
+                          padding: '4px 10px', background: '#FCEBEB', color: '#A32D2D',
+                          borderRadius: 6, fontSize: 11, fontWeight: 600,
+                        }}>
+                          {lang === 'ar' ? formatDateAr(d) : formatDateFr(d)}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
+}
+
+// ──────────────────────────────────────────────────────────────────
+// Helpers : calcul des bornes de période + formats de date
+// ──────────────────────────────────────────────────────────────────
+
+function calcBornesPeriode(periode, customDebut, customFin) {
+  const today = new Date();
+  const iso = (d) => d.toISOString().slice(0, 10);
+  if (periode === 'custom') {
+    return {
+      debut: customDebut || null,
+      fin:   customFin   || null,
+    };
+  }
+  if (periode === 'semaine') {
+    const d = new Date(today);
+    // Debut de semaine = samedi (semaine marocaine)
+    const jourSemaine = d.getDay();                  // 0=Dim, 6=Sam
+    const diffAuSamedi = (jourSemaine + 1) % 7;      // Combien de jours depuis le dernier samedi
+    d.setDate(d.getDate() - diffAuSamedi);
+    return { debut: iso(d), fin: iso(today) };
+  }
+  if (periode === 'mois') {
+    const debut = new Date(today.getFullYear(), today.getMonth(), 1);
+    return { debut: iso(debut), fin: iso(today) };
+  }
+  if (periode === 'trimestre') {
+    const debut = new Date(today);
+    debut.setMonth(debut.getMonth() - 3);
+    return { debut: iso(debut), fin: iso(today) };
+  }
+  if (periode === 'semestre') {
+    const debut = new Date(today);
+    debut.setMonth(debut.getMonth() - 6);
+    return { debut: iso(debut), fin: iso(today) };
+  }
+  if (periode === 'annee') {
+    const debut = new Date(today.getFullYear(), 0, 1);
+    return { debut: iso(debut), fin: iso(today) };
+  }
+  return { debut: null, fin: null };
+}
+
+function formatDateFr(iso) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  return d.toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' });
+}
+function formatDateAr(iso) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  return d.toLocaleDateString('ar-MA', { day: '2-digit', month: 'short', year: 'numeric' });
 }
