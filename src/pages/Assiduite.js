@@ -92,12 +92,13 @@ export default function Assiduite({ user, navigate, goBack, lang, isMobile }) {
 
 function OngletSaisie({ user, lang }) {
   const { toast } = useToast();  // fix : toast n'est PAS la racine, il est dans { showToast, toast }
-  const [numero, setNumero] = useState('');           // numéro en cours de frappe
+  const [idTape, setIdTape] = useState('');               // identifiant en cours de frappe (alphanumérique)
+  const [clavierMode, setClavierMode] = useState('abc');  // 'abc' | 'num' | 'sym'
   const [eleves, setEleves] = useState([]);
   const [presencesToday, setPresencesToday] = useState(new Set());
   const [loading, setLoading] = useState(true);
   const [saisieLoading, setSaisieLoading] = useState(false);
-  const [flash, setFlash] = useState(null);  // { type:'success'|'warning'|'error', nom, message } → gros écran de retour visuel
+  const [flash, setFlash] = useState(null);  // { type:'success'|'warning'|'error', nom, message }
 
   const today = new Date().toISOString().slice(0, 10);
 
@@ -122,27 +123,27 @@ function OngletSaisie({ user, lang }) {
 
   useEffect(() => { loadData(); }, []);
 
-  // ─── Pavé numérique : ajouter un chiffre ──────────────────────
-  const appendChiffre = (c) => {
-    if (numero.length >= 10) return;  // limite raisonnable
-    setNumero(numero + c);
+  // ─── Clavier : ajouter un caractère (lettre, chiffre, symbole) ───
+  const appendChar = (c) => {
+    if (idTape.length >= 20) return;  // limite raisonnable
+    setIdTape(idTape + c);
   };
-  const effacer = () => setNumero('');
-  const retourArriere = () => setNumero(numero.slice(0, -1));
+  const effacer = () => setIdTape('');
+  const retourArriere = () => setIdTape(idTape.slice(0, -1));
 
-  // ─── Recherche de l'élève correspondant au numéro tapé ────────
-  // On cherche d'abord l'égalité exacte, sinon le début du numéro.
-  const eleveMatch = !numero.trim() ? null : (
-    eleves.find(e => (e.eleve_id_ecole || '').trim() === numero.trim())
-    || eleves.find(e => (e.eleve_id_ecole || '').trim().startsWith(numero.trim()))
+  // ─── Recherche de l'élève correspondant à l'ID tapé ─────────
+  // Comparaison INSENSIBLE à la casse + aux espaces.
+  // 1. Match exact en priorité. 2. Sinon, match "commence par".
+  const idNormalise = idTape.trim().toLowerCase();
+  const eleveMatch = !idNormalise ? null : (
+    eleves.find(e => (e.eleve_id_ecole || '').trim().toLowerCase() === idNormalise)
+    || eleves.find(e => (e.eleve_id_ecole || '').trim().toLowerCase().startsWith(idNormalise))
   );
 
   // ─── Affichage d'un écran de retour visuel temporaire ────────
   const showFlash = (type, nom, message) => {
     setFlash({ type, nom, message });
-    // On efface le numéro pour enchaîner l'élève suivant
-    setNumero('');
-    // Masque le flash au bout de 2.5 secondes
+    setIdTape('');  // on efface pour enchaîner
     setTimeout(() => setFlash(null), 2500);
   };
 
@@ -169,7 +170,6 @@ function OngletSaisie({ user, lang }) {
     setSaisieLoading(false);
 
     if (error) {
-      // 23505 = contrainte UNIQUE (race condition possible)
       if (error.code === '23505') {
         setPresencesToday(prev => new Set([...prev, eleveMatch.id]));
         showFlash('warning', nomComplet, lang === 'ar'
@@ -232,7 +232,7 @@ function OngletSaisie({ user, lang }) {
   return (
     <div style={{
       padding: '14px 14px 30px',
-      maxWidth: 520,
+      maxWidth: 560,
       margin: '0 auto',
     }}>
 
@@ -266,42 +266,44 @@ function OngletSaisie({ user, lang }) {
         </div>
       </div>
 
-      {/* ─── Écran affichant le numéro tapé ─── */}
+      {/* ─── Écran affichant l'ID tapé (vert foncé élégant) ─── */}
       <div style={{
-        background: '#1a1a1a',
+        background: 'linear-gradient(135deg, #0a3d30, #0f5d45)',
         color: '#fff',
         borderRadius: 16,
         padding: '22px 20px',
         marginBottom: 12,
         minHeight: 110,
         display: 'flex', flexDirection: 'column', justifyContent: 'center',
+        boxShadow: 'inset 0 2px 8px rgba(0,0,0,0.2)',
       }}>
-        <div style={{ fontSize: 11, opacity: 0.6, marginBottom: 6, textAlign: 'center' }}>
-          {lang === 'ar' ? 'رقم الطالب' : 'Numéro élève'}
+        <div style={{ fontSize: 11, opacity: 0.7, marginBottom: 6, textAlign: 'center', letterSpacing: 1 }}>
+          {lang === 'ar' ? 'رقم تعريف الطالب' : 'IDENTIFIANT ÉLÈVE'}
         </div>
         <div style={{
-          fontSize: 42,
+          fontSize: 38,
           fontWeight: 800,
           textAlign: 'center',
-          letterSpacing: 3,
+          letterSpacing: 2,
           minHeight: 48,
-          color: numero ? '#1D9E75' : '#555',
+          color: idTape ? '#7FE3BC' : 'rgba(255,255,255,0.3)',
           fontFamily: 'monospace',
+          wordBreak: 'break-all',
         }}>
-          {numero || '—'}
+          {idTape || '—'}
         </div>
       </div>
 
       {/* ─── Affichage de l'élève trouvé (ou non) ─── */}
-      {numero.trim() === '' ? (
+      {idTape.trim() === '' ? (
         <div style={{
-          padding: '16px',
+          padding: '12px',
           textAlign: 'center',
           color: '#888',
           fontSize: 13,
-          minHeight: 70,
+          minHeight: 60,
         }}>
-          {lang === 'ar' ? '👇 أدخل رقم تعريفك' : '👇 Tape ton numéro'}
+          {lang === 'ar' ? '👇 أدخل رقم تعريفك' : '👇 Tape ton identifiant'}
         </div>
       ) : !eleveMatch ? (
         <div style={{
@@ -314,27 +316,26 @@ function OngletSaisie({ user, lang }) {
           fontSize: 14,
           fontWeight: 600,
           border: '1px solid #E24B4A40',
-          minHeight: 70,
+          minHeight: 60,
           display: 'flex', alignItems: 'center', justifyContent: 'center',
         }}>
-          {lang === 'ar' ? '❌ لا يوجد طالب بهذا الرقم' : '❌ Aucun élève avec ce numéro'}
+          {lang === 'ar' ? '❌ لا يوجد طالب بهذا الرقم' : '❌ Aucun élève avec cet identifiant'}
         </div>
       ) : (
         <div style={{
           background: presencesToday.has(eleveMatch.id) ? '#E1F5EE' : '#fff',
-          border: presencesToday.has(eleveMatch.id)
-            ? '2px solid #1D9E75'
-            : '2px solid #1D9E75',
+          border: '2px solid #1D9E75',
           borderRadius: 14,
           padding: '14px 16px',
           marginBottom: 4,
           display: 'flex', alignItems: 'center', gap: 12,
         }}>
           <div style={{
-            minWidth: 54, height: 54, padding: '0 10px', borderRadius: 12,
+            minWidth: 54, maxWidth: 120, height: 54, padding: '0 10px', borderRadius: 12,
             background: '#1D9E75', color: '#fff',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontSize: 16, fontWeight: 800, flexShrink: 0,
+            fontSize: 13, fontWeight: 800, flexShrink: 0,
+            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
           }}>
             {eleveMatch.eleve_id_ecole || '—'}
           </div>
@@ -354,28 +355,92 @@ function OngletSaisie({ user, lang }) {
         </div>
       )}
 
-      {/* ─── Pavé numérique ─── */}
+      {/* ─── Sélecteur de mode clavier (ABC / 123 / .-_) ─── */}
       <div style={{
-        display: 'grid',
-        gridTemplateColumns: 'repeat(3, 1fr)',
-        gap: 10,
-        marginTop: 14,
+        display: 'flex', gap: 6,
+        marginTop: 14, marginBottom: 8,
       }}>
-        {['1','2','3','4','5','6','7','8','9'].map(c => (
-          <TouchButton key={c} onClick={() => appendChiffre(c)} variant="default">
-            {c}
-          </TouchButton>
-        ))}
-        <TouchButton onClick={effacer} variant="danger">
-          {lang === 'ar' ? 'مسح' : 'Effacer'}
-        </TouchButton>
-        <TouchButton onClick={() => appendChiffre('0')} variant="default">
-          0
-        </TouchButton>
-        <TouchButton onClick={retourArriere} variant="default">
-          ⌫
-        </TouchButton>
+        {[
+          { k: 'abc', label: 'ABC' },
+          { k: 'num', label: '123' },
+          { k: 'sym', label: '.–_/' },
+        ].map(m => {
+          const active = clavierMode === m.k;
+          return (
+            <button key={m.k} onClick={() => setClavierMode(m.k)}
+              style={{
+                flex: 1,
+                padding: '9px 10px',
+                border: 'none',
+                borderRadius: 10,
+                background: active ? '#1D9E75' : '#fff',
+                color: active ? '#fff' : '#666',
+                fontSize: 13,
+                fontWeight: 700,
+                cursor: 'pointer',
+                fontFamily: 'inherit',
+                border: active ? 'none' : '1px solid #e0e0d8',
+              }}>
+              {m.label}
+            </button>
+          );
+        })}
       </div>
+
+      {/* ─── Clavier (selon mode) ─── */}
+      {clavierMode === 'num' && (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
+          {['1','2','3','4','5','6','7','8','9'].map(c => (
+            <TouchButton key={c} onClick={() => appendChar(c)}>{c}</TouchButton>
+          ))}
+          <TouchButton onClick={effacer} variant="danger">
+            {lang === 'ar' ? 'مسح' : 'C'}
+          </TouchButton>
+          <TouchButton onClick={() => appendChar('0')}>0</TouchButton>
+          <TouchButton onClick={retourArriere}>⌫</TouchButton>
+        </div>
+      )}
+
+      {clavierMode === 'abc' && (
+        <div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 5, marginBottom: 5 }}>
+            {['A','B','C','D','E','F','G'].map(c => (
+              <TouchButton key={c} size="small" onClick={() => appendChar(c)}>{c}</TouchButton>
+            ))}
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 5, marginBottom: 5 }}>
+            {['H','I','J','K','L','M','N'].map(c => (
+              <TouchButton key={c} size="small" onClick={() => appendChar(c)}>{c}</TouchButton>
+            ))}
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 5, marginBottom: 5 }}>
+            {['O','P','Q','R','S','T','U'].map(c => (
+              <TouchButton key={c} size="small" onClick={() => appendChar(c)}>{c}</TouchButton>
+            ))}
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 5 }}>
+            {['V','W','X','Y','Z'].map(c => (
+              <TouchButton key={c} size="small" onClick={() => appendChar(c)}>{c}</TouchButton>
+            ))}
+            <TouchButton size="small" onClick={retourArriere}>⌫</TouchButton>
+            <TouchButton size="small" onClick={effacer} variant="danger">C</TouchButton>
+          </div>
+        </div>
+      )}
+
+      {clavierMode === 'sym' && (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
+          <TouchButton onClick={() => appendChar('-')}>−</TouchButton>
+          <TouchButton onClick={() => appendChar('.')}>.</TouchButton>
+          <TouchButton onClick={() => appendChar('_')}>_</TouchButton>
+          <TouchButton onClick={() => appendChar('/')}>/</TouchButton>
+          <TouchButton onClick={() => appendChar(' ')}>␣</TouchButton>
+          <TouchButton onClick={retourArriere}>⌫</TouchButton>
+          <TouchButton onClick={effacer} variant="danger">
+            {lang === 'ar' ? 'مسح' : 'C'}
+          </TouchButton>
+        </div>
+      )}
 
       {/* ─── Bouton principal Valider ─── */}
       <button
@@ -408,7 +473,7 @@ function OngletSaisie({ user, lang }) {
           ? (lang === 'ar' ? '...' : '...')
           : eleveMatch
             ? (lang === 'ar' ? '✓ تسجيل الحضور' : '✓ Valider la présence')
-            : (lang === 'ar' ? 'أدخل رقمك' : 'Tape ton numéro')
+            : (lang === 'ar' ? 'أدخل رقمك' : 'Tape ton identifiant')
         }
       </button>
 
@@ -416,28 +481,33 @@ function OngletSaisie({ user, lang }) {
   );
 }
 
-// ─── Bouton tactile gros format pour pavé numérique ────────────────
-function TouchButton({ children, onClick, variant = 'default' }) {
-  const bg = variant === 'danger' ? '#FCEBEB' : '#fff';
-  const color = variant === 'danger' ? '#E24B4A' : '#1a1a1a';
-  const border = variant === 'danger' ? '1px solid #E24B4A30' : '1px solid #e0e0d8';
+// ─── Bouton tactile réutilisable (pavé) ──────────────────────────────
+// variant : 'default' | 'danger'
+// size    : 'default' | 'small' (pour les lettres en grille 7x4)
+function TouchButton({ children, onClick, variant = 'default', size = 'default' }) {
+  const isDanger = variant === 'danger';
+  const isSmall = size === 'small';
+  const bg = isDanger ? '#FCEBEB' : '#fff';
+  const color = isDanger ? '#E24B4A' : '#1a1a1a';
+  const border = isDanger ? '1px solid #E24B4A30' : '1px solid #e0e0d8';
   return (
     <button
       onClick={onClick}
       style={{
-        height: 62,
+        height: isSmall ? 44 : 62,
         background: bg,
         color,
         border,
-        borderRadius: 12,
-        fontSize: variant === 'danger' ? 14 : 24,
+        borderRadius: isSmall ? 8 : 12,
+        fontSize: isSmall ? 15 : (isDanger ? 14 : 24),
         fontWeight: 700,
         cursor: 'pointer',
         fontFamily: 'inherit',
         transition: 'transform 0.08s, background 0.12s',
         userSelect: 'none',
+        padding: 0,
       }}
-      onMouseDown={e => { e.currentTarget.style.transform = 'scale(0.94)'; e.currentTarget.style.background = variant === 'danger' ? '#F5D7D7' : '#f0f0ec'; }}
+      onMouseDown={e => { e.currentTarget.style.transform = 'scale(0.94)'; e.currentTarget.style.background = isDanger ? '#F5D7D7' : '#f0f0ec'; }}
       onMouseUp={e => { e.currentTarget.style.transform = 'scale(1)'; e.currentTarget.style.background = bg; }}
       onMouseLeave={e => { e.currentTarget.style.transform = 'scale(1)'; e.currentTarget.style.background = bg; }}
     >
