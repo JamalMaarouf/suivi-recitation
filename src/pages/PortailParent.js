@@ -6,6 +6,7 @@ import { swr } from '../lib/offlineCache';
 import { getSouratesForNiveau } from '../lib/sourates';
 import { t } from '../lib/i18n';
 import OngletCoursEleve from '../components/OngletCoursEleve';
+import { trackParentVisite, getDerniereVisiteParent } from '../lib/parentTracking';
 
 const IS_SOURATE = (code) => ['5B','5A','2M'].includes(code||'');
 const NIVEAU_COLORS = {'5B':'#534AB7','5A':'#378ADD','2M':'#1D9E75','2':'#EF9F27','1':'#E24B4A'};
@@ -59,6 +60,22 @@ export default function PortailParent({ parent, navigate, goBack, lang='fr', onL
 
   useEffect(() => { loadData(); }, []);
   useEffect(() => { if (enfants.length>0 && !selectedEnfant) setSelectedEnfant(enfants[0]); }, [enfants]);
+
+  // ─── TRACKING DES VISITES PARENT ─────────────────────────────
+  // Se déclenche à chaque fois que le parent change d'enfant ou d'onglet.
+  // Non bloquant : l'UX du parent n'est jamais impactée par une erreur.
+  const [derniereVisite, setDerniereVisite] = useState(null);
+  useEffect(() => {
+    if (!selectedEnfant?.id || !parent?.id || !parent?.ecole_id) return;
+    trackParentVisite(parent.id, selectedEnfant.id, parent.ecole_id, onglet);
+    // eslint-disable-next-line
+  }, [selectedEnfant?.id, onglet]);
+  // Charger la dernière visite quand on change d'enfant (pour affichage)
+  useEffect(() => {
+    if (!selectedEnfant?.id || !parent?.id) { setDerniereVisite(null); return; }
+    getDerniereVisiteParent(parent.id, selectedEnfant.id).then(setDerniereVisite);
+    // eslint-disable-next-line
+  }, [selectedEnfant?.id]);
 
   const loadData = async () => {
     loadBareme(supabase, parent.ecole_id).then(b=>setBareme({...BAREME_DEFAUT,...b.unites}));
@@ -231,6 +248,10 @@ export default function PortailParent({ parent, navigate, goBack, lang='fr', onL
           <div style={{fontSize:13, color:'rgba(255,255,255,0.8)', marginBottom:4}}>
             {lang==='ar'?'مرحباً':'Bonjour'}, <strong>{parent.prenom} {parent.nom}</strong>
           </div>
+          {/* Bandeau discret : dernière visite + message inspirant */}
+          {derniereVisite !== null && (
+            <BannerDerniereVisite derniereVisite={derniereVisite} lang={lang} mobile />
+          )}
           {/* Child selector */}
           {enfants.length > 1 && (
             <div style={{display:'flex', gap:8, overflowX:'auto', marginTop:10, scrollbarWidth:'none'}}>
@@ -373,6 +394,10 @@ export default function PortailParent({ parent, navigate, goBack, lang='fr', onL
           {lang==='ar'?'مرحباً':lang==='en'?'Welcome':'Bonjour'}, <strong>{parent.prenom} {parent.nom}</strong>
         </div>
         <div style={{fontSize:11,opacity:0.7}}>متابعة التحفيظ</div>
+        {/* Bandeau : dernière visite + message inspirant */}
+        {derniereVisite !== null && (
+          <BannerDerniereVisite derniereVisite={derniereVisite} lang={lang} mobile={false} />
+        )}
         <div style={{display:'flex',gap:8,marginTop:10,flexWrap:'wrap'}}>
           <button onClick={()=>setShowChangeMdp(true)}
             style={{padding:'6px 16px',background:'rgba(255,255,255,0.2)',color:'#fff',border:'1px solid rgba(255,255,255,0.4)',borderRadius:8,fontSize:12,fontWeight:600,cursor:'pointer'}}>
@@ -713,6 +738,73 @@ export default function PortailParent({ parent, navigate, goBack, lang='fr', onL
       {/* Cours */}
       {onglet==='cours' && selectedEnfant && (
         <OngletCoursEleve eleve={selectedEnfant} lang={lang} isMobile={false} />
+      )}
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// BANNER DERNIÈRE VISITE + MESSAGE INSPIRANT
+// Affiche à chaque parent un message adapté selon sa fréquence :
+// - 1ère visite   : "Bienvenue sur votre espace"
+// - ≤ 7j          : "Merci de suivre la progression 🌟"
+// - 8-30j         : "Ravi de vous revoir !"
+// - > 30j         : "Nous sommes ravis de vous revoir !"
+// ══════════════════════════════════════════════════════════════════════
+function BannerDerniereVisite({ derniereVisite, lang, mobile }) {
+  // derniereVisite = null → jamais venu (1ère visite réelle)
+  // derniereVisite = {joursEcoules: N}
+
+  let msg;
+  let dateInfo = '';
+  const j = derniereVisite?.joursEcoules;
+
+  if (!derniereVisite) {
+    // Première visite jamais
+    msg = lang === 'ar'
+      ? '🌟 مرحبا بكم في فضائكم. نحن سعداء باهتمامكم بابنكم'
+      : lang === 'en'
+        ? '🌟 Welcome to your space. Thank you for caring about your child\'s progress'
+        : '🌟 Bienvenue sur votre espace. Ravis que vous suiviez la progression de votre enfant';
+  } else if (j === 0 || j === 1) {
+    msg = lang === 'ar' ? '🌟 شكرا لمتابعتكم المنتظمة لتقدم ابنكم' : '🌟 Merci de suivre régulièrement la progression de votre enfant';
+    dateInfo = j === 0
+      ? (lang === 'ar' ? 'آخر زيارة: اليوم' : 'Dernière visite : aujourd\'hui')
+      : (lang === 'ar' ? 'آخر زيارة: أمس' : 'Dernière visite : hier');
+  } else if (j <= 7) {
+    msg = lang === 'ar' ? '🌟 شكرا لمتابعتكم المنتظمة' : '🌟 Merci de votre suivi régulier';
+    dateInfo = lang === 'ar'
+      ? `آخر زيارة: منذ ${j} أيام`
+      : `Dernière visite : il y a ${j} jour${j > 1 ? 's' : ''}`;
+  } else if (j <= 30) {
+    msg = lang === 'ar' ? '👋 سعداء برؤيتكم من جديد' : '👋 Ravis de vous revoir';
+    dateInfo = lang === 'ar'
+      ? `آخر زيارة: منذ ${j} يوما`
+      : `Dernière visite : il y a ${j} jours`;
+  } else {
+    // > 30 jours : message chaleureux, pas culpabilisant
+    msg = lang === 'ar' ? '💚 سعداء جدا برؤيتكم من جديد! إليكم آخر الأخبار' : '💚 Très heureux de vous revoir ! Voici les dernières nouvelles';
+    dateInfo = lang === 'ar'
+      ? `آخر زيارة: منذ ${j} يوما`
+      : `Dernière visite : il y a ${j} jours`;
+  }
+
+  return (
+    <div style={{
+      marginTop: mobile ? 8 : 10,
+      padding: mobile ? '8px 12px' : '8px 14px',
+      background: 'rgba(255,255,255,0.15)',
+      border: '1px solid rgba(255,255,255,0.25)',
+      borderRadius: 10,
+      fontSize: mobile ? 11 : 12,
+      color: 'rgba(255,255,255,0.95)',
+      lineHeight: 1.45,
+    }}>
+      <div style={{ fontWeight: 600 }}>{msg}</div>
+      {dateInfo && (
+        <div style={{ fontSize: mobile ? 10 : 11, opacity: 0.75, marginTop: 3 }}>
+          📅 {dateInfo}
+        </div>
       )}
     </div>
   );
