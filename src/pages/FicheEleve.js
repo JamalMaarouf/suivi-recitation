@@ -9,6 +9,7 @@ import FicheSourate from './FicheSourate';
 import { fetchAll } from '../lib/fetchAll';
 import OngletAssiduiteEleve from '../components/OngletAssiduiteEleve';
 import OngletCoursEleve from '../components/OngletCoursEleve';
+import BadgeStatutParent from '../components/BadgeStatutParent';
 
 function Avatar({ prenom, nom, size=44, bg='#E1F5EE', color='#085041' }) {
   return <div style={{width:size,height:size,borderRadius:'50%',background:bg,color,display:'flex',alignItems:'center',justifyContent:'center',fontWeight:600,fontSize:size*0.33,flexShrink:0}}>{getInitiales(prenom,nom)}</div>;
@@ -757,11 +758,14 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang, isMobi
             </button>
             <div style={{flex:1}}>
               <div style={{fontSize:17, fontWeight:800}}>{eleve.prenom} {eleve.nom}</div>
-              <div style={{display:'flex', gap:6, alignItems:'center', marginTop:2}}>
+              <div style={{display:'flex', gap:6, alignItems:'center', marginTop:2, flexWrap:'wrap'}}>
                 <span style={{padding:'1px 8px', borderRadius:10, fontSize:11, fontWeight:700, background:`${nc}20`, color:nc}}>
                   {eleve.code_niveau||'?'}
                 </span>
                 <span style={{fontSize:12, color:'#888'}}>{instituteurNom}</span>
+                {user.role === 'surveillant' && (
+                  <BadgeStatutParent eleve={eleve} lang={lang} compact />
+                )}
               </div>
             </div>
             <button onClick={()=>navigate('enregistrer', eleve)}
@@ -1311,13 +1315,16 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang, isMobi
               <div style={{flex:1}}>
                 <div style={{fontSize:20,fontWeight:700}}>{eleve.prenom} {eleve.nom}</div>
                 <div style={{fontSize:13,color:'#888'}}>{NIVEAUX_LABELS[eleve.code_niveau]||eleve.code_niveau||'—'} · {instituteurNom}</div>
-                <div style={{display:'flex',gap:6,marginTop:4,flexWrap:'wrap'}}>
+                <div style={{display:'flex',gap:6,marginTop:4,flexWrap:'wrap',alignItems:'center'}}>
                   <span style={{padding:'2px 10px',borderRadius:20,fontSize:11,fontWeight:500,background:sl.bg,color:sl.color}}>{sl.label}</span>
                   {passages.length>0&&<span style={{padding:'2px 10px',borderRadius:20,fontSize:11,fontWeight:500,background:'#EEEDFE',color:'#534AB7'}}>
                     🎓 {passages.length} {lang==='ar'?'مستوى سابق':'passage(s)'}
                   </span>}
                   {streak>0&&<span style={{padding:'2px 10px',borderRadius:20,fontSize:11,background:'#E6F1FB',color:'#0C447C'}}>🔥 {streak} {lang==='ar'?'أسابيع':'semaines'}</span>}
                   {vitesse.moyenne>0&&<span style={{padding:'2px 10px',borderRadius:20,fontSize:11,background:'#f5f5f0',color:'#666'}}>{vitesse.tendance==='hausse'?'📈':vitesse.tendance==='baisse'?'📉':'➡️'} {vitesse.moyenne} {estSourateEleve?(lang==='ar'?'سورة/أسبوع':'sur./sem.'):(lang==='ar'?'ثمن/أسبوع':'t./sem.')}</span>}
+                  {user.role === 'surveillant' && (
+                    <BadgeStatutParent eleve={eleve} lang={lang} />
+                  )}
                 </div>
               </div>
               <div style={{textAlign:'right'}}>
