@@ -26,6 +26,24 @@ export default function Assiduite({ user, navigate, goBack, lang, isMobile, kios
   // Cible de la saisie : 'eleves' (par defaut) ou 'instituteurs'
   // Permet d'enregistrer les presences des 2 populations sur le meme kiosque.
   const [cible, setCible] = useState('eleves');
+  // Date de saisie — defaut aujourd'hui. Permet au surveillant de rattraper
+  // une presence oubliee en choisissant une date passee.
+  // En mode kiosque verrouille, le selecteur est masque → force a aujourd'hui.
+  const [dateSaisie, setDateSaisie] = useState(() => {
+    const n = new Date();
+    return `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, '0')}-${String(n.getDate()).padStart(2, '0')}`;
+  });
+  // Date d'aujourd'hui en local (pour comparer et savoir si on est en rattrapage)
+  const todayStr = (() => {
+    const n = new Date();
+    return `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, '0')}-${String(n.getDate()).padStart(2, '0')}`;
+  })();
+  const isRattrapage = dateSaisie !== todayStr;
+  // Si on entre en mode kiosque, forcer la date à aujourd'hui (protection)
+  useEffect(() => {
+    if (kioskMode) setDateSaisie(todayStr);
+    // eslint-disable-next-line
+  }, [kioskMode]);
   const [showExitModal, setShowExitModal] = useState(false);  // popup PIN de sortie kiosque
   // Modal generique pour info/confirmation (remplace window.confirm et alert
   // qui sont laids et pas coherents avec le design de l'app).
@@ -189,7 +207,54 @@ export default function Assiduite({ user, navigate, goBack, lang, isMobile, kios
                 );
               })}
             </div>
-            <SaisieKiosque user={user} lang={lang} cible={cible} />
+
+            {/* Selecteur de date (cache en mode kiosque pour empecher les
+                eleves/instituteurs de tricher sur leur date de presence).
+                Hors kiosque : le surveillant peut choisir une date passee
+                pour rattraper une saisie oubliee. */}
+            {!kioskMode && (
+              <div style={{ padding: '8px 14px 0' }}>
+                <div style={{
+                  background: isRattrapage ? '#FAEEDA' : '#fff',
+                  border: `1px solid ${isRattrapage ? '#EF9F2740' : '#e0e0d8'}`,
+                  borderRadius: 10, padding: '10px 12px',
+                }}>
+                  <div style={{ fontSize: 11, color: isRattrapage ? '#633806' : '#666', fontWeight: 600, marginBottom: 6 }}>
+                    📅 {lang === 'ar' ? 'تاريخ التسجيل' : 'Date de saisie'}
+                  </div>
+                  <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                    <input type="date"
+                      value={dateSaisie}
+                      max={todayStr}
+                      onChange={e => setDateSaisie(e.target.value)}
+                      style={{
+                        flex: 1, padding: '8px 10px', fontSize: 13,
+                        borderRadius: 8, border: '1px solid #c0c0b8',
+                        fontFamily: 'inherit', outline: 'none',
+                      }} />
+                    {isRattrapage && (
+                      <button onClick={() => setDateSaisie(todayStr)}
+                        style={{
+                          padding: '8px 12px', background: '#1D9E75', color: '#fff',
+                          border: 'none', borderRadius: 8, fontSize: 11, fontWeight: 700,
+                          cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap',
+                        }}>
+                        {lang === 'ar' ? '↻ اليوم' : '↻ Aujourd\'hui'}
+                      </button>
+                    )}
+                  </div>
+                  {isRattrapage && (
+                    <div style={{ fontSize: 10, color: '#633806', marginTop: 6, fontWeight: 700 }}>
+                      ⚠️ {lang === 'ar'
+                        ? 'وضع التعويض: التسجيل لتاريخ سابق'
+                        : 'Mode rattrapage : saisie pour une date passée'}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            <SaisieKiosque user={user} lang={lang} cible={cible} dateSaisie={dateSaisie} isRattrapage={isRattrapage} />
           </>
         )}
         {onglet === 'suivi'  && <SuiviPlaceholder lang={lang} user={user} isMobile={true} cible={cible} setCible={setCible} />}
@@ -322,7 +387,49 @@ export default function Assiduite({ user, navigate, goBack, lang, isMobile, kios
               );
             })}
           </div>
-          <SaisieDesktop user={user} lang={lang} cible={cible} />
+
+          {/* Selecteur de date (voir explication en version mobile) */}
+          {!kioskMode && (
+            <div style={{
+              background: isRattrapage ? '#FAEEDA' : '#fff',
+              border: `1px solid ${isRattrapage ? '#EF9F2740' : '#e0e0d8'}`,
+              borderRadius: 10, padding: '10px 14px',
+              marginBottom: '1.25rem',
+              display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap',
+            }}>
+              <div style={{ fontSize: 12, color: isRattrapage ? '#633806' : '#666', fontWeight: 700 }}>
+                📅 {lang === 'ar' ? 'تاريخ التسجيل' : 'Date de saisie'}
+              </div>
+              <input type="date"
+                value={dateSaisie}
+                max={todayStr}
+                onChange={e => setDateSaisie(e.target.value)}
+                style={{
+                  padding: '7px 10px', fontSize: 13,
+                  borderRadius: 8, border: '1px solid #c0c0b8',
+                  fontFamily: 'inherit', outline: 'none',
+                }} />
+              {isRattrapage && (
+                <button onClick={() => setDateSaisie(todayStr)}
+                  style={{
+                    padding: '7px 12px', background: '#1D9E75', color: '#fff',
+                    border: 'none', borderRadius: 8, fontSize: 12, fontWeight: 700,
+                    cursor: 'pointer', fontFamily: 'inherit',
+                  }}>
+                  {lang === 'ar' ? '↻ اليوم' : '↻ Aujourd\'hui'}
+                </button>
+              )}
+              {isRattrapage && (
+                <div style={{ fontSize: 11, color: '#633806', fontWeight: 700, flex: '1 1 100%' }}>
+                  ⚠️ {lang === 'ar'
+                    ? 'وضع التعويض: التسجيل لتاريخ سابق (ليس اليوم)'
+                    : 'Mode rattrapage : les saisies seront enregistrées à la date sélectionnée'}
+                </div>
+              )}
+            </div>
+          )}
+
+          <SaisieDesktop user={user} lang={lang} cible={cible} dateSaisie={dateSaisie} isRattrapage={isRattrapage} />
         </>
       )}
       {onglet === 'suivi'  && <SuiviPlaceholder lang={lang} user={user} cible={cible} setCible={setCible} />}
@@ -358,17 +465,18 @@ export default function Assiduite({ user, navigate, goBack, lang, isMobile, kios
 // présences du jour selon le paramètre cible.
 // cible = 'eleves' (defaut) : table eleves + table presences
 // cible = 'instituteurs'     : table utilisateurs (role=instituteur) + table seances_instituteurs
-function useAssiduiteData(user, cible = 'eleves') {
+function useAssiduiteData(user, cible = 'eleves', dateSaisie = null) {
   // On garde le nom 'eleves' pour la rétrocompatibilité mais ça contient
   // des élèves OU des instituteurs selon la cible.
   const [eleves, setEleves] = useState([]);
   const [presencesToday, setPresencesToday] = useState(new Set());
   const [loading, setLoading] = useState(true);
 
-  // Date d'aujourd'hui au format YYYY-MM-DD en HEURE LOCALE
-  // (pas toISOString() qui convertit en UTC et décale d'un jour selon le fuseau)
+  // Date de reference : la dateSaisie passee en parametre si fournie,
+  // sinon aujourd'hui (heure locale, pas UTC pour eviter le bug fuseau horaire)
   const now = new Date();
-  const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+  const todayAuto = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+  const today = dateSaisie || todayAuto;
 
   const loadData = async () => {
     setLoading(true);
@@ -417,7 +525,7 @@ function useAssiduiteData(user, cible = 'eleves') {
     setLoading(false);
   };
 
-  useEffect(() => { loadData(); /* eslint-disable-next-line */ }, [cible]);
+  useEffect(() => { loadData(); /* eslint-disable-next-line */ }, [cible, today]);
 
   return { eleves, presencesToday, setPresencesToday, loading, today, loadData };
 }
@@ -460,8 +568,8 @@ async function insertPresence({ eleveId, ecoleId, date, saisiPar, cible = 'eleve
 // 📱 INTERFACE MOBILE / TABLETTE : KIOSQUE TACTILE
 // ══════════════════════════════════════════════════════════════════════
 
-function SaisieKiosque({ user, lang, cible = 'eleves' }) {
-  const { eleves, presencesToday, setPresencesToday, loading, today } = useAssiduiteData(user, cible);
+function SaisieKiosque({ user, lang, cible = 'eleves', dateSaisie = null, isRattrapage = false }) {
+  const { eleves, presencesToday, setPresencesToday, loading, today } = useAssiduiteData(user, cible, dateSaisie);
   const [idTape, setIdTape] = useState('');
   const [clavierMode, setClavierMode] = useState('abc');
   const [saisieLoading, setSaisieLoading] = useState(false);
@@ -504,9 +612,14 @@ function SaisieKiosque({ user, lang, cible = 'eleves' }) {
       return;
     }
     setPresencesToday(prev => new Set([...prev, eleveMatch.id]));
-    showFlash('success', nomComplet, cible === 'instituteurs'
+    // En cas de rattrapage, on ajoute la date au message pour confirmation
+    const baseMsg = cible === 'instituteurs'
       ? (lang === 'ar' ? 'تم تسجيل الحصة' : 'Séance enregistrée')
-      : (lang === 'ar' ? 'تم تسجيل الحضور' : 'Présence enregistrée'));
+      : (lang === 'ar' ? 'تم تسجيل الحضور' : 'Présence enregistrée');
+    const msg = isRattrapage
+      ? `${baseMsg} · ${new Date(today).toLocaleDateString(lang === 'ar' ? 'ar-MA' : 'fr-FR', { day: '2-digit', month: 'short' })}`
+      : baseMsg;
+    showFlash('success', nomComplet, msg);
   };
 
   if (loading) return <div style={{ padding: 40, textAlign: 'center', color: '#888' }}>{lang === 'ar' ? '...جاري التحميل' : 'Chargement...'}</div>;
@@ -725,9 +838,9 @@ function TouchButton({ children, onClick, variant = 'default', size = 'default' 
 // 🖥️ INTERFACE ORDINATEUR : recherche clavier + liste compacte
 // ══════════════════════════════════════════════════════════════════════
 
-function SaisieDesktop({ user, lang, cible = 'eleves' }) {
+function SaisieDesktop({ user, lang, cible = 'eleves', dateSaisie = null, isRattrapage = false }) {
   const { toast } = useToast();
-  const { eleves, presencesToday, setPresencesToday, loading, today } = useAssiduiteData(user, cible);
+  const { eleves, presencesToday, setPresencesToday, loading, today } = useAssiduiteData(user, cible, dateSaisie);
   const [recherche, setRecherche] = useState('');
   const [filtreStatut, setFiltreStatut] = useState('tous'); // 'tous' | 'presents' | 'absents'
   const [saisieLoadingId, setSaisieLoadingId] = useState(null);
@@ -770,14 +883,18 @@ function SaisieDesktop({ user, lang, cible = 'eleves' }) {
       return;
     }
     setPresencesToday(prev => new Set([...prev, eleve.id]));
+    // Suffixe date affiche uniquement en mode rattrapage
+    const dateSuffix = isRattrapage
+      ? ` (${new Date(today).toLocaleDateString(lang === 'ar' ? 'ar-MA' : 'fr-FR', { day: '2-digit', month: 'short' })})`
+      : '';
     if (cible === 'instituteurs') {
       toast.success(lang === 'ar'
-        ? `✅ تم تسجيل حصة ${eleve.prenom} ${eleve.nom}`
-        : `✅ Séance enregistrée : ${eleve.prenom} ${eleve.nom}`);
+        ? `✅ تم تسجيل حصة ${eleve.prenom} ${eleve.nom}${dateSuffix}`
+        : `✅ Séance enregistrée : ${eleve.prenom} ${eleve.nom}${dateSuffix}`);
     } else {
       toast.success(lang === 'ar'
-        ? `✅ تم تسجيل حضور ${eleve.prenom} ${eleve.nom}`
-        : `✅ Présence enregistrée : ${eleve.prenom} ${eleve.nom}`);
+        ? `✅ تم تسجيل حضور ${eleve.prenom} ${eleve.nom}${dateSuffix}`
+        : `✅ Présence enregistrée : ${eleve.prenom} ${eleve.nom}${dateSuffix}`);
     }
   };
 
