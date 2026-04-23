@@ -63,6 +63,7 @@ const GestionCoursAxes    = lazy(() => import('./pages/GestionCoursAxes'));
 const SuiviCours          = lazy(() => import('./pages/SuiviCours'));
 const CoursValidation     = lazy(() => import('./pages/CoursValidation'));
 const GestionParents      = lazy(() => import('./pages/GestionParents'));
+const SuiviParents        = lazy(() => import('./pages/SuiviParents'));
 import { t, getDir } from './lib/i18n';
 import { isSourateNiveauDyn } from './lib/helpers';
 import { ToastProvider } from './lib/toast';
@@ -532,6 +533,7 @@ export default function App() {
                   {p:'objectifs',         icon:'🎯', text:lang==='ar'?'الأهداف':lang==='en'?'Objectives':'Objectifs', roles:['surveillant']},
                   {p:'finance',           icon:'💰', text:lang==='ar'?'المالية':'Finance',                            roles:['surveillant']},
                   {p:'assiduite',         icon:'📅', text:lang==='ar'?'الحضور':'Assiduité',                           roles:['surveillant']},
+                  {p:'parents',           icon:'👨‍👩‍👧', text:lang==='ar'?'الأولياء':'Parents',                       roles:['surveillant']},
                   {p:'gestion',           icon:'⚙️', text:t(lang,'gestion'),                                          roles:['surveillant']},
                 ].filter(b=>b.roles.includes(user.role)).map(b=>{
                   const isActive = page===b.p;
@@ -592,6 +594,7 @@ export default function App() {
           {page === 'cours'               && (user.role==='surveillant' || user.role==='instituteur') && <ErrorBoundary><SuiviCours user={user} navigate={navigate} goBack={goBack} lang={lang} isMobile={isMobile} /></ErrorBoundary>}
           {page === 'cours_validation'    && (user.role==='surveillant' || user.role==='instituteur') && <ErrorBoundary><CoursValidation user={user} navigate={navigate} goBack={goBack} lang={lang} isMobile={isMobile} coursValidation={selectedCoursValidation} /></ErrorBoundary>}
           {page === 'gestion_parents'     && user.role==='surveillant' && <ErrorBoundary><GestionParents user={user} navigate={navigate} goBack={goBack} lang={lang} isMobile={isMobile} /></ErrorBoundary>}
+          {page === 'parents'             && user.role==='surveillant' && <ErrorBoundary><SuiviParents user={user} navigate={navigate} goBack={goBack} lang={lang} isMobile={isMobile} /></ErrorBoundary>}
           {page === 'enregistrer'       && (
             isSourateNiveauDyn(selectedEleve?.code_niveau||'', niveauxApp)
               ? <RecitationSourate eleve={selectedEleve} {...pageProps} />
