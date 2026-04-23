@@ -2493,15 +2493,19 @@ function DetailsInstituteurModal({ inst, seances, joursOuvres, stats, onClose, o
   );
 }
 
+
 // ══════════════════════════════════════════════════════════════════════
-// Modale de paiement d'un instituteur
+// Modale de paiement d'un instituteur — avec sélection individuelle
 //
-// Pré-remplit un formulaire de paiement avec le montant calculé à partir
-// des séances validées non payées. Le surveillant peut modifier librement
-// le montant (avance, solde partiel, etc.).
+// Affiche la liste des séances validées non payées de l'instituteur.
+// Le surveillant coche/décoche les séances qu'il veut payer maintenant.
+// Les autres restent "à payer" pour un prochain cycle.
 //
-// Au submit : crée une dépense dans la table 'depenses' (catégorie 'salaire')
-// et marque les séances concernées comme payées (paye=true + paiement_id).
+// Filtre par période : permet de restreindre la liste affichée pour
+// faciliter la sélection quand il y a beaucoup de séances.
+//
+// Au submit : crée une dépense (table 'depenses') + marque UNIQUEMENT
+// les séances cochées comme payées (paye=true + paiement_id).
 // Couplage lâche : les séances restent indépendantes de Finance.
 // ══════════════════════════════════════════════════════════════════════
 function PaiementInstituteurModal({ inst, stats, seances, onClose, onConfirm, lang }) {
@@ -2509,20 +2513,78 @@ function PaiementInstituteurModal({ inst, stats, seances, onClose, onConfirm, la
   const now = new Date();
   const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
 
-  const montantCalcule = stats?.montantDu || 0;
-  const nbSeances = seances.length;
+  // Tarif effectif = stats.tarif (défini au niveau parent)
+  const tarif = stats?.tarif || 0;
 
+  // ─── State : sélection des séances (Set d'IDs cochées) ─────
+  // Par défaut, toutes les séances sont cochées (comportement 1 clic)
+  const [selectedIds, setSelectedIds] = useState(new Set(seances.map(s => s.id)));
+
+  // ─── State : filtre date ───────────────────────────────────
+  const [filterDebut, setFilterDebut] = useState('');
+  const [filterFin, setFilterFin] = useState('');
+
+  // ─── Calcul : séances visibles après filtre ────────────────
+  // Tri par date croissante pour plus de clarté
+  const seancesVisibles = seances
+    .filter(s => {
+      if (filterDebut && s.date_seance < filterDebut) return false;
+      if (filterFin && s.date_seance > filterFin) return false;
+      return true;
+    })
+    .sort((a, b) => a.date_seance.localeCompare(b.date_seance));
+
+  // ─── Calcul : total sélectionné ────────────────────────────
+  const nbSelected = selectedIds.size;
+  const montantCalcule = nbSelected * tarif;
+
+  // ─── Form state ────────────────────────────────────────────
   const [montant, setMontant] = useState(montantCalcule.toFixed(2));
   const [dateDepense, setDateDepense] = useState(todayStr);
   const [description, setDescription] = useState(
     lang === 'ar'
-      ? `دفع ${nbSeances} حصة`
-      : `Paiement ${nbSeances} séance(s)`
+      ? `دفع ${nbSelected} حصة`
+      : `Paiement ${nbSelected} séance(s)`
   );
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
+  // Quand la sélection change : recalculer le montant et la description
+  useEffect(() => {
+    setMontant(montantCalcule.toFixed(2));
+    setDescription(lang === 'ar'
+      ? `دفع ${nbSelected} حصة`
+      : `Paiement ${nbSelected} séance(s)`);
+    // eslint-disable-next-line
+  }, [nbSelected, tarif]);
+
+  // ─── Actions sur la sélection ─────────────────────────────
+  const toggleSeance = (id) => {
+    setSelectedIds(prev => {
+      const n = new Set(prev);
+      if (n.has(id)) n.delete(id);
+      else n.add(id);
+      return n;
+    });
+  };
+  const toutCocher = () => {
+    setSelectedIds(new Set(seances.map(s => s.id)));
+  };
+  const toutDecocher = () => {
+    setSelectedIds(new Set());
+  };
+  const cocherPeriode = () => {
+    // Cocher uniquement les séances dans la période filtrée
+    const visiblesIds = new Set(seancesVisibles.map(s => s.id));
+    setSelectedIds(visiblesIds);
+  };
+
+  // ─── Submit ────────────────────────────────────────────────
   const handleSubmit = async () => {
+    if (nbSelected === 0) {
+      setError(lang === 'ar' ? 'يجب اختيار حصة واحدة على الأقل' : 'Sélectionne au moins une séance');
+      return;
+    }
     const val = parseFloat(montant);
     if (isNaN(val) || val <= 0) {
       setError(lang === 'ar' ? 'المبلغ يجب أن يكون رقما موجبا' : 'Le montant doit être un nombre positif');
@@ -2534,12 +2596,20 @@ function PaiementInstituteurModal({ inst, stats, seances, onClose, onConfirm, la
       montant: val,
       dateDepense,
       description,
-      seancesIds: seances.map(s => s.id),
+      seancesIds: Array.from(selectedIds),
     });
     setSaving(false);
     if (!res.ok) {
       setError((lang === 'ar' ? 'خطأ: ' : 'Erreur : ') + (res.error || ''));
     }
+  };
+
+  // ─── Format date pour l'affichage ──────────────────────────
+  const formatJour = (iso) => {
+    const d = new Date(iso);
+    return d.toLocaleDateString(lang === 'ar' ? 'ar-MA' : 'fr-FR', {
+      weekday: 'short', day: '2-digit', month: 'short',
+    });
   };
 
   return (
@@ -2554,8 +2624,8 @@ function PaiementInstituteurModal({ inst, stats, seances, onClose, onConfirm, la
       <div onClick={e => e.stopPropagation()}
         style={{
           background: '#fff', borderRadius: 16,
-          padding: 24, maxWidth: 500, width: '100%',
-          maxHeight: '90vh', overflow: 'auto',
+          padding: 24, maxWidth: 560, width: '100%',
+          maxHeight: '92vh', overflow: 'auto',
           boxShadow: '0 20px 60px rgba(0,0,0,0.3)',
         }}>
         {/* Header */}
@@ -2590,33 +2660,171 @@ function PaiementInstituteurModal({ inst, stats, seances, onClose, onConfirm, la
             }}>✕</button>
         </div>
 
-        {/* Récap séances */}
-        <div style={{
-          background: '#E1F5EE', border: '1px solid #1D9E7530',
-          borderRadius: 10, padding: 14, marginBottom: 14,
-        }}>
-          <div style={{ fontSize: 11, color: '#085041', fontWeight: 700, marginBottom: 6 }}>
-            📋 {lang === 'ar' ? 'الحصص القابلة للدفع' : 'Séances à payer'}
+        {/* ═══ Section SELECTION DES SEANCES ═══ */}
+        <div style={{ marginBottom: 14 }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: '#666', marginBottom: 8 }}>
+            📋 {lang === 'ar' ? 'اختر الحصص المراد دفعها' : 'Sélectionner les séances à payer'}
           </div>
-          <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, flexWrap: 'wrap' }}>
-            <div style={{ fontSize: 28, fontWeight: 800, color: '#1D9E75' }}>
-              {nbSeances}
+
+          {/* Filtre période (pour restreindre la liste affichée) */}
+          <div style={{
+            background: '#E6F1FB', padding: '10px 12px',
+            borderRadius: 10, marginBottom: 10,
+            border: '1px solid #378ADD30',
+          }}>
+            <div style={{ fontSize: 11, color: '#0C447C', marginBottom: 6, fontWeight: 600 }}>
+              📅 {lang === 'ar' ? 'تصفية حسب الفترة (اختياري)' : 'Filtrer par période (optionnel)'}
             </div>
-            <div style={{ fontSize: 12, color: '#666' }}>
-              {lang === 'ar' ? 'حصة × ' : 'séance(s) × '}
-              <strong>{stats?.tarif?.toFixed(0) || 0} {lang === 'ar' ? 'د.' : 'DH'}</strong>
+            <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+              <input type="date" value={filterDebut}
+                onChange={e => setFilterDebut(e.target.value)}
+                style={{
+                  padding: '6px 8px', fontSize: 12, borderRadius: 6,
+                  border: '1px solid #378ADD40', fontFamily: 'inherit', outline: 'none',
+                  flex: '1 1 120px', minWidth: 120,
+                }} />
+              <span style={{ color: '#0C447C' }}>→</span>
+              <input type="date" value={filterFin}
+                onChange={e => setFilterFin(e.target.value)}
+                style={{
+                  padding: '6px 8px', fontSize: 12, borderRadius: 6,
+                  border: '1px solid #378ADD40', fontFamily: 'inherit', outline: 'none',
+                  flex: '1 1 120px', minWidth: 120,
+                }} />
+              {(filterDebut || filterFin) && (
+                <button onClick={() => { setFilterDebut(''); setFilterFin(''); }}
+                  style={{
+                    padding: '6px 10px', background: '#fff', color: '#0C447C',
+                    border: '1px solid #378ADD40', borderRadius: 6,
+                    fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
+                  }}>✕ {lang === 'ar' ? 'إزالة' : 'Effacer'}</button>
+              )}
+            </div>
+            {(filterDebut || filterFin) && (
+              <button onClick={cocherPeriode}
+                style={{
+                  marginTop: 8, padding: '6px 12px',
+                  background: '#378ADD', color: '#fff',
+                  border: 'none', borderRadius: 6,
+                  fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit',
+                }}>
+                ✓ {lang === 'ar'
+                  ? `اختيار ${seancesVisibles.length} حصة في الفترة فقط`
+                  : `Cocher uniquement ces ${seancesVisibles.length} séance(s)`}
+              </button>
+            )}
+          </div>
+
+          {/* Boutons Tout cocher / décocher */}
+          <div style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
+            <button onClick={toutCocher}
+              style={{
+                flex: 1, padding: '7px 10px',
+                background: '#E1F5EE', color: '#085041',
+                border: '1px solid #1D9E7540', borderRadius: 8,
+                fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit',
+              }}>
+              ☑ {lang === 'ar' ? 'اختيار الكل' : 'Tout cocher'}
+            </button>
+            <button onClick={toutDecocher}
+              style={{
+                flex: 1, padding: '7px 10px',
+                background: '#FCEBEB', color: '#A32D2D',
+                border: '1px solid #E24B4A40', borderRadius: 8,
+                fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit',
+              }}>
+              ☐ {lang === 'ar' ? 'إلغاء الكل' : 'Tout décocher'}
+            </button>
+          </div>
+
+          {/* Liste scrollable des séances */}
+          <div style={{
+            background: '#f9f9f5', borderRadius: 10,
+            border: '1px solid #e0e0d8',
+            maxHeight: 220, overflowY: 'auto',
+          }}>
+            {seancesVisibles.length === 0 ? (
+              <div style={{ padding: 20, textAlign: 'center', color: '#888', fontSize: 12 }}>
+                {seances.length === 0
+                  ? (lang === 'ar' ? 'لا توجد حصص قابلة للدفع' : 'Aucune séance à payer')
+                  : (lang === 'ar' ? 'لا توجد حصص في هذه الفترة' : 'Aucune séance dans cette période')}
+              </div>
+            ) : (
+              seancesVisibles.map((s, idx) => {
+                const checked = selectedIds.has(s.id);
+                return (
+                  <div key={s.id}
+                    onClick={() => toggleSeance(s.id)}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 10,
+                      padding: '9px 12px',
+                      borderBottom: idx === seancesVisibles.length - 1 ? 'none' : '1px solid #e8e8e2',
+                      cursor: 'pointer',
+                      background: checked ? '#E1F5EE' : 'transparent',
+                      transition: 'background 0.1s',
+                    }}>
+                    <div style={{
+                      width: 20, height: 20, borderRadius: 5,
+                      border: `2px solid ${checked ? '#1D9E75' : '#c0c0b8'}`,
+                      background: checked ? '#1D9E75' : '#fff',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      color: '#fff', fontSize: 13, fontWeight: 800,
+                      flexShrink: 0,
+                    }}>
+                      {checked && '✓'}
+                    </div>
+                    <div style={{ flex: 1, fontSize: 13, color: '#1a1a1a', fontWeight: checked ? 600 : 400 }}>
+                      {formatJour(s.date_seance)}
+                    </div>
+                    <div style={{ fontSize: 12, color: '#666', fontWeight: 600 }}>
+                      {tarif.toFixed(0)} {lang === 'ar' ? 'د.' : 'DH'}
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+
+          {/* Indicateur : X sur Y sélectionnées */}
+          {seances.length > 0 && (
+            <div style={{ fontSize: 11, color: '#888', marginTop: 6, textAlign: 'right' }}>
+              {nbSelected} / {seances.length} {lang === 'ar' ? 'محددة' : 'sélectionnée(s)'}
+              {seancesVisibles.length < seances.length && (
+                <span style={{ color: '#378ADD', marginLeft: 4 }}>
+                  ({seancesVisibles.length} {lang === 'ar' ? 'معروضة' : 'affichée(s)'})
+                </span>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* ═══ Récap du montant ═══ */}
+        <div style={{
+          background: nbSelected > 0 ? '#E1F5EE' : '#f5f5f0',
+          border: `1px solid ${nbSelected > 0 ? '#1D9E7530' : '#e0e0d8'}`,
+          borderRadius: 10, padding: 12, marginBottom: 14,
+          display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap',
+        }}>
+          <div style={{ fontSize: 24, flexShrink: 0 }}>💰</div>
+          <div style={{ flex: 1, minWidth: 180 }}>
+            <div style={{ fontSize: 10, color: '#666', fontWeight: 600, marginBottom: 2 }}>
+              {lang === 'ar' ? 'المبلغ الإجمالي' : 'Total'}
+            </div>
+            <div style={{ fontSize: 13, color: '#1a1a1a' }}>
+              <strong>{nbSelected}</strong> {lang === 'ar' ? 'حصة × ' : 'séance(s) × '}
+              <strong>{tarif.toFixed(0)} {lang === 'ar' ? 'د.' : 'DH'}</strong>
               {' = '}
-              <strong style={{ color: '#E24B4A' }}>
+              <strong style={{ color: '#E24B4A', fontSize: 16 }}>
                 {montantCalcule.toFixed(0)} {lang === 'ar' ? 'د.' : 'DH'}
               </strong>
             </div>
           </div>
         </div>
 
-        {/* Champ Montant */}
+        {/* ═══ Champ Montant ═══ */}
         <div style={{ marginBottom: 12 }}>
           <label style={{ fontSize: 12, fontWeight: 700, color: '#666', display: 'block', marginBottom: 6 }}>
-            {lang === 'ar' ? 'المبلغ المدفوع' : 'Montant payé'}
+            {lang === 'ar' ? 'المبلغ المدفوع (قابل للتعديل)' : 'Montant payé (modifiable)'}
           </label>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <input type="number" min="0" step="0.01"
@@ -2642,7 +2850,7 @@ function PaiementInstituteurModal({ inst, stats, seances, onClose, onConfirm, la
           )}
         </div>
 
-        {/* Champ Date */}
+        {/* ═══ Champ Date ═══ */}
         <div style={{ marginBottom: 12 }}>
           <label style={{ fontSize: 12, fontWeight: 700, color: '#666', display: 'block', marginBottom: 6 }}>
             {lang === 'ar' ? 'تاريخ الدفع' : 'Date du paiement'}
@@ -2657,7 +2865,7 @@ function PaiementInstituteurModal({ inst, stats, seances, onClose, onConfirm, la
             }} />
         </div>
 
-        {/* Champ Description */}
+        {/* ═══ Champ Description ═══ */}
         <div style={{ marginBottom: 14 }}>
           <label style={{ fontSize: 12, fontWeight: 700, color: '#666', display: 'block', marginBottom: 6 }}>
             {lang === 'ar' ? 'الوصف' : 'Description'}
@@ -2672,15 +2880,15 @@ function PaiementInstituteurModal({ inst, stats, seances, onClose, onConfirm, la
             }} />
         </div>
 
-        {/* Info sur le couplage Finance */}
+        {/* ═══ Info couplage Finance ═══ */}
         <div style={{
           background: '#E6F1FB', borderLeft: '4px solid #378ADD',
           padding: '8px 12px', borderRadius: 6, marginBottom: 14,
           fontSize: 11, color: '#0C447C',
         }}>
           💡 {lang === 'ar'
-            ? 'سيتم تسجيل هذا الدفع في وحدة المالية (فئة: الرواتب) وستُعلم الحصص كمدفوعة.'
-            : 'Ce paiement sera enregistré dans le module Finance (catégorie : Salaires) et les séances seront marquées comme payées.'}
+            ? 'سيتم تسجيل هذا الدفع في وحدة المالية (فئة: الرواتب). الحصص غير المحددة ستبقى في انتظار الدفع.'
+            : 'Ce paiement sera enregistré dans Finance (Salaires). Les séances non cochées resteront à payer.'}
         </div>
 
         {error && (
@@ -2691,7 +2899,7 @@ function PaiementInstituteurModal({ inst, stats, seances, onClose, onConfirm, la
           }}>{error}</div>
         )}
 
-        {/* Boutons */}
+        {/* ═══ Boutons ═══ */}
         <div style={{ display: 'flex', gap: 8 }}>
           <button onClick={onClose}
             style={{
@@ -2703,18 +2911,23 @@ function PaiementInstituteurModal({ inst, stats, seances, onClose, onConfirm, la
             }}>
             {lang === 'ar' ? 'إلغاء' : 'Annuler'}
           </button>
-          <button onClick={handleSubmit} disabled={saving}
+          <button onClick={handleSubmit} disabled={saving || nbSelected === 0}
             style={{
               flex: 2, padding: '12px',
-              background: saving ? '#888' : 'linear-gradient(135deg, #E24B4A, #EF9F27)',
+              background: (saving || nbSelected === 0)
+                ? '#ccc'
+                : 'linear-gradient(135deg, #E24B4A, #EF9F27)',
               color: '#fff', border: 'none', borderRadius: 10,
               fontSize: 13, fontWeight: 700,
-              cursor: saving ? 'wait' : 'pointer', fontFamily: 'inherit',
-              boxShadow: saving ? 'none' : '0 2px 8px rgba(226,75,74,0.25)',
+              cursor: (saving || nbSelected === 0) ? 'not-allowed' : 'pointer',
+              fontFamily: 'inherit',
+              boxShadow: (saving || nbSelected === 0) ? 'none' : '0 2px 8px rgba(226,75,74,0.25)',
             }}>
             {saving
               ? '...'
-              : (lang === 'ar' ? '💸 تأكيد الدفع' : '💸 Confirmer le paiement')}
+              : (lang === 'ar'
+                  ? `💸 دفع ${nbSelected} حصة`
+                  : `💸 Payer ${nbSelected} séance(s)`)}
           </button>
         </div>
       </div>
