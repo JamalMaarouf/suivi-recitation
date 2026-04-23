@@ -1625,6 +1625,8 @@ function OngletSuiviInstituteurs({ lang, user, isMobile }) {
   const [dateFin, setDateFin] = useState('');
   // Popup de details calendrier d'un instituteur (mode cartes)
   const [detailsInst, setDetailsInst] = useState(null);  // objet instituteur ou null
+  // Popup de paiement d'un instituteur (bouton 💸)
+  const [paiementInst, setPaiementInst] = useState(null);
 
   const { debut, fin } = calcBornesPeriode(periode, dateDebut, dateFin);
 
@@ -1801,6 +1803,47 @@ function OngletSuiviInstituteurs({ lang, user, isMobile }) {
       return;
     }
     loadSeances();
+  };
+
+  // ─── Paiement d'un instituteur ─────────────────────────────
+  // Couplage lâche avec Finance :
+  // 1. Crée une dépense catégorie 'salaire' (= ce que fait Finance)
+  // 2. Marque les séances concernées comme payées (paye=true + paiement_id)
+  // Si l'user modifie le montant dans la modale, on conserve quand même le lien
+  // avec les séances (le paiement_id permet de retrouver ce lien).
+  const handlePayer = async ({ montant, description, dateDepense, seancesIds }) => {
+    if (!paiementInst) return { ok: false, error: 'No instituteur' };
+    // 1. Créer la dépense Finance
+    const { data: dep, error: depError } = await supabase.from('depenses').insert({
+      montant: parseFloat(montant),
+      ecole_id: user.ecole_id,
+      date_depense: dateDepense,
+      categorie: 'salaire',
+      beneficiaire_id: paiementInst.id,
+      description: description || `Paiement ${seancesIds.length} séance(s)`,
+      created_by: user.id,
+    }).select('id').maybeSingle();
+    if (depError) {
+      console.error('[handlePayer] depense error:', depError);
+      return { ok: false, error: depError.message };
+    }
+    // 2. Marquer les séances comme payées avec le lien paiement_id
+    if (seancesIds.length > 0) {
+      const { error: seanceError } = await supabase.from('seances_instituteurs')
+        .update({ paye: true, paiement_id: dep?.id || null })
+        .in('id', seancesIds);
+      if (seanceError) {
+        console.error('[handlePayer] seances update error:', seanceError);
+        // La dépense est créée mais les séances ne sont pas marquées → état cohérent mais à corriger manuellement
+        return { ok: false, error: seanceError.message, depId: dep?.id };
+      }
+    }
+    toast.success(lang === 'ar'
+      ? `✅ تم تسجيل دفع ${montant} د. لـ ${paiementInst.prenom} ${paiementInst.nom}`
+      : `✅ Paiement de ${montant} DH enregistré pour ${paiementInst.prenom} ${paiementInst.nom}`);
+    setPaiementInst(null);
+    loadSeances();
+    return { ok: true };
   };
 
   const PERIODES = [
@@ -2085,6 +2128,7 @@ function OngletSuiviInstituteurs({ lang, user, isMobile }) {
                 isMobile={isMobile}
                 onValidateRow={() => validerLigne(inst.id)}
                 onShowDetails={() => setDetailsInst(inst)}
+                onPayer={() => setPaiementInst(inst)}
               />
             );
           })}
@@ -2117,6 +2161,18 @@ function OngletSuiviInstituteurs({ lang, user, isMobile }) {
           lang={lang}
         />
       )}
+
+      {/* Popup paiement instituteur */}
+      {paiementInst && (
+        <PaiementInstituteurModal
+          inst={paiementInst}
+          stats={statsInst[paiementInst.id]}
+          seances={seances.filter(s => s.instituteur_id === paiementInst.id && s.valide && !s.paye)}
+          onClose={() => setPaiementInst(null)}
+          onConfirm={handlePayer}
+          lang={lang}
+        />
+      )}
     </div>
   );
 }
@@ -2125,7 +2181,7 @@ function OngletSuiviInstituteurs({ lang, user, isMobile }) {
 // Carte synthese d'un instituteur (mode cartes)
 // Utilisee en mois/trimestre/semestre/annee et toujours en mobile.
 // ══════════════════════════════════════════════════════════════════════
-function InstituteurCard({ inst, stats, lang, isMobile, onValidateRow, onShowDetails }) {
+function InstituteurCard({ inst, stats, lang, isMobile, onValidateRow, onShowDetails, onPayer }) {
   const pctValides = stats.total > 0 ? Math.round((stats.valides / stats.total) * 100) : 0;
   const pctPayees  = stats.total > 0 ? Math.round((stats.payees  / stats.total) * 100) : 0;
 
@@ -2224,21 +2280,36 @@ function InstituteurCard({ inst, stats, lang, isMobile, onValidateRow, onShowDet
         {stats.enAttente > 0 && (
           <button onClick={onValidateRow}
             style={{
-              flex: 1, minWidth: 160, padding: '10px 14px',
+              flex: '1 1 160px', padding: '10px 14px',
               background: '#1D9E75', color: '#fff',
               border: 'none', borderRadius: 10,
               fontSize: 12, fontWeight: 700, cursor: 'pointer',
               fontFamily: 'inherit',
             }}>
             ✓ {lang === 'ar'
-              ? `التحقق من الحصص المنتظرة (${stats.enAttente})`
-              : `Valider en attente (${stats.enAttente})`}
+              ? `التحقق (${stats.enAttente})`
+              : `Valider (${stats.enAttente})`}
+          </button>
+        )}
+        {/* Bouton Payer : visible uniquement s'il y a des montants dus */}
+        {stats.montantDu > 0 && (
+          <button onClick={onPayer}
+            style={{
+              flex: '1 1 160px', padding: '10px 14px',
+              background: 'linear-gradient(135deg, #E24B4A, #EF9F27)', color: '#fff',
+              border: 'none', borderRadius: 10,
+              fontSize: 12, fontWeight: 700, cursor: 'pointer',
+              fontFamily: 'inherit',
+              boxShadow: '0 2px 8px rgba(226,75,74,0.25)',
+            }}>
+            💸 {lang === 'ar'
+              ? `دفع ${stats.montantDu.toFixed(0)} د.`
+              : `Payer ${stats.montantDu.toFixed(0)} DH`}
           </button>
         )}
         <button onClick={onShowDetails}
           style={{
-            flex: stats.enAttente > 0 ? '0 1 auto' : 1,
-            padding: '10px 14px',
+            flex: '0 1 auto', padding: '10px 14px',
             background: '#fff', color: '#534AB7',
             border: '1px solid #534AB740', borderRadius: 10,
             fontSize: 12, fontWeight: 700, cursor: 'pointer',
@@ -2415,6 +2486,235 @@ function DetailsInstituteurModal({ inst, seances, joursOuvres, stats, onClose, o
               cursor: 'pointer', fontFamily: 'inherit',
             }}>
             {lang === 'ar' ? 'إغلاق' : 'Fermer'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// Modale de paiement d'un instituteur
+//
+// Pré-remplit un formulaire de paiement avec le montant calculé à partir
+// des séances validées non payées. Le surveillant peut modifier librement
+// le montant (avance, solde partiel, etc.).
+//
+// Au submit : crée une dépense dans la table 'depenses' (catégorie 'salaire')
+// et marque les séances concernées comme payées (paye=true + paiement_id).
+// Couplage lâche : les séances restent indépendantes de Finance.
+// ══════════════════════════════════════════════════════════════════════
+function PaiementInstituteurModal({ inst, stats, seances, onClose, onConfirm, lang }) {
+  // Date par défaut = aujourd'hui (format YYYY-MM-DD local, pas UTC)
+  const now = new Date();
+  const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+
+  const montantCalcule = stats?.montantDu || 0;
+  const nbSeances = seances.length;
+
+  const [montant, setMontant] = useState(montantCalcule.toFixed(2));
+  const [dateDepense, setDateDepense] = useState(todayStr);
+  const [description, setDescription] = useState(
+    lang === 'ar'
+      ? `دفع ${nbSeances} حصة`
+      : `Paiement ${nbSeances} séance(s)`
+  );
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+
+  const handleSubmit = async () => {
+    const val = parseFloat(montant);
+    if (isNaN(val) || val <= 0) {
+      setError(lang === 'ar' ? 'المبلغ يجب أن يكون رقما موجبا' : 'Le montant doit être un nombre positif');
+      return;
+    }
+    setError('');
+    setSaving(true);
+    const res = await onConfirm({
+      montant: val,
+      dateDepense,
+      description,
+      seancesIds: seances.map(s => s.id),
+    });
+    setSaving(false);
+    if (!res.ok) {
+      setError((lang === 'ar' ? 'خطأ: ' : 'Erreur : ') + (res.error || ''));
+    }
+  };
+
+  return (
+    <div
+      onClick={onClose}
+      style={{
+        position: 'fixed', inset: 0, zIndex: 10000,
+        background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        padding: 16,
+      }}>
+      <div onClick={e => e.stopPropagation()}
+        style={{
+          background: '#fff', borderRadius: 16,
+          padding: 24, maxWidth: 500, width: '100%',
+          maxHeight: '90vh', overflow: 'auto',
+          boxShadow: '0 20px 60px rgba(0,0,0,0.3)',
+        }}>
+        {/* Header */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 18 }}>
+          <div style={{
+            width: 52, height: 52, borderRadius: 13,
+            background: 'linear-gradient(135deg, #E24B4A, #EF9F27)', color: '#fff',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            fontSize: 26, flexShrink: 0,
+          }}>💸</div>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 17, fontWeight: 800, color: '#1a1a1a' }}>
+              {lang === 'ar' ? 'تسجيل دفع' : 'Enregistrer un paiement'}
+            </div>
+            <div style={{ fontSize: 13, color: '#666', marginTop: 2 }}>
+              {inst.prenom} {inst.nom}
+              {inst.instituteur_id_ecole && (
+                <span style={{
+                  marginLeft: 6, padding: '1px 6px',
+                  background: '#EDE9FE', color: '#534AB7',
+                  borderRadius: 4, fontSize: 10, fontWeight: 700,
+                }}>{inst.instituteur_id_ecole}</span>
+              )}
+            </div>
+          </div>
+          <button onClick={onClose}
+            style={{
+              width: 34, height: 34, borderRadius: 10,
+              background: '#f5f5f0', color: '#666', border: 'none',
+              fontSize: 16, cursor: 'pointer', fontFamily: 'inherit',
+              flexShrink: 0,
+            }}>✕</button>
+        </div>
+
+        {/* Récap séances */}
+        <div style={{
+          background: '#E1F5EE', border: '1px solid #1D9E7530',
+          borderRadius: 10, padding: 14, marginBottom: 14,
+        }}>
+          <div style={{ fontSize: 11, color: '#085041', fontWeight: 700, marginBottom: 6 }}>
+            📋 {lang === 'ar' ? 'الحصص القابلة للدفع' : 'Séances à payer'}
+          </div>
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, flexWrap: 'wrap' }}>
+            <div style={{ fontSize: 28, fontWeight: 800, color: '#1D9E75' }}>
+              {nbSeances}
+            </div>
+            <div style={{ fontSize: 12, color: '#666' }}>
+              {lang === 'ar' ? 'حصة × ' : 'séance(s) × '}
+              <strong>{stats?.tarif?.toFixed(0) || 0} {lang === 'ar' ? 'د.' : 'DH'}</strong>
+              {' = '}
+              <strong style={{ color: '#E24B4A' }}>
+                {montantCalcule.toFixed(0)} {lang === 'ar' ? 'د.' : 'DH'}
+              </strong>
+            </div>
+          </div>
+        </div>
+
+        {/* Champ Montant */}
+        <div style={{ marginBottom: 12 }}>
+          <label style={{ fontSize: 12, fontWeight: 700, color: '#666', display: 'block', marginBottom: 6 }}>
+            {lang === 'ar' ? 'المبلغ المدفوع' : 'Montant payé'}
+          </label>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <input type="number" min="0" step="0.01"
+              value={montant}
+              onChange={e => setMontant(e.target.value)}
+              style={{
+                flex: 1, padding: '12px 14px',
+                fontSize: 18, fontWeight: 700,
+                borderRadius: 10, border: '2px solid #e0e0d8',
+                color: '#1a1a1a',
+                fontFamily: 'inherit', textAlign: 'center', outline: 'none',
+              }} />
+            <span style={{ fontSize: 14, fontWeight: 700, color: '#666' }}>
+              {lang === 'ar' ? 'د.' : 'DH'}
+            </span>
+          </div>
+          {montantCalcule > 0 && Math.abs(parseFloat(montant) - montantCalcule) > 0.01 && (
+            <div style={{ fontSize: 10, color: '#EF9F27', marginTop: 4, fontStyle: 'italic' }}>
+              ⚠️ {lang === 'ar'
+                ? `يختلف عن المبلغ المحسوب (${montantCalcule.toFixed(0)} د.)`
+                : `Diffère du montant calculé (${montantCalcule.toFixed(0)} DH)`}
+            </div>
+          )}
+        </div>
+
+        {/* Champ Date */}
+        <div style={{ marginBottom: 12 }}>
+          <label style={{ fontSize: 12, fontWeight: 700, color: '#666', display: 'block', marginBottom: 6 }}>
+            {lang === 'ar' ? 'تاريخ الدفع' : 'Date du paiement'}
+          </label>
+          <input type="date"
+            value={dateDepense}
+            onChange={e => setDateDepense(e.target.value)}
+            style={{
+              width: '100%', padding: '10px 14px',
+              fontSize: 13, borderRadius: 10, border: '1px solid #e0e0d8',
+              fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box',
+            }} />
+        </div>
+
+        {/* Champ Description */}
+        <div style={{ marginBottom: 14 }}>
+          <label style={{ fontSize: 12, fontWeight: 700, color: '#666', display: 'block', marginBottom: 6 }}>
+            {lang === 'ar' ? 'الوصف' : 'Description'}
+          </label>
+          <input type="text"
+            value={description}
+            onChange={e => setDescription(e.target.value)}
+            style={{
+              width: '100%', padding: '10px 14px',
+              fontSize: 13, borderRadius: 10, border: '1px solid #e0e0d8',
+              fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box',
+            }} />
+        </div>
+
+        {/* Info sur le couplage Finance */}
+        <div style={{
+          background: '#E6F1FB', borderLeft: '4px solid #378ADD',
+          padding: '8px 12px', borderRadius: 6, marginBottom: 14,
+          fontSize: 11, color: '#0C447C',
+        }}>
+          💡 {lang === 'ar'
+            ? 'سيتم تسجيل هذا الدفع في وحدة المالية (فئة: الرواتب) وستُعلم الحصص كمدفوعة.'
+            : 'Ce paiement sera enregistré dans le module Finance (catégorie : Salaires) et les séances seront marquées comme payées.'}
+        </div>
+
+        {error && (
+          <div style={{
+            padding: '8px 12px', background: '#FCEBEB',
+            color: '#A32D2D', borderRadius: 8,
+            fontSize: 12, fontWeight: 600, marginBottom: 12,
+          }}>{error}</div>
+        )}
+
+        {/* Boutons */}
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button onClick={onClose}
+            style={{
+              flex: 1, padding: '12px',
+              background: '#f5f5f0', color: '#666',
+              border: 'none', borderRadius: 10,
+              fontSize: 13, fontWeight: 600,
+              cursor: 'pointer', fontFamily: 'inherit',
+            }}>
+            {lang === 'ar' ? 'إلغاء' : 'Annuler'}
+          </button>
+          <button onClick={handleSubmit} disabled={saving}
+            style={{
+              flex: 2, padding: '12px',
+              background: saving ? '#888' : 'linear-gradient(135deg, #E24B4A, #EF9F27)',
+              color: '#fff', border: 'none', borderRadius: 10,
+              fontSize: 13, fontWeight: 700,
+              cursor: saving ? 'wait' : 'pointer', fontFamily: 'inherit',
+              boxShadow: saving ? 'none' : '0 2px 8px rgba(226,75,74,0.25)',
+            }}>
+            {saving
+              ? '...'
+              : (lang === 'ar' ? '💸 تأكيد الدفع' : '💸 Confirmer le paiement')}
           </button>
         </div>
       </div>
