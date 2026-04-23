@@ -163,11 +163,21 @@ export default function OngletCoursEleve({ eleve, lang, isMobile }) {
   // ─── Stats globales pour l'élève ───────────────────────────
   const statsGlobales = useMemo(() => {
     let total = 0, valides = 0;
+    let coursAccomplis = 0;  // cours dont tous les axes sont validés (100%)
+    let coursAvecAxes = 0;   // cours qui ont au moins 1 axe (pour le dénominateur)
     Object.values(statsByCours).forEach(s => {
       total += s.total;
       valides += s.valides;
+      if (s.total > 0) {
+        coursAvecAxes++;
+        if (s.pct === 100) coursAccomplis++;
+      }
     });
-    return { total, valides, pct: total > 0 ? Math.round((valides / total) * 100) : 0 };
+    return {
+      total, valides,
+      coursAccomplis, coursAvecAxes,
+      pct: total > 0 ? Math.round((valides / total) * 100) : 0,
+    };
   }, [statsByCours]);
 
   // ─── Historique trié par date (axes avec validation + statut eleve) ──
@@ -273,12 +283,18 @@ export default function OngletCoursEleve({ eleve, lang, isMobile }) {
           📊 {lang === 'ar' ? 'تقدمه الشخصي' : 'Sa progression personnelle'}
         </div>
         <div style={{
-          display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)',
+          display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)',
           gap: 8, marginBottom: 10,
         }}>
           <MiniStat label={lang === 'ar' ? 'المحاور' : 'Axes'} value={statsGlobales.total} color="#0C447C" />
           <MiniStat label={lang === 'ar' ? 'مكتسب' : 'Validés'} value={statsGlobales.valides} color="#1D9E75" />
           <MiniStat label={lang === 'ar' ? 'التقدم' : 'Progrès'} value={`${statsGlobales.pct}%`} color="#EF9F27" />
+          <MiniStat
+            label={lang === 'ar' ? 'دروس منجزة' : 'Cours accomplis'}
+            value={`${statsGlobales.coursAccomplis}/${statsGlobales.coursAvecAxes}`}
+            color="#534AB7"
+            highlight={statsGlobales.coursAccomplis > 0 && statsGlobales.coursAccomplis === statsGlobales.coursAvecAxes}
+          />
         </div>
         {/* Barre globale */}
         <div style={{ height: 8, background: '#f0f0ec', borderRadius: 999, overflow: 'hidden' }}>
@@ -391,15 +407,24 @@ export default function OngletCoursEleve({ eleve, lang, isMobile }) {
 }
 
 // Mini stat card
-function MiniStat({ label, value, color }) {
+function MiniStat({ label, value, color, highlight }) {
   return (
     <div style={{
-      padding: '8px 10px', background: `${color}10`,
-      border: `1px solid ${color}30`, borderRadius: 8,
+      padding: '8px 10px',
+      background: highlight ? color : `${color}10`,
+      border: `1px solid ${highlight ? color : color + '30'}`,
+      borderRadius: 8,
       textAlign: 'center',
+      transition: 'all 0.2s',
     }}>
-      <div style={{ fontSize: 9, color: '#888', fontWeight: 600, marginBottom: 2 }}>{label}</div>
-      <div style={{ fontSize: 15, fontWeight: 800, color }}>{value}</div>
+      <div style={{
+        fontSize: 9, color: highlight ? 'rgba(255,255,255,0.9)' : '#888',
+        fontWeight: 600, marginBottom: 2,
+      }}>{label}</div>
+      <div style={{
+        fontSize: 15, fontWeight: 800,
+        color: highlight ? '#fff' : color,
+      }}>{value}</div>
     </div>
   );
 }
