@@ -286,15 +286,15 @@ export default function OngletCoursEleve({ eleve, lang, isMobile }) {
           display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)',
           gap: 8, marginBottom: 10,
         }}>
-          <MiniStat label={lang === 'ar' ? 'المحاور' : 'Axes'} value={statsGlobales.total} color="#0C447C" />
-          <MiniStat label={lang === 'ar' ? 'مكتسب' : 'Validés'} value={statsGlobales.valides} color="#1D9E75" />
-          <MiniStat label={lang === 'ar' ? 'التقدم' : 'Progrès'} value={`${statsGlobales.pct}%`} color="#EF9F27" />
           <MiniStat
             label={lang === 'ar' ? 'دروس منجزة' : 'Cours accomplis'}
             value={`${statsGlobales.coursAccomplis}/${statsGlobales.coursAvecAxes}`}
             color="#534AB7"
             highlight={statsGlobales.coursAccomplis > 0 && statsGlobales.coursAccomplis === statsGlobales.coursAvecAxes}
           />
+          <MiniStat label={lang === 'ar' ? 'المحاور' : 'Axes'} value={statsGlobales.total} color="#0C447C" />
+          <MiniStat label={lang === 'ar' ? 'مكتسب' : 'Validés'} value={statsGlobales.valides} color="#1D9E75" />
+          <MiniStat label={lang === 'ar' ? 'التقدم' : 'Progrès'} value={`${statsGlobales.pct}%`} color="#EF9F27" />
         </div>
         {/* Barre globale */}
         <div style={{ height: 8, background: '#f0f0ec', borderRadius: 999, overflow: 'hidden' }}>

@@ -5,6 +5,7 @@ import { getInitiales, joursDepuis, scoreLabel, formatDateCourt , loadBareme, BA
 import { swr } from '../lib/offlineCache';
 import { getSouratesForNiveau } from '../lib/sourates';
 import { t } from '../lib/i18n';
+import OngletCoursEleve from '../components/OngletCoursEleve';
 
 const IS_SOURATE = (code) => ['5B','5A','2M'].includes(code||'');
 const NIVEAU_COLORS = {'5B':'#534AB7','5A':'#378ADD','2M':'#1D9E75','2':'#EF9F27','1':'#E24B4A'};
@@ -217,6 +218,7 @@ export default function PortailParent({ parent, navigate, goBack, lang='fr', onL
   const onglets = [
     { key:'progression', label:'Progression',     labelAr:'التقدم',        icon:'📈' },
     { key:'recitations', label:'Récitations',      labelAr:'الاستظهارات',     icon:'📖' },
+    { key:'cours',       label:'Cours',            labelAr:'الدروس',         icon:'📚' },
     { key:'objectifs',   label:'Objectifs',        labelAr:'الأهداف',       icon:'🎯' },
     { key:'cotisations', label:'Cotisations',      labelAr:'الاشتراكات',    icon:'💰' },
   ];
@@ -352,6 +354,10 @@ export default function PortailParent({ parent, navigate, goBack, lang='fr', onL
               <div style={{textAlign:'center',color:'#aaa',padding:'2rem'}}>
                 {lang==='ar'?'الأهداف قريباً':'Objectifs bientôt disponibles'}
               </div>
+            )}
+            {/* Cours */}
+            {onglet==='cours' && selectedEnfant && (
+              <OngletCoursEleve eleve={selectedEnfant} lang={lang} isMobile={true} />
             )}
           </div>
         )}
@@ -703,6 +709,10 @@ export default function PortailParent({ parent, navigate, goBack, lang='fr', onL
             })
           )}
         </div>
+      )}
+      {/* Cours */}
+      {onglet==='cours' && selectedEnfant && (
+        <OngletCoursEleve eleve={selectedEnfant} lang={lang} isMobile={false} />
       )}
     </div>
   );
