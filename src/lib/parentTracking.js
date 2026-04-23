@@ -19,7 +19,10 @@ import { supabase } from './supabase';
  * @param {string} onglet   - nom de l'onglet consulté ('progression', 'recitations', 'cours'...)
  */
 export async function trackParentVisite(parentId, eleveId, ecoleId, onglet) {
-  if (!parentId || !eleveId || !ecoleId) return;  // garde-fous silencieux
+  if (!parentId || !eleveId || !ecoleId) {
+    console.warn('[trackParentVisite] paramètres manquants :', { parentId, eleveId, ecoleId });
+    return;
+  }
 
   try {
     // Date du jour en heure LOCALE (pas UTC pour éviter décalage fuseau)
@@ -28,7 +31,7 @@ export async function trackParentVisite(parentId, eleveId, ecoleId, onglet) {
     const heureStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}`;
 
     // 1. Chercher une ligne existante pour aujourd'hui
-    const { data: existing } = await supabase
+    const { data: existing, error: selectError } = await supabase
       .from('parents_visites')
       .select('id, onglets_visites, nb_consultations')
       .eq('parent_id', parentId)
@@ -36,13 +39,18 @@ export async function trackParentVisite(parentId, eleveId, ecoleId, onglet) {
       .eq('date_visite', dateVisite)
       .maybeSingle();
 
+    if (selectError) {
+      console.error('[trackParentVisite] erreur SELECT :', selectError);
+      return;
+    }
+
     if (existing) {
       // UPDATE : ajouter onglet si absent + incrémenter compteur
       const ongletsArray = Array.isArray(existing.onglets_visites) ? existing.onglets_visites : [];
       const onglets = onglet && !ongletsArray.includes(onglet)
         ? [...ongletsArray, onglet]
         : ongletsArray;
-      await supabase
+      const { error: updateError } = await supabase
         .from('parents_visites')
         .update({
           onglets_visites: onglets,
@@ -50,9 +58,11 @@ export async function trackParentVisite(parentId, eleveId, ecoleId, onglet) {
           updated_at: new Date().toISOString(),
         })
         .eq('id', existing.id);
+      if (updateError) console.error('[trackParentVisite] erreur UPDATE :', updateError);
+      else console.log('[trackParentVisite] ✅ UPDATE OK', { onglet, onglets });
     } else {
       // INSERT : nouvelle visite du jour
-      await supabase
+      const { error: insertError } = await supabase
         .from('parents_visites')
         .insert({
           parent_id: parentId,
@@ -63,10 +73,12 @@ export async function trackParentVisite(parentId, eleveId, ecoleId, onglet) {
           premiere_heure: heureStr,
           nb_consultations: 1,
         });
+      if (insertError) console.error('[trackParentVisite] erreur INSERT :', insertError);
+      else console.log('[trackParentVisite] ✅ INSERT OK', { parentId, eleveId, onglet });
     }
   } catch (err) {
     // Silencieux : on ne doit pas casser l'UX du parent pour un log raté
-    console.warn('[trackParentVisite] erreur non bloquante :', err?.message);
+    console.warn('[trackParentVisite] exception :', err?.message);
   }
 }
 

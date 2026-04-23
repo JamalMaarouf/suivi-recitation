@@ -47,7 +47,7 @@ export default function SuiviParents({ user, navigate, goBack, lang, isMobile })
     const [niveauxRes, parentsRes, elevesRes, liaisonsRes, visitesRes] = await Promise.all([
       supabase.from('niveaux').select('code, nom, couleur, ordre').eq('ecole_id', user.ecole_id).order('ordre'),
       supabase.from('utilisateurs')
-        .select('id, prenom, nom, email, telephone')
+        .select('id, prenom, nom, identifiant, telephone')
         .eq('ecole_id', user.ecole_id)
         .eq('role', 'parent'),
       supabase.from('eleves')
@@ -178,7 +178,7 @@ export default function SuiviParents({ user, navigate, goBack, lang, isMobile })
       lang === 'ar' ? 'اسم الطالب' : 'Nom enfant',
       lang === 'ar' ? 'المستوى' : 'Niveau',
       lang === 'ar' ? 'الهاتف' : 'Téléphone',
-      lang === 'ar' ? 'البريد الإلكتروني' : 'Email',
+      lang === 'ar' ? 'المعرف' : 'Identifiant',
       lang === 'ar' ? 'آخر زيارة' : 'Dernière visite',
       lang === 'ar' ? 'الأيام المنقضية' : 'Jours écoulés',
       lang === 'ar' ? 'عدد أيام الزيارة' : 'Nb jours visités',
@@ -198,7 +198,7 @@ export default function SuiviParents({ user, navigate, goBack, lang, isMobile })
       `${p.eleve.prenom || ''} ${p.eleve.nom || ''}`.trim(),
       niveaux.find(n => n.code === p.eleve.code_niveau)?.nom || p.eleve.code_niveau || '',
       p.parent.telephone || '',
-      p.parent.email || '',
+      p.parent.identifiant || '',
       p.derniereVisite?.date_visite || '',
       p.joursEcoules !== null ? String(p.joursEcoules) : '',
       String(p.nbVisitesJours),
@@ -522,16 +522,17 @@ export default function SuiviParents({ user, navigate, goBack, lang, isMobile })
                             📞 {p.parent.telephone}
                           </a>
                         )}
-                        {p.parent.email && (
-                          <a href={`mailto:${p.parent.email}`}
+                        {p.parent.identifiant && (
+                          <div
+                            title={p.parent.identifiant}
                             style={{
-                              padding: '4px 8px', background: '#f5f5f0', color: '#666',
-                              border: '1px solid #e0e0d8', borderRadius: 6, textDecoration: 'none',
-                              fontSize: 10, cursor: 'pointer', fontFamily: 'inherit',
-                              display: 'inline-flex', alignItems: 'center', gap: 4,
+                              padding: '4px 8px', background: '#f5f5f0', color: '#888',
+                              border: '1px solid #e0e0d8', borderRadius: 6,
+                              fontSize: 10, fontFamily: 'inherit',
+                              maxWidth: 180, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
                             }}>
-                            ✉️ Email
-                          </a>
+                            🆔 {p.parent.identifiant}
+                          </div>
                         )}
                         <button onClick={() => navigate('fiche', p.eleve)}
                           style={{
