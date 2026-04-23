@@ -62,6 +62,7 @@ const GestionCours        = lazy(() => import('./pages/GestionCours'));
 const GestionCoursAxes    = lazy(() => import('./pages/GestionCoursAxes'));
 const SuiviCours          = lazy(() => import('./pages/SuiviCours'));
 const CoursValidation     = lazy(() => import('./pages/CoursValidation'));
+const GestionParents      = lazy(() => import('./pages/GestionParents'));
 import { t, getDir } from './lib/i18n';
 import { isSourateNiveauDyn } from './lib/helpers';
 import { ToastProvider } from './lib/toast';
@@ -590,6 +591,7 @@ export default function App() {
           {page === 'cours_axes'          && user.role==='surveillant' && <ErrorBoundary><GestionCoursAxes user={user} navigate={navigate} goBack={goBack} lang={lang} isMobile={isMobile} coursId={selectedCoursId} /></ErrorBoundary>}
           {page === 'cours'               && (user.role==='surveillant' || user.role==='instituteur') && <ErrorBoundary><SuiviCours user={user} navigate={navigate} goBack={goBack} lang={lang} isMobile={isMobile} /></ErrorBoundary>}
           {page === 'cours_validation'    && (user.role==='surveillant' || user.role==='instituteur') && <ErrorBoundary><CoursValidation user={user} navigate={navigate} goBack={goBack} lang={lang} isMobile={isMobile} coursValidation={selectedCoursValidation} /></ErrorBoundary>}
+          {page === 'gestion_parents'     && user.role==='surveillant' && <ErrorBoundary><GestionParents user={user} navigate={navigate} goBack={goBack} lang={lang} isMobile={isMobile} /></ErrorBoundary>}
           {page === 'enregistrer'       && (
             isSourateNiveauDyn(selectedEleve?.code_niveau||'', niveauxApp)
               ? <RecitationSourate eleve={selectedEleve} {...pageProps} />
