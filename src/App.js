@@ -60,6 +60,7 @@ const GestionAssiduite    = lazy(() => import('./pages/GestionAssiduite'));
 const GestionTarifs       = lazy(() => import('./pages/GestionTarifs'));
 const GestionCours        = lazy(() => import('./pages/GestionCours'));
 const GestionCoursAxes    = lazy(() => import('./pages/GestionCoursAxes'));
+const SuiviCours          = lazy(() => import('./pages/SuiviCours'));
 import { t, getDir } from './lib/i18n';
 import { isSourateNiveauDyn } from './lib/helpers';
 import { ToastProvider } from './lib/toast';
@@ -515,6 +516,7 @@ export default function App() {
                   {p:'calendrier',        icon:'📅', text:t(lang,'calendrier'),                                       roles:['surveillant','instituteur']},
                   {p:'validation_rapide', icon:'⚡', text:t(lang,'express'),                                          roles:['surveillant','instituteur']},
                   {p:'muraja',            icon:'📖', text:lang==='ar'?'مراجعة جماعية':"Muraja'a",                     roles:['surveillant','instituteur']},
+                  {p:'cours',             icon:'📚', text:lang==='ar'?'الدروس':'Cours',                              roles:['surveillant','instituteur']},
                   {p:'rapport_mensuel',   icon:'📊', text:t(lang,'rapport'),                                          roles:['surveillant','instituteur']},
                   {p:'liste_certificats', icon:'🏅', text:lang==='ar'?'الشهادات':'Certificats',                       roles:['surveillant']},
                   {p:'historique_seances',icon:'📈', text:lang==='ar'?'السجل':t(lang,'historique')||'Registre',       roles:['surveillant','instituteur']},
@@ -581,6 +583,7 @@ export default function App() {
           {page === 'gestion_tarifs'      && user.role==='surveillant' && <ErrorBoundary><GestionTarifs user={user} navigate={navigate} goBack={goBack} lang={lang} isMobile={isMobile} /></ErrorBoundary>}
           {page === 'gestion_cours'       && user.role==='surveillant' && <ErrorBoundary><GestionCours user={user} navigate={navigate} goBack={goBack} lang={lang} isMobile={isMobile} /></ErrorBoundary>}
           {page === 'cours_axes'          && user.role==='surveillant' && <ErrorBoundary><GestionCoursAxes user={user} navigate={navigate} goBack={goBack} lang={lang} isMobile={isMobile} coursId={selectedCoursId} /></ErrorBoundary>}
+          {page === 'cours'               && (user.role==='surveillant' || user.role==='instituteur') && <ErrorBoundary><SuiviCours user={user} navigate={navigate} goBack={goBack} lang={lang} isMobile={isMobile} /></ErrorBoundary>}
           {page === 'enregistrer'       && (
             isSourateNiveauDyn(selectedEleve?.code_niveau||'', niveauxApp)
               ? <RecitationSourate eleve={selectedEleve} {...pageProps} />
