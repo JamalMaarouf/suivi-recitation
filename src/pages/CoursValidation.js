@@ -151,6 +151,9 @@ export default function CoursValidation({ user, navigate, goBack, lang, isMobile
 
   // ─── Dévalider un axe ──────────────────────────────────────
   const devalider = (validation) => {
+    // Fermer d'abord le popup detail pour eviter le conflit z-index
+    // entre les 2 modales qui se superposent
+    setValidationDetail(null);
     setConfirmModal({
       isOpen: true,
       title: lang === 'ar' ? '↩️ إلغاء التحقق' : '↩️ Dévalider cet axe',
@@ -166,7 +169,6 @@ export default function CoursValidation({ user, navigate, goBack, lang, isMobile
           return;
         }
         toast.success(lang === 'ar' ? '✅ تم إلغاء التحقق' : '✅ Axe dévalidé');
-        setValidationDetail(null);
         loadData();
       },
     });
