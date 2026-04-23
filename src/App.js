@@ -59,6 +59,7 @@ const Assiduite           = lazy(() => import('./pages/Assiduite'));
 const GestionAssiduite    = lazy(() => import('./pages/GestionAssiduite'));
 const GestionTarifs       = lazy(() => import('./pages/GestionTarifs'));
 const GestionCours        = lazy(() => import('./pages/GestionCours'));
+const GestionCoursAxes    = lazy(() => import('./pages/GestionCoursAxes'));
 import { t, getDir } from './lib/i18n';
 import { isSourateNiveauDyn } from './lib/helpers';
 import { ToastProvider } from './lib/toast';
@@ -144,6 +145,8 @@ export default function App() {
 
   const [page, setPage] = useState('dashboard');
   const [selectedEleve, setSelectedEleve] = useState(null);
+  // Cours sélectionné pour l'éditeur d'axes
+  const [selectedCoursId, setSelectedCoursId] = useState(null);
   const [selectedInstituteur, setSelectedInstituteur] = useState(null);
   const [compareEleves, setCompareEleves] = useState([]);
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
@@ -292,11 +295,12 @@ export default function App() {
 
   const navigate = (p, data = null, extraData = null) => {
     // Save current page to history before navigating
-    setNavHistory(h => [...h.slice(-19), { page: pageRef.current, selectedEleve, selectedInstituteur, extraData: extraData }]);
+    setNavHistory(h => [...h.slice(-19), { page: pageRef.current, selectedEleve, selectedInstituteur, selectedCoursId, extraData: extraData }]);
     setPageWithRef(p);
     if (p === 'fiche' || p === 'enregistrer') setSelectedEleve(data);
     if (p === 'profil_instituteur') setSelectedInstituteur(data);
     if (p === 'comparaison') setCompareEleves(data || []);
+    if (p === 'cours_axes') setSelectedCoursId(data);
     if (extraData?.tab) setGestionTab(extraData.tab);
     window.scrollTo(0, 0);
   };
@@ -308,6 +312,7 @@ export default function App() {
     setPageWithRef(prev.page);
     if (prev.selectedEleve !== undefined) setSelectedEleve(prev.selectedEleve);
     if (prev.selectedInstituteur !== undefined) setSelectedInstituteur(prev.selectedInstituteur);
+    if (prev.selectedCoursId !== undefined) setSelectedCoursId(prev.selectedCoursId);
     if (prev.extraData?.tab) setGestionTab(prev.extraData.tab);
     window.scrollTo(0, 0);
   };
@@ -575,6 +580,7 @@ export default function App() {
           {page === 'gestion_assiduite'   && user.role==='surveillant' && <ErrorBoundary><GestionAssiduite user={user} navigate={navigate} goBack={goBack} lang={lang} isMobile={isMobile} /></ErrorBoundary>}
           {page === 'gestion_tarifs'      && user.role==='surveillant' && <ErrorBoundary><GestionTarifs user={user} navigate={navigate} goBack={goBack} lang={lang} isMobile={isMobile} /></ErrorBoundary>}
           {page === 'gestion_cours'       && user.role==='surveillant' && <ErrorBoundary><GestionCours user={user} navigate={navigate} goBack={goBack} lang={lang} isMobile={isMobile} /></ErrorBoundary>}
+          {page === 'cours_axes'          && user.role==='surveillant' && <ErrorBoundary><GestionCoursAxes user={user} navigate={navigate} goBack={goBack} lang={lang} isMobile={isMobile} coursId={selectedCoursId} /></ErrorBoundary>}
           {page === 'enregistrer'       && (
             isSourateNiveauDyn(selectedEleve?.code_niveau||'', niveauxApp)
               ? <RecitationSourate eleve={selectedEleve} {...pageProps} />
