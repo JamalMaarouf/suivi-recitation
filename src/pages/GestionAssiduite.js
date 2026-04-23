@@ -29,6 +29,13 @@ export default function GestionAssiduite({ user, navigate, goBack, lang, isMobil
   const [formFin, setFormFin] = useState('');
   const [adding, setAdding] = useState(false);
 
+  // ─── State PIN kiosque ──────────────────────────────────────
+  // PIN a 4 chiffres requis pour sortir du mode kiosque verrouille
+  const [pinKiosque, setPinKiosque] = useState('');
+  const [pinConfirm, setPinConfirm] = useState('');
+  const [pinSet, setPinSet] = useState(false);  // true si un PIN est deja defini
+  const [pinSaving, setPinSaving] = useState(false);
+
   // Confirmation suppression
   const [confirmModal, setConfirmModal] = useState({ isOpen: false, title: '', message: '', onConfirm: null });
   const hideConfirm = () => setConfirmModal(m => ({ ...m, isOpen: false, onConfirm: null }));
@@ -42,7 +49,7 @@ export default function GestionAssiduite({ user, navigate, goBack, lang, isMobil
     setJoursLoading(true);
     const [ecoleRes, joursRes] = await Promise.all([
       supabase.from('ecoles')
-        .select('seuil_assiduite_risque, seuil_assiduite_parfait')
+        .select('seuil_assiduite_risque, seuil_assiduite_parfait, pin_kiosque')
         .eq('id', user.ecole_id)
         .maybeSingle(),
       supabase.from('jours_non_travailles')
@@ -57,6 +64,10 @@ export default function GestionAssiduite({ user, navigate, goBack, lang, isMobil
       if (ecoleRes.data.seuil_assiduite_parfait !== null && ecoleRes.data.seuil_assiduite_parfait !== undefined) {
         setSeuilParfait(ecoleRes.data.seuil_assiduite_parfait);
       }
+      // PIN kiosque : on ne charge pas la valeur par securite (hash coté UI),
+      // mais on affiche juste s'il est defini ou non (pour que le surveillant
+      // sache s'il doit en creer un ou modifier l'existant)
+      setPinSet(!!ecoleRes.data.pin_kiosque);
     }
     setJours(joursRes.data || []);
     setSeuilsLoading(false);
@@ -95,6 +106,59 @@ export default function GestionAssiduite({ user, navigate, goBack, lang, isMobil
       return;
     }
     toast.success(lang === 'ar' ? '✅ تم حفظ العتبات' : '✅ Seuils enregistrés');
+  };
+
+  // ─── Sauvegarde PIN kiosque ────────────────────────────────
+  const savePin = async () => {
+    // Validations : 4 chiffres exactement
+    if (!/^\d{4}$/.test(pinKiosque)) {
+      toast.error(lang === 'ar'
+        ? 'الرمز يجب أن يتكون من 4 أرقام'
+        : 'Le PIN doit contenir exactement 4 chiffres');
+      return;
+    }
+    if (pinKiosque !== pinConfirm) {
+      toast.error(lang === 'ar'
+        ? 'الرمزان لا يتطابقان'
+        : 'Les deux PINs ne correspondent pas');
+      return;
+    }
+    setPinSaving(true);
+    const { error } = await supabase.from('ecoles')
+      .update({ pin_kiosque: pinKiosque })
+      .eq('id', user.ecole_id);
+    setPinSaving(false);
+    if (error) {
+      console.error('[savePin]', error);
+      toast.error((lang === 'ar' ? 'خطأ: ' : 'Erreur : ') + error.message);
+      return;
+    }
+    setPinKiosque('');
+    setPinConfirm('');
+    setPinSet(true);
+    toast.success(lang === 'ar' ? '✅ تم حفظ رمز الكشك' : '✅ PIN kiosque enregistré');
+  };
+
+  // ─── Suppression du PIN (remet a NULL) ─────────────────────
+  const deletePin = () => {
+    showConfirm(
+      lang === 'ar' ? 'حذف رمز الكشك' : 'Supprimer le PIN',
+      lang === 'ar'
+        ? 'سيتم تعطيل وضع الكشك. هل تريد المتابعة؟'
+        : 'Cela désactivera le mode kiosque. Continuer ?',
+      async () => {
+        const { error } = await supabase.from('ecoles')
+          .update({ pin_kiosque: null })
+          .eq('id', user.ecole_id);
+        hideConfirm();
+        if (error) {
+          toast.error((lang === 'ar' ? 'خطأ: ' : 'Erreur : ') + error.message);
+          return;
+        }
+        setPinSet(false);
+        toast.success(lang === 'ar' ? '✅ تم الحذف' : '✅ PIN supprimé');
+      }
+    );
   };
 
   // ─── Ajout jour non travaillé ──────────────────────────────
@@ -477,6 +541,128 @@ export default function GestionAssiduite({ user, navigate, goBack, lang, isMobil
               })}
             </div>
           )}
+        </div>
+
+        {/* ════════════════════════════════════════════ */}
+        {/* SECTION 3 : PIN KIOSQUE (protection Finance)  */}
+        {/* ════════════════════════════════════════════ */}
+        <div style={{
+          background: '#fff', borderRadius: 14, padding: isMobile ? 16 : 20,
+          marginTop: 16, border: '1px solid #e0e0d8',
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
+            <div style={{ fontSize: 22 }}>🔒</div>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 15, fontWeight: 700, color: '#1a1a1a' }}>
+                {lang === 'ar' ? 'رمز وضع الكشك' : 'PIN mode kiosque'}
+              </div>
+              <div style={{ fontSize: 11, color: '#888', marginTop: 2 }}>
+                {lang === 'ar'
+                  ? 'رمز من 4 أرقام مطلوب للخروج من وضع الكشك المقفل'
+                  : 'Code à 4 chiffres requis pour sortir du mode kiosque verrouillé'}
+              </div>
+            </div>
+            {pinSet && (
+              <div style={{
+                padding: '4px 10px', background: '#E1F5EE',
+                color: '#085041', borderRadius: 6,
+                fontSize: 11, fontWeight: 700,
+              }}>
+                ✓ {lang === 'ar' ? 'مفعّل' : 'Défini'}
+              </div>
+            )}
+          </div>
+
+          {/* Info explication */}
+          <div style={{
+            background: '#E6F1FB', borderLeft: '4px solid #378ADD',
+            padding: '10px 14px', borderRadius: 8, marginBottom: 14,
+            fontSize: 12, color: '#0C447C',
+          }}>
+            💡 {lang === 'ar'
+              ? 'عند تفعيل وضع الكشك، لن يتمكن أحد من الوصول إلى القوائم الأخرى (المالية، الإدارة...) دون إدخال الرمز.'
+              : 'Une fois le mode kiosque activé, personne ne peut accéder aux autres menus (Finance, Gestion...) sans saisir ce PIN.'}
+          </div>
+
+          <div style={{
+            background: '#FAEEDA', padding: 14, borderRadius: 10,
+            border: '1px solid #EF9F2730',
+          }}>
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr',
+              gap: 10, marginBottom: 10,
+            }}>
+              <div>
+                <label style={{ fontSize: 11, fontWeight: 700, color: '#633806', display: 'block', marginBottom: 4 }}>
+                  {lang === 'ar'
+                    ? (pinSet ? 'رمز جديد (4 أرقام)' : 'الرمز (4 أرقام)')
+                    : (pinSet ? 'Nouveau PIN (4 chiffres)' : 'PIN (4 chiffres)')}
+                </label>
+                <input type="password"
+                  inputMode="numeric" maxLength={4}
+                  value={pinKiosque}
+                  onChange={e => setPinKiosque(e.target.value.replace(/[^0-9]/g, '').slice(0, 4))}
+                  placeholder="••••"
+                  style={{
+                    width: '100%', padding: '11px 12px',
+                    fontSize: 20, fontWeight: 700, letterSpacing: 8,
+                    borderRadius: 8, border: '1px solid #EF9F2750',
+                    background: '#fff', color: '#633806',
+                    fontFamily: 'monospace', textAlign: 'center', outline: 'none',
+                    boxSizing: 'border-box',
+                  }} />
+              </div>
+              <div>
+                <label style={{ fontSize: 11, fontWeight: 700, color: '#633806', display: 'block', marginBottom: 4 }}>
+                  {lang === 'ar' ? 'تأكيد الرمز' : 'Confirmer le PIN'}
+                </label>
+                <input type="password"
+                  inputMode="numeric" maxLength={4}
+                  value={pinConfirm}
+                  onChange={e => setPinConfirm(e.target.value.replace(/[^0-9]/g, '').slice(0, 4))}
+                  placeholder="••••"
+                  style={{
+                    width: '100%', padding: '11px 12px',
+                    fontSize: 20, fontWeight: 700, letterSpacing: 8,
+                    borderRadius: 8, border: '1px solid #EF9F2750',
+                    background: '#fff', color: '#633806',
+                    fontFamily: 'monospace', textAlign: 'center', outline: 'none',
+                    boxSizing: 'border-box',
+                  }} />
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              <button onClick={savePin} disabled={pinSaving}
+                style={{
+                  flex: 1, minWidth: 140, padding: '10px 14px',
+                  background: pinSaving ? '#888' : '#EF9F27',
+                  color: '#fff', border: 'none', borderRadius: 8,
+                  fontSize: 13, fontWeight: 700,
+                  cursor: pinSaving ? 'wait' : 'pointer',
+                  fontFamily: 'inherit',
+                }}>
+                {pinSaving
+                  ? '...'
+                  : (pinSet
+                      ? (lang === 'ar' ? '🔄 تغيير الرمز' : '🔄 Changer le PIN')
+                      : (lang === 'ar' ? '🔒 حفظ الرمز' : '🔒 Enregistrer le PIN'))}
+              </button>
+              {pinSet && (
+                <button onClick={deletePin}
+                  style={{
+                    padding: '10px 14px',
+                    background: '#FCEBEB', color: '#E24B4A',
+                    border: '1px solid #E24B4A30', borderRadius: 8,
+                    fontSize: 12, fontWeight: 600,
+                    cursor: 'pointer', fontFamily: 'inherit',
+                  }}>
+                  🗑 {lang === 'ar' ? 'حذف الرمز' : 'Supprimer'}
+                </button>
+              )}
+            </div>
+          </div>
         </div>
 
       </div>

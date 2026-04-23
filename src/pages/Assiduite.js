@@ -2,6 +2,8 @@ import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 import { useToast } from '../lib/toast';
 import { t } from '../lib/i18n';
+import KioskExitModal from '../components/KioskExitModal';
+import ConfirmModal from '../components/ConfirmModal';
 
 // ══════════════════════════════════════════════════════════════════════
 // PAGE ASSIDUITÉ — الحضور
@@ -19,8 +21,75 @@ import { t } from '../lib/i18n';
 // Feature retour surveillant 22/04/2026 (sujet 1/5 : Absences élèves)
 // ══════════════════════════════════════════════════════════════════════
 
-export default function Assiduite({ user, navigate, goBack, lang, isMobile }) {
+export default function Assiduite({ user, navigate, goBack, lang, isMobile, kioskMode, enterKiosk, exitKiosk }) {
   const [onglet, setOnglet] = useState('saisie');  // 'saisie' | 'suivi'
+  // Cible de la saisie : 'eleves' (par defaut) ou 'instituteurs'
+  // Permet d'enregistrer les presences des 2 populations sur le meme kiosque.
+  const [cible, setCible] = useState('eleves');
+  // Date de saisie — defaut aujourd'hui. Permet au surveillant de rattraper
+  // une presence oubliee en choisissant une date passee.
+  // En mode kiosque verrouille, le selecteur est masque → force a aujourd'hui.
+  const [dateSaisie, setDateSaisie] = useState(() => {
+    const n = new Date();
+    return `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, '0')}-${String(n.getDate()).padStart(2, '0')}`;
+  });
+  // Date d'aujourd'hui en local (pour comparer et savoir si on est en rattrapage)
+  const todayStr = (() => {
+    const n = new Date();
+    return `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, '0')}-${String(n.getDate()).padStart(2, '0')}`;
+  })();
+  const isRattrapage = dateSaisie !== todayStr;
+  // Si on entre en mode kiosque, forcer la date à aujourd'hui (protection)
+  useEffect(() => {
+    if (kioskMode) setDateSaisie(todayStr);
+    // eslint-disable-next-line
+  }, [kioskMode]);
+  const [showExitModal, setShowExitModal] = useState(false);  // popup PIN de sortie kiosque
+  // Modal generique pour info/confirmation (remplace window.confirm et alert
+  // qui sont laids et pas coherents avec le design de l'app).
+  const [modal, setModal] = useState({ isOpen: false, title: '', message: '', onConfirm: null, confirmLabel: null, cancelLabel: null, confirmColor: null, hideCancel: false });
+  const closeModal = () => setModal(m => ({ ...m, isOpen: false }));
+
+  // Active le kiosque APRES vérification qu'un PIN est bien configuré.
+  // Sans PIN, on ne peut pas sortir → on bloque l'activation avec un message.
+  const askActivateKiosk = async () => {
+    if (!user?.ecole_id) return;
+    const { data } = await supabase.from('ecoles')
+      .select('pin_kiosque')
+      .eq('id', user.ecole_id)
+      .maybeSingle();
+    if (!data?.pin_kiosque) {
+      // Pas de PIN configure : modal d'info avec bouton unique 'Compris'
+      setModal({
+        isOpen: true,
+        title: lang === 'ar' ? '⚠️ الرمز غير محدد' : '⚠️ PIN non défini',
+        message: lang === 'ar'
+          ? 'يجب أولاً تعريف رمز الكشك في : الإعدادات ← الحضور ← قسم رمز وضع الكشك'
+          : 'Tu dois d\'abord définir un PIN dans : Paramètres → Assiduité → section PIN mode kiosque',
+        onConfirm: () => { closeModal(); navigate('gestion_assiduite'); },
+        confirmLabel: lang === 'ar' ? '📝 الذهاب إلى الإعدادات' : '📝 Aller aux paramètres',
+        cancelLabel: lang === 'ar' ? 'إغلاق' : 'Fermer',
+        confirmColor: '#1D9E75',
+      });
+      return;
+    }
+    // PIN configure : modal de confirmation avant activation
+    setModal({
+      isOpen: true,
+      title: lang === 'ar' ? '🔒 تفعيل وضع الكشك' : '🔒 Activer le mode kiosque',
+      message: lang === 'ar'
+        ? 'سيتم قفل الوصول إلى القوائم الأخرى (المالية، الإدارة...). للخروج ستحتاج إلى إدخال الرمز. هل تريد المتابعة؟'
+        : 'L\'accès aux autres menus (Finance, Gestion...) sera verrouillé. Pour sortir, il faudra saisir le PIN. Continuer ?',
+      onConfirm: () => { closeModal(); enterKiosk(); },
+      confirmLabel: lang === 'ar' ? '🔒 تفعيل' : '🔒 Activer',
+      cancelLabel: lang === 'ar' ? 'إلغاء' : 'Annuler',
+      confirmColor: '#EF9F27',
+    });
+  };
+
+  const handleExitValidate = async (pin) => {
+    return await exitKiosk(pin);  // retourne true/false
+  };
 
   // ─── Rendu MOBILE / TABLETTE : header vert plein largeur ──────
   if (isMobile) {
@@ -33,22 +102,52 @@ export default function Assiduite({ user, navigate, goBack, lang, isMobile }) {
           position: 'sticky', top: 0, zIndex: 100,
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 10 }}>
-            <button onClick={() => goBack ? goBack() : navigate('dashboard')}
-              style={{
-                width: 38, height: 38,
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                background: 'rgba(255,255,255,0.2)',
-                border: 'none', borderRadius: 10, padding: 0, flexShrink: 0,
-                color: '#fff', fontSize: 18, cursor: 'pointer',
-              }}>←</button>
+            {!kioskMode && (
+              <button onClick={() => goBack ? goBack() : navigate('dashboard')}
+                style={{
+                  width: 38, height: 38,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  background: 'rgba(255,255,255,0.2)',
+                  border: 'none', borderRadius: 10, padding: 0, flexShrink: 0,
+                  color: '#fff', fontSize: 18, cursor: 'pointer',
+                }}>←</button>
+            )}
             <div style={{ flex: 1 }}>
               <div style={{ fontSize: 18, fontWeight: 700, lineHeight: 1.2 }}>
                 {lang === 'ar' ? '📅 الحضور' : '📅 Assiduité'}
+                {kioskMode && (
+                  <span style={{
+                    marginLeft: 8, fontSize: 10, fontWeight: 700,
+                    background: 'rgba(255,255,255,0.25)', padding: '2px 8px',
+                    borderRadius: 10, verticalAlign: 'middle',
+                  }}>🔒 {lang === 'ar' ? 'كشك' : 'KIOSQUE'}</span>
+                )}
               </div>
               <div style={{ fontSize: 12, opacity: 0.85, marginTop: 2 }}>
                 {lang === 'ar' ? 'تسجيل و متابعة حضور الطلاب' : 'Saisie et suivi des présences'}
               </div>
             </div>
+            {/* Bouton kiosque */}
+            {kioskMode ? (
+              <button onClick={() => setShowExitModal(true)}
+                style={{
+                  padding: '8px 12px',
+                  background: '#EF9F27', color: '#fff',
+                  border: 'none', borderRadius: 10,
+                  fontSize: 12, fontWeight: 700, cursor: 'pointer',
+                  flexShrink: 0, fontFamily: 'inherit',
+                }}>🔓</button>
+            ) : (
+              <button onClick={() => askActivateKiosk()}
+                title={lang === 'ar' ? 'تفعيل وضع الكشك' : 'Activer mode kiosque'}
+                style={{
+                  padding: '8px 12px',
+                  background: 'rgba(255,255,255,0.2)', color: '#fff',
+                  border: '1px solid rgba(255,255,255,0.3)', borderRadius: 10,
+                  fontSize: 12, fontWeight: 700, cursor: 'pointer',
+                  flexShrink: 0, fontFamily: 'inherit',
+                }}>🔒</button>
+            )}
           </div>
 
           {/* Onglets */}
@@ -79,8 +178,107 @@ export default function Assiduite({ user, navigate, goBack, lang, isMobile }) {
           </div>
         </div>
 
-        {onglet === 'saisie' && <SaisieKiosque user={user} lang={lang} />}
-        {onglet === 'suivi'  && <SuiviPlaceholder lang={lang} user={user} isMobile={true} />}
+        {onglet === 'saisie' && (
+          <>
+            {/* Selecteur Eleves / Instituteurs (kiosque uniquement) */}
+            <div style={{
+              display: 'flex', gap: 6, padding: '10px 14px 0',
+            }}>
+              {[
+                { k: 'eleves',       label: lang === 'ar' ? '👨‍🎓 الطلاب'   : '👨‍🎓 Élèves',       color: '#085041' },
+                { k: 'instituteurs', label: lang === 'ar' ? '👨‍🏫 الأساتذة' : '👨‍🏫 Instituteurs', color: '#534AB7' },
+              ].map(c => {
+                const active = cible === c.k;
+                return (
+                  <button key={c.k} onClick={() => setCible(c.k)}
+                    style={{
+                      flex: 1, padding: '10px 12px',
+                      borderRadius: 10,
+                      background: active ? c.color : '#fff',
+                      color: active ? '#fff' : c.color,
+                      fontSize: 13, fontWeight: 700,
+                      cursor: 'pointer', fontFamily: 'inherit',
+                      border: `1.5px solid ${c.color}${active ? '' : '30'}`,
+                      boxShadow: active ? `0 2px 8px ${c.color}40` : 'none',
+                      transition: 'all 0.15s',
+                    }}>
+                    {c.label}
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Selecteur de date (cache en mode kiosque pour empecher les
+                eleves/instituteurs de tricher sur leur date de presence).
+                Hors kiosque : le surveillant peut choisir une date passee
+                pour rattraper une saisie oubliee. */}
+            {!kioskMode && (
+              <div style={{ padding: '8px 14px 0' }}>
+                <div style={{
+                  background: isRattrapage ? '#FAEEDA' : '#fff',
+                  border: `1px solid ${isRattrapage ? '#EF9F2740' : '#e0e0d8'}`,
+                  borderRadius: 10, padding: '10px 12px',
+                }}>
+                  <div style={{ fontSize: 11, color: isRattrapage ? '#633806' : '#666', fontWeight: 600, marginBottom: 6 }}>
+                    📅 {lang === 'ar' ? 'تاريخ التسجيل' : 'Date de saisie'}
+                  </div>
+                  <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                    <input type="date"
+                      value={dateSaisie}
+                      max={todayStr}
+                      onChange={e => setDateSaisie(e.target.value)}
+                      style={{
+                        flex: 1, padding: '8px 10px', fontSize: 13,
+                        borderRadius: 8, border: '1px solid #c0c0b8',
+                        fontFamily: 'inherit', outline: 'none',
+                      }} />
+                    {isRattrapage && (
+                      <button onClick={() => setDateSaisie(todayStr)}
+                        style={{
+                          padding: '8px 12px', background: '#1D9E75', color: '#fff',
+                          border: 'none', borderRadius: 8, fontSize: 11, fontWeight: 700,
+                          cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap',
+                        }}>
+                        {lang === 'ar' ? '↻ اليوم' : '↻ Aujourd\'hui'}
+                      </button>
+                    )}
+                  </div>
+                  {isRattrapage && (
+                    <div style={{ fontSize: 10, color: '#633806', marginTop: 6, fontWeight: 700 }}>
+                      ⚠️ {lang === 'ar'
+                        ? 'وضع التعويض: التسجيل لتاريخ سابق'
+                        : 'Mode rattrapage : saisie pour une date passée'}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            <SaisieKiosque user={user} lang={lang} cible={cible} dateSaisie={dateSaisie} isRattrapage={isRattrapage} />
+          </>
+        )}
+        {onglet === 'suivi'  && <SuiviPlaceholder lang={lang} user={user} isMobile={true} cible={cible} setCible={setCible} />}
+
+        {/* Popup PIN de sortie kiosque (mobile) */}
+        <KioskExitModal
+          isOpen={showExitModal}
+          onClose={() => setShowExitModal(false)}
+          onValidate={handleExitValidate}
+          lang={lang}
+        />
+
+        {/* Modal generique (info / confirmation) */}
+        <ConfirmModal
+          isOpen={modal.isOpen}
+          title={modal.title}
+          message={modal.message}
+          onConfirm={modal.onConfirm || closeModal}
+          onCancel={closeModal}
+          confirmLabel={modal.confirmLabel}
+          cancelLabel={modal.cancelLabel}
+          confirmColor={modal.confirmColor}
+          lang={lang}
+        />
       </div>
     );
   }
@@ -91,15 +289,50 @@ export default function Assiduite({ user, navigate, goBack, lang, isMobile }) {
 
       {/* Header classique comme ListeNotes */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: '1.25rem' }}>
-        <button onClick={() => goBack ? goBack() : navigate('dashboard')} className="back-link"></button>
+        {!kioskMode && (
+          <button onClick={() => goBack ? goBack() : navigate('dashboard')} className="back-link"></button>
+        )}
         <div style={{ flex: 1 }}>
-          <div style={{ fontSize: 20, fontWeight: 800, color: '#1a1a1a' }}>
+          <div style={{ fontSize: 20, fontWeight: 800, color: '#1a1a1a', display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
             📅 {lang === 'ar' ? 'الحضور' : 'Assiduité'}
+            {kioskMode && (
+              <span style={{
+                fontSize: 11, fontWeight: 700,
+                background: '#FAEEDA', color: '#633806',
+                padding: '3px 10px', borderRadius: 12,
+                border: '1px solid #EF9F2750',
+              }}>🔒 {lang === 'ar' ? 'وضع الكشك مفعل' : 'Mode kiosque activé'}</span>
+            )}
           </div>
           <div style={{ fontSize: 12, color: '#888' }}>
             {lang === 'ar' ? 'تسجيل و متابعة حضور الطلاب' : 'Saisie et suivi des présences'}
           </div>
         </div>
+        {/* Bouton kiosque */}
+        {kioskMode ? (
+          <button onClick={() => setShowExitModal(true)}
+            style={{
+              padding: '8px 16px',
+              background: '#EF9F27', color: '#fff',
+              border: 'none', borderRadius: 10,
+              fontSize: 12, fontWeight: 700, cursor: 'pointer',
+              fontFamily: 'inherit', flexShrink: 0,
+            }}>
+            🔓 {lang === 'ar' ? 'خروج' : 'Quitter kiosque'}
+          </button>
+        ) : (
+          <button onClick={askActivateKiosk}
+            title={lang === 'ar' ? 'تفعيل وضع الكشك' : 'Activer mode kiosque'}
+            style={{
+              padding: '8px 14px',
+              background: '#fff', color: '#085041',
+              border: '1px solid #1D9E7540', borderRadius: 10,
+              fontSize: 12, fontWeight: 700, cursor: 'pointer',
+              fontFamily: 'inherit', flexShrink: 0,
+            }}>
+            🔒 {lang === 'ar' ? 'وضع الكشك' : 'Mode kiosque'}
+          </button>
+        )}
       </div>
 
       {/* Onglets en pilules (comme le sélecteur de période de ListeNotes) */}
@@ -126,8 +359,101 @@ export default function Assiduite({ user, navigate, goBack, lang, isMobile }) {
         })}
       </div>
 
-      {onglet === 'saisie' && <SaisieDesktop user={user} lang={lang} />}
-      {onglet === 'suivi'  && <SuiviPlaceholder lang={lang} user={user} />}
+      {onglet === 'saisie' && (
+        <>
+          {/* Selecteur Eleves / Instituteurs (kiosque uniquement) */}
+          <div style={{
+            display: 'flex', gap: 8, marginBottom: '1.25rem', flexWrap: 'wrap',
+          }}>
+            {[
+              { k: 'eleves',       label: lang === 'ar' ? '👨‍🎓 الطلاب'   : '👨‍🎓 Élèves',       color: '#085041', bg: '#E1F5EE' },
+              { k: 'instituteurs', label: lang === 'ar' ? '👨‍🏫 الأساتذة' : '👨‍🏫 Instituteurs', color: '#534AB7', bg: '#EDE9FE' },
+            ].map(c => {
+              const active = cible === c.k;
+              return (
+                <button key={c.k} onClick={() => setCible(c.k)}
+                  style={{
+                    padding: '10px 20px', borderRadius: 10,
+                    border: `1.5px solid ${active ? c.color : '#e0e0d8'}`,
+                    background: active ? c.bg : '#fff',
+                    color: active ? c.color : '#666',
+                    fontSize: 13, fontWeight: active ? 700 : 500,
+                    cursor: 'pointer', fontFamily: 'inherit',
+                    boxShadow: active ? `0 2px 6px ${c.color}25` : 'none',
+                    transition: 'all 0.15s',
+                  }}>
+                  {c.label}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Selecteur de date (voir explication en version mobile) */}
+          {!kioskMode && (
+            <div style={{
+              background: isRattrapage ? '#FAEEDA' : '#fff',
+              border: `1px solid ${isRattrapage ? '#EF9F2740' : '#e0e0d8'}`,
+              borderRadius: 10, padding: '10px 14px',
+              marginBottom: '1.25rem',
+              display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap',
+            }}>
+              <div style={{ fontSize: 12, color: isRattrapage ? '#633806' : '#666', fontWeight: 700 }}>
+                📅 {lang === 'ar' ? 'تاريخ التسجيل' : 'Date de saisie'}
+              </div>
+              <input type="date"
+                value={dateSaisie}
+                max={todayStr}
+                onChange={e => setDateSaisie(e.target.value)}
+                style={{
+                  padding: '7px 10px', fontSize: 13,
+                  borderRadius: 8, border: '1px solid #c0c0b8',
+                  fontFamily: 'inherit', outline: 'none',
+                }} />
+              {isRattrapage && (
+                <button onClick={() => setDateSaisie(todayStr)}
+                  style={{
+                    padding: '7px 12px', background: '#1D9E75', color: '#fff',
+                    border: 'none', borderRadius: 8, fontSize: 12, fontWeight: 700,
+                    cursor: 'pointer', fontFamily: 'inherit',
+                  }}>
+                  {lang === 'ar' ? '↻ اليوم' : '↻ Aujourd\'hui'}
+                </button>
+              )}
+              {isRattrapage && (
+                <div style={{ fontSize: 11, color: '#633806', fontWeight: 700, flex: '1 1 100%' }}>
+                  ⚠️ {lang === 'ar'
+                    ? 'وضع التعويض: التسجيل لتاريخ سابق (ليس اليوم)'
+                    : 'Mode rattrapage : les saisies seront enregistrées à la date sélectionnée'}
+                </div>
+              )}
+            </div>
+          )}
+
+          <SaisieDesktop user={user} lang={lang} cible={cible} dateSaisie={dateSaisie} isRattrapage={isRattrapage} />
+        </>
+      )}
+      {onglet === 'suivi'  && <SuiviPlaceholder lang={lang} user={user} cible={cible} setCible={setCible} />}
+
+      {/* Popup PIN de sortie kiosque (desktop) */}
+      <KioskExitModal
+        isOpen={showExitModal}
+        onClose={() => setShowExitModal(false)}
+        onValidate={handleExitValidate}
+        lang={lang}
+      />
+
+      {/* Modal generique (info / confirmation) */}
+      <ConfirmModal
+        isOpen={modal.isOpen}
+        title={modal.title}
+        message={modal.message}
+        onConfirm={modal.onConfirm || closeModal}
+        onCancel={closeModal}
+        confirmLabel={modal.confirmLabel}
+        cancelLabel={modal.cancelLabel}
+        confirmColor={modal.confirmColor}
+        lang={lang}
+      />
     </div>
   );
 }
@@ -135,35 +461,71 @@ export default function Assiduite({ user, navigate, goBack, lang, isMobile }) {
 // ══════════════════════════════════════════════════════════════════════
 // HOOK PARTAGÉ : charger élèves + présences du jour
 // ══════════════════════════════════════════════════════════════════════
-function useAssiduiteData(user) {
+// Hook partagé : charge les "sujets" (élèves ou instituteurs) + leurs
+// présences du jour selon le paramètre cible.
+// cible = 'eleves' (defaut) : table eleves + table presences
+// cible = 'instituteurs'     : table utilisateurs (role=instituteur) + table seances_instituteurs
+function useAssiduiteData(user, cible = 'eleves', dateSaisie = null) {
+  // On garde le nom 'eleves' pour la rétrocompatibilité mais ça contient
+  // des élèves OU des instituteurs selon la cible.
   const [eleves, setEleves] = useState([]);
   const [presencesToday, setPresencesToday] = useState(new Set());
   const [loading, setLoading] = useState(true);
 
-  // Date d'aujourd'hui au format YYYY-MM-DD en HEURE LOCALE
-  // (pas toISOString() qui convertit en UTC et décale d'un jour selon le fuseau)
+  // Date de reference : la dateSaisie passee en parametre si fournie,
+  // sinon aujourd'hui (heure locale, pas UTC pour eviter le bug fuseau horaire)
   const now = new Date();
-  const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+  const todayAuto = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+  const today = dateSaisie || todayAuto;
 
   const loadData = async () => {
     setLoading(true);
-    const [elevesRes, presRes] = await Promise.all([
-      supabase.from('eleves')
-        .select('id, prenom, nom, eleve_id_ecole, code_niveau')
-        .eq('ecole_id', user.ecole_id)
-        .order('eleve_id_ecole', { ascending: true })
-        .limit(500),
-      supabase.from('presences')
-        .select('eleve_id')
-        .eq('ecole_id', user.ecole_id)
-        .eq('date_presence', today),
-    ]);
-    setEleves(elevesRes.data || []);
-    setPresencesToday(new Set((presRes.data || []).map(p => p.eleve_id)));
+    if (cible === 'instituteurs') {
+      // Charger instituteurs + séances du jour
+      const [instRes, seancesRes] = await Promise.all([
+        supabase.from('utilisateurs')
+          .select('id, prenom, nom, instituteur_id_ecole')
+          .eq('ecole_id', user.ecole_id)
+          .eq('role', 'instituteur')
+          .order('instituteur_id_ecole', { ascending: true })
+          .limit(500),
+        supabase.from('seances_instituteurs')
+          .select('instituteur_id')
+          .eq('ecole_id', user.ecole_id)
+          .eq('date_seance', today),
+      ]);
+      // On normalise le format pour avoir un 'eleve_id_ecole' utilisable par l'UI
+      // existante (le kiosque cherche sur cette colonne). On alimente aussi
+      // 'code_niveau' à vide pour ne pas casser l'affichage.
+      const normalized = (instRes.data || []).map(i => ({
+        id: i.id,
+        prenom: i.prenom,
+        nom: i.nom,
+        eleve_id_ecole: i.instituteur_id_ecole || '',  // clé de recherche unique
+        code_niveau: '',  // pas de niveau pour les instituteurs
+      }));
+      setEleves(normalized);
+      setPresencesToday(new Set((seancesRes.data || []).map(s => s.instituteur_id)));
+    } else {
+      // Par défaut : élèves + présences
+      const [elevesRes, presRes] = await Promise.all([
+        supabase.from('eleves')
+          .select('id, prenom, nom, eleve_id_ecole, code_niveau')
+          .eq('ecole_id', user.ecole_id)
+          .order('eleve_id_ecole', { ascending: true })
+          .limit(500),
+        supabase.from('presences')
+          .select('eleve_id')
+          .eq('ecole_id', user.ecole_id)
+          .eq('date_presence', today),
+      ]);
+      setEleves(elevesRes.data || []);
+      setPresencesToday(new Set((presRes.data || []).map(p => p.eleve_id)));
+    }
     setLoading(false);
   };
 
-  useEffect(() => { loadData(); }, []);
+  useEffect(() => { loadData(); /* eslint-disable-next-line */ }, [cible, today]);
 
   return { eleves, presencesToday, setPresencesToday, loading, today, loadData };
 }
@@ -171,8 +533,24 @@ function useAssiduiteData(user) {
 // ══════════════════════════════════════════════════════════════════════
 // ENREGISTREMENT (partagé desktop/mobile)
 // Retourne { ok, alreadyPresent, error } pour que chaque UI adapte son feedback
+// cible = 'eleves' → table presences, colonne eleve_id
+// cible = 'instituteurs' → table seances_instituteurs, colonne instituteur_id
 // ══════════════════════════════════════════════════════════════════════
-async function insertPresence({ eleveId, ecoleId, date, saisiPar }) {
+async function insertPresence({ eleveId, ecoleId, date, saisiPar, cible = 'eleves' }) {
+  if (cible === 'instituteurs') {
+    const { error } = await supabase.from('seances_instituteurs').insert({
+      instituteur_id: eleveId,   // eleveId ici = id de l'instituteur
+      ecole_id: ecoleId,
+      date_seance: date,
+      saisi_par: saisiPar || null,
+    });
+    if (error) {
+      if (error.code === '23505') return { ok: false, alreadyPresent: true, error: null };
+      return { ok: false, alreadyPresent: false, error };
+    }
+    return { ok: true, alreadyPresent: false, error: null };
+  }
+  // Par défaut : élèves
   const { error } = await supabase.from('presences').insert({
     eleve_id: eleveId,
     ecole_id: ecoleId,
@@ -190,8 +568,8 @@ async function insertPresence({ eleveId, ecoleId, date, saisiPar }) {
 // 📱 INTERFACE MOBILE / TABLETTE : KIOSQUE TACTILE
 // ══════════════════════════════════════════════════════════════════════
 
-function SaisieKiosque({ user, lang }) {
-  const { eleves, presencesToday, setPresencesToday, loading, today } = useAssiduiteData(user);
+function SaisieKiosque({ user, lang, cible = 'eleves', dateSaisie = null, isRattrapage = false }) {
+  const { eleves, presencesToday, setPresencesToday, loading, today } = useAssiduiteData(user, cible, dateSaisie);
   const [idTape, setIdTape] = useState('');
   const [clavierMode, setClavierMode] = useState('abc');
   const [saisieLoading, setSaisieLoading] = useState(false);
@@ -221,7 +599,7 @@ function SaisieKiosque({ user, lang }) {
       return;
     }
     setSaisieLoading(true);
-    const res = await insertPresence({ eleveId: eleveMatch.id, ecoleId: user.ecole_id, date: today, saisiPar: user.id });
+    const res = await insertPresence({ eleveId: eleveMatch.id, ecoleId: user.ecole_id, date: today, saisiPar: user.id, cible });
     setSaisieLoading(false);
     if (res.alreadyPresent) {
       setPresencesToday(prev => new Set([...prev, eleveMatch.id]));
@@ -234,7 +612,14 @@ function SaisieKiosque({ user, lang }) {
       return;
     }
     setPresencesToday(prev => new Set([...prev, eleveMatch.id]));
-    showFlash('success', nomComplet, lang === 'ar' ? 'تم تسجيل الحضور' : 'Présence enregistrée');
+    // En cas de rattrapage, on ajoute la date au message pour confirmation
+    const baseMsg = cible === 'instituteurs'
+      ? (lang === 'ar' ? 'تم تسجيل الحصة' : 'Séance enregistrée')
+      : (lang === 'ar' ? 'تم تسجيل الحضور' : 'Présence enregistrée');
+    const msg = isRattrapage
+      ? `${baseMsg} · ${new Date(today).toLocaleDateString(lang === 'ar' ? 'ar-MA' : 'fr-FR', { day: '2-digit', month: 'short' })}`
+      : baseMsg;
+    showFlash('success', nomComplet, msg);
   };
 
   if (loading) return <div style={{ padding: 40, textAlign: 'center', color: '#888' }}>{lang === 'ar' ? '...جاري التحميل' : 'Chargement...'}</div>;
@@ -291,7 +676,9 @@ function SaisieKiosque({ user, lang }) {
         boxShadow: 'inset 0 2px 8px rgba(0,0,0,0.2)',
       }}>
         <div style={{ fontSize: 11, opacity: 0.7, marginBottom: 6, textAlign: 'center', letterSpacing: 1 }}>
-          {lang === 'ar' ? 'رقم تعريف الطالب' : 'IDENTIFIANT ÉLÈVE'}
+          {cible === 'instituteurs'
+            ? (lang === 'ar' ? 'رقم تعريف الأستاذ' : 'IDENTIFIANT INSTITUTEUR')
+            : (lang === 'ar' ? 'رقم تعريف الطالب' : 'IDENTIFIANT ÉLÈVE')}
         </div>
         <div style={{
           fontSize: 38, fontWeight: 800, textAlign: 'center', letterSpacing: 2,
@@ -312,7 +699,9 @@ function SaisieKiosque({ user, lang }) {
           border: '1px solid #E24B4A40', minHeight: 60,
           display: 'flex', alignItems: 'center', justifyContent: 'center',
         }}>
-          {lang === 'ar' ? '❌ لا يوجد طالب بهذا الرقم' : '❌ Aucun élève avec cet identifiant'}
+          {cible === 'instituteurs'
+            ? (lang === 'ar' ? '❌ لا يوجد أستاذ بهذا الرقم' : '❌ Aucun instituteur avec cet identifiant')
+            : (lang === 'ar' ? '❌ لا يوجد طالب بهذا الرقم' : '❌ Aucun élève avec cet identifiant')}
         </div>
       ) : (
         <div style={{
@@ -330,10 +719,14 @@ function SaisieKiosque({ user, lang }) {
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ fontSize: 18, fontWeight: 700, color: '#1a1a1a' }}>{eleveMatch.prenom} {eleveMatch.nom}</div>
             <div style={{ fontSize: 12, color: '#666', marginTop: 2 }}>
-              {eleveMatch.code_niveau || '—'}
+              {cible === 'instituteurs'
+                ? (lang === 'ar' ? 'أستاذ' : 'Instituteur')
+                : (eleveMatch.code_niveau || '—')}
               {presencesToday.has(eleveMatch.id) && (
                 <span style={{ marginLeft: 8, color: '#1D9E75', fontWeight: 700 }}>
-                  · ✓ {lang === 'ar' ? 'حاضر' : 'Déjà présent'}
+                  · ✓ {cible === 'instituteurs'
+                    ? (lang === 'ar' ? 'حصة مسجلة' : 'Séance enregistrée')
+                    : (lang === 'ar' ? 'حاضر' : 'Déjà présent')}
                 </span>
               )}
             </div>
@@ -445,9 +838,9 @@ function TouchButton({ children, onClick, variant = 'default', size = 'default' 
 // 🖥️ INTERFACE ORDINATEUR : recherche clavier + liste compacte
 // ══════════════════════════════════════════════════════════════════════
 
-function SaisieDesktop({ user, lang }) {
+function SaisieDesktop({ user, lang, cible = 'eleves', dateSaisie = null, isRattrapage = false }) {
   const { toast } = useToast();
-  const { eleves, presencesToday, setPresencesToday, loading, today } = useAssiduiteData(user);
+  const { eleves, presencesToday, setPresencesToday, loading, today } = useAssiduiteData(user, cible, dateSaisie);
   const [recherche, setRecherche] = useState('');
   const [filtreStatut, setFiltreStatut] = useState('tous'); // 'tous' | 'presents' | 'absents'
   const [saisieLoadingId, setSaisieLoadingId] = useState(null);
@@ -477,7 +870,7 @@ function SaisieDesktop({ user, lang }) {
       return;
     }
     setSaisieLoadingId(eleve.id);
-    const res = await insertPresence({ eleveId: eleve.id, ecoleId: user.ecole_id, date: today, saisiPar: user.id });
+    const res = await insertPresence({ eleveId: eleve.id, ecoleId: user.ecole_id, date: today, saisiPar: user.id, cible });
     setSaisieLoadingId(null);
     if (res.alreadyPresent) {
       setPresencesToday(prev => new Set([...prev, eleve.id]));
@@ -490,9 +883,19 @@ function SaisieDesktop({ user, lang }) {
       return;
     }
     setPresencesToday(prev => new Set([...prev, eleve.id]));
-    toast.success(lang === 'ar'
-      ? `✅ تم تسجيل حضور ${eleve.prenom} ${eleve.nom}`
-      : `✅ Présence enregistrée : ${eleve.prenom} ${eleve.nom}`);
+    // Suffixe date affiche uniquement en mode rattrapage
+    const dateSuffix = isRattrapage
+      ? ` (${new Date(today).toLocaleDateString(lang === 'ar' ? 'ar-MA' : 'fr-FR', { day: '2-digit', month: 'short' })})`
+      : '';
+    if (cible === 'instituteurs') {
+      toast.success(lang === 'ar'
+        ? `✅ تم تسجيل حصة ${eleve.prenom} ${eleve.nom}${dateSuffix}`
+        : `✅ Séance enregistrée : ${eleve.prenom} ${eleve.nom}${dateSuffix}`);
+    } else {
+      toast.success(lang === 'ar'
+        ? `✅ تم تسجيل حضور ${eleve.prenom} ${eleve.nom}${dateSuffix}`
+        : `✅ Présence enregistrée : ${eleve.prenom} ${eleve.nom}${dateSuffix}`);
+    }
   };
 
   if (loading) return <div style={{ padding: 40, textAlign: 'center', color: '#888' }}>{lang === 'ar' ? '...جاري التحميل' : 'Chargement...'}</div>;
@@ -518,7 +921,9 @@ function SaisieDesktop({ user, lang }) {
       <div style={{ display: 'flex', gap: 8, marginBottom: 14, flexWrap: 'wrap', alignItems: 'center' }}>
         <input ref={inputRef}
           type="text" value={recherche} onChange={e => setRecherche(e.target.value)}
-          placeholder={lang === 'ar' ? '🔍 ابحث برقم أو اسم الطالب' : '🔍 Chercher par numéro ou nom'}
+          placeholder={cible === 'instituteurs'
+            ? (lang === 'ar' ? '🔍 ابحث برقم أو اسم الأستاذ' : '🔍 Chercher par numéro ou nom d\'instituteur')
+            : (lang === 'ar' ? '🔍 ابحث برقم أو اسم الطالب' : '🔍 Chercher par numéro ou nom')}
           style={{
             flex: '1 1 260px', padding: '10px 14px', fontSize: 14,
             borderRadius: 10, border: '1px solid #e0e0d8', background: '#fff',
@@ -551,8 +956,12 @@ function SaisieDesktop({ user, lang }) {
           background: '#fff', borderRadius: 12, border: '1px dashed #ccc',
         }}>
           {r
-            ? (lang === 'ar' ? '❌ لا يوجد طالب مطابق' : '❌ Aucun élève ne correspond')
-            : (lang === 'ar' ? 'لا يوجد طلاب' : 'Aucun élève')}
+            ? (cible === 'instituteurs'
+                ? (lang === 'ar' ? '❌ لا يوجد أستاذ مطابق' : '❌ Aucun instituteur ne correspond')
+                : (lang === 'ar' ? '❌ لا يوجد طالب مطابق' : '❌ Aucun élève ne correspond'))
+            : (cible === 'instituteurs'
+                ? (lang === 'ar' ? 'لا يوجد أساتذة' : 'Aucun instituteur')
+                : (lang === 'ar' ? 'لا يوجد طلاب' : 'Aucun élève'))}
         </div>
       ) : (
         <div style={{
@@ -689,8 +1098,47 @@ function KpiCard({ label, value, hint, color, bg, onClick, active, big }) {
 // de l'élève, on verifie si une presence existe. Les jours non travailles
 // (jours_non_travailles de l'ecole) sont exclus du calcul.
 // ══════════════════════════════════════════════════════════════════════
-function SuiviPlaceholder({ lang, user, isMobile }) {
-  return <OngletSuivi lang={lang} user={user} isMobile={isMobile} />;
+function SuiviPlaceholder({ lang, user, isMobile, cible, setCible }) {
+  // Sélecteur [Eleves] / [Instituteurs] + dispatch vers le bon Onglet
+  // Le sélecteur est affiché dans les 2 cas (onglet ouvert sur eleves
+  // par defaut, le surveillant peut switcher pour voir les seances
+  // des instituteurs).
+  return (
+    <div>
+      {/* Selecteur cible — memes couleurs que dans la Saisie */}
+      <div style={{
+        display: 'flex', gap: 8,
+        marginBottom: isMobile ? 12 : 14,
+        padding: isMobile ? '10px 14px 0' : 0,
+        flexWrap: 'wrap',
+      }}>
+        {[
+          { k: 'eleves',       label: lang === 'ar' ? '👨‍🎓 الطلاب'   : '👨‍🎓 Élèves',       color: '#085041', bg: '#E1F5EE' },
+          { k: 'instituteurs', label: lang === 'ar' ? '👨‍🏫 الأساتذة' : '👨‍🏫 Instituteurs', color: '#534AB7', bg: '#EDE9FE' },
+        ].map(c => {
+          const active = cible === c.k;
+          return (
+            <button key={c.k} onClick={() => setCible(c.k)}
+              style={{
+                flex: isMobile ? 1 : '0 1 auto',
+                padding: isMobile ? '10px 12px' : '10px 20px',
+                borderRadius: 10,
+                border: `1.5px solid ${active ? c.color : '#e0e0d8'}`,
+                background: active ? c.bg : '#fff',
+                color: active ? c.color : '#666',
+                fontSize: 13, fontWeight: active ? 700 : 500,
+                cursor: 'pointer', fontFamily: 'inherit',
+                boxShadow: active ? `0 2px 6px ${c.color}25` : 'none',
+                transition: 'all 0.15s',
+              }}>{c.label}</button>
+          );
+        })}
+      </div>
+      {cible === 'instituteurs'
+        ? <OngletSuiviInstituteurs lang={lang} user={user} isMobile={isMobile} />
+        : <OngletSuivi lang={lang} user={user} isMobile={isMobile} />}
+    </div>
+  );
 }
 
 function OngletSuivi({ lang, user, isMobile }) {
@@ -1268,4 +1716,1338 @@ function formatDateAr(iso) {
   if (!iso) return '';
   const d = new Date(iso);
   return d.toLocaleDateString('ar-MA', { day: '2-digit', month: 'short', year: 'numeric' });
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// ONGLET SUIVI INSTITUTEURS — dashboard séances + validation + paiement
+//
+// Affiche un tableau : lignes = instituteurs, colonnes = jours ouvrés
+// de la période choisie, cellules = statut (validé / en attente / vide).
+// Actions groupées : valider toute une ligne, toute une colonne, ou tout.
+// Totaux par instituteur : nb séances × tarif = montant dû.
+// ══════════════════════════════════════════════════════════════════════
+
+function OngletSuiviInstituteurs({ lang, user, isMobile }) {
+  const { toast } = useToast();
+  const [loading, setLoading] = useState(true);
+  const [instituteurs, setInstituteurs] = useState([]);
+  const [seances, setSeances] = useState([]);  // toutes les seances de la periode
+  const [joursNonTravailles, setJoursNonTravailles] = useState([]);
+  const [modeTarif, setModeTarif] = useState(null);
+  const [tarifEcole, setTarifEcole] = useState(null);
+
+  // Filtres
+  const [periode, setPeriode] = useState('mois');
+  const [dateDebut, setDateDebut] = useState('');
+  const [dateFin, setDateFin] = useState('');
+  // Popup de details calendrier d'un instituteur (mode cartes)
+  const [detailsInst, setDetailsInst] = useState(null);  // objet instituteur ou null
+  // Popup de paiement d'un instituteur (bouton 💸)
+  const [paiementInst, setPaiementInst] = useState(null);
+
+  const { debut, fin } = calcBornesPeriode(periode, dateDebut, dateFin);
+
+  // Helper ISO local (fix fuseau horaire)
+  const isoLocal = (d) => {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const dd = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${dd}`;
+  };
+
+  // ─── Chargement initial ────────────────────────────────────
+  useEffect(() => {
+    const load = async () => {
+      setLoading(true);
+      const [instRes, jntRes, ecoleRes] = await Promise.all([
+        supabase.from('utilisateurs')
+          .select('id, prenom, nom, instituteur_id_ecole, tarif_seance')
+          .eq('ecole_id', user.ecole_id)
+          .eq('role', 'instituteur')
+          .order('nom'),
+        supabase.from('jours_non_travailles')
+          .select('date_debut, date_fin')
+          .eq('ecole_id', user.ecole_id),
+        supabase.from('ecoles')
+          .select('mode_tarif_instituteur, tarif_seance_ecole')
+          .eq('id', user.ecole_id)
+          .maybeSingle(),
+      ]);
+      setInstituteurs(instRes.data || []);
+      setJoursNonTravailles(jntRes.data || []);
+      if (ecoleRes.data) {
+        setModeTarif(ecoleRes.data.mode_tarif_instituteur || null);
+        setTarifEcole(ecoleRes.data.tarif_seance_ecole);
+      }
+      setLoading(false);
+    };
+    load();
+  }, [user.ecole_id]);
+
+  // ─── Chargement séances sur la période ─────────────────────
+  const loadSeances = async () => {
+    if (!debut || !fin) return;
+    const { data } = await supabase.from('seances_instituteurs')
+      .select('id, instituteur_id, date_seance, valide, paye')
+      .eq('ecole_id', user.ecole_id)
+      .gte('date_seance', debut)
+      .lte('date_seance', fin);
+    setSeances(data || []);
+  };
+  useEffect(() => { loadSeances(); /* eslint-disable-next-line */ }, [user.ecole_id, debut, fin]);
+
+  // ─── Calcul des jours ouvrés de la période (exclure fériés) ─
+  const joursOuvres = React.useMemo(() => {
+    if (!debut || !fin) return [];
+    const datesNT = new Set();
+    joursNonTravailles.forEach(p => {
+      const d1 = new Date(p.date_debut);
+      const d2 = new Date(p.date_fin);
+      for (let d = new Date(d1); d <= d2; d.setDate(d.getDate() + 1)) {
+        datesNT.add(isoLocal(d));
+      }
+    });
+    const dates = [];
+    const d1 = new Date(debut);
+    const d2 = new Date(fin);
+    for (let d = new Date(d1); d <= d2; d.setDate(d.getDate() + 1)) {
+      const iso = isoLocal(d);
+      if (datesNT.has(iso)) continue;  // jour non travaille
+      dates.push(iso);
+    }
+    return dates;
+  }, [debut, fin, joursNonTravailles]);
+
+  // ─── Map seances : instituteurId → { date → seance } ──────
+  const seancesParInst = React.useMemo(() => {
+    const m = {};
+    seances.forEach(s => {
+      if (!m[s.instituteur_id]) m[s.instituteur_id] = {};
+      m[s.instituteur_id][s.date_seance] = s;
+    });
+    return m;
+  }, [seances]);
+
+  // ─── Tarif effectif d'un instituteur ───────────────────────
+  const tarifInst = (inst) => {
+    if (modeTarif === 'individuel') return inst.tarif_seance || 0;
+    if (modeTarif === 'ecole') return tarifEcole || 0;
+    return 0;
+  };
+
+  // ─── Stats par instituteur ────────────────────────────────
+  const statsInst = React.useMemo(() => {
+    const result = {};
+    instituteurs.forEach(i => {
+      const seancesI = seancesParInst[i.id] || {};
+      const arr = Object.values(seancesI);
+      const total = arr.length;
+      const valides = arr.filter(s => s.valide).length;
+      const payees = arr.filter(s => s.paye).length;
+      const tarif = tarifInst(i);
+      result[i.id] = {
+        total,
+        valides,
+        enAttente: total - valides,
+        payees,
+        aPayer: valides - payees,  // validées non encore payées
+        tarif,
+        montantDu: (valides - payees) * tarif,
+      };
+    });
+    return result;
+    // eslint-disable-next-line
+  }, [instituteurs, seancesParInst, modeTarif, tarifEcole]);
+
+  // ─── Actions : valider une ligne / colonne / tout ─────────
+  // Logique : valider = passer valide=true (et saisir valide_par + valide_le)
+  // sur toutes les seances non encore validees concernees.
+  const doValidate = async (seanceIds) => {
+    if (seanceIds.length === 0) return;
+    const { error } = await supabase.from('seances_instituteurs')
+      .update({ valide: true, valide_par: user.id || null, valide_le: new Date().toISOString() })
+      .in('id', seanceIds);
+    if (error) {
+      console.error('[doValidate]', error);
+      toast.error((lang === 'ar' ? 'خطأ: ' : 'Erreur : ') + error.message);
+      return;
+    }
+    toast.success(lang === 'ar'
+      ? `✅ تم التحقق من ${seanceIds.length} حصة`
+      : `✅ ${seanceIds.length} séance${seanceIds.length > 1 ? 's' : ''} validée${seanceIds.length > 1 ? 's' : ''}`);
+    loadSeances();
+  };
+
+  const validerLigne = (instituteurId) => {
+    const toValidate = (seances || [])
+      .filter(s => s.instituteur_id === instituteurId && !s.valide)
+      .map(s => s.id);
+    doValidate(toValidate);
+  };
+
+  const validerColonne = (date) => {
+    const toValidate = (seances || [])
+      .filter(s => s.date_seance === date && !s.valide)
+      .map(s => s.id);
+    doValidate(toValidate);
+  };
+
+  const validerTout = () => {
+    const toValidate = (seances || [])
+      .filter(s => !s.valide)
+      .map(s => s.id);
+    doValidate(toValidate);
+  };
+
+  // ─── Toggle d'une cellule individuelle ─────────────────────
+  // Clic sur une cellule → si séance existe : toggle validation.
+  // Pas de création/suppression (le surveillant doit passer par la saisie).
+  const toggleSeance = async (seance) => {
+    if (!seance) return;
+    if (seance.paye) {
+      toast.warning(lang === 'ar' ? '⚠️ الحصة مدفوعة، لا يمكن التعديل' : '⚠️ Séance déjà payée, non modifiable');
+      return;
+    }
+    const { error } = await supabase.from('seances_instituteurs')
+      .update({
+        valide: !seance.valide,
+        valide_par: !seance.valide ? (user.id || null) : null,
+        valide_le: !seance.valide ? new Date().toISOString() : null,
+      })
+      .eq('id', seance.id);
+    if (error) {
+      toast.error((lang === 'ar' ? 'خطأ: ' : 'Erreur : ') + error.message);
+      return;
+    }
+    loadSeances();
+  };
+
+  // ─── Paiement d'un instituteur ─────────────────────────────
+  // Couplage lâche avec Finance :
+  // 1. Crée une dépense catégorie 'salaire' (= ce que fait Finance)
+  // 2. Marque les séances concernées comme payées (paye=true + paiement_id)
+  // Si l'user modifie le montant dans la modale, on conserve quand même le lien
+  // avec les séances (le paiement_id permet de retrouver ce lien).
+  const handlePayer = async ({ montant, description, dateDepense, seancesIds }) => {
+    if (!paiementInst) return { ok: false, error: 'No instituteur' };
+    // 1. Créer la dépense Finance
+    const { data: dep, error: depError } = await supabase.from('depenses').insert({
+      montant: parseFloat(montant),
+      ecole_id: user.ecole_id,
+      date_depense: dateDepense,
+      categorie: 'salaire',
+      beneficiaire_id: paiementInst.id,
+      description: description || `Paiement ${seancesIds.length} séance(s)`,
+      created_by: user.id,
+    }).select('id').maybeSingle();
+    if (depError) {
+      console.error('[handlePayer] depense error:', depError);
+      return { ok: false, error: depError.message };
+    }
+    // 2. Marquer les séances comme payées avec le lien paiement_id
+    if (seancesIds.length > 0) {
+      const { error: seanceError } = await supabase.from('seances_instituteurs')
+        .update({ paye: true, paiement_id: dep?.id || null })
+        .in('id', seancesIds);
+      if (seanceError) {
+        console.error('[handlePayer] seances update error:', seanceError);
+        // La dépense est créée mais les séances ne sont pas marquées → état cohérent mais à corriger manuellement
+        return { ok: false, error: seanceError.message, depId: dep?.id };
+      }
+    }
+    toast.success(lang === 'ar'
+      ? `✅ تم تسجيل دفع ${montant} د. لـ ${paiementInst.prenom} ${paiementInst.nom}`
+      : `✅ Paiement de ${montant} DH enregistré pour ${paiementInst.prenom} ${paiementInst.nom}`);
+    setPaiementInst(null);
+    loadSeances();
+    return { ok: true };
+  };
+
+  const PERIODES = [
+    { id: 'semaine',   label: lang === 'ar' ? 'الأسبوع'       : 'Semaine' },
+    { id: 'mois',      label: lang === 'ar' ? 'الشهر'          : 'Mois' },
+    { id: 'trimestre', label: lang === 'ar' ? 'الفصل (3 أشهر)' : 'Trimestre' },
+    { id: 'semestre',  label: lang === 'ar' ? 'النصف (6 أشهر)' : 'Semestre' },
+    { id: 'annee',     label: lang === 'ar' ? 'السنة'          : 'Année' },
+    { id: 'custom',    label: lang === 'ar' ? 'فترة محددة'     : 'Personnalisée' },
+  ];
+
+  if (loading) return <div style={{ padding: 40, textAlign: 'center', color: '#888' }}>{lang === 'ar' ? '...جاري التحميل' : 'Chargement...'}</div>;
+
+  // ─── Alerte si mode tarif pas configuré ────────────────────
+  if (!modeTarif) {
+    return (
+      <div style={{ padding: isMobile ? 14 : 0 }}>
+        <div style={{
+          background: '#FAEEDA', border: '1px solid #EF9F2740',
+          borderRadius: 12, padding: 20, textAlign: 'center',
+        }}>
+          <div style={{ fontSize: 32, marginBottom: 8 }}>⚙️</div>
+          <div style={{ fontSize: 14, fontWeight: 700, color: '#633806', marginBottom: 6 }}>
+            {lang === 'ar' ? 'التعرفات غير محددة' : 'Tarifs non configurés'}
+          </div>
+          <div style={{ fontSize: 12, color: '#666', marginBottom: 14 }}>
+            {lang === 'ar'
+              ? 'يجب تحديد نمط التعرفة قبل عرض المبالغ المستحقة'
+              : 'Tu dois configurer le mode de tarification avant de voir les montants dus'}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ─── Totaux globaux ────────────────────────────────────────
+  const totalSeances = seances.length;
+  const totalValides = seances.filter(s => s.valide).length;
+  const totalEnAttente = totalSeances - totalValides;
+  const totalMontantDu = Object.values(statsInst).reduce((sum, s) => sum + s.montantDu, 0);
+
+  return (
+    <div style={{ padding: isMobile ? 14 : 0 }}>
+
+      {/* Sélecteur période */}
+      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 12 }}>
+        {PERIODES.map(p => {
+          const active = periode === p.id;
+          return (
+            <button key={p.id} onClick={() => setPeriode(p.id)}
+              style={{
+                padding: isMobile ? '7px 12px' : '6px 14px',
+                borderRadius: 20,
+                border: `1px solid ${active ? '#534AB7' : '#e0e0d8'}`,
+                background: active ? '#EDE9FE' : '#fff',
+                color: active ? '#534AB7' : '#888',
+                fontSize: isMobile ? 11 : 12, fontWeight: active ? 700 : 500,
+                cursor: 'pointer', fontFamily: 'inherit',
+              }}>{p.label}</button>
+          );
+        })}
+      </div>
+
+      {/* Dates custom */}
+      {periode === 'custom' && (
+        <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
+          <input type="date" value={dateDebut} onChange={e => setDateDebut(e.target.value)}
+            style={{ padding: '8px 12px', borderRadius: 8, border: '1px solid #e0e0d8', fontSize: 13 }} />
+          <span style={{ alignSelf: 'center', color: '#888' }}>→</span>
+          <input type="date" value={dateFin} onChange={e => setDateFin(e.target.value)}
+            style={{ padding: '8px 12px', borderRadius: 8, border: '1px solid #e0e0d8', fontSize: 13 }} />
+        </div>
+      )}
+
+      {/* Période calculée */}
+      <div style={{ fontSize: 11, color: '#888', marginBottom: 14 }}>
+        {debut && fin
+          ? (lang === 'ar'
+              ? `من ${formatDateAr(debut)} إلى ${formatDateAr(fin)}`
+              : `Du ${formatDateFr(debut)} au ${formatDateFr(fin)}`)
+          : (lang === 'ar' ? 'اختر فترة' : 'Choisir une période')}
+      </div>
+
+      {/* KPIs globaux */}
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(auto-fit, minmax(150px, 1fr))',
+        gap: isMobile ? 8 : 10, marginBottom: 14,
+      }}>
+        <StatCard label={lang === 'ar' ? 'الحصص المسجلة' : 'Séances enregistrées'} value={totalSeances} color="#534AB7" bg="#EDE9FE" />
+        <StatCard label={lang === 'ar' ? 'تم التحقق منها' : 'Validées'} value={totalValides} color="#1D9E75" bg="#E1F5EE" />
+        <StatCard label={lang === 'ar' ? 'في انتظار التحقق' : 'En attente'} value={totalEnAttente} color="#EF9F27" bg="#FAEEDA" />
+        <StatCard label={lang === 'ar' ? 'المبلغ المستحق' : 'À payer'} value={`${totalMontantDu.toFixed(0)} ${lang === 'ar' ? 'د.' : 'DH'}`} color="#E24B4A" bg="#FCEBEB" />
+      </div>
+
+      {/* Bouton "Tout valider" */}
+      {totalEnAttente > 0 && (
+        <div style={{ marginBottom: 14 }}>
+          <button onClick={validerTout}
+            style={{
+              padding: '9px 16px', background: '#1D9E75', color: '#fff',
+              border: 'none', borderRadius: 10,
+              fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit',
+            }}>
+            ✓ {lang === 'ar' ? `التحقق من كل الحصص (${totalEnAttente})` : `Tout valider (${totalEnAttente})`}
+          </button>
+        </div>
+      )}
+
+      {/* ═══ DISPATCH AFFICHAGE ═══
+          - Vue TABLEAU uniquement en 'semaine' + desktop (7 jours = lisible)
+          - Vue CARTES pour toutes les autres périodes + toutes les situations mobile
+            (mois+ = trop de colonnes pour un tableau lisible) */}
+      {instituteurs.length === 0 ? (
+        <div style={{ padding: 30, textAlign: 'center', color: '#888', background: '#fff', borderRadius: 12, border: '1px dashed #ccc' }}>
+          <div style={{ fontSize: 32, marginBottom: 8 }}>👨‍🏫</div>
+          <div style={{ fontSize: 13, fontWeight: 600 }}>
+            {lang === 'ar' ? 'لا يوجد أساتذة' : 'Aucun instituteur'}
+          </div>
+        </div>
+      ) : joursOuvres.length === 0 ? (
+        <div style={{ padding: 30, textAlign: 'center', color: '#888', background: '#fff', borderRadius: 12, border: '1px dashed #ccc' }}>
+          {lang === 'ar' ? 'لا توجد أيام عمل في الفترة' : 'Aucun jour travaillé dans la période'}
+        </div>
+      ) : (periode === 'semaine' && !isMobile) ? (
+        // ═══ VUE TABLEAU (semaine desktop) ═══
+        <div style={{
+          background: '#fff', borderRadius: 12,
+          border: '1px solid #e0e0d8', overflow: 'auto',
+        }}>
+          <table style={{
+            width: '100%', borderCollapse: 'collapse',
+            fontSize: 12, minWidth: 600,
+          }}>
+            <thead>
+              <tr style={{ background: '#f5f5f0' }}>
+                <th style={{
+                  padding: '10px 12px', textAlign: 'left', fontWeight: 700, color: '#666',
+                  position: 'sticky', left: 0, background: '#f5f5f0', zIndex: 2,
+                  borderRight: '1px solid #e0e0d8',
+                  minWidth: 140,
+                }}>
+                  {lang === 'ar' ? 'الأستاذ' : 'Instituteur'}
+                </th>
+                {joursOuvres.map(d => {
+                  const date = new Date(d);
+                  return (
+                    <th key={d}
+                      onClick={() => validerColonne(d)}
+                      title={lang === 'ar' ? 'التحقق من كل الحصص لهذا اليوم' : 'Valider toutes les séances de ce jour'}
+                      style={{
+                        padding: '8px 4px', textAlign: 'center',
+                        fontWeight: 600, color: '#666', fontSize: 10,
+                        cursor: 'pointer', borderBottom: '1px solid #e0e0d8',
+                        minWidth: 38,
+                      }}>
+                      <div style={{ fontSize: 10, color: '#999' }}>
+                        {date.toLocaleDateString(lang === 'ar' ? 'ar-MA' : 'fr-FR', { weekday: 'short' })}
+                      </div>
+                      <div style={{ fontWeight: 700, color: '#1a1a1a' }}>
+                        {date.getDate()}
+                      </div>
+                    </th>
+                  );
+                })}
+                <th style={{
+                  padding: '8px 10px', textAlign: 'center', fontWeight: 700,
+                  color: '#666', borderLeft: '1px solid #e0e0d8',
+                  minWidth: 70,
+                }}>
+                  {lang === 'ar' ? 'الإجمالي' : 'Total'}
+                </th>
+                <th style={{
+                  padding: '8px 10px', textAlign: 'center', fontWeight: 700,
+                  color: '#666', minWidth: 90,
+                }}>
+                  {lang === 'ar' ? 'مستحق' : 'À payer'}
+                </th>
+                <th style={{
+                  padding: '8px 10px', textAlign: 'center', fontWeight: 700,
+                  color: '#666', minWidth: 50,
+                }}></th>
+              </tr>
+            </thead>
+            <tbody>
+              {instituteurs.map(inst => {
+                const stats = statsInst[inst.id] || { total: 0, valides: 0, enAttente: 0, montantDu: 0, tarif: 0 };
+                const seancesI = seancesParInst[inst.id] || {};
+                return (
+                  <tr key={inst.id} style={{ borderTop: '1px solid #f0f0ec' }}>
+                    <td style={{
+                      padding: '8px 12px',
+                      position: 'sticky', left: 0, background: '#fff', zIndex: 1,
+                      borderRight: '1px solid #e0e0d8',
+                    }}>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: '#1a1a1a' }}>
+                        {inst.prenom} {inst.nom}
+                      </div>
+                      {inst.instituteur_id_ecole && (
+                        <div style={{
+                          display: 'inline-block', marginTop: 2,
+                          padding: '1px 6px', background: '#EDE9FE', color: '#534AB7',
+                          borderRadius: 4, fontSize: 10, fontWeight: 700,
+                        }}>{inst.instituteur_id_ecole}</div>
+                      )}
+                    </td>
+                    {joursOuvres.map(d => {
+                      const s = seancesI[d];
+                      return (
+                        <td key={d}
+                          onClick={() => toggleSeance(s)}
+                          style={{
+                            padding: '6px 2px', textAlign: 'center',
+                            cursor: s ? 'pointer' : 'default',
+                            fontSize: 16,
+                          }}>
+                          {!s ? (
+                            <span style={{ color: '#ddd' }}>·</span>
+                          ) : s.paye ? (
+                            <span title={lang === 'ar' ? 'مدفوع' : 'Payée'}>💰</span>
+                          ) : s.valide ? (
+                            <span style={{ color: '#1D9E75' }}
+                              title={lang === 'ar' ? 'مُتحقق منها' : 'Validée'}>✅</span>
+                          ) : (
+                            <span style={{ color: '#EF9F27' }}
+                              title={lang === 'ar' ? 'في انتظار التحقق — انقر للتحقق' : 'En attente — clic pour valider'}>⏳</span>
+                          )}
+                        </td>
+                      );
+                    })}
+                    <td style={{
+                      padding: '8px 10px', textAlign: 'center',
+                      borderLeft: '1px solid #e0e0d8',
+                      fontWeight: 700, color: '#1a1a1a',
+                    }}>
+                      <div>{stats.total}</div>
+                      {stats.valides < stats.total && (
+                        <div style={{ fontSize: 10, color: '#EF9F27', fontWeight: 600 }}>
+                          {stats.enAttente} {lang === 'ar' ? 'منتظر' : 'en att.'}
+                        </div>
+                      )}
+                    </td>
+                    <td style={{
+                      padding: '8px 10px', textAlign: 'center',
+                      fontWeight: 700,
+                      color: stats.montantDu > 0 ? '#E24B4A' : '#999',
+                    }}>
+                      {stats.montantDu > 0
+                        ? `${stats.montantDu.toFixed(0)} ${lang === 'ar' ? 'د.' : 'DH'}`
+                        : '—'}
+                    </td>
+                    <td style={{ padding: '8px 6px', textAlign: 'center' }}>
+                      {stats.enAttente > 0 && (
+                        <button onClick={() => validerLigne(inst.id)}
+                          title={lang === 'ar' ? 'التحقق من كل حصصه' : 'Valider toutes ses séances'}
+                          style={{
+                            padding: '4px 8px', background: '#1D9E75', color: '#fff',
+                            border: 'none', borderRadius: 6, fontSize: 10, fontWeight: 700,
+                            cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap',
+                          }}>
+                          ✓ {stats.enAttente}
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      ) : (
+        // ═══ VUE CARTES (mois+ ou mobile) ═══
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {instituteurs.map(inst => {
+            const stats = statsInst[inst.id] || { total: 0, valides: 0, enAttente: 0, payees: 0, montantDu: 0, tarif: 0 };
+            return (
+              <InstituteurCard
+                key={inst.id}
+                inst={inst}
+                stats={stats}
+                lang={lang}
+                isMobile={isMobile}
+                onValidateRow={() => validerLigne(inst.id)}
+                onShowDetails={() => setDetailsInst(inst)}
+                onPayer={() => setPaiementInst(inst)}
+              />
+            );
+          })}
+        </div>
+      )}
+
+      {/* Légende */}
+      <div style={{
+        marginTop: 14, padding: '10px 14px',
+        background: '#f9f9f5', borderRadius: 10,
+        fontSize: 11, color: '#666',
+        display: 'flex', flexWrap: 'wrap', gap: 14,
+      }}>
+        <span>⏳ {lang === 'ar' ? 'في انتظار التحقق' : 'En attente de validation'}</span>
+        <span>✅ {lang === 'ar' ? 'مُتحقق منها (قابلة للدفع)' : 'Validée (payable)'}</span>
+        <span>💰 {lang === 'ar' ? 'مدفوعة' : 'Payée'}</span>
+        <span style={{ color: '#999' }}>· {lang === 'ar' ? 'لا حصة' : 'Aucune séance'}</span>
+      </div>
+
+      {/* Popup details instituteur (mode cartes) */}
+      {detailsInst && (
+        <DetailsInstituteurModal
+          inst={detailsInst}
+          seances={seancesParInst[detailsInst.id] || {}}
+          joursOuvres={joursOuvres}
+          stats={statsInst[detailsInst.id]}
+          onClose={() => setDetailsInst(null)}
+          onToggleSeance={async (s) => { await toggleSeance(s); }}
+          onValidateRow={() => { validerLigne(detailsInst.id); setDetailsInst(null); }}
+          lang={lang}
+        />
+      )}
+
+      {/* Popup paiement instituteur */}
+      {paiementInst && (
+        <PaiementInstituteurModal
+          inst={paiementInst}
+          stats={statsInst[paiementInst.id]}
+          seances={seances.filter(s => s.instituteur_id === paiementInst.id && s.valide && !s.paye)}
+          onClose={() => setPaiementInst(null)}
+          onConfirm={handlePayer}
+          lang={lang}
+        />
+      )}
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// Carte synthese d'un instituteur (mode cartes)
+// Utilisee en mois/trimestre/semestre/annee et toujours en mobile.
+// ══════════════════════════════════════════════════════════════════════
+function InstituteurCard({ inst, stats, lang, isMobile, onValidateRow, onShowDetails, onPayer }) {
+  const pctValides = stats.total > 0 ? Math.round((stats.valides / stats.total) * 100) : 0;
+  const pctPayees  = stats.total > 0 ? Math.round((stats.payees  / stats.total) * 100) : 0;
+
+  return (
+    <div style={{
+      background: '#fff', borderRadius: 14, padding: 16,
+      border: '1px solid #e0e0d8',
+      boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+    }}>
+      {/* Ligne 1 : identité + numéro */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12, flexWrap: 'wrap' }}>
+        <div style={{
+          width: 44, height: 44, borderRadius: 12,
+          background: '#EDE9FE', color: '#534AB7',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          fontSize: 20, flexShrink: 0,
+        }}>👨‍🏫</div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: 15, fontWeight: 700, color: '#1a1a1a' }}>
+            {inst.prenom} {inst.nom}
+          </div>
+          {inst.instituteur_id_ecole && (
+            <div style={{
+              display: 'inline-block', marginTop: 2,
+              padding: '2px 8px', background: '#EDE9FE', color: '#534AB7',
+              borderRadius: 6, fontSize: 10, fontWeight: 700,
+            }}>{inst.instituteur_id_ecole}</div>
+          )}
+        </div>
+        {stats.tarif > 0 && (
+          <div style={{ fontSize: 11, color: '#888', textAlign: 'right' }}>
+            <div style={{ fontWeight: 600, color: '#534AB7', fontSize: 13 }}>
+              {stats.tarif.toFixed(0)} {lang === 'ar' ? 'د.' : 'DH'}
+            </div>
+            <div>{lang === 'ar' ? 'للحصة' : '/ séance'}</div>
+          </div>
+        )}
+      </div>
+
+      {/* Ligne 2 : barre de progression visuelle
+          Decomposition : payées (bleu) + validées non payées (vert) + en attente (orange) + vide */}
+      {stats.total > 0 ? (
+        <div style={{ marginBottom: 12 }}>
+          <div style={{
+            height: 10, background: '#f0f0ec', borderRadius: 999,
+            overflow: 'hidden', display: 'flex',
+          }}>
+            {stats.payees > 0 && (
+              <div title={`${stats.payees} ${lang === 'ar' ? 'مدفوعة' : 'payées'}`}
+                style={{ width: `${(stats.payees / stats.total) * 100}%`, background: '#378ADD' }} />
+            )}
+            {(stats.valides - stats.payees) > 0 && (
+              <div title={`${stats.valides - stats.payees} ${lang === 'ar' ? 'قابلة للدفع' : 'à payer'}`}
+                style={{ width: `${((stats.valides - stats.payees) / stats.total) * 100}%`, background: '#1D9E75' }} />
+            )}
+            {stats.enAttente > 0 && (
+              <div title={`${stats.enAttente} ${lang === 'ar' ? 'في الانتظار' : 'en attente'}`}
+                style={{ width: `${(stats.enAttente / stats.total) * 100}%`, background: '#EF9F27' }} />
+            )}
+          </div>
+          <div style={{ fontSize: 11, color: '#888', marginTop: 4, textAlign: 'center' }}>
+            {stats.valides}/{stats.total} {lang === 'ar' ? 'حصة تم التحقق منها' : 'séances validées'}
+            {' '}({pctValides}%)
+          </div>
+        </div>
+      ) : (
+        <div style={{
+          padding: '10px 12px', marginBottom: 12,
+          background: '#f9f9f5', borderRadius: 8,
+          fontSize: 12, color: '#888', textAlign: 'center',
+        }}>
+          {lang === 'ar' ? 'لم تسجل حصص بعد' : 'Aucune séance enregistrée sur la période'}
+        </div>
+      )}
+
+      {/* Ligne 3 : stats compactes + montant à payer */}
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(4, 1fr)',
+        gap: 8, marginBottom: 12,
+      }}>
+        <MiniStatCard icon="📋" label={lang === 'ar' ? 'الإجمالي' : 'Total'}
+          value={stats.total} color="#534AB7" />
+        <MiniStatCard icon="✅" label={lang === 'ar' ? 'مُتحقق' : 'Validées'}
+          value={stats.valides} color="#1D9E75" />
+        <MiniStatCard icon="⏳" label={lang === 'ar' ? 'منتظر' : 'En attente'}
+          value={stats.enAttente} color="#EF9F27" highlight={stats.enAttente > 0} />
+        <MiniStatCard icon="💰" label={lang === 'ar' ? 'مستحق' : 'À payer'}
+          value={stats.montantDu > 0 ? `${stats.montantDu.toFixed(0)}` : '—'}
+          color="#E24B4A" highlight={stats.montantDu > 0}
+          suffix={stats.montantDu > 0 ? (lang === 'ar' ? 'د.' : 'DH') : null} />
+      </div>
+
+      {/* Ligne 4 : boutons d'action */}
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+        {stats.enAttente > 0 && (
+          <button onClick={onValidateRow}
+            style={{
+              flex: '1 1 160px', padding: '10px 14px',
+              background: '#1D9E75', color: '#fff',
+              border: 'none', borderRadius: 10,
+              fontSize: 12, fontWeight: 700, cursor: 'pointer',
+              fontFamily: 'inherit',
+            }}>
+            ✓ {lang === 'ar'
+              ? `التحقق (${stats.enAttente})`
+              : `Valider (${stats.enAttente})`}
+          </button>
+        )}
+        {/* Bouton Payer : visible uniquement s'il y a des montants dus */}
+        {stats.montantDu > 0 && (
+          <button onClick={onPayer}
+            style={{
+              flex: '1 1 160px', padding: '10px 14px',
+              background: 'linear-gradient(135deg, #E24B4A, #EF9F27)', color: '#fff',
+              border: 'none', borderRadius: 10,
+              fontSize: 12, fontWeight: 700, cursor: 'pointer',
+              fontFamily: 'inherit',
+              boxShadow: '0 2px 8px rgba(226,75,74,0.25)',
+            }}>
+            💸 {lang === 'ar'
+              ? `دفع ${stats.montantDu.toFixed(0)} د.`
+              : `Payer ${stats.montantDu.toFixed(0)} DH`}
+          </button>
+        )}
+        <button onClick={onShowDetails}
+          style={{
+            flex: '0 1 auto', padding: '10px 14px',
+            background: '#fff', color: '#534AB7',
+            border: '1px solid #534AB740', borderRadius: 10,
+            fontSize: 12, fontWeight: 700, cursor: 'pointer',
+            fontFamily: 'inherit',
+          }}>
+          📋 {lang === 'ar' ? 'التفاصيل' : 'Détails'}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// Mini stat card pour l'interieur d'une InstituteurCard
+function MiniStatCard({ icon, label, value, color, highlight, suffix }) {
+  return (
+    <div style={{
+      padding: '8px 10px',
+      background: highlight ? `${color}15` : '#f9f9f5',
+      border: `1px solid ${highlight ? color + '40' : '#e0e0d8'}`,
+      borderRadius: 8,
+      textAlign: 'center',
+    }}>
+      <div style={{ fontSize: 11, color: '#888', marginBottom: 2 }}>
+        {icon} {label}
+      </div>
+      <div style={{ fontSize: 16, fontWeight: 800, color: highlight ? color : '#1a1a1a' }}>
+        {value}{suffix && <span style={{ fontSize: 10, fontWeight: 600, marginLeft: 3 }}>{suffix}</span>}
+      </div>
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// Modale de details : mini-calendrier d'un instituteur sur la periode
+// ══════════════════════════════════════════════════════════════════════
+function DetailsInstituteurModal({ inst, seances, joursOuvres, stats, onClose, onToggleSeance, onValidateRow, lang }) {
+  // Grouper les jours ouvres par semaine pour un affichage calendrier
+  // Une semaine = lignes de 7 cellules (ici on affiche juste les jours ouvres donc pas 7 strict,
+  // mais on groupe par semaine ISO pour la lisibilite)
+
+  return (
+    <div
+      onClick={onClose}
+      style={{
+        position: 'fixed', inset: 0, zIndex: 10000,
+        background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        padding: 16,
+      }}
+    >
+      <div onClick={e => e.stopPropagation()}
+        style={{
+          background: '#fff', borderRadius: 16,
+          padding: 24, maxWidth: 600, width: '100%',
+          maxHeight: '90vh', overflow: 'auto',
+          boxShadow: '0 20px 60px rgba(0,0,0,0.3)',
+        }}>
+        {/* Header */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
+          <div style={{
+            width: 48, height: 48, borderRadius: 12,
+            background: '#EDE9FE', color: '#534AB7',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            fontSize: 24, flexShrink: 0,
+          }}>👨‍🏫</div>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 17, fontWeight: 800, color: '#1a1a1a' }}>
+              {inst.prenom} {inst.nom}
+            </div>
+            {inst.instituteur_id_ecole && (
+              <div style={{
+                display: 'inline-block', marginTop: 2,
+                padding: '2px 8px', background: '#EDE9FE', color: '#534AB7',
+                borderRadius: 6, fontSize: 10, fontWeight: 700,
+              }}>{inst.instituteur_id_ecole}</div>
+            )}
+          </div>
+          <button onClick={onClose}
+            style={{
+              width: 36, height: 36, borderRadius: 10,
+              background: '#f5f5f0', color: '#666', border: 'none',
+              fontSize: 18, cursor: 'pointer', fontFamily: 'inherit',
+              flexShrink: 0,
+            }}>✕</button>
+        </div>
+
+        {/* Stats en ligne */}
+        {stats && (
+          <div style={{
+            display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)',
+            gap: 6, marginBottom: 16,
+          }}>
+            <MiniStatCard icon="📋" label={lang === 'ar' ? 'الإجمالي' : 'Total'} value={stats.total} color="#534AB7" />
+            <MiniStatCard icon="✅" label={lang === 'ar' ? 'مُتحقق' : 'Valid.'} value={stats.valides} color="#1D9E75" />
+            <MiniStatCard icon="⏳" label={lang === 'ar' ? 'منتظر' : 'Attente'} value={stats.enAttente} color="#EF9F27" highlight={stats.enAttente > 0} />
+            <MiniStatCard icon="💰" label={lang === 'ar' ? 'مستحق' : 'À payer'}
+              value={stats.montantDu > 0 ? stats.montantDu.toFixed(0) : '—'}
+              color="#E24B4A" highlight={stats.montantDu > 0}
+              suffix={stats.montantDu > 0 ? (lang === 'ar' ? 'د.' : 'DH') : null} />
+          </div>
+        )}
+
+        {/* Calendrier : liste des jours avec statut */}
+        <div style={{ marginBottom: 16 }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: '#666', marginBottom: 8 }}>
+            📅 {lang === 'ar' ? 'التقويم اليومي' : 'Calendrier jour par jour'}
+          </div>
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fill, minmax(80px, 1fr))',
+            gap: 6,
+          }}>
+            {joursOuvres.map(d => {
+              const s = seances[d];
+              const date = new Date(d);
+              const jourNom = date.toLocaleDateString(lang === 'ar' ? 'ar-MA' : 'fr-FR', { weekday: 'short' });
+              let bg = '#f9f9f5', color = '#ccc', icon = '·', title = lang === 'ar' ? 'لا حصة' : 'Aucune séance';
+              if (s) {
+                if (s.paye) {
+                  bg = '#E6F1FB'; color = '#378ADD'; icon = '💰'; title = lang === 'ar' ? 'مدفوعة' : 'Payée';
+                } else if (s.valide) {
+                  bg = '#E1F5EE'; color = '#1D9E75'; icon = '✅'; title = lang === 'ar' ? 'مُتحقق منها' : 'Validée';
+                } else {
+                  bg = '#FAEEDA'; color = '#EF9F27'; icon = '⏳'; title = lang === 'ar' ? 'في الانتظار — انقر للتحقق' : 'En attente — clic pour valider';
+                }
+              }
+              return (
+                <div key={d}
+                  onClick={() => s && onToggleSeance(s)}
+                  title={title}
+                  style={{
+                    padding: '8px 4px', borderRadius: 8,
+                    background: bg, border: `1px solid ${color}40`,
+                    textAlign: 'center',
+                    cursor: s && !s.paye ? 'pointer' : 'default',
+                    transition: 'transform 0.08s',
+                  }}>
+                  <div style={{ fontSize: 9, color: '#888', fontWeight: 600 }}>
+                    {jourNom}
+                  </div>
+                  <div style={{ fontSize: 13, fontWeight: 800, color: '#1a1a1a' }}>
+                    {date.getDate()}/{date.getMonth() + 1}
+                  </div>
+                  <div style={{ fontSize: 16, marginTop: 2 }}>{icon}</div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Actions */}
+        <div style={{ display: 'flex', gap: 8 }}>
+          {stats && stats.enAttente > 0 && (
+            <button onClick={onValidateRow}
+              style={{
+                flex: 1, padding: '11px',
+                background: '#1D9E75', color: '#fff',
+                border: 'none', borderRadius: 10,
+                fontSize: 13, fontWeight: 700,
+                cursor: 'pointer', fontFamily: 'inherit',
+              }}>
+              ✓ {lang === 'ar'
+                ? `التحقق من ${stats.enAttente} حصة منتظرة`
+                : `Valider ${stats.enAttente} en attente`}
+            </button>
+          )}
+          <button onClick={onClose}
+            style={{
+              flex: stats && stats.enAttente > 0 ? '0 1 auto' : 1,
+              padding: '11px 20px',
+              background: '#f5f5f0', color: '#666',
+              border: 'none', borderRadius: 10,
+              fontSize: 13, fontWeight: 600,
+              cursor: 'pointer', fontFamily: 'inherit',
+            }}>
+            {lang === 'ar' ? 'إغلاق' : 'Fermer'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+
+// ══════════════════════════════════════════════════════════════════════
+// Modale de paiement d'un instituteur — avec sélection individuelle
+//
+// Affiche la liste des séances validées non payées de l'instituteur.
+// Le surveillant coche/décoche les séances qu'il veut payer maintenant.
+// Les autres restent "à payer" pour un prochain cycle.
+//
+// Filtre par période : permet de restreindre la liste affichée pour
+// faciliter la sélection quand il y a beaucoup de séances.
+//
+// Au submit : crée une dépense (table 'depenses') + marque UNIQUEMENT
+// les séances cochées comme payées (paye=true + paiement_id).
+// Couplage lâche : les séances restent indépendantes de Finance.
+// ══════════════════════════════════════════════════════════════════════
+function PaiementInstituteurModal({ inst, stats, seances, onClose, onConfirm, lang }) {
+  // Date par défaut = aujourd'hui (format YYYY-MM-DD local, pas UTC)
+  const now = new Date();
+  const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+
+  // Tarif effectif = stats.tarif (défini au niveau parent)
+  const tarif = stats?.tarif || 0;
+
+  // ─── State : sélection des séances (Set d'IDs cochées) ─────
+  // Par défaut, toutes les séances sont cochées (comportement 1 clic)
+  const [selectedIds, setSelectedIds] = useState(new Set(seances.map(s => s.id)));
+
+  // ─── State : filtre date ───────────────────────────────────
+  const [filterDebut, setFilterDebut] = useState('');
+  const [filterFin, setFilterFin] = useState('');
+
+  // ─── Calcul : séances visibles après filtre ────────────────
+  // Tri par date croissante pour plus de clarté
+  const seancesVisibles = seances
+    .filter(s => {
+      if (filterDebut && s.date_seance < filterDebut) return false;
+      if (filterFin && s.date_seance > filterFin) return false;
+      return true;
+    })
+    .sort((a, b) => a.date_seance.localeCompare(b.date_seance));
+
+  // ─── Calcul : total sélectionné ────────────────────────────
+  const nbSelected = selectedIds.size;
+  const montantCalcule = nbSelected * tarif;
+
+  // ─── Form state ────────────────────────────────────────────
+  const [montant, setMontant] = useState(montantCalcule.toFixed(2));
+  const [dateDepense, setDateDepense] = useState(todayStr);
+  const [description, setDescription] = useState(
+    lang === 'ar'
+      ? `دفع ${nbSelected} حصة`
+      : `Paiement ${nbSelected} séance(s)`
+  );
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+
+  // Quand la sélection change : recalculer le montant et la description
+  useEffect(() => {
+    setMontant(montantCalcule.toFixed(2));
+    setDescription(lang === 'ar'
+      ? `دفع ${nbSelected} حصة`
+      : `Paiement ${nbSelected} séance(s)`);
+    // eslint-disable-next-line
+  }, [nbSelected, tarif]);
+
+  // ─── Actions sur la sélection ─────────────────────────────
+  const toggleSeance = (id) => {
+    setSelectedIds(prev => {
+      const n = new Set(prev);
+      if (n.has(id)) n.delete(id);
+      else n.add(id);
+      return n;
+    });
+  };
+  const toutCocher = () => {
+    setSelectedIds(new Set(seances.map(s => s.id)));
+  };
+  const toutDecocher = () => {
+    setSelectedIds(new Set());
+  };
+  const cocherPeriode = () => {
+    // Cocher uniquement les séances dans la période filtrée
+    const visiblesIds = new Set(seancesVisibles.map(s => s.id));
+    setSelectedIds(visiblesIds);
+  };
+
+  // ─── Submit ────────────────────────────────────────────────
+  const handleSubmit = async () => {
+    if (nbSelected === 0) {
+      setError(lang === 'ar' ? 'يجب اختيار حصة واحدة على الأقل' : 'Sélectionne au moins une séance');
+      return;
+    }
+    const val = parseFloat(montant);
+    if (isNaN(val) || val <= 0) {
+      setError(lang === 'ar' ? 'المبلغ يجب أن يكون رقما موجبا' : 'Le montant doit être un nombre positif');
+      return;
+    }
+    setError('');
+    setSaving(true);
+    const res = await onConfirm({
+      montant: val,
+      dateDepense,
+      description,
+      seancesIds: Array.from(selectedIds),
+    });
+    setSaving(false);
+    if (!res.ok) {
+      setError((lang === 'ar' ? 'خطأ: ' : 'Erreur : ') + (res.error || ''));
+    }
+  };
+
+  // ─── Format date pour l'affichage ──────────────────────────
+  const formatJour = (iso) => {
+    const d = new Date(iso);
+    return d.toLocaleDateString(lang === 'ar' ? 'ar-MA' : 'fr-FR', {
+      weekday: 'short', day: '2-digit', month: 'short',
+    });
+  };
+
+  return (
+    <div
+      onClick={onClose}
+      style={{
+        position: 'fixed', inset: 0, zIndex: 10000,
+        background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        padding: 16,
+      }}>
+      <div onClick={e => e.stopPropagation()}
+        style={{
+          background: '#fff', borderRadius: 16,
+          padding: 24, maxWidth: 560, width: '100%',
+          maxHeight: '92vh', overflow: 'auto',
+          boxShadow: '0 20px 60px rgba(0,0,0,0.3)',
+        }}>
+        {/* Header */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 18 }}>
+          <div style={{
+            width: 52, height: 52, borderRadius: 13,
+            background: 'linear-gradient(135deg, #E24B4A, #EF9F27)', color: '#fff',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            fontSize: 26, flexShrink: 0,
+          }}>💸</div>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 17, fontWeight: 800, color: '#1a1a1a' }}>
+              {lang === 'ar' ? 'تسجيل دفع' : 'Enregistrer un paiement'}
+            </div>
+            <div style={{ fontSize: 13, color: '#666', marginTop: 2 }}>
+              {inst.prenom} {inst.nom}
+              {inst.instituteur_id_ecole && (
+                <span style={{
+                  marginLeft: 6, padding: '1px 6px',
+                  background: '#EDE9FE', color: '#534AB7',
+                  borderRadius: 4, fontSize: 10, fontWeight: 700,
+                }}>{inst.instituteur_id_ecole}</span>
+              )}
+            </div>
+          </div>
+          <button onClick={onClose}
+            style={{
+              width: 34, height: 34, borderRadius: 10,
+              background: '#f5f5f0', color: '#666', border: 'none',
+              fontSize: 16, cursor: 'pointer', fontFamily: 'inherit',
+              flexShrink: 0,
+            }}>✕</button>
+        </div>
+
+        {/* ═══ Section SELECTION DES SEANCES ═══ */}
+        <div style={{ marginBottom: 14 }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: '#666', marginBottom: 8 }}>
+            📋 {lang === 'ar' ? 'اختر الحصص المراد دفعها' : 'Sélectionner les séances à payer'}
+          </div>
+
+          {/* Filtre période (pour restreindre la liste affichée) */}
+          <div style={{
+            background: '#E6F1FB', padding: '10px 12px',
+            borderRadius: 10, marginBottom: 10,
+            border: '1px solid #378ADD30',
+          }}>
+            <div style={{ fontSize: 11, color: '#0C447C', marginBottom: 6, fontWeight: 600 }}>
+              📅 {lang === 'ar' ? 'تصفية حسب الفترة (اختياري)' : 'Filtrer par période (optionnel)'}
+            </div>
+            <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+              <input type="date" value={filterDebut}
+                onChange={e => setFilterDebut(e.target.value)}
+                style={{
+                  padding: '6px 8px', fontSize: 12, borderRadius: 6,
+                  border: '1px solid #378ADD40', fontFamily: 'inherit', outline: 'none',
+                  flex: '1 1 120px', minWidth: 120,
+                }} />
+              <span style={{ color: '#0C447C' }}>→</span>
+              <input type="date" value={filterFin}
+                onChange={e => setFilterFin(e.target.value)}
+                style={{
+                  padding: '6px 8px', fontSize: 12, borderRadius: 6,
+                  border: '1px solid #378ADD40', fontFamily: 'inherit', outline: 'none',
+                  flex: '1 1 120px', minWidth: 120,
+                }} />
+              {(filterDebut || filterFin) && (
+                <button onClick={() => { setFilterDebut(''); setFilterFin(''); }}
+                  style={{
+                    padding: '6px 10px', background: '#fff', color: '#0C447C',
+                    border: '1px solid #378ADD40', borderRadius: 6,
+                    fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
+                  }}>✕ {lang === 'ar' ? 'إزالة' : 'Effacer'}</button>
+              )}
+            </div>
+            {(filterDebut || filterFin) && (
+              <button onClick={cocherPeriode}
+                style={{
+                  marginTop: 8, padding: '6px 12px',
+                  background: '#378ADD', color: '#fff',
+                  border: 'none', borderRadius: 6,
+                  fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit',
+                }}>
+                ✓ {lang === 'ar'
+                  ? `اختيار ${seancesVisibles.length} حصة في الفترة فقط`
+                  : `Cocher uniquement ces ${seancesVisibles.length} séance(s)`}
+              </button>
+            )}
+          </div>
+
+          {/* Boutons Tout cocher / décocher */}
+          <div style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
+            <button onClick={toutCocher}
+              style={{
+                flex: 1, padding: '7px 10px',
+                background: '#E1F5EE', color: '#085041',
+                border: '1px solid #1D9E7540', borderRadius: 8,
+                fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit',
+              }}>
+              ☑ {lang === 'ar' ? 'اختيار الكل' : 'Tout cocher'}
+            </button>
+            <button onClick={toutDecocher}
+              style={{
+                flex: 1, padding: '7px 10px',
+                background: '#FCEBEB', color: '#A32D2D',
+                border: '1px solid #E24B4A40', borderRadius: 8,
+                fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit',
+              }}>
+              ☐ {lang === 'ar' ? 'إلغاء الكل' : 'Tout décocher'}
+            </button>
+          </div>
+
+          {/* Liste scrollable des séances */}
+          <div style={{
+            background: '#f9f9f5', borderRadius: 10,
+            border: '1px solid #e0e0d8',
+            maxHeight: 220, overflowY: 'auto',
+          }}>
+            {seancesVisibles.length === 0 ? (
+              <div style={{ padding: 20, textAlign: 'center', color: '#888', fontSize: 12 }}>
+                {seances.length === 0
+                  ? (lang === 'ar' ? 'لا توجد حصص قابلة للدفع' : 'Aucune séance à payer')
+                  : (lang === 'ar' ? 'لا توجد حصص في هذه الفترة' : 'Aucune séance dans cette période')}
+              </div>
+            ) : (
+              seancesVisibles.map((s, idx) => {
+                const checked = selectedIds.has(s.id);
+                return (
+                  <div key={s.id}
+                    onClick={() => toggleSeance(s.id)}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 10,
+                      padding: '9px 12px',
+                      borderBottom: idx === seancesVisibles.length - 1 ? 'none' : '1px solid #e8e8e2',
+                      cursor: 'pointer',
+                      background: checked ? '#E1F5EE' : 'transparent',
+                      transition: 'background 0.1s',
+                    }}>
+                    <div style={{
+                      width: 20, height: 20, borderRadius: 5,
+                      border: `2px solid ${checked ? '#1D9E75' : '#c0c0b8'}`,
+                      background: checked ? '#1D9E75' : '#fff',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      color: '#fff', fontSize: 13, fontWeight: 800,
+                      flexShrink: 0,
+                    }}>
+                      {checked && '✓'}
+                    </div>
+                    <div style={{ flex: 1, fontSize: 13, color: '#1a1a1a', fontWeight: checked ? 600 : 400 }}>
+                      {formatJour(s.date_seance)}
+                    </div>
+                    <div style={{ fontSize: 12, color: '#666', fontWeight: 600 }}>
+                      {tarif.toFixed(0)} {lang === 'ar' ? 'د.' : 'DH'}
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+
+          {/* Indicateur : X sur Y sélectionnées */}
+          {seances.length > 0 && (
+            <div style={{ fontSize: 11, color: '#888', marginTop: 6, textAlign: 'right' }}>
+              {nbSelected} / {seances.length} {lang === 'ar' ? 'محددة' : 'sélectionnée(s)'}
+              {seancesVisibles.length < seances.length && (
+                <span style={{ color: '#378ADD', marginLeft: 4 }}>
+                  ({seancesVisibles.length} {lang === 'ar' ? 'معروضة' : 'affichée(s)'})
+                </span>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* ═══ Récap du montant ═══ */}
+        <div style={{
+          background: nbSelected > 0 ? '#E1F5EE' : '#f5f5f0',
+          border: `1px solid ${nbSelected > 0 ? '#1D9E7530' : '#e0e0d8'}`,
+          borderRadius: 10, padding: 12, marginBottom: 14,
+          display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap',
+        }}>
+          <div style={{ fontSize: 24, flexShrink: 0 }}>💰</div>
+          <div style={{ flex: 1, minWidth: 180 }}>
+            <div style={{ fontSize: 10, color: '#666', fontWeight: 600, marginBottom: 2 }}>
+              {lang === 'ar' ? 'المبلغ الإجمالي' : 'Total'}
+            </div>
+            <div style={{ fontSize: 13, color: '#1a1a1a' }}>
+              <strong>{nbSelected}</strong> {lang === 'ar' ? 'حصة × ' : 'séance(s) × '}
+              <strong>{tarif.toFixed(0)} {lang === 'ar' ? 'د.' : 'DH'}</strong>
+              {' = '}
+              <strong style={{ color: '#E24B4A', fontSize: 16 }}>
+                {montantCalcule.toFixed(0)} {lang === 'ar' ? 'د.' : 'DH'}
+              </strong>
+            </div>
+          </div>
+        </div>
+
+        {/* ═══ Champ Montant ═══ */}
+        <div style={{ marginBottom: 12 }}>
+          <label style={{ fontSize: 12, fontWeight: 700, color: '#666', display: 'block', marginBottom: 6 }}>
+            {lang === 'ar' ? 'المبلغ المدفوع (قابل للتعديل)' : 'Montant payé (modifiable)'}
+          </label>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <input type="number" min="0" step="0.01"
+              value={montant}
+              onChange={e => setMontant(e.target.value)}
+              style={{
+                flex: 1, padding: '12px 14px',
+                fontSize: 18, fontWeight: 700,
+                borderRadius: 10, border: '2px solid #e0e0d8',
+                color: '#1a1a1a',
+                fontFamily: 'inherit', textAlign: 'center', outline: 'none',
+              }} />
+            <span style={{ fontSize: 14, fontWeight: 700, color: '#666' }}>
+              {lang === 'ar' ? 'د.' : 'DH'}
+            </span>
+          </div>
+          {montantCalcule > 0 && Math.abs(parseFloat(montant) - montantCalcule) > 0.01 && (
+            <div style={{ fontSize: 10, color: '#EF9F27', marginTop: 4, fontStyle: 'italic' }}>
+              ⚠️ {lang === 'ar'
+                ? `يختلف عن المبلغ المحسوب (${montantCalcule.toFixed(0)} د.)`
+                : `Diffère du montant calculé (${montantCalcule.toFixed(0)} DH)`}
+            </div>
+          )}
+        </div>
+
+        {/* ═══ Champ Date ═══ */}
+        <div style={{ marginBottom: 12 }}>
+          <label style={{ fontSize: 12, fontWeight: 700, color: '#666', display: 'block', marginBottom: 6 }}>
+            {lang === 'ar' ? 'تاريخ الدفع' : 'Date du paiement'}
+          </label>
+          <input type="date"
+            value={dateDepense}
+            onChange={e => setDateDepense(e.target.value)}
+            style={{
+              width: '100%', padding: '10px 14px',
+              fontSize: 13, borderRadius: 10, border: '1px solid #e0e0d8',
+              fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box',
+            }} />
+        </div>
+
+        {/* ═══ Champ Description ═══ */}
+        <div style={{ marginBottom: 14 }}>
+          <label style={{ fontSize: 12, fontWeight: 700, color: '#666', display: 'block', marginBottom: 6 }}>
+            {lang === 'ar' ? 'الوصف' : 'Description'}
+          </label>
+          <input type="text"
+            value={description}
+            onChange={e => setDescription(e.target.value)}
+            style={{
+              width: '100%', padding: '10px 14px',
+              fontSize: 13, borderRadius: 10, border: '1px solid #e0e0d8',
+              fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box',
+            }} />
+        </div>
+
+        {/* ═══ Info couplage Finance ═══ */}
+        <div style={{
+          background: '#E6F1FB', borderLeft: '4px solid #378ADD',
+          padding: '8px 12px', borderRadius: 6, marginBottom: 14,
+          fontSize: 11, color: '#0C447C',
+        }}>
+          💡 {lang === 'ar'
+            ? 'سيتم تسجيل هذا الدفع في وحدة المالية (فئة: الرواتب). الحصص غير المحددة ستبقى في انتظار الدفع.'
+            : 'Ce paiement sera enregistré dans Finance (Salaires). Les séances non cochées resteront à payer.'}
+        </div>
+
+        {error && (
+          <div style={{
+            padding: '8px 12px', background: '#FCEBEB',
+            color: '#A32D2D', borderRadius: 8,
+            fontSize: 12, fontWeight: 600, marginBottom: 12,
+          }}>{error}</div>
+        )}
+
+        {/* ═══ Boutons ═══ */}
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button onClick={onClose}
+            style={{
+              flex: 1, padding: '12px',
+              background: '#f5f5f0', color: '#666',
+              border: 'none', borderRadius: 10,
+              fontSize: 13, fontWeight: 600,
+              cursor: 'pointer', fontFamily: 'inherit',
+            }}>
+            {lang === 'ar' ? 'إلغاء' : 'Annuler'}
+          </button>
+          <button onClick={handleSubmit} disabled={saving || nbSelected === 0}
+            style={{
+              flex: 2, padding: '12px',
+              background: (saving || nbSelected === 0)
+                ? '#ccc'
+                : 'linear-gradient(135deg, #E24B4A, #EF9F27)',
+              color: '#fff', border: 'none', borderRadius: 10,
+              fontSize: 13, fontWeight: 700,
+              cursor: (saving || nbSelected === 0) ? 'not-allowed' : 'pointer',
+              fontFamily: 'inherit',
+              boxShadow: (saving || nbSelected === 0) ? 'none' : '0 2px 8px rgba(226,75,74,0.25)',
+            }}>
+            {saving
+              ? '...'
+              : (lang === 'ar'
+                  ? `💸 دفع ${nbSelected} حصة`
+                  : `💸 Payer ${nbSelected} séance(s)`)}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
 }

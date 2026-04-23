@@ -1488,7 +1488,7 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile,
   const [editShowAcquisSelector, setEditShowAcquisSelector] = useState(false);
 
   const [newEleve, setNewEleve] = useState({ prenom: '', nom: '', niveau: 'Débutant', code_niveau: '', eleve_id_ecole: '', instituteur_referent_id: '', hizb_depart: 0, tomon_depart: 1, sourates_acquises: 0, telephone: '', date_inscription: '', jours_souhaites: [false,false,false,false,false,false,false] });
-  const [newInst, setNewInst] = useState({ prenom: '', nom: '', identifiant: '', mot_de_passe: '' });
+  const [newInst, setNewInst] = useState({ prenom: '', nom: '', identifiant: '', mot_de_passe: '', instituteur_id_ecole: '' });
   const [ecoleConfig, setEcoleConfig] = useState({ mdp_defaut_instituteurs: 'ecole2024', mdp_defaut_parents: 'parent2024', sens_recitation_defaut: 'desc' });
   // Hooks niveaux dynamiques
   const [niveauxDyn, setNiveauxDyn] = useState([]);
@@ -1500,7 +1500,22 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile,
   const [showFormInst,   setShowFormInst]   = useState(false);
   const [mobileEditEleve,setMobileEditEleve]= useState(null);
   const [editInstituteur, setEditInstituteur] = useState(null);
-  const [formEditInst, setFormEditInst] = useState({prenom:'',nom:'',identifiant:'',mot_de_passe:''});
+  const [formEditInst, setFormEditInst] = useState({prenom:'',nom:'',identifiant:'',mot_de_passe:'',instituteur_id_ecole:''});
+
+  // Helper : suggère le prochain numéro instituteur (INST001, INST002...).
+  // Regarde les IDs existants de la forme "INST" + nombre, trouve le max et incrémente.
+  // Si aucun existant : commence à INST001.
+  const suggestNextInstituteurId = () => {
+    const ids = (instituteurs || []).map(i => i.instituteur_id_ecole || '').filter(Boolean);
+    const numbers = ids
+      .map(id => {
+        const m = id.match(/^INST(\d+)$/i);
+        return m ? parseInt(m[1], 10) : null;
+      })
+      .filter(n => n !== null);
+    const next = numbers.length > 0 ? Math.max(...numbers) + 1 : 1;
+    return `INST${String(next).padStart(3, '0')}`;
+  };
 
   // ── Barème de notes ──
   const [bareme, setBareme] = useState({ unites: {...BAREME_DEFAUT}, examens: {}, ensembles: {}, jalons: {} });
@@ -1572,7 +1587,7 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile,
     try {
     const { data: e } = await supabase.from('eleves').select('id,prenom,nom,code_niveau,eleve_id_ecole,hizb_depart,tomon_depart,sourates_acquises,instituteur_referent_id,ecole_id,telephone,date_inscription,jours_souhaites')
         .eq('ecole_id', user.ecole_id).order('nom');
-    const { data: i } = await supabase.from('utilisateurs').select('id,prenom,nom,identifiant,role').eq('role', 'instituteur').eq('ecole_id', user.ecole_id);
+    const { data: i } = await supabase.from('utilisateurs').select('id,prenom,nom,identifiant,role,instituteur_id_ecole,tarif_seance').eq('role', 'instituteur').eq('ecole_id', user.ecole_id);
     setEleves(e || []);
     setInstituteurs(i || []);
     const { data: pd, error: pdErr } = await supabase.from('utilisateurs')
@@ -1750,6 +1765,20 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile,
   const ajouterInstituteur = async () => {
     if (!newInst.prenom || !newInst.nom)
       return showMsg('error', lang==='ar'?'الاسم واللقب إلزاميان':'Prénom et nom obligatoires');
+
+    // Validation unicité du numéro instituteur (si renseigné) dans l'école
+    if (newInst.instituteur_id_ecole && newInst.instituteur_id_ecole.trim()) {
+      const numTrim = newInst.instituteur_id_ecole.trim();
+      const {data: ex} = await supabase.from('utilisateurs')
+        .select('id').eq('ecole_id', user.ecole_id)
+        .eq('instituteur_id_ecole', numTrim).maybeSingle();
+      if (ex) {
+        return showMsg('error', lang==='ar'
+          ? `رقم الأستاذ "${numTrim}" مستعمل مسبقا`
+          : `Le numéro "${numTrim}" est déjà utilisé`);
+      }
+    }
+
     // Générer login automatique : prenom.nom
     const normalize = s => {
       // Essayer normalisation latine (accents)
@@ -1773,11 +1802,12 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile,
     const { error } = await supabase.from('utilisateurs').insert({
       prenom: newInst.prenom, nom: newInst.nom,
       identifiant: login, mot_de_passe: mdp, role: 'instituteur',
-      ecole_id: user.ecole_id, statut_compte: 'actif'
+      ecole_id: user.ecole_id, statut_compte: 'actif',
+      instituteur_id_ecole: newInst.instituteur_id_ecole?.trim() || null,
     });
     if (error) return showMsg('error', error.message);
     showMsg('success', `✅ ${lang==='ar'?'تم الإضافة — المعرف:':'Ajouté — Login :'} ${login} ${lang==='ar'?'/ كلمة السر:':'/ MDP :'} ${mdp}`);
-    setNewInst({ prenom: '', nom: '', identifiant: '', mot_de_passe: '' });
+    setNewInst({ prenom: '', nom: '', identifiant: '', mot_de_passe: '', instituteur_id_ecole: '' });
     loadData();
   };
 
@@ -2349,6 +2379,26 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
                   <FI key={f.key} label={f.label+' *'} val={newInst[f.key]} ph={f.ph||f.label}
                     onChange={e=>setNewInst(x=>({...x,[f.key]:e.target.value}))} required/>
                 ))}
+                {/* Numéro instituteur avec bouton Auto ✨ */}
+                <div style={{marginBottom:10}}>
+                  <label style={{display:'block',fontSize:12,fontWeight:600,color:'#555',marginBottom:4}}>
+                    {lang==='ar'?'رقم الأستاذ':'Numéro instituteur'}
+                  </label>
+                  <div style={{display:'flex',gap:6}}>
+                    <input type="text"
+                      value={newInst.instituteur_id_ecole||''}
+                      onChange={e=>setNewInst(x=>({...x,instituteur_id_ecole:e.target.value}))}
+                      placeholder={suggestNextInstituteurId()}
+                      style={{flex:1,padding:'11px 13px',fontSize:14,borderRadius:10,border:'1px solid #e0e0d8',fontFamily:'inherit',outline:'none'}}/>
+                    <button type="button"
+                      onClick={()=>setNewInst(x=>({...x,instituteur_id_ecole:suggestNextInstituteurId()}))}
+                      style={{padding:'0 14px',background:'#E1F5EE',color:'#085041',
+                        border:'1px solid #1D9E7540',borderRadius:10,fontSize:12,
+                        fontWeight:700,cursor:'pointer',fontFamily:'inherit',whiteSpace:'nowrap'}}>
+                      ✨ {lang==='ar'?'اقتراح':'Auto'}
+                    </button>
+                  </div>
+                </div>
                 <FI label={lang==='ar'?'كلمة المرور':'Mot de passe *'} val={newInst.mot_de_passe} type="password" ph="••••••••"
                   onChange={e=>setNewInst(x=>({...x,mot_de_passe:e.target.value}))}/>
                 <div style={{display:'flex',gap:8}}>
@@ -2370,7 +2420,15 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
                     {((inst.prenom||'?')[0])+((inst.nom||'?')[0])}
                   </div>
                   <div style={{flex:1,minWidth:0}}>
-                    <div style={{fontWeight:700,fontSize:14}}>{inst.prenom} {inst.nom}</div>
+                    <div style={{display:'flex',alignItems:'center',gap:6,flexWrap:'wrap'}}>
+                      <div style={{fontWeight:700,fontSize:14}}>{inst.prenom} {inst.nom}</div>
+                      {inst.instituteur_id_ecole && (
+                        <div style={{
+                          padding:'2px 8px',background:'#E1F5EE',color:'#085041',
+                          borderRadius:6,fontSize:10,fontWeight:700,
+                        }}>{inst.instituteur_id_ecole}</div>
+                      )}
+                    </div>
                     <div style={{fontSize:11,color:'#888',marginTop:2}}>{inst.identifiant} · {nb} {lang==='ar'?'طالب':'élève(s)'}</div>
                   </div>
                   {user.role==='surveillant'&&(
@@ -2699,6 +2757,9 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
             {icon:'📅', label:lang==='ar'?'الحضور':'Assiduité',
              desc:lang==='ar'?'عتبات الحضور و أيام العطل':'Seuils d\'assiduité et jours non travaillés',
              action:()=>navigate('gestion_assiduite',null,{tab}), color:'#1D9E75', bg:'#E1F5EE'},
+            {icon:'💰', label:lang==='ar'?'تعرفات الأساتذة':'Tarifs Instituteurs',
+             desc:lang==='ar'?'تحديد تعرفة الحصة (مدرسة أو فردية)':'Configurer les tarifs par séance (école ou individuel)',
+             action:()=>navigate('gestion_tarifs',null,{tab}), color:'#534AB7', bg:'#EEEDFE'},
             {icon:'📥', label:lang==='ar'?'استيراد جماعي':'Import en masse',
              desc:lang==='ar'?'استيراد المستويات والطلاب والمدرسين والآباء من ملف Excel':'Importer niveaux, élèves, instituteurs, parents depuis Excel',
              action:()=>navigate('import_masse',null,{tab}), color:'#EF9F27', bg:'#FAEEDA'},
@@ -3031,6 +3092,23 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
               <div className="field-group"><label className="field-lbl">{t(lang, 'prenom')}</label><input className="field-input" value={newInst.prenom} onChange={e => setNewInst({...newInst,prenom:e.target.value})} placeholder={t(lang,'prenom')}/></div>
               <div className="field-group"><label className="field-lbl">{t(lang, 'nom_label')}</label><input className="field-input" value={newInst.nom} onChange={e => setNewInst({...newInst,nom:e.target.value})} placeholder={t(lang,'nom_label')}/></div>
               <div className="field-group">
+                <label className="field-lbl">{lang==='ar'?'رقم الأستاذ':'Numéro instituteur'}</label>
+                <div style={{display:'flex',gap:6}}>
+                  <input className="field-input" value={newInst.instituteur_id_ecole}
+                    onChange={e => setNewInst({...newInst,instituteur_id_ecole:e.target.value})}
+                    placeholder={suggestNextInstituteurId()}
+                    style={{flex:1}}/>
+                  <button type="button"
+                    onClick={()=>setNewInst({...newInst,instituteur_id_ecole:suggestNextInstituteurId()})}
+                    style={{padding:'0 12px',background:'#E1F5EE',color:'#085041',
+                      border:'0.5px solid #1D9E7540',borderRadius:8,fontSize:11,
+                      fontWeight:700,cursor:'pointer',fontFamily:'inherit',whiteSpace:'nowrap'}}
+                    title={lang==='ar'?'استعمال الاقتراح':'Utiliser suggestion'}>
+                    ✨ {lang==='ar'?'اقتراح':'Auto'}
+                  </button>
+                </div>
+              </div>
+              <div className="field-group">
                 <label className="field-lbl">{lang==='ar'?'المعرّف (مولَّد تلقائياً)':'Login (généré automatiquement)'}</label>
                 <div className="field-input" style={{background:'#f5f5f0',color:'#085041',fontWeight:600,cursor:'default'}}>
                   {newInst.prenom&&newInst.nom
@@ -3071,13 +3149,26 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
                 <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:10}}>
                   <div className="field-group"><label className="field-lbl">{lang==='ar'?'الاسم':'Prénom'}</label><input className="field-input" value={formEditInst.prenom} onChange={e=>setFormEditInst(f=>({...f,prenom:e.target.value}))}/></div>
                   <div className="field-group"><label className="field-lbl">{lang==='ar'?'اللقب':'Nom'}</label><input className="field-input" value={formEditInst.nom} onChange={e=>setFormEditInst(f=>({...f,nom:e.target.value}))}/></div>
+                  <div className="field-group"><label className="field-lbl">{lang==='ar'?'رقم الأستاذ':'Numéro instituteur'}</label><input className="field-input" value={formEditInst.instituteur_id_ecole||''} onChange={e=>setFormEditInst(f=>({...f,instituteur_id_ecole:e.target.value}))} placeholder={suggestNextInstituteurId()}/></div>
                   <div className="field-group"><label className="field-lbl">{lang==='ar'?'المعرف':'Identifiant'}</label><input className="field-input" value={formEditInst.identifiant} onChange={e=>setFormEditInst(f=>({...f,identifiant:e.target.value}))}/></div>
                   <div className="field-group"><label className="field-lbl">{lang==='ar'?'كلمة المرور (اتركها فارغة إن لم تغيرها)':'Mot de passe (vide = inchangé)'}</label><input className="field-input" type="password" value={formEditInst.mot_de_passe} onChange={e=>setFormEditInst(f=>({...f,mot_de_passe:e.target.value}))}/></div>
                 </div>
                 <div style={{display:'flex',gap:8}}>
                   <button className="btn-primary" style={{width:'auto',padding:'7px 16px',fontSize:12}} onClick={async()=>{
-                    const upd={prenom:formEditInst.prenom,nom:formEditInst.nom,identifiant:formEditInst.identifiant};
+                    const upd={prenom:formEditInst.prenom,nom:formEditInst.nom,identifiant:formEditInst.identifiant,instituteur_id_ecole:formEditInst.instituteur_id_ecole?.trim()||null};
                     if(formEditInst.mot_de_passe) upd.mot_de_passe=formEditInst.mot_de_passe;
+                    // Vérif unicité numéro si renseigné
+                    if (upd.instituteur_id_ecole) {
+                      const {data: ex} = await supabase.from('utilisateurs')
+                        .select('id').eq('ecole_id', user.ecole_id)
+                        .eq('instituteur_id_ecole', upd.instituteur_id_ecole)
+                        .neq('id', editInstituteur).maybeSingle();
+                      if (ex) {
+                        return showMsg('error', lang==='ar'
+                          ? `رقم الأستاذ "${upd.instituteur_id_ecole}" مستعمل مسبقا`
+                          : `Le numéro "${upd.instituteur_id_ecole}" est déjà utilisé`);
+                      }
+                    }
                     await supabase.from('utilisateurs').update(upd).eq('id',editInstituteur);
                     setEditInstituteur(null);
                     showMsg('success',lang==='ar'?'تم تحديث بيانات الأستاذ':'Instituteur mis à jour');
@@ -3090,18 +3181,28 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
             <div className="table-wrap">
               <table>
                 <thead><tr>
-                  <th style={{width:'40%'}}>{t(lang, 'nom_label')}</th>
-                  <th style={{width:'40%'}}>{t(lang, 'identifiant_label')}</th>
+                  <th style={{width:'15%'}}>{lang==='ar'?'الرقم':'Numéro'}</th>
+                  <th style={{width:'35%'}}>{t(lang, 'nom_label')}</th>
+                  <th style={{width:'30%'}}>{t(lang, 'identifiant_label')}</th>
                   <th style={{width:'20%'}}></th>
                 </tr></thead>
                 <tbody>
-                  {instituteurs.length === 0 && <tr><td colSpan={3} className="empty">{t(lang, 'aucun_instituteur')}</td></tr>}
+                  {instituteurs.length === 0 && <tr><td colSpan={4} className="empty">{t(lang, 'aucun_instituteur')}</td></tr>}
                   {instituteurs.map(i => (
                     <tr key={i.id}>
+                      <td>
+                        {i.instituteur_id_ecole ? (
+                          <span style={{display:'inline-block',padding:'3px 10px',background:'#E1F5EE',color:'#085041',borderRadius:6,fontSize:11,fontWeight:700}}>
+                            {i.instituteur_id_ecole}
+                          </span>
+                        ) : (
+                          <span style={{color:'#bbb',fontSize:11,fontStyle:'italic'}}>—</span>
+                        )}
+                      </td>
                       <td><div style={{display:'flex',alignItems:'center',gap:8}}><Avatar prenom={i.prenom} nom={i.nom}/>{i.prenom} {i.nom}</div></td>
                       <td style={{fontSize:12,color:'#888'}}>{i.identifiant}</td>
                       <td style={{display:'flex',gap:4,alignItems:'center',padding:'8px 4px'}}>
-                        <button onClick={()=>{setEditInstituteur(i.id);setFormEditInst({prenom:i.prenom,nom:i.nom,identifiant:i.identifiant,mot_de_passe:''});}}
+                        <button onClick={()=>{setEditInstituteur(i.id);setFormEditInst({prenom:i.prenom,nom:i.nom,identifiant:i.identifiant,mot_de_passe:'',instituteur_id_ecole:i.instituteur_id_ecole||''});}}
                           style={{padding:'4px 10px',background:'#E6F1FB',color:'#378ADD',border:'0.5px solid #378ADD30',borderRadius:6,cursor:'pointer',fontSize:11,fontWeight:600}}>✏️ {lang==='ar'?'تعديل':'Modifier'}</button>
                         <button className="action-btn danger" onClick={() => supprimerInstituteur(i)}>{t(lang, 'retirer')}</button>
                       </td>
