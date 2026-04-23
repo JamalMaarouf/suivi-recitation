@@ -8,6 +8,7 @@ import { getCachedSWR } from '../lib/cache';
 import FicheSourate from './FicheSourate';
 import { fetchAll } from '../lib/fetchAll';
 import OngletAssiduiteEleve from '../components/OngletAssiduiteEleve';
+import OngletCoursEleve from '../components/OngletCoursEleve';
 
 function Avatar({ prenom, nom, size=44, bg='#E1F5EE', color='#085041' }) {
   return <div style={{width:size,height:size,borderRadius:'50%',background:bg,color,display:'flex',alignItems:'center',justifyContent:'center',fontWeight:600,fontSize:size*0.33,flexShrink:0}}>{getInitiales(prenom,nom)}</div>;
@@ -785,6 +786,7 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang, isMobi
               {k:'examens',     label: lang==='ar'?'الامتحانات':'Examens'},
               {k:'certificats', label: lang==='ar'?'الشهادات':'Certificats'},
               {k:'assiduite',   label: lang==='ar'?'الحضور':'Assiduité'},
+              {k:'cours',       label: lang==='ar'?'الدروس':'Cours'},
               {k:'notes',       label: lang==='ar'?'النقاط':'Points'},
             ].map(tab=>(
               <div key={tab.k} onClick={()=>setOnglet(tab.k)}
@@ -1107,6 +1109,11 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang, isMobi
               <div style={{padding:'8px 0'}}>
                 <OngletAssiduiteEleve eleve={eleve} lang={lang} isMobile={true} />
               </div>
+            )}
+
+            {/* ─── Onglet Cours (mobile) ─── */}
+            {onglet==='cours' && (
+              <OngletCoursEleve eleve={eleve} lang={lang} isMobile={true} />
             )}
 
 
@@ -1515,7 +1522,7 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang, isMobi
 
           {/* Tabs */}
           <div className="tabs-row" style={{marginBottom:'1rem'}}>
-            {[['apercu',t(lang,'apercu')],['apprentissage',t(lang,'apprentissage')],['graphique',t(lang,'evolution')],['activite',t(lang,'activite')],['historique',t(lang,'historique')],['muraja',lang==='ar'?'المراجعة':'Muraja\u02bca'],['examens',lang==='ar'?'الامتحانات':'Examens'],['certificats',lang==='ar'?'الشهادات':'Certificats'],['assiduite',lang==='ar'?'الحضور':'Assiduité'],['notes',lang==='ar'?'النقاط':'Points']].map(([k,l])=>(
+            {[['apercu',t(lang,'apercu')],['apprentissage',t(lang,'apprentissage')],['graphique',t(lang,'evolution')],['activite',t(lang,'activite')],['historique',t(lang,'historique')],['muraja',lang==='ar'?'المراجعة':'Muraja\u02bca'],['examens',lang==='ar'?'الامتحانات':'Examens'],['certificats',lang==='ar'?'الشهادات':'Certificats'],['assiduite',lang==='ar'?'الحضور':'Assiduité'],['cours',lang==='ar'?'الدروس':'Cours'],['notes',lang==='ar'?'النقاط':'Points']].map(([k,l])=>(
               <div key={k} className={`tab ${onglet===k?'active':''}`} onClick={()=>setOnglet(k)}>{l}</div>
             ))}
           </div>
@@ -1849,6 +1856,11 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang, isMobi
             <div style={{padding:'0.5rem 0'}}>
               <OngletAssiduiteEleve eleve={eleve} lang={lang} isMobile={false} />
             </div>
+          )}
+
+          {/* ─── Onglet Cours (desktop) ─── */}
+          {onglet==='cours'&&(
+            <OngletCoursEleve eleve={eleve} lang={lang} isMobile={false} />
           )}
 
 
