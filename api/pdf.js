@@ -42,6 +42,8 @@ module.exports = async function handler(req, res) {
       html = generateRapportHonneur(data, lang);
     } else if (type === 'rapport_inactifs') {
       html = generateRapportInactifs(data, lang);
+    } else if (type === 'rapport_gestion_examens') {
+      html = generateRapportGestionExamens(data, lang);
     } else {
       return res.status(400).json({ error: 'Type non supporté' });
     }
@@ -1374,6 +1376,113 @@ function generateRapportInactifs(data, lang) {
 
     <div class="footer">
       ${ecole?.nom || ''} · ${isAr ? 'سري — للاستخدام الداخلي' : 'Confidentiel — Usage interne'}
+    </div>
+  </div>
+  </body></html>`;
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// RAPPORT GESTION EXAMENS — configuration des examens de l'ecole
+// Liste technique des examens configures (pas les resultats = different
+// de 'rapport_examens')
+// ══════════════════════════════════════════════════════════════════════
+function generateRapportGestionExamens(data, lang) {
+  const {
+    ecole,
+    filtreNiveau = '',
+    rows = [],   // [{nom, description, niveau_nom, niveau_couleur, type_contenu, nb_elements, score_minimum, bloquant, ordre}]
+  } = data || {};
+  const isAr = lang === 'ar';
+  const dir = isAr ? 'rtl' : 'ltr';
+  const titre = isAr ? 'تقرير إعداد الامتحانات' : 'Configuration des examens';
+
+  // Group by niveau pour une lecture plus lisible
+  const byNiveau = {};
+  rows.forEach(r => {
+    const key = r.niveau_nom || '—';
+    if (!byNiveau[key]) byNiveau[key] = { couleur: r.niveau_couleur, items: [] };
+    byNiveau[key].items.push(r);
+  });
+
+  const sections = Object.keys(byNiveau).map(nivNom => {
+    const g = byNiveau[nivNom];
+    const rowsHtml = g.items
+      .sort((a, b) => (a.ordre || 0) - (b.ordre || 0))
+      .map((r, i) => `
+        <tr>
+          <td style="text-align:center;color:#888">${r.ordre || i+1}</td>
+          <td style="font-weight:700">${r.nom || '—'}</td>
+          <td style="font-size:11px;color:#666;max-width:200px">${r.description || '—'}</td>
+          <td style="text-align:center;font-size:11px">
+            ${r.type_contenu === 'hizb' ? (isAr ? 'حزب' : 'Hizb')
+              : r.type_contenu === 'sourate' ? (isAr ? 'سورة' : 'Sourate')
+              : r.type_contenu === 'ensemble' ? (isAr ? 'مجموعة' : 'Ensemble')
+              : r.type_contenu || '—'}
+          </td>
+          <td style="text-align:center">${r.nb_elements || 0}</td>
+          <td style="text-align:center;font-weight:700;color:#378ADD">${r.score_minimum || 0}%</td>
+          <td style="text-align:center">
+            ${r.bloquant
+              ? `<span style="padding:2px 8px;border-radius:8px;background:#FCEBEB;color:#E24B4A;font-weight:700;font-size:10px">🔒 ${isAr ? 'حاجز' : 'Bloquant'}</span>`
+              : `<span style="padding:2px 8px;border-radius:8px;background:#E1F5EE;color:#1D9E75;font-weight:700;font-size:10px">✓ ${isAr ? 'اختياري' : 'Optionnel'}</span>`
+            }
+          </td>
+        </tr>
+      `).join('');
+
+    return `
+      <div class="section-title" style="margin-top:20px">
+        <span class="badge" style="background:${g.couleur || '#085041'}20;color:${g.couleur || '#085041'}">${nivNom}</span>
+        <span style="font-size:11px;color:#888;font-weight:400">· ${g.items.length} ${isAr ? 'امتحان' : 'examen(s)'}</span>
+      </div>
+      <table>
+        <thead>
+          <tr>
+            <th style="width:50px;text-align:center">${isAr ? 'الترتيب' : 'Ordre'}</th>
+            <th>${isAr ? 'اسم الامتحان' : 'Nom'}</th>
+            <th>${isAr ? 'الوصف' : 'Description'}</th>
+            <th style="text-align:center">${isAr ? 'النوع' : 'Type'}</th>
+            <th style="text-align:center">${isAr ? 'عدد العناصر' : 'Nb éléments'}</th>
+            <th style="text-align:center">${isAr ? 'النجاح' : 'Seuil'}</th>
+            <th style="text-align:center">${isAr ? 'النوع' : 'Caractère'}</th>
+          </tr>
+        </thead>
+        <tbody>${rowsHtml}</tbody>
+      </table>
+    `;
+  }).join('');
+
+  return `<!DOCTYPE html><html dir="${dir}"><head><meta charset="UTF-8"><title>${titre}</title>${baseStyles()}</head>
+  <body>
+  ${printButton(lang)}
+  <div class="page">
+    <div class="header">
+      <div>
+        <div class="logo">📝 ${ecole?.nom || 'École'}</div>
+        <div class="subtitle">${titre}</div>
+        ${filtreNiveau ? `<div class="subtitle" style="margin-top:4px">${isAr ? 'المستوى' : 'Niveau'} : ${filtreNiveau}</div>` : ''}
+      </div>
+      <div style="font-size:12px;color:#888;text-align:right">
+        <div>${new Date().toLocaleDateString(isAr ? 'ar-MA' : 'fr-FR')}</div>
+        <div style="margin-top:2px">${rows.length} ${isAr ? 'امتحان' : 'examen(s)'}</div>
+      </div>
+    </div>
+
+    ${rows.length === 0 ? `
+      <div style="padding:40px;text-align:center;color:#888;font-style:italic">
+        ${isAr ? 'لا توجد امتحانات محددة' : 'Aucun examen configuré'}
+      </div>
+    ` : sections}
+
+    <div style="margin-top:16px;padding:12px;background:#f9f9f6;border-radius:8px;font-size:11px;color:#666;line-height:1.6">
+      <strong>ℹ️ ${isAr ? 'معلومة' : 'Information'} :</strong>
+      ${isAr
+        ? 'الامتحانات <strong>الحاجزة</strong> يجب أن تكون ناجحة لتجاوز مرحلة. الامتحانات <strong>الاختيارية</strong> مفيدة للتقييم ولكن غير لازمة للتقدم.'
+        : 'Les examens <strong>bloquants</strong> doivent être réussis pour franchir un cap. Les examens <strong>optionnels</strong> servent à l\'évaluation mais ne bloquent pas la progression.'}
+    </div>
+
+    <div class="footer">
+      ${ecole?.nom || ''} · ${isAr ? 'وثيقة مرجعية' : 'Document de référence'}
     </div>
   </div>
   </body></html>`;

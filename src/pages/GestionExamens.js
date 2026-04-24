@@ -3,6 +3,9 @@ import { supabase } from '../lib/supabase';
 import { useToast } from '../lib/toast';
 import { getSouratesForNiveau } from '../lib/sourates';
 import { t } from '../lib/i18n';
+import { openPDF } from '../lib/pdf';
+import { exportExcelSimple } from '../lib/excel';
+import ExportButtons from '../components/ExportButtons';
 
 export default function GestionExamens({ user, navigate, goBack, lang='fr', isMobile }) {
   const { toast } = useToast();
@@ -229,6 +232,78 @@ export default function GestionExamens({ user, navigate, goBack, lang='fr', isMo
   const examsFiltres = filtreNiveau==='tous'
     ? examens
     : examens.filter(e=>e.niveau_id===filtreNiveau);
+
+  // ── Helper : préparer une ligne d'examen pour export ──
+  const prepareExamRow = (e) => {
+    const niveau = e.niveau || niveaux.find(n => n.id === e.niveau_id);
+    return {
+      nom: e.nom || '',
+      description: e.description || '',
+      niveau_nom: niveau?.nom || niveau?.code || '—',
+      niveau_couleur: niveau?.couleur || '#085041',
+      type_contenu: e.type_contenu || '',
+      nb_elements: Array.isArray(e.contenu_ids) ? e.contenu_ids.length : 0,
+      score_minimum: e.score_minimum || 0,
+      bloquant: !!e.bloquant,
+      ordre: e.ordre || 0,
+    };
+  };
+
+  // ── Export PDF ──
+  const handleExportPDF = async () => {
+    if (examsFiltres.length === 0) return;
+    const rows = examsFiltres.map(prepareExamRow);
+    const niveauLabel = filtreNiveau !== 'tous'
+      ? (niveaux.find(n => n.id === filtreNiveau)?.nom || '')
+      : '';
+    try {
+      await openPDF('rapport_gestion_examens', {
+        ecole: { nom: user?.ecole?.nom || '' },
+        filtreNiveau: niveauLabel,
+        rows,
+      }, lang);
+    } catch (err) {
+      toast.error((lang === 'ar' ? 'خطأ PDF : ' : 'Erreur PDF : ') + err.message);
+    }
+  };
+
+  // ── Export Excel ──
+  const handleExportExcel = async () => {
+    if (examsFiltres.length === 0) return;
+    const headers = [
+      lang === 'ar' ? 'الترتيب' : 'Ordre',
+      lang === 'ar' ? 'اسم الامتحان' : 'Nom',
+      lang === 'ar' ? 'الوصف' : 'Description',
+      lang === 'ar' ? 'المستوى' : 'Niveau',
+      lang === 'ar' ? 'نوع المحتوى' : 'Type contenu',
+      lang === 'ar' ? 'عدد العناصر' : 'Nb éléments',
+      lang === 'ar' ? 'عتبة النجاح %' : 'Seuil %',
+      lang === 'ar' ? 'حاجز' : 'Bloquant',
+    ];
+    const rows = examsFiltres.map(prepareExamRow).map(r => [
+      r.ordre,
+      r.nom,
+      r.description,
+      r.niveau_nom,
+      r.type_contenu === 'hizb' ? (lang==='ar'?'حزب':'Hizb')
+        : r.type_contenu === 'sourate' ? (lang==='ar'?'سورة':'Sourate')
+        : r.type_contenu === 'ensemble' ? (lang==='ar'?'مجموعة':'Ensemble')
+        : r.type_contenu,
+      r.nb_elements,
+      r.score_minimum,
+      r.bloquant ? (lang==='ar'?'نعم':'Oui') : (lang==='ar'?'لا':'Non'),
+    ]);
+    const dateStr = new Date().toISOString().slice(0, 10);
+    try {
+      await exportExcelSimple(
+        `examens_config_${dateStr}.xlsx`,
+        [headers, ...rows],
+        lang === 'ar' ? 'الامتحانات' : 'Examens',
+      );
+    } catch (err) {
+      toast.error((lang === 'ar' ? 'خطأ Excel : ' : 'Erreur Excel : ') + err.message);
+    }
+  };
 
   // ── FORMULAIRE (partagé PC+Mobile) ────────────────────────────────
   const renderFormContent = () => (
@@ -527,6 +602,19 @@ export default function GestionExamens({ user, navigate, goBack, lang='fr', isMo
               </div>
             ))}
           </div>
+          {/* Export mobile */}
+          {examsFiltres.length > 0 && (
+            <div style={{display:'flex',gap:6,marginTop:8}}>
+              <button onClick={handleExportPDF}
+                style={{flex:1,background:'rgba(255,255,255,0.25)',border:'1px solid rgba(255,255,255,0.3)',borderRadius:10,padding:'7px 11px',color:'#fff',fontSize:12,fontWeight:600,cursor:'pointer',whiteSpace:'nowrap',fontFamily:'inherit'}}>
+                📄 PDF
+              </button>
+              <button onClick={handleExportExcel}
+                style={{flex:1,background:'rgba(255,255,255,0.25)',border:'1px solid rgba(255,255,255,0.3)',borderRadius:10,padding:'7px 11px',color:'#fff',fontSize:12,fontWeight:600,cursor:'pointer',whiteSpace:'nowrap',fontFamily:'inherit'}}>
+                📊 Excel
+              </button>
+            </div>
+          )}
         </div>
 
         <div style={{padding:'12px'}}>
@@ -657,13 +745,23 @@ export default function GestionExamens({ user, navigate, goBack, lang='fr', isMo
             📝 {lang==='ar'?'إدارة الامتحانات':'Gestion des examens'}
           </div>
         </div>
-        <button onClick={()=>{if(showForm&&!editing)resetForm();else startCreate();}}
-          style={{padding:'8px 18px',
-            background:showForm&&!editing?'#f0f0ec':'#1D9E75',
-            color:showForm&&!editing?'#666':'#fff',border:'none',
-            borderRadius:10,fontSize:13,fontWeight:600,cursor:'pointer'}}>
-          {showForm&&!editing?'✕ Annuler':'+ Nouvel examen'}
-        </button>
+        <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}>
+          {examsFiltres.length > 0 && (
+            <ExportButtons
+              onPDF={handleExportPDF}
+              onExcel={handleExportExcel}
+              lang={lang}
+              variant="inline"
+            />
+          )}
+          <button onClick={()=>{if(showForm&&!editing)resetForm();else startCreate();}}
+            style={{padding:'8px 18px',
+              background:showForm&&!editing?'#f0f0ec':'#1D9E75',
+              color:showForm&&!editing?'#666':'#fff',border:'none',
+              borderRadius:10,fontSize:13,fontWeight:600,cursor:'pointer'}}>
+            {showForm&&!editing?'✕ Annuler':'+ Nouvel examen'}
+          </button>
+        </div>
       </div>
 
       {/* Filtre niveau PC */}
