@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { supabase } from '../lib/supabase';
+import { openPDF } from '../lib/pdf';
+import { exportExcelSimple } from '../lib/excel';
 import { useToast } from '../lib/toast';
 
 // ══════════════════════════════════════════════════════════════════════
@@ -127,6 +129,92 @@ export default function SuiviCours({ user, navigate, goBack, lang, isMobile }) {
     // eslint-disable-next-line
   }, [cours, liaisonsValides, axes, validations]);
 
+  // ─── Préparer les données d'export ─────────────────────────
+  // Retourne 1 ligne par couple (cours, niveau) avec stats
+  const prepareExportRows = () => {
+    const list = [];
+    cours.forEach(c => {
+      const codesNiveaux = liaisonsByCoursId[c.id] || [];
+      codesNiveaux
+        .map(code => niveauByCode[code])
+        .filter(Boolean)
+        .sort((a, b) => (a.ordre || 0) - (b.ordre || 0))
+        .forEach(n => {
+          const s = statsFor(c.id, n.code);
+          list.push({
+            cours_id: c.id,
+            cours_nom: nomAffiche(c),
+            cours_categorie: c.categorie || '',
+            code_niveau: n.code,
+            niveau_nom: n.nom,
+            niveau_couleur: n.couleur,
+            total: s.total,
+            valides: s.valides,
+            pct: s.pct,
+          });
+        });
+    });
+    return list;
+  };
+
+  // ─── Export PDF ────────────────────────────────────────────
+  const exportCoursPDF = async () => {
+    const rows = prepareExportRows();
+    try {
+      await openPDF('rapport_cours', {
+        ecole: { nom: user.ecole_nom || '' },
+        stats: statsGlobales,
+        rows,
+      }, lang);
+    } catch (err) {
+      alert('Erreur PDF : ' + err.message);
+    }
+  };
+
+  // ─── Export Excel ──────────────────────────────────────────
+  const exportCoursExcel = async () => {
+    const rows = prepareExportRows();
+    const headers = [
+      '#',
+      lang === 'ar' ? 'الدرس' : 'Cours',
+      lang === 'ar' ? 'الفئة' : 'Catégorie',
+      lang === 'ar' ? 'المستوى' : 'Niveau',
+      lang === 'ar' ? 'عدد المحاور' : 'Total axes',
+      lang === 'ar' ? 'مُتحقق منها' : 'Axes validés',
+      lang === 'ar' ? 'التقدم %' : 'Progression %',
+      lang === 'ar' ? 'الحالة' : 'Statut',
+    ];
+    const dataRows = rows.map((r, i) => {
+      const statut = r.pct >= 100
+        ? (lang === 'ar' ? 'مكتمل' : 'Complet')
+        : r.pct >= 70
+          ? (lang === 'ar' ? 'متقدم' : 'Avancé')
+          : r.pct >= 30
+            ? (lang === 'ar' ? 'جاري' : 'En cours')
+            : (lang === 'ar' ? 'ناشئ' : 'Débutant');
+      return [
+        i + 1,
+        r.cours_nom || '',
+        r.cours_categorie || '',
+        r.niveau_nom || '',
+        r.total,
+        r.valides,
+        r.pct,
+        statut,
+      ];
+    });
+    const dateStr = new Date().toISOString().slice(0, 10);
+    try {
+      await exportExcelSimple(
+        `cours_progression_${dateStr}.xlsx`,
+        [headers, ...dataRows],
+        lang === 'ar' ? 'تقدم الدروس' : 'Progression cours',
+      );
+    } catch (err) {
+      alert('Erreur Excel : ' + err.message);
+    }
+  };
+
   return (
     <div style={{ background: isMobile ? '#f5f5f0' : 'transparent', minHeight: isMobile ? '100vh' : 'auto', paddingBottom: 80 }}>
 
@@ -215,6 +303,37 @@ export default function SuiviCours({ user, navigate, goBack, lang, isMobile }) {
               <StatCard label={lang === 'ar' ? 'محاور مُتحقق منها' : 'Axes validés'} value={`${statsGlobales.totalValides}/${statsGlobales.totalAxes}`} color="#1D9E75" bg="#E1F5EE" />
               <StatCard label={lang === 'ar' ? 'التقدم الإجمالي' : 'Progression moyenne'} value={`${statsGlobales.pctMoyen}%`} color="#EF9F27" bg="#FAEEDA" />
             </div>
+
+            {/* ─── Boutons d'export (PDF + Excel) ─── */}
+            {statsGlobales.nbLiaisons > 0 && (
+              <div style={{ display: 'flex', gap: 8, marginBottom: 14, flexWrap: 'wrap' }}>
+                <button onClick={exportCoursPDF}
+                  style={{
+                    padding: isMobile ? '8px 14px' : '8px 16px',
+                    background: '#E24B4A', color: '#fff', border: 'none',
+                    borderRadius: 10, fontSize: 12, fontWeight: 700,
+                    cursor: 'pointer', fontFamily: 'inherit',
+                    display: 'inline-flex', alignItems: 'center', gap: 6,
+                  }}>
+                  📄 {lang === 'ar' ? 'تصدير PDF' : 'Exporter PDF'}
+                </button>
+                <button onClick={exportCoursExcel}
+                  style={{
+                    padding: isMobile ? '8px 14px' : '8px 16px',
+                    background: '#1D9E75', color: '#fff', border: 'none',
+                    borderRadius: 10, fontSize: 12, fontWeight: 700,
+                    cursor: 'pointer', fontFamily: 'inherit',
+                    display: 'inline-flex', alignItems: 'center', gap: 6,
+                  }}>
+                  📊 {lang === 'ar' ? 'تصدير Excel' : 'Exporter Excel'}
+                </button>
+                <div style={{
+                  alignSelf: 'center', fontSize: 11, color: '#888', fontStyle: 'italic',
+                }}>
+                  {statsGlobales.nbLiaisons} {lang === 'ar' ? 'زوج مصدر' : 'couple(s) exporté(s)'}
+                </div>
+              </div>
+            )}
 
             {/* Liste des cours */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>

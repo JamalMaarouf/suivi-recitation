@@ -30,6 +30,8 @@ module.exports = async function handler(req, res) {
       html = generateFicheEleve(data, lang);
     } else if (type === 'rapport_assiduite') {
       html = generateRapportAssiduite(data, lang);
+    } else if (type === 'rapport_cours') {
+      html = generateRapportCours(data, lang);
     } else {
       return res.status(400).json({ error: 'Type non supporté' });
     }
@@ -613,6 +615,125 @@ function generateRapportAssiduite(data, lang) {
       ${isAr ? 'تحت' : 'Sous'} <span style="color:#E24B4A;font-weight:700">${seuilRisque}%</span> = ${isAr ? 'تحت العتبة' : 'En alerte'} ·
       ${seuilParfait}%+ = <span style="color:#1D9E75;font-weight:700">${isAr ? 'ممتاز' : 'Parfait'}</span>
     </div>
+
+    <div class="footer">
+      ${ecole?.nom || ''} · ${isAr ? 'سري — للاستخدام الداخلي' : 'Confidentiel — Usage interne'}
+    </div>
+  </div>
+  </body></html>`;
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// RAPPORT COURS DE FOND
+// Tableau cours × niveau avec progression (axes validés / total)
+// ══════════════════════════════════════════════════════════════════════
+function generateRapportCours(data, lang) {
+  const {
+    ecole,
+    stats = {},
+    rows = [],   // [{cours_nom, cours_categorie, niveau_nom, niveau_couleur, total, valides, pct}]
+  } = data || {};
+  const isAr = lang === 'ar';
+  const dir = isAr ? 'rtl' : 'ltr';
+
+  const titre = isAr ? 'تقرير الدروس' : 'Rapport Cours de fond';
+
+  // Couleur du taux selon progression
+  const pctColor = (p) => {
+    if (p >= 100) return '#1D9E75';
+    if (p >= 70) return '#EF9F27';
+    if (p >= 30) return '#378ADD';
+    return '#E24B4A';
+  };
+  const pctBg = (p) => {
+    if (p >= 100) return '#E1F5EE';
+    if (p >= 70) return '#FAEEDA';
+    if (p >= 30) return '#E6F1FB';
+    return '#FCEBEB';
+  };
+
+  // Groupement par cours pour un affichage plus lisible
+  const groupes = {};
+  rows.forEach(r => {
+    const key = r.cours_nom || '—';
+    if (!groupes[key]) {
+      groupes[key] = { categorie: r.cours_categorie, niveaux: [] };
+    }
+    groupes[key].niveaux.push(r);
+  });
+
+  const sections = Object.keys(groupes).map(coursNom => {
+    const g = groupes[coursNom];
+    const rowsHtml = g.niveaux.map((r, i) => {
+      return `
+        <tr>
+          <td style="text-align:center;color:#888">${i + 1}</td>
+          <td>
+            <span class="badge" style="background:${r.niveau_couleur || '#085041'}20;color:${r.niveau_couleur || '#085041'}">
+              ${r.niveau_nom || r.code_niveau || '—'}
+            </span>
+          </td>
+          <td style="text-align:center">${r.valides || 0} / ${r.total || 0}</td>
+          <td style="text-align:center">
+            <span style="padding:3px 10px;border-radius:10px;background:${pctBg(r.pct)};color:${pctColor(r.pct)};font-weight:700">
+              ${r.pct || 0}%
+            </span>
+          </td>
+        </tr>
+      `;
+    }).join('');
+
+    return `
+      <div class="section-title">${coursNom}${g.categorie ? ` <span style="color:#888;font-weight:400;font-size:12px">· ${g.categorie}</span>` : ''}</div>
+      <table style="margin-bottom:20px">
+        <thead>
+          <tr>
+            <th style="width:50px;text-align:center">#</th>
+            <th>${isAr ? 'المستوى' : 'Niveau'}</th>
+            <th style="text-align:center">${isAr ? 'محاور مُتحقق' : 'Axes validés'}</th>
+            <th style="text-align:center">${isAr ? 'التقدم' : 'Progression'}</th>
+          </tr>
+        </thead>
+        <tbody>${rowsHtml}</tbody>
+      </table>
+    `;
+  }).join('');
+
+  return `<!DOCTYPE html><html dir="${dir}"><head><meta charset="UTF-8"><title>${titre}</title>${baseStyles()}</head>
+  <body>
+  ${printButton(lang)}
+  <div class="page">
+    <div class="header">
+      <div>
+        <div class="logo">📚 ${ecole?.nom || 'École'}</div>
+        <div class="subtitle">${titre}</div>
+      </div>
+      <div style="font-size:12px;color:#888;text-align:right">
+        <div>${new Date().toLocaleDateString(isAr ? 'ar-MA' : 'fr-FR')}</div>
+        <div style="margin-top:2px">${Object.keys(groupes).length} ${isAr ? 'درس' : 'cours'} · ${rows.length} ${isAr ? 'زوج' : 'couple(s)'}</div>
+      </div>
+    </div>
+
+    <div class="kpi-grid" style="grid-template-columns:repeat(4,1fr)">
+      <div class="kpi">
+        <div class="kpi-val">${stats.nbCours || 0}</div>
+        <div class="kpi-lbl">${isAr ? 'الدروس' : 'Cours'}</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-val">${stats.nbLiaisons || 0}</div>
+        <div class="kpi-lbl">${isAr ? 'أزواج درس/مستوى' : 'Couples cours × niveau'}</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-val" style="color:#1D9E75">${stats.totalValides || 0}/${stats.totalAxes || 0}</div>
+        <div class="kpi-lbl">${isAr ? 'محاور مُتحقق منها' : 'Axes validés'}</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-val" style="color:#EF9F27">${stats.pctMoyen || 0}%</div>
+        <div class="kpi-lbl">${isAr ? 'التقدم الإجمالي' : 'Progression moyenne'}</div>
+      </div>
+    </div>
+
+    ${sections}
 
     <div class="footer">
       ${ecole?.nom || ''} · ${isAr ? 'سري — للاستخدام الداخلي' : 'Confidentiel — Usage interne'}
