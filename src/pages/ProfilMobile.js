@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { t } from '../lib/i18n';
+import { generateRgpdExport, downloadRgpdExport } from '../lib/rgpdExport';
 
 const NIVEAU_COLORS = { '5B':'#534AB7','5A':'#378ADD','2M':'#1D9E75','2':'#EF9F27','1':'#E24B4A' };
 const ROLE_LABELS = {
@@ -16,6 +17,25 @@ export default function ProfilMobile({ user, lang, onLogout, navigate, goBack })
   const [confirmPwd, setConfirmPwd] = useState('');
   const [pwdMsg, setPwdMsg] = useState(null);
   const [saving, setSaving] = useState(false);
+  // RGPD (itération 4.3)
+  const [rgpdLoading, setRgpdLoading] = useState(false);
+  const [rgpdConfirm, setRgpdConfirm] = useState(false);
+
+  // ─── RGPD : export JSON perso (art. 20) ─────────────────
+  // Scope 'self' : uniquement les données de l'utilisateur (pas les élèves)
+  const handleRgpdExport = async () => {
+    setRgpdLoading(true);
+    try {
+      const { json, fileName } = await generateRgpdExport(user, 'self');
+      downloadRgpdExport(json, fileName);
+      setPwdMsg({ type:'ok', txt: lang==='ar'?'✅ تم تحميل ملف بياناتك':'✅ Fichier téléchargé' });
+      setRgpdConfirm(false);
+    } catch (err) {
+      console.error('[RGPD] Export error:', err);
+      setPwdMsg({ type:'err', txt: (lang==='ar'?'خطأ : ':'Erreur : ') + (err.message || 'unknown') });
+    }
+    setRgpdLoading(false);
+  };
 
   const role = ROLE_LABELS[user.role] || { fr: user.role, ar: user.role, color:'#888', bg:'#f5f5f0' };
   const initials = ((user.prenom||'?')[0] + (user.nom||'?')[0]).toUpperCase();
@@ -212,6 +232,53 @@ export default function ProfilMobile({ user, lang, onLogout, navigate, goBack })
                 </div>
               </div>
               <span style={{color:'#ccc', fontSize:18}}>▶</span>
+            </div>
+          )}
+        </div>
+
+        {/* Export RGPD (art. 20) */}
+        <div style={{marginBottom:12}}>
+          {!rgpdConfirm ? (
+            <button onClick={()=>setRgpdConfirm(true)}
+              style={{width:'100%', padding:'14px', background:'#fff',
+                color:'#085041', border:'1.5px solid #1D9E7530', borderRadius:16,
+                fontSize:14, fontWeight:700, cursor:'pointer', fontFamily:'inherit',
+                display:'flex', alignItems:'center', justifyContent:'center', gap:10}}>
+              <span style={{fontSize:18}}>📦</span>
+              {lang==='ar'?'تصدير بياناتي (RGPD)':'Mes données (RGPD)'}
+            </button>
+          ) : (
+            <div style={{padding:'14px', background:'#E1F5EE', borderRadius:16,
+              border:'1.5px solid #1D9E7540'}}>
+              <div style={{fontSize:13, fontWeight:700, color:'#085041', marginBottom:8}}>
+                📦 {lang==='ar'?'تصدير بياناتك الشخصية':'Exporter vos données personnelles'}
+              </div>
+              <div style={{fontSize:11.5, color:'#444', lineHeight:1.5, marginBottom:10}}>
+                {lang==='ar'
+                  ? 'وفقاً للمادة 20 من RGPD والقانون المغربي 09-08، يحق لك الحصول على ملف يحتوي على جميع بياناتك الشخصية (JSON منظم).'
+                  : 'Conformément à l\'article 20 du RGPD et à la loi marocaine 09-08, vous avez le droit de recevoir un fichier contenant l\'ensemble de vos données personnelles (JSON structuré).'}
+              </div>
+              <div style={{fontSize:10.5, color:'#666', fontStyle:'italic', marginBottom:10}}>
+                🔒 {lang==='ar'
+                  ? 'سيتم تسجيل التحميل في سجل المراجعة.'
+                  : 'Ce téléchargement sera journalisé dans le registre d\'audit.'}
+              </div>
+              <div style={{display:'flex', gap:6}}>
+                <button onClick={handleRgpdExport} disabled={rgpdLoading}
+                  style={{flex:1, padding:'10px', background:rgpdLoading?'#999':'#1D9E75',
+                    color:'#fff', border:'none', borderRadius:10, fontWeight:700,
+                    cursor:rgpdLoading?'default':'pointer', fontSize:13, fontFamily:'inherit'}}>
+                  {rgpdLoading
+                    ? (lang==='ar'?'⏳ ...':'⏳ ...')
+                    : (lang==='ar'?'📥 تحميل':'📥 Télécharger')}
+                </button>
+                <button onClick={()=>setRgpdConfirm(false)} disabled={rgpdLoading}
+                  style={{padding:'10px 16px', background:'#fff', color:'#888',
+                    border:'0.5px solid #e0e0d8', borderRadius:10, fontSize:13,
+                    cursor:rgpdLoading?'default':'pointer', fontFamily:'inherit'}}>
+                  ✕
+                </button>
+              </div>
             </div>
           )}
         </div>
