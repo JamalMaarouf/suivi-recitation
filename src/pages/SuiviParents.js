@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { supabase } from '../lib/supabase';
 import { useToast } from '../lib/toast';
+import { openPDF } from '../lib/pdf';
 
 // ══════════════════════════════════════════════════════════════════════
 // PAGE SUIVI PARENTS — Menu principal surveillant
@@ -224,6 +225,41 @@ export default function SuiviParents({ user, navigate, goBack, lang, isMobile })
     toast.success(lang === 'ar' ? '✅ تم التصدير' : '✅ Exporté');
   };
 
+  // ─── Export PDF ─────────────────────────────────────────────
+  const exportPDF = async () => {
+    if (parentsFiltres.length === 0) {
+      toast.info(lang === 'ar' ? 'لا توجد بيانات للتصدير' : 'Aucune donnée à exporter');
+      return;
+    }
+    // Map les lignes dans le format attendu par le template serveur
+    const rows = parentsFiltres.map(p => {
+      const niveau = niveaux.find(n => n.code === p.eleve.code_niveau);
+      return {
+        parent_nom: `${p.parent.prenom || ''} ${p.parent.nom || ''}`.trim(),
+        enfant_nom: `${p.eleve.prenom || ''} ${p.eleve.nom || ''}`.trim(),
+        niveau_nom: niveau?.nom || p.eleve.code_niveau || '',
+        niveau_couleur: niveau?.couleur,
+        telephone: p.parent.telephone || '',
+        statut: p.statut,
+        joursEcoules: p.joursEcoules,
+      };
+    });
+    const niveauLabel = filtreNiveau !== 'tous'
+      ? (niveaux.find(n => n.code === filtreNiveau)?.nom || '')
+      : '';
+    try {
+      await openPDF('rapport_parents', {
+        ecole: { nom: user.ecole_nom || '' },
+        filtreStatut,
+        filtreNiveau: niveauLabel,
+        stats,
+        rows,
+      }, lang);
+    } catch (err) {
+      toast.error('Erreur PDF : ' + err.message);
+    }
+  };
+
   // ─── Helper affichage statut ───────────────────────────────
   const statutInfo = (s) => ({
     actif:     { emoji: '🟢', label: lang === 'ar' ? 'نشط' : 'Actif',        color: '#1D9E75', bg: '#E1F5EE' },
@@ -289,14 +325,24 @@ export default function SuiviParents({ user, navigate, goBack, lang, isMobile })
                   : 'Identifier les parents inactifs pour les contacter'}
               </div>
             </div>
-            <button onClick={exportCSV}
-              style={{
-                padding: '9px 14px', background: '#378ADD', color: '#fff',
-                border: 'none', borderRadius: 10,
-                fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit',
-              }}>
-              📥 {lang === 'ar' ? 'تصدير CSV' : 'Exporter CSV'}
-            </button>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button onClick={exportPDF}
+                style={{
+                  padding: '9px 14px', background: '#E24B4A', color: '#fff',
+                  border: 'none', borderRadius: 10,
+                  fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit',
+                }}>
+                📄 {lang === 'ar' ? 'PDF' : 'PDF'}
+              </button>
+              <button onClick={exportCSV}
+                style={{
+                  padding: '9px 14px', background: '#378ADD', color: '#fff',
+                  border: 'none', borderRadius: 10,
+                  fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit',
+                }}>
+                📥 {lang === 'ar' ? 'CSV' : 'CSV'}
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -308,17 +354,28 @@ export default function SuiviParents({ user, navigate, goBack, lang, isMobile })
           </div>
         ) : (
           <>
-            {/* Bouton export mobile */}
+            {/* Boutons export mobile (PDF + CSV côte à côte) */}
             {isMobile && (
-              <button onClick={exportCSV}
-                style={{
-                  width: '100%', padding: '11px',
-                  background: '#378ADD', color: '#fff',
-                  border: 'none', borderRadius: 10, marginBottom: 12,
-                  fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit',
-                }}>
-                📥 {lang === 'ar' ? 'تصدير القائمة (CSV)' : 'Exporter la liste (CSV)'}
-              </button>
+              <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+                <button onClick={exportPDF}
+                  style={{
+                    flex: 1, padding: '11px',
+                    background: '#E24B4A', color: '#fff',
+                    border: 'none', borderRadius: 10,
+                    fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit',
+                  }}>
+                  📄 {lang === 'ar' ? 'PDF' : 'PDF'}
+                </button>
+                <button onClick={exportCSV}
+                  style={{
+                    flex: 1, padding: '11px',
+                    background: '#378ADD', color: '#fff',
+                    border: 'none', borderRadius: 10,
+                    fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit',
+                  }}>
+                  📥 {lang === 'ar' ? 'CSV' : 'CSV'}
+                </button>
+              </div>
             )}
 
             {/* KPIs (cliquables → filtrent la liste) */}

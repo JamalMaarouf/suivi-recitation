@@ -32,6 +32,8 @@ module.exports = async function handler(req, res) {
       html = generateRapportAssiduite(data, lang);
     } else if (type === 'rapport_cours') {
       html = generateRapportCours(data, lang);
+    } else if (type === 'rapport_parents') {
+      html = generateRapportParents(data, lang);
     } else {
       return res.status(400).json({ error: 'Type non supporté' });
     }
@@ -734,6 +736,137 @@ function generateRapportCours(data, lang) {
     </div>
 
     ${sections}
+
+    <div class="footer">
+      ${ecole?.nom || ''} · ${isAr ? 'سري — للاستخدام الداخلي' : 'Confidentiel — Usage interne'}
+    </div>
+  </div>
+  </body></html>`;
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// RAPPORT TRACKING PARENTS
+// Liste des parents avec statut d'activite (Actif/Peu actif/Inactif/Jamais).
+// Meme colonnes que l'export CSV pour coherence, en version PDF imprimable.
+// ══════════════════════════════════════════════════════════════════════
+function generateRapportParents(data, lang) {
+  const {
+    ecole,
+    filtreStatut = 'tous',
+    filtreNiveau = '',
+    stats = {},
+    rows = [],
+  } = data || {};
+  const isAr = lang === 'ar';
+  const dir = isAr ? 'rtl' : 'ltr';
+
+  const titre = isAr ? 'تقرير متابعة الأولياء' : 'Rapport Tracking Parents';
+
+  // Couleur/emoji par statut
+  const statutInfo = (s) => ({
+    actif:     { emoji: '🟢', label: isAr ? 'نشط' : 'Actif',       color: '#1D9E75', bg: '#E1F5EE' },
+    peu_actif: { emoji: '🟡', label: isAr ? 'قليل' : 'Peu actif',   color: '#EF9F27', bg: '#FAEEDA' },
+    inactif:   { emoji: '🔴', label: isAr ? 'غير نشط' : 'Inactif', color: '#E24B4A', bg: '#FCEBEB' },
+    jamais:    { emoji: '⚪', label: isAr ? 'لم يزر' : 'Jamais',    color: '#888',    bg: '#f5f5f0' },
+  }[s] || { emoji: '⚪', label: '—', color: '#888', bg: '#f5f5f0' });
+
+  const joursLabel = (j) => {
+    if (j === null || j === undefined) return isAr ? 'لم يزر قط' : 'Jamais venu';
+    if (j === 0) return isAr ? 'اليوم' : 'Aujourd\'hui';
+    if (j === 1) return isAr ? 'أمس' : 'Hier';
+    return isAr ? `منذ ${j} يوم` : `Il y a ${j} j`;
+  };
+
+  const filtreStatutLabel = {
+    tous: isAr ? 'جميع الأولياء' : 'Tous les parents',
+    actif: isAr ? 'الأولياء النشطون' : 'Parents actifs',
+    peu_actif: isAr ? 'قليلو النشاط' : 'Parents peu actifs',
+    inactif: isAr ? 'غير النشطين' : 'Parents inactifs',
+    jamais: isAr ? 'لم يزوروا قط' : 'Jamais venus',
+  }[filtreStatut] || '';
+
+  const rowsHtml = rows.map((r, i) => {
+    const si = statutInfo(r.statut);
+    return `
+      <tr>
+        <td style="text-align:center;color:#888">${i + 1}</td>
+        <td style="text-align:center;font-size:16px">${si.emoji}</td>
+        <td style="font-weight:700">${r.parent_nom || '—'}</td>
+        <td>${r.enfant_nom || '—'}</td>
+        <td>
+          <span class="badge" style="background:${r.niveau_couleur || '#085041'}20;color:${r.niveau_couleur || '#085041'}">
+            ${r.niveau_nom || '—'}
+          </span>
+        </td>
+        <td style="font-family:monospace;font-size:11px">${r.telephone || '—'}</td>
+        <td style="text-align:center">
+          <span style="padding:2px 8px;border-radius:10px;background:${si.bg};color:${si.color};font-weight:700;font-size:11px">
+            ${si.label}
+          </span>
+        </td>
+        <td style="font-size:11px">${joursLabel(r.joursEcoules)}</td>
+      </tr>
+    `;
+  }).join('');
+
+  return `<!DOCTYPE html><html dir="${dir}"><head><meta charset="UTF-8"><title>${titre}</title>${baseStyles()}</head>
+  <body>
+  ${printButton(lang)}
+  <div class="page">
+    <div class="header">
+      <div>
+        <div class="logo">👨‍👩‍👧 ${ecole?.nom || 'École'}</div>
+        <div class="subtitle">${titre} — ${filtreStatutLabel}</div>
+        ${filtreNiveau ? `<div class="subtitle" style="margin-top:4px">${isAr ? 'المستوى' : 'Niveau'} : ${filtreNiveau}</div>` : ''}
+      </div>
+      <div style="font-size:12px;color:#888;text-align:right">
+        <div>${new Date().toLocaleDateString(isAr ? 'ar-MA' : 'fr-FR')}</div>
+        <div style="margin-top:2px">${rows.length} ${isAr ? 'ولي' : 'parent(s)'}</div>
+      </div>
+    </div>
+
+    <div class="kpi-grid" style="grid-template-columns:repeat(4,1fr)">
+      <div class="kpi">
+        <div class="kpi-val" style="color:#1D9E75">${stats.actif || 0}</div>
+        <div class="kpi-lbl">🟢 ${isAr ? 'نشط' : 'Actifs'}</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-val" style="color:#EF9F27">${stats.peu_actif || 0}</div>
+        <div class="kpi-lbl">🟡 ${isAr ? 'قليل النشاط' : 'Peu actifs'}</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-val" style="color:#E24B4A">${stats.inactif || 0}</div>
+        <div class="kpi-lbl">🔴 ${isAr ? 'غير نشط' : 'Inactifs'}</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-val" style="color:#888">${stats.jamais || 0}</div>
+        <div class="kpi-lbl">⚪ ${isAr ? 'لم يزر' : 'Jamais venus'}</div>
+      </div>
+    </div>
+
+    <div class="section-title">${isAr ? 'قائمة الأولياء' : 'Liste des parents'}</div>
+    <table>
+      <thead>
+        <tr>
+          <th style="width:40px;text-align:center">#</th>
+          <th style="width:40px"></th>
+          <th>${isAr ? 'الولي' : 'Parent'}</th>
+          <th>${isAr ? 'الطالب' : 'Enfant'}</th>
+          <th>${isAr ? 'المستوى' : 'Niveau'}</th>
+          <th>${isAr ? 'الهاتف' : 'Téléphone'}</th>
+          <th style="text-align:center">${isAr ? 'الحالة' : 'Statut'}</th>
+          <th>${isAr ? 'آخر زيارة' : 'Dernière visite'}</th>
+        </tr>
+      </thead>
+      <tbody>${rowsHtml}</tbody>
+    </table>
+
+    <div style="margin-top:16px;padding:12px;background:#f9f9f6;border-radius:8px;font-size:11px;color:#666;line-height:1.6">
+      <strong>💡 ${isAr ? 'توصية' : 'Action recommandée'} :</strong><br>
+      ${isAr
+        ? 'اتصل بالأولياء ذوي الحالة 🔴 غير نشط و ⚪ لم يزر لتحديث حسابهم وإطلاعهم شفويا على تقدم أبنائهم'
+        : 'Contacter les parents 🔴 inactifs et ⚪ jamais venus pour les informer oralement de la progression de leurs enfants'}
+    </div>
 
     <div class="footer">
       ${ecole?.nom || ''} · ${isAr ? 'سري — للاستخدام الداخلي' : 'Confidentiel — Usage interne'}
