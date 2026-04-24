@@ -38,6 +38,8 @@ module.exports = async function handler(req, res) {
       html = generateRapportExamens(data, lang);
     } else if (type === 'rapport_muraja') {
       html = generateRapportMuraja(data, lang);
+    } else if (type === 'rapport_honneur') {
+      html = generateRapportHonneur(data, lang);
     } else {
       return res.status(400).json({ error: 'Type non supporté' });
     }
@@ -1094,6 +1096,159 @@ function generateRapportMuraja(data, lang) {
 
     <div class="footer">
       ${ecole?.nom || ''} · ${isAr ? 'سري — للاستخدام الداخلي' : 'Confidentiel — Usage interne'}
+    </div>
+  </div>
+  </body></html>`;
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// RAPPORT TABLEAU D'HONNEUR — format cérémonieux type diplôme
+// Affiche top 3 en médaillons + liste des suivants
+// Adapté à l'impression A4 pour affichage mural école
+// ══════════════════════════════════════════════════════════════════════
+function generateRapportHonneur(data, lang) {
+  const {
+    ecole,
+    periodeLabel,
+    vueLabel = '',  // 'Global' ou nom du niveau
+    eleves = [],    // [{rang, prenom, nom, code_niveau, niveau_couleur, points, tomon, hizb}]
+  } = data || {};
+  const isAr = lang === 'ar';
+  const dir = isAr ? 'rtl' : 'ltr';
+  const titre = isAr ? 'لوحة الشرف' : 'Tableau d\'honneur';
+
+  const top3 = eleves.slice(0, 3);
+  const suivants = eleves.slice(3);
+  const medals = ['🥇', '🥈', '🥉'];
+  const podiumColors = ['#EF9F27', '#B0B0B0', '#CD7F32'];
+  const podiumBg = ['#FFF8E7', '#F5F5F5', '#FAEED9'];
+
+  // Rendu podium top 3
+  const podiumHtml = top3.length > 0 ? `
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin:24px 0 30px">
+      ${top3.map((el, i) => `
+        <div style="background:${podiumBg[i]};border:3px solid ${podiumColors[i]};border-radius:16px;padding:20px 12px;text-align:center;${i===0?'transform:scale(1.08)':''}">
+          <div style="font-size:48px;line-height:1">${medals[i]}</div>
+          <div style="font-size:${i===0?26:22}px;font-weight:900;color:${podiumColors[i]};margin:8px 0 4px">#${i+1}</div>
+          <div style="font-size:${i===0?15:13}px;font-weight:800;color:#1a1a1a;margin-bottom:4px">
+            ${el.prenom || ''} ${el.nom || ''}
+          </div>
+          <div style="display:inline-block;padding:2px 10px;border-radius:12px;background:${el.niveau_couleur || '#085041'}20;color:${el.niveau_couleur || '#085041'};font-size:11px;font-weight:700;margin-bottom:8px">
+            ${el.code_niveau || '—'}
+          </div>
+          <div style="font-size:${i===0?22:18}px;font-weight:900;color:${podiumColors[i]}">
+            ${el.points || 0} <span style="font-size:11px;font-weight:600">${isAr?'نقطة':'pts'}</span>
+          </div>
+          <div style="font-size:10px;color:#666;margin-top:4px">
+            ${el.tomon || 0} ${isAr?'ثُمن':'tomon'} · ${el.hizb || 0} ${isAr?'حزب':'hizb'}
+          </div>
+        </div>
+      `).join('')}
+    </div>
+  ` : `
+    <div style="padding:30px;text-align:center;color:#888;font-style:italic">
+      ${isAr ? 'لا توجد نتائج لهذه الفترة' : 'Aucun résultat pour cette période'}
+    </div>
+  `;
+
+  // Liste des suivants (rang 4+)
+  const suivantsHtml = suivants.length > 0 ? `
+    <div class="section-title" style="margin-top:24px">${isAr ? 'التصنيف الكامل' : 'Classement complet'}</div>
+    <table>
+      <thead>
+        <tr>
+          <th style="width:60px;text-align:center">${isAr ? 'الرتبة' : 'Rang'}</th>
+          <th>${isAr ? 'الطالب' : 'Élève'}</th>
+          <th>${isAr ? 'المستوى' : 'Niveau'}</th>
+          <th style="text-align:center">${isAr ? 'النقاط' : 'Points'}</th>
+          <th style="text-align:center">${isAr ? 'ثُمن' : 'Tomon'}</th>
+          <th style="text-align:center">${isAr ? 'حزب' : 'Hizb'}</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${suivants.map(el => `
+          <tr>
+            <td style="text-align:center;font-weight:800;color:#888">#${el.rang}</td>
+            <td style="font-weight:700">${el.prenom || ''} ${el.nom || ''}</td>
+            <td>
+              <span class="badge" style="background:${el.niveau_couleur || '#085041'}20;color:${el.niveau_couleur || '#085041'}">
+                ${el.code_niveau || '—'}
+              </span>
+            </td>
+            <td style="text-align:center;font-weight:700;color:#378ADD">${el.points || 0}</td>
+            <td style="text-align:center">${el.tomon || 0}</td>
+            <td style="text-align:center">${el.hizb || 0}</td>
+          </tr>
+        `).join('')}
+      </tbody>
+    </table>
+  ` : '';
+
+  return `<!DOCTYPE html><html dir="${dir}"><head><meta charset="UTF-8"><title>${titre}</title>${baseStyles()}
+  <style>
+    .honneur-page {
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 30px;
+      background: linear-gradient(135deg, #FFFAEF 0%, #FFF5DC 100%);
+      border: 6px double #EF9F27;
+      border-radius: 20px;
+      position: relative;
+    }
+    .honneur-header {
+      text-align: center;
+      padding: 20px 0 10px;
+      border-bottom: 2px dashed #EF9F27;
+      margin-bottom: 20px;
+    }
+    .honneur-title {
+      font-size: 36px;
+      font-weight: 900;
+      color: #085041;
+      letter-spacing: 1px;
+      margin: 0;
+    }
+    .honneur-subtitle {
+      font-size: 15px;
+      color: #EF9F27;
+      font-weight: 700;
+      margin-top: 6px;
+      letter-spacing: 0.5px;
+    }
+    .honneur-ecole {
+      font-size: 13px;
+      color: #666;
+      margin-top: 4px;
+    }
+    .honneur-decor {
+      font-size: 32px;
+      margin: 10px 0;
+    }
+  </style>
+  </head>
+  <body>
+  ${printButton(lang)}
+  <div class="honneur-page">
+    <div class="honneur-header">
+      <div class="honneur-decor">🏆 ⭐ 🏆</div>
+      <div class="honneur-title">${titre}</div>
+      <div class="honneur-subtitle">${periodeLabel || ''}${vueLabel ? ' · ' + vueLabel : ''}</div>
+      <div class="honneur-ecole">${ecole?.nom || ''}</div>
+      <div style="font-size:11px;color:#999;margin-top:6px">${new Date().toLocaleDateString(isAr ? 'ar-MA' : 'fr-FR')}</div>
+    </div>
+
+    ${podiumHtml}
+
+    ${suivantsHtml}
+
+    <div style="margin-top:30px;padding:16px;background:rgba(239,159,39,0.08);border-radius:12px;text-align:center;font-size:12px;color:#666;font-style:italic">
+      ${isAr
+        ? '✨ بارك الله في جهودكم — استمروا في طريق التميز'
+        : '✨ Félicitations pour votre travail — continuez sur la voie de l\'excellence'}
+    </div>
+
+    <div class="footer" style="margin-top:20px;border-top:1px dashed #EF9F27;padding-top:10px;text-align:center;font-size:10px;color:#888">
+      ${ecole?.nom || ''} · ${isAr ? 'لوحة الشرف' : 'Tableau d\'honneur'} · ${eleves.length} ${isAr ? 'طالب' : 'élève(s)'}
     </div>
   </div>
   </body></html>`;

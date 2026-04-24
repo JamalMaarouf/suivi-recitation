@@ -3,6 +3,8 @@ import { supabase } from '../lib/supabase';
 import { calcEtatEleve, getInitiales, scoreLabel, calcPointsPeriode, loadBareme, BAREME_DEFAUT, getSensForEleve} from '../lib/helpers';
 import { t } from '../lib/i18n';
 import { fetchAll } from '../lib/fetchAll';
+import { openPDF } from '../lib/pdf';
+import { exportExcelSimple } from '../lib/excel';
 
 export default function TableauHonneur({ user, navigate, goBack, lang='fr', isMobile }) {
   const [eleves, setEleves] = useState([]);
@@ -93,6 +95,70 @@ export default function TableauHonneur({ user, navigate, goBack, lang='fr', isMo
     return p ? (p.nom_ar || p.nom) : '';
   };
 
+  const vueLabelText = () => {
+    if (vue === 'global') return lang === 'ar' ? 'جميع المستويات' : 'Tous niveaux';
+    const n = niveauxVues.find(x => x.code === vue);
+    return n ? n.label : vue;
+  };
+
+  // ── Export PDF (tableau d'honneur cérémonieux) ──
+  const handleExportPDF = async () => {
+    if (elevesClasses.length === 0) return;
+    const elevesData = elevesClasses.map((el, i) => ({
+      rang: i + 1,
+      prenom: el.prenom || '',
+      nom: el.nom || '',
+      code_niveau: el.code_niveau || '',
+      niveau_couleur: niveauxVues.find(n => n.code === el.code_niveau)?.color || '#888',
+      points: el.ptsPeriode?.total || 0,
+      tomon: el.ptsPeriode?.details?.nbTomon || 0,
+      hizb: el.ptsPeriode?.details?.nbHizb || 0,
+    }));
+    try {
+      await openPDF('rapport_honneur', {
+        ecole: { nom: user?.ecole?.nom || '' },
+        periodeLabel: periodeLabel(),
+        vueLabel: vueLabelText(),
+        eleves: elevesData,
+      }, lang);
+    } catch (err) {
+      alert((lang === 'ar' ? 'خطأ PDF : ' : 'Erreur PDF : ') + err.message);
+    }
+  };
+
+  // ── Export Excel ──
+  const handleExportExcel = async () => {
+    if (elevesClasses.length === 0) return;
+    const headers = [
+      lang === 'ar' ? 'الرتبة' : 'Rang',
+      lang === 'ar' ? 'الاسم' : 'Prénom',
+      lang === 'ar' ? 'اللقب' : 'Nom',
+      lang === 'ar' ? 'المستوى' : 'Niveau',
+      lang === 'ar' ? 'النقاط' : 'Points',
+      lang === 'ar' ? 'الثُّمنات' : 'Tomon',
+      lang === 'ar' ? 'الأحزاب' : 'Hizb',
+    ];
+    const rows = elevesClasses.map((el, i) => [
+      i + 1,
+      el.prenom || '',
+      el.nom || '',
+      el.code_niveau || '',
+      el.ptsPeriode?.total || 0,
+      el.ptsPeriode?.details?.nbTomon || 0,
+      el.ptsPeriode?.details?.nbHizb || 0,
+    ]);
+    const dateStr = new Date().toISOString().slice(0, 10);
+    try {
+      await exportExcelSimple(
+        `honneur_${periodeId}_${dateStr}.xlsx`,
+        [headers, ...rows],
+        lang === 'ar' ? 'لوحة الشرف' : 'Tableau honneur',
+      );
+    } catch (err) {
+      alert((lang === 'ar' ? 'خطأ Excel : ' : 'Erreur Excel : ') + err.message);
+    }
+  };
+
   return (
     <div style={{minHeight:'100vh',background:'linear-gradient(135deg,#0a0a0f 0%,#0d1f1a 100%)',padding:'1.5rem 1rem',paddingBottom:80}}>
       {/* Sticky header */}
@@ -104,6 +170,18 @@ export default function TableauHonneur({ user, navigate, goBack, lang='fr', isMo
             <div style={{fontSize:20,fontWeight:800,color:'#fff'}}>🏆 {t(lang,'tableau_honneur')}</div>
             <div style={{fontSize:11,color:'#5DCAA5',marginTop:2}}>{periodeLabel()}</div>
           </div>
+          {elevesClasses.length > 0 && (
+            <div style={{display:'flex',gap:6,flexShrink:0}}>
+              <button onClick={handleExportPDF}
+                style={{background:'rgba(226,75,74,0.2)',border:'1px solid rgba(226,75,74,0.4)',borderRadius:10,padding:'7px 11px',color:'#FCA5A4',fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'inherit',whiteSpace:'nowrap'}}>
+                📄 PDF
+              </button>
+              <button onClick={handleExportExcel}
+                style={{background:'rgba(29,158,117,0.2)',border:'1px solid rgba(29,158,117,0.4)',borderRadius:10,padding:'7px 11px',color:'#5DCAA5',fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'inherit',whiteSpace:'nowrap'}}>
+                📊 Excel
+              </button>
+            </div>
+          )}
         </div>
       </div>
 
