@@ -659,6 +659,7 @@ export default function Dashboard({ user, navigate, goBack, lang, isMobile=false
           </>}
           <button onClick={()=>navigate('honneur')} style={{padding:'6px 10px',background:C.green,color:'#fff',border:'none',borderRadius:8,fontSize:11,cursor:'pointer',fontWeight:600}}>🏆 {t(lang,'honneur')}</button>
           <button onClick={()=>navigate('comparaison')} style={{padding:'6px 10px',border:`0.5px solid ${C.border}`,borderRadius:8,background:'#fff',fontSize:11,cursor:'pointer'}}>📈 {t(lang,'comparer')}</button>
+          {user.role==='surveillant'&&<button onClick={()=>navigate('dashboard_direction')} style={{padding:'6px 10px',background:'#085041',color:'#fff',border:'none',borderRadius:8,fontSize:11,cursor:'pointer',fontWeight:600}}>📊 {lang==='ar'?'لوحة القيادة':'Direction'}</button>}
         </div>
       </div>
       <div style={{display:'flex',gap:0,background:'#f0f0ec',borderRadius:10,padding:3,marginBottom:'1.25rem',width:'fit-content',flexWrap:'wrap'}}>
