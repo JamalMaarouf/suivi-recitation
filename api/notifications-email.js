@@ -1,16 +1,19 @@
 // ═══════════════════════════════════════════════════════════════
 // API /api/notifications-email
-// Cron fréquent : envoie les emails aux parents pour les notifs
+// Cron quotidien : envoie les emails aux parents pour les notifs
 // qui n'ont pas encore été envoyées (email_envoye = false)
 // ═══════════════════════════════════════════════════════════════
-// Déclenché par cron Vercel toutes les 15 min.
-// Si RESEND_API_KEY absente : skip gracieusement (in-app continue de fonctionner).
+// Déclenché par cron Vercel 1 fois par jour a 9h30 UTC (limite Hobby).
+// Batch de 500 notifs par run pour couvrir la charge quotidienne.
+// Si RESEND_API_KEY absente : skip gracieusement (in-app continue).
+// Les notifications restent visibles instantanement dans le portail,
+// seul l'email est différé d'au maximum 24h.
 // ═══════════════════════════════════════════════════════════════
 
 const { Resend } = require('resend');
 
 const EMAIL_FROM_DEFAULT = 'notifications@suivi-recitation.vercel.app';
-const BATCH_SIZE = 50;
+const BATCH_SIZE = 500;
 
 async function sbGet(url, key, path) {
   const resp = await fetch(`${url}/rest/v1/${path}`, {
