@@ -41,6 +41,8 @@ export default function PortailParent({ parent, navigate, goBack, lang='fr', onL
   // RGPD (itération 4.3) : modale d'info + état loading pour l'export
   const [showRgpdModal, setShowRgpdModal] = useState(false);
   const [rgpdLoading, setRgpdLoading] = useState(false);
+  // P2.2 : historique des exports RGPD du parent lui-même
+  const [rgpdHistorique, setRgpdHistorique] = useState([]);
   const [oldPwd, setOldPwd] = useState('');
   const [newPwd, setNewPwd] = useState('');
   const [confirmPwd, setConfirmPwd] = useState('');
@@ -79,12 +81,36 @@ export default function PortailParent({ parent, navigate, goBack, lang='fr', onL
           : `✅ Fichier téléchargé (${stats.nb_enfants} enfant(s), ${stats.nb_validations} validation(s))`
       );
       setShowRgpdModal(false);
+      // Recharger l'historique pour voir le nouvel export
+      loadRgpdHistorique();
     } catch (err) {
       console.error('[RGPD] Export error:', err);
       toast.error((lang==='ar'?'خطأ : ':'Erreur : ') + (err.message || 'unknown'));
     }
     setRgpdLoading(false);
   };
+
+  // ─── P2.2 : Charger l'historique des exports du parent ────────
+  const loadRgpdHistorique = async () => {
+    if (!parent?.id) return;
+    try {
+      const { data } = await supabase
+        .from('exports_rgpd')
+        .select('id,exported_at,export_scope,nb_enfants,nb_validations,nb_certificats,file_size_bytes')
+        .eq('user_id', parent.id)
+        .order('exported_at', { ascending: false })
+        .limit(20);
+      setRgpdHistorique(data || []);
+    } catch (err) {
+      console.warn('[RGPD historique] load error:', err);
+    }
+  };
+
+  // Charger l'historique chaque fois qu'on ouvre la modale
+  useEffect(() => {
+    if (showRgpdModal) loadRgpdHistorique();
+    // eslint-disable-next-line
+  }, [showRgpdModal]);
 
   useEffect(() => { loadData(); }, []);
   useEffect(() => { if (enfants.length>0 && !selectedEnfant) setSelectedEnfant(enfants[0]); }, [enfants]);
@@ -490,6 +516,37 @@ export default function PortailParent({ parent, navigate, goBack, lang='fr', onL
                 ? 'سيتم تسجيل هذا التصدير في سجل المراجعة (قانون إلزامي).'
                 : 'Ce téléchargement sera journalisé dans le registre d\'audit (obligation légale).'}
             </div>
+
+            {/* P2.2 : Historique de mes exports (transparence) */}
+            {rgpdHistorique.length > 0 && (
+              <div style={{marginBottom:12,padding:'8px 10px',background:'rgba(0,0,0,0.15)',borderRadius:8}}>
+                <div style={{fontSize:11,fontWeight:700,marginBottom:6}}>
+                  📋 {lang==='ar'?'تاريخ تصديراتك':'Historique de vos exports'}
+                </div>
+                <div style={{maxHeight:110,overflowY:'auto',fontSize:10,opacity:0.92,lineHeight:1.6}}>
+                  {rgpdHistorique.slice(0, 10).map((h, i) => {
+                    const d = new Date(h.exported_at);
+                    const dateStr = d.toLocaleDateString(lang==='ar'?'ar-MA':'fr-FR')
+                      + ' ' + d.toLocaleTimeString(lang==='ar'?'ar-MA':'fr-FR',{hour:'2-digit',minute:'2-digit'});
+                    return (
+                      <div key={h.id} style={{display:'flex',justifyContent:'space-between',padding:'2px 0',borderTop:i===0?'none':'0.5px solid rgba(255,255,255,0.15)'}}>
+                        <span>{dateStr}</span>
+                        <span style={{opacity:0.8}}>
+                          {h.nb_enfants > 0 && `${h.nb_enfants}👤 `}
+                          {h.nb_validations > 0 && `${h.nb_validations}⭐`}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+                {rgpdHistorique.length > 10 && (
+                  <div style={{fontSize:9,opacity:0.65,marginTop:4,fontStyle:'italic'}}>
+                    {lang==='ar'?`+${rgpdHistorique.length - 10} قديمة`:`+${rgpdHistorique.length - 10} plus anciens`}
+                  </div>
+                )}
+              </div>
+            )}
+
             <div style={{display:'flex',gap:6}}>
               <button onClick={handleRgpdExport} disabled={rgpdLoading}
                 style={{flex:1,padding:'10px',background:rgpdLoading?'#999':'#1D9E75',color:'#fff',border:'none',borderRadius:6,fontWeight:700,cursor:rgpdLoading?'default':'pointer',fontSize:13}}>

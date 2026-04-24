@@ -104,9 +104,47 @@ export default function DashboardDirection({ user, navigate, goBack, lang='fr', 
   const [bareme, setBareme] = useState(BAREME_DEFAUT);
   const [periode, setPeriode] = useState('annee'); // annee | semestre | trimestre | mois
   const [activeSection, setActiveSection] = useState('overview');
+
+  // RGPD audit (P2.1) : logs RGPD filtrés sur l'école uniquement
+  const [rgpdLogs, setRgpdLogs] = useState([]);
+  const [showRgpdSection, setShowRgpdSection] = useState(false);
   const isAr = lang === 'ar';
 
   useEffect(() => { loadData(); }, []);
+
+  // ─── P2.1 : Chargement des logs RGPD quand la section s'ouvre ──
+  useEffect(() => {
+    if (showRgpdSection && user?.ecole_id) {
+      loadRgpdLogs();
+    }
+    // eslint-disable-next-line
+  }, [showRgpdSection]);
+
+  const loadRgpdLogs = async () => {
+    try {
+      const [logsRes, usersRes] = await Promise.all([
+        supabase.from('exports_rgpd')
+          .select('*')
+          .eq('ecole_id', user.ecole_id)
+          .order('exported_at', { ascending: false })
+          .limit(100),
+        supabase.from('utilisateurs')
+          .select('id,prenom,nom,role')
+          .eq('ecole_id', user.ecole_id),
+      ]);
+      const usersMap = {};
+      (usersRes.data || []).forEach(u => { usersMap[u.id] = u; });
+      const enriched = (logsRes.data || []).map(log => ({
+        ...log,
+        _user_nom: usersMap[log.user_id]
+          ? `${usersMap[log.user_id].prenom || ''} ${usersMap[log.user_id].nom || ''}`.trim()
+          : '—',
+      }));
+      setRgpdLogs(enriched);
+    } catch (err) {
+      console.error('[DashboardDirection RGPD] load error:', err);
+    }
+  };
 
   const loadData = async () => {
     setLoading(true);
@@ -752,6 +790,100 @@ export default function DashboardDirection({ user, navigate, goBack, lang='fr', 
                 </tbody>
               </table>
           }
+        </div>
+
+        {/* ═══ P2.1 : Section Audit RGPD (scope école) ═══ */}
+        <div style={{marginTop:24,background:'#fff',border:'0.5px solid #e0e0d8',borderRadius:14,overflow:'hidden'}}>
+          <div onClick={()=>setShowRgpdSection(!showRgpdSection)}
+            style={{padding:'14px 18px',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'space-between',
+              background:showRgpdSection?'#F0EEFF':'#fff',borderBottom:showRgpdSection?'0.5px solid #e0e0d8':'none'}}>
+            <div>
+              <div style={{fontSize:13,fontWeight:700,color:'#534AB7',display:'flex',alignItems:'center',gap:8}}>
+                🔐 {isAr?'سجل تصدير البيانات (RGPD)':'Registre des exports RGPD'}
+              </div>
+              <div style={{fontSize:11,color:'#888',marginTop:3}}>
+                {isAr?'من طلب تحميل بياناته الشخصية ومتى':'Qui a téléchargé ses données personnelles et quand'}
+              </div>
+            </div>
+            <span style={{fontSize:14,color:'#888',transform:showRgpdSection?'rotate(90deg)':'none',transition:'transform 0.2s'}}>▸</span>
+          </div>
+
+          {showRgpdSection && (
+            <div style={{padding:'14px 18px'}}>
+              <div style={{background:'#F0EEFF',border:'0.5px solid #534AB720',borderRadius:8,padding:'8px 12px',marginBottom:12,fontSize:11,color:'#4A3F9E',lineHeight:1.5}}>
+                📋 {isAr
+                  ? 'قائمة تصديرات البيانات الشخصية لمدرستك. الأولياء يمكنهم الحصول على ملف ببياناتهم وبيانات أبنائهم وفقاً للمادة 20 من RGPD.'
+                  : 'Liste des exports de données personnelles effectués dans votre école. Les parents peuvent récupérer un fichier avec leurs données et celles de leurs enfants (art. 20 RGPD).'}
+              </div>
+
+              {rgpdLogs.length === 0 ? (
+                <div style={{textAlign:'center',padding:'30px 20px',color:'#888',fontSize:13,background:'#fafaf7',borderRadius:10,border:'0.5px dashed #e0e0d8'}}>
+                  ✨ {isAr?'لم يطلب أحد تصدير بياناته بعد':'Aucun export effectué pour le moment'}
+                </div>
+              ) : (
+                <>
+                  <div style={{fontSize:11,color:'#888',marginBottom:8}}>
+                    {rgpdLogs.length} {isAr?'تصدير على آخر 100':'export(s) sur les 100 derniers'}
+                  </div>
+                  <div style={{maxHeight:400,overflowY:'auto',border:'0.5px solid #e0e0d8',borderRadius:8}}>
+                    <table style={{width:'100%',borderCollapse:'collapse',fontSize:12}}>
+                      <thead style={{position:'sticky',top:0,background:'#f5f5f0',zIndex:1}}>
+                        <tr style={{borderBottom:'0.5px solid #e0e0d8'}}>
+                          <th style={{padding:'8px 10px',textAlign:'left',fontWeight:700,color:'#888',fontSize:10}}>{isAr?'التاريخ':'Date'}</th>
+                          <th style={{padding:'8px 10px',textAlign:'left',fontWeight:700,color:'#888',fontSize:10}}>{isAr?'المستخدم':'Utilisateur'}</th>
+                          <th style={{padding:'8px 10px',textAlign:'left',fontWeight:700,color:'#888',fontSize:10}}>{isAr?'الدور':'Rôle'}</th>
+                          <th style={{padding:'8px 10px',textAlign:'center',fontWeight:700,color:'#888',fontSize:10}}>{isAr?'النطاق':'Scope'}</th>
+                          <th style={{padding:'8px 10px',textAlign:'center',fontWeight:700,color:'#888',fontSize:10}}>{isAr?'الحجم':'Volumes'}</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {rgpdLogs.map(log => {
+                          const d = new Date(log.exported_at);
+                          const dateStr = d.toLocaleDateString(isAr?'ar-MA':'fr-FR') + ' ' + d.toLocaleTimeString(isAr?'ar-MA':'fr-FR',{hour:'2-digit',minute:'2-digit'});
+                          const scopeLabel = log.export_scope === 'self_plus_children'
+                            ? (isAr?'ذاتي + أبناء':'Soi + enfants')
+                            : (isAr?'ذاتي':'Soi');
+                          const scopeColor = log.export_scope === 'self_plus_children' ? '#378ADD' : '#888';
+                          const roleBg = {
+                            parent:'#FAEEDA', instituteur:'#E6F1FB',
+                            surveillant:'#E1F5EE', super_admin:'#F0EEFF'
+                          }[log.export_role] || '#f5f5f0';
+                          const roleColor = {
+                            parent:'#EF9F27', instituteur:'#378ADD',
+                            surveillant:'#1D9E75', super_admin:'#534AB7'
+                          }[log.export_role] || '#666';
+                          const roleLabelAr = {
+                            parent:'ولي', instituteur:'مؤطر',
+                            surveillant:'مراقب', super_admin:'مشرف'
+                          }[log.export_role] || log.export_role;
+                          return (
+                            <tr key={log.id} style={{borderBottom:'0.5px solid #f0f0ec'}}>
+                              <td style={{padding:'8px 10px',whiteSpace:'nowrap',fontSize:11}}>{dateStr}</td>
+                              <td style={{padding:'8px 10px',fontWeight:600,fontSize:12}}>{log._user_nom}</td>
+                              <td style={{padding:'8px 10px'}}>
+                                <span style={{padding:'2px 7px',borderRadius:7,background:roleBg,color:roleColor,fontWeight:700,fontSize:10}}>
+                                  {isAr ? roleLabelAr : log.export_role}
+                                </span>
+                              </td>
+                              <td style={{padding:'8px 10px',textAlign:'center'}}>
+                                <span style={{fontSize:10,color:scopeColor,fontWeight:600}}>{scopeLabel}</span>
+                              </td>
+                              <td style={{padding:'8px 10px',textAlign:'center',fontSize:11,color:'#666'}}>
+                                {log.nb_enfants > 0 && <span>{log.nb_enfants}👤 </span>}
+                                {log.nb_validations > 0 && <span>{log.nb_validations}⭐ </span>}
+                                {log.nb_certificats > 0 && <span>{log.nb_certificats}🏅</span>}
+                                {!log.nb_enfants && !log.nb_validations && !log.nb_certificats && '—'}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </>
+              )}
+            </div>
+          )}
         </div>
       </div>
     </div>
