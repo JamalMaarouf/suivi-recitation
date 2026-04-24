@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { supabase } from '../lib/supabase';
 import { useToast } from '../lib/toast';
 import { openPDF } from '../lib/pdf';
+import ExportButtons from '../components/ExportButtons';
 
 // ══════════════════════════════════════════════════════════════════════
 // PAGE SUIVI PARENTS — Menu principal surveillant
@@ -325,24 +326,14 @@ export default function SuiviParents({ user, navigate, goBack, lang, isMobile })
                   : 'Identifier les parents inactifs pour les contacter'}
               </div>
             </div>
-            <div style={{ display: 'flex', gap: 8 }}>
-              <button onClick={exportPDF}
-                style={{
-                  padding: '9px 14px', background: '#E24B4A', color: '#fff',
-                  border: 'none', borderRadius: 10,
-                  fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit',
-                }}>
-                📄 {lang === 'ar' ? 'PDF' : 'PDF'}
-              </button>
-              <button onClick={exportCSV}
-                style={{
-                  padding: '9px 14px', background: '#378ADD', color: '#fff',
-                  border: 'none', borderRadius: 10,
-                  fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit',
-                }}>
-                📥 {lang === 'ar' ? 'CSV' : 'CSV'}
-              </button>
-            </div>
+            <ExportButtons
+              onPDF={exportPDF}
+              onCSV={exportCSV}
+              isMobile={false}
+              lang={lang}
+              variant="inline"
+              compact
+            />
           </div>
         </div>
       )}
@@ -354,27 +345,16 @@ export default function SuiviParents({ user, navigate, goBack, lang, isMobile })
           </div>
         ) : (
           <>
-            {/* Boutons export mobile (PDF + CSV côte à côte) */}
+            {/* Boutons export mobile (PDF + CSV) */}
             {isMobile && (
-              <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
-                <button onClick={exportPDF}
-                  style={{
-                    flex: 1, padding: '11px',
-                    background: '#E24B4A', color: '#fff',
-                    border: 'none', borderRadius: 10,
-                    fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit',
-                  }}>
-                  📄 {lang === 'ar' ? 'PDF' : 'PDF'}
-                </button>
-                <button onClick={exportCSV}
-                  style={{
-                    flex: 1, padding: '11px',
-                    background: '#378ADD', color: '#fff',
-                    border: 'none', borderRadius: 10,
-                    fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit',
-                  }}>
-                  📥 {lang === 'ar' ? 'CSV' : 'CSV'}
-                </button>
+              <div style={{ marginBottom: 12 }}>
+                <ExportButtons
+                  onPDF={exportPDF}
+                  onCSV={exportCSV}
+                  isMobile
+                  lang={lang}
+                  compact
+                />
               </div>
             )}
 

@@ -5,6 +5,7 @@ import { loadBareme, enregistrerPointsEvenement, verifierEtCreerCertificats } fr
 import { useToast } from '../lib/toast';
 import { t } from '../lib/i18n';
 import { openPDF } from '../lib/pdf';
+import ExportButtons from '../components/ExportButtons';
 
 export default function ResultatsExamens({ user, navigate, goBack, lang='fr', isMobile, data }) {
   const { toast } = useToast();
@@ -661,20 +662,13 @@ export default function ResultatsExamens({ user, navigate, goBack, lang='fr', is
           🏅 {lang==='ar'?'نتائج الامتحانات':'Résultats des examens'}
         </div>
         <div style={{display:'flex',gap:6}}>
-          <button onClick={exportResultatsExcel}
-            style={{display:'flex',alignItems:'center',gap:5,padding:'5px 12px',background:'#f5f5f0',
-              color:'#085041',border:'0.5px solid #e0e0d8',borderRadius:8,fontSize:11,fontWeight:600,cursor:'pointer'}}
-            onMouseEnter={e=>e.currentTarget.style.background='#E1F5EE'}
-            onMouseLeave={e=>e.currentTarget.style.background='#f5f5f0'}>
-            📊 Excel
-          </button>
-          <button onClick={exportResultatsPDF}
-            style={{display:'flex',alignItems:'center',gap:5,padding:'5px 12px',background:'#f5f5f0',
-              color:'#534AB7',border:'0.5px solid #e0e0d8',borderRadius:8,fontSize:11,fontWeight:600,cursor:'pointer'}}
-            onMouseEnter={e=>e.currentTarget.style.background='#EDE9FE'}
-            onMouseLeave={e=>e.currentTarget.style.background='#f5f5f0'}>
-            🖨️ PDF
-          </button>
+          <ExportButtons
+            onPDF={exportResultatsPDF}
+            onExcel={exportResultatsExcel}
+            lang={lang}
+            variant="inline"
+            compact
+          />
         </div>
       </>}
       {isMobile&&<div style={{flex:1,fontSize:17,fontWeight:800,color:'#085041'}}>

@@ -5,6 +5,7 @@ import ConfirmModal from '../components/ConfirmModal';
 import { getInitiales, calcEtatEleve, calcPoints, BAREME_DEFAUT, loadBareme, saveBaremeItem, isSourateNiveauDyn, getSensForEleve} from '../lib/helpers';
 import { SOURATES_5B, SOURATES_5A, SOURATES_2M, isSourateNiveau } from '../lib/sourates';
 import { t } from '../lib/i18n';
+import ExportButtons from '../components/ExportButtons';
 
 function Avatar({ prenom, nom, size = 28 }) {
   return (
@@ -2985,20 +2986,15 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
           )}
 
           {/* Liste élèves */}
-          <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'0.75rem'}}>
+          <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'0.75rem',flexWrap:'wrap',gap:8}}>
             <div className="section-label" style={{margin:0}}>{t(lang, 'eleves_inscrits')} ({eleves.length})</div>
-            <div style={{display:'flex',gap:6}}>
-              <button onClick={exportElevesExcel}
-                style={{display:'flex',alignItems:'center',gap:5,padding:'5px 12px',background:'#f5f5f0',
-                  color:'#085041',border:'0.5px solid #e0e0d8',borderRadius:8,fontSize:11,fontWeight:600,cursor:'pointer'}}>
-                📊 Excel
-              </button>
-              <button onClick={exportElevesPDF}
-                style={{display:'flex',alignItems:'center',gap:5,padding:'5px 12px',background:'#f5f5f0',
-                  color:'#534AB7',border:'0.5px solid #e0e0d8',borderRadius:8,fontSize:11,fontWeight:600,cursor:'pointer'}}>
-                🖨️ PDF
-              </button>
-            </div>
+            <ExportButtons
+              onPDF={exportElevesPDF}
+              onExcel={exportElevesExcel}
+              lang={lang}
+              variant="inline"
+              compact
+            />
           </div>
           {loading ? <div className="loading">...</div> : (
             <div className="table-wrap">
@@ -3135,18 +3131,13 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
 
           <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'0.75rem'}}>
             <div className="section-label" style={{margin:0}}>{t(lang, 'instituteurs_actifs')} ({instituteurs.length})</div>
-            <div style={{display:'flex',gap:6}}>
-              <button onClick={exportInstituteursExcel}
-                style={{display:'flex',alignItems:'center',gap:5,padding:'5px 12px',background:'#f5f5f0',
-                  color:'#085041',border:'0.5px solid #e0e0d8',borderRadius:8,fontSize:11,fontWeight:600,cursor:'pointer'}}>
-                📊 Excel
-              </button>
-              <button onClick={exportInstituteursPDF}
-                style={{display:'flex',alignItems:'center',gap:5,padding:'5px 12px',background:'#f5f5f0',
-                  color:'#534AB7',border:'0.5px solid #e0e0d8',borderRadius:8,fontSize:11,fontWeight:600,cursor:'pointer'}}>
-                🖨️ PDF
-              </button>
-            </div>
+            <ExportButtons
+              onPDF={exportInstituteursPDF}
+              onExcel={exportInstituteursExcel}
+              lang={lang}
+              variant="inline"
+              compact
+            />
           </div>
           {loading ? <div className="loading">...</div> : (
             <>{editInstituteur && (
@@ -3338,18 +3329,15 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
           )}
 
           <input className="field-input" style={{marginBottom:8}} placeholder={'🔍 '+(lang==='ar'?'بحث عن ولي أمر...':'Rechercher un parent...')} value={searchParent} onChange={e=>setSearchParent(e.target.value)}/>
-          <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:8}}>
+          <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:8,flexWrap:'wrap',gap:8}}>
             <div style={{fontSize:12,color:'#888'}}>{parents.length} {lang==='ar'?'ولي أمر':'parent(s)'}</div>
-            <button onClick={exportParentsExcel}
-              style={{display:'flex',alignItems:'center',gap:5,padding:'5px 12px',background:'#f5f5f0',
-                color:'#085041',border:'0.5px solid #e0e0d8',borderRadius:8,fontSize:11,fontWeight:600,cursor:'pointer'}}>
-              📊 Excel
-            </button>
-            <button onClick={exportParentsPDF}
-              style={{display:'flex',alignItems:'center',gap:5,padding:'5px 12px',background:'#f5f5f0',
-                color:'#534AB7',border:'0.5px solid #e0e0d8',borderRadius:8,fontSize:11,fontWeight:600,cursor:'pointer'}}>
-              🖨️ PDF
-            </button>
+            <ExportButtons
+              onPDF={exportParentsPDF}
+              onExcel={exportParentsExcel}
+              lang={lang}
+              variant="inline"
+              compact
+            />
           </div>
           <div style={{display:'flex',flexDirection:'column',gap:8}}>
             {parents.filter(p=>!searchParent||(p.prenom+' '+p.nom).toLowerCase().includes(searchParent.toLowerCase())||p.identifiant.includes(searchParent)||p.telephone?.includes(searchParent)).map(p=>(

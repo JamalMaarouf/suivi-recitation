@@ -5,6 +5,7 @@ import { calcEtatEleve, getInitiales, joursDepuis, isInactif, scoreLabel , loadB
 import { t } from '../lib/i18n';
 import { getSouratesForNiveau } from '../lib/sourates';
 import { fetchAll } from '../lib/fetchAll';
+import ExportButtons from '../components/ExportButtons';
 
 const IS_SOURATE = (code) => ['5B','5A','2M'].includes(code||'');
 const NIVEAU_COLORS = { '5B':'#534AB7','5A':'#378ADD','2M':'#1D9E75','2':'#EF9F27','1':'#E24B4A' };
@@ -346,8 +347,13 @@ export default function Seance({ user, navigate, goBack, lang, isMobile=false })
           style={{padding:'6px 14px',background:'#085041',color:'#fff',border:'none',borderRadius:8,fontSize:12,fontWeight:600,cursor:'pointer',display:'flex',alignItems:'center',gap:4}}>
           📊 {lang==='ar'?'تحليل الحصص':lang==='en'?'Session analysis':lang==='ar'?'تحليل الحصص':(lang==='ar'?'تحليل الحصص':(lang==='ar'?'تحليل الحصص':'Analyse des séances'))}
         </button>
-        <button onClick={exportSeanceExcel} style={{padding:'6px 12px',background:'#1D9E75',color:'#fff',border:'none',borderRadius:8,fontSize:11,fontWeight:600,cursor:'pointer'}}>📥 Excel</button>
-        <button onClick={exportSeancePDF} style={{padding:'6px 12px',background:'#085041',color:'#fff',border:'none',borderRadius:8,fontSize:11,fontWeight:600,cursor:'pointer'}}>🖨️ PDF</button>
+        <ExportButtons
+          onPDF={exportSeancePDF}
+          onExcel={exportSeanceExcel}
+          lang={lang}
+          variant="inline"
+          compact
+        />
       </div>
       <div style={{display:'flex',gap:0,background:'#f0f0ec',borderRadius:10,padding:3,marginBottom:'1.25rem',width:'fit-content'}}>
         {[['seance',t(lang,'ma_seance')],['semaine',t(lang,'cette_semaine')]].map(([k,l])=>(

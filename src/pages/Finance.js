@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase';
 import ConfirmModal from '../components/ConfirmModal';
 import { getInitiales } from '../lib/helpers';
 import { t } from '../lib/i18n';
+import ExportButtons from '../components/ExportButtons';
 
 const CATEGORIES = [
   { val: 'salaire',     label: 'Salaires / Honoraires', labelAr: 'الرواتب',       icon: '👨‍🏫', color: '#534AB7' },
@@ -1115,11 +1116,18 @@ export default function Finance({ user, navigate, goBack, lang='fr', isMobile })
             </>
           )}
 
-          {onglet==='cotisations'&&<button onClick={exportCotisationsExcel} style={{display:'flex',alignItems:'center',gap:5,padding:'5px 12px',background:'#f5f5f0',color:'#085041',border:'0.5px solid #e0e0d8',borderRadius:8,fontSize:11,fontWeight:600,cursor:'pointer'}}>📊 Excel</button>}
-          {onglet==='depenses'&&<button onClick={exportDepensesExcel} style={{display:'flex',alignItems:'center',gap:5,padding:'5px 12px',background:'#f5f5f0',color:'#085041',border:'0.5px solid #e0e0d8',borderRadius:8,fontSize:11,fontWeight:600,cursor:'pointer'}}>📊 Excel</button>}
-          {onglet==='suivi'&&<button onClick={exportSuiviExcel} style={{display:'flex',alignItems:'center',gap:5,padding:'5px 12px',background:'#f5f5f0',color:'#085041',border:'0.5px solid #e0e0d8',borderRadius:8,fontSize:11,fontWeight:600,cursor:'pointer'}}>📊 Excel</button>}
-          {onglet==='dashboard'&&<button onClick={exportExcel} style={{display:'flex',alignItems:'center',gap:5,padding:'5px 12px',background:'#f5f5f0',color:'#085041',border:'0.5px solid #e0e0d8',borderRadius:8,fontSize:11,fontWeight:600,cursor:'pointer'}}>📊 Excel</button>}
-          <button onClick={exportPDF} style={{display:'flex',alignItems:'center',gap:5,padding:'5px 12px',background:'#f5f5f0',color:'#534AB7',border:'0.5px solid #e0e0d8',borderRadius:8,fontSize:11,fontWeight:600,cursor:'pointer'}}>🖨️ PDF</button>
+          <ExportButtons
+            onPDF={exportPDF}
+            onExcel={
+              onglet === 'cotisations' ? exportCotisationsExcel
+              : onglet === 'depenses'  ? exportDepensesExcel
+              : onglet === 'suivi'     ? exportSuiviExcel
+              : exportExcel
+            }
+            lang={lang}
+            variant="inline"
+            compact
+          />
         </div>
       </div>
 

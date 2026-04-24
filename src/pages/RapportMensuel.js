@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase';
 import { calcEtatEleve, getInitiales , loadBareme, BAREME_DEFAUT, getSensForEleve} from '../lib/helpers';
 import { fetchAll } from '../lib/fetchAll';
 import { openPDF } from '../lib/pdf';
+import ExportButtons from '../components/ExportButtons';
 
 const MOIS_FR = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
 const MOIS_AR = ['يناير','فبراير','مارس','أبريل','مايو','يونيو','يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر'];
@@ -242,10 +243,12 @@ export default function RapportMensuel({ user, navigate, goBack, lang='fr', isMo
           <div style={{fontSize:15,fontWeight:700,minWidth:140,textAlign:'center'}}>{getMoisNom(mois,lang)} {annee}</div>
           <button onClick={nextMois} style={{padding:'6px 12px',border:'0.5px solid #e0e0d8',borderRadius:8,background:'#fff',cursor:'pointer',fontSize:16}}>›</button>
         </div>
-        <button onClick={genererRapportPDF} disabled={generating||loading}
-          style={{padding:'9px 20px',background:generating?'#ccc':'#1D9E75',color:'#fff',border:'none',borderRadius:10,fontSize:13,fontWeight:700,cursor:'pointer',display:'flex',alignItems:'center',gap:8}}>
-          {generating?'⏳ Génération...':'📄 Exporter PDF'}
-        </button>
+        <ExportButtons
+          onPDF={genererRapportPDF}
+          lang={lang}
+          variant="inline"
+          disabled={generating||loading}
+        />
       </div>
       )}
 

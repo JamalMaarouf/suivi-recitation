@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { supabase } from '../lib/supabase';
 import { openPDF } from '../lib/pdf';
 import { exportExcelSimple } from '../lib/excel';
+import ExportButtons from '../components/ExportButtons';
 import { useToast } from '../lib/toast';
 
 // ══════════════════════════════════════════════════════════════════════
@@ -306,33 +307,14 @@ export default function SuiviCours({ user, navigate, goBack, lang, isMobile }) {
 
             {/* ─── Boutons d'export (PDF + Excel) ─── */}
             {statsGlobales.nbLiaisons > 0 && (
-              <div style={{ display: 'flex', gap: 8, marginBottom: 14, flexWrap: 'wrap' }}>
-                <button onClick={exportCoursPDF}
-                  style={{
-                    padding: isMobile ? '8px 14px' : '8px 16px',
-                    background: '#E24B4A', color: '#fff', border: 'none',
-                    borderRadius: 10, fontSize: 12, fontWeight: 700,
-                    cursor: 'pointer', fontFamily: 'inherit',
-                    display: 'inline-flex', alignItems: 'center', gap: 6,
-                  }}>
-                  📄 {lang === 'ar' ? 'تصدير PDF' : 'Exporter PDF'}
-                </button>
-                <button onClick={exportCoursExcel}
-                  style={{
-                    padding: isMobile ? '8px 14px' : '8px 16px',
-                    background: '#1D9E75', color: '#fff', border: 'none',
-                    borderRadius: 10, fontSize: 12, fontWeight: 700,
-                    cursor: 'pointer', fontFamily: 'inherit',
-                    display: 'inline-flex', alignItems: 'center', gap: 6,
-                  }}>
-                  📊 {lang === 'ar' ? 'تصدير Excel' : 'Exporter Excel'}
-                </button>
-                <div style={{
-                  alignSelf: 'center', fontSize: 11, color: '#888', fontStyle: 'italic',
-                }}>
-                  {statsGlobales.nbLiaisons} {lang === 'ar' ? 'زوج مصدر' : 'couple(s) exporté(s)'}
-                </div>
-              </div>
+              <ExportButtons
+                onPDF={exportCoursPDF}
+                onExcel={exportCoursExcel}
+                isMobile={isMobile}
+                lang={lang}
+                count={statsGlobales.nbLiaisons}
+                countLabel={lang === 'ar' ? 'زوج' : 'couple'}
+              />
             )}
 
             {/* Liste des cours */}

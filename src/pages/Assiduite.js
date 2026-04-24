@@ -4,6 +4,7 @@ import { useToast } from '../lib/toast';
 import { t } from '../lib/i18n';
 import KioskExitModal from '../components/KioskExitModal';
 import ConfirmModal from '../components/ConfirmModal';
+import ExportButtons from '../components/ExportButtons';
 import { openPDF } from '../lib/pdf';
 import { exportExcelSimple } from '../lib/excel';
 
@@ -1506,33 +1507,14 @@ function OngletSuivi({ lang, user, isMobile }) {
 
       {/* ─── Boutons d'export (PDF + Excel) ─── */}
       {filtered.length > 0 && (
-        <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
-          <button onClick={exportAssiduitePDF}
-            style={{
-              padding: isMobile ? '8px 14px' : '8px 16px',
-              background: '#E24B4A', color: '#fff', border: 'none',
-              borderRadius: 10, fontSize: 12, fontWeight: 700,
-              cursor: 'pointer', fontFamily: 'inherit',
-              display: 'inline-flex', alignItems: 'center', gap: 6,
-            }}>
-            📄 {lang === 'ar' ? 'تصدير PDF' : 'Exporter PDF'}
-          </button>
-          <button onClick={exportAssiduiteExcel}
-            style={{
-              padding: isMobile ? '8px 14px' : '8px 16px',
-              background: '#1D9E75', color: '#fff', border: 'none',
-              borderRadius: 10, fontSize: 12, fontWeight: 700,
-              cursor: 'pointer', fontFamily: 'inherit',
-              display: 'inline-flex', alignItems: 'center', gap: 6,
-            }}>
-            📊 {lang === 'ar' ? 'تصدير Excel' : 'Exporter Excel'}
-          </button>
-          <div style={{
-            alignSelf: 'center', fontSize: 11, color: '#888', fontStyle: 'italic',
-          }}>
-            {filtered.length} {lang === 'ar' ? 'طالب مصدر' : 'élève(s) exporté(s)'}
-          </div>
-        </div>
+        <ExportButtons
+          onPDF={exportAssiduitePDF}
+          onExcel={exportAssiduiteExcel}
+          isMobile={isMobile}
+          lang={lang}
+          count={filtered.length}
+          countLabel={lang === 'ar' ? 'طالب' : 'élève'}
+        />
       )}
 
       {/* ─── KPIs globaux (cliquables) ─── */}
@@ -2270,33 +2252,14 @@ function OngletSuiviInstituteurs({ lang, user, isMobile }) {
 
       {/* ─── Boutons d'export (PDF + Excel) ─── */}
       {instituteurs.length > 0 && (
-        <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
-          <button onClick={exportInstPDF}
-            style={{
-              padding: isMobile ? '8px 14px' : '8px 16px',
-              background: '#E24B4A', color: '#fff', border: 'none',
-              borderRadius: 10, fontSize: 12, fontWeight: 700,
-              cursor: 'pointer', fontFamily: 'inherit',
-              display: 'inline-flex', alignItems: 'center', gap: 6,
-            }}>
-            📄 {lang === 'ar' ? 'تصدير PDF' : 'Exporter PDF'}
-          </button>
-          <button onClick={exportInstExcel}
-            style={{
-              padding: isMobile ? '8px 14px' : '8px 16px',
-              background: '#1D9E75', color: '#fff', border: 'none',
-              borderRadius: 10, fontSize: 12, fontWeight: 700,
-              cursor: 'pointer', fontFamily: 'inherit',
-              display: 'inline-flex', alignItems: 'center', gap: 6,
-            }}>
-            📊 {lang === 'ar' ? 'تصدير Excel' : 'Exporter Excel'}
-          </button>
-          <div style={{
-            alignSelf: 'center', fontSize: 11, color: '#888', fontStyle: 'italic',
-          }}>
-            {instituteurs.length} {lang === 'ar' ? 'مؤطر مصدر' : 'instituteur(s) exporté(s)'}
-          </div>
-        </div>
+        <ExportButtons
+          onPDF={exportInstPDF}
+          onExcel={exportInstExcel}
+          isMobile={isMobile}
+          lang={lang}
+          count={instituteurs.length}
+          countLabel={lang === 'ar' ? 'مؤطر' : 'instituteur'}
+        />
       )}
 
       {/* KPIs globaux */}

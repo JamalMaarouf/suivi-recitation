@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase';
 import { getInitiales, joursDepuis, scoreLabel, formatDateCourt , loadBareme, BAREME_DEFAUT } from '../lib/helpers';
 import { t } from '../lib/i18n';
 import { fetchAll } from '../lib/fetchAll';
+import ExportButtons from '../components/ExportButtons';
 
 const IS_SOURATE = (code) => ['5B','5A','2M'].includes(code||'');
 const NIVEAU_COLORS = { '5B':'#534AB7','5A':'#378ADD','2M':'#1D9E75','2':'#EF9F27','1':'#E24B4A' };
@@ -579,10 +580,15 @@ export default function HistoriqueSeances({ user, navigate, goBack, lang='fr', i
       <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'1.25rem',flexWrap:'wrap',gap:8}}>
         <button className="back-link" onClick={()=>goBack?goBack():navigate('dashboard')}></button>
         <div style={{fontSize:18,fontWeight:700,color:'#085041'}}>📊 {lang==='ar'?'تحليل الحصص':lang==='en'?'Session Analysis':lang==='ar'?'تحليل الحصص':lang==='ar'?'تحليل الحصص':(lang==='ar'?'تحليل الحصص':(lang==='ar'?'تحليل الحصص':'Analyse des Séances'))}</div>
-        <div style={{display:'flex',gap:6,alignItems:'center'}}>
+        <div style={{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap'}}>
           <span style={{fontSize:12,color:'#888'}}>{elevesVisibles.length} {lang==='ar'?'طالب':lang==='en'?'students':'élèves'}</span>
-          <button onClick={exportExcel} style={{display:'flex',alignItems:'center',gap:5,padding:'5px 12px',background:'#f5f5f0',color:'#085041',border:'0.5px solid #e0e0d8',borderRadius:8,fontSize:11,fontWeight:600,cursor:'pointer'}}>📊 Excel</button>
-          <button onClick={exportPDF} style={{display:'flex',alignItems:'center',gap:5,padding:'5px 12px',background:'#f5f5f0',color:'#534AB7',border:'0.5px solid #e0e0d8',borderRadius:8,fontSize:11,fontWeight:600,cursor:'pointer'}}>🖨️ PDF</button>
+          <ExportButtons
+            onPDF={exportPDF}
+            onExcel={exportExcel}
+            lang={lang}
+            variant="inline"
+            compact
+          />
         </div>
       </div>
 
