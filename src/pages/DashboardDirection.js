@@ -3,6 +3,9 @@ import { supabase } from '../lib/supabase';
 import { t } from '../lib/i18n';
 import { BAREME_DEFAUT, loadBareme } from '../lib/helpers';
 import { fetchAll } from '../lib/fetchAll';
+import { openPDF } from '../lib/pdf';
+import { exportExcel } from '../lib/excel';
+import ExportButtons from '../components/ExportButtons';
 
 // ─── Couleurs par niveau ───────────────────────────────────────────────────
 const NC = { '5B':'#534AB7','5A':'#378ADD','2M':'#1D9E75','2':'#EF9F27','1':'#E24B4A' };
@@ -259,6 +262,125 @@ export default function DashboardDirection({ user, navigate, goBack, lang='fr', 
     { key:'annee', label:isAr?'السنة الكاملة':'Année entière' },
   ];
 
+  const periodeLabel = PERIODES.find(p => p.key === periode)?.label || '';
+
+  // ── Préparation des données Top 10 avec points ──
+  const top10AvecPoints = useMemo(() => {
+    return topEleves.slice(0, 10).map((el, i) => {
+      const niveau = niveaux.find(n => n.code === el.code_niveau);
+      return {
+        rang: i + 1,
+        prenom: el.prenom || '',
+        nom: el.nom || '',
+        code_niveau: el.code_niveau || '',
+        niveau_couleur: niveau?.couleur || getNc(niveaux, el.code_niveau),
+        points: el.points || 0,
+        tomon: el.tomon || 0,
+        hizb: el.hizb || 0,
+      };
+    });
+  }, [topEleves, niveaux]);
+
+  // ── Export PDF (3 pages: KPIs/évol, niveaux/insts, top 10) ──
+  const handleExportPDF = async () => {
+    try {
+      await openPDF('rapport_direction', {
+        ecole: { nom: ecole?.nom || '' },
+        periodeLabel,
+        kpis,
+        parNiveau: statsByNiveau,
+        parInstituteur: statsByInst,
+        evolution: evolutionMensuelle,
+        topEleves: top10AvecPoints,
+      }, lang);
+    } catch (err) {
+      console.error('Erreur PDF direction:', err);
+      alert((isAr ? 'خطأ PDF : ' : 'Erreur PDF : ') + err.message);
+    }
+  };
+
+  // ── Export Excel multi-feuilles (4 onglets) ──
+  const handleExportExcel = async () => {
+    // Feuille 1 : KPIs
+    const sheetKPIs = {
+      name: isAr ? 'المؤشرات' : 'KPIs',
+      rows: [
+        [isAr ? 'المؤشر' : 'Indicateur', isAr ? 'القيمة' : 'Valeur'],
+        [isAr ? 'الفترة' : 'Période', periodeLabel],
+        [isAr ? 'إجمالي الطلاب' : 'Total élèves', kpis.totalEleves || 0],
+        [isAr ? 'الطلاب النشطون' : 'Élèves actifs', kpis.elevesActifs || 0],
+        [isAr ? 'نسبة النشاط %' : 'Taux d\'activité %', kpis.tauxActivite || 0],
+        [isAr ? 'ثُمنات محققة' : 'Tomon validés', kpis.totalTomon || 0],
+        [isAr ? 'أحزاب كاملة' : 'Hizb complets', kpis.totalHizb || 0],
+        [isAr ? 'جلسات' : 'Séances', kpis.totalSeances || 0],
+        [isAr ? 'شهادات' : 'Certificats', kpis.totalCerts || 0],
+        [isAr ? 'اجتيازات مستوى' : 'Passages niveau', kpis.totalPassages || 0],
+      ],
+    };
+
+    // Feuille 2 : Par niveau
+    const sheetNiveaux = {
+      name: isAr ? 'المستويات' : 'Niveaux',
+      rows: [
+        [
+          isAr ? 'الرمز' : 'Code',
+          isAr ? 'الاسم' : 'Nom',
+          isAr ? 'العدد' : 'Total',
+          isAr ? 'نشط' : 'Actifs',
+          isAr ? 'النسبة %' : 'Taux %',
+          isAr ? 'ثُمن' : 'Tomon',
+          isAr ? 'حزب' : 'Hizb',
+          isAr ? 'جلسات' : 'Séances',
+        ],
+        ...statsByNiveau.map(n => [
+          n.code, n.nom || '', n.total, n.actifs, n.taux, n.tomon, n.hizb, n.seances,
+        ]),
+      ],
+    };
+
+    // Feuille 3 : Par instituteur
+    const sheetInst = {
+      name: isAr ? 'المؤطرون' : 'Instituteurs',
+      rows: [
+        [
+          isAr ? 'الاسم' : 'Nom',
+          isAr ? 'طلاب مُتَبَنَّون' : 'Élèves référents',
+          isAr ? 'نشط' : 'Actifs',
+          isAr ? 'جلسات' : 'Séances',
+          isAr ? 'ثُمن' : 'Tomon',
+          isAr ? 'معدل ثُمن/طالب' : 'Moy tomon/élève',
+        ],
+        ...statsByInst.map(inst => [
+          inst.nom, inst.nbEleves, inst.actifs, inst.seances, inst.tomon, inst.moy || 0,
+        ]),
+      ],
+    };
+
+    // Feuille 4 : Évolution mensuelle
+    const sheetEvolution = {
+      name: isAr ? 'التطور' : 'Evolution',
+      rows: [
+        [
+          isAr ? 'الشهر' : 'Mois',
+          isAr ? 'ثُمنات محققة' : 'Tomon validés',
+          isAr ? 'طلاب نشطون' : 'Élèves actifs',
+        ],
+        ...evolutionMensuelle.map(m => [m.label || '', m.tomon || 0, m.eleves || 0]),
+      ],
+    };
+
+    const dateStr = new Date().toISOString().slice(0, 10);
+    try {
+      await exportExcel(
+        `direction_${periode}_${dateStr}.xlsx`,
+        [sheetKPIs, sheetNiveaux, sheetInst, sheetEvolution],
+      );
+    } catch (err) {
+      console.error('Erreur Excel direction:', err);
+      alert((isAr ? 'خطأ Excel : ' : 'Erreur Excel : ') + err.message);
+    }
+  };
+
   if (loading) return (
     <div style={{display:'flex',alignItems:'center',justifyContent:'center',height:'60vh',flexDirection:'column',gap:16}}>
       <div style={{fontSize:32}}>📊</div>
@@ -293,6 +415,17 @@ export default function DashboardDirection({ user, navigate, goBack, lang='fr', 
                 {p.label}
               </button>
             ))}
+          </div>
+          {/* Export mobile */}
+          <div style={{display:'flex',gap:6,marginTop:10}}>
+            <button onClick={handleExportPDF}
+              style={{flex:1,background:'rgba(255,255,255,0.25)',border:'1px solid rgba(255,255,255,0.3)',borderRadius:10,padding:'7px 11px',color:'#fff',fontSize:12,fontWeight:600,cursor:'pointer',whiteSpace:'nowrap',fontFamily:'inherit'}}>
+              📄 PDF
+            </button>
+            <button onClick={handleExportExcel}
+              style={{flex:1,background:'rgba(255,255,255,0.25)',border:'1px solid rgba(255,255,255,0.3)',borderRadius:10,padding:'7px 11px',color:'#fff',fontSize:12,fontWeight:600,cursor:'pointer',whiteSpace:'nowrap',fontFamily:'inherit'}}>
+              📊 Excel
+            </button>
           </div>
         </div>
 
@@ -440,6 +573,16 @@ export default function DashboardDirection({ user, navigate, goBack, lang='fr', 
             </button>
           ))}
         </div>
+      </div>
+
+      {/* Export buttons */}
+      <div style={{marginBottom:'1.25rem'}}>
+        <ExportButtons
+          onPDF={handleExportPDF}
+          onExcel={handleExportExcel}
+          lang={lang}
+          variant="inline"
+        />
       </div>
 
       {/* Alertes */}
