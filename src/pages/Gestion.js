@@ -1473,7 +1473,7 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile,
   const setTab = (t) => { setTabLocal(t); if(setGestionTab) setGestionTab(t); };
   const [searchEleve, setSearchEleve] = useState('');
   const [parents, setParents] = useState([]);
-  const [formParent, setFormParent] = useState({prenom:'',nom:'',identifiant:'',mot_de_passe:'',telephone:'',eleve_ids:[]});
+  const [formParent, setFormParent] = useState({prenom:'',nom:'',identifiant:'',mot_de_passe:'',telephone:'',email:'',eleve_ids:[]});
   const [showFormParent, setShowFormParent] = useState(false);
   const [confirmModal, setConfirmModal] = useState({isOpen:false,title:'',message:'',onConfirm:null,confirmColor:'#E24B4A',confirmLabel:''});
   const showConfirm = (title, message, onConfirm, confirmLabel, confirmColor) => setConfirmModal({isOpen:true,title,message,onConfirm,confirmLabel:confirmLabel||(lang==='ar'?'حذف':'Supprimer'),confirmColor:confirmColor||'#E24B4A'});
@@ -1592,7 +1592,7 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile,
     setEleves(e || []);
     setInstituteurs(i || []);
     const { data: pd, error: pdErr } = await supabase.from('utilisateurs')
-        .select('id,prenom,nom,identifiant')
+        .select('id,prenom,nom,identifiant,telephone,email')
         .eq('role','parent').eq('ecole_id', user.ecole_id);
     const { data: pliens } = await supabase.from('parent_eleve')
         .select('parent_id,eleve_id');
@@ -2449,8 +2449,8 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
                 <div style={{fontSize:15,fontWeight:700,color:'#085041',marginBottom:14}}>
                   {editingParentId?(lang==='ar'?'تعديل ولي الأمر':'✏️ Modifier parent'):(lang==='ar'?'إضافة ولي أمر':'👨‍👩‍👦 Nouveau parent')}
                 </div>
-                {[{label:lang==='ar'?'الاسم':'Prénom',key:'prenom'},{label:lang==='ar'?'اللقب':'Nom',key:'nom'},{label:'Identifiant',key:'identifiant',ph:'parent.nom'},{label:lang==='ar'?'الهاتف':'Téléphone',key:'telephone',ph:'06xxxxxxxx',type:'tel'}].map(f=>(
-                  <FI key={f.key} label={f.key==='telephone'?f.label:f.label+' *'} val={formParent[f.key]||''} ph={f.ph||f.label} type={f.type||'text'}
+                {[{label:lang==='ar'?'الاسم':'Prénom',key:'prenom'},{label:lang==='ar'?'اللقب':'Nom',key:'nom'},{label:'Identifiant',key:'identifiant',ph:'parent.nom'},{label:lang==='ar'?'الهاتف':'Téléphone',key:'telephone',ph:'06xxxxxxxx',type:'tel'},{label:lang==='ar'?'البريد (اختياري)':'Email (optionnel)',key:'email',ph:'parent@email.com',type:'email'}].map(f=>(
+                  <FI key={f.key} label={(f.key==='telephone'||f.key==='email')?f.label:f.label+' *'} val={formParent[f.key]||''} ph={f.ph||f.label} type={f.type||'text'}
                     onChange={e=>setFormParent(x=>({...x,[f.key]:e.target.value}))}/>
                 ))}
                 {!editingParentId&&(
@@ -2477,12 +2477,12 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
                   })}
                 </div>
                 <div style={{display:'flex',gap:8}}>
-                  <button onClick={()=>{setShowFormParent(false);setEditingParentId(null);setFormParent({prenom:'',nom:'',identifiant:'',mot_de_passe:'',telephone:'',eleve_ids:[]});}}
+                  <button onClick={()=>{setShowFormParent(false);setEditingParentId(null);setFormParent({prenom:'',nom:'',identifiant:'',mot_de_passe:'',telephone:'',email:'',eleve_ids:[]});}}
                     style={{flex:1,padding:'13px',background:'#f5f5f0',color:'#666',border:'none',borderRadius:12,fontSize:14,fontWeight:600,cursor:'pointer',fontFamily:'inherit'}}>{lang==='ar'?'إلغاء':'Annuler'}</button>
                   <button onClick={async()=>{
                     if(editingParentId) await modifierParent();
                     else await ajouterParent();
-                    setShowFormParent(false);setEditingParentId(null);setFormParent({prenom:'',nom:'',identifiant:'',mot_de_passe:'',telephone:'',eleve_ids:[]});loadData();
+                    setShowFormParent(false);setEditingParentId(null);setFormParent({prenom:'',nom:'',identifiant:'',mot_de_passe:'',telephone:'',email:'',eleve_ids:[]});loadData();
                   }} style={{flex:2,padding:'13px',background:editingParentId?'#378ADD':'#EF9F27',color:'#fff',border:'none',borderRadius:12,fontSize:14,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
                     {lang==='ar'?'حفظ':'Enregistrer'}
                   </button>
@@ -2508,7 +2508,7 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
                     </div>
                     {user.role==='surveillant'&&(
                       <div style={{display:'flex',gap:5}}>
-                        <button onClick={()=>{setEditingParentId(p.id);setFormParent({prenom:p.prenom,nom:p.nom,identifiant:p.identifiant,mot_de_passe:'',telephone:p.telephone||'',eleve_ids:eleves.filter(e=>(p.eleve_ids||[]).includes(e.id)).map(e=>e.id)});setShowFormParent(true);window.scrollTo(0,0);}}
+                        <button onClick={()=>{setEditingParentId(p.id);setFormParent({prenom:p.prenom,nom:p.nom,identifiant:p.identifiant,mot_de_passe:'',telephone:p.telephone||'',email:p.email||'',eleve_ids:eleves.filter(e=>(p.eleve_ids||[]).includes(e.id)).map(e=>e.id)});setShowFormParent(true);window.scrollTo(0,0);}}
                           style={{background:'#E6F1FB',color:'#378ADD',border:'none',borderRadius:8,padding:'6px 9px',fontSize:12,cursor:'pointer'}}>✏️</button>
                         <button onClick={async()=>{await supabase.from('utilisateurs').delete().eq('id',p.id);loadData();}}
                           style={{background:'#FCEBEB',color:'#E24B4A',border:'none',borderRadius:8,padding:'6px 9px',fontSize:12,cursor:'pointer'}}>🗑</button>
@@ -3232,6 +3232,7 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
                 <div className="field-group"><label className="field-lbl">{lang==='ar'?'المعرف':'Identifiant'} *</label><input className="field-input" value={formParent.identifiant} onChange={e=>setFormParent(f=>({...f,identifiant:e.target.value}))} placeholder="parent.nom"/></div>
                 <div className="field-group"><label className="field-lbl">{lang==='ar'?'كلمة المرور':'Mot de passe'} *</label><input className="field-input" type="password" value={formParent.mot_de_passe} onChange={e=>setFormParent(f=>({...f,mot_de_passe:e.target.value}))} placeholder="••••••"/></div>
                 <div className="field-group"><label className="field-lbl">{lang==='ar'?'الهاتف':'Téléphone'}</label><input className="field-input" value={formParent.telephone} onChange={e=>setFormParent(f=>({...f,telephone:e.target.value}))} placeholder="06xxxxxxxx"/></div>
+                <div className="field-group"><label className="field-lbl">{lang==='ar'?'البريد الإلكتروني':'Email'} <span style={{color:'#888',fontWeight:400,fontSize:11}}>({lang==='ar'?'اختياري':'optionnel'})</span></label><input className="field-input" type="email" value={formParent.email||''} onChange={e=>setFormParent(f=>({...f,email:e.target.value}))} placeholder="parent@email.com"/><div style={{fontSize:10,color:'#888',marginTop:3}}>{lang==='ar'?'للإشعارات فقط · غير ضروري لتسجيل الدخول':'Pour les notifications uniquement · non requis pour la connexion'}</div></div>
               </div>
               <div className="field-group" style={{marginBottom:14}}>
                 <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:6}}>
@@ -3301,13 +3302,13 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
                 if(!editingParentId && !formParent.mot_de_passe) { toast.warning(lang==='ar'?'كلمة المرور مطلوبة':'Mot de passe requis'); return; }
                 let pid = editingParentId;
                 if(editingParentId) {
-                  const upd={prenom:formParent.prenom,nom:formParent.nom,identifiant:formParent.identifiant};
+                  const upd={prenom:formParent.prenom,nom:formParent.nom,identifiant:formParent.identifiant,telephone:formParent.telephone||null,email:(formParent.email||'').trim()||null};
                   if(formParent.mot_de_passe) upd.mot_de_passe=formParent.mot_de_passe;
                   const {error:ue}=await supabase.from('utilisateurs').update(upd).eq('id',editingParentId);
                   if(ue){ toast.error(ue.message||'Erreur utilisateur'); return; }
                   await supabase.from('parent_eleve').delete().eq('parent_id',editingParentId);
                 } else {
-                  const {data:pd,error:pe}=await supabase.from('utilisateurs').insert({prenom:formParent.prenom,nom:formParent.nom,identifiant:formParent.identifiant,mot_de_passe:formParent.mot_de_passe,role:'parent',ecole_id:user.ecole_id,statut_compte:'actif'}).select().single();
+                  const {data:pd,error:pe}=await supabase.from('utilisateurs').insert({prenom:formParent.prenom,nom:formParent.nom,identifiant:formParent.identifiant,mot_de_passe:formParent.mot_de_passe,telephone:formParent.telephone||null,email:(formParent.email||'').trim()||null,role:'parent',ecole_id:user.ecole_id,statut_compte:'actif'}).select().single();
                   if(pe){ toast.error(pe.message||'Erreur parent'); return; }
                   toast.success(lang==='ar'?'✅ تم حفظ ولي الأمر':'✅ Parent enregistré avec succès');
                   pid=pd.id;
@@ -3317,8 +3318,8 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
                 }
                 setShowFormParent(false);
                 setEditingParentId(null);
-                setFormParent({prenom:'',nom:'',identifiant:'',mot_de_passe:'',telephone:'',eleve_ids:[],searchEleve:''});
-                const {data:pd2}=await supabase.from('utilisateurs').select('id,prenom,nom,identifiant').eq('role','parent').eq('ecole_id',user.ecole_id);
+                setFormParent({prenom:'',nom:'',identifiant:'',mot_de_passe:'',telephone:'',email:'',eleve_ids:[],searchEleve:''});
+                const {data:pd2}=await supabase.from('utilisateurs').select('id,prenom,nom,identifiant,telephone,email').eq('role','parent').eq('ecole_id',user.ecole_id);
                 const {data:pl2}=await supabase.from('parent_eleve').select('parent_id,eleve_id');
                 const lm2={}; (pl2||[]).forEach(l=>{if(!lm2[l.parent_id])lm2[l.parent_id]=[];lm2[l.parent_id].push(l.eleve_id);});
                 setParents((pd2||[]).map(p=>({...p,eleve_ids:lm2[p.id]||[]})));
@@ -3361,7 +3362,7 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
                 </div>
                 <div style={{display:'flex',flexDirection:'column',gap:4}}>
                   <button onClick={()=>{
-                    setFormParent({prenom:p.prenom,nom:p.nom,identifiant:p.identifiant,mot_de_passe:p.mot_de_passe||'',telephone:p.telephone||'',eleve_ids:p.eleve_ids||[],searchEleve:''});
+                    setFormParent({prenom:p.prenom,nom:p.nom,identifiant:p.identifiant,mot_de_passe:p.mot_de_passe||'',telephone:p.telephone||'',email:p.email||'',eleve_ids:p.eleve_ids||[],searchEleve:''});
                     setEditingParentId(p.id);
                     setShowFormParent(true);
                     window.scrollTo(0,0);

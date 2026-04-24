@@ -5,6 +5,7 @@ import { supabase } from '../lib/supabase';
 import { withRetryToast } from '../lib/retry';
 import { invalidateMany } from '../lib/cache';
 import { enqueueOrRun } from '../lib/offlineQueue';
+import { notifierParents } from '../lib/notificationsParents';
 import { calcEtatEleve, calcPositionAtteinte, calcUnite, formatDate, getInitiales, motivationMsg, verifierBlocageExamen, verifierEtCreerCertificats, verifierEtCreerCertificatsBlocs, loadBareme, getSensForEleve, calcBlocProgression, prochainHizbDansBloc } from '../lib/helpers';
 
 function Avatar({ prenom, nom, size = 36, bg = '#E1F5EE', color = '#085041' }) {
@@ -232,6 +233,25 @@ export default function EnregistrerRecitation({  user, eleve: eleveInitial, navi
       );
     }
 
+    // ─── NOTIFICATION PARENTS : validation d'un Hizb complet ───
+    // Envoi async non bloquant. Si offline (queued), on skip — le cron
+    // de sync rattrapera (pas besoin de notif immédiate, c'est acceptable).
+    if (!error && !wasQueued && typeValidation === 'hizb_complet') {
+      notifierParents({
+        type: 'hizb_complet',
+        eleve: {
+          id: selectedEleve.id,
+          prenom: selectedEleve.prenom,
+          nom: selectedEleve.nom,
+          ecole_id: user.ecole_id,
+        },
+        donnees: {
+          hizb_num: etat.hizbEnCours,
+          date: new Date().toISOString(),
+        },
+      }).catch(e => console.warn('[notif hizb] async error', e));
+    }
+
     setLoading(false);
     if (error) {
       toast.error(error.message || 'Erreur de validation');
@@ -279,6 +299,19 @@ export default function EnregistrerRecitation({  user, eleve: eleveInitial, navi
       toast.success(lang==='ar'
         ? `🏅 شهادة جديدة: ${(nouveauxCerts||[]).map(c=>c.nom_certificat_ar||c.nom_certificat).join(', ')} !`
         : `🏅 Nouveau certificat: ${(nouveauxCerts||[]).map(c=>c.nom_certificat).join(', ')} !`);
+      // ─── NOTIF PARENTS : certificats obtenus ──────────────
+      for (const c of nouveauxCerts) {
+        notifierParents({
+          type: 'certificat_obtenu',
+          eleve: { id: selectedEleve.id, prenom: selectedEleve.prenom, nom: selectedEleve.nom, ecole_id: user.ecole_id },
+          donnees: {
+            certificat_nom: c.nom_certificat,
+            certificat_nom_ar: c.nom_certificat_ar || null,
+            jalon_id: c.jalon_id || null,
+            date: c.date_obtention,
+          },
+        }).catch(e => console.warn('[notif cert] async error', e));
+      }
     }
 
     // ─── Étape D — Certificats automatiques fin de bloc ──────
@@ -293,6 +326,19 @@ export default function EnregistrerRecitation({  user, eleve: eleveInitial, navi
       toast.success(lang==='ar'
         ? `🎖️ شهادة بلوك: ${(certsBlocs||[]).map(c=>c.nom_certificat_ar||c.nom_certificat).join(', ')} !`
         : `🎖️ Certificat de bloc : ${(certsBlocs||[]).map(c=>c.nom_certificat).join(', ')} !`);
+      // ─── NOTIF PARENTS : certificats de bloc obtenus ──────
+      for (const c of certsBlocs) {
+        notifierParents({
+          type: 'certificat_obtenu',
+          eleve: { id: selectedEleve.id, prenom: selectedEleve.prenom, nom: selectedEleve.nom, ecole_id: user.ecole_id },
+          donnees: {
+            certificat_nom: c.nom_certificat,
+            certificat_nom_ar: c.nom_certificat_ar || null,
+            jalon_id: c.jalon_id || null,
+            date: c.date_obtention,
+          },
+        }).catch(e => console.warn('[notif cert bloc] async error', e));
+      }
     }
 
     // ─── Détection fin de bloc (Étape B-4) ────────────────

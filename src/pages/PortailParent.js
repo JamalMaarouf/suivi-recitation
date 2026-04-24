@@ -8,6 +8,7 @@ import { t } from '../lib/i18n';
 import OngletCoursEleve from '../components/OngletCoursEleve';
 import { trackParentVisite, getDerniereVisiteParent } from '../lib/parentTracking';
 import { generateRgpdExport, downloadRgpdExport } from '../lib/rgpdExport';
+import { fetchNotificationsParent, marquerToutesLues, marquerLue, fetchPreferences, updatePreferences } from '../lib/notificationsParents';
 
 const IS_SOURATE = (code) => ['5B','5A','2M'].includes(code||'');
 const NIVEAU_COLORS = {'5B':'#534AB7','5A':'#378ADD','2M':'#1D9E75','2':'#EF9F27','1':'#E24B4A'};
@@ -43,6 +44,15 @@ export default function PortailParent({ parent, navigate, goBack, lang='fr', onL
   const [rgpdLoading, setRgpdLoading] = useState(false);
   // P2.2 : historique des exports RGPD du parent lui-même
   const [rgpdHistorique, setRgpdHistorique] = useState([]);
+  // Notifications parents (A.1)
+  const [showNotifsPanel, setShowNotifsPanel] = useState(false);
+  const [notifs, setNotifs] = useState([]);
+  const [notifsNonLues, setNotifsNonLues] = useState(0);
+  const [showPrefsNotifs, setShowPrefsNotifs] = useState(false);
+  const [prefsNotifs, setPrefsNotifs] = useState(null);
+  const [savingPrefs, setSavingPrefs] = useState(false);
+  const [emailParent, setEmailParent] = useState(parent.email || '');
+  const [savingEmail, setSavingEmail] = useState(false);
   const [oldPwd, setOldPwd] = useState('');
   const [newPwd, setNewPwd] = useState('');
   const [confirmPwd, setConfirmPwd] = useState('');
@@ -111,6 +121,93 @@ export default function PortailParent({ parent, navigate, goBack, lang='fr', onL
     if (showRgpdModal) loadRgpdHistorique();
     // eslint-disable-next-line
   }, [showRgpdModal]);
+
+  // ─── A.1 : Notifications parents — chargement & actions ───────
+  const loadNotifs = async () => {
+    if (!parent?.id) return;
+    const { data, nonLues } = await fetchNotificationsParent(parent.id, 20);
+    setNotifs(data);
+    setNotifsNonLues(nonLues);
+  };
+
+  const handleOpenNotifsPanel = async () => {
+    setShowNotifsPanel(true);
+    await loadNotifs();
+  };
+
+  const handleMarkAllRead = async () => {
+    await marquerToutesLues(parent.id);
+    await loadNotifs();
+  };
+
+  const handleClickNotif = async (notif) => {
+    if (!notif.lue) {
+      await marquerLue(notif.id);
+      await loadNotifs();
+    }
+    // Naviguer vers l'enfant concerné si applicable
+    if (notif.eleve_id) {
+      const enfantConcerne = enfants.find(e => e.id === notif.eleve_id);
+      if (enfantConcerne) {
+        setSelectedEnfant(enfantConcerne);
+        setShowNotifsPanel(false);
+      }
+    }
+  };
+
+  const loadPrefsNotifs = async () => {
+    if (!parent?.id) return;
+    const p = await fetchPreferences(parent.id);
+    setPrefsNotifs(p);
+  };
+
+  const handleSavePrefs = async () => {
+    setSavingPrefs(true);
+    const { success } = await updatePreferences(parent.id, prefsNotifs);
+    setSavingPrefs(false);
+    if (success) {
+      toast.success(lang === 'ar' ? '✅ تم حفظ التفضيلات' : '✅ Préférences enregistrées');
+      setShowPrefsNotifs(false);
+    } else {
+      toast.error(lang === 'ar' ? 'خطأ' : 'Erreur');
+    }
+  };
+
+  const handleSaveEmail = async () => {
+    setSavingEmail(true);
+    const email = emailParent.trim() || null;
+    // Validation basique
+    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      toast.error(lang === 'ar' ? 'عنوان بريد غير صحيح' : 'Email invalide');
+      setSavingEmail(false);
+      return;
+    }
+    const { error } = await supabase
+      .from('utilisateurs')
+      .update({ email })
+      .eq('id', parent.id);
+    setSavingEmail(false);
+    if (error) {
+      toast.error(lang === 'ar' ? 'خطأ في الحفظ' : 'Erreur de sauvegarde');
+    } else {
+      toast.success(lang === 'ar' ? '✅ تم الحفظ' : '✅ Email enregistré');
+    }
+  };
+
+  // Charger notifs au montage et toutes les 60s
+  useEffect(() => {
+    if (!parent?.id) return;
+    loadNotifs();
+    const interval = setInterval(loadNotifs, 60_000);
+    return () => clearInterval(interval);
+    // eslint-disable-next-line
+  }, [parent?.id]);
+
+  // Charger préférences quand modale s'ouvre
+  useEffect(() => {
+    if (showPrefsNotifs) loadPrefsNotifs();
+    // eslint-disable-next-line
+  }, [showPrefsNotifs]);
 
   useEffect(() => { loadData(); }, []);
   useEffect(() => { if (enfants.length>0 && !selectedEnfant) setSelectedEnfant(enfants[0]); }, [enfants]);
@@ -299,6 +396,35 @@ export default function PortailParent({ parent, navigate, goBack, lang='fr', onL
       <div style={{paddingBottom:80, background:'#f5f5f0', minHeight:'100vh'}}>
         {/* Mobile header */}
         <div style={{background:'linear-gradient(135deg,#085041,#1D9E75)', padding:'48px 16px 20px', position:'sticky', top:0, zIndex:100}}>
+          {/* Barre d'actions mobile : notifs + MDP + RGPD + logout */}
+          <div style={{display:'flex',gap:6,justifyContent:'flex-end',marginBottom:10,flexWrap:'wrap'}}>
+            <button onClick={handleOpenNotifsPanel}
+              title={lang==='ar'?'الإشعارات':'Notifications'}
+              style={{position:'relative',padding:'6px 10px',background:'rgba(255,255,255,0.2)',color:'#fff',border:'1px solid rgba(255,255,255,0.3)',borderRadius:8,fontSize:13,cursor:'pointer'}}>
+              🔔
+              {notifsNonLues > 0 && (
+                <span style={{position:'absolute',top:-5,right:-5,minWidth:18,height:18,padding:'0 5px',background:'#E24B4A',color:'#fff',borderRadius:9,fontSize:10,fontWeight:800,display:'flex',alignItems:'center',justifyContent:'center',border:'2px solid #085041'}}>
+                  {notifsNonLues > 9 ? '9+' : notifsNonLues}
+                </span>
+              )}
+            </button>
+            <button onClick={()=>setShowChangeMdp(v=>!v)}
+              title={lang==='ar'?'كلمة المرور':'Mot de passe'}
+              style={{padding:'6px 10px',background:'rgba(255,255,255,0.2)',color:'#fff',border:'1px solid rgba(255,255,255,0.3)',borderRadius:8,fontSize:13,cursor:'pointer'}}>
+              🔑
+            </button>
+            <button onClick={()=>setShowRgpdModal(true)}
+              title={lang==='ar'?'بياناتي':'Mes données'}
+              style={{padding:'6px 10px',background:'rgba(255,255,255,0.2)',color:'#fff',border:'1px solid rgba(255,255,255,0.3)',borderRadius:8,fontSize:13,cursor:'pointer'}}>
+              📦
+            </button>
+            <button onClick={onLogout}
+              title={lang==='ar'?'تسجيل الخروج':'Déconnexion'}
+              style={{padding:'6px 10px',background:'rgba(255,255,255,0.2)',color:'#fff',border:'1px solid rgba(255,255,255,0.3)',borderRadius:8,fontSize:13,cursor:'pointer'}}>
+              🚪
+            </button>
+          </div>
+
           <div style={{fontSize:13, color:'rgba(255,255,255,0.8)', marginBottom:4}}>
             {lang==='ar'?'مرحباً':'Bonjour'}, <strong>{parent.prenom} {parent.nom}</strong>
           </div>
@@ -436,6 +562,220 @@ export default function PortailParent({ parent, navigate, goBack, lang='fr', onL
             )}
           </div>
         )}
+
+        {/* ═══ OVERLAYS MOBILE — plein écran en bottom sheet ═══ */}
+
+        {/* Panneau notifications mobile */}
+        {showNotifsPanel && (
+          <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.5)',zIndex:200,display:'flex',alignItems:'flex-end'}}
+            onClick={()=>setShowNotifsPanel(false)}>
+            <div onClick={e=>e.stopPropagation()}
+              style={{width:'100%',maxHeight:'85vh',background:'#fff',borderRadius:'18px 18px 0 0',padding:'16px',overflow:'auto'}}>
+              <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:14}}>
+                <div style={{fontSize:16,fontWeight:700,color:'#173404'}}>
+                  🔔 {lang==='ar'?'الإشعارات':'Notifications'}
+                  {notifsNonLues > 0 && (
+                    <span style={{marginLeft:8,fontSize:11,background:'#E24B4A',color:'#fff',padding:'2px 8px',borderRadius:10}}>
+                      {notifsNonLues}
+                    </span>
+                  )}
+                </div>
+                <div style={{display:'flex',gap:6}}>
+                  {notifsNonLues > 0 && (
+                    <button onClick={handleMarkAllRead}
+                      style={{padding:'6px 12px',background:'#E1F5EE',color:'#1D9E75',border:'none',borderRadius:6,fontSize:11,fontWeight:600,cursor:'pointer'}}>
+                      ✓ {lang==='ar'?'الكل':'Tout lire'}
+                    </button>
+                  )}
+                  <button onClick={()=>setShowPrefsNotifs(true)}
+                    style={{padding:'6px 10px',background:'#f5f5f0',border:'none',borderRadius:6,cursor:'pointer',fontSize:13}}>
+                    ⚙️
+                  </button>
+                  <button onClick={()=>setShowNotifsPanel(false)}
+                    style={{padding:'6px 10px',background:'#f5f5f0',border:'none',borderRadius:6,cursor:'pointer',fontSize:13}}>
+                    ✕
+                  </button>
+                </div>
+              </div>
+              {notifs.length === 0 ? (
+                <div style={{padding:'30px 20px',textAlign:'center',fontSize:13,color:'#888'}}>
+                  {lang==='ar'?'✨ لا توجد إشعارات':'✨ Aucune notification pour le moment'}
+                </div>
+              ) : (
+                <div>
+                  {notifs.map(n => {
+                    const titre = lang==='ar' ? (n.titre_ar || n.titre_fr) : n.titre_fr;
+                    const corps = lang==='ar' ? (n.corps_ar || n.corps_fr) : n.corps_fr;
+                    const d = new Date(n.created_at);
+                    const isToday = d.toDateString() === new Date().toDateString();
+                    const dateStr = isToday
+                      ? d.toLocaleTimeString(lang==='ar'?'ar-MA':'fr-FR',{hour:'2-digit',minute:'2-digit'})
+                      : d.toLocaleDateString(lang==='ar'?'ar-MA':'fr-FR');
+                    return (
+                      <div key={n.id} onClick={()=>handleClickNotif(n)}
+                        style={{padding:'12px',borderRadius:10,marginBottom:8,
+                          background: n.lue ? '#f9f9f6' : '#FEF9E7',
+                          border: n.lue ? '0.5px solid #e0e0d8' : '1px solid #FBBF24',
+                          cursor:'pointer'}}>
+                        <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:3}}>
+                          <div style={{fontSize:13,fontWeight: n.lue ? 500 : 700,color:'#173404',flex:1}}>{titre}</div>
+                          <div style={{fontSize:10,color:'#888',flexShrink:0,marginLeft:6}}>{dateStr}</div>
+                        </div>
+                        <div style={{fontSize:12,color:'#444',lineHeight:1.4}}>{corps}</div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Modale préférences notifs mobile */}
+        {showPrefsNotifs && prefsNotifs && (
+          <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.5)',zIndex:250,display:'flex',alignItems:'flex-end'}}
+            onClick={()=>setShowPrefsNotifs(false)}>
+            <div onClick={e=>e.stopPropagation()}
+              style={{width:'100%',maxHeight:'85vh',background:'#fff',borderRadius:'18px 18px 0 0',padding:'16px',overflow:'auto'}}>
+              <div style={{fontSize:15,fontWeight:700,marginBottom:10,color:'#173404'}}>
+                ⚙️ {lang==='ar'?'تفضيلات الإشعارات':'Préférences notifications'}
+              </div>
+              <div style={{fontSize:11.5,color:'#666',marginBottom:14,lineHeight:1.5}}>
+                {lang==='ar'
+                  ? 'ستظهر الإشعارات في هذه البوابة. إذا أضفت عنوان بريد، ستتلقى نسخة أيضًا.'
+                  : 'Notifications visibles dans ce portail. Ajoutez un email pour recevoir aussi une copie.'}
+              </div>
+              {[
+                { key:'notif_hizb_complet', labelFr:'Validation d\'un Hizb', labelAr:'تأكيد حفظ حزب', icon:'🎉' },
+                { key:'notif_certificat',   labelFr:'Obtention d\'un certificat', labelAr:'الحصول على شهادة', icon:'🏅' },
+                { key:'notif_inactivite',   labelFr:'Alerte inactivité (>14j)', labelAr:'تنبيه عدم النشاط', icon:'⚠️' },
+              ].map(t => (
+                <label key={t.key} style={{display:'flex',alignItems:'center',gap:10,padding:'10px',borderRadius:8,background:'#f9f9f6',marginBottom:6,cursor:'pointer'}}>
+                  <input type="checkbox"
+                    checked={prefsNotifs[t.key] !== false}
+                    onChange={e => setPrefsNotifs({...prefsNotifs, [t.key]: e.target.checked})}
+                    style={{width:18,height:18,cursor:'pointer',accentColor:'#1D9E75'}} />
+                  <span style={{fontSize:13,flex:1,color:'#173404'}}>
+                    {t.icon} {lang==='ar' ? t.labelAr : t.labelFr}
+                  </span>
+                </label>
+              ))}
+              <div style={{marginTop:14,padding:12,background:'#f9f9f6',borderRadius:10}}>
+                <div style={{fontSize:12,fontWeight:700,marginBottom:6,color:'#173404'}}>
+                  📧 {lang==='ar'?'البريد (اختياري)':'Email (optionnel)'}
+                </div>
+                <div style={{fontSize:11,color:'#666',marginBottom:8,lineHeight:1.5}}>
+                  {lang==='ar'?'بدون بريد، ستستمر في رؤية الإشعارات هنا.':'Sans email, les notifications restent visibles ici.'}
+                </div>
+                <div style={{display:'flex',gap:6,marginBottom:8}}>
+                  <input type="email" value={emailParent} onChange={e=>setEmailParent(e.target.value)}
+                    placeholder="parent@email.com"
+                    style={{flex:1,padding:'9px 10px',borderRadius:6,border:'1px solid #e0e0d8',fontSize:13}}/>
+                  <button onClick={handleSaveEmail} disabled={savingEmail}
+                    style={{padding:'9px 14px',background:savingEmail?'#999':'#1D9E75',color:'#fff',border:'none',borderRadius:6,fontSize:12,fontWeight:600,cursor:savingEmail?'default':'pointer'}}>
+                    {savingEmail ? '...' : 'OK'}
+                  </button>
+                </div>
+                {emailParent && (
+                  <label style={{display:'flex',alignItems:'center',gap:8,fontSize:12,cursor:'pointer',color:'#173404'}}>
+                    <input type="checkbox"
+                      checked={prefsNotifs.canal_email !== false}
+                      onChange={e => setPrefsNotifs({...prefsNotifs, canal_email: e.target.checked})}
+                      style={{width:16,height:16,cursor:'pointer',accentColor:'#1D9E75'}} />
+                    <span>{lang==='ar'?'تلقي نسخة بالبريد':'Recevoir aussi par email'}</span>
+                  </label>
+                )}
+              </div>
+              <div style={{display:'flex',gap:6,marginTop:14}}>
+                <button onClick={handleSavePrefs} disabled={savingPrefs}
+                  style={{flex:1,padding:'12px',background:savingPrefs?'#999':'#1D9E75',color:'#fff',border:'none',borderRadius:8,fontWeight:700,cursor:savingPrefs?'default':'pointer',fontSize:13}}>
+                  {savingPrefs ? '⏳' : (lang==='ar'?'💾 حفظ':'💾 Enregistrer')}
+                </button>
+                <button onClick={()=>setShowPrefsNotifs(false)} disabled={savingPrefs}
+                  style={{padding:'12px 16px',background:'#f5f5f0',color:'#666',border:'none',borderRadius:8,cursor:savingPrefs?'default':'pointer',fontSize:13}}>
+                  ✕
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Modale changement MDP mobile */}
+        {showChangeMdp && (
+          <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.5)',zIndex:200,display:'flex',alignItems:'flex-end'}}
+            onClick={()=>setShowChangeMdp(false)}>
+            <div onClick={e=>e.stopPropagation()}
+              style={{width:'100%',background:'#fff',borderRadius:'18px 18px 0 0',padding:'16px'}}>
+              <div style={{fontSize:15,fontWeight:700,marginBottom:12,color:'#173404'}}>
+                🔑 {lang==='ar'?'تغيير كلمة المرور':'Changer le mot de passe'}
+              </div>
+              <input type="password" placeholder={lang==='ar'?'كلمة المرور الحالية':'Mot de passe actuel'}
+                value={oldPwd} onChange={e=>setOldPwd(e.target.value)}
+                style={{width:'100%',padding:'10px',borderRadius:8,border:'1px solid #e0e0d8',marginBottom:8,fontSize:13,boxSizing:'border-box'}}/>
+              <input type="password" placeholder={lang==='ar'?'كلمة المرور الجديدة':'Nouveau mot de passe'}
+                value={newPwd} onChange={e=>setNewPwd(e.target.value)}
+                style={{width:'100%',padding:'10px',borderRadius:8,border:'1px solid #e0e0d8',marginBottom:8,fontSize:13,boxSizing:'border-box'}}/>
+              <input type="password" placeholder={lang==='ar'?'تأكيد كلمة المرور':'Confirmer le mot de passe'}
+                value={confirmPwd} onChange={e=>setConfirmPwd(e.target.value)}
+                style={{width:'100%',padding:'10px',borderRadius:8,border:'1px solid #e0e0d8',marginBottom:12,fontSize:13,boxSizing:'border-box'}}/>
+              <div style={{display:'flex',gap:6}}>
+                <button onClick={changerMotDePasse}
+                  style={{flex:1,padding:'12px',background:'#1D9E75',color:'#fff',border:'none',borderRadius:8,fontWeight:700,cursor:'pointer',fontSize:13}}>
+                  {lang==='ar'?'تحديث':'Mettre à jour'}
+                </button>
+                <button onClick={()=>{setShowChangeMdp(false);setOldPwd('');setNewPwd('');setConfirmPwd('');}}
+                  style={{padding:'12px 16px',background:'#f5f5f0',color:'#666',border:'none',borderRadius:8,cursor:'pointer',fontSize:13}}>
+                  ✕
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Modale RGPD mobile */}
+        {showRgpdModal && (
+          <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.5)',zIndex:200,display:'flex',alignItems:'flex-end'}}
+            onClick={()=>!rgpdLoading && setShowRgpdModal(false)}>
+            <div onClick={e=>e.stopPropagation()}
+              style={{width:'100%',maxHeight:'85vh',background:'#fff',borderRadius:'18px 18px 0 0',padding:'16px',overflow:'auto'}}>
+              <div style={{fontSize:15,fontWeight:700,marginBottom:6,color:'#173404'}}>
+                📦 {lang==='ar'?'تصدير بياناتي':'Exporter mes données'}
+              </div>
+              <div style={{fontSize:12,color:'#666',marginBottom:14,lineHeight:1.5}}>
+                {lang==='ar'
+                  ? 'تنزيل نسخة كاملة من بياناتك وبيانات أبنائك (JSON).'
+                  : 'Télécharger une copie complète de vos données et celles de vos enfants (JSON).'}
+              </div>
+              <div style={{display:'flex',gap:6}}>
+                <button onClick={handleRgpdExport} disabled={rgpdLoading}
+                  style={{flex:1,padding:'12px',background:rgpdLoading?'#999':'#1D9E75',color:'#fff',border:'none',borderRadius:8,fontWeight:700,cursor:rgpdLoading?'default':'pointer',fontSize:13}}>
+                  {rgpdLoading
+                    ? (lang==='ar'?'⏳ ...':'⏳ Génération...')
+                    : (lang==='ar'?'📥 تحميل':'📥 Télécharger')}
+                </button>
+                <button onClick={()=>setShowRgpdModal(false)} disabled={rgpdLoading}
+                  style={{padding:'12px 16px',background:'#f5f5f0',color:'#666',border:'none',borderRadius:8,cursor:rgpdLoading?'default':'pointer',fontSize:13}}>
+                  ✕
+                </button>
+              </div>
+              {rgpdHistorique.length > 0 && (
+                <div style={{marginTop:14,padding:12,background:'#f9f9f6',borderRadius:10}}>
+                  <div style={{fontSize:12,fontWeight:700,marginBottom:6,color:'#173404'}}>
+                    📋 {lang==='ar'?'تاريخ التصديرات':'Historique des exports'}
+                  </div>
+                  {rgpdHistorique.slice(0,5).map(h => (
+                    <div key={h.id} style={{fontSize:11,color:'#666',padding:'4px 0',borderBottom:'0.5px solid #e0e0d8'}}>
+                      {new Date(h.exported_at).toLocaleString(lang==='ar'?'ar-MA':'fr-FR')}
+                      {' · '}
+                      {h.nb_enfants ? `${h.nb_enfants} enf.` : ''}
+                      {h.nb_validations ? ` · ${h.nb_validations} val.` : ''}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
       </div>
     );
   }
@@ -461,6 +801,16 @@ export default function PortailParent({ parent, navigate, goBack, lang='fr', onL
             title={lang==='ar'?'تصدير بياناتك الشخصية وفقًا للRGPD':'Export de vos données personnelles (RGPD)'}
             style={{padding:'6px 16px',background:'rgba(255,255,255,0.2)',color:'#fff',border:'1px solid rgba(255,255,255,0.4)',borderRadius:8,fontSize:12,fontWeight:600,cursor:'pointer'}}>
             📦 {lang==='ar'?'بياناتي':'Mes données'}
+          </button>
+          <button onClick={handleOpenNotifsPanel}
+            title={lang==='ar'?'الإشعارات':'Notifications'}
+            style={{position:'relative',padding:'6px 16px',background:'rgba(255,255,255,0.2)',color:'#fff',border:'1px solid rgba(255,255,255,0.4)',borderRadius:8,fontSize:12,fontWeight:600,cursor:'pointer'}}>
+            🔔 {lang==='ar'?'الإشعارات':'Notifs'}
+            {notifsNonLues > 0 && (
+              <span style={{position:'absolute',top:-5,right:-5,minWidth:18,height:18,padding:'0 5px',background:'#E24B4A',color:'#fff',borderRadius:9,fontSize:10,fontWeight:800,display:'flex',alignItems:'center',justifyContent:'center',border:'2px solid #085041'}}>
+                {notifsNonLues > 9 ? '9+' : notifsNonLues}
+              </span>
+            )}
           </button>
           <button onClick={onLogout}
             style={{padding:'6px 16px',background:'rgba(255,255,255,0.2)',color:'#fff',border:'1px solid rgba(255,255,255,0.4)',borderRadius:8,fontSize:12,fontWeight:600,cursor:'pointer'}}>
@@ -556,6 +906,155 @@ export default function PortailParent({ parent, navigate, goBack, lang='fr', onL
               </button>
               <button onClick={()=>setShowRgpdModal(false)} disabled={rgpdLoading}
                 style={{padding:'10px 14px',background:'rgba(255,255,255,0.2)',color:'#fff',border:'none',borderRadius:6,cursor:rgpdLoading?'default':'pointer',fontSize:13}}>
+                ✕
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* A.1 : Panneau notifications parents (liste inline dans header vert) */}
+        {showNotifsPanel && (
+          <div style={{marginTop:12,background:'rgba(255,255,255,0.15)',borderRadius:10,padding:'14px',color:'#fff'}}>
+            <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:10}}>
+              <div style={{fontSize:14,fontWeight:700}}>
+                🔔 {lang==='ar'?'الإشعارات':'Notifications'}
+                {notifsNonLues > 0 && (
+                  <span style={{marginLeft:8,fontSize:11,background:'#E24B4A',padding:'2px 8px',borderRadius:10}}>
+                    {notifsNonLues} {lang==='ar'?'غير مقروء':'non lu(s)'}
+                  </span>
+                )}
+              </div>
+              <div style={{display:'flex',gap:6}}>
+                {notifsNonLues > 0 && (
+                  <button onClick={handleMarkAllRead}
+                    style={{padding:'4px 10px',background:'rgba(255,255,255,0.2)',color:'#fff',border:'1px solid rgba(255,255,255,0.3)',borderRadius:6,fontSize:11,fontWeight:600,cursor:'pointer'}}>
+                    ✓ {lang==='ar'?'قراءة الكل':'Tout lire'}
+                  </button>
+                )}
+                <button onClick={()=>setShowPrefsNotifs(true)}
+                  title={lang==='ar'?'التفضيلات':'Préférences'}
+                  style={{padding:'4px 10px',background:'rgba(255,255,255,0.2)',color:'#fff',border:'1px solid rgba(255,255,255,0.3)',borderRadius:6,fontSize:11,cursor:'pointer'}}>
+                  ⚙️
+                </button>
+                <button onClick={()=>setShowNotifsPanel(false)}
+                  style={{padding:'4px 10px',background:'rgba(255,255,255,0.2)',color:'#fff',border:'1px solid rgba(255,255,255,0.3)',borderRadius:6,fontSize:11,cursor:'pointer'}}>
+                  ✕
+                </button>
+              </div>
+            </div>
+
+            {notifs.length === 0 ? (
+              <div style={{padding:'20px',textAlign:'center',fontSize:12,opacity:0.8}}>
+                {lang==='ar'?'✨ لا توجد إشعارات':'✨ Aucune notification pour le moment'}
+              </div>
+            ) : (
+              <div style={{maxHeight:340,overflowY:'auto'}}>
+                {notifs.map(n => {
+                  const titre = lang==='ar' ? (n.titre_ar || n.titre_fr) : n.titre_fr;
+                  const corps = lang==='ar' ? (n.corps_ar || n.corps_fr) : n.corps_fr;
+                  const d = new Date(n.created_at);
+                  const isToday = d.toDateString() === new Date().toDateString();
+                  const dateStr = isToday
+                    ? d.toLocaleTimeString(lang==='ar'?'ar-MA':'fr-FR',{hour:'2-digit',minute:'2-digit'})
+                    : d.toLocaleDateString(lang==='ar'?'ar-MA':'fr-FR');
+                  return (
+                    <div key={n.id}
+                      onClick={()=>handleClickNotif(n)}
+                      style={{
+                        padding:'10px 12px',
+                        borderRadius:8,
+                        marginBottom:6,
+                        background: n.lue ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,0.2)',
+                        cursor:'pointer',
+                        borderLeft: n.lue ? 'none' : '3px solid #FBBF24',
+                      }}>
+                      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:3}}>
+                        <div style={{fontSize:12.5,fontWeight: n.lue ? 500 : 700}}>
+                          {titre}
+                        </div>
+                        <div style={{fontSize:10,opacity:0.7,flexShrink:0,marginLeft:8}}>
+                          {dateStr}
+                        </div>
+                      </div>
+                      <div style={{fontSize:11.5,opacity:0.92,lineHeight:1.4}}>
+                        {corps}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* A.1 : Modale préférences notifications */}
+        {showPrefsNotifs && prefsNotifs && (
+          <div style={{marginTop:12,background:'rgba(0,0,0,0.25)',borderRadius:10,padding:'16px',color:'#fff'}}>
+            <div style={{fontSize:14,fontWeight:700,marginBottom:10}}>
+              ⚙️ {lang==='ar'?'تفضيلات الإشعارات':'Préférences de notifications'}
+            </div>
+            <div style={{fontSize:11.5,opacity:0.85,marginBottom:14,lineHeight:1.5}}>
+              {lang==='ar'
+                ? 'اختر الأحداث التي تريد أن نعلمك بها. ستظهر الإشعارات في هذه البوابة. إذا أضفت عنوان بريد إلكتروني، ستتلقى نسخة بالبريد أيضًا.'
+                : 'Choisissez les événements pour lesquels vous souhaitez être notifié. Les notifications apparaissent dans ce portail. Si vous renseignez un email, vous recevrez aussi une copie par email.'}
+            </div>
+
+            {/* Types de notifs */}
+            {[
+              { key:'notif_hizb_complet', labelFr:'Validation d\'un Hizb par mon enfant', labelAr:'تأكيد حفظ حزب', icon:'🎉' },
+              { key:'notif_certificat',   labelFr:'Obtention d\'un certificat',          labelAr:'الحصول على شهادة',  icon:'🏅' },
+              { key:'notif_inactivite',   labelFr:'Alerte inactivité (>14 jours)',      labelAr:'تنبيه عدم النشاط',   icon:'⚠️' },
+            ].map(t => (
+              <label key={t.key} style={{display:'flex',alignItems:'center',gap:10,padding:'8px 10px',borderRadius:8,background:'rgba(255,255,255,0.08)',marginBottom:6,cursor:'pointer'}}>
+                <input type="checkbox"
+                  checked={prefsNotifs[t.key] !== false}
+                  onChange={e => setPrefsNotifs({...prefsNotifs, [t.key]: e.target.checked})}
+                  style={{width:16,height:16,cursor:'pointer',accentColor:'#1D9E75'}} />
+                <span style={{fontSize:13,flex:1}}>
+                  {t.icon} {lang==='ar' ? t.labelAr : t.labelFr}
+                </span>
+              </label>
+            ))}
+
+            {/* Email + toggle canal_email */}
+            <div style={{marginTop:14,padding:'12px',background:'rgba(255,255,255,0.08)',borderRadius:8}}>
+              <div style={{fontSize:12,fontWeight:700,marginBottom:6}}>
+                📧 {lang==='ar'?'البريد الإلكتروني (اختياري)':'Email (optionnel)'}
+              </div>
+              <div style={{fontSize:10.5,opacity:0.75,marginBottom:8,lineHeight:1.5}}>
+                {lang==='ar'
+                  ? 'إذا لم يكن لديك بريد، ستستمر في رؤية الإشعارات هنا.'
+                  : 'Sans email, vous continuerez à voir les notifications ici. Utilisez WhatsApp ou le portail si l\'email n\'est pas pratique.'}
+              </div>
+              <div style={{display:'flex',gap:6,marginBottom:8}}>
+                <input type="email"
+                  value={emailParent}
+                  onChange={e=>setEmailParent(e.target.value)}
+                  placeholder={lang==='ar'?'exemple@email.com':'exemple@email.com'}
+                  style={{flex:1,padding:'8px 10px',borderRadius:6,border:'none',fontSize:13}}/>
+                <button onClick={handleSaveEmail} disabled={savingEmail}
+                  style={{padding:'8px 14px',background:savingEmail?'#999':'#1D9E75',color:'#fff',border:'none',borderRadius:6,fontSize:12,fontWeight:600,cursor:savingEmail?'default':'pointer'}}>
+                  {savingEmail ? '...' : (lang==='ar'?'حفظ':'OK')}
+                </button>
+              </div>
+              {emailParent && (
+                <label style={{display:'flex',alignItems:'center',gap:8,fontSize:11.5,cursor:'pointer'}}>
+                  <input type="checkbox"
+                    checked={prefsNotifs.canal_email !== false}
+                    onChange={e => setPrefsNotifs({...prefsNotifs, canal_email: e.target.checked})}
+                    style={{width:14,height:14,cursor:'pointer',accentColor:'#1D9E75'}} />
+                  <span>{lang==='ar'?'تلقي نسخة بالبريد الإلكتروني':'Recevoir aussi une copie par email'}</span>
+                </label>
+              )}
+            </div>
+
+            <div style={{display:'flex',gap:6,marginTop:14}}>
+              <button onClick={handleSavePrefs} disabled={savingPrefs}
+                style={{flex:1,padding:'10px',background:savingPrefs?'#999':'#1D9E75',color:'#fff',border:'none',borderRadius:6,fontWeight:700,cursor:savingPrefs?'default':'pointer',fontSize:13}}>
+                {savingPrefs ? '⏳ ...' : (lang==='ar'?'💾 حفظ التفضيلات':'💾 Enregistrer')}
+              </button>
+              <button onClick={()=>setShowPrefsNotifs(false)} disabled={savingPrefs}
+                style={{padding:'10px 14px',background:'rgba(255,255,255,0.2)',color:'#fff',border:'none',borderRadius:6,cursor:savingPrefs?'default':'pointer',fontSize:13}}>
                 ✕
               </button>
             </div>

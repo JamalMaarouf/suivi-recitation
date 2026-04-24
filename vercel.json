@@ -19,6 +19,14 @@
     {
       "path": "/api/alertes",
       "schedule": "0 8 * * *"
+    },
+    {
+      "path": "/api/notifications-inactivite",
+      "schedule": "0 9 * * *"
+    },
+    {
+      "path": "/api/notifications-email",
+      "schedule": "30 9 * * *"
     }
   ],
   "env": {
