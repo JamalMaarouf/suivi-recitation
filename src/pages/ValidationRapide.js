@@ -6,6 +6,7 @@ import { invalidateMany } from '../lib/cache';
 import { enqueueOrRun } from '../lib/offlineQueue';
 import { swr } from '../lib/offlineCache';
 import { calcEtatEleve, getInitiales, scoreLabel, motivationMsg, verifierEtCreerCertificats, isSourateNiveauDyn, loadBareme, BAREME_DEFAUT, getSensForEleve} from '../lib/helpers';
+import { notifierParents } from '../lib/notificationsParents';
 import { getSouratesForNiveau } from '../lib/sourates';
 import { t } from '../lib/i18n';
 import { fetchAll } from '../lib/fetchAll';
@@ -287,8 +288,24 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
           if (nouveauxCerts && nouveauxCerts.length > 0) {
             setTimeout(() => setFlash({ msg: `🏅 ${(nouveauxCerts||[]).map(c => c.nom_certificat).join(', ')} !`, color: '#EF9F27', pts: 0 }), 2600);
             setTimeout(() => setFlash(null), 6000);
+            // NOTIF PARENTS : certificats obtenus
+            for (const c of nouveauxCerts) {
+              notifierParents({
+                type: 'certificat_obtenu',
+                eleve: { id: selectedEleve.id, prenom: selectedEleve.prenom, nom: selectedEleve.nom, ecole_id: user.ecole_id },
+                donnees: { certificat_nom: c.nom_certificat, certificat_nom_ar: c.nom_certificat_ar || null, jalon_id: c.jalon_id || null, date: c.date_obtention },
+              }).catch(e => console.warn('[notif cert express] async error', e));
+            }
           }
         } catch (e) { /* silencieux */ }
+      }
+      // NOTIF PARENTS : validation Hizb complet via Express
+      if (!wasQueued) {
+        notifierParents({
+          type: 'hizb_complet',
+          eleve: { id: selectedEleve.id, prenom: selectedEleve.prenom, nom: selectedEleve.nom, ecole_id: user.ecole_id },
+          donnees: { hizb_num: etat.hizbEnCours, date: new Date().toISOString() },
+        }).catch(e => console.warn('[notif hizb express] async error', e));
       }
       invalidateMany(['validations', 'recitations_sourates_min', `validations_${selectedEleve.id}`, `recitations_eleve_${selectedEleve.id}`], user.ecole_id);
     }
