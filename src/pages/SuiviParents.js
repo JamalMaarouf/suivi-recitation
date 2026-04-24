@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { supabase } from '../lib/supabase';
 import { useToast } from '../lib/toast';
 import { openPDF } from '../lib/pdf';
+import { exportExcelSimple } from '../lib/excel';
 import ExportButtons from '../components/ExportButtons';
 
 // ══════════════════════════════════════════════════════════════════════
@@ -169,8 +170,8 @@ export default function SuiviParents({ user, navigate, goBack, lang, isMobile })
     return list;
   }, [parents, filtreNiveau, filtreStatut, recherche]);
 
-  // ─── Export CSV ─────────────────────────────────────────────
-  const exportCSV = () => {
+  // ─── Export Excel ───────────────────────────────────────────
+  const exportExcel = async () => {
     if (parentsFiltres.length === 0) {
       toast.info(lang === 'ar' ? 'لا توجد بيانات للتصدير' : 'Aucune donnée à exporter');
       return;
@@ -202,28 +203,24 @@ export default function SuiviParents({ user, navigate, goBack, lang, isMobile })
       p.parent.telephone || '',
       p.parent.identifiant || '',
       p.derniereVisite?.date_visite || '',
-      p.joursEcoules !== null ? String(p.joursEcoules) : '',
-      String(p.nbVisitesJours),
-      String(p.nbConsultTotal),
+      p.joursEcoules !== null ? p.joursEcoules : '',  // number (pas string) pour Excel
+      p.nbVisitesJours,
+      p.nbConsultTotal,
       statutLabel(p.statut),
     ]);
 
-    // Format CSV avec ; comme séparateur (compatible Excel FR)
-    const csvContent = [
-      headers.join(';'),
-      ...rows.map(r => r.map(c => `"${String(c).replace(/"/g, '""')}"`).join(';'))
-    ].join('\n');
-
-    // BOM pour bien afficher les accents dans Excel
-    const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
     const dateStr = new Date().toISOString().slice(0, 10);
-    link.href = url;
-    link.download = `parents_${filtreStatut === 'tous' ? 'tous' : filtreStatut}_${dateStr}.csv`;
-    link.click();
-    URL.revokeObjectURL(url);
-    toast.success(lang === 'ar' ? '✅ تم التصدير' : '✅ Exporté');
+    const filename = `parents_${filtreStatut === 'tous' ? 'tous' : filtreStatut}_${dateStr}.xlsx`;
+    try {
+      await exportExcelSimple(
+        filename,
+        [headers, ...rows],
+        lang === 'ar' ? 'الأولياء' : 'Parents',
+      );
+      toast.success(lang === 'ar' ? '✅ تم التصدير' : '✅ Exporté');
+    } catch (err) {
+      toast.error('Erreur Excel : ' + err.message);
+    }
   };
 
   // ─── Export PDF ─────────────────────────────────────────────
@@ -328,7 +325,7 @@ export default function SuiviParents({ user, navigate, goBack, lang, isMobile })
             </div>
             <ExportButtons
               onPDF={exportPDF}
-              onCSV={exportCSV}
+              onExcel={exportExcel}
               isMobile={false}
               lang={lang}
               variant="inline"
@@ -350,7 +347,7 @@ export default function SuiviParents({ user, navigate, goBack, lang, isMobile })
               <div style={{ marginBottom: 12 }}>
                 <ExportButtons
                   onPDF={exportPDF}
-                  onCSV={exportCSV}
+                  onExcel={exportExcel}
                   isMobile
                   lang={lang}
                   compact
