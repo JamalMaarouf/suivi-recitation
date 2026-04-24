@@ -4,6 +4,9 @@ import { supabase } from '../lib/supabase';
 import { calcEtatEleve, joursDepuis, isInactif, getSensForEleve} from '../lib/helpers';
 import { t } from '../lib/i18n';
 import { fetchAll } from '../lib/fetchAll';
+import { openPDF } from '../lib/pdf';
+import { exportExcelSimple } from '../lib/excel';
+import ExportButtons from '../components/ExportButtons';
 
 // Couleurs niveaux — fallback sur des valeurs par défaut si niveaux pas encore chargés
 const NIVEAU_COLORS_FALLBACK = { '5B':'#534AB7','5A':'#378ADD','2M':'#1D9E75','2':'#EF9F27','1':'#E24B4A' };
@@ -29,12 +32,22 @@ export default function ElevesInactifs({ navigate, goBack, lang='fr', user, isMo
         fetchAll(supabase.from('validations').select('eleve_id,date_validation,nombre_tomon,type_validation,hizb_valide').eq('ecole_id', user.ecole_id).order('date_validation',{ascending:false})).then(data=>({data})),
         supabase.from('niveaux').select('id,code,couleur,sens_recitation').eq('ecole_id', user.ecole_id),
         supabase.from('ecoles').select('sens_recitation_defaut').eq('id', user.ecole_id).maybeSingle(),
+        // Parents liés (pour le contact dans les exports)
+        supabase.from('parent_eleve').select('parent_id,eleve_id'),
+        supabase.from('utilisateurs').select('id,prenom,nom,telephone').eq('role','parent').eq('ecole_id', user.ecole_id),
       ]);
       const ed = results[0]?.data;
       const id = results[1]?.data;
       const vd = results[2]?.data;
       const nv = results[3]?.data;
       const ec = results[4]?.data;
+      const liaisons = results[5]?.data || [];
+      const parentsList = results[6]?.data || [];
+
+      // Index liaison parent → élève
+      const parentByEleve = {};
+      liaisons.forEach(l => { parentByEleve[l.eleve_id] = l.parent_id; });
+
       const elevesData = (ed||[]).map(eleve => {
         const vals = (vd||[]).filter(v=>v.eleve_id===eleve.id);
         const sensE = getSensForEleve(eleve, nv, ec);
@@ -43,7 +56,15 @@ export default function ElevesInactifs({ navigate, goBack, lang='fr', user, isMo
         const inst = (id||[]).find(i=>i.id===eleve.instituteur_referent_id);
         const jours = joursDepuis(derniere);
         const inactif = isInactif(derniere);
-        return { ...eleve, etat, derniere, jours, inactif, instituteurNom: inst ? inst.prenom+' '+inst.nom : '' };
+        // Parent
+        const parentId = parentByEleve[eleve.id];
+        const parent = parentId ? parentsList.find(p => p.id === parentId) : null;
+        return {
+          ...eleve, etat, derniere, jours, inactif,
+          instituteurNom: inst ? inst.prenom+' '+inst.nom : '',
+          parent_nom: parent ? `${parent.prenom || ''} ${parent.nom || ''}`.trim() : '',
+          parent_tel: parent?.telephone || '',
+        };
       });
       setNiveaux(nv||[]);
       setInactifs(elevesData.filter(e=>e.inactif).sort((a,b)=>{
@@ -63,6 +84,80 @@ export default function ElevesInactifs({ navigate, goBack, lang='fr', user, isMo
   const plus30  = inactifs.filter(e=>e.jours!=null&&e.jours>30).length;
   const entre14 = inactifs.filter(e=>e.jours!=null&&e.jours>14&&e.jours<=30).length;
 
+  // ── Export PDF ──
+  const handleExportPDF = async () => {
+    if (inactifs.length === 0) return;
+    const rows = inactifs.map(e => ({
+      prenom: e.prenom || '',
+      nom: e.nom || '',
+      eleve_id_ecole: e.eleve_id_ecole || '',
+      code_niveau: e.code_niveau || '',
+      niveau_couleur: getNiveauColor(e.code_niveau, niveaux),
+      instituteur: e.instituteurNom || '',
+      derniere: e.derniere || '',
+      jours: e.jours,
+      parent_nom: e.parent_nom || '',
+      parent_tel: e.parent_tel || '',
+    }));
+    try {
+      await openPDF('rapport_inactifs', {
+        ecole: { nom: user?.ecole?.nom || '' },
+        stats: { plus30, entre14, jamais },
+        rows,
+      }, lang);
+    } catch (err) {
+      toast.error((lang === 'ar' ? 'خطأ PDF : ' : 'Erreur PDF : ') + err.message);
+    }
+  };
+
+  // ── Export Excel ──
+  const handleExportExcel = async () => {
+    if (inactifs.length === 0) return;
+    const headers = [
+      '#',
+      lang === 'ar' ? 'الاسم' : 'Prénom',
+      lang === 'ar' ? 'اللقب' : 'Nom',
+      lang === 'ar' ? 'الرقم' : 'N° Élève',
+      lang === 'ar' ? 'المستوى' : 'Niveau',
+      lang === 'ar' ? 'الأستاذ' : 'Instituteur',
+      lang === 'ar' ? 'آخر تلاوة' : 'Dernière récitation',
+      lang === 'ar' ? 'الأيام' : 'Jours inactif',
+      lang === 'ar' ? 'الحالة' : 'Statut',
+      lang === 'ar' ? 'اسم الولي' : 'Nom parent',
+      lang === 'ar' ? 'هاتف الولي' : 'Téléphone parent',
+    ];
+    const rows = inactifs.map((e, i) => {
+      const statut = e.jours == null
+        ? (lang === 'ar' ? 'لم يستظهر' : 'Sans récitation')
+        : e.jours > 30
+          ? (lang === 'ar' ? 'عاجل (+30 يوم)' : 'Urgent (+30 j)')
+          : (lang === 'ar' ? 'تنبيه (14-30)' : 'Alerte (14-30)');
+      return [
+        i + 1,
+        e.prenom || '',
+        e.nom || '',
+        e.eleve_id_ecole || '',
+        e.code_niveau || '',
+        e.instituteurNom || '',
+        e.derniere || '',
+        e.jours == null ? '' : e.jours,
+        statut,
+        e.parent_nom || '',
+        e.parent_tel || '',
+      ];
+    });
+    const dateStr = new Date().toISOString().slice(0, 10);
+    try {
+      await exportExcelSimple(
+        `eleves_inactifs_${dateStr}.xlsx`,
+        [headers, ...rows],
+        lang === 'ar' ? 'غير نشطين' : 'Inactifs',
+      );
+    } catch (err) {
+      toast.error((lang === 'ar' ? 'خطأ Excel : ' : 'Erreur Excel : ') + err.message);
+    }
+  };
+
   if (loading) return (
     <div style={{padding:'2rem',textAlign:'center'}}>
       <div className="loading">...</div>
@@ -76,12 +171,24 @@ export default function ElevesInactifs({ navigate, goBack, lang='fr', user, isMo
     <div style={{paddingBottom: isMobile ? 80 : 0, padding: isMobile ? 0 : '1rem',maxWidth:700,margin:'0 auto',background: isMobile ? '#f5f5f0' : 'transparent',minHeight: isMobile ? '100vh' : 'auto'}}>
       {isMobile ? (
         <div style={{background:'linear-gradient(135deg,#085041,#1D9E75)',padding:'48px 16px 14px',position:'sticky',top:0,zIndex:100,marginBottom:12}}>
-          <div style={{display:'flex',alignItems:'center',gap:12}}>
+          <div style={{display:'flex',alignItems:'center',gap:8}}>
             <button onClick={()=>goBack?goBack():navigate('dashboard')}
               style={{background:'rgba(255,255,255,0.22)',border:'1px solid rgba(255,255,255,0.25)',borderRadius:10,padding:'0',color:'#fff',fontSize:20,cursor:'pointer',flexShrink:0,width:38,height:38,display:'flex',alignItems:'center',justifyContent:'center'}}></button>
-            <div style={{flex:1}}>
-              <div style={{fontSize:17,fontWeight:800,color:'#fff'}}>🚨 {lang==='ar'?'الطلاب غير النشطين':'Élèves inactifs'}</div>
+            <div style={{flex:1,minWidth:0}}>
+              <div style={{fontSize:16,fontWeight:800,color:'#fff'}}>🚨 {lang==='ar'?'الطلاب غير النشطين':'Élèves inactifs'}</div>
               <div style={{fontSize:11,color:'rgba(255,255,255,0.8)'}}>{inactifs.length} {lang==='ar'?'طالب':'élève(s)'}</div>
+            </div>
+            <div style={{display:'flex',gap:6,flexShrink:0}}>
+              <button onClick={handleExportPDF} disabled={inactifs.length===0}
+                title={lang==='ar'?'تصدير PDF':'Exporter PDF'}
+                style={{background:'rgba(255,255,255,0.25)',border:'1px solid rgba(255,255,255,0.3)',borderRadius:10,padding:'7px 9px',color:'#fff',fontSize:12,fontWeight:700,cursor:inactifs.length===0?'default':'pointer',opacity:inactifs.length===0?0.4:1,whiteSpace:'nowrap',fontFamily:'inherit'}}>
+                📄
+              </button>
+              <button onClick={handleExportExcel} disabled={inactifs.length===0}
+                title={lang==='ar'?'تصدير Excel':'Exporter Excel'}
+                style={{background:'rgba(255,255,255,0.25)',border:'1px solid rgba(255,255,255,0.3)',borderRadius:10,padding:'7px 9px',color:'#fff',fontSize:12,fontWeight:700,cursor:inactifs.length===0?'default':'pointer',opacity:inactifs.length===0?0.4:1,whiteSpace:'nowrap',fontFamily:'inherit'}}>
+                📊
+              </button>
             </div>
           </div>
         </div>
@@ -89,9 +196,16 @@ export default function ElevesInactifs({ navigate, goBack, lang='fr', user, isMo
         <div style={{display:'flex',alignItems:'center',gap:12,marginBottom:'1.2rem'}}>
           <button onClick={()=>goBack?goBack():navigate('dashboard')}
               style={{background:'rgba(255,255,255,0.22)',border:'1px solid rgba(255,255,255,0.25)',borderRadius:10,padding:'0',color:'#fff',fontSize:20,cursor:'pointer',flexShrink:0,width:38,height:38,display:'flex',alignItems:'center',justifyContent:'center'}}>←</button>
-          <div style={{fontSize:17,fontWeight:700,color:'#1a1a1a'}}>
+          <div style={{flex:1,fontSize:17,fontWeight:700,color:'#1a1a1a'}}>
             {lang==='ar'?'الطلاب غير النشطين':'Élèves inactifs'} ({inactifs.length})
           </div>
+          <ExportButtons
+            onPDF={handleExportPDF}
+            onExcel={handleExportExcel}
+            lang={lang}
+            variant="inline"
+            disabled={inactifs.length === 0}
+          />
         </div>
       )}
 

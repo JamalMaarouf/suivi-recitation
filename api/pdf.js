@@ -40,6 +40,8 @@ module.exports = async function handler(req, res) {
       html = generateRapportMuraja(data, lang);
     } else if (type === 'rapport_honneur') {
       html = generateRapportHonneur(data, lang);
+    } else if (type === 'rapport_inactifs') {
+      html = generateRapportInactifs(data, lang);
     } else {
       return res.status(400).json({ error: 'Type non supporté' });
     }
@@ -1249,6 +1251,129 @@ function generateRapportHonneur(data, lang) {
 
     <div class="footer" style="margin-top:20px;border-top:1px dashed #EF9F27;padding-top:10px;text-align:center;font-size:10px;color:#888">
       ${ecole?.nom || ''} · ${isAr ? 'لوحة الشرف' : 'Tableau d\'honneur'} · ${eleves.length} ${isAr ? 'طالب' : 'élève(s)'}
+    </div>
+  </div>
+  </body></html>`;
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// RAPPORT ÉLÈVES INACTIFS — liste d'alerte avec téléphones parents
+// Objectif : permettre au surveillant d'appeler/relancer les familles
+// ══════════════════════════════════════════════════════════════════════
+function generateRapportInactifs(data, lang) {
+  const {
+    ecole,
+    stats = {},       // { plus30, entre14, jamais }
+    rows = [],        // [{prenom, nom, eleve_id_ecole, code_niveau, niveau_couleur, instituteur, derniere, jours, parent_nom, parent_tel}]
+  } = data || {};
+  const isAr = lang === 'ar';
+  const dir = isAr ? 'rtl' : 'ltr';
+  const titre = isAr ? 'تقرير الطلاب غير النشطين' : 'Rapport Élèves inactifs';
+
+  // Catégorisation par urgence
+  const categoryColor = (row) => {
+    if (row.jours == null) return { bg: '#F0EEFF', color: '#534AB7', label: isAr ? 'لم يستظهر' : 'Sans récit.' };
+    if (row.jours > 30)    return { bg: '#FCEBEB', color: '#E24B4A', label: isAr ? 'عاجل' : 'Urgent' };
+    return { bg: '#FFF3CD', color: '#856404', label: isAr ? 'تنبيه' : 'Alerte' };
+  };
+
+  const joursLabel = (j) => {
+    if (j == null) return isAr ? 'لم يستظهر قط' : 'Jamais récité';
+    if (j === 0)   return isAr ? 'اليوم' : 'Aujourd\'hui';
+    if (j === 1)   return isAr ? 'أمس' : 'Hier';
+    return isAr ? `منذ ${j} يوم` : `Il y a ${j} j`;
+  };
+
+  const rowsHtml = rows.map((r, i) => {
+    const cat = categoryColor(r);
+    return `
+      <tr>
+        <td style="text-align:center;color:#888">${i + 1}</td>
+        <td>
+          <div style="font-weight:700">${r.prenom || ''} ${r.nom || ''}</div>
+          ${r.eleve_id_ecole ? `<div style="font-size:10px;color:#888">N° ${r.eleve_id_ecole}</div>` : ''}
+        </td>
+        <td>
+          <span class="badge" style="background:${r.niveau_couleur || '#085041'}20;color:${r.niveau_couleur || '#085041'}">
+            ${r.code_niveau || '—'}
+          </span>
+        </td>
+        <td style="font-size:11px">${r.instituteur || '—'}</td>
+        <td style="text-align:center">
+          <span style="padding:2px 10px;border-radius:10px;background:${cat.bg};color:${cat.color};font-weight:700;font-size:11px">
+            ${cat.label}
+          </span>
+          <div style="font-size:10px;color:#666;margin-top:3px">${joursLabel(r.jours)}</div>
+        </td>
+        <td style="font-size:11px">
+          ${r.parent_nom ? `<div style="font-weight:600">${r.parent_nom}</div>` : ''}
+          ${r.parent_tel ? `<div style="font-family:monospace;color:#378ADD;font-weight:700">📞 ${r.parent_tel}</div>` : `<div style="color:#aaa;font-style:italic">${isAr ? 'بدون' : 'Non renseigné'}</div>`}
+        </td>
+      </tr>
+    `;
+  }).join('');
+
+  return `<!DOCTYPE html><html dir="${dir}"><head><meta charset="UTF-8"><title>${titre}</title>${baseStyles()}</head>
+  <body>
+  ${printButton(lang)}
+  <div class="page">
+    <div class="header">
+      <div>
+        <div class="logo">🚨 ${ecole?.nom || 'École'}</div>
+        <div class="subtitle">${titre}</div>
+      </div>
+      <div style="font-size:12px;color:#888;text-align:right">
+        <div>${new Date().toLocaleDateString(isAr ? 'ar-MA' : 'fr-FR')}</div>
+        <div style="margin-top:2px">${rows.length} ${isAr ? 'طالب' : 'élève(s)'}</div>
+      </div>
+    </div>
+
+    <div class="kpi-grid" style="grid-template-columns:repeat(3,1fr)">
+      <div class="kpi">
+        <div class="kpi-val" style="color:#E24B4A">${stats.plus30 || 0}</div>
+        <div class="kpi-lbl">🔴 +30 ${isAr ? 'يوم' : 'jours'}</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-val" style="color:#856404">${stats.entre14 || 0}</div>
+        <div class="kpi-lbl">🟡 14-30 ${isAr ? 'يوم' : 'jours'}</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-val" style="color:#534AB7">${stats.jamais || 0}</div>
+        <div class="kpi-lbl">⚪ ${isAr ? 'لم يستظهر' : 'Sans récitation'}</div>
+      </div>
+    </div>
+
+    <div class="section-title">${isAr ? 'قائمة الطلاب للاتصال' : 'Liste des élèves à contacter'}</div>
+
+    ${rows.length === 0 ? `
+      <div style="padding:40px;text-align:center;color:#1D9E75;background:#E1F5EE;border-radius:12px;font-weight:700">
+        ✓ ${isAr ? 'جميع الطلاب نشطون' : 'Tous les élèves sont actifs'}
+      </div>
+    ` : `
+      <table>
+        <thead>
+          <tr>
+            <th style="width:40px;text-align:center">#</th>
+            <th>${isAr ? 'الطالب' : 'Élève'}</th>
+            <th>${isAr ? 'المستوى' : 'Niveau'}</th>
+            <th>${isAr ? 'الأستاذ' : 'Instituteur'}</th>
+            <th style="text-align:center">${isAr ? 'الحالة' : 'Statut'}</th>
+            <th>${isAr ? 'الولي + الهاتف' : 'Parent + téléphone'}</th>
+          </tr>
+        </thead>
+        <tbody>${rowsHtml}</tbody>
+      </table>
+    `}
+
+    <div style="margin-top:16px;padding:12px;background:#FCEBEB;border-left:4px solid #E24B4A;border-radius:8px;font-size:11px;color:#666;line-height:1.6">
+      <strong>💡 ${isAr ? 'توصية' : 'Action recommandée'} :</strong><br>
+      ${isAr
+        ? 'اتصل بأولياء الطلاب المصنفين 🔴 عاجل لفهم سبب الغياب وإرشادهم. الطلاب ⚪ بدون تلاوة يستحقون اهتماما خاصا.'
+        : 'Contacter en priorité les parents des élèves 🔴 Urgents. Les élèves ⚪ Sans récitation n\'ont jamais valide — attention particulière recommandée.'}
+    </div>
+
+    <div class="footer">
+      ${ecole?.nom || ''} · ${isAr ? 'سري — للاستخدام الداخلي' : 'Confidentiel — Usage interne'}
     </div>
   </div>
   </body></html>`;
