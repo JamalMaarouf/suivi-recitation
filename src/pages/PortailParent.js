@@ -396,6 +396,35 @@ export default function PortailParent({ parent, navigate, goBack, lang='fr', onL
       <div style={{paddingBottom:80, background:'#f5f5f0', minHeight:'100vh'}}>
         {/* Mobile header */}
         <div style={{background:'linear-gradient(135deg,#085041,#1D9E75)', padding:'48px 16px 20px', position:'sticky', top:0, zIndex:100}}>
+          {/* Barre d'actions mobile : notifs + MDP + RGPD + logout */}
+          <div style={{display:'flex',gap:6,justifyContent:'flex-end',marginBottom:10,flexWrap:'wrap'}}>
+            <button onClick={handleOpenNotifsPanel}
+              title={lang==='ar'?'الإشعارات':'Notifications'}
+              style={{position:'relative',padding:'6px 10px',background:'rgba(255,255,255,0.2)',color:'#fff',border:'1px solid rgba(255,255,255,0.3)',borderRadius:8,fontSize:13,cursor:'pointer'}}>
+              🔔
+              {notifsNonLues > 0 && (
+                <span style={{position:'absolute',top:-5,right:-5,minWidth:18,height:18,padding:'0 5px',background:'#E24B4A',color:'#fff',borderRadius:9,fontSize:10,fontWeight:800,display:'flex',alignItems:'center',justifyContent:'center',border:'2px solid #085041'}}>
+                  {notifsNonLues > 9 ? '9+' : notifsNonLues}
+                </span>
+              )}
+            </button>
+            <button onClick={()=>setShowChangeMdp(v=>!v)}
+              title={lang==='ar'?'كلمة المرور':'Mot de passe'}
+              style={{padding:'6px 10px',background:'rgba(255,255,255,0.2)',color:'#fff',border:'1px solid rgba(255,255,255,0.3)',borderRadius:8,fontSize:13,cursor:'pointer'}}>
+              🔑
+            </button>
+            <button onClick={()=>setShowRgpdModal(true)}
+              title={lang==='ar'?'بياناتي':'Mes données'}
+              style={{padding:'6px 10px',background:'rgba(255,255,255,0.2)',color:'#fff',border:'1px solid rgba(255,255,255,0.3)',borderRadius:8,fontSize:13,cursor:'pointer'}}>
+              📦
+            </button>
+            <button onClick={onLogout}
+              title={lang==='ar'?'تسجيل الخروج':'Déconnexion'}
+              style={{padding:'6px 10px',background:'rgba(255,255,255,0.2)',color:'#fff',border:'1px solid rgba(255,255,255,0.3)',borderRadius:8,fontSize:13,cursor:'pointer'}}>
+              🚪
+            </button>
+          </div>
+
           <div style={{fontSize:13, color:'rgba(255,255,255,0.8)', marginBottom:4}}>
             {lang==='ar'?'مرحباً':'Bonjour'}, <strong>{parent.prenom} {parent.nom}</strong>
           </div>
@@ -531,6 +560,220 @@ export default function PortailParent({ parent, navigate, goBack, lang='fr', onL
             {onglet==='cours' && selectedEnfant && (
               <OngletCoursEleve eleve={selectedEnfant} lang={lang} isMobile={true} />
             )}
+          </div>
+        )}
+
+        {/* ═══ OVERLAYS MOBILE — plein écran en bottom sheet ═══ */}
+
+        {/* Panneau notifications mobile */}
+        {showNotifsPanel && (
+          <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.5)',zIndex:200,display:'flex',alignItems:'flex-end'}}
+            onClick={()=>setShowNotifsPanel(false)}>
+            <div onClick={e=>e.stopPropagation()}
+              style={{width:'100%',maxHeight:'85vh',background:'#fff',borderRadius:'18px 18px 0 0',padding:'16px',overflow:'auto'}}>
+              <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:14}}>
+                <div style={{fontSize:16,fontWeight:700,color:'#173404'}}>
+                  🔔 {lang==='ar'?'الإشعارات':'Notifications'}
+                  {notifsNonLues > 0 && (
+                    <span style={{marginLeft:8,fontSize:11,background:'#E24B4A',color:'#fff',padding:'2px 8px',borderRadius:10}}>
+                      {notifsNonLues}
+                    </span>
+                  )}
+                </div>
+                <div style={{display:'flex',gap:6}}>
+                  {notifsNonLues > 0 && (
+                    <button onClick={handleMarkAllRead}
+                      style={{padding:'6px 12px',background:'#E1F5EE',color:'#1D9E75',border:'none',borderRadius:6,fontSize:11,fontWeight:600,cursor:'pointer'}}>
+                      ✓ {lang==='ar'?'الكل':'Tout lire'}
+                    </button>
+                  )}
+                  <button onClick={()=>setShowPrefsNotifs(true)}
+                    style={{padding:'6px 10px',background:'#f5f5f0',border:'none',borderRadius:6,cursor:'pointer',fontSize:13}}>
+                    ⚙️
+                  </button>
+                  <button onClick={()=>setShowNotifsPanel(false)}
+                    style={{padding:'6px 10px',background:'#f5f5f0',border:'none',borderRadius:6,cursor:'pointer',fontSize:13}}>
+                    ✕
+                  </button>
+                </div>
+              </div>
+              {notifs.length === 0 ? (
+                <div style={{padding:'30px 20px',textAlign:'center',fontSize:13,color:'#888'}}>
+                  {lang==='ar'?'✨ لا توجد إشعارات':'✨ Aucune notification pour le moment'}
+                </div>
+              ) : (
+                <div>
+                  {notifs.map(n => {
+                    const titre = lang==='ar' ? (n.titre_ar || n.titre_fr) : n.titre_fr;
+                    const corps = lang==='ar' ? (n.corps_ar || n.corps_fr) : n.corps_fr;
+                    const d = new Date(n.created_at);
+                    const isToday = d.toDateString() === new Date().toDateString();
+                    const dateStr = isToday
+                      ? d.toLocaleTimeString(lang==='ar'?'ar-MA':'fr-FR',{hour:'2-digit',minute:'2-digit'})
+                      : d.toLocaleDateString(lang==='ar'?'ar-MA':'fr-FR');
+                    return (
+                      <div key={n.id} onClick={()=>handleClickNotif(n)}
+                        style={{padding:'12px',borderRadius:10,marginBottom:8,
+                          background: n.lue ? '#f9f9f6' : '#FEF9E7',
+                          border: n.lue ? '0.5px solid #e0e0d8' : '1px solid #FBBF24',
+                          cursor:'pointer'}}>
+                        <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:3}}>
+                          <div style={{fontSize:13,fontWeight: n.lue ? 500 : 700,color:'#173404',flex:1}}>{titre}</div>
+                          <div style={{fontSize:10,color:'#888',flexShrink:0,marginLeft:6}}>{dateStr}</div>
+                        </div>
+                        <div style={{fontSize:12,color:'#444',lineHeight:1.4}}>{corps}</div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Modale préférences notifs mobile */}
+        {showPrefsNotifs && prefsNotifs && (
+          <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.5)',zIndex:250,display:'flex',alignItems:'flex-end'}}
+            onClick={()=>setShowPrefsNotifs(false)}>
+            <div onClick={e=>e.stopPropagation()}
+              style={{width:'100%',maxHeight:'85vh',background:'#fff',borderRadius:'18px 18px 0 0',padding:'16px',overflow:'auto'}}>
+              <div style={{fontSize:15,fontWeight:700,marginBottom:10,color:'#173404'}}>
+                ⚙️ {lang==='ar'?'تفضيلات الإشعارات':'Préférences notifications'}
+              </div>
+              <div style={{fontSize:11.5,color:'#666',marginBottom:14,lineHeight:1.5}}>
+                {lang==='ar'
+                  ? 'ستظهر الإشعارات في هذه البوابة. إذا أضفت عنوان بريد، ستتلقى نسخة أيضًا.'
+                  : 'Notifications visibles dans ce portail. Ajoutez un email pour recevoir aussi une copie.'}
+              </div>
+              {[
+                { key:'notif_hizb_complet', labelFr:'Validation d\'un Hizb', labelAr:'تأكيد حفظ حزب', icon:'🎉' },
+                { key:'notif_certificat',   labelFr:'Obtention d\'un certificat', labelAr:'الحصول على شهادة', icon:'🏅' },
+                { key:'notif_inactivite',   labelFr:'Alerte inactivité (>14j)', labelAr:'تنبيه عدم النشاط', icon:'⚠️' },
+              ].map(t => (
+                <label key={t.key} style={{display:'flex',alignItems:'center',gap:10,padding:'10px',borderRadius:8,background:'#f9f9f6',marginBottom:6,cursor:'pointer'}}>
+                  <input type="checkbox"
+                    checked={prefsNotifs[t.key] !== false}
+                    onChange={e => setPrefsNotifs({...prefsNotifs, [t.key]: e.target.checked})}
+                    style={{width:18,height:18,cursor:'pointer',accentColor:'#1D9E75'}} />
+                  <span style={{fontSize:13,flex:1,color:'#173404'}}>
+                    {t.icon} {lang==='ar' ? t.labelAr : t.labelFr}
+                  </span>
+                </label>
+              ))}
+              <div style={{marginTop:14,padding:12,background:'#f9f9f6',borderRadius:10}}>
+                <div style={{fontSize:12,fontWeight:700,marginBottom:6,color:'#173404'}}>
+                  📧 {lang==='ar'?'البريد (اختياري)':'Email (optionnel)'}
+                </div>
+                <div style={{fontSize:11,color:'#666',marginBottom:8,lineHeight:1.5}}>
+                  {lang==='ar'?'بدون بريد، ستستمر في رؤية الإشعارات هنا.':'Sans email, les notifications restent visibles ici.'}
+                </div>
+                <div style={{display:'flex',gap:6,marginBottom:8}}>
+                  <input type="email" value={emailParent} onChange={e=>setEmailParent(e.target.value)}
+                    placeholder="parent@email.com"
+                    style={{flex:1,padding:'9px 10px',borderRadius:6,border:'1px solid #e0e0d8',fontSize:13}}/>
+                  <button onClick={handleSaveEmail} disabled={savingEmail}
+                    style={{padding:'9px 14px',background:savingEmail?'#999':'#1D9E75',color:'#fff',border:'none',borderRadius:6,fontSize:12,fontWeight:600,cursor:savingEmail?'default':'pointer'}}>
+                    {savingEmail ? '...' : 'OK'}
+                  </button>
+                </div>
+                {emailParent && (
+                  <label style={{display:'flex',alignItems:'center',gap:8,fontSize:12,cursor:'pointer',color:'#173404'}}>
+                    <input type="checkbox"
+                      checked={prefsNotifs.canal_email !== false}
+                      onChange={e => setPrefsNotifs({...prefsNotifs, canal_email: e.target.checked})}
+                      style={{width:16,height:16,cursor:'pointer',accentColor:'#1D9E75'}} />
+                    <span>{lang==='ar'?'تلقي نسخة بالبريد':'Recevoir aussi par email'}</span>
+                  </label>
+                )}
+              </div>
+              <div style={{display:'flex',gap:6,marginTop:14}}>
+                <button onClick={handleSavePrefs} disabled={savingPrefs}
+                  style={{flex:1,padding:'12px',background:savingPrefs?'#999':'#1D9E75',color:'#fff',border:'none',borderRadius:8,fontWeight:700,cursor:savingPrefs?'default':'pointer',fontSize:13}}>
+                  {savingPrefs ? '⏳' : (lang==='ar'?'💾 حفظ':'💾 Enregistrer')}
+                </button>
+                <button onClick={()=>setShowPrefsNotifs(false)} disabled={savingPrefs}
+                  style={{padding:'12px 16px',background:'#f5f5f0',color:'#666',border:'none',borderRadius:8,cursor:savingPrefs?'default':'pointer',fontSize:13}}>
+                  ✕
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Modale changement MDP mobile */}
+        {showChangeMdp && (
+          <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.5)',zIndex:200,display:'flex',alignItems:'flex-end'}}
+            onClick={()=>setShowChangeMdp(false)}>
+            <div onClick={e=>e.stopPropagation()}
+              style={{width:'100%',background:'#fff',borderRadius:'18px 18px 0 0',padding:'16px'}}>
+              <div style={{fontSize:15,fontWeight:700,marginBottom:12,color:'#173404'}}>
+                🔑 {lang==='ar'?'تغيير كلمة المرور':'Changer le mot de passe'}
+              </div>
+              <input type="password" placeholder={lang==='ar'?'كلمة المرور الحالية':'Mot de passe actuel'}
+                value={oldPwd} onChange={e=>setOldPwd(e.target.value)}
+                style={{width:'100%',padding:'10px',borderRadius:8,border:'1px solid #e0e0d8',marginBottom:8,fontSize:13,boxSizing:'border-box'}}/>
+              <input type="password" placeholder={lang==='ar'?'كلمة المرور الجديدة':'Nouveau mot de passe'}
+                value={newPwd} onChange={e=>setNewPwd(e.target.value)}
+                style={{width:'100%',padding:'10px',borderRadius:8,border:'1px solid #e0e0d8',marginBottom:8,fontSize:13,boxSizing:'border-box'}}/>
+              <input type="password" placeholder={lang==='ar'?'تأكيد كلمة المرور':'Confirmer le mot de passe'}
+                value={confirmPwd} onChange={e=>setConfirmPwd(e.target.value)}
+                style={{width:'100%',padding:'10px',borderRadius:8,border:'1px solid #e0e0d8',marginBottom:12,fontSize:13,boxSizing:'border-box'}}/>
+              <div style={{display:'flex',gap:6}}>
+                <button onClick={changerMotDePasse}
+                  style={{flex:1,padding:'12px',background:'#1D9E75',color:'#fff',border:'none',borderRadius:8,fontWeight:700,cursor:'pointer',fontSize:13}}>
+                  {lang==='ar'?'تحديث':'Mettre à jour'}
+                </button>
+                <button onClick={()=>{setShowChangeMdp(false);setOldPwd('');setNewPwd('');setConfirmPwd('');}}
+                  style={{padding:'12px 16px',background:'#f5f5f0',color:'#666',border:'none',borderRadius:8,cursor:'pointer',fontSize:13}}>
+                  ✕
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Modale RGPD mobile */}
+        {showRgpdModal && (
+          <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.5)',zIndex:200,display:'flex',alignItems:'flex-end'}}
+            onClick={()=>!rgpdLoading && setShowRgpdModal(false)}>
+            <div onClick={e=>e.stopPropagation()}
+              style={{width:'100%',maxHeight:'85vh',background:'#fff',borderRadius:'18px 18px 0 0',padding:'16px',overflow:'auto'}}>
+              <div style={{fontSize:15,fontWeight:700,marginBottom:6,color:'#173404'}}>
+                📦 {lang==='ar'?'تصدير بياناتي':'Exporter mes données'}
+              </div>
+              <div style={{fontSize:12,color:'#666',marginBottom:14,lineHeight:1.5}}>
+                {lang==='ar'
+                  ? 'تنزيل نسخة كاملة من بياناتك وبيانات أبنائك (JSON).'
+                  : 'Télécharger une copie complète de vos données et celles de vos enfants (JSON).'}
+              </div>
+              <div style={{display:'flex',gap:6}}>
+                <button onClick={handleRgpdExport} disabled={rgpdLoading}
+                  style={{flex:1,padding:'12px',background:rgpdLoading?'#999':'#1D9E75',color:'#fff',border:'none',borderRadius:8,fontWeight:700,cursor:rgpdLoading?'default':'pointer',fontSize:13}}>
+                  {rgpdLoading
+                    ? (lang==='ar'?'⏳ ...':'⏳ Génération...')
+                    : (lang==='ar'?'📥 تحميل':'📥 Télécharger')}
+                </button>
+                <button onClick={()=>setShowRgpdModal(false)} disabled={rgpdLoading}
+                  style={{padding:'12px 16px',background:'#f5f5f0',color:'#666',border:'none',borderRadius:8,cursor:rgpdLoading?'default':'pointer',fontSize:13}}>
+                  ✕
+                </button>
+              </div>
+              {rgpdHistorique.length > 0 && (
+                <div style={{marginTop:14,padding:12,background:'#f9f9f6',borderRadius:10}}>
+                  <div style={{fontSize:12,fontWeight:700,marginBottom:6,color:'#173404'}}>
+                    📋 {lang==='ar'?'تاريخ التصديرات':'Historique des exports'}
+                  </div>
+                  {rgpdHistorique.slice(0,5).map(h => (
+                    <div key={h.id} style={{fontSize:11,color:'#666',padding:'4px 0',borderBottom:'0.5px solid #e0e0d8'}}>
+                      {new Date(h.exported_at).toLocaleString(lang==='ar'?'ar-MA':'fr-FR')}
+                      {' · '}
+                      {h.nb_enfants ? `${h.nb_enfants} enf.` : ''}
+                      {h.nb_validations ? ` · ${h.nb_validations} val.` : ''}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         )}
       </div>
