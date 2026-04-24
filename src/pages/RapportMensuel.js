@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { calcEtatEleve, getInitiales , loadBareme, BAREME_DEFAUT, getSensForEleve} from '../lib/helpers';
 import { fetchAll } from '../lib/fetchAll';
+import { openPDF } from '../lib/pdf';
+import ExportButtons from '../components/ExportButtons';
 
 const MOIS_FR = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
 const MOIS_AR = ['يناير','فبراير','مارس','أبريل','مايو','يونيو','يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر'];
@@ -168,13 +170,15 @@ export default function RapportMensuel({ user, navigate, goBack, lang='fr', isMo
   const nextMois = () => { if(mois===11){setMois(0);setAnnee(a=>a+1);}else setMois(m=>m+1); };
 
   // ── GÉNÉRATION PDF CÔTÉ SERVEUR ────────────────────────────────
+  // Utilise le helper centralisé openPDF() qui gere l'ouverture dans
+  // un nouvel onglet + fallback blob si popup bloque. Meme template
+  // serveur que les autres exports PDF.
   const genererRapportPDF = async () => {
     setGenerating(true);
     try {
       const moisLabel = getMoisNom(mois, lang);
       const ecolNom   = ecole?.nom || 'École Coranique';
 
-      // Préparer les données pour l'API
       const elevesData = (statsEleves||[]).map(e => ({
         prenom: e.prenom, nom: e.nom,
         code_niveau: e.code_niveau,
@@ -184,43 +188,17 @@ export default function RapportMensuel({ user, navigate, goBack, lang='fr', isMo
         jours: e.joursActifs || 0,
       }));
 
-      const res = await fetch('/api/pdf', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          type: 'rapport_mensuel',
-          lang,
-          data: {
-            ecole: { nom: ecolNom },
-            mois: moisLabel,
-            annee,
-            eleves: elevesData,
-            stats: {
-              totalPts: elevesData.reduce((s,e)=>s+e.pts,0),
-              totalTomon: totalTomon,
-              totalHizb: totalHizb,
-            },
-          },
-        }),
-      });
-
-      if (!res.ok) throw new Error('Erreur serveur PDF');
-
-      const html = await res.text();
-      const win = window.open('', '_blank');
-      if (win) {
-        win.document.write(html);
-        win.document.close();
-      } else {
-        // Popup bloqué → téléchargement direct
-        const blob = new Blob([html], { type: 'text/html' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `rapport_${moisLabel}_${annee}.html`;
-        a.click();
-        setTimeout(() => URL.revokeObjectURL(url), 3000);
-      }
+      await openPDF('rapport_mensuel', {
+        ecole: { nom: ecolNom },
+        mois: moisLabel,
+        annee,
+        eleves: elevesData,
+        stats: {
+          totalPts: elevesData.reduce((s,e)=>s+e.pts,0),
+          totalTomon: totalTomon,
+          totalHizb: totalHizb,
+        },
+      }, lang);
     } catch(err) {
       console.error(err);
       alert('Erreur génération PDF : ' + err.message);
@@ -265,10 +243,12 @@ export default function RapportMensuel({ user, navigate, goBack, lang='fr', isMo
           <div style={{fontSize:15,fontWeight:700,minWidth:140,textAlign:'center'}}>{getMoisNom(mois,lang)} {annee}</div>
           <button onClick={nextMois} style={{padding:'6px 12px',border:'0.5px solid #e0e0d8',borderRadius:8,background:'#fff',cursor:'pointer',fontSize:16}}>›</button>
         </div>
-        <button onClick={genererRapportPDF} disabled={generating||loading}
-          style={{padding:'9px 20px',background:generating?'#ccc':'#1D9E75',color:'#fff',border:'none',borderRadius:10,fontSize:13,fontWeight:700,cursor:'pointer',display:'flex',alignItems:'center',gap:8}}>
-          {generating?'⏳ Génération...':'📄 Exporter PDF'}
-        </button>
+        <ExportButtons
+          onPDF={genererRapportPDF}
+          lang={lang}
+          variant="inline"
+          disabled={generating||loading}
+        />
       </div>
       )}
 
@@ -484,289 +464,4 @@ export default function RapportMensuel({ user, navigate, goBack, lang='fr', isMo
       )}
     </div>
   );
-}
-
-// ── BUILDER HTML POUR PDF ──────────────────────────────────────
-function buildRapportHTML({
-  ecolNom, moisLabel, annee, lang,
-  nbActifs, tauxActivite, totalTomon, totalHizb, totalSourates,
-  exReussis, exTotal, tauxExamens, tauxAtteinte, elevesAvecObj,
-  statsEleves, statsByNiveau, statsByInst, reMois, examens,
-  niveaux, medals,
-}) {
-  const G = '#1D9E75'; const date = new Date().toLocaleDateString('fr-FR');
-  const pC = (p)=>p>=100?'#1D9E75':p>=70?'#EF9F27':'#E24B4A';
-  const pB = (p)=>p>=100?'#E1F5EE':p>=70?'#FAEEDA':'#FCEBEB';
-
-  const pageStyle = `
-    width:794px; min-height:1123px; background:#fff; padding:40px 50px;
-    box-sizing:border-box; position:relative; page-break-after:always;
-    font-family:'Tajawal',Arial,sans-serif; color:#1a1a1a;
-  `;
-  const headerBand = `
-    <div style="background:linear-gradient(135deg,#085041,#1D9E75);color:#fff;
-      padding:28px 36px;border-radius:12px;margin-bottom:28px;">
-      <div style="font-size:11px;opacity:0.8;letter-spacing:2px;text-transform:uppercase;margin-bottom:4px;">${ecolNom}</div>
-      <div style="font-size:28px;font-weight:800;margin-bottom:4px;">
-        📊 ${lang==='ar'?'التقرير الشهري':'Rapport Mensuel'} — ${moisLabel} ${annee}
-      </div>
-      <div style="font-size:12px;opacity:0.7;">${lang==='ar'?'تاريخ الإصدار':'Généré le'} : ${date}</div>
-    </div>
-  `;
-
-  // ── PAGE 1 : Résumé exécutif ───────────────────────────────────
-  const page1 = `
-    <div class="rapport-page" style="${pageStyle}">
-      ${headerBand}
-
-      <div style="font-size:11px;font-weight:700;color:#888;letter-spacing:1.5px;text-transform:uppercase;margin-bottom:14px;">
-        ${lang==='ar'?'ملخص تنفيذي':'Résumé exécutif'}
-      </div>
-
-      <!-- KPIs -->
-      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:28px;">
-        ${[
-          {v:nbActifs,        l:lang==='ar'?'طلاب نشطون':'Élèves actifs',        c:'#085041',bg:'#E1F5EE'},
-          {v:`${tauxActivite}%`,l:lang==='ar'?'نسبة النشاط':'Taux d\'activité',  c:'#1D9E75',bg:'#E1F5EE'},
-          {v:totalTomon,      l:lang==='ar'?'أثمان مُسمَّعة':'Tomon récités',    c:'#0C447C',bg:'#E6F1FB'},
-          {v:totalHizb,       l:lang==='ar'?'أحزاب مكتملة':'Hizb complets',     c:'#EF9F27',bg:'#FAEEDA'},
-          {v:exTotal>0?`${exReussis}/${exTotal}`:'-', l:lang==='ar'?'امتحانات':'Examens', c:'#534AB7',bg:'#EEEDFE'},
-          {v:tauxAtteinte!=null?`${tauxAtteinte}%`:'-', l:lang==='ar'?'بلوغ الأهداف':'Taux objectifs', c:'#D85A30',bg:'#FAECE7'},
-        ].map(k=>`
-          <div style="background:${k.bg};border-radius:12px;padding:16px;text-align:center;">
-            <div style="font-size:30px;font-weight:800;color:${k.c};">${k.v}</div>
-            <div style="font-size:11px;color:${k.c};opacity:0.8;margin-top:4px;">${k.l}</div>
-          </div>
-        `).join('')}
-      </div>
-
-      <!-- Par niveau -->
-      <div style="font-size:11px;font-weight:700;color:#888;letter-spacing:1.5px;text-transform:uppercase;margin-bottom:14px;">
-        ${lang==='ar'?'أداء المستويات':'Performance par niveau'}
-      </div>
-      <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:28px;">
-        ${statsByNiveau.map(({niv,el,actifs,moy,objNiv,pctNiv})=>`
-          <div style="background:#fafafa;border-radius:10px;padding:14px 16px;
-            border-left:4px solid ${niv.couleur};">
-            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:${objNiv&&pctNiv!=null?'10px':'0'}">
-              <div style="display:flex;align-items:center;gap:10px;">
-                <span style="font-weight:800;font-size:16px;color:${niv.couleur}">${niv.code}</span>
-                <span style="font-size:12px;color:#666">${niv.nom}</span>
-                <span style="font-size:10px;padding:2px 8px;border-radius:20px;background:${niv.couleur}20;color:${niv.couleur};font-weight:700">
-                  ${actifs}/${el.length} ${lang==='ar'?'نشط':'actifs'}
-                </span>
-              </div>
-              <span style="font-size:13px;font-weight:700;color:${G}">${moy} pts/élève</span>
-            </div>
-            ${objNiv&&pctNiv!=null?`
-              <div>
-                <div style="display:flex;justify-content:space-between;font-size:10px;color:#888;margin-bottom:4px;">
-                  <span>🎯 Objectif niveau : ${objNiv.valeur_cible} ${objNiv.metrique}</span>
-                  <span style="font-weight:700;color:${pC(pctNiv)}">${pctNiv}%</span>
-                </div>
-                <div style="height:8px;background:#e8e8e0;border-radius:4px;overflow:hidden;">
-                  <div style="height:100%;border-radius:4px;width:${pctNiv}%;background:${pC(pctNiv)};"></div>
-                </div>
-              </div>
-            `:''}
-          </div>
-        `).join('')}
-      </div>
-
-      <!-- Examens du mois -->
-      ${reMois.length>0?`
-        <div style="font-size:11px;font-weight:700;color:#888;letter-spacing:1.5px;text-transform:uppercase;margin-bottom:14px;">
-          ${lang==='ar'?'امتحانات الشهر':'Examens du mois'}
-        </div>
-        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;">
-          ${[
-            {v:exTotal,    l:lang==='ar'?'مجموع':'Total',   c:'#085041',bg:'#E1F5EE'},
-            {v:exReussis,  l:lang==='ar'?'ناجح':'Réussis',  c:'#1D9E75',bg:'#E1F5EE'},
-            {v:tauxExamens!=null?`${tauxExamens}%`:'-',l:lang==='ar'?'نسبة النجاح':'Taux réussite',c:'#534AB7',bg:'#EEEDFE'},
-          ].map(s=>`
-            <div style="background:${s.bg};border-radius:10px;padding:12px;text-align:center;">
-              <div style="font-size:24px;font-weight:800;color:${s.c}">${s.v}</div>
-              <div style="font-size:10px;color:${s.c};opacity:0.8;margin-top:2px">${s.l}</div>
-            </div>
-          `).join('')}
-        </div>
-      `:''}
-
-      <!-- Footer -->
-      <div style="position:absolute;bottom:30px;left:50px;right:50px;display:flex;
-        justify-content:space-between;font-size:10px;color:#bbb;border-top:1px solid #e8e8e0;padding-top:10px;">
-        <span>${ecolNom}</span>
-        <span>${moisLabel} ${annee} · Page 1</span>
-      </div>
-    </div>
-  `;
-
-  // ── PAGE 2 : Tableau détaillé élèves ──────────────────────────
-  const page2 = `
-    <div class="rapport-page" style="${pageStyle}">
-      ${headerBand}
-
-      <div style="font-size:11px;font-weight:700;color:#888;letter-spacing:1.5px;text-transform:uppercase;margin-bottom:14px;">
-        ${lang==='ar'?'الأداء التفصيلي للطلاب':'Performance détaillée des élèves'}
-      </div>
-
-      <table style="width:100%;border-collapse:collapse;font-size:11px;">
-        <thead>
-          <tr style="background:linear-gradient(135deg,#085041,#1D9E75);color:#fff;">
-            <th style="padding:10px 8px;text-align:right;border-radius:8px 0 0 0;">#</th>
-            <th style="padding:10px 8px;text-align:right;">${lang==='ar'?'الطالب':'Élève'}</th>
-            <th style="padding:10px 8px;text-align:center;">${lang==='ar'?'المستوى':'Niveau'}</th>
-            <th style="padding:10px 8px;text-align:center;">${lang==='ar'?'الأثمان':'Tomon'}</th>
-            <th style="padding:10px 8px;text-align:center;">${lang==='ar'?'الأحزاب':'Hizb'}</th>
-            <th style="padding:10px 8px;text-align:center;">${lang==='ar'?'الحصص':'Séances'}</th>
-            <th style="padding:10px 8px;text-align:center;">${lang==='ar'?'هدف المستوى':'Obj. niveau'}</th>
-            <th style="padding:10px 8px;text-align:center;">${lang==='ar'?'هدف شخصي':'Obj. perso'}</th>
-            <th style="padding:10px 8px;text-align:center;border-radius:0 8px 0 0;">${lang==='ar'?'النقاط':'Points'}</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${statsEleves.map((e,idx)=>`
-            <tr style="background:${idx%2===0?'#fafafa':'#fff'};border-bottom:1px solid #f0f0ec;">
-              <td style="padding:8px;text-align:center;font-size:14px;">${medals[idx]||idx+1}</td>
-              <td style="padding:8px;">
-                <div style="font-weight:${idx<3?'700':'500'};font-size:12px;">${e.prenom} ${e.nom}</div>
-                <div style="font-size:10px;color:#aaa;">${e.inst?`${e.inst.prenom} ${e.inst.nom}`:'—'}</div>
-              </td>
-              <td style="padding:8px;text-align:center;">
-                <span style="padding:2px 8px;border-radius:20px;font-size:10px;font-weight:700;
-                  background:${e.niv?.couleur||'#888'}20;color:${e.niv?.couleur||'#888'}">
-                  ${e.code_niveau}
-                </span>
-              </td>
-              <td style="padding:8px;text-align:center;font-weight:${e.tomonMois>0?'700':'400'};color:${e.tomonMois>0?'#0C447C':'#ccc'}">
-                ${e.isSourate?`${e.souratesMois}س`:e.tomonMois||'—'}
-              </td>
-              <td style="padding:8px;text-align:center;">
-                ${e.hizbMois>0?`<span style="padding:2px 7px;border-radius:20px;background:#E1F5EE;color:#085041;font-size:10px;font-weight:700">${e.hizbMois}</span>`:'—'}
-              </td>
-              <td style="padding:8px;text-align:center;color:#666;">${e.seances||'—'}</td>
-              <td style="padding:8px;text-align:center;">
-                ${e.attNiveau?`
-                  <div style="font-size:10px;font-weight:700;color:${pC(e.attNiveau.pct)}">${e.attNiveau.pct}%</div>
-                  <div style="height:4px;background:#e8e8e0;border-radius:2px;overflow:hidden;margin-top:2px">
-                    <div style="height:100%;width:${e.attNiveau.pct}%;background:${pC(e.attNiveau.pct)}"></div>
-                  </div>
-                `:'<span style="color:#ddd;font-size:10px;">—</span>'}
-              </td>
-              <td style="padding:8px;text-align:center;">
-                ${e.attPerso?`
-                  <div style="font-size:10px;font-weight:700;color:${pC(e.attPerso.pct)}">${e.attPerso.pct}%</div>
-                  <div style="height:4px;background:#e8e8e0;border-radius:2px;overflow:hidden;margin-top:2px">
-                    <div style="height:100%;width:${e.attPerso.pct}%;background:${pC(e.attPerso.pct)}"></div>
-                  </div>
-                `:'<span style="color:#ddd;font-size:10px;">—</span>'}
-              </td>
-              <td style="padding:8px;text-align:center;font-weight:800;color:${e.ptsMois>0?G:'#ccc'};font-size:13px;">
-                ${e.ptsMois||'—'}
-              </td>
-            </tr>
-          `).join('')}
-        </tbody>
-      </table>
-
-      <div style="position:absolute;bottom:30px;left:50px;right:50px;display:flex;
-        justify-content:space-between;font-size:10px;color:#bbb;border-top:1px solid #e8e8e0;padding-top:10px;">
-        <span>${ecolNom}</span>
-        <span>${moisLabel} ${annee} · Page 2</span>
-      </div>
-    </div>
-  `;
-
-  // ── PAGE 3 : Par instituteur + Détail objectifs ────────────────
-  const page3 = `
-    <div class="rapport-page" style="${pageStyle}">
-      ${headerBand}
-
-      <!-- Par instituteur -->
-      <div style="font-size:11px;font-weight:700;color:#888;letter-spacing:1.5px;text-transform:uppercase;margin-bottom:14px;">
-        ${lang==='ar'?'أداء المدرسين':'Performance par instituteur'}
-      </div>
-      <div style="display:grid;grid-template-columns:repeat(${Math.min(3,statsByInst.length)},1fr);gap:12px;margin-bottom:28px;">
-        ${statsByInst.map(({inst,el,actifs,tomon,hizb,pts})=>`
-          <div style="background:#fafafa;border-radius:12px;padding:16px;border:0.5px solid #e0e0d8;">
-            <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;">
-              <div style="width:40px;height:40px;border-radius:50%;background:#E1F5EE;color:#085041;
-                display:flex;align-items:center;justify-content:center;font-weight:700;font-size:14px;flex-shrink:0;">
-                ${(inst.prenom?.[0]||'')+(inst.nom?.[0]||'')}
-              </div>
-              <div>
-                <div style="font-weight:600;font-size:13px;">${inst.prenom} ${inst.nom}</div>
-                <div style="font-size:10px;color:#888;">${actifs}/${el.length} ${lang==='ar'?'نشطون':'élèves actifs'}</div>
-              </div>
-            </div>
-            <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;">
-              ${[['Tomon',tomon,'#E6F1FB','#0C447C'],['Hizb',hizb,'#E1F5EE','#085041'],['Pts',pts,'#EEEDFE','#534AB7']].map(([l,v,bg,c])=>`
-                <div style="background:${bg};border-radius:8px;padding:8px;text-align:center;">
-                  <div style="font-size:18px;font-weight:700;color:${c}">${v}</div>
-                  <div style="font-size:9px;color:${c};opacity:0.8">${l}</div>
-                </div>
-              `).join('')}
-            </div>
-          </div>
-        `).join('')}
-      </div>
-
-      <!-- Détail objectifs atteints -->
-      <div style="font-size:11px;font-weight:700;color:#888;letter-spacing:1.5px;text-transform:uppercase;margin-bottom:14px;">
-        ${lang==='ar'?'تفاصيل الأهداف':'Détail des objectifs'}
-      </div>
-      <div style="display:flex;flex-direction:column;gap:8px;">
-        ${statsEleves.filter(e=>e.attNiveau||e.attPerso).slice(0,12).map(e=>`
-          <div style="background:#fafafa;border-radius:10px;padding:12px 14px;
-            display:flex;align-items:center;gap:12px;">
-            <div style="width:32px;height:32px;border-radius:50%;background:#E1F5EE;color:#085041;
-              display:flex;align-items:center;justify-content:center;font-weight:700;font-size:11px;flex-shrink:0;">
-              ${(e.prenom?.[0]||'')+(e.nom?.[0]||'')}
-            </div>
-            <div style="flex:1;min-width:0;">
-              <div style="font-weight:600;font-size:12px;">${e.prenom} ${e.nom}</div>
-              ${e.attNiveau?`
-                <div style="display:flex;align-items:center;gap:8px;margin-top:4px;">
-                  <span style="font-size:9px;color:#888;white-space:nowrap;">📊 Niveau</span>
-                  <div style="flex:1;height:5px;background:#e8e8e0;border-radius:3px;overflow:hidden;">
-                    <div style="height:100%;width:${e.attNiveau.pct}%;background:${pC(e.attNiveau.pct)}"></div>
-                  </div>
-                  <span style="font-size:10px;font-weight:700;color:${pC(e.attNiveau.pct)};white-space:nowrap;">${e.attNiveau.realise}/${e.attNiveau.obj.valeur_cible} (${e.attNiveau.pct}%)</span>
-                </div>
-              `:''}
-              ${e.attPerso?`
-                <div style="display:flex;align-items:center;gap:8px;margin-top:3px;">
-                  <span style="font-size:9px;color:#534AB7;white-space:nowrap;">👤 Perso</span>
-                  <div style="flex:1;height:5px;background:#e8e8e0;border-radius:3px;overflow:hidden;">
-                    <div style="height:100%;width:${e.attPerso.pct}%;background:${pC(e.attPerso.pct)}"></div>
-                  </div>
-                  <span style="font-size:10px;font-weight:700;color:${pC(e.attPerso.pct)};white-space:nowrap;">${e.attPerso.realise}/${e.attPerso.obj.valeur_cible} (${e.attPerso.pct}%)</span>
-                </div>
-              `:''}
-            </div>
-            <div style="text-align:center;flex-shrink:0;">
-              <div style="font-size:18px;font-weight:800;color:${pC(e.attPerso?.pct??e.attNiveau?.pct??0)}">
-                ${e.attPerso?.pct??e.attNiveau?.pct??0}%
-              </div>
-              <div style="font-size:9px;color:#aaa;">${e.ptsMois} pts</div>
-            </div>
-          </div>
-        `).join('')}
-      </div>
-
-      <div style="position:absolute;bottom:30px;left:50px;right:50px;display:flex;
-        justify-content:space-between;font-size:10px;color:#bbb;border-top:1px solid #e8e8e0;padding-top:10px;">
-        <span>${ecolNom}</span>
-        <span>${moisLabel} ${annee} · Page 3</span>
-      </div>
-    </div>
-  `;
-
-  return `
-    <style>
-      @import url('https://fonts.googleapis.com/css2?family=Tajawal:wght@400;600;700;800&display=swap');
-      * { margin:0; padding:0; box-sizing:border-box; }
-    </style>
-    ${page1}${page2}${page3}
-  `;
 }

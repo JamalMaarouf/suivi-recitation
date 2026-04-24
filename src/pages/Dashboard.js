@@ -4,6 +4,7 @@ import { getCachedSWR } from '../lib/cache';
 import { fetchAll } from '../lib/fetchAll';
 import { calcEtatEleve, isSourateNiveauDyn, niveauTraduit, calcStats, formatDate, formatDateCourt, isInactif, joursDepuis, getInitiales, scoreLabel, loadBareme, BAREME_DEFAUT, getSensForEleve} from '../lib/helpers';
 import { t } from '../lib/i18n';
+import ExportButtons from '../components/ExportButtons';
 
 const C = { green:'#1D9E75',greenBg:'#E1F5EE',blue:'#378ADD',blueBg:'#E6F1FB',amber:'#EF9F27',amberBg:'#FAEEDA',red:'#E24B4A',redBg:'#FCEBEB',border:'#e0e0d8',muted:'#888',dark:'#1a1a1a' };
 // Couleurs niveaux — fallback sur des valeurs par défaut si niveaux pas encore chargés
@@ -647,9 +648,18 @@ export default function Dashboard({ user, navigate, goBack, lang, isMobile=false
         <div style={{fontSize:20,fontWeight:700}}>{t(lang,tabs.find(tb=>tb.key===vue)?.labelKey||'tableau_de_bord')}</div>
         <div style={{display:'flex',gap:6,flexWrap:'wrap',alignItems:'center'}}>
           {exportMsg&&<span style={{fontSize:12,color:C.green,fontWeight:600}}>{exportMsg}</span>}
-          {user.role==='surveillant'&&<><button onClick={exportExcel} style={{padding:'6px 10px',border:`0.5px solid ${C.border}`,borderRadius:8,background:'#fff',fontSize:11,cursor:'pointer'}}>📊 Excel</button><button onClick={backupJSON} style={{padding:'6px 10px',border:`0.5px solid ${C.border}`,borderRadius:8,background:'#fff',fontSize:11,cursor:'pointer'}}>💾 Backup</button></>}
+          {user.role==='surveillant'&&<>
+            <ExportButtons
+              onExcel={exportExcel}
+              lang={lang}
+              variant="inline"
+              compact
+            />
+            <button onClick={backupJSON} style={{padding:'6px 10px',border:`0.5px solid ${C.border}`,borderRadius:8,background:'#fff',fontSize:11,cursor:'pointer'}}>💾 Backup</button>
+          </>}
           <button onClick={()=>navigate('honneur')} style={{padding:'6px 10px',background:C.green,color:'#fff',border:'none',borderRadius:8,fontSize:11,cursor:'pointer',fontWeight:600}}>🏆 {t(lang,'honneur')}</button>
           <button onClick={()=>navigate('comparaison')} style={{padding:'6px 10px',border:`0.5px solid ${C.border}`,borderRadius:8,background:'#fff',fontSize:11,cursor:'pointer'}}>📈 {t(lang,'comparer')}</button>
+          {user.role==='surveillant'&&<button onClick={()=>navigate('dashboard_direction')} style={{padding:'6px 10px',background:'#085041',color:'#fff',border:'none',borderRadius:8,fontSize:11,cursor:'pointer',fontWeight:600}}>📊 {lang==='ar'?'لوحة القيادة':'Direction'}</button>}
         </div>
       </div>
       <div style={{display:'flex',gap:0,background:'#f0f0ec',borderRadius:10,padding:3,marginBottom:'1.25rem',width:'fit-content',flexWrap:'wrap'}}>

@@ -1,6 +1,9 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { supabase } from '../lib/supabase';
 import { useToast } from '../lib/toast';
+import { openPDF } from '../lib/pdf';
+import { exportExcelSimple } from '../lib/excel';
+import ExportButtons from '../components/ExportButtons';
 
 // ══════════════════════════════════════════════════════════════════════
 // PAGE SUIVI PARENTS — Menu principal surveillant
@@ -167,8 +170,8 @@ export default function SuiviParents({ user, navigate, goBack, lang, isMobile })
     return list;
   }, [parents, filtreNiveau, filtreStatut, recherche]);
 
-  // ─── Export CSV ─────────────────────────────────────────────
-  const exportCSV = () => {
+  // ─── Export Excel ───────────────────────────────────────────
+  const exportExcel = async () => {
     if (parentsFiltres.length === 0) {
       toast.info(lang === 'ar' ? 'لا توجد بيانات للتصدير' : 'Aucune donnée à exporter');
       return;
@@ -200,28 +203,59 @@ export default function SuiviParents({ user, navigate, goBack, lang, isMobile })
       p.parent.telephone || '',
       p.parent.identifiant || '',
       p.derniereVisite?.date_visite || '',
-      p.joursEcoules !== null ? String(p.joursEcoules) : '',
-      String(p.nbVisitesJours),
-      String(p.nbConsultTotal),
+      p.joursEcoules !== null ? p.joursEcoules : '',  // number (pas string) pour Excel
+      p.nbVisitesJours,
+      p.nbConsultTotal,
       statutLabel(p.statut),
     ]);
 
-    // Format CSV avec ; comme séparateur (compatible Excel FR)
-    const csvContent = [
-      headers.join(';'),
-      ...rows.map(r => r.map(c => `"${String(c).replace(/"/g, '""')}"`).join(';'))
-    ].join('\n');
-
-    // BOM pour bien afficher les accents dans Excel
-    const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
     const dateStr = new Date().toISOString().slice(0, 10);
-    link.href = url;
-    link.download = `parents_${filtreStatut === 'tous' ? 'tous' : filtreStatut}_${dateStr}.csv`;
-    link.click();
-    URL.revokeObjectURL(url);
-    toast.success(lang === 'ar' ? '✅ تم التصدير' : '✅ Exporté');
+    const filename = `parents_${filtreStatut === 'tous' ? 'tous' : filtreStatut}_${dateStr}.xlsx`;
+    try {
+      await exportExcelSimple(
+        filename,
+        [headers, ...rows],
+        lang === 'ar' ? 'الأولياء' : 'Parents',
+      );
+      toast.success(lang === 'ar' ? '✅ تم التصدير' : '✅ Exporté');
+    } catch (err) {
+      toast.error('Erreur Excel : ' + err.message);
+    }
+  };
+
+  // ─── Export PDF ─────────────────────────────────────────────
+  const exportPDF = async () => {
+    if (parentsFiltres.length === 0) {
+      toast.info(lang === 'ar' ? 'لا توجد بيانات للتصدير' : 'Aucune donnée à exporter');
+      return;
+    }
+    // Map les lignes dans le format attendu par le template serveur
+    const rows = parentsFiltres.map(p => {
+      const niveau = niveaux.find(n => n.code === p.eleve.code_niveau);
+      return {
+        parent_nom: `${p.parent.prenom || ''} ${p.parent.nom || ''}`.trim(),
+        enfant_nom: `${p.eleve.prenom || ''} ${p.eleve.nom || ''}`.trim(),
+        niveau_nom: niveau?.nom || p.eleve.code_niveau || '',
+        niveau_couleur: niveau?.couleur,
+        telephone: p.parent.telephone || '',
+        statut: p.statut,
+        joursEcoules: p.joursEcoules,
+      };
+    });
+    const niveauLabel = filtreNiveau !== 'tous'
+      ? (niveaux.find(n => n.code === filtreNiveau)?.nom || '')
+      : '';
+    try {
+      await openPDF('rapport_parents', {
+        ecole: { nom: user.ecole_nom || '' },
+        filtreStatut,
+        filtreNiveau: niveauLabel,
+        stats,
+        rows,
+      }, lang);
+    } catch (err) {
+      toast.error('Erreur PDF : ' + err.message);
+    }
   };
 
   // ─── Helper affichage statut ───────────────────────────────
@@ -289,14 +323,14 @@ export default function SuiviParents({ user, navigate, goBack, lang, isMobile })
                   : 'Identifier les parents inactifs pour les contacter'}
               </div>
             </div>
-            <button onClick={exportCSV}
-              style={{
-                padding: '9px 14px', background: '#378ADD', color: '#fff',
-                border: 'none', borderRadius: 10,
-                fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit',
-              }}>
-              📥 {lang === 'ar' ? 'تصدير CSV' : 'Exporter CSV'}
-            </button>
+            <ExportButtons
+              onPDF={exportPDF}
+              onExcel={exportExcel}
+              isMobile={false}
+              lang={lang}
+              variant="inline"
+              compact
+            />
           </div>
         </div>
       )}
@@ -308,17 +342,17 @@ export default function SuiviParents({ user, navigate, goBack, lang, isMobile })
           </div>
         ) : (
           <>
-            {/* Bouton export mobile */}
+            {/* Boutons export mobile (PDF + CSV) */}
             {isMobile && (
-              <button onClick={exportCSV}
-                style={{
-                  width: '100%', padding: '11px',
-                  background: '#378ADD', color: '#fff',
-                  border: 'none', borderRadius: 10, marginBottom: 12,
-                  fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit',
-                }}>
-                📥 {lang === 'ar' ? 'تصدير القائمة (CSV)' : 'Exporter la liste (CSV)'}
-              </button>
+              <div style={{ marginBottom: 12 }}>
+                <ExportButtons
+                  onPDF={exportPDF}
+                  onExcel={exportExcel}
+                  isMobile
+                  lang={lang}
+                  compact
+                />
+              </div>
             )}
 
             {/* KPIs (cliquables → filtrent la liste) */}

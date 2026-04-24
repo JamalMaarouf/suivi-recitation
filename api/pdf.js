@@ -28,6 +28,24 @@ module.exports = async function handler(req, res) {
       html = generateCertificatExamen(data, lang);
     } else if (type === 'fiche_eleve') {
       html = generateFicheEleve(data, lang);
+    } else if (type === 'rapport_assiduite') {
+      html = generateRapportAssiduite(data, lang);
+    } else if (type === 'rapport_cours') {
+      html = generateRapportCours(data, lang);
+    } else if (type === 'rapport_parents') {
+      html = generateRapportParents(data, lang);
+    } else if (type === 'rapport_examens') {
+      html = generateRapportExamens(data, lang);
+    } else if (type === 'rapport_muraja') {
+      html = generateRapportMuraja(data, lang);
+    } else if (type === 'rapport_honneur') {
+      html = generateRapportHonneur(data, lang);
+    } else if (type === 'rapport_inactifs') {
+      html = generateRapportInactifs(data, lang);
+    } else if (type === 'rapport_gestion_examens') {
+      html = generateRapportGestionExamens(data, lang);
+    } else if (type === 'rapport_direction') {
+      html = generateRapportDirection(data, lang);
     } else {
       return res.status(400).json({ error: 'Type non supporté' });
     }
@@ -490,6 +508,1237 @@ function generateListeNotes(data, lang) {
       <tbody>${rows}</tbody>
     </table>
     <div class="footer">${ecole?.nom || ''} · ${isAr ? 'سري — للاستخدام الداخلي' : 'Confidentiel — Usage interne'}</div>
+  </div>
+  </body></html>`;
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// RAPPORT ASSIDUITÉ (élèves OU instituteurs)
+// ══════════════════════════════════════════════════════════════════════
+function generateRapportAssiduite(data, lang) {
+  const {
+    ecole,
+    cible = 'eleves',              // 'eleves' | 'instituteurs'
+    periodeLabel,
+    dateDebut, dateFin,
+    filtreNiveau,
+    seuilRisque = 80,
+    seuilParfait = 100,
+    stats = {},
+    rows = [],                     // lignes détaillées
+  } = data || {};
+  const isAr = lang === 'ar';
+  const dir = isAr ? 'rtl' : 'ltr';
+  const estInst = cible === 'instituteurs';
+
+  const titre = estInst
+    ? (isAr ? 'تقرير حضور المؤطرين' : 'Rapport Assiduité — Instituteurs')
+    : (isAr ? 'تقرير حضور الطلاب' : 'Rapport Assiduité — Élèves');
+
+  // Fonction de coloration du taux
+  const tauxColor = (t) => {
+    if (t === null || t === undefined) return '#888';
+    if (t >= seuilParfait) return '#1D9E75';
+    if (t < seuilRisque) return '#E24B4A';
+    return '#EF9F27';
+  };
+  const tauxBg = (t) => {
+    if (t === null || t === undefined) return '#f5f5f0';
+    if (t >= seuilParfait) return '#E1F5EE';
+    if (t < seuilRisque) return '#FCEBEB';
+    return '#FAEEDA';
+  };
+
+  const rowsHtml = rows.map((r, i) => {
+    const t = r.taux;
+    const tDisplay = t === null || t === undefined ? '—' : `${t}%`;
+    return `
+      <tr>
+        <td style="text-align:center;color:#888">${i + 1}</td>
+        <td style="font-weight:700">${r.prenom || ''} ${r.nom || ''}</td>
+        <td>${r.id_ecole || '—'}</td>
+        ${estInst ? '' : `<td><span class="badge" style="background:${r.couleur || '#085041'}20;color:${r.couleur || '#085041'}">${r.code_niveau || '—'}</span></td>`}
+        <td style="text-align:center">${r.attendues || 0}</td>
+        <td style="text-align:center;color:#1D9E75;font-weight:700">${r.presentes || 0}</td>
+        <td style="text-align:center;color:#E24B4A;font-weight:700">${r.absences || 0}</td>
+        <td style="text-align:center">
+          <span style="padding:3px 10px;border-radius:10px;background:${tauxBg(t)};color:${tauxColor(t)};font-weight:700">
+            ${tDisplay}
+          </span>
+        </td>
+      </tr>
+    `;
+  }).join('');
+
+  return `<!DOCTYPE html><html dir="${dir}"><head><meta charset="UTF-8"><title>${titre}</title>${baseStyles()}</head>
+  <body>
+  ${printButton(lang)}
+  <div class="page">
+    <div class="header">
+      <div>
+        <div class="logo">${estInst ? '👨‍🏫' : '📅'} ${ecole?.nom || 'École'}</div>
+        <div class="subtitle">${titre}${periodeLabel ? ' — ' + periodeLabel : ''}</div>
+        ${dateDebut && dateFin ? `<div class="subtitle" style="margin-top:4px">${isAr ? 'من' : 'Du'} ${dateDebut} ${isAr ? 'إلى' : 'au'} ${dateFin}</div>` : ''}
+        ${filtreNiveau ? `<div class="subtitle" style="margin-top:4px">${isAr ? 'المستوى' : 'Niveau'} : ${filtreNiveau}</div>` : ''}
+      </div>
+      <div style="font-size:12px;color:#888;text-align:right">
+        <div>${new Date().toLocaleDateString(isAr ? 'ar-MA' : 'fr-FR')}</div>
+        <div style="margin-top:2px">${rows.length} ${estInst ? (isAr ? 'مؤطر' : 'instituteur(s)') : (isAr ? 'طالب' : 'élève(s)')}</div>
+      </div>
+    </div>
+
+    <div class="kpi-grid" style="grid-template-columns:repeat(4,1fr)">
+      <div class="kpi">
+        <div class="kpi-val">${stats.tauxGlobal || 0}%</div>
+        <div class="kpi-lbl">${isAr ? 'نسبة الحضور' : 'Taux de présence'}</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-val" style="color:#1D9E75">${stats.nbParfaits || 0}</div>
+        <div class="kpi-lbl">${isAr ? 'حضور كامل' : 'Assiduité parfaite'}</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-val" style="color:#E24B4A">${stats.nbRisque || 0}</div>
+        <div class="kpi-lbl">${isAr ? 'تحت العتبة' : 'En alerte'}</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-val">${stats.totalAttendues || 0}</div>
+        <div class="kpi-lbl">${isAr ? 'الحصص المتوقعة' : 'Séances attendues'}</div>
+      </div>
+    </div>
+
+    <div class="section-title">${isAr ? 'تفاصيل الحضور' : 'Détail par personne'}</div>
+
+    <table>
+      <thead>
+        <tr>
+          <th style="width:50px;text-align:center">#</th>
+          <th>${estInst ? (isAr ? 'المؤطر' : 'Instituteur') : (isAr ? 'الطالب' : 'Élève')}</th>
+          <th>${isAr ? 'الرقم' : 'N°'}</th>
+          ${estInst ? '' : `<th>${isAr ? 'المستوى' : 'Niveau'}</th>`}
+          <th style="text-align:center">${isAr ? 'المتوقع' : 'Attendues'}</th>
+          <th style="text-align:center">${isAr ? 'حاضر' : 'Présentes'}</th>
+          <th style="text-align:center">${isAr ? 'غائب' : 'Absences'}</th>
+          <th style="text-align:center">${isAr ? 'النسبة' : 'Taux'}</th>
+        </tr>
+      </thead>
+      <tbody>${rowsHtml}</tbody>
+    </table>
+
+    <div style="margin-top:16px;padding:12px;background:#f9f9f6;border-radius:8px;font-size:11px;color:#666">
+      <strong>${isAr ? 'العتبات المطبقة' : 'Seuils appliqués'} :</strong>
+      ${isAr ? 'تحت' : 'Sous'} <span style="color:#E24B4A;font-weight:700">${seuilRisque}%</span> = ${isAr ? 'تحت العتبة' : 'En alerte'} ·
+      ${seuilParfait}%+ = <span style="color:#1D9E75;font-weight:700">${isAr ? 'ممتاز' : 'Parfait'}</span>
+    </div>
+
+    <div class="footer">
+      ${ecole?.nom || ''} · ${isAr ? 'سري — للاستخدام الداخلي' : 'Confidentiel — Usage interne'}
+    </div>
+  </div>
+  </body></html>`;
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// RAPPORT COURS DE FOND
+// Tableau cours × niveau avec progression (axes validés / total)
+// ══════════════════════════════════════════════════════════════════════
+function generateRapportCours(data, lang) {
+  const {
+    ecole,
+    stats = {},
+    rows = [],   // [{cours_nom, cours_categorie, niveau_nom, niveau_couleur, total, valides, pct}]
+  } = data || {};
+  const isAr = lang === 'ar';
+  const dir = isAr ? 'rtl' : 'ltr';
+
+  const titre = isAr ? 'تقرير الدروس' : 'Rapport Cours de fond';
+
+  // Couleur du taux selon progression
+  const pctColor = (p) => {
+    if (p >= 100) return '#1D9E75';
+    if (p >= 70) return '#EF9F27';
+    if (p >= 30) return '#378ADD';
+    return '#E24B4A';
+  };
+  const pctBg = (p) => {
+    if (p >= 100) return '#E1F5EE';
+    if (p >= 70) return '#FAEEDA';
+    if (p >= 30) return '#E6F1FB';
+    return '#FCEBEB';
+  };
+
+  // Groupement par cours pour un affichage plus lisible
+  const groupes = {};
+  rows.forEach(r => {
+    const key = r.cours_nom || '—';
+    if (!groupes[key]) {
+      groupes[key] = { categorie: r.cours_categorie, niveaux: [] };
+    }
+    groupes[key].niveaux.push(r);
+  });
+
+  const sections = Object.keys(groupes).map(coursNom => {
+    const g = groupes[coursNom];
+    const rowsHtml = g.niveaux.map((r, i) => {
+      return `
+        <tr>
+          <td style="text-align:center;color:#888">${i + 1}</td>
+          <td>
+            <span class="badge" style="background:${r.niveau_couleur || '#085041'}20;color:${r.niveau_couleur || '#085041'}">
+              ${r.niveau_nom || r.code_niveau || '—'}
+            </span>
+          </td>
+          <td style="text-align:center">${r.valides || 0} / ${r.total || 0}</td>
+          <td style="text-align:center">
+            <span style="padding:3px 10px;border-radius:10px;background:${pctBg(r.pct)};color:${pctColor(r.pct)};font-weight:700">
+              ${r.pct || 0}%
+            </span>
+          </td>
+        </tr>
+      `;
+    }).join('');
+
+    return `
+      <div class="section-title">${coursNom}${g.categorie ? ` <span style="color:#888;font-weight:400;font-size:12px">· ${g.categorie}</span>` : ''}</div>
+      <table style="margin-bottom:20px">
+        <thead>
+          <tr>
+            <th style="width:50px;text-align:center">#</th>
+            <th>${isAr ? 'المستوى' : 'Niveau'}</th>
+            <th style="text-align:center">${isAr ? 'محاور مُتحقق' : 'Axes validés'}</th>
+            <th style="text-align:center">${isAr ? 'التقدم' : 'Progression'}</th>
+          </tr>
+        </thead>
+        <tbody>${rowsHtml}</tbody>
+      </table>
+    `;
+  }).join('');
+
+  return `<!DOCTYPE html><html dir="${dir}"><head><meta charset="UTF-8"><title>${titre}</title>${baseStyles()}</head>
+  <body>
+  ${printButton(lang)}
+  <div class="page">
+    <div class="header">
+      <div>
+        <div class="logo">📚 ${ecole?.nom || 'École'}</div>
+        <div class="subtitle">${titre}</div>
+      </div>
+      <div style="font-size:12px;color:#888;text-align:right">
+        <div>${new Date().toLocaleDateString(isAr ? 'ar-MA' : 'fr-FR')}</div>
+        <div style="margin-top:2px">${Object.keys(groupes).length} ${isAr ? 'درس' : 'cours'} · ${rows.length} ${isAr ? 'زوج' : 'couple(s)'}</div>
+      </div>
+    </div>
+
+    <div class="kpi-grid" style="grid-template-columns:repeat(4,1fr)">
+      <div class="kpi">
+        <div class="kpi-val">${stats.nbCours || 0}</div>
+        <div class="kpi-lbl">${isAr ? 'الدروس' : 'Cours'}</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-val">${stats.nbLiaisons || 0}</div>
+        <div class="kpi-lbl">${isAr ? 'أزواج درس/مستوى' : 'Couples cours × niveau'}</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-val" style="color:#1D9E75">${stats.totalValides || 0}/${stats.totalAxes || 0}</div>
+        <div class="kpi-lbl">${isAr ? 'محاور مُتحقق منها' : 'Axes validés'}</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-val" style="color:#EF9F27">${stats.pctMoyen || 0}%</div>
+        <div class="kpi-lbl">${isAr ? 'التقدم الإجمالي' : 'Progression moyenne'}</div>
+      </div>
+    </div>
+
+    ${sections}
+
+    <div class="footer">
+      ${ecole?.nom || ''} · ${isAr ? 'سري — للاستخدام الداخلي' : 'Confidentiel — Usage interne'}
+    </div>
+  </div>
+  </body></html>`;
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// RAPPORT TRACKING PARENTS
+// Liste des parents avec statut d'activite (Actif/Peu actif/Inactif/Jamais).
+// Meme colonnes que l'export CSV pour coherence, en version PDF imprimable.
+// ══════════════════════════════════════════════════════════════════════
+function generateRapportParents(data, lang) {
+  const {
+    ecole,
+    filtreStatut = 'tous',
+    filtreNiveau = '',
+    stats = {},
+    rows = [],
+  } = data || {};
+  const isAr = lang === 'ar';
+  const dir = isAr ? 'rtl' : 'ltr';
+
+  const titre = isAr ? 'تقرير متابعة الأولياء' : 'Rapport Tracking Parents';
+
+  // Couleur/emoji par statut
+  const statutInfo = (s) => ({
+    actif:     { emoji: '🟢', label: isAr ? 'نشط' : 'Actif',       color: '#1D9E75', bg: '#E1F5EE' },
+    peu_actif: { emoji: '🟡', label: isAr ? 'قليل' : 'Peu actif',   color: '#EF9F27', bg: '#FAEEDA' },
+    inactif:   { emoji: '🔴', label: isAr ? 'غير نشط' : 'Inactif', color: '#E24B4A', bg: '#FCEBEB' },
+    jamais:    { emoji: '⚪', label: isAr ? 'لم يزر' : 'Jamais',    color: '#888',    bg: '#f5f5f0' },
+  }[s] || { emoji: '⚪', label: '—', color: '#888', bg: '#f5f5f0' });
+
+  const joursLabel = (j) => {
+    if (j === null || j === undefined) return isAr ? 'لم يزر قط' : 'Jamais venu';
+    if (j === 0) return isAr ? 'اليوم' : 'Aujourd\'hui';
+    if (j === 1) return isAr ? 'أمس' : 'Hier';
+    return isAr ? `منذ ${j} يوم` : `Il y a ${j} j`;
+  };
+
+  const filtreStatutLabel = {
+    tous: isAr ? 'جميع الأولياء' : 'Tous les parents',
+    actif: isAr ? 'الأولياء النشطون' : 'Parents actifs',
+    peu_actif: isAr ? 'قليلو النشاط' : 'Parents peu actifs',
+    inactif: isAr ? 'غير النشطين' : 'Parents inactifs',
+    jamais: isAr ? 'لم يزوروا قط' : 'Jamais venus',
+  }[filtreStatut] || '';
+
+  const rowsHtml = rows.map((r, i) => {
+    const si = statutInfo(r.statut);
+    return `
+      <tr>
+        <td style="text-align:center;color:#888">${i + 1}</td>
+        <td style="text-align:center;font-size:16px">${si.emoji}</td>
+        <td style="font-weight:700">${r.parent_nom || '—'}</td>
+        <td>${r.enfant_nom || '—'}</td>
+        <td>
+          <span class="badge" style="background:${r.niveau_couleur || '#085041'}20;color:${r.niveau_couleur || '#085041'}">
+            ${r.niveau_nom || '—'}
+          </span>
+        </td>
+        <td style="font-family:monospace;font-size:11px">${r.telephone || '—'}</td>
+        <td style="text-align:center">
+          <span style="padding:2px 8px;border-radius:10px;background:${si.bg};color:${si.color};font-weight:700;font-size:11px">
+            ${si.label}
+          </span>
+        </td>
+        <td style="font-size:11px">${joursLabel(r.joursEcoules)}</td>
+      </tr>
+    `;
+  }).join('');
+
+  return `<!DOCTYPE html><html dir="${dir}"><head><meta charset="UTF-8"><title>${titre}</title>${baseStyles()}</head>
+  <body>
+  ${printButton(lang)}
+  <div class="page">
+    <div class="header">
+      <div>
+        <div class="logo">👨‍👩‍👧 ${ecole?.nom || 'École'}</div>
+        <div class="subtitle">${titre} — ${filtreStatutLabel}</div>
+        ${filtreNiveau ? `<div class="subtitle" style="margin-top:4px">${isAr ? 'المستوى' : 'Niveau'} : ${filtreNiveau}</div>` : ''}
+      </div>
+      <div style="font-size:12px;color:#888;text-align:right">
+        <div>${new Date().toLocaleDateString(isAr ? 'ar-MA' : 'fr-FR')}</div>
+        <div style="margin-top:2px">${rows.length} ${isAr ? 'ولي' : 'parent(s)'}</div>
+      </div>
+    </div>
+
+    <div class="kpi-grid" style="grid-template-columns:repeat(4,1fr)">
+      <div class="kpi">
+        <div class="kpi-val" style="color:#1D9E75">${stats.actif || 0}</div>
+        <div class="kpi-lbl">🟢 ${isAr ? 'نشط' : 'Actifs'}</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-val" style="color:#EF9F27">${stats.peu_actif || 0}</div>
+        <div class="kpi-lbl">🟡 ${isAr ? 'قليل النشاط' : 'Peu actifs'}</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-val" style="color:#E24B4A">${stats.inactif || 0}</div>
+        <div class="kpi-lbl">🔴 ${isAr ? 'غير نشط' : 'Inactifs'}</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-val" style="color:#888">${stats.jamais || 0}</div>
+        <div class="kpi-lbl">⚪ ${isAr ? 'لم يزر' : 'Jamais venus'}</div>
+      </div>
+    </div>
+
+    <div class="section-title">${isAr ? 'قائمة الأولياء' : 'Liste des parents'}</div>
+    <table>
+      <thead>
+        <tr>
+          <th style="width:40px;text-align:center">#</th>
+          <th style="width:40px"></th>
+          <th>${isAr ? 'الولي' : 'Parent'}</th>
+          <th>${isAr ? 'الطالب' : 'Enfant'}</th>
+          <th>${isAr ? 'المستوى' : 'Niveau'}</th>
+          <th>${isAr ? 'الهاتف' : 'Téléphone'}</th>
+          <th style="text-align:center">${isAr ? 'الحالة' : 'Statut'}</th>
+          <th>${isAr ? 'آخر زيارة' : 'Dernière visite'}</th>
+        </tr>
+      </thead>
+      <tbody>${rowsHtml}</tbody>
+    </table>
+
+    <div style="margin-top:16px;padding:12px;background:#f9f9f6;border-radius:8px;font-size:11px;color:#666;line-height:1.6">
+      <strong>💡 ${isAr ? 'توصية' : 'Action recommandée'} :</strong><br>
+      ${isAr
+        ? 'اتصل بالأولياء ذوي الحالة 🔴 غير نشط و ⚪ لم يزر لتحديث حسابهم وإطلاعهم شفويا على تقدم أبنائهم'
+        : 'Contacter les parents 🔴 inactifs et ⚪ jamais venus pour les informer oralement de la progression de leurs enfants'}
+    </div>
+
+    <div class="footer">
+      ${ecole?.nom || ''} · ${isAr ? 'سري — للاستخدام الداخلي' : 'Confidentiel — Usage interne'}
+    </div>
+  </div>
+  </body></html>`;
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// RAPPORT RÉSULTATS EXAMENS
+// Vue globale des résultats d'examens (toutes sessions confondues ou filtrée)
+// ══════════════════════════════════════════════════════════════════════
+function generateRapportExamens(data, lang) {
+  const {
+    ecole,
+    stats = {},
+    rows = [],   // [{eleve_nom, code_niveau, niveau_couleur, examen_nom, score, statut, date}]
+  } = data || {};
+  const isAr = lang === 'ar';
+  const dir = isAr ? 'rtl' : 'ltr';
+
+  const titre = isAr ? 'تقرير نتائج الامتحانات' : 'Rapport Résultats d\'examens';
+
+  const statutInfo = (s) => ({
+    reussi:  { emoji: '✅', label: isAr ? 'ناجح' : 'Réussi',      color: '#1D9E75', bg: '#E1F5EE' },
+    echoue:  { emoji: '❌', label: isAr ? 'راسب' : 'Échoué',      color: '#E24B4A', bg: '#FCEBEB' },
+    encours: { emoji: '⏳', label: isAr ? 'قيد الإنجاز' : 'En cours', color: '#EF9F27', bg: '#FAEEDA' },
+  }[s] || { emoji: '—', label: '—', color: '#888', bg: '#f5f5f0' });
+
+  const rowsHtml = rows.map((r, i) => {
+    const si = statutInfo(r.statut);
+    return `
+      <tr>
+        <td style="text-align:center;color:#888">${i + 1}</td>
+        <td style="font-weight:700">${r.eleve_nom || '—'}</td>
+        <td>
+          <span class="badge" style="background:${r.niveau_couleur || '#085041'}20;color:${r.niveau_couleur || '#085041'}">
+            ${r.code_niveau || '—'}
+          </span>
+        </td>
+        <td>${r.examen_nom || '—'}</td>
+        <td style="text-align:center;font-weight:700;color:${si.color}">${r.score || 0}%</td>
+        <td style="text-align:center">
+          <span style="padding:2px 10px;border-radius:10px;background:${si.bg};color:${si.color};font-weight:700;font-size:11px">
+            ${si.emoji} ${si.label}
+          </span>
+        </td>
+        <td style="font-size:11px">${r.date || '—'}</td>
+      </tr>
+    `;
+  }).join('');
+
+  return `<!DOCTYPE html><html dir="${dir}"><head><meta charset="UTF-8"><title>${titre}</title>${baseStyles()}</head>
+  <body>
+  ${printButton(lang)}
+  <div class="page">
+    <div class="header">
+      <div>
+        <div class="logo">🏅 ${ecole?.nom || 'École'}</div>
+        <div class="subtitle">${titre}</div>
+      </div>
+      <div style="font-size:12px;color:#888;text-align:right">
+        <div>${new Date().toLocaleDateString(isAr ? 'ar-MA' : 'fr-FR')}</div>
+        <div style="margin-top:2px">${rows.length} ${isAr ? 'نتيجة' : 'résultat(s)'}</div>
+      </div>
+    </div>
+
+    <div class="kpi-grid" style="grid-template-columns:repeat(4,1fr)">
+      <div class="kpi">
+        <div class="kpi-val" style="color:#1D9E75">${stats.nbReussis || 0}</div>
+        <div class="kpi-lbl">✅ ${isAr ? 'ناجح' : 'Réussis'}</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-val" style="color:#E24B4A">${stats.nbEchoues || 0}</div>
+        <div class="kpi-lbl">❌ ${isAr ? 'راسب' : 'Échoués'}</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-val" style="color:#EF9F27">${stats.nbEnCours || 0}</div>
+        <div class="kpi-lbl">⏳ ${isAr ? 'قيد الإنجاز' : 'En cours'}</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-val">${stats.moyenneScore || 0}%</div>
+        <div class="kpi-lbl">${isAr ? 'المعدل' : 'Moyenne'}</div>
+      </div>
+    </div>
+
+    <div class="section-title">${isAr ? 'تفاصيل النتائج' : 'Détail des résultats'}</div>
+    <table>
+      <thead>
+        <tr>
+          <th style="width:40px;text-align:center">#</th>
+          <th>${isAr ? 'الطالب' : 'Élève'}</th>
+          <th>${isAr ? 'المستوى' : 'Niveau'}</th>
+          <th>${isAr ? 'الامتحان' : 'Examen'}</th>
+          <th style="text-align:center">${isAr ? 'النتيجة' : 'Score'}</th>
+          <th style="text-align:center">${isAr ? 'الحالة' : 'Statut'}</th>
+          <th>${isAr ? 'التاريخ' : 'Date'}</th>
+        </tr>
+      </thead>
+      <tbody>${rowsHtml}</tbody>
+    </table>
+
+    <div class="footer">
+      ${ecole?.nom || ''} · ${isAr ? 'سري — للاستخدام الداخلي' : 'Confidentiel — Usage interne'}
+    </div>
+  </div>
+  </body></html>`;
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// RAPPORT MURAJA'A — sessions de révision collective
+// Tableau des sessions groupées par date avec contenu, niveau,
+// valideur et liste des élèves participants. Inclut des stats par niveau.
+// ══════════════════════════════════════════════════════════════════════
+function generateRapportMuraja(data, lang) {
+  const {
+    ecole,
+    filtrePeriode,
+    filtreNiveau,
+    stats = {},       // { totalSessions, totalEleves, parNiveau: [{niveau, label, nb, uniqueEleves, totalEleves, taux, color}] }
+    sessions = [],    // [{date, contenu, niveau, niveau_couleur, valideur, nbEleves, eleves: 'nom1, nom2...'}]
+  } = data || {};
+  const isAr = lang === 'ar';
+  const dir = isAr ? 'rtl' : 'ltr';
+
+  const titre = isAr ? 'تقرير المراجعات الجماعية' : 'Rapport Muraja\'a collectives';
+
+  // Tableau stats par niveau
+  const statsHtml = (stats.parNiveau || []).map((s, i) => `
+    <tr>
+      <td style="text-align:center;color:#888">${i+1}</td>
+      <td><span class="badge" style="background:${s.color}20;color:${s.color}">${s.label || s.niveau}</span></td>
+      <td style="text-align:center">${s.nb}</td>
+      <td style="text-align:center">${s.uniqueEleves} / ${s.totalEleves}</td>
+      <td style="text-align:center">
+        <span style="padding:3px 10px;border-radius:10px;background:${s.taux>=75?'#E1F5EE':s.taux>=50?'#FAEEDA':'#FCEBEB'};color:${s.taux>=75?'#1D9E75':s.taux>=50?'#EF9F27':'#E24B4A'};font-weight:700">${s.taux}%</span>
+      </td>
+    </tr>
+  `).join('');
+
+  // Tableau des sessions
+  const sessionsHtml = sessions.map((sess, i) => `
+    <tr>
+      <td style="text-align:center;color:#888">${i+1}</td>
+      <td style="font-size:11px">${sess.date || '—'}</td>
+      <td style="font-weight:700">${sess.contenu || '—'}</td>
+      <td>
+        <span class="badge" style="background:${sess.niveau_couleur || '#085041'}20;color:${sess.niveau_couleur || '#085041'}">${sess.niveau || '—'}</span>
+      </td>
+      <td style="font-size:11px">${sess.valideur || '—'}</td>
+      <td style="text-align:center;font-weight:700">${sess.nbEleves || 0}</td>
+      <td style="font-size:10px;color:#555;max-width:200px">${sess.eleves || '—'}</td>
+    </tr>
+  `).join('');
+
+  return `<!DOCTYPE html><html dir="${dir}"><head><meta charset="UTF-8"><title>${titre}</title>${baseStyles()}</head>
+  <body>
+  ${printButton(lang)}
+  <div class="page">
+    <div class="header">
+      <div>
+        <div class="logo">🔄 ${ecole?.nom || 'École'}</div>
+        <div class="subtitle">${titre}</div>
+        <div class="subtitle" style="margin-top:4px">
+          ${filtrePeriode ? `${isAr ? 'الفترة' : 'Période'} : ${filtrePeriode} ${isAr ? 'يوم' : 'jours'}` : ''}
+          ${filtreNiveau && filtreNiveau !== 'tous' ? ` · ${isAr ? 'المستوى' : 'Niveau'} : ${filtreNiveau}` : ''}
+        </div>
+      </div>
+      <div style="font-size:12px;color:#888;text-align:right">
+        <div>${new Date().toLocaleDateString(isAr ? 'ar-MA' : 'fr-FR')}</div>
+        <div style="margin-top:2px">${sessions.length} ${isAr ? 'جلسة' : 'session(s)'}</div>
+      </div>
+    </div>
+
+    <div class="kpi-grid" style="grid-template-columns:repeat(3,1fr)">
+      <div class="kpi">
+        <div class="kpi-val">${stats.totalSessions || 0}</div>
+        <div class="kpi-lbl">${isAr ? 'إجمالي الجلسات' : 'Sessions'}</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-val" style="color:#1D9E75">${stats.totalEleves || 0}</div>
+        <div class="kpi-lbl">${isAr ? 'إجمالي المشاركات' : 'Participations'}</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-val" style="color:#EF9F27">${(stats.parNiveau || []).length}</div>
+        <div class="kpi-lbl">${isAr ? 'مستوى نشط' : 'Niveaux actifs'}</div>
+      </div>
+    </div>
+
+    ${(stats.parNiveau || []).length > 0 ? `
+    <div class="section-title">${isAr ? 'إحصائيات حسب المستوى' : 'Statistiques par niveau'}</div>
+    <table style="margin-bottom:20px">
+      <thead>
+        <tr>
+          <th style="width:40px;text-align:center">#</th>
+          <th>${isAr ? 'المستوى' : 'Niveau'}</th>
+          <th style="text-align:center">${isAr ? 'عدد الجلسات' : 'Nb sessions'}</th>
+          <th style="text-align:center">${isAr ? 'الطلاب المشاركون' : 'Élèves participants'}</th>
+          <th style="text-align:center">${isAr ? 'نسبة المشاركة' : 'Taux couverture'}</th>
+        </tr>
+      </thead>
+      <tbody>${statsHtml}</tbody>
+    </table>
+    ` : ''}
+
+    <div class="section-title">${isAr ? 'تفاصيل الجلسات' : 'Détail des sessions'}</div>
+    <table>
+      <thead>
+        <tr>
+          <th style="width:40px;text-align:center">#</th>
+          <th>${isAr ? 'التاريخ' : 'Date'}</th>
+          <th>${isAr ? 'المحتوى' : 'Contenu'}</th>
+          <th>${isAr ? 'المستوى' : 'Niveau'}</th>
+          <th>${isAr ? 'المُقيّم' : 'Valideur'}</th>
+          <th style="text-align:center">${isAr ? 'العدد' : 'Nb'}</th>
+          <th>${isAr ? 'الطلاب' : 'Élèves'}</th>
+        </tr>
+      </thead>
+      <tbody>${sessionsHtml}</tbody>
+    </table>
+
+    <div class="footer">
+      ${ecole?.nom || ''} · ${isAr ? 'سري — للاستخدام الداخلي' : 'Confidentiel — Usage interne'}
+    </div>
+  </div>
+  </body></html>`;
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// RAPPORT TABLEAU D'HONNEUR — format cérémonieux type diplôme
+// Affiche top 3 en médaillons + liste des suivants
+// Adapté à l'impression A4 pour affichage mural école
+// ══════════════════════════════════════════════════════════════════════
+function generateRapportHonneur(data, lang) {
+  const {
+    ecole,
+    periodeLabel,
+    vueLabel = '',  // 'Global' ou nom du niveau
+    eleves = [],    // [{rang, prenom, nom, code_niveau, niveau_couleur, points, tomon, hizb}]
+  } = data || {};
+  const isAr = lang === 'ar';
+  const dir = isAr ? 'rtl' : 'ltr';
+  const titre = isAr ? 'لوحة الشرف' : 'Tableau d\'honneur';
+
+  const top3 = eleves.slice(0, 3);
+  const suivants = eleves.slice(3);
+  const medals = ['🥇', '🥈', '🥉'];
+  const podiumColors = ['#EF9F27', '#B0B0B0', '#CD7F32'];
+  const podiumBg = ['#FFF8E7', '#F5F5F5', '#FAEED9'];
+
+  // Rendu podium top 3
+  const podiumHtml = top3.length > 0 ? `
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin:24px 0 30px">
+      ${top3.map((el, i) => `
+        <div style="background:${podiumBg[i]};border:3px solid ${podiumColors[i]};border-radius:16px;padding:20px 12px;text-align:center;${i===0?'transform:scale(1.08)':''}">
+          <div style="font-size:48px;line-height:1">${medals[i]}</div>
+          <div style="font-size:${i===0?26:22}px;font-weight:900;color:${podiumColors[i]};margin:8px 0 4px">#${i+1}</div>
+          <div style="font-size:${i===0?15:13}px;font-weight:800;color:#1a1a1a;margin-bottom:4px">
+            ${el.prenom || ''} ${el.nom || ''}
+          </div>
+          <div style="display:inline-block;padding:2px 10px;border-radius:12px;background:${el.niveau_couleur || '#085041'}20;color:${el.niveau_couleur || '#085041'};font-size:11px;font-weight:700;margin-bottom:8px">
+            ${el.code_niveau || '—'}
+          </div>
+          <div style="font-size:${i===0?22:18}px;font-weight:900;color:${podiumColors[i]}">
+            ${el.points || 0} <span style="font-size:11px;font-weight:600">${isAr?'نقطة':'pts'}</span>
+          </div>
+          <div style="font-size:10px;color:#666;margin-top:4px">
+            ${el.tomon || 0} ${isAr?'ثُمن':'tomon'} · ${el.hizb || 0} ${isAr?'حزب':'hizb'}
+          </div>
+        </div>
+      `).join('')}
+    </div>
+  ` : `
+    <div style="padding:30px;text-align:center;color:#888;font-style:italic">
+      ${isAr ? 'لا توجد نتائج لهذه الفترة' : 'Aucun résultat pour cette période'}
+    </div>
+  `;
+
+  // Liste des suivants (rang 4+)
+  const suivantsHtml = suivants.length > 0 ? `
+    <div class="section-title" style="margin-top:24px">${isAr ? 'التصنيف الكامل' : 'Classement complet'}</div>
+    <table>
+      <thead>
+        <tr>
+          <th style="width:60px;text-align:center">${isAr ? 'الرتبة' : 'Rang'}</th>
+          <th>${isAr ? 'الطالب' : 'Élève'}</th>
+          <th>${isAr ? 'المستوى' : 'Niveau'}</th>
+          <th style="text-align:center">${isAr ? 'النقاط' : 'Points'}</th>
+          <th style="text-align:center">${isAr ? 'ثُمن' : 'Tomon'}</th>
+          <th style="text-align:center">${isAr ? 'حزب' : 'Hizb'}</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${suivants.map(el => `
+          <tr>
+            <td style="text-align:center;font-weight:800;color:#888">#${el.rang}</td>
+            <td style="font-weight:700">${el.prenom || ''} ${el.nom || ''}</td>
+            <td>
+              <span class="badge" style="background:${el.niveau_couleur || '#085041'}20;color:${el.niveau_couleur || '#085041'}">
+                ${el.code_niveau || '—'}
+              </span>
+            </td>
+            <td style="text-align:center;font-weight:700;color:#378ADD">${el.points || 0}</td>
+            <td style="text-align:center">${el.tomon || 0}</td>
+            <td style="text-align:center">${el.hizb || 0}</td>
+          </tr>
+        `).join('')}
+      </tbody>
+    </table>
+  ` : '';
+
+  return `<!DOCTYPE html><html dir="${dir}"><head><meta charset="UTF-8"><title>${titre}</title>${baseStyles()}
+  <style>
+    .honneur-page {
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 30px;
+      background: linear-gradient(135deg, #FFFAEF 0%, #FFF5DC 100%);
+      border: 6px double #EF9F27;
+      border-radius: 20px;
+      position: relative;
+    }
+    .honneur-header {
+      text-align: center;
+      padding: 20px 0 10px;
+      border-bottom: 2px dashed #EF9F27;
+      margin-bottom: 20px;
+    }
+    .honneur-title {
+      font-size: 36px;
+      font-weight: 900;
+      color: #085041;
+      letter-spacing: 1px;
+      margin: 0;
+    }
+    .honneur-subtitle {
+      font-size: 15px;
+      color: #EF9F27;
+      font-weight: 700;
+      margin-top: 6px;
+      letter-spacing: 0.5px;
+    }
+    .honneur-ecole {
+      font-size: 13px;
+      color: #666;
+      margin-top: 4px;
+    }
+    .honneur-decor {
+      font-size: 32px;
+      margin: 10px 0;
+    }
+  </style>
+  </head>
+  <body>
+  ${printButton(lang)}
+  <div class="honneur-page">
+    <div class="honneur-header">
+      <div class="honneur-decor">🏆 ⭐ 🏆</div>
+      <div class="honneur-title">${titre}</div>
+      <div class="honneur-subtitle">${periodeLabel || ''}${vueLabel ? ' · ' + vueLabel : ''}</div>
+      <div class="honneur-ecole">${ecole?.nom || ''}</div>
+      <div style="font-size:11px;color:#999;margin-top:6px">${new Date().toLocaleDateString(isAr ? 'ar-MA' : 'fr-FR')}</div>
+    </div>
+
+    ${podiumHtml}
+
+    ${suivantsHtml}
+
+    <div style="margin-top:30px;padding:16px;background:rgba(239,159,39,0.08);border-radius:12px;text-align:center;font-size:12px;color:#666;font-style:italic">
+      ${isAr
+        ? '✨ بارك الله في جهودكم — استمروا في طريق التميز'
+        : '✨ Félicitations pour votre travail — continuez sur la voie de l\'excellence'}
+    </div>
+
+    <div class="footer" style="margin-top:20px;border-top:1px dashed #EF9F27;padding-top:10px;text-align:center;font-size:10px;color:#888">
+      ${ecole?.nom || ''} · ${isAr ? 'لوحة الشرف' : 'Tableau d\'honneur'} · ${eleves.length} ${isAr ? 'طالب' : 'élève(s)'}
+    </div>
+  </div>
+  </body></html>`;
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// RAPPORT ÉLÈVES INACTIFS — liste d'alerte avec téléphones parents
+// Objectif : permettre au surveillant d'appeler/relancer les familles
+// ══════════════════════════════════════════════════════════════════════
+function generateRapportInactifs(data, lang) {
+  const {
+    ecole,
+    stats = {},       // { plus30, entre14, jamais }
+    rows = [],        // [{prenom, nom, eleve_id_ecole, code_niveau, niveau_couleur, instituteur, derniere, jours, parent_nom, parent_tel}]
+  } = data || {};
+  const isAr = lang === 'ar';
+  const dir = isAr ? 'rtl' : 'ltr';
+  const titre = isAr ? 'تقرير الطلاب غير النشطين' : 'Rapport Élèves inactifs';
+
+  // Catégorisation par urgence
+  const categoryColor = (row) => {
+    if (row.jours == null) return { bg: '#F0EEFF', color: '#534AB7', label: isAr ? 'لم يستظهر' : 'Sans récit.' };
+    if (row.jours > 30)    return { bg: '#FCEBEB', color: '#E24B4A', label: isAr ? 'عاجل' : 'Urgent' };
+    return { bg: '#FFF3CD', color: '#856404', label: isAr ? 'تنبيه' : 'Alerte' };
+  };
+
+  const joursLabel = (j) => {
+    if (j == null) return isAr ? 'لم يستظهر قط' : 'Jamais récité';
+    if (j === 0)   return isAr ? 'اليوم' : 'Aujourd\'hui';
+    if (j === 1)   return isAr ? 'أمس' : 'Hier';
+    return isAr ? `منذ ${j} يوم` : `Il y a ${j} j`;
+  };
+
+  const rowsHtml = rows.map((r, i) => {
+    const cat = categoryColor(r);
+    return `
+      <tr>
+        <td style="text-align:center;color:#888">${i + 1}</td>
+        <td>
+          <div style="font-weight:700">${r.prenom || ''} ${r.nom || ''}</div>
+          ${r.eleve_id_ecole ? `<div style="font-size:10px;color:#888">N° ${r.eleve_id_ecole}</div>` : ''}
+        </td>
+        <td>
+          <span class="badge" style="background:${r.niveau_couleur || '#085041'}20;color:${r.niveau_couleur || '#085041'}">
+            ${r.code_niveau || '—'}
+          </span>
+        </td>
+        <td style="font-size:11px">${r.instituteur || '—'}</td>
+        <td style="text-align:center">
+          <span style="padding:2px 10px;border-radius:10px;background:${cat.bg};color:${cat.color};font-weight:700;font-size:11px">
+            ${cat.label}
+          </span>
+          <div style="font-size:10px;color:#666;margin-top:3px">${joursLabel(r.jours)}</div>
+        </td>
+        <td style="font-size:11px">
+          ${r.parent_nom ? `<div style="font-weight:600">${r.parent_nom}</div>` : ''}
+          ${r.parent_tel ? `<div style="font-family:monospace;color:#378ADD;font-weight:700">📞 ${r.parent_tel}</div>` : `<div style="color:#aaa;font-style:italic">${isAr ? 'بدون' : 'Non renseigné'}</div>`}
+        </td>
+      </tr>
+    `;
+  }).join('');
+
+  return `<!DOCTYPE html><html dir="${dir}"><head><meta charset="UTF-8"><title>${titre}</title>${baseStyles()}</head>
+  <body>
+  ${printButton(lang)}
+  <div class="page">
+    <div class="header">
+      <div>
+        <div class="logo">🚨 ${ecole?.nom || 'École'}</div>
+        <div class="subtitle">${titre}</div>
+      </div>
+      <div style="font-size:12px;color:#888;text-align:right">
+        <div>${new Date().toLocaleDateString(isAr ? 'ar-MA' : 'fr-FR')}</div>
+        <div style="margin-top:2px">${rows.length} ${isAr ? 'طالب' : 'élève(s)'}</div>
+      </div>
+    </div>
+
+    <div class="kpi-grid" style="grid-template-columns:repeat(3,1fr)">
+      <div class="kpi">
+        <div class="kpi-val" style="color:#E24B4A">${stats.plus30 || 0}</div>
+        <div class="kpi-lbl">🔴 +30 ${isAr ? 'يوم' : 'jours'}</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-val" style="color:#856404">${stats.entre14 || 0}</div>
+        <div class="kpi-lbl">🟡 14-30 ${isAr ? 'يوم' : 'jours'}</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-val" style="color:#534AB7">${stats.jamais || 0}</div>
+        <div class="kpi-lbl">⚪ ${isAr ? 'لم يستظهر' : 'Sans récitation'}</div>
+      </div>
+    </div>
+
+    <div class="section-title">${isAr ? 'قائمة الطلاب للاتصال' : 'Liste des élèves à contacter'}</div>
+
+    ${rows.length === 0 ? `
+      <div style="padding:40px;text-align:center;color:#1D9E75;background:#E1F5EE;border-radius:12px;font-weight:700">
+        ✓ ${isAr ? 'جميع الطلاب نشطون' : 'Tous les élèves sont actifs'}
+      </div>
+    ` : `
+      <table>
+        <thead>
+          <tr>
+            <th style="width:40px;text-align:center">#</th>
+            <th>${isAr ? 'الطالب' : 'Élève'}</th>
+            <th>${isAr ? 'المستوى' : 'Niveau'}</th>
+            <th>${isAr ? 'الأستاذ' : 'Instituteur'}</th>
+            <th style="text-align:center">${isAr ? 'الحالة' : 'Statut'}</th>
+            <th>${isAr ? 'الولي + الهاتف' : 'Parent + téléphone'}</th>
+          </tr>
+        </thead>
+        <tbody>${rowsHtml}</tbody>
+      </table>
+    `}
+
+    <div style="margin-top:16px;padding:12px;background:#FCEBEB;border-left:4px solid #E24B4A;border-radius:8px;font-size:11px;color:#666;line-height:1.6">
+      <strong>💡 ${isAr ? 'توصية' : 'Action recommandée'} :</strong><br>
+      ${isAr
+        ? 'اتصل بأولياء الطلاب المصنفين 🔴 عاجل لفهم سبب الغياب وإرشادهم. الطلاب ⚪ بدون تلاوة يستحقون اهتماما خاصا.'
+        : 'Contacter en priorité les parents des élèves 🔴 Urgents. Les élèves ⚪ Sans récitation n\'ont jamais valide — attention particulière recommandée.'}
+    </div>
+
+    <div class="footer">
+      ${ecole?.nom || ''} · ${isAr ? 'سري — للاستخدام الداخلي' : 'Confidentiel — Usage interne'}
+    </div>
+  </div>
+  </body></html>`;
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// RAPPORT GESTION EXAMENS — configuration des examens de l'ecole
+// Liste technique des examens configures (pas les resultats = different
+// de 'rapport_examens')
+// ══════════════════════════════════════════════════════════════════════
+function generateRapportGestionExamens(data, lang) {
+  const {
+    ecole,
+    filtreNiveau = '',
+    rows = [],   // [{nom, description, niveau_nom, niveau_couleur, type_contenu, nb_elements, score_minimum, bloquant, ordre}]
+  } = data || {};
+  const isAr = lang === 'ar';
+  const dir = isAr ? 'rtl' : 'ltr';
+  const titre = isAr ? 'تقرير إعداد الامتحانات' : 'Configuration des examens';
+
+  // Group by niveau pour une lecture plus lisible
+  const byNiveau = {};
+  rows.forEach(r => {
+    const key = r.niveau_nom || '—';
+    if (!byNiveau[key]) byNiveau[key] = { couleur: r.niveau_couleur, items: [] };
+    byNiveau[key].items.push(r);
+  });
+
+  const sections = Object.keys(byNiveau).map(nivNom => {
+    const g = byNiveau[nivNom];
+    const rowsHtml = g.items
+      .sort((a, b) => (a.ordre || 0) - (b.ordre || 0))
+      .map((r, i) => `
+        <tr>
+          <td style="text-align:center;color:#888">${r.ordre || i+1}</td>
+          <td style="font-weight:700">${r.nom || '—'}</td>
+          <td style="font-size:11px;color:#666;max-width:200px">${r.description || '—'}</td>
+          <td style="text-align:center;font-size:11px">
+            ${r.type_contenu === 'hizb' ? (isAr ? 'حزب' : 'Hizb')
+              : r.type_contenu === 'sourate' ? (isAr ? 'سورة' : 'Sourate')
+              : r.type_contenu === 'ensemble' ? (isAr ? 'مجموعة' : 'Ensemble')
+              : r.type_contenu || '—'}
+          </td>
+          <td style="text-align:center">${r.nb_elements || 0}</td>
+          <td style="text-align:center;font-weight:700;color:#378ADD">${r.score_minimum || 0}%</td>
+          <td style="text-align:center">
+            ${r.bloquant
+              ? `<span style="padding:2px 8px;border-radius:8px;background:#FCEBEB;color:#E24B4A;font-weight:700;font-size:10px">🔒 ${isAr ? 'حاجز' : 'Bloquant'}</span>`
+              : `<span style="padding:2px 8px;border-radius:8px;background:#E1F5EE;color:#1D9E75;font-weight:700;font-size:10px">✓ ${isAr ? 'اختياري' : 'Optionnel'}</span>`
+            }
+          </td>
+        </tr>
+      `).join('');
+
+    return `
+      <div class="section-title" style="margin-top:20px">
+        <span class="badge" style="background:${g.couleur || '#085041'}20;color:${g.couleur || '#085041'}">${nivNom}</span>
+        <span style="font-size:11px;color:#888;font-weight:400">· ${g.items.length} ${isAr ? 'امتحان' : 'examen(s)'}</span>
+      </div>
+      <table>
+        <thead>
+          <tr>
+            <th style="width:50px;text-align:center">${isAr ? 'الترتيب' : 'Ordre'}</th>
+            <th>${isAr ? 'اسم الامتحان' : 'Nom'}</th>
+            <th>${isAr ? 'الوصف' : 'Description'}</th>
+            <th style="text-align:center">${isAr ? 'النوع' : 'Type'}</th>
+            <th style="text-align:center">${isAr ? 'عدد العناصر' : 'Nb éléments'}</th>
+            <th style="text-align:center">${isAr ? 'النجاح' : 'Seuil'}</th>
+            <th style="text-align:center">${isAr ? 'النوع' : 'Caractère'}</th>
+          </tr>
+        </thead>
+        <tbody>${rowsHtml}</tbody>
+      </table>
+    `;
+  }).join('');
+
+  return `<!DOCTYPE html><html dir="${dir}"><head><meta charset="UTF-8"><title>${titre}</title>${baseStyles()}</head>
+  <body>
+  ${printButton(lang)}
+  <div class="page">
+    <div class="header">
+      <div>
+        <div class="logo">📝 ${ecole?.nom || 'École'}</div>
+        <div class="subtitle">${titre}</div>
+        ${filtreNiveau ? `<div class="subtitle" style="margin-top:4px">${isAr ? 'المستوى' : 'Niveau'} : ${filtreNiveau}</div>` : ''}
+      </div>
+      <div style="font-size:12px;color:#888;text-align:right">
+        <div>${new Date().toLocaleDateString(isAr ? 'ar-MA' : 'fr-FR')}</div>
+        <div style="margin-top:2px">${rows.length} ${isAr ? 'امتحان' : 'examen(s)'}</div>
+      </div>
+    </div>
+
+    ${rows.length === 0 ? `
+      <div style="padding:40px;text-align:center;color:#888;font-style:italic">
+        ${isAr ? 'لا توجد امتحانات محددة' : 'Aucun examen configuré'}
+      </div>
+    ` : sections}
+
+    <div style="margin-top:16px;padding:12px;background:#f9f9f6;border-radius:8px;font-size:11px;color:#666;line-height:1.6">
+      <strong>ℹ️ ${isAr ? 'معلومة' : 'Information'} :</strong>
+      ${isAr
+        ? 'الامتحانات <strong>الحاجزة</strong> يجب أن تكون ناجحة لتجاوز مرحلة. الامتحانات <strong>الاختيارية</strong> مفيدة للتقييم ولكن غير لازمة للتقدم.'
+        : 'Les examens <strong>bloquants</strong> doivent être réussis pour franchir un cap. Les examens <strong>optionnels</strong> servent à l\'évaluation mais ne bloquent pas la progression.'}
+    </div>
+
+    <div class="footer">
+      ${ecole?.nom || ''} · ${isAr ? 'وثيقة مرجعية' : 'Document de référence'}
+    </div>
+  </div>
+  </body></html>`;
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// RAPPORT DIRECTION — synthèse stratégique multi-sections
+// Document de reference pour conseil d'administration ou bilan direction
+// ══════════════════════════════════════════════════════════════════════
+function generateRapportDirection(data, lang) {
+  const {
+    ecole,
+    periodeLabel,
+    kpis = {},         // { totalEleves, elevesActifs, tauxActivite, totalTomon, totalHizb, totalCerts, totalPassages, totalSeances }
+    parNiveau = [],    // [{code, nom, color, total, actifs, taux, tomon, hizb, seances}]
+    parInstituteur = [], // [{nom, nbEleves, actifs, seances, tomon, moy}]
+    evolution = [],    // [{label, tomon, eleves}]
+    topEleves = [],    // [{rang, prenom, nom, code_niveau, niveau_couleur, points, tomon, hizb}]
+  } = data || {};
+  const isAr = lang === 'ar';
+  const dir = isAr ? 'rtl' : 'ltr';
+  const titre = isAr ? 'تقرير الإدارة' : 'Rapport de direction';
+
+  // Couleur d'un taux
+  const tauxColor = (t) => t >= 80 ? '#1D9E75' : t >= 50 ? '#EF9F27' : '#E24B4A';
+  const tauxBg = (t) => t >= 80 ? '#E1F5EE' : t >= 50 ? '#FAEEDA' : '#FCEBEB';
+
+  // Stats par niveau : rendu
+  const niveauxHtml = parNiveau.map((n, i) => `
+    <tr>
+      <td style="text-align:center;color:#888">${i+1}</td>
+      <td><span class="badge" style="background:${n.color}20;color:${n.color}">${n.code} — ${n.nom || ''}</span></td>
+      <td style="text-align:center;font-weight:700">${n.total}</td>
+      <td style="text-align:center;font-weight:700;color:#378ADD">${n.actifs}</td>
+      <td style="text-align:center">
+        <span style="padding:3px 10px;border-radius:10px;background:${tauxBg(n.taux)};color:${tauxColor(n.taux)};font-weight:700">${n.taux}%</span>
+      </td>
+      <td style="text-align:center">${n.tomon}</td>
+      <td style="text-align:center">${n.hizb}</td>
+      <td style="text-align:center">${n.seances}</td>
+    </tr>
+  `).join('');
+
+  // Stats par instituteur
+  const instHtml = parInstituteur.map((inst, i) => `
+    <tr>
+      <td style="text-align:center;color:#888">${i+1}</td>
+      <td style="font-weight:700">${inst.nom}</td>
+      <td style="text-align:center">${inst.nbEleves}</td>
+      <td style="text-align:center;font-weight:700;color:#378ADD">${inst.actifs}</td>
+      <td style="text-align:center;font-weight:700">${inst.seances}</td>
+      <td style="text-align:center">${inst.tomon}</td>
+      <td style="text-align:center;color:#EF9F27;font-weight:700">${inst.moy || 0}</td>
+    </tr>
+  `).join('');
+
+  // Évolution : barres horizontales simples
+  const maxTomon = Math.max(...evolution.map(e => e.tomon || 0), 1);
+  const evolutionHtml = evolution.map(m => {
+    const pct = Math.round((m.tomon || 0) / maxTomon * 100);
+    return `
+      <div style="margin-bottom:8px">
+        <div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:3px">
+          <span style="font-weight:700">${m.label || '—'}</span>
+          <span style="color:#666">${m.tomon || 0} ${isAr ? 'ثُمن' : 'tomon'} · ${m.eleves || 0} ${isAr ? 'طالب' : 'élèves'}</span>
+        </div>
+        <div style="height:16px;background:#f0f0ec;border-radius:4px;overflow:hidden">
+          <div style="height:100%;width:${pct}%;background:linear-gradient(90deg,#085041,#1D9E75);border-radius:4px"></div>
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  // Top élèves : cartes compactes
+  const medals = ['🥇', '🥈', '🥉'];
+  const topHtml = topEleves.slice(0, 10).map((el, i) => `
+    <tr ${i < 3 ? 'style="background:#FFF8E7"' : ''}>
+      <td style="text-align:center;font-weight:800">${i < 3 ? medals[i] : '#' + (i+1)}</td>
+      <td style="font-weight:700">${el.prenom || ''} ${el.nom || ''}</td>
+      <td>
+        <span class="badge" style="background:${el.niveau_couleur || '#085041'}20;color:${el.niveau_couleur || '#085041'}">
+          ${el.code_niveau || '—'}
+        </span>
+      </td>
+      <td style="text-align:center;font-weight:700;color:#378ADD">${el.points || 0}</td>
+      <td style="text-align:center">${el.tomon || 0}</td>
+      <td style="text-align:center">${el.hizb || 0}</td>
+    </tr>
+  `).join('');
+
+  return `<!DOCTYPE html><html dir="${dir}"><head><meta charset="UTF-8"><title>${titre}</title>${baseStyles()}</head>
+  <body>
+  ${printButton(lang)}
+
+  <!-- ═══ PAGE 1 : KPIs + ÉVOLUTION ═══ -->
+  <div class="page">
+    <div class="header">
+      <div>
+        <div class="logo">📊 ${ecole?.nom || 'École'}</div>
+        <div class="subtitle">${titre}${periodeLabel ? ' — ' + periodeLabel : ''}</div>
+      </div>
+      <div style="font-size:12px;color:#888;text-align:right">
+        <div>${new Date().toLocaleDateString(isAr ? 'ar-MA' : 'fr-FR')}</div>
+        <div style="margin-top:2px;font-weight:700;color:#085041">${isAr ? 'وثيقة تنفيذية' : 'Document exécutif'}</div>
+      </div>
+    </div>
+
+    <!-- KPIs principaux -->
+    <div class="section-title">${isAr ? 'المؤشرات الرئيسية' : 'Indicateurs clés'}</div>
+    <div class="kpi-grid" style="grid-template-columns:repeat(4,1fr);margin-bottom:16px">
+      <div class="kpi">
+        <div class="kpi-val" style="color:#378ADD">${kpis.elevesActifs || 0}<span style="font-size:14px;color:#888"> / ${kpis.totalEleves || 0}</span></div>
+        <div class="kpi-lbl">${isAr ? 'طلاب نشطون' : 'Élèves actifs'}</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-val" style="color:${tauxColor(kpis.tauxActivite || 0)}">${kpis.tauxActivite || 0}%</div>
+        <div class="kpi-lbl">${isAr ? 'نسبة النشاط' : 'Taux d\'activité'}</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-val" style="color:#1D9E75">${kpis.totalTomon || 0}</div>
+        <div class="kpi-lbl">${isAr ? 'ثُمنات محققة' : 'Tomon validés'}</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-val" style="color:#EF9F27">${kpis.totalHizb || 0}</div>
+        <div class="kpi-lbl">${isAr ? 'أحزاب كاملة' : 'Hizb complets'}</div>
+      </div>
+    </div>
+
+    <div class="kpi-grid" style="grid-template-columns:repeat(3,1fr);margin-bottom:20px">
+      <div class="kpi">
+        <div class="kpi-val" style="color:#534AB7">${kpis.totalSeances || 0}</div>
+        <div class="kpi-lbl">${isAr ? 'جلسات' : 'Séances'}</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-val" style="color:#085041">${kpis.totalCerts || 0}</div>
+        <div class="kpi-lbl">${isAr ? 'شهادات' : 'Certificats'}</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-val" style="color:#EF9F27">${kpis.totalPassages || 0}</div>
+        <div class="kpi-lbl">${isAr ? 'اجتيازات مستوى' : 'Passages niveau'}</div>
+      </div>
+    </div>
+
+    <!-- Évolution 6 mois -->
+    ${evolution.length > 0 ? `
+      <div class="section-title">${isAr ? 'التطور على 6 أشهر' : 'Évolution 6 derniers mois'}</div>
+      <div style="padding:14px;background:#f9f9f6;border-radius:10px">
+        ${evolutionHtml}
+      </div>
+    ` : ''}
+
+    <div class="footer" style="margin-top:20px">
+      ${ecole?.nom || ''} · ${isAr ? 'صفحة 1 من 3' : 'Page 1 / 3'}
+    </div>
+  </div>
+
+  <!-- ═══ PAGE 2 : NIVEAUX + INSTITUTEURS ═══ -->
+  <div class="page" style="page-break-before:always">
+    <div class="header">
+      <div>
+        <div class="logo">📊 ${ecole?.nom || 'École'}</div>
+        <div class="subtitle">${titre} — ${isAr ? 'أداء المستويات و المؤطرين' : 'Performance niveaux & instituteurs'}</div>
+      </div>
+      <div style="font-size:12px;color:#888;text-align:right">
+        <div>${periodeLabel || ''}</div>
+      </div>
+    </div>
+
+    ${parNiveau.length > 0 ? `
+      <div class="section-title">${isAr ? 'التحليل حسب المستوى' : 'Analyse par niveau'}</div>
+      <table>
+        <thead>
+          <tr>
+            <th style="width:40px;text-align:center">#</th>
+            <th>${isAr ? 'المستوى' : 'Niveau'}</th>
+            <th style="text-align:center">${isAr ? 'العدد' : 'Total'}</th>
+            <th style="text-align:center">${isAr ? 'نشط' : 'Actifs'}</th>
+            <th style="text-align:center">${isAr ? 'النسبة' : 'Taux'}</th>
+            <th style="text-align:center">${isAr ? 'ثُمن' : 'Tomon'}</th>
+            <th style="text-align:center">${isAr ? 'حزب' : 'Hizb'}</th>
+            <th style="text-align:center">${isAr ? 'جلسات' : 'Séances'}</th>
+          </tr>
+        </thead>
+        <tbody>${niveauxHtml}</tbody>
+      </table>
+    ` : ''}
+
+    ${parInstituteur.length > 0 ? `
+      <div class="section-title" style="margin-top:24px">${isAr ? 'أداء المؤطرين' : 'Performance des instituteurs'}</div>
+      <table>
+        <thead>
+          <tr>
+            <th style="width:40px;text-align:center">#</th>
+            <th>${isAr ? 'المؤطر' : 'Instituteur'}</th>
+            <th style="text-align:center">${isAr ? 'طلاب مُتَبَنَّون' : 'Élèves réf.'}</th>
+            <th style="text-align:center">${isAr ? 'نشط' : 'Actifs'}</th>
+            <th style="text-align:center">${isAr ? 'جلسات' : 'Séances'}</th>
+            <th style="text-align:center">${isAr ? 'ثُمن' : 'Tomon'}</th>
+            <th style="text-align:center">${isAr ? 'معدل/طالب' : 'Moy/élève'}</th>
+          </tr>
+        </thead>
+        <tbody>${instHtml}</tbody>
+      </table>
+    ` : ''}
+
+    <div class="footer" style="margin-top:20px">
+      ${ecole?.nom || ''} · ${isAr ? 'صفحة 2 من 3' : 'Page 2 / 3'}
+    </div>
+  </div>
+
+  <!-- ═══ PAGE 3 : TOP ÉLÈVES ═══ -->
+  <div class="page" style="page-break-before:always">
+    <div class="header">
+      <div>
+        <div class="logo">📊 ${ecole?.nom || 'École'}</div>
+        <div class="subtitle">${titre} — ${isAr ? 'أفضل 10 طلاب' : 'Top 10 élèves'}</div>
+      </div>
+      <div style="font-size:12px;color:#888;text-align:right">
+        <div>${periodeLabel || ''}</div>
+      </div>
+    </div>
+
+    <div class="section-title">🏆 ${isAr ? 'أفضل 10 طلاب في الفترة' : 'Top 10 des élèves sur la période'}</div>
+
+    ${topEleves.length > 0 ? `
+      <table>
+        <thead>
+          <tr>
+            <th style="width:60px;text-align:center">${isAr ? 'الرتبة' : 'Rang'}</th>
+            <th>${isAr ? 'الطالب' : 'Élève'}</th>
+            <th>${isAr ? 'المستوى' : 'Niveau'}</th>
+            <th style="text-align:center">${isAr ? 'النقاط' : 'Points'}</th>
+            <th style="text-align:center">${isAr ? 'ثُمن' : 'Tomon'}</th>
+            <th style="text-align:center">${isAr ? 'حزب' : 'Hizb'}</th>
+          </tr>
+        </thead>
+        <tbody>${topHtml}</tbody>
+      </table>
+    ` : `
+      <div style="padding:30px;text-align:center;color:#888;font-style:italic">
+        ${isAr ? 'لا يوجد طلاب نشطون لهذه الفترة' : 'Aucun élève actif sur cette période'}
+      </div>
+    `}
+
+    <div style="margin-top:30px;padding:16px;background:linear-gradient(135deg,#085041,#1D9E75);color:#fff;border-radius:12px;font-size:12px;line-height:1.8">
+      <strong style="font-size:13px">💎 ${isAr ? 'ملخص الفترة' : 'Synthèse de la période'}</strong><br>
+      ${isAr
+        ? `خلال هذه الفترة، ${kpis.elevesActifs || 0} طالب نشط من أصل ${kpis.totalEleves || 0} (${kpis.tauxActivite || 0}%). المدرسة حققت ${kpis.totalTomon || 0} ثُمن و ${kpis.totalHizb || 0} حزب كامل، مع ${kpis.totalCerts || 0} شهادة ممنوحة و ${kpis.totalPassages || 0} اجتياز مستوى.`
+        : `Sur la période, <strong>${kpis.elevesActifs || 0} élèves actifs</strong> sur ${kpis.totalEleves || 0} inscrits (<strong>${kpis.tauxActivite || 0}%</strong>). L'école a enregistré <strong>${kpis.totalTomon || 0} tomon</strong> et <strong>${kpis.totalHizb || 0} hizb complets</strong>, avec <strong>${kpis.totalCerts || 0} certificats</strong> délivrés et <strong>${kpis.totalPassages || 0} passages de niveau</strong>.`}
+    </div>
+
+    <div class="footer" style="margin-top:20px">
+      ${ecole?.nom || ''} · ${isAr ? 'صفحة 3 من 3 · وثيقة سرية' : 'Page 3 / 3 · Document confidentiel'}
+    </div>
   </div>
   </body></html>`;
 }
