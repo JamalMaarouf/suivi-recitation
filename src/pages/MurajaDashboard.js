@@ -3,6 +3,9 @@ import { supabase } from '../lib/supabase';
 import { t } from '../lib/i18n';
 import ConfirmModal from '../components/ConfirmModal';
 import { fetchAll } from '../lib/fetchAll';
+import { openPDF } from '../lib/pdf';
+import { exportExcelSimple } from '../lib/excel';
+import ExportButtons from '../components/ExportButtons';
 
 const getNiveauColor = (code, niveaux=[]) => niveaux.find(n=>n.code===code)?.couleur || {'5B':'#534AB7','5A':'#378ADD','2M':'#1D9E75','2':'#EF9F27','1':'#E24B4A'}[code] || '#888';
 
@@ -178,6 +181,77 @@ export default function MurajaDashboard({ user, navigate, goBack, lang='fr', isM
   const elevesDuNiveau = editingSession ? eleves.filter(e => e.code_niveau === editingSession.niveau) : [];
   const elevesDejaInclus = editingSession ? new Set(editingSession.eleves.map(e=>e.id)) : new Set();
 
+  // ── Préparer les données d'export ──
+  const prepareExportSessions = () => {
+    return sessionList.map(sess => {
+      const niveau = niveaux.find(n => n.code === sess.niveau);
+      return {
+        date: sess.date,
+        contenu: sess.contenu,
+        niveau: niveau?.nom || sess.niveau,
+        niveau_couleur: sess.color,
+        valideur: sess.valideur || '—',
+        nbEleves: sess.eleves.length,
+        eleves: sess.eleves.map(e => `${e.prenom || ''} ${e.nom || ''}`.trim()).join(', '),
+      };
+    });
+  };
+
+  // ── Export PDF ──
+  const handleExportPDF = async () => {
+    if (sessionList.length === 0) return;
+    const sessionsData = prepareExportSessions();
+    const totalParticipations = sessionList.reduce((s, sess) => s + sess.eleves.length, 0);
+    try {
+      await openPDF('rapport_muraja', {
+        ecole: { nom: user?.ecole?.nom || '' },
+        filtrePeriode: filterPeriode,
+        filtreNiveau: filterNiveau === 'tous' ? null : filterNiveau,
+        stats: {
+          totalSessions: sessionList.length,
+          totalEleves: totalParticipations,
+          parNiveau: statsByNiveau,
+        },
+        sessions: sessionsData,
+      }, lang);
+    } catch (err) {
+      alert((lang === 'ar' ? 'خطأ PDF : ' : 'Erreur PDF : ') + err.message);
+    }
+  };
+
+  // ── Export Excel ──
+  const handleExportExcel = async () => {
+    if (sessionList.length === 0) return;
+    const headers = [
+      '#',
+      lang === 'ar' ? 'التاريخ' : 'Date',
+      lang === 'ar' ? 'المحتوى' : 'Contenu',
+      lang === 'ar' ? 'المستوى' : 'Niveau',
+      lang === 'ar' ? 'المُقيّم' : 'Valideur',
+      lang === 'ar' ? 'عدد الطلاب' : 'Nb élèves',
+      lang === 'ar' ? 'الطلاب' : 'Élèves',
+    ];
+    const rows = prepareExportSessions().map((s, i) => [
+      i + 1,
+      s.date,
+      s.contenu,
+      s.niveau,
+      s.valideur,
+      s.nbEleves,
+      s.eleves,
+    ]);
+    const dateStr = new Date().toISOString().slice(0, 10);
+    try {
+      await exportExcelSimple(
+        `muraja_${dateStr}.xlsx`,
+        [headers, ...rows],
+        lang === 'ar' ? 'المراجعات' : 'Muraja',
+      );
+    } catch (err) {
+      alert((lang === 'ar' ? 'خطأ Excel : ' : 'Erreur Excel : ') + err.message);
+    }
+  };
+
   if (loading) return <div style={{padding:'2rem',textAlign:'center'}}><div className="loading">...</div></div>;
 
   return (
@@ -212,6 +286,19 @@ export default function MurajaDashboard({ user, navigate, goBack, lang='fr', isM
             </select>
             <button onClick={loadData} style={{padding:'8px 12px',background:'rgba(255,255,255,0.2)',color:'#fff',border:'none',borderRadius:10,cursor:'pointer',flexShrink:0,fontSize:14}}>🔄</button>
           </div>
+          {/* Export mobile */}
+          {sessionList.length > 0 && (
+            <div style={{display:'flex',gap:6,marginTop:8}}>
+              <button onClick={handleExportPDF}
+                style={{flex:1,background:'rgba(255,255,255,0.25)',border:'1px solid rgba(255,255,255,0.3)',borderRadius:10,padding:'7px 11px',color:'#fff',fontSize:12,fontWeight:600,cursor:'pointer',whiteSpace:'nowrap',fontFamily:'inherit'}}>
+                📄 PDF
+              </button>
+              <button onClick={handleExportExcel}
+                style={{flex:1,background:'rgba(255,255,255,0.25)',border:'1px solid rgba(255,255,255,0.3)',borderRadius:10,padding:'7px 11px',color:'#fff',fontSize:12,fontWeight:600,cursor:'pointer',whiteSpace:'nowrap',fontFamily:'inherit'}}>
+                📊 Excel
+              </button>
+            </div>
+          )}
         </div>
       ) : (
       <>
@@ -240,6 +327,18 @@ export default function MurajaDashboard({ user, navigate, goBack, lang='fr', isM
         </select>
         <button onClick={loadData} style={{padding:'6px 14px',background:'#E1F5EE',color:'#085041',border:'none',borderRadius:8,fontWeight:600,cursor:'pointer'}}>🔄</button>
       </div>
+
+      {/* Export PDF + Excel */}
+      {sessionList.length > 0 && (
+        <div style={{marginBottom:16}}>
+          <ExportButtons
+            onPDF={handleExportPDF}
+            onExcel={handleExportExcel}
+            lang={lang}
+            variant="inline"
+          />
+        </div>
+      )}
       </>
       )}
 

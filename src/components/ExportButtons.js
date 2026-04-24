@@ -42,13 +42,10 @@ const COLORS = {
   csv:   { bg: '#378ADD', bgHover: '#2870BE' },
 };
 
+// Labels volontairement courts et universels : 'PDF', 'Excel', 'CSV'
+// (demande UX de Jamal : simplifier pour le profil surveillant qui n'a
+// pas besoin de phrases comme 'Exporter PDF' / 'تصدير PDF').
 const LABELS = {
-  fr: { pdf: 'Exporter PDF', excel: 'Exporter Excel', csv: 'Exporter CSV' },
-  ar: { pdf: 'تصدير PDF',    excel: 'تصدير Excel',   csv: 'تصدير CSV'   },
-  en: { pdf: 'Export PDF',   excel: 'Export Excel',  csv: 'Export CSV'  },
-};
-
-const LABELS_SHORT = {
   fr: { pdf: 'PDF', excel: 'Excel', csv: 'CSV' },
   ar: { pdf: 'PDF', excel: 'Excel', csv: 'CSV' },
   en: { pdf: 'PDF', excel: 'Excel', csv: 'CSV' },
@@ -73,8 +70,7 @@ export default function ExportButtons({
   compact = false,  // 'compact' = labels courts (juste "PDF", "Excel", "CSV")
 }) {
   const dict = LABELS[lang] || LABELS.fr;
-  const dictShort = LABELS_SHORT[lang] || LABELS_SHORT.fr;
-  const labels = compact ? dictShort : dict;
+  const labels = dict;  // plus de dict 'court' : tous les labels sont courts partout
   const countDict = COUNT_LABELS[lang] || COUNT_LABELS.fr;
 
   // Style commun base

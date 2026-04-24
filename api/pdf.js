@@ -36,6 +36,8 @@ module.exports = async function handler(req, res) {
       html = generateRapportParents(data, lang);
     } else if (type === 'rapport_examens') {
       html = generateRapportExamens(data, lang);
+    } else if (type === 'rapport_muraja') {
+      html = generateRapportMuraja(data, lang);
     } else {
       return res.status(400).json({ error: 'Type non supporté' });
     }
@@ -969,6 +971,125 @@ function generateRapportExamens(data, lang) {
         </tr>
       </thead>
       <tbody>${rowsHtml}</tbody>
+    </table>
+
+    <div class="footer">
+      ${ecole?.nom || ''} · ${isAr ? 'سري — للاستخدام الداخلي' : 'Confidentiel — Usage interne'}
+    </div>
+  </div>
+  </body></html>`;
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// RAPPORT MURAJA'A — sessions de révision collective
+// Tableau des sessions groupées par date avec contenu, niveau,
+// valideur et liste des élèves participants. Inclut des stats par niveau.
+// ══════════════════════════════════════════════════════════════════════
+function generateRapportMuraja(data, lang) {
+  const {
+    ecole,
+    filtrePeriode,
+    filtreNiveau,
+    stats = {},       // { totalSessions, totalEleves, parNiveau: [{niveau, label, nb, uniqueEleves, totalEleves, taux, color}] }
+    sessions = [],    // [{date, contenu, niveau, niveau_couleur, valideur, nbEleves, eleves: 'nom1, nom2...'}]
+  } = data || {};
+  const isAr = lang === 'ar';
+  const dir = isAr ? 'rtl' : 'ltr';
+
+  const titre = isAr ? 'تقرير المراجعات الجماعية' : 'Rapport Muraja\'a collectives';
+
+  // Tableau stats par niveau
+  const statsHtml = (stats.parNiveau || []).map((s, i) => `
+    <tr>
+      <td style="text-align:center;color:#888">${i+1}</td>
+      <td><span class="badge" style="background:${s.color}20;color:${s.color}">${s.label || s.niveau}</span></td>
+      <td style="text-align:center">${s.nb}</td>
+      <td style="text-align:center">${s.uniqueEleves} / ${s.totalEleves}</td>
+      <td style="text-align:center">
+        <span style="padding:3px 10px;border-radius:10px;background:${s.taux>=75?'#E1F5EE':s.taux>=50?'#FAEEDA':'#FCEBEB'};color:${s.taux>=75?'#1D9E75':s.taux>=50?'#EF9F27':'#E24B4A'};font-weight:700">${s.taux}%</span>
+      </td>
+    </tr>
+  `).join('');
+
+  // Tableau des sessions
+  const sessionsHtml = sessions.map((sess, i) => `
+    <tr>
+      <td style="text-align:center;color:#888">${i+1}</td>
+      <td style="font-size:11px">${sess.date || '—'}</td>
+      <td style="font-weight:700">${sess.contenu || '—'}</td>
+      <td>
+        <span class="badge" style="background:${sess.niveau_couleur || '#085041'}20;color:${sess.niveau_couleur || '#085041'}">${sess.niveau || '—'}</span>
+      </td>
+      <td style="font-size:11px">${sess.valideur || '—'}</td>
+      <td style="text-align:center;font-weight:700">${sess.nbEleves || 0}</td>
+      <td style="font-size:10px;color:#555;max-width:200px">${sess.eleves || '—'}</td>
+    </tr>
+  `).join('');
+
+  return `<!DOCTYPE html><html dir="${dir}"><head><meta charset="UTF-8"><title>${titre}</title>${baseStyles()}</head>
+  <body>
+  ${printButton(lang)}
+  <div class="page">
+    <div class="header">
+      <div>
+        <div class="logo">🔄 ${ecole?.nom || 'École'}</div>
+        <div class="subtitle">${titre}</div>
+        <div class="subtitle" style="margin-top:4px">
+          ${filtrePeriode ? `${isAr ? 'الفترة' : 'Période'} : ${filtrePeriode} ${isAr ? 'يوم' : 'jours'}` : ''}
+          ${filtreNiveau && filtreNiveau !== 'tous' ? ` · ${isAr ? 'المستوى' : 'Niveau'} : ${filtreNiveau}` : ''}
+        </div>
+      </div>
+      <div style="font-size:12px;color:#888;text-align:right">
+        <div>${new Date().toLocaleDateString(isAr ? 'ar-MA' : 'fr-FR')}</div>
+        <div style="margin-top:2px">${sessions.length} ${isAr ? 'جلسة' : 'session(s)'}</div>
+      </div>
+    </div>
+
+    <div class="kpi-grid" style="grid-template-columns:repeat(3,1fr)">
+      <div class="kpi">
+        <div class="kpi-val">${stats.totalSessions || 0}</div>
+        <div class="kpi-lbl">${isAr ? 'إجمالي الجلسات' : 'Sessions'}</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-val" style="color:#1D9E75">${stats.totalEleves || 0}</div>
+        <div class="kpi-lbl">${isAr ? 'إجمالي المشاركات' : 'Participations'}</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-val" style="color:#EF9F27">${(stats.parNiveau || []).length}</div>
+        <div class="kpi-lbl">${isAr ? 'مستوى نشط' : 'Niveaux actifs'}</div>
+      </div>
+    </div>
+
+    ${(stats.parNiveau || []).length > 0 ? `
+    <div class="section-title">${isAr ? 'إحصائيات حسب المستوى' : 'Statistiques par niveau'}</div>
+    <table style="margin-bottom:20px">
+      <thead>
+        <tr>
+          <th style="width:40px;text-align:center">#</th>
+          <th>${isAr ? 'المستوى' : 'Niveau'}</th>
+          <th style="text-align:center">${isAr ? 'عدد الجلسات' : 'Nb sessions'}</th>
+          <th style="text-align:center">${isAr ? 'الطلاب المشاركون' : 'Élèves participants'}</th>
+          <th style="text-align:center">${isAr ? 'نسبة المشاركة' : 'Taux couverture'}</th>
+        </tr>
+      </thead>
+      <tbody>${statsHtml}</tbody>
+    </table>
+    ` : ''}
+
+    <div class="section-title">${isAr ? 'تفاصيل الجلسات' : 'Détail des sessions'}</div>
+    <table>
+      <thead>
+        <tr>
+          <th style="width:40px;text-align:center">#</th>
+          <th>${isAr ? 'التاريخ' : 'Date'}</th>
+          <th>${isAr ? 'المحتوى' : 'Contenu'}</th>
+          <th>${isAr ? 'المستوى' : 'Niveau'}</th>
+          <th>${isAr ? 'المُقيّم' : 'Valideur'}</th>
+          <th style="text-align:center">${isAr ? 'العدد' : 'Nb'}</th>
+          <th>${isAr ? 'الطلاب' : 'Élèves'}</th>
+        </tr>
+      </thead>
+      <tbody>${sessionsHtml}</tbody>
     </table>
 
     <div class="footer">

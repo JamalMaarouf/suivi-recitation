@@ -3,6 +3,8 @@ import { supabase } from '../lib/supabase';
 import { getInitiales, formatDate } from '../lib/helpers';
 import { t } from '../lib/i18n';
 import { openPDF } from '../lib/pdf';
+import { exportExcelSimple } from '../lib/excel';
+import ExportButtons from '../components/ExportButtons';
 
 export default function ListeCertificats({ user, navigate, goBack, lang='fr', isMobile }) {
   const [certificats, setCertificats] = useState([]);
@@ -105,6 +107,47 @@ export default function ListeCertificats({ user, navigate, goBack, lang='fr', is
     setGenListe(false);
   };
 
+  // ── Export Excel liste des certificats ────────────────────
+  const handleExcelListe = async () => {
+    if (filtered.length === 0) return;
+    const headers = [
+      '#',
+      lang === 'ar' ? 'الاسم' : 'Prénom',
+      lang === 'ar' ? 'اللقب' : 'Nom',
+      lang === 'ar' ? 'الرقم' : 'N° Élève',
+      lang === 'ar' ? 'المستوى' : 'Niveau',
+      lang === 'ar' ? 'الشهادة' : 'Certificat',
+      lang === 'ar' ? 'الأستاذ' : 'Instituteur',
+      lang === 'ar' ? 'تاريخ الحصول' : 'Date obtention',
+    ];
+    const rows = filtered.map((c, i) => {
+      const el = getEleve(c.eleve_id) || {};
+      const jal = getJalon(c.jalon_id) || {};
+      const inst = el.instituteur_referent_id ? getInst(el.instituteur_referent_id) : null;
+      const jalonLabel = lang === 'ar' ? (jal.nom_ar || jal.nom || '') : (jal.nom || jal.nom_ar || '');
+      return [
+        i + 1,
+        el.prenom || '',
+        el.nom || '',
+        el.eleve_id_ecole || '',
+        el.code_niveau || '',
+        jalonLabel,
+        inst ? `${inst.prenom} ${inst.nom}` : '',
+        c.date_obtention || '',
+      ];
+    });
+    const dateStr = new Date().toISOString().slice(0, 10);
+    try {
+      await exportExcelSimple(
+        `certificats_${dateStr}.xlsx`,
+        [headers, ...rows],
+        lang === 'ar' ? 'الشهادات' : 'Certificats',
+      );
+    } catch (err) {
+      alert((lang === 'ar' ? 'خطأ Excel : ' : 'Erreur Excel : ') + err.message);
+    }
+  };
+
   const filtered = certificats.filter(c => {
     const el = getEleve(c.eleve_id);
     if (!el) return false;
@@ -130,10 +173,16 @@ export default function ListeCertificats({ user, navigate, goBack, lang='fr', is
               <div style={{fontSize:17,fontWeight:800,color:'#fff'}}>🏅 {lang==='ar'?'الشهادات':'Certificats'}</div>
               <div style={{fontSize:11,color:'rgba(255,255,255,0.8)'}}>{filtered.length} {lang==='ar'?'شهادة':'certificat(s)'}</div>
             </div>
-            <button onClick={handlePdfListe} disabled={genListe||filtered.length===0}
-              style={{background:'rgba(255,255,255,0.25)',border:'1px solid rgba(255,255,255,0.3)',borderRadius:10,padding:'7px 11px',color:'#fff',fontSize:12,fontWeight:600,cursor:(genListe||filtered.length===0)?'default':'pointer',opacity:(genListe||filtered.length===0)?0.5:1,flexShrink:0,whiteSpace:'nowrap',fontFamily:'inherit'}}>
-              {genListe ? '⏳' : '📄 PDF'}
-            </button>
+            <div style={{display:'flex',gap:6,flexShrink:0}}>
+              <button onClick={handlePdfListe} disabled={genListe||filtered.length===0}
+                style={{background:'rgba(255,255,255,0.25)',border:'1px solid rgba(255,255,255,0.3)',borderRadius:10,padding:'7px 11px',color:'#fff',fontSize:12,fontWeight:600,cursor:(genListe||filtered.length===0)?'default':'pointer',opacity:(genListe||filtered.length===0)?0.5:1,whiteSpace:'nowrap',fontFamily:'inherit'}}>
+                {genListe ? '⏳' : '📄 PDF'}
+              </button>
+              <button onClick={handleExcelListe} disabled={filtered.length===0}
+                style={{background:'rgba(255,255,255,0.25)',border:'1px solid rgba(255,255,255,0.3)',borderRadius:10,padding:'7px 11px',color:'#fff',fontSize:12,fontWeight:600,cursor:filtered.length===0?'default':'pointer',opacity:filtered.length===0?0.5:1,whiteSpace:'nowrap',fontFamily:'inherit'}}>
+                📊 Excel
+              </button>
+            </div>
           </div>
           {/* Recherche */}
           <input value={searchNum} onChange={e=>setSearchNum(e.target.value)}
@@ -224,10 +273,14 @@ export default function ListeCertificats({ user, navigate, goBack, lang='fr', is
           <div style={{ fontSize:20, fontWeight:800, color:'#1a1a1a' }}>🏅 {lang==='ar'?'قائمة الشهادات':'Liste des certificats'}</div>
           <div style={{ fontSize:12, color:'#888' }}>{filtered.length} {lang==='ar'?'شهادة':'certificat(s)'}</div>
         </div>
-        <button onClick={handlePdfListe} disabled={genListe||filtered.length===0}
-          style={{padding:'8px 16px',background:'#085041',color:'#fff',border:'none',borderRadius:8,fontSize:13,fontWeight:600,cursor:(genListe||filtered.length===0)?'default':'pointer',opacity:(genListe||filtered.length===0)?0.5:1,fontFamily:'inherit'}}>
-          {genListe ? (lang==='ar'?'⏳ جاري...':'⏳ Génération...') : (lang==='ar'?'📄 تصدير PDF':'📄 Exporter PDF')}
-        </button>
+        <ExportButtons
+          onPDF={handlePdfListe}
+          onExcel={handleExcelListe}
+          lang={lang}
+          variant="inline"
+          compact
+          disabled={genListe || filtered.length === 0}
+        />
       </div>
 
       {/* Filtres */}

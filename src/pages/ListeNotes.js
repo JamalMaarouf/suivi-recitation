@@ -3,7 +3,9 @@ import { supabase } from '../lib/supabase';
 import { calcEtatEleve, calcPointsPeriode, loadBareme, BAREME_DEFAUT, getSensForEleve} from '../lib/helpers';
 import { t } from '../lib/i18n';
 import { openPDF } from '../lib/pdf';
+import { exportExcelSimple } from '../lib/excel';
 import { fetchAll } from '../lib/fetchAll';
+import ExportButtons from '../components/ExportButtons';
 
 export default function ListeNotes({ user, navigate, goBack, lang='fr', isMobile }) {
   const [eleves, setEleves] = useState([]);
@@ -121,6 +123,45 @@ export default function ListeNotes({ user, navigate, goBack, lang='fr', isMobile
     setGenPdf(false);
   };
 
+  // ── Excel export ──────────────────────────────────────────
+  const handleExcelExport = async () => {
+    if (filtered.length === 0) return;
+    const periodeLabel = PERIODES.find(p => p.id === periode)?.label || '';
+    const headers = [
+      '#',
+      lang === 'ar' ? 'الاسم' : 'Prénom',
+      lang === 'ar' ? 'اللقب' : 'Nom',
+      lang === 'ar' ? 'الرقم' : 'N° Élève',
+      lang === 'ar' ? 'المستوى' : 'Niveau',
+      lang === 'ar' ? 'الأستاذ' : 'Instituteur',
+      lang === 'ar' ? 'النقاط' : 'Points',
+      lang === 'ar' ? 'الثُّمنات' : 'Tomon',
+      lang === 'ar' ? 'الأحزاب' : 'Hizb',
+    ];
+    const rows = filtered.map((el, i) => [
+      i + 1,
+      el.prenom || '',
+      el.nom || '',
+      el.eleve_id_ecole || '',
+      niveaux.find(n => n.code === el.code_niveau)?.nom || el.code_niveau || '',
+      el.instNom || '',
+      el.pts?.total || 0,
+      el.pts?.details?.nbTomon || 0,
+      el.pts?.details?.nbHizb || 0,
+    ]);
+    const dateStr = new Date().toISOString().slice(0, 10);
+    const filename = `notes_${periode}_${dateStr}.xlsx`;
+    try {
+      await exportExcelSimple(
+        filename,
+        [headers, ...rows],
+        lang === 'ar' ? 'النقاط' : 'Notes',
+      );
+    } catch (err) {
+      alert((lang === 'ar' ? 'خطأ Excel : ' : 'Erreur Excel : ') + err.message);
+    }
+  };
+
   const PERIODES = [
     { id:'total',    label: lang==='ar'?'منذ البداية':'Depuis le début' },
     { id:'semaine',  label: lang==='ar'?'الأسبوع':'Semaine' },
@@ -140,10 +181,16 @@ export default function ListeNotes({ user, navigate, goBack, lang='fr', isMobile
               <div style={{fontSize:17,fontWeight:800,color:'#fff'}}>⭐ {lang==='ar'?'قائمة النقاط':'Notes & Points'}</div>
               <div style={{fontSize:11,color:'rgba(255,255,255,0.75)'}}>{filtered.length} {lang==='ar'?'طالب':'élève(s)'}</div>
             </div>
-            <button onClick={handlePdfExport} disabled={genPdf||filtered.length===0}
-              style={{background:'rgba(255,255,255,0.25)',border:'1px solid rgba(255,255,255,0.3)',borderRadius:10,padding:'7px 11px',color:'#fff',fontSize:12,fontWeight:600,cursor:(genPdf||filtered.length===0)?'default':'pointer',opacity:(genPdf||filtered.length===0)?0.5:1,flexShrink:0,whiteSpace:'nowrap',fontFamily:'inherit'}}>
-              {genPdf ? '⏳' : '📄 PDF'}
-            </button>
+            <div style={{display:'flex',gap:6,flexShrink:0}}>
+              <button onClick={handlePdfExport} disabled={genPdf||filtered.length===0}
+                style={{background:'rgba(255,255,255,0.25)',border:'1px solid rgba(255,255,255,0.3)',borderRadius:10,padding:'7px 11px',color:'#fff',fontSize:12,fontWeight:600,cursor:(genPdf||filtered.length===0)?'default':'pointer',opacity:(genPdf||filtered.length===0)?0.5:1,whiteSpace:'nowrap',fontFamily:'inherit'}}>
+                {genPdf ? '⏳' : '📄 PDF'}
+              </button>
+              <button onClick={handleExcelExport} disabled={filtered.length===0}
+                style={{background:'rgba(255,255,255,0.25)',border:'1px solid rgba(255,255,255,0.3)',borderRadius:10,padding:'7px 11px',color:'#fff',fontSize:12,fontWeight:600,cursor:filtered.length===0?'default':'pointer',opacity:filtered.length===0?0.5:1,whiteSpace:'nowrap',fontFamily:'inherit'}}>
+                📊 Excel
+              </button>
+            </div>
           </div>
         </div>
       ) : (
@@ -153,10 +200,14 @@ export default function ListeNotes({ user, navigate, goBack, lang='fr', isMobile
           <div style={{ fontSize:20, fontWeight:800, color:'#1a1a1a' }}>⭐ {lang==='ar'?'قائمة النقاط':'Liste des notes'}</div>
           <div style={{ fontSize:12, color:'#888' }}>{filtered.length} {lang==='ar'?'طالب':'élève(s)'}</div>
         </div>
-        <button onClick={handlePdfExport} disabled={genPdf||filtered.length===0}
-          style={{padding:'8px 16px',background:'#085041',color:'#fff',border:'none',borderRadius:8,fontSize:13,fontWeight:600,cursor:(genPdf||filtered.length===0)?'default':'pointer',opacity:(genPdf||filtered.length===0)?0.5:1,fontFamily:'inherit'}}>
-          {genPdf ? (lang==='ar'?'⏳ جاري...':'⏳ Génération...') : (lang==='ar'?'📄 تصدير PDF':'📄 Exporter PDF')}
-        </button>
+        <ExportButtons
+          onPDF={handlePdfExport}
+          onExcel={handleExcelExport}
+          lang={lang}
+          variant="inline"
+          compact
+          disabled={genPdf || filtered.length === 0}
+        />
       </div>
       )}
 
