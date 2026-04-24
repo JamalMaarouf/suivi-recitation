@@ -4,6 +4,8 @@ import { useToast } from '../lib/toast';
 import { t } from '../lib/i18n';
 import KioskExitModal from '../components/KioskExitModal';
 import ConfirmModal from '../components/ConfirmModal';
+import { openPDF } from '../lib/pdf';
+import { exportExcelSimple } from '../lib/excel';
 
 // ══════════════════════════════════════════════════════════════════════
 // PAGE ASSIDUITÉ — الحضور
@@ -1360,6 +1362,103 @@ function OngletSuivi({ lang, user, isMobile }) {
 
   if (loading) return <div style={{ padding: 40, textAlign: 'center', color: '#888' }}>{lang === 'ar' ? '...جاري التحميل' : 'Chargement...'}</div>;
 
+  // ─── Export PDF + Excel ────────────────────────────────────
+  // Récupère tous les élèves filtrés (même logique que l'affichage) + les stats
+  // globales + les seuils, puis produit un tableau de lignes + KPIs.
+  const prepareExportRows = () => {
+    return filtered.map(e => {
+      const s = statsParEleve[e.id] || {};
+      const niveau = niveaux.find(n => n.code === e.code_niveau);
+      return {
+        id: e.id,
+        prenom: e.prenom,
+        nom: e.nom,
+        id_ecole: e.eleve_id_ecole,
+        code_niveau: e.code_niveau,
+        couleur: niveau?.couleur,
+        attendues: s.attendues || 0,
+        presentes: s.presentes || 0,
+        absences: s.absences || 0,
+        taux: s.taux,
+      };
+    });
+  };
+
+  const exportAssiduitePDF = async () => {
+    const rows = prepareExportRows();
+    const periodeLabel = PERIODES.find(p => p.id === periode)?.label || '';
+    const niveauLabel = filtreNiveau ? (niveaux.find(n => n.code === filtreNiveau)?.nom || filtreNiveau) : '';
+    try {
+      await openPDF('rapport_assiduite', {
+        ecole: { nom: user.ecole_nom || '' },
+        cible: 'eleves',
+        periodeLabel,
+        dateDebut: debut, dateFin: fin,
+        filtreNiveau: niveauLabel,
+        seuilRisque: SEUIL_RISQUE,
+        seuilParfait: SEUIL_PARFAIT,
+        stats: {
+          tauxGlobal: globalStats.taux,
+          nbParfaits: globalStats.nbParfaits,
+          nbRisque: globalStats.nbRisque,
+          totalAttendues: globalStats.attendues,
+        },
+        rows,
+      }, lang);
+    } catch (err) {
+      alert('Erreur PDF : ' + err.message);
+    }
+  };
+
+  const exportAssiduiteExcel = async () => {
+    const rows = prepareExportRows();
+    const headers = [
+      '#',
+      lang === 'ar' ? 'الاسم' : 'Prénom',
+      lang === 'ar' ? 'اللقب' : 'Nom',
+      lang === 'ar' ? 'الرقم' : 'N° Élève',
+      lang === 'ar' ? 'المستوى' : 'Niveau',
+      lang === 'ar' ? 'المتوقع' : 'Attendues',
+      lang === 'ar' ? 'حاضر' : 'Présentes',
+      lang === 'ar' ? 'غائب' : 'Absences',
+      lang === 'ar' ? 'النسبة %' : 'Taux %',
+      lang === 'ar' ? 'الحالة' : 'Statut',
+    ];
+    const dataRows = rows.map((r, i) => {
+      const niveauNom = niveaux.find(n => n.code === r.code_niveau)?.nom || r.code_niveau || '';
+      const t = r.taux;
+      const statut = t === null || t === undefined
+        ? (lang === 'ar' ? 'بدون أيام' : 'Sans jours')
+        : t >= SEUIL_PARFAIT
+          ? (lang === 'ar' ? 'ممتاز' : 'Parfait')
+          : t < SEUIL_RISQUE
+            ? (lang === 'ar' ? 'تحت العتبة' : 'En alerte')
+            : (lang === 'ar' ? 'عادي' : 'Normal');
+      return [
+        i + 1,
+        r.prenom || '',
+        r.nom || '',
+        r.id_ecole || '',
+        niveauNom,
+        r.attendues || 0,
+        r.presentes || 0,
+        r.absences || 0,
+        t === null || t === undefined ? '' : t,
+        statut,
+      ];
+    });
+    const dateStr = new Date().toISOString().slice(0, 10);
+    try {
+      await exportExcelSimple(
+        `assiduite_eleves_${dateStr}.xlsx`,
+        [headers, ...dataRows],
+        lang === 'ar' ? 'حضور الطلاب' : 'Assiduité élèves',
+      );
+    } catch (err) {
+      alert('Erreur Excel : ' + err.message);
+    }
+  };
+
   return (
     <div style={{ padding: isMobile ? '14px' : 0 }}>
 
@@ -1404,6 +1503,37 @@ function OngletSuivi({ lang, user, isMobile }) {
           lang === 'ar' ? 'اختر فترة' : 'Choisir une période'
         )}
       </div>
+
+      {/* ─── Boutons d'export (PDF + Excel) ─── */}
+      {filtered.length > 0 && (
+        <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
+          <button onClick={exportAssiduitePDF}
+            style={{
+              padding: isMobile ? '8px 14px' : '8px 16px',
+              background: '#E24B4A', color: '#fff', border: 'none',
+              borderRadius: 10, fontSize: 12, fontWeight: 700,
+              cursor: 'pointer', fontFamily: 'inherit',
+              display: 'inline-flex', alignItems: 'center', gap: 6,
+            }}>
+            📄 {lang === 'ar' ? 'تصدير PDF' : 'Exporter PDF'}
+          </button>
+          <button onClick={exportAssiduiteExcel}
+            style={{
+              padding: isMobile ? '8px 14px' : '8px 16px',
+              background: '#1D9E75', color: '#fff', border: 'none',
+              borderRadius: 10, fontSize: 12, fontWeight: 700,
+              cursor: 'pointer', fontFamily: 'inherit',
+              display: 'inline-flex', alignItems: 'center', gap: 6,
+            }}>
+            📊 {lang === 'ar' ? 'تصدير Excel' : 'Exporter Excel'}
+          </button>
+          <div style={{
+            alignSelf: 'center', fontSize: 11, color: '#888', fontStyle: 'italic',
+          }}>
+            {filtered.length} {lang === 'ar' ? 'طالب مصدر' : 'élève(s) exporté(s)'}
+          </div>
+        </div>
+      )}
 
       {/* ─── KPIs globaux (cliquables) ─── */}
       {/* Mobile : grille fixe 2x2 (meilleure visibilité sur petit écran).
@@ -2002,6 +2132,100 @@ function OngletSuiviInstituteurs({ lang, user, isMobile }) {
   const totalEnAttente = totalSeances - totalValides;
   const totalMontantDu = Object.values(statsInst).reduce((sum, s) => sum + s.montantDu, 0);
 
+  // ─── Export PDF + Excel ────────────────────────────────────
+  // Pour les instituteurs, le concept de 'taux d'assiduité' est remplacé
+  // par un ratio 'séances validées / séances total'. Le PDF partage le
+  // meme template serveur 'rapport_assiduite' (cible='instituteurs').
+  const prepareInstExportRows = () => {
+    return instituteurs.map(i => {
+      const s = statsInst[i.id] || {};
+      // Pour le template PDF : on map les colonnes sur le format commun
+      //   attendues = total, presentes = valides, absences = en attente
+      //   taux = % séances validées
+      const taux = s.total > 0 ? Math.round((s.valides / s.total) * 100) : null;
+      return {
+        id: i.id,
+        prenom: i.prenom,
+        nom: i.nom,
+        id_ecole: i.instituteur_id_ecole,
+        attendues: s.total || 0,
+        presentes: s.valides || 0,
+        absences: s.enAttente || 0,
+        taux,
+        // Colonnes spécifiques aux instituteurs (utilisées pour Excel)
+        payees: s.payees || 0,
+        aPayer: s.aPayer || 0,
+        tarif: s.tarif || 0,
+        montantDu: s.montantDu || 0,
+      };
+    });
+  };
+
+  const exportInstPDF = async () => {
+    const rows = prepareInstExportRows();
+    const periodeLabel = PERIODES.find(p => p.id === periode)?.label || '';
+    const tauxGlobal = totalSeances > 0 ? Math.round((totalValides / totalSeances) * 100) : 0;
+    try {
+      await openPDF('rapport_assiduite', {
+        ecole: { nom: user.ecole_nom || '' },
+        cible: 'instituteurs',
+        periodeLabel,
+        dateDebut: debut, dateFin: fin,
+        seuilRisque: 80,
+        seuilParfait: 100,
+        stats: {
+          tauxGlobal,
+          nbParfaits: rows.filter(r => r.taux === 100).length,
+          nbRisque: rows.filter(r => r.taux !== null && r.taux < 80).length,
+          totalAttendues: totalSeances,
+        },
+        rows,
+      }, lang);
+    } catch (err) {
+      alert('Erreur PDF : ' + err.message);
+    }
+  };
+
+  const exportInstExcel = async () => {
+    const rows = prepareInstExportRows();
+    const headers = [
+      '#',
+      lang === 'ar' ? 'الاسم' : 'Prénom',
+      lang === 'ar' ? 'اللقب' : 'Nom',
+      lang === 'ar' ? 'الرقم' : 'N°',
+      lang === 'ar' ? 'إجمالي الحصص' : 'Total séances',
+      lang === 'ar' ? 'محقق' : 'Validées',
+      lang === 'ar' ? 'في الانتظار' : 'En attente',
+      lang === 'ar' ? 'مدفوع' : 'Payées',
+      lang === 'ar' ? 'للدفع' : 'À payer',
+      lang === 'ar' ? 'التعرفة' : 'Tarif (MAD)',
+      lang === 'ar' ? 'المبلغ المستحق' : 'Montant dû (MAD)',
+    ];
+    const dataRows = rows.map((r, i) => [
+      i + 1,
+      r.prenom || '',
+      r.nom || '',
+      r.id_ecole || '',
+      r.attendues,
+      r.presentes,
+      r.absences,
+      r.payees,
+      r.aPayer,
+      r.tarif,
+      r.montantDu,
+    ]);
+    const dateStr = new Date().toISOString().slice(0, 10);
+    try {
+      await exportExcelSimple(
+        `assiduite_instituteurs_${dateStr}.xlsx`,
+        [headers, ...dataRows],
+        lang === 'ar' ? 'حضور المؤطرين' : 'Assiduité instituteurs',
+      );
+    } catch (err) {
+      alert('Erreur Excel : ' + err.message);
+    }
+  };
+
   return (
     <div style={{ padding: isMobile ? 14 : 0 }}>
 
@@ -2043,6 +2267,37 @@ function OngletSuiviInstituteurs({ lang, user, isMobile }) {
               : `Du ${formatDateFr(debut)} au ${formatDateFr(fin)}`)
           : (lang === 'ar' ? 'اختر فترة' : 'Choisir une période')}
       </div>
+
+      {/* ─── Boutons d'export (PDF + Excel) ─── */}
+      {instituteurs.length > 0 && (
+        <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
+          <button onClick={exportInstPDF}
+            style={{
+              padding: isMobile ? '8px 14px' : '8px 16px',
+              background: '#E24B4A', color: '#fff', border: 'none',
+              borderRadius: 10, fontSize: 12, fontWeight: 700,
+              cursor: 'pointer', fontFamily: 'inherit',
+              display: 'inline-flex', alignItems: 'center', gap: 6,
+            }}>
+            📄 {lang === 'ar' ? 'تصدير PDF' : 'Exporter PDF'}
+          </button>
+          <button onClick={exportInstExcel}
+            style={{
+              padding: isMobile ? '8px 14px' : '8px 16px',
+              background: '#1D9E75', color: '#fff', border: 'none',
+              borderRadius: 10, fontSize: 12, fontWeight: 700,
+              cursor: 'pointer', fontFamily: 'inherit',
+              display: 'inline-flex', alignItems: 'center', gap: 6,
+            }}>
+            📊 {lang === 'ar' ? 'تصدير Excel' : 'Exporter Excel'}
+          </button>
+          <div style={{
+            alignSelf: 'center', fontSize: 11, color: '#888', fontStyle: 'italic',
+          }}>
+            {instituteurs.length} {lang === 'ar' ? 'مؤطر مصدر' : 'instituteur(s) exporté(s)'}
+          </div>
+        </div>
+      )}
 
       {/* KPIs globaux */}
       <div style={{

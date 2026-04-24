@@ -28,6 +28,8 @@ module.exports = async function handler(req, res) {
       html = generateCertificatExamen(data, lang);
     } else if (type === 'fiche_eleve') {
       html = generateFicheEleve(data, lang);
+    } else if (type === 'rapport_assiduite') {
+      html = generateRapportAssiduite(data, lang);
     } else {
       return res.status(400).json({ error: 'Type non supporté' });
     }
@@ -490,6 +492,131 @@ function generateListeNotes(data, lang) {
       <tbody>${rows}</tbody>
     </table>
     <div class="footer">${ecole?.nom || ''} · ${isAr ? 'سري — للاستخدام الداخلي' : 'Confidentiel — Usage interne'}</div>
+  </div>
+  </body></html>`;
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// RAPPORT ASSIDUITÉ (élèves OU instituteurs)
+// ══════════════════════════════════════════════════════════════════════
+function generateRapportAssiduite(data, lang) {
+  const {
+    ecole,
+    cible = 'eleves',              // 'eleves' | 'instituteurs'
+    periodeLabel,
+    dateDebut, dateFin,
+    filtreNiveau,
+    seuilRisque = 80,
+    seuilParfait = 100,
+    stats = {},
+    rows = [],                     // lignes détaillées
+  } = data || {};
+  const isAr = lang === 'ar';
+  const dir = isAr ? 'rtl' : 'ltr';
+  const estInst = cible === 'instituteurs';
+
+  const titre = estInst
+    ? (isAr ? 'تقرير حضور المؤطرين' : 'Rapport Assiduité — Instituteurs')
+    : (isAr ? 'تقرير حضور الطلاب' : 'Rapport Assiduité — Élèves');
+
+  // Fonction de coloration du taux
+  const tauxColor = (t) => {
+    if (t === null || t === undefined) return '#888';
+    if (t >= seuilParfait) return '#1D9E75';
+    if (t < seuilRisque) return '#E24B4A';
+    return '#EF9F27';
+  };
+  const tauxBg = (t) => {
+    if (t === null || t === undefined) return '#f5f5f0';
+    if (t >= seuilParfait) return '#E1F5EE';
+    if (t < seuilRisque) return '#FCEBEB';
+    return '#FAEEDA';
+  };
+
+  const rowsHtml = rows.map((r, i) => {
+    const t = r.taux;
+    const tDisplay = t === null || t === undefined ? '—' : `${t}%`;
+    return `
+      <tr>
+        <td style="text-align:center;color:#888">${i + 1}</td>
+        <td style="font-weight:700">${r.prenom || ''} ${r.nom || ''}</td>
+        <td>${r.id_ecole || '—'}</td>
+        ${estInst ? '' : `<td><span class="badge" style="background:${r.couleur || '#085041'}20;color:${r.couleur || '#085041'}">${r.code_niveau || '—'}</span></td>`}
+        <td style="text-align:center">${r.attendues || 0}</td>
+        <td style="text-align:center;color:#1D9E75;font-weight:700">${r.presentes || 0}</td>
+        <td style="text-align:center;color:#E24B4A;font-weight:700">${r.absences || 0}</td>
+        <td style="text-align:center">
+          <span style="padding:3px 10px;border-radius:10px;background:${tauxBg(t)};color:${tauxColor(t)};font-weight:700">
+            ${tDisplay}
+          </span>
+        </td>
+      </tr>
+    `;
+  }).join('');
+
+  return `<!DOCTYPE html><html dir="${dir}"><head><meta charset="UTF-8"><title>${titre}</title>${baseStyles()}</head>
+  <body>
+  ${printButton(lang)}
+  <div class="page">
+    <div class="header">
+      <div>
+        <div class="logo">${estInst ? '👨‍🏫' : '📅'} ${ecole?.nom || 'École'}</div>
+        <div class="subtitle">${titre}${periodeLabel ? ' — ' + periodeLabel : ''}</div>
+        ${dateDebut && dateFin ? `<div class="subtitle" style="margin-top:4px">${isAr ? 'من' : 'Du'} ${dateDebut} ${isAr ? 'إلى' : 'au'} ${dateFin}</div>` : ''}
+        ${filtreNiveau ? `<div class="subtitle" style="margin-top:4px">${isAr ? 'المستوى' : 'Niveau'} : ${filtreNiveau}</div>` : ''}
+      </div>
+      <div style="font-size:12px;color:#888;text-align:right">
+        <div>${new Date().toLocaleDateString(isAr ? 'ar-MA' : 'fr-FR')}</div>
+        <div style="margin-top:2px">${rows.length} ${estInst ? (isAr ? 'مؤطر' : 'instituteur(s)') : (isAr ? 'طالب' : 'élève(s)')}</div>
+      </div>
+    </div>
+
+    <div class="kpi-grid" style="grid-template-columns:repeat(4,1fr)">
+      <div class="kpi">
+        <div class="kpi-val">${stats.tauxGlobal || 0}%</div>
+        <div class="kpi-lbl">${isAr ? 'نسبة الحضور' : 'Taux de présence'}</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-val" style="color:#1D9E75">${stats.nbParfaits || 0}</div>
+        <div class="kpi-lbl">${isAr ? 'حضور كامل' : 'Assiduité parfaite'}</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-val" style="color:#E24B4A">${stats.nbRisque || 0}</div>
+        <div class="kpi-lbl">${isAr ? 'تحت العتبة' : 'En alerte'}</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-val">${stats.totalAttendues || 0}</div>
+        <div class="kpi-lbl">${isAr ? 'الحصص المتوقعة' : 'Séances attendues'}</div>
+      </div>
+    </div>
+
+    <div class="section-title">${isAr ? 'تفاصيل الحضور' : 'Détail par personne'}</div>
+
+    <table>
+      <thead>
+        <tr>
+          <th style="width:50px;text-align:center">#</th>
+          <th>${estInst ? (isAr ? 'المؤطر' : 'Instituteur') : (isAr ? 'الطالب' : 'Élève')}</th>
+          <th>${isAr ? 'الرقم' : 'N°'}</th>
+          ${estInst ? '' : `<th>${isAr ? 'المستوى' : 'Niveau'}</th>`}
+          <th style="text-align:center">${isAr ? 'المتوقع' : 'Attendues'}</th>
+          <th style="text-align:center">${isAr ? 'حاضر' : 'Présentes'}</th>
+          <th style="text-align:center">${isAr ? 'غائب' : 'Absences'}</th>
+          <th style="text-align:center">${isAr ? 'النسبة' : 'Taux'}</th>
+        </tr>
+      </thead>
+      <tbody>${rowsHtml}</tbody>
+    </table>
+
+    <div style="margin-top:16px;padding:12px;background:#f9f9f6;border-radius:8px;font-size:11px;color:#666">
+      <strong>${isAr ? 'العتبات المطبقة' : 'Seuils appliqués'} :</strong>
+      ${isAr ? 'تحت' : 'Sous'} <span style="color:#E24B4A;font-weight:700">${seuilRisque}%</span> = ${isAr ? 'تحت العتبة' : 'En alerte'} ·
+      ${seuilParfait}%+ = <span style="color:#1D9E75;font-weight:700">${isAr ? 'ممتاز' : 'Parfait'}</span>
+    </div>
+
+    <div class="footer">
+      ${ecole?.nom || ''} · ${isAr ? 'سري — للاستخدام الداخلي' : 'Confidentiel — Usage interne'}
+    </div>
   </div>
   </body></html>`;
 }
