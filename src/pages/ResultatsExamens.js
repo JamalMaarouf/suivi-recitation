@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase';
 import { loadBareme, enregistrerPointsEvenement, verifierEtCreerCertificats } from '../lib/helpers';
 import { useToast } from '../lib/toast';
 import { t } from '../lib/i18n';
+import { openPDF } from '../lib/pdf';
 
 export default function ResultatsExamens({ user, navigate, goBack, lang='fr', isMobile, data }) {
   const { toast } = useToast();
@@ -600,6 +601,56 @@ export default function ResultatsExamens({ user, navigate, goBack, lang='fr', is
     XLSX.writeFile(wb, 'resultats_examens_'+new Date().toISOString().split('T')[0]+'.xlsx');
   };
 
+  // Export PDF global de la liste des résultats
+  const exportResultatsPDF = async () => {
+    if (!resultats || resultats.length === 0) {
+      toast.info(lang==='ar'?'لا توجد نتائج للتصدير':'Aucun résultat à exporter');
+      return;
+    }
+    // Couleurs des niveaux (fallback)
+    const fallbackCouleurs = {'5B':'#534AB7','5A':'#378ADD','2M':'#1D9E75','2':'#EF9F27','1':'#E24B4A'};
+    // Map des niveaux dynamiques si disponibles (par ex. state niveaux)
+    const niveauCouleur = (code) => {
+      // Si 'niveaux' ou 'niveauxDyn' existe dans le scope, on l'utilise
+      // Sinon, fallback sur la map standard
+      return fallbackCouleurs[code] || '#888';
+    };
+
+    const rows = resultats.map(r => {
+      const el = eleves.find(e => e.id === r.eleve_id);
+      const ex = examens.find(e => e.id === r.examen_id);
+      return {
+        eleve_nom: el ? `${el.prenom} ${el.nom}` : '—',
+        code_niveau: el?.code_niveau || '—',
+        niveau_couleur: niveauCouleur(el?.code_niveau),
+        examen_nom: ex?.nom || '—',
+        score: r.score || 0,
+        statut: r.statut === 'reussi' ? 'reussi' : r.statut === 'echoue' ? 'echoue' : 'encours',
+        date: r.date_examen
+          ? new Date(r.date_examen).toLocaleDateString(lang==='ar'?'ar-MA':'fr-FR')
+          : '—',
+      };
+    });
+
+    const nbReussis = resultats.filter(r => r.statut === 'reussi').length;
+    const nbEchoues = resultats.filter(r => r.statut === 'echoue').length;
+    const nbEnCours = resultats.filter(r => r.statut !== 'reussi' && r.statut !== 'echoue').length;
+    const scoresValides = resultats.filter(r => r.score && r.score > 0).map(r => r.score);
+    const moyenneScore = scoresValides.length > 0
+      ? Math.round(scoresValides.reduce((s, v) => s + v, 0) / scoresValides.length)
+      : 0;
+
+    try {
+      await openPDF('rapport_examens', {
+        ecole: { nom: user?.ecole_nom || '' },
+        stats: { nbReussis, nbEchoues, nbEnCours, moyenneScore },
+        rows,
+      }, lang);
+    } catch (err) {
+      toast.error('Erreur PDF : ' + err.message);
+    }
+  };
+
   const Header = () => (
     <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:isMobile?12:'1.25rem'}}>
       <button onClick={()=>goBack?goBack():navigate('dashboard')} className="back-link" style={{marginBottom:0}}>
@@ -616,6 +667,13 @@ export default function ResultatsExamens({ user, navigate, goBack, lang='fr', is
             onMouseEnter={e=>e.currentTarget.style.background='#E1F5EE'}
             onMouseLeave={e=>e.currentTarget.style.background='#f5f5f0'}>
             📊 Excel
+          </button>
+          <button onClick={exportResultatsPDF}
+            style={{display:'flex',alignItems:'center',gap:5,padding:'5px 12px',background:'#f5f5f0',
+              color:'#534AB7',border:'0.5px solid #e0e0d8',borderRadius:8,fontSize:11,fontWeight:600,cursor:'pointer'}}
+            onMouseEnter={e=>e.currentTarget.style.background='#EDE9FE'}
+            onMouseLeave={e=>e.currentTarget.style.background='#f5f5f0'}>
+            🖨️ PDF
           </button>
         </div>
       </>}

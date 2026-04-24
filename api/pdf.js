@@ -34,6 +34,8 @@ module.exports = async function handler(req, res) {
       html = generateRapportCours(data, lang);
     } else if (type === 'rapport_parents') {
       html = generateRapportParents(data, lang);
+    } else if (type === 'rapport_examens') {
+      html = generateRapportExamens(data, lang);
     } else {
       return res.status(400).json({ error: 'Type non supporté' });
     }
@@ -867,6 +869,107 @@ function generateRapportParents(data, lang) {
         ? 'اتصل بالأولياء ذوي الحالة 🔴 غير نشط و ⚪ لم يزر لتحديث حسابهم وإطلاعهم شفويا على تقدم أبنائهم'
         : 'Contacter les parents 🔴 inactifs et ⚪ jamais venus pour les informer oralement de la progression de leurs enfants'}
     </div>
+
+    <div class="footer">
+      ${ecole?.nom || ''} · ${isAr ? 'سري — للاستخدام الداخلي' : 'Confidentiel — Usage interne'}
+    </div>
+  </div>
+  </body></html>`;
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// RAPPORT RÉSULTATS EXAMENS
+// Vue globale des résultats d'examens (toutes sessions confondues ou filtrée)
+// ══════════════════════════════════════════════════════════════════════
+function generateRapportExamens(data, lang) {
+  const {
+    ecole,
+    stats = {},
+    rows = [],   // [{eleve_nom, code_niveau, niveau_couleur, examen_nom, score, statut, date}]
+  } = data || {};
+  const isAr = lang === 'ar';
+  const dir = isAr ? 'rtl' : 'ltr';
+
+  const titre = isAr ? 'تقرير نتائج الامتحانات' : 'Rapport Résultats d\'examens';
+
+  const statutInfo = (s) => ({
+    reussi:  { emoji: '✅', label: isAr ? 'ناجح' : 'Réussi',      color: '#1D9E75', bg: '#E1F5EE' },
+    echoue:  { emoji: '❌', label: isAr ? 'راسب' : 'Échoué',      color: '#E24B4A', bg: '#FCEBEB' },
+    encours: { emoji: '⏳', label: isAr ? 'قيد الإنجاز' : 'En cours', color: '#EF9F27', bg: '#FAEEDA' },
+  }[s] || { emoji: '—', label: '—', color: '#888', bg: '#f5f5f0' });
+
+  const rowsHtml = rows.map((r, i) => {
+    const si = statutInfo(r.statut);
+    return `
+      <tr>
+        <td style="text-align:center;color:#888">${i + 1}</td>
+        <td style="font-weight:700">${r.eleve_nom || '—'}</td>
+        <td>
+          <span class="badge" style="background:${r.niveau_couleur || '#085041'}20;color:${r.niveau_couleur || '#085041'}">
+            ${r.code_niveau || '—'}
+          </span>
+        </td>
+        <td>${r.examen_nom || '—'}</td>
+        <td style="text-align:center;font-weight:700;color:${si.color}">${r.score || 0}%</td>
+        <td style="text-align:center">
+          <span style="padding:2px 10px;border-radius:10px;background:${si.bg};color:${si.color};font-weight:700;font-size:11px">
+            ${si.emoji} ${si.label}
+          </span>
+        </td>
+        <td style="font-size:11px">${r.date || '—'}</td>
+      </tr>
+    `;
+  }).join('');
+
+  return `<!DOCTYPE html><html dir="${dir}"><head><meta charset="UTF-8"><title>${titre}</title>${baseStyles()}</head>
+  <body>
+  ${printButton(lang)}
+  <div class="page">
+    <div class="header">
+      <div>
+        <div class="logo">🏅 ${ecole?.nom || 'École'}</div>
+        <div class="subtitle">${titre}</div>
+      </div>
+      <div style="font-size:12px;color:#888;text-align:right">
+        <div>${new Date().toLocaleDateString(isAr ? 'ar-MA' : 'fr-FR')}</div>
+        <div style="margin-top:2px">${rows.length} ${isAr ? 'نتيجة' : 'résultat(s)'}</div>
+      </div>
+    </div>
+
+    <div class="kpi-grid" style="grid-template-columns:repeat(4,1fr)">
+      <div class="kpi">
+        <div class="kpi-val" style="color:#1D9E75">${stats.nbReussis || 0}</div>
+        <div class="kpi-lbl">✅ ${isAr ? 'ناجح' : 'Réussis'}</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-val" style="color:#E24B4A">${stats.nbEchoues || 0}</div>
+        <div class="kpi-lbl">❌ ${isAr ? 'راسب' : 'Échoués'}</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-val" style="color:#EF9F27">${stats.nbEnCours || 0}</div>
+        <div class="kpi-lbl">⏳ ${isAr ? 'قيد الإنجاز' : 'En cours'}</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-val">${stats.moyenneScore || 0}%</div>
+        <div class="kpi-lbl">${isAr ? 'المعدل' : 'Moyenne'}</div>
+      </div>
+    </div>
+
+    <div class="section-title">${isAr ? 'تفاصيل النتائج' : 'Détail des résultats'}</div>
+    <table>
+      <thead>
+        <tr>
+          <th style="width:40px;text-align:center">#</th>
+          <th>${isAr ? 'الطالب' : 'Élève'}</th>
+          <th>${isAr ? 'المستوى' : 'Niveau'}</th>
+          <th>${isAr ? 'الامتحان' : 'Examen'}</th>
+          <th style="text-align:center">${isAr ? 'النتيجة' : 'Score'}</th>
+          <th style="text-align:center">${isAr ? 'الحالة' : 'Statut'}</th>
+          <th>${isAr ? 'التاريخ' : 'Date'}</th>
+        </tr>
+      </thead>
+      <tbody>${rowsHtml}</tbody>
+    </table>
 
     <div class="footer">
       ${ecole?.nom || ''} · ${isAr ? 'سري — للاستخدام الداخلي' : 'Confidentiel — Usage interne'}
