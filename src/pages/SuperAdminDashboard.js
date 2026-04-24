@@ -25,7 +25,82 @@ export default function SuperAdminDashboard({ user, navigate, lang, onLogout, is
   const [alertesActives, setAlertesActives] = useState([]);
   const [confirmAction, setConfirmAction] = useState(null); // pour confirmation forte
 
+  // RGPD audit (P1.2) : logs des exports RGPD de toutes les écoles
+  const [rgpdLogs, setRgpdLogs] = useState([]);
+  const [rgpdStats, setRgpdStats] = useState({ total: 0, mois: 0, anomalies: 0 });
+  const [rgpdFilterEcole, setRgpdFilterEcole] = useState('tous');
+  const [rgpdFilterPeriode, setRgpdFilterPeriode] = useState(30);
+  const [rgpdLoading, setRgpdLoading] = useState(false);
+  const [purgeLogs, setPurgeLogs] = useState([]);
+
   useEffect(() => { loadData(); }, []);
+
+  // ─── Lazy load des logs RGPD quand on ouvre l'onglet ─────────────
+  useEffect(() => {
+    if (vue === 'rgpd') {
+      loadRgpdLogs();
+    }
+    // eslint-disable-next-line
+  }, [vue, rgpdFilterEcole, rgpdFilterPeriode]);
+
+  const loadRgpdLogs = async () => {
+    setRgpdLoading(true);
+    try {
+      const since = new Date();
+      since.setDate(since.getDate() - rgpdFilterPeriode);
+
+      let query = supabase
+        .from('exports_rgpd')
+        .select('*')
+        .gte('exported_at', since.toISOString())
+        .order('exported_at', { ascending: false })
+        .limit(500);
+
+      if (rgpdFilterEcole !== 'tous') {
+        query = query.eq('ecole_id', rgpdFilterEcole);
+      }
+
+      const [logsRes, purgesRes, usersRes] = await Promise.all([
+        query,
+        supabase.from('purges_rgpd_log').select('*').order('purged_at', { ascending: false }).limit(10),
+        supabase.from('utilisateurs').select('id,prenom,nom,role'),
+      ]);
+
+      // Enrichir les logs avec nom utilisateur + nom école
+      const usersMap = {};
+      (usersRes.data || []).forEach(u => { usersMap[u.id] = u; });
+      const ecolesMap = {};
+      ecoles.forEach(e => { ecolesMap[e.id] = e; });
+
+      const enriched = (logsRes.data || []).map(log => ({
+        ...log,
+        _user_nom: usersMap[log.user_id]
+          ? `${usersMap[log.user_id].prenom || ''} ${usersMap[log.user_id].nom || ''}`.trim()
+          : '—',
+        _ecole_nom: ecolesMap[log.ecole_id]?.nom || '—',
+      }));
+
+      setRgpdLogs(enriched);
+      setPurgeLogs(purgesRes.data || []);
+
+      // Stats
+      const moisDebut = new Date();
+      moisDebut.setDate(1); moisDebut.setHours(0, 0, 0, 0);
+      const thisMonth = enriched.filter(l => new Date(l.exported_at) >= moisDebut).length;
+
+      // Anomalies : user avec > 10 exports dans la fenêtre filtrée
+      const countByUser = {};
+      enriched.forEach(l => {
+        countByUser[l.user_id] = (countByUser[l.user_id] || 0) + 1;
+      });
+      const anomalies = Object.values(countByUser).filter(c => c > 10).length;
+
+      setRgpdStats({ total: enriched.length, mois: thisMonth, anomalies });
+    } catch (err) {
+      console.error('[RGPD audit] load error:', err);
+    }
+    setRgpdLoading(false);
+  };
 
   const loadData = async () => {
     setLoading(true);
@@ -599,18 +674,19 @@ export default function SuperAdminDashboard({ user, navigate, lang, onLogout, is
       )}
 
       {/* Tabs */}
-      <div style={{display:'flex',gap:0,background:'#f0f0ec',borderRadius:10,padding:3,marginBottom:'1.25rem'}}>
+      <div style={{display:'flex',gap:0,background:'#f0f0ec',borderRadius:10,padding:3,marginBottom:'1.25rem',overflowX:'auto'}}>
         {[
           {k:'ecoles', label:`🏫 Toutes les écoles (${ecoles.length})`},
           {k:'attente', label:`⏳ En attente (${enAttente.length})`, alert:enAttente.length>0},
           {k:'creer', label:'➕ Créer une école'},
+          {k:'rgpd', label:'🔐 Audit RGPD'},
         ].map(tab => (
           <div key={tab.k} onClick={()=>setVue(tab.k)}
             style={{flex:1,padding:'8px 12px',borderRadius:8,textAlign:'center',fontSize:12,fontWeight:600,cursor:'pointer',
               background:vue===tab.k?'#fff':'transparent',
               color:tab.alert&&vue!==tab.k?S.amber:vue===tab.k?'#1a1a1a':'#888',
               boxShadow:vue===tab.k?'0 1px 4px rgba(0,0,0,0.08)':'none',
-              transition:'all 0.15s'}}>
+              transition:'all 0.15s',whiteSpace:'nowrap'}}>
             {tab.label}
           </div>
         ))}
@@ -731,6 +807,166 @@ export default function SuperAdminDashboard({ user, navigate, lang, onLogout, is
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* ─── Vue : Audit RGPD ─────────────────────────────────── */}
+      {vue === 'rgpd' && (
+        <div>
+          {/* Info bandeau */}
+          <div style={{background:'#F0EEFF',border:'0.5px solid #534AB730',borderRadius:10,padding:'10px 14px',marginBottom:14,fontSize:12,color:'#4A3F9E',lineHeight:1.5}}>
+            <strong>🔐 Registre des exports RGPD</strong> — Conforme articles 20 et 30 du RGPD.
+            Logs conservés 3 ans puis purgés automatiquement (art. 5 RGPD).
+          </div>
+
+          {/* KPIs */}
+          <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:10,marginBottom:14}}>
+            <div style={{background:'#fff',border:'0.5px solid #e0e0d8',borderRadius:12,padding:'12px 14px'}}>
+              <div style={{fontSize:22,fontWeight:800,color:S.purple}}>{rgpdStats.total}</div>
+              <div style={{fontSize:10,color:'#888'}}>📦 Exports (période)</div>
+            </div>
+            <div style={{background:'#fff',border:'0.5px solid #e0e0d8',borderRadius:12,padding:'12px 14px'}}>
+              <div style={{fontSize:22,fontWeight:800,color:S.green}}>{rgpdStats.mois}</div>
+              <div style={{fontSize:10,color:'#888'}}>📅 Ce mois</div>
+            </div>
+            <div style={{background:'#fff',border:`0.5px solid ${rgpdStats.anomalies>0?S.red:'#e0e0d8'}`,borderRadius:12,padding:'12px 14px'}}>
+              <div style={{fontSize:22,fontWeight:800,color:rgpdStats.anomalies>0?S.red:'#888'}}>{rgpdStats.anomalies}</div>
+              <div style={{fontSize:10,color:rgpdStats.anomalies>0?S.red:'#888'}}>⚠️ Utilisateurs {'>'}10 exports</div>
+            </div>
+          </div>
+
+          {/* Filtres */}
+          <div style={{display:'flex',gap:8,marginBottom:14,flexWrap:'wrap'}}>
+            <select value={rgpdFilterEcole} onChange={e=>setRgpdFilterEcole(e.target.value)}
+              style={{padding:'7px 12px',borderRadius:8,border:'0.5px solid #e0e0d8',fontSize:12,fontFamily:'inherit',minWidth:180}}>
+              <option value="tous">🏫 Toutes les écoles</option>
+              {ecoles.map(e => <option key={e.id} value={e.id}>{e.nom}</option>)}
+            </select>
+            <select value={rgpdFilterPeriode} onChange={e=>setRgpdFilterPeriode(parseInt(e.target.value))}
+              style={{padding:'7px 12px',borderRadius:8,border:'0.5px solid #e0e0d8',fontSize:12,fontFamily:'inherit'}}>
+              <option value={7}>📅 7 derniers jours</option>
+              <option value={30}>📅 30 derniers jours</option>
+              <option value={90}>📅 3 derniers mois</option>
+              <option value={365}>📅 1 an</option>
+              <option value={1095}>📅 3 ans (tout)</option>
+            </select>
+            <button onClick={loadRgpdLogs}
+              style={{padding:'7px 14px',background:'#E1F5EE',color:'#085041',border:'none',borderRadius:8,fontSize:12,fontWeight:600,cursor:'pointer'}}>
+              🔄 Actualiser
+            </button>
+          </div>
+
+          {/* Tableau */}
+          {rgpdLoading ? (
+            <div style={{textAlign:'center',padding:'2rem',color:'#888'}}>Chargement...</div>
+          ) : rgpdLogs.length === 0 ? (
+            <div style={{textAlign:'center',padding:'2rem',color:'#888',background:'#fafaf7',borderRadius:12,border:'0.5px dashed #e0e0d8'}}>
+              Aucun export RGPD sur la période sélectionnée
+            </div>
+          ) : (
+            <div style={{background:'#fff',border:'0.5px solid #e0e0d8',borderRadius:12,overflow:'hidden'}}>
+              <div style={{overflowX:'auto'}}>
+                <table style={{width:'100%',borderCollapse:'collapse',fontSize:12}}>
+                  <thead>
+                    <tr style={{background:'#f5f5f0',borderBottom:'0.5px solid #e0e0d8'}}>
+                      <th style={{padding:'10px 12px',textAlign:'left',fontWeight:700,color:'#888'}}>Date</th>
+                      <th style={{padding:'10px 12px',textAlign:'left',fontWeight:700,color:'#888'}}>Utilisateur</th>
+                      <th style={{padding:'10px 12px',textAlign:'left',fontWeight:700,color:'#888'}}>Rôle</th>
+                      <th style={{padding:'10px 12px',textAlign:'left',fontWeight:700,color:'#888'}}>École</th>
+                      <th style={{padding:'10px 12px',textAlign:'center',fontWeight:700,color:'#888'}}>Scope</th>
+                      <th style={{padding:'10px 12px',textAlign:'center',fontWeight:700,color:'#888'}}>Volumes</th>
+                      <th style={{padding:'10px 12px',textAlign:'right',fontWeight:700,color:'#888'}}>Taille</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {rgpdLogs.map(log => {
+                      const d = new Date(log.exported_at);
+                      const dateStr = d.toLocaleDateString('fr-FR') + ' ' + d.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'});
+                      const scopeLabel = log.export_scope === 'self_plus_children' ? 'Soi + enfants' : 'Soi';
+                      const scopeColor = log.export_scope === 'self_plus_children' ? '#378ADD' : '#888';
+                      const roleBg = {
+                        parent:'#FAEEDA', instituteur:'#E6F1FB',
+                        surveillant:'#E1F5EE', super_admin:'#F0EEFF'
+                      }[log.export_role] || '#f5f5f0';
+                      const roleColor = {
+                        parent:'#EF9F27', instituteur:'#378ADD',
+                        surveillant:'#1D9E75', super_admin:'#534AB7'
+                      }[log.export_role] || '#666';
+                      const sizeKb = log.file_size_bytes ? Math.round(log.file_size_bytes / 1024) : 0;
+                      return (
+                        <tr key={log.id} style={{borderBottom:'0.5px solid #f0f0ec'}}>
+                          <td style={{padding:'10px 12px',whiteSpace:'nowrap'}}>{dateStr}</td>
+                          <td style={{padding:'10px 12px',fontWeight:600}}>{log._user_nom}</td>
+                          <td style={{padding:'10px 12px'}}>
+                            <span style={{padding:'2px 8px',borderRadius:8,background:roleBg,color:roleColor,fontWeight:700,fontSize:10}}>
+                              {log.export_role}
+                            </span>
+                          </td>
+                          <td style={{padding:'10px 12px',color:'#555'}}>{log._ecole_nom}</td>
+                          <td style={{padding:'10px 12px',textAlign:'center'}}>
+                            <span style={{fontSize:11,color:scopeColor,fontWeight:600}}>{scopeLabel}</span>
+                          </td>
+                          <td style={{padding:'10px 12px',textAlign:'center',fontSize:11,color:'#666'}}>
+                            {log.nb_enfants > 0 && <span>{log.nb_enfants}👤 </span>}
+                            {log.nb_validations > 0 && <span>{log.nb_validations}⭐ </span>}
+                            {log.nb_certificats > 0 && <span>{log.nb_certificats}🏅</span>}
+                          </td>
+                          <td style={{padding:'10px 12px',textAlign:'right',fontSize:11,color:'#888',fontFamily:'monospace'}}>
+                            {sizeKb > 0 ? `${sizeKb} KB` : '—'}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {/* Section purges automatiques */}
+          {purgeLogs.length > 0 && (
+            <div style={{marginTop:20}}>
+              <div style={{fontSize:12,fontWeight:700,color:'#888',marginBottom:8,textTransform:'uppercase',letterSpacing:0.5}}>
+                🗑️ Dernières purges automatiques
+              </div>
+              <div style={{background:'#fff',border:'0.5px solid #e0e0d8',borderRadius:10,padding:'8px 0'}}>
+                {purgeLogs.map(p => (
+                  <div key={p.id} style={{padding:'6px 14px',borderBottom:'0.5px solid #f0f0ec',fontSize:11,color:'#666',display:'flex',justifyContent:'space-between'}}>
+                    <span>{new Date(p.purged_at).toLocaleString('fr-FR')}</span>
+                    <span style={{fontWeight:600,color:p.deleted_count>0?S.amber:'#888'}}>
+                      {p.deleted_count} log(s) purgé(s)
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Export CSV bouton pour audit externe */}
+          {rgpdLogs.length > 0 && (
+            <div style={{marginTop:20,padding:'12px 16px',background:'#fafaf7',borderRadius:10,border:'0.5px dashed #e0e0d8'}}>
+              <div style={{fontSize:11,color:'#666',marginBottom:8}}>
+                💡 En cas d'audit CNDP ou demande formelle, vous pouvez exporter ces logs :
+              </div>
+              <button onClick={() => {
+                const headers = ['Date', 'Utilisateur', 'Rôle', 'École', 'Scope', 'Enfants', 'Validations', 'Certificats', 'Taille (octets)', 'User-Agent'];
+                const rows = rgpdLogs.map(l => [
+                  l.exported_at, l._user_nom, l.export_role, l._ecole_nom,
+                  l.export_scope, l.nb_enfants, l.nb_validations, l.nb_certificats,
+                  l.file_size_bytes || '', (l.user_agent || '').replace(/[",\n]/g, ' '),
+                ]);
+                const csv = [headers, ...rows].map(r => r.map(c => `"${String(c).replace(/"/g,'""')}"`).join(',')).join('\n');
+                const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+                const link = document.createElement('a');
+                link.href = URL.createObjectURL(blob);
+                link.download = `audit_rgpd_${new Date().toISOString().slice(0,10)}.csv`;
+                link.click();
+              }}
+                style={{padding:'7px 14px',background:S.purple,color:'#fff',border:'none',borderRadius:8,fontSize:12,fontWeight:600,cursor:'pointer'}}>
+                📥 Exporter CSV ({rgpdLogs.length} logs)
+              </button>
+            </div>
+          )}
         </div>
       )}
 

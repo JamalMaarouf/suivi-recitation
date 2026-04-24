@@ -70,6 +70,7 @@ import { ToastProvider } from './lib/toast';
 import { NetworkBanner } from './lib/NetworkStatus';
 import EnvBanner from './components/EnvBanner';
 import ImpersonationBanner from './components/ImpersonationBanner';
+import GlobalSearch from './components/GlobalSearch';
 import { invalidateAll } from './lib/cache';
 import { cacheClearAll } from './lib/offlineCache';
 import { installAutoSync } from './lib/offlineQueue';
@@ -157,6 +158,8 @@ export default function App() {
   const [compareEleves, setCompareEleves] = useState([]);
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
   const [lang, setLangRaw] = useState(() => localStorage.getItem('suivi_lang') || 'fr');
+  // Recherche transversale (Ctrl+K)
+  const [searchOpen, setSearchOpen] = useState(false);
   const [navHistory, setNavHistory] = useState([]);
   const [gestionTab, setGestionTab] = useState(isMobile ? 'eleves' : 'parametres');
 
@@ -209,12 +212,24 @@ export default function App() {
     const handleResize = () => setIsMobile(window.innerWidth < 768);
     window.addEventListener('resize', handleResize);
 
+    // Raccourci clavier global Ctrl+K (ou Cmd+K sur Mac) pour la recherche
+    const handleKeyDown = (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+        e.preventDefault();
+        setSearchOpen(prev => !prev);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+
     // Installer la sync automatique offline (une seule fois)
     installAutoSync(supabase, ({ synced }) => {
       if (synced > 0) console.log(`[offline-sync] ${synced} opérations synchronisées`);
     });
 
-    return () => window.removeEventListener('resize', handleResize);
+    return () => {
+      window.removeEventListener('resize', handleResize);
+      window.removeEventListener('keydown', handleKeyDown);
+    };
   }, []);
 
   // Charger les niveaux dès que l'utilisateur est connecté
@@ -425,6 +440,23 @@ export default function App() {
 
               {/* ESPACEUR */}
               <div style={{flex:1}} />
+
+              {/* RECHERCHE GLOBALE (Ctrl+K) */}
+              {user.role !== 'parent' && (
+                <button onClick={()=>setSearchOpen(true)}
+                  title={lang==='ar'?'بحث (Ctrl+K)':'Rechercher (Ctrl+K)'}
+                  style={{display:'flex',alignItems:'center',gap:8,padding:'6px 12px',
+                    border:'1px solid #e0e0d8',borderRadius:8,background:'#f9f9f6',
+                    fontSize:12,cursor:'pointer',color:'#555',fontWeight:500,flexShrink:0,
+                    minWidth:180,fontFamily:'inherit'}}>
+                  <span>🔍</span>
+                  <span style={{flex:1,textAlign:'left',color:'#888'}}>
+                    {lang==='ar'?'بحث...':'Rechercher...'}
+                  </span>
+                  <kbd style={{padding:'2px 6px',background:'#fff',border:'1px solid #e0e0d8',
+                    borderRadius:4,fontSize:10,color:'#999',fontFamily:'monospace'}}>⌘K</kbd>
+                </button>
+              )}
 
               {/* INSTALL BTN */}
               {showInstallBtn && (
@@ -656,7 +688,34 @@ export default function App() {
             ))}
           </nav>
         )}
+
+        {/* FAB Recherche — mobile uniquement, non-parent, non-kiosk */}
+        {isMobile && user.role !== 'parent' && !kioskMode && (
+          <button onClick={()=>setSearchOpen(true)}
+            aria-label={lang==='ar'?'بحث':'Rechercher'}
+            style={{
+              position:'fixed', top:60, right:14, zIndex:90,
+              width:44, height:44, borderRadius:22,
+              background:'linear-gradient(135deg,#085041,#1D9E75)',
+              border:'none', color:'#fff', fontSize:20,
+              cursor:'pointer', boxShadow:'0 4px 12px rgba(8,80,65,0.35)',
+              display:'flex', alignItems:'center', justifyContent:'center',
+            }}>
+            🔍
+          </button>
+        )}
       </div>
+
+      {/* Modale de recherche transversale (Ctrl+K) */}
+      {user.role !== 'parent' && (
+        <GlobalSearch
+          isOpen={searchOpen}
+          onClose={()=>setSearchOpen(false)}
+          user={user}
+          lang={lang}
+          navigate={navigate}
+        />
+      )}
     </LangContext.Provider>
     </ToastProvider>
   );

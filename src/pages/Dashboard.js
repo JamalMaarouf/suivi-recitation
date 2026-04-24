@@ -305,15 +305,10 @@ export default function Dashboard({ user, navigate, goBack, lang, isMobile=false
     const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8;'})); a.download=`suivi-${new Date().toLocaleDateString('fr-FR').replace(/\//g,'-')}.csv`; a.click();
     setExportMsg('✓'); setTimeout(()=>setExportMsg(''),2000);
   };
-  const backupJSON = async () => {
-    const [ea, va, {data:ua}] = await Promise.all([
-      fetchAll(supabase.from('eleves').select('*').eq('ecole_id', user.ecole_id)),
-      fetchAll(supabase.from('validations').select('*').eq('ecole_id', user.ecole_id)),
-      supabase.from('utilisateurs').select('id,prenom,nom,identifiant,role')
-    ]);
-    const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([JSON.stringify({date:new Date().toISOString(),eleves:ea,validations:va,utilisateurs:ua},null,2)],{type:'application/json'})); a.download=`backup-${new Date().toLocaleDateString('fr-FR').replace(/\//g,'-')}.json`; a.click();
-    setExportMsg('✓ Backup'); setTimeout(()=>setExportMsg(''),2000);
-  };
+  // [RGPD 4.3] Ancienne fonction backupJSON retiree : elle exportait TOUS les
+  // eleves + TOUTES les validations + TOUS les utilisateurs de l'ecole, ce qui
+  // n'etait pas conforme RGPD (art. 20 : chacun ne peut exporter QUE ses propres
+  // donnees). Remplacee par l'export RGPD individuel dans les profils.
   const tabs = [{key:'general',icon:'🏠',labelKey:'vue_generale'},{key:'eleves',icon:'👥',labelKey:'eleves'},{key:'instituteurs',icon:'👨‍🏫',labelKey:'instituteurs'},...(user.role==='surveillant'?[{key:'rapport',icon:'📊',labelKey:'rapport_tab'}]:[])];
 
   if (isMobile) {
@@ -655,7 +650,6 @@ export default function Dashboard({ user, navigate, goBack, lang, isMobile=false
               variant="inline"
               compact
             />
-            <button onClick={backupJSON} style={{padding:'6px 10px',border:`0.5px solid ${C.border}`,borderRadius:8,background:'#fff',fontSize:11,cursor:'pointer'}}>💾 Backup</button>
           </>}
           <button onClick={()=>navigate('honneur')} style={{padding:'6px 10px',background:C.green,color:'#fff',border:'none',borderRadius:8,fontSize:11,cursor:'pointer',fontWeight:600}}>🏆 {t(lang,'honneur')}</button>
           <button onClick={()=>navigate('comparaison')} style={{padding:'6px 10px',border:`0.5px solid ${C.border}`,borderRadius:8,background:'#fff',fontSize:11,cursor:'pointer'}}>📈 {t(lang,'comparer')}</button>

@@ -7,6 +7,7 @@ import { getSouratesForNiveau } from '../lib/sourates';
 import { t } from '../lib/i18n';
 import OngletCoursEleve from '../components/OngletCoursEleve';
 import { trackParentVisite, getDerniereVisiteParent } from '../lib/parentTracking';
+import { generateRgpdExport, downloadRgpdExport } from '../lib/rgpdExport';
 
 const IS_SOURATE = (code) => ['5B','5A','2M'].includes(code||'');
 const NIVEAU_COLORS = {'5B':'#534AB7','5A':'#378ADD','2M':'#1D9E75','2':'#EF9F27','1':'#E24B4A'};
@@ -37,6 +38,11 @@ export default function PortailParent({ parent, navigate, goBack, lang='fr', onL
   const [bareme, setBareme] = React.useState({...BAREME_DEFAUT});
   const [onglet, setOnglet] = useState('progression');
   const [showChangeMdp, setShowChangeMdp] = useState(false);
+  // RGPD (itération 4.3) : modale d'info + état loading pour l'export
+  const [showRgpdModal, setShowRgpdModal] = useState(false);
+  const [rgpdLoading, setRgpdLoading] = useState(false);
+  // P2.2 : historique des exports RGPD du parent lui-même
+  const [rgpdHistorique, setRgpdHistorique] = useState([]);
   const [oldPwd, setOldPwd] = useState('');
   const [newPwd, setNewPwd] = useState('');
   const [confirmPwd, setConfirmPwd] = useState('');
@@ -57,6 +63,54 @@ export default function PortailParent({ parent, navigate, goBack, lang='fr', onL
       setShowChangeMdp(false); setOldPwd(''); setNewPwd(''); setConfirmPwd('');
     } catch(e) { toast.error('Erreur réseau'); }
   };
+
+  // ─── RGPD : export JSON des données personnelles (art. 20) ────
+  // Scope parent = 'self_plus_children' (ses données + celles de ses enfants)
+  // Le helper journalise automatiquement dans exports_rgpd (audit).
+  const handleRgpdExport = async () => {
+    setRgpdLoading(true);
+    try {
+      const { json, stats, fileName } = await generateRgpdExport(
+        parent,
+        'self_plus_children'
+      );
+      downloadRgpdExport(json, fileName);
+      toast.success(
+        lang==='ar'
+          ? `✅ تم تحميل ملف (${stats.nb_enfants} طفل، ${stats.nb_validations} استظهار)`
+          : `✅ Fichier téléchargé (${stats.nb_enfants} enfant(s), ${stats.nb_validations} validation(s))`
+      );
+      setShowRgpdModal(false);
+      // Recharger l'historique pour voir le nouvel export
+      loadRgpdHistorique();
+    } catch (err) {
+      console.error('[RGPD] Export error:', err);
+      toast.error((lang==='ar'?'خطأ : ':'Erreur : ') + (err.message || 'unknown'));
+    }
+    setRgpdLoading(false);
+  };
+
+  // ─── P2.2 : Charger l'historique des exports du parent ────────
+  const loadRgpdHistorique = async () => {
+    if (!parent?.id) return;
+    try {
+      const { data } = await supabase
+        .from('exports_rgpd')
+        .select('id,exported_at,export_scope,nb_enfants,nb_validations,nb_certificats,file_size_bytes')
+        .eq('user_id', parent.id)
+        .order('exported_at', { ascending: false })
+        .limit(20);
+      setRgpdHistorique(data || []);
+    } catch (err) {
+      console.warn('[RGPD historique] load error:', err);
+    }
+  };
+
+  // Charger l'historique chaque fois qu'on ouvre la modale
+  useEffect(() => {
+    if (showRgpdModal) loadRgpdHistorique();
+    // eslint-disable-next-line
+  }, [showRgpdModal]);
 
   useEffect(() => { loadData(); }, []);
   useEffect(() => { if (enfants.length>0 && !selectedEnfant) setSelectedEnfant(enfants[0]); }, [enfants]);
@@ -403,6 +457,11 @@ export default function PortailParent({ parent, navigate, goBack, lang='fr', onL
             style={{padding:'6px 16px',background:'rgba(255,255,255,0.2)',color:'#fff',border:'1px solid rgba(255,255,255,0.4)',borderRadius:8,fontSize:12,fontWeight:600,cursor:'pointer'}}>
             🔑 {lang==='ar'?'تغيير كلمة المرور':'Changer MDP'}
           </button>
+          <button onClick={()=>setShowRgpdModal(true)}
+            title={lang==='ar'?'تصدير بياناتك الشخصية وفقًا للRGPD':'Export de vos données personnelles (RGPD)'}
+            style={{padding:'6px 16px',background:'rgba(255,255,255,0.2)',color:'#fff',border:'1px solid rgba(255,255,255,0.4)',borderRadius:8,fontSize:12,fontWeight:600,cursor:'pointer'}}>
+            📦 {lang==='ar'?'بياناتي':'Mes données'}
+          </button>
           <button onClick={onLogout}
             style={{padding:'6px 16px',background:'rgba(255,255,255,0.2)',color:'#fff',border:'1px solid rgba(255,255,255,0.4)',borderRadius:8,fontSize:12,fontWeight:600,cursor:'pointer'}}>
             🚪 {lang==='ar'?'تسجيل الخروج':'Déconnexion'}
@@ -423,6 +482,80 @@ export default function PortailParent({ parent, navigate, goBack, lang='fr', onL
               </button>
               <button onClick={()=>{setShowChangeMdp(false);setOldPwd('');setNewPwd('');setConfirmPwd('');}}
                 style={{padding:'8px 12px',background:'rgba(255,255,255,0.2)',color:'#fff',border:'none',borderRadius:6,cursor:'pointer',fontSize:13}}>
+                ✕
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Modale RGPD : info + confirmation avant téléchargement */}
+        {showRgpdModal && (
+          <div style={{marginTop:12,background:'rgba(255,255,255,0.15)',borderRadius:10,padding:'1rem',fontSize:12,color:'#fff',lineHeight:1.55}}>
+            <div style={{fontSize:14,fontWeight:700,marginBottom:10}}>
+              📦 {lang==='ar'?'تصدير بياناتي الشخصية':'Exporter mes données personnelles'}
+            </div>
+            <div style={{marginBottom:10,fontSize:11.5,opacity:0.92}}>
+              {lang==='ar'
+                ? 'وفقاً للمادة 20 من النظام الأوروبي لحماية البيانات (RGPD) والقانون المغربي 09-08، يمكنك تحميل جميع البيانات الشخصية المتعلقة بك والمتعلقة بأبنائك، في صيغة JSON منظمة.'
+                : 'Conformément à l\'article 20 du RGPD et à la loi marocaine 09-08, vous pouvez télécharger à tout moment l\'ensemble des données personnelles vous concernant ainsi que celles concernant vos enfants mineurs, dans un format JSON structuré.'}
+            </div>
+            <div style={{marginBottom:10,padding:'8px 10px',background:'rgba(255,255,255,0.1)',borderRadius:8,fontSize:11}}>
+              <div style={{fontWeight:700,marginBottom:4}}>
+                {lang==='ar'?'ما المُدرَج في هذا الملف :':'Contenu du fichier :'}
+              </div>
+              <div style={{opacity:0.9}}>
+                • {lang==='ar'?'بيانات الاتصال الخاصة بك':'Vos données de contact'}<br/>
+                • {lang==='ar'?'معلومات كل طفل من أطفالك':'Informations de chacun de vos enfants'}<br/>
+                • {lang==='ar'?'جميع الاستظهارات والأحزاب المنجزة':'Toutes les validations et hizb réalisés'}<br/>
+                • {lang==='ar'?'الشهادات المحصل عليها':'Certificats obtenus'}<br/>
+                • {lang==='ar'?'سجل زياراتك للبوابة':'Historique de vos consultations'}
+              </div>
+            </div>
+            <div style={{fontSize:10.5,opacity:0.75,marginBottom:12,fontStyle:'italic'}}>
+              🔒 {lang==='ar'
+                ? 'سيتم تسجيل هذا التصدير في سجل المراجعة (قانون إلزامي).'
+                : 'Ce téléchargement sera journalisé dans le registre d\'audit (obligation légale).'}
+            </div>
+
+            {/* P2.2 : Historique de mes exports (transparence) */}
+            {rgpdHistorique.length > 0 && (
+              <div style={{marginBottom:12,padding:'8px 10px',background:'rgba(0,0,0,0.15)',borderRadius:8}}>
+                <div style={{fontSize:11,fontWeight:700,marginBottom:6}}>
+                  📋 {lang==='ar'?'تاريخ تصديراتك':'Historique de vos exports'}
+                </div>
+                <div style={{maxHeight:110,overflowY:'auto',fontSize:10,opacity:0.92,lineHeight:1.6}}>
+                  {rgpdHistorique.slice(0, 10).map((h, i) => {
+                    const d = new Date(h.exported_at);
+                    const dateStr = d.toLocaleDateString(lang==='ar'?'ar-MA':'fr-FR')
+                      + ' ' + d.toLocaleTimeString(lang==='ar'?'ar-MA':'fr-FR',{hour:'2-digit',minute:'2-digit'});
+                    return (
+                      <div key={h.id} style={{display:'flex',justifyContent:'space-between',padding:'2px 0',borderTop:i===0?'none':'0.5px solid rgba(255,255,255,0.15)'}}>
+                        <span>{dateStr}</span>
+                        <span style={{opacity:0.8}}>
+                          {h.nb_enfants > 0 && `${h.nb_enfants}👤 `}
+                          {h.nb_validations > 0 && `${h.nb_validations}⭐`}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+                {rgpdHistorique.length > 10 && (
+                  <div style={{fontSize:9,opacity:0.65,marginTop:4,fontStyle:'italic'}}>
+                    {lang==='ar'?`+${rgpdHistorique.length - 10} قديمة`:`+${rgpdHistorique.length - 10} plus anciens`}
+                  </div>
+                )}
+              </div>
+            )}
+
+            <div style={{display:'flex',gap:6}}>
+              <button onClick={handleRgpdExport} disabled={rgpdLoading}
+                style={{flex:1,padding:'10px',background:rgpdLoading?'#999':'#1D9E75',color:'#fff',border:'none',borderRadius:6,fontWeight:700,cursor:rgpdLoading?'default':'pointer',fontSize:13}}>
+                {rgpdLoading
+                  ? (lang==='ar'?'⏳ جاري التصدير...':'⏳ Génération...')
+                  : (lang==='ar'?'📥 تحميل الملف':'📥 Télécharger le fichier')}
+              </button>
+              <button onClick={()=>setShowRgpdModal(false)} disabled={rgpdLoading}
+                style={{padding:'10px 14px',background:'rgba(255,255,255,0.2)',color:'#fff',border:'none',borderRadius:6,cursor:rgpdLoading?'default':'pointer',fontSize:13}}>
                 ✕
               </button>
             </div>
