@@ -1592,7 +1592,7 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile,
     setEleves(e || []);
     setInstituteurs(i || []);
     const { data: pd, error: pdErr } = await supabase.from('utilisateurs')
-        .select('id,prenom,nom,identifiant')
+        .select('id,prenom,nom,identifiant,telephone,email')
         .eq('role','parent').eq('ecole_id', user.ecole_id);
     const { data: pliens } = await supabase.from('parent_eleve')
         .select('parent_id,eleve_id');
@@ -3319,7 +3319,7 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
                 setShowFormParent(false);
                 setEditingParentId(null);
                 setFormParent({prenom:'',nom:'',identifiant:'',mot_de_passe:'',telephone:'',email:'',eleve_ids:[],searchEleve:''});
-                const {data:pd2}=await supabase.from('utilisateurs').select('id,prenom,nom,identifiant').eq('role','parent').eq('ecole_id',user.ecole_id);
+                const {data:pd2}=await supabase.from('utilisateurs').select('id,prenom,nom,identifiant,telephone,email').eq('role','parent').eq('ecole_id',user.ecole_id);
                 const {data:pl2}=await supabase.from('parent_eleve').select('parent_id,eleve_id');
                 const lm2={}; (pl2||[]).forEach(l=>{if(!lm2[l.parent_id])lm2[l.parent_id]=[];lm2[l.parent_id].push(l.eleve_id);});
                 setParents((pd2||[]).map(p=>({...p,eleve_ids:lm2[p.id]||[]})));
