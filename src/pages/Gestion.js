@@ -1476,8 +1476,9 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile,
   const [formParent, setFormParent] = useState({prenom:'',nom:'',identifiant:'',mot_de_passe:'',telephone:'',email:'',eleve_ids:[]});
   const [showFormParent, setShowFormParent] = useState(false);
   const [confirmModal, setConfirmModal] = useState({isOpen:false,title:'',message:'',onConfirm:null,confirmColor:'#E24B4A',confirmLabel:''});
+  const [confirmLoading, setConfirmLoading] = useState(false);
   const showConfirm = (title, message, onConfirm, confirmLabel, confirmColor) => setConfirmModal({isOpen:true,title,message,onConfirm,confirmLabel:confirmLabel||(lang==='ar'?'حذف':'Supprimer'),confirmColor:confirmColor||'#E24B4A'});
-  const hideConfirm = () => setConfirmModal(m=>({...m,isOpen:false,onConfirm:null}));
+  const hideConfirm = () => { setConfirmModal(m=>({...m,isOpen:false,onConfirm:null})); setConfirmLoading(false); };
   const [editingParentId, setEditingParentId] = useState(null);
   const [searchParent, setSearchParent] = useState('');
   const [eleves, setEleves] = useState([]);
@@ -1714,6 +1715,7 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile,
           lang==='ar'?'تأكيد نهائي — حذف '+nom:'Confirmation finale — Supprimer '+nom,
           lang==='ar'?'هل أنت متأكد تماماً؟ لا يمكن التراجع عن هذا الإجراء.':'Êtes-vous absolument sûr ? Cette action est définitive et irréversible.',
           async () => {
+            setConfirmLoading(true);
             // Supprimer toutes les données liées (ordre important pour contourner les FK)
             const tablesLiees = [
               'exceptions_recitation',
@@ -1823,6 +1825,7 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile,
       lang==='ar'?'حذف الأستاذ':"Supprimer instituteur",
       msg,
       async () => {
+        setConfirmLoading(true);
         // Détacher tous les élèves d'abord
         if (nbEleves > 0) {
           const { error: errDetach } = await supabase.from('eleves')
@@ -1865,6 +1868,7 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile,
       lang==='ar'?'حذف ولي الأمر':'Supprimer le parent',
       (lang==='ar'?'هل تريد حذف حساب ':'Supprimer le compte de ')+nom+' ?',
       async () => {
+        setConfirmLoading(true);
         await supabase.from('parent_eleve').delete().eq('parent_id', parentId);
         await supabase.from('utilisateurs').delete().eq('id', parentId);
         hideConfirm();
@@ -3433,6 +3437,7 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
         onCancel={hideConfirm}
         confirmLabel={confirmModal.confirmLabel}
         confirmColor={confirmModal.confirmColor}
+        loading={confirmLoading}
         lang={lang}
       />
     </div>
