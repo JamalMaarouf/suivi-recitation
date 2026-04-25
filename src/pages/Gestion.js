@@ -2516,7 +2516,7 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
                       <div style={{display:'flex',gap:5}}>
                         <button onClick={()=>{setEditingParentId(p.id);setFormParent({prenom:p.prenom,nom:p.nom,identifiant:p.identifiant,mot_de_passe:'',telephone:p.telephone||'',email:p.email||'',eleve_ids:eleves.filter(e=>(p.eleve_ids||[]).includes(e.id)).map(e=>e.id)});setShowFormParent(true);window.scrollTo(0,0);}}
                           style={{background:'#E6F1FB',color:'#378ADD',border:'none',borderRadius:8,padding:'6px 9px',fontSize:12,cursor:'pointer'}}>✏️</button>
-                        <button onClick={async()=>{await supabase.from('utilisateurs').delete().eq('id',p.id);loadData();}}
+                        <button onClick={()=>supprimerParent(p.id)}
                           style={{background:'#FCEBEB',color:'#E24B4A',border:'none',borderRadius:8,padding:'6px 9px',fontSize:12,cursor:'pointer'}}>🗑</button>
                       </div>
                     )}
@@ -3377,6 +3377,7 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
                     lang==='ar'?'حذف ولي الأمر':'Supprimer le parent',
                     (lang==='ar'?'هل تريد حذف حساب ':'Supprimer le compte de ')+(p.prenom+' '+p.nom)+'?',
                     async()=>{
+                      setConfirmLoading(true);
                       await supabase.from('parent_eleve').delete().eq('parent_id',p.id);
                       await supabase.from('utilisateurs').delete().eq('id',p.id);
                       setParents(prev=>prev.filter(x=>x.id!==p.id));
