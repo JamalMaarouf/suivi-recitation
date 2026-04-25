@@ -64,7 +64,7 @@ export default function SuperAdminDashboard({ user, navigate, lang, onLogout, is
       // Import dynamique de supabaseRaw : bypass du filtre auto deleted_at IS NULL
       // (sinon le wrapper exclut justement ce qu'on veut afficher !)
       const { supabaseRaw } = await import('../lib/supabase');
-      let q1 = supabaseRaw.from('eleves').select('id,prenom,nom,ecole_id,deleted_at,deleted_by,actif');
+      let q1 = supabaseRaw.from('eleves').select('id,prenom,nom,ecole_id,deleted_at,deleted_by');
       if (corbeilleFilterEcole !== 'tous') q1 = q1.eq('ecole_id', corbeilleFilterEcole);
       const { data: el, error: e1 } = await q1.not('deleted_at', 'is', null).order('deleted_at', { ascending: false }).limit(500);
       if (e1) console.warn('[corbeille eleves]', e1);
