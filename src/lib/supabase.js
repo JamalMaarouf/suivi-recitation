@@ -4,31 +4,31 @@ const SUPABASE_URL = process.env.REACT_APP_SUPABASE_URL || 'https://uwqhtahknhft
 const SUPABASE_ANON_KEY = process.env.REACT_APP_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InV3cWh0YWhrbmhmdGlubHptdXNpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ2OTA2MTAsImV4cCI6MjA5MDI2NjYxMH0.gdX0JeqSfGnr6xGFqBUSK78z_XiWQg93R6MEa8w1klU';
 
 // ═══════════════════════════════════════════════════════════════
-// WRAPPER ANTI-IMPERSONIFICATION (P.C.1 - Mode lecture seule)
+// SUPABASE CLIENT + WRAPPER SECURITE (P.C.1 + P.C.2)
 // ═══════════════════════════════════════════════════════════════
-// Le super-admin peut "voir comme" un surveillant via le mode
-// impersonification. Pendant cette session, il ne doit PAS pouvoir
-// modifier les donnees de l'ecole visitee.
+// 1. supabaseRaw : client brut (utilise pour la corbeille super-admin
+//    qui doit voir les soft-deleted)
+// 2. supabase : client wrappe via override des methodes from() qui
+//    renvoient un proxy autour du QueryBuilder
 //
-// Ce wrapper intercepte TOUTES les operations d'ecriture
-// (insert/update/delete/upsert) et les bloque si l'utilisateur
-// courant est en mode impersonification.
-//
-// Avantage : un seul point de blocage au lieu de 26 pages a modifier.
+// Ce wrapper :
+// - Bloque les ecritures (insert/update/delete/upsert) si super-admin
+//   est en mode impersonification
+// - Transforme delete() en update({deleted_at}) sur tables protegees
+// - Filtre automatiquement les SELECT pour exclure les soft-deleted
 // ═══════════════════════════════════════════════════════════════
 
-const _rawClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+const supabaseRaw = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-function isCurrentUserImpersonating() {
-  try {
-    const raw = localStorage.getItem('suivi_user');
-    if (!raw) return false;
-    const user = JSON.parse(raw);
-    return !!(user && user._impersonating);
-  } catch {
-    return false;
-  }
-}
+// Tables systeme (ecritures TOUJOURS autorisees, meme en impersonification)
+const SYSTEM_TABLES_WHITELIST = [
+  'audit_log', 'consultations_parents', 'exports_rgpd', 'purges_rgpd_log'
+];
+
+// Tables proteges par soft-delete
+const SOFT_DELETE_TABLES = ['eleves', 'utilisateurs'];
+
+const BLOCKED_METHODS = ['insert', 'update', 'delete', 'upsert'];
 
 const IMPERSONATION_ERROR = {
   code: 'IMPERSONATION_READ_ONLY',
@@ -37,122 +37,121 @@ const IMPERSONATION_ERROR = {
   hint: 'Quittez le mode impersonification pour reprendre le controle de votre compte.',
 };
 
-function wrapQueryBuilder(queryBuilder, tableName) {
-  if (!queryBuilder || typeof queryBuilder !== 'object') return queryBuilder;
-  const blockedMethods = ['insert', 'update', 'delete', 'upsert'];
-  // Tables systeme qui doivent rester accessibles en ecriture meme en
-  // mode impersonification (audit, tracking interne, exports RGPD, etc.)
-  // Sans ca on perdrait la tracabilite des actions du super-admin.
-  const SYSTEM_TABLES_WHITELIST = [
-    'audit_log',           // tracage technique des actions
-    'consultations_parents', // tracking parent (auto)
-    'exports_rgpd',        // historique exports (lecture seule = rien a inserer normalement)
-    'purges_rgpd_log',     // logs de purge
-  ];
-  // Tables proteges par soft-delete : delete() devient update({deleted_at,deleted_by})
-  const SOFT_DELETE_TABLES = ['eleves', 'utilisateurs'];
-  return new Proxy(queryBuilder, {
-    get(target, prop) {
-      const value = target[prop];
-      // Interception SELECT : filtrer automatiquement les soft-deleted
+function isImpersonating() {
+  try {
+    const raw = localStorage.getItem('suivi_user');
+    if (!raw) return false;
+    return !!JSON.parse(raw)?._impersonating;
+  } catch { return false; }
+}
+
+function getCurrentUserId() {
+  try {
+    const raw = localStorage.getItem('suivi_user');
+    if (!raw) return null;
+    return JSON.parse(raw)?.id || null;
+  } catch { return null; }
+}
+
+function buildBlockedThenable() {
+  // Objet thenable mimant un PostgrestBuilder qui resout immediatement avec une erreur
+  const fakeResult = { data: null, error: IMPERSONATION_ERROR };
+  const promise = Promise.resolve(fakeResult);
+  const obj = {
+    then: (f, r) => promise.then(f, r),
+    catch: (r) => promise.catch(r),
+    finally: (f) => promise.finally(f),
+  };
+  // Methodes de chainage qui retournent this
+  ['select', 'eq', 'neq', 'in', 'match', 'filter', 'is', 'not', 'or', 'and',
+   'gte', 'lte', 'gt', 'lt', 'like', 'ilike', 'order', 'limit', 'range',
+   'single', 'maybeSingle'].forEach(m => { obj[m] = () => obj; });
+  return obj;
+}
+
+// Wrap dynamique d'un QueryBuilder Supabase
+function wrapBuilder(builder, tableName) {
+  if (!builder || typeof builder !== 'object') return builder;
+  return new Proxy(builder, {
+    get(target, prop, receiver) {
+      const value = Reflect.get(target, prop, receiver);
+
+      // Cas 1 : .delete() sur table soft-delete -> conversion en .update()
+      if (prop === 'delete' && SOFT_DELETE_TABLES.includes(tableName)) {
+        return function(...args) {
+          if (isImpersonating() && !SYSTEM_TABLES_WHITELIST.includes(tableName)) {
+            console.warn('[IMPERSONATION] Blocage SOFT-DELETE sur "' + tableName + '"');
+            try { window.dispatchEvent(new CustomEvent('impersonation-blocked', { detail: { operation: 'delete', table: tableName } })); } catch {}
+            return buildBlockedThenable();
+          }
+          console.log('[SOFT-DELETE] ' + tableName + ' -> UPDATE deleted_at');
+          // Appel direct .update() sur le builder original
+          const updateFn = target.update || builder.update;
+          if (typeof updateFn !== 'function') {
+            console.error('[SOFT-DELETE] target.update introuvable, fallback DELETE');
+            return value.apply(target, args);
+          }
+          const updated = updateFn.call(target, { deleted_at: new Date().toISOString(), deleted_by: getCurrentUserId() });
+          return wrapBuilder(updated, tableName);
+        };
+      }
+
+      // Cas 2 : autres ecritures (insert/update/upsert) -> blocage si impersonification
+      if (typeof prop === 'string' && BLOCKED_METHODS.includes(prop)) {
+        return function(...args) {
+          if (SYSTEM_TABLES_WHITELIST.includes(tableName)) {
+            const result = value.apply(target, args);
+            return wrapBuilder(result, tableName);
+          }
+          if (isImpersonating()) {
+            console.warn('[IMPERSONATION] Blocage ' + prop.toUpperCase() + ' sur "' + tableName + '"');
+            try { window.dispatchEvent(new CustomEvent('impersonation-blocked', { detail: { operation: prop, table: tableName } })); } catch {}
+            return buildBlockedThenable();
+          }
+          const result = value.apply(target, args);
+          return wrapBuilder(result, tableName);
+        };
+      }
+
+      // Cas 3 : .select() sur table soft-delete -> filtre auto deleted_at IS NULL
       if (prop === 'select' && SOFT_DELETE_TABLES.includes(tableName)) {
         return function(...args) {
           const result = value.apply(target, args);
-          // Ajouter automatiquement .is('deleted_at', null) sur le query
-          // sauf si l'appelant a deja un filtre explicite sur deleted_at
-          // (cas de la page de restauration des elements supprimes)
-          if (result && typeof result.is === 'function') {
-            // Marqueur sur l'objet pour ne pas double-filtrer
-            if (!result._softDeleteFiltered) {
-              const filtered = result.is('deleted_at', null);
-              if (filtered) filtered._softDeleteFiltered = true;
-              return wrapQueryBuilder(filtered, tableName);
-            }
+          if (result && typeof result.is === 'function' && !result._softDeleteFiltered) {
+            const filtered = result.is('deleted_at', null);
+            if (filtered) filtered._softDeleteFiltered = true;
+            return wrapBuilder(filtered, tableName);
           }
-          return wrapQueryBuilder(result, tableName);
+          return wrapBuilder(result, tableName);
         };
       }
-      // Interception SOFT-DELETE : transforme .delete() en .update({deleted_at})
-      if (prop === 'delete' && SOFT_DELETE_TABLES.includes(tableName)) {
-        return function(...args) {
-          // Skip blocage impersonification : ce sera gere apres
-          if (isCurrentUserImpersonating() && !SYSTEM_TABLES_WHITELIST.includes(tableName)) {
-            console.warn('[IMPERSONATION] Blocage SOFT-DELETE sur table "' + tableName + '"');
-            try {
-              window.dispatchEvent(new CustomEvent('impersonation-blocked', {
-                detail: { operation: 'delete', table: tableName }
-              }));
-            } catch {}
-            const fakeResult = { data: null, error: IMPERSONATION_ERROR };
-            return { select(){return this;}, single(){return Promise.resolve(fakeResult);}, maybeSingle(){return Promise.resolve(fakeResult);}, then(f,r){return Promise.resolve(fakeResult).then(f,r);}, catch(r){return Promise.resolve(fakeResult).catch(r);}, finally(f){return Promise.resolve(fakeResult).finally(f);}, eq(){return this;}, neq(){return this;}, in(){return this;}, match(){return this;}, filter(){return this;} };
-          }
-          // SOFT-DELETE : remplacer par UPDATE
-          let deletedBy = null;
-          try {
-            const raw = localStorage.getItem('suivi_user');
-            if (raw) deletedBy = JSON.parse(raw)?.id || null;
-          } catch {}
-          console.log('[SOFT-DELETE] table "' + tableName + '" -> UPDATE deleted_at');
-          const result = target.update({ deleted_at: new Date().toISOString(), deleted_by: deletedBy });
-          return wrapQueryBuilder(result, tableName);
-        };
-      }
-      if (typeof prop === 'string' && blockedMethods.includes(prop)) {
-        return function(...args) {
-          // Skip blocage pour tables systeme
-          if (SYSTEM_TABLES_WHITELIST.includes(tableName)) {
-            const result = value.apply(target, args);
-            return wrapQueryBuilder(result, tableName);
-          }
-          if (isCurrentUserImpersonating()) {
-            console.warn('[IMPERSONATION] Blocage ' + prop.toUpperCase() + ' sur table "' + tableName + '"');
-            // Dispatch un event custom pour qu'un composant React puisse afficher un toast
-            try {
-              window.dispatchEvent(new CustomEvent('impersonation-blocked', {
-                detail: { operation: prop, table: tableName }
-              }));
-            } catch {}
-            const fakeResult = { data: null, error: IMPERSONATION_ERROR };
-            const blockedChain = {
-              select() { return this; },
-              single() { return Promise.resolve(fakeResult); },
-              maybeSingle() { return Promise.resolve(fakeResult); },
-              then(onFulfilled, onRejected) { return Promise.resolve(fakeResult).then(onFulfilled, onRejected); },
-              catch(onRejected) { return Promise.resolve(fakeResult).catch(onRejected); },
-              finally(onFinally) { return Promise.resolve(fakeResult).finally(onFinally); },
-              eq() { return this; }, neq() { return this; }, in() { return this; },
-              match() { return this; }, filter() { return this; },
-            };
-            return blockedChain;
-          }
-          const result = value.apply(target, args);
-          return wrapQueryBuilder(result, tableName);
-        };
-      }
+
+      // Cas 4 : autres methodes -> wrap recursif si retourne un builder
       if (typeof value === 'function') {
         return function(...args) {
           const result = value.apply(target, args);
-          if (result && typeof result === 'object' && (typeof result.then === 'function' || typeof result.insert === 'function' || typeof result.select === 'function')) {
-            return wrapQueryBuilder(result, tableName);
+          if (result && typeof result === 'object' && (typeof result.then === 'function' || typeof result.eq === 'function' || typeof result.select === 'function')) {
+            return wrapBuilder(result, tableName);
           }
           return result;
         };
       }
+
       return value;
     }
   });
 }
 
-export const supabase = new Proxy(_rawClient, {
-  get(target, prop) {
+// Client expose : surcharge from() pour retourner un builder wrappe
+const supabase = new Proxy(supabaseRaw, {
+  get(target, prop, receiver) {
     if (prop === 'from') {
       return function(tableName) {
-        const queryBuilder = target.from(tableName);
-        return wrapQueryBuilder(queryBuilder, tableName);
+        return wrapBuilder(target.from(tableName), tableName);
       };
     }
-    return target[prop];
+    return Reflect.get(target, prop, receiver);
   }
 });
 
-export const supabaseRaw = _rawClient;
+export { supabase, supabaseRaw };
