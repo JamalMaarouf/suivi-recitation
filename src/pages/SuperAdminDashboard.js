@@ -33,6 +33,13 @@ export default function SuperAdminDashboard({ user, navigate, lang, onLogout, is
   const [rgpdLoading, setRgpdLoading] = useState(false);
   const [purgeLogs, setPurgeLogs] = useState([]);
 
+  // Corbeille (P1.2) : éléments soft-deleted (élèves + utilisateurs)
+  const [corbeilleEleves, setCorbeilleEleves] = useState([]);
+  const [corbeilleUsers, setCorbeilleUsers] = useState([]);
+  const [corbeilleLoading, setCorbeilleLoading] = useState(false);
+  const [corbeilleFilterEcole, setCorbeilleFilterEcole] = useState('tous');
+  const [restoring, setRestoring] = useState(null);
+
   useEffect(() => { loadData(); }, []);
 
   // ─── Lazy load des logs RGPD quand on ouvre l'onglet ─────────────
@@ -42,6 +49,55 @@ export default function SuperAdminDashboard({ user, navigate, lang, onLogout, is
     }
     // eslint-disable-next-line
   }, [vue, rgpdFilterEcole, rgpdFilterPeriode]);
+
+  // ─── Lazy load de la corbeille quand on ouvre l'onglet ────────────
+  useEffect(() => {
+    if (vue === 'corbeille') {
+      loadCorbeille();
+    }
+    // eslint-disable-next-line
+  }, [vue, corbeilleFilterEcole]);
+
+  const loadCorbeille = async () => {
+    setCorbeilleLoading(true);
+    try {
+      // Import dynamique de supabaseRaw : bypass du filtre auto deleted_at IS NULL
+      // (sinon le wrapper exclut justement ce qu'on veut afficher !)
+      const { supabaseRaw } = await import('../lib/supabase');
+      let q1 = supabaseRaw.from('eleves').select('id,prenom,nom,ecole_id,deleted_at,deleted_by,actif');
+      if (corbeilleFilterEcole !== 'tous') q1 = q1.eq('ecole_id', corbeilleFilterEcole);
+      const { data: el, error: e1 } = await q1.not('deleted_at', 'is', null).order('deleted_at', { ascending: false }).limit(500);
+      if (e1) console.warn('[corbeille eleves]', e1);
+      setCorbeilleEleves(el || []);
+
+      let q2 = supabaseRaw.from('utilisateurs').select('id,prenom,nom,role,ecole_id,deleted_at,deleted_by,identifiant');
+      if (corbeilleFilterEcole !== 'tous') q2 = q2.eq('ecole_id', corbeilleFilterEcole);
+      const { data: us, error: e2 } = await q2.not('deleted_at', 'is', null).order('deleted_at', { ascending: false }).limit(500);
+      if (e2) console.warn('[corbeille users]', e2);
+      setCorbeilleUsers(us || []);
+    } catch (err) {
+      console.error('[loadCorbeille]', err);
+    }
+    setCorbeilleLoading(false);
+  };
+
+  const handleRestore = async (table, id, label) => {
+    if (!window.confirm(`Restaurer "${label}" ? Il redeviendra visible et utilisable.`)) return;
+    setRestoring(id);
+    try {
+      // L'update direct fonctionne via le wrapper (le filtre auto ne touche que les select).
+      const { error } = await supabase.from(table).update({ deleted_at: null, deleted_by: null }).eq('id', id);
+      if (error) {
+        alert('Erreur: ' + error.message);
+      } else {
+        try { await logAudit({ user_id: user.id, action: 'restore_'+table, details: { id, label } }); } catch {}
+        await loadCorbeille();
+      }
+    } catch (err) {
+      alert('Erreur: ' + err.message);
+    }
+    setRestoring(null);
+  };
 
   const loadRgpdLogs = async () => {
     setRgpdLoading(true);
@@ -680,6 +736,7 @@ export default function SuperAdminDashboard({ user, navigate, lang, onLogout, is
           {k:'attente', label:`⏳ En attente (${enAttente.length})`, alert:enAttente.length>0},
           {k:'creer', label:'➕ Créer une école'},
           {k:'rgpd', label:'🔐 Audit RGPD'},
+          {k:'corbeille', label:'🗑️ Corbeille'},
         ].map(tab => (
           <div key={tab.k} onClick={()=>setVue(tab.k)}
             style={{flex:1,padding:'8px 12px',borderRadius:8,textAlign:'center',fontSize:12,fontWeight:600,cursor:'pointer',
@@ -965,6 +1022,117 @@ export default function SuperAdminDashboard({ user, navigate, lang, onLogout, is
                 style={{padding:'7px 14px',background:S.purple,color:'#fff',border:'none',borderRadius:8,fontSize:12,fontWeight:600,cursor:'pointer'}}>
                 📥 Exporter CSV ({rgpdLogs.length} logs)
               </button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ─── VUE CORBEILLE — éléments soft-deleted ─────────────────── */}
+      {!loading && vue === 'corbeille' && (
+        <div>
+          <div style={{background:'#FAEEDA',borderRadius:10,padding:'12px 16px',marginBottom:'1rem',fontSize:13,color:'#633806',display:'flex',gap:10,alignItems:'flex-start'}}>
+            <span style={{fontSize:18}}>🗑️</span>
+            <div>
+              <div style={{fontWeight:700,marginBottom:3}}>Corbeille — Éléments supprimés (soft-delete)</div>
+              <div style={{fontSize:12,opacity:0.85,lineHeight:1.5}}>
+                Les élèves et utilisateurs (parents/instituteurs/surveillants) supprimés via l'app sont conservés ici.
+                Vous pouvez les restaurer si la suppression était une erreur. Les données restent en BDD pour
+                conformité RGPD (purge automatique possible plus tard).
+              </div>
+            </div>
+          </div>
+
+          {/* Filtre par école */}
+          <div style={{marginBottom:'1rem',display:'flex',gap:10,alignItems:'center',flexWrap:'wrap'}}>
+            <span style={{fontSize:12,fontWeight:600,color:'#666'}}>Filtrer par école :</span>
+            <select value={corbeilleFilterEcole} onChange={e=>setCorbeilleFilterEcole(e.target.value)}
+              style={{padding:'6px 10px',borderRadius:6,border:'1px solid #ddd',fontSize:12,background:'#fff'}}>
+              <option value="tous">Toutes les écoles</option>
+              {ecoles.map(e=>(<option key={e.id} value={e.id}>{e.nom}</option>))}
+            </select>
+            <button onClick={loadCorbeille} disabled={corbeilleLoading}
+              style={{padding:'6px 12px',background:'#1D9E75',color:'#fff',border:'none',borderRadius:6,fontSize:12,fontWeight:600,cursor:corbeilleLoading?'default':'pointer'}}>
+              🔄 Actualiser
+            </button>
+          </div>
+
+          {corbeilleLoading && <div style={{textAlign:'center',padding:'2rem',color:'#888'}}>Chargement…</div>}
+
+          {!corbeilleLoading && (
+            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'1rem'}}>
+              {/* Élèves supprimés */}
+              <div style={{background:'#fff',borderRadius:10,padding:'1rem',border:'0.5px solid #e0e0d8'}}>
+                <div style={{fontSize:14,fontWeight:700,marginBottom:10,color:'#173404'}}>
+                  🎓 Élèves supprimés ({corbeilleEleves.length})
+                </div>
+                {corbeilleEleves.length === 0 ? (
+                  <div style={{padding:'1.5rem',textAlign:'center',fontSize:12,color:'#888'}}>
+                    ✨ Aucun élève dans la corbeille
+                  </div>
+                ) : (
+                  <div style={{maxHeight:480,overflowY:'auto'}}>
+                    {corbeilleEleves.map(e => {
+                      const ecoleNom = ecoles.find(ec=>ec.id===e.ecole_id)?.nom || e.ecole_id?.slice(0,8);
+                      return (
+                        <div key={e.id} style={{padding:'10px',borderRadius:8,background:'#f9f9f6',marginBottom:6,display:'flex',alignItems:'center',gap:10}}>
+                          <div style={{flex:1,minWidth:0}}>
+                            <div style={{fontSize:13,fontWeight:600,color:'#173404'}}>
+                              {e.prenom} {e.nom}
+                            </div>
+                            <div style={{fontSize:11,color:'#666'}}>
+                              🏫 {ecoleNom} · 🗓️ {e.deleted_at ? new Date(e.deleted_at).toLocaleString('fr-FR') : '-'}
+                            </div>
+                          </div>
+                          <button onClick={()=>handleRestore('eleves', e.id, `${e.prenom} ${e.nom}`)}
+                            disabled={restoring===e.id}
+                            style={{padding:'6px 10px',background:'#1D9E75',color:'#fff',border:'none',borderRadius:6,fontSize:11,fontWeight:600,cursor:restoring===e.id?'default':'pointer',whiteSpace:'nowrap'}}>
+                            {restoring===e.id ? '...' : '↺ Restaurer'}
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              {/* Utilisateurs supprimés */}
+              <div style={{background:'#fff',borderRadius:10,padding:'1rem',border:'0.5px solid #e0e0d8'}}>
+                <div style={{fontSize:14,fontWeight:700,marginBottom:10,color:'#173404'}}>
+                  👤 Utilisateurs supprimés ({corbeilleUsers.length})
+                </div>
+                {corbeilleUsers.length === 0 ? (
+                  <div style={{padding:'1.5rem',textAlign:'center',fontSize:12,color:'#888'}}>
+                    ✨ Aucun utilisateur dans la corbeille
+                  </div>
+                ) : (
+                  <div style={{maxHeight:480,overflowY:'auto'}}>
+                    {corbeilleUsers.map(u => {
+                      const ecoleNom = ecoles.find(ec=>ec.id===u.ecole_id)?.nom || u.ecole_id?.slice(0,8);
+                      const roleLabel = {parent:'👨‍👩 Parent',instituteur:'👨‍🏫 Instituteur',surveillant:'👁️ Surveillant',super_admin:'🔑 Super-admin'}[u.role] || u.role;
+                      return (
+                        <div key={u.id} style={{padding:'10px',borderRadius:8,background:'#f9f9f6',marginBottom:6,display:'flex',alignItems:'center',gap:10}}>
+                          <div style={{flex:1,minWidth:0}}>
+                            <div style={{fontSize:13,fontWeight:600,color:'#173404'}}>
+                              {u.prenom} {u.nom}
+                            </div>
+                            <div style={{fontSize:11,color:'#666'}}>
+                              {roleLabel} · 🏫 {ecoleNom}
+                            </div>
+                            <div style={{fontSize:10,color:'#888',marginTop:2}}>
+                              🗓️ Supprimé le {u.deleted_at ? new Date(u.deleted_at).toLocaleString('fr-FR') : '-'}
+                            </div>
+                          </div>
+                          <button onClick={()=>handleRestore('utilisateurs', u.id, `${u.prenom} ${u.nom}`)}
+                            disabled={restoring===u.id}
+                            style={{padding:'6px 10px',background:'#1D9E75',color:'#fff',border:'none',borderRadius:6,fontSize:11,fontWeight:600,cursor:restoring===u.id?'default':'pointer',whiteSpace:'nowrap'}}>
+                            {restoring===u.id ? '...' : '↺ Restaurer'}
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
             </div>
           )}
         </div>
