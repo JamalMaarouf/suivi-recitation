@@ -70,6 +70,7 @@ import { ToastProvider } from './lib/toast';
 import { NetworkBanner } from './lib/NetworkStatus';
 import EnvBanner from './components/EnvBanner';
 import ImpersonationBanner from './components/ImpersonationBanner';
+import ImpersonationToastListener from './components/ImpersonationToastListener';
 import GlobalSearch from './components/GlobalSearch';
 import { invalidateAll } from './lib/cache';
 import { cacheClearAll } from './lib/offlineCache';
@@ -397,6 +398,7 @@ export default function App() {
     <LangContext.Provider value={{ lang, setLang }}>
       <EnvBanner />
       <ImpersonationBanner user={user} onStop={stopImpersonation} />
+      <ImpersonationToastListener lang={lang} />
       <NetworkBanner lang={lang} />
       <div className="app-container" dir={getDir(lang)}>
 

@@ -221,7 +221,7 @@ async function regle_ecolesInactives(ctx) {
       // Dernière connexion d'un utilisateur de cette école
       const derniereCo = await sbGet(
         supabaseUrl, serviceKey,
-        `utilisateurs?ecole_id=eq.${e.id}&derniere_connexion=not.is.null&order=derniere_connexion.desc&limit=1&select=derniere_connexion`
+        `utilisateurs?ecole_id=eq.${e.id}&derniere_connexion=not.is.null&deleted_at=is.null&order=derniere_connexion.desc&limit=1&select=derniere_connexion`
       );
       if (!derniereCo || derniereCo.length === 0) continue; // jamais connecté : ignore
       const lastCo = new Date(derniereCo[0].derniere_connexion);
