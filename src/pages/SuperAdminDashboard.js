@@ -39,6 +39,7 @@ export default function SuperAdminDashboard({ user, navigate, lang, onLogout, is
   const [corbeilleLoading, setCorbeilleLoading] = useState(false);
   const [corbeilleFilterEcole, setCorbeilleFilterEcole] = useState('tous');
   const [restoring, setRestoring] = useState(null);
+  const [restoreModal, setRestoreModal] = useState(null); // {table, id, label}
 
   useEffect(() => { loadData(); }, []);
 
@@ -81,11 +82,17 @@ export default function SuperAdminDashboard({ user, navigate, lang, onLogout, is
     setCorbeilleLoading(false);
   };
 
-  const handleRestore = async (table, id, label) => {
-    if (!window.confirm(`Restaurer "${label}" ? Il redeviendra visible et utilisable.`)) return;
+  const handleRestore = (table, id, label) => {
+    // Ouvre la modale au lieu d'un window.confirm natif
+    setRestoreModal({ table, id, label });
+  };
+
+  const confirmRestore = async () => {
+    if (!restoreModal) return;
+    const { table, id, label } = restoreModal;
     setRestoring(id);
+    setRestoreModal(null);
     try {
-      // L'update direct fonctionne via le wrapper (le filtre auto ne touche que les select).
       const { error } = await supabase.from(table).update({ deleted_at: null, deleted_by: null }).eq('id', id);
       if (error) {
         alert('Erreur: ' + error.message);
@@ -1135,6 +1142,35 @@ export default function SuperAdminDashboard({ user, navigate, lang, onLogout, is
               </div>
             </div>
           )}
+        </div>
+      )}
+
+      {/* ─── MODALE RESTAURATION CORBEILLE ─────────────────────── */}
+      {restoreModal && (
+        <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.45)',zIndex:9999,display:'flex',alignItems:'center',justifyContent:'center',padding:20}}
+          onClick={()=>setRestoreModal(null)}>
+          <div style={{background:'#fff',borderRadius:20,padding:'2rem',maxWidth:440,width:'100%',boxShadow:'0 20px 60px rgba(0,0,0,0.2)'}}
+            onClick={e=>e.stopPropagation()}>
+            <div style={{textAlign:'center',marginBottom:'1.25rem'}}>
+              <div style={{fontSize:40,marginBottom:'0.75rem'}}>↺</div>
+              <div style={{fontSize:17,fontWeight:700,color:'#173404',marginBottom:8}}>
+                Restaurer "{restoreModal.label}" ?
+              </div>
+              <div style={{fontSize:13,color:'#666',lineHeight:1.5}}>
+                L'élément redeviendra visible et utilisable dans l'application.
+              </div>
+            </div>
+            <div style={{display:'flex',gap:10}}>
+              <button onClick={()=>setRestoreModal(null)}
+                style={{flex:1,padding:'12px',border:'1.5px solid #e0e0d8',borderRadius:10,background:'#fff',fontSize:13,fontWeight:500,cursor:'pointer',color:'#666'}}>
+                Annuler
+              </button>
+              <button onClick={confirmRestore}
+                style={{flex:1,padding:'12px',border:'none',borderRadius:10,background:'#1D9E75',color:'#fff',fontSize:13,fontWeight:700,cursor:'pointer'}}>
+                ↺ Restaurer
+              </button>
+            </div>
+          </div>
         </div>
       )}
 

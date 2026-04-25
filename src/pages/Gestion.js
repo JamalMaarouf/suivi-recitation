@@ -1706,8 +1706,10 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile,
         ? 'سيتم حذف جميع بيانات '+nom+' (الاستظهارات، الأهداف، الاشتراكات). هذا الإجراء لا رجعة منه!'
         : (lang==='ar'?'سيتم حذف جميع بيانات '+nom+' نهائياً':'Toutes les données de '+nom+' seront supprimées. Action irréversible !'),
       async () => {
-        hideConfirm();
         // Step 2: second confirmation for critical data
+        // (on enchaine directement showConfirm sans hideConfirm intermediaire :
+        // showConfirm met isOpen:true ET set le nouveau onConfirm en un seul setState
+        // ce qui evite la fenetre de race ou onConfirm est null)
         showConfirm(
           lang==='ar'?'تأكيد نهائي — حذف '+nom:'Confirmation finale — Supprimer '+nom,
           lang==='ar'?'هل أنت متأكد تماماً؟ لا يمكن التراجع عن هذا الإجراء.':'Êtes-vous absolument sûr ? Cette action est définitive et irréversible.',
