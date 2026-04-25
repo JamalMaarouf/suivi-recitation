@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { supabase } from '../lib/supabase';
 import { calcEtatEleve, getInitiales , loadBareme, BAREME_DEFAUT, getSensForEleve} from '../lib/helpers';
 import { fetchAll } from '../lib/fetchAll';
@@ -77,8 +77,8 @@ export default function RapportMensuel({ user, navigate, goBack, lang='fr', isMo
   const debutMois = new Date(annee, mois, 1);
   const finMois   = new Date(annee, mois+1, 0, 23, 59, 59);
 
-  // ── Calcul stats par élève ─────────────────────────────────────
-  const statsEleves = (eleves||[]).map(e => {
+  // ── Calcul stats par élève (memoize : tres lourd, depend de eleves+validations+...) ──
+  const statsEleves = useMemo(() => (eleves||[]).map(e => {
     const vals  = validations.filter(v=>v.eleve_id===e.id);
     const sensE = getSensForEleve(e, niveaux, ecole);
     const etat  = calcEtatEleve(vals, e.hizb_depart, e.tomon_depart, sensE);
@@ -127,7 +127,8 @@ export default function RapportMensuel({ user, navigate, goBack, lang='fr', isMo
       attPerso:  calcAtteinte(objPerso),
       actif: tomonMois>0||hizbMois>0||souratesMois>0,
     };
-  }).sort((a,b)=>b.ptsMois-a.ptsMois);
+  }).sort((a,b)=>b.ptsMois-a.ptsMois),
+  [eleves, validations, recitations, niveaux, instituteurs, objectifs, ecole, bareme, debutMois, finMois]);
 
   // ── KPIs globaux ───────────────────────────────────────────────
   const nbActifs     = statsEleves.filter(e=>e.actif).length;
@@ -144,8 +145,8 @@ export default function RapportMensuel({ user, navigate, goBack, lang='fr', isMo
     ? Math.round(statsEleves.filter(e=>e.attPerso?.pct>=100||(!e.attPerso&&e.attNiveau?.pct>=100)).length/elevesAvecObj*100)
     : null;
 
-  // ── Stats par niveau ───────────────────────────────────────────
-  const statsByNiveau = (niveaux||[]).map(niv => {
+  // ── Stats par niveau (memoize) ─────────────────────────────────
+  const statsByNiveau = useMemo(() => (niveaux||[]).map(niv => {
     const el = statsEleves.filter(e=>e.code_niveau===niv.code);
     const actifs = el.filter(e=>e.actif).length;
     const moy = el.length>0?Math.round(el.reduce((s,e)=>s+e.ptsMois,0)/el.length):0;
@@ -154,17 +155,19 @@ export default function RapportMensuel({ user, navigate, goBack, lang='fr', isMo
       ? Math.round(el.reduce((s,e)=>s+(e.attNiveau?.pct||0),0)/el.length)
       : null;
     return { niv, el, actifs, moy, objNiv, pctNiv, top3: [...el].slice(0,3) };
-  }).filter(s=>s.el.length>0);
+  }).filter(s=>s.el.length>0),
+  [niveaux, statsEleves, objectifs, debutMois, finMois]);
 
-  // ── Stats par instituteur ──────────────────────────────────────
-  const statsByInst = (instituteurs||[]).map(inst => {
+  // ── Stats par instituteur (memoize) ────────────────────────────
+  const statsByInst = useMemo(() => (instituteurs||[]).map(inst => {
     const el = statsEleves.filter(e=>e.instituteur_referent_id===inst.id);
     const actifs = el.filter(e=>e.actif).length;
     const tomon  = el.reduce((s,e)=>s+e.tomonMois,0);
     const hizb   = el.reduce((s,e)=>s+e.hizbMois,0);
     const pts    = el.reduce((s,e)=>s+e.ptsMois,0);
     return { inst, el, actifs, tomon, hizb, pts };
-  }).filter(s=>s.el.length>0);
+  }).filter(s=>s.el.length>0),
+  [instituteurs, statsEleves]);
 
   const prevMois = () => { if(mois===0){setMois(11);setAnnee(a=>a-1);}else setMois(m=>m-1); };
   const nextMois = () => { if(mois===11){setMois(0);setAnnee(a=>a+1);}else setMois(m=>m+1); };

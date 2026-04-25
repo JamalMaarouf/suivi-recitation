@@ -19,13 +19,18 @@ class DebugErrorBoundary extends React.Component {
 }
 
 // ── Pages critiques — chargées immédiatement ──────────────────────────────
-// (Login + première page après login)
+// (Login + première page après login pour le role surveillant/instituteur)
 import Login               from './pages/Login';
 import Dashboard           from './pages/Dashboard';
 import ElevesMobile        from './pages/ElevesMobile';
-import SuperAdminDashboard from './pages/SuperAdminDashboard';
-import InscriptionEcole    from './pages/InscriptionEcole';
-import PortailParent       from './pages/PortailParent';
+
+// ── Pages specifiques par role — lazy (chargees a la demande seulement) ───
+// SuperAdminDashboard : 1053 lignes, utilise uniquement par role super_admin
+// PortailParent       : 1230 lignes, utilise uniquement par role parent
+// InscriptionEcole    : utilise uniquement au demarrage de la creation d'ecole
+const SuperAdminDashboard = lazy(() => import('./pages/SuperAdminDashboard'));
+const PortailParent       = lazy(() => import('./pages/PortailParent'));
+const InscriptionEcole    = lazy(() => import('./pages/InscriptionEcole'));
 
 // ── Pages secondaires — chargées à la demande (lazy) ─────────────────────
 const DashboardDirection  = lazy(() => import('./pages/DashboardDirection'));
@@ -360,7 +365,9 @@ export default function App() {
     <LangContext.Provider value={{ lang, setLang }}>
       <EnvBanner /><NetworkBanner lang={lang} />
       {showInscription
-        ? <InscriptionEcole onBack={()=>setShowInscription(false)} lang={lang}/>
+        ? <Suspense fallback={<div style={{display:'flex',alignItems:'center',justifyContent:'center',padding:'3rem',color:'#888',fontSize:13}}>⏳ {lang==='ar'?'جاري التحميل...':'Chargement...'}</div>}>
+            <InscriptionEcole onBack={()=>setShowInscription(false)} lang={lang}/>
+          </Suspense>
         : <Login onLogin={handleLogin} lang={lang} LangSelector={() => (
             <div style={{display:'flex',gap:4}}>
               {LANGS.map(l=>(
@@ -384,8 +391,10 @@ export default function App() {
     <LangContext.Provider value={{ lang, setLang }}>
       <EnvBanner /><NetworkBanner lang={lang} />
       <div className="app-container">
-        <SuperAdminDashboard user={user} navigate={navigate} lang={lang} onLogout={handleLogout}
-          startImpersonation={(target, ecoleNom) => startImpersonation(target, ecoleNom, user)}/>
+        <Suspense fallback={<div style={{display:'flex',alignItems:'center',justifyContent:'center',padding:'3rem',color:'#888',fontSize:13}}>⏳ {lang==='ar'?'جاري التحميل...':'Chargement...'}</div>}>
+          <SuperAdminDashboard user={user} navigate={navigate} lang={lang} onLogout={handleLogout}
+            startImpersonation={(target, ecoleNom) => startImpersonation(target, ecoleNom, user)}/>
+        </Suspense>
       </div>
     </LangContext.Provider>
     </ToastProvider>
@@ -605,7 +614,11 @@ export default function App() {
         )}
 
         <main className={isMobile ? 'main-content-mobile' : 'main-content'}>
-          {user.role === 'parent' && <ErrorBoundary><PortailParent parent={user} navigate={navigate} goBack={goBack} lang={lang} onLogout={handleLogout} /></ErrorBoundary>}
+          {user.role === 'parent' && (
+            <Suspense fallback={<div style={{display:'flex',alignItems:'center',justifyContent:'center',padding:'3rem',color:'#888',fontSize:13}}><span style={{marginRight:8}}>⏳</span>{lang==='ar'?'جاري التحميل...':'Chargement...'}</div>}>
+              <ErrorBoundary><PortailParent parent={user} navigate={navigate} goBack={goBack} lang={lang} onLogout={handleLogout} /></ErrorBoundary>
+            </Suspense>
+          )}
           {user.role !== 'parent' && <>
           <Suspense fallback={<div style={{display:'flex',alignItems:'center',justifyContent:'center',padding:'3rem',color:'#888',fontSize:13}}><span style={{marginRight:8}}>⏳</span>{lang==='ar'?'جاري التحميل...':'Chargement...'}</div>}>
           {page === 'dashboard'         && <Dashboard {...pageProps} />}

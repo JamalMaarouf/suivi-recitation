@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useToast } from '../lib/toast';
 import { supabase } from '../lib/supabase';
 import { getInitiales, joursDepuis, scoreLabel, formatDateCourt , loadBareme, BAREME_DEFAUT } from '../lib/helpers';
@@ -117,15 +117,16 @@ export default function HistoriqueSeances({ user, navigate, goBack, lang='fr', i
   const debut = new Date(dateDebut); debut.setHours(0,0,0,0);
   const fin = new Date(dateFin); fin.setHours(23,59,59,999);
 
-  const elevesVisibles = eleves.filter(e => {
+  const elevesVisibles = useMemo(() => eleves.filter(e => {
     if (filterNiveau !== 'tous' && (e.code_niveau||'1') !== filterNiveau) return false;
     if (filterInstituteur !== 'tous' && e.instituteur_referent_id !== filterInstituteur) return false;
     if (user.role === 'instituteur' && e.instituteur_referent_id !== user.id) return false;
     return true;
-  });
-  const elevesVisiblesIds = new Set(elevesVisibles.map(e=>e.id));
+  }), [eleves, filterNiveau, filterInstituteur, user.role, user.id]);
 
-  const valsFiltrees = validations.filter(v => {
+  const elevesVisiblesIds = useMemo(() => new Set(elevesVisibles.map(e=>e.id)), [elevesVisibles]);
+
+  const valsFiltrees = useMemo(() => validations.filter(v => {
     const d = new Date(v.date_validation);
     if (d < debut || d > fin) return false;
     if (!elevesVisiblesIds.has(v.eleve_id)) return false;
@@ -134,9 +135,9 @@ export default function HistoriqueSeances({ user, navigate, goBack, lang='fr', i
     if (filterType === 'hizb' && v.type_validation !== 'hizb_complet') return false;
     if (filterType === 'sourate' || filterType === 'sequence') return false;
     return true;
-  });
+  }), [validations, debut, fin, elevesVisiblesIds, filterEleve, filterType]);
 
-  const recsFiltrees = recitations.filter(r => {
+  const recsFiltrees = useMemo(() => recitations.filter(r => {
     const d = new Date(r.date_validation);
     if (d < debut || d > fin) return false;
     if (!elevesVisiblesIds.has(r.eleve_id)) return false;
@@ -145,7 +146,7 @@ export default function HistoriqueSeances({ user, navigate, goBack, lang='fr', i
     if (filterType === 'sequence' && r.type_recitation !== 'sequence') return false;
     if (filterType === 'tomon' || filterType === 'hizb') return false;
     return true;
-  });
+  }), [recitations, debut, fin, elevesVisiblesIds, filterEleve, filterType]);
 
   const tomonTotal = valsFiltrees.filter(v=>v.type_validation==='tomon').reduce((s,v)=>s+v.nombre_tomon,0);
   const hizbTotal = valsFiltrees.filter(v=>v.type_validation==='hizb_complet').length;
@@ -163,7 +164,7 @@ export default function HistoriqueSeances({ user, navigate, goBack, lang='fr', i
   const ptsPrec = valsPrec.filter(v=>v.type_validation==='tomon').reduce((s,v)=>s+v.nombre_tomon,0)*10+recsPrec.reduce((s,r)=>s+(r.points||0),0);
   const ptsDelta = ptsTotal - ptsPrec;
 
-  const statsParEleve = (elevesVisibles||[]).map(eleve => {
+  const statsParEleve = useMemo(() => (elevesVisibles||[]).map(eleve => {
     const vE = valsFiltrees.filter(v=>v.eleve_id===eleve.id);
     const rE = recsFiltrees.filter(r=>r.eleve_id===eleve.id);
     const tomon = vE.filter(v=>v.type_validation==='tomon').reduce((s,v)=>s+v.nombre_tomon,0);
@@ -194,7 +195,8 @@ export default function HistoriqueSeances({ user, navigate, goBack, lang='fr', i
     const trend = pts>ptsPrec2?'up':pts<ptsPrec2?'down':'stable';
     const inst = instituteurs.find(i=>i.id===eleve.instituteur_referent_id);
     return { eleve, tomon, hizb, sourates, seqs, pts, nbSeances, derniere, isSourate, obj, pctObj, trend, instituteurNom:inst?inst.prenom+' '+inst.nom:'—' };
-  });
+  }),
+  [elevesVisibles, valsFiltrees, recsFiltrees, objectifs, valsPrec, recsPrec, instituteurs, debut, fin]);
 
   const actifs = (statsParEleve||[]).filter(s=>s.pts>0||s.nbSeances>0).sort((a,b)=>b.pts-a.pts);
   const inactifs = (statsParEleve||[]).filter(s=>s.pts===0&&s.nbSeances===0);
