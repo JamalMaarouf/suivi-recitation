@@ -152,7 +152,7 @@ export default function HistoriqueSeances({ user, navigate, goBack, lang='fr', i
   const hizbTotal = valsFiltrees.filter(v=>v.type_validation==='hizb_complet').length;
   const souratesTotal = recsFiltrees.filter(r=>r.type_recitation==='complete').length;
   const sequencesTotal = recsFiltrees.filter(r=>r.type_recitation==='sequence').length;
-  const ptsTotal = tomonTotal*(bareme.tomon||10)+Math.floor(tomonTotal/2)*25+Math.floor(tomonTotal/4)*60+hizbTotal*100+recsFiltrees.reduce((s,r)=>s+(r.points||0),0);
+  const ptsTotal = tomonTotal*(bareme.tomon || 0)+Math.floor(tomonTotal/2)*25+Math.floor(tomonTotal/4)*60+hizbTotal*100+recsFiltrees.reduce((s,r)=>s+(r.points||0),0);
   const elevesActifs = new Set([...valsFiltrees.map(v=>v.eleve_id),...recsFiltrees.map(r=>r.eleve_id)]);
   const joursActifs = new Set([...valsFiltrees,...recsFiltrees].map(x=>new Date(x.date_validation).toDateString())).size;
 
@@ -205,10 +205,10 @@ export default function HistoriqueSeances({ user, navigate, goBack, lang='fr', i
   [...valsFiltrees,...recsFiltrees].forEach(item=>{
     const key=new Date(item.date_validation).toISOString().split('T')[0];
     if(!timeline[key]) timeline[key]={date:key,pts:0,tomon:0,hizb:0,sourate:0,seq:0};
-    if(item.type_validation==='tomon'){timeline[key].tomon+=item.nombre_tomon;timeline[key].pts+=item.nombre_tomon*(bareme.tomon||10);}
-    else if(item.type_validation==='hizb_complet'){timeline[key].hizb++;timeline[key].pts+=(bareme.hizb_complet||100);}
+    if(item.type_validation==='tomon'){timeline[key].tomon+=item.nombre_tomon;timeline[key].pts+=item.nombre_tomon*(bareme.tomon || 0);}
+    else if(item.type_validation==='hizb_complet'){timeline[key].hizb++;timeline[key].pts+=(bareme.hizb_complet || 0);}
     else if(item.type_recitation==='complete'){timeline[key].sourate++;timeline[key].pts+=(item.points||30);}
-    else if(item.type_recitation==='sequence'){timeline[key].seq++;timeline[key].pts+=(item.points||10);}
+    else if(item.type_recitation==='sequence'){timeline[key].seq++;timeline[key].pts+=(item.points || 0);}
   });
   const timelineArr = Object.values(timeline).sort((a,b)=>a.date.localeCompare(b.date));
   const maxPtsDay = Math.max(...timelineArr.map(d=>d.pts),1);
@@ -265,7 +265,7 @@ export default function HistoriqueSeances({ user, navigate, goBack, lang='fr', i
         ...allDrill.map(item=>{
           const isSR=!!item.type_recitation;
           const sourate=souratesDB.find(s=>s.id===item.sourate_id);
-          const pts=isSR?(item.points||10):(item.type_validation==='hizb_complet'?100:item.nombre_tomon*(bareme.tomon||10));
+          const pts=isSR?(item.points || 0):(item.type_validation==='hizb_complet'?(bareme.hizb_complet || 0):item.nombre_tomon*(bareme.tomon || 0));
           const type=isSR?(item.type_recitation==='complete'?lang==='ar'?'سورة كاملة':(lang==='ar'?'سورة كاملة':'Sourate complète'):(lang==='ar'?'مقطع':'Séquence')):(item.type_validation==='hizb_complet'?lang==='ar'?'حزب كامل':(lang==='ar'?'حزب كامل':'Hizb complet'):(lang==='ar'?'الثُّمن':'Tomon'));
           const detail=isSR?(item.type_recitation==='complete'?'✓':'V.'+item.verset_debut+'→V.'+item.verset_fin):(item.type_validation==='hizb_complet'?'Hizb '+item.hizb_valide:item.nombre_tomon+' Tomon');
           const surateNom=sourate?sourate.nom_ar:(item.hizb_validation?'Hizb '+item.hizb_validation:'—');
@@ -345,7 +345,7 @@ export default function HistoriqueSeances({ user, navigate, goBack, lang='fr', i
     const lignesDrill = allDrill.map((item,i)=>{
       const isSR = !!item.type_recitation;
       const sourate = souratesDB.find(s=>s.id===item.sourate_id);
-      const pts = isSR?(item.points||10):(item.type_validation==='hizb_complet'?100:item.nombre_tomon*(bareme.tomon||10));
+      const pts = isSR?(item.points || 0):(item.type_validation==='hizb_complet'?(bareme.hizb_complet || 0):item.nombre_tomon*(bareme.tomon || 0));
       const bg = i%2===0?'#fff':'#f9f9f6';
       const typeStr = isSR
         ? (item.type_recitation==='complete'?'<span style="background:#E1F5EE;color:#085041;padding:1px 5px;border-radius:4px;font-size:9px">Complète</span>':'<span style="background:#E6F1FB;color:#378ADD;padding:1px 5px;border-radius:4px;font-size:9px">Séquence</span>')
@@ -756,7 +756,7 @@ export default function HistoriqueSeances({ user, navigate, goBack, lang='fr', i
                   {allDrill.map((item,i)=>{
                     const isSR=!!item.type_recitation;
                     const sourate=souratesDB.find(s=>s.id===item.sourate_id);
-                    const pts=isSR?(item.points||10):(item.type_validation==='hizb_complet'?100:item.nombre_tomon*(bareme.tomon||10));
+                    const pts=isSR?(item.points || 0):(item.type_validation==='hizb_complet'?(bareme.hizb_complet || 0):item.nombre_tomon*(bareme.tomon || 0));
                     return(
                       <tr key={i}>
                         <td style={{fontSize:12,color:'#888'}}>{new Date(item.date_validation).toLocaleDateString('fr-FR',{day:'2-digit',month:'short'})}</td>

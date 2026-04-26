@@ -132,7 +132,7 @@ export default function ProfilInstituteur({ instituteur, user, navigate, goBack,
                       <td style={{fontSize:12,color:'#888'}}>{formatDateCourt(v.date_validation)}</td>
                       <td style={{fontSize:13}}>{eleve?`${eleve.prenom} ${eleve.nom}`:'—'}</td>
                       <td>{v.type_validation==='hizb_complet'?<span className="badge badge-green">Hizb {v.hizb_valide}</span>:<span className="badge badge-blue">{v.nombre_tomon} {t(lang,'tomon_abrev')}{v.tomon_debut?` (T.${v.tomon_debut}→${v.tomon_debut+v.nombre_tomon-1})`:''}</span>}</td>
-                      <td><span style={{fontSize:12,fontWeight:600,color:'#1D9E75'}}>+{v.type_validation==='hizb_complet'?(bareme.hizb_complet||100):v.nombre_tomon*(bareme.tomon||10)} {t(lang,'pts_abrev')}</span></td>
+                      <td><span style={{fontSize:12,fontWeight:600,color:'#1D9E75'}}>+{v.type_validation==='hizb_complet'?(bareme.hizb_complet || 0):v.nombre_tomon*(bareme.tomon || 0)} {t(lang,'pts_abrev')}</span></td>
                     </tr>
                   );
                 })}

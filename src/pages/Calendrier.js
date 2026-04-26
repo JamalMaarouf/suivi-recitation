@@ -137,7 +137,7 @@ export default function Calendrier({ user, navigate, goBack, lang='fr', isMobile
                       </div>
                       <div style={{textAlign:'right'}}>
                         {v.type_validation==='hizb_complet'?<span className="badge badge-green" style={{fontSize:10}}>Hizb</span>:<span className="badge badge-blue" style={{fontSize:10}}>{v.nombre_tomon}{t(lang,'tomon_abrev')}</span>}
-                        <div style={{fontSize:11,fontWeight:600,color:'#1D9E75',marginTop:2}}>+{v.type_validation==='hizb_complet'?(bareme.hizb_complet||100):v.nombre_tomon*(bareme.tomon||10)} {t(lang,'pts_abrev')}</div>
+                        <div style={{fontSize:11,fontWeight:600,color:'#1D9E75',marginTop:2}}>+{v.type_validation==='hizb_complet'?(bareme.hizb_complet || 0):v.nombre_tomon*(bareme.tomon || 0)} {t(lang,'pts_abrev')}</div>
                       </div>
                     </div>
                   );

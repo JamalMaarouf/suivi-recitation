@@ -48,8 +48,8 @@ export default function Comparaison({ navigate, goBack, lang='fr', isMobile, use
     let cumul=0; let hc=new Set();
     const pts=[{score:0}];
     // Bareme parametrable depuis Gestion (avec fallbacks anciens : tomon=10, hizb=100)
-    const ptsTomon = bareme.tomon || 10;
-    const ptsHizb  = bareme.hizb_complet || 100;
+    const ptsTomon = bareme.tomon || 0;
+    const ptsHizb  = bareme.hizb_complet || 0;
     vals.forEach(v=>{
       if(v.type_validation==='hizb_complet') hc.add(v.hizb_valide); else cumul+=v.nombre_tomon;
       // Note : les bonus tomon/2 et tomon/4 (25 et 60) restaient hardcodes car

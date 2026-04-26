@@ -48,8 +48,8 @@ function calcEvolution(validations, bareme) {
   const pts = [{score:0,label:'Départ'}];
   // Bareme parametrable depuis Gestion. Fallbacks aux valeurs historiques (10/100)
   // si bareme non fourni (ex : appel sans bareme charge).
-  const ptsTomon = bareme?.tomon || 10;
-  const ptsHizb  = bareme?.hizb_complet || 100;
+  const ptsTomon = bareme?.tomon || 0;
+  const ptsHizb  = bareme?.hizb_complet || 0;
   vals.forEach(v => {
     if(v.type_validation==='hizb_complet') hc.add(v.hizb_valide); else cumul+=v.nombre_tomon;
     pts.push({score:cumul*ptsTomon+Math.floor(cumul/2)*25+Math.floor(cumul/4)*60+hc.size*ptsHizb,label:formatDateCourt(v.date_validation)});
@@ -475,7 +475,7 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang, isMobi
           date_validation: v.date_validation,
           type_validation: v.type_validation,
           nombre_tomon: v.nombre_tomon,
-          points: v.type_validation === 'hizb_complet' ? (baremeEleve?.hizb_complet || 100) : (v.nombre_tomon || 0) * (baremeEleve?.tomon || 10),
+          points: v.type_validation === 'hizb_complet' ? (baremeEleve?.hizb_complet || 0) : (v.nombre_tomon || 0) * (baremeEleve?.tomon || 0),
         })),
         ecole: { nom: user?.ecole?.nom || '' },
       };
@@ -1356,10 +1356,10 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang, isMobi
                   <div style={{fontSize:11,color:'#888'}}>{l}</div>
                 </div>
               )) : [
-                ['Tomon',etat?.points.ptsTomon,`${etat?.tomonTotal||etat?.tomonCumul}×10`],
+                ['Tomon',etat?.points.ptsTomon,`${etat?.tomonTotal||etat?.tomonCumul}×${baremeEleve?.tomon||0}`],
                 ['Roboe',etat?.points.ptsRoboe,`${etat?.points.details?.nbRoboe}×25`],
                 ['Nisf',etat?.points.ptsNisf,`${etat?.points.details?.nbNisf}×60`],
-                ['Hizb',etat?.points.ptsHizb,`${etat?.points.details?.nbHizb}×100`],
+                ['Hizb',etat?.points.ptsHizb,`${etat?.points.details?.nbHizb}×${baremeEleve?.hizb_complet||0}`],
               ].map(([l,v,s])=>(
                 <div key={l} style={{background:'#f9f9f6',borderRadius:8,padding:'10px',textAlign:'center'}}>
                   <div style={{fontSize:18,fontWeight:700}}>{v}</div>
