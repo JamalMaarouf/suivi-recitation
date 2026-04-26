@@ -1112,24 +1112,30 @@ function PassageNiveauTab({ user, lang, niveaux, showMsg }) {
 // COMPOSANT JalonsTab — Gestion des jalons/certificats
 // ══════════════════════════════════════════════════════
 function JalonsTab({ user, lang, jalons, setJalons, ensembles, examens, newJalon, setNewJalon, savingJalon, setSavingJalon, showMsg }) {
+  // Defensive defaults : si une prop est undefined (timing useEffect, etc.) on evite le crash
+  const ensembesSafe = ensembles || [];
+  const examensSafe = examens || [];
+  const jalonsSafe = jalons || [];
+  const newJalonSafe = newJalon || { nom_ar: '', type_jalon: 'hizb', hizb_ids: [], ensemble_id: '', examen_id: '', condition_obtention: 'cumul' };
+  const hizbIdsSafe = newJalonSafe.hizb_ids || [];
 
   const ajouterJalon = async () => {
-    if (!newJalon.nom_ar.trim()) return showMsg('error', lang==='ar'?'اسم الشهادة مطلوب':'Le nom du certificat est obligatoire');
-    if (newJalon.type_jalon === 'hizb' && (!newJalon.hizb_ids || newJalon.hizb_ids.length === 0)) return showMsg('error', lang==='ar'?'اختر الأحزاب المطلوبة':'Sélectionnez au moins un Hizb');
-    if (newJalon.type_jalon === 'ensemble_sourates' && !newJalon.ensemble_id) return showMsg('error', lang==='ar'?'اختر مجموعة السور':'Choisissez un ensemble de sourates');
-    if (newJalon.type_jalon === 'examen' && !newJalon.examen_id) return showMsg('error', lang==='ar'?'اختر الامتحان':'Choisissez un examen');
+    if (!newJalonSafe.nom_ar.trim()) return showMsg('error', lang==='ar'?'اسم الشهادة مطلوب':'Le nom du certificat est obligatoire');
+    if (newJalonSafe.type_jalon === 'hizb' && hizbIdsSafe.length === 0) return showMsg('error', lang==='ar'?'اختر الأحزاب المطلوبة':'Sélectionnez au moins un Hizb');
+    if (newJalonSafe.type_jalon === 'ensemble_sourates' && !newJalonSafe.ensemble_id) return showMsg('error', lang==='ar'?'اختر مجموعة السور':'Choisissez un ensemble de sourates');
+    if (newJalonSafe.type_jalon === 'examen' && !newJalonSafe.examen_id) return showMsg('error', lang==='ar'?'اختر الامتحان':'Choisissez un examen');
     setSavingJalon(true);
     const payload = {
       ecole_id: user.ecole_id,
-      nom: newJalon.nom_ar.trim(),
-      nom_ar: newJalon.nom_ar.trim(),
-      type_jalon: newJalon.type_jalon,
-      hizb_ids: newJalon.type_jalon === 'hizb' ? newJalon.hizb_ids : null,
-      ensemble_id: newJalon.type_jalon === 'ensemble_sourates' ? newJalon.ensemble_id : null,
-      examen_id: newJalon.type_jalon === 'examen' ? newJalon.examen_id : null,
-      condition_obtention: newJalon.condition_obtention || 'cumul',
-      examen_final_id: newJalon.condition_obtention === 'cumul_puis_examen' ? (newJalon.examen_final_id||null) : null,
-      description_condition: newJalon.description_condition || null,
+      nom: newJalonSafe.nom_ar.trim(),
+      nom_ar: newJalonSafe.nom_ar.trim(),
+      type_jalon: newJalonSafe.type_jalon,
+      hizb_ids: newJalonSafe.type_jalon === 'hizb' ? hizbIdsSafe : null,
+      ensemble_id: newJalonSafe.type_jalon === 'ensemble_sourates' ? newJalonSafe.ensemble_id : null,
+      examen_id: newJalonSafe.type_jalon === 'examen' ? newJalonSafe.examen_id : null,
+      condition_obtention: newJalonSafe.condition_obtention || 'cumul',
+      examen_final_id: newJalonSafe.condition_obtention === 'cumul_puis_examen' ? (newJalonSafe.examen_final_id||null) : null,
+      description_condition: newJalonSafe.description_condition || null,
       actif: true,
     };
     await supabase.from('jalons').insert(payload);
@@ -1151,8 +1157,8 @@ function JalonsTab({ user, lang, jalons, setJalons, ensembles, examens, newJalon
     setJalons(prev => prev.map(j => j.id === jalon.id ? {...j, actif: !j.actif} : j));
   };
 
-  const getEnsembleNom = (id) => ensembles.find(e => e.id === id)?.nom || '—';
-  const getExamenNom = (id) => (examens||[]).find(e => e.id === id)?.nom || '—';
+  const getEnsembleNom = (id) => ensembesSafe.find(e => e.id === id)?.nom || '—';
+  const getExamenNom = (id) => examensSafe.find(e => e.id === id)?.nom || '—';
   const typeLabel = (j) => {
     if (j.type_jalon === 'hizb') {
       const ids = j.hizb_ids || [];
@@ -1164,9 +1170,8 @@ function JalonsTab({ user, lang, jalons, setJalons, ensembles, examens, newJalon
     return j.type_jalon;
   };
   const toggleHizb = (n) => {
-    const ids = newJalon.hizb_ids || [];
-    const updated = ids.includes(n) ? ids.filter(h=>h!==n) : [...ids, n];
-    setNewJalon({...newJalon, hizb_ids: updated});
+    const updated = hizbIdsSafe.includes(n) ? hizbIdsSafe.filter(h=>h!==n) : [...hizbIdsSafe, n];
+    setNewJalon({...newJalonSafe, hizb_ids: updated});
   };
 
   return (
@@ -1235,9 +1240,9 @@ function JalonsTab({ user, lang, jalons, setJalons, ensembles, examens, newJalon
             <div className="field-group" style={{gridColumn:'1/-1'}}>
               <label className="field-lbl">
                 {lang==='ar'?'اختر الأحزاب المطلوبة':'Sélectionnez les Hizb requis'} <span style={{color:'#E24B4A'}}>*</span>
-                {newJalon.hizb_ids.length > 0 && (
+                {hizbIdsSafe.length > 0 && (
                   <span style={{marginRight:8,marginLeft:8,color:'#1D9E75',fontWeight:700}}>
-                    ({newJalon.hizb_ids.length} {lang==='ar'?'محدد':'sélectionné(s)'})
+                    ({hizbIdsSafe.length} {lang==='ar'?'محدد':'sélectionné(s)'})
                   </span>
                 )}
               </label>
@@ -1248,7 +1253,7 @@ function JalonsTab({ user, lang, jalons, setJalons, ensembles, examens, newJalon
                     ? Array.from({length:60},(_,i)=>i+1)
                     : Array.from({length:60},(_,i)=>60-i);
                   return hizbList.map(n=>{
-                  const sel = (newJalon.hizb_ids||[]).includes(n);
+                  const sel = hizbIdsSafe.includes(n);
                   return (
                     <div key={n} onClick={()=>toggleHizb(n)}
                       style={{borderRadius:6,padding:'5px 2px',textAlign:'center',cursor:'pointer',fontSize:11,fontWeight:700,
@@ -1262,9 +1267,9 @@ function JalonsTab({ user, lang, jalons, setJalons, ensembles, examens, newJalon
                 });
                 })()}
               </div>
-              {newJalon.hizb_ids.length > 0 && (
+              {hizbIdsSafe.length > 0 && (
                 <div style={{marginTop:6,fontSize:11,color:'#085041',fontWeight:600}}>
-                  {lang==='ar'?'الأحزاب المختارة:':'Hizb sélectionnés:'} {[...newJalon.hizb_ids].sort((a,b)=>a-b).join(', ')}
+                  {lang==='ar'?'الأحزاب المختارة:':'Hizb sélectionnés:'} {[...hizbIdsSafe].sort((a,b)=>a-b).join(', ')}
                 </div>
               )}
             </div>
@@ -1274,7 +1279,7 @@ function JalonsTab({ user, lang, jalons, setJalons, ensembles, examens, newJalon
               <label className="field-lbl">{lang==='ar'?'مجموعة السور':'Ensemble de sourates'} <span style={{color:'#E24B4A'}}>*</span></label>
               <select className="field-select" value={newJalon.ensemble_id} onChange={e=>setNewJalon({...newJalon,ensemble_id:e.target.value})}>
                 <option value="">{lang==='ar'?'اختر مجموعة':'Choisir un ensemble'}</option>
-                {ensembles.map(e=><option key={e.id} value={e.id}>{e.nom}</option>)}
+                {ensembesSafe.map(e=><option key={e.id} value={e.id}>{e.nom}</option>)}
               </select>
             </div>
           )}
