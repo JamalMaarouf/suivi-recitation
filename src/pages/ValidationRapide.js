@@ -5,7 +5,7 @@ import { withRetryToast } from '../lib/retry';
 import { invalidateMany } from '../lib/cache';
 import { enqueueOrRun } from '../lib/offlineQueue';
 import { swr } from '../lib/offlineCache';
-import { calcEtatEleve, getInitiales, scoreLabel, motivationMsg, verifierEtCreerCertificats, isSourateNiveauDyn, loadBareme, BAREME_DEFAUT, getSensForEleve} from '../lib/helpers';
+import { calcEtatEleve, getInitiales, scoreLabel, motivationMsg, verifierEtCreerCertificats, isSourateNiveauDyn, loadBareme, BAREME_DEFAUT, getSensForEleve, verifierBlocageExamen} from '../lib/helpers';
 import { notifierParents } from '../lib/notificationsParents';
 import { getSouratesForNiveau } from '../lib/sourates';
 import { t } from '../lib/i18n';
@@ -255,6 +255,27 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
   const validerHizb = async () => {
     if (!selectedEleve || !etat || saving || !etat.enAttenteHizbComplet) return;
     setSaving(true);
+    // Verification blocage examen (Etape 4 Phase 3)
+    // Si l'eleve a deja atteint la fin d'un bloc avec examen bloquant non passe,
+    // refuser la validation et afficher un message clair.
+    try {
+      const { data: currentVals } = await supabase.from('validations').select('*')
+        .eq('ecole_id', user.ecole_id).eq('eleve_id', selectedEleve.id);
+      const blocage = await verifierBlocageExamen(supabase, {
+        eleve: selectedEleve, ecole_id: user.ecole_id,
+        validations: currentVals || [], recitations: [],
+      });
+      if (blocage) {
+        setSaving(false);
+        toast.error(
+          lang === 'ar'
+            ? `⛔ امتحان مطلوب: "${blocage.nom}" قبل المتابعة`
+            : `⛔ Examen requis : "${blocage.nom}" avant de continuer`,
+          { duration: 5000 }
+        );
+        return;
+      }
+    } catch (e) { console.warn('[verif blocage examen]', e); /* on continue : fail-open en cas d'erreur reseau */ }
     const res = await enqueueOrRun(supabase, 'validations', 'insert', {
       eleve_id: selectedEleve.id, ecole_id: user.ecole_id, valide_par: user.id,
       nombre_tomon: 0, type_validation: 'hizb_complet',
