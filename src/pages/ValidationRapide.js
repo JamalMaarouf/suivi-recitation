@@ -21,6 +21,7 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
   const [search, setSearch] = useState('');
   const [selectedEleve, setSelectedEleve] = useState(null);
   const [etat, setEtat] = useState(null);
+  const [blocageExamen, setBlocageExamen] = useState(null); // {nom, id, ...} ou null
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [flash, setFlash] = useState(null);
@@ -80,6 +81,23 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
     ? eleves.filter(e => `${e.prenom} ${e.nom} ${e.eleve_id_ecole || ''}`.toLowerCase().includes(search.toLowerCase())).slice(0, 6)
     : [];
 
+  // Helper reutilisable : verifie le blocage examen pour l'eleve courant
+  // et met a jour le state. Retourne true si bloque, false sinon.
+  const checkBlocageExamenEleve = async (eleve, vals, recs) => {
+    try {
+      const blocage = await verifierBlocageExamen(supabase, {
+        eleve, ecole_id: user.ecole_id,
+        validations: vals || [], recitations: recs || [],
+      });
+      setBlocageExamen(blocage); // null si pas de blocage, objet sinon
+      return !!blocage;
+    } catch (e) {
+      console.warn('[verif blocage examen]', e);
+      setBlocageExamen(null);
+      return false;
+    }
+  };
+
   const selectEleve = async (e) => {
     // Recharger l'eleve frais depuis la DB (ses hizb_depart/tomon_depart peuvent avoir
     // change suite a un passage de niveau). Sinon on calcule a partir de donnees periees.
@@ -92,6 +110,7 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
 
     const vals = allValidations.filter(v => v.eleve_id === freshEleve.id);
     setSelectedEleve(freshEleve);
+    setBlocageExamen(null); // reset avant verif
     const sensEl = getSensForEleve(freshEleve, niveaux, ecoleConfig);
     setEtat(calcEtatEleve(vals, freshEleve.hizb_depart, freshEleve.tomon_depart, sensEl));
     setSearch('');
@@ -143,6 +162,10 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
       });
       setCurrentSourateState(idx >= 0 ? souratesOrd[idx] : null);
     }
+
+    // Verification du blocage examen au moment de la selection de l'eleve.
+    // Si bloque, on affiche un bandeau d'avertissement avant meme toute action.
+    await checkBlocageExamenEleve(freshEleve, vals, recitationsLocal);
   };
 
   const estSourate = selectedEleve ? isSourateNiveauDyn(selectedEleve.code_niveau, niveaux) : false;
@@ -212,6 +235,16 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
   // Valider N tomons
   const validerTomon = async () => {
     if (!selectedEleve || !etat || saving || etat.enAttenteHizbComplet) return;
+    // Verification blocage examen avant validation (s'applique aussi aux tomons)
+    if (blocageExamen) {
+      toast.error(
+        lang === 'ar'
+          ? `⛔ امتحان مطلوب: "${blocageExamen.examen?.nom || blocageExamen.nom || ''}" قبل المتابعة`
+          : `⛔ Examen requis : "${blocageExamen.examen?.nom || blocageExamen.nom || ''}" avant de continuer`,
+        { duration: 5000 }
+      );
+      return;
+    }
     setSaving(true);
     const payload = {
       eleve_id: selectedEleve.id, ecole_id: user.ecole_id, valide_par: user.id,
@@ -244,6 +277,9 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
           .eq('ecole_id', user.ecole_id).eq('eleve_id', selectedEleve.id);
         const sensEl = getSensForEleve(selectedEleve, niveaux, ecoleConfig);
         setEtat(calcEtatEleve(newVals || [], selectedEleve.hizb_depart, selectedEleve.tomon_depart, sensEl));
+        // Re-verification blocage : peut etre que ce tomon vient de finir le dernier
+        // hizb d'un examen bloquant -> il faut afficher le bandeau immediatement.
+        await checkBlocageExamenEleve(selectedEleve, newVals || [], recitationsSourates);
       }
       setNbTomon(1);
       invalidateMany(['validations', 'recitations_sourates_min', `validations_${selectedEleve.id}`, `recitations_eleve_${selectedEleve.id}`], user.ecole_id);
@@ -254,28 +290,17 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
   // Valider hizb complet
   const validerHizb = async () => {
     if (!selectedEleve || !etat || saving || !etat.enAttenteHizbComplet) return;
+    // Verification blocage examen avant validation
+    if (blocageExamen) {
+      toast.error(
+        lang === 'ar'
+          ? `⛔ امتحان مطلوب: "${blocageExamen.examen?.nom || blocageExamen.nom || ''}" قبل المتابعة`
+          : `⛔ Examen requis : "${blocageExamen.examen?.nom || blocageExamen.nom || ''}" avant de continuer`,
+        { duration: 5000 }
+      );
+      return;
+    }
     setSaving(true);
-    // Verification blocage examen (Etape 4 Phase 3)
-    // Si l'eleve a deja atteint la fin d'un bloc avec examen bloquant non passe,
-    // refuser la validation et afficher un message clair.
-    try {
-      const { data: currentVals } = await supabase.from('validations').select('*')
-        .eq('ecole_id', user.ecole_id).eq('eleve_id', selectedEleve.id);
-      const blocage = await verifierBlocageExamen(supabase, {
-        eleve: selectedEleve, ecole_id: user.ecole_id,
-        validations: currentVals || [], recitations: [],
-      });
-      if (blocage) {
-        setSaving(false);
-        toast.error(
-          lang === 'ar'
-            ? `⛔ امتحان مطلوب: "${blocage.nom}" قبل المتابعة`
-            : `⛔ Examen requis : "${blocage.nom}" avant de continuer`,
-          { duration: 5000 }
-        );
-        return;
-      }
-    } catch (e) { console.warn('[verif blocage examen]', e); /* on continue : fail-open en cas d'erreur reseau */ }
     const res = await enqueueOrRun(supabase, 'validations', 'insert', {
       eleve_id: selectedEleve.id, ecole_id: user.ecole_id, valide_par: user.id,
       nombre_tomon: 0, type_validation: 'hizb_complet',
@@ -301,6 +326,10 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
           .eq('ecole_id', user.ecole_id).eq('eleve_id', selectedEleve.id);
         const sensEl = getSensForEleve(selectedEleve, niveaux, ecoleConfig);
         setEtat(calcEtatEleve(newVals || [], selectedEleve.hizb_depart, selectedEleve.tomon_depart, sensEl));
+        // Re-verification blocage : ce hizb venait peut-etre de finir le dernier
+        // hizb d'un examen bloquant -> on affiche le bandeau immediatement
+        // pour empecher l'eleve de continuer la suivante.
+        await checkBlocageExamenEleve(selectedEleve, newVals || [], recitationsSourates);
         try {
           const nouveauxCerts = await verifierEtCreerCertificats(supabase, {
             eleve: selectedEleve, ecole_id: user.ecole_id, valide_par: user.id,
@@ -516,12 +545,35 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
                 {` · ${etat.points.total.toLocaleString()} ${t(lang, 'pts_abrev')}`}
               </div>
             </div>
-            <button onClick={() => { setSelectedEleve(null); setEtat(null); setTimeout(() => searchRef.current?.focus(), 100); }}
+            <button onClick={() => { setSelectedEleve(null); setEtat(null); setBlocageExamen(null); setTimeout(() => searchRef.current?.focus(), 100); }}
               style={{ width: 30, height: 30, borderRadius: '50%', background: '#f5f5f0', border: 'none',
                 fontSize: 14, cursor: 'pointer', color: '#888', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               ✕
             </button>
           </div>
+
+          {/* ── BANDEAU BLOCAGE EXAMEN ── */}
+          {blocageExamen && (
+            <div style={{ background:'linear-gradient(135deg,#FFF3E0,#FCEBEB)', borderBottom:'2px solid #E24B4A',
+              padding:'14px 20px', display:'flex', alignItems:'center', gap:14 }}>
+              <div style={{ fontSize:28, flexShrink:0 }}>🔒</div>
+              <div style={{ flex:1 }}>
+                <div style={{ fontSize:14, fontWeight:800, color:'#7F1D1D', marginBottom:3 }}>
+                  {lang==='ar'?'امتحان مطلوب قبل المتابعة':'Examen requis avant de continuer'}
+                </div>
+                <div style={{ fontSize:12, color:'#7F1D1D', lineHeight:1.5 }}>
+                  {lang==='ar'
+                    ? `يجب اجتياز الامتحان "${blocageExamen.examen?.nom||blocageExamen.nom||''}" بنجاح قبل تسجيل أي تلاوة جديدة.`
+                    : `Vous devez faire passer et valider l'examen "${blocageExamen.examen?.nom||blocageExamen.nom||''}" avant de pouvoir enregistrer une nouvelle récitation pour cet élève.`}
+                </div>
+              </div>
+              <button onClick={()=>navigate('resultats_examens')}
+                style={{ background:'#E24B4A', color:'#fff', border:'none', borderRadius:10,
+                  padding:'9px 14px', fontSize:12, fontWeight:700, cursor:'pointer', whiteSpace:'nowrap', flexShrink:0 }}>
+                {lang==='ar'?'إلى الامتحانات ←':'→ Vers les examens'}
+              </button>
+            </div>
+          )}
 
           <div style={{ padding: '20px' }}>
             {/* ── Pas de programme ── */}
