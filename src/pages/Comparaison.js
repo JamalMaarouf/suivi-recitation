@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
-import { calcEtatEleve, getInitiales, scoreLabel, formatDateCourt, niveauTraduit, getSensForEleve} from '../lib/helpers';
+import { calcEtatEleve, getInitiales, scoreLabel, formatDateCourt, niveauTraduit, getSensForEleve, loadBareme, BAREME_DEFAUT} from '../lib/helpers';
 import { t } from '../lib/i18n';
 import { fetchAll } from '../lib/fetchAll';
 
@@ -11,18 +11,21 @@ export default function Comparaison({ navigate, goBack, lang='fr', isMobile, use
   const [selected, setSelected] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  const [bareme, setBareme] = useState(BAREME_DEFAUT);
 
   useEffect(() => { loadData(); }, []);
 
   const loadData = async () => {
     setLoading(true);
     try {
-    const [{data:ed}, vd, {data:nv}, {data:ec}] = await Promise.all([
+    const [{data:ed}, vd, {data:nv}, {data:ec}, br] = await Promise.all([
       supabase.from('eleves').select('*').eq('ecole_id', user.ecole_id).order('nom'),
       fetchAll(supabase.from('validations').select('*').eq('ecole_id', user.ecole_id).order('date_validation')),
       supabase.from('niveaux').select('id,code,nom,sens_recitation').eq('ecole_id', user.ecole_id),
       supabase.from('ecoles').select('sens_recitation_defaut').eq('id', user.ecole_id).maybeSingle(),
+      loadBareme(supabase, user.ecole_id),
     ]);
+    setBareme(br?.unites || br || BAREME_DEFAUT);
     setAllEleves((ed||[]).map(e => {
       const vals=(vd||[]).filter(v=>v.eleve_id===e.id);
       const sensE = getSensForEleve(e, nv, ec);
@@ -44,9 +47,15 @@ export default function Comparaison({ navigate, goBack, lang='fr', isMobile, use
     const vals=[...eleve.validations].sort((a,b)=>new Date(a.date_validation)-new Date(b.date_validation));
     let cumul=0; let hc=new Set();
     const pts=[{score:0}];
+    // Bareme parametrable depuis Gestion (avec fallbacks anciens : tomon=10, hizb=100)
+    const ptsTomon = bareme.tomon || 10;
+    const ptsHizb  = bareme.hizb_complet || 100;
     vals.forEach(v=>{
       if(v.type_validation==='hizb_complet') hc.add(v.hizb_valide); else cumul+=v.nombre_tomon;
-      pts.push({date:v.date_validation,score:cumul*10+Math.floor(cumul/2)*25+Math.floor(cumul/4)*60+hc.size*100,label:formatDateCourt(v.date_validation)});
+      // Note : les bonus tomon/2 et tomon/4 (25 et 60) restaient hardcodes car
+      // ils ne correspondent pas a une unite parametrable du bareme actuel.
+      // Si le bareme s'enrichit dans le futur, on ajoutera bareme.bonus_demi_hizb etc.
+      pts.push({date:v.date_validation,score:cumul*ptsTomon+Math.floor(cumul/2)*25+Math.floor(cumul/4)*60+hc.size*ptsHizb,label:formatDateCourt(v.date_validation)});
     });
     return pts;
   };
