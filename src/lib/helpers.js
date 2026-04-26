@@ -497,12 +497,68 @@ export async function verifierBlocageExamen(supabase, {
       if (niveauType === 'hizb') {
         // ── Niveau Hizb ──
         // ids = numéros de Hizb
-        // L'examen se déclenche quand tous ces Hizb sont validés (hizb_complet)
+        // Un Hizb est considéré "complet" dans 2 cas :
+        //   A) Validation explicite type='hizb_complet' (clic 'Valider Hizb complet')
+        //   B) Cumul de 8 tomons type='tomon' qui couvre l'integralite du Hizb
+        //
+        // Le cas B est CRITIQUE : sans lui, un utilisateur qui valide 8 tomons
+        // un par un (sans jamais cliquer 'Valider Hizb complet') passerait sous
+        // le radar du blocage examen.
+        //
+        // Pour le cas B, on calcule les Hizb couverts par le cumul de tomons,
+        // en tenant compte du sens de recitation et du point de depart de l'eleve.
         const hizbComplets = new Set(
           (validations||[])
             .filter(v => v.type_validation === 'hizb_complet')
-            .map(v => v.hizb_valide)
+            .map(v => Number(v.hizb_valide))
         );
+
+        // Cas B : cumul tomons -> Hizb couverts
+        // On charge les niveaux + ecole pour determiner le sens de recitation
+        const { data: niveauxRow } = await supabase.from('niveaux')
+          .select('code, sens_recitation').eq('ecole_id', ecole_id);
+        const { data: ecoleRow } = await supabase.from('ecoles')
+          .select('sens_recitation_defaut').eq('id', ecole_id).maybeSingle();
+        const sens = getSensForEleve(eleve, niveauxRow || [], ecoleRow);
+
+        // Cumul total de tomons type='tomon' (ignore muraja qui sont des revisions)
+        const tomonCumul = (validations||[])
+          .filter(v => v.type_validation === 'tomon' && v.nombre_tomon > 0)
+          .reduce((s, v) => s + v.nombre_tomon, 0);
+
+        // hizb_depart, tomon_depart de l'eleve
+        const hizbD = eleve.hizb_depart || (sens === 'asc' ? 1 : 60);
+        const tomonD = eleve.tomon_depart || 1;
+
+        // Calcul des Hizb completement couverts par les tomons
+        // Position depart = ((hizbD-1)*8 + tomonD-1) en asc, ou ((60-hizbD)*8 + tomonD-1) en desc
+        // Position actuelle = position depart + tomonCumul
+        // Un Hizb H est "complet" si la position courante a depasse OU egal a la fin du Hizb H
+        const tomonsParcourusDepuisDepart = tomonCumul;
+        if (sens === 'asc') {
+          // En asc : on commence a (hizbD, tomonD), on avance vers (60, 8)
+          // Hizb H est complet si on a atteint au moins la position (H, 8) = (H-1)*8 + 8 = H*8
+          // Position depart = (hizbD-1)*8 + tomonD-1
+          const positionDepart = (hizbD - 1) * 8 + (tomonD - 1);
+          const positionFin = positionDepart + tomonsParcourusDepuisDepart;
+          for (const id of ids) {
+            const hN = Number(id);
+            const positionFinHizb = hN * 8; // fin du Hizb H = 8 tomons cumules avant lui + 8 = H*8
+            if (positionFin >= positionFinHizb) hizbComplets.add(hN);
+          }
+        } else {
+          // En desc : on commence a (hizbD, tomonD), on avance vers (1, 8)
+          // Hizb H est complet si on a atteint au moins la position (H, 8) en sens desc
+          // Position depart en sens desc = (60-hizbD)*8 + tomonD-1
+          const positionDepart = (60 - hizbD) * 8 + (tomonD - 1);
+          const positionFin = positionDepart + tomonsParcourusDepuisDepart;
+          for (const id of ids) {
+            const hN = Number(id);
+            const positionFinHizb = (60 - hN + 1) * 8; // fin du Hizb H en desc
+            if (positionFin >= positionFinHizb) hizbComplets.add(hN);
+          }
+        }
+
         examTermine = ids.every(h => hizbComplets.has(Number(h)));
 
       } else {
