@@ -1111,7 +1111,7 @@ function PassageNiveauTab({ user, lang, niveaux, showMsg }) {
 
 // COMPOSANT JalonsTab — Gestion des jalons/certificats
 // ══════════════════════════════════════════════════════
-function JalonsTab({ user, lang, jalons, setJalons, ensembles, examens, newJalon, setNewJalon, savingJalon, setSavingJalon, showMsg }) {
+function JalonsTab({ user, lang, jalons, setJalons, ensembles, examens, newJalon, setNewJalon, savingJalon, setSavingJalon, showMsg, ecoleConfig }) {
   // Defensive defaults : si une prop est undefined (timing useEffect, etc.) on evite le crash
   const ensembesSafe = ensembles || [];
   const examensSafe = examens || [];
@@ -3414,6 +3414,7 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
           newJalon={newJalon} setNewJalon={setNewJalon}
           savingJalon={savingJalon} setSavingJalon={setSavingJalon}
           showMsg={showMsg}
+          ecoleConfig={ecoleConfig}
         />
       )}
       {tab === 'passage_niveau' && (
