@@ -675,15 +675,17 @@ export default function ResultatsExamens({ user, navigate, goBack, lang='fr', is
   };
 
   const Header = () => (
-    <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:isMobile?12:'1.25rem'}}>
-      <button onClick={()=>goBack?goBack():navigate('dashboard')} className="back-link" style={{marginBottom:0}}>
-        {isMobile?'←':t(lang,'retour')}
-      </button>
-      {!isMobile&&<>
-        <div style={{fontSize:20,fontWeight:700,flex:1}}>
-          🏅 {lang==='ar'?'نتائج الامتحانات':'Résultats des examens'}
-        </div>
-        <div style={{display:'flex',gap:6}}>
+    <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:isMobile?12:'1.25rem',flexWrap:'wrap',justifyContent:'space-between'}}>
+      {!isMobile && (
+        <>
+          <div style={{display:'flex',alignItems:'center',gap:10,flex:1,minWidth:200}}>
+            <button onClick={()=>goBack?goBack():navigate('dashboard')} className="back-link" style={{marginBottom:0}}>
+              {t(lang,'retour')}
+            </button>
+            <div style={{fontSize:20,fontWeight:800,color:'#1a1a1a'}}>
+              🏅 {lang==='ar'?'نتائج الامتحانات':'Résultats des examens'}
+            </div>
+          </div>
           <ExportButtons
             onPDF={exportResultatsPDF}
             onExcel={exportResultatsExcel}
@@ -691,11 +693,18 @@ export default function ResultatsExamens({ user, navigate, goBack, lang='fr', is
             variant="inline"
             compact
           />
-        </div>
-      </>}
-      {isMobile&&<div style={{flex:1,fontSize:17,fontWeight:800,color:'#085041'}}>
-        🏅 {lang==='ar'?'نتائج الامتحانات':'Résultats'}
-      </div>}
+        </>
+      )}
+      {isMobile && (
+        <>
+          <button onClick={()=>goBack?goBack():navigate('dashboard')} className="back-link" style={{marginBottom:0}}>
+            ←
+          </button>
+          <div style={{flex:1,fontSize:17,fontWeight:800,color:'#085041'}}>
+            🏅 {lang==='ar'?'نتائج الامتحانات':'Résultats'}
+          </div>
+        </>
+      )}
     </div>
   );
 
