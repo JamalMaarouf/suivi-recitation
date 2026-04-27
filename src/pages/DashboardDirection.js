@@ -591,8 +591,8 @@ export default function DashboardDirection({ user, navigate, goBack, lang='fr', 
   return (
     <div style={{maxWidth:1100,margin:'0 auto',padding:'0 1rem 2rem'}}>
       {/* Header */}
-      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'1.5rem',flexWrap:'wrap',gap:12}}>
-        <div style={{display:'flex',alignItems:'center',gap:14}}>
+      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'1rem',flexWrap:'wrap',gap:12}}>
+        <div style={{display:'flex',alignItems:'center',gap:14,flex:1,minWidth:280}}>
           <button onClick={()=>goBack?goBack():navigate('dashboard')}
             title={isAr?'رجوع':'Retour'}
             style={{background:'#fff',border:'1px solid #e0e0d8',borderRadius:10,padding:0,width:38,height:38,fontSize:18,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',color:'#085041',flexShrink:0}}>←</button>
@@ -603,7 +603,17 @@ export default function DashboardDirection({ user, navigate, goBack, lang='fr', 
             <p style={{color:'#888',fontSize:13,margin:'4px 0 0'}}>{ecole?.nom} — {isAr?'نظرة شاملة على أداء المدرسة':'Vue analytique de l\'école'}</p>
           </div>
         </div>
-        {/* Sélecteur période */}
+        <ExportButtons
+          onPDF={handleExportPDF}
+          onExcel={handleExportExcel}
+          lang={lang}
+          variant="inline"
+          compact
+        />
+      </div>
+
+      {/* Sélecteur période - sur sa propre ligne pour ne pas surcharger le header */}
+      <div style={{display:'flex',justifyContent:'center',marginBottom:'1.25rem'}}>
         <div style={{display:'flex',gap:6,background:'#f5f5f0',borderRadius:10,padding:4}}>
           {PERIODES.map(p=>(
             <button key={p.key} onClick={()=>setPeriode(p.key)}
@@ -616,16 +626,6 @@ export default function DashboardDirection({ user, navigate, goBack, lang='fr', 
             </button>
           ))}
         </div>
-      </div>
-
-      {/* Export buttons */}
-      <div style={{marginBottom:'1.25rem'}}>
-        <ExportButtons
-          onPDF={handleExportPDF}
-          onExcel={handleExportExcel}
-          lang={lang}
-          variant="inline"
-        />
       </div>
 
       {/* Alertes */}

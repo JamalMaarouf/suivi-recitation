@@ -246,9 +246,9 @@ export default function SuiviCours({ user, navigate, goBack, lang, isMobile }) {
         </div>
       ) : (
         <div style={{ padding: '1.5rem 1.5rem 0' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: '1.25rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: '1.25rem', flexWrap:'wrap' }}>
             <button onClick={() => goBack ? goBack() : navigate('dashboard')} className="back-link"></button>
-            <div style={{ flex: 1 }}>
+            <div style={{ flex: 1, minWidth: 200 }}>
               <div style={{ fontSize: 20, fontWeight: 800, color: '#1a1a1a' }}>
                 📚 {lang === 'ar' ? 'الدروس' : 'Cours'}
               </div>
@@ -256,6 +256,15 @@ export default function SuiviCours({ user, navigate, goBack, lang, isMobile }) {
                 {lang === 'ar' ? 'متابعة تقدم الدروس حسب المستوى' : 'Suivi de la progression des cours par niveau'}
               </div>
             </div>
+            {!loading && cours.length > 0 && statsGlobales.nbLiaisons > 0 && (
+              <ExportButtons
+                onPDF={exportCoursPDF}
+                onExcel={exportCoursExcel}
+                lang={lang}
+                variant="inline"
+                compact
+              />
+            )}
           </div>
         </div>
       )}
@@ -304,18 +313,6 @@ export default function SuiviCours({ user, navigate, goBack, lang, isMobile }) {
               <StatCard label={lang === 'ar' ? 'محاور مُتحقق منها' : 'Axes validés'} value={`${statsGlobales.totalValides}/${statsGlobales.totalAxes}`} color="#1D9E75" bg="#E1F5EE" />
               <StatCard label={lang === 'ar' ? 'التقدم الإجمالي' : 'Progression moyenne'} value={`${statsGlobales.pctMoyen}%`} color="#EF9F27" bg="#FAEEDA" />
             </div>
-
-            {/* ─── Boutons d'export (PDF + Excel) ─── */}
-            {statsGlobales.nbLiaisons > 0 && (
-              <ExportButtons
-                onPDF={exportCoursPDF}
-                onExcel={exportCoursExcel}
-                isMobile={isMobile}
-                lang={lang}
-                count={statsGlobales.nbLiaisons}
-                countLabel={lang === 'ar' ? 'زوج' : 'couple'}
-              />
-            )}
 
             {/* Liste des cours */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>

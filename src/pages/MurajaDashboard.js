@@ -303,15 +303,28 @@ export default function MurajaDashboard({ user, navigate, goBack, lang='fr', isM
       ) : (
       <>
       {/* Header PC */}
-      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'1.5rem'}}>
-        <button className="back-link" onClick={()=>goBack?goBack():navigate('dashboard')}></button>
-        <div style={{fontSize:18,fontWeight:800,color:'#085041'}}>
-          📖 {lang==='ar'?'المراجعة الجماعية':"Muraja'a"}
+      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'1.25rem',gap:12,flexWrap:'wrap'}}>
+        <div style={{display:'flex',alignItems:'center',gap:10,flex:1,minWidth:200}}>
+          <button className="back-link" onClick={()=>goBack?goBack():navigate('dashboard')}></button>
+          <div style={{fontSize:20,fontWeight:800,color:'#1a1a1a'}}>
+            📖 {lang==='ar'?'المراجعة الجماعية':"Muraja'a"}
+          </div>
         </div>
-        <button onClick={()=>navigate('muraja')}
-          style={{padding:'6px 16px',background:'#085041',color:'#fff',border:'none',borderRadius:8,fontSize:12,fontWeight:600,cursor:'pointer',fontFamily:'inherit'}}>
-          + {lang==='ar'?'مراجعة جديدة':'Nouvelle'}
-        </button>
+        <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}>
+          <button onClick={()=>navigate('muraja')}
+            style={{padding:'7px 14px',background:'#085041',color:'#fff',border:'none',borderRadius:8,fontSize:12,fontWeight:600,cursor:'pointer',fontFamily:'inherit'}}>
+            + {lang==='ar'?'مراجعة جديدة':'Nouvelle'}
+          </button>
+          {sessionList.length > 0 && (
+            <ExportButtons
+              onPDF={handleExportPDF}
+              onExcel={handleExportExcel}
+              lang={lang}
+              variant="inline"
+              compact
+            />
+          )}
+        </div>
       </div>
       {/* Filters PC */}
       <div style={{display:'flex',gap:10,marginBottom:16,flexWrap:'wrap'}}>
@@ -327,18 +340,6 @@ export default function MurajaDashboard({ user, navigate, goBack, lang='fr', isM
         </select>
         <button onClick={loadData} style={{padding:'6px 14px',background:'#E1F5EE',color:'#085041',border:'none',borderRadius:8,fontWeight:600,cursor:'pointer'}}>🔄</button>
       </div>
-
-      {/* Export PDF + Excel */}
-      {sessionList.length > 0 && (
-        <div style={{marginBottom:16}}>
-          <ExportButtons
-            onPDF={handleExportPDF}
-            onExcel={handleExportExcel}
-            lang={lang}
-            variant="inline"
-          />
-        </div>
-      )}
       </>
       )}
 
