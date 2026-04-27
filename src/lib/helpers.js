@@ -910,6 +910,102 @@ export async function verifierEtCreerCertificatsBlocs(supabase, {
 }
 
 // ══════════════════════════════════════════════════════════════════
+// CERTIFICATS POST-EXAMEN — Source D (Etape 8)
+// ══════════════════════════════════════════════════════════════════
+/**
+ * Crée automatiquement un certificat dans certificats_eleves chaque fois
+ * qu'un examen est reussi (statut='reussi'), s'il n'existe pas deja.
+ *
+ * Distinction avec verifierEtCreerCertificats (Sources A/B/C) :
+ *   - Source A/B/C : creation conditionnee par un jalon configure dans Gestion
+ *   - Source D     : creation AUTOMATIQUE pour TOUS les examens reussis,
+ *                    meme sans jalon configure. Garantit que toutes les
+ *                    ecoles ont une trace dans Liste Certificats.
+ *
+ * Anti-doublon :
+ *   - Stocke examen_id et resultat_examen_id en metadata (champ dedie)
+ *   - Verifie avant insert qu'aucun certificat de meme couple
+ *     (eleve_id, examen_id) n'existe deja
+ *
+ * Format du nom : reprend le nom de l'examen tel qu'il est configure
+ * (cohérent avec le PDF actuel).
+ *
+ * @returns Array des certificats nouvellement crees
+ */
+export async function verifierEtCreerCertificatsExamens(supabase, {
+  eleve,
+  ecole_id,
+  valide_par,
+}) {
+  try {
+    // 1. Charger tous les examens reussis de l'eleve
+    const { data: resultats } = await supabase
+      .from('resultats_examens')
+      .select('id, examen_id, statut, date_passation, score')
+      .eq('eleve_id', eleve.id)
+      .eq('ecole_id', ecole_id)
+      .eq('statut', 'reussi');
+    if (!resultats || resultats.length === 0) return [];
+
+    // 2. Charger les details des examens concernes
+    const examenIds = resultats.map(r => r.examen_id);
+    const { data: examens } = await supabase
+      .from('examens')
+      .select('id, nom, nom_ar, score_minimum')
+      .in('id', examenIds);
+    const examensMap = {};
+    for (const ex of (examens || [])) examensMap[ex.id] = ex;
+
+    // 3. Charger les certificats existants pour ces examens (anti-doublon)
+    // On utilise jalon_id IS NULL + un marqueur metadata pour distinguer
+    // les certificats post-examen automatiques.
+    const { data: certsExistants } = await supabase
+      .from('certificats_eleves')
+      .select('id, examen_id_source')
+      .eq('eleve_id', eleve.id)
+      .is('jalon_id', null)
+      .not('examen_id_source', 'is', null);
+
+    const examensDejaCertifies = new Set(
+      (certsExistants || []).map(c => c.examen_id_source).filter(Boolean)
+    );
+
+    const nouveauxCerts = [];
+
+    // 4. Pour chaque examen reussi sans certificat -> creer
+    for (const resultat of resultats) {
+      const examen = examensMap[resultat.examen_id];
+      if (!examen) continue;
+      if (examensDejaCertifies.has(resultat.examen_id)) continue;
+
+      const payload = {
+        eleve_id: eleve.id,
+        ecole_id,
+        jalon_id: null, // Pas un jalon configure
+        nom_certificat: examen.nom,
+        nom_certificat_ar: examen.nom_ar || examen.nom,
+        date_obtention: resultat.date_passation || new Date().toISOString(),
+        valide_par: valide_par || null,
+        examen_id_source: resultat.examen_id,
+        resultat_examen_id_source: resultat.id,
+      };
+      const { data: inserted, error } = await supabase
+        .from('certificats_eleves').insert(payload).select().single();
+      if (error) {
+        console.warn('[verifierEtCreerCertificatsExamens] insert:', error.message);
+        continue;
+      }
+      nouveauxCerts.push({ ...inserted, examen });
+    }
+
+    return nouveauxCerts;
+  } catch (err) {
+    console.error('verifierEtCreerCertificatsExamens error:', err);
+    return [];
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════
 // NOTES PAR PÉRIODE — calcul des points sur une plage de dates
 // ══════════════════════════════════════════════════════════════════
 

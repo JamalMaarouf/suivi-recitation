@@ -6,7 +6,8 @@ import { openPDF } from '../lib/pdf';
 import { exportExcelSimple } from '../lib/excel';
 import ExportButtons from '../components/ExportButtons';
 
-export default function ListeCertificats({ user, navigate, goBack, lang='fr', isMobile }) {
+export default function ListeCertificats({ user, navigate, goBack, lang='fr', isMobile, data }) {
+  const focusCertId = data?.focusCertId || null;
   const [certificats, setCertificats] = useState([]);
   const [eleves, setEleves] = useState([]);
   const [instituteurs, setInstituteurs] = useState([]);
@@ -25,6 +26,28 @@ export default function ListeCertificats({ user, navigate, goBack, lang='fr', is
   const [dateFin, setDateFin] = useState('');
 
   useEffect(() => { loadData(); }, []);
+
+  // Etape 8 - Si on arrive avec un focusCertId, scroll + highlight le certif
+  useEffect(() => {
+    if (!focusCertId || loading || certificats.length === 0) return;
+    // Donner un peu de temps au DOM pour rendre les elements
+    const timer = setTimeout(() => {
+      const elem = document.getElementById(`cert-row-${focusCertId}`);
+      if (elem) {
+        elem.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        // Highlight temporaire
+        elem.style.transition = 'background-color 0.3s ease';
+        const originalBg = elem.style.backgroundColor;
+        elem.style.backgroundColor = '#FFF8EC';
+        elem.style.boxShadow = '0 0 0 2px #EF9F27';
+        setTimeout(() => {
+          elem.style.backgroundColor = originalBg;
+          elem.style.boxShadow = '';
+        }, 3000);
+      }
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [focusCertId, loading, certificats]);
 
   const loadData = async () => {
     setLoading(true);
@@ -231,7 +254,7 @@ export default function ListeCertificats({ user, navigate, goBack, lang='fr', is
                 const inst=el?getInst(el.instituteur_referent_id):null;
                 const nc=el?getNivColor(el.code_niveau):'#888';
                 return(
-                  <div key={c.id} onClick={()=>el&&navigate('fiche',el)}
+                  <div key={c.id} id={`cert-row-${c.id}`} onClick={()=>el&&navigate('fiche',el)}
                     style={{background:'#fff',borderRadius:13,padding:'12px 14px',marginBottom:8,
                       border:'0.5px solid #e0e0d8',display:'flex',alignItems:'center',gap:12,cursor:'pointer',
                       boxShadow:'0 1px 4px rgba(0,0,0,0.04)'}}>
@@ -324,7 +347,7 @@ export default function ListeCertificats({ user, navigate, goBack, lang='fr', is
               const inst = el ? getInst(el.instituteur_referent_id) : null;
               const nc = el ? getNivColor(el.code_niveau) : '#888';
               return (
-                <div key={c.id} onClick={()=>el&&navigate('fiche',el)}
+                <div key={c.id} id={`cert-row-${c.id}`} onClick={()=>el&&navigate('fiche',el)}
                   style={{background:'#fff',border:'0.5px solid #e0e0d8',borderRadius:12,padding:'12px 14px',display:'flex',alignItems:'center',gap:12,cursor:'pointer'}}>
                   <div style={{width:44,height:44,borderRadius:12,background:'#FAEEDA',display:'flex',alignItems:'center',justifyContent:'center',fontSize:22,flexShrink:0}}>🏅</div>
                   <div style={{flex:1,minWidth:0}}>
