@@ -678,7 +678,7 @@ export default function ResultatsExamens({ user, navigate, goBack, lang='fr', is
     <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:isMobile?12:'1.25rem',flexWrap:'wrap',justifyContent:'space-between'}}>
       {!isMobile && (
         <>
-          <div style={{display:'flex',alignItems:'center',gap:10,flex:1,minWidth:200}}>
+          <div style={{display:'flex',alignItems:'center',gap:10}}>
             <button onClick={()=>goBack?goBack():navigate('dashboard')} className="back-link" style={{marginBottom:0}}>
               {t(lang,'retour')}
             </button>
