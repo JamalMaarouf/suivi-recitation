@@ -1491,6 +1491,16 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile,
   const [afficherUniquementActifsInst, setAfficherUniquementActifsInst] = useState(true);
   // Etape 11a - Modale recap creation eleve avec compte parent
   const [showEleveCree, setShowEleveCree] = useState(null); // {eleve, parent: {login, mdp}} ou null
+  // Etape 11b - Liaison/deliaison parents
+  const [showLinkParents, setShowLinkParents] = useState(false);
+  const [linkSelectedParents, setLinkSelectedParents] = useState([]); // ids des parents a fusionner
+  const [linkLoginMode, setLinkLoginMode] = useState('manuel'); // 'manuel' | 'existant'
+  const [linkLoginManuel, setLinkLoginManuel] = useState('');
+  const [linkLoginExistant, setLinkLoginExistant] = useState('');
+  const [linkLoading, setLinkLoading] = useState(false);
+  const [showUnlinkParent, setShowUnlinkParent] = useState(null); // {parent, enfants:[]} ou null
+  const [unlinkChildId, setUnlinkChildId] = useState('');
+  const [unlinkLoading, setUnlinkLoading] = useState(false);
   const [parents, setParents] = useState([]);
   const [formParent, setFormParent] = useState({prenom:'',nom:'',identifiant:'',mot_de_passe:'',telephone:'',email:'',eleve_ids:[]});
   const [showFormParent, setShowFormParent] = useState(false);
@@ -2018,6 +2028,231 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile,
     }
   };
 
+  // ────── ETAPE 11b - LIAISON / DELIAISON COMPTES PARENTS ────────
+  // Workflow valide avec Jamal :
+  //   Q1 = A+D : login generique au choix (manuel ou existant)
+  //   Q2 = B   : anciens comptes parents supprimes apres liaison
+  //   Q3 = A   : MDP par defaut de l'ecole pour le nouveau compte
+  //   Q4 = B   : modale depuis Gestion > Parents
+  //   Q5 = C   : deliaison par enfant (flexible)
+
+  const ouvrirModaleLier = () => {
+    setLinkSelectedParents([]);
+    setLinkLoginMode('manuel');
+    setLinkLoginManuel('');
+    setLinkLoginExistant('');
+    setShowLinkParents(true);
+  };
+
+  const confirmerLiaisonParents = async () => {
+    if (linkLoading) return;
+    if (linkSelectedParents.length < 2) {
+      showMsg('error', lang==='ar'?'يجب اختيار حسابين على الأقل':'Sélectionnez au moins 2 comptes');
+      return;
+    }
+    let nouveauLogin = '';
+    if (linkLoginMode === 'manuel') {
+      nouveauLogin = (linkLoginManuel || '').trim();
+      if (!nouveauLogin) { showMsg('error', lang==='ar'?'أدخل المعرف الجديد':'Saisissez le nouveau login'); return; }
+      // Verifier unicite
+      const { data: existing } = await supabase.from('utilisateurs')
+        .select('id').eq('identifiant', nouveauLogin).eq('ecole_id', user.ecole_id).maybeSingle();
+      if (existing) { showMsg('error', lang==='ar'?'المعرف مستخدم بالفعل':'Ce login existe déjà'); return; }
+    } else {
+      nouveauLogin = linkLoginExistant;
+      if (!nouveauLogin) { showMsg('error', lang==='ar'?'اختر معرفًا':'Choisissez un login'); return; }
+    }
+
+    setLinkLoading(true);
+    try {
+      // Charger les parents selectionnes pour les details
+      const parentsObjs = parents.filter(p => linkSelectedParents.includes(p.id));
+      if (parentsObjs.length < 2) throw new Error('parents introuvables');
+
+      // Charger tous les liens parent_eleve concernes
+      const { data: liens } = await supabase.from('parent_eleve')
+        .select('eleve_id').in('parent_id', linkSelectedParents);
+      const enfantsIds = [...new Set((liens || []).map(l => l.eleve_id))];
+      if (enfantsIds.length === 0) {
+        throw new Error('Aucun enfant lie a ces parents');
+      }
+
+      // Etape 1 : Determiner le compte qui sera le compte fusionne
+      // Si linkLoginMode = 'existant' et le login choisi correspond a un des parents
+      // selectionnes, on garde ce compte et on supprime les autres
+      let comptePrincipalId = null;
+      const mdpDefaut = ecoleConfig?.mdp_defaut_parents || 'parent2024';
+      const premierNom = parentsObjs[0]?.nom || 'Famille';
+      const premierPrenom = parentsObjs[0]?.prenom || '';
+
+      if (linkLoginMode === 'existant') {
+        // Trouver le parent dont l'identifiant = nouveauLogin
+        const principal = parentsObjs.find(p => p.identifiant === nouveauLogin);
+        if (principal) {
+          comptePrincipalId = principal.id;
+          // On force le MDP par defaut
+          const { error: errUpd } = await supabase.from('utilisateurs')
+            .update({ mot_de_passe: mdpDefaut }).eq('id', principal.id);
+          if (errUpd) throw errUpd;
+        }
+      }
+
+      // Si pas de compte principal trouve (= mode manuel ou login existant non present)
+      if (!comptePrincipalId) {
+        const { data: nouveau, error: errNew } = await supabase.from('utilisateurs').insert({
+          prenom: premierPrenom,
+          nom: premierNom,
+          identifiant: nouveauLogin,
+          mot_de_passe: mdpDefaut,
+          role: 'parent',
+          ecole_id: user.ecole_id,
+          statut_compte: 'actif',
+        }).select().single();
+        if (errNew) throw errNew;
+        comptePrincipalId = nouveau.id;
+      }
+
+      // Etape 2 : Supprimer tous les liens parent_eleve des anciens parents
+      const idsASupprimer = linkSelectedParents.filter(id => id !== comptePrincipalId);
+      if (idsASupprimer.length > 0) {
+        await supabase.from('parent_eleve').delete().in('parent_id', idsASupprimer);
+      }
+      // Aussi supprimer les liens existants du compte principal pour repartir propre
+      await supabase.from('parent_eleve').delete().eq('parent_id', comptePrincipalId);
+
+      // Etape 3 : Creer les nouveaux liens vers le compte principal
+      const nouveauxLiens = enfantsIds.map(eid => ({
+        parent_id: comptePrincipalId,
+        eleve_id: eid,
+      }));
+      const { error: errLiens } = await supabase.from('parent_eleve').insert(nouveauxLiens);
+      if (errLiens) throw errLiens;
+
+      // Etape 4 : Supprimer les anciens comptes parents (B = anciens comptes desactives)
+      if (idsASupprimer.length > 0) {
+        await supabase.from('utilisateurs').delete().in('id', idsASupprimer);
+      }
+
+      // Etape 5 : Audit log
+      try {
+        await supabase.from('audit_log').insert({
+          actor_user_id: user.id,
+          actor_role: user.role || 'surveillant',
+          action: 'parents.lies',
+          target_type: 'utilisateurs',
+          target_id: comptePrincipalId,
+          target_label: nouveauLogin,
+          metadata: {
+            ecole_id: user.ecole_id,
+            anciens_parents_supprimes: idsASupprimer.length,
+            anciens_logins: parentsObjs.filter(p => p.id !== comptePrincipalId).map(p => p.identifiant),
+            nouveau_login: nouveauLogin,
+            enfants_lies: enfantsIds.length,
+          },
+        });
+      } catch(e) { console.warn('[liaisonParents] audit_log:', e); }
+
+      showMsg('success', lang==='ar'
+        ? `🔗 تم ربط ${enfantsIds.length} طفلًا تحت ${nouveauLogin}`
+        : `🔗 ${enfantsIds.length} enfants liés sous ${nouveauLogin}`);
+      setShowLinkParents(false);
+      loadData();
+    } catch (err) {
+      console.error('[liaisonParents]', err);
+      showMsg('error', (lang==='ar'?'فشل: ':'Erreur : ') + (err.message || 'inconnue'));
+    } finally {
+      setLinkLoading(false);
+    }
+  };
+
+  const ouvrirModaleDelier = (parent) => {
+    const enfantsLies = eleves.filter(e => (parent.eleve_ids || []).includes(e.id));
+    if (enfantsLies.length < 2) {
+      showMsg('error', lang==='ar'?'هذا الحساب لا يحتوي على أكثر من طفل':'Ce compte n\'a pas plusieurs enfants');
+      return;
+    }
+    setShowUnlinkParent({ parent, enfants: enfantsLies });
+    setUnlinkChildId('');
+  };
+
+  const confirmerDeliaison = async () => {
+    if (unlinkLoading) return;
+    if (!showUnlinkParent || !unlinkChildId) {
+      showMsg('error', lang==='ar'?'اختر طفلًا':'Sélectionnez un enfant'); return;
+    }
+    const { parent, enfants } = showUnlinkParent;
+    const enfantADetacher = enfants.find(e => e.id === unlinkChildId);
+    if (!enfantADetacher) return;
+
+    setUnlinkLoading(true);
+    try {
+      const mdpDefaut = ecoleConfig?.mdp_defaut_parents || 'parent2024';
+      const nouveauLogin = enfantADetacher.eleve_id_ecole;
+      if (!nouveauLogin) throw new Error('eleve_id_ecole manquant pour cet eleve');
+
+      // Verifier qu'aucun compte avec ce login n'existe deja
+      const { data: existant } = await supabase.from('utilisateurs')
+        .select('id').eq('identifiant', nouveauLogin).eq('ecole_id', user.ecole_id).maybeSingle();
+      if (existant) {
+        showMsg('error', lang==='ar'?`المعرف ${nouveauLogin} موجود مسبقا`:`Le login ${nouveauLogin} existe deja`);
+        setUnlinkLoading(false);
+        return;
+      }
+
+      // Etape 1 : Creer un nouveau compte parent pour l'enfant detache
+      const { data: nouveau, error: errNew } = await supabase.from('utilisateurs').insert({
+        prenom: enfantADetacher.prenom,
+        nom: enfantADetacher.nom,
+        identifiant: nouveauLogin,
+        mot_de_passe: mdpDefaut,
+        role: 'parent',
+        ecole_id: user.ecole_id,
+        statut_compte: 'actif',
+      }).select().single();
+      if (errNew) throw errNew;
+
+      // Etape 2 : Supprimer le lien parent_id->enfant_id du compte famille
+      await supabase.from('parent_eleve')
+        .delete().eq('parent_id', parent.id).eq('eleve_id', enfantADetacher.id);
+
+      // Etape 3 : Creer le nouveau lien vers le nouveau compte
+      const { error: errLien } = await supabase.from('parent_eleve').insert({
+        parent_id: nouveau.id,
+        eleve_id: enfantADetacher.id,
+      });
+      if (errLien) throw errLien;
+
+      // Etape 4 : Audit log
+      try {
+        await supabase.from('audit_log').insert({
+          actor_user_id: user.id,
+          actor_role: user.role || 'surveillant',
+          action: 'parent.delie',
+          target_type: 'utilisateurs',
+          target_id: parent.id,
+          target_label: parent.identifiant,
+          metadata: {
+            ecole_id: user.ecole_id,
+            enfant_id: enfantADetacher.id,
+            enfant_eleve_id_ecole: nouveauLogin,
+            nouveau_login_cree: nouveauLogin,
+          },
+        });
+      } catch(e) { console.warn('[deliaisonParent] audit_log:', e); }
+
+      showMsg('success', lang==='ar'
+        ? `🔓 تم فصل ${enfantADetacher.prenom} ${enfantADetacher.nom}. الحساب الجديد: ${nouveauLogin}`
+        : `🔓 ${enfantADetacher.prenom} ${enfantADetacher.nom} détaché. Nouveau compte : ${nouveauLogin}`);
+      setShowUnlinkParent(null);
+      loadData();
+    } catch (err) {
+      console.error('[deliaisonParent]', err);
+      showMsg('error', (lang==='ar'?'فشل: ':'Erreur : ') + (err.message || 'inconnue'));
+    } finally {
+      setUnlinkLoading(false);
+    }
+  };
+
   const reactiverInst = (inst) => {
     showConfirm(
       lang==='ar'?'▶️ إعادة تفعيل المدرس':'▶️ Réactiver l\'instituteur',
@@ -2423,10 +2658,11 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
               </button>
             )}
             {tab==='parents'&&user.role==='surveillant'&&(
-              <div title={lang==='ar'?'يتم إنشاء حسابات الأولياء تلقائياً عند إضافة طالب':'Les comptes parents sont créés automatiquement à la création d\'un élève'}
-                style={{background:'rgba(255,255,255,0.15)',color:'rgba(255,255,255,0.85)',border:'1px solid rgba(255,255,255,0.2)',borderRadius:10,padding:'7px 14px',fontSize:11,fontWeight:600,cursor:'help',fontFamily:'inherit',display:'flex',alignItems:'center',gap:5}}>
-                ℹ️ {lang==='ar'?'تلقائي':'Auto'}
-              </div>
+              <button onClick={ouvrirModaleLier}
+                title={lang==='ar'?'ربط حسابات الأولياء':'Lier des comptes parents'}
+                style={{background:'rgba(255,255,255,0.25)',color:'#fff',border:'1px solid rgba(255,255,255,0.3)',borderRadius:10,padding:'7px 14px',fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'inherit',display:'flex',alignItems:'center',gap:5}}>
+                🔗 {lang==='ar'?'ربط':'Lier'}
+              </button>
             )}
           </div>
           {msg.text&&(
@@ -2790,13 +3026,26 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
                       {((p.prenom||'?')[0])+((p.nom||'?')[0])}
                     </div>
                     <div style={{flex:1}}>
-                      <div style={{fontWeight:700,fontSize:13}}>{p.prenom} {p.nom}</div>
+                      <div style={{display:'flex',alignItems:'center',gap:6,flexWrap:'wrap'}}>
+                        <div style={{fontWeight:700,fontSize:13}}>{p.prenom} {p.nom}</div>
+                        {enfants.length >= 2 && (
+                          <span style={{display:'inline-block',padding:'1px 7px',borderRadius:8,fontSize:9,fontWeight:700,background:'#E6F1FB',color:'#0C447C',border:'0.5px solid #378ADD30'}}
+                            title={lang==='ar'?`عائلة (${enfants.length} أطفال)`:`Famille (${enfants.length} enfants)`}>
+                            🔗 {lang==='ar'?'عائلة':'Famille'}
+                          </span>
+                        )}
+                      </div>
                       <div style={{fontSize:11,color:'#888',marginTop:1}}>{p.telephone||p.identifiant}</div>
                     </div>
                     {user.role==='surveillant'&&(
-                      <div style={{display:'flex',gap:5}}>
+                      <div style={{display:'flex',gap:5,flexWrap:'wrap'}}>
                         <button onClick={()=>{setEditingParentId(p.id);setFormParent({prenom:p.prenom,nom:p.nom,identifiant:p.identifiant,mot_de_passe:'',telephone:p.telephone||'',email:p.email||'',eleve_ids:eleves.filter(e=>(p.eleve_ids||[]).includes(e.id)).map(e=>e.id)});setShowFormParent(true);window.scrollTo(0,0);}}
                           style={{background:'#E6F1FB',color:'#378ADD',border:'none',borderRadius:8,padding:'6px 9px',fontSize:12,cursor:'pointer'}}>✏️</button>
+                        {enfants.length >= 2 && (
+                          <button onClick={()=>ouvrirModaleDelier(p)}
+                            title={lang==='ar'?'فصل طفل':'Délier un enfant'}
+                            style={{background:'#FFF8EC',color:'#7B5800',border:'none',borderRadius:8,padding:'6px 9px',fontSize:12,cursor:'pointer'}}>🔓</button>
+                        )}
                         <button onClick={()=>supprimerParent(p.id)}
                           style={{background:'#FCEBEB',color:'#E24B4A',border:'none',borderRadius:8,padding:'6px 9px',fontSize:12,cursor:'pointer'}}>🗑</button>
                       </div>
@@ -3574,14 +3823,20 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
           <div style={{
             background:'#FFF8EC',border:'1px solid #EF9F2740',borderRadius:10,
             padding:'10px 14px',marginBottom:'1rem',fontSize:12,color:'#7B5800',
-            display:'flex',alignItems:'flex-start',gap:8,
+            display:'flex',alignItems:'center',gap:8,flexWrap:'wrap',
           }}>
             <span style={{fontSize:14,flexShrink:0}}>ℹ️</span>
-            <span>
+            <span style={{flex:1,minWidth:200}}>
               {lang==='ar'
                 ? 'يتم إنشاء حسابات أولياء الأمور تلقائياً عند إضافة طالب جديد. يمكن تعديل البيانات أو حذف الحسابات من هنا.'
                 : 'Les comptes parents sont créés automatiquement à l\'ajout d\'un élève. Vous pouvez modifier les informations ou supprimer les comptes ici.'}
             </span>
+            {user.role==='surveillant' && (
+              <button onClick={ouvrirModaleLier}
+                style={{padding:'7px 14px',background:'#085041',color:'#fff',border:'none',borderRadius:8,fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'inherit',display:'flex',alignItems:'center',gap:5,whiteSpace:'nowrap'}}>
+                🔗 {lang==='ar'?'ربط حسابات':'Lier des comptes'}
+              </button>
+            )}
           </div>
 
           {showFormParent&&editingParentId&&(
@@ -3710,7 +3965,15 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
                   {(p.prenom[0]||'')+(p.nom[0]||'')}
                 </div>
                 <div style={{flex:1}}>
-                  <div style={{fontSize:13,fontWeight:600}}>{p.prenom} {p.nom}</div>
+                  <div style={{display:'flex',alignItems:'center',gap:6,flexWrap:'wrap'}}>
+                    <div style={{fontSize:13,fontWeight:600}}>{p.prenom} {p.nom}</div>
+                    {(p.eleve_ids||[]).length >= 2 && (
+                      <span style={{display:'inline-block',padding:'1px 7px',borderRadius:8,fontSize:9,fontWeight:700,background:'#E6F1FB',color:'#0C447C',border:'0.5px solid #378ADD30'}}
+                        title={lang==='ar'?`عائلة (${(p.eleve_ids||[]).length} أطفال)`:`Famille (${(p.eleve_ids||[]).length} enfants)`}>
+                        🔗 {lang==='ar'?'عائلة':'Famille'}
+                      </span>
+                    )}
+                  </div>
                   <div style={{fontSize:11,color:'#888',marginTop:2}}>
                     {lang==='ar'?'المعرف:':'ID: '}<strong>{p.identifiant}</strong>
                     {p.telephone&&' · '+p.telephone}
@@ -3730,6 +3993,12 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
                     setShowFormParent(true);
                     window.scrollTo(0,0);
                   }} style={{padding:'4px 8px',borderRadius:6,background:'#E6F1FB',color:'#378ADD',border:'0.5px solid #378ADD30',cursor:'pointer',fontSize:11,fontWeight:600}}>✏️ {lang==='ar'?'تعديل':'Modifier'}</button>
+                  {(p.eleve_ids||[]).length >= 2 && (
+                    <button onClick={()=>ouvrirModaleDelier(p)}
+                      style={{padding:'4px 8px',borderRadius:6,background:'#FFF8EC',color:'#7B5800',border:'0.5px solid #EF9F2740',cursor:'pointer',fontSize:11,fontWeight:600}}>
+                      🔓 {lang==='ar'?'فصل':'Délier'}
+                    </button>
+                  )}
                   <button onClick={()=>showConfirm(
                     lang==='ar'?'حذف ولي الأمر':'Supprimer le parent',
                     (lang==='ar'?'هل تريد حذف حساب ':'Supprimer le compte de ')+(p.prenom+' '+p.nom)+'?',
@@ -3784,6 +4053,232 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
           showMsg={showMsg}
         />
       )}
+
+      {/* ─── Modale Lier comptes parents (Etape 11b) ─── */}
+      {showLinkParents && (() => {
+        const candidatsParents = (parents || []).filter(p => p.role !== 'instituteur');
+        return (
+          <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.55)',zIndex:9999,
+            display:'flex',alignItems:'center',justifyContent:'center',padding:20}}
+            onClick={()=>{ if(!linkLoading) setShowLinkParents(false); }}>
+            <div onClick={e=>e.stopPropagation()}
+              style={{background:'#fff',borderRadius:16,maxWidth:600,width:'100%',padding:24,
+                boxShadow:'0 20px 60px rgba(0,0,0,0.3)',maxHeight:'90vh',overflowY:'auto'}}>
+              <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:14}}>
+                <div style={{fontSize:32}}>🔗</div>
+                <div>
+                  <div style={{fontSize:17,fontWeight:800,color:'#085041'}}>
+                    {lang==='ar'?'ربط حسابات الأولياء':'Lier des comptes parents'}
+                  </div>
+                  <div style={{fontSize:12,color:'#666',marginTop:2}}>
+                    {lang==='ar'?'دمج عدة حسابات في حساب عائلي واحد':'Fusionner plusieurs comptes en un compte famille'}
+                  </div>
+                </div>
+              </div>
+
+              {/* Etape 1 - Selection des parents */}
+              <div style={{marginBottom:14}}>
+                <div style={{fontSize:12,fontWeight:700,color:'#666',marginBottom:6,textTransform:'uppercase',letterSpacing:0.3}}>
+                  1. {lang==='ar'?'اختر الحسابات للربط (2 على الأقل)':'Sélectionner les comptes à lier (2 minimum)'}
+                </div>
+                <div style={{maxHeight:200,overflowY:'auto',background:'#f5f5f0',borderRadius:8,padding:6}}>
+                  {candidatsParents.length === 0 ? (
+                    <div style={{padding:12,textAlign:'center',color:'#888',fontSize:12,fontStyle:'italic'}}>
+                      {lang==='ar'?'لا يوجد حسابات':'Aucun compte disponible'}
+                    </div>
+                  ) : candidatsParents.map(p => {
+                    const enfantsP = eleves.filter(e => (p.eleve_ids||[]).includes(e.id));
+                    const checked = linkSelectedParents.includes(p.id);
+                    return (
+                      <label key={p.id} style={{
+                        display:'flex',alignItems:'flex-start',gap:8,padding:'8px 10px',
+                        background:checked?'#fff':'transparent',borderRadius:6,cursor:'pointer',
+                        marginBottom:3,border:checked?'1px solid #1D9E75':'1px solid transparent',
+                      }}>
+                        <input type="checkbox" checked={checked}
+                          onChange={e=>{
+                            if (e.target.checked) setLinkSelectedParents(prev=>[...prev,p.id]);
+                            else setLinkSelectedParents(prev=>prev.filter(x=>x!==p.id));
+                          }}
+                          style={{marginTop:3}}/>
+                        <div style={{flex:1,minWidth:0}}>
+                          <div style={{fontSize:13,fontWeight:600,color:'#1a1a1a'}}>
+                            {p.prenom} {p.nom}
+                            <span style={{fontSize:11,fontWeight:400,color:'#888',marginInlineStart:6,fontFamily:'monospace'}}>
+                              ({p.identifiant})
+                            </span>
+                          </div>
+                          {enfantsP.length > 0 && (
+                            <div style={{fontSize:11,color:'#666',marginTop:2}}>
+                              👶 {enfantsP.map(e=>`${e.prenom} ${e.nom}`).join(', ')}
+                            </div>
+                          )}
+                        </div>
+                      </label>
+                    );
+                  })}
+                </div>
+                <div style={{fontSize:11,color:'#888',marginTop:4}}>
+                  ✓ {linkSelectedParents.length} {lang==='ar'?'محدد':'sélectionné(s)'}
+                </div>
+              </div>
+
+              {/* Etape 2 - Choix du login */}
+              {linkSelectedParents.length >= 2 && (
+                <div style={{marginBottom:14}}>
+                  <div style={{fontSize:12,fontWeight:700,color:'#666',marginBottom:6,textTransform:'uppercase',letterSpacing:0.3}}>
+                    2. {lang==='ar'?'معرف الحساب الجديد':'Login du compte fusionné'}
+                  </div>
+                  <div style={{display:'flex',flexDirection:'column',gap:8}}>
+                    <label style={{display:'flex',alignItems:'flex-start',gap:8,padding:8,borderRadius:8,background:linkLoginMode==='manuel'?'#fff':'transparent',border:linkLoginMode==='manuel'?'1px solid #1D9E75':'1px solid transparent',cursor:'pointer'}}>
+                      <input type="radio" name="lk-mode" checked={linkLoginMode==='manuel'}
+                        onChange={()=>setLinkLoginMode('manuel')} style={{marginTop:3}}/>
+                      <div style={{flex:1}}>
+                        <div style={{fontSize:13,fontWeight:600,color:'#1a1a1a'}}>
+                          {lang==='ar'?'إنشاء معرف جديد':'Créer un nouveau login'}
+                        </div>
+                        {linkLoginMode==='manuel' && (
+                          <input type="text" value={linkLoginManuel}
+                            onChange={e=>setLinkLoginManuel(e.target.value)}
+                            placeholder={lang==='ar'?'مثلاً: famille.benali':'Ex: famille.benali'}
+                            style={{width:'100%',padding:'8px 10px',marginTop:6,borderRadius:8,border:'1px solid #d0d8e8',fontSize:12,fontFamily:'inherit'}}/>
+                        )}
+                      </div>
+                    </label>
+
+                    <label style={{display:'flex',alignItems:'flex-start',gap:8,padding:8,borderRadius:8,background:linkLoginMode==='existant'?'#fff':'transparent',border:linkLoginMode==='existant'?'1px solid #1D9E75':'1px solid transparent',cursor:'pointer'}}>
+                      <input type="radio" name="lk-mode" checked={linkLoginMode==='existant'}
+                        onChange={()=>setLinkLoginMode('existant')} style={{marginTop:3}}/>
+                      <div style={{flex:1}}>
+                        <div style={{fontSize:13,fontWeight:600,color:'#1a1a1a'}}>
+                          {lang==='ar'?'الإبقاء على معرف موجود':'Garder un login existant'}
+                        </div>
+                        {linkLoginMode==='existant' && (
+                          <select value={linkLoginExistant} onChange={e=>setLinkLoginExistant(e.target.value)}
+                            style={{width:'100%',padding:'8px 10px',marginTop:6,borderRadius:8,border:'1px solid #d0d8e8',fontSize:12,fontFamily:'inherit'}}>
+                            <option value="">— {lang==='ar'?'اختر':'Choisir'}</option>
+                            {parents.filter(p=>linkSelectedParents.includes(p.id)).map(p=>(
+                              <option key={p.id} value={p.identifiant}>{p.identifiant} ({p.prenom} {p.nom})</option>
+                            ))}
+                          </select>
+                        )}
+                      </div>
+                    </label>
+                  </div>
+                </div>
+              )}
+
+              {/* Etape 3 - Avertissement */}
+              {linkSelectedParents.length >= 2 && (
+                <div style={{
+                  background:'#FFF8EC',border:'1px solid #EF9F2740',borderRadius:8,
+                  padding:'10px 12px',fontSize:11,color:'#7B5800',marginBottom:14,lineHeight:1.5,
+                }}>
+                  ⚠️ {lang==='ar'
+                    ? `سيتم حذف ${linkSelectedParents.length - (linkLoginMode==='existant'?1:0)} حسابات قديمة وكلمة المرور الافتراضية ستكون: `
+                    : `${linkSelectedParents.length - (linkLoginMode==='existant'?1:0)} ancien(s) compte(s) seront supprimé(s). Le mot de passe sera réinitialisé à : `}
+                  <b>{ecoleConfig?.mdp_defaut_parents || 'parent2024'}</b>
+                </div>
+              )}
+
+              <div style={{display:'flex',gap:8}}>
+                <button onClick={()=>setShowLinkParents(false)} disabled={linkLoading}
+                  style={{flex:1,padding:'11px',background:'#f5f5f0',color:'#666',border:'none',borderRadius:10,fontSize:13,fontWeight:600,cursor:linkLoading?'not-allowed':'pointer',fontFamily:'inherit'}}>
+                  {lang==='ar'?'إلغاء':'Annuler'}
+                </button>
+                <button onClick={confirmerLiaisonParents} disabled={linkLoading || linkSelectedParents.length < 2}
+                  style={{flex:2,padding:'11px',
+                    background:(linkLoading || linkSelectedParents.length < 2)?'#ccc':'linear-gradient(135deg,#1D9E75,#085041)',
+                    color:'#fff',border:'none',borderRadius:10,fontSize:13,fontWeight:700,
+                    cursor:(linkLoading || linkSelectedParents.length < 2)?'not-allowed':'pointer',
+                    fontFamily:'inherit',boxShadow:'0 2px 8px rgba(8,80,65,0.3)'}}>
+                  {linkLoading ? '⏳ '+(lang==='ar'?'جاري...':'En cours...') : '🔗 '+(lang==='ar'?'ربط':'Lier')}
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* ─── Modale Délier un enfant (Etape 11b) ─── */}
+      {showUnlinkParent && (() => {
+        const { parent: pUn, enfants: enfantsUn } = showUnlinkParent;
+        return (
+          <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.55)',zIndex:9999,
+            display:'flex',alignItems:'center',justifyContent:'center',padding:20}}
+            onClick={()=>{ if(!unlinkLoading) setShowUnlinkParent(null); }}>
+            <div onClick={e=>e.stopPropagation()}
+              style={{background:'#fff',borderRadius:16,maxWidth:480,width:'100%',padding:24,
+                boxShadow:'0 20px 60px rgba(0,0,0,0.3)',maxHeight:'90vh',overflowY:'auto'}}>
+              <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:14}}>
+                <div style={{fontSize:32}}>🔓</div>
+                <div>
+                  <div style={{fontSize:17,fontWeight:800,color:'#7B5800'}}>
+                    {lang==='ar'?'فصل طفل':'Détacher un enfant'}
+                  </div>
+                  <div style={{fontSize:12,color:'#666',marginTop:2}}>
+                    {pUn.prenom} {pUn.nom} · {pUn.identifiant}
+                  </div>
+                </div>
+              </div>
+
+              <div style={{fontSize:12,fontWeight:700,color:'#666',marginBottom:8,textTransform:'uppercase',letterSpacing:0.3}}>
+                {lang==='ar'?'أي طفل تريد فصله؟':'Quel enfant détacher ?'}
+              </div>
+
+              <div style={{marginBottom:14}}>
+                {enfantsUn.map(e => (
+                  <label key={e.id} style={{
+                    display:'flex',alignItems:'flex-start',gap:8,padding:10,borderRadius:8,
+                    background:unlinkChildId===e.id?'#FFF8EC':'#f5f5f0',
+                    border:unlinkChildId===e.id?'1px solid #EF9F27':'1px solid transparent',
+                    cursor:'pointer',marginBottom:6,
+                  }}>
+                    <input type="radio" name="unlk-child" checked={unlinkChildId===e.id}
+                      onChange={()=>setUnlinkChildId(e.id)} style={{marginTop:3}}/>
+                    <div style={{flex:1}}>
+                      <div style={{fontSize:13,fontWeight:600,color:'#1a1a1a'}}>{e.prenom} {e.nom}</div>
+                      <div style={{fontSize:11,color:'#666',marginTop:2}}>
+                        🆔 {e.eleve_id_ecole} · 🎓 {e.code_niveau || '-'}
+                      </div>
+                    </div>
+                  </label>
+                ))}
+              </div>
+
+              {unlinkChildId && (() => {
+                const enf = enfantsUn.find(e => e.id === unlinkChildId);
+                return (
+                  <div style={{
+                    background:'#E1F5EE',border:'1px solid #1D9E7530',borderRadius:8,
+                    padding:'10px 12px',fontSize:11,color:'#085041',marginBottom:14,lineHeight:1.5,
+                  }}>
+                    ℹ️ {lang==='ar'?'سيتم إنشاء حساب جديد:':'Un nouveau compte sera créé :'}<br/>
+                    <span style={{fontFamily:'monospace',fontWeight:700}}>
+                      {lang==='ar'?'المعرف':'Login'}: {enf.eleve_id_ecole}<br/>
+                      {lang==='ar'?'كلمة المرور':'MDP'}: {ecoleConfig?.mdp_defaut_parents || 'parent2024'}
+                    </span>
+                  </div>
+                );
+              })()}
+
+              <div style={{display:'flex',gap:8}}>
+                <button onClick={()=>setShowUnlinkParent(null)} disabled={unlinkLoading}
+                  style={{flex:1,padding:'11px',background:'#f5f5f0',color:'#666',border:'none',borderRadius:10,fontSize:13,fontWeight:600,cursor:unlinkLoading?'not-allowed':'pointer',fontFamily:'inherit'}}>
+                  {lang==='ar'?'إلغاء':'Annuler'}
+                </button>
+                <button onClick={confirmerDeliaison} disabled={unlinkLoading || !unlinkChildId}
+                  style={{flex:2,padding:'11px',
+                    background:(unlinkLoading || !unlinkChildId)?'#ccc':'#EF9F27',
+                    color:'#fff',border:'none',borderRadius:10,fontSize:13,fontWeight:700,
+                    cursor:(unlinkLoading || !unlinkChildId)?'not-allowed':'pointer',fontFamily:'inherit'}}>
+                  {unlinkLoading ? '⏳ '+(lang==='ar'?'جاري...':'En cours...') : '🔓 '+(lang==='ar'?'فصل':'Détacher')}
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* ─── Modale recap création élève + compte parent (Etape 11a) ─── */}
       {showEleveCree && (
