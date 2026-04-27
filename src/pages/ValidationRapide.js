@@ -369,6 +369,16 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
   const validerSourate = async () => {
     if (!selectedEleve || saving || !sourateSelectionnee) return;
     if (typeRec === 'sequence' && (!versetDebut || !versetFin)) return;
+    // Verification blocage examen avant validation (s'applique aussi aux sourates)
+    if (blocageExamen) {
+      toast.error(
+        lang === 'ar'
+          ? `⛔ امتحان مطلوب: "${blocageExamen.examen?.nom || blocageExamen.nom || ''}" قبل المتابعة`
+          : `⛔ Examen requis : "${blocageExamen.examen?.nom || blocageExamen.nom || ''}" avant de continuer`,
+        { duration: 5000 }
+      );
+      return;
+    }
     setSaving(true);
 
     // Trouver l'id Supabase par numero
@@ -417,6 +427,12 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
         .select('*').eq('eleve_id', selectedEleve.id).eq('ecole_id', user.ecole_id);
       const newRecsData = newRecs || [];
       setRecitationsSourates(newRecsData);
+      // Re-verification blocage examen : la sourate qu'on vient de valider
+      // peut etre la derniere d'un ensemble lie a un examen bloquant.
+      // Si oui, blocageExamen sera mis a jour et le bandeau apparait.
+      const { data: valsForBlocage } = await supabase.from('validations').select('*')
+        .eq('eleve_id', selectedEleve.id).eq('ecole_id', user.ecole_id);
+      await checkBlocageExamenEleve(selectedEleve, valsForBlocage || [], newRecsData);
       // Vérifier si un jalon/certificat est débloqué
       const { data: valsForCert } = await supabase.from('validations').select('*')
         .eq('eleve_id', selectedEleve.id).eq('ecole_id', user.ecole_id);
