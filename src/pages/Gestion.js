@@ -1597,7 +1597,7 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile,
     if (ecData) setEcoleConfig(prev => ({...prev, ...ecData}));
     setLoading(true);
     try {
-    const { data: e } = await supabase.from('eleves').select('id,prenom,nom,code_niveau,eleve_id_ecole,hizb_depart,tomon_depart,sourates_acquises,instituteur_referent_id,ecole_id,telephone,date_inscription,jours_souhaites')
+    const { data: e } = await supabase.from('eleves').select('id,prenom,nom,code_niveau,eleve_id_ecole,hizb_depart,tomon_depart,sourates_acquises,instituteur_referent_id,ecole_id,telephone,date_inscription,jours_souhaites,suspendu_at,suspendu_par,suspendu_motif')
         .eq('ecole_id', user.ecole_id).order('nom');
     const { data: i } = await supabase.from('utilisateurs').select('id,prenom,nom,identifiant,role,instituteur_id_ecole,tarif_seance').eq('role', 'instituteur').eq('ecole_id', user.ecole_id);
     setEleves(e || []);
@@ -1732,12 +1732,13 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile,
       // Audit log
       try {
         await supabase.from('audit_log').insert({
-          action: 'suspendu',
-          cible: 'eleves',
-          cible_id: eleve.id,
-          ecole_id: user.ecole_id,
-          utilisateur_id: user.id,
-          details: { motif: motif || '(non précisé)', eleve_nom: `${eleve.prenom} ${eleve.nom}` },
+          actor_user_id: user.id,
+          actor_role: user.role || 'surveillant',
+          action: 'eleve.suspendu',
+          target_type: 'eleves',
+          target_id: eleve.id,
+          target_label: `${eleve.prenom} ${eleve.nom}`,
+          metadata: { motif: motif || null, ecole_id: user.ecole_id },
         });
       } catch(e) { console.warn('[suspendreEleve] audit_log:', e); }
       showMsg('success', lang==='ar'?'⏸️ تم تعليق الطالب':'⏸️ Élève suspendu');
@@ -1767,12 +1768,13 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile,
           // Audit log
           try {
             await supabase.from('audit_log').insert({
-              action: 'reactive',
-              cible: 'eleves',
-              cible_id: eleve.id,
-              ecole_id: user.ecole_id,
-              utilisateur_id: user.id,
-              details: { eleve_nom: `${eleve.prenom} ${eleve.nom}` },
+              actor_user_id: user.id,
+              actor_role: user.role || 'surveillant',
+              action: 'eleve.reactive',
+              target_type: 'eleves',
+              target_id: eleve.id,
+              target_label: `${eleve.prenom} ${eleve.nom}`,
+              metadata: { ecole_id: user.ecole_id },
             });
           } catch(e) { console.warn('[reactiverEleve] audit_log:', e); }
           showMsg('success', lang==='ar'?'▶️ تم إعادة التفعيل':'▶️ Élève réactivé');
