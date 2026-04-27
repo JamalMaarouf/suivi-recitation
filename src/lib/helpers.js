@@ -22,6 +22,17 @@ export function eleveActif(e) {
 }
 
 /**
+ * Helper : un utilisateur (instituteur, parent, surveillant) est "actif"
+ * s'il n'est ni soft-deleted ni suspendu. Identique a eleveActif mais pour
+ * la table utilisateurs. Utilise pour les selecteurs d'instituteur referent,
+ * les listes dans dashboards, et les crons (notifications email).
+ */
+export function utilisateurActif(u) {
+  return !!u && !u.suspendu_at && !u.deleted_at;
+}
+
+
+/**
  * Résout le sens effectif à partir d'un niveau et de l'école.
  * Accepte un objet niveau (avec .sens_recitation) ou le sens directement.
  * Retourne 'desc' par défaut si rien n'est défini.
