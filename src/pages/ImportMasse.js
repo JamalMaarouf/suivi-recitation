@@ -360,15 +360,36 @@ export default function ImportMasse({ user, navigate, goBack, lang='fr', isMobil
             }
             delete payload._code_niveau_attente;
             return payload;
-          }).filter(p => p.niveau_id);
-          if (toInsert.length > 0) {
-            const { error } = await supabase.from('programmes').insert(toInsert);
+          });
+          // Safety net : exclure les lignes invalides + log clair pour chaque cas
+          const skipped = [];
+          const validToInsert = toInsert.filter(p => {
+            if (!p.niveau_id) {
+              skipped.push(`niveau_id manquant (niveau "${p._code_niveau_attente||'?'}" introuvable)`);
+              return false;
+            }
+            if (!p.reference_id) {
+              skipped.push(`reference_id manquant (sourate ou hizb introuvable en BDD)`);
+              return false;
+            }
+            return true;
+          });
+          if (skipped.length > 0) {
+            results.logs.push(`  ⚠️ ${skipped.length} ligne(s) Programmes ignorée(s) :`);
+            // Log les 3 premiers pour debug, sinon ca devient verbeux
+            skipped.slice(0, 3).forEach(s => results.logs.push(`    - ${s}`));
+            if (skipped.length > 3) results.logs.push(`    - ... et ${skipped.length - 3} autres`);
+          }
+          if (validToInsert.length > 0) {
+            const { error } = await supabase.from('programmes').insert(validToInsert);
             if (error) {
-              results.failed[t.sheet_name] = toInsert.length;
+              results.failed[t.sheet_name] = validToInsert.length;
               results.logs.push(`  ❌ Échec insertion programmes : ${error.message}`);
             } else {
-              results.created[t.sheet_name] = toInsert.length;
+              results.created[t.sheet_name] = validToInsert.length;
             }
+          } else if (skipped.length > 0) {
+            results.failed[t.sheet_name] = skipped.length;
           }
           continue;
         }

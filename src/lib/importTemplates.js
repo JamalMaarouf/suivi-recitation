@@ -257,6 +257,16 @@ export const TEMPLATE_PROGRAMMES = {
         if (isNaN(ref)) errs.push('Référence doit être un nombre');
         else if (niv.type === 'hizb' && (ref < 1 || ref > 60)) errs.push('Pour un niveau hizb, référence doit être entre 1 et 60');
         else if (niv.type === 'sourate' && (ref < 1 || ref > 114)) errs.push('Pour un niveau sourate, référence doit être entre 1 et 114');
+        // ── Validation existence en BDD (anticipe les erreurs SQL) ──
+        // Pour eviter le cas ou l'INSERT echoue avec 'null value in column reference_id',
+        // on verifie en preview que la sourate existe dans ctx.souratesDB.
+        // Pour les hizb, ref est numerique (1-60) deja valide ci-dessus.
+        else if (niv.type === 'sourate') {
+          const sourateDB = (ctx.souratesDB || []).find(s => Number(s.numero) === ref);
+          if (!sourateDB) {
+            errs.push(`Sourate numéro ${ref} introuvable en base de données. Vérifiez que la table sourates contient cette sourate.`);
+          }
+        }
       }
     }
     // Validation blocs
