@@ -790,10 +790,7 @@ export default function ResultatsExamens({ user, navigate, goBack, lang='fr', is
   return (
     <>
     <div>
-      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',
-        marginBottom:'1.25rem'}}>
-        <Header/>
-      </div>
+      <Header/>
       <Tabs/>
       {loading
         ? <div style={{textAlign:'center',padding:'2rem',color:'rgba(255,255,255,0.75)'}}>...</div>
