@@ -62,7 +62,7 @@ export default function ValidationCollective({ user, navigate, goBack, lang='fr'
     try {
     const { data } = await supabase
       .from('eleves').select('id,prenom,nom,eleve_id_ecole,code_niveau')
-      .eq('ecole_id', user.ecole_id).eq('code_niveau', selectedNiveau).order('nom');
+      .eq('ecole_id', user.ecole_id).eq('code_niveau', selectedNiveau).is('suspendu_at', null).order('nom');
     setEleves(data || []);
     setExclus({});
     setLoading(false);

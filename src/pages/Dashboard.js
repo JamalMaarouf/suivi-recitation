@@ -184,7 +184,7 @@ export default function Dashboard({ user, navigate, goBack, lang, isMobile=false
 
       // Charger les validations détaillées en arrière-plan
       const [edRes, vd, rd, ecRes] = await Promise.all([
-        supabase.from('eleves').select('id,prenom,nom,code_niveau,niveau,hizb_depart,tomon_depart,sourates_acquises,instituteur_referent_id,ecole_id').eq('ecole_id', user.ecole_id).order('nom'),
+        supabase.from('eleves').select('id,prenom,nom,code_niveau,niveau,hizb_depart,tomon_depart,sourates_acquises,instituteur_referent_id,ecole_id').eq('ecole_id', user.ecole_id).is('suspendu_at', null).order('nom'),
         getCachedSWR('validations', user.ecole_id,
           () => fetchAll(supabase.from('validations').select('id,eleve_id,type_validation,nombre_tomon,hizb_valide,tomon_debut,date_validation,valide_par,ecole_id,valideur:valide_par(prenom,nom)').eq('ecole_id', user.ecole_id).order('date_validation',{ascending:false}))),
         getCachedSWR('recitations_sourates_min', user.ecole_id,

@@ -341,19 +341,24 @@ export default function Seance({ user, navigate, goBack, lang, isMobile=false })
 
   return (
     <div>
-      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'0.75rem'}}>
-        <button className="back-link" onClick={()=>goBack?goBack():navigate('dashboard')}></button>
-        <button onClick={()=>navigate('historique_seances')}
-          style={{padding:'6px 14px',background:'#085041',color:'#fff',border:'none',borderRadius:8,fontSize:12,fontWeight:600,cursor:'pointer',display:'flex',alignItems:'center',gap:4}}>
-          📊 {lang==='ar'?'تحليل الحصص':lang==='en'?'Session analysis':lang==='ar'?'تحليل الحصص':(lang==='ar'?'تحليل الحصص':(lang==='ar'?'تحليل الحصص':'Analyse des séances'))}
-        </button>
-        <ExportButtons
-          onPDF={exportSeancePDF}
-          onExcel={exportSeanceExcel}
-          lang={lang}
-          variant="inline"
-          compact
-        />
+      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'0.75rem',gap:8,flexWrap:'wrap'}}>
+        <div style={{display:'flex',alignItems:'center',gap:10,flex:1,minWidth:200}}>
+          <button className="back-link" onClick={()=>goBack?goBack():navigate('dashboard')}></button>
+          <div style={{fontSize:20,fontWeight:800,color:'#1a1a1a'}}>📚 {lang==='ar'?'الحصة':'Séance'}</div>
+        </div>
+        <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}>
+          <button onClick={()=>navigate('historique_seances')}
+            style={{padding:'6px 14px',background:'#085041',color:'#fff',border:'none',borderRadius:8,fontSize:12,fontWeight:600,cursor:'pointer',display:'flex',alignItems:'center',gap:4}}>
+            📊 {lang==='ar'?'تحليل الحصص':'Analyse des séances'}
+          </button>
+          <ExportButtons
+            onPDF={exportSeancePDF}
+            onExcel={exportSeanceExcel}
+            lang={lang}
+            variant="inline"
+            compact
+          />
+        </div>
       </div>
       <div style={{display:'flex',gap:0,background:'#f0f0ec',borderRadius:10,padding:3,marginBottom:'1.25rem',width:'fit-content'}}>
         {[['seance',t(lang,'ma_seance')],['semaine',t(lang,'cette_semaine')]].map(([k,l])=>(

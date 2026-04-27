@@ -154,11 +154,11 @@ export default function DashboardDirection({ user, navigate, goBack, lang='fr', 
         { data: ev }, { data: iv }, { data: vv }, { data: nv },
         { data: cv }, { data: rv }, { data: pv }, { data: ecv }
       ] = await Promise.all([
-        supabase.from('eleves').select('*').eq('ecole_id', user.ecole_id).order('nom'),
+        supabase.from('eleves').select('*').eq('ecole_id', user.ecole_id).is('suspendu_at', null).order('nom'),
         supabase.from('utilisateurs').select('id,prenom,nom,role').eq('ecole_id', user.ecole_id).eq('role','instituteur'),
         fetchAll(supabase.from('validations').select('id,eleve_id,type_validation,nombre_tomon,hizb_valide,date_validation,valide_par,ecole_id').eq('ecole_id', user.ecole_id).order('date_validation',{ascending:false})).then(data=>({data})),
         supabase.from('niveaux').select('*').eq('ecole_id', user.ecole_id).order('ordre'),
-        supabase.from('certificats_eleves').select('id,eleve_id,jalon_id,date_obtention').eq('ecole_id', user.ecole_id).limit(500),
+        supabase.from('certificats_eleves').select('id,eleve_id,jalon_id,date_emission').eq('ecole_id', user.ecole_id).limit(500),
         fetchAll(supabase.from('recitations_sourates').select('eleve_id,date_validation,type_recitation').eq('ecole_id', user.ecole_id).order('date_validation',{ascending:false})).then(data=>({data})),
         supabase.from('passages_niveau').select('eleve_id,niveau_avant,niveau_apres,created_at').eq('ecole_id', user.ecole_id).limit(500),
         supabase.from('ecoles').select('*').eq('id', user.ecole_id).single(),
@@ -197,7 +197,7 @@ export default function DashboardDirection({ user, navigate, goBack, lang='fr', 
     const totalTomon = valsFiltered.filter(v=>v.type_validation==='tomon').reduce((s,v)=>s+(v.nombre_tomon||0),0);
     const totalHizb = valsFiltered.filter(v=>v.type_validation==='hizb_complet').length;
     const tauxActivite = eleves.length > 0 ? Math.round(elevesActifs.size/eleves.length*100) : 0;
-    const totalCerts = (certificats||[]).filter(c=>new Date(c.date_obtention)>=periodeDebut).length;
+    const totalCerts = (certificats||[]).filter(c=>new Date(c.date_emission)>=periodeDebut).length;
     const totalPassages = (passages||[]).filter(p=>new Date(p.created_at)>=periodeDebut).length;
     return { elevesActifs:elevesActifs.size, totalEleves:eleves.length, totalTomon, totalHizb,
       tauxActivite, totalCerts, totalPassages, totalSeances: valsFiltered.length };
@@ -591,8 +591,8 @@ export default function DashboardDirection({ user, navigate, goBack, lang='fr', 
   return (
     <div style={{maxWidth:1100,margin:'0 auto',padding:'0 1rem 2rem'}}>
       {/* Header */}
-      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'1.5rem',flexWrap:'wrap',gap:12}}>
-        <div style={{display:'flex',alignItems:'center',gap:14}}>
+      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'1rem',flexWrap:'wrap',gap:12}}>
+        <div style={{display:'flex',alignItems:'center',gap:14,flex:1,minWidth:280}}>
           <button onClick={()=>goBack?goBack():navigate('dashboard')}
             title={isAr?'رجوع':'Retour'}
             style={{background:'#fff',border:'1px solid #e0e0d8',borderRadius:10,padding:0,width:38,height:38,fontSize:18,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',color:'#085041',flexShrink:0}}>←</button>
@@ -603,7 +603,17 @@ export default function DashboardDirection({ user, navigate, goBack, lang='fr', 
             <p style={{color:'#888',fontSize:13,margin:'4px 0 0'}}>{ecole?.nom} — {isAr?'نظرة شاملة على أداء المدرسة':'Vue analytique de l\'école'}</p>
           </div>
         </div>
-        {/* Sélecteur période */}
+        <ExportButtons
+          onPDF={handleExportPDF}
+          onExcel={handleExportExcel}
+          lang={lang}
+          variant="inline"
+          compact
+        />
+      </div>
+
+      {/* Sélecteur période - sur sa propre ligne pour ne pas surcharger le header */}
+      <div style={{display:'flex',justifyContent:'center',marginBottom:'1.25rem'}}>
         <div style={{display:'flex',gap:6,background:'#f5f5f0',borderRadius:10,padding:4}}>
           {PERIODES.map(p=>(
             <button key={p.key} onClick={()=>setPeriode(p.key)}
@@ -616,16 +626,6 @@ export default function DashboardDirection({ user, navigate, goBack, lang='fr', 
             </button>
           ))}
         </div>
-      </div>
-
-      {/* Export buttons */}
-      <div style={{marginBottom:'1.25rem'}}>
-        <ExportButtons
-          onPDF={handleExportPDF}
-          onExcel={handleExportExcel}
-          lang={lang}
-          variant="inline"
-        />
       </div>
 
       {/* Alertes */}

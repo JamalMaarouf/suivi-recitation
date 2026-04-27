@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { genererCertificatPDF } from './CertificatExamen';
 import { supabase } from '../lib/supabase';
-import { loadBareme, enregistrerPointsEvenement, verifierEtCreerCertificats } from '../lib/helpers';
+import { loadBareme, enregistrerPointsEvenement, verifierEtCreerCertificats, verifierEtCreerCertificatsExamens } from '../lib/helpers';
 import { useToast } from '../lib/toast';
 import { t } from '../lib/i18n';
 import { openPDF } from '../lib/pdf';
@@ -23,6 +23,8 @@ export default function ResultatsExamens({ user, navigate, goBack, lang='fr', is
   const [loadingCert, setLoadingCert] = useState(null); // id du résultat en cours
   const [ecole, setEcole] = useState(null);
   const [activeTab, setActiveTab] = useState('saisir');
+  // Etape 8 - Modale certificats post-examen
+  const [showCertifsModal, setShowCertifsModal] = useState(null); // {eleve, examen, certs:[]} ou null
 
   // Formulaire
   const [searchEleve,    setSearchEleve]    = useState('');
@@ -125,15 +127,35 @@ export default function ResultatsExamens({ user, navigate, goBack, lang='fr', is
             points: ptsExamen, valide_par: user.id,
           });
         }
-        // Vérifier si un jalon est débloqué
+        // Vérifier si un jalon est débloqué (Sources A/B/C)
         const { data: valsEleve } = await supabase.from('validations').select('*').eq('eleve_id', selectedEleve.id);
         const { data: recsEleve } = await supabase.from('recitations_sourates').select('*').eq('eleve_id', selectedEleve.id).eq('ecole_id', user.ecole_id);
-        const nouveauxCertsExamen = await verifierEtCreerCertificats(supabase, {
+        const nouveauxCertsJalons = await verifierEtCreerCertificats(supabase, {
           eleve: selectedEleve, ecole_id: user.ecole_id, valide_par: user.id,
           validations: valsEleve || [], recitations: recsEleve || [],
         });
-        if (nouveauxCertsExamen.length > 0) {
-          toast.success(lang==='ar'?`🏅 شهادة جديدة: ${nouveauxCertsExamen.map(c=>c.nom_certificat_ar||c.nom_certificat).join(', ')}`:`🏅 Nouveau certificat: ${nouveauxCertsExamen.map(c=>c.nom_certificat).join(', ')}`);
+
+        // Etape 8 - Source D : auto-cert post-examen (toujours, meme sans jalon)
+        const nouveauxCertsExamens = await verifierEtCreerCertificatsExamens(supabase, {
+          eleve: selectedEleve, ecole_id: user.ecole_id, valide_par: user.id,
+        });
+
+        // Combiner tous les certificats nouvellement crees
+        const tousNouveauxCerts = [...nouveauxCertsJalons, ...nouveauxCertsExamens];
+
+        if (tousNouveauxCerts.length > 0) {
+          // Toast immediat pour feedback rapide
+          toast.success(lang==='ar'
+            ? `🎉 ${tousNouveauxCerts.length} ${tousNouveauxCerts.length===1?'شهادة جديدة':'شهادات جديدة'}`
+            : `🎉 ${tousNouveauxCerts.length} nouveau${tousNouveauxCerts.length>1?'x':''} certificat${tousNouveauxCerts.length>1?'s':''}`);
+          // Modale avec liste + bouton Editer (s'ouvre apres le toast principal)
+          setTimeout(() => {
+            setShowCertifsModal({
+              eleve: selectedEleve,
+              examen: selectedExamen,
+              certs: tousNouveauxCerts,
+            });
+          }, 300);
         }
       } catch(e) { console.error('points examen error:', e); }
     }
@@ -653,15 +675,17 @@ export default function ResultatsExamens({ user, navigate, goBack, lang='fr', is
   };
 
   const Header = () => (
-    <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:isMobile?12:'1.25rem'}}>
-      <button onClick={()=>goBack?goBack():navigate('dashboard')} className="back-link" style={{marginBottom:0}}>
-        {isMobile?'←':t(lang,'retour')}
-      </button>
-      {!isMobile&&<>
-        <div style={{fontSize:20,fontWeight:700,flex:1}}>
-          🏅 {lang==='ar'?'نتائج الامتحانات':'Résultats des examens'}
-        </div>
-        <div style={{display:'flex',gap:6}}>
+    <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:isMobile?12:'1.25rem',flexWrap:'wrap',justifyContent:'space-between'}}>
+      {!isMobile && (
+        <>
+          <div style={{display:'flex',alignItems:'center',gap:10}}>
+            <button onClick={()=>goBack?goBack():navigate('dashboard')} className="back-link" style={{marginBottom:0}}>
+              {t(lang,'retour')}
+            </button>
+            <div style={{fontSize:20,fontWeight:800,color:'#1a1a1a'}}>
+              🏅 {lang==='ar'?'نتائج الامتحانات':'Résultats des examens'}
+            </div>
+          </div>
           <ExportButtons
             onPDF={exportResultatsPDF}
             onExcel={exportResultatsExcel}
@@ -669,16 +693,84 @@ export default function ResultatsExamens({ user, navigate, goBack, lang='fr', is
             variant="inline"
             compact
           />
+        </>
+      )}
+      {isMobile && (
+        <>
+          <button onClick={()=>goBack?goBack():navigate('dashboard')} className="back-link" style={{marginBottom:0}}>
+            ←
+          </button>
+          <div style={{flex:1,fontSize:17,fontWeight:800,color:'#085041'}}>
+            🏅 {lang==='ar'?'نتائج الامتحانات':'Résultats'}
+          </div>
+        </>
+      )}
+    </div>
+  );
+
+  // Modale post-examen — partagee mobile + desktop
+  const certifsModalJSX = showCertifsModal && (
+    <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.55)',zIndex:9999,
+      display:'flex',alignItems:'center',justifyContent:'center',padding:20}}
+      onClick={()=>setShowCertifsModal(null)}>
+      <div onClick={e=>e.stopPropagation()}
+        style={{background:'#fff',borderRadius:16,maxWidth:520,width:'100%',padding:24,
+          boxShadow:'0 20px 60px rgba(0,0,0,0.3)',maxHeight:'90vh',overflowY:'auto'}}>
+        <div style={{textAlign:'center',marginBottom:18}}>
+          <div style={{fontSize:48,marginBottom:8}}>🎉</div>
+          <div style={{fontSize:18,fontWeight:800,color:'#085041',marginBottom:4}}>
+            {lang==='ar'?'تهانينا!':'Bravo !'}
+          </div>
+          <div style={{fontSize:13,color:'#666'}}>
+            {lang==='ar'
+              ? `حصل ${showCertifsModal.eleve?.prenom||''} ${showCertifsModal.eleve?.nom||''} على ${showCertifsModal.certs.length} ${showCertifsModal.certs.length===1?'شهادة':'شهادات'}`
+              : `${showCertifsModal.eleve?.prenom||''} ${showCertifsModal.eleve?.nom||''} a obtenu ${showCertifsModal.certs.length} certificat${showCertifsModal.certs.length>1?'s':''}`}
+          </div>
         </div>
-      </>}
-      {isMobile&&<div style={{flex:1,fontSize:17,fontWeight:800,color:'#085041'}}>
-        🏅 {lang==='ar'?'نتائج الامتحانات':'Résultats'}
-      </div>}
+        <div style={{maxHeight:240,overflowY:'auto',marginBottom:16}}>
+          {showCertifsModal.certs.map((c, i)=>(
+            <div key={c.id||i} style={{
+              background:'#FFF8EC',border:'1px solid #FFE0B5',borderRadius:10,
+              padding:'12px 14px',marginBottom:8,display:'flex',alignItems:'center',gap:10
+            }}>
+              <div style={{fontSize:24,flexShrink:0}}>🏅</div>
+              <div style={{flex:1,minWidth:0}}>
+                <div style={{fontSize:14,fontWeight:700,color:'#7B5800'}}>
+                  {lang==='ar'?(c.nom_certificat_ar||c.nom_certificat):(c.nom_certificat||c.nom_certificat_ar)}
+                </div>
+                <div style={{fontSize:11,color:'#a87f33',marginTop:2}}>
+                  {c.examen_id_source
+                    ? (lang==='ar'?'شهادة تلقائية بعد الامتحان':'Certificat automatique post-examen')
+                    : (lang==='ar'?'شهادة مرحلة (مكونة)':'Jalon configuré')}
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+        <div style={{display:'flex',gap:8}}>
+          <button onClick={()=>setShowCertifsModal(null)}
+            style={{flex:1,padding:'12px',background:'#f5f5f0',color:'#666',border:'none',
+              borderRadius:10,fontSize:13,fontWeight:600,cursor:'pointer',fontFamily:'inherit'}}>
+            {lang==='ar'?'لاحقًا':'Plus tard'}
+          </button>
+          <button onClick={()=>{
+            const firstCertId = showCertifsModal.certs[0]?.id;
+            setShowCertifsModal(null);
+            navigate('liste_certificats', null, { focusCertId: firstCertId });
+          }}
+            style={{flex:2,padding:'12px',background:'linear-gradient(135deg,#1D9E75,#085041)',
+              color:'#fff',border:'none',borderRadius:10,fontSize:13,fontWeight:700,
+              cursor:'pointer',fontFamily:'inherit',boxShadow:'0 2px 8px rgba(8,80,65,0.3)'}}>
+            ✏️ {lang==='ar'?'تحرير الآن ←':'Éditer maintenant →'}
+          </button>
+        </div>
+      </div>
     </div>
   );
 
   if (isMobile) {
     return (
+      <>
       <div style={{paddingBottom:80,background:'#f5f5f0',minHeight:'100vh'}}>
         <div style={{background:'linear-gradient(135deg,#085041,#1D9E75)',padding:'48px 16px 14px',position:'sticky',top:0,zIndex:100}}>
           <Header/>
@@ -690,19 +782,21 @@ export default function ResultatsExamens({ user, navigate, goBack, lang='fr', is
             : activeTab==='saisir' ? tabSaisirJSX : tabRegistreJSX}
         </div>
       </div>
+      {certifsModalJSX}
+      </>
     );
   }
 
   return (
+    <>
     <div>
-      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',
-        marginBottom:'1.25rem'}}>
-        <Header/>
-      </div>
+      <Header/>
       <Tabs/>
       {loading
         ? <div style={{textAlign:'center',padding:'2rem',color:'rgba(255,255,255,0.75)'}}>...</div>
         : activeTab==='saisir' ? tabSaisirJSX : tabRegistreJSX}
     </div>
+    {certifsModalJSX}
+    </>
   );
 }

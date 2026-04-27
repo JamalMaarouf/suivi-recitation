@@ -48,7 +48,7 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
     await Promise.all([
       swr(
         `vr_eleves_${ecoleId}`,
-        () => supabase.from('eleves').select('*').eq('ecole_id', ecoleId).order('nom'),
+        () => supabase.from('eleves').select('*').eq('ecole_id', ecoleId).is('suspendu_at', null).order('nom'),
         (data) => { if (data) setEleves(data); }
       ).catch(()=>{}),
       swr(

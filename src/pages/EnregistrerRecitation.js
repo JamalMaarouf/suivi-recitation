@@ -62,8 +62,9 @@ export default function EnregistrerRecitation({  user, eleve: eleveInitial, navi
   };
 
   const loadEleves = async () => {
+    // Etape 6 : exclure les eleves suspendus de la liste de recitation
     const { data } = await supabase.from('eleves').select('*')
-        .eq('ecole_id', user.ecole_id).order('nom');
+        .eq('ecole_id', user.ecole_id).is('suspendu_at', null).order('nom');
     setEleves(data || []);
   };
 

@@ -1074,10 +1074,12 @@ export default function Finance({ user, navigate, goBack, lang='fr', isMobile })
   return (
     <div>
       {/* Header */}
-      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'1rem',flexWrap:'wrap',gap:8}}>
-        <button className="back-link" onClick={()=>goBack?goBack():navigate('dashboard')}></button>
-        <div style={{fontSize:18,fontWeight:700,color:'#085041'}}>💰 {lang==='ar'?'الإدارة المالية':lang==='en'?'Finance':'Gestion Financière'}</div>
-        <div style={{display:'flex',gap:6,alignItems:'center',position:'relative'}}>
+      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'1rem',flexWrap:'wrap',gap:10}}>
+        <div style={{display:'flex',alignItems:'center',gap:10,flex:1,minWidth:200}}>
+          <button className="back-link" onClick={()=>goBack?goBack():navigate('dashboard')}></button>
+          <div style={{fontSize:20,fontWeight:800,color:'#1a1a1a'}}>💰 {lang==='ar'?'الإدارة المالية':'Gestion Financière'}</div>
+        </div>
+        <div style={{display:'flex',gap:8,alignItems:'center',position:'relative',flexWrap:'wrap'}}>
           {/* ⚡ Bouton Saisie Rapide (dropdown) — toujours visible, tous onglets */}
           <button onClick={()=>setShowExpressMenu(v=>!v)}
             style={{display:'flex',alignItems:'center',gap:5,padding:'5px 12px',background:showExpressMenu?'#085041':'#1D9E75',color:'#fff',border:'none',borderRadius:8,fontSize:11,fontWeight:700,cursor:'pointer',boxShadow:'0 1px 3px rgba(29,158,117,0.3)'}}>

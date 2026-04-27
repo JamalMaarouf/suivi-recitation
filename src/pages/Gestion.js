@@ -1477,6 +1477,18 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile,
   const [tab, setTabLocal] = useState(isMobile ? (initialTab && initialTab !== 'parametres' ? initialTab : 'eleves') : (initialTab || 'parametres'));
   const setTab = (t) => { setTabLocal(t); if(setGestionTab) setGestionTab(t); };
   const [searchEleve, setSearchEleve] = useState('');
+  // Etape 6 - Suspension eleves
+  const [showSuspendreEleve, setShowSuspendreEleve] = useState(null); // eleve a suspendre, null = ferme
+  const [motifSuspension, setMotifSuspension] = useState('');
+  const [savingSuspension, setSavingSuspension] = useState(false);
+  const [afficherUniquementActifs, setAfficherUniquementActifs] = useState(true);
+  // Etape 7 - Suspension instituteurs
+  const [showSuspendreInst, setShowSuspendreInst] = useState(null); // {inst, eleves: [], ...} ou null
+  const [motifSuspensionInst, setMotifSuspensionInst] = useState('');
+  const [transfertOption, setTransfertOption] = useState('transferer'); // 'transferer' | 'detacher' | 'garder'
+  const [transfertVers, setTransfertVers] = useState(''); // id du nouvel instituteur
+  const [savingSuspensionInst, setSavingSuspensionInst] = useState(false);
+  const [afficherUniquementActifsInst, setAfficherUniquementActifsInst] = useState(true);
   const [parents, setParents] = useState([]);
   const [formParent, setFormParent] = useState({prenom:'',nom:'',identifiant:'',mot_de_passe:'',telephone:'',email:'',eleve_ids:[]});
   const [showFormParent, setShowFormParent] = useState(false);
@@ -1592,9 +1604,9 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile,
     if (ecData) setEcoleConfig(prev => ({...prev, ...ecData}));
     setLoading(true);
     try {
-    const { data: e } = await supabase.from('eleves').select('id,prenom,nom,code_niveau,eleve_id_ecole,hizb_depart,tomon_depart,sourates_acquises,instituteur_referent_id,ecole_id,telephone,date_inscription,jours_souhaites')
+    const { data: e } = await supabase.from('eleves').select('id,prenom,nom,code_niveau,eleve_id_ecole,hizb_depart,tomon_depart,sourates_acquises,instituteur_referent_id,ecole_id,telephone,date_inscription,jours_souhaites,suspendu_at,suspendu_par,suspendu_motif')
         .eq('ecole_id', user.ecole_id).order('nom');
-    const { data: i } = await supabase.from('utilisateurs').select('id,prenom,nom,identifiant,role,instituteur_id_ecole,tarif_seance').eq('role', 'instituteur').eq('ecole_id', user.ecole_id);
+    const { data: i } = await supabase.from('utilisateurs').select('id,prenom,nom,identifiant,role,instituteur_id_ecole,tarif_seance,suspendu_at,suspendu_par,suspendu_motif').eq('role', 'instituteur').eq('ecole_id', user.ecole_id);
     setEleves(e || []);
     setInstituteurs(i || []);
     const { data: pd, error: pdErr } = await supabase.from('utilisateurs')
@@ -1700,6 +1712,89 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile,
     setEditEleve(null);
     setEditShowAcquisSelector(false);
     loadData();
+  };
+
+  // ────── ETAPE 6 - SUSPENSION D'ELEVES ──────────────────────────────
+  // Comportement : eleve suspendu reste visible en Gestion (avec badge),
+  // mais filtre dans Express, Validation, Stats. Reversible via Reactiver.
+  const ouvrirModaleSuspendre = (eleve) => {
+    setShowSuspendreEleve(eleve);
+    setMotifSuspension('');
+  };
+
+  const confirmerSuspension = async () => {
+    if (!showSuspendreEleve || savingSuspension) return;
+    setSavingSuspension(true);
+    const eleve = showSuspendreEleve;
+    const motif = motifSuspension.trim() || null;
+    try {
+      const { error } = await supabase.from('eleves')
+        .update({
+          suspendu_at: new Date().toISOString(),
+          suspendu_par: user.id,
+          suspendu_motif: motif,
+        })
+        .eq('id', eleve.id);
+      if (error) throw error;
+      // Audit log
+      try {
+        await supabase.from('audit_log').insert({
+          actor_user_id: user.id,
+          actor_role: user.role || 'surveillant',
+          action: 'eleve.suspendu',
+          target_type: 'eleves',
+          target_id: eleve.id,
+          target_label: `${eleve.prenom} ${eleve.nom}`,
+          metadata: { motif: motif || null, ecole_id: user.ecole_id },
+        });
+      } catch(e) { console.warn('[suspendreEleve] audit_log:', e); }
+      showMsg('success', lang==='ar'?'⏸️ تم تعليق الطالب':'⏸️ Élève suspendu');
+      setShowSuspendreEleve(null);
+      loadData();
+    } catch (err) {
+      console.error('[suspendreEleve]', err);
+      showMsg('error', lang==='ar'?'فشل التعليق: '+err.message:'Échec suspension : '+err.message);
+    } finally {
+      setSavingSuspension(false);
+    }
+  };
+
+  const reactiverEleve = (eleve) => {
+    showConfirm(
+      lang==='ar'?'▶️ إعادة تفعيل الطالب':'▶️ Réactiver l\'élève',
+      lang==='ar'
+        ? `سيتم إعادة تفعيل الطالب ${eleve.prenom} ${eleve.nom}. سيظهر مجددًا في قوائم التسجيل والتقارير.`
+        : `L'élève ${eleve.prenom} ${eleve.nom} sera réactivé. Il réapparaîtra dans les listes de validation et les rapports.`,
+      async () => {
+        setConfirmLoading(true);
+        try {
+          const { error } = await supabase.from('eleves')
+            .update({ suspendu_at: null, suspendu_par: null, suspendu_motif: null })
+            .eq('id', eleve.id);
+          if (error) throw error;
+          // Audit log
+          try {
+            await supabase.from('audit_log').insert({
+              actor_user_id: user.id,
+              actor_role: user.role || 'surveillant',
+              action: 'eleve.reactive',
+              target_type: 'eleves',
+              target_id: eleve.id,
+              target_label: `${eleve.prenom} ${eleve.nom}`,
+              metadata: { ecole_id: user.ecole_id },
+            });
+          } catch(e) { console.warn('[reactiverEleve] audit_log:', e); }
+          showMsg('success', lang==='ar'?'▶️ تم إعادة التفعيل':'▶️ Élève réactivé');
+          hideConfirm();
+          loadData();
+        } catch (err) {
+          console.error('[reactiverEleve]', err);
+          showMsg('error', lang==='ar'?'فشل': 'Échec : '+err.message);
+        } finally {
+          setConfirmLoading(false);
+        }
+      }
+    );
   };
 
   const supprimerEleve = (id) => {
@@ -1819,6 +1914,131 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile,
     showMsg('success', `✅ ${lang==='ar'?'تم الإضافة — المعرف:':'Ajouté — Login :'} ${login} ${lang==='ar'?'/ كلمة السر:':'/ MDP :'} ${mdp}`);
     setNewInst({ prenom: '', nom: '', identifiant: '', mot_de_passe: '', instituteur_id_ecole: '' });
     loadData();
+  };
+
+  // ────── ETAPE 7 - SUSPENSION D'INSTITUTEURS ────────────────────────
+  // L'instituteur suspendu ne peut plus se connecter (auth.js bloque le login).
+  // L'historique de ses validations reste figé sous son nom.
+  // 3 options pour ses eleves rattaches :
+  //  - transferer : reassigne instituteur_referent_id vers un autre instituteur
+  //  - detacher   : instituteur_referent_id = null
+  //  - garder     : laisse comme c'est (eleves restent rattaches a un suspendu)
+  const ouvrirModaleSuspendreInst = (inst) => {
+    const elevesRattaches = (eleves||[]).filter(e => e.instituteur_referent_id === inst.id);
+    setShowSuspendreInst({ inst, elevesRattaches });
+    setMotifSuspensionInst('');
+    setTransfertOption('transferer');
+    // Pre-selectionner le premier instituteur actif disponible pour le transfert
+    const premierActif = (instituteurs||[]).find(i => i.id !== inst.id && !i.suspendu_at && !i.deleted_at);
+    setTransfertVers(premierActif?.id || '');
+  };
+
+  const confirmerSuspensionInst = async () => {
+    if (!showSuspendreInst || savingSuspensionInst) return;
+    const { inst, elevesRattaches } = showSuspendreInst;
+
+    // Validation : si on transfere, il faut un instituteur cible
+    if (elevesRattaches.length > 0 && transfertOption === 'transferer' && !transfertVers) {
+      showMsg('error', lang==='ar'?'يرجى اختيار مدرس لنقل الطلاب':'Veuillez choisir un instituteur pour le transfert');
+      return;
+    }
+
+    setSavingSuspensionInst(true);
+    const motif = motifSuspensionInst.trim() || null;
+    try {
+      // Etape 1 : transferer / detacher les eleves selon l'option choisie
+      if (elevesRattaches.length > 0) {
+        if (transfertOption === 'transferer' && transfertVers) {
+          const { error: errTransf } = await supabase.from('eleves')
+            .update({ instituteur_referent_id: transfertVers })
+            .eq('instituteur_referent_id', inst.id)
+            .eq('ecole_id', user.ecole_id);
+          if (errTransf) throw errTransf;
+        } else if (transfertOption === 'detacher') {
+          const { error: errDetach } = await supabase.from('eleves')
+            .update({ instituteur_referent_id: null })
+            .eq('instituteur_referent_id', inst.id)
+            .eq('ecole_id', user.ecole_id);
+          if (errDetach) throw errDetach;
+        }
+        // Si 'garder' : on ne touche pas aux eleves
+      }
+
+      // Etape 2 : suspendre l'instituteur
+      const { error } = await supabase.from('utilisateurs')
+        .update({
+          suspendu_at: new Date().toISOString(),
+          suspendu_par: user.id,
+          suspendu_motif: motif,
+        })
+        .eq('id', inst.id);
+      if (error) throw error;
+
+      // Etape 3 : audit log
+      try {
+        await supabase.from('audit_log').insert({
+          actor_user_id: user.id,
+          actor_role: user.role || 'surveillant',
+          action: 'instituteur.suspendu',
+          target_type: 'utilisateurs',
+          target_id: inst.id,
+          target_label: `${inst.prenom} ${inst.nom}`,
+          metadata: {
+            motif: motif || null,
+            ecole_id: user.ecole_id,
+            nb_eleves_rattaches: elevesRattaches.length,
+            transfert_option: transfertOption,
+            transfert_vers: transfertOption === 'transferer' ? transfertVers : null,
+          },
+        });
+      } catch(e) { console.warn('[suspendreInst] audit_log:', e); }
+
+      showMsg('success', lang==='ar'?'⏸️ تم تعليق المدرس':'⏸️ Instituteur suspendu');
+      setShowSuspendreInst(null);
+      loadData();
+    } catch (err) {
+      console.error('[suspendreInst]', err);
+      showMsg('error', lang==='ar'?'فشل التعليق: '+err.message:'Échec : '+err.message);
+    } finally {
+      setSavingSuspensionInst(false);
+    }
+  };
+
+  const reactiverInst = (inst) => {
+    showConfirm(
+      lang==='ar'?'▶️ إعادة تفعيل المدرس':'▶️ Réactiver l\'instituteur',
+      lang==='ar'
+        ? `سيتم إعادة تفعيل المدرس ${inst.prenom} ${inst.nom}. سيتمكن من تسجيل الدخول مجددًا.`
+        : `${inst.prenom} ${inst.nom} sera réactivé et pourra à nouveau se connecter à l'application.`,
+      async () => {
+        setConfirmLoading(true);
+        try {
+          const { error } = await supabase.from('utilisateurs')
+            .update({ suspendu_at: null, suspendu_par: null, suspendu_motif: null })
+            .eq('id', inst.id);
+          if (error) throw error;
+          try {
+            await supabase.from('audit_log').insert({
+              actor_user_id: user.id,
+              actor_role: user.role || 'surveillant',
+              action: 'instituteur.reactive',
+              target_type: 'utilisateurs',
+              target_id: inst.id,
+              target_label: `${inst.prenom} ${inst.nom}`,
+              metadata: { ecole_id: user.ecole_id },
+            });
+          } catch(e) { console.warn('[reactiverInst] audit_log:', e); }
+          showMsg('success', lang==='ar'?'▶️ تم إعادة التفعيل':'▶️ Instituteur réactivé');
+          hideConfirm();
+          loadData();
+        } catch (err) {
+          console.error('[reactiverInst]', err);
+          showMsg('error', lang==='ar'?'فشل': 'Échec : '+err.message);
+        } finally {
+          setConfirmLoading(false);
+        }
+      }
+    );
   };
 
   const supprimerInstituteur = (inst) => {
@@ -2340,22 +2560,36 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
             <input style={{width:'100%',padding:'12px 16px',borderRadius:12,border:'0.5px solid #e0e0d8',fontSize:15,fontFamily:'inherit',boxSizing:'border-box',background:'#fff',marginBottom:8}}
               placeholder={lang==='ar'?'بحث عن طالب...':'Rechercher un élève...'}
               value={searchEleve||''} onChange={e=>setSearchEleve(e.target.value)}/>
+            {/* Toggle Afficher uniquement actifs */}
+            <label style={{display:'flex',alignItems:'center',gap:8,fontSize:12,color:'#666',marginBottom:8,paddingLeft:4,cursor:'pointer'}}>
+              <input type="checkbox" checked={afficherUniquementActifs}
+                onChange={e=>setAfficherUniquementActifs(e.target.checked)}/>
+              {lang==='ar'?'عرض الطلاب النشطين فقط':'Afficher uniquement les élèves actifs'}
+            </label>
             <div style={{fontSize:12,color:'#888',marginBottom:8,paddingLeft:4}}>
-              {eleves.filter(e=>!searchEleve||`${e.prenom} ${e.nom} ${e.eleve_id_ecole||''}`.toLowerCase().includes((searchEleve||'').toLowerCase())).length} {lang==='ar'?'طالب':'élève(s)'}
+              {eleves.filter(e => (!afficherUniquementActifs || !e.suspendu_at) && (!searchEleve||`${e.prenom} ${e.nom} ${e.eleve_id_ecole||''}`.toLowerCase().includes((searchEleve||'').toLowerCase()))).length} {lang==='ar'?'طالب':'élève(s)'}
             </div>
 
             {/* Liste élèves */}
-            {eleves.filter(e=>!searchEleve||`${e.prenom} ${e.nom} ${e.eleve_id_ecole||''}`.toLowerCase().includes((searchEleve||'').toLowerCase())).map(e=>{
+            {eleves.filter(e => (!afficherUniquementActifs || !e.suspendu_at) && (!searchEleve||`${e.prenom} ${e.nom} ${e.eleve_id_ecole||''}`.toLowerCase().includes((searchEleve||'').toLowerCase()))).map(e=>{
               const nc=getNC(e.code_niveau);
               const isSour=isSourateNiveauDyn(e.code_niveau,niveauxActifs||[]);
               const inst=instituteurs.find(i=>i.id===e.instituteur_referent_id);
               return(
-                <div key={e.id} style={{background:'#fff',borderRadius:12,padding:'12px 14px',marginBottom:8,border:'0.5px solid #e0e0d8',display:'flex',alignItems:'center',gap:10,boxShadow:'0 1px 3px rgba(0,0,0,0.04)'}}>
+                <div key={e.id} style={{background:'#fff',borderRadius:12,padding:'12px 14px',marginBottom:8,border:'0.5px solid #e0e0d8',display:'flex',alignItems:'center',gap:10,boxShadow:'0 1px 3px rgba(0,0,0,0.04)',opacity:e.suspendu_at?0.65:1}}>
                   <div onClick={()=>navigate('fiche',e,{tab})} style={{cursor:'pointer',width:40,height:40,borderRadius:'50%',background:`${nc}20`,color:nc,display:'flex',alignItems:'center',justifyContent:'center',fontWeight:800,fontSize:13,flexShrink:0}}>
                     {((e.prenom||'?')[0])+((e.nom||'?')[0])}
                   </div>
                   <div onClick={()=>navigate('fiche',e,{tab})} style={{flex:1,minWidth:0,cursor:'pointer'}}>
-                    <div style={{fontWeight:700,fontSize:13}}>{e.prenom} {e.nom}</div>
+                    <div style={{fontWeight:700,fontSize:13,display:'flex',alignItems:'center',gap:6,flexWrap:'wrap'}}>
+                      <span>{e.prenom} {e.nom}</span>
+                      {e.suspendu_at && (
+                        <span style={{display:'inline-block',padding:'1px 6px',borderRadius:8,fontSize:9,fontWeight:700,background:'#FFF3E0',color:'#D85A30',border:'0.5px solid #D85A30'}}
+                          title={e.suspendu_motif||''}>
+                          ⏸️ {lang==='ar'?'معلق':'Susp.'}
+                        </span>
+                      )}
+                    </div>
                     <div style={{display:'flex',gap:5,marginTop:2,alignItems:'center',flexWrap:'wrap'}}>
                       <span style={{padding:'1px 6px',borderRadius:10,background:`${nc}20`,color:nc,fontSize:10,fontWeight:700}}>{e.code_niveau||'?'}</span>
                       {e.eleve_id_ecole&&<span style={{fontSize:10,color:'#bbb'}}>#{e.eleve_id_ecole}</span>}
@@ -2372,6 +2606,13 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
                   {user.role==='surveillant'&&(
                     <div style={{display:'flex',gap:5,flexShrink:0}}>
                       <button onClick={()=>startEditEleve(e)} style={{background:'#E6F1FB',color:'#378ADD',border:'none',borderRadius:8,padding:'7px 9px',fontSize:12,cursor:'pointer'}}>✏️</button>
+                      {e.suspendu_at ? (
+                        <button onClick={()=>reactiverEleve(e)} title={lang==='ar'?'تفعيل':'Réactiver'}
+                          style={{background:'#E1F5EE',color:'#085041',border:'none',borderRadius:8,padding:'7px 9px',fontSize:12,cursor:'pointer'}}>▶️</button>
+                      ) : (
+                        <button onClick={()=>ouvrirModaleSuspendre(e)} title={lang==='ar'?'تعليق':'Suspendre'}
+                          style={{background:'#FFF3E0',color:'#D85A30',border:'none',borderRadius:8,padding:'7px 9px',fontSize:12,cursor:'pointer'}}>⏸️</button>
+                      )}
                       <button onClick={()=>supprimerEleve(e.id)} style={{background:'#FCEBEB',color:'#E24B4A',border:'none',borderRadius:8,padding:'7px 9px',fontSize:12,cursor:'pointer'}}>🗑</button>
                     </div>
                   )}
@@ -2419,15 +2660,21 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
                 </div>
               </div>
             )}
+            {/* Toggle Afficher uniquement actifs */}
+            <label style={{display:'flex',alignItems:'center',gap:8,fontSize:12,color:'#666',marginBottom:8,paddingLeft:4,cursor:'pointer'}}>
+              <input type="checkbox" checked={afficherUniquementActifsInst}
+                onChange={e=>setAfficherUniquementActifsInst(e.target.checked)}/>
+              {lang==='ar'?'عرض المدرسين النشطين فقط':'Afficher uniquement les instituteurs actifs'}
+            </label>
             {instituteurs.length===0?(
               <div style={{textAlign:'center',color:'#aaa',padding:'3rem',background:'#fff',borderRadius:12}}>
                 <div style={{fontSize:36,marginBottom:10}}>👨‍🏫</div>
                 <div style={{fontSize:14}}>{lang==='ar'?'لا يوجد أساتذة':'Aucun instituteur'}</div>
               </div>
-            ):instituteurs.map(inst=>{
+            ):instituteurs.filter(inst => !afficherUniquementActifsInst || !inst.suspendu_at).map(inst=>{
               const nb=eleves.filter(e=>e.instituteur_referent_id===inst.id).length;
               return(
-                <div key={inst.id} style={{background:'#fff',borderRadius:12,padding:'14px',marginBottom:8,border:'0.5px solid #e0e0d8',display:'flex',alignItems:'center',gap:12}}>
+                <div key={inst.id} style={{background:'#fff',borderRadius:12,padding:'14px',marginBottom:8,border:'0.5px solid #e0e0d8',display:'flex',alignItems:'center',gap:12,opacity:inst.suspendu_at?0.65:1}}>
                   <div style={{width:42,height:42,borderRadius:'50%',background:'#E6F1FB',color:'#0C447C',display:'flex',alignItems:'center',justifyContent:'center',fontWeight:800,fontSize:14,flexShrink:0}}>
                     {((inst.prenom||'?')[0])+((inst.nom||'?')[0])}
                   </div>
@@ -2440,11 +2687,26 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
                           borderRadius:6,fontSize:10,fontWeight:700,
                         }}>{inst.instituteur_id_ecole}</div>
                       )}
+                      {inst.suspendu_at && (
+                        <span style={{display:'inline-block',padding:'1px 6px',borderRadius:8,fontSize:9,fontWeight:700,background:'#FFF3E0',color:'#D85A30',border:'0.5px solid #D85A30'}}
+                          title={inst.suspendu_motif||''}>
+                          ⏸️ {lang==='ar'?'معلق':'Susp.'}
+                        </span>
+                      )}
                     </div>
                     <div style={{fontSize:11,color:'#888',marginTop:2}}>{inst.identifiant} · {nb} {lang==='ar'?'طالب':'élève(s)'}</div>
                   </div>
                   {user.role==='surveillant'&&(
-                    <button onClick={()=>supprimerInstituteur(inst)} style={{background:'#FCEBEB',color:'#E24B4A',border:'none',borderRadius:8,padding:'8px 10px',fontSize:12,cursor:'pointer'}}>🗑</button>
+                    <div style={{display:'flex',gap:5,flexShrink:0}}>
+                      {inst.suspendu_at ? (
+                        <button onClick={()=>reactiverInst(inst)} title={lang==='ar'?'تفعيل':'Réactiver'}
+                          style={{background:'#E1F5EE',color:'#085041',border:'none',borderRadius:8,padding:'7px 9px',fontSize:12,cursor:'pointer'}}>▶️</button>
+                      ) : (
+                        <button onClick={()=>ouvrirModaleSuspendreInst(inst)} title={lang==='ar'?'تعليق':'Suspendre'}
+                          style={{background:'#FFF3E0',color:'#D85A30',border:'none',borderRadius:8,padding:'7px 9px',fontSize:12,cursor:'pointer'}}>⏸️</button>
+                      )}
+                      <button onClick={()=>supprimerInstituteur(inst)} style={{background:'#FCEBEB',color:'#E24B4A',border:'none',borderRadius:8,padding:'7px 9px',fontSize:12,cursor:'pointer'}}>🗑</button>
+                    </div>
                   )}
                 </div>
               );
@@ -3009,6 +3271,13 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
           </div>
           {loading ? <div className="loading">...</div> : (
             <div className="table-wrap">
+              <div style={{display:'flex',justifyContent:'flex-end',alignItems:'center',gap:8,padding:'8px 12px',fontSize:12,color:'#666'}}>
+                <label style={{display:'flex',alignItems:'center',gap:6,cursor:'pointer'}}>
+                  <input type="checkbox" checked={afficherUniquementActifs}
+                    onChange={e=>setAfficherUniquementActifs(e.target.checked)}/>
+                  {lang==='ar'?'عرض الطلاب النشطين فقط':'Afficher uniquement les actifs'}
+                </label>
+              </div>
               <table>
                 <thead><tr>
                   <th style={{width:'20%'}}>{t(lang,'eleve')}</th>
@@ -3021,12 +3290,12 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
                 </tr></thead>
                 <tbody>
                   {eleves.length === 0 && <tr><td colSpan={5} className="empty">{t(lang, 'aucun_eleve')}</td></tr>}
-                  {eleves.map(e => {
+                  {eleves.filter(e => !afficherUniquementActifs || !e.suspendu_at).map(e => {
                     const nc = (niveauxDyn||[]).find(n=>n.code===e.code_niveau)?.couleur || {'5B':'#534AB7','5A':'#378ADD','2M':'#1D9E75','2':'#EF9F27','1':'#E24B4A'}[e.code_niveau]||'#888';
                     const isSour = (niveauxDyn||[]).find(n=>n.code===e.code_niveau)?.type==='sourate' || ['5B','5A','2M'].includes(e.code_niveau||'');
                     const niv = e.niveau==='Avancé'||e.niveau==='متقدم' ? {label:lang==='ar'?'متقدم':'Avancé',bg:'#E1F5EE',color:'#085041'} : e.niveau==='Intermédiaire'||e.niveau==='متوسط' ? {label:lang==='ar'?'متوسط':'Interm.',bg:'#E6F1FB',color:'#378ADD'} : {label:lang==='ar'?'مبتدئ':'Débutant',bg:'#FAEEDA',color:'#EF9F27'};
                     return (
-                    <tr key={e.id} style={{background:editEleve?.id===e.id?'#E1F5EE':'#fff',borderBottom:'0.5px solid #f0f0ec'}}>
+                    <tr key={e.id} style={{background:editEleve?.id===e.id?'#E1F5EE':'#fff',borderBottom:'0.5px solid #f0f0ec',opacity:e.suspendu_at?0.65:1}}>
                       {/* Élève */}
                       <td style={{padding:'8px 12px'}}>
                         <div style={{display:'flex',alignItems:'center',gap:8}}>
@@ -3034,7 +3303,15 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
                             {((e.prenom||'?')[0])+((e.nom||'?')[0])}
                           </div>
                           <div>
-                            <div style={{fontWeight:600,fontSize:13}}>{e.prenom} {e.nom}</div>
+                            <div style={{fontWeight:600,fontSize:13,display:'flex',alignItems:'center',gap:6,flexWrap:'wrap'}}>
+                              <span>{e.prenom} {e.nom}</span>
+                              {e.suspendu_at && (
+                                <span style={{display:'inline-block',padding:'1px 7px',borderRadius:8,fontSize:9,fontWeight:700,background:'#FFF3E0',color:'#D85A30',border:'0.5px solid #D85A30'}}
+                                  title={e.suspendu_motif || ''}>
+                                  ⏸️ {lang==='ar'?'معلق':'Suspendu'}
+                                </span>
+                              )}
+                            </div>
                             {e.eleve_id_ecole&&<div style={{fontSize:10,color:'#bbb'}}>#{e.eleve_id_ecole}</div>}
                           </div>
                         </div>
@@ -3076,11 +3353,24 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
                       </td>
                       {/* Actions */}
                       <td style={{padding:'8px 10px'}}>
-                        <div style={{display:'flex',gap:4}}>
+                        <div style={{display:'flex',gap:4,flexWrap:'wrap'}}>
                           <button onClick={()=>{setEditEleve({...e});setEditShowAcquisSelector(false);window.scrollTo(0,0);}}
                             style={{padding:'4px 8px',background:'#E6F1FB',color:'#378ADD',border:'none',borderRadius:6,cursor:'pointer',fontSize:11,fontWeight:600}}>
                             ✏️ {t(lang,'modifier_btn')}
                           </button>
+                          {e.suspendu_at ? (
+                            <button onClick={()=>reactiverEleve(e)}
+                              title={lang==='ar'?'إعادة تفعيل':'Réactiver'}
+                              style={{padding:'4px 8px',background:'#E1F5EE',color:'#085041',border:'none',borderRadius:6,cursor:'pointer',fontSize:11,fontWeight:600}}>
+                              ▶️ {lang==='ar'?'تفعيل':'Réactiver'}
+                            </button>
+                          ) : (
+                            <button onClick={()=>ouvrirModaleSuspendre(e)}
+                              title={lang==='ar'?'تعليق الطالب':'Suspendre'}
+                              style={{padding:'4px 8px',background:'#FFF3E0',color:'#D85A30',border:'none',borderRadius:6,cursor:'pointer',fontSize:11,fontWeight:600}}>
+                              ⏸️ {lang==='ar'?'تعليق':'Susp.'}
+                            </button>
+                          )}
                           <button onClick={()=>supprimerEleve(e.id)}
                             style={{padding:'4px 7px',background:'#FCEBEB',color:'#E24B4A',border:'none',borderRadius:6,cursor:'pointer',fontSize:12}}>
                             🗑
@@ -3187,6 +3477,13 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
               </div>
             )}
             <div className="table-wrap">
+              <div style={{display:'flex',justifyContent:'flex-end',alignItems:'center',gap:8,padding:'8px 12px',fontSize:12,color:'#666'}}>
+                <label style={{display:'flex',alignItems:'center',gap:6,cursor:'pointer'}}>
+                  <input type="checkbox" checked={afficherUniquementActifsInst}
+                    onChange={e=>setAfficherUniquementActifsInst(e.target.checked)}/>
+                  {lang==='ar'?'عرض المدرسين النشطين فقط':'Afficher uniquement les actifs'}
+                </label>
+              </div>
               <table>
                 <thead><tr>
                   <th style={{width:'15%'}}>{lang==='ar'?'الرقم':'Numéro'}</th>
@@ -3196,8 +3493,8 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
                 </tr></thead>
                 <tbody>
                   {instituteurs.length === 0 && <tr><td colSpan={4} className="empty">{t(lang, 'aucun_instituteur')}</td></tr>}
-                  {instituteurs.map(i => (
-                    <tr key={i.id}>
+                  {instituteurs.filter(i => !afficherUniquementActifsInst || !i.suspendu_at).map(i => (
+                    <tr key={i.id} style={{opacity:i.suspendu_at?0.65:1}}>
                       <td>
                         {i.instituteur_id_ecole ? (
                           <span style={{display:'inline-block',padding:'3px 10px',background:'#E1F5EE',color:'#085041',borderRadius:6,fontSize:11,fontWeight:700}}>
@@ -3207,11 +3504,33 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
                           <span style={{color:'#bbb',fontSize:11,fontStyle:'italic'}}>—</span>
                         )}
                       </td>
-                      <td><div style={{display:'flex',alignItems:'center',gap:8}}><Avatar prenom={i.prenom} nom={i.nom}/>{i.prenom} {i.nom}</div></td>
+                      <td>
+                        <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}>
+                          <Avatar prenom={i.prenom} nom={i.nom}/>
+                          <span>{i.prenom} {i.nom}</span>
+                          {i.suspendu_at && (
+                            <span style={{display:'inline-block',padding:'1px 7px',borderRadius:8,fontSize:9,fontWeight:700,background:'#FFF3E0',color:'#D85A30',border:'0.5px solid #D85A30'}}
+                              title={i.suspendu_motif||''}>
+                              ⏸️ {lang==='ar'?'معلق':'Suspendu'}
+                            </span>
+                          )}
+                        </div>
+                      </td>
                       <td style={{fontSize:12,color:'#888'}}>{i.identifiant}</td>
-                      <td style={{display:'flex',gap:4,alignItems:'center',padding:'8px 4px'}}>
+                      <td style={{display:'flex',gap:4,alignItems:'center',padding:'8px 4px',flexWrap:'wrap'}}>
                         <button onClick={()=>{setEditInstituteur(i.id);setFormEditInst({prenom:i.prenom,nom:i.nom,identifiant:i.identifiant,mot_de_passe:'',instituteur_id_ecole:i.instituteur_id_ecole||''});}}
                           style={{padding:'4px 10px',background:'#E6F1FB',color:'#378ADD',border:'0.5px solid #378ADD30',borderRadius:6,cursor:'pointer',fontSize:11,fontWeight:600}}>✏️ {lang==='ar'?'تعديل':'Modifier'}</button>
+                        {i.suspendu_at ? (
+                          <button onClick={()=>reactiverInst(i)}
+                            style={{padding:'4px 8px',background:'#E1F5EE',color:'#085041',border:'none',borderRadius:6,cursor:'pointer',fontSize:11,fontWeight:600}}>
+                            ▶️ {lang==='ar'?'تفعيل':'Réactiver'}
+                          </button>
+                        ) : (
+                          <button onClick={()=>ouvrirModaleSuspendreInst(i)}
+                            style={{padding:'4px 8px',background:'#FFF3E0',color:'#D85A30',border:'none',borderRadius:6,cursor:'pointer',fontSize:11,fontWeight:600}}>
+                            ⏸️ {lang==='ar'?'تعليق':'Suspendre'}
+                          </button>
+                        )}
                         <button className="action-btn danger" onClick={() => supprimerInstituteur(i)}>{t(lang, 'retirer')}</button>
                       </td>
                     </tr>
@@ -3431,6 +3750,170 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
           niveaux={niveauxActifs||[]} setNiveaux={setNiveauxDyn}
           showMsg={showMsg}
         />
+      )}
+
+      {/* ─── Modale Suspendre instituteur (Etape 7) ─── */}
+      {showSuspendreInst && (() => {
+        const { inst, elevesRattaches } = showSuspendreInst;
+        const instituteursDispo = (instituteurs||[]).filter(i =>
+          i.id !== inst.id && !i.suspendu_at && !i.deleted_at);
+        return (
+          <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.5)',zIndex:1000,
+            display:'flex',alignItems:'center',justifyContent:'center',padding:20}}
+            onClick={()=>{ if(!savingSuspensionInst) setShowSuspendreInst(null); }}>
+            <div onClick={e=>e.stopPropagation()}
+              style={{background:'#fff',borderRadius:14,maxWidth:540,width:'100%',padding:24,boxShadow:'0 10px 40px rgba(0,0,0,0.2)',maxHeight:'90vh',overflowY:'auto'}}>
+              <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:14}}>
+                <div style={{fontSize:28}}>⏸️</div>
+                <div>
+                  <div style={{fontSize:17,fontWeight:800,color:'#D85A30'}}>
+                    {lang==='ar'?'تعليق المدرس':'Suspendre l\'instituteur'}
+                  </div>
+                  <div style={{fontSize:13,color:'#666',marginTop:2}}>
+                    {inst.prenom} {inst.nom} · {inst.identifiant}
+                  </div>
+                </div>
+              </div>
+              <div style={{background:'#FFF8EC',border:'0.5px solid #FFE0B5',borderRadius:10,padding:'10px 12px',fontSize:12,color:'#8a5a00',marginBottom:14,lineHeight:1.5}}>
+                {lang==='ar'
+                  ? 'المدرس المعلق لن يستطيع تسجيل الدخول إلى التطبيق. السجل السابق لتصحيحاته يبقى محفوظًا تحت اسمه. يمكنك إعادة تفعيله في أي وقت.'
+                  : 'L\'instituteur suspendu ne pourra plus se connecter à l\'application. Son historique de validations reste figé sous son nom. Réactivable à tout moment.'}
+              </div>
+
+              {/* Section transfert eleves */}
+              {elevesRattaches.length > 0 && (
+                <div style={{background:'#F0F4FA',border:'0.5px solid #d0d8e8',borderRadius:10,padding:'12px 14px',marginBottom:14}}>
+                  <div style={{fontSize:13,fontWeight:700,color:'#374151',marginBottom:8}}>
+                    👥 {elevesRattaches.length} {lang==='ar'?'طالب مرتبط':elevesRattaches.length===1?'élève rattaché':'élèves rattachés'}
+                  </div>
+                  <div style={{fontSize:12,color:'#6b7280',marginBottom:10,lineHeight:1.5}}>
+                    {lang==='ar'
+                      ? 'اختر ماذا تفعل بطلابه. السجل السابق يبقى تحت اسمه.'
+                      : 'Choisissez ce que vous voulez faire de ses élèves. L\'historique passé reste sous son nom.'}
+                  </div>
+
+                  <label style={{display:'flex',alignItems:'flex-start',gap:8,padding:8,borderRadius:8,background:transfertOption==='transferer'?'#fff':'transparent',border:transfertOption==='transferer'?'0.5px solid #1D9E75':'0.5px solid transparent',marginBottom:6,cursor:'pointer'}}>
+                    <input type="radio" name="transfert-opt" checked={transfertOption==='transferer'}
+                      onChange={()=>setTransfertOption('transferer')} style={{marginTop:3}}/>
+                    <div style={{flex:1}}>
+                      <div style={{fontSize:13,fontWeight:600,color:'#085041'}}>
+                        {lang==='ar'?'➡️ نقل إلى مدرس آخر (موصى به)':'➡️ Transférer vers un autre instituteur (recommandé)'}
+                      </div>
+                      {transfertOption==='transferer' && (
+                        <select value={transfertVers} onChange={e=>setTransfertVers(e.target.value)}
+                          style={{width:'100%',padding:'8px 10px',marginTop:6,borderRadius:8,border:'0.5px solid #d0d8e8',fontSize:12,fontFamily:'inherit'}}>
+                          <option value="">— {lang==='ar'?'اختر مدرسًا...':'Choisir...'}</option>
+                          {instituteursDispo.map(i=>(
+                            <option key={i.id} value={i.id}>{i.prenom} {i.nom} ({i.identifiant})</option>
+                          ))}
+                        </select>
+                      )}
+                    </div>
+                  </label>
+
+                  <label style={{display:'flex',alignItems:'flex-start',gap:8,padding:8,borderRadius:8,background:transfertOption==='detacher'?'#fff':'transparent',border:transfertOption==='detacher'?'0.5px solid #EF9F27':'0.5px solid transparent',marginBottom:6,cursor:'pointer'}}>
+                    <input type="radio" name="transfert-opt" checked={transfertOption==='detacher'}
+                      onChange={()=>setTransfertOption('detacher')} style={{marginTop:3}}/>
+                    <div style={{fontSize:13,color:'#374151'}}>
+                      {lang==='ar'?'🔓 فصل الطلاب (بدون مدرس مرجعي)':'🔓 Détacher les élèves (sans référent)'}
+                    </div>
+                  </label>
+
+                  <label style={{display:'flex',alignItems:'flex-start',gap:8,padding:8,borderRadius:8,background:transfertOption==='garder'?'#fff':'transparent',border:transfertOption==='garder'?'0.5px solid #888':'0.5px solid transparent',cursor:'pointer'}}>
+                    <input type="radio" name="transfert-opt" checked={transfertOption==='garder'}
+                      onChange={()=>setTransfertOption('garder')} style={{marginTop:3}}/>
+                    <div style={{fontSize:13,color:'#374151'}}>
+                      {lang==='ar'?'⏸️ الإبقاء كما هو (الطلاب يبقون مرتبطين بالمدرس المعلق)':'⏸️ Garder en l\'état (élèves restent rattachés)'}
+                    </div>
+                  </label>
+                </div>
+              )}
+
+              <label style={{display:'block',fontSize:12,fontWeight:600,color:'#666',marginBottom:6}}>
+                {lang==='ar'?'سبب التعليق (اختياري)':'Motif de suspension (optionnel)'}
+              </label>
+              <input type="text" list="motif-inst-suggestions" value={motifSuspensionInst}
+                onChange={e=>setMotifSuspensionInst(e.target.value)}
+                placeholder={lang==='ar'?'مثلاً: عطلة، مرض، انتهاء العقد...':'Ex: vacances, maladie, fin de contrat...'}
+                style={{width:'100%',padding:'10px 12px',borderRadius:10,border:'0.5px solid #e0e0d8',
+                  fontSize:13,fontFamily:'inherit',boxSizing:'border-box'}}/>
+              <datalist id="motif-inst-suggestions">
+                <option value={lang==='ar'?'عطلة':'Vacances'}/>
+                <option value={lang==='ar'?'مرض':'Maladie'}/>
+                <option value={lang==='ar'?'انتهاء العقد':'Fin de contrat'}/>
+                <option value={lang==='ar'?'استقالة':'Démission'}/>
+                <option value={lang==='ar'?'أخرى':'Autre'}/>
+              </datalist>
+
+              <div style={{display:'flex',gap:8,marginTop:14}}>
+                <button onClick={()=>setShowSuspendreInst(null)} disabled={savingSuspensionInst}
+                  style={{flex:1,padding:'11px',background:'#f5f5f0',color:'#666',border:'none',borderRadius:10,fontSize:13,fontWeight:600,cursor:savingSuspensionInst?'not-allowed':'pointer',fontFamily:'inherit'}}>
+                  {lang==='ar'?'إلغاء':'Annuler'}
+                </button>
+                <button onClick={confirmerSuspensionInst} disabled={savingSuspensionInst}
+                  style={{flex:2,padding:'11px',background:savingSuspensionInst?'#ccc':'#D85A30',color:'#fff',border:'none',borderRadius:10,fontSize:13,fontWeight:700,cursor:savingSuspensionInst?'not-allowed':'pointer',fontFamily:'inherit'}}>
+                  {savingSuspensionInst
+                    ? '⏳ '+(lang==='ar'?'جاري الحفظ...':'En cours...')
+                    : '⏸️ '+(lang==='ar'?'تعليق':'Suspendre')}
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* ─── Modale Suspendre élève (Etape 6) ─── */}
+      {showSuspendreEleve && (
+        <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.5)',zIndex:1000,
+          display:'flex',alignItems:'center',justifyContent:'center',padding:20}}
+          onClick={()=>{ if(!savingSuspension) setShowSuspendreEleve(null); }}>
+          <div onClick={e=>e.stopPropagation()}
+            style={{background:'#fff',borderRadius:14,maxWidth:480,width:'100%',padding:24,boxShadow:'0 10px 40px rgba(0,0,0,0.2)'}}>
+            <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:14}}>
+              <div style={{fontSize:28}}>⏸️</div>
+              <div>
+                <div style={{fontSize:17,fontWeight:800,color:'#D85A30'}}>
+                  {lang==='ar'?'تعليق الطالب':'Suspendre l\'élève'}
+                </div>
+                <div style={{fontSize:13,color:'#666',marginTop:2}}>
+                  {showSuspendreEleve.prenom} {showSuspendreEleve.nom}
+                </div>
+              </div>
+            </div>
+            <div style={{background:'#FFF8EC',border:'0.5px solid #FFE0B5',borderRadius:10,padding:'10px 12px',fontSize:12,color:'#8a5a00',marginBottom:14,lineHeight:1.5}}>
+              {lang==='ar'
+                ? 'الطالب المعلق لن يظهر في قوائم التسجيل والتقارير، لكن بياناته السابقة (الاستظهارات، الشهادات، إلخ) تبقى محفوظة. يمكنك إعادة تفعيله في أي وقت.'
+                : 'L\'élève suspendu n\'apparaîtra plus dans les listes de validation et les rapports, mais toutes ses données (récitations, certificats, etc.) restent conservées. Réactivable à tout moment.'}
+            </div>
+            <label style={{display:'block',fontSize:12,fontWeight:600,color:'#666',marginBottom:6}}>
+              {lang==='ar'?'سبب التعليق (اختياري)':'Motif de suspension (optionnel)'}
+            </label>
+            <input type="text" list="motif-suggestions" value={motifSuspension}
+              onChange={e=>setMotifSuspension(e.target.value)}
+              placeholder={lang==='ar'?'مثلاً: عطلة، مرض، انتقال...':'Ex: vacances, maladie, déménagement...'}
+              style={{width:'100%',padding:'10px 12px',borderRadius:10,border:'0.5px solid #e0e0d8',
+                fontSize:13,fontFamily:'inherit',boxSizing:'border-box',marginBottom:6}}/>
+            <datalist id="motif-suggestions">
+              <option value={lang==='ar'?'عطلة':'Vacances'}/>
+              <option value={lang==='ar'?'مرض':'Maladie'}/>
+              <option value={lang==='ar'?'انتقال':'Déménagement'}/>
+              <option value={lang==='ar'?'تغيير مدرسة':'Changement d\'école'}/>
+              <option value={lang==='ar'?'أخرى':'Autre'}/>
+            </datalist>
+            <div style={{display:'flex',gap:8,marginTop:14}}>
+              <button onClick={()=>setShowSuspendreEleve(null)} disabled={savingSuspension}
+                style={{flex:1,padding:'11px',background:'#f5f5f0',color:'#666',border:'none',borderRadius:10,fontSize:13,fontWeight:600,cursor:savingSuspension?'not-allowed':'pointer',fontFamily:'inherit'}}>
+                {lang==='ar'?'إلغاء':'Annuler'}
+              </button>
+              <button onClick={confirmerSuspension} disabled={savingSuspension}
+                style={{flex:2,padding:'11px',background:savingSuspension?'#ccc':'#D85A30',color:'#fff',border:'none',borderRadius:10,fontSize:13,fontWeight:700,cursor:savingSuspension?'not-allowed':'pointer',fontFamily:'inherit'}}>
+                {savingSuspension
+                  ? '⏳ '+(lang==='ar'?'جاري الحفظ...':'En cours...')
+                  : '⏸️ '+(lang==='ar'?'تعليق':'Suspendre')}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* ─── Modale de confirmation (utilisée par showConfirm) ─── */}

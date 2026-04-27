@@ -140,7 +140,7 @@ export async function generateRgpdExport(user, scope = 'self') {
           .in('eleve_id', eleveIds)
           .order('date_validation', { ascending: false }),
         supabase.from('certificats_eleves')
-          .select('id,eleve_id,jalon_id,date_obtention')
+          .select('id,eleve_id,jalon_id,date_emission,titre,type_certificat')
           .in('eleve_id', eleveIds),
         supabase.from('recitations_sourates')
           .select('id,eleve_id,type_recitation,date_validation')
@@ -198,7 +198,9 @@ export async function generateRgpdExport(user, scope = 'self') {
           .map(c => ({
             id: c.id,
             jalon_id: c.jalon_id,
-            date_obtention: c.date_obtention,
+            titre: c.titre,
+            type: c.type_certificat,
+            date_obtention: c.date_emission,
           })),
       }));
 

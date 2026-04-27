@@ -49,7 +49,7 @@ export default function RapportMensuel({ user, navigate, goBack, lang='fr', isMo
       {data:el},{data:nv},{data:inst},{data:vd},{data:rd},
       {data:ob},{data:ex},{data:re},{data:ec}
     ] = await Promise.all([
-      supabase.from('eleves').select('*').eq('ecole_id',user.ecole_id).order('nom'),
+      supabase.from('eleves').select('*').eq('ecole_id',user.ecole_id).is('suspendu_at', null).order('nom'),
       supabase.from('niveaux').select('*').eq('ecole_id',user.ecole_id).order('ordre'),
       supabase.from('utilisateurs').select('*').eq('role','instituteur').eq('ecole_id',user.ecole_id),
       fetchAll(supabase.from('validations').select('*').eq('ecole_id',user.ecole_id)).then(data=>({data})),
@@ -236,22 +236,25 @@ export default function RapportMensuel({ user, navigate, goBack, lang='fr', isMo
           </div>
         </div>
       ) : (
-      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'1.25rem',flexWrap:'wrap',gap:8}}>
-        <div style={{display:'flex',alignItems:'center',gap:10}}>
+      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'1.25rem',flexWrap:'wrap',gap:10}}>
+        <div style={{display:'flex',alignItems:'center',gap:10,flex:1,minWidth:200}}>
           <button onClick={()=>goBack?goBack():navigate('dashboard')} className="back-link"></button>
-          <div style={{fontSize:20,fontWeight:700}}>📊 {lang==='ar'?'التقرير الشهري':'Rapport mensuel'}</div>
+          <div style={{fontSize:20,fontWeight:800,color:'#1a1a1a'}}>📊 {lang==='ar'?'التقرير الشهري':'Rapport mensuel'}</div>
         </div>
-        <div style={{display:'flex',alignItems:'center',gap:8}}>
-          <button onClick={prevMois} style={{padding:'6px 12px',border:'0.5px solid #e0e0d8',borderRadius:8,background:'#fff',cursor:'pointer',fontSize:16}}>‹</button>
-          <div style={{fontSize:15,fontWeight:700,minWidth:140,textAlign:'center'}}>{getMoisNom(mois,lang)} {annee}</div>
-          <button onClick={nextMois} style={{padding:'6px 12px',border:'0.5px solid #e0e0d8',borderRadius:8,background:'#fff',cursor:'pointer',fontSize:16}}>›</button>
+        <div style={{display:'flex',alignItems:'center',gap:10,flexWrap:'wrap'}}>
+          <div style={{display:'flex',alignItems:'center',gap:6}}>
+            <button onClick={prevMois} style={{padding:'6px 12px',border:'0.5px solid #e0e0d8',borderRadius:8,background:'#fff',cursor:'pointer',fontSize:16}}>‹</button>
+            <div style={{fontSize:13,fontWeight:700,minWidth:120,textAlign:'center'}}>{getMoisNom(mois,lang)} {annee}</div>
+            <button onClick={nextMois} style={{padding:'6px 12px',border:'0.5px solid #e0e0d8',borderRadius:8,background:'#fff',cursor:'pointer',fontSize:16}}>›</button>
+          </div>
+          <ExportButtons
+            onPDF={genererRapportPDF}
+            lang={lang}
+            variant="inline"
+            compact
+            disabled={generating||loading}
+          />
         </div>
-        <ExportButtons
-          onPDF={genererRapportPDF}
-          lang={lang}
-          variant="inline"
-          disabled={generating||loading}
-        />
       </div>
       )}
 

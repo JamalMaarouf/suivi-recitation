@@ -111,7 +111,7 @@ module.exports = async function handler(req, res) {
 
     // ─── 2. Charger tous les parents concernés en 1 requête ──
     const parentIds = [...new Set(notifs.map(n => n.parent_id))];
-    const parentsUrl = `utilisateurs?select=id,prenom,nom,email&id=in.(${parentIds.join(',')})&deleted_at=is.null`;
+    const parentsUrl = `utilisateurs?select=id,prenom,nom,email&id=in.(${parentIds.join(',')})&deleted_at=is.null&suspendu_at=is.null`;
     const parents = await sbGet(supabaseUrl, serviceKey, parentsUrl);
     const parentsMap = {};
     for (const p of parents) parentsMap[p.id] = p;

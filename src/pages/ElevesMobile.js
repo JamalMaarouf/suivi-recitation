@@ -26,7 +26,7 @@ export default function ElevesMobile({ user, navigate, goBack, lang='ar' }) {
     try {
     const [{ data: ed }, { data: id }, { data: niv }] = await Promise.all([
       supabase.from('eleves').select('*').eq('ecole_id', user.ecole_id).limit(500).order('nom').order('nom'),
-      supabase.from('utilisateurs').select('id,prenom,nom').eq('role','instituteur').eq('ecole_id', user.ecole_id),
+      supabase.from('utilisateurs').select('id,prenom,nom').eq('role','instituteur').eq('ecole_id', user.ecole_id).is('suspendu_at', null),
       supabase.from('niveaux').select('id,code,nom,couleur,type').eq('ecole_id', user.ecole_id).order('ordre'),
     ]);
     setEleves(ed || []);

@@ -145,6 +145,12 @@ module.exports = async function handler(req, res) {
       return res.status(401).json({ error: 'Identifiant ou mot de passe incorrect' });
     }
 
+    // SUSPENSION (Etape 7) : un instituteur/parent suspendu ne peut plus se connecter
+    if (user.suspendu_at) {
+      recordFailedAttempt(rlKey);
+      return res.status(403).json({ error: 'compte_suspendu' });
+    }
+
     // Vérification statut compte (on ne compte PAS ces cas dans le rate limit —
     // le compte existe et le mot de passe n'a pas encore été testé)
     if (user.statut_compte === 'en_attente') {
@@ -212,6 +218,11 @@ module.exports = async function handler(req, res) {
     // SOFT-DELETE : un utilisateur supprime ne peut plus changer son MDP
     if (user.deleted_at) {
       return res.status(404).json({ error: 'Utilisateur non trouvé' });
+    }
+
+    // SUSPENSION (Etape 7) : un utilisateur suspendu ne peut plus changer son MDP
+    if (user.suspendu_at) {
+      return res.status(403).json({ error: 'compte_suspendu' });
     }
 
     // Vérifier l'ancien mot de passe

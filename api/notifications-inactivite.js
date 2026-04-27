@@ -65,7 +65,7 @@ module.exports = async function handler(req, res) {
   try {
     // ─── 1. Charger tous les élèves non supprimés ──────────
     const eleves = await sbGet(supabaseUrl, serviceKey,
-      'eleves?select=id,prenom,nom,ecole_id&deleted_at=is.null&limit=10000');
+      'eleves?select=id,prenom,nom,ecole_id&deleted_at=is.null&suspendu_at=is.null&limit=10000');
 
     // ─── 2. Pour chaque élève, trouver sa dernière validation ──
     // Optimisation : charger toutes les validations récentes en 1 coup
