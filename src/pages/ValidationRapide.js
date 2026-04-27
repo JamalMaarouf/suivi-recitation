@@ -215,7 +215,10 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
     // Si programme défini : la dernière = sourate avec le plus petit numéro dans le programme
     if (programmeNiveau.length > 0) {
       const souratesProg = programmeNiveau.map(p => {
-        const s = souratesDB.find(sd => sd.id === p.reference_id);
+        // p.reference_id est en TEXT (string), s.id est integer.
+        // On compare via parseInt pour eviter le mismatch de types.
+        const refIdInt = parseInt(p.reference_id);
+        const s = souratesDB.find(sd => sd.id === refIdInt);
         return s?.numero;
       }).filter(Boolean);
       if (souratesProg.length > 0) {

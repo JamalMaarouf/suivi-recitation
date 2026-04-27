@@ -97,19 +97,13 @@ export default function GestionExamens({ user, navigate, goBack, lang='fr', isMo
     if (niv?.type === 'hizb') {
       setProgrammeNiveau(data.map(d => parseInt(d.reference_id)));
     } else {
-      // Sourate : vérifier que les UUIDs existent dans souratesDB
-      const ids = data.map(d => d.reference_id);
-      const idsValides = ids.filter(id => sDB.some(s => s.id === id));
-      if (idsValides.length > 0) {
-        setProgrammeNiveau(idsValides);
-      } else {
-        // Migration : numéros → UUIDs
-        const convertis = ids.map(id => {
-          const num = parseInt(id);
-          return isNaN(num) ? id : sDB.find(s => s.numero === num)?.id || null;
-        }).filter(Boolean);
-        setProgrammeNiveau(convertis);
-      }
+      // Sourate : reference_id est stocke en TEXT, contenant l'id integer
+      // de la sourate sous forme string. On convertit en integer pour comparer.
+      const setIdsValides = new Set(sDB.map(s => s.id));
+      const ids = data
+        .map(d => parseInt(d.reference_id))
+        .filter(id => !isNaN(id) && setIdsValides.has(id));
+      setProgrammeNiveau(ids);
     }
   };
 

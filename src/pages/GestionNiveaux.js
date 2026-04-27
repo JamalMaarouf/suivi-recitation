@@ -483,7 +483,7 @@ export default function GestionNiveaux({ user, navigate, goBack, lang='fr', isMo
     if (!niveauProgramme) return null;
     const nc = niveauProgramme.couleur || '#1D9E75';
     const souratesNiveau = niveauProgramme.type === 'sourate'
-      ? (souratesDB||[]).filter(s => programme.includes(s.id)).sort((a,b)=>b.numero-a.numero)
+      ? (souratesDB||[]).filter(s => programme.includes(String(s.id))).sort((a,b)=>b.numero-a.numero)
       : [];
 
     // Mode affichage
