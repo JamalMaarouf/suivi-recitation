@@ -158,7 +158,7 @@ export default function DashboardDirection({ user, navigate, goBack, lang='fr', 
         supabase.from('utilisateurs').select('id,prenom,nom,role').eq('ecole_id', user.ecole_id).eq('role','instituteur'),
         fetchAll(supabase.from('validations').select('id,eleve_id,type_validation,nombre_tomon,hizb_valide,date_validation,valide_par,ecole_id').eq('ecole_id', user.ecole_id).order('date_validation',{ascending:false})).then(data=>({data})),
         supabase.from('niveaux').select('*').eq('ecole_id', user.ecole_id).order('ordre'),
-        supabase.from('certificats_eleves').select('id,eleve_id,jalon_id,date_obtention').eq('ecole_id', user.ecole_id).limit(500),
+        supabase.from('certificats_eleves').select('id,eleve_id,jalon_id,date_emission').eq('ecole_id', user.ecole_id).limit(500),
         fetchAll(supabase.from('recitations_sourates').select('eleve_id,date_validation,type_recitation').eq('ecole_id', user.ecole_id).order('date_validation',{ascending:false})).then(data=>({data})),
         supabase.from('passages_niveau').select('eleve_id,niveau_avant,niveau_apres,created_at').eq('ecole_id', user.ecole_id).limit(500),
         supabase.from('ecoles').select('*').eq('id', user.ecole_id).single(),
@@ -197,7 +197,7 @@ export default function DashboardDirection({ user, navigate, goBack, lang='fr', 
     const totalTomon = valsFiltered.filter(v=>v.type_validation==='tomon').reduce((s,v)=>s+(v.nombre_tomon||0),0);
     const totalHizb = valsFiltered.filter(v=>v.type_validation==='hizb_complet').length;
     const tauxActivite = eleves.length > 0 ? Math.round(elevesActifs.size/eleves.length*100) : 0;
-    const totalCerts = (certificats||[]).filter(c=>new Date(c.date_obtention)>=periodeDebut).length;
+    const totalCerts = (certificats||[]).filter(c=>new Date(c.date_emission)>=periodeDebut).length;
     const totalPassages = (passages||[]).filter(p=>new Date(p.created_at)>=periodeDebut).length;
     return { elevesActifs:elevesActifs.size, totalEleves:eleves.length, totalTomon, totalHizb,
       tauxActivite, totalCerts, totalPassages, totalSeances: valsFiltered.length };

@@ -387,7 +387,14 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang, isMobi
         try {
           const certRes = await supabase.from('certificats_eleves')
             .select('*').eq('eleve_id',eleve.id).order('created_at',{ascending:false});
-          setCertificats(certRes.data || []);
+          // Mapping BDD -> aliases utilises dans le rendu
+          const certsMapped = (certRes.data || []).map(c => ({
+            ...c,
+            nom_certificat: c.titre,
+            nom_certificat_ar: c.description,
+            date_obtention: c.date_emission,
+          }));
+          setCertificats(certsMapped);
         } catch(e) { setCertificats([]); }
         // Charger barème et points événements (avec .catch pour ne pas casser)
         loadBareme(supabase, eleve.ecole_id).then(b => setBaremeEleve(b)).catch(()=>{});
@@ -686,17 +693,28 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang, isMobi
     if (!newCertJalonId) return;
     setSavingCert(true);
     const jalon = jalonsDisp.find(j=>j.id===newCertJalonId);
-    await supabase.from('certificats_eleves').insert({
+    const { error } = await supabase.from('certificats_eleves').insert({
       eleve_id: eleve.id,
       ecole_id: eleve.ecole_id,
       jalon_id: newCertJalonId,
-      nom_certificat: jalon?.nom_ar || jalon?.nom || 'شهادة',
-      nom_certificat_ar: jalon?.nom_ar || null,
-      date_obtention: new Date().toISOString(),
-      valide_par: user?.id || null,
+      titre: jalon?.nom || jalon?.nom_ar || 'Certificat',
+      description: jalon?.nom_ar || null,
+      type_certificat: 'jalon',
+      date_emission: new Date().toISOString().split('T')[0],
+      cree_par: user?.id || null,
     });
+    if (error) {
+      console.error('[ajouterCertificatManuellement]', error);
+    }
     const certRes = await supabase.from('certificats_eleves').select('*').eq('eleve_id',eleve.id).order('created_at',{ascending:false});
-    setCertificats(certRes.data || []);
+    // Mapping BDD -> aliases
+    const certsMapped = (certRes.data || []).map(c => ({
+      ...c,
+      nom_certificat: c.titre,
+      nom_certificat_ar: c.description,
+      date_obtention: c.date_emission,
+    }));
+    setCertificats(certsMapped);
     setShowAddCert(false);
     setNewCertJalonId('');
     setSavingCert(false);

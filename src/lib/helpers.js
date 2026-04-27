@@ -742,18 +742,30 @@ export async function verifierEtCreerCertificats(supabase, {
 
       if (!jalonAtteint) continue;
 
-      // Créer le certificat
+      // Créer le certificat (structure BDD reelle)
+      // Stratégie : titre=nom français, description=nom arabe quand existant
       const payload = {
         eleve_id: eleve.id,
         ecole_id,
         jalon_id: jalon.id,
-        nom_certificat: jalon.nom,
-        nom_certificat_ar: jalon.nom_ar || null,
-        date_obtention: new Date().toISOString(),
-        valide_par: valide_par || null,
+        titre: jalon.nom,
+        description: jalon.nom_ar || null,
+        type_certificat: 'jalon',
+        date_emission: new Date().toISOString().split('T')[0], // date type, pas timestamptz
+        cree_par: valide_par || null,
       };
-      await supabase.from('certificats_eleves').insert(payload);
-      nouveauxCerts.push({ ...payload, jalon });
+      const { data: inserted, error } = await supabase.from('certificats_eleves').insert(payload).select().single();
+      if (error) {
+        console.warn('[verifierEtCreerCertificats] insert:', error.message);
+        continue;
+      }
+      // Pour compatibilite avec le reste du code, on expose nom_certificat dans l'objet retourne
+      nouveauxCerts.push({
+        ...inserted,
+        nom_certificat: inserted.titre,
+        nom_certificat_ar: inserted.description,
+        jalon,
+      });
 
       // Créditer les points du jalon si barème configuré
       try {
@@ -864,10 +876,10 @@ export async function verifierEtCreerCertificatsBlocs(supabase, {
     // Convention : on marque les certificats de bloc avec un nom préfixé
     // 'Bloc N - <niveau>' pour pouvoir les retrouver
     const { data: certsExistants } = await supabase.from('certificats_eleves')
-      .select('nom_certificat')
+      .select('titre')
       .eq('eleve_id', eleve.id)
       .eq('ecole_id', ecole_id);
-    const nomsDejaEmis = new Set((certsExistants || []).map(c => c.nom_certificat));
+    const nomsDejaEmis = new Set((certsExistants || []).map(c => c.titre));
 
     const nouveauxCerts = [];
     for (const bloc of blocsList) {
@@ -885,20 +897,28 @@ export async function verifierEtCreerCertificatsBlocs(supabase, {
       // Déjà émis ? skip
       if (nomsDejaEmis.has(nomCertificat)) continue;
 
-      // Créer le certificat
+      // Créer le certificat (structure BDD reelle)
       const payload = {
         eleve_id: eleve.id,
         ecole_id,
         jalon_id: null, // pas un jalon configuré, c'est un certificat de bloc
-        nom_certificat: nomCertificat,
-        nom_certificat_ar: nomCertificatAr,
-        date_obtention: new Date().toISOString(),
-        valide_par: valide_par || null,
+        titre: nomCertificat,
+        description: nomCertificatAr,
+        type_certificat: 'bloc',
+        date_emission: new Date().toISOString().split('T')[0],
+        cree_par: valide_par || null,
       };
-      const { error } = await supabase.from('certificats_eleves').insert(payload);
-      if (!error) {
-        nouveauxCerts.push({ ...payload, bloc });
+      const { data: inserted, error } = await supabase.from('certificats_eleves').insert(payload).select().single();
+      if (!error && inserted) {
+        nouveauxCerts.push({
+          ...inserted,
+          nom_certificat: inserted.titre,
+          nom_certificat_ar: inserted.description,
+          bloc,
+        });
         nomsDejaEmis.add(nomCertificat); // éviter double-insertion dans cette même boucle
+      } else if (error) {
+        console.warn('[verifierEtCreerCertificatsBlocs] insert:', error.message);
       }
     }
 
@@ -978,14 +998,18 @@ export async function verifierEtCreerCertificatsExamens(supabase, {
       if (!examen) continue;
       if (examensDejaCertifies.has(resultat.examen_id)) continue;
 
+      const dateIso = resultat.date_passation
+        ? new Date(resultat.date_passation).toISOString().split('T')[0]
+        : new Date().toISOString().split('T')[0];
       const payload = {
         eleve_id: eleve.id,
         ecole_id,
         jalon_id: null, // Pas un jalon configure
-        nom_certificat: examen.nom,
-        nom_certificat_ar: examen.nom_ar || examen.nom,
-        date_obtention: resultat.date_passation || new Date().toISOString(),
-        valide_par: valide_par || null,
+        titre: examen.nom,
+        description: examen.nom_ar || null,
+        type_certificat: 'examen_auto',
+        date_emission: dateIso,
+        cree_par: valide_par || null,
         examen_id_source: resultat.examen_id,
         resultat_examen_id_source: resultat.id,
       };
@@ -995,7 +1019,13 @@ export async function verifierEtCreerCertificatsExamens(supabase, {
         console.warn('[verifierEtCreerCertificatsExamens] insert:', error.message);
         continue;
       }
-      nouveauxCerts.push({ ...inserted, examen });
+      // Pour compatibilite avec le code existant qui attend nom_certificat
+      nouveauxCerts.push({
+        ...inserted,
+        nom_certificat: inserted.titre,
+        nom_certificat_ar: inserted.description,
+        examen,
+      });
     }
 
     return nouveauxCerts;

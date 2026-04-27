@@ -59,7 +59,17 @@ export default function ListeCertificats({ user, navigate, goBack, lang='fr', is
       supabase.from('jalons').select('id,nom,nom_ar,type_jalon').eq('ecole_id', user.ecole_id),
       supabase.from('niveaux').select('id,code,nom,couleur').eq('ecole_id', user.ecole_id).order('ordre'),
     ]);
-    setCertificats(certs || []);
+    // Mapping BDD -> aliases utilises partout dans le code
+    // BDD: titre, description, date_emission, cree_par
+    // Alias: nom_certificat, nom_certificat_ar, date_obtention, valide_par
+    const certsMapped = (certs || []).map(c => ({
+      ...c,
+      nom_certificat: c.titre,
+      nom_certificat_ar: c.description,
+      date_obtention: c.date_emission,
+      valide_par: c.cree_par,
+    }));
+    setCertificats(certsMapped);
     setEleves(el || []);
     setInstituteurs(inst || []);
     setJalons(jal || []);
