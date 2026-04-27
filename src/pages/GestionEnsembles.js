@@ -47,16 +47,15 @@ export default function GestionEnsembles({ user, navigate, goBack, lang='fr', is
       .select('reference_id').eq('niveau_id', niveauId)
       .eq('ecole_id', user.ecole_id).order('ordre');
     if (!data || data.length === 0) { setProgrammeIds([]); return; }
-    const ids = data.map(d => d.reference_id);
-    // Vérifier si UUIDs valides
-    const idsValides = ids.filter(id => souratesDB.some(s => s.id === id));
-    if (idsValides.length > 0) { setProgrammeIds(idsValides); return; }
-    // Migration numéros → UUIDs
-    const convertis = ids.map(id => {
-      const num = parseInt(id);
-      return isNaN(num) ? id : souratesDB.find(s => s.numero === num)?.id || null;
-    }).filter(Boolean);
-    setProgrammeIds(convertis);
+    // reference_id est stocke en TEXT en BDD (cf colonne data_type='text').
+    // Pour les niveaux sourate, il contient l'id integer de la sourate sous forme string
+    // (insert : reference_id: String(id) - voir GestionNiveaux ligne 320).
+    // On convertit en integer pour comparer correctement avec souratesDB.id (integer).
+    const setIdsValides = new Set(souratesDB.map(s => s.id));
+    const ids = data
+      .map(d => parseInt(d.reference_id))
+      .filter(id => !isNaN(id) && setIdsValides.has(id));
+    setProgrammeIds(ids);
   };
 
   // ── FORMULAIRE ─────────────────────────────────────────────────

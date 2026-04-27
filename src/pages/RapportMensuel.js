@@ -97,7 +97,7 @@ export default function RapportMensuel({ user, navigate, goBack, lang='fr', isMo
                         new Set(rMois.map(r=>new Date(r.date_validation).toDateString())).size;
     const ptsMois     = isSourate
       ? rMois.reduce((s,r)=>s+(r.points||0),0)
-      : tomonMois*(bareme.tomon||10) + Math.floor(tomonMois/2)*25 + Math.floor(tomonMois/4)*60 + hizbMois*100;
+      : tomonMois*(bareme.tomon || 0) + Math.floor(tomonMois/2)*25 + Math.floor(tomonMois/4)*60 + hizbMois*100;
 
     // Objectifs
     const objNiveau = objectifs.find(o=>

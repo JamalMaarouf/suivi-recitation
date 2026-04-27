@@ -230,7 +230,7 @@ export default function GestionAssiduite({ user, navigate, goBack, lang, isMobil
           position: 'sticky', top: 0, zIndex: 100,
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <button onClick={() => goBack ? goBack() : navigate('gestion')}
+            <button onClick={() => navigate('gestion')}
               style={{
                 width: 38, height: 38,
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -251,7 +251,7 @@ export default function GestionAssiduite({ user, navigate, goBack, lang, isMobil
       ) : (
         <div style={{ padding: '1.5rem 1.5rem 0' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: '1.25rem' }}>
-            <button onClick={() => goBack ? goBack() : navigate('gestion')} className="back-link"></button>
+            <button onClick={() => navigate('gestion')} className="back-link"></button>
             <div style={{ flex: 1 }}>
               <div style={{ fontSize: 20, fontWeight: 800, color: '#1a1a1a' }}>
                 📅 {lang === 'ar' ? 'إعدادات الحضور' : 'Assiduité'}

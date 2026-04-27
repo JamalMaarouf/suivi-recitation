@@ -498,10 +498,17 @@ export async function verifierBlocageExamen(supabase, {
         // ── Niveau Hizb ──
         // ids = numéros de Hizb
         // L'examen se déclenche quand tous ces Hizb sont validés (hizb_complet)
+        //
+        // Note metier : l'application impose deja a l'utilisateur de cliquer
+        // "Valider Hizb complet" apres avoir valide les 8 tomons d'un Hizb
+        // (le bouton "Valider Tomon" du Hizb suivant n'est dispo qu'apres ce
+        // clic explicite). Donc une ligne type='hizb_complet' existe forcement
+        // en BDD pour chaque Hizb termine. Pas besoin de detecter via cumul
+        // de tomons.
         const hizbComplets = new Set(
           (validations||[])
             .filter(v => v.type_validation === 'hizb_complet')
-            .map(v => v.hizb_valide)
+            .map(v => Number(v.hizb_valide))
         );
         examTermine = ids.every(h => hizbComplets.has(Number(h)));
 

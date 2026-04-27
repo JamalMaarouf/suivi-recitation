@@ -42,13 +42,17 @@ function calcHeatmap(validations) {
   return map;
 }
 
-function calcEvolution(validations) {
+function calcEvolution(validations, bareme) {
   const vals = [...validations].sort((a,b)=>new Date(a.date_validation)-new Date(b.date_validation));
   let cumul=0; let hc=new Set();
   const pts = [{score:0,label:'Départ'}];
+  // Bareme parametrable depuis Gestion. Fallbacks aux valeurs historiques (10/100)
+  // si bareme non fourni (ex : appel sans bareme charge).
+  const ptsTomon = bareme?.tomon || 0;
+  const ptsHizb  = bareme?.hizb_complet || 0;
   vals.forEach(v => {
     if(v.type_validation==='hizb_complet') hc.add(v.hizb_valide); else cumul+=v.nombre_tomon;
-    pts.push({score:cumul*10+Math.floor(cumul/2)*25+Math.floor(cumul/4)*60+hc.size*100,label:formatDateCourt(v.date_validation)});
+    pts.push({score:cumul*ptsTomon+Math.floor(cumul/2)*25+Math.floor(cumul/4)*60+hc.size*ptsHizb,label:formatDateCourt(v.date_validation)});
   });
   return pts;
 }
@@ -471,7 +475,7 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang, isMobi
           date_validation: v.date_validation,
           type_validation: v.type_validation,
           nombre_tomon: v.nombre_tomon,
-          points: v.type_validation === 'hizb_complet' ? 100 : (v.nombre_tomon || 0) * 10,
+          points: v.type_validation === 'hizb_complet' ? (baremeEleve?.hizb_complet || 0) : (v.nombre_tomon || 0) * (baremeEleve?.tomon || 0),
         })),
         ecole: { nom: user?.ecole?.nom || '' },
       };
@@ -729,7 +733,7 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang, isMobi
     let cumul = 0;
     return [...recitationsSouratesEleve].reverse().map(r => { cumul += (r.points||0); return { score: cumul, date: r.date_validation }; });
   })();
-  const evolution = estSourateEleve ? evolutionSourates : calcEvolution(validations);
+  const evolution = estSourateEleve ? evolutionSourates : calcEvolution(validations, baremeEleve);
   const maxScore = Math.max(...evolution.map(p=>p.score),1);
   const last90 = Array.from({length:90},(_,i)=>{const d=new Date();d.setDate(d.getDate()-(89-i));return d.toLocaleDateString('fr-FR');});
   const heatColor = (c) => !c?'#e8e8e0':c>=6?'#085041':c>=4?'#1D9E75':c>=2?'#5DCAA5':'#9FE1CB';
@@ -1352,10 +1356,10 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang, isMobi
                   <div style={{fontSize:11,color:'#888'}}>{l}</div>
                 </div>
               )) : [
-                ['Tomon',etat?.points.ptsTomon,`${etat?.tomonTotal||etat?.tomonCumul}×10`],
+                ['Tomon',etat?.points.ptsTomon,`${etat?.tomonTotal||etat?.tomonCumul}×${baremeEleve?.tomon||0}`],
                 ['Roboe',etat?.points.ptsRoboe,`${etat?.points.details?.nbRoboe}×25`],
                 ['Nisf',etat?.points.ptsNisf,`${etat?.points.details?.nbNisf}×60`],
-                ['Hizb',etat?.points.ptsHizb,`${etat?.points.details?.nbHizb}×100`],
+                ['Hizb',etat?.points.ptsHizb,`${etat?.points.details?.nbHizb}×${baremeEleve?.hizb_complet||0}`],
               ].map(([l,v,s])=>(
                 <div key={l} style={{background:'#f9f9f6',borderRadius:8,padding:'10px',textAlign:'center'}}>
                   <div style={{fontSize:18,fontWeight:700}}>{v}</div>

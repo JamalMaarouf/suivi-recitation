@@ -592,11 +592,16 @@ export default function DashboardDirection({ user, navigate, goBack, lang='fr', 
     <div style={{maxWidth:1100,margin:'0 auto',padding:'0 1rem 2rem'}}>
       {/* Header */}
       <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'1.5rem',flexWrap:'wrap',gap:12}}>
-        <div>
-          <h1 style={{fontSize:22,fontWeight:800,color:'#085041',margin:0}}>
-            📊 {isAr?'لوحة قيادة المدير':'Tableau de bord direction'}
-          </h1>
-          <p style={{color:'#888',fontSize:13,margin:'4px 0 0'}}>{ecole?.nom} — {isAr?'نظرة شاملة على أداء المدرسة':'Vue analytique de l\'école'}</p>
+        <div style={{display:'flex',alignItems:'center',gap:14}}>
+          <button onClick={()=>goBack?goBack():navigate('dashboard')}
+            title={isAr?'رجوع':'Retour'}
+            style={{background:'#fff',border:'1px solid #e0e0d8',borderRadius:10,padding:0,width:38,height:38,fontSize:18,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',color:'#085041',flexShrink:0}}>←</button>
+          <div>
+            <h1 style={{fontSize:22,fontWeight:800,color:'#085041',margin:0}}>
+              📊 {isAr?'لوحة قيادة المدير':'Tableau de bord direction'}
+            </h1>
+            <p style={{color:'#888',fontSize:13,margin:'4px 0 0'}}>{ecole?.nom} — {isAr?'نظرة شاملة على أداء المدرسة':'Vue analytique de l\'école'}</p>
+          </div>
         </div>
         {/* Sélecteur période */}
         <div style={{display:'flex',gap:6,background:'#f5f5f0',borderRadius:10,padding:4}}>

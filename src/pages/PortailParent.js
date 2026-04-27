@@ -347,7 +347,7 @@ export default function PortailParent({ parent, navigate, goBack, lang='fr', onL
   const hizb = vE.filter(v=>v.type_validation==='hizb_complet').length;
   const souratesCompletes = rE.filter(r=>r.type_recitation==='complete').length;
   const sequences = rE.filter(r=>r.type_recitation==='sequence').length;
-  const pts = tomon*(bareme.tomon||10)+hizb*(bareme.hizb_complet||100)+rE.reduce((s,r)=>s+(r.points||0),0);
+  const pts = tomon*(bareme.tomon || 0)+hizb*(bareme.hizb_complet || 0)+rE.reduce((s,r)=>s+(r.points||0),0);
 
   // Dernière activité
   const allActivity = [...vE,...rE].sort((a,b)=>new Date(b.date_validation)-new Date(a.date_validation));
@@ -521,7 +521,7 @@ export default function PortailParent({ parent, navigate, goBack, lang='fr', onL
                       </div>
                       <div style={{fontSize:11,color:'#888'}}>{new Date(v.date_validation).toLocaleDateString(lang==='ar'?'ar-MA':'fr-FR')}</div>
                     </div>
-                    <span style={{fontSize:13,fontWeight:700,color:'#1D9E75'}}>+{v.type_validation==='hizb_complet'?(bareme.hizb_complet||100):v.nombre_tomon*(bareme.tomon||10)} pts</span>
+                    <span style={{fontSize:13,fontWeight:700,color:'#1D9E75'}}>+{v.type_validation==='hizb_complet'?(bareme.hizb_complet || 0):v.nombre_tomon*(bareme.tomon || 0)} pts</span>
                   </div>
                 ))}
                 {validations.length===0&&<div style={{textAlign:'center',color:'#aaa',padding:'2rem'}}>Aucune récitation</div>}
@@ -1238,7 +1238,7 @@ export default function PortailParent({ parent, navigate, goBack, lang='fr', onL
             {allActivity.slice(0,6).map((item,i)=>{
               const isSR = !!item.type_recitation;
               const sourate = isSR ? souratesDB.find(s=>s.id===item.sourate_id) : null;
-              const pts2 = isSR?(item.points||10):(item.type_validation==='hizb_complet'?(bareme.hizb_complet||100):item.nombre_tomon*(bareme.tomon||10));
+              const pts2 = isSR?(item.points || 0):(item.type_validation==='hizb_complet'?(bareme.hizb_complet || 0):item.nombre_tomon*(bareme.tomon || 0));
               return(
                 <div key={i} style={{display:'flex',alignItems:'center',gap:10,padding:'8px 0',borderBottom:'0.5px solid #f0f0ec'}}>
                   <div style={{width:36,height:36,borderRadius:8,background:isSR?'#E1F5EE':'#E6F1FB',display:'flex',alignItems:'center',justifyContent:'center',fontSize:18,flexShrink:0}}>
@@ -1276,7 +1276,7 @@ export default function PortailParent({ parent, navigate, goBack, lang='fr', onL
                 {allActivity.map((item,i)=>{
                   const isSR = !!item.type_recitation;
                   const sourate = isSR ? souratesDB.find(s=>s.id===item.sourate_id) : null;
-                  const pts2 = isSR?(item.points||10):(item.type_validation==='hizb_complet'?(bareme.hizb_complet||100):item.nombre_tomon*(bareme.tomon||10));
+                  const pts2 = isSR?(item.points || 0):(item.type_validation==='hizb_complet'?(bareme.hizb_complet || 0):item.nombre_tomon*(bareme.tomon || 0));
                   return(
                     <tr key={i}>
                       <td style={{fontSize:11,color:'#888'}}>{new Date(item.date_validation).toLocaleDateString(lang==='ar'?'ar-MA':'fr-FR',{day:'2-digit',month:'short',year:'numeric'})}</td>

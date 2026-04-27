@@ -346,8 +346,12 @@ export default function App() {
     window.scrollTo(0, 0);
   };
 
-  // navigateRoot : pour la navbar — change de page sans sauvegarder dans navHistory
+  // navigateRoot : pour la navbar — change de page principale (racine)
+  // Reset de navHistory : la page principale est une nouvelle racine de navigation,
+  // donc le bouton retour des pages enfants doit s'arreter ici (et plus revenir
+  // a une page anciennement visitee dans une autre branche).
   const navigateRoot = (p) => {
+    setNavHistory([]);
     setPageWithRef(p);
     window.scrollTo(0, 0);
   };
