@@ -154,7 +154,7 @@ export default function DashboardDirection({ user, navigate, goBack, lang='fr', 
         { data: ev }, { data: iv }, { data: vv }, { data: nv },
         { data: cv }, { data: rv }, { data: pv }, { data: ecv }
       ] = await Promise.all([
-        supabase.from('eleves').select('*').eq('ecole_id', user.ecole_id).order('nom'),
+        supabase.from('eleves').select('*').eq('ecole_id', user.ecole_id).is('suspendu_at', null).order('nom'),
         supabase.from('utilisateurs').select('id,prenom,nom,role').eq('ecole_id', user.ecole_id).eq('role','instituteur'),
         fetchAll(supabase.from('validations').select('id,eleve_id,type_validation,nombre_tomon,hizb_valide,date_validation,valide_par,ecole_id').eq('ecole_id', user.ecole_id).order('date_validation',{ascending:false})).then(data=>({data})),
         supabase.from('niveaux').select('*').eq('ecole_id', user.ecole_id).order('ordre'),

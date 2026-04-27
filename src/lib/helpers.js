@@ -10,6 +10,18 @@
 // ═══════════════════════════════════════════════════════════════════
 
 /**
+ * Helper : un eleve est "actif" s'il n'est ni soft-deleted ni suspendu.
+ * Utilise dans toutes les pages qui doivent exclure les eleves inactifs
+ * (Express, Validation, RapportMensuel, DashboardDirection, etc.)
+ *
+ * Pour la liste Gestion -> Eleves, on n'utilise PAS ce filtre par defaut :
+ * les suspendus sont visibles avec un badge pour permettre la reactivation.
+ */
+export function eleveActif(e) {
+  return !!e && !e.suspendu_at && !e.deleted_at;
+}
+
+/**
  * Résout le sens effectif à partir d'un niveau et de l'école.
  * Accepte un objet niveau (avec .sens_recitation) ou le sens directement.
  * Retourne 'desc' par défaut si rien n'est défini.

@@ -1477,6 +1477,11 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile,
   const [tab, setTabLocal] = useState(isMobile ? (initialTab && initialTab !== 'parametres' ? initialTab : 'eleves') : (initialTab || 'parametres'));
   const setTab = (t) => { setTabLocal(t); if(setGestionTab) setGestionTab(t); };
   const [searchEleve, setSearchEleve] = useState('');
+  // Etape 6 - Suspension eleves
+  const [showSuspendreEleve, setShowSuspendreEleve] = useState(null); // eleve a suspendre, null = ferme
+  const [motifSuspension, setMotifSuspension] = useState('');
+  const [savingSuspension, setSavingSuspension] = useState(false);
+  const [afficherUniquementActifs, setAfficherUniquementActifs] = useState(true);
   const [parents, setParents] = useState([]);
   const [formParent, setFormParent] = useState({prenom:'',nom:'',identifiant:'',mot_de_passe:'',telephone:'',email:'',eleve_ids:[]});
   const [showFormParent, setShowFormParent] = useState(false);
@@ -1700,6 +1705,87 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile,
     setEditEleve(null);
     setEditShowAcquisSelector(false);
     loadData();
+  };
+
+  // ────── ETAPE 6 - SUSPENSION D'ELEVES ──────────────────────────────
+  // Comportement : eleve suspendu reste visible en Gestion (avec badge),
+  // mais filtre dans Express, Validation, Stats. Reversible via Reactiver.
+  const ouvrirModaleSuspendre = (eleve) => {
+    setShowSuspendreEleve(eleve);
+    setMotifSuspension('');
+  };
+
+  const confirmerSuspension = async () => {
+    if (!showSuspendreEleve || savingSuspension) return;
+    setSavingSuspension(true);
+    const eleve = showSuspendreEleve;
+    const motif = motifSuspension.trim() || null;
+    try {
+      const { error } = await supabase.from('eleves')
+        .update({
+          suspendu_at: new Date().toISOString(),
+          suspendu_par: user.id,
+          suspendu_motif: motif,
+        })
+        .eq('id', eleve.id);
+      if (error) throw error;
+      // Audit log
+      try {
+        await supabase.from('audit_log').insert({
+          action: 'suspendu',
+          cible: 'eleves',
+          cible_id: eleve.id,
+          ecole_id: user.ecole_id,
+          utilisateur_id: user.id,
+          details: { motif: motif || '(non précisé)', eleve_nom: `${eleve.prenom} ${eleve.nom}` },
+        });
+      } catch(e) { console.warn('[suspendreEleve] audit_log:', e); }
+      showMsg('success', lang==='ar'?'⏸️ تم تعليق الطالب':'⏸️ Élève suspendu');
+      setShowSuspendreEleve(null);
+      loadData();
+    } catch (err) {
+      console.error('[suspendreEleve]', err);
+      showMsg('error', lang==='ar'?'فشل التعليق: '+err.message:'Échec suspension : '+err.message);
+    } finally {
+      setSavingSuspension(false);
+    }
+  };
+
+  const reactiverEleve = (eleve) => {
+    showConfirm(
+      lang==='ar'?'▶️ إعادة تفعيل الطالب':'▶️ Réactiver l\'élève',
+      lang==='ar'
+        ? `سيتم إعادة تفعيل الطالب ${eleve.prenom} ${eleve.nom}. سيظهر مجددًا في قوائم التسجيل والتقارير.`
+        : `L'élève ${eleve.prenom} ${eleve.nom} sera réactivé. Il réapparaîtra dans les listes de validation et les rapports.`,
+      async () => {
+        setConfirmLoading(true);
+        try {
+          const { error } = await supabase.from('eleves')
+            .update({ suspendu_at: null, suspendu_par: null, suspendu_motif: null })
+            .eq('id', eleve.id);
+          if (error) throw error;
+          // Audit log
+          try {
+            await supabase.from('audit_log').insert({
+              action: 'reactive',
+              cible: 'eleves',
+              cible_id: eleve.id,
+              ecole_id: user.ecole_id,
+              utilisateur_id: user.id,
+              details: { eleve_nom: `${eleve.prenom} ${eleve.nom}` },
+            });
+          } catch(e) { console.warn('[reactiverEleve] audit_log:', e); }
+          showMsg('success', lang==='ar'?'▶️ تم إعادة التفعيل':'▶️ Élève réactivé');
+          hideConfirm();
+          loadData();
+        } catch (err) {
+          console.error('[reactiverEleve]', err);
+          showMsg('error', lang==='ar'?'فشل': 'Échec : '+err.message);
+        } finally {
+          setConfirmLoading(false);
+        }
+      }
+    );
   };
 
   const supprimerEleve = (id) => {
@@ -2340,22 +2426,36 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
             <input style={{width:'100%',padding:'12px 16px',borderRadius:12,border:'0.5px solid #e0e0d8',fontSize:15,fontFamily:'inherit',boxSizing:'border-box',background:'#fff',marginBottom:8}}
               placeholder={lang==='ar'?'بحث عن طالب...':'Rechercher un élève...'}
               value={searchEleve||''} onChange={e=>setSearchEleve(e.target.value)}/>
+            {/* Toggle Afficher uniquement actifs */}
+            <label style={{display:'flex',alignItems:'center',gap:8,fontSize:12,color:'#666',marginBottom:8,paddingLeft:4,cursor:'pointer'}}>
+              <input type="checkbox" checked={afficherUniquementActifs}
+                onChange={e=>setAfficherUniquementActifs(e.target.checked)}/>
+              {lang==='ar'?'عرض الطلاب النشطين فقط':'Afficher uniquement les élèves actifs'}
+            </label>
             <div style={{fontSize:12,color:'#888',marginBottom:8,paddingLeft:4}}>
-              {eleves.filter(e=>!searchEleve||`${e.prenom} ${e.nom} ${e.eleve_id_ecole||''}`.toLowerCase().includes((searchEleve||'').toLowerCase())).length} {lang==='ar'?'طالب':'élève(s)'}
+              {eleves.filter(e => (!afficherUniquementActifs || !e.suspendu_at) && (!searchEleve||`${e.prenom} ${e.nom} ${e.eleve_id_ecole||''}`.toLowerCase().includes((searchEleve||'').toLowerCase()))).length} {lang==='ar'?'طالب':'élève(s)'}
             </div>
 
             {/* Liste élèves */}
-            {eleves.filter(e=>!searchEleve||`${e.prenom} ${e.nom} ${e.eleve_id_ecole||''}`.toLowerCase().includes((searchEleve||'').toLowerCase())).map(e=>{
+            {eleves.filter(e => (!afficherUniquementActifs || !e.suspendu_at) && (!searchEleve||`${e.prenom} ${e.nom} ${e.eleve_id_ecole||''}`.toLowerCase().includes((searchEleve||'').toLowerCase()))).map(e=>{
               const nc=getNC(e.code_niveau);
               const isSour=isSourateNiveauDyn(e.code_niveau,niveauxActifs||[]);
               const inst=instituteurs.find(i=>i.id===e.instituteur_referent_id);
               return(
-                <div key={e.id} style={{background:'#fff',borderRadius:12,padding:'12px 14px',marginBottom:8,border:'0.5px solid #e0e0d8',display:'flex',alignItems:'center',gap:10,boxShadow:'0 1px 3px rgba(0,0,0,0.04)'}}>
+                <div key={e.id} style={{background:'#fff',borderRadius:12,padding:'12px 14px',marginBottom:8,border:'0.5px solid #e0e0d8',display:'flex',alignItems:'center',gap:10,boxShadow:'0 1px 3px rgba(0,0,0,0.04)',opacity:e.suspendu_at?0.65:1}}>
                   <div onClick={()=>navigate('fiche',e,{tab})} style={{cursor:'pointer',width:40,height:40,borderRadius:'50%',background:`${nc}20`,color:nc,display:'flex',alignItems:'center',justifyContent:'center',fontWeight:800,fontSize:13,flexShrink:0}}>
                     {((e.prenom||'?')[0])+((e.nom||'?')[0])}
                   </div>
                   <div onClick={()=>navigate('fiche',e,{tab})} style={{flex:1,minWidth:0,cursor:'pointer'}}>
-                    <div style={{fontWeight:700,fontSize:13}}>{e.prenom} {e.nom}</div>
+                    <div style={{fontWeight:700,fontSize:13,display:'flex',alignItems:'center',gap:6,flexWrap:'wrap'}}>
+                      <span>{e.prenom} {e.nom}</span>
+                      {e.suspendu_at && (
+                        <span style={{display:'inline-block',padding:'1px 6px',borderRadius:8,fontSize:9,fontWeight:700,background:'#FFF3E0',color:'#D85A30',border:'0.5px solid #D85A30'}}
+                          title={e.suspendu_motif||''}>
+                          ⏸️ {lang==='ar'?'معلق':'Susp.'}
+                        </span>
+                      )}
+                    </div>
                     <div style={{display:'flex',gap:5,marginTop:2,alignItems:'center',flexWrap:'wrap'}}>
                       <span style={{padding:'1px 6px',borderRadius:10,background:`${nc}20`,color:nc,fontSize:10,fontWeight:700}}>{e.code_niveau||'?'}</span>
                       {e.eleve_id_ecole&&<span style={{fontSize:10,color:'#bbb'}}>#{e.eleve_id_ecole}</span>}
@@ -2372,6 +2472,13 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
                   {user.role==='surveillant'&&(
                     <div style={{display:'flex',gap:5,flexShrink:0}}>
                       <button onClick={()=>startEditEleve(e)} style={{background:'#E6F1FB',color:'#378ADD',border:'none',borderRadius:8,padding:'7px 9px',fontSize:12,cursor:'pointer'}}>✏️</button>
+                      {e.suspendu_at ? (
+                        <button onClick={()=>reactiverEleve(e)} title={lang==='ar'?'تفعيل':'Réactiver'}
+                          style={{background:'#E1F5EE',color:'#085041',border:'none',borderRadius:8,padding:'7px 9px',fontSize:12,cursor:'pointer'}}>▶️</button>
+                      ) : (
+                        <button onClick={()=>ouvrirModaleSuspendre(e)} title={lang==='ar'?'تعليق':'Suspendre'}
+                          style={{background:'#FFF3E0',color:'#D85A30',border:'none',borderRadius:8,padding:'7px 9px',fontSize:12,cursor:'pointer'}}>⏸️</button>
+                      )}
                       <button onClick={()=>supprimerEleve(e.id)} style={{background:'#FCEBEB',color:'#E24B4A',border:'none',borderRadius:8,padding:'7px 9px',fontSize:12,cursor:'pointer'}}>🗑</button>
                     </div>
                   )}
@@ -3009,6 +3116,13 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
           </div>
           {loading ? <div className="loading">...</div> : (
             <div className="table-wrap">
+              <div style={{display:'flex',justifyContent:'flex-end',alignItems:'center',gap:8,padding:'8px 12px',fontSize:12,color:'#666'}}>
+                <label style={{display:'flex',alignItems:'center',gap:6,cursor:'pointer'}}>
+                  <input type="checkbox" checked={afficherUniquementActifs}
+                    onChange={e=>setAfficherUniquementActifs(e.target.checked)}/>
+                  {lang==='ar'?'عرض الطلاب النشطين فقط':'Afficher uniquement les actifs'}
+                </label>
+              </div>
               <table>
                 <thead><tr>
                   <th style={{width:'20%'}}>{t(lang,'eleve')}</th>
@@ -3021,12 +3135,12 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
                 </tr></thead>
                 <tbody>
                   {eleves.length === 0 && <tr><td colSpan={5} className="empty">{t(lang, 'aucun_eleve')}</td></tr>}
-                  {eleves.map(e => {
+                  {eleves.filter(e => !afficherUniquementActifs || !e.suspendu_at).map(e => {
                     const nc = (niveauxDyn||[]).find(n=>n.code===e.code_niveau)?.couleur || {'5B':'#534AB7','5A':'#378ADD','2M':'#1D9E75','2':'#EF9F27','1':'#E24B4A'}[e.code_niveau]||'#888';
                     const isSour = (niveauxDyn||[]).find(n=>n.code===e.code_niveau)?.type==='sourate' || ['5B','5A','2M'].includes(e.code_niveau||'');
                     const niv = e.niveau==='Avancé'||e.niveau==='متقدم' ? {label:lang==='ar'?'متقدم':'Avancé',bg:'#E1F5EE',color:'#085041'} : e.niveau==='Intermédiaire'||e.niveau==='متوسط' ? {label:lang==='ar'?'متوسط':'Interm.',bg:'#E6F1FB',color:'#378ADD'} : {label:lang==='ar'?'مبتدئ':'Débutant',bg:'#FAEEDA',color:'#EF9F27'};
                     return (
-                    <tr key={e.id} style={{background:editEleve?.id===e.id?'#E1F5EE':'#fff',borderBottom:'0.5px solid #f0f0ec'}}>
+                    <tr key={e.id} style={{background:editEleve?.id===e.id?'#E1F5EE':'#fff',borderBottom:'0.5px solid #f0f0ec',opacity:e.suspendu_at?0.65:1}}>
                       {/* Élève */}
                       <td style={{padding:'8px 12px'}}>
                         <div style={{display:'flex',alignItems:'center',gap:8}}>
@@ -3034,7 +3148,15 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
                             {((e.prenom||'?')[0])+((e.nom||'?')[0])}
                           </div>
                           <div>
-                            <div style={{fontWeight:600,fontSize:13}}>{e.prenom} {e.nom}</div>
+                            <div style={{fontWeight:600,fontSize:13,display:'flex',alignItems:'center',gap:6,flexWrap:'wrap'}}>
+                              <span>{e.prenom} {e.nom}</span>
+                              {e.suspendu_at && (
+                                <span style={{display:'inline-block',padding:'1px 7px',borderRadius:8,fontSize:9,fontWeight:700,background:'#FFF3E0',color:'#D85A30',border:'0.5px solid #D85A30'}}
+                                  title={e.suspendu_motif || ''}>
+                                  ⏸️ {lang==='ar'?'معلق':'Suspendu'}
+                                </span>
+                              )}
+                            </div>
                             {e.eleve_id_ecole&&<div style={{fontSize:10,color:'#bbb'}}>#{e.eleve_id_ecole}</div>}
                           </div>
                         </div>
@@ -3076,11 +3198,24 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
                       </td>
                       {/* Actions */}
                       <td style={{padding:'8px 10px'}}>
-                        <div style={{display:'flex',gap:4}}>
+                        <div style={{display:'flex',gap:4,flexWrap:'wrap'}}>
                           <button onClick={()=>{setEditEleve({...e});setEditShowAcquisSelector(false);window.scrollTo(0,0);}}
                             style={{padding:'4px 8px',background:'#E6F1FB',color:'#378ADD',border:'none',borderRadius:6,cursor:'pointer',fontSize:11,fontWeight:600}}>
                             ✏️ {t(lang,'modifier_btn')}
                           </button>
+                          {e.suspendu_at ? (
+                            <button onClick={()=>reactiverEleve(e)}
+                              title={lang==='ar'?'إعادة تفعيل':'Réactiver'}
+                              style={{padding:'4px 8px',background:'#E1F5EE',color:'#085041',border:'none',borderRadius:6,cursor:'pointer',fontSize:11,fontWeight:600}}>
+                              ▶️ {lang==='ar'?'تفعيل':'Réactiver'}
+                            </button>
+                          ) : (
+                            <button onClick={()=>ouvrirModaleSuspendre(e)}
+                              title={lang==='ar'?'تعليق الطالب':'Suspendre'}
+                              style={{padding:'4px 8px',background:'#FFF3E0',color:'#D85A30',border:'none',borderRadius:6,cursor:'pointer',fontSize:11,fontWeight:600}}>
+                              ⏸️ {lang==='ar'?'تعليق':'Susp.'}
+                            </button>
+                          )}
                           <button onClick={()=>supprimerEleve(e.id)}
                             style={{padding:'4px 7px',background:'#FCEBEB',color:'#E24B4A',border:'none',borderRadius:6,cursor:'pointer',fontSize:12}}>
                             🗑
@@ -3431,6 +3566,60 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
           niveaux={niveauxActifs||[]} setNiveaux={setNiveauxDyn}
           showMsg={showMsg}
         />
+      )}
+
+      {/* ─── Modale Suspendre élève (Etape 6) ─── */}
+      {showSuspendreEleve && (
+        <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.5)',zIndex:1000,
+          display:'flex',alignItems:'center',justifyContent:'center',padding:20}}
+          onClick={()=>{ if(!savingSuspension) setShowSuspendreEleve(null); }}>
+          <div onClick={e=>e.stopPropagation()}
+            style={{background:'#fff',borderRadius:14,maxWidth:480,width:'100%',padding:24,boxShadow:'0 10px 40px rgba(0,0,0,0.2)'}}>
+            <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:14}}>
+              <div style={{fontSize:28}}>⏸️</div>
+              <div>
+                <div style={{fontSize:17,fontWeight:800,color:'#D85A30'}}>
+                  {lang==='ar'?'تعليق الطالب':'Suspendre l\'élève'}
+                </div>
+                <div style={{fontSize:13,color:'#666',marginTop:2}}>
+                  {showSuspendreEleve.prenom} {showSuspendreEleve.nom}
+                </div>
+              </div>
+            </div>
+            <div style={{background:'#FFF8EC',border:'0.5px solid #FFE0B5',borderRadius:10,padding:'10px 12px',fontSize:12,color:'#8a5a00',marginBottom:14,lineHeight:1.5}}>
+              {lang==='ar'
+                ? 'الطالب المعلق لن يظهر في قوائم التسجيل والتقارير، لكن بياناته السابقة (الاستظهارات، الشهادات، إلخ) تبقى محفوظة. يمكنك إعادة تفعيله في أي وقت.'
+                : 'L\'élève suspendu n\'apparaîtra plus dans les listes de validation et les rapports, mais toutes ses données (récitations, certificats, etc.) restent conservées. Réactivable à tout moment.'}
+            </div>
+            <label style={{display:'block',fontSize:12,fontWeight:600,color:'#666',marginBottom:6}}>
+              {lang==='ar'?'سبب التعليق (اختياري)':'Motif de suspension (optionnel)'}
+            </label>
+            <input type="text" list="motif-suggestions" value={motifSuspension}
+              onChange={e=>setMotifSuspension(e.target.value)}
+              placeholder={lang==='ar'?'مثلاً: عطلة، مرض، انتقال...':'Ex: vacances, maladie, déménagement...'}
+              style={{width:'100%',padding:'10px 12px',borderRadius:10,border:'0.5px solid #e0e0d8',
+                fontSize:13,fontFamily:'inherit',boxSizing:'border-box',marginBottom:6}}/>
+            <datalist id="motif-suggestions">
+              <option value={lang==='ar'?'عطلة':'Vacances'}/>
+              <option value={lang==='ar'?'مرض':'Maladie'}/>
+              <option value={lang==='ar'?'انتقال':'Déménagement'}/>
+              <option value={lang==='ar'?'تغيير مدرسة':'Changement d\'école'}/>
+              <option value={lang==='ar'?'أخرى':'Autre'}/>
+            </datalist>
+            <div style={{display:'flex',gap:8,marginTop:14}}>
+              <button onClick={()=>setShowSuspendreEleve(null)} disabled={savingSuspension}
+                style={{flex:1,padding:'11px',background:'#f5f5f0',color:'#666',border:'none',borderRadius:10,fontSize:13,fontWeight:600,cursor:savingSuspension?'not-allowed':'pointer',fontFamily:'inherit'}}>
+                {lang==='ar'?'إلغاء':'Annuler'}
+              </button>
+              <button onClick={confirmerSuspension} disabled={savingSuspension}
+                style={{flex:2,padding:'11px',background:savingSuspension?'#ccc':'#D85A30',color:'#fff',border:'none',borderRadius:10,fontSize:13,fontWeight:700,cursor:savingSuspension?'not-allowed':'pointer',fontFamily:'inherit'}}>
+                {savingSuspension
+                  ? '⏳ '+(lang==='ar'?'جاري الحفظ...':'En cours...')
+                  : '⏸️ '+(lang==='ar'?'تعليق':'Suspendre')}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* ─── Modale de confirmation (utilisée par showConfirm) ─── */}

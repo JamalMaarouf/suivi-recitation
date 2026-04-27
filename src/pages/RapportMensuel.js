@@ -49,7 +49,7 @@ export default function RapportMensuel({ user, navigate, goBack, lang='fr', isMo
       {data:el},{data:nv},{data:inst},{data:vd},{data:rd},
       {data:ob},{data:ex},{data:re},{data:ec}
     ] = await Promise.all([
-      supabase.from('eleves').select('*').eq('ecole_id',user.ecole_id).order('nom'),
+      supabase.from('eleves').select('*').eq('ecole_id',user.ecole_id).is('suspendu_at', null).order('nom'),
       supabase.from('niveaux').select('*').eq('ecole_id',user.ecole_id).order('ordre'),
       supabase.from('utilisateurs').select('*').eq('role','instituteur').eq('ecole_id',user.ecole_id),
       fetchAll(supabase.from('validations').select('*').eq('ecole_id',user.ecole_id)).then(data=>({data})),
