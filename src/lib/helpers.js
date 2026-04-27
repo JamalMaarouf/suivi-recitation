@@ -971,7 +971,7 @@ export async function verifierEtCreerCertificatsExamens(supabase, {
     const examenIds = resultats.map(r => r.examen_id);
     const { data: examens } = await supabase
       .from('examens')
-      .select('id, nom, nom_ar, score_minimum')
+      .select('id, nom, score_minimum')
       .in('id', examenIds);
     const examensMap = {};
     for (const ex of (examens || [])) examensMap[ex.id] = ex;
@@ -1006,7 +1006,7 @@ export async function verifierEtCreerCertificatsExamens(supabase, {
         ecole_id,
         jalon_id: null, // Pas un jalon configure
         titre: examen.nom,
-        description: examen.nom_ar || null,
+        description: null, // Table examens n'a pas de nom_ar
         type_certificat: 'examen_auto',
         date_emission: dateIso,
         cree_par: valide_par || null,

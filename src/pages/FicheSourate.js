@@ -66,7 +66,7 @@ export default function FicheSourate({ eleve, user, navigate, goBack, lang='fr',
     setMurajaaS(mrec || []);
     setMurajaa(mval || []);
     // Charger examens et certificats
-    try { const r=await supabase.from('resultats_examens').select('*, examen:examen_id(titre,date_examen)').eq('eleve_id',eleve.id).order('created_at',{ascending:false}); setExamens(r.data||[]); } catch(e){setExamens([]);}
+    try { const r=await supabase.from('resultats_examens').select('*, examen:examen_id(nom)').eq('eleve_id',eleve.id).order('created_at',{ascending:false}); setExamens(r.data||[]); } catch(e){setExamens([]);}
     try { const r=await supabase.from('certificats_eleves').select('*').eq('eleve_id',eleve.id).order('created_at',{ascending:false}); setCertificats(r.data||[]); } catch(e){setCertificats([]);}
     setLoading(false);
     } catch (e) {
@@ -314,11 +314,11 @@ export default function FicheSourate({ eleve, user, navigate, goBack, lang='fr',
                     const m=MENTION[r.mention]||MENTION.passable;
                     return(<div key={r.id} style={{background:'#fff',border:'0.5px solid #e0e0d8',borderRadius:12,padding:'12px',marginBottom:8}}>
                       <div style={{display:'flex',justifyContent:'space-between',marginBottom:4}}>
-                        <span style={{fontSize:13,fontWeight:700}}>{r.examen?.titre||'—'}</span>
+                        <span style={{fontSize:13,fontWeight:700}}>{r.examen?.nom||'—'}</span>
                         <span style={{padding:'2px 8px',borderRadius:12,fontSize:11,fontWeight:600,background:m.bg,color:m.c}}>{r.mention}</span>
                       </div>
                       <div style={{fontSize:11,color:'#888',display:'flex',gap:12}}>
-                        <span>📅 {r.examen?.date_examen||'—'}</span>
+                        <span>📅 {r.date_examen||'—'}</span>
                         <span>📊 {r.note_obtenue||0}/{r.note_max||20}</span>
                         {r.bloque&&<span style={{color:'#E24B4A'}}>🔒 {lang==='ar'?'موقوف':'Bloqué'}</span>}
                       </div>
@@ -650,11 +650,11 @@ export default function FicheSourate({ eleve, user, navigate, goBack, lang='fr',
               const m=MENTION[r.mention]||MENTION.passable;
               return(<div key={r.id} style={{background:'#fff',border:'0.5px solid #e0e0d8',borderRadius:12,padding:'12px',marginBottom:8}}>
                 <div style={{display:'flex',justifyContent:'space-between',marginBottom:4}}>
-                  <span style={{fontSize:13,fontWeight:700}}>{r.examen?.titre||'—'}</span>
+                  <span style={{fontSize:13,fontWeight:700}}>{r.examen?.nom||'—'}</span>
                   <span style={{padding:'2px 8px',borderRadius:12,fontSize:11,fontWeight:600,background:m.bg,color:m.c}}>{r.mention}</span>
                 </div>
                 <div style={{fontSize:11,color:'#888',display:'flex',gap:12}}>
-                  <span>📅 {r.examen?.date_examen||'—'}</span>
+                  <span>📅 {r.date_examen||'—'}</span>
                   <span>📊 {r.note_obtenue||0}/{r.note_max||20}</span>
                   {r.bloque&&<span style={{color:'#E24B4A'}}>🔒 {lang==='ar'?'موقوف':'Bloqué'}</span>}
                 </div>
