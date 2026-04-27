@@ -961,7 +961,7 @@ export async function verifierEtCreerCertificatsExamens(supabase, {
     // 1. Charger tous les examens reussis de l'eleve
     const { data: resultats } = await supabase
       .from('resultats_examens')
-      .select('id, examen_id, statut, date_passation, score')
+      .select('id, examen_id, statut, date_examen, score')
       .eq('eleve_id', eleve.id)
       .eq('ecole_id', ecole_id)
       .eq('statut', 'reussi');
@@ -998,8 +998,8 @@ export async function verifierEtCreerCertificatsExamens(supabase, {
       if (!examen) continue;
       if (examensDejaCertifies.has(resultat.examen_id)) continue;
 
-      const dateIso = resultat.date_passation
-        ? new Date(resultat.date_passation).toISOString().split('T')[0]
+      const dateIso = resultat.date_examen
+        ? new Date(resultat.date_examen).toISOString().split('T')[0]
         : new Date().toISOString().split('T')[0];
       const payload = {
         eleve_id: eleve.id,
