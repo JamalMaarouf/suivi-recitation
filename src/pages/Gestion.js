@@ -1489,6 +1489,8 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile,
   const [transfertVers, setTransfertVers] = useState(''); // id du nouvel instituteur
   const [savingSuspensionInst, setSavingSuspensionInst] = useState(false);
   const [afficherUniquementActifsInst, setAfficherUniquementActifsInst] = useState(true);
+  // Etape 11a - Modale recap creation eleve avec compte parent
+  const [showEleveCree, setShowEleveCree] = useState(null); // {eleve, parent: {login, mdp}} ou null
   const [parents, setParents] = useState([]);
   const [formParent, setFormParent] = useState({prenom:'',nom:'',identifiant:'',mot_de_passe:'',telephone:'',email:'',eleve_ids:[]});
   const [showFormParent, setShowFormParent] = useState(false);
@@ -1683,7 +1685,19 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile,
       });
     }
 
-    showMsg('success', lang==='ar'?`✅ تم إضافة الطالب — حساب ولي الأمر: ${loginParent} / ${mdpParent}`:`✅ Élève ajouté — Compte parent: ${loginParent} / ${mdpParent}`);
+    // Etape 11a : Au lieu d'un toast, afficher une modale recap claire
+    setShowEleveCree({
+      eleve: { 
+        prenom: newEleve.prenom, 
+        nom: newEleve.nom, 
+        eleve_id_ecole: newEleve.eleve_id_ecole.trim(),
+        code_niveau: newEleve.code_niveau,
+      },
+      parent: { 
+        login: loginParent, 
+        mdp: mdpParent,
+      },
+    });
     setNewEleve({ prenom: '', nom: '', niveau: 'Débutant', code_niveau: (niveauxDyn && niveauxDyn[0]?.code) || '', eleve_id_ecole: '', instituteur_referent_id: '', hizb_depart: 0, tomon_depart: 1, sourates_acquises: 0 });
     setShowAcquisSelector(false);
     loadData();
@@ -2409,10 +2423,10 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
               </button>
             )}
             {tab==='parents'&&user.role==='surveillant'&&(
-              <button onClick={()=>setShowFormParent(v=>!v)}
-                style={{background:'rgba(255,255,255,0.25)',color:'#fff',border:'1px solid rgba(255,255,255,0.3)',borderRadius:10,padding:'7px 14px',fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
-                {showFormParent?'✕':(lang==='ar'?'+ إضافة':'+ Ajouter')}
-              </button>
+              <div title={lang==='ar'?'يتم إنشاء حسابات الأولياء تلقائياً عند إضافة طالب':'Les comptes parents sont créés automatiquement à la création d\'un élève'}
+                style={{background:'rgba(255,255,255,0.15)',color:'rgba(255,255,255,0.85)',border:'1px solid rgba(255,255,255,0.2)',borderRadius:10,padding:'7px 14px',fontSize:11,fontWeight:600,cursor:'help',fontFamily:'inherit',display:'flex',alignItems:'center',gap:5}}>
+                ℹ️ {lang==='ar'?'تلقائي':'Auto'}
+              </div>
             )}
           </div>
           {msg.text&&(
@@ -2717,7 +2731,7 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
         {/* ─── ONGLET PARENTS ─── */}
         {tab==='parents'&&(
           <div style={{padding:'12px'}}>
-            {showFormParent&&user.role==='surveillant'&&(
+            {showFormParent&&editingParentId&&user.role==='surveillant'&&(
               <div style={{background:'#fff',borderRadius:16,padding:'18px',marginBottom:14,border:`1.5px solid ${editingParentId?'#378ADD':'#EF9F27'}`}}>
                 <div style={{fontSize:15,fontWeight:700,color:'#085041',marginBottom:14}}>
                   {editingParentId?(lang==='ar'?'تعديل ولي الأمر':'✏️ Modifier parent'):(lang==='ar'?'إضافة ولي أمر':'👨‍👩‍👦 Nouveau parent')}
@@ -3160,6 +3174,18 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
                 <div style={{fontSize:11,color:'#888',marginBottom:8}}>
                   <span style={{color:'#E24B4A'}}>*</span> {lang==='ar'?'حقول إلزامية':lang==='en'?'Required fields':'Champs obligatoires'}
                 </div>
+                <div style={{
+                  background:'#FFF8EC',border:'1px solid #EF9F2740',borderRadius:8,
+                  padding:'10px 12px',marginBottom:10,fontSize:11,color:'#7B5800',lineHeight:1.5,
+                  display:'flex',alignItems:'flex-start',gap:8,
+                }}>
+                  <span style={{fontSize:14,flexShrink:0}}>ℹ️</span>
+                  <span>
+                    {lang==='ar'
+                      ? <>سيتم إنشاء حساب ولي الأمر تلقائياً مع المعرف <b>= رقم الطالب</b> وكلمة المرور الافتراضية <b>{ecoleConfig?.mdp_defaut_parents || 'parent2024'}</b></>
+                      : <>Un compte parent sera automatiquement créé avec le login <b>= numéro élève</b> et le mot de passe par défaut <b>{ecoleConfig?.mdp_defaut_parents || 'parent2024'}</b></>}
+                  </span>
+                </div>
                 <button className="btn-primary" onClick={ajouterEleve}>{t(lang, 'ajouter_eleve_btn')}</button>
               </div>
             </>
@@ -3545,13 +3571,20 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
 
       {tab === 'parents' && (
         <div>
-          <div style={{display:'flex',justifyContent:'flex-end',marginBottom:'1rem'}}>
-            <button className="btn-primary" style={{width:'auto',padding:'8px 16px',fontSize:13}} onClick={()=>setShowFormParent(v=>!v)}>
-              {showFormParent?'✕':'+  '}{lang==='ar'?'إضافة ولي أمر':'Ajouter un parent'}
-            </button>
+          <div style={{
+            background:'#FFF8EC',border:'1px solid #EF9F2740',borderRadius:10,
+            padding:'10px 14px',marginBottom:'1rem',fontSize:12,color:'#7B5800',
+            display:'flex',alignItems:'flex-start',gap:8,
+          }}>
+            <span style={{fontSize:14,flexShrink:0}}>ℹ️</span>
+            <span>
+              {lang==='ar'
+                ? 'يتم إنشاء حسابات أولياء الأمور تلقائياً عند إضافة طالب جديد. يمكن تعديل البيانات أو حذف الحسابات من هنا.'
+                : 'Les comptes parents sont créés automatiquement à l\'ajout d\'un élève. Vous pouvez modifier les informations ou supprimer les comptes ici.'}
+            </span>
           </div>
 
-          {showFormParent&&(
+          {showFormParent&&editingParentId&&(
             <div style={{background:'#fff',border:'1.5px solid #1D9E75',borderRadius:16,padding:'1.5rem',marginBottom:'1.25rem'}}>
               <div style={{fontSize:14,fontWeight:600,color:'#085041',marginBottom:'1rem'}}>
                 {editingParentId?'✏️':'👨‍👩‍👦'} {editingParentId?(lang==='ar'?'تعديل ولي الأمر':'Modifier le parent'):(lang==='ar'?'إضافة ولي أمر جديد':'Nouveau parent')}
@@ -3750,6 +3783,84 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
           niveaux={niveauxActifs||[]} setNiveaux={setNiveauxDyn}
           showMsg={showMsg}
         />
+      )}
+
+      {/* ─── Modale recap création élève + compte parent (Etape 11a) ─── */}
+      {showEleveCree && (
+        <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.55)',zIndex:9999,
+          display:'flex',alignItems:'center',justifyContent:'center',padding:20}}
+          onClick={()=>setShowEleveCree(null)}>
+          <div onClick={e=>e.stopPropagation()}
+            style={{background:'#fff',borderRadius:16,maxWidth:520,width:'100%',padding:24,
+              boxShadow:'0 20px 60px rgba(0,0,0,0.3)',maxHeight:'90vh',overflowY:'auto'}}>
+            <div style={{textAlign:'center',marginBottom:18}}>
+              <div style={{fontSize:48,marginBottom:8}}>🎉</div>
+              <div style={{fontSize:18,fontWeight:800,color:'#085041',marginBottom:4}}>
+                {lang==='ar'?'تم إضافة الطالب بنجاح!':'Élève créé avec succès !'}
+              </div>
+            </div>
+
+            {/* Récap élève */}
+            <div style={{
+              background:'#E1F5EE',border:'1px solid #1D9E7530',borderRadius:10,
+              padding:'12px 14px',marginBottom:12,
+            }}>
+              <div style={{fontSize:11,fontWeight:700,color:'#085041',marginBottom:6,textTransform:'uppercase',letterSpacing:0.3}}>
+                👤 {lang==='ar'?'الطالب':'Élève'}
+              </div>
+              <div style={{fontSize:15,fontWeight:700,color:'#1a1a1a'}}>
+                {showEleveCree.eleve.prenom} {showEleveCree.eleve.nom}
+              </div>
+              <div style={{fontSize:12,color:'#666',marginTop:3,display:'flex',gap:10,flexWrap:'wrap'}}>
+                <span>🆔 {showEleveCree.eleve.eleve_id_ecole}</span>
+                <span>🎓 {showEleveCree.eleve.code_niveau}</span>
+              </div>
+            </div>
+
+            {/* Récap compte parent */}
+            <div style={{
+              background:'#FFF8EC',border:'1px solid #EF9F2740',borderRadius:10,
+              padding:'12px 14px',marginBottom:14,
+            }}>
+              <div style={{fontSize:11,fontWeight:700,color:'#7B5800',marginBottom:8,textTransform:'uppercase',letterSpacing:0.3}}>
+                👨‍👩‍👧 {lang==='ar'?'حساب ولي الأمر (تم إنشاؤه تلقائياً)':'Compte parent (créé automatiquement)'}
+              </div>
+              <div style={{display:'grid',gridTemplateColumns:'auto 1fr',gap:'6px 10px',fontSize:13}}>
+                <div style={{color:'#666',fontWeight:600}}>{lang==='ar'?'المعرف:':'Login :'}</div>
+                <div style={{fontWeight:700,color:'#1a1a1a',fontFamily:'monospace'}}>{showEleveCree.parent.login}</div>
+                <div style={{color:'#666',fontWeight:600}}>{lang==='ar'?'كلمة المرور:':'Mot de passe :'}</div>
+                <div style={{fontWeight:700,color:'#1a1a1a',fontFamily:'monospace'}}>{showEleveCree.parent.mdp}</div>
+              </div>
+              <div style={{fontSize:11,color:'#8a5a00',marginTop:10,lineHeight:1.5,fontStyle:'italic'}}>
+                ℹ️ {lang==='ar'
+                  ? 'يمكن لولي الأمر تغيير كلمة المرور بعد أول اتصال. سلّم هذه المعلومات إليه.'
+                  : 'Le parent peut changer son mot de passe à la première connexion. Communiquez-lui ces informations.'}
+              </div>
+            </div>
+
+            {/* Boutons */}
+            <div style={{display:'flex',gap:8}}>
+              <button onClick={()=>{
+                const txt = lang==='ar'
+                  ? `حساب ولي الأمر:\nالمعرف: ${showEleveCree.parent.login}\nكلمة المرور: ${showEleveCree.parent.mdp}`
+                  : `Compte parent :\nLogin : ${showEleveCree.parent.login}\nMot de passe : ${showEleveCree.parent.mdp}`;
+                navigator.clipboard?.writeText(txt).then(() => {
+                  showMsg('success', lang==='ar'?'✅ تم النسخ':'✅ Copié dans le presse-papier');
+                }).catch(()=>{});
+              }}
+                style={{flex:1,padding:'12px',background:'#fff',color:'#085041',border:'1.5px solid #085041',
+                  borderRadius:10,fontSize:13,fontWeight:600,cursor:'pointer',fontFamily:'inherit'}}>
+                📋 {lang==='ar'?'نسخ المعلومات':'Copier les identifiants'}
+              </button>
+              <button onClick={()=>setShowEleveCree(null)}
+                style={{flex:1,padding:'12px',background:'linear-gradient(135deg,#1D9E75,#085041)',color:'#fff',
+                  border:'none',borderRadius:10,fontSize:13,fontWeight:700,cursor:'pointer',fontFamily:'inherit',
+                  boxShadow:'0 2px 8px rgba(8,80,65,0.3)'}}>
+                ✓ {lang==='ar'?'حسناً':'OK'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* ─── Modale Suspendre instituteur (Etape 7) ─── */}
