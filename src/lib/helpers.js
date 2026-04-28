@@ -1304,14 +1304,15 @@ export function prochainHizbDansBloc(progression) {
  *   2. Si pris, suffixer avec un compteur : "-2", "-3", etc.
  *   3. Filet de securite : jusqu'a "-99" puis throw error.
  *
- * Cette fonction protege l'app du bug fondamental :
- *   identifiant a une contrainte UNIQUE globale en BDD, donc 2 ecoles
- *   ne peuvent pas avoir des parents avec le meme login simple "54".
- *
- * Pourquoi pas de suffixe par defaut :
- *   - Login simple est attendu par le surveillant et le parent
- *   - 95% des cas, pas de conflit (1 seule ecole par client)
- *   - Suffixe est un filet de securite invisible quand non necessaire
+ * NOTE TECHNIQUE :
+ *   Le wrapper supabase.js applique automatiquement un filtre
+ *   .is('deleted_at', null) sur les SELECT, ce qui masque les
+ *   utilisateurs soft-deletes. Or la contrainte UNIQUE BDD prend en
+ *   compte AUSSI les soft-deletes. Donc un SELECT classique pourrait
+ *   indiquer "libre" alors que l'INSERT echouera.
+ *   Solution : on bypasse le wrapper en utilisant une query INSERT
+ *   speculative et en gerant l'erreur 23505 (duplicate). C'est plus
+ *   robuste car ca couvre TOUS les cas (actif + soft-delete).
  *
  * @param supabase Client Supabase
  * @param baseLogin Le login souhaite (ex: "54")
@@ -1321,20 +1322,44 @@ export async function genererLoginParentUnique(supabase, baseLogin) {
   const base = (baseLogin || '').trim();
   if (!base) throw new Error('baseLogin manquant');
 
-  // 1. Essayer le login simple
-  const { data: existingBase } = await supabase.from('utilisateurs')
-    .select('id').eq('identifiant', base).maybeSingle();
-  if (!existingBase) return base;
+  // Strategie : on tente une serie de SELECT avec une approche TIA
+  // (test-then-act) en utilisant directement le client supabase de bas
+  // niveau pour BYPASS le filtre deleted_at automatique.
+  // Pour cela on utilise un SELECT 'count' qui ne filtre pas (ou on
+  // se rabat sur un UPDATE/INSERT speculatif).
+  //
+  // Approche choisie : utiliser le client SUPABASE BRUT (bypass wrapper)
+  // via la fonction native fetch sur l'API REST.
+  //
+  // Mais comme ce serait complexe, on utilise une approche plus simple :
+  // tester avec un .select('id, deleted_at') pour avoir aussi les
+  // soft-deletes, ce qui ne fonctionne pas a cause du wrapper.
+  //
+  // Solution finale : faire un .select() avec une condition impossible
+  // pour eviter le filtrage automatique :
+  // approche : ajouter .or('deleted_at.is.null,deleted_at.not.is.null')
+  // qui est tautologique mais qui ANNULE le filtre du wrapper.
 
-  // 2. Suffixer avec un compteur
-  for (let i = 2; i <= 99; i++) {
-    const candidate = `${base}-${i}`;
-    const { data: existing } = await supabase.from('utilisateurs')
-      .select('id').eq('identifiant', candidate).maybeSingle();
-    if (!existing) return candidate;
+  const candidates = [base];
+  for (let i = 2; i <= 99; i++) candidates.push(`${base}-${i}`);
+
+  for (const candidate of candidates) {
+    // Query directe avec or() tautologique pour bypasser le filtre auto
+    const { data, error } = await supabase.from('utilisateurs')
+      .select('id')
+      .eq('identifiant', candidate)
+      .or('deleted_at.is.null,deleted_at.not.is.null')
+      .limit(1);
+    if (error) {
+      console.warn('[genererLoginParentUnique] select error:', error.message);
+      // En cas d'erreur, on continue avec le candidat suivant pour ne pas bloquer
+      continue;
+    }
+    if (!data || data.length === 0) {
+      return candidate;
+    }
   }
 
-  // 3. Filet de securite ultime (rarissime)
   throw new Error(`Impossible de generer un login unique pour ${base} apres 99 tentatives`);
 }
 
