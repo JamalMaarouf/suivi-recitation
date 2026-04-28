@@ -551,6 +551,8 @@ function PeriodesTab({ user, lang, showMsg }) {
   const [showPeriodeForm, setShowPeriodeForm] = useState(false);
   const [editingPeriodeId, setEditingPeriodeId] = useState(null);
   const [formPeriode, setFormPeriode] = useState({ nom_ar: '', date_debut: '', date_fin: '', type: 'trimestre' });
+  // Modale generique de confirmation (Etape 14 v2)
+  const [confirmModale, setConfirmModale] = useState(null); // {titre, message, onConfirm, danger}
 
   const TYPE_OPTIONS = [
     { val: 'trimestre', icon: '🗓️', label_fr: 'Trimestre',  label_ar: 'فصل دراسي',   color: '#378ADD' },
@@ -654,94 +656,110 @@ function PeriodesTab({ user, lang, showMsg }) {
     }
   };
 
-  const activerAnnee = async (annee) => {
-    if (!window.confirm(lang==='ar'
-      ? `تفعيل '${annee.nom}'؟ سيتم أرشفة السنة الحالية تلقائياً.`
-      : `Activer '${annee.nom}' ? L'année active actuelle sera archivée.`)) return;
-    setSaving(true);
-    try {
-      // 1. Archiver l'annee active actuelle (si existe)
-      if (anneeActive) {
-        await supabase.from('annees_scolaires').update({ statut: 'archivee' }).eq('id', anneeActive.id);
-      }
-      // 2. Activer la nouvelle
-      const { error } = await supabase.from('annees_scolaires').update({ statut: 'active' }).eq('id', annee.id);
-      if (error) throw error;
-      // Audit
-      try {
-        await supabase.from('audit_log').insert({
-          actor_user_id: user.id,
-          actor_role: user.role || 'surveillant',
-          action: 'annee_scolaire.activee',
-          target_type: 'annees_scolaires',
-          target_id: annee.id,
-          target_label: annee.nom,
-          metadata: { ecole_id: user.ecole_id, archived: anneeActive?.id || null },
-        });
-      } catch(e) { console.warn('[activerAnnee] audit:', e); }
-      await loadData();
-      showMsg('success', lang==='ar'?`✅ السنة ${annee.nom} نشطة الآن`:`✅ Année ${annee.nom} activée`);
-    } catch (err) {
-      console.error('[activerAnnee]', err);
-      showMsg('error', (lang==='ar'?'فشل: ':'Erreur : ') + err.message);
-    } finally {
-      setSaving(false);
-    }
+  const activerAnnee = (annee) => {
+    setConfirmModale({
+      titre: lang==='ar'?'تفعيل السنة':'Activer l\'année',
+      message: lang==='ar'
+        ? `تفعيل '${annee.nom}'؟ سيتم أرشفة السنة الحالية تلقائياً.`
+        : `Activer '${annee.nom}' ? L'année active actuelle sera archivée.`,
+      action: lang==='ar'?'تفعيل':'Activer',
+      danger: false,
+      onConfirm: async () => {
+        setSaving(true);
+        try {
+          if (anneeActive) {
+            await supabase.from('annees_scolaires').update({ statut: 'archivee' }).eq('id', anneeActive.id);
+          }
+          const { error } = await supabase.from('annees_scolaires').update({ statut: 'active' }).eq('id', annee.id);
+          if (error) throw error;
+          try {
+            await supabase.from('audit_log').insert({
+              actor_user_id: user.id, actor_role: user.role || 'surveillant',
+              action: 'annee_scolaire.activee', target_type: 'annees_scolaires',
+              target_id: annee.id, target_label: annee.nom,
+              metadata: { ecole_id: user.ecole_id, archived: anneeActive?.id || null },
+            });
+          } catch(e) { console.warn('[activerAnnee] audit:', e); }
+          await loadData();
+          showMsg('success', lang==='ar'?`✅ السنة ${annee.nom} نشطة الآن`:`✅ Année ${annee.nom} activée`);
+          setConfirmModale(null);
+        } catch (err) {
+          console.error('[activerAnnee]', err);
+          showMsg('error', (lang==='ar'?'فشل: ':'Erreur : ') + err.message);
+        } finally {
+          setSaving(false);
+        }
+      },
+    });
   };
 
-  const cloturerAnnee = async () => {
+  const cloturerAnnee = () => {
     if (!anneeActive) return;
-    if (!window.confirm(lang==='ar'
-      ? `إغلاق السنة '${anneeActive.nom}'؟ ستصبح للقراءة فقط.`
-      : `Clôturer l'année '${anneeActive.nom}' ? Elle deviendra lecture seule.`)) return;
-    setSaving(true);
-    try {
-      const { error } = await supabase.from('annees_scolaires').update({ statut: 'archivee' }).eq('id', anneeActive.id);
-      if (error) throw error;
-      try {
-        await supabase.from('audit_log').insert({
-          actor_user_id: user.id, actor_role: user.role || 'surveillant',
-          action: 'annee_scolaire.archivee', target_type: 'annees_scolaires',
-          target_id: anneeActive.id, target_label: anneeActive.nom,
-          metadata: { ecole_id: user.ecole_id },
-        });
-      } catch(e) { console.warn('[cloturerAnnee] audit:', e); }
-      await loadData();
-      showMsg('success', lang==='ar'?'✅ تم الإغلاق':'✅ Année clôturée');
-    } catch (err) {
-      console.error('[cloturerAnnee]', err);
-      showMsg('error', (lang==='ar'?'فشل: ':'Erreur : ') + err.message);
-    } finally {
-      setSaving(false);
-    }
+    setConfirmModale({
+      titre: lang==='ar'?'إغلاق السنة':'Clôturer l\'année',
+      message: lang==='ar'
+        ? `إغلاق السنة '${anneeActive.nom}'؟ ستصبح للقراءة فقط.`
+        : `Clôturer l'année '${anneeActive.nom}' ? Elle deviendra lecture seule.`,
+      action: lang==='ar'?'إغلاق':'Clôturer',
+      danger: false,
+      onConfirm: async () => {
+        setSaving(true);
+        try {
+          const { error } = await supabase.from('annees_scolaires').update({ statut: 'archivee' }).eq('id', anneeActive.id);
+          if (error) throw error;
+          try {
+            await supabase.from('audit_log').insert({
+              actor_user_id: user.id, actor_role: user.role || 'surveillant',
+              action: 'annee_scolaire.archivee', target_type: 'annees_scolaires',
+              target_id: anneeActive.id, target_label: anneeActive.nom,
+              metadata: { ecole_id: user.ecole_id },
+            });
+          } catch(e) { console.warn('[cloturerAnnee] audit:', e); }
+          await loadData();
+          showMsg('success', lang==='ar'?'✅ تم الإغلاق':'✅ Année clôturée');
+          setConfirmModale(null);
+        } catch (err) {
+          console.error('[cloturerAnnee]', err);
+          showMsg('error', (lang==='ar'?'فشل: ':'Erreur : ') + err.message);
+        } finally {
+          setSaving(false);
+        }
+      },
+    });
   };
 
-  const supprimerAnnee = async (annee) => {
+  const supprimerAnnee = (annee) => {
     if (annee.statut === 'active') {
       return showMsg('error', lang==='ar'?'لا يمكن حذف السنة النشطة':'Impossible de supprimer l\'année active');
     }
     const nbPeriodes = periodes.filter(p => p.annee_scolaire_id === annee.id).length;
-    if (!window.confirm(lang==='ar'
-      ? `حذف '${annee.nom}' و ${nbPeriodes} فترات؟`
-      : `Supprimer '${annee.nom}' et ses ${nbPeriodes} périodes ?`)) return;
-    setSaving(true);
-    try {
-      // CASCADE supprime aussi les periodes (FK)
-      const { error } = await supabase.from('annees_scolaires').delete().eq('id', annee.id);
-      if (error) throw error;
-      if (selectedAnneeId === annee.id) setSelectedAnneeId(null);
-      await loadData();
-      showMsg('success', lang==='ar'?'✅ تم الحذف':'✅ Supprimé');
-    } catch (err) {
-      console.error('[supprimerAnnee]', err);
-      showMsg('error', (lang==='ar'?'فشل: ':'Erreur : ') + err.message);
-    } finally {
-      setSaving(false);
-    }
+    setConfirmModale({
+      titre: lang==='ar'?'حذف السنة':'Supprimer l\'année',
+      message: lang==='ar'
+        ? `حذف '${annee.nom}' و ${nbPeriodes} فترات؟ لا يمكن التراجع.`
+        : `Supprimer '${annee.nom}' et ses ${nbPeriodes} périodes ? Action irréversible.`,
+      action: lang==='ar'?'حذف':'Supprimer',
+      danger: true,
+      onConfirm: async () => {
+        setSaving(true);
+        try {
+          const { error } = await supabase.from('annees_scolaires').delete().eq('id', annee.id);
+          if (error) throw error;
+          if (selectedAnneeId === annee.id) setSelectedAnneeId(null);
+          await loadData();
+          showMsg('success', lang==='ar'?'✅ تم الحذف':'✅ Supprimé');
+          setConfirmModale(null);
+        } catch (err) {
+          console.error('[supprimerAnnee]', err);
+          showMsg('error', (lang==='ar'?'فشل: ':'Erreur : ') + err.message);
+        } finally {
+          setSaving(false);
+        }
+      },
+    });
   };
 
-  // Recopier la structure de l'annee active dans une nouvelle annee
-  const preparerAnneeSuivante = async () => {
+  const preparerAnneeSuivante = () => {
     if (!anneeActive) {
       return showMsg('error', lang==='ar'?'لا توجد سنة نشطة لنسخها':'Aucune année active à recopier');
     }
@@ -749,7 +767,6 @@ function PeriodesTab({ user, lang, showMsg }) {
     if (periodesActives.length === 0) {
       return showMsg('error', lang==='ar'?'السنة النشطة بدون فترات':'L\'année active n\'a aucune période');
     }
-    // Calculer les dates +1 an
     const ajouterUnAn = (iso) => {
       const d = new Date(iso); d.setFullYear(d.getFullYear()+1);
       const y=d.getFullYear(), m=String(d.getMonth()+1).padStart(2,'0'), dd=String(d.getDate()).padStart(2,'0');
@@ -757,52 +774,58 @@ function PeriodesTab({ user, lang, showMsg }) {
     };
     const remplacerAnnee = (nom) => (nom||'').replace(/(\d{4})-(\d{4})/, (m,a,b)=>`${parseInt(a)+1}-${parseInt(b)+1}`).replace(/(\d{4})/, (m,a)=>`${parseInt(a)+1}`);
     const nouveauNom = remplacerAnnee(anneeActive.nom);
-    if (!window.confirm(lang==='ar'
-      ? `إنشاء '${nouveauNom}' مع ${periodesActives.length} فترات منسوخة (+1 سنة)؟`
-      : `Créer '${nouveauNom}' avec ${periodesActives.length} périodes recopiées (+1 an) ?`)) return;
-    setSaving(true);
-    try {
-      // 1. Creer la nouvelle annee
-      const { data: newAnnee, error: errA } = await supabase.from('annees_scolaires').insert({
-        ecole_id: user.ecole_id,
-        nom: nouveauNom,
-        date_debut: ajouterUnAn(anneeActive.date_debut),
-        date_fin: ajouterUnAn(anneeActive.date_fin),
-        statut: 'a_venir',
-      }).select().single();
-      if (errA) throw errA;
-      // 2. Recopier les periodes (sans relier celles 'libre' specifiques aux dates ?)
-      const nouvellesPeriodes = periodesActives.map(p => ({
-        ecole_id: user.ecole_id,
-        annee_scolaire_id: newAnnee.id,
-        nom: remplacerAnnee(p.nom),
-        nom_ar: remplacerAnnee(p.nom_ar || p.nom),
-        date_debut: ajouterUnAn(p.date_debut),
-        date_fin: ajouterUnAn(p.date_fin),
-        type: p.type,
-        actif: true,
-      }));
-      const { error: errP } = await supabase.from('periodes_notes').insert(nouvellesPeriodes);
-      if (errP) throw errP;
-      try {
-        await supabase.from('audit_log').insert({
-          actor_user_id: user.id, actor_role: user.role || 'surveillant',
-          action: 'annee_scolaire.preparee', target_type: 'annees_scolaires',
-          target_id: newAnnee.id, target_label: nouveauNom,
-          metadata: { ecole_id: user.ecole_id, periodes_recopiees: nouvellesPeriodes.length },
-        });
-      } catch(e) { console.warn('[preparerAnnee] audit:', e); }
-      setSelectedAnneeId(newAnnee.id);
-      await loadData();
-      showMsg('success', lang==='ar'
-        ? `🎉 ${nouveauNom} مع ${nouvellesPeriodes.length} فترات`
-        : `🎉 ${nouveauNom} créée avec ${nouvellesPeriodes.length} périodes`);
-    } catch (err) {
-      console.error('[preparerAnnee]', err);
-      showMsg('error', (lang==='ar'?'فشل: ':'Erreur : ') + err.message);
-    } finally {
-      setSaving(false);
-    }
+    setConfirmModale({
+      titre: lang==='ar'?'تحضير السنة المقبلة':'Préparer l\'année suivante',
+      message: lang==='ar'
+        ? `إنشاء '${nouveauNom}' مع ${periodesActives.length} فترات منسوخة (+1 سنة)؟`
+        : `Créer '${nouveauNom}' avec ${periodesActives.length} périodes recopiées (+1 an) ?`,
+      action: lang==='ar'?'تحضير':'Préparer',
+      danger: false,
+      onConfirm: async () => {
+        setSaving(true);
+        try {
+          const { data: newAnnee, error: errA } = await supabase.from('annees_scolaires').insert({
+            ecole_id: user.ecole_id,
+            nom: nouveauNom,
+            date_debut: ajouterUnAn(anneeActive.date_debut),
+            date_fin: ajouterUnAn(anneeActive.date_fin),
+            statut: 'a_venir',
+          }).select().single();
+          if (errA) throw errA;
+          const nouvellesPeriodes = periodesActives.map(p => ({
+            ecole_id: user.ecole_id,
+            annee_scolaire_id: newAnnee.id,
+            nom: remplacerAnnee(p.nom),
+            nom_ar: remplacerAnnee(p.nom_ar || p.nom),
+            date_debut: ajouterUnAn(p.date_debut),
+            date_fin: ajouterUnAn(p.date_fin),
+            type: p.type,
+            actif: true,
+          }));
+          const { error: errP } = await supabase.from('periodes_notes').insert(nouvellesPeriodes);
+          if (errP) throw errP;
+          try {
+            await supabase.from('audit_log').insert({
+              actor_user_id: user.id, actor_role: user.role || 'surveillant',
+              action: 'annee_scolaire.preparee', target_type: 'annees_scolaires',
+              target_id: newAnnee.id, target_label: nouveauNom,
+              metadata: { ecole_id: user.ecole_id, periodes_recopiees: nouvellesPeriodes.length },
+            });
+          } catch(e) { console.warn('[preparerAnnee] audit:', e); }
+          setSelectedAnneeId(newAnnee.id);
+          await loadData();
+          showMsg('success', lang==='ar'
+            ? `🎉 ${nouveauNom} مع ${nouvellesPeriodes.length} فترات`
+            : `🎉 ${nouveauNom} créée avec ${nouvellesPeriodes.length} périodes`);
+          setConfirmModale(null);
+        } catch (err) {
+          console.error('[preparerAnnee]', err);
+          showMsg('error', (lang==='ar'?'فشل: ':'Erreur : ') + err.message);
+        } finally {
+          setSaving(false);
+        }
+      },
+    });
   };
 
   // ──────────────────────────────────────────────
@@ -878,19 +901,27 @@ function PeriodesTab({ user, lang, showMsg }) {
     }
   };
 
-  const supprimerPeriode = async (p) => {
-    if (!window.confirm(lang==='ar'?`حذف '${p.nom_ar||p.nom}'؟`:`Supprimer '${p.nom_ar||p.nom}' ?`)) return;
-    setSaving(true);
-    try {
-      await supabase.from('periodes_notes').delete().eq('id', p.id);
-      await loadData();
-      showMsg('success', lang==='ar'?'✅ تم الحذف':'✅ Supprimé');
-    } catch (err) {
-      console.error('[supprimerPeriode]', err);
-      showMsg('error', (lang==='ar'?'فشل: ':'Erreur : ') + err.message);
-    } finally {
-      setSaving(false);
-    }
+  const supprimerPeriode = (p) => {
+    setConfirmModale({
+      titre: lang==='ar'?'حذف الفترة':'Supprimer la période',
+      message: lang==='ar'?`حذف '${p.nom_ar||p.nom}'؟`:`Supprimer '${p.nom_ar||p.nom}' ?`,
+      action: lang==='ar'?'حذف':'Supprimer',
+      danger: true,
+      onConfirm: async () => {
+        setSaving(true);
+        try {
+          await supabase.from('periodes_notes').delete().eq('id', p.id);
+          await loadData();
+          showMsg('success', lang==='ar'?'✅ تم الحذف':'✅ Supprimé');
+          setConfirmModale(null);
+        } catch (err) {
+          console.error('[supprimerPeriode]', err);
+          showMsg('error', (lang==='ar'?'فشل: ':'Erreur : ') + err.message);
+        } finally {
+          setSaving(false);
+        }
+      },
+    });
   };
 
   // ──────────────────────────────────────────────
@@ -1067,6 +1098,45 @@ function PeriodesTab({ user, lang, showMsg }) {
             </div>
           )}
         </>
+      )}
+
+      {/* MODALE de confirmation generique (Etape 14 v2 - remplace window.confirm) */}
+      {confirmModale && (
+        <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.55)',zIndex:10000,display:'flex',alignItems:'center',justifyContent:'center',padding:20}}
+          onClick={()=>{ if(!saving) setConfirmModale(null); }}>
+          <div onClick={e=>e.stopPropagation()}
+            style={{background:'#fff',borderRadius:16,maxWidth:440,width:'100%',padding:24,boxShadow:'0 20px 60px rgba(0,0,0,0.3)'}}>
+            <div style={{display:'flex',alignItems:'center',gap:12,marginBottom:14}}>
+              <div style={{
+                width:48,height:48,borderRadius:14,
+                background:confirmModale.danger?'#FCEBEB':'#E1F5EE',
+                display:'flex',alignItems:'center',justifyContent:'center',fontSize:24,flexShrink:0,
+              }}>
+                {confirmModale.danger?'⚠️':'❓'}
+              </div>
+              <div style={{flex:1}}>
+                <div style={{fontSize:16,fontWeight:800,color:'#1a1a1a'}}>
+                  {confirmModale.titre}
+                </div>
+              </div>
+            </div>
+            <div style={{fontSize:13,color:'#444',lineHeight:1.6,marginBottom:18}}>
+              {confirmModale.message}
+            </div>
+            <div style={{display:'flex',gap:8}}>
+              <button onClick={()=>setConfirmModale(null)} disabled={saving}
+                style={{flex:1,padding:11,background:'#f5f5f0',color:'#666',border:'none',borderRadius:10,fontSize:13,fontWeight:600,cursor:saving?'not-allowed':'pointer',fontFamily:'inherit'}}>
+                {lang==='ar'?'إلغاء':'Annuler'}
+              </button>
+              <button onClick={confirmModale.onConfirm} disabled={saving}
+                style={{flex:2,padding:11,
+                  background:saving?'#ccc':(confirmModale.danger?'#E24B4A':'linear-gradient(135deg,#1D9E75,#085041)'),
+                  color:'#fff',border:'none',borderRadius:10,fontSize:13,fontWeight:700,cursor:saving?'not-allowed':'pointer',fontFamily:'inherit'}}>
+                {saving?(lang==='ar'?'جاري...':'En cours...'):confirmModale.action}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* MODALE creation/edition annee */}

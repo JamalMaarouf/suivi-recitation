@@ -1354,6 +1354,13 @@ export async function genererLoginParentUnique(supabase, baseLogin) {
  * Charge l'annee scolaire ACTIVE de l'ecole avec ses periodes.
  * Q2=A : 1 seule annee active a la fois (contrainte BDD).
  *
+ * Tri des periodes (Etape 14 v2) :
+ *   1. Par TYPE (granularite) : trimestre -> semestre -> annee -> libre
+ *   2. Puis par date_debut ASC (chronologique dans chaque groupe)
+ *
+ * Cette logique s'applique automatiquement a toutes les ecoles
+ * peu importe leur decoupage (3T, 4T, 2S, mix, etc.)
+ *
  * @returns {Promise<{annee: object|null, periodes: Array}>}
  */
 export async function loadAnneeActiveAvecPeriodes(supabase, ecole_id) {
@@ -1376,13 +1383,21 @@ export async function loadAnneeActiveAvecPeriodes(supabase, ecole_id) {
     const { data: periodes, error: errP } = await supabase.from('periodes_notes')
       .select('id, nom, nom_ar, date_debut, date_fin, type, actif, annee_scolaire_id')
       .eq('annee_scolaire_id', annee.id)
-      .eq('actif', true)
-      .order('date_debut', { ascending: true });
+      .eq('actif', true);
     if (errP) {
       console.warn('[loadAnneeActiveAvecPeriodes] erreur periodes:', errP.message);
       return { annee, periodes: [] };
     }
-    return { annee, periodes: periodes || [] };
+
+    // 3. Tri par granularite puis chronologie (Etape 14 v2)
+    const ORDRE_TYPE = { trimestre: 1, semestre: 2, annee: 3, libre: 4 };
+    const sorted = (periodes || []).slice().sort((a, b) => {
+      const typeA = ORDRE_TYPE[a.type || 'libre'] || 5;
+      const typeB = ORDRE_TYPE[b.type || 'libre'] || 5;
+      if (typeA !== typeB) return typeA - typeB;
+      return (a.date_debut || '').localeCompare(b.date_debut || '');
+    });
+    return { annee, periodes: sorted };
   } catch (e) {
     console.error('[loadAnneeActiveAvecPeriodes] error:', e);
     return fallback;
