@@ -1455,3 +1455,36 @@ export function formatPeriodeCourte(periode, lang='fr', withDates=true) {
   return `${nom} (${formatMois(periode.date_debut)}-${formatMois(periode.date_fin)})`;
 }
 
+/**
+ * Detecte la periode "en cours" parmi un sous-ensemble (typee).
+ * Logique :
+ *   1. Si une periode du type cible contient today -> celle-la
+ *   2. Sinon la prochaine future la plus proche
+ *   3. Sinon la plus recente passee
+ *
+ * @param {Array} periodes - liste des periodes filtrees par type
+ * @returns {Object|null} la periode en cours/proche, ou null si aucune
+ */
+export function detecterPeriodeEnCours(periodes) {
+  if (!periodes || periodes.length === 0) return null;
+  const today = new Date();
+  // 1. Periode contenant today
+  const courante = periodes.find(p => {
+    const d1 = new Date(p.date_debut);
+    const d2 = new Date(p.date_fin);
+    return d1 <= today && today <= d2;
+  });
+  if (courante) return courante;
+  // 2. Prochaine future
+  const futures = periodes.filter(p => new Date(p.date_debut) > today);
+  if (futures.length > 0) {
+    return futures.sort((a,b) => new Date(a.date_debut) - new Date(b.date_debut))[0];
+  }
+  // 3. Plus recente passee
+  const passees = periodes.filter(p => new Date(p.date_fin) < today);
+  if (passees.length > 0) {
+    return passees.sort((a,b) => new Date(b.date_fin) - new Date(a.date_fin))[0];
+  }
+  return null;
+}
+

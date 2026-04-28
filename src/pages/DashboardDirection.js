@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { supabase } from '../lib/supabase';
 import { t } from '../lib/i18n';
-import { BAREME_DEFAUT, loadBareme, loadAnneeActiveAvecPeriodes, formatPeriodeCourte } from '../lib/helpers';
+import { BAREME_DEFAUT, loadBareme, loadAnneeActiveAvecPeriodes, formatPeriodeCourte, detecterPeriodeEnCours } from '../lib/helpers';
 import { fetchAll } from '../lib/fetchAll';
 import { openPDF } from '../lib/pdf';
 import { exportExcel } from '../lib/excel';
@@ -104,6 +104,7 @@ export default function DashboardDirection({ user, navigate, goBack, lang='fr', 
   const [bareme, setBareme] = useState(BAREME_DEFAUT);
   const [periode, setPeriode] = useState('mois'); // 'mois' | 'bdd_<id>' (Etape 14 v2)
   const [periodesBDD, setPeriodesBDD] = useState([]); // periodes typees de l'annee active
+  const [showPeriodeDropdown, setShowPeriodeDropdown] = useState(false); // Etape 14 v2 - dropdown 'Plus'
   const [activeSection, setActiveSection] = useState('overview');
 
   // RGPD audit (P2.1) : logs RGPD filtrés sur l'école uniquement
@@ -114,6 +115,8 @@ export default function DashboardDirection({ user, navigate, goBack, lang='fr', 
   useEffect(() => { loadData(); }, []);
 
   // Etape 14 v2 - Charger les periodes typees de l'annee active
+  // Inclut trimestres + semestres + annee (la periode 'annee' est legitime
+  // dans Dashboard Direction car c'est une vue strategique)
   useEffect(() => {
     if (!user?.ecole_id) return;
     loadAnneeActiveAvecPeriodes(supabase, user.ecole_id).then(({ periodes }) => {
@@ -329,16 +332,46 @@ export default function DashboardDirection({ user, navigate, goBack, lang='fr', 
     return alerts;
   }, [eleves, validations, kpis]);
 
-  // Etape 14 v2 - PERIODES dynamiques : Mois (auto) + periodes typees de l'annee active
-  const PERIODES = [
+  // Etape 14 v2 - PERIODES dynamiques pour Dashboard Direction
+  // Pattern hybride : [Ce mois] [T en cours] [Année] + dropdown "Plus"
+  const trimestresBDD = periodesBDD.filter(p => p.type === 'trimestre');
+  const semestresBDD  = periodesBDD.filter(p => p.type === 'semestre');
+  const anneesBDD     = periodesBDD.filter(p => p.type === 'annee');
+  const trimestreEnCours = detecterPeriodeEnCours(trimestresBDD);
+  const anneeEnCours = detecterPeriodeEnCours(anneesBDD);
+
+  // 3 boutons rapides + Dropdown "Plus"
+  const boutonsRapides = [
     { key:'mois', label:isAr?'الشهر الحالي':'Ce mois' },
-    ...periodesBDD.map(p => ({
-      key: 'bdd_' + p.id,
-      label: formatPeriodeCourte(p, lang, true),
-    })),
+    ...(trimestreEnCours ? [{ key:'bdd_'+trimestreEnCours.id, label: formatPeriodeCourte(trimestreEnCours, lang, true) }] : []),
+    ...(anneeEnCours ? [{ key:'bdd_'+anneeEnCours.id, label: formatPeriodeCourte(anneeEnCours, lang, false) }] : []),
   ];
 
-  const periodeLabel = PERIODES.find(p => p.key === periode)?.label || '';
+  // Items dropdown (toutes les periodes BDD sauf celles deja en bouton rapide)
+  const idsRapides = boutonsRapides.map(b => b.key);
+  const dropdownItems = [
+    // Recent
+    { groupe: isAr?'حديث':'Récent', items: [
+      { key:'mois', label:isAr?'الشهر الحالي':'Ce mois (calendaire)' },
+    ].filter(item => !idsRapides.includes(item.key)) },
+    // Trimestres
+    { groupe: isAr?'الفصول الدراسية':'Trimestres', items:
+      trimestresBDD.map(p => ({ key:'bdd_'+p.id, label: formatPeriodeCourte(p, lang, true) }))
+        .filter(item => !idsRapides.includes(item.key))
+    },
+    // Bilans
+    { groupe: isAr?'الحصيلة':'Bilans', items: [
+      ...semestresBDD.map(p => ({ key:'bdd_'+p.id, label: formatPeriodeCourte(p, lang, true) })),
+      ...anneesBDD.map(p => ({ key:'bdd_'+p.id, label: formatPeriodeCourte(p, lang, false) })),
+    ].filter(item => !idsRapides.includes(item.key)) },
+  ].filter(g => g.items.length > 0);
+
+  // Liste plate pour determiner le label de la periode active
+  const allOptions = [
+    ...boutonsRapides,
+    ...dropdownItems.flatMap(g => g.items),
+  ];
+  const periodeLabel = allOptions.find(o => o.key === periode)?.label || (isAr?'الشهر الحالي':'Ce mois');
 
   // ── Préparation des données Top 10 avec points ──
   const top10AvecPoints = useMemo(() => {
@@ -480,9 +513,9 @@ export default function DashboardDirection({ user, navigate, goBack, lang='fr', 
               <div style={{fontSize:11,color:'rgba(255,255,255,0.75)'}}>{ecole?.nom||''}</div>
             </div>
           </div>
-          {/* Sélecteur période */}
-          <div style={{display:'flex',gap:6,marginTop:12,overflowX:'auto',paddingBottom:2}}>
-            {PERIODES.map(p=>(
+          {/* Sélecteur période - Etape 14 v2 - Hybride : 3 boutons + dropdown */}
+          <div style={{display:'flex',gap:6,marginTop:12,overflowX:'auto',paddingBottom:2,flexWrap:'wrap',position:'relative'}}>
+            {boutonsRapides.map(p=>(
               <button key={p.key} onClick={()=>setPeriode(p.key)}
                 style={{background:periode===p.key?'rgba(255,255,255,0.3)':'rgba(255,255,255,0.1)',
                   border:`1px solid ${periode===p.key?'rgba(255,255,255,0.5)':'rgba(255,255,255,0.2)'}`,
@@ -491,6 +524,49 @@ export default function DashboardDirection({ user, navigate, goBack, lang='fr', 
                 {p.label}
               </button>
             ))}
+            {dropdownItems.length > 0 && (
+              <div style={{position:'relative'}}>
+                <button onClick={()=>setShowPeriodeDropdown(s=>!s)}
+                  style={{background:periode!=='mois'&&!boutonsRapides.find(b=>b.key===periode)?'rgba(255,255,255,0.3)':'rgba(255,255,255,0.1)',
+                    border:`1px solid ${periode!=='mois'&&!boutonsRapides.find(b=>b.key===periode)?'rgba(255,255,255,0.5)':'rgba(255,255,255,0.2)'}`,
+                    borderRadius:20,padding:'5px 12px',color:'#fff',fontSize:11,fontWeight:600,
+                    cursor:'pointer',whiteSpace:'nowrap',flexShrink:0}}>
+                  {/* Si une periode du dropdown est active, afficher son label */}
+                  {(() => {
+                    const itemActif = dropdownItems.flatMap(g=>g.items).find(i=>i.key===periode);
+                    return itemActif ? itemActif.label : (isAr?'المزيد ▾':'Plus ▾');
+                  })()}
+                </button>
+                {showPeriodeDropdown && (
+                  <>
+                    <div onClick={()=>setShowPeriodeDropdown(false)}
+                      style={{position:'fixed',inset:0,zIndex:50}} />
+                    <div style={{position:'absolute',top:'calc(100% + 4px)',right:0,zIndex:51,
+                      background:'#fff',borderRadius:10,boxShadow:'0 6px 20px rgba(0,0,0,0.15)',
+                      minWidth:200,maxHeight:'60vh',overflowY:'auto',padding:6}}>
+                      {dropdownItems.map(g => (
+                        <div key={g.groupe} style={{marginBottom:4}}>
+                          <div style={{fontSize:9,fontWeight:700,color:'#888',textTransform:'uppercase',padding:'4px 8px'}}>
+                            {g.groupe}
+                          </div>
+                          {g.items.map(item => (
+                            <button key={item.key}
+                              onClick={()=>{setPeriode(item.key);setShowPeriodeDropdown(false);}}
+                              style={{display:'block',width:'100%',textAlign:isAr?'right':'left',
+                                padding:'7px 10px',border:'none',borderRadius:6,fontSize:11,
+                                background:periode===item.key?'#E1F5EE':'transparent',
+                                color:periode===item.key?'#085041':'#333',
+                                fontWeight:periode===item.key?700:500,cursor:'pointer',fontFamily:'inherit'}}>
+                              {item.label}
+                            </button>
+                          ))}
+                        </div>
+                      ))}
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
           </div>
           {periodesBDD.length === 0 && (
             <div style={{marginTop:8,padding:'6px 10px',background:'rgba(255,180,80,0.15)',border:'1px solid rgba(255,180,80,0.3)',borderRadius:8,fontSize:10,color:'rgba(255,255,255,0.9)'}}>
@@ -655,10 +731,10 @@ export default function DashboardDirection({ user, navigate, goBack, lang='fr', 
         />
       </div>
 
-      {/* Sélecteur période - sur sa propre ligne pour ne pas surcharger le header */}
+      {/* Sélecteur période - Etape 14 v2 - Hybride : 3 boutons + dropdown */}
       <div style={{display:'flex',justifyContent:'center',marginBottom:'1.25rem',flexDirection:'column',alignItems:'center',gap:6}}>
-        <div style={{display:'flex',gap:6,background:'#f5f5f0',borderRadius:10,padding:4,flexWrap:'wrap',justifyContent:'center'}}>
-          {PERIODES.map(p=>(
+        <div style={{display:'flex',gap:6,background:'#f5f5f0',borderRadius:10,padding:4,flexWrap:'wrap',justifyContent:'center',position:'relative'}}>
+          {boutonsRapides.map(p=>(
             <button key={p.key} onClick={()=>setPeriode(p.key)}
               style={{background:periode===p.key?'#fff':'transparent',
                 border:'none',borderRadius:8,padding:'6px 14px',fontSize:12,
@@ -668,6 +744,50 @@ export default function DashboardDirection({ user, navigate, goBack, lang='fr', 
               {p.label}
             </button>
           ))}
+          {dropdownItems.length > 0 && (() => {
+            const itemActif = dropdownItems.flatMap(g=>g.items).find(i=>i.key===periode);
+            const isActive = !!itemActif;
+            return (
+              <div style={{position:'relative'}}>
+                <button onClick={()=>setShowPeriodeDropdown(s=>!s)}
+                  style={{background:isActive?'#fff':'transparent',
+                    border:'none',borderRadius:8,padding:'6px 14px',fontSize:12,
+                    fontWeight:isActive?700:400,color:isActive?'#085041':'#888',
+                    cursor:'pointer',transition:'all 0.15s',
+                    boxShadow:isActive?'0 1px 4px rgba(0,0,0,0.1)':'none'}}>
+                  {isActive ? itemActif.label : (isAr?'المزيد ▾':'Plus ▾')}
+                </button>
+                {showPeriodeDropdown && (
+                  <>
+                    <div onClick={()=>setShowPeriodeDropdown(false)}
+                      style={{position:'fixed',inset:0,zIndex:50}} />
+                    <div style={{position:'absolute',top:'calc(100% + 4px)',right:0,zIndex:51,
+                      background:'#fff',borderRadius:10,boxShadow:'0 6px 20px rgba(0,0,0,0.15)',
+                      minWidth:220,maxHeight:'60vh',overflowY:'auto',padding:6,border:'1px solid #e0e0d8'}}>
+                      {dropdownItems.map(g => (
+                        <div key={g.groupe} style={{marginBottom:4}}>
+                          <div style={{fontSize:9,fontWeight:700,color:'#888',textTransform:'uppercase',padding:'4px 10px',letterSpacing:0.3}}>
+                            {g.groupe}
+                          </div>
+                          {g.items.map(item => (
+                            <button key={item.key}
+                              onClick={()=>{setPeriode(item.key);setShowPeriodeDropdown(false);}}
+                              style={{display:'block',width:'100%',textAlign:isAr?'right':'left',
+                                padding:'8px 12px',border:'none',borderRadius:6,fontSize:12,
+                                background:periode===item.key?'#E1F5EE':'transparent',
+                                color:periode===item.key?'#085041':'#333',
+                                fontWeight:periode===item.key?700:500,cursor:'pointer',fontFamily:'inherit'}}>
+                              {item.label}
+                            </button>
+                          ))}
+                        </div>
+                      ))}
+                    </div>
+                  </>
+                )}
+              </div>
+            );
+          })()}
         </div>
         {periodesBDD.length === 0 && (
           <div style={{padding:'6px 12px',background:'#FFF8EC',border:'1px solid #EF9F2730',borderRadius:8,fontSize:11,color:'#7B5800',display:'flex',alignItems:'center',gap:6}}>
