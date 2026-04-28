@@ -1305,54 +1305,38 @@ export function prochainHizbDansBloc(progression) {
  *   3. Filet de securite : jusqu'a "-99" puis throw error.
  *
  * NOTE TECHNIQUE :
- *   Le wrapper supabase.js applique automatiquement un filtre
- *   .is('deleted_at', null) sur les SELECT, ce qui masque les
- *   utilisateurs soft-deletes. Or la contrainte UNIQUE BDD prend en
- *   compte AUSSI les soft-deletes. Donc un SELECT classique pourrait
- *   indiquer "libre" alors que l'INSERT echouera.
- *   Solution : on bypasse le wrapper en utilisant une query INSERT
- *   speculative et en gerant l'erreur 23505 (duplicate). C'est plus
- *   robuste car ca couvre TOUS les cas (actif + soft-delete).
+ *   Le wrapper supabase.js applique un filtre IMMUABLE
+ *   .is('deleted_at', null) sur les SELECT des tables soft-delete.
+ *   Aucune condition tautologique cote applicatif ne peut l'annuler.
+ *   La SEULE solution : utiliser supabaseRaw (client non wrappe) pour
+ *   voir TOUS les enregistrements (actifs + soft-deletes).
  *
- * @param supabase Client Supabase
+ *   On accepte ici que ce helper passe par le client brut car c'est
+ *   un check d'integrite technique (verification d'unicite contrainte
+ *   BDD) et non une lecture metier.
+ *
+ * @param supabase Client Supabase (NON UTILISE - on utilise supabaseRaw)
  * @param baseLogin Le login souhaite (ex: "54")
  * @returns {Promise<string>} Le login unique trouve (ex: "54" ou "54-2")
  */
 export async function genererLoginParentUnique(supabase, baseLogin) {
+  // Import dynamique pour eviter dependance circulaire
+  const { supabaseRaw } = await import('./supabase');
+
   const base = (baseLogin || '').trim();
   if (!base) throw new Error('baseLogin manquant');
-
-  // Strategie : on tente une serie de SELECT avec une approche TIA
-  // (test-then-act) en utilisant directement le client supabase de bas
-  // niveau pour BYPASS le filtre deleted_at automatique.
-  // Pour cela on utilise un SELECT 'count' qui ne filtre pas (ou on
-  // se rabat sur un UPDATE/INSERT speculatif).
-  //
-  // Approche choisie : utiliser le client SUPABASE BRUT (bypass wrapper)
-  // via la fonction native fetch sur l'API REST.
-  //
-  // Mais comme ce serait complexe, on utilise une approche plus simple :
-  // tester avec un .select('id, deleted_at') pour avoir aussi les
-  // soft-deletes, ce qui ne fonctionne pas a cause du wrapper.
-  //
-  // Solution finale : faire un .select() avec une condition impossible
-  // pour eviter le filtrage automatique :
-  // approche : ajouter .or('deleted_at.is.null,deleted_at.not.is.null')
-  // qui est tautologique mais qui ANNULE le filtre du wrapper.
 
   const candidates = [base];
   for (let i = 2; i <= 99; i++) candidates.push(`${base}-${i}`);
 
   for (const candidate of candidates) {
-    // Query directe avec or() tautologique pour bypasser le filtre auto
-    const { data, error } = await supabase.from('utilisateurs')
+    // Utiliser supabaseRaw pour bypass le filtre auto deleted_at
+    const { data, error } = await supabaseRaw.from('utilisateurs')
       .select('id')
       .eq('identifiant', candidate)
-      .or('deleted_at.is.null,deleted_at.not.is.null')
       .limit(1);
     if (error) {
       console.warn('[genererLoginParentUnique] select error:', error.message);
-      // En cas d'erreur, on continue avec le candidat suivant pour ne pas bloquer
       continue;
     }
     if (!data || data.length === 0) {
