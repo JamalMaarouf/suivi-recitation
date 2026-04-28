@@ -566,6 +566,76 @@ function PeriodesTab({ user, lang, periodes, setPeriodes, newPeriode, setNewPeri
     setPeriodes(prev => prev.map(x => x.id === p.id ? {...x, actif: !x.actif} : x));
   };
 
+  // Etape 14 - Duplication annee scolaire
+  // Reprend les periodes typees (trimestre/semestre/annee) actives et
+  // les duplique avec dates +1 an. Permet au surveillant de demarrer
+  // une nouvelle annee scolaire en 1 clic au lieu de tout reconfigurer.
+  const dupliquerAnneeScolaire = async () => {
+    const aDupliquer = (periodes || []).filter(p => p.actif && p.type && p.type !== 'libre');
+    if (aDupliquer.length === 0) {
+      showMsg('error', lang==='ar'
+        ? 'لا توجد فترات نموذجية للتكرار. أضف فصول دراسية أولاً.'
+        : 'Aucune période modèle à dupliquer. Ajoutez d\'abord des trimestres/semestres.');
+      return;
+    }
+    if (!window.confirm(lang==='ar'
+      ? `سيتم إنشاء ${aDupliquer.length} فترات جديدة بإضافة سنة لكل تاريخ. متابعة؟`
+      : `${aDupliquer.length} nouvelles périodes vont être créées avec dates +1 an. Continuer ?`)) {
+      return;
+    }
+    setSavingPeriode(true);
+    try {
+      const ajouterUnAn = (isoDate) => {
+        if (!isoDate) return null;
+        const d = new Date(isoDate);
+        d.setFullYear(d.getFullYear() + 1);
+        const y = d.getFullYear();
+        const m = String(d.getMonth() + 1).padStart(2, '0');
+        const dd = String(d.getDate()).padStart(2, '0');
+        return `${y}-${m}-${dd}`;
+      };
+      const remplacerAnneeNom = (nom) => {
+        if (!nom) return nom;
+        // Detecter une annee 4 chiffres (ex: 2024-2025) et incrementer
+        return nom.replace(/(\d{4})-(\d{4})/, (m, a1, a2) => `${parseInt(a1)+1}-${parseInt(a2)+1}`)
+                  .replace(/(\d{4})/, (m, a) => `${parseInt(a)+1}`);
+      };
+      const nouvelles = aDupliquer.map(p => ({
+        ecole_id: user.ecole_id,
+        nom: remplacerAnneeNom(p.nom),
+        nom_ar: remplacerAnneeNom(p.nom_ar || p.nom),
+        date_debut: ajouterUnAn(p.date_debut),
+        date_fin: ajouterUnAn(p.date_fin),
+        type: p.type,
+        actif: true,
+      }));
+      const { error } = await supabase.from('periodes_notes').insert(nouvelles);
+      if (error) throw error;
+      // Audit log
+      try {
+        await supabase.from('audit_log').insert({
+          actor_user_id: user.id,
+          actor_role: user.role || 'surveillant',
+          action: 'periodes.annee_dupliquee',
+          target_type: 'periodes_notes',
+          target_label: `${nouvelles.length} periodes`,
+          metadata: { ecole_id: user.ecole_id, count: nouvelles.length },
+        });
+      } catch(e) { console.warn('[dupliquerAnnee] audit_log:', e); }
+      // Recharger
+      const { data } = await supabase.from('periodes_notes').select('*').eq('ecole_id', user.ecole_id).order('date_debut');
+      if (data) setPeriodes(data);
+      showMsg('success', lang==='ar'
+        ? `🎉 تم إنشاء ${nouvelles.length} فترات للسنة الجديدة`
+        : `🎉 ${nouvelles.length} périodes créées pour la nouvelle année`);
+    } catch (err) {
+      console.error('[dupliquerAnnee]', err);
+      showMsg('error', (lang==='ar'?'فشل: ':'Erreur : ') + (err.message || 'inconnue'));
+    } finally {
+      setSavingPeriode(false);
+    }
+  };
+
   const fmt = (d) => d ? new Date(d).toLocaleDateString(lang==='ar'?'ar-MA':'fr-FR', {day:'2-digit', month:'short', year:'numeric'}) : '—';
 
   // Helpers UI pour les types
@@ -641,7 +711,19 @@ function PeriodesTab({ user, lang, periodes, setPeriodes, newPeriode, setNewPeri
         </button>
       </div>
 
-      <div className="section-label">{lang==='ar'?'الفترات المُعرَّفة':'Périodes configurées'} ({periodes.length})</div>
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:8,flexWrap:'wrap',gap:8}}>
+        <div className="section-label" style={{margin:0}}>{lang==='ar'?'الفترات المُعرَّفة':'Périodes configurées'} ({periodes.length})</div>
+        {(periodes || []).filter(p => p.actif && p.type && p.type !== 'libre').length > 0 && (
+          <button onClick={dupliquerAnneeScolaire} disabled={savingPeriode}
+            title={lang==='ar'?'إنشاء فترات السنة المقبلة بنقرة واحدة':'Créer les périodes de l\'année suivante en 1 clic'}
+            style={{padding:'7px 14px',background:'linear-gradient(135deg,#1D9E75,#085041)',color:'#fff',border:'none',
+              borderRadius:8,fontSize:12,fontWeight:700,cursor:savingPeriode?'not-allowed':'pointer',
+              fontFamily:'inherit',boxShadow:'0 2px 8px rgba(8,80,65,0.25)',whiteSpace:'nowrap',
+              opacity:savingPeriode?0.6:1}}>
+            🔄 {lang==='ar'?'سنة دراسية جديدة':'Nouvelle année scolaire'}
+          </button>
+        )}
+      </div>
       {periodes.length === 0 ? (
         <div className="empty">{lang==='ar'?'لا توجد فترات بعد — أضف أول فترة أعلاه':'Aucune période — ajoutez-en une ci-dessus'}</div>
       ) : (
