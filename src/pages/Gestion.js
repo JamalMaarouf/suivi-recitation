@@ -1514,6 +1514,11 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile,
   const [instituteurs, setInstituteurs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [msg, setMsg] = useState({ type: '', text: '' });
+  // Etape 13 - Indicateurs de progression du hub Gestion
+  const [tableCounts, setTableCounts] = useState({
+    niveaux:0, ensembles:0, examens:0, jalons:0, instituteurs:0,
+    eleves:0, parents:0, cours:0, regles_passage:0, tarifs:0,
+  });
   const [editEleve, setEditEleve] = useState(null);
   const [showAcquisSelector, setShowAcquisSelector] = useState(false);
   const [editShowAcquisSelector, setEditShowAcquisSelector] = useState(false);
@@ -1629,6 +1634,23 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile,
     const liensMap = {};
     (pliens||[]).forEach(l => { if(!liensMap[l.parent_id]) liensMap[l.parent_id]=[]; liensMap[l.parent_id].push(l.eleve_id); });
     setParents((pd||[]).map(p=>({...p, eleve_ids:liensMap[p.id]||[]})));
+
+    // Etape 13 - Charger les compteurs pour les indicateurs (workflow)
+    try {
+      const counts = {};
+      const tables = ['niveaux','ensembles_sourates','examens','jalons','cours','regles_passage_niveau'];
+      for (const tbl of tables) {
+        const { count } = await supabase.from(tbl).select('id', { count: 'exact', head: true }).eq('ecole_id', user.ecole_id);
+        counts[tbl === 'ensembles_sourates' ? 'ensembles' : tbl === 'regles_passage_niveau' ? 'regles_passage' : tbl] = count || 0;
+      }
+      // Counts deja calcules en local
+      counts.eleves = (e || []).length;
+      counts.instituteurs = (i || []).length;
+      counts.parents = (pd || []).length;
+      // Tarifs : compter les instituteurs avec tarif_seance defini
+      counts.tarifs = (i || []).filter(x => x.tarif_seance != null).length;
+      setTableCounts(counts);
+    } catch (errCounts) { console.warn('[Gestion] counts:', errCounts); }
     setLoading(false);
   } catch (e) {
     console.error('[Gestion] Erreur chargement:', e);
@@ -3304,77 +3326,241 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
 
 
 
-      {tab === 'parametres' && (
-        <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(220px,1fr))',gap:12}}>
-          {[
-            {icon:'📚', label:lang==='ar'?'المستويات':'Niveaux',
-             desc:lang==='ar'?'إدارة مستويات المدرسة وألوانها':"Configurer les niveaux de l'école",
-             action:()=>navigate('niveaux',null,{tab}), color:'#085041', bg:'#E1F5EE'},
-            {icon:'📦', label:lang==='ar'?'مجموعات السور':'Ensembles',
-             desc:lang==='ar'?'تجميع السور في مجموعات':'Grouper les sourates par ensemble',
-             action:()=>navigate('ensembles',null,{tab}), color:'#D85A30', bg:'#FAECE7'},
-            {icon:'⭐', label:lang==='ar'?'النقاط':'Barème',
-             desc:lang==='ar'?'تحديد نظام التنقيط لكل معيار':'Paramétrer les points par critère',
-             action:()=>setTab('bareme'), color:'#EF9F27', bg:'#FAEEDA'},
-            {icon:'📝', label:lang==='ar'?'الامتحانات':'Examens',
-             desc:lang==='ar'?'تكوين الامتحانات والحدود':'Configurer les examens et seuils',
-             action:()=>navigate('examens',null,{tab}), color:'#378ADD', bg:'#E6F1FB'},
-            {icon:'🏅', label:lang==='ar'?'الشهادات':'Jalons',
-             desc:lang==='ar'?'تكوين مراحل منح الشهادات':'Configurer les jalons certificats',
-             action:()=>setTab('jalons'), color:'#534AB7', bg:'#EEEDFE'},
-            {icon:'👨‍🏫', label:lang==='ar'?'الأساتذة':'Instituteurs',
-             desc:lang==='ar'?'إدارة حسابات الأساتذة':'Gérer les comptes instituteurs',
-             action:()=>setTab('instituteurs'), color:'#378ADD', bg:'#E6F1FB'},
-            {icon:'👨‍🎓', label:lang==='ar'?'الطلاب':'Élèves',
-             desc:lang==='ar'?'إدارة قائمة الطلاب وإضافتهم':'Gérer et ajouter les élèves',
-             action:()=>setTab('eleves'), color:'#1D9E75', bg:'#E1F5EE'},
-            {icon:'👨‍👩‍👦', label:lang==='ar'?'الآباء':'Parents',
-             desc:lang==='ar'?'إدارة حسابات أولياء الأمور':'Gérer les comptes parents',
-             action:()=>setTab('parents'), color:'#534AB7', bg:'#EEEDFE'},
-            {icon:'🎓', label:lang==='ar'?'قواعد الانتقال':'Règles passage',
-             desc:lang==='ar'?'تكوين قواعد انتقال الطلاب بين المستويات':'Configurer les règles de passage de niveau',
-             action:()=>setTab('passage_niveau'), color:'#1D9E75', bg:'#E1F5EE'},
-            {icon:'🔄', label:lang==='ar'?'اتجاه التحفيظ':'Sens de récitation',
-             desc:lang==='ar'?'تحديد اتجاه الحفظ للمستويات (تنازلي / تصاعدي)':'Définir le sens (décroissant / croissant) par niveau',
-             action:()=>setTab('sens_recitation'), color:'#085041', bg:'#E1F5EE'},
-            {icon:'📅', label:lang==='ar'?'الحضور':'Assiduité',
-             desc:lang==='ar'?'عتبات الحضور و أيام العطل':'Seuils d\'assiduité et jours non travaillés',
-             action:()=>navigate('gestion_assiduite',null,{tab}), color:'#1D9E75', bg:'#E1F5EE'},
-            {icon:'💰', label:lang==='ar'?'تعرفات الأساتذة':'Tarifs Instituteurs',
-             desc:lang==='ar'?'تحديد تعرفة الحصة (مدرسة أو فردية)':'Configurer les tarifs par séance (école ou individuel)',
-             action:()=>navigate('gestion_tarifs',null,{tab}), color:'#534AB7', bg:'#EEEDFE'},
-            {icon:'📚', label:lang==='ar'?'الدروس':'Cours',
-             desc:lang==='ar'?'إدارة الدروس و المحاور لكل مستوى':'Paramétrer les cours et axes par niveau',
-             action:()=>navigate('gestion_cours',null,{tab}), color:'#0C447C', bg:'#E6F1FB'},
-            {icon:'👨‍👩‍👧', label:lang==='ar'?'الأولياء':'Parents',
-             desc:lang==='ar'?'عتبات نشاط الأولياء':'Seuils d\'activité des parents',
-             action:()=>navigate('gestion_parents',null,{tab}), color:'#085041', bg:'#E1F5EE'},
-            {icon:'📥', label:lang==='ar'?'استيراد جماعي':'Import en masse',
-             desc:lang==='ar'?'استيراد المستويات والطلاب والمدرسين والآباء من ملف Excel':'Importer niveaux, élèves, instituteurs, parents depuis Excel',
-             action:()=>navigate('import_masse',null,{tab}), color:'#EF9F27', bg:'#FAEEDA'},
+      {tab === 'parametres' && (() => {
+        // Etape 13 - Reorganisation par groupes + workflow logique
+        // Ordre derive du code (analyse des dependances reelles entre tables)
 
-          ].map((item,idx)=>(
-            <div key={idx} onClick={item.action}
-              style={{background:'#fff',borderRadius:14,padding:'1.1rem',
-                border:`0.5px solid ${item.color}25`,cursor:'pointer',
+        const PEDAGOGIE = [
+          {n:1, k:'niveaux', icon:'📚', label:lang==='ar'?'المستويات':'Niveaux',
+           desc:lang==='ar'?'إدارة مستويات المدرسة':'Configurer les niveaux',
+           action:()=>navigate('niveaux',null,{tab}), color:'#085041', bg:'#E1F5EE',
+           filled: tableCounts.niveaux > 0, critical: true},
+          {n:2, k:'sens', icon:'🔄', label:lang==='ar'?'اتجاه التحفيظ':'Sens récitation',
+           desc:lang==='ar'?'تحديد اتجاه الحفظ':'Sens (croissant/décroissant)',
+           action:()=>setTab('sens_recitation'), color:'#085041', bg:'#E1F5EE',
+           filled: !!ecoleConfig?.sens_recitation_defaut},
+          {n:3, k:'ensembles', icon:'📦', label:lang==='ar'?'مجموعات السور':'Ensembles',
+           desc:lang==='ar'?'تجميع السور':'Grouper les sourates',
+           action:()=>navigate('ensembles',null,{tab}), color:'#D85A30', bg:'#FAECE7',
+           filled: tableCounts.ensembles > 0},
+          {n:4, k:'cours', icon:'📚', label:lang==='ar'?'الدروس':'Cours',
+           desc:lang==='ar'?'الدروس و المحاور':'Cours et axes',
+           action:()=>navigate('gestion_cours',null,{tab}), color:'#0C447C', bg:'#E6F1FB',
+           filled: tableCounts.cours > 0},
+          {n:5, k:'examens', icon:'📝', label:lang==='ar'?'الامتحانات':'Examens',
+           desc:lang==='ar'?'تكوين الامتحانات':'Configurer les examens',
+           action:()=>navigate('examens',null,{tab}), color:'#378ADD', bg:'#E6F1FB',
+           filled: tableCounts.examens > 0},
+          {n:6, k:'jalons', icon:'🏅', label:lang==='ar'?'الشهادات':'Certificats',
+           desc:lang==='ar'?'مراحل منح الشهادات':'Configurer les jalons',
+           action:()=>setTab('jalons'), color:'#534AB7', bg:'#EEEDFE',
+           filled: tableCounts.jalons > 0},
+          {n:7, k:'bareme', icon:'⭐', label:lang==='ar'?'النقاط':'Barème',
+           desc:lang==='ar'?'نظام التنقيط':'Système de points',
+           action:()=>setTab('bareme'), color:'#EF9F27', bg:'#FAEEDA'},
+          {n:8, k:'passage', icon:'🎓', label:lang==='ar'?'قواعد الانتقال':'Passage niveau',
+           desc:lang==='ar'?'قواعد الانتقال':'Règles de passage',
+           action:()=>setTab('passage_niveau'), color:'#1D9E75', bg:'#E1F5EE',
+           filled: tableCounts.regles_passage > 0},
+          {n:9, k:'assiduite', icon:'📅', label:lang==='ar'?'الحضور':'Présences',
+           desc:lang==='ar'?'أيام العطل و الحضور':'Jours non travaillés',
+           action:()=>navigate('gestion_assiduite',null,{tab}), color:'#1D9E75', bg:'#E1F5EE'},
+          {n:10, k:'seuils_par', icon:'👨‍👩‍👧', label:lang==='ar'?'عتبات الأولياء':'Seuils parents',
+           desc:lang==='ar'?'عتبات نشاط الأولياء':'Alertes activité parents',
+           action:()=>navigate('gestion_parents',null,{tab}), color:'#085041', bg:'#E1F5EE'},
+        ];
+
+        const PERSONNES = [
+          {n:11, k:'instituteurs', icon:'👨‍🏫', label:lang==='ar'?'الأساتذة':'Instituteurs',
+           desc:lang==='ar'?'حسابات الأساتذة':'Comptes instituteurs',
+           action:()=>setTab('instituteurs'), color:'#378ADD', bg:'#E6F1FB',
+           filled: tableCounts.instituteurs > 0, critical: true},
+          {n:12, k:'tarifs', icon:'💰', label:lang==='ar'?'تعرفات الأساتذة':'Tarifs profs',
+           desc:lang==='ar'?'تعرفة الحصة':'Tarifs par séance',
+           action:()=>navigate('gestion_tarifs',null,{tab}), color:'#534AB7', bg:'#EEEDFE',
+           filled: tableCounts.tarifs > 0,
+           depends: tableCounts.instituteurs > 0,
+           dependLabel: lang==='ar'?'يتطلب أساتذة':'Requiert des instituteurs'},
+          {n:13, k:'eleves', icon:'👨‍🎓', label:lang==='ar'?'الطلاب':'Élèves',
+           desc:lang==='ar'?'قائمة الطلاب':'Liste des élèves',
+           action:()=>setTab('eleves'), color:'#1D9E75', bg:'#E1F5EE',
+           filled: tableCounts.eleves > 0,
+           depends: tableCounts.niveaux > 0 && tableCounts.instituteurs > 0,
+           dependLabel: lang==='ar'?'يتطلب مستويات و أساتذة':'Requiert niveaux + instituteurs'},
+          {n:14, k:'parents', icon:'👨‍👩‍👦', label:lang==='ar'?'الآباء':'Parents',
+           desc:lang==='ar'?'حسابات الأولياء (تلقائي)':'Comptes parents (auto)',
+           action:()=>setTab('parents'), color:'#534AB7', bg:'#EEEDFE',
+           filled: tableCounts.parents > 0},
+        ];
+
+        const OUTILS = [
+          {n:15, k:'mass', icon:'📥', label:lang==='ar'?'استيراد جماعي':'Import en masse',
+           desc:lang==='ar'?'من ملف Excel':'Depuis Excel',
+           action:()=>navigate('import_masse',null,{tab}), color:'#EF9F27', bg:'#FAEEDA',
+           depends: tableCounts.niveaux > 0,
+           dependLabel: lang==='ar'?'يتطلب مستويات':'Requiert niveaux'},
+        ];
+
+        // Detection prochaine etape recommandee (Q3=A : logique simple)
+        const allCards = [...PEDAGOGIE, ...PERSONNES, ...OUTILS];
+        // Etapes critiques pour le bandeau (pas Bareme/Sens/Présences/Seuils qui sont optionnels)
+        const cardsForBanner = allCards.filter(c =>
+          ['niveaux','ensembles','examens','jalons','passage','instituteurs','eleves','tarifs','mass'].includes(c.k)
+        );
+        const nextStep = cardsForBanner.find(c =>
+          c.filled === false && (c.depends === undefined || c.depends === true)
+        );
+        // Carte bloquee : depends === false
+        const isBlocked = (c) => c.depends === false;
+
+        const renderCard = (item) => {
+          const blocked = isBlocked(item);
+          const isNext = nextStep && nextStep.k === item.k;
+          return (
+            <div key={item.k} onClick={blocked ? null : item.action}
+              style={{background:'#fff',borderRadius:14,padding:'1rem',
+                border: isNext ? '2px solid #EF9F27' : `0.5px solid ${item.color}25`,
+                cursor:blocked?'not-allowed':'pointer',
                 display:'flex',alignItems:'center',gap:12,
-                transition:'all 0.15s',boxShadow:'0 1px 4px rgba(0,0,0,0.04)'}}
-              onMouseEnter={e=>{e.currentTarget.style.transform='translateY(-2px)';e.currentTarget.style.boxShadow='0 4px 16px rgba(0,0,0,0.08)';}}
-              onMouseLeave={e=>{e.currentTarget.style.transform='translateY(0)';e.currentTarget.style.boxShadow='0 1px 4px rgba(0,0,0,0.04)';}}>
-              <div style={{width:48,height:48,borderRadius:12,background:item.bg,
+                transition:'all 0.15s',
+                boxShadow:isNext?'0 4px 16px rgba(239,159,39,0.25)':'0 1px 4px rgba(0,0,0,0.04)',
+                opacity:blocked?0.55:1,position:'relative'}}
+              onMouseEnter={e=>{if(!blocked){e.currentTarget.style.transform='translateY(-2px)';e.currentTarget.style.boxShadow='0 4px 16px rgba(0,0,0,0.08)';}}}
+              onMouseLeave={e=>{if(!blocked){e.currentTarget.style.transform='translateY(0)';e.currentTarget.style.boxShadow=isNext?'0 4px 16px rgba(239,159,39,0.25)':'0 1px 4px rgba(0,0,0,0.04)';}}}>
+              {/* Numéro étape */}
+              <div style={{
+                position:'absolute',top:8,insetInlineStart:8,
+                width:20,height:20,borderRadius:'50%',
+                background:item.color,color:'#fff',fontSize:10,fontWeight:800,
                 display:'flex',alignItems:'center',justifyContent:'center',
-                fontSize:22,flexShrink:0}}>
+                opacity:0.85,
+              }}>{item.n}</div>
+              {/* Indicateur statut */}
+              {item.filled === true && (
+                <div style={{position:'absolute',top:8,insetInlineEnd:8,
+                  fontSize:13,color:'#1D9E75'}} title={lang==='ar'?'مكتمل':'Configuré'}>✓</div>
+              )}
+              {blocked && (
+                <div style={{position:'absolute',top:8,insetInlineEnd:8,
+                  fontSize:13,color:'#E24B4A'}} title={item.dependLabel}>🔒</div>
+              )}
+              {/* Icône */}
+              <div style={{width:46,height:46,borderRadius:12,background:item.bg,
+                display:'flex',alignItems:'center',justifyContent:'center',
+                fontSize:22,flexShrink:0,marginInlineStart:12}}>
                 {item.icon}
               </div>
-              <div style={{flex:1,minWidth:0}}>
+              <div style={{flex:1,minWidth:0,paddingTop:2}}>
                 <div style={{fontWeight:700,fontSize:14,color:'#1a1a1a',marginBottom:3}}>{item.label}</div>
-                <div style={{fontSize:11,color:'#999',lineHeight:1.4,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{item.desc}</div>
+                <div style={{fontSize:11,color:'#999',lineHeight:1.4,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>
+                  {blocked ? <span style={{color:'#E24B4A'}}>🔒 {item.dependLabel}</span> : item.desc}
+                </div>
               </div>
-              <span style={{color:item.color,fontSize:16,flexShrink:0}}>›</span>
+              {!blocked && <span style={{color:item.color,fontSize:16,flexShrink:0}}>›</span>}
             </div>
-          ))}
-        </div>
-      )}
+          );
+        };
+
+        return (
+          <div>
+            {/* Bandeau intelligent : prochaine étape recommandée */}
+            {nextStep && (
+              <div style={{
+                background:'linear-gradient(90deg,#FFF8EC,#FAEEDA)',
+                border:'1px solid #EF9F2740',borderRadius:12,
+                padding:'12px 16px',marginBottom:16,
+                display:'flex',alignItems:'center',gap:12,flexWrap:'wrap',
+              }}>
+                <div style={{fontSize:24,flexShrink:0}}>💡</div>
+                <div style={{flex:1,minWidth:200}}>
+                  <div style={{fontSize:12,fontWeight:700,color:'#7B5800',marginBottom:2,textTransform:'uppercase',letterSpacing:0.3}}>
+                    {lang==='ar'?'الخطوة التالية الموصى بها':'Étape suivante recommandée'}
+                  </div>
+                  <div style={{fontSize:13,color:'#1a1a1a',fontWeight:600}}>
+                    {nextStep.n}. {nextStep.label}
+                    <span style={{fontWeight:400,color:'#666',marginInlineStart:8}}>— {nextStep.desc}</span>
+                  </div>
+                </div>
+                <button onClick={nextStep.action}
+                  style={{padding:'8px 16px',background:'#EF9F27',color:'#fff',border:'none',
+                    borderRadius:8,fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'inherit',
+                    whiteSpace:'nowrap'}}>
+                  {lang==='ar'?'اذهب ←':'Y aller →'}
+                </button>
+              </div>
+            )}
+            {!nextStep && tableCounts.eleves > 0 && (
+              <div style={{
+                background:'#E1F5EE',border:'1px solid #1D9E7530',borderRadius:12,
+                padding:'12px 16px',marginBottom:16,
+                display:'flex',alignItems:'center',gap:12,
+              }}>
+                <div style={{fontSize:22}}>✅</div>
+                <div style={{flex:1,fontSize:13,color:'#085041',fontWeight:600}}>
+                  {lang==='ar'?'مدرستك مهيأة. يمكنك الآن إدارة طلابك يومياً.':'Votre école est configurée. Vous pouvez gérer vos élèves au quotidien.'}
+                </div>
+              </div>
+            )}
+
+            {/* GROUPE 1 : PEDAGOGIE */}
+            <div style={{marginBottom:24}}>
+              <div style={{
+                display:'flex',alignItems:'center',gap:8,
+                marginBottom:10,padding:'0 4px',
+              }}>
+                <div style={{fontSize:18}}>🎓</div>
+                <div style={{fontSize:14,fontWeight:800,color:'#085041',letterSpacing:0.3}}>
+                  {lang==='ar'?'البيداغوجيا':'Pédagogie'}
+                </div>
+                <div style={{fontSize:11,color:'#999'}}>
+                  ({lang==='ar'?'تكوين المحتوى التربوي':'configuration du contenu pédagogique'})
+                </div>
+              </div>
+              <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(220px,1fr))',gap:10}}>
+                {PEDAGOGIE.map(renderCard)}
+              </div>
+            </div>
+
+            {/* GROUPE 2 : PERSONNES */}
+            <div style={{marginBottom:24}}>
+              <div style={{
+                display:'flex',alignItems:'center',gap:8,
+                marginBottom:10,padding:'0 4px',
+              }}>
+                <div style={{fontSize:18}}>👥</div>
+                <div style={{fontSize:14,fontWeight:800,color:'#378ADD',letterSpacing:0.3}}>
+                  {lang==='ar'?'الأشخاص':'Personnes'}
+                </div>
+                <div style={{fontSize:11,color:'#999'}}>
+                  ({lang==='ar'?'الفاعلون في التطبيق':'acteurs de l\'application'})
+                </div>
+              </div>
+              <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(220px,1fr))',gap:10}}>
+                {PERSONNES.map(renderCard)}
+              </div>
+            </div>
+
+            {/* GROUPE 3 : OUTILS */}
+            <div style={{marginBottom:16}}>
+              <div style={{
+                display:'flex',alignItems:'center',gap:8,
+                marginBottom:10,padding:'0 4px',
+              }}>
+                <div style={{fontSize:18}}>⚡</div>
+                <div style={{fontSize:14,fontWeight:800,color:'#EF9F27',letterSpacing:0.3}}>
+                  {lang==='ar'?'الأدوات':'Outils'}
+                </div>
+                <div style={{fontSize:11,color:'#999'}}>
+                  ({lang==='ar'?'اختصارات':'raccourcis'})
+                </div>
+              </div>
+              <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(220px,1fr))',gap:10}}>
+                {OUTILS.map(renderCard)}
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {tab !== 'parametres' && tab !== '' && (
         <button onClick={()=>setTab('parametres')} className="back-link" style={{marginBottom:'0.75rem'}}>
