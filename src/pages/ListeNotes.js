@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { supabase } from '../lib/supabase';
-import { calcEtatEleve, calcPointsPeriode, loadBareme, BAREME_DEFAUT, getSensForEleve} from '../lib/helpers';
+import { calcEtatEleve, calcPointsPeriode, loadBareme, BAREME_DEFAUT, getSensForEleve, loadAnneeActiveAvecPeriodes, formatPeriodeCourte} from '../lib/helpers';
 import { t } from '../lib/i18n';
 import { openPDF } from '../lib/pdf';
 import { exportExcelSimple } from '../lib/excel';
@@ -24,8 +24,17 @@ export default function ListeNotes({ user, navigate, goBack, lang='fr', isMobile
   const [dateDebut, setDateDebut] = useState('');
   const [dateFin, setDateFin] = useState('');
   const [periode, setPeriode] = useState('total');
+  const [periodesBDD, setPeriodesBDD] = useState([]); // Etape 14 v2
 
   useEffect(() => { loadData(); }, []);
+
+  // Etape 14 v2 - Charger les periodes typees de l'annee active
+  useEffect(() => {
+    if (!user?.ecole_id) return;
+    loadAnneeActiveAvecPeriodes(supabase, user.ecole_id).then(({ periodes }) => {
+      setPeriodesBDD(periodes.filter(p => p.type && p.type !== 'libre'));
+    });
+  }, [user?.ecole_id]);
 
   const loadData = async () => {
     setLoading(true);
@@ -55,7 +64,12 @@ export default function ListeNotes({ user, navigate, goBack, lang='fr', isMobile
     if (periode === 'total') return { debut: new Date('2000-01-01'), fin: now };
     if (periode === 'semaine') return { debut: new Date(now.getTime()-7*86400000), fin: now };
     if (periode === 'mois') return { debut: new Date(now.getFullYear(),now.getMonth(),1), fin: now };
-    if (periode === 'trimestre') return { debut: new Date(now.getFullYear(),now.getMonth()-3,1), fin: now };
+    // Etape 14 v2 - Periode BDD typee
+    if (periode && typeof periode === 'string' && periode.startsWith('bdd_')) {
+      const id = periode.substring(4);
+      const p = periodesBDD.find(x => x.id === id);
+      if (p) return { debut: new Date(p.date_debut), fin: new Date(p.date_fin+'T23:59:59') };
+    }
     if (dateDebut && dateFin) return { debut: new Date(dateDebut), fin: new Date(dateFin+'T23:59:59') };
     return { debut: new Date('2000-01-01'), fin: now };
   };
@@ -82,7 +96,7 @@ export default function ListeNotes({ user, navigate, goBack, lang='fr', isMobile
       const inst = instById.get(el.instituteur_referent_id);
       return { ...el, pts, instNom: inst ? `${inst.prenom} ${inst.nom}` : '—' };
     }).sort((a, b) => b.pts.total - a.pts.total);
-  }, [eleves, allValidations, pointsEvts, bareme, periode, dateDebut, dateFin]);
+  }, [eleves, allValidations, pointsEvts, bareme, periode, dateDebut, dateFin, periodesBDD]);
 
   const filtered = elevesAvecPts.filter(el => {
     if (searchNum && !el.eleve_id_ecole?.includes(searchNum) && !(el.prenom+' '+el.nom).toLowerCase().includes(searchNum.toLowerCase())) return false;
@@ -162,12 +176,16 @@ export default function ListeNotes({ user, navigate, goBack, lang='fr', isMobile
     }
   };
 
+  // Etape 14 v2 - Periodes : fixes + periodes typees de l'annee active
   const PERIODES = [
-    { id:'total',    label: lang==='ar'?'منذ البداية':'Depuis le début' },
-    { id:'semaine',  label: lang==='ar'?'الأسبوع':'Semaine' },
-    { id:'mois',     label: lang==='ar'?'الشهر':'Mois' },
-    { id:'trimestre',label: lang==='ar'?'الفصل (3 أشهر)':'Trimestre' },
-    { id:'custom',   label: lang==='ar'?'فترة محددة':'Période personnalisée' },
+    { id:'total',   label: lang==='ar'?'منذ البداية':'Depuis le début' },
+    { id:'semaine', label: lang==='ar'?'الأسبوع':'Semaine' },
+    { id:'mois',    label: lang==='ar'?'الشهر':'Mois' },
+    ...periodesBDD.map(p => ({
+      id: 'bdd_' + p.id,
+      label: formatPeriodeCourte(p, lang, true),
+    })),
+    { id:'custom',  label: lang==='ar'?'فترة محددة':'Période personnalisée' },
   ];
 
   return (
@@ -212,6 +230,18 @@ export default function ListeNotes({ user, navigate, goBack, lang='fr', isMobile
       )}
 
       {/* Sélecteur période */}
+      {periodesBDD.length === 0 && (
+        <div style={{
+          background:'#FFF8EC',border:'1px solid #EF9F2740',borderRadius:8,
+          padding:'8px 12px',fontSize:11,color:'#7B5800',marginBottom:8,
+          display:'flex',alignItems:'center',gap:8,
+        }}>
+          <span style={{fontSize:14}}>💡</span>
+          <span>{lang==='ar'
+            ? 'لم تقم بإعداد سنة دراسية. يمكنك ذلك في الإدارة > الفترات للحصول على فلاتر T1/T2...'
+            : 'Aucune année scolaire active. Configurez-en une dans Gestion → Périodes pour avoir des filtres T1/T2...'}</span>
+        </div>
+      )}
       <div style={{ display:'flex', gap:6, flexWrap:'wrap', marginBottom:'1rem' }}>
         {PERIODES.map(p => (
           <button key={p.id} onClick={()=>setPeriode(p.id)}
