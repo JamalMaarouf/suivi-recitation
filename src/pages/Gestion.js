@@ -545,11 +545,12 @@ function PeriodesTab({ user, lang, periodes, setPeriodes, newPeriode, setNewPeri
       nom_ar: newPeriode.nom_ar.trim(),
       date_debut: newPeriode.date_debut,
       date_fin: newPeriode.date_fin,
+      type: newPeriode.type || 'libre',
       actif: true,
     });
     const { data } = await supabase.from('periodes_notes').select('*').eq('ecole_id', user.ecole_id).order('date_debut');
     if (data) setPeriodes(data);
-    setNewPeriode({ nom_ar: '', date_debut: '', date_fin: '' });
+    setNewPeriode({ nom_ar: '', date_debut: '', date_fin: '', type: 'libre' });
     setSavingPeriode(false);
     showMsg('success', lang==='ar'?'تمت إضافة الفترة':'Période ajoutée');
   };
@@ -567,6 +568,24 @@ function PeriodesTab({ user, lang, periodes, setPeriodes, newPeriode, setNewPeri
 
   const fmt = (d) => d ? new Date(d).toLocaleDateString(lang==='ar'?'ar-MA':'fr-FR', {day:'2-digit', month:'short', year:'numeric'}) : '—';
 
+  // Helpers UI pour les types
+  const TYPE_OPTIONS = [
+    { val: 'libre',     icon: '📅', label_fr: 'Libre',      label_ar: 'حر',          color: '#888'    },
+    { val: 'trimestre', icon: '🗓️', label_fr: 'Trimestre',  label_ar: 'فصل دراسي',   color: '#378ADD' },
+    { val: 'semestre',  icon: '📆', label_fr: 'Semestre',   label_ar: 'نصف سنة',     color: '#085041' },
+    { val: 'annee',     icon: '📚', label_fr: 'Année',      label_ar: 'سنة دراسية',  color: '#EF9F27' },
+  ];
+  const getTypeMeta = (t) => TYPE_OPTIONS.find(o => o.val === (t || 'libre')) || TYPE_OPTIONS[0];
+
+  // Suggestion auto du nom selon le type choisi
+  const suggestNom = (type) => {
+    const annee = new Date().getFullYear();
+    if (type === 'trimestre') return lang==='ar'?`الفصل الدراسي ${annee}-${annee+1}`:`Trimestre ${annee}-${annee+1}`;
+    if (type === 'semestre')  return lang==='ar'?`نصف السنة ${annee}-${annee+1}`:`Semestre ${annee}-${annee+1}`;
+    if (type === 'annee')     return lang==='ar'?`السنة الدراسية ${annee}-${annee+1}`:`Année scolaire ${annee}-${annee+1}`;
+    return '';
+  };
+
   return (
     <div>
       <div style={{fontSize:13,color:'#888',marginBottom:'1.25rem'}}>
@@ -576,6 +595,29 @@ function PeriodesTab({ user, lang, periodes, setPeriodes, newPeriode, setNewPeri
       <div className="card" style={{marginBottom:'1.5rem'}}>
         <div className="section-label">{lang==='ar'?'إضافة فترة جديدة':'Ajouter une période'}</div>
         <div className="form-grid">
+          <div className="field-group" style={{gridColumn:'1/-1'}}>
+            <label className="field-lbl">{lang==='ar'?'نوع الفترة':'Type de période'}</label>
+            <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>
+              {TYPE_OPTIONS.map(opt => (
+                <button key={opt.val} type="button"
+                  onClick={()=>{
+                    const newType = opt.val;
+                    const updates = {...newPeriode, type: newType};
+                    if (!newPeriode.nom_ar.trim()) updates.nom_ar = suggestNom(newType);
+                    setNewPeriode(updates);
+                  }}
+                  style={{
+                    padding:'7px 14px',borderRadius:8,
+                    background:(newPeriode.type||'libre')===opt.val?opt.color:'#fff',
+                    color:(newPeriode.type||'libre')===opt.val?'#fff':opt.color,
+                    border:`1px solid ${opt.color}50`,
+                    cursor:'pointer',fontSize:12,fontWeight:600,fontFamily:'inherit',
+                  }}>
+                  {opt.icon} {lang==='ar'?opt.label_ar:opt.label_fr}
+                </button>
+              ))}
+            </div>
+          </div>
           <div className="field-group" style={{gridColumn:'1/-1'}}>
             <label className="field-lbl">{lang==='ar'?'اسم الفترة':'Nom de la période'} <span style={{color:'#E24B4A'}}>*</span></label>
             <input className="field-input" value={newPeriode.nom_ar}
@@ -604,12 +646,22 @@ function PeriodesTab({ user, lang, periodes, setPeriodes, newPeriode, setNewPeri
         <div className="empty">{lang==='ar'?'لا توجد فترات بعد — أضف أول فترة أعلاه':'Aucune période — ajoutez-en une ci-dessus'}</div>
       ) : (
         <div style={{display:'flex',flexDirection:'column',gap:8}}>
-          {periodes.map(p => (
+          {periodes.map(p => {
+            const meta = getTypeMeta(p.type);
+            return (
             <div key={p.id} style={{background:'#fff',border:'0.5px solid #e0e0d8',borderRadius:12,padding:'12px 14px',display:'flex',alignItems:'center',gap:12,opacity:p.actif?1:0.5}}>
-              <div style={{width:44,height:44,borderRadius:12,background:p.actif?'#E6F1FB':'#f0f0ec',display:'flex',alignItems:'center',justifyContent:'center',fontSize:22,flexShrink:0}}>📊</div>
-              <div style={{flex:1}}>
-                <div style={{fontWeight:700,fontSize:14,color:'#1a1a1a',direction:'rtl',fontFamily:"'Tajawal',Arial,sans-serif"}}>{p.nom_ar||p.nom}</div>
-                <div style={{fontSize:11,color:'#378ADD',marginTop:2,fontWeight:600}}>
+              <div style={{width:44,height:44,borderRadius:12,background:p.actif?`${meta.color}15`:'#f0f0ec',display:'flex',alignItems:'center',justifyContent:'center',fontSize:22,flexShrink:0}}>{meta.icon}</div>
+              <div style={{flex:1,minWidth:0}}>
+                <div style={{display:'flex',alignItems:'center',gap:6,flexWrap:'wrap'}}>
+                  <div style={{fontWeight:700,fontSize:14,color:'#1a1a1a',direction:'rtl',fontFamily:"'Tajawal',Arial,sans-serif"}}>{p.nom_ar||p.nom}</div>
+                  <span style={{
+                    display:'inline-block',padding:'1px 7px',borderRadius:8,fontSize:9,fontWeight:700,
+                    background:`${meta.color}15`,color:meta.color,border:`0.5px solid ${meta.color}40`,
+                  }}>
+                    {lang==='ar'?meta.label_ar:meta.label_fr}
+                  </span>
+                </div>
+                <div style={{fontSize:11,color:'#888',marginTop:2,fontWeight:600}}>
                   📅 {fmt(p.date_debut)} → {fmt(p.date_fin)}
                 </div>
               </div>
@@ -626,7 +678,7 @@ function PeriodesTab({ user, lang, periodes, setPeriodes, newPeriode, setNewPeri
                 </button>
               </div>
             </div>
-          ))}
+          );})}
         </div>
       )}
     </div>
@@ -1560,7 +1612,7 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile,
 
   // ── Périodes / Notes ──
   const [periodes, setPeriodes] = useState([]);
-  const [newPeriode, setNewPeriode] = useState({ nom_ar: '', date_debut: '', date_fin: '' });
+  const [newPeriode, setNewPeriode] = useState({ nom_ar: '', date_debut: '', date_fin: '', type: 'libre' });
   const [savingPeriode, setSavingPeriode] = useState(false);
 
   // ── Jalons / Certificats ──
@@ -3368,33 +3420,36 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
           {n:10, k:'seuils_par', icon:'👨‍👩‍👧', label:lang==='ar'?'عتبات الأولياء':'Seuils parents',
            desc:lang==='ar'?'عتبات نشاط الأولياء':'Alertes activité parents',
            action:()=>navigate('gestion_parents',null,{tab}), color:'#085041', bg:'#E1F5EE'},
+          {n:11, k:'periodes', icon:'🗓️', label:lang==='ar'?'الفترات':'Périodes',
+           desc:lang==='ar'?'فصول دراسية، أنصاف سنوات...':'Trimestres, semestres, année',
+           action:()=>setTab('periodes'), color:'#378ADD', bg:'#E6F1FB'},
         ];
 
         const PERSONNES = [
-          {n:11, k:'instituteurs', icon:'👨‍🏫', label:lang==='ar'?'الأساتذة':'Instituteurs',
+          {n:12, k:'instituteurs', icon:'👨‍🏫', label:lang==='ar'?'الأساتذة':'Instituteurs',
            desc:lang==='ar'?'حسابات الأساتذة':'Comptes instituteurs',
            action:()=>setTab('instituteurs'), color:'#378ADD', bg:'#E6F1FB',
            filled: tableCounts.instituteurs > 0, critical: true},
-          {n:12, k:'tarifs', icon:'💰', label:lang==='ar'?'تعرفات الأساتذة':'Tarifs profs',
+          {n:13, k:'tarifs', icon:'💰', label:lang==='ar'?'تعرفات الأساتذة':'Tarifs profs',
            desc:lang==='ar'?'تعرفة الحصة':'Tarifs par séance',
            action:()=>navigate('gestion_tarifs',null,{tab}), color:'#534AB7', bg:'#EEEDFE',
            filled: tableCounts.tarifs > 0,
            depends: tableCounts.instituteurs > 0,
            dependLabel: lang==='ar'?'يتطلب أساتذة':'Requiert des instituteurs'},
-          {n:13, k:'eleves', icon:'👨‍🎓', label:lang==='ar'?'الطلاب':'Élèves',
+          {n:14, k:'eleves', icon:'👨‍🎓', label:lang==='ar'?'الطلاب':'Élèves',
            desc:lang==='ar'?'قائمة الطلاب':'Liste des élèves',
            action:()=>setTab('eleves'), color:'#1D9E75', bg:'#E1F5EE',
            filled: tableCounts.eleves > 0,
            depends: tableCounts.niveaux > 0 && tableCounts.instituteurs > 0,
            dependLabel: lang==='ar'?'يتطلب مستويات و أساتذة':'Requiert niveaux + instituteurs'},
-          {n:14, k:'parents', icon:'👨‍👩‍👦', label:lang==='ar'?'الآباء':'Parents',
+          {n:15, k:'parents', icon:'👨‍👩‍👦', label:lang==='ar'?'الآباء':'Parents',
            desc:lang==='ar'?'حسابات الأولياء (تلقائي)':'Comptes parents (auto)',
            action:()=>setTab('parents'), color:'#534AB7', bg:'#EEEDFE',
            filled: tableCounts.parents > 0},
         ];
 
         const OUTILS = [
-          {n:15, k:'mass', icon:'📥', label:lang==='ar'?'استيراد جماعي':'Import en masse',
+          {n:16, k:'mass', icon:'📥', label:lang==='ar'?'استيراد جماعي':'Import en masse',
            desc:lang==='ar'?'من ملف Excel':'Depuis Excel',
            action:()=>navigate('import_masse',null,{tab}), color:'#EF9F27', bg:'#FAEEDA',
            depends: tableCounts.niveaux > 0,
@@ -4291,6 +4346,15 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
           user={user} lang={lang}
           ecoleConfig={ecoleConfig} setEcoleConfig={setEcoleConfig}
           niveaux={niveauxActifs||[]} setNiveaux={setNiveauxDyn}
+          showMsg={showMsg}
+        />
+      )}
+      {tab === 'periodes' && (
+        <PeriodesTab
+          user={user} lang={lang}
+          periodes={periodes} setPeriodes={setPeriodes}
+          newPeriode={newPeriode} setNewPeriode={setNewPeriode}
+          savingPeriode={savingPeriode} setSavingPeriode={setSavingPeriode}
           showMsg={showMsg}
         />
       )}

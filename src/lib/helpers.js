@@ -1347,3 +1347,58 @@ export async function genererLoginParentUnique(supabase, baseLogin) {
   throw new Error(`Impossible de generer un login unique pour ${base} apres 99 tentatives`);
 }
 
+// ══════════════════════════════════════════════════════════════════
+// PERIODES SCOLAIRES (Etape 14) - typees ou libres
+// ══════════════════════════════════════════════════════════════════
+/**
+ * Charge les periodes scolaires actives d'une ecole, classees par
+ * type pour faciliter l'usage cote UI.
+ *
+ * Schema BDD (periodes_notes) :
+ *   - type : 'trimestre' | 'semestre' | 'annee' | 'libre' | NULL (= libre)
+ *   - actif : boolean (filtre auto)
+ *
+ * @returns {Promise<{trimestres: Array, semestres: Array, annees: Array, libres: Array, all: Array}>}
+ */
+export async function loadPeriodesScolaires(supabase, ecole_id) {
+  const fallback = { trimestres: [], semestres: [], annees: [], libres: [], all: [] };
+  if (!ecole_id) return fallback;
+  try {
+    const { data, error } = await supabase.from('periodes_notes')
+      .select('id, nom, nom_ar, date_debut, date_fin, type, actif')
+      .eq('ecole_id', ecole_id)
+      .eq('actif', true)
+      .order('date_debut', { ascending: true });
+    if (error) {
+      console.warn('[loadPeriodesScolaires]', error.message);
+      return fallback;
+    }
+    const list = data || [];
+    return {
+      trimestres: list.filter(p => p.type === 'trimestre'),
+      semestres:  list.filter(p => p.type === 'semestre'),
+      annees:     list.filter(p => p.type === 'annee'),
+      libres:     list.filter(p => !p.type || p.type === 'libre'),
+      all: list,
+    };
+  } catch (e) {
+    console.error('[loadPeriodesScolaires] error:', e);
+    return fallback;
+  }
+}
+
+/**
+ * Format court d'une periode scolaire pour affichage compact :
+ * "T1 (sept-nov)" ou juste le nom si pas de dates
+ */
+export function formatPeriodeCourte(periode, lang='fr') {
+  if (!periode) return '';
+  const nom = lang === 'ar' ? (periode.nom_ar || periode.nom) : (periode.nom || periode.nom_ar);
+  if (!periode.date_debut || !periode.date_fin) return nom;
+  const formatMois = (iso) => {
+    const d = new Date(iso);
+    return d.toLocaleDateString(lang === 'ar' ? 'ar-MA' : 'fr-FR', { month: 'short' });
+  };
+  return `${nom} (${formatMois(periode.date_debut)}-${formatMois(periode.date_fin)})`;
+}
+

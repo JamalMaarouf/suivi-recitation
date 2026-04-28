@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { supabase } from '../lib/supabase';
+import { loadPeriodesScolaires, formatPeriodeCourte } from '../lib/helpers';
 
 // ══════════════════════════════════════════════════════════════════════
 // ONGLET ASSIDUITÉ DE LA FICHE ÉLÈVE
@@ -19,11 +20,13 @@ export default function OngletAssiduiteEleve({ eleve, lang, isMobile }) {
   const [seuilRisque, setSeuilRisque] = useState(80);
   const [seuilParfait, setSeuilParfait] = useState(100);
   const [loading, setLoading] = useState(true);
-  const [periode, setPeriode] = useState('mois');  // semaine|mois|trimestre|semestre|annee|custom
+  const [periode, setPeriode] = useState('mois');  // semaine|mois|<id_periode_bdd>|custom
   const [dateDebut, setDateDebut] = useState('');
   const [dateFin, setDateFin] = useState('');
+  // Etape 14 - Periodes scolaires depuis BDD (typees ou libres)
+  const [periodesBDD, setPeriodesBDD] = useState([]);
 
-  const { debut, fin } = calcBornesPeriode(periode, dateDebut, dateFin);
+  const { debut, fin } = calcBornesPeriode(periode, dateDebut, dateFin, periodesBDD);
 
   // ─── Chargement initial (jours non travaillés + seuils école) ─
   useEffect(() => {
@@ -45,6 +48,17 @@ export default function OngletAssiduiteEleve({ eleve, lang, isMobile }) {
       }
     };
     load();
+  }, [eleve?.ecole_id]);
+
+  // Etape 14 - Charger les periodes scolaires (typees) de l'ecole
+  useEffect(() => {
+    if (!eleve?.ecole_id) return;
+    loadPeriodesScolaires(supabase, eleve.ecole_id).then(res => {
+      // On ne garde que les periodes typees (trimestre/semestre/annee) pour le selecteur
+      // Les periodes 'libres' ne sont pas affichees ici (utilisees ailleurs comme TableauHonneur)
+      const typees = [...res.trimestres, ...res.semestres, ...res.annees];
+      setPeriodesBDD(typees);
+    });
   }, [eleve?.ecole_id]);
 
   // ─── Chargement des présences de l'élève pour la période ────
@@ -197,13 +211,16 @@ export default function OngletAssiduiteEleve({ eleve, lang, isMobile }) {
     }
   }
 
+  // Etape 14 - Periodes : semaine/mois fixes + periodes typees BDD + custom
   const PERIODES = [
-    { id: 'semaine',   label: lang === 'ar' ? 'الأسبوع'      : 'Semaine' },
-    { id: 'mois',      label: lang === 'ar' ? 'الشهر'         : 'Mois' },
-    { id: 'trimestre', label: lang === 'ar' ? 'الفصل (3 أشهر)': 'Trimestre' },
-    { id: 'semestre',  label: lang === 'ar' ? 'النصف (6 أشهر)': 'Semestre' },
-    { id: 'annee',     label: lang === 'ar' ? 'السنة'         : 'Année' },
-    { id: 'custom',    label: lang === 'ar' ? 'فترة محددة'    : 'Personnalisée' },
+    { id: 'semaine', label: lang === 'ar' ? 'الأسبوع' : 'Semaine' },
+    { id: 'mois',    label: lang === 'ar' ? 'الشهر'   : 'Mois' },
+    // Insertion des periodes BDD typees (T1, T2, S1, etc.) au format "Nom (sept-nov)"
+    ...periodesBDD.map(p => ({
+      id: 'bdd_' + p.id,
+      label: formatPeriodeCourte(p, lang),
+    })),
+    { id: 'custom', label: lang === 'ar' ? 'فترة محددة' : 'Personnalisée' },
   ];
 
   return (
@@ -488,7 +505,7 @@ function MiniStat({ label, value, color, bg }) {
 // ──────────────────────────────────────────────────────────────
 // Helpers
 // ──────────────────────────────────────────────────────────────
-function calcBornesPeriode(periode, customDebut, customFin) {
+function calcBornesPeriode(periode, customDebut, customFin, periodesBDD = []) {
   const today = new Date();
   const iso = (d) => {
     const y = d.getFullYear();
@@ -508,17 +525,12 @@ function calcBornesPeriode(periode, customDebut, customFin) {
     const debut = new Date(today.getFullYear(), today.getMonth(), 1);
     return { debut: iso(debut), fin: iso(today) };
   }
-  if (periode === 'trimestre') {
-    const debut = new Date(today); debut.setMonth(debut.getMonth() - 3);
-    return { debut: iso(debut), fin: iso(today) };
-  }
-  if (periode === 'semestre') {
-    const debut = new Date(today); debut.setMonth(debut.getMonth() - 6);
-    return { debut: iso(debut), fin: iso(today) };
-  }
-  if (periode === 'annee') {
-    const debut = new Date(today.getFullYear(), 0, 1);
-    return { debut: iso(debut), fin: iso(today) };
+  // Etape 14 - Periodes BDD (typees) : id = 'bdd_<uuid>'
+  if (periode && periode.startsWith('bdd_')) {
+    const id = periode.substring(4);
+    const p = periodesBDD.find(x => x.id === id);
+    if (p) return { debut: p.date_debut, fin: p.date_fin };
+    return { debut: null, fin: null };
   }
   return { debut: null, fin: null };
 }

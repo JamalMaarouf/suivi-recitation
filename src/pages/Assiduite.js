@@ -7,6 +7,7 @@ import ConfirmModal from '../components/ConfirmModal';
 import ExportButtons from '../components/ExportButtons';
 import { openPDF } from '../lib/pdf';
 import { exportExcelSimple } from '../lib/excel';
+import { loadPeriodesScolaires, formatPeriodeCourte } from '../lib/helpers';
 
 // ══════════════════════════════════════════════════════════════════════
 // PAGE ASSIDUITÉ — الحضور
@@ -1156,16 +1157,17 @@ function OngletSuivi({ lang, user, isMobile }) {
   const [SEUIL_PARFAIT, setSEUIL_PARFAIT] = useState(100);
 
   // Filtres
-  const [periode, setPeriode] = useState('mois');         // 'semaine'|'mois'|'trimestre'|'semestre'|'annee'|'custom'
+  const [periode, setPeriode] = useState('mois');         // 'semaine'|'mois'|'bdd_<id>'|'custom'
   const [dateDebut, setDateDebut] = useState('');
   const [dateFin, setDateFin] = useState('');
   const [filtreNiveau, setFiltreNiveau] = useState('');
   const [recherche, setRecherche] = useState('');
   const [eleveDetail, setEleveDetail] = useState(null);   // id de l'élève dont on montre le détail
   const [filtreKpi, setFiltreKpi] = useState(null);       // null | 'risque' | 'parfait' — filtre actif depuis un clic KPI
+  const [periodesBDD, setPeriodesBDD] = useState([]);     // Etape 14
 
   // ─── Calcul des bornes de la periode ─────────────────────────
-  const { debut, fin } = calcBornesPeriode(periode, dateDebut, dateFin);
+  const { debut, fin } = calcBornesPeriode(periode, dateDebut, dateFin, periodesBDD);
 
   // ─── Chargement initial des elèves + niveaux + jours non travailles + seuils ──
   useEffect(() => {
@@ -1200,6 +1202,9 @@ function OngletSuivi({ lang, user, isMobile }) {
           setSEUIL_PARFAIT(ecoleRes.data.seuil_assiduite_parfait);
         }
       }
+      // Etape 14 - Charger les periodes typees (T1, T2, S1, etc.)
+      const ps = await loadPeriodesScolaires(supabase, user.ecole_id);
+      setPeriodesBDD([...ps.trimestres, ...ps.semestres, ...ps.annees]);
       setLoading(false);
     };
     load();
@@ -1352,13 +1357,12 @@ function OngletSuivi({ lang, user, isMobile }) {
     return sb.absences - sa.absences;
   });
 
+  // Etape 14 - Periodes : semaine/mois fixes + BDD typees + custom
   const PERIODES = [
-    { id: 'semaine',   label: lang === 'ar' ? 'الأسبوع'      : 'Semaine' },
-    { id: 'mois',      label: lang === 'ar' ? 'الشهر'         : 'Mois' },
-    { id: 'trimestre', label: lang === 'ar' ? 'الفصل (3 أشهر)': 'Trimestre' },
-    { id: 'semestre',  label: lang === 'ar' ? 'النصف (6 أشهر)': 'Semestre' },
-    { id: 'annee',     label: lang === 'ar' ? 'السنة'         : 'Année' },
-    { id: 'custom',    label: lang === 'ar' ? 'فترة محددة'    : 'Personnalisée' },
+    { id: 'semaine', label: lang === 'ar' ? 'الأسبوع' : 'Semaine' },
+    { id: 'mois',    label: lang === 'ar' ? 'الشهر'   : 'Mois' },
+    ...periodesBDD.map(p => ({ id: 'bdd_' + p.id, label: formatPeriodeCourte(p, lang) })),
+    { id: 'custom',  label: lang === 'ar' ? 'فترة محددة' : 'Personnalisée' },
   ];
 
   if (loading) return <div style={{ padding: 40, textAlign: 'center', color: '#888' }}>{lang === 'ar' ? '...جاري التحميل' : 'Chargement...'}</div>;
@@ -1773,7 +1777,7 @@ function OngletSuivi({ lang, user, isMobile }) {
 // Helpers : calcul des bornes de période + formats de date
 // ──────────────────────────────────────────────────────────────────
 
-function calcBornesPeriode(periode, customDebut, customFin) {
+function calcBornesPeriode(periode, customDebut, customFin, periodesBDD = []) {
   const today = new Date();
   // FIX fuseau horaire : ne pas utiliser .toISOString() car il convertit en UTC
   // et décale la date d'un jour en arrière si on est dans un fuseau GMT+X.
@@ -1802,19 +1806,12 @@ function calcBornesPeriode(periode, customDebut, customFin) {
     const debut = new Date(today.getFullYear(), today.getMonth(), 1);
     return { debut: iso(debut), fin: iso(today) };
   }
-  if (periode === 'trimestre') {
-    const debut = new Date(today);
-    debut.setMonth(debut.getMonth() - 3);
-    return { debut: iso(debut), fin: iso(today) };
-  }
-  if (periode === 'semestre') {
-    const debut = new Date(today);
-    debut.setMonth(debut.getMonth() - 6);
-    return { debut: iso(debut), fin: iso(today) };
-  }
-  if (periode === 'annee') {
-    const debut = new Date(today.getFullYear(), 0, 1);
-    return { debut: iso(debut), fin: iso(today) };
+  // Etape 14 - Periodes BDD (typees) : id = 'bdd_<uuid>'
+  if (periode && typeof periode === 'string' && periode.startsWith('bdd_')) {
+    const id = periode.substring(4);
+    const p = periodesBDD.find(x => x.id === id);
+    if (p) return { debut: p.date_debut, fin: p.date_fin };
+    return { debut: null, fin: null };
   }
   return { debut: null, fin: null };
 }
@@ -1856,8 +1853,9 @@ function OngletSuiviInstituteurs({ lang, user, isMobile }) {
   const [detailsInst, setDetailsInst] = useState(null);  // objet instituteur ou null
   // Popup de paiement d'un instituteur (bouton 💸)
   const [paiementInst, setPaiementInst] = useState(null);
+  const [periodesBDD2, setPeriodesBDD2] = useState([]);  // Etape 14
 
-  const { debut, fin } = calcBornesPeriode(periode, dateDebut, dateFin);
+  const { debut, fin } = calcBornesPeriode(periode, dateDebut, dateFin, periodesBDD2);
 
   // Helper ISO local (fix fuseau horaire)
   const isoLocal = (d) => {
@@ -1894,6 +1892,10 @@ function OngletSuiviInstituteurs({ lang, user, isMobile }) {
       setLoading(false);
     };
     load();
+    // Etape 14 - Charger les periodes typees
+    loadPeriodesScolaires(supabase, user.ecole_id).then(ps => {
+      setPeriodesBDD2([...ps.trimestres, ...ps.semestres, ...ps.annees]);
+    });
   }, [user.ecole_id]);
 
   // ─── Chargement séances sur la période ─────────────────────
@@ -2075,13 +2077,12 @@ function OngletSuiviInstituteurs({ lang, user, isMobile }) {
     return { ok: true };
   };
 
+  // Etape 14 - Periodes : semaine/mois fixes + BDD typees + custom
   const PERIODES = [
-    { id: 'semaine',   label: lang === 'ar' ? 'الأسبوع'       : 'Semaine' },
-    { id: 'mois',      label: lang === 'ar' ? 'الشهر'          : 'Mois' },
-    { id: 'trimestre', label: lang === 'ar' ? 'الفصل (3 أشهر)' : 'Trimestre' },
-    { id: 'semestre',  label: lang === 'ar' ? 'النصف (6 أشهر)' : 'Semestre' },
-    { id: 'annee',     label: lang === 'ar' ? 'السنة'          : 'Année' },
-    { id: 'custom',    label: lang === 'ar' ? 'فترة محددة'     : 'Personnalisée' },
+    { id: 'semaine', label: lang === 'ar' ? 'الأسبوع' : 'Semaine' },
+    { id: 'mois',    label: lang === 'ar' ? 'الشهر'   : 'Mois' },
+    ...periodesBDD2.map(p => ({ id: 'bdd_' + p.id, label: formatPeriodeCourte(p, lang) })),
+    { id: 'custom',  label: lang === 'ar' ? 'فترة محددة' : 'Personnalisée' },
   ];
 
   if (loading) return <div style={{ padding: 40, textAlign: 'center', color: '#888' }}>{lang === 'ar' ? '...جاري التحميل' : 'Chargement...'}</div>;
