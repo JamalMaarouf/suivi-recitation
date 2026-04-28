@@ -566,21 +566,32 @@ function PeriodesTab({ user, lang, periodes, setPeriodes, newPeriode, setNewPeri
     setPeriodes(prev => prev.map(x => x.id === p.id ? {...x, actif: !x.actif} : x));
   };
 
-  // Etape 14 - Duplication annee scolaire
-  // Reprend les periodes typees (trimestre/semestre/annee) actives et
-  // les duplique avec dates +1 an. Permet au surveillant de demarrer
-  // une nouvelle annee scolaire en 1 clic au lieu de tout reconfigurer.
-  const dupliquerAnneeScolaire = async () => {
-    const aDupliquer = (periodes || []).filter(p => p.actif && p.type && p.type !== 'libre');
-    if (aDupliquer.length === 0) {
+  // Etape 14 - Modale de selection pour duplication annee scolaire
+  const [showDupliquerModale, setShowDupliquerModale] = React.useState(false);
+  const [periodesADupliquer, setPeriodesADupliquer] = React.useState([]); // ids selectionnes
+
+  // Ouverture : pre-selectionne les periodes 'recentes' (date_fin > il y a 1 an)
+  const ouvrirModaleDupliquer = () => {
+    const candidats = (periodes || []).filter(p => p.actif && p.type && p.type !== 'libre');
+    if (candidats.length === 0) {
       showMsg('error', lang==='ar'
         ? 'لا توجد فترات نموذجية للتكرار. أضف فصول دراسية أولاً.'
-        : 'Aucune période modèle à dupliquer. Ajoutez d\'abord des trimestres/semestres.');
+        : 'Aucune période modèle. Ajoutez d\'abord des trimestres/semestres.');
       return;
     }
-    if (!window.confirm(lang==='ar'
-      ? `سيتم إنشاء ${aDupliquer.length} فترات جديدة بإضافة سنة لكل تاريخ. متابعة؟`
-      : `${aDupliquer.length} nouvelles périodes vont être créées avec dates +1 an. Continuer ?`)) {
+    // Pre-selection (Q1=C) : periodes dont date_fin >= aujourd'hui - 1 an
+    const seuil = new Date();
+    seuil.setFullYear(seuil.getFullYear() - 1);
+    const seuilIso = seuil.toISOString().split('T')[0];
+    const idsRecents = candidats.filter(p => p.date_fin && p.date_fin >= seuilIso).map(p => p.id);
+    setPeriodesADupliquer(idsRecents);
+    setShowDupliquerModale(true);
+  };
+
+  // Confirmation : verifie doublons + duplique
+  const confirmerDuplication = async () => {
+    if (periodesADupliquer.length === 0) {
+      showMsg('error', lang==='ar'?'حدد فترة واحدة على الأقل':'Sélectionnez au moins une période');
       return;
     }
     setSavingPeriode(true);
@@ -596,21 +607,49 @@ function PeriodesTab({ user, lang, periodes, setPeriodes, newPeriode, setNewPeri
       };
       const remplacerAnneeNom = (nom) => {
         if (!nom) return nom;
-        // Detecter une annee 4 chiffres (ex: 2024-2025) et incrementer
         return nom.replace(/(\d{4})-(\d{4})/, (m, a1, a2) => `${parseInt(a1)+1}-${parseInt(a2)+1}`)
                   .replace(/(\d{4})/, (m, a) => `${parseInt(a)+1}`);
       };
-      const nouvelles = aDupliquer.map(p => ({
-        ecole_id: user.ecole_id,
-        nom: remplacerAnneeNom(p.nom),
-        nom_ar: remplacerAnneeNom(p.nom_ar || p.nom),
-        date_debut: ajouterUnAn(p.date_debut),
-        date_fin: ajouterUnAn(p.date_fin),
-        type: p.type,
-        actif: true,
-      }));
-      const { error } = await supabase.from('periodes_notes').insert(nouvelles);
-      if (error) throw error;
+
+      const aDupliquer = (periodes || []).filter(p => periodesADupliquer.includes(p.id));
+
+      // Charger toutes les periodes existantes pour detection doublons
+      const { data: existantes } = await supabase.from('periodes_notes')
+        .select('date_debut, date_fin, type')
+        .eq('ecole_id', user.ecole_id);
+      const setExistantes = new Set(
+        (existantes || []).map(e => `${e.type||'libre'}|${e.date_debut}|${e.date_fin}`)
+      );
+
+      let crees = 0, ignores = 0;
+      const nouvelles = [];
+      for (const p of aDupliquer) {
+        const newDebut = ajouterUnAn(p.date_debut);
+        const newFin = ajouterUnAn(p.date_fin);
+        const cle = `${p.type}|${newDebut}|${newFin}`;
+        if (setExistantes.has(cle)) {
+          ignores++;
+          continue;
+        }
+        nouvelles.push({
+          ecole_id: user.ecole_id,
+          nom: remplacerAnneeNom(p.nom),
+          nom_ar: remplacerAnneeNom(p.nom_ar || p.nom),
+          date_debut: newDebut,
+          date_fin: newFin,
+          type: p.type,
+          actif: true,
+        });
+        // Marquer comme existant pour eviter les doublons internes au lot
+        setExistantes.add(cle);
+        crees++;
+      }
+
+      if (nouvelles.length > 0) {
+        const { error } = await supabase.from('periodes_notes').insert(nouvelles);
+        if (error) throw error;
+      }
+
       // Audit log
       try {
         await supabase.from('audit_log').insert({
@@ -618,16 +657,27 @@ function PeriodesTab({ user, lang, periodes, setPeriodes, newPeriode, setNewPeri
           actor_role: user.role || 'surveillant',
           action: 'periodes.annee_dupliquee',
           target_type: 'periodes_notes',
-          target_label: `${nouvelles.length} periodes`,
-          metadata: { ecole_id: user.ecole_id, count: nouvelles.length },
+          target_label: `${crees} crees, ${ignores} ignores`,
+          metadata: { ecole_id: user.ecole_id, crees, ignores },
         });
       } catch(e) { console.warn('[dupliquerAnnee] audit_log:', e); }
-      // Recharger
+
       const { data } = await supabase.from('periodes_notes').select('*').eq('ecole_id', user.ecole_id).order('date_debut');
       if (data) setPeriodes(data);
-      showMsg('success', lang==='ar'
-        ? `🎉 تم إنشاء ${nouvelles.length} فترات للسنة الجديدة`
-        : `🎉 ${nouvelles.length} périodes créées pour la nouvelle année`);
+
+      // Resume final
+      let resume;
+      if (crees > 0 && ignores > 0) {
+        resume = lang==='ar'
+          ? `🎉 ${crees} فترات جديدة، ${ignores} متجاهلة (موجودة مسبقا)`
+          : `🎉 ${crees} créées, ${ignores} ignorées (déjà existantes)`;
+      } else if (crees > 0) {
+        resume = lang==='ar' ? `🎉 ${crees} فترات جديدة` : `🎉 ${crees} période(s) créée(s)`;
+      } else {
+        resume = lang==='ar' ? 'كل الفترات موجودة مسبقا' : 'Toutes les périodes existaient déjà';
+      }
+      showMsg(crees > 0 ? 'success' : 'error', resume);
+      setShowDupliquerModale(false);
     } catch (err) {
       console.error('[dupliquerAnnee]', err);
       showMsg('error', (lang==='ar'?'فشل: ':'Erreur : ') + (err.message || 'inconnue'));
@@ -714,8 +764,8 @@ function PeriodesTab({ user, lang, periodes, setPeriodes, newPeriode, setNewPeri
       <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:8,flexWrap:'wrap',gap:8}}>
         <div className="section-label" style={{margin:0}}>{lang==='ar'?'الفترات المُعرَّفة':'Périodes configurées'} ({periodes.length})</div>
         {(periodes || []).filter(p => p.actif && p.type && p.type !== 'libre').length > 0 && (
-          <button onClick={dupliquerAnneeScolaire} disabled={savingPeriode}
-            title={lang==='ar'?'إنشاء فترات السنة المقبلة بنقرة واحدة':'Créer les périodes de l\'année suivante en 1 clic'}
+          <button onClick={ouvrirModaleDupliquer} disabled={savingPeriode}
+            title={lang==='ar'?'إنشاء فترات السنة المقبلة':'Dupliquer les périodes pour une nouvelle année'}
             style={{padding:'7px 14px',background:'linear-gradient(135deg,#1D9E75,#085041)',color:'#fff',border:'none',
               borderRadius:8,fontSize:12,fontWeight:700,cursor:savingPeriode?'not-allowed':'pointer',
               fontFamily:'inherit',boxShadow:'0 2px 8px rgba(8,80,65,0.25)',whiteSpace:'nowrap',
@@ -724,6 +774,111 @@ function PeriodesTab({ user, lang, periodes, setPeriodes, newPeriode, setNewPeri
           </button>
         )}
       </div>
+
+      {/* Modale selection periodes a dupliquer (Etape 14) */}
+      {showDupliquerModale && (() => {
+        const candidats = (periodes || []).filter(p => p.actif && p.type && p.type !== 'libre');
+        const tousCoches = candidats.length > 0 && candidats.every(p => periodesADupliquer.includes(p.id));
+        return (
+          <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.55)',zIndex:9999,
+            display:'flex',alignItems:'center',justifyContent:'center',padding:20}}
+            onClick={()=>{ if(!savingPeriode) setShowDupliquerModale(false); }}>
+            <div onClick={e=>e.stopPropagation()}
+              style={{background:'#fff',borderRadius:16,maxWidth:560,width:'100%',padding:24,
+                boxShadow:'0 20px 60px rgba(0,0,0,0.3)',maxHeight:'90vh',overflowY:'auto'}}>
+              <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:14}}>
+                <div style={{fontSize:32}}>🔄</div>
+                <div>
+                  <div style={{fontSize:17,fontWeight:800,color:'#085041'}}>
+                    {lang==='ar'?'سنة دراسية جديدة':'Nouvelle année scolaire'}
+                  </div>
+                  <div style={{fontSize:12,color:'#666',marginTop:2}}>
+                    {lang==='ar'?'اختر الفترات للتكرار (+1 سنة)':'Sélectionnez les périodes à dupliquer (+1 an)'}
+                  </div>
+                </div>
+              </div>
+
+              <div style={{
+                background:'#FFF8EC',border:'1px solid #EF9F2740',borderRadius:8,
+                padding:'10px 12px',fontSize:11,color:'#7B5800',marginBottom:12,lineHeight:1.5,
+              }}>
+                ℹ️ {lang==='ar'
+                  ? 'الفترات الموجودة مسبقا (نفس النوع و التواريخ) سيتم تجاهلها تلقائيا.'
+                  : 'Les périodes déjà existantes (même type et dates) seront ignorées automatiquement.'}
+              </div>
+
+              <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:8}}>
+                <div style={{fontSize:11,color:'#666',fontWeight:600}}>
+                  {periodesADupliquer.length}/{candidats.length} {lang==='ar'?'محدد':'sélectionnée(s)'}
+                </div>
+                <div style={{display:'flex',gap:6}}>
+                  <button onClick={()=>setPeriodesADupliquer(candidats.map(p=>p.id))}
+                    style={{padding:'4px 10px',fontSize:10,fontWeight:600,background:'#E1F5EE',color:'#085041',border:'none',borderRadius:6,cursor:'pointer',fontFamily:'inherit'}}>
+                    {lang==='ar'?'تحديد الكل':'Tout cocher'}
+                  </button>
+                  <button onClick={()=>setPeriodesADupliquer([])}
+                    style={{padding:'4px 10px',fontSize:10,fontWeight:600,background:'#f5f5f0',color:'#888',border:'none',borderRadius:6,cursor:'pointer',fontFamily:'inherit'}}>
+                    {lang==='ar'?'إلغاء الكل':'Tout décocher'}
+                  </button>
+                </div>
+              </div>
+
+              <div style={{maxHeight:280,overflowY:'auto',background:'#f9f9f5',borderRadius:8,padding:6,marginBottom:14}}>
+                {candidats.map(p => {
+                  const checked = periodesADupliquer.includes(p.id);
+                  const meta = TYPE_OPTIONS.find(o => o.val === p.type) || TYPE_OPTIONS[0];
+                  return (
+                    <label key={p.id} style={{
+                      display:'flex',alignItems:'center',gap:10,padding:'8px 10px',
+                      background:checked?'#fff':'transparent',borderRadius:6,cursor:'pointer',
+                      marginBottom:3,border:checked?'1px solid #1D9E75':'1px solid transparent',
+                    }}>
+                      <input type="checkbox" checked={checked}
+                        onChange={e=>{
+                          if (e.target.checked) setPeriodesADupliquer(prev=>[...prev, p.id]);
+                          else setPeriodesADupliquer(prev=>prev.filter(x=>x!==p.id));
+                        }} />
+                      <div style={{flex:1,minWidth:0}}>
+                        <div style={{display:'flex',alignItems:'center',gap:6,flexWrap:'wrap'}}>
+                          <div style={{fontSize:13,fontWeight:600,color:'#1a1a1a'}}>
+                            {p.nom_ar || p.nom}
+                          </div>
+                          <span style={{
+                            display:'inline-block',padding:'1px 6px',borderRadius:6,fontSize:9,fontWeight:700,
+                            background:`${meta.color}15`,color:meta.color,border:`0.5px solid ${meta.color}40`,
+                          }}>
+                            {lang==='ar'?meta.label_ar:meta.label_fr}
+                          </span>
+                        </div>
+                        <div style={{fontSize:10,color:'#888',marginTop:2}}>
+                          📅 {fmt(p.date_debut)} → {fmt(p.date_fin)}
+                        </div>
+                      </div>
+                    </label>
+                  );
+                })}
+              </div>
+
+              <div style={{display:'flex',gap:8}}>
+                <button onClick={()=>setShowDupliquerModale(false)} disabled={savingPeriode}
+                  style={{flex:1,padding:'11px',background:'#f5f5f0',color:'#666',border:'none',borderRadius:10,fontSize:13,fontWeight:600,cursor:savingPeriode?'not-allowed':'pointer',fontFamily:'inherit'}}>
+                  {lang==='ar'?'إلغاء':'Annuler'}
+                </button>
+                <button onClick={confirmerDuplication} disabled={savingPeriode || periodesADupliquer.length === 0}
+                  style={{flex:2,padding:'11px',
+                    background:(savingPeriode || periodesADupliquer.length === 0)?'#ccc':'linear-gradient(135deg,#1D9E75,#085041)',
+                    color:'#fff',border:'none',borderRadius:10,fontSize:13,fontWeight:700,
+                    cursor:(savingPeriode || periodesADupliquer.length === 0)?'not-allowed':'pointer',
+                    fontFamily:'inherit',boxShadow:'0 2px 8px rgba(8,80,65,0.3)'}}>
+                  {savingPeriode ? '⏳ '+(lang==='ar'?'جاري...':'En cours...')
+                    : '🔄 '+(lang==='ar'?`تكرار ${periodesADupliquer.length}`:`Dupliquer ${periodesADupliquer.length}`)}
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
       {periodes.length === 0 ? (
         <div className="empty">{lang==='ar'?'لا توجد فترات بعد — أضف أول فترة أعلاه':'Aucune période — ajoutez-en une ci-dessus'}</div>
       ) : (
