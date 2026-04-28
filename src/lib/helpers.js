@@ -1292,3 +1292,49 @@ export function prochainHizbDansBloc(progression) {
   }
   return { hizb: null, bloc: null };
 }
+
+// ══════════════════════════════════════════════════════════════════
+// LOGIN PARENT UNIQUE (Option E - Etape 11b corrigée)
+// ══════════════════════════════════════════════════════════════════
+/**
+ * Genere un login parent unique au niveau global de l'app.
+ *
+ * Strategie (Option E validee avec Jamal) :
+ *   1. Essayer le login simple (eleve_id_ecole). Le plus user-friendly.
+ *   2. Si pris, suffixer avec un compteur : "-2", "-3", etc.
+ *   3. Filet de securite : jusqu'a "-99" puis throw error.
+ *
+ * Cette fonction protege l'app du bug fondamental :
+ *   identifiant a une contrainte UNIQUE globale en BDD, donc 2 ecoles
+ *   ne peuvent pas avoir des parents avec le meme login simple "54".
+ *
+ * Pourquoi pas de suffixe par defaut :
+ *   - Login simple est attendu par le surveillant et le parent
+ *   - 95% des cas, pas de conflit (1 seule ecole par client)
+ *   - Suffixe est un filet de securite invisible quand non necessaire
+ *
+ * @param supabase Client Supabase
+ * @param baseLogin Le login souhaite (ex: "54")
+ * @returns {Promise<string>} Le login unique trouve (ex: "54" ou "54-2")
+ */
+export async function genererLoginParentUnique(supabase, baseLogin) {
+  const base = (baseLogin || '').trim();
+  if (!base) throw new Error('baseLogin manquant');
+
+  // 1. Essayer le login simple
+  const { data: existingBase } = await supabase.from('utilisateurs')
+    .select('id').eq('identifiant', base).maybeSingle();
+  if (!existingBase) return base;
+
+  // 2. Suffixer avec un compteur
+  for (let i = 2; i <= 99; i++) {
+    const candidate = `${base}-${i}`;
+    const { data: existing } = await supabase.from('utilisateurs')
+      .select('id').eq('identifiant', candidate).maybeSingle();
+    if (!existing) return candidate;
+  }
+
+  // 3. Filet de securite ultime (rarissime)
+  throw new Error(`Impossible de generer un login unique pour ${base} apres 99 tentatives`);
+}
+

@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useToast } from '../lib/toast';
 import { supabase } from '../lib/supabase';
 import ConfirmModal from '../components/ConfirmModal';
-import { getInitiales, calcEtatEleve, calcPoints, BAREME_DEFAUT, loadBareme, saveBaremeItem, isSourateNiveauDyn, getSensForEleve} from '../lib/helpers';
+import { getInitiales, calcEtatEleve, calcPoints, BAREME_DEFAUT, loadBareme, saveBaremeItem, isSourateNiveauDyn, getSensForEleve, genererLoginParentUnique} from '../lib/helpers';
 import { SOURATES_5B, SOURATES_5A, SOURATES_2M, isSourateNiveau } from '../lib/sourates';
 import { t } from '../lib/i18n';
 import ExportButtons from '../components/ExportButtons';
@@ -1518,7 +1518,7 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile,
   const [showAcquisSelector, setShowAcquisSelector] = useState(false);
   const [editShowAcquisSelector, setEditShowAcquisSelector] = useState(false);
 
-  const [newEleve, setNewEleve] = useState({ prenom: '', nom: '', niveau: 'Débutant', code_niveau: '', eleve_id_ecole: '', instituteur_referent_id: '', hizb_depart: 0, tomon_depart: 1, sourates_acquises: 0, telephone: '', date_inscription: '', jours_souhaites: [false,false,false,false,false,false,false] });
+  const [newEleve, setNewEleve] = useState({ prenom: '', nom: '', niveau: 'Débutant', code_niveau: '', eleve_id_ecole: '', instituteur_referent_id: '', hizb_depart: 0, tomon_depart: 1, sourates_acquises: 0, telephone: '', email_parent: '', date_inscription: '', jours_souhaites: [false,false,false,false,false,false,false] });
   const [newInst, setNewInst] = useState({ prenom: '', nom: '', identifiant: '', mot_de_passe: '', instituteur_id_ecole: '' });
   const [ecoleConfig, setEcoleConfig] = useState({ mdp_defaut_instituteurs: 'ecole2024', mdp_defaut_parents: 'parent2024', sens_recitation_defaut: 'desc' });
   // Hooks niveaux dynamiques
@@ -1682,11 +1682,20 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile,
 
     // ⑥ Créer compte parent automatiquement
     const mdpParent = ecoleConfig?.mdp_defaut_parents || 'parent2024';
-    const loginParent = newEleve.eleve_id_ecole.trim();
+    // Generer un login unique (Option E : suffixe en cas de conflit)
+    let loginParent;
+    try {
+      loginParent = await genererLoginParentUnique(supabase, newEleve.eleve_id_ecole.trim());
+    } catch (err) {
+      console.error('[ajouterEleve] genererLoginParentUnique:', err);
+      showMsg('error', (lang==='ar'?'فشل إنشاء معرف ولي الأمر: ':'Échec génération login parent: ') + err.message);
+      return;
+    }
     const { data: parentData, error: parentErr } = await supabase.from('utilisateurs').insert({
       prenom: newEleve.prenom, nom: newEleve.nom,
       identifiant: loginParent, mot_de_passe: mdpParent,
-      role: 'parent', ecole_id: user.ecole_id, statut_compte: 'actif'
+      role: 'parent', ecole_id: user.ecole_id, statut_compte: 'actif',
+      email: (newEleve.email_parent || '').trim() || null,
     }).select().single();
     if (parentErr) showMsg('error', 'Erreur création parent: '+parentErr.message);
     if (parentData?.id && eleveData?.id) {
@@ -1708,7 +1717,7 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile,
         mdp: mdpParent,
       },
     });
-    setNewEleve({ prenom: '', nom: '', niveau: 'Débutant', code_niveau: (niveauxDyn && niveauxDyn[0]?.code) || '', eleve_id_ecole: '', instituteur_referent_id: '', hizb_depart: 0, tomon_depart: 1, sourates_acquises: 0 });
+    setNewEleve({ prenom: '', nom: '', niveau: 'Débutant', code_niveau: (niveauxDyn && niveauxDyn[0]?.code) || '', eleve_id_ecole: '', instituteur_referent_id: '', hizb_depart: 0, tomon_depart: 1, sourates_acquises: 0, email_parent: '' });
     setShowAcquisSelector(false);
     loadData();
   };
@@ -2054,9 +2063,9 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile,
     if (linkLoginMode === 'manuel') {
       nouveauLogin = (linkLoginManuel || '').trim();
       if (!nouveauLogin) { showMsg('error', lang==='ar'?'أدخل المعرف الجديد':'Saisissez le nouveau login'); return; }
-      // Verifier unicite
+      // Verifier unicite globale (pas juste l'ecole, car contrainte BDD est globale)
       const { data: existing } = await supabase.from('utilisateurs')
-        .select('id').eq('identifiant', nouveauLogin).eq('ecole_id', user.ecole_id).maybeSingle();
+        .select('id').eq('identifiant', nouveauLogin).maybeSingle();
       if (existing) { showMsg('error', lang==='ar'?'المعرف مستخدم بالفعل':'Ce login existe déjà'); return; }
     } else {
       nouveauLogin = linkLoginExistant;
@@ -2165,6 +2174,47 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile,
     }
   };
 
+  // Etape 11b - Reinitialiser MDP d'un parent (cas oubli)
+  const reinitialiserMDPParent = (parent) => {
+    const mdpDefaut = ecoleConfig?.mdp_defaut_parents || 'parent2024';
+    showConfirm(
+      lang==='ar'?'إعادة تعيين كلمة المرور':'Réinitialiser le mot de passe',
+      lang==='ar'
+        ? `سيتم إعادة تعيين كلمة المرور لـ ${parent.prenom} ${parent.nom} إلى: ${mdpDefaut}`
+        : `Le mot de passe de ${parent.prenom} ${parent.nom} sera réinitialisé à : ${mdpDefaut}`,
+      async () => {
+        setConfirmLoading(true);
+        try {
+          const { error } = await supabase.from('utilisateurs')
+            .update({ mot_de_passe: mdpDefaut })
+            .eq('id', parent.id);
+          if (error) throw error;
+          // Audit log
+          try {
+            await supabase.from('audit_log').insert({
+              actor_user_id: user.id,
+              actor_role: user.role || 'surveillant',
+              action: 'parent.mdp_reinitialise',
+              target_type: 'utilisateurs',
+              target_id: parent.id,
+              target_label: parent.identifiant,
+              metadata: { ecole_id: user.ecole_id },
+            });
+          } catch(e) { console.warn('[reinitMDP] audit_log:', e); }
+          showMsg('success', lang==='ar'
+            ? `🔑 تم إعادة تعيين كلمة المرور إلى: ${mdpDefaut}`
+            : `🔑 Mot de passe réinitialisé à : ${mdpDefaut}`);
+          hideConfirm();
+        } catch (err) {
+          console.error('[reinitMDP]', err);
+          showMsg('error', (lang==='ar'?'فشل: ':'Erreur : ') + err.message);
+        } finally {
+          setConfirmLoading(false);
+        }
+      }
+    );
+  };
+
   const ouvrirModaleDelier = (parent) => {
     const enfantsLies = eleves.filter(e => (parent.eleve_ids || []).includes(e.id));
     if (enfantsLies.length < 2) {
@@ -2187,17 +2237,10 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile,
     setUnlinkLoading(true);
     try {
       const mdpDefaut = ecoleConfig?.mdp_defaut_parents || 'parent2024';
-      const nouveauLogin = enfantADetacher.eleve_id_ecole;
-      if (!nouveauLogin) throw new Error('eleve_id_ecole manquant pour cet eleve');
-
-      // Verifier qu'aucun compte avec ce login n'existe deja
-      const { data: existant } = await supabase.from('utilisateurs')
-        .select('id').eq('identifiant', nouveauLogin).eq('ecole_id', user.ecole_id).maybeSingle();
-      if (existant) {
-        showMsg('error', lang==='ar'?`المعرف ${nouveauLogin} موجود مسبقا`:`Le login ${nouveauLogin} existe deja`);
-        setUnlinkLoading(false);
-        return;
-      }
+      // Generer un login unique (Option E - filet de securite)
+      const baseLogin = enfantADetacher.eleve_id_ecole;
+      if (!baseLogin) throw new Error('eleve_id_ecole manquant pour cet eleve');
+      const nouveauLogin = await genererLoginParentUnique(supabase, baseLogin);
 
       // Etape 1 : Creer un nouveau compte parent pour l'enfant detache
       const { data: nouveau, error: errNew } = await supabase.from('utilisateurs').insert({
@@ -2596,7 +2639,7 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
     const resetFormEleve = () => {
       setNewEleve({prenom:'',nom:'',niveau:'Débutant',code_niveau:(niveauxDyn && niveauxDyn[0]?.code) || '',eleve_id_ecole:'',
         instituteur_referent_id:'',hizb_depart:0,tomon_depart:1,sourates_acquises:0,
-        telephone:'',date_inscription:'',jours_souhaites:[false,false,false,false,false,false,false]});
+        telephone:'',email_parent:'',date_inscription:'',jours_souhaites:[false,false,false,false,false,false,false]});
       setEditEleve(null); setMobileEditEleve(null);
     };
     const handleSaveEleve = async () => {
@@ -3041,6 +3084,9 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
                       <div style={{display:'flex',gap:5,flexWrap:'wrap'}}>
                         <button onClick={()=>{setEditingParentId(p.id);setFormParent({prenom:p.prenom,nom:p.nom,identifiant:p.identifiant,mot_de_passe:'',telephone:p.telephone||'',email:p.email||'',eleve_ids:eleves.filter(e=>(p.eleve_ids||[]).includes(e.id)).map(e=>e.id)});setShowFormParent(true);window.scrollTo(0,0);}}
                           style={{background:'#E6F1FB',color:'#378ADD',border:'none',borderRadius:8,padding:'6px 9px',fontSize:12,cursor:'pointer'}}>✏️</button>
+                        <button onClick={()=>reinitialiserMDPParent(p)}
+                          title={lang==='ar'?'إعادة تعيين كلمة المرور':'Réinitialiser MDP'}
+                          style={{background:'#E1F5EE',color:'#085041',border:'none',borderRadius:8,padding:'6px 9px',fontSize:12,cursor:'pointer'}}>🔑</button>
                         {enfants.length >= 2 && (
                           <button onClick={()=>ouvrirModaleDelier(p)}
                             title={lang==='ar'?'فصل طفل':'Délier un enfant'}
@@ -3387,6 +3433,11 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
                   <div className="field-group">
                     <label className="field-lbl">{lang==='ar'?'تاريخ التسجيل (اختياري)':lang==='en'?'Enrollment date (optional)':"Date d'inscription (optionnel)"}</label>
                     <input className="field-input" type="date" value={newEleve.date_inscription||''} onChange={e=>setNewEleve({...newEleve,date_inscription:e.target.value})}/>
+                  </div>
+                  {/* Ligne 5 : Email parent (optionnel - Etape 11b) */}
+                  <div className="field-group" style={{gridColumn:'span 2'}}>
+                    <label className="field-lbl">{lang==='ar'?'بريد ولي الأمر الإلكتروني (اختياري)':'Email du parent (optionnel)'}</label>
+                    <input className="field-input" type="email" value={newEleve.email_parent||''} onChange={e=>setNewEleve({...newEleve,email_parent:e.target.value})} placeholder="parent@example.com"/>
                   </div>
                 </div>
 
@@ -3993,6 +4044,10 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
                     setShowFormParent(true);
                     window.scrollTo(0,0);
                   }} style={{padding:'4px 8px',borderRadius:6,background:'#E6F1FB',color:'#378ADD',border:'0.5px solid #378ADD30',cursor:'pointer',fontSize:11,fontWeight:600}}>✏️ {lang==='ar'?'تعديل':'Modifier'}</button>
+                  <button onClick={()=>reinitialiserMDPParent(p)}
+                    style={{padding:'4px 8px',borderRadius:6,background:'#E1F5EE',color:'#085041',border:'0.5px solid #1D9E7530',cursor:'pointer',fontSize:11,fontWeight:600}}>
+                    🔑 {lang==='ar'?'إعادة كلمة المرور':'Réinit. MDP'}
+                  </button>
                   {(p.eleve_ids||[]).length >= 2 && (
                     <button onClick={()=>ouvrirModaleDelier(p)}
                       style={{padding:'4px 8px',borderRadius:6,background:'#FFF8EC',color:'#7B5800',border:'0.5px solid #EF9F2740',cursor:'pointer',fontSize:11,fontWeight:600}}>
