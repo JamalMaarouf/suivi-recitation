@@ -572,11 +572,12 @@ function PeriodesTab({ user, lang, periodes, setPeriodes, newPeriode, setNewPeri
 
   // Ouverture : pre-selectionne les periodes 'recentes' (date_fin > il y a 1 an)
   const ouvrirModaleDupliquer = () => {
-    const candidats = (periodes || []).filter(p => p.actif && p.type && p.type !== 'libre');
+    // Etape 14 - Inclure TOUTES les periodes actives (typees + libres)
+    const candidats = (periodes || []).filter(p => p.actif);
     if (candidats.length === 0) {
       showMsg('error', lang==='ar'
-        ? 'لا توجد فترات نموذجية للتكرار. أضف فصول دراسية أولاً.'
-        : 'Aucune période modèle. Ajoutez d\'abord des trimestres/semestres.');
+        ? 'لا توجد فترات نشطة للتكرار'
+        : 'Aucune période active à dupliquer');
       return;
     }
     // Pre-selection (Q1=C) : periodes dont date_fin >= aujourd'hui - 1 an
@@ -613,12 +614,12 @@ function PeriodesTab({ user, lang, periodes, setPeriodes, newPeriode, setNewPeri
 
       const aDupliquer = (periodes || []).filter(p => periodesADupliquer.includes(p.id));
 
-      // Charger toutes les periodes existantes pour detection doublons
+      // Charger toutes les periodes existantes pour detection doublons (par DATES SEULES)
       const { data: existantes } = await supabase.from('periodes_notes')
-        .select('date_debut, date_fin, type')
+        .select('date_debut, date_fin')
         .eq('ecole_id', user.ecole_id);
       const setExistantes = new Set(
-        (existantes || []).map(e => `${e.type||'libre'}|${e.date_debut}|${e.date_fin}`)
+        (existantes || []).map(e => `${e.date_debut}|${e.date_fin}`)
       );
 
       let crees = 0, ignores = 0;
@@ -626,7 +627,7 @@ function PeriodesTab({ user, lang, periodes, setPeriodes, newPeriode, setNewPeri
       for (const p of aDupliquer) {
         const newDebut = ajouterUnAn(p.date_debut);
         const newFin = ajouterUnAn(p.date_fin);
-        const cle = `${p.type}|${newDebut}|${newFin}`;
+        const cle = `${newDebut}|${newFin}`;
         if (setExistantes.has(cle)) {
           ignores++;
           continue;
@@ -687,6 +688,109 @@ function PeriodesTab({ user, lang, periodes, setPeriodes, newPeriode, setNewPeri
   };
 
   const fmt = (d) => d ? new Date(d).toLocaleDateString(lang==='ar'?'ar-MA':'fr-FR', {day:'2-digit', month:'short', year:'numeric'}) : '—';
+
+  // Etape 14 - Duplication d'UNE ligne (1 clic, sans modale)
+  const dupliquerLigne = async (p) => {
+    if (savingPeriode) return;
+    setSavingPeriode(true);
+    try {
+      const ajouterUnAn = (isoDate) => {
+        if (!isoDate) return null;
+        const d = new Date(isoDate);
+        d.setFullYear(d.getFullYear() + 1);
+        const y = d.getFullYear();
+        const m = String(d.getMonth() + 1).padStart(2, '0');
+        const dd = String(d.getDate()).padStart(2, '0');
+        return `${y}-${m}-${dd}`;
+      };
+      const remplacerAnneeNom = (nom) => {
+        if (!nom) return nom;
+        return nom.replace(/(\d{4})-(\d{4})/, (m, a1, a2) => `${parseInt(a1)+1}-${parseInt(a2)+1}`)
+                  .replace(/(\d{4})/, (m, a) => `${parseInt(a)+1}`);
+      };
+      const newDebut = ajouterUnAn(p.date_debut);
+      const newFin = ajouterUnAn(p.date_fin);
+
+      // Detection doublon par DATES SEULES (Q2=A, protection max)
+      const { data: existantes } = await supabase.from('periodes_notes')
+        .select('id, nom, nom_ar, type')
+        .eq('ecole_id', user.ecole_id)
+        .eq('date_debut', newDebut)
+        .eq('date_fin', newFin);
+      if (existantes && existantes.length > 0) {
+        const ex = existantes[0];
+        showMsg('error', lang==='ar'
+          ? `⚠️ توجد فترة بنفس التواريخ: ${ex.nom_ar||ex.nom}`
+          : `⚠️ Période existante avec ces dates : ${ex.nom_ar||ex.nom}`);
+        return;
+      }
+
+      const { error } = await supabase.from('periodes_notes').insert({
+        ecole_id: user.ecole_id,
+        nom: remplacerAnneeNom(p.nom),
+        nom_ar: remplacerAnneeNom(p.nom_ar || p.nom),
+        date_debut: newDebut,
+        date_fin: newFin,
+        type: p.type,
+        actif: true,
+      });
+      if (error) throw error;
+
+      // Audit
+      try {
+        await supabase.from('audit_log').insert({
+          actor_user_id: user.id,
+          actor_role: user.role || 'surveillant',
+          action: 'periode.dupliquee_ligne',
+          target_type: 'periodes_notes',
+          target_id: p.id,
+          target_label: p.nom_ar || p.nom,
+          metadata: { ecole_id: user.ecole_id },
+        });
+      } catch(e) { console.warn('[dupliquerLigne] audit_log:', e); }
+
+      // Recharger
+      const { data } = await supabase.from('periodes_notes').select('*').eq('ecole_id', user.ecole_id).order('date_debut');
+      if (data) setPeriodes(data);
+      showMsg('success', lang==='ar' ? `🎉 تم إنشاء فترة جديدة` : `🎉 Période dupliquée`);
+    } catch (err) {
+      console.error('[dupliquerLigne]', err);
+      showMsg('error', (lang==='ar'?'فشل: ':'Erreur : ') + (err.message || 'inconnue'));
+    } finally {
+      setSavingPeriode(false);
+    }
+  };
+
+  // Etape 14 - Correction du type d'une periode (suggestion intelligente)
+  const corrigerTypePeriode = async (p, nouveauType) => {
+    setSavingPeriode(true);
+    try {
+      const { error } = await supabase.from('periodes_notes')
+        .update({ type: nouveauType }).eq('id', p.id);
+      if (error) throw error;
+      setPeriodes(prev => prev.map(x => x.id === p.id ? {...x, type: nouveauType} : x));
+      const meta = TYPE_OPTIONS.find(o => o.val === nouveauType);
+      showMsg('success', lang==='ar'
+        ? `✅ تم تحديث النوع إلى: ${meta?.label_ar||nouveauType}`
+        : `✅ Type mis à jour: ${meta?.label_fr||nouveauType}`);
+    } catch (err) {
+      console.error('[corrigerType]', err);
+      showMsg('error', (lang==='ar'?'فشل: ':'Erreur : ') + (err.message || 'inconnue'));
+    } finally {
+      setSavingPeriode(false);
+    }
+  };
+
+  // Etape 14 - Detection si une periode 'libre' ressemble a un type connu
+  // Retourne le type suggere ou null
+  const detecterTypeSuggere = (p) => {
+    if (p.type && p.type !== 'libre') return null; // deja typee
+    const nom = ((p.nom_ar || '') + ' ' + (p.nom || '')).toLowerCase();
+    if (/trimestre|trim|t[123]|الفصل\s*الدراسي|فصل\s*دراسي/i.test(nom)) return 'trimestre';
+    if (/semestre|sem|s[12]|نصف\s*السنة|نصف\s*سنة/i.test(nom)) return 'semestre';
+    if (/année|annee|annual|سنة\s*دراسية|السنة\s*الدراسية/i.test(nom)) return 'annee';
+    return null;
+  };
 
   // Helpers UI pour les types
   const TYPE_OPTIONS = [
@@ -763,7 +867,7 @@ function PeriodesTab({ user, lang, periodes, setPeriodes, newPeriode, setNewPeri
 
       <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:8,flexWrap:'wrap',gap:8}}>
         <div className="section-label" style={{margin:0}}>{lang==='ar'?'الفترات المُعرَّفة':'Périodes configurées'} ({periodes.length})</div>
-        {(periodes || []).filter(p => p.actif && p.type && p.type !== 'libre').length > 0 && (
+        {(periodes || []).filter(p => p.actif).length > 0 && (
           <button onClick={ouvrirModaleDupliquer} disabled={savingPeriode}
             title={lang==='ar'?'إنشاء فترات السنة المقبلة':'Dupliquer les périodes pour une nouvelle année'}
             style={{padding:'7px 14px',background:'linear-gradient(135deg,#1D9E75,#085041)',color:'#fff',border:'none',
@@ -777,7 +881,7 @@ function PeriodesTab({ user, lang, periodes, setPeriodes, newPeriode, setNewPeri
 
       {/* Modale selection periodes a dupliquer (Etape 14) */}
       {showDupliquerModale && (() => {
-        const candidats = (periodes || []).filter(p => p.actif && p.type && p.type !== 'libre');
+        const candidats = (periodes || []).filter(p => p.actif);
         const tousCoches = candidats.length > 0 && candidats.every(p => periodesADupliquer.includes(p.id));
         return (
           <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.55)',zIndex:9999,
@@ -885,6 +989,8 @@ function PeriodesTab({ user, lang, periodes, setPeriodes, newPeriode, setNewPeri
         <div style={{display:'flex',flexDirection:'column',gap:8}}>
           {periodes.map(p => {
             const meta = getTypeMeta(p.type);
+            const typeSuggere = detecterTypeSuggere(p);
+            const metaSuggere = typeSuggere ? TYPE_OPTIONS.find(o => o.val === typeSuggere) : null;
             return (
             <div key={p.id} style={{background:'#fff',border:'0.5px solid #e0e0d8',borderRadius:12,padding:'12px 14px',display:'flex',alignItems:'center',gap:12,opacity:p.actif?1:0.5}}>
               <div style={{width:44,height:44,borderRadius:12,background:p.actif?`${meta.color}15`:'#f0f0ec',display:'flex',alignItems:'center',justifyContent:'center',fontSize:22,flexShrink:0}}>{meta.icon}</div>
@@ -897,17 +1003,37 @@ function PeriodesTab({ user, lang, periodes, setPeriodes, newPeriode, setNewPeri
                   }}>
                     {lang==='ar'?meta.label_ar:meta.label_fr}
                   </span>
+                  {/* Etape 14 - Suggestion typage si periode libre detectee */}
+                  {metaSuggere && (
+                    <button onClick={()=>corrigerTypePeriode(p, typeSuggere)} disabled={savingPeriode}
+                      title={lang==='ar'
+                        ? `تصنيف كـ ${metaSuggere.label_ar}؟`
+                        : `Marquer comme ${metaSuggere.label_fr} ?`}
+                      style={{
+                        padding:'1px 7px',borderRadius:8,fontSize:9,fontWeight:700,cursor:'pointer',fontFamily:'inherit',
+                        background:'#FFF8EC',color:'#7B5800',border:`0.5px solid #EF9F2740`,
+                      }}>
+                      💡 {metaSuggere.icon} {lang==='ar'?metaSuggere.label_ar:metaSuggere.label_fr}?
+                    </button>
+                  )}
                 </div>
                 <div style={{fontSize:11,color:'#888',marginTop:2,fontWeight:600}}>
                   📅 {fmt(p.date_debut)} → {fmt(p.date_fin)}
                 </div>
               </div>
-              <div style={{display:'flex',gap:6}}>
+              <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>
                 <button onClick={()=>toggleActif(p)}
                   style={{padding:'4px 8px',borderRadius:6,fontSize:11,fontWeight:600,cursor:'pointer',
                     background:p.actif?'#E1F5EE':'#f0f0ec',color:p.actif?'#085041':'#888',
                     border:`0.5px solid ${p.actif?'#1D9E7530':'#e0e0d8'}`}}>
                   {p.actif ? (lang==='ar'?'نشطة':'Active') : (lang==='ar'?'غير نشطة':'Inactive')}
+                </button>
+                {/* Etape 14 - Bouton 🔄 dupliquer +1 an (1 clic) */}
+                <button onClick={()=>dupliquerLigne(p)} disabled={savingPeriode}
+                  title={lang==='ar'?'تكرار الفترة بإضافة سنة':'Dupliquer +1 an'}
+                  style={{padding:'4px 8px',borderRadius:6,fontSize:11,fontWeight:600,cursor:savingPeriode?'not-allowed':'pointer',
+                    background:'#E6F1FB',color:'#378ADD',border:'0.5px solid #378ADD30',opacity:savingPeriode?0.5:1}}>
+                  🔄
                 </button>
                 <button onClick={()=>supprimerPeriode(p.id)}
                   style={{padding:'4px 8px',borderRadius:6,background:'#FCEBEB',color:'#E24B4A',border:'0.5px solid #E24B4A30',cursor:'pointer',fontSize:11,fontWeight:600}}>
