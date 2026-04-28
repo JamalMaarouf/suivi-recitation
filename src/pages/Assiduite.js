@@ -7,7 +7,7 @@ import ConfirmModal from '../components/ConfirmModal';
 import ExportButtons from '../components/ExportButtons';
 import { openPDF } from '../lib/pdf';
 import { exportExcelSimple } from '../lib/excel';
-import { loadPeriodesScolaires, formatPeriodeCourte } from '../lib/helpers';
+import { loadAnneeActiveAvecPeriodes, formatPeriodeCourte } from '../lib/helpers';
 
 // ══════════════════════════════════════════════════════════════════════
 // PAGE ASSIDUITÉ — الحضور
@@ -1202,9 +1202,9 @@ function OngletSuivi({ lang, user, isMobile }) {
           setSEUIL_PARFAIT(ecoleRes.data.seuil_assiduite_parfait);
         }
       }
-      // Etape 14 - Charger les periodes typees (T1, T2, S1, etc.)
-      const ps = await loadPeriodesScolaires(supabase, user.ecole_id);
-      setPeriodesBDD([...ps.trimestres, ...ps.semestres, ...ps.annees]);
+      // Etape 14 - Charger les periodes typees de l'annee ACTIVE
+      const annData = await loadAnneeActiveAvecPeriodes(supabase, user.ecole_id);
+      setPeriodesBDD(annData.periodes.filter(p => p.type && p.type !== 'libre'));
       setLoading(false);
     };
     load();
@@ -1892,9 +1892,9 @@ function OngletSuiviInstituteurs({ lang, user, isMobile }) {
       setLoading(false);
     };
     load();
-    // Etape 14 - Charger les periodes typees
-    loadPeriodesScolaires(supabase, user.ecole_id).then(ps => {
-      setPeriodesBDD2([...ps.trimestres, ...ps.semestres, ...ps.annees]);
+    // Etape 14 - Charger les periodes typees de l'annee active
+    loadAnneeActiveAvecPeriodes(supabase, user.ecole_id).then(({ periodes }) => {
+      setPeriodesBDD2(periodes.filter(p => p.type && p.type !== 'libre'));
     });
   }, [user.ecole_id]);
 

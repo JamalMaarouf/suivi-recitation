@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { supabase } from '../lib/supabase';
-import { loadPeriodesScolaires, formatPeriodeCourte } from '../lib/helpers';
+import { loadAnneeActiveAvecPeriodes, formatPeriodeCourte } from '../lib/helpers';
 
 // ══════════════════════════════════════════════════════════════════════
 // ONGLET ASSIDUITÉ DE LA FICHE ÉLÈVE
@@ -50,13 +50,13 @@ export default function OngletAssiduiteEleve({ eleve, lang, isMobile }) {
     load();
   }, [eleve?.ecole_id]);
 
-  // Etape 14 - Charger les periodes scolaires (typees) de l'ecole
+  // Etape 14 - Charger les periodes typees de l'annee ACTIVE
+  // Q4=A : ne pas afficher les periodes 'libre' (vocation differente)
   useEffect(() => {
     if (!eleve?.ecole_id) return;
-    loadPeriodesScolaires(supabase, eleve.ecole_id).then(res => {
-      // On ne garde que les periodes typees (trimestre/semestre/annee) pour le selecteur
-      // Les periodes 'libres' ne sont pas affichees ici (utilisees ailleurs comme TableauHonneur)
-      const typees = [...res.trimestres, ...res.semestres, ...res.annees];
+    loadAnneeActiveAvecPeriodes(supabase, eleve.ecole_id).then(({ periodes }) => {
+      // Filtrer pour ne garder que les types d'evaluation pedagogique
+      const typees = periodes.filter(p => p.type && p.type !== 'libre');
       setPeriodesBDD(typees);
     });
   }, [eleve?.ecole_id]);
@@ -215,10 +215,10 @@ export default function OngletAssiduiteEleve({ eleve, lang, isMobile }) {
   const PERIODES = [
     { id: 'semaine', label: lang === 'ar' ? 'الأسبوع' : 'Semaine' },
     { id: 'mois',    label: lang === 'ar' ? 'الشهر'   : 'Mois' },
-    // Insertion des periodes BDD typees (T1, T2, S1, etc.) au format "Nom (sept-nov)"
+    // Insertion des periodes BDD typees au format compact "Nom (sept-nov)"
     ...periodesBDD.map(p => ({
       id: 'bdd_' + p.id,
-      label: formatPeriodeCourte(p, lang),
+      label: formatPeriodeCourte(p, lang, true),
     })),
     { id: 'custom', label: lang === 'ar' ? 'فترة محددة' : 'Personnalisée' },
   ];
@@ -259,6 +259,18 @@ export default function OngletAssiduiteEleve({ eleve, lang, isMobile }) {
       </div>
 
       {/* ─── Sélecteur de période ─── */}
+      {periodesBDD.length === 0 && (
+        <div style={{
+          background:'#FFF8EC',border:'1px solid #EF9F2740',borderRadius:8,
+          padding:'8px 12px',fontSize:11,color:'#7B5800',marginBottom:8,
+          display:'flex',alignItems:'center',gap:8,
+        }}>
+          <span style={{fontSize:14}}>💡</span>
+          <span>{lang==='ar'
+            ? 'لم تقم بإعداد سنة دراسية بعد. يمكنك ذلك في الإدارة > الفترات.'
+            : 'Aucune année scolaire active. Configurez-en une dans Gestion → Périodes pour avoir des trimestres.'}</span>
+        </div>
+      )}
       <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 10 }}>
         {PERIODES.map(p => {
           const active = periode === p.id;

@@ -529,524 +529,646 @@ function BaremeTab({ user, lang, bareme, setBareme, saving, setSaving, showMsg }
 }
 
 // ══════════════════════════════════════════════════════
-// COMPOSANT PeriodesTab — Gestion des périodes de notes
+// COMPOSANT PeriodesTab — Etape 14 (refonte complete)
+// Modele : Annee scolaire = container, periodes attachees a une annee
+// Q1=A : 1 seule annee active a la fois
+// Q3=B : Cloture manuelle puis activation manuelle
+// Q5=C : Bandeau si pas d'annee active + Semaine/Mois/Personnalisee dispo
 // ══════════════════════════════════════════════════════
-function PeriodesTab({ user, lang, periodes, setPeriodes, newPeriode, setNewPeriode, savingPeriode, setSavingPeriode, showMsg }) {
+function PeriodesTab({ user, lang, showMsg }) {
+  // States locaux (le state global periodes/newPeriode n'est plus utilise)
+  const [annees, setAnnees] = useState([]);
+  const [periodes, setPeriodes] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  // UI : annee selectionnee (par defaut active, sinon premiere)
+  const [selectedAnneeId, setSelectedAnneeId] = useState(null);
+  // Modale creation/edition annee
+  const [showAnneeForm, setShowAnneeForm] = useState(false);
+  const [editingAnneeId, setEditingAnneeId] = useState(null);
+  const [formAnnee, setFormAnnee] = useState({ nom: '', date_debut: '', date_fin: '' });
+  // Modale creation periode
+  const [showPeriodeForm, setShowPeriodeForm] = useState(false);
+  const [editingPeriodeId, setEditingPeriodeId] = useState(null);
+  const [formPeriode, setFormPeriode] = useState({ nom_ar: '', date_debut: '', date_fin: '', type: 'trimestre' });
 
-  const ajouterPeriode = async () => {
-    if (!newPeriode.nom_ar.trim()) return showMsg('error', lang==='ar'?'اسم الفترة مطلوب':'Nom de la période requis');
-    if (!newPeriode.date_debut) return showMsg('error', lang==='ar'?'تاريخ البداية مطلوب':'Date de début requise');
-    if (!newPeriode.date_fin) return showMsg('error', lang==='ar'?'تاريخ النهاية مطلوب':'Date de fin requise');
-    if (new Date(newPeriode.date_debut) >= new Date(newPeriode.date_fin)) return showMsg('error', lang==='ar'?'تاريخ البداية يجب أن يكون قبل النهاية':'La date de début doit être avant la fin');
-    setSavingPeriode(true);
-    await supabase.from('periodes_notes').insert({
-      ecole_id: user.ecole_id,
-      nom: newPeriode.nom_ar.trim(),
-      nom_ar: newPeriode.nom_ar.trim(),
-      date_debut: newPeriode.date_debut,
-      date_fin: newPeriode.date_fin,
-      type: newPeriode.type || 'libre',
-      actif: true,
-    });
-    const { data } = await supabase.from('periodes_notes').select('*').eq('ecole_id', user.ecole_id).order('date_debut');
-    if (data) setPeriodes(data);
-    setNewPeriode({ nom_ar: '', date_debut: '', date_fin: '', type: 'libre' });
-    setSavingPeriode(false);
-    showMsg('success', lang==='ar'?'تمت إضافة الفترة':'Période ajoutée');
-  };
-
-  const supprimerPeriode = async (id) => {
-    await supabase.from('periodes_notes').delete().eq('id', id);
-    setPeriodes(prev => prev.filter(p => p.id !== id));
-    showMsg('success', lang==='ar'?'تم حذف الفترة':'Période supprimée');
-  };
-
-  const toggleActif = async (p) => {
-    await supabase.from('periodes_notes').update({ actif: !p.actif }).eq('id', p.id);
-    setPeriodes(prev => prev.map(x => x.id === p.id ? {...x, actif: !x.actif} : x));
-  };
-
-  // Etape 14 - Modale de selection pour duplication annee scolaire
-  const [showDupliquerModale, setShowDupliquerModale] = React.useState(false);
-  const [periodesADupliquer, setPeriodesADupliquer] = React.useState([]); // ids selectionnes
-
-  // Ouverture : pre-selectionne les periodes 'recentes' (date_fin > il y a 1 an)
-  const ouvrirModaleDupliquer = () => {
-    // Etape 14 - Inclure TOUTES les periodes actives (typees + libres)
-    const candidats = (periodes || []).filter(p => p.actif);
-    if (candidats.length === 0) {
-      showMsg('error', lang==='ar'
-        ? 'لا توجد فترات نشطة للتكرار'
-        : 'Aucune période active à dupliquer');
-      return;
-    }
-    // Pre-selection (Q1=C) : periodes dont date_fin >= aujourd'hui - 1 an
-    const seuil = new Date();
-    seuil.setFullYear(seuil.getFullYear() - 1);
-    const seuilIso = seuil.toISOString().split('T')[0];
-    const idsRecents = candidats.filter(p => p.date_fin && p.date_fin >= seuilIso).map(p => p.id);
-    setPeriodesADupliquer(idsRecents);
-    setShowDupliquerModale(true);
-  };
-
-  // Confirmation : verifie doublons + duplique
-  const confirmerDuplication = async () => {
-    if (periodesADupliquer.length === 0) {
-      showMsg('error', lang==='ar'?'حدد فترة واحدة على الأقل':'Sélectionnez au moins une période');
-      return;
-    }
-    setSavingPeriode(true);
-    try {
-      const ajouterUnAn = (isoDate) => {
-        if (!isoDate) return null;
-        const d = new Date(isoDate);
-        d.setFullYear(d.getFullYear() + 1);
-        const y = d.getFullYear();
-        const m = String(d.getMonth() + 1).padStart(2, '0');
-        const dd = String(d.getDate()).padStart(2, '0');
-        return `${y}-${m}-${dd}`;
-      };
-      const remplacerAnneeNom = (nom) => {
-        if (!nom) return nom;
-        return nom.replace(/(\d{4})-(\d{4})/, (m, a1, a2) => `${parseInt(a1)+1}-${parseInt(a2)+1}`)
-                  .replace(/(\d{4})/, (m, a) => `${parseInt(a)+1}`);
-      };
-
-      const aDupliquer = (periodes || []).filter(p => periodesADupliquer.includes(p.id));
-
-      // Charger toutes les periodes existantes pour detection doublons (par DATES SEULES)
-      const { data: existantes } = await supabase.from('periodes_notes')
-        .select('date_debut, date_fin')
-        .eq('ecole_id', user.ecole_id);
-      const setExistantes = new Set(
-        (existantes || []).map(e => `${e.date_debut}|${e.date_fin}`)
-      );
-
-      let crees = 0, ignores = 0;
-      const nouvelles = [];
-      for (const p of aDupliquer) {
-        const newDebut = ajouterUnAn(p.date_debut);
-        const newFin = ajouterUnAn(p.date_fin);
-        const cle = `${newDebut}|${newFin}`;
-        if (setExistantes.has(cle)) {
-          ignores++;
-          continue;
-        }
-        nouvelles.push({
-          ecole_id: user.ecole_id,
-          nom: remplacerAnneeNom(p.nom),
-          nom_ar: remplacerAnneeNom(p.nom_ar || p.nom),
-          date_debut: newDebut,
-          date_fin: newFin,
-          type: p.type,
-          actif: true,
-        });
-        // Marquer comme existant pour eviter les doublons internes au lot
-        setExistantes.add(cle);
-        crees++;
-      }
-
-      if (nouvelles.length > 0) {
-        const { error } = await supabase.from('periodes_notes').insert(nouvelles);
-        if (error) throw error;
-      }
-
-      // Audit log
-      try {
-        await supabase.from('audit_log').insert({
-          actor_user_id: user.id,
-          actor_role: user.role || 'surveillant',
-          action: 'periodes.annee_dupliquee',
-          target_type: 'periodes_notes',
-          target_label: `${crees} crees, ${ignores} ignores`,
-          metadata: { ecole_id: user.ecole_id, crees, ignores },
-        });
-      } catch(e) { console.warn('[dupliquerAnnee] audit_log:', e); }
-
-      const { data } = await supabase.from('periodes_notes').select('*').eq('ecole_id', user.ecole_id).order('date_debut');
-      if (data) setPeriodes(data);
-
-      // Resume final
-      let resume;
-      if (crees > 0 && ignores > 0) {
-        resume = lang==='ar'
-          ? `🎉 ${crees} فترات جديدة، ${ignores} متجاهلة (موجودة مسبقا)`
-          : `🎉 ${crees} créées, ${ignores} ignorées (déjà existantes)`;
-      } else if (crees > 0) {
-        resume = lang==='ar' ? `🎉 ${crees} فترات جديدة` : `🎉 ${crees} période(s) créée(s)`;
-      } else {
-        resume = lang==='ar' ? 'كل الفترات موجودة مسبقا' : 'Toutes les périodes existaient déjà';
-      }
-      showMsg(crees > 0 ? 'success' : 'error', resume);
-      setShowDupliquerModale(false);
-    } catch (err) {
-      console.error('[dupliquerAnnee]', err);
-      showMsg('error', (lang==='ar'?'فشل: ':'Erreur : ') + (err.message || 'inconnue'));
-    } finally {
-      setSavingPeriode(false);
-    }
-  };
+  const TYPE_OPTIONS = [
+    { val: 'trimestre', icon: '🗓️', label_fr: 'Trimestre',  label_ar: 'فصل دراسي',   color: '#378ADD' },
+    { val: 'semestre',  icon: '📆', label_fr: 'Semestre',   label_ar: 'نصف سنة',     color: '#085041' },
+    { val: 'annee',     icon: '📚', label_fr: 'Année',      label_ar: 'سنة كاملة',  color: '#EF9F27' },
+    { val: 'libre',     icon: '📅', label_fr: 'Libre',      label_ar: 'حر',          color: '#888'    },
+  ];
+  const getTypeMeta = (t) => TYPE_OPTIONS.find(o => o.val === (t || 'libre')) || TYPE_OPTIONS[3];
 
   const fmt = (d) => d ? new Date(d).toLocaleDateString(lang==='ar'?'ar-MA':'fr-FR', {day:'2-digit', month:'short', year:'numeric'}) : '—';
 
-  // Etape 14 - Duplication d'UNE ligne (1 clic, sans modale)
-  const dupliquerLigne = async (p) => {
-    if (savingPeriode) return;
-    setSavingPeriode(true);
+  // ──────────────────────────────────────────────
+  // Chargement initial
+  // ──────────────────────────────────────────────
+  const loadData = async () => {
+    setLoading(true);
+    const [aRes, pRes] = await Promise.all([
+      supabase.from('annees_scolaires').select('*').eq('ecole_id', user.ecole_id).order('date_debut', { ascending: false }),
+      supabase.from('periodes_notes').select('*').eq('ecole_id', user.ecole_id).order('date_debut', { ascending: true }),
+    ]);
+    const anneesArr = aRes.data || [];
+    setAnnees(anneesArr);
+    setPeriodes(pRes.data || []);
+    // Selection : annee active si existe, sinon premiere disponible
+    if (!selectedAnneeId) {
+      const active = anneesArr.find(a => a.statut === 'active');
+      setSelectedAnneeId(active ? active.id : (anneesArr[0]?.id || null));
+    }
+    setLoading(false);
+  };
+
+  React.useEffect(() => { loadData(); }, [user.ecole_id]);
+
+  const anneeActive = annees.find(a => a.statut === 'active');
+  const anneeSelectionnee = annees.find(a => a.id === selectedAnneeId) || null;
+  const periodesAnneeSelectionnee = periodes.filter(p => p.annee_scolaire_id === selectedAnneeId);
+  const anneesArchivees = annees.filter(a => a.statut === 'archivee');
+  const anneesAVenir = annees.filter(a => a.statut === 'a_venir');
+
+  // ──────────────────────────────────────────────
+  // CRUD Annee
+  // ──────────────────────────────────────────────
+  const ouvrirCreationAnnee = () => {
+    setEditingAnneeId(null);
+    // Suggestion nom : 2026-2027 base sur today
+    const today = new Date();
+    const yearBase = today.getMonth() >= 8 ? today.getFullYear() : today.getFullYear() - 1;
+    setFormAnnee({
+      nom: `${yearBase}-${yearBase+1}`,
+      date_debut: `${yearBase}-09-01`,
+      date_fin: `${yearBase+1}-06-30`,
+    });
+    setShowAnneeForm(true);
+  };
+
+  const ouvrirEditionAnnee = (annee) => {
+    setEditingAnneeId(annee.id);
+    setFormAnnee({
+      nom: annee.nom,
+      date_debut: annee.date_debut,
+      date_fin: annee.date_fin,
+    });
+    setShowAnneeForm(true);
+  };
+
+  const sauvegarderAnnee = async () => {
+    if (!formAnnee.nom.trim()) return showMsg('error', lang==='ar'?'الاسم مطلوب':'Nom requis');
+    if (!formAnnee.date_debut || !formAnnee.date_fin) return showMsg('error', lang==='ar'?'التواريخ مطلوبة':'Dates requises');
+    if (new Date(formAnnee.date_debut) >= new Date(formAnnee.date_fin)) return showMsg('error', lang==='ar'?'التواريخ غير صحيحة':'Dates invalides');
+    setSaving(true);
     try {
-      const ajouterUnAn = (isoDate) => {
-        if (!isoDate) return null;
-        const d = new Date(isoDate);
-        d.setFullYear(d.getFullYear() + 1);
-        const y = d.getFullYear();
-        const m = String(d.getMonth() + 1).padStart(2, '0');
-        const dd = String(d.getDate()).padStart(2, '0');
-        return `${y}-${m}-${dd}`;
-      };
-      const remplacerAnneeNom = (nom) => {
-        if (!nom) return nom;
-        return nom.replace(/(\d{4})-(\d{4})/, (m, a1, a2) => `${parseInt(a1)+1}-${parseInt(a2)+1}`)
-                  .replace(/(\d{4})/, (m, a) => `${parseInt(a)+1}`);
-      };
-      const newDebut = ajouterUnAn(p.date_debut);
-      const newFin = ajouterUnAn(p.date_fin);
-
-      // Detection doublon par DATES SEULES (Q2=A, protection max)
-      const { data: existantes } = await supabase.from('periodes_notes')
-        .select('id, nom, nom_ar, type')
-        .eq('ecole_id', user.ecole_id)
-        .eq('date_debut', newDebut)
-        .eq('date_fin', newFin);
-      if (existantes && existantes.length > 0) {
-        const ex = existantes[0];
-        showMsg('error', lang==='ar'
-          ? `⚠️ توجد فترة بنفس التواريخ: ${ex.nom_ar||ex.nom}`
-          : `⚠️ Période existante avec ces dates : ${ex.nom_ar||ex.nom}`);
-        return;
+      let savedId;
+      if (editingAnneeId) {
+        const { error } = await supabase.from('annees_scolaires').update({
+          nom: formAnnee.nom.trim(),
+          date_debut: formAnnee.date_debut,
+          date_fin: formAnnee.date_fin,
+        }).eq('id', editingAnneeId);
+        if (error) throw error;
+        savedId = editingAnneeId;
+      } else {
+        const { data, error } = await supabase.from('annees_scolaires').insert({
+          ecole_id: user.ecole_id,
+          nom: formAnnee.nom.trim(),
+          date_debut: formAnnee.date_debut,
+          date_fin: formAnnee.date_fin,
+          statut: 'a_venir',
+        }).select().single();
+        if (error) throw error;
+        savedId = data.id;
       }
+      setShowAnneeForm(false);
+      setSelectedAnneeId(savedId);
+      await loadData();
+      showMsg('success', lang==='ar'?'✅ تم الحفظ':'✅ Enregistré');
+    } catch (err) {
+      console.error('[sauvegarderAnnee]', err);
+      showMsg('error', (lang==='ar'?'فشل: ':'Erreur : ') + err.message);
+    } finally {
+      setSaving(false);
+    }
+  };
 
-      const { error } = await supabase.from('periodes_notes').insert({
-        ecole_id: user.ecole_id,
-        nom: remplacerAnneeNom(p.nom),
-        nom_ar: remplacerAnneeNom(p.nom_ar || p.nom),
-        date_debut: newDebut,
-        date_fin: newFin,
-        type: p.type,
-        actif: true,
-      });
+  const activerAnnee = async (annee) => {
+    if (!window.confirm(lang==='ar'
+      ? `تفعيل '${annee.nom}'؟ سيتم أرشفة السنة الحالية تلقائياً.`
+      : `Activer '${annee.nom}' ? L'année active actuelle sera archivée.`)) return;
+    setSaving(true);
+    try {
+      // 1. Archiver l'annee active actuelle (si existe)
+      if (anneeActive) {
+        await supabase.from('annees_scolaires').update({ statut: 'archivee' }).eq('id', anneeActive.id);
+      }
+      // 2. Activer la nouvelle
+      const { error } = await supabase.from('annees_scolaires').update({ statut: 'active' }).eq('id', annee.id);
       if (error) throw error;
-
       // Audit
       try {
         await supabase.from('audit_log').insert({
           actor_user_id: user.id,
           actor_role: user.role || 'surveillant',
-          action: 'periode.dupliquee_ligne',
-          target_type: 'periodes_notes',
-          target_id: p.id,
-          target_label: p.nom_ar || p.nom,
+          action: 'annee_scolaire.activee',
+          target_type: 'annees_scolaires',
+          target_id: annee.id,
+          target_label: annee.nom,
+          metadata: { ecole_id: user.ecole_id, archived: anneeActive?.id || null },
+        });
+      } catch(e) { console.warn('[activerAnnee] audit:', e); }
+      await loadData();
+      showMsg('success', lang==='ar'?`✅ السنة ${annee.nom} نشطة الآن`:`✅ Année ${annee.nom} activée`);
+    } catch (err) {
+      console.error('[activerAnnee]', err);
+      showMsg('error', (lang==='ar'?'فشل: ':'Erreur : ') + err.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const cloturerAnnee = async () => {
+    if (!anneeActive) return;
+    if (!window.confirm(lang==='ar'
+      ? `إغلاق السنة '${anneeActive.nom}'؟ ستصبح للقراءة فقط.`
+      : `Clôturer l'année '${anneeActive.nom}' ? Elle deviendra lecture seule.`)) return;
+    setSaving(true);
+    try {
+      const { error } = await supabase.from('annees_scolaires').update({ statut: 'archivee' }).eq('id', anneeActive.id);
+      if (error) throw error;
+      try {
+        await supabase.from('audit_log').insert({
+          actor_user_id: user.id, actor_role: user.role || 'surveillant',
+          action: 'annee_scolaire.archivee', target_type: 'annees_scolaires',
+          target_id: anneeActive.id, target_label: anneeActive.nom,
           metadata: { ecole_id: user.ecole_id },
         });
-      } catch(e) { console.warn('[dupliquerLigne] audit_log:', e); }
-
-      // Recharger
-      const { data } = await supabase.from('periodes_notes').select('*').eq('ecole_id', user.ecole_id).order('date_debut');
-      if (data) setPeriodes(data);
-      showMsg('success', lang==='ar' ? `🎉 تم إنشاء فترة جديدة` : `🎉 Période dupliquée`);
+      } catch(e) { console.warn('[cloturerAnnee] audit:', e); }
+      await loadData();
+      showMsg('success', lang==='ar'?'✅ تم الإغلاق':'✅ Année clôturée');
     } catch (err) {
-      console.error('[dupliquerLigne]', err);
-      showMsg('error', (lang==='ar'?'فشل: ':'Erreur : ') + (err.message || 'inconnue'));
+      console.error('[cloturerAnnee]', err);
+      showMsg('error', (lang==='ar'?'فشل: ':'Erreur : ') + err.message);
     } finally {
-      setSavingPeriode(false);
+      setSaving(false);
     }
   };
 
-  // Etape 14 - Correction du type d'une periode (suggestion intelligente)
-  const corrigerTypePeriode = async (p, nouveauType) => {
-    setSavingPeriode(true);
+  const supprimerAnnee = async (annee) => {
+    if (annee.statut === 'active') {
+      return showMsg('error', lang==='ar'?'لا يمكن حذف السنة النشطة':'Impossible de supprimer l\'année active');
+    }
+    const nbPeriodes = periodes.filter(p => p.annee_scolaire_id === annee.id).length;
+    if (!window.confirm(lang==='ar'
+      ? `حذف '${annee.nom}' و ${nbPeriodes} فترات؟`
+      : `Supprimer '${annee.nom}' et ses ${nbPeriodes} périodes ?`)) return;
+    setSaving(true);
     try {
-      const { error } = await supabase.from('periodes_notes')
-        .update({ type: nouveauType }).eq('id', p.id);
+      // CASCADE supprime aussi les periodes (FK)
+      const { error } = await supabase.from('annees_scolaires').delete().eq('id', annee.id);
       if (error) throw error;
-      setPeriodes(prev => prev.map(x => x.id === p.id ? {...x, type: nouveauType} : x));
-      const meta = TYPE_OPTIONS.find(o => o.val === nouveauType);
-      showMsg('success', lang==='ar'
-        ? `✅ تم تحديث النوع إلى: ${meta?.label_ar||nouveauType}`
-        : `✅ Type mis à jour: ${meta?.label_fr||nouveauType}`);
+      if (selectedAnneeId === annee.id) setSelectedAnneeId(null);
+      await loadData();
+      showMsg('success', lang==='ar'?'✅ تم الحذف':'✅ Supprimé');
     } catch (err) {
-      console.error('[corrigerType]', err);
-      showMsg('error', (lang==='ar'?'فشل: ':'Erreur : ') + (err.message || 'inconnue'));
+      console.error('[supprimerAnnee]', err);
+      showMsg('error', (lang==='ar'?'فشل: ':'Erreur : ') + err.message);
     } finally {
-      setSavingPeriode(false);
+      setSaving(false);
     }
   };
 
-  // Etape 14 - Detection si une periode 'libre' ressemble a un type connu
-  // Retourne le type suggere ou null
-  const detecterTypeSuggere = (p) => {
-    if (p.type && p.type !== 'libre') return null; // deja typee
-    const nom = ((p.nom_ar || '') + ' ' + (p.nom || '')).toLowerCase();
-    if (/trimestre|trim|t[123]|الفصل\s*الدراسي|فصل\s*دراسي/i.test(nom)) return 'trimestre';
-    if (/semestre|sem|s[12]|نصف\s*السنة|نصف\s*سنة/i.test(nom)) return 'semestre';
-    if (/année|annee|annual|سنة\s*دراسية|السنة\s*الدراسية/i.test(nom)) return 'annee';
-    return null;
+  // Recopier la structure de l'annee active dans une nouvelle annee
+  const preparerAnneeSuivante = async () => {
+    if (!anneeActive) {
+      return showMsg('error', lang==='ar'?'لا توجد سنة نشطة لنسخها':'Aucune année active à recopier');
+    }
+    const periodesActives = periodes.filter(p => p.annee_scolaire_id === anneeActive.id);
+    if (periodesActives.length === 0) {
+      return showMsg('error', lang==='ar'?'السنة النشطة بدون فترات':'L\'année active n\'a aucune période');
+    }
+    // Calculer les dates +1 an
+    const ajouterUnAn = (iso) => {
+      const d = new Date(iso); d.setFullYear(d.getFullYear()+1);
+      const y=d.getFullYear(), m=String(d.getMonth()+1).padStart(2,'0'), dd=String(d.getDate()).padStart(2,'0');
+      return `${y}-${m}-${dd}`;
+    };
+    const remplacerAnnee = (nom) => (nom||'').replace(/(\d{4})-(\d{4})/, (m,a,b)=>`${parseInt(a)+1}-${parseInt(b)+1}`).replace(/(\d{4})/, (m,a)=>`${parseInt(a)+1}`);
+    const nouveauNom = remplacerAnnee(anneeActive.nom);
+    if (!window.confirm(lang==='ar'
+      ? `إنشاء '${nouveauNom}' مع ${periodesActives.length} فترات منسوخة (+1 سنة)؟`
+      : `Créer '${nouveauNom}' avec ${periodesActives.length} périodes recopiées (+1 an) ?`)) return;
+    setSaving(true);
+    try {
+      // 1. Creer la nouvelle annee
+      const { data: newAnnee, error: errA } = await supabase.from('annees_scolaires').insert({
+        ecole_id: user.ecole_id,
+        nom: nouveauNom,
+        date_debut: ajouterUnAn(anneeActive.date_debut),
+        date_fin: ajouterUnAn(anneeActive.date_fin),
+        statut: 'a_venir',
+      }).select().single();
+      if (errA) throw errA;
+      // 2. Recopier les periodes (sans relier celles 'libre' specifiques aux dates ?)
+      const nouvellesPeriodes = periodesActives.map(p => ({
+        ecole_id: user.ecole_id,
+        annee_scolaire_id: newAnnee.id,
+        nom: remplacerAnnee(p.nom),
+        nom_ar: remplacerAnnee(p.nom_ar || p.nom),
+        date_debut: ajouterUnAn(p.date_debut),
+        date_fin: ajouterUnAn(p.date_fin),
+        type: p.type,
+        actif: true,
+      }));
+      const { error: errP } = await supabase.from('periodes_notes').insert(nouvellesPeriodes);
+      if (errP) throw errP;
+      try {
+        await supabase.from('audit_log').insert({
+          actor_user_id: user.id, actor_role: user.role || 'surveillant',
+          action: 'annee_scolaire.preparee', target_type: 'annees_scolaires',
+          target_id: newAnnee.id, target_label: nouveauNom,
+          metadata: { ecole_id: user.ecole_id, periodes_recopiees: nouvellesPeriodes.length },
+        });
+      } catch(e) { console.warn('[preparerAnnee] audit:', e); }
+      setSelectedAnneeId(newAnnee.id);
+      await loadData();
+      showMsg('success', lang==='ar'
+        ? `🎉 ${nouveauNom} مع ${nouvellesPeriodes.length} فترات`
+        : `🎉 ${nouveauNom} créée avec ${nouvellesPeriodes.length} périodes`);
+    } catch (err) {
+      console.error('[preparerAnnee]', err);
+      showMsg('error', (lang==='ar'?'فشل: ':'Erreur : ') + err.message);
+    } finally {
+      setSaving(false);
+    }
   };
 
-  // Helpers UI pour les types
-  const TYPE_OPTIONS = [
-    { val: 'libre',     icon: '📅', label_fr: 'Libre',      label_ar: 'حر',          color: '#888'    },
-    { val: 'trimestre', icon: '🗓️', label_fr: 'Trimestre',  label_ar: 'فصل دراسي',   color: '#378ADD' },
-    { val: 'semestre',  icon: '📆', label_fr: 'Semestre',   label_ar: 'نصف سنة',     color: '#085041' },
-    { val: 'annee',     icon: '📚', label_fr: 'Année',      label_ar: 'سنة دراسية',  color: '#EF9F27' },
-  ];
-  const getTypeMeta = (t) => TYPE_OPTIONS.find(o => o.val === (t || 'libre')) || TYPE_OPTIONS[0];
-
-  // Suggestion auto du nom selon le type choisi
-  const suggestNom = (type) => {
-    const annee = new Date().getFullYear();
-    if (type === 'trimestre') return lang==='ar'?`الفصل الدراسي ${annee}-${annee+1}`:`Trimestre ${annee}-${annee+1}`;
-    if (type === 'semestre')  return lang==='ar'?`نصف السنة ${annee}-${annee+1}`:`Semestre ${annee}-${annee+1}`;
-    if (type === 'annee')     return lang==='ar'?`السنة الدراسية ${annee}-${annee+1}`:`Année scolaire ${annee}-${annee+1}`;
-    return '';
+  // ──────────────────────────────────────────────
+  // CRUD Periode
+  // ──────────────────────────────────────────────
+  const ouvrirCreationPeriode = () => {
+    if (!anneeSelectionnee) return showMsg('error', lang==='ar'?'اختر سنة أولاً':'Sélectionnez une année');
+    setEditingPeriodeId(null);
+    // Pre-rempli dates avec celles de l'annee
+    setFormPeriode({
+      nom_ar: '',
+      date_debut: anneeSelectionnee.date_debut,
+      date_fin: anneeSelectionnee.date_fin,
+      type: 'trimestre',
+    });
+    setShowPeriodeForm(true);
   };
+
+  const ouvrirEditionPeriode = (p) => {
+    setEditingPeriodeId(p.id);
+    setFormPeriode({
+      nom_ar: p.nom_ar || p.nom || '',
+      date_debut: p.date_debut,
+      date_fin: p.date_fin,
+      type: p.type || 'libre',
+    });
+    setShowPeriodeForm(true);
+  };
+
+  const sauvegarderPeriode = async () => {
+    if (!formPeriode.nom_ar.trim()) return showMsg('error', lang==='ar'?'الاسم مطلوب':'Nom requis');
+    if (!formPeriode.date_debut || !formPeriode.date_fin) return showMsg('error', lang==='ar'?'التواريخ مطلوبة':'Dates requises');
+    if (new Date(formPeriode.date_debut) >= new Date(formPeriode.date_fin)) return showMsg('error', lang==='ar'?'التواريخ غير صحيحة':'Dates invalides');
+    // Detection doublon par DATES dans la meme annee
+    const doublons = periodes.filter(p =>
+      p.annee_scolaire_id === selectedAnneeId &&
+      p.id !== editingPeriodeId &&
+      p.date_debut === formPeriode.date_debut &&
+      p.date_fin === formPeriode.date_fin
+    );
+    if (doublons.length > 0) {
+      return showMsg('error', lang==='ar'
+        ? `⚠️ توجد فترة بنفس التواريخ: ${doublons[0].nom_ar||doublons[0].nom}`
+        : `⚠️ Période existante avec ces dates : ${doublons[0].nom_ar||doublons[0].nom}`);
+    }
+    setSaving(true);
+    try {
+      const payload = {
+        ecole_id: user.ecole_id,
+        annee_scolaire_id: selectedAnneeId,
+        nom: formPeriode.nom_ar.trim(),
+        nom_ar: formPeriode.nom_ar.trim(),
+        date_debut: formPeriode.date_debut,
+        date_fin: formPeriode.date_fin,
+        type: formPeriode.type,
+        actif: true,
+      };
+      if (editingPeriodeId) {
+        const { error } = await supabase.from('periodes_notes').update(payload).eq('id', editingPeriodeId);
+        if (error) throw error;
+      } else {
+        const { error } = await supabase.from('periodes_notes').insert(payload);
+        if (error) throw error;
+      }
+      setShowPeriodeForm(false);
+      await loadData();
+      showMsg('success', lang==='ar'?'✅ تم الحفظ':'✅ Enregistré');
+    } catch (err) {
+      console.error('[sauvegarderPeriode]', err);
+      showMsg('error', (lang==='ar'?'فشل: ':'Erreur : ') + err.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const supprimerPeriode = async (p) => {
+    if (!window.confirm(lang==='ar'?`حذف '${p.nom_ar||p.nom}'؟`:`Supprimer '${p.nom_ar||p.nom}' ?`)) return;
+    setSaving(true);
+    try {
+      await supabase.from('periodes_notes').delete().eq('id', p.id);
+      await loadData();
+      showMsg('success', lang==='ar'?'✅ تم الحذف':'✅ Supprimé');
+    } catch (err) {
+      console.error('[supprimerPeriode]', err);
+      showMsg('error', (lang==='ar'?'فشل: ':'Erreur : ') + err.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // ──────────────────────────────────────────────
+  // RENDU
+  // ──────────────────────────────────────────────
+  if (loading) return <div style={{padding:40,textAlign:'center',color:'#888'}}>{lang==='ar'?'جاري التحميل...':'Chargement...'}</div>;
+
+  const anneeEstArchivee = anneeSelectionnee?.statut === 'archivee';
+  const peutEditer = anneeSelectionnee?.statut !== 'archivee';
 
   return (
     <div>
-      <div style={{fontSize:13,color:'#888',marginBottom:'1.25rem'}}>
-        {lang==='ar'?'حدد فترات التقييم (أسابيع، أشهر، فصول دراسية) لحساب النقاط والتصنيف':"Définissez les périodes d'évaluation pour le calcul des points et classements"}
-      </div>
+      {/* Cas : aucune annee configuree */}
+      {annees.length === 0 && (
+        <div style={{
+          background:'linear-gradient(135deg,#FFF8EC,#FAEEDA)',
+          border:'1px solid #EF9F2740',borderRadius:12,padding:'24px',marginBottom:14,textAlign:'center',
+        }}>
+          <div style={{fontSize:42,marginBottom:10}}>📅</div>
+          <div style={{fontSize:16,fontWeight:800,color:'#7B5800',marginBottom:6}}>
+            {lang==='ar'?'لم تقم بإعداد أي سنة دراسية':'Aucune année scolaire configurée'}
+          </div>
+          <div style={{fontSize:13,color:'#8a5a00',marginBottom:14,lineHeight:1.5}}>
+            {lang==='ar'?'ابدأ بإنشاء أول سنة دراسية لتنظيم فتراتك':'Commencez par créer votre première année scolaire'}
+          </div>
+          <button onClick={ouvrirCreationAnnee}
+            style={{padding:'10px 20px',background:'linear-gradient(135deg,#1D9E75,#085041)',color:'#fff',border:'none',borderRadius:10,fontSize:14,fontWeight:700,cursor:'pointer',fontFamily:'inherit',boxShadow:'0 2px 8px rgba(8,80,65,0.3)'}}>
+            ➕ {lang==='ar'?'إنشاء سنة دراسية':'Créer une année scolaire'}
+          </button>
+        </div>
+      )}
 
-      <div className="card" style={{marginBottom:'1.5rem'}}>
-        <div className="section-label">{lang==='ar'?'إضافة فترة جديدة':'Ajouter une période'}</div>
-        <div className="form-grid">
-          <div className="field-group" style={{gridColumn:'1/-1'}}>
-            <label className="field-lbl">{lang==='ar'?'نوع الفترة':'Type de période'}</label>
-            <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>
-              {TYPE_OPTIONS.map(opt => (
-                <button key={opt.val} type="button"
-                  onClick={()=>{
-                    const newType = opt.val;
-                    const updates = {...newPeriode, type: newType};
-                    if (!newPeriode.nom_ar.trim()) updates.nom_ar = suggestNom(newType);
-                    setNewPeriode(updates);
-                  }}
-                  style={{
-                    padding:'7px 14px',borderRadius:8,
-                    background:(newPeriode.type||'libre')===opt.val?opt.color:'#fff',
-                    color:(newPeriode.type||'libre')===opt.val?'#fff':opt.color,
-                    border:`1px solid ${opt.color}50`,
-                    cursor:'pointer',fontSize:12,fontWeight:600,fontFamily:'inherit',
-                  }}>
-                  {opt.icon} {lang==='ar'?opt.label_ar:opt.label_fr}
-                </button>
-              ))}
+      {/* Cas : annees existent */}
+      {annees.length > 0 && (
+        <>
+          {/* Selecteur annee */}
+          <div style={{
+            background:'#fff',border:'0.5px solid #e0e0d8',borderRadius:12,
+            padding:'14px 16px',marginBottom:14,
+          }}>
+            <div style={{display:'flex',alignItems:'center',gap:10,flexWrap:'wrap',marginBottom:10}}>
+              <div style={{fontSize:11,fontWeight:700,color:'#666',textTransform:'uppercase',letterSpacing:0.3}}>
+                {lang==='ar'?'السنة الدراسية':'Année scolaire'}
+              </div>
+              <select value={selectedAnneeId || ''} onChange={e=>setSelectedAnneeId(e.target.value)}
+                style={{padding:'7px 10px',borderRadius:8,border:'1px solid #d0d8e8',fontSize:13,fontWeight:600,fontFamily:'inherit',cursor:'pointer',flex:1,minWidth:150}}>
+                {annees.map(a => {
+                  const meta = a.statut==='active' ? '✅ ' : a.statut==='archivee' ? '📂 ' : '📅 ';
+                  return <option key={a.id} value={a.id}>{meta}{a.nom}</option>;
+                })}
+              </select>
             </div>
+            {anneeSelectionnee && (
+              <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}>
+                {/* Badge statut */}
+                {anneeSelectionnee.statut === 'active' && (
+                  <span style={{padding:'3px 10px',borderRadius:8,fontSize:10,fontWeight:700,background:'#E1F5EE',color:'#085041',border:'0.5px solid #1D9E7530'}}>
+                    ✅ {lang==='ar'?'نشطة':'Active'}
+                  </span>
+                )}
+                {anneeSelectionnee.statut === 'archivee' && (
+                  <span style={{padding:'3px 10px',borderRadius:8,fontSize:10,fontWeight:700,background:'#f0f0ec',color:'#888',border:'0.5px solid #e0e0d8'}}>
+                    📂 {lang==='ar'?'مؤرشفة':'Archivée'}
+                  </span>
+                )}
+                {anneeSelectionnee.statut === 'a_venir' && (
+                  <span style={{padding:'3px 10px',borderRadius:8,fontSize:10,fontWeight:700,background:'#FFF8EC',color:'#7B5800',border:'0.5px solid #EF9F2730'}}>
+                    📅 {lang==='ar'?'قادمة':'À venir'}
+                  </span>
+                )}
+                {/* Dates */}
+                <span style={{fontSize:12,color:'#666',fontWeight:600}}>
+                  📅 {fmt(anneeSelectionnee.date_debut)} → {fmt(anneeSelectionnee.date_fin)}
+                </span>
+                <div style={{flex:1}}/>
+                {/* Actions selon statut */}
+                {anneeSelectionnee.statut === 'a_venir' && (
+                  <button onClick={()=>activerAnnee(anneeSelectionnee)} disabled={saving}
+                    style={{padding:'5px 12px',borderRadius:8,fontSize:11,fontWeight:700,cursor:saving?'not-allowed':'pointer',
+                      background:'linear-gradient(135deg,#1D9E75,#085041)',color:'#fff',border:'none',fontFamily:'inherit'}}>
+                    ▶ {lang==='ar'?'تفعيل':'Activer'}
+                  </button>
+                )}
+                {anneeSelectionnee.statut === 'active' && (
+                  <button onClick={cloturerAnnee} disabled={saving}
+                    style={{padding:'5px 12px',borderRadius:8,fontSize:11,fontWeight:700,cursor:saving?'not-allowed':'pointer',
+                      background:'#FFF8EC',color:'#7B5800',border:'1px solid #EF9F2730',fontFamily:'inherit'}}>
+                    ⏸ {lang==='ar'?'إغلاق':'Clôturer'}
+                  </button>
+                )}
+                <button onClick={()=>ouvrirEditionAnnee(anneeSelectionnee)} disabled={saving || anneeEstArchivee}
+                  style={{padding:'5px 10px',borderRadius:8,fontSize:11,fontWeight:600,cursor:(saving||anneeEstArchivee)?'not-allowed':'pointer',
+                    background:'#E6F1FB',color:'#378ADD',border:'0.5px solid #378ADD30',opacity:anneeEstArchivee?0.5:1,fontFamily:'inherit'}}>
+                  ✏️
+                </button>
+                {anneeSelectionnee.statut !== 'active' && (
+                  <button onClick={()=>supprimerAnnee(anneeSelectionnee)} disabled={saving}
+                    style={{padding:'5px 10px',borderRadius:8,fontSize:11,fontWeight:600,cursor:saving?'not-allowed':'pointer',
+                      background:'#FCEBEB',color:'#E24B4A',border:'0.5px solid #E24B4A30',fontFamily:'inherit'}}>
+                    🗑
+                  </button>
+                )}
+              </div>
+            )}
           </div>
-          <div className="field-group" style={{gridColumn:'1/-1'}}>
-            <label className="field-lbl">{lang==='ar'?'اسم الفترة':'Nom de la période'} <span style={{color:'#E24B4A'}}>*</span></label>
-            <input className="field-input" value={newPeriode.nom_ar}
-              onChange={e=>setNewPeriode({...newPeriode, nom_ar: e.target.value})}
-              placeholder={lang==='ar'?'مثال: الفصل الأول 2024-2025':'Ex: 1er trimestre 2024-2025'}
-              style={{direction:'rtl', fontFamily:"'Tajawal',Arial,sans-serif"}} />
+
+          {/* Boutons globaux */}
+          <div style={{display:'flex',gap:8,flexWrap:'wrap',marginBottom:14}}>
+            <button onClick={ouvrirCreationAnnee} disabled={saving}
+              style={{padding:'8px 14px',borderRadius:8,fontSize:12,fontWeight:700,cursor:saving?'not-allowed':'pointer',
+                background:'#fff',color:'#085041',border:'1px solid #1D9E7540',fontFamily:'inherit'}}>
+              ➕ {lang==='ar'?'سنة جديدة':'Nouvelle année'}
+            </button>
+            {anneeActive && (
+              <button onClick={preparerAnneeSuivante} disabled={saving}
+                style={{padding:'8px 14px',borderRadius:8,fontSize:12,fontWeight:700,cursor:saving?'not-allowed':'pointer',
+                  background:'linear-gradient(135deg,#1D9E75,#085041)',color:'#fff',border:'none',fontFamily:'inherit',boxShadow:'0 2px 8px rgba(8,80,65,0.25)'}}>
+                🔄 {lang==='ar'?'تحضير السنة المقبلة':'Préparer l\'année suivante'}
+              </button>
+            )}
           </div>
-          <div className="field-group">
-            <label className="field-lbl">{lang==='ar'?'تاريخ البداية':'Date de début'} <span style={{color:'#E24B4A'}}>*</span></label>
-            <input className="field-input" type="date" value={newPeriode.date_debut}
-              onChange={e=>setNewPeriode({...newPeriode, date_debut: e.target.value})} />
-          </div>
-          <div className="field-group">
-            <label className="field-lbl">{lang==='ar'?'تاريخ النهاية':'Date de fin'} <span style={{color:'#E24B4A'}}>*</span></label>
-            <input className="field-input" type="date" value={newPeriode.date_fin}
-              onChange={e=>setNewPeriode({...newPeriode, date_fin: e.target.value})} />
+
+          {/* Liste des periodes de l'annee selectionnee */}
+          {anneeSelectionnee && (
+            <div>
+              <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:10,gap:8,flexWrap:'wrap'}}>
+                <div className="section-label" style={{margin:0}}>
+                  {lang==='ar'?'الفترات':'Périodes'} ({periodesAnneeSelectionnee.length})
+                </div>
+                {peutEditer && (
+                  <button onClick={ouvrirCreationPeriode} disabled={saving}
+                    style={{padding:'6px 12px',borderRadius:8,fontSize:11,fontWeight:700,cursor:saving?'not-allowed':'pointer',
+                      background:'#085041',color:'#fff',border:'none',fontFamily:'inherit'}}>
+                    ➕ {lang==='ar'?'إضافة فترة':'Ajouter une période'}
+                  </button>
+                )}
+              </div>
+              {periodesAnneeSelectionnee.length === 0 ? (
+                <div className="empty">{lang==='ar'?'لا توجد فترات في هذه السنة':'Aucune période dans cette année'}</div>
+              ) : (
+                <div style={{display:'flex',flexDirection:'column',gap:8}}>
+                  {periodesAnneeSelectionnee.map(p => {
+                    const meta = getTypeMeta(p.type);
+                    return (
+                      <div key={p.id} style={{background:'#fff',border:'0.5px solid #e0e0d8',borderRadius:12,padding:'12px 14px',display:'flex',alignItems:'center',gap:12}}>
+                        <div style={{width:44,height:44,borderRadius:12,background:`${meta.color}15`,display:'flex',alignItems:'center',justifyContent:'center',fontSize:22,flexShrink:0}}>{meta.icon}</div>
+                        <div style={{flex:1,minWidth:0}}>
+                          <div style={{display:'flex',alignItems:'center',gap:6,flexWrap:'wrap'}}>
+                            <div style={{fontWeight:700,fontSize:14,color:'#1a1a1a'}}>{p.nom_ar||p.nom}</div>
+                            <span style={{padding:'1px 7px',borderRadius:8,fontSize:9,fontWeight:700,
+                              background:`${meta.color}15`,color:meta.color,border:`0.5px solid ${meta.color}40`}}>
+                              {lang==='ar'?meta.label_ar:meta.label_fr}
+                            </span>
+                          </div>
+                          <div style={{fontSize:11,color:'#888',marginTop:2,fontWeight:600}}>
+                            📅 {fmt(p.date_debut)} → {fmt(p.date_fin)}
+                          </div>
+                        </div>
+                        {peutEditer && (
+                          <div style={{display:'flex',gap:5}}>
+                            <button onClick={()=>ouvrirEditionPeriode(p)} disabled={saving}
+                              style={{padding:'4px 8px',borderRadius:6,fontSize:11,fontWeight:600,cursor:saving?'not-allowed':'pointer',
+                                background:'#E6F1FB',color:'#378ADD',border:'0.5px solid #378ADD30'}}>✏️</button>
+                            <button onClick={()=>supprimerPeriode(p)} disabled={saving}
+                              style={{padding:'4px 8px',borderRadius:6,fontSize:11,fontWeight:600,cursor:saving?'not-allowed':'pointer',
+                                background:'#FCEBEB',color:'#E24B4A',border:'0.5px solid #E24B4A30'}}>🗑</button>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+        </>
+      )}
+
+      {/* MODALE creation/edition annee */}
+      {showAnneeForm && (
+        <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.55)',zIndex:9999,display:'flex',alignItems:'center',justifyContent:'center',padding:20}}
+          onClick={()=>{ if(!saving) setShowAnneeForm(false); }}>
+          <div onClick={e=>e.stopPropagation()}
+            style={{background:'#fff',borderRadius:16,maxWidth:480,width:'100%',padding:24,boxShadow:'0 20px 60px rgba(0,0,0,0.3)'}}>
+            <div style={{fontSize:17,fontWeight:800,color:'#085041',marginBottom:14}}>
+              {editingAnneeId ? (lang==='ar'?'تعديل السنة':'Modifier l\'année') : (lang==='ar'?'سنة دراسية جديدة':'Nouvelle année scolaire')}
+            </div>
+            <div style={{display:'flex',flexDirection:'column',gap:12,marginBottom:14}}>
+              <div className="field-group">
+                <label className="field-lbl">{lang==='ar'?'الاسم':'Nom'} <span style={{color:'#E24B4A'}}>*</span></label>
+                <input className="field-input" value={formAnnee.nom}
+                  onChange={e=>setFormAnnee({...formAnnee, nom:e.target.value})}
+                  placeholder="2026-2027"/>
+              </div>
+              <div className="field-group">
+                <label className="field-lbl">{lang==='ar'?'تاريخ البداية':'Date de début'} <span style={{color:'#E24B4A'}}>*</span></label>
+                <input className="field-input" type="date" value={formAnnee.date_debut}
+                  onChange={e=>setFormAnnee({...formAnnee, date_debut:e.target.value})}/>
+              </div>
+              <div className="field-group">
+                <label className="field-lbl">{lang==='ar'?'تاريخ النهاية':'Date de fin'} <span style={{color:'#E24B4A'}}>*</span></label>
+                <input className="field-input" type="date" value={formAnnee.date_fin}
+                  onChange={e=>setFormAnnee({...formAnnee, date_fin:e.target.value})}/>
+              </div>
+            </div>
+            <div style={{display:'flex',gap:8}}>
+              <button onClick={()=>setShowAnneeForm(false)} disabled={saving}
+                style={{flex:1,padding:11,background:'#f5f5f0',color:'#666',border:'none',borderRadius:10,fontSize:13,fontWeight:600,cursor:saving?'not-allowed':'pointer',fontFamily:'inherit'}}>
+                {lang==='ar'?'إلغاء':'Annuler'}
+              </button>
+              <button onClick={sauvegarderAnnee} disabled={saving}
+                style={{flex:2,padding:11,background:saving?'#ccc':'linear-gradient(135deg,#1D9E75,#085041)',color:'#fff',border:'none',borderRadius:10,fontSize:13,fontWeight:700,cursor:saving?'not-allowed':'pointer',fontFamily:'inherit'}}>
+                {saving?(lang==='ar'?'جاري...':'En cours...'):(lang==='ar'?'حفظ':'Enregistrer')}
+              </button>
+            </div>
           </div>
         </div>
-        <button className="btn-primary" onClick={ajouterPeriode} disabled={savingPeriode}>
-          {savingPeriode ? '...' : (lang==='ar'?'إضافة الفترة':'Ajouter la période')}
-        </button>
-      </div>
+      )}
 
-      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:8,flexWrap:'wrap',gap:8}}>
-        <div className="section-label" style={{margin:0}}>{lang==='ar'?'الفترات المُعرَّفة':'Périodes configurées'} ({periodes.length})</div>
-        {(periodes || []).filter(p => p.actif).length > 0 && (
-          <button onClick={ouvrirModaleDupliquer} disabled={savingPeriode}
-            title={lang==='ar'?'إنشاء فترات السنة المقبلة':'Dupliquer les périodes pour une nouvelle année'}
-            style={{padding:'7px 14px',background:'linear-gradient(135deg,#1D9E75,#085041)',color:'#fff',border:'none',
-              borderRadius:8,fontSize:12,fontWeight:700,cursor:savingPeriode?'not-allowed':'pointer',
-              fontFamily:'inherit',boxShadow:'0 2px 8px rgba(8,80,65,0.25)',whiteSpace:'nowrap',
-              opacity:savingPeriode?0.6:1}}>
-            🔄 {lang==='ar'?'سنة دراسية جديدة':'Nouvelle année scolaire'}
-          </button>
-        )}
-      </div>
-
-      {/* Modale selection periodes a dupliquer (Etape 14) */}
-      {showDupliquerModale && (() => {
-        const candidats = (periodes || []).filter(p => p.actif);
-        const tousCoches = candidats.length > 0 && candidats.every(p => periodesADupliquer.includes(p.id));
-        return (
-          <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.55)',zIndex:9999,
-            display:'flex',alignItems:'center',justifyContent:'center',padding:20}}
-            onClick={()=>{ if(!savingPeriode) setShowDupliquerModale(false); }}>
-            <div onClick={e=>e.stopPropagation()}
-              style={{background:'#fff',borderRadius:16,maxWidth:560,width:'100%',padding:24,
-                boxShadow:'0 20px 60px rgba(0,0,0,0.3)',maxHeight:'90vh',overflowY:'auto'}}>
-              <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:14}}>
-                <div style={{fontSize:32}}>🔄</div>
-                <div>
-                  <div style={{fontSize:17,fontWeight:800,color:'#085041'}}>
-                    {lang==='ar'?'سنة دراسية جديدة':'Nouvelle année scolaire'}
-                  </div>
-                  <div style={{fontSize:12,color:'#666',marginTop:2}}>
-                    {lang==='ar'?'اختر الفترات للتكرار (+1 سنة)':'Sélectionnez les périodes à dupliquer (+1 an)'}
-                  </div>
+      {/* MODALE creation/edition periode */}
+      {showPeriodeForm && (
+        <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.55)',zIndex:9999,display:'flex',alignItems:'center',justifyContent:'center',padding:20}}
+          onClick={()=>{ if(!saving) setShowPeriodeForm(false); }}>
+          <div onClick={e=>e.stopPropagation()}
+            style={{background:'#fff',borderRadius:16,maxWidth:520,width:'100%',padding:24,boxShadow:'0 20px 60px rgba(0,0,0,0.3)',maxHeight:'90vh',overflowY:'auto'}}>
+            <div style={{fontSize:17,fontWeight:800,color:'#085041',marginBottom:14}}>
+              {editingPeriodeId ? (lang==='ar'?'تعديل الفترة':'Modifier la période') : (lang==='ar'?'فترة جديدة':'Nouvelle période')}
+            </div>
+            <div style={{display:'flex',flexDirection:'column',gap:12,marginBottom:14}}>
+              <div className="field-group">
+                <label className="field-lbl">{lang==='ar'?'النوع':'Type'}</label>
+                <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>
+                  {TYPE_OPTIONS.map(opt => (
+                    <button key={opt.val} type="button"
+                      onClick={()=>setFormPeriode({...formPeriode, type:opt.val})}
+                      style={{padding:'7px 14px',borderRadius:8,
+                        background:formPeriode.type===opt.val?opt.color:'#fff',
+                        color:formPeriode.type===opt.val?'#fff':opt.color,
+                        border:`1px solid ${opt.color}50`,cursor:'pointer',fontSize:12,fontWeight:600,fontFamily:'inherit'}}>
+                      {opt.icon} {lang==='ar'?opt.label_ar:opt.label_fr}
+                    </button>
+                  ))}
                 </div>
               </div>
-
-              <div style={{
-                background:'#FFF8EC',border:'1px solid #EF9F2740',borderRadius:8,
-                padding:'10px 12px',fontSize:11,color:'#7B5800',marginBottom:12,lineHeight:1.5,
-              }}>
-                ℹ️ {lang==='ar'
-                  ? 'الفترات الموجودة مسبقا (نفس النوع و التواريخ) سيتم تجاهلها تلقائيا.'
-                  : 'Les périodes déjà existantes (même type et dates) seront ignorées automatiquement.'}
+              <div className="field-group">
+                <label className="field-lbl">{lang==='ar'?'الاسم':'Nom'} <span style={{color:'#E24B4A'}}>*</span></label>
+                <input className="field-input" value={formPeriode.nom_ar}
+                  onChange={e=>setFormPeriode({...formPeriode, nom_ar:e.target.value})}
+                  placeholder={lang==='ar'?'مثال: الفصل الأول':'Ex: Trimestre 1'}/>
               </div>
-
-              <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:8}}>
-                <div style={{fontSize:11,color:'#666',fontWeight:600}}>
-                  {periodesADupliquer.length}/{candidats.length} {lang==='ar'?'محدد':'sélectionnée(s)'}
-                </div>
-                <div style={{display:'flex',gap:6}}>
-                  <button onClick={()=>setPeriodesADupliquer(candidats.map(p=>p.id))}
-                    style={{padding:'4px 10px',fontSize:10,fontWeight:600,background:'#E1F5EE',color:'#085041',border:'none',borderRadius:6,cursor:'pointer',fontFamily:'inherit'}}>
-                    {lang==='ar'?'تحديد الكل':'Tout cocher'}
-                  </button>
-                  <button onClick={()=>setPeriodesADupliquer([])}
-                    style={{padding:'4px 10px',fontSize:10,fontWeight:600,background:'#f5f5f0',color:'#888',border:'none',borderRadius:6,cursor:'pointer',fontFamily:'inherit'}}>
-                    {lang==='ar'?'إلغاء الكل':'Tout décocher'}
-                  </button>
-                </div>
+              <div className="field-group">
+                <label className="field-lbl">{lang==='ar'?'تاريخ البداية':'Date de début'} <span style={{color:'#E24B4A'}}>*</span></label>
+                <input className="field-input" type="date" value={formPeriode.date_debut}
+                  onChange={e=>setFormPeriode({...formPeriode, date_debut:e.target.value})}/>
               </div>
-
-              <div style={{maxHeight:280,overflowY:'auto',background:'#f9f9f5',borderRadius:8,padding:6,marginBottom:14}}>
-                {candidats.map(p => {
-                  const checked = periodesADupliquer.includes(p.id);
-                  const meta = TYPE_OPTIONS.find(o => o.val === p.type) || TYPE_OPTIONS[0];
-                  return (
-                    <label key={p.id} style={{
-                      display:'flex',alignItems:'center',gap:10,padding:'8px 10px',
-                      background:checked?'#fff':'transparent',borderRadius:6,cursor:'pointer',
-                      marginBottom:3,border:checked?'1px solid #1D9E75':'1px solid transparent',
-                    }}>
-                      <input type="checkbox" checked={checked}
-                        onChange={e=>{
-                          if (e.target.checked) setPeriodesADupliquer(prev=>[...prev, p.id]);
-                          else setPeriodesADupliquer(prev=>prev.filter(x=>x!==p.id));
-                        }} />
-                      <div style={{flex:1,minWidth:0}}>
-                        <div style={{display:'flex',alignItems:'center',gap:6,flexWrap:'wrap'}}>
-                          <div style={{fontSize:13,fontWeight:600,color:'#1a1a1a'}}>
-                            {p.nom_ar || p.nom}
-                          </div>
-                          <span style={{
-                            display:'inline-block',padding:'1px 6px',borderRadius:6,fontSize:9,fontWeight:700,
-                            background:`${meta.color}15`,color:meta.color,border:`0.5px solid ${meta.color}40`,
-                          }}>
-                            {lang==='ar'?meta.label_ar:meta.label_fr}
-                          </span>
-                        </div>
-                        <div style={{fontSize:10,color:'#888',marginTop:2}}>
-                          📅 {fmt(p.date_debut)} → {fmt(p.date_fin)}
-                        </div>
-                      </div>
-                    </label>
-                  );
-                })}
+              <div className="field-group">
+                <label className="field-lbl">{lang==='ar'?'تاريخ النهاية':'Date de fin'} <span style={{color:'#E24B4A'}}>*</span></label>
+                <input className="field-input" type="date" value={formPeriode.date_fin}
+                  onChange={e=>setFormPeriode({...formPeriode, date_fin:e.target.value})}/>
               </div>
-
-              <div style={{display:'flex',gap:8}}>
-                <button onClick={()=>setShowDupliquerModale(false)} disabled={savingPeriode}
-                  style={{flex:1,padding:'11px',background:'#f5f5f0',color:'#666',border:'none',borderRadius:10,fontSize:13,fontWeight:600,cursor:savingPeriode?'not-allowed':'pointer',fontFamily:'inherit'}}>
-                  {lang==='ar'?'إلغاء':'Annuler'}
-                </button>
-                <button onClick={confirmerDuplication} disabled={savingPeriode || periodesADupliquer.length === 0}
-                  style={{flex:2,padding:'11px',
-                    background:(savingPeriode || periodesADupliquer.length === 0)?'#ccc':'linear-gradient(135deg,#1D9E75,#085041)',
-                    color:'#fff',border:'none',borderRadius:10,fontSize:13,fontWeight:700,
-                    cursor:(savingPeriode || periodesADupliquer.length === 0)?'not-allowed':'pointer',
-                    fontFamily:'inherit',boxShadow:'0 2px 8px rgba(8,80,65,0.3)'}}>
-                  {savingPeriode ? '⏳ '+(lang==='ar'?'جاري...':'En cours...')
-                    : '🔄 '+(lang==='ar'?`تكرار ${periodesADupliquer.length}`:`Dupliquer ${periodesADupliquer.length}`)}
-                </button>
-              </div>
+            </div>
+            <div style={{display:'flex',gap:8}}>
+              <button onClick={()=>setShowPeriodeForm(false)} disabled={saving}
+                style={{flex:1,padding:11,background:'#f5f5f0',color:'#666',border:'none',borderRadius:10,fontSize:13,fontWeight:600,cursor:saving?'not-allowed':'pointer',fontFamily:'inherit'}}>
+                {lang==='ar'?'إلغاء':'Annuler'}
+              </button>
+              <button onClick={sauvegarderPeriode} disabled={saving}
+                style={{flex:2,padding:11,background:saving?'#ccc':'linear-gradient(135deg,#1D9E75,#085041)',color:'#fff',border:'none',borderRadius:10,fontSize:13,fontWeight:700,cursor:saving?'not-allowed':'pointer',fontFamily:'inherit'}}>
+                {saving?(lang==='ar'?'جاري...':'En cours...'):(lang==='ar'?'حفظ':'Enregistrer')}
+              </button>
             </div>
           </div>
-        );
-      })()}
-
-      {periodes.length === 0 ? (
-        <div className="empty">{lang==='ar'?'لا توجد فترات بعد — أضف أول فترة أعلاه':'Aucune période — ajoutez-en une ci-dessus'}</div>
-      ) : (
-        <div style={{display:'flex',flexDirection:'column',gap:8}}>
-          {periodes.map(p => {
-            const meta = getTypeMeta(p.type);
-            const typeSuggere = detecterTypeSuggere(p);
-            const metaSuggere = typeSuggere ? TYPE_OPTIONS.find(o => o.val === typeSuggere) : null;
-            return (
-            <div key={p.id} style={{background:'#fff',border:'0.5px solid #e0e0d8',borderRadius:12,padding:'12px 14px',display:'flex',alignItems:'center',gap:12,opacity:p.actif?1:0.5}}>
-              <div style={{width:44,height:44,borderRadius:12,background:p.actif?`${meta.color}15`:'#f0f0ec',display:'flex',alignItems:'center',justifyContent:'center',fontSize:22,flexShrink:0}}>{meta.icon}</div>
-              <div style={{flex:1,minWidth:0}}>
-                <div style={{display:'flex',alignItems:'center',gap:6,flexWrap:'wrap'}}>
-                  <div style={{fontWeight:700,fontSize:14,color:'#1a1a1a',direction:'rtl',fontFamily:"'Tajawal',Arial,sans-serif"}}>{p.nom_ar||p.nom}</div>
-                  <span style={{
-                    display:'inline-block',padding:'1px 7px',borderRadius:8,fontSize:9,fontWeight:700,
-                    background:`${meta.color}15`,color:meta.color,border:`0.5px solid ${meta.color}40`,
-                  }}>
-                    {lang==='ar'?meta.label_ar:meta.label_fr}
-                  </span>
-                  {/* Etape 14 - Suggestion typage si periode libre detectee */}
-                  {metaSuggere && (
-                    <button onClick={()=>corrigerTypePeriode(p, typeSuggere)} disabled={savingPeriode}
-                      title={lang==='ar'
-                        ? `تصنيف كـ ${metaSuggere.label_ar}؟`
-                        : `Marquer comme ${metaSuggere.label_fr} ?`}
-                      style={{
-                        padding:'1px 7px',borderRadius:8,fontSize:9,fontWeight:700,cursor:'pointer',fontFamily:'inherit',
-                        background:'#FFF8EC',color:'#7B5800',border:`0.5px solid #EF9F2740`,
-                      }}>
-                      💡 {metaSuggere.icon} {lang==='ar'?metaSuggere.label_ar:metaSuggere.label_fr}?
-                    </button>
-                  )}
-                </div>
-                <div style={{fontSize:11,color:'#888',marginTop:2,fontWeight:600}}>
-                  📅 {fmt(p.date_debut)} → {fmt(p.date_fin)}
-                </div>
-              </div>
-              <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>
-                <button onClick={()=>toggleActif(p)}
-                  style={{padding:'4px 8px',borderRadius:6,fontSize:11,fontWeight:600,cursor:'pointer',
-                    background:p.actif?'#E1F5EE':'#f0f0ec',color:p.actif?'#085041':'#888',
-                    border:`0.5px solid ${p.actif?'#1D9E7530':'#e0e0d8'}`}}>
-                  {p.actif ? (lang==='ar'?'نشطة':'Active') : (lang==='ar'?'غير نشطة':'Inactive')}
-                </button>
-                {/* Etape 14 - Bouton 🔄 dupliquer +1 an (1 clic) */}
-                <button onClick={()=>dupliquerLigne(p)} disabled={savingPeriode}
-                  title={lang==='ar'?'تكرار الفترة بإضافة سنة':'Dupliquer +1 an'}
-                  style={{padding:'4px 8px',borderRadius:6,fontSize:11,fontWeight:600,cursor:savingPeriode?'not-allowed':'pointer',
-                    background:'#E6F1FB',color:'#378ADD',border:'0.5px solid #378ADD30',opacity:savingPeriode?0.5:1}}>
-                  🔄
-                </button>
-                <button onClick={()=>supprimerPeriode(p.id)}
-                  style={{padding:'4px 8px',borderRadius:6,background:'#FCEBEB',color:'#E24B4A',border:'0.5px solid #E24B4A30',cursor:'pointer',fontSize:11,fontWeight:600}}>
-                  🗑
-                </button>
-              </div>
-            </div>
-          );})}
         </div>
       )}
     </div>
   );
 }
+
 
 // ══════════════════════════════════════════════════════
 // COMPOSANT SensRecitationTab — Sens de récitation (desc/asc)
@@ -4713,13 +4835,7 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
         />
       )}
       {tab === 'periodes' && (
-        <PeriodesTab
-          user={user} lang={lang}
-          periodes={periodes} setPeriodes={setPeriodes}
-          newPeriode={newPeriode} setNewPeriode={setNewPeriode}
-          savingPeriode={savingPeriode} setSavingPeriode={setSavingPeriode}
-          showMsg={showMsg}
-        />
+        <PeriodesTab user={user} lang={lang} showMsg={showMsg} />
       )}
 
       {/* ─── Modale Lier comptes parents (Etape 11b) ─── */}

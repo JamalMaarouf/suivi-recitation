@@ -1348,15 +1348,53 @@ export async function genererLoginParentUnique(supabase, baseLogin) {
 }
 
 // ══════════════════════════════════════════════════════════════════
-// PERIODES SCOLAIRES (Etape 14) - typees ou libres
+// ANNEES SCOLAIRES + PERIODES (Etape 14 - Refonte conceptuelle)
 // ══════════════════════════════════════════════════════════════════
 /**
- * Charge les periodes scolaires actives d'une ecole, classees par
- * type pour faciliter l'usage cote UI.
+ * Charge l'annee scolaire ACTIVE de l'ecole avec ses periodes.
+ * Q2=A : 1 seule annee active a la fois (contrainte BDD).
  *
- * Schema BDD (periodes_notes) :
- *   - type : 'trimestre' | 'semestre' | 'annee' | 'libre' | NULL (= libre)
- *   - actif : boolean (filtre auto)
+ * @returns {Promise<{annee: object|null, periodes: Array}>}
+ */
+export async function loadAnneeActiveAvecPeriodes(supabase, ecole_id) {
+  const fallback = { annee: null, periodes: [] };
+  if (!ecole_id) return fallback;
+  try {
+    // 1. Trouver l'annee active
+    const { data: annee, error: errA } = await supabase.from('annees_scolaires')
+      .select('*')
+      .eq('ecole_id', ecole_id)
+      .eq('statut', 'active')
+      .maybeSingle();
+    if (errA) {
+      console.warn('[loadAnneeActiveAvecPeriodes] erreur annee:', errA.message);
+      return fallback;
+    }
+    if (!annee) return fallback;
+
+    // 2. Charger ses periodes
+    const { data: periodes, error: errP } = await supabase.from('periodes_notes')
+      .select('id, nom, nom_ar, date_debut, date_fin, type, actif, annee_scolaire_id')
+      .eq('annee_scolaire_id', annee.id)
+      .eq('actif', true)
+      .order('date_debut', { ascending: true });
+    if (errP) {
+      console.warn('[loadAnneeActiveAvecPeriodes] erreur periodes:', errP.message);
+      return { annee, periodes: [] };
+    }
+    return { annee, periodes: periodes || [] };
+  } catch (e) {
+    console.error('[loadAnneeActiveAvecPeriodes] error:', e);
+    return fallback;
+  }
+}
+
+/**
+ * Charge les periodes scolaires actives d'une ecole (TOUTES les annees).
+ * Utile pour les pages qui ont besoin de toutes les periodes (ex: TableauHonneur).
+ *
+ * Q4 : Pour les selecteurs des pages d'analyse (Onglet Absences, Assiduite),
+ * utiliser plutot loadAnneeActiveAvecPeriodes + filtrer les types !== 'libre'.
  *
  * @returns {Promise<{trimestres: Array, semestres: Array, annees: Array, libres: Array, all: Array}>}
  */
@@ -1365,7 +1403,7 @@ export async function loadPeriodesScolaires(supabase, ecole_id) {
   if (!ecole_id) return fallback;
   try {
     const { data, error } = await supabase.from('periodes_notes')
-      .select('id, nom, nom_ar, date_debut, date_fin, type, actif')
+      .select('id, nom, nom_ar, date_debut, date_fin, type, actif, annee_scolaire_id')
       .eq('ecole_id', ecole_id)
       .eq('actif', true)
       .order('date_debut', { ascending: true });
@@ -1389,12 +1427,12 @@ export async function loadPeriodesScolaires(supabase, ecole_id) {
 
 /**
  * Format court d'une periode scolaire pour affichage compact :
- * "T1 (sept-nov)" ou juste le nom si pas de dates
+ * "T1" ou "T1 (sept-nov)" selon le contexte
  */
-export function formatPeriodeCourte(periode, lang='fr') {
+export function formatPeriodeCourte(periode, lang='fr', withDates=true) {
   if (!periode) return '';
   const nom = lang === 'ar' ? (periode.nom_ar || periode.nom) : (periode.nom || periode.nom_ar);
-  if (!periode.date_debut || !periode.date_fin) return nom;
+  if (!withDates || !periode.date_debut || !periode.date_fin) return nom;
   const formatMois = (iso) => {
     const d = new Date(iso);
     return d.toLocaleDateString(lang === 'ar' ? 'ar-MA' : 'fr-FR', { month: 'short' });

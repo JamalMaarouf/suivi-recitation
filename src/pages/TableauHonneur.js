@@ -20,10 +20,16 @@ export default function TableauHonneur({ user, navigate, goBack, lang='fr', isMo
 
   const loadData = async () => {
     loadBareme(supabase, user.ecole_id).then(b => setBareme(b));
+    // Etape 14 - Charger l'annee active pour filtrer les periodes
+    const { data: anneeActive } = await supabase.from('annees_scolaires')
+      .select('id').eq('ecole_id', user.ecole_id).eq('statut', 'active').maybeSingle();
+    const periodesQuery = anneeActive
+      ? supabase.from('periodes_notes').select('*').eq('annee_scolaire_id', anneeActive.id).eq('actif', true).order('date_debut')
+      : supabase.from('periodes_notes').select('*').eq('ecole_id', user.ecole_id).eq('actif', true).order('date_debut'); // fallback
     const [{ data: ed }, { data: vd }, { data: pd }, { data: nv }, { data: pe }, { data: ec }] = await Promise.all([
       supabase.from('eleves').select('id,prenom,nom,code_niveau,niveau,hizb_depart,tomon_depart,ecole_id').eq('ecole_id', user.ecole_id).order('nom'),
       fetchAll(supabase.from('validations').select('id,eleve_id,type_validation,nombre_tomon,hizb_valide,date_validation').eq('ecole_id', user.ecole_id)).then(data=>({data})),
-      supabase.from('periodes_notes').select('*').eq('ecole_id', user.ecole_id).eq('actif', true).order('date_debut'),
+      periodesQuery,
       supabase.from('niveaux').select('id,code,nom,couleur,sens_recitation').eq('ecole_id', user.ecole_id).order('ordre'),
       supabase.from('points_eleves').select('*').eq('ecole_id', user.ecole_id).order('created_at', {ascending:false}),
       supabase.from('ecoles').select('sens_recitation_defaut').eq('id', user.ecole_id).maybeSingle(),
