@@ -119,7 +119,10 @@ export default function DashboardDirection({ user, navigate, goBack, lang='fr', 
   // dans Dashboard Direction car c'est une vue strategique)
   useEffect(() => {
     if (!user?.ecole_id) return;
-    loadAnneeActiveAvecPeriodes(supabase, user.ecole_id).then(({ periodes }) => {
+    loadAnneeActiveAvecPeriodes(supabase, user.ecole_id).then(({ annee, periodes }) => {
+      console.log('[DashboardDirection] annee active:', annee);
+      console.log('[DashboardDirection] periodes chargees:', periodes);
+      console.log('[DashboardDirection] types presents:', [...new Set(periodes.map(p => p.type))]);
       setPeriodesBDD(periodes.filter(p => p.type && p.type !== 'libre'));
     });
   }, [user?.ecole_id]);
