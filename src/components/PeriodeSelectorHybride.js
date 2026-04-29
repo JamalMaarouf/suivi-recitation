@@ -61,8 +61,8 @@ export default function PeriodeSelectorHybride({
   const customActif = periode === 'custom';
   const dropdownActif = !!itemActifDansDropdown || customActif;
   const labelPlus = (() => {
-    if (customActif) return isAr ? '📐 فترة محددة' : '📐 Personnalisée';
-    if (itemActifDansDropdown) return itemActifDansDropdown.label;
+    if (customActif) return (isAr ? '📐 فترة محددة' : '📐 Personnalisée') + ' ▾';
+    if (itemActifDansDropdown) return itemActifDansDropdown.label + ' ▾';
     return isAr ? 'المزيد ▾' : 'Plus ▾';
   })();
 
