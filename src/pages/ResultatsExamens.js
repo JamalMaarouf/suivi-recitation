@@ -1,11 +1,12 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { genererCertificatPDF } from './CertificatExamen';
 import { supabase } from '../lib/supabase';
-import { loadBareme, enregistrerPointsEvenement, verifierEtCreerCertificats, verifierEtCreerCertificatsExamens } from '../lib/helpers';
+import { loadBareme, enregistrerPointsEvenement, verifierEtCreerCertificats, verifierEtCreerCertificatsExamens, loadAnneeActiveAvecPeriodes, formatPeriodeCourte, detecterPeriodeEnCours } from '../lib/helpers';
 import { useToast } from '../lib/toast';
 import { t } from '../lib/i18n';
 import { openPDF } from '../lib/pdf';
 import ExportButtons from '../components/ExportButtons';
+import PeriodeSelectorHybride from '../components/PeriodeSelectorHybride';
 
 export default function ResultatsExamens({ user, navigate, goBack, lang='fr', isMobile, data }) {
   const { toast } = useToast();
@@ -42,18 +43,44 @@ export default function ResultatsExamens({ user, navigate, goBack, lang='fr', is
   const [filtreStatut,  setFiltreStatut]  = useState('tous');
   const [filtreExamen,  setFiltreExamen]  = useState('tous');
 
+  // ─── B1 — Refonte Registre ───────────────────────────────────────
+  // Sélecteur de période (pattern Dashboard Direction)
+  const [anneeActive, setAnneeActive] = useState(null);
+  const [periodesBDD, setPeriodesBDD] = useState([]);
+  const [periode, setPeriode] = useState('mois');     // 'mois' | 'annee_scolaire' | 'bdd_<id>' | 'custom'
+  const [customDebut, setCustomDebut] = useState('');
+  const [customFin, setCustomFin] = useState('');
+  // Recherche par élève (Q1=B)
+  const [searchEleveRegistre, setSearchEleveRegistre] = useState('');
+  // Filtres avancés dépliables (les 3 select : niveau/examen/statut)
+  const [showFiltresAvances, setShowFiltresAvances] = useState(false);
+  // Liste des certificats existants en BDD (pour détecter "Certificat à éditer")
+  const [certificatsExistants, setCertificatsExistants] = useState([]);
+  // ─────────────────────────────────────────────────────────────────
+
   useEffect(() => { loadAll(); }, []);
+
+  // B1 — Charger l'année scolaire active + ses périodes (T, S) pour le sélecteur
+  useEffect(() => {
+    if (!user?.ecole_id) return;
+    loadAnneeActiveAvecPeriodes(supabase, user.ecole_id).then(({ annee, periodes }) => {
+      setAnneeActive(annee);
+      setPeriodesBDD(periodes.filter(p => p.type === 'trimestre' || p.type === 'semestre'));
+    });
+  }, [user?.ecole_id]);
 
   const loadAll = async () => {
     setLoading(true);
     try {
-    const [{ data:el },{ data:ex },{ data:re },{ data:nv },{ data:en },{ data:sd }] = await Promise.all([
+    const [{ data:el },{ data:ex },{ data:re },{ data:nv },{ data:en },{ data:sd },{ data:certs }] = await Promise.all([
       supabase.from('eleves').select('id,prenom,nom,code_niveau,niveau,instituteur_referent_id,eleve_id_ecole').eq('ecole_id',user.ecole_id).order('nom'),
       supabase.from('examens').select('*').eq('ecole_id',user.ecole_id).order('nom'),
       supabase.from('resultats_examens').select('*').eq('ecole_id',user.ecole_id).order('created_at',{ascending:false}),
       supabase.from('niveaux').select('id,code,nom,couleur,type').eq('ecole_id',user.ecole_id).order('ordre'),
       supabase.from('ensembles_sourates').select('id,nom,ordre,niveau_id').eq('ecole_id',user.ecole_id),
       supabase.from('sourates').select('id,numero,nom_ar').order('numero'),
+      // B1 — certificats existants pour repérer ceux "à éditer"
+      supabase.from('certificats_eleves').select('id,resultat_examen_id_source,examen_id_source,eleve_id').eq('ecole_id',user.ecole_id),
     ]);
     const niveauxData = nv||[];
     const examenData  = (ex||[]).map(e=>({ ...e, niveau: niveauxData.find(n=>n.id===e.niveau_id)||null }));
@@ -66,6 +93,7 @@ export default function ResultatsExamens({ user, navigate, goBack, lang='fr', is
     setNiveaux(niveauxData);
     setEnsembles(en||[]);
     setSouratesDB(sd||[]);
+    setCertificatsExistants(certs||[]);
     } catch (e) {
       console.error("Erreur:", e);
     }
@@ -181,22 +209,110 @@ export default function ResultatsExamens({ user, navigate, goBack, lang='fr', is
     return (matchNom || matchNumero) && matchNiveau;
   });
 
-  const resultasFiltres = resultats.filter(r => {
-    const ex = examens.find(e=>e.id===r.examen_id);
-    if (filtreNiveau!=='tous' && ex?.niveau_id_or_code!==filtreNiveau) return false;
-    if (filtreStatut!=='tous' && r.statut!==filtreStatut) return false;
-    if (filtreExamen!=='tous' && r.examen_id!==filtreExamen) return false;
-    return true;
-  });
+  // ─── B1 — Calcul de la période active (pattern Dashboard Direction) ──
+  const { periodeDebut, periodeFin } = useMemo(() => {
+    const now = new Date();
+    if (periode === 'mois') {
+      return {
+        periodeDebut: new Date(now.getFullYear(), now.getMonth(), 1),
+        periodeFin: now,
+      };
+    }
+    if (periode === 'annee_scolaire' && anneeActive) {
+      return {
+        periodeDebut: new Date(anneeActive.date_debut),
+        periodeFin: new Date(anneeActive.date_fin),
+      };
+    }
+    if (periode === 'custom' && customDebut && customFin) {
+      return {
+        periodeDebut: new Date(customDebut),
+        periodeFin: new Date(customFin + 'T23:59:59'),
+      };
+    }
+    if (periode && periode.startsWith('bdd_')) {
+      const id = periode.substring(4);
+      const p = periodesBDD.find(x => x.id === id);
+      if (p) {
+        return {
+          periodeDebut: new Date(p.date_debut),
+          periodeFin: new Date(p.date_fin),
+        };
+      }
+    }
+    // Fallback : ce mois
+    return {
+      periodeDebut: new Date(now.getFullYear(), now.getMonth(), 1),
+      periodeFin: now,
+    };
+  }, [periode, periodesBDD, anneeActive, customDebut, customFin]);
 
-  const stats = {
-    total: resultats.length,
-    reussis: resultats.filter(r=>r.statut==='reussi').length,
-    echoues: resultats.filter(r=>r.statut==='echoue').length,
-    tauxReussite: resultats.length>0
-      ? Math.round(resultats.filter(r=>r.statut==='reussi').length/resultats.length*100)
-      : 0,
-  };
+  // ─── B1 — Set des résultats ayant déjà un certificat émis ────────────
+  const resultatsAvecCertif = useMemo(() => {
+    const set = new Set();
+    (certificatsExistants || []).forEach(c => {
+      if (c.resultat_examen_id_source) set.add(c.resultat_examen_id_source);
+    });
+    return set;
+  }, [certificatsExistants]);
+
+  // ─── B1 — Résultats filtrés par PÉRIODE en premier (pour stats + liste) ──
+  const resultatsPeriode = useMemo(() =>
+    (resultats || []).filter(r => {
+      const d = new Date(r.date_examen || r.created_at);
+      return d >= periodeDebut && d <= periodeFin;
+    }),
+    [resultats, periodeDebut, periodeFin]
+  );
+
+  // ─── B1 — Stats sur la période (Q5=A) ────────────────────────────────
+  const stats = useMemo(() => {
+    const total = resultatsPeriode.length;
+    const reussis = resultatsPeriode.filter(r => r.statut === 'reussi').length;
+    const echoues = resultatsPeriode.filter(r => r.statut === 'echoue').length;
+    const aTraiter = resultatsPeriode.filter(r =>
+      r.statut === 'reussi' && !resultatsAvecCertif.has(r.id)
+    ).length;
+    return {
+      total,
+      reussis,
+      echoues,
+      aTraiter,
+      tauxReussite: total > 0 ? Math.round(reussis / total * 100) : 0,
+    };
+  }, [resultatsPeriode, resultatsAvecCertif]);
+
+  // ─── B1 — Filtres + tri "À traiter" en premier (Q4=B) ────────────────
+  const resultasFiltres = useMemo(() => {
+    const q = (searchEleveRegistre || '').trim().toLowerCase();
+    const filtered = resultatsPeriode.filter(r => {
+      const ex = examens.find(e => e.id === r.examen_id);
+      const el = eleves.find(e => e.id === r.eleve_id);
+      // Statut spécial 'a_traiter' = réussi sans certif
+      if (filtreStatut === 'a_traiter') {
+        if (r.statut !== 'reussi' || resultatsAvecCertif.has(r.id)) return false;
+      } else if (filtreStatut !== 'tous' && r.statut !== filtreStatut) {
+        return false;
+      }
+      if (filtreNiveau !== 'tous' && ex?.niveau_id !== filtreNiveau) return false;
+      if (filtreExamen !== 'tous' && r.examen_id !== filtreExamen) return false;
+      if (q) {
+        const nom = el ? `${el.prenom} ${el.nom}`.toLowerCase() : '';
+        const num = String(el?.eleve_id_ecole || '').toLowerCase();
+        if (!nom.includes(q) && !num.includes(q)) return false;
+      }
+      return true;
+    });
+    // Tri : "À traiter" d'abord, puis date desc
+    return filtered.sort((a, b) => {
+      const aTraiterA = a.statut === 'reussi' && !resultatsAvecCertif.has(a.id);
+      const aTraiterB = b.statut === 'reussi' && !resultatsAvecCertif.has(b.id);
+      if (aTraiterA !== aTraiterB) return aTraiterA ? -1 : 1;
+      const dA = new Date(a.date_examen || a.created_at);
+      const dB = new Date(b.date_examen || b.created_at);
+      return dB - dA;
+    });
+  }, [resultatsPeriode, examens, eleves, filtreNiveau, filtreStatut, filtreExamen, searchEleveRegistre, resultatsAvecCertif]);
 
   const nomEleve   = (id) => { const e=eleves.find(x=>x.id===id); return e?`${e.prenom} ${e.nom}`:'?'; };
 
@@ -215,6 +331,43 @@ export default function ResultatsExamens({ user, navigate, goBack, lang='fr', is
   const couleurNiv = (id) => niveaux.find(n=>n.id===id)?.couleur||'#888';
   const couleurNivCode = (code) => niveaux.find(n=>n.code===code)?.couleur||'#888';
   const nomNiveauCode  = (code) => { const n=niveaux.find(x=>x.code===code); return n?`${n.code} — ${n.nom}`:code||'?'; };
+
+  // ─── B1 — Helpers sélecteur de période (pattern Dashboard Direction) ──
+  const trimestresBDD = periodesBDD.filter(p => p.type === 'trimestre');
+  const semestresBDD  = periodesBDD.filter(p => p.type === 'semestre');
+  const trimestreEnCours = detecterPeriodeEnCours(trimestresBDD);
+  const isAr = lang === 'ar';
+
+  const boutonsRapides = [
+    { key: 'mois', label: isAr ? 'الشهر الحالي' : 'Ce mois' },
+    ...(trimestreEnCours ? [{ key: 'bdd_' + trimestreEnCours.id, label: formatPeriodeCourte(trimestreEnCours, lang, true) }] : []),
+    ...(anneeActive ? [{ key: 'annee_scolaire', label: anneeActive.nom }] : []),
+  ];
+  const idsRapides = boutonsRapides.map(b => b.key);
+  const dropdownItems = [
+    { groupe: isAr ? 'حديث' : 'Récent', items: [
+      { key: 'mois', label: isAr ? 'الشهر الحالي' : 'Ce mois (calendaire)' },
+    ].filter(item => !idsRapides.includes(item.key)) },
+    { groupe: isAr ? 'الفصول الدراسية' : 'Trimestres', items:
+      trimestresBDD.map(p => ({ key: 'bdd_' + p.id, label: formatPeriodeCourte(p, lang, true) }))
+        .filter(item => !idsRapides.includes(item.key))
+    },
+    { groupe: isAr ? 'الحصيلة' : 'Bilans', items:
+      semestresBDD.map(p => ({ key: 'bdd_' + p.id, label: formatPeriodeCourte(p, lang, true) }))
+        .filter(item => !idsRapides.includes(item.key))
+    },
+  ].filter(g => g.items.length > 0);
+
+  // ─── B1 — Voir certificat existant : redirige vers menu Certificats ──
+  const voirCertificat = (r) => {
+    const cert = (certificatsExistants || []).find(c => c.resultat_examen_id_source === r.id);
+    if (cert) {
+      navigate('liste_certificats', null, { focusCertId: cert.id });
+    } else {
+      // Pas encore de cert : ouvrir la liste filtrée sur l'élève
+      navigate('liste_certificats', null, { focusEleveId: r.eleve_id });
+    }
+  };
 
   const reussi = score >= (selectedExamen?.score_minimum||70);
 
@@ -487,110 +640,215 @@ export default function ResultatsExamens({ user, navigate, goBack, lang='fr', is
 
   const tabRegistreJSX = (
     <div>
-      {/* Stats */}
-      <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:10,marginBottom:16}}>
-        {[
-          {label:lang==='ar'?'المجموع':'Total', val:stats.total, color:'#085041', bg:'#E1F5EE'},
-          {label:lang==='ar'?'ناجحون':'Réussis', val:stats.reussis, color:'#1D9E75', bg:'#E1F5EE'},
-          {label:lang==='ar'?'راسبون':'Échoués', val:stats.echoues, color:'#E24B4A', bg:'#FCEBEB'},
-          {label:lang==='ar'?'نسبة النجاح':'Taux', val:`${stats.tauxReussite}%`, color:'#378ADD', bg:'#E6F1FB'},
-        ].map((s,i)=>(
-          <div key={i} style={{background:s.bg,borderRadius:12,padding:'12px',textAlign:'center'}}>
-            <div style={{fontSize:22,fontWeight:800,color:s.color}}>{s.val}</div>
-            <div style={{fontSize:11,color:s.color,opacity:0.8,marginTop:2}}>{s.label}</div>
-          </div>
-        ))}
+      {/* ── B1 — Sélecteur de période (pattern Dashboard Direction) ── */}
+      <div style={{marginBottom:16, padding:'12px 14px', background:'#fff',
+        borderRadius:12, border:'0.5px solid #e0e0d8'}}>
+        <div style={{fontSize:11,color:'#888',marginBottom:8,letterSpacing:0.5,fontWeight:600}}>
+          {isAr?'الفترة':'PÉRIODE'}
+        </div>
+        <PeriodeSelectorHybride
+          boutonsRapides={boutonsRapides}
+          dropdownItems={dropdownItems}
+          allowCustom={true}
+          periode={periode}
+          setPeriode={setPeriode}
+          dateDebut={customDebut}
+          dateFin={customFin}
+          setDateDebut={setCustomDebut}
+          setDateFin={setCustomFin}
+          lang={lang}
+          variant="default"
+        />
       </div>
 
-      {/* Filtres */}
-      <div style={{display:'flex',gap:8,flexWrap:'wrap',marginBottom:12}}>
-        <select value={filtreNiveau} onChange={e=>setFiltreNiveau(e.target.value)}
-          style={{padding:'7px 12px',borderRadius:10,border:'0.5px solid #e0e0d8',
-            fontSize:12,fontFamily:'inherit',background:'#fff',outline:'none'}}>
-          <option value="tous">{lang==='ar'?'كل المستويات':'Tous les niveaux'}</option>
-          {niveaux.map(n=><option key={n.id} value={n.id}>{n.code} — {n.nom}</option>)}
-        </select>
-        <select value={filtreExamen} onChange={e=>setFiltreExamen(e.target.value)}
-          style={{padding:'7px 12px',borderRadius:10,border:'0.5px solid #e0e0d8',
-            fontSize:12,fontFamily:'inherit',background:'#fff',outline:'none'}}>
-          <option value="tous">{lang==='ar'?'كل الامتحانات':'Tous les examens'}</option>
-          {examens.map(e=><option key={e.id} value={e.id}>{e.nom}</option>)}
-        </select>
-        <select value={filtreStatut} onChange={e=>setFiltreStatut(e.target.value)}
-          style={{padding:'7px 12px',borderRadius:10,border:'0.5px solid #e0e0d8',
-            fontSize:12,fontFamily:'inherit',background:'#fff',outline:'none'}}>
-          <option value="tous">{lang==='ar'?'الكل':'Tous'}</option>
-          <option value="reussi">{lang==='ar'?'ناجح':'Réussi'}</option>
-          <option value="echoue">{lang==='ar'?'راسب':'Échoué'}</option>
-        </select>
-        <span style={{fontSize:12,color:'#888',alignSelf:'center'}}>
-          {resultasFiltres.length} {lang==='ar'?'نتيجة':'résultat(s)'}
+      {/* ── B1 — Stats : 4 cartes cliquables (filtrent sur la période) ── */}
+      <div style={{display:'grid',
+        gridTemplateColumns: isMobile?'repeat(2,1fr)':'repeat(4,1fr)',
+        gap:10, marginBottom:16}}>
+        {[
+          {key:'tous',     label:isAr?'المجموع':'Total',           val:stats.total,
+            color:'#085041', bg:'#E1F5EE', icon:'📊'},
+          {key:'reussi',   label:isAr?'ناجحون':'Réussis',          val:stats.reussis,
+            color:'#1D9E75', bg:'#E1F5EE', icon:'✅'},
+          {key:'echoue',   label:isAr?'راسبون':'Échoués',          val:stats.echoues,
+            color:'#E24B4A', bg:'#FCEBEB', icon:'❌'},
+          {key:'a_traiter',label:isAr?'شهادة قيد الإصدار':'À traiter', val:stats.aTraiter,
+            color:'#EF9F27', bg:'#FAEEDA', icon:'⚠️'},
+        ].map((s)=>{
+          const active = filtreStatut===s.key;
+          return (
+            <div key={s.key} onClick={()=>setFiltreStatut(s.key)}
+              style={{background:s.bg, borderRadius:12, padding:'14px 12px',
+                textAlign:'center', cursor:'pointer',
+                border: active ? `2px solid ${s.color}` : '2px solid transparent',
+                transition:'all 0.15s', userSelect:'none'}}>
+              <div style={{fontSize:14, marginBottom:2}}>{s.icon}</div>
+              <div style={{fontSize:24, fontWeight:800, color:s.color, lineHeight:1}}>{s.val}</div>
+              <div style={{fontSize:11, color:s.color, opacity:0.85, marginTop:4, fontWeight:600}}>{s.label}</div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* ── B1 — Taux de réussite (info supplémentaire) ── */}
+      {stats.total > 0 && (
+        <div style={{display:'flex', alignItems:'center', gap:10, marginBottom:14,
+          padding:'10px 14px', background:'#E6F1FB', borderRadius:10,
+          fontSize:12, color:'#185FA5'}}>
+          <span style={{fontSize:16}}>📈</span>
+          <span style={{fontWeight:600}}>
+            {isAr?'نسبة النجاح':'Taux de réussite'} : <strong>{stats.tauxReussite}%</strong>
+          </span>
+          <span style={{color:'#888', fontSize:11}}>
+            ({stats.reussis} {isAr?'من':'sur'} {stats.total})
+          </span>
+        </div>
+      )}
+
+      {/* ── B1 — Recherche élève + Filtres avancés ── */}
+      <div style={{display:'flex', gap:8, alignItems:'center', flexWrap:'wrap', marginBottom:12}}>
+        <input type="text" value={searchEleveRegistre}
+          onChange={e=>setSearchEleveRegistre(e.target.value)}
+          placeholder={isAr?'🔍 ابحث عن طالب…':'🔍 Rechercher un élève…'}
+          style={{flex:1, minWidth:200, padding:'9px 12px', borderRadius:10,
+            border:'0.5px solid #e0e0d8', fontSize:13, fontFamily:'inherit',
+            outline:'none', background:'#fff'}}/>
+        <button onClick={()=>setShowFiltresAvances(v=>!v)}
+          style={{padding:'9px 14px', borderRadius:10,
+            border:'0.5px solid #e0e0d8',
+            background: showFiltresAvances?'#085041':'#fff',
+            color: showFiltresAvances?'#fff':'#085041',
+            fontSize:12, fontWeight:600, fontFamily:'inherit', cursor:'pointer'}}>
+          ⚙️ {isAr?'مرشحات':'Filtres'} {showFiltresAvances?'▴':'▾'}
+        </button>
+        <span style={{fontSize:12, color:'#888'}}>
+          {resultasFiltres.length} {isAr?'نتيجة':'résultat(s)'}
         </span>
       </div>
 
-      {/* Liste résultats */}
-      {resultasFiltres.length===0?(
-        <div style={{textAlign:'center',padding:'3rem',color:'#aaa',
-          background:'#fff',borderRadius:12,border:'0.5px solid #e0e0d8'}}>
-          <div style={{fontSize:40,marginBottom:10}}>📋</div>
-          <div>{lang==='ar'?'لا توجد نتائج':'Aucun résultat enregistré'}</div>
+      {showFiltresAvances && (
+        <div style={{display:'flex', gap:8, flexWrap:'wrap', marginBottom:12,
+          padding:'12px', background:'#f9f9f6', borderRadius:10}}>
+          <select value={filtreNiveau} onChange={e=>setFiltreNiveau(e.target.value)}
+            style={{padding:'7px 12px', borderRadius:10, border:'0.5px solid #e0e0d8',
+              fontSize:12, fontFamily:'inherit', background:'#fff', outline:'none'}}>
+            <option value="tous">{isAr?'كل المستويات':'Tous les niveaux'}</option>
+            {niveaux.map(n=><option key={n.id} value={n.id}>{n.code} — {n.nom}</option>)}
+          </select>
+          <select value={filtreExamen} onChange={e=>setFiltreExamen(e.target.value)}
+            style={{padding:'7px 12px', borderRadius:10, border:'0.5px solid #e0e0d8',
+              fontSize:12, fontFamily:'inherit', background:'#fff', outline:'none'}}>
+            <option value="tous">{isAr?'كل الامتحانات':'Tous les examens'}</option>
+            {examens.map(e=><option key={e.id} value={e.id}>{e.nom}</option>)}
+          </select>
+          {(filtreNiveau!=='tous' || filtreExamen!=='tous' || filtreStatut!=='tous' || searchEleveRegistre) && (
+            <button onClick={()=>{
+              setFiltreNiveau('tous'); setFiltreExamen('tous');
+              setFiltreStatut('tous'); setSearchEleveRegistre('');
+            }} style={{padding:'7px 12px', borderRadius:10, border:'0.5px solid #E24B4A40',
+              background:'#FCEBEB', color:'#E24B4A', fontSize:12, fontWeight:600,
+              fontFamily:'inherit', cursor:'pointer'}}>
+              ✕ {isAr?'مسح':'Effacer'}
+            </button>
+          )}
         </div>
-      ):(
-        <div style={{display:'flex',flexDirection:'column',gap:8}}>
+      )}
+
+      {/* ── B1 — Liste résultats ── */}
+      {resultasFiltres.length===0 ? (
+        <div style={{textAlign:'center', padding:'3rem', color:'#aaa',
+          background:'#fff', borderRadius:12, border:'0.5px solid #e0e0d8'}}>
+          <div style={{fontSize:40, marginBottom:10}}>📋</div>
+          <div>{isAr?'لا توجد نتائج لهذه الفترة':'Aucun résultat pour cette période'}</div>
+        </div>
+      ) : (
+        <div style={{display:'flex', flexDirection:'column', gap:8}}>
           {resultasFiltres.map(r=>{
             const ex  = examens.find(e=>e.id===r.examen_id);
             const el  = eleves.find(e=>e.id===r.eleve_id);
-            const nc  = couleurNiv(ex?.niveau_id_or_code);
+            const niv = niveaux.find(n => n.id === ex?.niveau_id);
+            const nc  = niv?.couleur || '#888';
             const ok  = r.statut==='reussi';
-            return(
-              <div key={r.id} style={{background:'#fff',borderRadius:12,padding:'14px 16px',
-                border:`0.5px solid ${ok?'#1D9E7520':'#E24B4A20'}`,
-                display:'flex',alignItems:'center',gap:12}}>
+            const aTraiter = ok && !resultatsAvecCertif.has(r.id);
+            const certExiste = ok && resultatsAvecCertif.has(r.id);
+            return (
+              <div key={r.id} style={{background:'#fff', borderRadius:12, padding:'14px 16px',
+                border: aTraiter ? '1.5px solid #EF9F27' : `0.5px solid ${ok?'#1D9E7520':'#E24B4A20'}`,
+                display:'flex', alignItems:'center', gap:12, flexWrap:'wrap'}}>
                 {/* Verdict */}
-                <div style={{width:40,height:40,borderRadius:10,flexShrink:0,
-                  background:ok?'#E1F5EE':'#FCEBEB',
-                  display:'flex',alignItems:'center',justifyContent:'center',fontSize:20}}>
+                <div style={{width:40, height:40, borderRadius:10, flexShrink:0,
+                  background: ok?'#E1F5EE':'#FCEBEB',
+                  display:'flex', alignItems:'center', justifyContent:'center', fontSize:20}}>
                   {ok?'✅':'❌'}
                 </div>
-                {/* Info */}
-                <div style={{flex:1,minWidth:0}}>
-                  <div style={{fontWeight:700,fontSize:14}}>
-                    {el?`${el.prenom} ${el.nom}`:r.eleve_id}
+                {/* Info élève + examen */}
+                <div style={{flex:1, minWidth:180}}>
+                  <div style={{fontWeight:700, fontSize:14}}>
+                    {el ? `${el.prenom} ${el.nom}` : '?'}
+                    {el?.eleve_id_ecole && (
+                      <span style={{marginLeft:6, padding:'1px 7px', borderRadius:20,
+                        background:'#f0f0ec', fontSize:10, color:'#666', fontWeight:600}}>
+                        #{el.eleve_id_ecole}
+                      </span>
+                    )}
                   </div>
-                  <div style={{fontSize:12,color:'#666',marginTop:2}}>
-                    {ex?.nom||'?'}
-                    <span style={{marginRight:6,marginLeft:6,color:'#ddd'}}>·</span>
-                    <span style={{padding:'1px 7px',borderRadius:20,fontSize:11,
-                      background:`${nc}20`,color:nc,fontWeight:600}}>
-                      {niveaux.find(n=>n.id===ex?.niveau_id_or_code)?.code||'?'}
+                  <div style={{fontSize:12, color:'#666', marginTop:2}}>
+                    {ex?.nom || '?'}
+                    <span style={{marginRight:6, marginLeft:6, color:'#ddd'}}>·</span>
+                    <span style={{padding:'1px 7px', borderRadius:20, fontSize:11,
+                      background:`${nc}20`, color:nc, fontWeight:600}}>
+                      {niv ? `${niv.code} — ${niv.nom}` : '?'}
                     </span>
                   </div>
-                  {r.notes_examinateur&&(
-                    <div style={{fontSize:11,color:'#888',marginTop:4,fontStyle:'italic'}}>
+                  {r.notes_examinateur && (
+                    <div style={{fontSize:11, color:'#888', marginTop:4, fontStyle:'italic'}}>
                       💬 {r.notes_examinateur}
                     </div>
                   )}
-                </div>
-                {/* Score + date + certificat */}
-                <div style={{textAlign:'center',flexShrink:0}}>
-                  <div style={{fontSize:20,fontWeight:800,color:ok?'#1D9E75':'#E24B4A'}}>
-                    {r.score}%
-                  </div>
-                  <div style={{fontSize:10,color:'#aaa',marginBottom:ok?6:0}}>
-                    {new Date(r.date_examen||r.created_at).toLocaleDateString('fr-FR')}
-                  </div>
-                  {ok&&(
-                    <button onClick={()=>telechargerCertificat(r)}
-                      disabled={loadingCert===r.id}
-                      style={{padding:'4px 10px',borderRadius:20,border:'none',
-                        background:loadingCert===r.id?'#ccc':'#1D9E75',
-                        color:'#fff',fontSize:10,fontWeight:600,
-                        cursor:loadingCert===r.id?'not-allowed':'pointer',
-                        fontFamily:'inherit'}}>
-                      {loadingCert===r.id?'...':'📄 Cert.'}
-                    </button>
+                  {/* B1 — Badge "Certificat à éditer" */}
+                  {aTraiter && (
+                    <div onClick={(e)=>{ e.stopPropagation(); voirCertificat(r); }}
+                      style={{display:'inline-flex', alignItems:'center', gap:4,
+                        marginTop:6, padding:'3px 10px', borderRadius:20,
+                        background:'#FAEEDA', color:'#854F0B', fontSize:11,
+                        fontWeight:700, cursor:'pointer', border:'0.5px solid #EF9F2750'}}>
+                      ⚠ {isAr?'الشهادة بانتظار التحرير':'Certificat à éditer'}
+                    </div>
                   )}
                 </div>
+                {/* Score + date */}
+                <div style={{textAlign:'center', flexShrink:0, minWidth:80}}>
+                  <div style={{fontSize:22, fontWeight:800, color:ok?'#1D9E75':'#E24B4A'}}>
+                    {r.score}%
+                  </div>
+                  <div style={{fontSize:10, color:'#aaa', marginTop:2}}>
+                    {new Date(r.date_examen||r.created_at).toLocaleDateString(isAr?'ar-MA':'fr-FR')}
+                  </div>
+                </div>
+                {/* B1 — Actions : Voir certif + PDF (transitoire) */}
+                {ok && (
+                  <div style={{display:'flex', gap:6, flexShrink:0}}>
+                    {certExiste && (
+                      <button onClick={()=>voirCertificat(r)}
+                        title={isAr?'عرض الشهادة':'Voir certificat'}
+                        style={{padding:'6px 11px', borderRadius:20, border:'0.5px solid #085041',
+                          background:'#fff', color:'#085041', fontSize:11, fontWeight:600,
+                          cursor:'pointer', fontFamily:'inherit', whiteSpace:'nowrap'}}>
+                        🔍 {isAr?'عرض':'Voir'}
+                      </button>
+                    )}
+                    <button onClick={()=>telechargerCertificat(r)}
+                      disabled={loadingCert===r.id}
+                      title={isAr?'تحميل PDF':'Télécharger PDF'}
+                      style={{padding:'6px 11px', borderRadius:20, border:'none',
+                        background: loadingCert===r.id?'#ccc':'#1D9E75',
+                        color:'#fff', fontSize:11, fontWeight:600,
+                        cursor: loadingCert===r.id?'not-allowed':'pointer',
+                        fontFamily:'inherit', whiteSpace:'nowrap'}}>
+                      {loadingCert===r.id?'⏳':'📄 PDF'}
+                    </button>
+                  </div>
+                )}
               </div>
             );
           })}
