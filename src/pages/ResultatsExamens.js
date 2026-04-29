@@ -73,7 +73,7 @@ export default function ResultatsExamens({ user, navigate, goBack, lang='fr', is
     // Charger les données de l'école
     if (user.ecole_id) {
       const { data: ecoleData } = await supabase.from('ecoles')
-        .select('id,nom').eq('id', user.ecole_id).maybeSingle();
+        .select('id,nom,ville,pays').eq('id', user.ecole_id).maybeSingle();
       setEcole(ecoleData);
     }
   };

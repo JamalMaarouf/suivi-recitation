@@ -13,6 +13,7 @@ export default function ListeCertificats({ user, navigate, goBack, lang='fr', is
   const [instituteurs, setInstituteurs] = useState([]);
   const [jalons, setJalons] = useState([]);
   const [niveaux, setNiveaux] = useState([]);
+  const [ecole, setEcole] = useState(null); // B5 — école complète (nom, ville, pays) pour le certificat
   const [loading, setLoading] = useState(true);
   const [genPdfId, setGenPdfId] = useState(null); // id du certificat en cours de génération
   const [genListe, setGenListe] = useState(false);
@@ -52,12 +53,14 @@ export default function ListeCertificats({ user, navigate, goBack, lang='fr', is
   const loadData = async () => {
     setLoading(true);
     try {
-    const [{ data: certs }, { data: el }, { data: inst }, { data: jal }, { data: niv }] = await Promise.all([
+    const [{ data: certs }, { data: el }, { data: inst }, { data: jal }, { data: niv }, { data: ec }] = await Promise.all([
       supabase.from('certificats_eleves').select('*').eq('ecole_id', user.ecole_id).order('created_at', { ascending: false }),
       supabase.from('eleves').select('id,prenom,nom,code_niveau,eleve_id_ecole,instituteur_referent_id').eq('ecole_id', user.ecole_id).limit(500).order('nom'),
       supabase.from('utilisateurs').select('id,prenom,nom').eq('role','instituteur').eq('ecole_id', user.ecole_id),
       supabase.from('jalons').select('id,nom,nom_ar,type_jalon').eq('ecole_id', user.ecole_id),
       supabase.from('niveaux').select('id,code,nom,couleur').eq('ecole_id', user.ecole_id).order('ordre'),
+      // B5 — école complète pour header certificat (nom + ville + pays)
+      supabase.from('ecoles').select('id,nom,ville,pays').eq('id', user.ecole_id).maybeSingle(),
     ]);
     // Mapping BDD -> aliases utilises partout dans le code
     // BDD: titre, description, date_emission, cree_par
@@ -74,6 +77,7 @@ export default function ListeCertificats({ user, navigate, goBack, lang='fr', is
     setInstituteurs(inst || []);
     setJalons(jal || []);
     setNiveaux(niv || []);
+    setEcole(ec || null);
     } catch (e) {
       console.error("Erreur:", e);
     }
@@ -91,14 +95,20 @@ export default function ListeCertificats({ user, navigate, goBack, lang='fr', is
     if (genPdfId) return;
     const el = getEleve(c.eleve_id);
     const jal = getJalon(c.jalon_id);
+    // B5 — Enrichir payload : niveau + ecole complète (ville/pays) pour le nouveau template
+    const niv = el ? niveaux.find(n => n.code === el.code_niveau) : null;
     setGenPdfId(c.id);
     try {
       await openPDF('certificat', {
-        eleve: el ? { prenom: el.prenom, nom: el.nom } : { prenom: '', nom: '' },
-        jalon: jal ? { nom: jal.nom, nom_ar: jal.nom_ar } : { nom: c.nom_certificat, nom_ar: c.nom_certificat_ar },
-        date: c.date_obtention,
-        ecole: { nom: user?.ecole?.nom || '' },
-        directeur: c.directeur || '',
+        eleve: el ? { prenom: el.prenom, nom: el.nom, code_niveau: el.code_niveau } : { prenom: '', nom: '' },
+        jalon: jal ? { nom: jal.nom, nom_ar: jal.nom_ar } : { nom: c.titre || c.nom_certificat, nom_ar: c.nom_certificat_ar },
+        date: c.date_emission || c.date_obtention,
+        ecole: {
+          nom: ecole?.nom || '',
+          ville: ecole?.ville || '',
+          pays: ecole?.pays || '',
+        },
+        niveau: niv ? { code: niv.code, nom: niv.nom } : null,
       }, lang);
     } catch (err) {
       console.error('PDF certificat:', err);
@@ -129,7 +139,7 @@ export default function ListeCertificats({ user, navigate, goBack, lang='fr', is
         };
       });
       await openPDF('liste_certificats', {
-        ecole: { nom: user?.ecole?.nom || '' },
+        ecole: { nom: ecole?.nom || '' },
         titre: lang === 'ar' ? 'قائمة الشهادات' : 'Liste des certificats',
         certificats: certificatsData,
       }, lang);
