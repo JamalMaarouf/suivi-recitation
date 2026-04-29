@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { supabase } from '../lib/supabase';
-import { loadAnneeActiveAvecPeriodes, formatPeriodeCourte } from '../lib/helpers';
+import { loadAnneeActiveAvecPeriodes, formatPeriodeCourte, detecterPeriodeEnCours } from '../lib/helpers';
+import PeriodeSelectorHybride from './PeriodeSelectorHybride';
 
 // ══════════════════════════════════════════════════════════════════════
 // ONGLET ASSIDUITÉ DE LA FICHE ÉLÈVE
@@ -20,13 +21,14 @@ export default function OngletAssiduiteEleve({ eleve, lang, isMobile }) {
   const [seuilRisque, setSeuilRisque] = useState(80);
   const [seuilParfait, setSeuilParfait] = useState(100);
   const [loading, setLoading] = useState(true);
-  const [periode, setPeriode] = useState('mois');  // semaine|mois|<id_periode_bdd>|custom
+  const [periode, setPeriode] = useState('mois');  // semaine|mois|annee_scolaire|bdd_<id>|custom
   const [dateDebut, setDateDebut] = useState('');
   const [dateFin, setDateFin] = useState('');
   // Etape 14 - Periodes scolaires depuis BDD (typees ou libres)
   const [periodesBDD, setPeriodesBDD] = useState([]);
+  const [anneeActive, setAnneeActive] = useState(null); // Etape 14 v2
 
-  const { debut, fin } = calcBornesPeriode(periode, dateDebut, dateFin, periodesBDD);
+  const { debut, fin } = calcBornesPeriode(periode, dateDebut, dateFin, periodesBDD, anneeActive);
 
   // ─── Chargement initial (jours non travaillés + seuils école) ─
   useEffect(() => {
@@ -50,14 +52,12 @@ export default function OngletAssiduiteEleve({ eleve, lang, isMobile }) {
     load();
   }, [eleve?.ecole_id]);
 
-  // Etape 14 - Charger les periodes typees de l'annee ACTIVE
-  // Q4=A : ne pas afficher les periodes 'libre' (vocation differente)
+  // Etape 14 - Charger annee active + ses periodes typees (T, S)
   useEffect(() => {
     if (!eleve?.ecole_id) return;
-    loadAnneeActiveAvecPeriodes(supabase, eleve.ecole_id).then(({ periodes }) => {
-      // Filtrer pour ne garder que les types d'evaluation pedagogique
-      const typees = periodes.filter(p => p.type && p.type !== 'libre');
-      setPeriodesBDD(typees);
+    loadAnneeActiveAvecPeriodes(supabase, eleve.ecole_id).then(({ annee, periodes }) => {
+      setAnneeActive(annee);
+      setPeriodesBDD(periodes.filter(p => p.type === 'trimestre' || p.type === 'semestre'));
     });
   }, [eleve?.ecole_id]);
 
@@ -211,17 +211,7 @@ export default function OngletAssiduiteEleve({ eleve, lang, isMobile }) {
     }
   }
 
-  // Etape 14 - Periodes : semaine/mois fixes + periodes typees BDD + custom
-  const PERIODES = [
-    { id: 'semaine', label: lang === 'ar' ? 'الأسبوع' : 'Semaine' },
-    { id: 'mois',    label: lang === 'ar' ? 'الشهر'   : 'Mois' },
-    // Insertion des periodes BDD typees au format compact "Nom (sept-nov)"
-    ...periodesBDD.map(p => ({
-      id: 'bdd_' + p.id,
-      label: formatPeriodeCourte(p, lang, true),
-    })),
-    { id: 'custom', label: lang === 'ar' ? 'فترة محددة' : 'Personnalisée' },
-  ];
+  // Etape 14 v2 - PERIODES gere par PeriodeSelectorHybride
 
   return (
     <div>
@@ -258,45 +248,61 @@ export default function OngletAssiduiteEleve({ eleve, lang, isMobile }) {
         )}
       </div>
 
-      {/* ─── Sélecteur de période ─── */}
-      {periodesBDD.length === 0 && (
-        <div style={{
-          background:'#FFF8EC',border:'1px solid #EF9F2740',borderRadius:8,
-          padding:'8px 12px',fontSize:11,color:'#7B5800',marginBottom:8,
-          display:'flex',alignItems:'center',gap:8,
-        }}>
-          <span style={{fontSize:14}}>💡</span>
-          <span>{lang==='ar'
-            ? 'لم تقم بإعداد سنة دراسية بعد. يمكنك ذلك في الإدارة > الفترات.'
-            : 'Aucune année scolaire active. Configurez-en une dans Gestion → Périodes pour avoir des trimestres.'}</span>
-        </div>
-      )}
-      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 10 }}>
-        {PERIODES.map(p => {
-          const active = periode === p.id;
-          return (
-            <button key={p.id} onClick={() => setPeriode(p.id)}
-              style={{
-                padding: '6px 12px', borderRadius: 20,
-                border: `1px solid ${active ? '#1D9E75' : '#e0e0d8'}`,
-                background: active ? '#E1F5EE' : '#fff',
-                color: active ? '#085041' : '#888',
-                fontSize: 11, fontWeight: active ? 700 : 500,
-                cursor: 'pointer', fontFamily: 'inherit',
-              }}>{p.label}</button>
-          );
-        })}
-      </div>
-
-      {periode === 'custom' && (
-        <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
-          <input type="date" value={dateDebut} onChange={e => setDateDebut(e.target.value)}
-            style={{ padding: '7px 10px', borderRadius: 8, border: '1px solid #e0e0d8', fontSize: 12 }} />
-          <span style={{ alignSelf: 'center', color: '#888' }}>→</span>
-          <input type="date" value={dateFin} onChange={e => setDateFin(e.target.value)}
-            style={{ padding: '7px 10px', borderRadius: 8, border: '1px solid #e0e0d8', fontSize: 12 }} />
-        </div>
-      )}
+      {/* ─── Sélecteur de période - Etape 14 v2 ─── */}
+      {(() => {
+        const isAr = lang === 'ar';
+        const trimestresBDD = periodesBDD.filter(p => p.type === 'trimestre');
+        const semestresBDD = periodesBDD.filter(p => p.type === 'semestre');
+        const trimestreEnCours = detecterPeriodeEnCours(trimestresBDD);
+        const boutonsRapides = [
+          { key:'mois', label:isAr?'الشهر':'Ce mois' },
+          ...(trimestreEnCours ? [{ key:'bdd_'+trimestreEnCours.id, label: formatPeriodeCourte(trimestreEnCours, lang, true) }] : []),
+          ...(anneeActive ? [{ key:'annee_scolaire', label: anneeActive.nom }] : []),
+        ];
+        const idsRapides = boutonsRapides.map(b => b.key);
+        const dropdownItems = [
+          { groupe: isAr?'حديث':'Récent', items: [
+            { key:'semaine', label:isAr?'الأسبوع':'Semaine' },
+          ].filter(item => !idsRapides.includes(item.key)) },
+          { groupe: isAr?'الفصول الدراسية':'Trimestres', items:
+            trimestresBDD.map(p => ({ key:'bdd_'+p.id, label: formatPeriodeCourte(p, lang, true) }))
+              .filter(item => !idsRapides.includes(item.key))
+          },
+          { groupe: isAr?'الحصيلة':'Bilans', items:
+            semestresBDD.map(p => ({ key:'bdd_'+p.id, label: formatPeriodeCourte(p, lang, true) }))
+              .filter(item => !idsRapides.includes(item.key))
+          },
+        ].filter(g => g.items.length > 0);
+        return (
+          <div style={{marginBottom:12}}>
+            <PeriodeSelectorHybride
+              boutonsRapides={boutonsRapides}
+              dropdownItems={dropdownItems}
+              allowCustom={true}
+              periode={periode}
+              setPeriode={setPeriode}
+              dateDebut={dateDebut}
+              dateFin={dateFin}
+              setDateDebut={setDateDebut}
+              setDateFin={setDateFin}
+              lang={lang}
+              variant="default"
+            />
+            {periodesBDD.length === 0 && !anneeActive && (
+              <div style={{
+                background:'#FFF8EC',border:'1px solid #EF9F2740',borderRadius:8,
+                padding:'8px 12px',fontSize:11,color:'#7B5800',marginTop:8,
+                display:'flex',alignItems:'center',gap:8,
+              }}>
+                <span style={{fontSize:14}}>💡</span>
+                <span>{isAr
+                  ? 'لم تقم بإعداد سنة دراسية بعد. الإدارة > الفترات.'
+                  : 'Aucune année scolaire active. Gestion → Périodes.'}</span>
+              </div>
+            )}
+          </div>
+        );
+      })()}
 
       {debut && fin && (
         <div style={{ fontSize: 10, color: '#888', marginBottom: 14 }}>
@@ -517,7 +523,7 @@ function MiniStat({ label, value, color, bg }) {
 // ──────────────────────────────────────────────────────────────
 // Helpers
 // ──────────────────────────────────────────────────────────────
-function calcBornesPeriode(periode, customDebut, customFin, periodesBDD = []) {
+function calcBornesPeriode(periode, customDebut, customFin, periodesBDD = [], anneeActive = null) {
   const today = new Date();
   const iso = (d) => {
     const y = d.getFullYear();
@@ -536,6 +542,10 @@ function calcBornesPeriode(periode, customDebut, customFin, periodesBDD = []) {
   if (periode === 'mois') {
     const debut = new Date(today.getFullYear(), today.getMonth(), 1);
     return { debut: iso(debut), fin: iso(today) };
+  }
+  // Etape 14 v2 - Annee scolaire active
+  if (periode === 'annee_scolaire' && anneeActive) {
+    return { debut: anneeActive.date_debut, fin: anneeActive.date_fin };
   }
   // Etape 14 - Periodes BDD (typees) : id = 'bdd_<uuid>'
   if (periode && periode.startsWith('bdd_')) {

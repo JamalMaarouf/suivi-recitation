@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useToast } from '../lib/toast';
 import { supabase } from '../lib/supabase';
-import { getInitiales, joursDepuis, scoreLabel, formatDateCourt , loadBareme, BAREME_DEFAUT } from '../lib/helpers';
+import { getInitiales, joursDepuis, scoreLabel, formatDateCourt , loadBareme, BAREME_DEFAUT, loadAnneeActiveAvecPeriodes, formatPeriodeCourte, detecterPeriodeEnCours } from '../lib/helpers';
 import { t } from '../lib/i18n';
 import { fetchAll } from '../lib/fetchAll';
 import ExportButtons from '../components/ExportButtons';
+import PeriodeSelectorHybride from '../components/PeriodeSelectorHybride';
 
 const IS_SOURATE = (code) => ['5B','5A','2M'].includes(code||'');
 const NIVEAU_COLORS = { '5B':'#534AB7','5A':'#378ADD','2M':'#1D9E75','2':'#EF9F27','1':'#E24B4A' };
@@ -29,14 +30,11 @@ function StatCard({ val, lbl, color, bg, sub, icon }) {
   );
 }
 
-const PERIODES = [
-  { label: 'Aujourd\'hui', labelAr: 'اليوم', jours: 0 },
-  { label: 'Hier', labelAr: 'أمس', jours: 1 },
-  { label: '7 jours', labelAr: '7 أيام', jours: 7 },
-  { label: '15 jours', labelAr: '15 يوم', jours: 15 },
-  { label: 'Mois', labelAr: 'شهر', jours: 30 },
-  { label: 'Trimestre', labelAr: 'فصل', jours: 90 },
-];
+// Etape 14 v2 - PERIODES gere par PeriodeSelectorHybride
+// Anciens presets glissants courts conserves (utiles pour analyse operationnelle) :
+// Aujourd'hui, Hier, 7 jours, 15 jours, Ce mois (calendaire)
+// + Periodes BDD (T1, T2, S1...) ajoutees via dropdown
+// + Personnalisée
 
 export default function HistoriqueSeances({ user, navigate, goBack, lang='fr', isMobile }) {
   const { toast } = useToast();
@@ -56,13 +54,26 @@ export default function HistoriqueSeances({ user, navigate, goBack, lang='fr', i
   const [filterInstituteur, setFilterInstituteur] = useState('tous');
   const [filterEleve, setFilterEleve] = useState('tous');
   const [filterType, setFilterType] = useState('tous');
-  const [periodeActive, setPeriodeActive] = useState(2);
+  // Etape 14 v2 - periode = cle string (pas un index)
+  // 'today' | 'yesterday' | '7d' | '15d' | 'mois' | 'bdd_<id>' | 'annee_scolaire' | 'custom'
+  const [periode, setPeriode] = useState('7d');
+  const [periodesBDD, setPeriodesBDD] = useState([]);
+  const [anneeActive, setAnneeActive] = useState(null);
   const [selectedEleve, setSelectedEleve] = useState(null);
   const [drillDown, setDrillDown] = useState(false);
   const [searchEleve, setSearchEleve] = useState('');
   const [searchFiltreEleve, setSearchFiltreEleve] = useState('');
 
   useEffect(() => { loadData(); }, []);
+
+  // Etape 14 v2 - Charger annee active + periodes typees
+  useEffect(() => {
+    if (!user?.ecole_id) return;
+    loadAnneeActiveAvecPeriodes(supabase, user.ecole_id).then(({ annee, periodes }) => {
+      setAnneeActive(annee);
+      setPeriodesBDD(periodes.filter(p => p.type === 'trimestre' || p.type === 'semestre'));
+    });
+  }, [user?.ecole_id]);
 
   useEffect(() => {
     if (filterEleve !== 'tous') {
@@ -103,16 +114,39 @@ export default function HistoriqueSeances({ user, navigate, goBack, lang='fr', i
     setLoading(false);
   };
 
-  const setPeriodeRapide = (idx) => {
-    setPeriodeActive(idx);
-    const p = PERIODES[idx];
-    const fin = new Date();
-    const debut = new Date();
-    if (p.jours === 1) { debut.setDate(debut.getDate()-1); fin.setDate(fin.getDate()-1); }
-    else debut.setDate(debut.getDate()-p.jours);
-    setDateDebut(debut.toISOString().split('T')[0]);
-    setDateFin(fin.toISOString().split('T')[0]);
-  };
+  // Etape 14 v2 - Mise a jour automatique de dateDebut/Fin selon la periode
+  // (sauf 'custom' ou l'utilisateur saisit ses propres dates)
+  useEffect(() => {
+    const today = new Date();
+    const iso = (d) => {
+      const y = d.getFullYear();
+      const m = String(d.getMonth() + 1).padStart(2, '0');
+      const dd = String(d.getDate()).padStart(2, '0');
+      return `${y}-${m}-${dd}`;
+    };
+    if (periode === 'custom') return; // l'utilisateur saisit lui-meme
+    if (periode === 'today') {
+      setDateDebut(iso(today)); setDateFin(iso(today));
+    } else if (periode === 'yesterday') {
+      const y = new Date(today); y.setDate(y.getDate()-1);
+      setDateDebut(iso(y)); setDateFin(iso(y));
+    } else if (periode === '7d') {
+      const d = new Date(today); d.setDate(d.getDate()-7);
+      setDateDebut(iso(d)); setDateFin(iso(today));
+    } else if (periode === '15d') {
+      const d = new Date(today); d.setDate(d.getDate()-15);
+      setDateDebut(iso(d)); setDateFin(iso(today));
+    } else if (periode === 'mois') {
+      const d = new Date(today.getFullYear(), today.getMonth(), 1);
+      setDateDebut(iso(d)); setDateFin(iso(today));
+    } else if (periode === 'annee_scolaire' && anneeActive) {
+      setDateDebut(anneeActive.date_debut); setDateFin(anneeActive.date_fin);
+    } else if (periode && periode.startsWith('bdd_')) {
+      const id = periode.substring(4);
+      const p = periodesBDD.find(x => x.id === id);
+      if (p) { setDateDebut(p.date_debut); setDateFin(p.date_fin); }
+    }
+  }, [periode, periodesBDD, anneeActive]);
 
   const debut = new Date(dateDebut); debut.setHours(0,0,0,0);
   const fin = new Date(dateFin); fin.setHours(23,59,59,999);
@@ -422,34 +456,54 @@ export default function HistoriqueSeances({ user, navigate, goBack, lang='fr', i
             </div>
           </div>
 
-          {/* Périodes rapides scrollables */}
-          <div style={{display:'flex',gap:4,overflowX:'auto',scrollbarWidth:'none',padding:'0 12px 10px'}}>
-            {PERIODES.map((p,i)=>(
-              <div key={i} onClick={()=>setPeriodeRapide(i)}
-                style={{padding:'6px 12px',borderRadius:20,fontSize:12,fontWeight:600,
-                  flexShrink:0,cursor:'pointer',
-                  background:periodeActive===i?'#1D9E75':'#f0f0ec',
-                  color:periodeActive===i?'#fff':'#666'}}>
-                {lang==='ar'?p.labelAr:p.label}
+          {/* Sélecteur période - Etape 14 v2 - Composant hybride */}
+          {(() => {
+            const isAr = lang === 'ar';
+            const trimestresBDD = periodesBDD.filter(p => p.type === 'trimestre');
+            const semestresBDD = periodesBDD.filter(p => p.type === 'semestre');
+            const trimestreEnCours = detecterPeriodeEnCours(trimestresBDD);
+            // Pour Historique : 3 boutons rapides glissants (vue operationnelle)
+            const boutonsRapides = [
+              { key:'today',  label:isAr?'اليوم':'Aujourd\'hui' },
+              { key:'7d',     label:isAr?'7 أيام':'7 jours' },
+              { key:'mois',   label:isAr?'الشهر':'Ce mois' },
+            ];
+            const idsRapides = boutonsRapides.map(b => b.key);
+            const dropdownItems = [
+              // Recent : Hier, 15j (les autres glissants)
+              { groupe: isAr?'حديث':'Récent', items: [
+                { key:'yesterday', label:isAr?'أمس':'Hier' },
+                { key:'15d', label:isAr?'15 يوم':'15 jours' },
+              ].filter(item => !idsRapides.includes(item.key)) },
+              // Trimestres
+              { groupe: isAr?'الفصول الدراسية':'Trimestres', items: [
+                ...(trimestreEnCours ? [{ key:'bdd_'+trimestreEnCours.id, label: formatPeriodeCourte(trimestreEnCours, lang, true) + ' ★' }] : []),
+                ...trimestresBDD.filter(p => p.id !== trimestreEnCours?.id).map(p => ({ key:'bdd_'+p.id, label: formatPeriodeCourte(p, lang, true) })),
+              ].filter(item => !idsRapides.includes(item.key)) },
+              // Bilans
+              { groupe: isAr?'الحصيلة':'Bilans', items: [
+                ...semestresBDD.map(p => ({ key:'bdd_'+p.id, label: formatPeriodeCourte(p, lang, true) })),
+                ...(anneeActive ? [{ key:'annee_scolaire', label: anneeActive.nom }] : []),
+              ].filter(item => !idsRapides.includes(item.key)) },
+            ].filter(g => g.items.length > 0);
+            return (
+              <div style={{padding:'0 12px 10px'}}>
+                <PeriodeSelectorHybride
+                  boutonsRapides={boutonsRapides}
+                  dropdownItems={dropdownItems}
+                  allowCustom={true}
+                  periode={periode}
+                  setPeriode={setPeriode}
+                  dateDebut={dateDebut}
+                  dateFin={dateFin}
+                  setDateDebut={(v)=>{setDateDebut(v); if(periode!=='custom') setPeriode('custom');}}
+                  setDateFin={(v)=>{setDateFin(v); if(periode!=='custom') setPeriode('custom');}}
+                  lang={lang}
+                  variant="default"
+                />
               </div>
-            ))}
-          </div>
-
-          {/* Dates personnalisées */}
-          <div style={{display:'flex',gap:8,padding:'0 12px 8px'}}>
-            <div style={{flex:1}}>
-              <div style={{fontSize:11,color:'#888',marginBottom:4}}>{lang==='ar'?'من':'Du'}</div>
-              <input type="date" value={dateDebut} onChange={e=>{setDateDebut(e.target.value);setPeriodeActive(-1);}}
-                style={{width:'100%',padding:'8px 10px',borderRadius:10,border:'0.5px solid #e0e0d8',
-                  fontSize:13,fontFamily:'inherit',background:'#fff',boxSizing:'border-box'}}/>
-            </div>
-            <div style={{flex:1}}>
-              <div style={{fontSize:11,color:'#888',marginBottom:4}}>{lang==='ar'?'إلى':'Au'}</div>
-              <input type="date" value={dateFin} onChange={e=>{setDateFin(e.target.value);setPeriodeActive(-1);}}
-                style={{width:'100%',padding:'8px 10px',borderRadius:10,border:'0.5px solid #e0e0d8',
-                  fontSize:13,fontFamily:'inherit',background:'#fff',boxSizing:'border-box'}}/>
-            </div>
-          </div>
+            );
+          })()}
 
           {/* Filtres rapides dans le header */}
           <div style={{padding:'0 12px 12px',display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
@@ -598,20 +652,50 @@ export default function HistoriqueSeances({ user, navigate, goBack, lang='fr', i
 
       {/* FILTRES */}
       <div style={{background:'#fff',border:'0.5px solid #e0e0d8',borderRadius:16,padding:'1.25rem',marginBottom:'1.25rem'}}>
-        <div style={{display:'flex',gap:6,flexWrap:'wrap',marginBottom:12}}>
-          {PERIODES.map((p,i)=>(
-            <button key={i} onClick={()=>setPeriodeRapide(i)} style={{padding:'5px 12px',borderRadius:20,fontSize:11,fontWeight:periodeActive===i?700:400,cursor:'pointer',border:'1.5px solid '+(periodeActive===i?'#1D9E75':'#e0e0d8'),background:periodeActive===i?'#1D9E75':'#fff',color:periodeActive===i?'#fff':'#666'}}>
-              {lang==='ar'?p.labelAr:p.label}
-            </button>
-          ))}
-          <button onClick={()=>setPeriodeActive(-1)} style={{padding:'5px 12px',borderRadius:20,fontSize:11,fontWeight:periodeActive===-1?700:400,cursor:'pointer',border:'1.5px solid '+(periodeActive===-1?'#534AB7':'#e0e0d8'),background:periodeActive===-1?'#534AB7':'#fff',color:periodeActive===-1?'#fff':'#666'}}>
-            {lang==='ar'?'فترة مخصصة':lang==='en'?'Custom':(lang==='ar'?'مخصص':'Personnalisé')}
-          </button>
-        </div>
-        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:10}}>
-          <div className="field-group"><label className="field-lbl">{lang==='ar'?'من':'Du'}</label><input className="field-input" type="date" value={dateDebut} onChange={e=>{setDateDebut(e.target.value);setPeriodeActive(-1);}}/></div>
-          <div className="field-group"><label className="field-lbl">{lang==='ar'?'إلى':'Au'}</label><input className="field-input" type="date" value={dateFin} onChange={e=>{setDateFin(e.target.value);setPeriodeActive(-1);}}/></div>
-        </div>
+        {/* Sélecteur période - Etape 14 v2 - Composant hybride */}
+        {(() => {
+          const isAr = lang === 'ar';
+          const trimestresBDD = periodesBDD.filter(p => p.type === 'trimestre');
+          const semestresBDD = periodesBDD.filter(p => p.type === 'semestre');
+          const trimestreEnCours = detecterPeriodeEnCours(trimestresBDD);
+          const boutonsRapides = [
+            { key:'today', label:isAr?'اليوم':'Aujourd\'hui' },
+            { key:'7d',    label:isAr?'7 أيام':'7 jours' },
+            { key:'mois',  label:isAr?'الشهر':'Ce mois' },
+          ];
+          const idsRapides = boutonsRapides.map(b => b.key);
+          const dropdownItems = [
+            { groupe: isAr?'حديث':'Récent', items: [
+              { key:'yesterday', label:isAr?'أمس':'Hier' },
+              { key:'15d', label:isAr?'15 يوم':'15 jours' },
+            ].filter(item => !idsRapides.includes(item.key)) },
+            { groupe: isAr?'الفصول الدراسية':'Trimestres', items: [
+              ...(trimestreEnCours ? [{ key:'bdd_'+trimestreEnCours.id, label: formatPeriodeCourte(trimestreEnCours, lang, true) + ' ★' }] : []),
+              ...trimestresBDD.filter(p => p.id !== trimestreEnCours?.id).map(p => ({ key:'bdd_'+p.id, label: formatPeriodeCourte(p, lang, true) })),
+            ].filter(item => !idsRapides.includes(item.key)) },
+            { groupe: isAr?'الحصيلة':'Bilans', items: [
+              ...semestresBDD.map(p => ({ key:'bdd_'+p.id, label: formatPeriodeCourte(p, lang, true) })),
+              ...(anneeActive ? [{ key:'annee_scolaire', label: anneeActive.nom }] : []),
+            ].filter(item => !idsRapides.includes(item.key)) },
+          ].filter(g => g.items.length > 0);
+          return (
+            <div style={{marginBottom:12}}>
+              <PeriodeSelectorHybride
+                boutonsRapides={boutonsRapides}
+                dropdownItems={dropdownItems}
+                allowCustom={true}
+                periode={periode}
+                setPeriode={setPeriode}
+                dateDebut={dateDebut}
+                dateFin={dateFin}
+                setDateDebut={(v)=>{setDateDebut(v); if(periode!=='custom') setPeriode('custom');}}
+                setDateFin={(v)=>{setDateFin(v); if(periode!=='custom') setPeriode('custom');}}
+                lang={lang}
+                variant="default"
+              />
+            </div>
+          );
+        })()}
         <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:8}}>
           <div className="field-group"><label className="field-lbl">{lang==='ar'?'المستوى':'Niveau'}</label>
             <select className="field-select" value={filterNiveau} onChange={e=>setFilterNiveau(e.target.value)}>

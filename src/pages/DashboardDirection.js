@@ -6,6 +6,7 @@ import { fetchAll } from '../lib/fetchAll';
 import { openPDF } from '../lib/pdf';
 import { exportExcel } from '../lib/excel';
 import ExportButtons from '../components/ExportButtons';
+import PeriodeSelectorHybride from '../components/PeriodeSelectorHybride';
 
 // ─── Couleurs par niveau ───────────────────────────────────────────────────
 const NC = { '5B':'#534AB7','5A':'#378ADD','2M':'#1D9E75','2':'#EF9F27','1':'#E24B4A' };
@@ -102,10 +103,13 @@ export default function DashboardDirection({ user, navigate, goBack, lang='fr', 
   const [passages, setPassages] = useState([]);
   const [ecole, setEcole] = useState(null);
   const [bareme, setBareme] = useState(BAREME_DEFAUT);
-  const [periode, setPeriode] = useState('mois'); // 'mois' | 'bdd_<id>' | 'annee_scolaire' (Etape 14 v2)
-  const [periodesBDD, setPeriodesBDD] = useState([]); // periodes typees (T/S) de l'annee active
-  const [anneeActive, setAnneeActive] = useState(null); // l'annee scolaire active (Etape 14 v2)
-  const [showPeriodeDropdown, setShowPeriodeDropdown] = useState(false); // Etape 14 v2 - dropdown 'Plus'
+  const [periode, setPeriode] = useState('mois'); // 'mois' | 'bdd_<id>' | 'annee_scolaire' | 'custom'
+  const [periodesBDD, setPeriodesBDD] = useState([]);
+  const [anneeActive, setAnneeActive] = useState(null);
+  const [showPeriodeDropdown, setShowPeriodeDropdown] = useState(false); // (legacy, plus utilise mais on garde pour compat)
+  // Etape 14 v2 - Dates custom
+  const [customDebut, setCustomDebut] = useState('');
+  const [customFin, setCustomFin] = useState('');
   const [activeSection, setActiveSection] = useState('overview');
 
   // RGPD audit (P2.1) : logs RGPD filtrés sur l'école uniquement
@@ -212,6 +216,13 @@ export default function DashboardDirection({ user, navigate, goBack, lang='fr', 
         periodeFin: new Date(anneeActive.date_fin),
       };
     }
+    // 'custom' = dates saisies par l'utilisateur (Etape 14 v2)
+    if (periode === 'custom' && customDebut && customFin) {
+      return {
+        periodeDebut: new Date(customDebut),
+        periodeFin: new Date(customFin + 'T23:59:59'),
+      };
+    }
     if (periode && periode.startsWith('bdd_')) {
       const id = periode.substring(4);
       const p = periodesBDD.find(x => x.id === id);
@@ -227,7 +238,7 @@ export default function DashboardDirection({ user, navigate, goBack, lang='fr', 
       periodeDebut: new Date(now.getFullYear(), now.getMonth(), 1),
       periodeFin: now,
     };
-  }, [periode, periodesBDD, anneeActive]);
+  }, [periode, periodesBDD, anneeActive, customDebut, customFin]);
 
   const valsFiltered = useMemo(() =>
     (validations||[]).filter(v => {
@@ -525,62 +536,23 @@ export default function DashboardDirection({ user, navigate, goBack, lang='fr', 
               <div style={{fontSize:11,color:'rgba(255,255,255,0.75)'}}>{ecole?.nom||''}</div>
             </div>
           </div>
-          {/* Sélecteur période - Etape 14 v2 - Hybride : 3 boutons + dropdown */}
-          <div style={{display:'flex',gap:6,marginTop:12,overflowX:'auto',paddingBottom:2,flexWrap:'wrap',position:'relative'}}>
-            {boutonsRapides.map(p=>(
-              <button key={p.key} onClick={()=>setPeriode(p.key)}
-                style={{background:periode===p.key?'rgba(255,255,255,0.3)':'rgba(255,255,255,0.1)',
-                  border:`1px solid ${periode===p.key?'rgba(255,255,255,0.5)':'rgba(255,255,255,0.2)'}`,
-                  borderRadius:20,padding:'5px 12px',color:'#fff',fontSize:11,fontWeight:periode===p.key?700:400,
-                  cursor:'pointer',whiteSpace:'nowrap',flexShrink:0}}>
-                {p.label}
-              </button>
-            ))}
-            {dropdownItems.length > 0 && (
-              <div style={{position:'relative'}}>
-                <button onClick={()=>setShowPeriodeDropdown(s=>!s)}
-                  style={{background:periode!=='mois'&&!boutonsRapides.find(b=>b.key===periode)?'rgba(255,255,255,0.3)':'rgba(255,255,255,0.1)',
-                    border:`1px solid ${periode!=='mois'&&!boutonsRapides.find(b=>b.key===periode)?'rgba(255,255,255,0.5)':'rgba(255,255,255,0.2)'}`,
-                    borderRadius:20,padding:'5px 12px',color:'#fff',fontSize:11,fontWeight:600,
-                    cursor:'pointer',whiteSpace:'nowrap',flexShrink:0}}>
-                  {/* Si une periode du dropdown est active, afficher son label */}
-                  {(() => {
-                    const itemActif = dropdownItems.flatMap(g=>g.items).find(i=>i.key===periode);
-                    return itemActif ? itemActif.label : (isAr?'المزيد ▾':'Plus ▾');
-                  })()}
-                </button>
-                {showPeriodeDropdown && (
-                  <>
-                    <div onClick={()=>setShowPeriodeDropdown(false)}
-                      style={{position:'fixed',inset:0,zIndex:50}} />
-                    <div style={{position:'absolute',top:'calc(100% + 4px)',right:0,zIndex:51,
-                      background:'#fff',borderRadius:10,boxShadow:'0 6px 20px rgba(0,0,0,0.15)',
-                      minWidth:200,maxHeight:'60vh',overflowY:'auto',padding:6}}>
-                      {dropdownItems.map(g => (
-                        <div key={g.groupe} style={{marginBottom:4}}>
-                          <div style={{fontSize:9,fontWeight:700,color:'#888',textTransform:'uppercase',padding:'4px 8px'}}>
-                            {g.groupe}
-                          </div>
-                          {g.items.map(item => (
-                            <button key={item.key}
-                              onClick={()=>{setPeriode(item.key);setShowPeriodeDropdown(false);}}
-                              style={{display:'block',width:'100%',textAlign:isAr?'right':'left',
-                                padding:'7px 10px',border:'none',borderRadius:6,fontSize:11,
-                                background:periode===item.key?'#E1F5EE':'transparent',
-                                color:periode===item.key?'#085041':'#333',
-                                fontWeight:periode===item.key?700:500,cursor:'pointer',fontFamily:'inherit'}}>
-                              {item.label}
-                            </button>
-                          ))}
-                        </div>
-                      ))}
-                    </div>
-                  </>
-                )}
-              </div>
-            )}
+          {/* Sélecteur période - Etape 14 v2 - Composant hybride */}
+          <div style={{marginTop:12}}>
+            <PeriodeSelectorHybride
+              boutonsRapides={boutonsRapides}
+              dropdownItems={dropdownItems}
+              allowCustom={true}
+              periode={periode}
+              setPeriode={setPeriode}
+              dateDebut={customDebut}
+              dateFin={customFin}
+              setDateDebut={setCustomDebut}
+              setDateFin={setCustomFin}
+              lang={lang}
+              variant="dark"
+            />
           </div>
-          {periodesBDD.length === 0 && (
+          {periodesBDD.length === 0 && !anneeActive && (
             <div style={{marginTop:8,padding:'6px 10px',background:'rgba(255,180,80,0.15)',border:'1px solid rgba(255,180,80,0.3)',borderRadius:8,fontSize:10,color:'rgba(255,255,255,0.9)'}}>
               💡 {isAr?'لم تقم بإعداد سنة دراسية. الفترات (T1، S1...) في الإدارة > الفترات':'Pas d\'année scolaire active. Configurez vos périodes dans Gestion → Périodes'}
             </div>
@@ -743,65 +715,22 @@ export default function DashboardDirection({ user, navigate, goBack, lang='fr', 
         />
       </div>
 
-      {/* Sélecteur période - Etape 14 v2 - Hybride : 3 boutons + dropdown */}
+      {/* Sélecteur période - Etape 14 v2 - Composant hybride */}
       <div style={{display:'flex',justifyContent:'center',marginBottom:'1.25rem',flexDirection:'column',alignItems:'center',gap:6}}>
-        <div style={{display:'flex',gap:6,background:'#f5f5f0',borderRadius:10,padding:4,flexWrap:'wrap',justifyContent:'center',position:'relative'}}>
-          {boutonsRapides.map(p=>(
-            <button key={p.key} onClick={()=>setPeriode(p.key)}
-              style={{background:periode===p.key?'#fff':'transparent',
-                border:'none',borderRadius:8,padding:'6px 14px',fontSize:12,
-                fontWeight:periode===p.key?700:400,color:periode===p.key?'#085041':'#888',
-                cursor:'pointer',transition:'all 0.15s',
-                boxShadow:periode===p.key?'0 1px 4px rgba(0,0,0,0.1)':'none'}}>
-              {p.label}
-            </button>
-          ))}
-          {dropdownItems.length > 0 && (() => {
-            const itemActif = dropdownItems.flatMap(g=>g.items).find(i=>i.key===periode);
-            const isActive = !!itemActif;
-            return (
-              <div style={{position:'relative'}}>
-                <button onClick={()=>setShowPeriodeDropdown(s=>!s)}
-                  style={{background:isActive?'#fff':'transparent',
-                    border:'none',borderRadius:8,padding:'6px 14px',fontSize:12,
-                    fontWeight:isActive?700:400,color:isActive?'#085041':'#888',
-                    cursor:'pointer',transition:'all 0.15s',
-                    boxShadow:isActive?'0 1px 4px rgba(0,0,0,0.1)':'none'}}>
-                  {isActive ? itemActif.label : (isAr?'المزيد ▾':'Plus ▾')}
-                </button>
-                {showPeriodeDropdown && (
-                  <>
-                    <div onClick={()=>setShowPeriodeDropdown(false)}
-                      style={{position:'fixed',inset:0,zIndex:50}} />
-                    <div style={{position:'absolute',top:'calc(100% + 4px)',right:0,zIndex:51,
-                      background:'#fff',borderRadius:10,boxShadow:'0 6px 20px rgba(0,0,0,0.15)',
-                      minWidth:220,maxHeight:'60vh',overflowY:'auto',padding:6,border:'1px solid #e0e0d8'}}>
-                      {dropdownItems.map(g => (
-                        <div key={g.groupe} style={{marginBottom:4}}>
-                          <div style={{fontSize:9,fontWeight:700,color:'#888',textTransform:'uppercase',padding:'4px 10px',letterSpacing:0.3}}>
-                            {g.groupe}
-                          </div>
-                          {g.items.map(item => (
-                            <button key={item.key}
-                              onClick={()=>{setPeriode(item.key);setShowPeriodeDropdown(false);}}
-                              style={{display:'block',width:'100%',textAlign:isAr?'right':'left',
-                                padding:'8px 12px',border:'none',borderRadius:6,fontSize:12,
-                                background:periode===item.key?'#E1F5EE':'transparent',
-                                color:periode===item.key?'#085041':'#333',
-                                fontWeight:periode===item.key?700:500,cursor:'pointer',fontFamily:'inherit'}}>
-                              {item.label}
-                            </button>
-                          ))}
-                        </div>
-                      ))}
-                    </div>
-                  </>
-                )}
-              </div>
-            );
-          })()}
-        </div>
-        {periodesBDD.length === 0 && (
+        <PeriodeSelectorHybride
+          boutonsRapides={boutonsRapides}
+          dropdownItems={dropdownItems}
+          allowCustom={true}
+          periode={periode}
+          setPeriode={setPeriode}
+          dateDebut={customDebut}
+          dateFin={customFin}
+          setDateDebut={setCustomDebut}
+          setDateFin={setCustomFin}
+          lang={lang}
+          variant="default"
+        />
+        {periodesBDD.length === 0 && !anneeActive && (
           <div style={{padding:'6px 12px',background:'#FFF8EC',border:'1px solid #EF9F2730',borderRadius:8,fontSize:11,color:'#7B5800',display:'flex',alignItems:'center',gap:6}}>
             💡 {isAr?'لم تقم بإعداد سنة دراسية بعد':'Pas d\'année scolaire active'}
             — {isAr?'الإدارة > الفترات':'Gestion → Périodes'}
