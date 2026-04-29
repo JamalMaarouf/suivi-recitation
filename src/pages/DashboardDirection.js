@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { supabase } from '../lib/supabase';
 import { t } from '../lib/i18n';
-import { BAREME_DEFAUT, loadBareme } from '../lib/helpers';
+import { BAREME_DEFAUT, loadBareme, loadAnneeActiveAvecPeriodes, formatPeriodeCourte, detecterPeriodeEnCours } from '../lib/helpers';
 import { fetchAll } from '../lib/fetchAll';
 import { openPDF } from '../lib/pdf';
 import { exportExcel } from '../lib/excel';
 import ExportButtons from '../components/ExportButtons';
+import PeriodeSelectorHybride from '../components/PeriodeSelectorHybride';
 
 // ─── Couleurs par niveau ───────────────────────────────────────────────────
 const NC = { '5B':'#534AB7','5A':'#378ADD','2M':'#1D9E75','2':'#EF9F27','1':'#E24B4A' };
@@ -102,7 +103,13 @@ export default function DashboardDirection({ user, navigate, goBack, lang='fr', 
   const [passages, setPassages] = useState([]);
   const [ecole, setEcole] = useState(null);
   const [bareme, setBareme] = useState(BAREME_DEFAUT);
-  const [periode, setPeriode] = useState('annee'); // annee | semestre | trimestre | mois
+  const [periode, setPeriode] = useState('mois'); // 'mois' | 'bdd_<id>' | 'annee_scolaire' | 'custom'
+  const [periodesBDD, setPeriodesBDD] = useState([]);
+  const [anneeActive, setAnneeActive] = useState(null);
+  const [showPeriodeDropdown, setShowPeriodeDropdown] = useState(false); // (legacy, plus utilise mais on garde pour compat)
+  // Etape 14 v2 - Dates custom
+  const [customDebut, setCustomDebut] = useState('');
+  const [customFin, setCustomFin] = useState('');
   const [activeSection, setActiveSection] = useState('overview');
 
   // RGPD audit (P2.1) : logs RGPD filtrés sur l'école uniquement
@@ -111,6 +118,20 @@ export default function DashboardDirection({ user, navigate, goBack, lang='fr', 
   const isAr = lang === 'ar';
 
   useEffect(() => { loadData(); }, []);
+
+  // Etape 14 v2 - Charger l'annee active + ses periodes typees (T, S)
+  // L'annee scolaire (annees_scolaires) sert directement comme bouton 'Annee' :
+  // pas besoin de creer une periode type='annee' redondante.
+  useEffect(() => {
+    if (!user?.ecole_id) return;
+    loadAnneeActiveAvecPeriodes(supabase, user.ecole_id).then(({ annee, periodes }) => {
+      setAnneeActive(annee);
+      // Periodes typees : trimestres et semestres uniquement (pas 'libre' ni 'annee' redondante)
+      setPeriodesBDD(periodes.filter(p => p.type === 'trimestre' || p.type === 'semestre'));
+    });
+  }, [user?.ecole_id]);
+
+  // Nettoyage diagnostic : supprime les console.log temporaires
 
   // ─── P2.1 : Chargement des logs RGPD quand la section s'ouvre ──
   useEffect(() => {
@@ -179,17 +200,52 @@ export default function DashboardDirection({ user, navigate, goBack, lang='fr', 
   };
 
   // ─── Calcul période ──────────────────────────────────────────────────────
-  const periodeDebut = useMemo(() => {
+  // Etape 14 v2 - Mois (auto) ou periode BDD (typee, bornes fixes)
+  const { periodeDebut, periodeFin } = useMemo(() => {
     const now = new Date();
-    if (periode === 'mois') return new Date(now.getFullYear(), now.getMonth(), 1);
-    if (periode === 'trimestre') return new Date(now.getFullYear(), Math.floor(now.getMonth()/3)*3, 1);
-    if (periode === 'semestre') return new Date(now.getFullYear(), now.getMonth()<6?0:6, 1);
-    return new Date(now.getFullYear(), 0, 1); // annee
-  }, [periode]);
+    if (periode === 'mois') {
+      return {
+        periodeDebut: new Date(now.getFullYear(), now.getMonth(), 1),
+        periodeFin: now,
+      };
+    }
+    // 'annee_scolaire' = utilise directement les dates de l'annee active
+    if (periode === 'annee_scolaire' && anneeActive) {
+      return {
+        periodeDebut: new Date(anneeActive.date_debut),
+        periodeFin: new Date(anneeActive.date_fin),
+      };
+    }
+    // 'custom' = dates saisies par l'utilisateur (Etape 14 v2)
+    if (periode === 'custom' && customDebut && customFin) {
+      return {
+        periodeDebut: new Date(customDebut),
+        periodeFin: new Date(customFin + 'T23:59:59'),
+      };
+    }
+    if (periode && periode.startsWith('bdd_')) {
+      const id = periode.substring(4);
+      const p = periodesBDD.find(x => x.id === id);
+      if (p) {
+        return {
+          periodeDebut: new Date(p.date_debut),
+          periodeFin: new Date(p.date_fin),
+        };
+      }
+    }
+    // Fallback : mois
+    return {
+      periodeDebut: new Date(now.getFullYear(), now.getMonth(), 1),
+      periodeFin: now,
+    };
+  }, [periode, periodesBDD, anneeActive, customDebut, customFin]);
 
   const valsFiltered = useMemo(() =>
-    (validations||[]).filter(v => new Date(v.date_validation) >= periodeDebut),
-  [validations, periodeDebut]);
+    (validations||[]).filter(v => {
+      const d = new Date(v.date_validation);
+      return d >= periodeDebut && d <= periodeFin;
+    }),
+  [validations, periodeDebut, periodeFin]);
 
   // ─── KPIs globaux ────────────────────────────────────────────────────────
   const kpis = useMemo(() => {
@@ -197,11 +253,17 @@ export default function DashboardDirection({ user, navigate, goBack, lang='fr', 
     const totalTomon = valsFiltered.filter(v=>v.type_validation==='tomon').reduce((s,v)=>s+(v.nombre_tomon||0),0);
     const totalHizb = valsFiltered.filter(v=>v.type_validation==='hizb_complet').length;
     const tauxActivite = eleves.length > 0 ? Math.round(elevesActifs.size/eleves.length*100) : 0;
-    const totalCerts = (certificats||[]).filter(c=>new Date(c.date_emission)>=periodeDebut).length;
-    const totalPassages = (passages||[]).filter(p=>new Date(p.created_at)>=periodeDebut).length;
+    const totalCerts = (certificats||[]).filter(c=>{
+      const d = new Date(c.date_emission);
+      return d >= periodeDebut && d <= periodeFin;
+    }).length;
+    const totalPassages = (passages||[]).filter(p=>{
+      const d = new Date(p.created_at);
+      return d >= periodeDebut && d <= periodeFin;
+    }).length;
     return { elevesActifs:elevesActifs.size, totalEleves:eleves.length, totalTomon, totalHizb,
       tauxActivite, totalCerts, totalPassages, totalSeances: valsFiltered.length };
-  }, [valsFiltered, eleves, certificats, passages, periodeDebut]);
+  }, [valsFiltered, eleves, certificats, passages, periodeDebut, periodeFin]);
 
   // ─── Stats par niveau ────────────────────────────────────────────────────
   const statsByNiveau = useMemo(() => {
@@ -293,14 +355,46 @@ export default function DashboardDirection({ user, navigate, goBack, lang='fr', 
     return alerts;
   }, [eleves, validations, kpis]);
 
-  const PERIODES = [
+  // Etape 14 v2 - PERIODES dynamiques pour Dashboard Direction
+  // Pattern hybride : [Ce mois] [T en cours] [Année active] + dropdown "Plus"
+  const trimestresBDD = periodesBDD.filter(p => p.type === 'trimestre');
+  const semestresBDD  = periodesBDD.filter(p => p.type === 'semestre');
+  const trimestreEnCours = detecterPeriodeEnCours(trimestresBDD);
+
+  // 3 boutons rapides + Dropdown "Plus"
+  const boutonsRapides = [
     { key:'mois', label:isAr?'الشهر الحالي':'Ce mois' },
-    { key:'trimestre', label:isAr?'الفصل':'Trimestre' },
-    { key:'semestre', label:isAr?'نصف سنة':'Semestre' },
-    { key:'annee', label:isAr?'السنة الكاملة':'Année entière' },
+    ...(trimestreEnCours ? [{ key:'bdd_'+trimestreEnCours.id, label: formatPeriodeCourte(trimestreEnCours, lang, true) }] : []),
+    // Etape 14 v2 - L'annee scolaire active sert directement comme bouton 'Annee'
+    // (pas besoin de creer une periode type='annee' redondante)
+    ...(anneeActive ? [{ key:'annee_scolaire', label: anneeActive.nom }] : []),
   ];
 
-  const periodeLabel = PERIODES.find(p => p.key === periode)?.label || '';
+  // Items dropdown (toutes les periodes BDD sauf celles deja en bouton rapide)
+  const idsRapides = boutonsRapides.map(b => b.key);
+  const dropdownItems = [
+    // Recent
+    { groupe: isAr?'حديث':'Récent', items: [
+      { key:'mois', label:isAr?'الشهر الحالي':'Ce mois (calendaire)' },
+    ].filter(item => !idsRapides.includes(item.key)) },
+    // Trimestres
+    { groupe: isAr?'الفصول الدراسية':'Trimestres', items:
+      trimestresBDD.map(p => ({ key:'bdd_'+p.id, label: formatPeriodeCourte(p, lang, true) }))
+        .filter(item => !idsRapides.includes(item.key))
+    },
+    // Bilans
+    { groupe: isAr?'الحصيلة':'Bilans', items:
+      semestresBDD.map(p => ({ key:'bdd_'+p.id, label: formatPeriodeCourte(p, lang, true) }))
+        .filter(item => !idsRapides.includes(item.key))
+    },
+  ].filter(g => g.items.length > 0);
+
+  // Liste plate pour determiner le label de la periode active
+  const allOptions = [
+    ...boutonsRapides,
+    ...dropdownItems.flatMap(g => g.items),
+  ];
+  const periodeLabel = allOptions.find(o => o.key === periode)?.label || (isAr?'الشهر الحالي':'Ce mois');
 
   // ── Préparation des données Top 10 avec points ──
   const top10AvecPoints = useMemo(() => {
@@ -442,18 +536,27 @@ export default function DashboardDirection({ user, navigate, goBack, lang='fr', 
               <div style={{fontSize:11,color:'rgba(255,255,255,0.75)'}}>{ecole?.nom||''}</div>
             </div>
           </div>
-          {/* Sélecteur période */}
-          <div style={{display:'flex',gap:6,marginTop:12,overflowX:'auto',paddingBottom:2}}>
-            {PERIODES.map(p=>(
-              <button key={p.key} onClick={()=>setPeriode(p.key)}
-                style={{background:periode===p.key?'rgba(255,255,255,0.3)':'rgba(255,255,255,0.1)',
-                  border:`1px solid ${periode===p.key?'rgba(255,255,255,0.5)':'rgba(255,255,255,0.2)'}`,
-                  borderRadius:20,padding:'5px 12px',color:'#fff',fontSize:11,fontWeight:periode===p.key?700:400,
-                  cursor:'pointer',whiteSpace:'nowrap',flexShrink:0}}>
-                {p.label}
-              </button>
-            ))}
+          {/* Sélecteur période - Etape 14 v2 - Composant hybride */}
+          <div style={{marginTop:12}}>
+            <PeriodeSelectorHybride
+              boutonsRapides={boutonsRapides}
+              dropdownItems={dropdownItems}
+              allowCustom={true}
+              periode={periode}
+              setPeriode={setPeriode}
+              dateDebut={customDebut}
+              dateFin={customFin}
+              setDateDebut={setCustomDebut}
+              setDateFin={setCustomFin}
+              lang={lang}
+              variant="dark"
+            />
           </div>
+          {periodesBDD.length === 0 && !anneeActive && (
+            <div style={{marginTop:8,padding:'6px 10px',background:'rgba(255,180,80,0.15)',border:'1px solid rgba(255,180,80,0.3)',borderRadius:8,fontSize:10,color:'rgba(255,255,255,0.9)'}}>
+              💡 {isAr?'لم تقم بإعداد سنة دراسية. الفترات (T1، S1...) في الإدارة > الفترات':'Pas d\'année scolaire active. Configurez vos périodes dans Gestion → Périodes'}
+            </div>
+          )}
           {/* Export mobile */}
           <div style={{display:'flex',gap:6,marginTop:10}}>
             <button onClick={handleExportPDF}
@@ -612,20 +715,27 @@ export default function DashboardDirection({ user, navigate, goBack, lang='fr', 
         />
       </div>
 
-      {/* Sélecteur période - sur sa propre ligne pour ne pas surcharger le header */}
-      <div style={{display:'flex',justifyContent:'center',marginBottom:'1.25rem'}}>
-        <div style={{display:'flex',gap:6,background:'#f5f5f0',borderRadius:10,padding:4}}>
-          {PERIODES.map(p=>(
-            <button key={p.key} onClick={()=>setPeriode(p.key)}
-              style={{background:periode===p.key?'#fff':'transparent',
-                border:'none',borderRadius:8,padding:'6px 14px',fontSize:12,
-                fontWeight:periode===p.key?700:400,color:periode===p.key?'#085041':'#888',
-                cursor:'pointer',transition:'all 0.15s',
-                boxShadow:periode===p.key?'0 1px 4px rgba(0,0,0,0.1)':'none'}}>
-              {p.label}
-            </button>
-          ))}
-        </div>
+      {/* Sélecteur période - Etape 14 v2 - Composant hybride */}
+      <div style={{display:'flex',justifyContent:'center',marginBottom:'1.25rem',flexDirection:'column',alignItems:'center',gap:6}}>
+        <PeriodeSelectorHybride
+          boutonsRapides={boutonsRapides}
+          dropdownItems={dropdownItems}
+          allowCustom={true}
+          periode={periode}
+          setPeriode={setPeriode}
+          dateDebut={customDebut}
+          dateFin={customFin}
+          setDateDebut={setCustomDebut}
+          setDateFin={setCustomFin}
+          lang={lang}
+          variant="default"
+        />
+        {periodesBDD.length === 0 && !anneeActive && (
+          <div style={{padding:'6px 12px',background:'#FFF8EC',border:'1px solid #EF9F2730',borderRadius:8,fontSize:11,color:'#7B5800',display:'flex',alignItems:'center',gap:6}}>
+            💡 {isAr?'لم تقم بإعداد سنة دراسية بعد':'Pas d\'année scolaire active'}
+            — {isAr?'الإدارة > الفترات':'Gestion → Périodes'}
+          </div>
+        )}
       </div>
 
       {/* Alertes */}

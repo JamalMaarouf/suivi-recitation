@@ -1292,3 +1292,199 @@ export function prochainHizbDansBloc(progression) {
   }
   return { hizb: null, bloc: null };
 }
+
+// ══════════════════════════════════════════════════════════════════
+// LOGIN PARENT UNIQUE (Option E - Etape 11b corrigée)
+// ══════════════════════════════════════════════════════════════════
+/**
+ * Genere un login parent unique au niveau global de l'app.
+ *
+ * Strategie (Option E validee avec Jamal) :
+ *   1. Essayer le login simple (eleve_id_ecole). Le plus user-friendly.
+ *   2. Si pris, suffixer avec un compteur : "-2", "-3", etc.
+ *   3. Filet de securite : jusqu'a "-99" puis throw error.
+ *
+ * NOTE TECHNIQUE :
+ *   Le wrapper supabase.js applique un filtre IMMUABLE
+ *   .is('deleted_at', null) sur les SELECT des tables soft-delete.
+ *   Aucune condition tautologique cote applicatif ne peut l'annuler.
+ *   La SEULE solution : utiliser supabaseRaw (client non wrappe) pour
+ *   voir TOUS les enregistrements (actifs + soft-deletes).
+ *
+ *   On accepte ici que ce helper passe par le client brut car c'est
+ *   un check d'integrite technique (verification d'unicite contrainte
+ *   BDD) et non une lecture metier.
+ *
+ * @param supabase Client Supabase (NON UTILISE - on utilise supabaseRaw)
+ * @param baseLogin Le login souhaite (ex: "54")
+ * @returns {Promise<string>} Le login unique trouve (ex: "54" ou "54-2")
+ */
+export async function genererLoginParentUnique(supabase, baseLogin) {
+  // Import dynamique pour eviter dependance circulaire
+  const { supabaseRaw } = await import('./supabase');
+
+  const base = (baseLogin || '').trim();
+  if (!base) throw new Error('baseLogin manquant');
+
+  const candidates = [base];
+  for (let i = 2; i <= 99; i++) candidates.push(`${base}-${i}`);
+
+  for (const candidate of candidates) {
+    // Utiliser supabaseRaw pour bypass le filtre auto deleted_at
+    const { data, error } = await supabaseRaw.from('utilisateurs')
+      .select('id')
+      .eq('identifiant', candidate)
+      .limit(1);
+    if (error) {
+      console.warn('[genererLoginParentUnique] select error:', error.message);
+      continue;
+    }
+    if (!data || data.length === 0) {
+      return candidate;
+    }
+  }
+
+  throw new Error(`Impossible de generer un login unique pour ${base} apres 99 tentatives`);
+}
+
+// ══════════════════════════════════════════════════════════════════
+// ANNEES SCOLAIRES + PERIODES (Etape 14 - Refonte conceptuelle)
+// ══════════════════════════════════════════════════════════════════
+/**
+ * Charge l'annee scolaire ACTIVE de l'ecole avec ses periodes.
+ * Q2=A : 1 seule annee active a la fois (contrainte BDD).
+ *
+ * Tri des periodes (Etape 14 v2) :
+ *   1. Par TYPE (granularite) : trimestre -> semestre -> annee -> libre
+ *   2. Puis par date_debut ASC (chronologique dans chaque groupe)
+ *
+ * Cette logique s'applique automatiquement a toutes les ecoles
+ * peu importe leur decoupage (3T, 4T, 2S, mix, etc.)
+ *
+ * @returns {Promise<{annee: object|null, periodes: Array}>}
+ */
+export async function loadAnneeActiveAvecPeriodes(supabase, ecole_id) {
+  const fallback = { annee: null, periodes: [] };
+  if (!ecole_id) return fallback;
+  try {
+    // 1. Trouver l'annee active
+    const { data: annee, error: errA } = await supabase.from('annees_scolaires')
+      .select('*')
+      .eq('ecole_id', ecole_id)
+      .eq('statut', 'active')
+      .maybeSingle();
+    if (errA) {
+      console.warn('[loadAnneeActiveAvecPeriodes] erreur annee:', errA.message);
+      return fallback;
+    }
+    if (!annee) return fallback;
+
+    // 2. Charger ses periodes
+    const { data: periodes, error: errP } = await supabase.from('periodes_notes')
+      .select('id, nom, nom_ar, date_debut, date_fin, type, actif, annee_scolaire_id')
+      .eq('annee_scolaire_id', annee.id)
+      .eq('actif', true);
+    if (errP) {
+      console.warn('[loadAnneeActiveAvecPeriodes] erreur periodes:', errP.message);
+      return { annee, periodes: [] };
+    }
+
+    // 3. Tri par granularite puis chronologie (Etape 14 v2)
+    const ORDRE_TYPE = { trimestre: 1, semestre: 2, annee: 3, libre: 4 };
+    const sorted = (periodes || []).slice().sort((a, b) => {
+      const typeA = ORDRE_TYPE[a.type || 'libre'] || 5;
+      const typeB = ORDRE_TYPE[b.type || 'libre'] || 5;
+      if (typeA !== typeB) return typeA - typeB;
+      return (a.date_debut || '').localeCompare(b.date_debut || '');
+    });
+    return { annee, periodes: sorted };
+  } catch (e) {
+    console.error('[loadAnneeActiveAvecPeriodes] error:', e);
+    return fallback;
+  }
+}
+
+/**
+ * Charge les periodes scolaires actives d'une ecole (TOUTES les annees).
+ * Utile pour les pages qui ont besoin de toutes les periodes (ex: TableauHonneur).
+ *
+ * Q4 : Pour les selecteurs des pages d'analyse (Onglet Absences, Assiduite),
+ * utiliser plutot loadAnneeActiveAvecPeriodes + filtrer les types !== 'libre'.
+ *
+ * @returns {Promise<{trimestres: Array, semestres: Array, annees: Array, libres: Array, all: Array}>}
+ */
+export async function loadPeriodesScolaires(supabase, ecole_id) {
+  const fallback = { trimestres: [], semestres: [], annees: [], libres: [], all: [] };
+  if (!ecole_id) return fallback;
+  try {
+    const { data, error } = await supabase.from('periodes_notes')
+      .select('id, nom, nom_ar, date_debut, date_fin, type, actif, annee_scolaire_id')
+      .eq('ecole_id', ecole_id)
+      .eq('actif', true)
+      .order('date_debut', { ascending: true });
+    if (error) {
+      console.warn('[loadPeriodesScolaires]', error.message);
+      return fallback;
+    }
+    const list = data || [];
+    return {
+      trimestres: list.filter(p => p.type === 'trimestre'),
+      semestres:  list.filter(p => p.type === 'semestre'),
+      annees:     list.filter(p => p.type === 'annee'),
+      libres:     list.filter(p => !p.type || p.type === 'libre'),
+      all: list,
+    };
+  } catch (e) {
+    console.error('[loadPeriodesScolaires] error:', e);
+    return fallback;
+  }
+}
+
+/**
+ * Format court d'une periode scolaire pour affichage compact :
+ * "T1" ou "T1 (sept-nov)" selon le contexte
+ */
+export function formatPeriodeCourte(periode, lang='fr', withDates=true) {
+  if (!periode) return '';
+  const nom = lang === 'ar' ? (periode.nom_ar || periode.nom) : (periode.nom || periode.nom_ar);
+  if (!withDates || !periode.date_debut || !periode.date_fin) return nom;
+  const formatMois = (iso) => {
+    const d = new Date(iso);
+    return d.toLocaleDateString(lang === 'ar' ? 'ar-MA' : 'fr-FR', { month: 'short' });
+  };
+  return `${nom} (${formatMois(periode.date_debut)}-${formatMois(periode.date_fin)})`;
+}
+
+/**
+ * Detecte la periode "en cours" parmi un sous-ensemble (typee).
+ * Logique :
+ *   1. Si une periode du type cible contient today -> celle-la
+ *   2. Sinon la prochaine future la plus proche
+ *   3. Sinon la plus recente passee
+ *
+ * @param {Array} periodes - liste des periodes filtrees par type
+ * @returns {Object|null} la periode en cours/proche, ou null si aucune
+ */
+export function detecterPeriodeEnCours(periodes) {
+  if (!periodes || periodes.length === 0) return null;
+  const today = new Date();
+  // 1. Periode contenant today
+  const courante = periodes.find(p => {
+    const d1 = new Date(p.date_debut);
+    const d2 = new Date(p.date_fin);
+    return d1 <= today && today <= d2;
+  });
+  if (courante) return courante;
+  // 2. Prochaine future
+  const futures = periodes.filter(p => new Date(p.date_debut) > today);
+  if (futures.length > 0) {
+    return futures.sort((a,b) => new Date(a.date_debut) - new Date(b.date_debut))[0];
+  }
+  // 3. Plus recente passee
+  const passees = periodes.filter(p => new Date(p.date_fin) < today);
+  if (passees.length > 0) {
+    return passees.sort((a,b) => new Date(b.date_fin) - new Date(a.date_fin))[0];
+  }
+  return null;
+}
+

@@ -99,37 +99,47 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
   };
 
   const selectEleve = async (e) => {
-    // Recharger l'eleve frais depuis la DB (ses hizb_depart/tomon_depart peuvent avoir
-    // change suite a un passage de niveau). Sinon on calcule a partir de donnees periees.
-    let freshEleve = e;
-    try {
-      const { data: fresh } = await supabase.from('eleves').select('*')
-        .eq('id', e.id).maybeSingle();
-      if (fresh) freshEleve = fresh;
-    } catch (err) { /* on garde l'objet initial */ }
+    // === FIX B6 - Selection instantanee (sans SELECT bloquant) ===
+    // Avant : SELECT eleves bloquant a chaque clic (1-3s sur mobile)
+    // Apres : on utilise immediatement les donnees locales (deja en memoire),
+    //         et on lance le SELECT 'frais' en ARRIERE-PLAN pour mettre
+    //         a jour si hizb_depart/tomon_depart ont change suite a un
+    //         passage de niveau.
 
-    const vals = allValidations.filter(v => v.eleve_id === freshEleve.id);
-    setSelectedEleve(freshEleve);
-    setBlocageExamen(null); // reset avant verif
-    const sensEl = getSensForEleve(freshEleve, niveaux, ecoleConfig);
-    setEtat(calcEtatEleve(vals, freshEleve.hizb_depart, freshEleve.tomon_depart, sensEl));
+    // 1. Affichage IMMEDIAT avec les donnees locales (e)
+    setSelectedEleve(e);
+    setBlocageExamen(null);
+    const vals = allValidations.filter(v => v.eleve_id === e.id);
+    const sensEl = getSensForEleve(e, niveaux, ecoleConfig);
+    setEtat(calcEtatEleve(vals, e.hizb_depart, e.tomon_depart, sensEl));
     setSearch('');
     setNbTomon(1);
     setSourateSelectionnee(null);
     setTypeRec('complete');
     setVersetDebut(''); setVersetFin('');
     setProgrammeCharge(false);
-    // Charger en parallèle récitations + souratesDB + programme
-    const [{ data: recs }, { data: sourFresh }] = await Promise.all([
-      supabase.from('recitations_sourates').select('*').eq('eleve_id', freshEleve.id).eq('ecole_id', user.ecole_id),
+
+    // 2. Chargement en PARALLELE : eleve frais + recitations + sourates + niveau
+    const [{ data: fresh }, { data: recs }, { data: sourFresh }] = await Promise.all([
+      supabase.from('eleves').select('*').eq('id', e.id).maybeSingle(),
+      supabase.from('recitations_sourates').select('*').eq('eleve_id', e.id).eq('ecole_id', user.ecole_id),
       supabase.from('sourates').select('*'),
     ]);
-    // Stocker dans des variables locales pour les utiliser dans currentSourate ci-dessous
+
+    // Si l'eleve a ete mis a jour depuis (passage de niveau), on rafraichit
+    const freshEleve = fresh || e;
+    if (fresh && (fresh.hizb_depart !== e.hizb_depart || fresh.tomon_depart !== e.tomon_depart || fresh.code_niveau !== e.code_niveau)) {
+      setSelectedEleve(freshEleve);
+      const sensFresh = getSensForEleve(freshEleve, niveaux, ecoleConfig);
+      setEtat(calcEtatEleve(vals, freshEleve.hizb_depart, freshEleve.tomon_depart, sensFresh));
+    }
+
     const souratesLocal = sourFresh || [];
     const recitationsLocal = recs || [];
     setSouratesDB(souratesLocal);
     setRecitationsSourates(recitationsLocal);
-    // Charger le programme du niveau de l'élève
+
+    // 3. Charger le programme du niveau
     let progData = [];
     const { data: niv } = await supabase.from('niveaux').select('id').eq('code', freshEleve.code_niveau).eq('ecole_id', user.ecole_id).maybeSingle();
     if (niv) {
@@ -141,7 +151,8 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
       setProgrammeNiveau([]);
     }
     setProgrammeCharge(true);
-    // Calculer la sourate en cours avec données LOCALES fraîches (évite timing React)
+
+    // Calculer la sourate en cours avec donnees LOCALES fraiches
     const isSourateEleve = niveaux.some(n => n.code === freshEleve.code_niveau && n.type === 'sourate');
     if (isSourateEleve && souratesLocal.length > 0) {
       const souratesAcquises = freshEleve.sourates_acquises || 0;
@@ -164,7 +175,6 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
     }
 
     // Verification du blocage examen au moment de la selection de l'eleve.
-    // Si bloque, on affiche un bandeau d'avertissement avant meme toute action.
     await checkBlocageExamenEleve(freshEleve, vals, recitationsLocal);
   };
 
@@ -255,6 +265,36 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
       date_validation: new Date().toISOString(),
       tomon_debut: etat.prochainTomon, hizb_validation: etat.hizbEnCours
     };
+
+    // === FIX L2 + Q2=A - OPTIMISTIC UI ===
+    // 1. Ajout IMMEDIAT au state local + recalcul etat
+    // 2. UI a jour INSTANTANEMENT (bouton libere)
+    // 3. INSERT BDD en background (rollback si erreur)
+    const optimisticVal = {
+      id: `temp-${Date.now()}`,
+      ...payload,
+      _optimistic: true,
+    };
+    const newValsOpt = [...allValidations, optimisticVal];
+    setAllValidations(newValsOpt);
+    const sensEl = getSensForEleve(selectedEleve, niveaux, ecoleConfig);
+    const valsEleveOpt = newValsOpt.filter(v => v.eleve_id === selectedEleve.id);
+    setEtat(calcEtatEleve(valsEleveOpt, selectedEleve.hizb_depart, selectedEleve.tomon_depart, sensEl));
+
+    // Affichage flash + reset IMMEDIATS
+    const ptsParTomon = bareme?.unites?.tomon || 0;
+    const pts = nbTomon * ptsParTomon;
+    setFlash({ msg: `✓ ${nbTomon} ثمن · الحزب ${etat.hizbEnCours}`, color: '#1D9E75', pts });
+    setTimeout(() => setFlash(null), 2500);
+    setSessionLog(prev => [{
+      eleve: `${selectedEleve.prenom} ${selectedEleve.nom}`,
+      detail: `${nbTomon} ثمن · الحزب ${etat.hizbEnCours}`, pts,
+      time: new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })
+    }, ...prev.slice(0, 9)]);
+    setNbTomon(1);
+    setSaving(false); // Liberer le bouton IMMEDIATEMENT
+
+    // === INSERT BDD + ROLLBACK SI ERREUR (background) ===
     const res = await enqueueOrRun(supabase, 'validations', 'insert', payload, user.ecole_id);
     const error = res.error;
     const wasQueued = res.status === 'queued';
@@ -264,30 +304,46 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
         ? '✓ تم الحفظ (مزامنة تلقائية)'
         : '✓ Enregistré (sync auto)');
     }
-    if (!error) {
-      const ptsParTomon = bareme?.unites?.tomon || 0;
-      const pts = nbTomon * ptsParTomon;
-      setFlash({ msg: `✓ ${nbTomon} ثمن · الحزب ${etat.hizbEnCours}`, color: '#1D9E75', pts });
-      setTimeout(() => setFlash(null), 2500);
-      setSessionLog(prev => [{
-        eleve: `${selectedEleve.prenom} ${selectedEleve.nom}`,
-        detail: `${nbTomon} ثمن · الحزب ${etat.hizbEnCours}${wasQueued ? ' 💾' : ''}`, pts,
-        time: new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })
-      }, ...prev.slice(0, 9)]);
-      // Si online, recharger l'état depuis la base ; sinon, on ajoute l'op localement à etat
-      if (!wasQueued) {
-        const { data: newVals } = await supabase.from('validations').select('*')
-          .eq('ecole_id', user.ecole_id).eq('eleve_id', selectedEleve.id);
-        const sensEl = getSensForEleve(selectedEleve, niveaux, ecoleConfig);
-        setEtat(calcEtatEleve(newVals || [], selectedEleve.hizb_depart, selectedEleve.tomon_depart, sensEl));
-        // Re-verification blocage : peut etre que ce tomon vient de finir le dernier
-        // hizb d'un examen bloquant -> il faut afficher le bandeau immediatement.
-        await checkBlocageExamenEleve(selectedEleve, newVals || [], recitationsSourates);
+
+    if (error) {
+      // ROLLBACK : retirer la ligne optimiste + refresh BDD
+      toast.error(lang === 'ar'
+        ? `❌ خطأ في الحفظ : ${error.message}`
+        : `❌ Erreur d'enregistrement : ${error.message}`,
+        { duration: 4000 });
+      const { data: refreshVals } = await supabase.from('validations').select('*')
+        .eq('ecole_id', user.ecole_id).eq('eleve_id', selectedEleve.id);
+      if (refreshVals) {
+        // Mettre a jour allValidations (remplace l'optimiste par les vraies donnees)
+        setAllValidations(prev => [
+          ...prev.filter(v => v.eleve_id !== selectedEleve.id),
+          ...refreshVals,
+        ]);
+        setEtat(calcEtatEleve(refreshVals, selectedEleve.hizb_depart, selectedEleve.tomon_depart, sensEl));
       }
-      setNbTomon(1);
-      invalidateMany(['validations', 'recitations_sourates_min', `validations_${selectedEleve.id}`, `recitations_eleve_${selectedEleve.id}`], user.ecole_id);
+      return;
     }
-    setSaving(false);
+
+    // === SUCCES - Refresh BDD en background + verif blocage ===
+    invalidateMany(['validations', 'recitations_sourates_min', `validations_${selectedEleve.id}`, `recitations_eleve_${selectedEleve.id}`], user.ecole_id);
+    if (!wasQueued) {
+      (async () => {
+        try {
+          const { data: newVals } = await supabase.from('validations').select('*')
+            .eq('ecole_id', user.ecole_id).eq('eleve_id', selectedEleve.id);
+          const valsData = newVals || [];
+          // Mise a jour allValidations avec les VRAIES donnees BDD
+          setAllValidations(prev => [
+            ...prev.filter(v => v.eleve_id !== selectedEleve.id),
+            ...valsData,
+          ]);
+          // Verif blocage en background
+          await checkBlocageExamenEleve(selectedEleve, valsData, recitationsSourates);
+        } catch (e) {
+          console.warn('[validerTomon background]', e);
+        }
+      })();
+    }
   };
 
   // Valider hizb complet
@@ -304,44 +360,84 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
       return;
     }
     setSaving(true);
-    const res = await enqueueOrRun(supabase, 'validations', 'insert', {
+    const payload = {
       eleve_id: selectedEleve.id, ecole_id: user.ecole_id, valide_par: user.id,
       nombre_tomon: 0, type_validation: 'hizb_complet',
       date_validation: new Date().toISOString(), hizb_valide: etat.hizbEnCours
-    }, user.ecole_id);
+    };
+
+    // === FIX L2 + Q2=A - OPTIMISTIC UI ===
+    const optimisticVal = {
+      id: `temp-${Date.now()}`,
+      ...payload,
+      _optimistic: true,
+    };
+    const newValsOpt = [...allValidations, optimisticVal];
+    setAllValidations(newValsOpt);
+    const sensEl = getSensForEleve(selectedEleve, niveaux, ecoleConfig);
+    const valsEleveOpt = newValsOpt.filter(v => v.eleve_id === selectedEleve.id);
+    setEtat(calcEtatEleve(valsEleveOpt, selectedEleve.hizb_depart, selectedEleve.tomon_depart, sensEl));
+
+    // Affichage flash IMMEDIAT
+    const ptsHizb = bareme?.unites?.hizb_complet || 0;
+    setFlash({ msg: `🎉 الحزب ${etat.hizbEnCours} مكتمل !`, color: '#EF9F27', pts: ptsHizb });
+    setTimeout(() => setFlash(null), 2500);
+    setSessionLog(prev => [{
+      eleve: `${selectedEleve.prenom} ${selectedEleve.nom}`,
+      detail: `الحزب ${etat.hizbEnCours} مكتمل`, pts: ptsHizb,
+      time: new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })
+    }, ...prev.slice(0, 9)]);
+    const hizbValide = etat.hizbEnCours;
+    setSaving(false); // Liberer le bouton IMMEDIATEMENT
+
+    // === INSERT BDD + ROLLBACK SI ERREUR (background) ===
+    const res = await enqueueOrRun(supabase, 'validations', 'insert', payload, user.ecole_id);
     const error = res.error;
     const wasQueued = res.status === 'queued';
 
     if (wasQueued) {
       toast.success(lang === 'ar' ? '✓ تم الحفظ (مزامنة تلقائية)' : '✓ Enregistré (sync auto)');
     }
-    if (!error) {
-      const ptsHizb = bareme?.unites?.hizb_complet || 0;
-      setFlash({ msg: `🎉 الحزب ${etat.hizbEnCours} مكتمل !${wasQueued ? ' 💾' : ''}`, color: '#EF9F27', pts: ptsHizb });
-      setTimeout(() => setFlash(null), 2500);
-      setSessionLog(prev => [{
-        eleve: `${selectedEleve.prenom} ${selectedEleve.nom}`,
-        detail: `الحزب ${etat.hizbEnCours} مكتمل${wasQueued ? ' 💾' : ''}`, pts: ptsHizb,
-        time: new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })
-      }, ...prev.slice(0, 9)]);
-      if (!wasQueued) {
-        const { data: newVals } = await supabase.from('validations').select('*')
-          .eq('ecole_id', user.ecole_id).eq('eleve_id', selectedEleve.id);
-        const sensEl = getSensForEleve(selectedEleve, niveaux, ecoleConfig);
-        setEtat(calcEtatEleve(newVals || [], selectedEleve.hizb_depart, selectedEleve.tomon_depart, sensEl));
-        // Re-verification blocage : ce hizb venait peut-etre de finir le dernier
-        // hizb d'un examen bloquant -> on affiche le bandeau immediatement
-        // pour empecher l'eleve de continuer la suivante.
-        await checkBlocageExamenEleve(selectedEleve, newVals || [], recitationsSourates);
+
+    if (error) {
+      toast.error(lang === 'ar'
+        ? `❌ خطأ في الحفظ : ${error.message}`
+        : `❌ Erreur d'enregistrement : ${error.message}`,
+        { duration: 4000 });
+      const { data: refreshVals } = await supabase.from('validations').select('*')
+        .eq('ecole_id', user.ecole_id).eq('eleve_id', selectedEleve.id);
+      if (refreshVals) {
+        setAllValidations(prev => [
+          ...prev.filter(v => v.eleve_id !== selectedEleve.id),
+          ...refreshVals,
+        ]);
+        setEtat(calcEtatEleve(refreshVals, selectedEleve.hizb_depart, selectedEleve.tomon_depart, sensEl));
+      }
+      return;
+    }
+
+    invalidateMany(['validations', 'recitations_sourates_min', `validations_${selectedEleve.id}`, `recitations_eleve_${selectedEleve.id}`], user.ecole_id);
+
+    // === SUCCES - BACKGROUND : refresh BDD + blocage + certificats + notifs parents ===
+    if (!wasQueued) {
+      (async () => {
         try {
+          const { data: newVals } = await supabase.from('validations').select('*')
+            .eq('ecole_id', user.ecole_id).eq('eleve_id', selectedEleve.id);
+          const valsData = newVals || [];
+          // Mise a jour avec VRAIES donnees BDD
+          setAllValidations(prev => [
+            ...prev.filter(v => v.eleve_id !== selectedEleve.id),
+            ...valsData,
+          ]);
+          await checkBlocageExamenEleve(selectedEleve, valsData, recitationsSourates);
           const nouveauxCerts = await verifierEtCreerCertificats(supabase, {
             eleve: selectedEleve, ecole_id: user.ecole_id, valide_par: user.id,
-            validations: newVals || [], recitations: [],
+            validations: valsData, recitations: [],
           });
           if (nouveauxCerts && nouveauxCerts.length > 0) {
-            setTimeout(() => setFlash({ msg: `🏅 ${(nouveauxCerts||[]).map(c => c.nom_certificat).join(', ')} !`, color: '#EF9F27', pts: 0 }), 2600);
-            setTimeout(() => setFlash(null), 6000);
-            // NOTIF PARENTS : certificats obtenus
+            setTimeout(() => setFlash({ msg: `🏅 ${(nouveauxCerts||[]).map(c => c.nom_certificat).join(', ')} !`, color: '#EF9F27', pts: 0 }), 600);
+            setTimeout(() => setFlash(null), 4500);
             for (const c of nouveauxCerts) {
               notifierParents({
                 type: 'certificat_obtenu',
@@ -350,19 +446,16 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
               }).catch(e => console.warn('[notif cert express] async error', e));
             }
           }
-        } catch (e) { /* silencieux */ }
-      }
-      // NOTIF PARENTS : validation Hizb complet via Express
-      if (!wasQueued) {
-        notifierParents({
-          type: 'hizb_complet',
-          eleve: { id: selectedEleve.id, prenom: selectedEleve.prenom, nom: selectedEleve.nom, ecole_id: user.ecole_id },
-          donnees: { hizb_num: etat.hizbEnCours, date: new Date().toISOString() },
-        }).catch(e => console.warn('[notif hizb express] async error', e));
-      }
-      invalidateMany(['validations', 'recitations_sourates_min', `validations_${selectedEleve.id}`, `recitations_eleve_${selectedEleve.id}`], user.ecole_id);
+          notifierParents({
+            type: 'hizb_complet',
+            eleve: { id: selectedEleve.id, prenom: selectedEleve.prenom, nom: selectedEleve.nom, ecole_id: user.ecole_id },
+            donnees: { hizb_num: hizbValide, date: new Date().toISOString() },
+          }).catch(e => console.warn('[notif hizb express] async error', e));
+        } catch (e) {
+          console.warn('[validerHizb background]', e);
+        }
+      })();
     }
-    setSaving(false);
   };
 
   // Valider une sourate (complète ou séquence)
@@ -379,6 +472,29 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
       );
       return;
     }
+
+    // === FIX B4b - Protection anti-doublon (cote JS) ===
+    if (typeRec === 'complete') {
+      const sourateIdLocal = souratesDB.find(s => s.numero === sourateSelectionnee.numero)?.id;
+      if (sourateIdLocal) {
+        const dejaValidee = recitationsSourates.some(r =>
+          r.sourate_id === sourateIdLocal &&
+          r.type_recitation === 'complete' &&
+          r.eleve_id === selectedEleve.id
+        );
+        if (dejaValidee) {
+          toast.error(lang === 'ar'
+            ? `⚠️ السورة ${sourateSelectionnee.nom_ar} مُسجَّلة من قبل لهذا الطالب`
+            : `⚠️ Sourate ${sourateSelectionnee.nom_ar} déjà validée pour cet élève`,
+            { duration: 4000 });
+          const { data: refreshRecs } = await supabase.from('recitations_sourates')
+            .select('*').eq('eleve_id', selectedEleve.id).eq('ecole_id', user.ecole_id);
+          if (refreshRecs) setRecitationsSourates(refreshRecs);
+          setSourateSelectionnee(null);
+          return;
+        }
+      }
+    }
     setSaving(true);
 
     // Trouver l'id Supabase par numero
@@ -394,6 +510,54 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
     const ptsSequence = bareme?.unites?.sequence_sourate || 0;
     const pts = typeRec === 'complete' ? ptsComplet : ptsSequence;
 
+    // === FIX L1 + Q2=A - OPTIMISTIC UI ===
+    // 1. Ajout IMMEDIAT au state local (avant l'INSERT BDD)
+    // 2. Calcul SOURATE SUIVANTE IMMEDIAT (avant l'INSERT BDD)
+    // 3. INSERT BDD en arriere-plan (rollback si erreur)
+    // Resultat : tout s'actualise INSTANTANEMENT au clic Valider.
+    const optimisticRec = {
+      id: `temp-${Date.now()}`,
+      eleve_id: selectedEleve.id,
+      ecole_id: user.ecole_id,
+      sourate_id: sourateId,
+      type_recitation: typeRec,
+      verset_debut: typeRec === 'sequence' ? parseInt(versetDebut) : null,
+      verset_fin: typeRec === 'sequence' ? parseInt(versetFin) : null,
+      date_validation: new Date().toISOString(),
+      points: pts,
+      _optimistic: true,
+    };
+    const optimisticRecs = [...recitationsSourates, optimisticRec];
+    setRecitationsSourates(optimisticRecs);
+
+    // Calcul sourate suivante avec donnees OPTIMISTES (instantane)
+    const isCompleteOpt = (id) =>
+      optimisticRecs.some(r => r.sourate_id === id && r.type_recitation === 'complete');
+    const souratesAcquisesOpt = selectedEleve.sourates_acquises || 0;
+    const souratesOrdOpt = programmeNiveau.length > 0
+      ? programmeNiveau.map(p => souratesDB.find(s => String(s.id) === String(p.reference_id))).filter(Boolean).sort((a,b) => b.numero - a.numero)
+      : [...souratesDB].sort((a,b) => b.numero - a.numero);
+    const idxOpt = souratesOrdOpt.findIndex((sr, i) => {
+      if (i < souratesAcquisesOpt) return false;
+      return !isCompleteOpt(sr.id);
+    });
+    setCurrentSourateState(idxOpt >= 0 ? souratesOrdOpt[idxOpt] : null);
+
+    // Affichage flash + reset selection IMMEDIATS
+    const detail = typeRec === 'complete'
+      ? sourateSelectionnee.nom_ar
+      : `${sourateSelectionnee.nom_ar} (V.${versetDebut}→${versetFin})`;
+    setFlash({ msg: `✓ ${detail}`, color: typeRec === 'complete' ? '#EF9F27' : '#1D9E75', pts });
+    setTimeout(() => setFlash(null), 2500);
+    setSessionLog(prev => [{
+      eleve: `${selectedEleve.prenom} ${selectedEleve.nom}`, detail, pts,
+      time: new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })
+    }, ...prev.slice(0, 9)]);
+    setSourateSelectionnee(null); setTypeRec('complete');
+    setVersetDebut(''); setVersetFin('');
+    setSaving(false); // Liberer le bouton IMMEDIATEMENT (UI optimiste a jour)
+
+    // === INSERT BDD + ROLLBACK SI ERREUR (background) ===
     const res = await enqueueOrRun(supabase, 'recitations_sourates', 'insert', {
       eleve_id: selectedEleve.id, ecole_id: user.ecole_id, valide_par: user.id,
       sourate_id: sourateId, type_recitation: typeRec,
@@ -409,55 +573,61 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
     }
 
     if (error) {
-      setFlash({ msg: `❌ ${error.message}`, color: '#E24B4A', pts: 0 });
-      setTimeout(() => setFlash(null), 4000);
-    } else {
-      const detail = typeRec === 'complete'
-        ? sourateSelectionnee.nom_ar
-        : `${sourateSelectionnee.nom_ar} (V.${versetDebut}→${versetFin})`;
-      setFlash({ msg: `✓ ${detail}`, color: typeRec === 'complete' ? '#EF9F27' : '#1D9E75', pts });
-      setTimeout(() => setFlash(null), 2500);
-      setSessionLog(prev => [{
-        eleve: `${selectedEleve.prenom} ${selectedEleve.nom}`, detail, pts,
-        time: new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })
-      }, ...prev.slice(0, 9)]);
-      setSourateSelectionnee(null); setTypeRec('complete');
-      setVersetDebut(''); setVersetFin('');
-      const { data: newRecs } = await supabase.from('recitations_sourates')
-        .select('*').eq('eleve_id', selectedEleve.id).eq('ecole_id', user.ecole_id);
-      const newRecsData = newRecs || [];
-      setRecitationsSourates(newRecsData);
-      // Re-verification blocage examen : la sourate qu'on vient de valider
-      // peut etre la derniere d'un ensemble lie a un examen bloquant.
-      // Si oui, blocageExamen sera mis a jour et le bandeau apparait.
-      const { data: valsForBlocage } = await supabase.from('validations').select('*')
-        .eq('eleve_id', selectedEleve.id).eq('ecole_id', user.ecole_id);
-      await checkBlocageExamenEleve(selectedEleve, valsForBlocage || [], newRecsData);
-      // Vérifier si un jalon/certificat est débloqué
-      const { data: valsForCert } = await supabase.from('validations').select('*')
-        .eq('eleve_id', selectedEleve.id).eq('ecole_id', user.ecole_id);
-      const nouveauxCertsSourate = await verifierEtCreerCertificats(supabase, {
-        eleve: selectedEleve, ecole_id: user.ecole_id, valide_par: user.id,
-        validations: valsForCert || [], recitations: newRecsData,
-      });
-      if (nouveauxCertsSourate.length > 0) {
-        setTimeout(() => setFlash({ msg: `🏅 ${(nouveauxCertsSourate||[]).map(c => c.nom_certificat_ar||c.nom_certificat).join(', ')} !`, color: '#EF9F27', pts: 0 }), 2600);
-        setTimeout(() => setFlash(null), 6000);
+      // ROLLBACK : retirer la ligne optimiste + refresh BDD
+      const isDuplicate = error.code === '23505' || /duplicate|unique/i.test(error.message || '');
+      if (isDuplicate) {
+        toast.error(lang === 'ar'
+          ? `⚠️ السورة مُسجَّلة من قبل (تم منع التكرار)`
+          : `⚠️ Sourate déjà validée (doublon évité)`,
+          { duration: 4000 });
+      } else {
+        toast.error(lang === 'ar'
+          ? `❌ خطأ في الحفظ : ${error.message}`
+          : `❌ Erreur d'enregistrement : ${error.message}`,
+          { duration: 4000 });
       }
-      // Recalculer la sourate suivante
-      const isCompleteLoc2 = (id) =>
-        newRecsData.some(r => r.sourate_id === id && r.type_recitation === 'complete');
-      const souratesAcquises2 = selectedEleve.sourates_acquises || 0;
-      const souratesOrd2 = programmeNiveau.length > 0
-        ? programmeNiveau.map(p => souratesDB.find(s => String(s.id) === String(p.reference_id))).filter(Boolean).sort((a,b) => b.numero - a.numero)
-        : [...souratesDB].sort((a,b) => b.numero - a.numero);
-      const idx2 = souratesOrd2.findIndex((sr, i) => {
-        if (i < souratesAcquises2) return false;
-        return !isCompleteLoc2(sr.id);
-      });
-      setCurrentSourateState(idx2 >= 0 ? souratesOrd2[idx2] : null);
+      // Refresh BDD pour aligner l'UI
+      const { data: refreshRecs } = await supabase.from('recitations_sourates')
+        .select('*').eq('eleve_id', selectedEleve.id).eq('ecole_id', user.ecole_id);
+      if (refreshRecs) {
+        setRecitationsSourates(refreshRecs);
+        // Recalculer sourate suivante avec donnees REELLES
+        const isCompleteReal = (id) =>
+          refreshRecs.some(r => r.sourate_id === id && r.type_recitation === 'complete');
+        const idxReal = souratesOrdOpt.findIndex((sr, i) => {
+          if (i < souratesAcquisesOpt) return false;
+          return !isCompleteReal(sr.id);
+        });
+        setCurrentSourateState(idxReal >= 0 ? souratesOrdOpt[idxReal] : null);
+      }
+      return;
     }
-    setSaving(false);
+
+    // === SUCCES - Refresh BDD en background pour remplacer l'optimistic id par le vrai ===
+    // Et lancer les verifications lentes (certificats, blocage)
+    (async () => {
+      try {
+        const [recsResult, valsResult] = await Promise.all([
+          supabase.from('recitations_sourates').select('*').eq('eleve_id', selectedEleve.id).eq('ecole_id', user.ecole_id),
+          supabase.from('validations').select('*').eq('eleve_id', selectedEleve.id).eq('ecole_id', user.ecole_id),
+        ]);
+        const newRecsData = recsResult.data || [];
+        const valsData = valsResult.data || [];
+        setRecitationsSourates(newRecsData);
+
+        await checkBlocageExamenEleve(selectedEleve, valsData, newRecsData);
+        const nouveauxCertsSourate = await verifierEtCreerCertificats(supabase, {
+          eleve: selectedEleve, ecole_id: user.ecole_id, valide_par: user.id,
+          validations: valsData, recitations: newRecsData,
+        });
+        if (nouveauxCertsSourate.length > 0) {
+          setTimeout(() => setFlash({ msg: `🏅 ${(nouveauxCertsSourate||[]).map(c => c.nom_certificat_ar||c.nom_certificat).join(', ')} !`, color: '#EF9F27', pts: 0 }), 600);
+          setTimeout(() => setFlash(null), 4500);
+        }
+      } catch (e) {
+        console.warn('[validerSourate background]', e);
+      }
+    })();
   };
 
   const sl = selectedEleve && etat ? scoreLabel(etat.points.total) : null;

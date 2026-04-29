@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useToast } from '../lib/toast';
 import { supabase } from '../lib/supabase';
 import ConfirmModal from '../components/ConfirmModal';
-import { getInitiales, calcEtatEleve, calcPoints, BAREME_DEFAUT, loadBareme, saveBaremeItem, isSourateNiveauDyn, getSensForEleve} from '../lib/helpers';
+import { getInitiales, calcEtatEleve, calcPoints, BAREME_DEFAUT, loadBareme, saveBaremeItem, isSourateNiveauDyn, getSensForEleve, genererLoginParentUnique} from '../lib/helpers';
 import { SOURATES_5B, SOURATES_5A, SOURATES_2M, isSourateNiveau } from '../lib/sourates';
 import { t } from '../lib/i18n';
 import ExportButtons from '../components/ExportButtons';
@@ -529,109 +529,722 @@ function BaremeTab({ user, lang, bareme, setBareme, saving, setSaving, showMsg }
 }
 
 // ══════════════════════════════════════════════════════
-// COMPOSANT PeriodesTab — Gestion des périodes de notes
+// COMPOSANT PeriodesTab — Etape 14 (refonte complete)
+// Modele : Annee scolaire = container, periodes attachees a une annee
+// Q1=A : 1 seule annee active a la fois
+// Q3=B : Cloture manuelle puis activation manuelle
+// Q5=C : Bandeau si pas d'annee active + Semaine/Mois/Personnalisee dispo
 // ══════════════════════════════════════════════════════
-function PeriodesTab({ user, lang, periodes, setPeriodes, newPeriode, setNewPeriode, savingPeriode, setSavingPeriode, showMsg }) {
+function PeriodesTab({ user, lang, showMsg }) {
+  // States locaux (le state global periodes/newPeriode n'est plus utilise)
+  const [annees, setAnnees] = useState([]);
+  const [periodes, setPeriodes] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  // UI : annee selectionnee (par defaut active, sinon premiere)
+  const [selectedAnneeId, setSelectedAnneeId] = useState(null);
+  // Modale creation/edition annee
+  const [showAnneeForm, setShowAnneeForm] = useState(false);
+  const [editingAnneeId, setEditingAnneeId] = useState(null);
+  const [formAnnee, setFormAnnee] = useState({ nom: '', date_debut: '', date_fin: '' });
+  // Modale creation periode
+  const [showPeriodeForm, setShowPeriodeForm] = useState(false);
+  const [editingPeriodeId, setEditingPeriodeId] = useState(null);
+  const [formPeriode, setFormPeriode] = useState({ nom_ar: '', date_debut: '', date_fin: '', type: 'trimestre' });
+  // Modale generique de confirmation (Etape 14 v2)
+  const [confirmModale, setConfirmModale] = useState(null); // {titre, message, onConfirm, danger}
 
-  const ajouterPeriode = async () => {
-    if (!newPeriode.nom_ar.trim()) return showMsg('error', lang==='ar'?'اسم الفترة مطلوب':'Nom de la période requis');
-    if (!newPeriode.date_debut) return showMsg('error', lang==='ar'?'تاريخ البداية مطلوب':'Date de début requise');
-    if (!newPeriode.date_fin) return showMsg('error', lang==='ar'?'تاريخ النهاية مطلوب':'Date de fin requise');
-    if (new Date(newPeriode.date_debut) >= new Date(newPeriode.date_fin)) return showMsg('error', lang==='ar'?'تاريخ البداية يجب أن يكون قبل النهاية':'La date de début doit être avant la fin');
-    setSavingPeriode(true);
-    await supabase.from('periodes_notes').insert({
-      ecole_id: user.ecole_id,
-      nom: newPeriode.nom_ar.trim(),
-      nom_ar: newPeriode.nom_ar.trim(),
-      date_debut: newPeriode.date_debut,
-      date_fin: newPeriode.date_fin,
-      actif: true,
-    });
-    const { data } = await supabase.from('periodes_notes').select('*').eq('ecole_id', user.ecole_id).order('date_debut');
-    if (data) setPeriodes(data);
-    setNewPeriode({ nom_ar: '', date_debut: '', date_fin: '' });
-    setSavingPeriode(false);
-    showMsg('success', lang==='ar'?'تمت إضافة الفترة':'Période ajoutée');
-  };
-
-  const supprimerPeriode = async (id) => {
-    await supabase.from('periodes_notes').delete().eq('id', id);
-    setPeriodes(prev => prev.filter(p => p.id !== id));
-    showMsg('success', lang==='ar'?'تم حذف الفترة':'Période supprimée');
-  };
-
-  const toggleActif = async (p) => {
-    await supabase.from('periodes_notes').update({ actif: !p.actif }).eq('id', p.id);
-    setPeriodes(prev => prev.map(x => x.id === p.id ? {...x, actif: !x.actif} : x));
-  };
+  // Etape 14 v2 - L'annee scolaire (annees_scolaires) sert directement comme
+  // periode 'Annee' dans les selecteurs. Le type 'annee' n'est plus propose
+  // a la creation pour eviter la redondance, mais reste affichable pour
+  // les anciennes periodes (retrocompatibilite).
+  const TYPE_OPTIONS_AFFICHAGE = [
+    { val: 'trimestre', icon: '🗓️', label_fr: 'Trimestre',  label_ar: 'فصل دراسي',   color: '#378ADD' },
+    { val: 'semestre',  icon: '📆', label_fr: 'Semestre',   label_ar: 'نصف سنة',     color: '#085041' },
+    { val: 'annee',     icon: '📚', label_fr: 'Année',      label_ar: 'سنة كاملة',  color: '#EF9F27' },
+    { val: 'libre',     icon: '📅', label_fr: 'Libre',      label_ar: 'حر',          color: '#888'    },
+  ];
+  // Options proposees a la creation : sans 'annee' (Q3=A)
+  const TYPE_OPTIONS = TYPE_OPTIONS_AFFICHAGE.filter(o => o.val !== 'annee');
+  const getTypeMeta = (t) => TYPE_OPTIONS_AFFICHAGE.find(o => o.val === (t || 'libre')) || TYPE_OPTIONS_AFFICHAGE[3];
 
   const fmt = (d) => d ? new Date(d).toLocaleDateString(lang==='ar'?'ar-MA':'fr-FR', {day:'2-digit', month:'short', year:'numeric'}) : '—';
 
+  // ──────────────────────────────────────────────
+  // Chargement initial
+  // ──────────────────────────────────────────────
+  const loadData = async () => {
+    setLoading(true);
+    const [aRes, pRes] = await Promise.all([
+      supabase.from('annees_scolaires').select('*').eq('ecole_id', user.ecole_id).order('date_debut', { ascending: false }),
+      supabase.from('periodes_notes').select('*').eq('ecole_id', user.ecole_id).order('date_debut', { ascending: true }),
+    ]);
+    const anneesArr = aRes.data || [];
+    setAnnees(anneesArr);
+    setPeriodes(pRes.data || []);
+    // Selection : annee active si existe, sinon premiere disponible
+    if (!selectedAnneeId) {
+      const active = anneesArr.find(a => a.statut === 'active');
+      setSelectedAnneeId(active ? active.id : (anneesArr[0]?.id || null));
+    }
+    setLoading(false);
+  };
+
+  React.useEffect(() => { loadData(); }, [user.ecole_id]);
+
+  const anneeActive = annees.find(a => a.statut === 'active');
+  const anneeSelectionnee = annees.find(a => a.id === selectedAnneeId) || null;
+  const periodesAnneeSelectionnee = periodes.filter(p => p.annee_scolaire_id === selectedAnneeId);
+  const anneesArchivees = annees.filter(a => a.statut === 'archivee');
+  const anneesAVenir = annees.filter(a => a.statut === 'a_venir');
+
+  // ──────────────────────────────────────────────
+  // CRUD Annee
+  // ──────────────────────────────────────────────
+  const ouvrirCreationAnnee = () => {
+    setEditingAnneeId(null);
+    // Suggestion nom : 2026-2027 base sur today
+    const today = new Date();
+    const yearBase = today.getMonth() >= 8 ? today.getFullYear() : today.getFullYear() - 1;
+    setFormAnnee({
+      nom: `${yearBase}-${yearBase+1}`,
+      date_debut: `${yearBase}-09-01`,
+      date_fin: `${yearBase+1}-06-30`,
+    });
+    setShowAnneeForm(true);
+  };
+
+  const ouvrirEditionAnnee = (annee) => {
+    setEditingAnneeId(annee.id);
+    setFormAnnee({
+      nom: annee.nom,
+      date_debut: annee.date_debut,
+      date_fin: annee.date_fin,
+    });
+    setShowAnneeForm(true);
+  };
+
+  const sauvegarderAnnee = async () => {
+    if (!formAnnee.nom.trim()) return showMsg('error', lang==='ar'?'الاسم مطلوب':'Nom requis');
+    if (!formAnnee.date_debut || !formAnnee.date_fin) return showMsg('error', lang==='ar'?'التواريخ مطلوبة':'Dates requises');
+    if (new Date(formAnnee.date_debut) >= new Date(formAnnee.date_fin)) return showMsg('error', lang==='ar'?'التواريخ غير صحيحة':'Dates invalides');
+    setSaving(true);
+    try {
+      let savedId;
+      if (editingAnneeId) {
+        const { error } = await supabase.from('annees_scolaires').update({
+          nom: formAnnee.nom.trim(),
+          date_debut: formAnnee.date_debut,
+          date_fin: formAnnee.date_fin,
+        }).eq('id', editingAnneeId);
+        if (error) throw error;
+        savedId = editingAnneeId;
+      } else {
+        const { data, error } = await supabase.from('annees_scolaires').insert({
+          ecole_id: user.ecole_id,
+          nom: formAnnee.nom.trim(),
+          date_debut: formAnnee.date_debut,
+          date_fin: formAnnee.date_fin,
+          statut: 'a_venir',
+        }).select().single();
+        if (error) throw error;
+        savedId = data.id;
+      }
+      setShowAnneeForm(false);
+      setSelectedAnneeId(savedId);
+      await loadData();
+      showMsg('success', lang==='ar'?'✅ تم الحفظ':'✅ Enregistré');
+    } catch (err) {
+      console.error('[sauvegarderAnnee]', err);
+      showMsg('error', (lang==='ar'?'فشل: ':'Erreur : ') + err.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const activerAnnee = (annee) => {
+    setConfirmModale({
+      titre: lang==='ar'?'تفعيل السنة':'Activer l\'année',
+      message: lang==='ar'
+        ? `تفعيل '${annee.nom}'؟ سيتم أرشفة السنة الحالية تلقائياً.`
+        : `Activer '${annee.nom}' ? L'année active actuelle sera archivée.`,
+      action: lang==='ar'?'تفعيل':'Activer',
+      danger: false,
+      onConfirm: async () => {
+        setSaving(true);
+        try {
+          if (anneeActive) {
+            await supabase.from('annees_scolaires').update({ statut: 'archivee' }).eq('id', anneeActive.id);
+          }
+          const { error } = await supabase.from('annees_scolaires').update({ statut: 'active' }).eq('id', annee.id);
+          if (error) throw error;
+          try {
+            await supabase.from('audit_log').insert({
+              actor_user_id: user.id, actor_role: user.role || 'surveillant',
+              action: 'annee_scolaire.activee', target_type: 'annees_scolaires',
+              target_id: annee.id, target_label: annee.nom,
+              metadata: { ecole_id: user.ecole_id, archived: anneeActive?.id || null },
+            });
+          } catch(e) { console.warn('[activerAnnee] audit:', e); }
+          await loadData();
+          showMsg('success', lang==='ar'?`✅ السنة ${annee.nom} نشطة الآن`:`✅ Année ${annee.nom} activée`);
+          setConfirmModale(null);
+        } catch (err) {
+          console.error('[activerAnnee]', err);
+          showMsg('error', (lang==='ar'?'فشل: ':'Erreur : ') + err.message);
+        } finally {
+          setSaving(false);
+        }
+      },
+    });
+  };
+
+  const cloturerAnnee = () => {
+    if (!anneeActive) return;
+    setConfirmModale({
+      titre: lang==='ar'?'إغلاق السنة':'Clôturer l\'année',
+      message: lang==='ar'
+        ? `إغلاق السنة '${anneeActive.nom}'؟ ستصبح للقراءة فقط.`
+        : `Clôturer l'année '${anneeActive.nom}' ? Elle deviendra lecture seule.`,
+      action: lang==='ar'?'إغلاق':'Clôturer',
+      danger: false,
+      onConfirm: async () => {
+        setSaving(true);
+        try {
+          const { error } = await supabase.from('annees_scolaires').update({ statut: 'archivee' }).eq('id', anneeActive.id);
+          if (error) throw error;
+          try {
+            await supabase.from('audit_log').insert({
+              actor_user_id: user.id, actor_role: user.role || 'surveillant',
+              action: 'annee_scolaire.archivee', target_type: 'annees_scolaires',
+              target_id: anneeActive.id, target_label: anneeActive.nom,
+              metadata: { ecole_id: user.ecole_id },
+            });
+          } catch(e) { console.warn('[cloturerAnnee] audit:', e); }
+          await loadData();
+          showMsg('success', lang==='ar'?'✅ تم الإغلاق':'✅ Année clôturée');
+          setConfirmModale(null);
+        } catch (err) {
+          console.error('[cloturerAnnee]', err);
+          showMsg('error', (lang==='ar'?'فشل: ':'Erreur : ') + err.message);
+        } finally {
+          setSaving(false);
+        }
+      },
+    });
+  };
+
+  const supprimerAnnee = (annee) => {
+    if (annee.statut === 'active') {
+      return showMsg('error', lang==='ar'?'لا يمكن حذف السنة النشطة':'Impossible de supprimer l\'année active');
+    }
+    const nbPeriodes = periodes.filter(p => p.annee_scolaire_id === annee.id).length;
+    setConfirmModale({
+      titre: lang==='ar'?'حذف السنة':'Supprimer l\'année',
+      message: lang==='ar'
+        ? `حذف '${annee.nom}' و ${nbPeriodes} فترات؟ لا يمكن التراجع.`
+        : `Supprimer '${annee.nom}' et ses ${nbPeriodes} périodes ? Action irréversible.`,
+      action: lang==='ar'?'حذف':'Supprimer',
+      danger: true,
+      onConfirm: async () => {
+        setSaving(true);
+        try {
+          const { error } = await supabase.from('annees_scolaires').delete().eq('id', annee.id);
+          if (error) throw error;
+          if (selectedAnneeId === annee.id) setSelectedAnneeId(null);
+          await loadData();
+          showMsg('success', lang==='ar'?'✅ تم الحذف':'✅ Supprimé');
+          setConfirmModale(null);
+        } catch (err) {
+          console.error('[supprimerAnnee]', err);
+          showMsg('error', (lang==='ar'?'فشل: ':'Erreur : ') + err.message);
+        } finally {
+          setSaving(false);
+        }
+      },
+    });
+  };
+
+  const preparerAnneeSuivante = () => {
+    if (!anneeActive) {
+      return showMsg('error', lang==='ar'?'لا توجد سنة نشطة لنسخها':'Aucune année active à recopier');
+    }
+    const periodesActives = periodes.filter(p => p.annee_scolaire_id === anneeActive.id);
+    if (periodesActives.length === 0) {
+      return showMsg('error', lang==='ar'?'السنة النشطة بدون فترات':'L\'année active n\'a aucune période');
+    }
+    const ajouterUnAn = (iso) => {
+      const d = new Date(iso); d.setFullYear(d.getFullYear()+1);
+      const y=d.getFullYear(), m=String(d.getMonth()+1).padStart(2,'0'), dd=String(d.getDate()).padStart(2,'0');
+      return `${y}-${m}-${dd}`;
+    };
+    const remplacerAnnee = (nom) => (nom||'').replace(/(\d{4})-(\d{4})/, (m,a,b)=>`${parseInt(a)+1}-${parseInt(b)+1}`).replace(/(\d{4})/, (m,a)=>`${parseInt(a)+1}`);
+    const nouveauNom = remplacerAnnee(anneeActive.nom);
+    setConfirmModale({
+      titre: lang==='ar'?'تحضير السنة المقبلة':'Préparer l\'année suivante',
+      message: lang==='ar'
+        ? `إنشاء '${nouveauNom}' مع ${periodesActives.length} فترات منسوخة (+1 سنة)؟`
+        : `Créer '${nouveauNom}' avec ${periodesActives.length} périodes recopiées (+1 an) ?`,
+      action: lang==='ar'?'تحضير':'Préparer',
+      danger: false,
+      onConfirm: async () => {
+        setSaving(true);
+        try {
+          const { data: newAnnee, error: errA } = await supabase.from('annees_scolaires').insert({
+            ecole_id: user.ecole_id,
+            nom: nouveauNom,
+            date_debut: ajouterUnAn(anneeActive.date_debut),
+            date_fin: ajouterUnAn(anneeActive.date_fin),
+            statut: 'a_venir',
+          }).select().single();
+          if (errA) throw errA;
+          const nouvellesPeriodes = periodesActives.map(p => ({
+            ecole_id: user.ecole_id,
+            annee_scolaire_id: newAnnee.id,
+            nom: remplacerAnnee(p.nom),
+            nom_ar: remplacerAnnee(p.nom_ar || p.nom),
+            date_debut: ajouterUnAn(p.date_debut),
+            date_fin: ajouterUnAn(p.date_fin),
+            type: p.type,
+            actif: true,
+          }));
+          const { error: errP } = await supabase.from('periodes_notes').insert(nouvellesPeriodes);
+          if (errP) throw errP;
+          try {
+            await supabase.from('audit_log').insert({
+              actor_user_id: user.id, actor_role: user.role || 'surveillant',
+              action: 'annee_scolaire.preparee', target_type: 'annees_scolaires',
+              target_id: newAnnee.id, target_label: nouveauNom,
+              metadata: { ecole_id: user.ecole_id, periodes_recopiees: nouvellesPeriodes.length },
+            });
+          } catch(e) { console.warn('[preparerAnnee] audit:', e); }
+          setSelectedAnneeId(newAnnee.id);
+          await loadData();
+          showMsg('success', lang==='ar'
+            ? `🎉 ${nouveauNom} مع ${nouvellesPeriodes.length} فترات`
+            : `🎉 ${nouveauNom} créée avec ${nouvellesPeriodes.length} périodes`);
+          setConfirmModale(null);
+        } catch (err) {
+          console.error('[preparerAnnee]', err);
+          showMsg('error', (lang==='ar'?'فشل: ':'Erreur : ') + err.message);
+        } finally {
+          setSaving(false);
+        }
+      },
+    });
+  };
+
+  // ──────────────────────────────────────────────
+  // CRUD Periode
+  // ──────────────────────────────────────────────
+  const ouvrirCreationPeriode = () => {
+    if (!anneeSelectionnee) return showMsg('error', lang==='ar'?'اختر سنة أولاً':'Sélectionnez une année');
+    setEditingPeriodeId(null);
+    // Pre-rempli dates avec celles de l'annee
+    setFormPeriode({
+      nom_ar: '',
+      date_debut: anneeSelectionnee.date_debut,
+      date_fin: anneeSelectionnee.date_fin,
+      type: 'trimestre',
+    });
+    setShowPeriodeForm(true);
+  };
+
+  const ouvrirEditionPeriode = (p) => {
+    setEditingPeriodeId(p.id);
+    setFormPeriode({
+      nom_ar: p.nom_ar || p.nom || '',
+      date_debut: p.date_debut,
+      date_fin: p.date_fin,
+      type: p.type || 'libre',
+    });
+    setShowPeriodeForm(true);
+  };
+
+  const sauvegarderPeriode = async () => {
+    if (!formPeriode.nom_ar.trim()) return showMsg('error', lang==='ar'?'الاسم مطلوب':'Nom requis');
+    if (!formPeriode.date_debut || !formPeriode.date_fin) return showMsg('error', lang==='ar'?'التواريخ مطلوبة':'Dates requises');
+    if (new Date(formPeriode.date_debut) >= new Date(formPeriode.date_fin)) return showMsg('error', lang==='ar'?'التواريخ غير صحيحة':'Dates invalides');
+    // Detection doublon par DATES dans la meme annee
+    const doublons = periodes.filter(p =>
+      p.annee_scolaire_id === selectedAnneeId &&
+      p.id !== editingPeriodeId &&
+      p.date_debut === formPeriode.date_debut &&
+      p.date_fin === formPeriode.date_fin
+    );
+    if (doublons.length > 0) {
+      return showMsg('error', lang==='ar'
+        ? `⚠️ توجد فترة بنفس التواريخ: ${doublons[0].nom_ar||doublons[0].nom}`
+        : `⚠️ Période existante avec ces dates : ${doublons[0].nom_ar||doublons[0].nom}`);
+    }
+    setSaving(true);
+    try {
+      const payload = {
+        ecole_id: user.ecole_id,
+        annee_scolaire_id: selectedAnneeId,
+        nom: formPeriode.nom_ar.trim(),
+        nom_ar: formPeriode.nom_ar.trim(),
+        date_debut: formPeriode.date_debut,
+        date_fin: formPeriode.date_fin,
+        type: formPeriode.type,
+        actif: true,
+      };
+      if (editingPeriodeId) {
+        const { error } = await supabase.from('periodes_notes').update(payload).eq('id', editingPeriodeId);
+        if (error) throw error;
+      } else {
+        const { error } = await supabase.from('periodes_notes').insert(payload);
+        if (error) throw error;
+      }
+      setShowPeriodeForm(false);
+      await loadData();
+      showMsg('success', lang==='ar'?'✅ تم الحفظ':'✅ Enregistré');
+    } catch (err) {
+      console.error('[sauvegarderPeriode]', err);
+      showMsg('error', (lang==='ar'?'فشل: ':'Erreur : ') + err.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const supprimerPeriode = (p) => {
+    setConfirmModale({
+      titre: lang==='ar'?'حذف الفترة':'Supprimer la période',
+      message: lang==='ar'?`حذف '${p.nom_ar||p.nom}'؟`:`Supprimer '${p.nom_ar||p.nom}' ?`,
+      action: lang==='ar'?'حذف':'Supprimer',
+      danger: true,
+      onConfirm: async () => {
+        setSaving(true);
+        try {
+          await supabase.from('periodes_notes').delete().eq('id', p.id);
+          await loadData();
+          showMsg('success', lang==='ar'?'✅ تم الحذف':'✅ Supprimé');
+          setConfirmModale(null);
+        } catch (err) {
+          console.error('[supprimerPeriode]', err);
+          showMsg('error', (lang==='ar'?'فشل: ':'Erreur : ') + err.message);
+        } finally {
+          setSaving(false);
+        }
+      },
+    });
+  };
+
+  // ──────────────────────────────────────────────
+  // RENDU
+  // ──────────────────────────────────────────────
+  if (loading) return <div style={{padding:40,textAlign:'center',color:'#888'}}>{lang==='ar'?'جاري التحميل...':'Chargement...'}</div>;
+
+  const anneeEstArchivee = anneeSelectionnee?.statut === 'archivee';
+  const peutEditer = anneeSelectionnee?.statut !== 'archivee';
+
   return (
     <div>
-      <div style={{fontSize:13,color:'#888',marginBottom:'1.25rem'}}>
-        {lang==='ar'?'حدد فترات التقييم (أسابيع، أشهر، فصول دراسية) لحساب النقاط والتصنيف':"Définissez les périodes d'évaluation pour le calcul des points et classements"}
-      </div>
-
-      <div className="card" style={{marginBottom:'1.5rem'}}>
-        <div className="section-label">{lang==='ar'?'إضافة فترة جديدة':'Ajouter une période'}</div>
-        <div className="form-grid">
-          <div className="field-group" style={{gridColumn:'1/-1'}}>
-            <label className="field-lbl">{lang==='ar'?'اسم الفترة':'Nom de la période'} <span style={{color:'#E24B4A'}}>*</span></label>
-            <input className="field-input" value={newPeriode.nom_ar}
-              onChange={e=>setNewPeriode({...newPeriode, nom_ar: e.target.value})}
-              placeholder={lang==='ar'?'مثال: الفصل الأول 2024-2025':'Ex: 1er trimestre 2024-2025'}
-              style={{direction:'rtl', fontFamily:"'Tajawal',Arial,sans-serif"}} />
+      {/* Cas : aucune annee configuree */}
+      {annees.length === 0 && (
+        <div style={{
+          background:'linear-gradient(135deg,#FFF8EC,#FAEEDA)',
+          border:'1px solid #EF9F2740',borderRadius:12,padding:'24px',marginBottom:14,textAlign:'center',
+        }}>
+          <div style={{fontSize:42,marginBottom:10}}>📅</div>
+          <div style={{fontSize:16,fontWeight:800,color:'#7B5800',marginBottom:6}}>
+            {lang==='ar'?'لم تقم بإعداد أي سنة دراسية':'Aucune année scolaire configurée'}
           </div>
-          <div className="field-group">
-            <label className="field-lbl">{lang==='ar'?'تاريخ البداية':'Date de début'} <span style={{color:'#E24B4A'}}>*</span></label>
-            <input className="field-input" type="date" value={newPeriode.date_debut}
-              onChange={e=>setNewPeriode({...newPeriode, date_debut: e.target.value})} />
+          <div style={{fontSize:13,color:'#8a5a00',marginBottom:14,lineHeight:1.5}}>
+            {lang==='ar'?'ابدأ بإنشاء أول سنة دراسية لتنظيم فتراتك':'Commencez par créer votre première année scolaire'}
           </div>
-          <div className="field-group">
-            <label className="field-lbl">{lang==='ar'?'تاريخ النهاية':'Date de fin'} <span style={{color:'#E24B4A'}}>*</span></label>
-            <input className="field-input" type="date" value={newPeriode.date_fin}
-              onChange={e=>setNewPeriode({...newPeriode, date_fin: e.target.value})} />
-          </div>
+          <button onClick={ouvrirCreationAnnee}
+            style={{padding:'10px 20px',background:'linear-gradient(135deg,#1D9E75,#085041)',color:'#fff',border:'none',borderRadius:10,fontSize:14,fontWeight:700,cursor:'pointer',fontFamily:'inherit',boxShadow:'0 2px 8px rgba(8,80,65,0.3)'}}>
+            ➕ {lang==='ar'?'إنشاء سنة دراسية':'Créer une année scolaire'}
+          </button>
         </div>
-        <button className="btn-primary" onClick={ajouterPeriode} disabled={savingPeriode}>
-          {savingPeriode ? '...' : (lang==='ar'?'إضافة الفترة':'Ajouter la période')}
-        </button>
-      </div>
+      )}
 
-      <div className="section-label">{lang==='ar'?'الفترات المُعرَّفة':'Périodes configurées'} ({periodes.length})</div>
-      {periodes.length === 0 ? (
-        <div className="empty">{lang==='ar'?'لا توجد فترات بعد — أضف أول فترة أعلاه':'Aucune période — ajoutez-en une ci-dessus'}</div>
-      ) : (
-        <div style={{display:'flex',flexDirection:'column',gap:8}}>
-          {periodes.map(p => (
-            <div key={p.id} style={{background:'#fff',border:'0.5px solid #e0e0d8',borderRadius:12,padding:'12px 14px',display:'flex',alignItems:'center',gap:12,opacity:p.actif?1:0.5}}>
-              <div style={{width:44,height:44,borderRadius:12,background:p.actif?'#E6F1FB':'#f0f0ec',display:'flex',alignItems:'center',justifyContent:'center',fontSize:22,flexShrink:0}}>📊</div>
+      {/* Cas : annees existent */}
+      {annees.length > 0 && (
+        <>
+          {/* Selecteur annee */}
+          <div style={{
+            background:'#fff',border:'0.5px solid #e0e0d8',borderRadius:12,
+            padding:'14px 16px',marginBottom:14,
+          }}>
+            <div style={{display:'flex',alignItems:'center',gap:10,flexWrap:'wrap',marginBottom:10}}>
+              <div style={{fontSize:11,fontWeight:700,color:'#666',textTransform:'uppercase',letterSpacing:0.3}}>
+                {lang==='ar'?'السنة الدراسية':'Année scolaire'}
+              </div>
+              <select value={selectedAnneeId || ''} onChange={e=>setSelectedAnneeId(e.target.value)}
+                style={{padding:'7px 10px',borderRadius:8,border:'1px solid #d0d8e8',fontSize:13,fontWeight:600,fontFamily:'inherit',cursor:'pointer',flex:1,minWidth:150}}>
+                {annees.map(a => {
+                  const meta = a.statut==='active' ? '✅ ' : a.statut==='archivee' ? '📂 ' : '📅 ';
+                  return <option key={a.id} value={a.id}>{meta}{a.nom}</option>;
+                })}
+              </select>
+            </div>
+            {anneeSelectionnee && (
+              <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}>
+                {/* Badge statut */}
+                {anneeSelectionnee.statut === 'active' && (
+                  <span style={{padding:'3px 10px',borderRadius:8,fontSize:10,fontWeight:700,background:'#E1F5EE',color:'#085041',border:'0.5px solid #1D9E7530'}}>
+                    ✅ {lang==='ar'?'نشطة':'Active'}
+                  </span>
+                )}
+                {anneeSelectionnee.statut === 'archivee' && (
+                  <span style={{padding:'3px 10px',borderRadius:8,fontSize:10,fontWeight:700,background:'#f0f0ec',color:'#888',border:'0.5px solid #e0e0d8'}}>
+                    📂 {lang==='ar'?'مؤرشفة':'Archivée'}
+                  </span>
+                )}
+                {anneeSelectionnee.statut === 'a_venir' && (
+                  <span style={{padding:'3px 10px',borderRadius:8,fontSize:10,fontWeight:700,background:'#FFF8EC',color:'#7B5800',border:'0.5px solid #EF9F2730'}}>
+                    📅 {lang==='ar'?'قادمة':'À venir'}
+                  </span>
+                )}
+                {/* Dates */}
+                <span style={{fontSize:12,color:'#666',fontWeight:600}}>
+                  📅 {fmt(anneeSelectionnee.date_debut)} → {fmt(anneeSelectionnee.date_fin)}
+                </span>
+                <div style={{flex:1}}/>
+                {/* Actions selon statut */}
+                {anneeSelectionnee.statut === 'a_venir' && (
+                  <button onClick={()=>activerAnnee(anneeSelectionnee)} disabled={saving}
+                    style={{padding:'5px 12px',borderRadius:8,fontSize:11,fontWeight:700,cursor:saving?'not-allowed':'pointer',
+                      background:'linear-gradient(135deg,#1D9E75,#085041)',color:'#fff',border:'none',fontFamily:'inherit'}}>
+                    ▶ {lang==='ar'?'تفعيل':'Activer'}
+                  </button>
+                )}
+                {anneeSelectionnee.statut === 'active' && (
+                  <button onClick={cloturerAnnee} disabled={saving}
+                    style={{padding:'5px 12px',borderRadius:8,fontSize:11,fontWeight:700,cursor:saving?'not-allowed':'pointer',
+                      background:'#FFF8EC',color:'#7B5800',border:'1px solid #EF9F2730',fontFamily:'inherit'}}>
+                    ⏸ {lang==='ar'?'إغلاق':'Clôturer'}
+                  </button>
+                )}
+                <button onClick={()=>ouvrirEditionAnnee(anneeSelectionnee)} disabled={saving || anneeEstArchivee}
+                  style={{padding:'5px 10px',borderRadius:8,fontSize:11,fontWeight:600,cursor:(saving||anneeEstArchivee)?'not-allowed':'pointer',
+                    background:'#E6F1FB',color:'#378ADD',border:'0.5px solid #378ADD30',opacity:anneeEstArchivee?0.5:1,fontFamily:'inherit'}}>
+                  ✏️
+                </button>
+                {anneeSelectionnee.statut !== 'active' && (
+                  <button onClick={()=>supprimerAnnee(anneeSelectionnee)} disabled={saving}
+                    style={{padding:'5px 10px',borderRadius:8,fontSize:11,fontWeight:600,cursor:saving?'not-allowed':'pointer',
+                      background:'#FCEBEB',color:'#E24B4A',border:'0.5px solid #E24B4A30',fontFamily:'inherit'}}>
+                    🗑
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Boutons globaux */}
+          <div style={{display:'flex',gap:8,flexWrap:'wrap',marginBottom:14}}>
+            <button onClick={ouvrirCreationAnnee} disabled={saving}
+              style={{padding:'8px 14px',borderRadius:8,fontSize:12,fontWeight:700,cursor:saving?'not-allowed':'pointer',
+                background:'#fff',color:'#085041',border:'1px solid #1D9E7540',fontFamily:'inherit'}}>
+              ➕ {lang==='ar'?'سنة جديدة':'Nouvelle année'}
+            </button>
+            {anneeActive && (
+              <button onClick={preparerAnneeSuivante} disabled={saving}
+                style={{padding:'8px 14px',borderRadius:8,fontSize:12,fontWeight:700,cursor:saving?'not-allowed':'pointer',
+                  background:'linear-gradient(135deg,#1D9E75,#085041)',color:'#fff',border:'none',fontFamily:'inherit',boxShadow:'0 2px 8px rgba(8,80,65,0.25)'}}>
+                🔄 {lang==='ar'?'تحضير السنة المقبلة':'Préparer l\'année suivante'}
+              </button>
+            )}
+          </div>
+
+          {/* Liste des periodes de l'annee selectionnee */}
+          {anneeSelectionnee && (
+            <div>
+              <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:10,gap:8,flexWrap:'wrap'}}>
+                <div className="section-label" style={{margin:0}}>
+                  {lang==='ar'?'الفترات':'Périodes'} ({periodesAnneeSelectionnee.length})
+                </div>
+                {peutEditer && (
+                  <button onClick={ouvrirCreationPeriode} disabled={saving}
+                    style={{padding:'6px 12px',borderRadius:8,fontSize:11,fontWeight:700,cursor:saving?'not-allowed':'pointer',
+                      background:'#085041',color:'#fff',border:'none',fontFamily:'inherit'}}>
+                    ➕ {lang==='ar'?'إضافة فترة':'Ajouter une période'}
+                  </button>
+                )}
+              </div>
+              {periodesAnneeSelectionnee.length === 0 ? (
+                <div className="empty">{lang==='ar'?'لا توجد فترات في هذه السنة':'Aucune période dans cette année'}</div>
+              ) : (
+                <div style={{display:'flex',flexDirection:'column',gap:8}}>
+                  {periodesAnneeSelectionnee.map(p => {
+                    const meta = getTypeMeta(p.type);
+                    return (
+                      <div key={p.id} style={{background:'#fff',border:'0.5px solid #e0e0d8',borderRadius:12,padding:'12px 14px',display:'flex',alignItems:'center',gap:12}}>
+                        <div style={{width:44,height:44,borderRadius:12,background:`${meta.color}15`,display:'flex',alignItems:'center',justifyContent:'center',fontSize:22,flexShrink:0}}>{meta.icon}</div>
+                        <div style={{flex:1,minWidth:0}}>
+                          <div style={{display:'flex',alignItems:'center',gap:6,flexWrap:'wrap'}}>
+                            <div style={{fontWeight:700,fontSize:14,color:'#1a1a1a'}}>{p.nom_ar||p.nom}</div>
+                            <span style={{padding:'1px 7px',borderRadius:8,fontSize:9,fontWeight:700,
+                              background:`${meta.color}15`,color:meta.color,border:`0.5px solid ${meta.color}40`}}>
+                              {lang==='ar'?meta.label_ar:meta.label_fr}
+                            </span>
+                          </div>
+                          <div style={{fontSize:11,color:'#888',marginTop:2,fontWeight:600}}>
+                            📅 {fmt(p.date_debut)} → {fmt(p.date_fin)}
+                          </div>
+                        </div>
+                        {peutEditer && (
+                          <div style={{display:'flex',gap:5}}>
+                            <button onClick={()=>ouvrirEditionPeriode(p)} disabled={saving}
+                              style={{padding:'4px 8px',borderRadius:6,fontSize:11,fontWeight:600,cursor:saving?'not-allowed':'pointer',
+                                background:'#E6F1FB',color:'#378ADD',border:'0.5px solid #378ADD30'}}>✏️</button>
+                            <button onClick={()=>supprimerPeriode(p)} disabled={saving}
+                              style={{padding:'4px 8px',borderRadius:6,fontSize:11,fontWeight:600,cursor:saving?'not-allowed':'pointer',
+                                background:'#FCEBEB',color:'#E24B4A',border:'0.5px solid #E24B4A30'}}>🗑</button>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+        </>
+      )}
+
+      {/* MODALE de confirmation generique (Etape 14 v2 - remplace window.confirm) */}
+      {confirmModale && (
+        <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.55)',zIndex:10000,display:'flex',alignItems:'center',justifyContent:'center',padding:20}}
+          onClick={()=>{ if(!saving) setConfirmModale(null); }}>
+          <div onClick={e=>e.stopPropagation()}
+            style={{background:'#fff',borderRadius:16,maxWidth:440,width:'100%',padding:24,boxShadow:'0 20px 60px rgba(0,0,0,0.3)'}}>
+            <div style={{display:'flex',alignItems:'center',gap:12,marginBottom:14}}>
+              <div style={{
+                width:48,height:48,borderRadius:14,
+                background:confirmModale.danger?'#FCEBEB':'#E1F5EE',
+                display:'flex',alignItems:'center',justifyContent:'center',fontSize:24,flexShrink:0,
+              }}>
+                {confirmModale.danger?'⚠️':'❓'}
+              </div>
               <div style={{flex:1}}>
-                <div style={{fontWeight:700,fontSize:14,color:'#1a1a1a',direction:'rtl',fontFamily:"'Tajawal',Arial,sans-serif"}}>{p.nom_ar||p.nom}</div>
-                <div style={{fontSize:11,color:'#378ADD',marginTop:2,fontWeight:600}}>
-                  📅 {fmt(p.date_debut)} → {fmt(p.date_fin)}
+                <div style={{fontSize:16,fontWeight:800,color:'#1a1a1a'}}>
+                  {confirmModale.titre}
                 </div>
               </div>
-              <div style={{display:'flex',gap:6}}>
-                <button onClick={()=>toggleActif(p)}
-                  style={{padding:'4px 8px',borderRadius:6,fontSize:11,fontWeight:600,cursor:'pointer',
-                    background:p.actif?'#E1F5EE':'#f0f0ec',color:p.actif?'#085041':'#888',
-                    border:`0.5px solid ${p.actif?'#1D9E7530':'#e0e0d8'}`}}>
-                  {p.actif ? (lang==='ar'?'نشطة':'Active') : (lang==='ar'?'غير نشطة':'Inactive')}
-                </button>
-                <button onClick={()=>supprimerPeriode(p.id)}
-                  style={{padding:'4px 8px',borderRadius:6,background:'#FCEBEB',color:'#E24B4A',border:'0.5px solid #E24B4A30',cursor:'pointer',fontSize:11,fontWeight:600}}>
-                  🗑
-                </button>
+            </div>
+            <div style={{fontSize:13,color:'#444',lineHeight:1.6,marginBottom:18}}>
+              {confirmModale.message}
+            </div>
+            <div style={{display:'flex',gap:8}}>
+              <button onClick={()=>setConfirmModale(null)} disabled={saving}
+                style={{flex:1,padding:11,background:'#f5f5f0',color:'#666',border:'none',borderRadius:10,fontSize:13,fontWeight:600,cursor:saving?'not-allowed':'pointer',fontFamily:'inherit'}}>
+                {lang==='ar'?'إلغاء':'Annuler'}
+              </button>
+              <button onClick={confirmModale.onConfirm} disabled={saving}
+                style={{flex:2,padding:11,
+                  background:saving?'#ccc':(confirmModale.danger?'#E24B4A':'linear-gradient(135deg,#1D9E75,#085041)'),
+                  color:'#fff',border:'none',borderRadius:10,fontSize:13,fontWeight:700,cursor:saving?'not-allowed':'pointer',fontFamily:'inherit'}}>
+                {saving?(lang==='ar'?'جاري...':'En cours...'):confirmModale.action}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODALE creation/edition annee */}
+      {showAnneeForm && (
+        <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.55)',zIndex:9999,display:'flex',alignItems:'center',justifyContent:'center',padding:20}}
+          onClick={()=>{ if(!saving) setShowAnneeForm(false); }}>
+          <div onClick={e=>e.stopPropagation()}
+            style={{background:'#fff',borderRadius:16,maxWidth:480,width:'100%',padding:24,boxShadow:'0 20px 60px rgba(0,0,0,0.3)'}}>
+            <div style={{fontSize:17,fontWeight:800,color:'#085041',marginBottom:14}}>
+              {editingAnneeId ? (lang==='ar'?'تعديل السنة':'Modifier l\'année') : (lang==='ar'?'سنة دراسية جديدة':'Nouvelle année scolaire')}
+            </div>
+            <div style={{display:'flex',flexDirection:'column',gap:12,marginBottom:14}}>
+              <div className="field-group">
+                <label className="field-lbl">{lang==='ar'?'الاسم':'Nom'} <span style={{color:'#E24B4A'}}>*</span></label>
+                <input className="field-input" value={formAnnee.nom}
+                  onChange={e=>setFormAnnee({...formAnnee, nom:e.target.value})}
+                  placeholder="2026-2027"/>
+              </div>
+              <div className="field-group">
+                <label className="field-lbl">{lang==='ar'?'تاريخ البداية':'Date de début'} <span style={{color:'#E24B4A'}}>*</span></label>
+                <input className="field-input" type="date" value={formAnnee.date_debut}
+                  onChange={e=>setFormAnnee({...formAnnee, date_debut:e.target.value})}/>
+              </div>
+              <div className="field-group">
+                <label className="field-lbl">{lang==='ar'?'تاريخ النهاية':'Date de fin'} <span style={{color:'#E24B4A'}}>*</span></label>
+                <input className="field-input" type="date" value={formAnnee.date_fin}
+                  onChange={e=>setFormAnnee({...formAnnee, date_fin:e.target.value})}/>
               </div>
             </div>
-          ))}
+            <div style={{display:'flex',gap:8}}>
+              <button onClick={()=>setShowAnneeForm(false)} disabled={saving}
+                style={{flex:1,padding:11,background:'#f5f5f0',color:'#666',border:'none',borderRadius:10,fontSize:13,fontWeight:600,cursor:saving?'not-allowed':'pointer',fontFamily:'inherit'}}>
+                {lang==='ar'?'إلغاء':'Annuler'}
+              </button>
+              <button onClick={sauvegarderAnnee} disabled={saving}
+                style={{flex:2,padding:11,background:saving?'#ccc':'linear-gradient(135deg,#1D9E75,#085041)',color:'#fff',border:'none',borderRadius:10,fontSize:13,fontWeight:700,cursor:saving?'not-allowed':'pointer',fontFamily:'inherit'}}>
+                {saving?(lang==='ar'?'جاري...':'En cours...'):(lang==='ar'?'حفظ':'Enregistrer')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODALE creation/edition periode */}
+      {showPeriodeForm && (
+        <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.55)',zIndex:9999,display:'flex',alignItems:'center',justifyContent:'center',padding:20}}
+          onClick={()=>{ if(!saving) setShowPeriodeForm(false); }}>
+          <div onClick={e=>e.stopPropagation()}
+            style={{background:'#fff',borderRadius:16,maxWidth:520,width:'100%',padding:24,boxShadow:'0 20px 60px rgba(0,0,0,0.3)',maxHeight:'90vh',overflowY:'auto'}}>
+            <div style={{fontSize:17,fontWeight:800,color:'#085041',marginBottom:14}}>
+              {editingPeriodeId ? (lang==='ar'?'تعديل الفترة':'Modifier la période') : (lang==='ar'?'فترة جديدة':'Nouvelle période')}
+            </div>
+            <div style={{display:'flex',flexDirection:'column',gap:12,marginBottom:14}}>
+              <div className="field-group">
+                <label className="field-lbl">{lang==='ar'?'النوع':'Type'}</label>
+                <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>
+                  {TYPE_OPTIONS.map(opt => (
+                    <button key={opt.val} type="button"
+                      onClick={()=>setFormPeriode({...formPeriode, type:opt.val})}
+                      style={{padding:'7px 14px',borderRadius:8,
+                        background:formPeriode.type===opt.val?opt.color:'#fff',
+                        color:formPeriode.type===opt.val?'#fff':opt.color,
+                        border:`1px solid ${opt.color}50`,cursor:'pointer',fontSize:12,fontWeight:600,fontFamily:'inherit'}}>
+                      {opt.icon} {lang==='ar'?opt.label_ar:opt.label_fr}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div className="field-group">
+                <label className="field-lbl">{lang==='ar'?'الاسم':'Nom'} <span style={{color:'#E24B4A'}}>*</span></label>
+                <input className="field-input" value={formPeriode.nom_ar}
+                  onChange={e=>setFormPeriode({...formPeriode, nom_ar:e.target.value})}
+                  placeholder={lang==='ar'?'مثال: الفصل الأول':'Ex: Trimestre 1'}/>
+              </div>
+              <div className="field-group">
+                <label className="field-lbl">{lang==='ar'?'تاريخ البداية':'Date de début'} <span style={{color:'#E24B4A'}}>*</span></label>
+                <input className="field-input" type="date" value={formPeriode.date_debut}
+                  onChange={e=>setFormPeriode({...formPeriode, date_debut:e.target.value})}/>
+              </div>
+              <div className="field-group">
+                <label className="field-lbl">{lang==='ar'?'تاريخ النهاية':'Date de fin'} <span style={{color:'#E24B4A'}}>*</span></label>
+                <input className="field-input" type="date" value={formPeriode.date_fin}
+                  onChange={e=>setFormPeriode({...formPeriode, date_fin:e.target.value})}/>
+              </div>
+            </div>
+            <div style={{display:'flex',gap:8}}>
+              <button onClick={()=>setShowPeriodeForm(false)} disabled={saving}
+                style={{flex:1,padding:11,background:'#f5f5f0',color:'#666',border:'none',borderRadius:10,fontSize:13,fontWeight:600,cursor:saving?'not-allowed':'pointer',fontFamily:'inherit'}}>
+                {lang==='ar'?'إلغاء':'Annuler'}
+              </button>
+              <button onClick={sauvegarderPeriode} disabled={saving}
+                style={{flex:2,padding:11,background:saving?'#ccc':'linear-gradient(135deg,#1D9E75,#085041)',color:'#fff',border:'none',borderRadius:10,fontSize:13,fontWeight:700,cursor:saving?'not-allowed':'pointer',fontFamily:'inherit'}}>
+                {saving?(lang==='ar'?'جاري...':'En cours...'):(lang==='ar'?'حفظ':'Enregistrer')}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>
   );
 }
+
 
 // ══════════════════════════════════════════════════════
 // COMPOSANT SensRecitationTab — Sens de récitation (desc/asc)
@@ -1489,6 +2102,18 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile,
   const [transfertVers, setTransfertVers] = useState(''); // id du nouvel instituteur
   const [savingSuspensionInst, setSavingSuspensionInst] = useState(false);
   const [afficherUniquementActifsInst, setAfficherUniquementActifsInst] = useState(true);
+  // Etape 11a - Modale recap creation eleve avec compte parent
+  const [showEleveCree, setShowEleveCree] = useState(null); // {eleve, parent: {login, mdp}} ou null
+  // Etape 11b - Liaison/deliaison parents
+  const [showLinkParents, setShowLinkParents] = useState(false);
+  const [linkSelectedParents, setLinkSelectedParents] = useState([]); // ids des parents a fusionner
+  const [linkLoginMode, setLinkLoginMode] = useState('manuel'); // 'manuel' | 'existant'
+  const [linkLoginManuel, setLinkLoginManuel] = useState('');
+  const [linkLoginExistant, setLinkLoginExistant] = useState('');
+  const [linkLoading, setLinkLoading] = useState(false);
+  const [showUnlinkParent, setShowUnlinkParent] = useState(null); // {parent, enfants:[]} ou null
+  const [unlinkChildId, setUnlinkChildId] = useState('');
+  const [unlinkLoading, setUnlinkLoading] = useState(false);
   const [parents, setParents] = useState([]);
   const [formParent, setFormParent] = useState({prenom:'',nom:'',identifiant:'',mot_de_passe:'',telephone:'',email:'',eleve_ids:[]});
   const [showFormParent, setShowFormParent] = useState(false);
@@ -1502,11 +2127,16 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile,
   const [instituteurs, setInstituteurs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [msg, setMsg] = useState({ type: '', text: '' });
+  // Etape 13 - Indicateurs de progression du hub Gestion
+  const [tableCounts, setTableCounts] = useState({
+    niveaux:0, ensembles:0, examens:0, jalons:0, instituteurs:0,
+    eleves:0, parents:0, cours:0, regles_passage:0, tarifs:0,
+  });
   const [editEleve, setEditEleve] = useState(null);
   const [showAcquisSelector, setShowAcquisSelector] = useState(false);
   const [editShowAcquisSelector, setEditShowAcquisSelector] = useState(false);
 
-  const [newEleve, setNewEleve] = useState({ prenom: '', nom: '', niveau: 'Débutant', code_niveau: '', eleve_id_ecole: '', instituteur_referent_id: '', hizb_depart: 0, tomon_depart: 1, sourates_acquises: 0, telephone: '', date_inscription: '', jours_souhaites: [false,false,false,false,false,false,false] });
+  const [newEleve, setNewEleve] = useState({ prenom: '', nom: '', niveau: 'Débutant', code_niveau: '', eleve_id_ecole: '', instituteur_referent_id: '', hizb_depart: 0, tomon_depart: 1, sourates_acquises: 0, telephone: '', email_parent: '', date_inscription: '', jours_souhaites: [false,false,false,false,false,false,false] });
   const [newInst, setNewInst] = useState({ prenom: '', nom: '', identifiant: '', mot_de_passe: '', instituteur_id_ecole: '' });
   const [ecoleConfig, setEcoleConfig] = useState({ mdp_defaut_instituteurs: 'ecole2024', mdp_defaut_parents: 'parent2024', sens_recitation_defaut: 'desc' });
   // Hooks niveaux dynamiques
@@ -1543,7 +2173,7 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile,
 
   // ── Périodes / Notes ──
   const [periodes, setPeriodes] = useState([]);
-  const [newPeriode, setNewPeriode] = useState({ nom_ar: '', date_debut: '', date_fin: '' });
+  const [newPeriode, setNewPeriode] = useState({ nom_ar: '', date_debut: '', date_fin: '', type: 'libre' });
   const [savingPeriode, setSavingPeriode] = useState(false);
 
   // ── Jalons / Certificats ──
@@ -1617,6 +2247,31 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile,
     const liensMap = {};
     (pliens||[]).forEach(l => { if(!liensMap[l.parent_id]) liensMap[l.parent_id]=[]; liensMap[l.parent_id].push(l.eleve_id); });
     setParents((pd||[]).map(p=>({...p, eleve_ids:liensMap[p.id]||[]})));
+
+    // Etape 13 - Charger les compteurs pour les indicateurs (workflow)
+    // FIX B7 - Paralleliser les COUNT au lieu de boucle sequentielle
+    // Avant : 6 requetes sequentielles (~600ms-1s sur reseau lent)
+    // Apres : 6 requetes en parallele (~150-200ms)
+    try {
+      const tables = ['niveaux','ensembles_sourates','examens','jalons','cours','regles_passage_niveau'];
+      const countResults = await Promise.all(
+        tables.map(tbl =>
+          supabase.from(tbl).select('id', { count: 'exact', head: true }).eq('ecole_id', user.ecole_id)
+        )
+      );
+      const counts = {};
+      tables.forEach((tbl, i) => {
+        const key = tbl === 'ensembles_sourates' ? 'ensembles' : tbl === 'regles_passage_niveau' ? 'regles_passage' : tbl;
+        counts[key] = countResults[i].count || 0;
+      });
+      // Counts deja calcules en local
+      counts.eleves = (e || []).length;
+      counts.instituteurs = (i || []).length;
+      counts.parents = (pd || []).length;
+      // Tarifs : compter les instituteurs avec tarif_seance defini
+      counts.tarifs = (i || []).filter(x => x.tarif_seance != null).length;
+      setTableCounts(counts);
+    } catch (errCounts) { console.warn('[Gestion] counts:', errCounts); }
     setLoading(false);
   } catch (e) {
     console.error('[Gestion] Erreur chargement:', e);
@@ -1670,11 +2325,20 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile,
 
     // ⑥ Créer compte parent automatiquement
     const mdpParent = ecoleConfig?.mdp_defaut_parents || 'parent2024';
-    const loginParent = newEleve.eleve_id_ecole.trim();
+    // Generer un login unique (Option E : suffixe en cas de conflit)
+    let loginParent;
+    try {
+      loginParent = await genererLoginParentUnique(supabase, newEleve.eleve_id_ecole.trim());
+    } catch (err) {
+      console.error('[ajouterEleve] genererLoginParentUnique:', err);
+      showMsg('error', (lang==='ar'?'فشل إنشاء معرف ولي الأمر: ':'Échec génération login parent: ') + err.message);
+      return;
+    }
     const { data: parentData, error: parentErr } = await supabase.from('utilisateurs').insert({
       prenom: newEleve.prenom, nom: newEleve.nom,
       identifiant: loginParent, mot_de_passe: mdpParent,
-      role: 'parent', ecole_id: user.ecole_id, statut_compte: 'actif'
+      role: 'parent', ecole_id: user.ecole_id, statut_compte: 'actif',
+      email: (newEleve.email_parent || '').trim() || null,
     }).select().single();
     if (parentErr) showMsg('error', 'Erreur création parent: '+parentErr.message);
     if (parentData?.id && eleveData?.id) {
@@ -1683,8 +2347,20 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile,
       });
     }
 
-    showMsg('success', lang==='ar'?`✅ تم إضافة الطالب — حساب ولي الأمر: ${loginParent} / ${mdpParent}`:`✅ Élève ajouté — Compte parent: ${loginParent} / ${mdpParent}`);
-    setNewEleve({ prenom: '', nom: '', niveau: 'Débutant', code_niveau: (niveauxDyn && niveauxDyn[0]?.code) || '', eleve_id_ecole: '', instituteur_referent_id: '', hizb_depart: 0, tomon_depart: 1, sourates_acquises: 0 });
+    // Etape 11a : Au lieu d'un toast, afficher une modale recap claire
+    setShowEleveCree({
+      eleve: { 
+        prenom: newEleve.prenom, 
+        nom: newEleve.nom, 
+        eleve_id_ecole: newEleve.eleve_id_ecole.trim(),
+        code_niveau: newEleve.code_niveau,
+      },
+      parent: { 
+        login: loginParent, 
+        mdp: mdpParent,
+      },
+    });
+    setNewEleve({ prenom: '', nom: '', niveau: 'Débutant', code_niveau: (niveauxDyn && niveauxDyn[0]?.code) || '', eleve_id_ecole: '', instituteur_referent_id: '', hizb_depart: 0, tomon_depart: 1, sourates_acquises: 0, email_parent: '' });
     setShowAcquisSelector(false);
     loadData();
   };
@@ -2001,6 +2677,265 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile,
       showMsg('error', lang==='ar'?'فشل التعليق: '+err.message:'Échec : '+err.message);
     } finally {
       setSavingSuspensionInst(false);
+    }
+  };
+
+  // ────── ETAPE 11b - LIAISON / DELIAISON COMPTES PARENTS ────────
+  // Workflow valide avec Jamal :
+  //   Q1 = A+D : login generique au choix (manuel ou existant)
+  //   Q2 = B   : anciens comptes parents supprimes apres liaison
+  //   Q3 = A   : MDP par defaut de l'ecole pour le nouveau compte
+  //   Q4 = B   : modale depuis Gestion > Parents
+  //   Q5 = C   : deliaison par enfant (flexible)
+
+  const ouvrirModaleLier = () => {
+    setLinkSelectedParents([]);
+    setLinkLoginMode('manuel');
+    setLinkLoginManuel('');
+    setLinkLoginExistant('');
+    setShowLinkParents(true);
+  };
+
+  const confirmerLiaisonParents = async () => {
+    if (linkLoading) return;
+    if (linkSelectedParents.length < 2) {
+      showMsg('error', lang==='ar'?'يجب اختيار حسابين على الأقل':'Sélectionnez au moins 2 comptes');
+      return;
+    }
+    let nouveauLogin = '';
+    if (linkLoginMode === 'manuel') {
+      nouveauLogin = (linkLoginManuel || '').trim();
+      if (!nouveauLogin) { showMsg('error', lang==='ar'?'أدخل المعرف الجديد':'Saisissez le nouveau login'); return; }
+      // Verifier unicite globale (pas juste l'ecole, car contrainte BDD est globale)
+      const { data: existing } = await supabase.from('utilisateurs')
+        .select('id').eq('identifiant', nouveauLogin).maybeSingle();
+      if (existing) { showMsg('error', lang==='ar'?'المعرف مستخدم بالفعل':'Ce login existe déjà'); return; }
+    } else {
+      nouveauLogin = linkLoginExistant;
+      if (!nouveauLogin) { showMsg('error', lang==='ar'?'اختر معرفًا':'Choisissez un login'); return; }
+    }
+
+    setLinkLoading(true);
+    try {
+      // Charger les parents selectionnes pour les details
+      const parentsObjs = parents.filter(p => linkSelectedParents.includes(p.id));
+      if (parentsObjs.length < 2) throw new Error('parents introuvables');
+
+      // Charger tous les liens parent_eleve concernes
+      const { data: liens } = await supabase.from('parent_eleve')
+        .select('eleve_id').in('parent_id', linkSelectedParents);
+      const enfantsIds = [...new Set((liens || []).map(l => l.eleve_id))];
+      if (enfantsIds.length === 0) {
+        throw new Error('Aucun enfant lie a ces parents');
+      }
+
+      // Etape 1 : Determiner le compte qui sera le compte fusionne
+      // Si linkLoginMode = 'existant' et le login choisi correspond a un des parents
+      // selectionnes, on garde ce compte et on supprime les autres
+      let comptePrincipalId = null;
+      const mdpDefaut = ecoleConfig?.mdp_defaut_parents || 'parent2024';
+      const premierNom = parentsObjs[0]?.nom || 'Famille';
+      const premierPrenom = parentsObjs[0]?.prenom || '';
+
+      if (linkLoginMode === 'existant') {
+        // Trouver le parent dont l'identifiant = nouveauLogin
+        const principal = parentsObjs.find(p => p.identifiant === nouveauLogin);
+        if (principal) {
+          comptePrincipalId = principal.id;
+          // On force le MDP par defaut
+          const { error: errUpd } = await supabase.from('utilisateurs')
+            .update({ mot_de_passe: mdpDefaut }).eq('id', principal.id);
+          if (errUpd) throw errUpd;
+        }
+      }
+
+      // Si pas de compte principal trouve (= mode manuel ou login existant non present)
+      if (!comptePrincipalId) {
+        const { data: nouveau, error: errNew } = await supabase.from('utilisateurs').insert({
+          prenom: premierPrenom,
+          nom: premierNom,
+          identifiant: nouveauLogin,
+          mot_de_passe: mdpDefaut,
+          role: 'parent',
+          ecole_id: user.ecole_id,
+          statut_compte: 'actif',
+        }).select().single();
+        if (errNew) throw errNew;
+        comptePrincipalId = nouveau.id;
+      }
+
+      // Etape 2 : Supprimer tous les liens parent_eleve des anciens parents
+      const idsASupprimer = linkSelectedParents.filter(id => id !== comptePrincipalId);
+      if (idsASupprimer.length > 0) {
+        await supabase.from('parent_eleve').delete().in('parent_id', idsASupprimer);
+      }
+      // Aussi supprimer les liens existants du compte principal pour repartir propre
+      await supabase.from('parent_eleve').delete().eq('parent_id', comptePrincipalId);
+
+      // Etape 3 : Creer les nouveaux liens vers le compte principal
+      const nouveauxLiens = enfantsIds.map(eid => ({
+        parent_id: comptePrincipalId,
+        eleve_id: eid,
+      }));
+      const { error: errLiens } = await supabase.from('parent_eleve').insert(nouveauxLiens);
+      if (errLiens) throw errLiens;
+
+      // Etape 4 : Supprimer les anciens comptes parents (B = anciens comptes desactives)
+      if (idsASupprimer.length > 0) {
+        await supabase.from('utilisateurs').delete().in('id', idsASupprimer);
+      }
+
+      // Etape 5 : Audit log
+      try {
+        await supabase.from('audit_log').insert({
+          actor_user_id: user.id,
+          actor_role: user.role || 'surveillant',
+          action: 'parents.lies',
+          target_type: 'utilisateurs',
+          target_id: comptePrincipalId,
+          target_label: nouveauLogin,
+          metadata: {
+            ecole_id: user.ecole_id,
+            anciens_parents_supprimes: idsASupprimer.length,
+            anciens_logins: parentsObjs.filter(p => p.id !== comptePrincipalId).map(p => p.identifiant),
+            nouveau_login: nouveauLogin,
+            enfants_lies: enfantsIds.length,
+          },
+        });
+      } catch(e) { console.warn('[liaisonParents] audit_log:', e); }
+
+      showMsg('success', lang==='ar'
+        ? `🔗 تم ربط ${enfantsIds.length} طفلًا تحت ${nouveauLogin}`
+        : `🔗 ${enfantsIds.length} enfants liés sous ${nouveauLogin}`);
+      setShowLinkParents(false);
+      loadData();
+    } catch (err) {
+      console.error('[liaisonParents]', err);
+      showMsg('error', (lang==='ar'?'فشل: ':'Erreur : ') + (err.message || 'inconnue'));
+    } finally {
+      setLinkLoading(false);
+    }
+  };
+
+  // Etape 11b - Reinitialiser MDP d'un parent (cas oubli)
+  const reinitialiserMDPParent = (parent) => {
+    const mdpDefaut = ecoleConfig?.mdp_defaut_parents || 'parent2024';
+    showConfirm(
+      lang==='ar'?'إعادة تعيين كلمة المرور':'Réinitialiser le mot de passe',
+      lang==='ar'
+        ? `سيتم إعادة تعيين كلمة المرور لـ ${parent.prenom} ${parent.nom} إلى: ${mdpDefaut}`
+        : `Le mot de passe de ${parent.prenom} ${parent.nom} sera réinitialisé à : ${mdpDefaut}`,
+      async () => {
+        setConfirmLoading(true);
+        try {
+          const { error } = await supabase.from('utilisateurs')
+            .update({ mot_de_passe: mdpDefaut })
+            .eq('id', parent.id);
+          if (error) throw error;
+          // Audit log
+          try {
+            await supabase.from('audit_log').insert({
+              actor_user_id: user.id,
+              actor_role: user.role || 'surveillant',
+              action: 'parent.mdp_reinitialise',
+              target_type: 'utilisateurs',
+              target_id: parent.id,
+              target_label: parent.identifiant,
+              metadata: { ecole_id: user.ecole_id },
+            });
+          } catch(e) { console.warn('[reinitMDP] audit_log:', e); }
+          showMsg('success', lang==='ar'
+            ? `🔑 تم إعادة تعيين كلمة المرور إلى: ${mdpDefaut}`
+            : `🔑 Mot de passe réinitialisé à : ${mdpDefaut}`);
+          hideConfirm();
+        } catch (err) {
+          console.error('[reinitMDP]', err);
+          showMsg('error', (lang==='ar'?'فشل: ':'Erreur : ') + err.message);
+        } finally {
+          setConfirmLoading(false);
+        }
+      }
+    );
+  };
+
+  const ouvrirModaleDelier = (parent) => {
+    const enfantsLies = eleves.filter(e => (parent.eleve_ids || []).includes(e.id));
+    if (enfantsLies.length < 2) {
+      showMsg('error', lang==='ar'?'هذا الحساب لا يحتوي على أكثر من طفل':'Ce compte n\'a pas plusieurs enfants');
+      return;
+    }
+    setShowUnlinkParent({ parent, enfants: enfantsLies });
+    setUnlinkChildId('');
+  };
+
+  const confirmerDeliaison = async () => {
+    if (unlinkLoading) return;
+    if (!showUnlinkParent || !unlinkChildId) {
+      showMsg('error', lang==='ar'?'اختر طفلًا':'Sélectionnez un enfant'); return;
+    }
+    const { parent, enfants } = showUnlinkParent;
+    const enfantADetacher = enfants.find(e => e.id === unlinkChildId);
+    if (!enfantADetacher) return;
+
+    setUnlinkLoading(true);
+    try {
+      const mdpDefaut = ecoleConfig?.mdp_defaut_parents || 'parent2024';
+      // Generer un login unique (Option E - filet de securite)
+      const baseLogin = enfantADetacher.eleve_id_ecole;
+      if (!baseLogin) throw new Error('eleve_id_ecole manquant pour cet eleve');
+      const nouveauLogin = await genererLoginParentUnique(supabase, baseLogin);
+
+      // Etape 1 : Creer un nouveau compte parent pour l'enfant detache
+      const { data: nouveau, error: errNew } = await supabase.from('utilisateurs').insert({
+        prenom: enfantADetacher.prenom,
+        nom: enfantADetacher.nom,
+        identifiant: nouveauLogin,
+        mot_de_passe: mdpDefaut,
+        role: 'parent',
+        ecole_id: user.ecole_id,
+        statut_compte: 'actif',
+      }).select().single();
+      if (errNew) throw errNew;
+
+      // Etape 2 : Supprimer le lien parent_id->enfant_id du compte famille
+      await supabase.from('parent_eleve')
+        .delete().eq('parent_id', parent.id).eq('eleve_id', enfantADetacher.id);
+
+      // Etape 3 : Creer le nouveau lien vers le nouveau compte
+      const { error: errLien } = await supabase.from('parent_eleve').insert({
+        parent_id: nouveau.id,
+        eleve_id: enfantADetacher.id,
+      });
+      if (errLien) throw errLien;
+
+      // Etape 4 : Audit log
+      try {
+        await supabase.from('audit_log').insert({
+          actor_user_id: user.id,
+          actor_role: user.role || 'surveillant',
+          action: 'parent.delie',
+          target_type: 'utilisateurs',
+          target_id: parent.id,
+          target_label: parent.identifiant,
+          metadata: {
+            ecole_id: user.ecole_id,
+            enfant_id: enfantADetacher.id,
+            enfant_eleve_id_ecole: nouveauLogin,
+            nouveau_login_cree: nouveauLogin,
+          },
+        });
+      } catch(e) { console.warn('[deliaisonParent] audit_log:', e); }
+
+      showMsg('success', lang==='ar'
+        ? `🔓 تم فصل ${enfantADetacher.prenom} ${enfantADetacher.nom}. الحساب الجديد: ${nouveauLogin}`
+        : `🔓 ${enfantADetacher.prenom} ${enfantADetacher.nom} détaché. Nouveau compte : ${nouveauLogin}`);
+      setShowUnlinkParent(null);
+      loadData();
+    } catch (err) {
+      console.error('[deliaisonParent]', err);
+      showMsg('error', (lang==='ar'?'فشل: ':'Erreur : ') + (err.message || 'inconnue'));
+    } finally {
+      setUnlinkLoading(false);
     }
   };
 
@@ -2347,7 +3282,7 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
     const resetFormEleve = () => {
       setNewEleve({prenom:'',nom:'',niveau:'Débutant',code_niveau:(niveauxDyn && niveauxDyn[0]?.code) || '',eleve_id_ecole:'',
         instituteur_referent_id:'',hizb_depart:0,tomon_depart:1,sourates_acquises:0,
-        telephone:'',date_inscription:'',jours_souhaites:[false,false,false,false,false,false,false]});
+        telephone:'',email_parent:'',date_inscription:'',jours_souhaites:[false,false,false,false,false,false,false]});
       setEditEleve(null); setMobileEditEleve(null);
     };
     const handleSaveEleve = async () => {
@@ -2409,9 +3344,10 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
               </button>
             )}
             {tab==='parents'&&user.role==='surveillant'&&(
-              <button onClick={()=>setShowFormParent(v=>!v)}
-                style={{background:'rgba(255,255,255,0.25)',color:'#fff',border:'1px solid rgba(255,255,255,0.3)',borderRadius:10,padding:'7px 14px',fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
-                {showFormParent?'✕':(lang==='ar'?'+ إضافة':'+ Ajouter')}
+              <button onClick={ouvrirModaleLier}
+                title={lang==='ar'?'ربط حسابات الأولياء':'Lier des comptes parents'}
+                style={{background:'rgba(255,255,255,0.25)',color:'#fff',border:'1px solid rgba(255,255,255,0.3)',borderRadius:10,padding:'7px 14px',fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'inherit',display:'flex',alignItems:'center',gap:5}}>
+                🔗 {lang==='ar'?'ربط':'Lier'}
               </button>
             )}
           </div>
@@ -2717,7 +3653,7 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
         {/* ─── ONGLET PARENTS ─── */}
         {tab==='parents'&&(
           <div style={{padding:'12px'}}>
-            {showFormParent&&user.role==='surveillant'&&(
+            {showFormParent&&editingParentId&&user.role==='surveillant'&&(
               <div style={{background:'#fff',borderRadius:16,padding:'18px',marginBottom:14,border:`1.5px solid ${editingParentId?'#378ADD':'#EF9F27'}`}}>
                 <div style={{fontSize:15,fontWeight:700,color:'#085041',marginBottom:14}}>
                   {editingParentId?(lang==='ar'?'تعديل ولي الأمر':'✏️ Modifier parent'):(lang==='ar'?'إضافة ولي أمر':'👨‍👩‍👦 Nouveau parent')}
@@ -2776,13 +3712,29 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
                       {((p.prenom||'?')[0])+((p.nom||'?')[0])}
                     </div>
                     <div style={{flex:1}}>
-                      <div style={{fontWeight:700,fontSize:13}}>{p.prenom} {p.nom}</div>
+                      <div style={{display:'flex',alignItems:'center',gap:6,flexWrap:'wrap'}}>
+                        <div style={{fontWeight:700,fontSize:13}}>{p.prenom} {p.nom}</div>
+                        {enfants.length >= 2 && (
+                          <span style={{display:'inline-block',padding:'1px 7px',borderRadius:8,fontSize:9,fontWeight:700,background:'#E6F1FB',color:'#0C447C',border:'0.5px solid #378ADD30'}}
+                            title={lang==='ar'?`عائلة (${enfants.length} أطفال)`:`Famille (${enfants.length} enfants)`}>
+                            🔗 {lang==='ar'?'عائلة':'Famille'}
+                          </span>
+                        )}
+                      </div>
                       <div style={{fontSize:11,color:'#888',marginTop:1}}>{p.telephone||p.identifiant}</div>
                     </div>
                     {user.role==='surveillant'&&(
-                      <div style={{display:'flex',gap:5}}>
+                      <div style={{display:'flex',gap:5,flexWrap:'wrap'}}>
                         <button onClick={()=>{setEditingParentId(p.id);setFormParent({prenom:p.prenom,nom:p.nom,identifiant:p.identifiant,mot_de_passe:'',telephone:p.telephone||'',email:p.email||'',eleve_ids:eleves.filter(e=>(p.eleve_ids||[]).includes(e.id)).map(e=>e.id)});setShowFormParent(true);window.scrollTo(0,0);}}
                           style={{background:'#E6F1FB',color:'#378ADD',border:'none',borderRadius:8,padding:'6px 9px',fontSize:12,cursor:'pointer'}}>✏️</button>
+                        <button onClick={()=>reinitialiserMDPParent(p)}
+                          title={lang==='ar'?'إعادة تعيين كلمة المرور':'Réinitialiser MDP'}
+                          style={{background:'#E1F5EE',color:'#085041',border:'none',borderRadius:8,padding:'6px 9px',fontSize:12,cursor:'pointer'}}>🔑</button>
+                        {enfants.length >= 2 && (
+                          <button onClick={()=>ouvrirModaleDelier(p)}
+                            title={lang==='ar'?'فصل طفل':'Délier un enfant'}
+                            style={{background:'#FFF8EC',color:'#7B5800',border:'none',borderRadius:8,padding:'6px 9px',fontSize:12,cursor:'pointer'}}>🔓</button>
+                        )}
                         <button onClick={()=>supprimerParent(p.id)}
                           style={{background:'#FCEBEB',color:'#E24B4A',border:'none',borderRadius:8,padding:'6px 9px',fontSize:12,cursor:'pointer'}}>🗑</button>
                       </div>
@@ -2995,77 +3947,244 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
 
 
 
-      {tab === 'parametres' && (
-        <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(220px,1fr))',gap:12}}>
-          {[
-            {icon:'📚', label:lang==='ar'?'المستويات':'Niveaux',
-             desc:lang==='ar'?'إدارة مستويات المدرسة وألوانها':"Configurer les niveaux de l'école",
-             action:()=>navigate('niveaux',null,{tab}), color:'#085041', bg:'#E1F5EE'},
-            {icon:'📦', label:lang==='ar'?'مجموعات السور':'Ensembles',
-             desc:lang==='ar'?'تجميع السور في مجموعات':'Grouper les sourates par ensemble',
-             action:()=>navigate('ensembles',null,{tab}), color:'#D85A30', bg:'#FAECE7'},
-            {icon:'⭐', label:lang==='ar'?'النقاط':'Barème',
-             desc:lang==='ar'?'تحديد نظام التنقيط لكل معيار':'Paramétrer les points par critère',
-             action:()=>setTab('bareme'), color:'#EF9F27', bg:'#FAEEDA'},
-            {icon:'📝', label:lang==='ar'?'الامتحانات':'Examens',
-             desc:lang==='ar'?'تكوين الامتحانات والحدود':'Configurer les examens et seuils',
-             action:()=>navigate('examens',null,{tab}), color:'#378ADD', bg:'#E6F1FB'},
-            {icon:'🏅', label:lang==='ar'?'الشهادات':'Jalons',
-             desc:lang==='ar'?'تكوين مراحل منح الشهادات':'Configurer les jalons certificats',
-             action:()=>setTab('jalons'), color:'#534AB7', bg:'#EEEDFE'},
-            {icon:'👨‍🏫', label:lang==='ar'?'الأساتذة':'Instituteurs',
-             desc:lang==='ar'?'إدارة حسابات الأساتذة':'Gérer les comptes instituteurs',
-             action:()=>setTab('instituteurs'), color:'#378ADD', bg:'#E6F1FB'},
-            {icon:'👨‍🎓', label:lang==='ar'?'الطلاب':'Élèves',
-             desc:lang==='ar'?'إدارة قائمة الطلاب وإضافتهم':'Gérer et ajouter les élèves',
-             action:()=>setTab('eleves'), color:'#1D9E75', bg:'#E1F5EE'},
-            {icon:'👨‍👩‍👦', label:lang==='ar'?'الآباء':'Parents',
-             desc:lang==='ar'?'إدارة حسابات أولياء الأمور':'Gérer les comptes parents',
-             action:()=>setTab('parents'), color:'#534AB7', bg:'#EEEDFE'},
-            {icon:'🎓', label:lang==='ar'?'قواعد الانتقال':'Règles passage',
-             desc:lang==='ar'?'تكوين قواعد انتقال الطلاب بين المستويات':'Configurer les règles de passage de niveau',
-             action:()=>setTab('passage_niveau'), color:'#1D9E75', bg:'#E1F5EE'},
-            {icon:'🔄', label:lang==='ar'?'اتجاه التحفيظ':'Sens de récitation',
-             desc:lang==='ar'?'تحديد اتجاه الحفظ للمستويات (تنازلي / تصاعدي)':'Définir le sens (décroissant / croissant) par niveau',
-             action:()=>setTab('sens_recitation'), color:'#085041', bg:'#E1F5EE'},
-            {icon:'📅', label:lang==='ar'?'الحضور':'Assiduité',
-             desc:lang==='ar'?'عتبات الحضور و أيام العطل':'Seuils d\'assiduité et jours non travaillés',
-             action:()=>navigate('gestion_assiduite',null,{tab}), color:'#1D9E75', bg:'#E1F5EE'},
-            {icon:'💰', label:lang==='ar'?'تعرفات الأساتذة':'Tarifs Instituteurs',
-             desc:lang==='ar'?'تحديد تعرفة الحصة (مدرسة أو فردية)':'Configurer les tarifs par séance (école ou individuel)',
-             action:()=>navigate('gestion_tarifs',null,{tab}), color:'#534AB7', bg:'#EEEDFE'},
-            {icon:'📚', label:lang==='ar'?'الدروس':'Cours',
-             desc:lang==='ar'?'إدارة الدروس و المحاور لكل مستوى':'Paramétrer les cours et axes par niveau',
-             action:()=>navigate('gestion_cours',null,{tab}), color:'#0C447C', bg:'#E6F1FB'},
-            {icon:'👨‍👩‍👧', label:lang==='ar'?'الأولياء':'Parents',
-             desc:lang==='ar'?'عتبات نشاط الأولياء':'Seuils d\'activité des parents',
-             action:()=>navigate('gestion_parents',null,{tab}), color:'#085041', bg:'#E1F5EE'},
-            {icon:'📥', label:lang==='ar'?'استيراد جماعي':'Import en masse',
-             desc:lang==='ar'?'استيراد المستويات والطلاب والمدرسين والآباء من ملف Excel':'Importer niveaux, élèves, instituteurs, parents depuis Excel',
-             action:()=>navigate('import_masse',null,{tab}), color:'#EF9F27', bg:'#FAEEDA'},
+      {tab === 'parametres' && (() => {
+        // Etape 13 - Reorganisation par groupes + workflow logique
+        // Ordre derive du code (analyse des dependances reelles entre tables)
 
-          ].map((item,idx)=>(
-            <div key={idx} onClick={item.action}
-              style={{background:'#fff',borderRadius:14,padding:'1.1rem',
-                border:`0.5px solid ${item.color}25`,cursor:'pointer',
+        const PEDAGOGIE = [
+          {n:1, k:'niveaux', icon:'📚', label:lang==='ar'?'المستويات':'Niveaux',
+           desc:lang==='ar'?'إدارة مستويات المدرسة':'Configurer les niveaux',
+           action:()=>navigate('niveaux',null,{tab}), color:'#085041', bg:'#E1F5EE',
+           filled: tableCounts.niveaux > 0, critical: true},
+          {n:2, k:'sens', icon:'🔄', label:lang==='ar'?'اتجاه التحفيظ':'Sens récitation',
+           desc:lang==='ar'?'تحديد اتجاه الحفظ':'Sens (croissant/décroissant)',
+           action:()=>setTab('sens_recitation'), color:'#085041', bg:'#E1F5EE',
+           filled: !!ecoleConfig?.sens_recitation_defaut},
+          {n:3, k:'ensembles', icon:'📦', label:lang==='ar'?'مجموعات السور':'Ensembles',
+           desc:lang==='ar'?'تجميع السور':'Grouper les sourates',
+           action:()=>navigate('ensembles',null,{tab}), color:'#D85A30', bg:'#FAECE7',
+           filled: tableCounts.ensembles > 0},
+          {n:4, k:'cours', icon:'📚', label:lang==='ar'?'الدروس':'Cours',
+           desc:lang==='ar'?'الدروس و المحاور':'Cours et axes',
+           action:()=>navigate('gestion_cours',null,{tab}), color:'#0C447C', bg:'#E6F1FB',
+           filled: tableCounts.cours > 0},
+          {n:5, k:'examens', icon:'📝', label:lang==='ar'?'الامتحانات':'Examens',
+           desc:lang==='ar'?'تكوين الامتحانات':'Configurer les examens',
+           action:()=>navigate('examens',null,{tab}), color:'#378ADD', bg:'#E6F1FB',
+           filled: tableCounts.examens > 0},
+          {n:6, k:'jalons', icon:'🏅', label:lang==='ar'?'الشهادات':'Certificats',
+           desc:lang==='ar'?'مراحل منح الشهادات':'Configurer les jalons',
+           action:()=>setTab('jalons'), color:'#534AB7', bg:'#EEEDFE',
+           filled: tableCounts.jalons > 0},
+          {n:7, k:'bareme', icon:'⭐', label:lang==='ar'?'النقاط':'Barème',
+           desc:lang==='ar'?'نظام التنقيط':'Système de points',
+           action:()=>setTab('bareme'), color:'#EF9F27', bg:'#FAEEDA'},
+          {n:8, k:'passage', icon:'🎓', label:lang==='ar'?'قواعد الانتقال':'Passage niveau',
+           desc:lang==='ar'?'قواعد الانتقال':'Règles de passage',
+           action:()=>setTab('passage_niveau'), color:'#1D9E75', bg:'#E1F5EE',
+           filled: tableCounts.regles_passage > 0},
+          {n:9, k:'assiduite', icon:'📅', label:lang==='ar'?'الحضور':'Présences',
+           desc:lang==='ar'?'أيام العطل و الحضور':'Jours non travaillés',
+           action:()=>navigate('gestion_assiduite',null,{tab}), color:'#1D9E75', bg:'#E1F5EE'},
+          {n:10, k:'seuils_par', icon:'👨‍👩‍👧', label:lang==='ar'?'عتبات الأولياء':'Seuils parents',
+           desc:lang==='ar'?'عتبات نشاط الأولياء':'Alertes activité parents',
+           action:()=>navigate('gestion_parents',null,{tab}), color:'#085041', bg:'#E1F5EE'},
+          {n:11, k:'periodes', icon:'🗓️', label:lang==='ar'?'الفترات':'Périodes',
+           desc:lang==='ar'?'فصول دراسية، أنصاف سنوات...':'Trimestres, semestres, année',
+           action:()=>setTab('periodes'), color:'#378ADD', bg:'#E6F1FB'},
+        ];
+
+        const PERSONNES = [
+          {n:12, k:'instituteurs', icon:'👨‍🏫', label:lang==='ar'?'الأساتذة':'Instituteurs',
+           desc:lang==='ar'?'حسابات الأساتذة':'Comptes instituteurs',
+           action:()=>setTab('instituteurs'), color:'#378ADD', bg:'#E6F1FB',
+           filled: tableCounts.instituteurs > 0, critical: true},
+          {n:13, k:'tarifs', icon:'💰', label:lang==='ar'?'تعرفات الأساتذة':'Tarifs profs',
+           desc:lang==='ar'?'تعرفة الحصة':'Tarifs par séance',
+           action:()=>navigate('gestion_tarifs',null,{tab}), color:'#534AB7', bg:'#EEEDFE',
+           filled: tableCounts.tarifs > 0,
+           depends: tableCounts.instituteurs > 0,
+           dependLabel: lang==='ar'?'يتطلب أساتذة':'Requiert des instituteurs'},
+          {n:14, k:'eleves', icon:'👨‍🎓', label:lang==='ar'?'الطلاب':'Élèves',
+           desc:lang==='ar'?'قائمة الطلاب':'Liste des élèves',
+           action:()=>setTab('eleves'), color:'#1D9E75', bg:'#E1F5EE',
+           filled: tableCounts.eleves > 0,
+           depends: tableCounts.niveaux > 0 && tableCounts.instituteurs > 0,
+           dependLabel: lang==='ar'?'يتطلب مستويات و أساتذة':'Requiert niveaux + instituteurs'},
+          {n:15, k:'parents', icon:'👨‍👩‍👦', label:lang==='ar'?'الآباء':'Parents',
+           desc:lang==='ar'?'حسابات الأولياء (تلقائي)':'Comptes parents (auto)',
+           action:()=>setTab('parents'), color:'#534AB7', bg:'#EEEDFE',
+           filled: tableCounts.parents > 0},
+        ];
+
+        const OUTILS = [
+          {n:16, k:'mass', icon:'📥', label:lang==='ar'?'استيراد جماعي':'Import en masse',
+           desc:lang==='ar'?'من ملف Excel':'Depuis Excel',
+           action:()=>navigate('import_masse',null,{tab}), color:'#EF9F27', bg:'#FAEEDA',
+           depends: tableCounts.niveaux > 0,
+           dependLabel: lang==='ar'?'يتطلب مستويات':'Requiert niveaux'},
+        ];
+
+        // Detection prochaine etape recommandee (Q3=A : logique simple)
+        const allCards = [...PEDAGOGIE, ...PERSONNES, ...OUTILS];
+        // Etapes critiques pour le bandeau (pas Bareme/Sens/Présences/Seuils qui sont optionnels)
+        const cardsForBanner = allCards.filter(c =>
+          ['niveaux','ensembles','examens','jalons','passage','instituteurs','eleves','tarifs','mass'].includes(c.k)
+        );
+        const nextStep = cardsForBanner.find(c =>
+          c.filled === false && (c.depends === undefined || c.depends === true)
+        );
+        // Carte bloquee : depends === false
+        const isBlocked = (c) => c.depends === false;
+
+        const renderCard = (item) => {
+          const blocked = isBlocked(item);
+          const isNext = nextStep && nextStep.k === item.k;
+          return (
+            <div key={item.k} onClick={blocked ? null : item.action}
+              style={{background:'#fff',borderRadius:14,padding:'1rem',
+                border: isNext ? '2px solid #EF9F27' : `0.5px solid ${item.color}25`,
+                cursor:blocked?'not-allowed':'pointer',
                 display:'flex',alignItems:'center',gap:12,
-                transition:'all 0.15s',boxShadow:'0 1px 4px rgba(0,0,0,0.04)'}}
-              onMouseEnter={e=>{e.currentTarget.style.transform='translateY(-2px)';e.currentTarget.style.boxShadow='0 4px 16px rgba(0,0,0,0.08)';}}
-              onMouseLeave={e=>{e.currentTarget.style.transform='translateY(0)';e.currentTarget.style.boxShadow='0 1px 4px rgba(0,0,0,0.04)';}}>
-              <div style={{width:48,height:48,borderRadius:12,background:item.bg,
+                transition:'all 0.15s',
+                boxShadow:isNext?'0 4px 16px rgba(239,159,39,0.25)':'0 1px 4px rgba(0,0,0,0.04)',
+                opacity:blocked?0.55:1,position:'relative'}}
+              onMouseEnter={e=>{if(!blocked){e.currentTarget.style.transform='translateY(-2px)';e.currentTarget.style.boxShadow='0 4px 16px rgba(0,0,0,0.08)';}}}
+              onMouseLeave={e=>{if(!blocked){e.currentTarget.style.transform='translateY(0)';e.currentTarget.style.boxShadow=isNext?'0 4px 16px rgba(239,159,39,0.25)':'0 1px 4px rgba(0,0,0,0.04)';}}}>
+              {/* Numéro étape */}
+              <div style={{
+                position:'absolute',top:8,insetInlineStart:8,
+                width:20,height:20,borderRadius:'50%',
+                background:item.color,color:'#fff',fontSize:10,fontWeight:800,
                 display:'flex',alignItems:'center',justifyContent:'center',
-                fontSize:22,flexShrink:0}}>
+                opacity:0.85,
+              }}>{item.n}</div>
+              {/* Indicateur statut */}
+              {item.filled === true && (
+                <div style={{position:'absolute',top:8,insetInlineEnd:8,
+                  fontSize:13,color:'#1D9E75'}} title={lang==='ar'?'مكتمل':'Configuré'}>✓</div>
+              )}
+              {blocked && (
+                <div style={{position:'absolute',top:8,insetInlineEnd:8,
+                  fontSize:13,color:'#E24B4A'}} title={item.dependLabel}>🔒</div>
+              )}
+              {/* Icône */}
+              <div style={{width:46,height:46,borderRadius:12,background:item.bg,
+                display:'flex',alignItems:'center',justifyContent:'center',
+                fontSize:22,flexShrink:0,marginInlineStart:12}}>
                 {item.icon}
               </div>
-              <div style={{flex:1,minWidth:0}}>
+              <div style={{flex:1,minWidth:0,paddingTop:2}}>
                 <div style={{fontWeight:700,fontSize:14,color:'#1a1a1a',marginBottom:3}}>{item.label}</div>
-                <div style={{fontSize:11,color:'#999',lineHeight:1.4,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{item.desc}</div>
+                <div style={{fontSize:11,color:'#999',lineHeight:1.4,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>
+                  {blocked ? <span style={{color:'#E24B4A'}}>🔒 {item.dependLabel}</span> : item.desc}
+                </div>
               </div>
-              <span style={{color:item.color,fontSize:16,flexShrink:0}}>›</span>
+              {!blocked && <span style={{color:item.color,fontSize:16,flexShrink:0}}>›</span>}
             </div>
-          ))}
-        </div>
-      )}
+          );
+        };
+
+        return (
+          <div>
+            {/* Bandeau intelligent : prochaine étape recommandée */}
+            {nextStep && (
+              <div style={{
+                background:'linear-gradient(90deg,#FFF8EC,#FAEEDA)',
+                border:'1px solid #EF9F2740',borderRadius:12,
+                padding:'12px 16px',marginBottom:16,
+                display:'flex',alignItems:'center',gap:12,flexWrap:'wrap',
+              }}>
+                <div style={{fontSize:24,flexShrink:0}}>💡</div>
+                <div style={{flex:1,minWidth:200}}>
+                  <div style={{fontSize:12,fontWeight:700,color:'#7B5800',marginBottom:2,textTransform:'uppercase',letterSpacing:0.3}}>
+                    {lang==='ar'?'الخطوة التالية الموصى بها':'Étape suivante recommandée'}
+                  </div>
+                  <div style={{fontSize:13,color:'#1a1a1a',fontWeight:600}}>
+                    {nextStep.n}. {nextStep.label}
+                    <span style={{fontWeight:400,color:'#666',marginInlineStart:8}}>— {nextStep.desc}</span>
+                  </div>
+                </div>
+                <button onClick={nextStep.action}
+                  style={{padding:'8px 16px',background:'#EF9F27',color:'#fff',border:'none',
+                    borderRadius:8,fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'inherit',
+                    whiteSpace:'nowrap'}}>
+                  {lang==='ar'?'اذهب ←':'Y aller →'}
+                </button>
+              </div>
+            )}
+            {!nextStep && tableCounts.eleves > 0 && (
+              <div style={{
+                background:'#E1F5EE',border:'1px solid #1D9E7530',borderRadius:12,
+                padding:'12px 16px',marginBottom:16,
+                display:'flex',alignItems:'center',gap:12,
+              }}>
+                <div style={{fontSize:22}}>✅</div>
+                <div style={{flex:1,fontSize:13,color:'#085041',fontWeight:600}}>
+                  {lang==='ar'?'مدرستك مهيأة. يمكنك الآن إدارة طلابك يومياً.':'Votre école est configurée. Vous pouvez gérer vos élèves au quotidien.'}
+                </div>
+              </div>
+            )}
+
+            {/* GROUPE 1 : PEDAGOGIE */}
+            <div style={{marginBottom:24}}>
+              <div style={{
+                display:'flex',alignItems:'center',gap:8,
+                marginBottom:10,padding:'0 4px',
+              }}>
+                <div style={{fontSize:18}}>🎓</div>
+                <div style={{fontSize:14,fontWeight:800,color:'#085041',letterSpacing:0.3}}>
+                  {lang==='ar'?'البيداغوجيا':'Pédagogie'}
+                </div>
+                <div style={{fontSize:11,color:'#999'}}>
+                  ({lang==='ar'?'تكوين المحتوى التربوي':'configuration du contenu pédagogique'})
+                </div>
+              </div>
+              <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(220px,1fr))',gap:10}}>
+                {PEDAGOGIE.map(renderCard)}
+              </div>
+            </div>
+
+            {/* GROUPE 2 : PERSONNES */}
+            <div style={{marginBottom:24}}>
+              <div style={{
+                display:'flex',alignItems:'center',gap:8,
+                marginBottom:10,padding:'0 4px',
+              }}>
+                <div style={{fontSize:18}}>👥</div>
+                <div style={{fontSize:14,fontWeight:800,color:'#378ADD',letterSpacing:0.3}}>
+                  {lang==='ar'?'الأشخاص':'Personnes'}
+                </div>
+                <div style={{fontSize:11,color:'#999'}}>
+                  ({lang==='ar'?'الفاعلون في التطبيق':'acteurs de l\'application'})
+                </div>
+              </div>
+              <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(220px,1fr))',gap:10}}>
+                {PERSONNES.map(renderCard)}
+              </div>
+            </div>
+
+            {/* GROUPE 3 : OUTILS */}
+            <div style={{marginBottom:16}}>
+              <div style={{
+                display:'flex',alignItems:'center',gap:8,
+                marginBottom:10,padding:'0 4px',
+              }}>
+                <div style={{fontSize:18}}>⚡</div>
+                <div style={{fontSize:14,fontWeight:800,color:'#EF9F27',letterSpacing:0.3}}>
+                  {lang==='ar'?'الأدوات':'Outils'}
+                </div>
+                <div style={{fontSize:11,color:'#999'}}>
+                  ({lang==='ar'?'اختصارات':'raccourcis'})
+                </div>
+              </div>
+              <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(220px,1fr))',gap:10}}>
+                {OUTILS.map(renderCard)}
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {tab !== 'parametres' && tab !== '' && (
         <button onClick={()=>setTab('parametres')} className="back-link" style={{marginBottom:'0.75rem'}}>
@@ -3125,6 +4244,11 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
                     <label className="field-lbl">{lang==='ar'?'تاريخ التسجيل (اختياري)':lang==='en'?'Enrollment date (optional)':"Date d'inscription (optionnel)"}</label>
                     <input className="field-input" type="date" value={newEleve.date_inscription||''} onChange={e=>setNewEleve({...newEleve,date_inscription:e.target.value})}/>
                   </div>
+                  {/* Ligne 5 : Email parent (optionnel - Etape 11b) */}
+                  <div className="field-group" style={{gridColumn:'span 2'}}>
+                    <label className="field-lbl">{lang==='ar'?'بريد ولي الأمر الإلكتروني (اختياري)':'Email du parent (optionnel)'}</label>
+                    <input className="field-input" type="email" value={newEleve.email_parent||''} onChange={e=>setNewEleve({...newEleve,email_parent:e.target.value})} placeholder="parent@example.com"/>
+                  </div>
                 </div>
 
                 {/* ─── Jours souhaités (Assiduité) — formulaire desktop création ─── */}
@@ -3159,6 +4283,18 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
 
                 <div style={{fontSize:11,color:'#888',marginBottom:8}}>
                   <span style={{color:'#E24B4A'}}>*</span> {lang==='ar'?'حقول إلزامية':lang==='en'?'Required fields':'Champs obligatoires'}
+                </div>
+                <div style={{
+                  background:'#FFF8EC',border:'1px solid #EF9F2740',borderRadius:8,
+                  padding:'10px 12px',marginBottom:10,fontSize:11,color:'#7B5800',lineHeight:1.5,
+                  display:'flex',alignItems:'flex-start',gap:8,
+                }}>
+                  <span style={{fontSize:14,flexShrink:0}}>ℹ️</span>
+                  <span>
+                    {lang==='ar'
+                      ? <>سيتم إنشاء حساب ولي الأمر تلقائياً مع المعرف <b>= رقم الطالب</b> وكلمة المرور الافتراضية <b>{ecoleConfig?.mdp_defaut_parents || 'parent2024'}</b></>
+                      : <>Un compte parent sera automatiquement créé avec le login <b>= numéro élève</b> et le mot de passe par défaut <b>{ecoleConfig?.mdp_defaut_parents || 'parent2024'}</b></>}
+                  </span>
                 </div>
                 <button className="btn-primary" onClick={ajouterEleve}>{t(lang, 'ajouter_eleve_btn')}</button>
               </div>
@@ -3545,13 +4681,26 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
 
       {tab === 'parents' && (
         <div>
-          <div style={{display:'flex',justifyContent:'flex-end',marginBottom:'1rem'}}>
-            <button className="btn-primary" style={{width:'auto',padding:'8px 16px',fontSize:13}} onClick={()=>setShowFormParent(v=>!v)}>
-              {showFormParent?'✕':'+  '}{lang==='ar'?'إضافة ولي أمر':'Ajouter un parent'}
-            </button>
+          <div style={{
+            background:'#FFF8EC',border:'1px solid #EF9F2740',borderRadius:10,
+            padding:'10px 14px',marginBottom:'1rem',fontSize:12,color:'#7B5800',
+            display:'flex',alignItems:'center',gap:8,flexWrap:'wrap',
+          }}>
+            <span style={{fontSize:14,flexShrink:0}}>ℹ️</span>
+            <span style={{flex:1,minWidth:200}}>
+              {lang==='ar'
+                ? 'يتم إنشاء حسابات أولياء الأمور تلقائياً عند إضافة طالب جديد. يمكن تعديل البيانات أو حذف الحسابات من هنا.'
+                : 'Les comptes parents sont créés automatiquement à l\'ajout d\'un élève. Vous pouvez modifier les informations ou supprimer les comptes ici.'}
+            </span>
+            {user.role==='surveillant' && (
+              <button onClick={ouvrirModaleLier}
+                style={{padding:'7px 14px',background:'#085041',color:'#fff',border:'none',borderRadius:8,fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'inherit',display:'flex',alignItems:'center',gap:5,whiteSpace:'nowrap'}}>
+                🔗 {lang==='ar'?'ربط حسابات':'Lier des comptes'}
+              </button>
+            )}
           </div>
 
-          {showFormParent&&(
+          {showFormParent&&editingParentId&&(
             <div style={{background:'#fff',border:'1.5px solid #1D9E75',borderRadius:16,padding:'1.5rem',marginBottom:'1.25rem'}}>
               <div style={{fontSize:14,fontWeight:600,color:'#085041',marginBottom:'1rem'}}>
                 {editingParentId?'✏️':'👨‍👩‍👦'} {editingParentId?(lang==='ar'?'تعديل ولي الأمر':'Modifier le parent'):(lang==='ar'?'إضافة ولي أمر جديد':'Nouveau parent')}
@@ -3677,7 +4826,15 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
                   {(p.prenom[0]||'')+(p.nom[0]||'')}
                 </div>
                 <div style={{flex:1}}>
-                  <div style={{fontSize:13,fontWeight:600}}>{p.prenom} {p.nom}</div>
+                  <div style={{display:'flex',alignItems:'center',gap:6,flexWrap:'wrap'}}>
+                    <div style={{fontSize:13,fontWeight:600}}>{p.prenom} {p.nom}</div>
+                    {(p.eleve_ids||[]).length >= 2 && (
+                      <span style={{display:'inline-block',padding:'1px 7px',borderRadius:8,fontSize:9,fontWeight:700,background:'#E6F1FB',color:'#0C447C',border:'0.5px solid #378ADD30'}}
+                        title={lang==='ar'?`عائلة (${(p.eleve_ids||[]).length} أطفال)`:`Famille (${(p.eleve_ids||[]).length} enfants)`}>
+                        🔗 {lang==='ar'?'عائلة':'Famille'}
+                      </span>
+                    )}
+                  </div>
                   <div style={{fontSize:11,color:'#888',marginTop:2}}>
                     {lang==='ar'?'المعرف:':'ID: '}<strong>{p.identifiant}</strong>
                     {p.telephone&&' · '+p.telephone}
@@ -3697,6 +4854,16 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
                     setShowFormParent(true);
                     window.scrollTo(0,0);
                   }} style={{padding:'4px 8px',borderRadius:6,background:'#E6F1FB',color:'#378ADD',border:'0.5px solid #378ADD30',cursor:'pointer',fontSize:11,fontWeight:600}}>✏️ {lang==='ar'?'تعديل':'Modifier'}</button>
+                  <button onClick={()=>reinitialiserMDPParent(p)}
+                    style={{padding:'4px 8px',borderRadius:6,background:'#E1F5EE',color:'#085041',border:'0.5px solid #1D9E7530',cursor:'pointer',fontSize:11,fontWeight:600}}>
+                    🔑 {lang==='ar'?'إعادة كلمة المرور':'Réinit. MDP'}
+                  </button>
+                  {(p.eleve_ids||[]).length >= 2 && (
+                    <button onClick={()=>ouvrirModaleDelier(p)}
+                      style={{padding:'4px 8px',borderRadius:6,background:'#FFF8EC',color:'#7B5800',border:'0.5px solid #EF9F2740',cursor:'pointer',fontSize:11,fontWeight:600}}>
+                      🔓 {lang==='ar'?'فصل':'Délier'}
+                    </button>
+                  )}
                   <button onClick={()=>showConfirm(
                     lang==='ar'?'حذف ولي الأمر':'Supprimer le parent',
                     (lang==='ar'?'هل تريد حذف حساب ':'Supprimer le compte de ')+(p.prenom+' '+p.nom)+'?',
@@ -3750,6 +4917,313 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
           niveaux={niveauxActifs||[]} setNiveaux={setNiveauxDyn}
           showMsg={showMsg}
         />
+      )}
+      {tab === 'periodes' && (
+        <PeriodesTab user={user} lang={lang} showMsg={showMsg} />
+      )}
+
+      {/* ─── Modale Lier comptes parents (Etape 11b) ─── */}
+      {showLinkParents && (() => {
+        const candidatsParents = (parents || []).filter(p => p.role !== 'instituteur');
+        return (
+          <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.55)',zIndex:9999,
+            display:'flex',alignItems:'center',justifyContent:'center',padding:20}}
+            onClick={()=>{ if(!linkLoading) setShowLinkParents(false); }}>
+            <div onClick={e=>e.stopPropagation()}
+              style={{background:'#fff',borderRadius:16,maxWidth:600,width:'100%',padding:24,
+                boxShadow:'0 20px 60px rgba(0,0,0,0.3)',maxHeight:'90vh',overflowY:'auto'}}>
+              <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:14}}>
+                <div style={{fontSize:32}}>🔗</div>
+                <div>
+                  <div style={{fontSize:17,fontWeight:800,color:'#085041'}}>
+                    {lang==='ar'?'ربط حسابات الأولياء':'Lier des comptes parents'}
+                  </div>
+                  <div style={{fontSize:12,color:'#666',marginTop:2}}>
+                    {lang==='ar'?'دمج عدة حسابات في حساب عائلي واحد':'Fusionner plusieurs comptes en un compte famille'}
+                  </div>
+                </div>
+              </div>
+
+              {/* Etape 1 - Selection des parents */}
+              <div style={{marginBottom:14}}>
+                <div style={{fontSize:12,fontWeight:700,color:'#666',marginBottom:6,textTransform:'uppercase',letterSpacing:0.3}}>
+                  1. {lang==='ar'?'اختر الحسابات للربط (2 على الأقل)':'Sélectionner les comptes à lier (2 minimum)'}
+                </div>
+                <div style={{maxHeight:200,overflowY:'auto',background:'#f5f5f0',borderRadius:8,padding:6}}>
+                  {candidatsParents.length === 0 ? (
+                    <div style={{padding:12,textAlign:'center',color:'#888',fontSize:12,fontStyle:'italic'}}>
+                      {lang==='ar'?'لا يوجد حسابات':'Aucun compte disponible'}
+                    </div>
+                  ) : candidatsParents.map(p => {
+                    const enfantsP = eleves.filter(e => (p.eleve_ids||[]).includes(e.id));
+                    const checked = linkSelectedParents.includes(p.id);
+                    return (
+                      <label key={p.id} style={{
+                        display:'flex',alignItems:'flex-start',gap:8,padding:'8px 10px',
+                        background:checked?'#fff':'transparent',borderRadius:6,cursor:'pointer',
+                        marginBottom:3,border:checked?'1px solid #1D9E75':'1px solid transparent',
+                      }}>
+                        <input type="checkbox" checked={checked}
+                          onChange={e=>{
+                            if (e.target.checked) setLinkSelectedParents(prev=>[...prev,p.id]);
+                            else setLinkSelectedParents(prev=>prev.filter(x=>x!==p.id));
+                          }}
+                          style={{marginTop:3}}/>
+                        <div style={{flex:1,minWidth:0}}>
+                          <div style={{fontSize:13,fontWeight:600,color:'#1a1a1a'}}>
+                            {p.prenom} {p.nom}
+                            <span style={{fontSize:11,fontWeight:400,color:'#888',marginInlineStart:6,fontFamily:'monospace'}}>
+                              ({p.identifiant})
+                            </span>
+                          </div>
+                          {enfantsP.length > 0 && (
+                            <div style={{fontSize:11,color:'#666',marginTop:2}}>
+                              👶 {enfantsP.map(e=>`${e.prenom} ${e.nom}`).join(', ')}
+                            </div>
+                          )}
+                        </div>
+                      </label>
+                    );
+                  })}
+                </div>
+                <div style={{fontSize:11,color:'#888',marginTop:4}}>
+                  ✓ {linkSelectedParents.length} {lang==='ar'?'محدد':'sélectionné(s)'}
+                </div>
+              </div>
+
+              {/* Etape 2 - Choix du login */}
+              {linkSelectedParents.length >= 2 && (
+                <div style={{marginBottom:14}}>
+                  <div style={{fontSize:12,fontWeight:700,color:'#666',marginBottom:6,textTransform:'uppercase',letterSpacing:0.3}}>
+                    2. {lang==='ar'?'معرف الحساب الجديد':'Login du compte fusionné'}
+                  </div>
+                  <div style={{display:'flex',flexDirection:'column',gap:8}}>
+                    <label style={{display:'flex',alignItems:'flex-start',gap:8,padding:8,borderRadius:8,background:linkLoginMode==='manuel'?'#fff':'transparent',border:linkLoginMode==='manuel'?'1px solid #1D9E75':'1px solid transparent',cursor:'pointer'}}>
+                      <input type="radio" name="lk-mode" checked={linkLoginMode==='manuel'}
+                        onChange={()=>setLinkLoginMode('manuel')} style={{marginTop:3}}/>
+                      <div style={{flex:1}}>
+                        <div style={{fontSize:13,fontWeight:600,color:'#1a1a1a'}}>
+                          {lang==='ar'?'إنشاء معرف جديد':'Créer un nouveau login'}
+                        </div>
+                        {linkLoginMode==='manuel' && (
+                          <input type="text" value={linkLoginManuel}
+                            onChange={e=>setLinkLoginManuel(e.target.value)}
+                            placeholder={lang==='ar'?'مثلاً: famille.benali':'Ex: famille.benali'}
+                            style={{width:'100%',padding:'8px 10px',marginTop:6,borderRadius:8,border:'1px solid #d0d8e8',fontSize:12,fontFamily:'inherit'}}/>
+                        )}
+                      </div>
+                    </label>
+
+                    <label style={{display:'flex',alignItems:'flex-start',gap:8,padding:8,borderRadius:8,background:linkLoginMode==='existant'?'#fff':'transparent',border:linkLoginMode==='existant'?'1px solid #1D9E75':'1px solid transparent',cursor:'pointer'}}>
+                      <input type="radio" name="lk-mode" checked={linkLoginMode==='existant'}
+                        onChange={()=>setLinkLoginMode('existant')} style={{marginTop:3}}/>
+                      <div style={{flex:1}}>
+                        <div style={{fontSize:13,fontWeight:600,color:'#1a1a1a'}}>
+                          {lang==='ar'?'الإبقاء على معرف موجود':'Garder un login existant'}
+                        </div>
+                        {linkLoginMode==='existant' && (
+                          <select value={linkLoginExistant} onChange={e=>setLinkLoginExistant(e.target.value)}
+                            style={{width:'100%',padding:'8px 10px',marginTop:6,borderRadius:8,border:'1px solid #d0d8e8',fontSize:12,fontFamily:'inherit'}}>
+                            <option value="">— {lang==='ar'?'اختر':'Choisir'}</option>
+                            {parents.filter(p=>linkSelectedParents.includes(p.id)).map(p=>(
+                              <option key={p.id} value={p.identifiant}>{p.identifiant} ({p.prenom} {p.nom})</option>
+                            ))}
+                          </select>
+                        )}
+                      </div>
+                    </label>
+                  </div>
+                </div>
+              )}
+
+              {/* Etape 3 - Avertissement */}
+              {linkSelectedParents.length >= 2 && (
+                <div style={{
+                  background:'#FFF8EC',border:'1px solid #EF9F2740',borderRadius:8,
+                  padding:'10px 12px',fontSize:11,color:'#7B5800',marginBottom:14,lineHeight:1.5,
+                }}>
+                  ⚠️ {lang==='ar'
+                    ? `سيتم حذف ${linkSelectedParents.length - (linkLoginMode==='existant'?1:0)} حسابات قديمة وكلمة المرور الافتراضية ستكون: `
+                    : `${linkSelectedParents.length - (linkLoginMode==='existant'?1:0)} ancien(s) compte(s) seront supprimé(s). Le mot de passe sera réinitialisé à : `}
+                  <b>{ecoleConfig?.mdp_defaut_parents || 'parent2024'}</b>
+                </div>
+              )}
+
+              <div style={{display:'flex',gap:8}}>
+                <button onClick={()=>setShowLinkParents(false)} disabled={linkLoading}
+                  style={{flex:1,padding:'11px',background:'#f5f5f0',color:'#666',border:'none',borderRadius:10,fontSize:13,fontWeight:600,cursor:linkLoading?'not-allowed':'pointer',fontFamily:'inherit'}}>
+                  {lang==='ar'?'إلغاء':'Annuler'}
+                </button>
+                <button onClick={confirmerLiaisonParents} disabled={linkLoading || linkSelectedParents.length < 2}
+                  style={{flex:2,padding:'11px',
+                    background:(linkLoading || linkSelectedParents.length < 2)?'#ccc':'linear-gradient(135deg,#1D9E75,#085041)',
+                    color:'#fff',border:'none',borderRadius:10,fontSize:13,fontWeight:700,
+                    cursor:(linkLoading || linkSelectedParents.length < 2)?'not-allowed':'pointer',
+                    fontFamily:'inherit',boxShadow:'0 2px 8px rgba(8,80,65,0.3)'}}>
+                  {linkLoading ? '⏳ '+(lang==='ar'?'جاري...':'En cours...') : '🔗 '+(lang==='ar'?'ربط':'Lier')}
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* ─── Modale Délier un enfant (Etape 11b) ─── */}
+      {showUnlinkParent && (() => {
+        const { parent: pUn, enfants: enfantsUn } = showUnlinkParent;
+        return (
+          <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.55)',zIndex:9999,
+            display:'flex',alignItems:'center',justifyContent:'center',padding:20}}
+            onClick={()=>{ if(!unlinkLoading) setShowUnlinkParent(null); }}>
+            <div onClick={e=>e.stopPropagation()}
+              style={{background:'#fff',borderRadius:16,maxWidth:480,width:'100%',padding:24,
+                boxShadow:'0 20px 60px rgba(0,0,0,0.3)',maxHeight:'90vh',overflowY:'auto'}}>
+              <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:14}}>
+                <div style={{fontSize:32}}>🔓</div>
+                <div>
+                  <div style={{fontSize:17,fontWeight:800,color:'#7B5800'}}>
+                    {lang==='ar'?'فصل طفل':'Détacher un enfant'}
+                  </div>
+                  <div style={{fontSize:12,color:'#666',marginTop:2}}>
+                    {pUn.prenom} {pUn.nom} · {pUn.identifiant}
+                  </div>
+                </div>
+              </div>
+
+              <div style={{fontSize:12,fontWeight:700,color:'#666',marginBottom:8,textTransform:'uppercase',letterSpacing:0.3}}>
+                {lang==='ar'?'أي طفل تريد فصله؟':'Quel enfant détacher ?'}
+              </div>
+
+              <div style={{marginBottom:14}}>
+                {enfantsUn.map(e => (
+                  <label key={e.id} style={{
+                    display:'flex',alignItems:'flex-start',gap:8,padding:10,borderRadius:8,
+                    background:unlinkChildId===e.id?'#FFF8EC':'#f5f5f0',
+                    border:unlinkChildId===e.id?'1px solid #EF9F27':'1px solid transparent',
+                    cursor:'pointer',marginBottom:6,
+                  }}>
+                    <input type="radio" name="unlk-child" checked={unlinkChildId===e.id}
+                      onChange={()=>setUnlinkChildId(e.id)} style={{marginTop:3}}/>
+                    <div style={{flex:1}}>
+                      <div style={{fontSize:13,fontWeight:600,color:'#1a1a1a'}}>{e.prenom} {e.nom}</div>
+                      <div style={{fontSize:11,color:'#666',marginTop:2}}>
+                        🆔 {e.eleve_id_ecole} · 🎓 {e.code_niveau || '-'}
+                      </div>
+                    </div>
+                  </label>
+                ))}
+              </div>
+
+              {unlinkChildId && (() => {
+                const enf = enfantsUn.find(e => e.id === unlinkChildId);
+                return (
+                  <div style={{
+                    background:'#E1F5EE',border:'1px solid #1D9E7530',borderRadius:8,
+                    padding:'10px 12px',fontSize:11,color:'#085041',marginBottom:14,lineHeight:1.5,
+                  }}>
+                    ℹ️ {lang==='ar'?'سيتم إنشاء حساب جديد:':'Un nouveau compte sera créé :'}<br/>
+                    <span style={{fontFamily:'monospace',fontWeight:700}}>
+                      {lang==='ar'?'المعرف':'Login'}: {enf.eleve_id_ecole}<br/>
+                      {lang==='ar'?'كلمة المرور':'MDP'}: {ecoleConfig?.mdp_defaut_parents || 'parent2024'}
+                    </span>
+                  </div>
+                );
+              })()}
+
+              <div style={{display:'flex',gap:8}}>
+                <button onClick={()=>setShowUnlinkParent(null)} disabled={unlinkLoading}
+                  style={{flex:1,padding:'11px',background:'#f5f5f0',color:'#666',border:'none',borderRadius:10,fontSize:13,fontWeight:600,cursor:unlinkLoading?'not-allowed':'pointer',fontFamily:'inherit'}}>
+                  {lang==='ar'?'إلغاء':'Annuler'}
+                </button>
+                <button onClick={confirmerDeliaison} disabled={unlinkLoading || !unlinkChildId}
+                  style={{flex:2,padding:'11px',
+                    background:(unlinkLoading || !unlinkChildId)?'#ccc':'#EF9F27',
+                    color:'#fff',border:'none',borderRadius:10,fontSize:13,fontWeight:700,
+                    cursor:(unlinkLoading || !unlinkChildId)?'not-allowed':'pointer',fontFamily:'inherit'}}>
+                  {unlinkLoading ? '⏳ '+(lang==='ar'?'جاري...':'En cours...') : '🔓 '+(lang==='ar'?'فصل':'Détacher')}
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* ─── Modale recap création élève + compte parent (Etape 11a) ─── */}
+      {showEleveCree && (
+        <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.55)',zIndex:9999,
+          display:'flex',alignItems:'center',justifyContent:'center',padding:20}}
+          onClick={()=>setShowEleveCree(null)}>
+          <div onClick={e=>e.stopPropagation()}
+            style={{background:'#fff',borderRadius:16,maxWidth:520,width:'100%',padding:24,
+              boxShadow:'0 20px 60px rgba(0,0,0,0.3)',maxHeight:'90vh',overflowY:'auto'}}>
+            <div style={{textAlign:'center',marginBottom:18}}>
+              <div style={{fontSize:48,marginBottom:8}}>🎉</div>
+              <div style={{fontSize:18,fontWeight:800,color:'#085041',marginBottom:4}}>
+                {lang==='ar'?'تم إضافة الطالب بنجاح!':'Élève créé avec succès !'}
+              </div>
+            </div>
+
+            {/* Récap élève */}
+            <div style={{
+              background:'#E1F5EE',border:'1px solid #1D9E7530',borderRadius:10,
+              padding:'12px 14px',marginBottom:12,
+            }}>
+              <div style={{fontSize:11,fontWeight:700,color:'#085041',marginBottom:6,textTransform:'uppercase',letterSpacing:0.3}}>
+                👤 {lang==='ar'?'الطالب':'Élève'}
+              </div>
+              <div style={{fontSize:15,fontWeight:700,color:'#1a1a1a'}}>
+                {showEleveCree.eleve.prenom} {showEleveCree.eleve.nom}
+              </div>
+              <div style={{fontSize:12,color:'#666',marginTop:3,display:'flex',gap:10,flexWrap:'wrap'}}>
+                <span>🆔 {showEleveCree.eleve.eleve_id_ecole}</span>
+                <span>🎓 {showEleveCree.eleve.code_niveau}</span>
+              </div>
+            </div>
+
+            {/* Récap compte parent */}
+            <div style={{
+              background:'#FFF8EC',border:'1px solid #EF9F2740',borderRadius:10,
+              padding:'12px 14px',marginBottom:14,
+            }}>
+              <div style={{fontSize:11,fontWeight:700,color:'#7B5800',marginBottom:8,textTransform:'uppercase',letterSpacing:0.3}}>
+                👨‍👩‍👧 {lang==='ar'?'حساب ولي الأمر (تم إنشاؤه تلقائياً)':'Compte parent (créé automatiquement)'}
+              </div>
+              <div style={{display:'grid',gridTemplateColumns:'auto 1fr',gap:'6px 10px',fontSize:13}}>
+                <div style={{color:'#666',fontWeight:600}}>{lang==='ar'?'المعرف:':'Login :'}</div>
+                <div style={{fontWeight:700,color:'#1a1a1a',fontFamily:'monospace'}}>{showEleveCree.parent.login}</div>
+                <div style={{color:'#666',fontWeight:600}}>{lang==='ar'?'كلمة المرور:':'Mot de passe :'}</div>
+                <div style={{fontWeight:700,color:'#1a1a1a',fontFamily:'monospace'}}>{showEleveCree.parent.mdp}</div>
+              </div>
+              <div style={{fontSize:11,color:'#8a5a00',marginTop:10,lineHeight:1.5,fontStyle:'italic'}}>
+                ℹ️ {lang==='ar'
+                  ? 'يمكن لولي الأمر تغيير كلمة المرور بعد أول اتصال. سلّم هذه المعلومات إليه.'
+                  : 'Le parent peut changer son mot de passe à la première connexion. Communiquez-lui ces informations.'}
+              </div>
+            </div>
+
+            {/* Boutons */}
+            <div style={{display:'flex',gap:8}}>
+              <button onClick={()=>{
+                const txt = lang==='ar'
+                  ? `حساب ولي الأمر:\nالمعرف: ${showEleveCree.parent.login}\nكلمة المرور: ${showEleveCree.parent.mdp}`
+                  : `Compte parent :\nLogin : ${showEleveCree.parent.login}\nMot de passe : ${showEleveCree.parent.mdp}`;
+                navigator.clipboard?.writeText(txt).then(() => {
+                  showMsg('success', lang==='ar'?'✅ تم النسخ':'✅ Copié dans le presse-papier');
+                }).catch(()=>{});
+              }}
+                style={{flex:1,padding:'12px',background:'#fff',color:'#085041',border:'1.5px solid #085041',
+                  borderRadius:10,fontSize:13,fontWeight:600,cursor:'pointer',fontFamily:'inherit'}}>
+                📋 {lang==='ar'?'نسخ المعلومات':'Copier les identifiants'}
+              </button>
+              <button onClick={()=>setShowEleveCree(null)}
+                style={{flex:1,padding:'12px',background:'linear-gradient(135deg,#1D9E75,#085041)',color:'#fff',
+                  border:'none',borderRadius:10,fontSize:13,fontWeight:700,cursor:'pointer',fontFamily:'inherit',
+                  boxShadow:'0 2px 8px rgba(8,80,65,0.3)'}}>
+                ✓ {lang==='ar'?'حسناً':'OK'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* ─── Modale Suspendre instituteur (Etape 7) ─── */}

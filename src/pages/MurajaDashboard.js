@@ -5,6 +5,7 @@ import ConfirmModal from '../components/ConfirmModal';
 import { fetchAll } from '../lib/fetchAll';
 import { openPDF } from '../lib/pdf';
 import { exportExcelSimple } from '../lib/excel';
+import { loadAnneeActiveAvecPeriodes, formatPeriodeCourte } from '../lib/helpers';
 import ExportButtons from '../components/ExportButtons';
 
 const getNiveauColor = (code, niveaux=[]) => niveaux.find(n=>n.code===code)?.couleur || {'5B':'#534AB7','5A':'#378ADD','2M':'#1D9E75','2':'#EF9F27','1':'#E24B4A'}[code] || '#888';
@@ -16,7 +17,8 @@ export default function MurajaDashboard({ user, navigate, goBack, lang='fr', isM
   const [loading, setLoading]         = useState(true);
   const [niveaux, setNiveaux]           = useState([]);
   const [filterNiveau, setFilterNiveau] = useState('tous');
-  const [filterPeriode, setFilterPeriode] = useState(30);
+  const [filterPeriode, setFilterPeriode] = useState('30'); // string : "7","30","90","365","bdd_<id>"
+  const [periodesBDD, setPeriodesBDD] = useState([]); // Etape 14 v2
 
   // Edit state
   const [editingSession, setEditingSession]   = useState(null); // session object
@@ -29,6 +31,14 @@ export default function MurajaDashboard({ user, navigate, goBack, lang='fr', isM
   const hideConfirm = () => setConfirmModal(m=>({...m,isOpen:false,onConfirm:null}));
 
   useEffect(() => { loadData(); }, []);
+
+  // Etape 14 v2 - Charger les periodes typees de l'annee active
+  useEffect(() => {
+    if (!user?.ecole_id) return;
+    loadAnneeActiveAvecPeriodes(supabase, user.ecole_id).then(({ periodes }) => {
+      setPeriodesBDD(periodes.filter(p => p.type && p.type !== 'libre'));
+    });
+  }, [user?.ecole_id]);
 
   const loadData = async () => {
     setLoading(true);
@@ -61,8 +71,22 @@ export default function MurajaDashboard({ user, navigate, goBack, lang='fr', isM
   };
 
   // Build flat records list with ids
-  const cutoff = new Date();
-  cutoff.setDate(cutoff.getDate() - filterPeriode);
+  // Etape 14 v2 - filterPeriode peut etre un nombre de jours OU 'bdd_<id>'
+  let cutoff, cutoffEnd = null;
+  if (filterPeriode && typeof filterPeriode === 'string' && filterPeriode.startsWith('bdd_')) {
+    const id = filterPeriode.substring(4);
+    const p = periodesBDD.find(x => x.id === id);
+    if (p) {
+      cutoff = new Date(p.date_debut);
+      cutoffEnd = new Date(p.date_fin);
+    } else {
+      cutoff = new Date();
+      cutoff.setDate(cutoff.getDate() - 30); // fallback
+    }
+  } else {
+    cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() - parseInt(filterPeriode || '30'));
+  }
 
   const allMuraja = [
     ...(recitations||[]).map(r => ({
@@ -86,7 +110,12 @@ export default function MurajaDashboard({ user, navigate, goBack, lang='fr', isM
       valideurId: v.valide_par,
     })),
   ]
-  .filter(m => new Date(m.date) >= cutoff)
+  .filter(m => {
+    const d = new Date(m.date);
+    if (d < cutoff) return false;
+    if (cutoffEnd && d > cutoffEnd) return false;
+    return true;
+  })
   .filter(m => filterNiveau === 'tous' || m.niveau === filterNiveau)
   .sort((a,b) => new Date(b.date) - new Date(a.date));
 
@@ -277,12 +306,21 @@ export default function MurajaDashboard({ user, navigate, goBack, lang='fr', isM
               <option value="tous" style={{color:'#333'}}>{lang==='ar'?'كل المستويات':'Tous niveaux'}</option>
               {niveaux.map(n=><option key={n.code} value={n.code} style={{color:'#333'}}>{n.code} — {n.nom}</option>)}
             </select>
-            <select value={filterPeriode} onChange={e=>setFilterPeriode(parseInt(e.target.value))}
+            <select value={filterPeriode} onChange={e=>setFilterPeriode(e.target.value)}
               style={{flex:1,padding:'8px 10px',borderRadius:10,border:'none',fontSize:12,fontFamily:'inherit',background:'rgba(255,255,255,0.2)',color:'#fff',outline:'none'}}>
-              <option value={7} style={{color:'#333'}}>7j</option>
-              <option value={30} style={{color:'#333'}}>30j</option>
-              <option value={90} style={{color:'#333'}}>3 {lang==='ar'?'أشهر':'mois'}</option>
-              <option value={365} style={{color:'#333'}}>{lang==='ar'?'سنة':'1 an'}</option>
+              <option value="7" style={{color:'#333'}}>7j</option>
+              <option value="30" style={{color:'#333'}}>30j</option>
+              <option value="90" style={{color:'#333'}}>3 {lang==='ar'?'أشهر':'mois'}</option>
+              <option value="365" style={{color:'#333'}}>{lang==='ar'?'سنة':'1 an'}</option>
+              {periodesBDD.length > 0 && (
+                <optgroup label={lang==='ar'?'فترات السنة':'Périodes scolaires'}>
+                  {periodesBDD.map(p => (
+                    <option key={p.id} value={'bdd_'+p.id} style={{color:'#333'}}>
+                      {formatPeriodeCourte(p, lang, true)}
+                    </option>
+                  ))}
+                </optgroup>
+              )}
             </select>
             <button onClick={loadData} style={{padding:'8px 12px',background:'rgba(255,255,255,0.2)',color:'#fff',border:'none',borderRadius:10,cursor:'pointer',flexShrink:0,fontSize:14}}>🔄</button>
           </div>
@@ -332,11 +370,20 @@ export default function MurajaDashboard({ user, navigate, goBack, lang='fr', isM
           <option value="tous">{lang==='ar'?'جميع المستويات':'Tous les niveaux'}</option>
           {niveaux.map(n=><option key={n.code} value={n.code}>{n.code} — {n.nom}</option>)}
         </select>
-        <select className="field-select" style={{flex:1,minWidth:120}} value={filterPeriode} onChange={e=>setFilterPeriode(parseInt(e.target.value))}>
-          <option value={7}>{lang==='ar'?'آخر 7 أيام':'7 derniers jours'}</option>
-          <option value={30}>{lang==='ar'?'آخر 30 يوم':'30 derniers jours'}</option>
-          <option value={90}>{lang==='ar'?'آخر 3 أشهر':'3 derniers mois'}</option>
-          <option value={365}>{lang==='ar'?'آخر سنة':'Dernière année'}</option>
+        <select className="field-select" style={{flex:1,minWidth:120}} value={filterPeriode} onChange={e=>setFilterPeriode(e.target.value)}>
+          <option value="7">{lang==='ar'?'آخر 7 أيام':'7 derniers jours'}</option>
+          <option value="30">{lang==='ar'?'آخر 30 يوم':'30 derniers jours'}</option>
+          <option value="90">{lang==='ar'?'آخر 3 أشهر':'3 derniers mois'}</option>
+          <option value="365">{lang==='ar'?'آخر سنة':'Dernière année'}</option>
+          {periodesBDD.length > 0 && (
+            <optgroup label={lang==='ar'?'فترات السنة':'Périodes scolaires'}>
+              {periodesBDD.map(p => (
+                <option key={p.id} value={'bdd_'+p.id}>
+                  {formatPeriodeCourte(p, lang, true)}
+                </option>
+              ))}
+            </optgroup>
+          )}
         </select>
         <button onClick={loadData} style={{padding:'6px 14px',background:'#E1F5EE',color:'#085041',border:'none',borderRadius:8,fontWeight:600,cursor:'pointer'}}>🔄</button>
       </div>

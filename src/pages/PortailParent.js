@@ -39,6 +39,15 @@ export default function PortailParent({ parent, navigate, goBack, lang='fr', onL
   const [bareme, setBareme] = React.useState({...BAREME_DEFAUT});
   const [onglet, setOnglet] = useState('progression');
   const [showChangeMdp, setShowChangeMdp] = useState(false);
+  // Etape 11b - Banniere invitation MDP a la 1ere connexion
+  const [showMdpBanner, setShowMdpBanner] = useState(() => {
+    try { return !localStorage.getItem('parent_mdp_banner_dismissed_' + (parent?.id||'')); }
+    catch (e) { return true; }
+  });
+  const dismissMdpBanner = () => {
+    setShowMdpBanner(false);
+    try { localStorage.setItem('parent_mdp_banner_dismissed_' + (parent?.id||''), '1'); } catch (e) {}
+  };
   // RGPD (itération 4.3) : modale d'info + état loading pour l'export
   const [showRgpdModal, setShowRgpdModal] = useState(false);
   const [rgpdLoading, setRgpdLoading] = useState(false);
@@ -782,6 +791,38 @@ export default function PortailParent({ parent, navigate, goBack, lang='fr', onL
 
   return (
     <div>
+      {/* Banniere invitation changement MDP (Etape 11b) - dismissible */}
+      {showMdpBanner && (
+        <div style={{
+          background:'linear-gradient(90deg,#FFF8EC,#FAEEDA)',
+          border:'1px solid #EF9F2740',borderRadius:12,
+          padding:'12px 16px',marginBottom:14,
+          display:'flex',alignItems:'center',gap:10,flexWrap:'wrap',
+        }}>
+          <div style={{fontSize:24,flexShrink:0}}>🔐</div>
+          <div style={{flex:1,minWidth:200}}>
+            <div style={{fontSize:13,fontWeight:700,color:'#7B5800',marginBottom:2}}>
+              {lang==='ar'?'لأمان حسابك':'Pour la sécurité de votre compte'}
+            </div>
+            <div style={{fontSize:12,color:'#8a5a00',lineHeight:1.4}}>
+              {lang==='ar'
+                ? 'ننصحك بتغيير كلمة المرور الافتراضية إلى كلمة شخصية أكثر أمانًا.'
+                : 'Nous vous invitons à changer le mot de passe par défaut par un mot de passe personnel plus sécurisé.'}
+            </div>
+          </div>
+          <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>
+            <button onClick={()=>{dismissMdpBanner();setShowChangeMdp(true);}}
+              style={{padding:'7px 14px',background:'#085041',color:'#fff',border:'none',borderRadius:8,fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
+              🔑 {lang==='ar'?'تغيير الآن':'Changer maintenant'}
+            </button>
+            <button onClick={dismissMdpBanner}
+              title={lang==='ar'?'لاحقًا':'Plus tard'}
+              style={{padding:'7px 10px',background:'transparent',color:'#8a5a00',border:'1px solid #EF9F2730',borderRadius:8,fontSize:12,fontWeight:600,cursor:'pointer',fontFamily:'inherit'}}>
+              ✕
+            </button>
+          </div>
+        </div>
+      )}
       {/* Header parent */}
       <div style={{background:'linear-gradient(135deg,#085041,#1D9E75)',borderRadius:16,padding:'1.25rem',marginBottom:'1.25rem',color:'#fff'}}>
         <div style={{fontSize:12,opacity:0.8,marginBottom:4}}>
