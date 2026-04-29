@@ -352,8 +352,12 @@ export default function ResultatsExamens({ user, navigate, goBack, lang='fr', is
     if (cert) {
       navigate('liste_certificats', null, { focusCertId: cert.id });
     } else {
-      // Pas encore de cert : ouvrir la liste filtrée sur l'élève
-      navigate('liste_certificats', null, { focusEleveId: r.eleve_id });
+      // B3 — Pas encore de cert : passer resultat + examen pour ouverture modale en mode création
+      navigate('liste_certificats', null, {
+        focusEleveId: r.eleve_id,
+        focusResultatId: r.id,
+        focusExamenId: r.examen_id,
+      });
     }
   };
 
