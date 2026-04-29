@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { genererCertificatPDF } from './CertificatExamen';
 import { supabase } from '../lib/supabase';
 import { loadBareme, enregistrerPointsEvenement, verifierEtCreerCertificats, verifierEtCreerCertificatsExamens, loadAnneeActiveAvecPeriodes, formatPeriodeCourte, detecterPeriodeEnCours } from '../lib/helpers';
 import { useToast } from '../lib/toast';
@@ -21,7 +20,6 @@ export default function ResultatsExamens({ user, navigate, goBack, lang='fr', is
   const [souratesDB,setSouratesDB]= useState([]);
   const [loading,   setLoading]   = useState(true);
   const [saving,    setSaving]    = useState(false);
-  const [loadingCert, setLoadingCert] = useState(null); // id du résultat en cours
   const [ecole, setEcole] = useState(null);
   const [activeTab, setActiveTab] = useState('saisir');
   // Etape 8 - Modale certificats post-examen
@@ -316,16 +314,6 @@ export default function ResultatsExamens({ user, navigate, goBack, lang='fr', is
 
   const nomEleve   = (id) => { const e=eleves.find(x=>x.id===id); return e?`${e.prenom} ${e.nom}`:'?'; };
 
-  const telechargerCertificat = async (r) => {
-    const el = eleves.find(e=>e.id===r.eleve_id);
-    const ex = examens.find(e=>e.id===r.examen_id);
-    const niv= niveaux.find(n=>n.id===ex?.niveau_id);
-    if (!el || !ex) return;
-    setLoadingCert(r.id);
-    const ok = await genererCertificatPDF({ resultat:r, eleve:el, examen:ex, niveau:niv, ecole });
-    setLoadingCert(null);
-    if (!ok) toast.warning(lang==='ar'?'خطأ في إنشاء الشهادة':'Erreur certificat');
-  };
   const nomExamen  = (id) => examens.find(e=>e.id===id)?.nom||'?';
   const nomNiveau  = (id) => { const n=niveaux.find(x=>x.id===id); return n?`${n.code} — ${n.nom}`:'?'; };
   const couleurNiv = (id) => niveaux.find(n=>n.id===id)?.couleur||'#888';
@@ -825,27 +813,18 @@ export default function ResultatsExamens({ user, navigate, goBack, lang='fr', is
                     {new Date(r.date_examen||r.created_at).toLocaleDateString(isAr?'ar-MA':'fr-FR')}
                   </div>
                 </div>
-                {/* B1 — Actions : Voir certif + PDF (transitoire) */}
+                {/* B2 — Action unifiée : Éditer le certificat (redirige vers menu Certificats) */}
                 {ok && (
                   <div style={{display:'flex', gap:6, flexShrink:0}}>
-                    {certExiste && (
-                      <button onClick={()=>voirCertificat(r)}
-                        title={isAr?'عرض الشهادة':'Voir certificat'}
-                        style={{padding:'6px 11px', borderRadius:20, border:'0.5px solid #085041',
-                          background:'#fff', color:'#085041', fontSize:11, fontWeight:600,
-                          cursor:'pointer', fontFamily:'inherit', whiteSpace:'nowrap'}}>
-                        🔍 {isAr?'عرض':'Voir'}
-                      </button>
-                    )}
-                    <button onClick={()=>telechargerCertificat(r)}
-                      disabled={loadingCert===r.id}
-                      title={isAr?'تحميل PDF':'Télécharger PDF'}
-                      style={{padding:'6px 11px', borderRadius:20, border:'none',
-                        background: loadingCert===r.id?'#ccc':'#1D9E75',
+                    <button onClick={()=>voirCertificat(r)}
+                      title={isAr?'تحرير الشهادة':'Éditer le certificat'}
+                      style={{padding:'7px 14px', borderRadius:20, border:'none',
+                        background: certExiste ? '#085041' : '#EF9F27',
                         color:'#fff', fontSize:11, fontWeight:600,
-                        cursor: loadingCert===r.id?'not-allowed':'pointer',
-                        fontFamily:'inherit', whiteSpace:'nowrap'}}>
-                      {loadingCert===r.id?'⏳':'📄 PDF'}
+                        cursor:'pointer', fontFamily:'inherit', whiteSpace:'nowrap',
+                        display:'flex', alignItems:'center', gap:5}}>
+                      ✏️ {isAr ? (certExiste?'تحرير':'إصدار')
+                                : (certExiste?'Éditer cert.':'Émettre cert.')}
                     </button>
                   </div>
                 )}
