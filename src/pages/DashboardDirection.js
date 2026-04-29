@@ -102,8 +102,9 @@ export default function DashboardDirection({ user, navigate, goBack, lang='fr', 
   const [passages, setPassages] = useState([]);
   const [ecole, setEcole] = useState(null);
   const [bareme, setBareme] = useState(BAREME_DEFAUT);
-  const [periode, setPeriode] = useState('mois'); // 'mois' | 'bdd_<id>' (Etape 14 v2)
-  const [periodesBDD, setPeriodesBDD] = useState([]); // periodes typees de l'annee active
+  const [periode, setPeriode] = useState('mois'); // 'mois' | 'bdd_<id>' | 'annee_scolaire' (Etape 14 v2)
+  const [periodesBDD, setPeriodesBDD] = useState([]); // periodes typees (T/S) de l'annee active
+  const [anneeActive, setAnneeActive] = useState(null); // l'annee scolaire active (Etape 14 v2)
   const [showPeriodeDropdown, setShowPeriodeDropdown] = useState(false); // Etape 14 v2 - dropdown 'Plus'
   const [activeSection, setActiveSection] = useState('overview');
 
@@ -114,18 +115,19 @@ export default function DashboardDirection({ user, navigate, goBack, lang='fr', 
 
   useEffect(() => { loadData(); }, []);
 
-  // Etape 14 v2 - Charger les periodes typees de l'annee active
-  // Inclut trimestres + semestres + annee (la periode 'annee' est legitime
-  // dans Dashboard Direction car c'est une vue strategique)
+  // Etape 14 v2 - Charger l'annee active + ses periodes typees (T, S)
+  // L'annee scolaire (annees_scolaires) sert directement comme bouton 'Annee' :
+  // pas besoin de creer une periode type='annee' redondante.
   useEffect(() => {
     if (!user?.ecole_id) return;
     loadAnneeActiveAvecPeriodes(supabase, user.ecole_id).then(({ annee, periodes }) => {
-      console.log('[DashboardDirection] annee active:', annee);
-      console.log('[DashboardDirection] periodes chargees:', periodes);
-      console.log('[DashboardDirection] types presents:', [...new Set(periodes.map(p => p.type))]);
-      setPeriodesBDD(periodes.filter(p => p.type && p.type !== 'libre'));
+      setAnneeActive(annee);
+      // Periodes typees : trimestres et semestres uniquement (pas 'libre' ni 'annee' redondante)
+      setPeriodesBDD(periodes.filter(p => p.type === 'trimestre' || p.type === 'semestre'));
     });
   }, [user?.ecole_id]);
+
+  // Nettoyage diagnostic : supprime les console.log temporaires
 
   // ─── P2.1 : Chargement des logs RGPD quand la section s'ouvre ──
   useEffect(() => {
@@ -203,6 +205,13 @@ export default function DashboardDirection({ user, navigate, goBack, lang='fr', 
         periodeFin: now,
       };
     }
+    // 'annee_scolaire' = utilise directement les dates de l'annee active
+    if (periode === 'annee_scolaire' && anneeActive) {
+      return {
+        periodeDebut: new Date(anneeActive.date_debut),
+        periodeFin: new Date(anneeActive.date_fin),
+      };
+    }
     if (periode && periode.startsWith('bdd_')) {
       const id = periode.substring(4);
       const p = periodesBDD.find(x => x.id === id);
@@ -218,7 +227,7 @@ export default function DashboardDirection({ user, navigate, goBack, lang='fr', 
       periodeDebut: new Date(now.getFullYear(), now.getMonth(), 1),
       periodeFin: now,
     };
-  }, [periode, periodesBDD]);
+  }, [periode, periodesBDD, anneeActive]);
 
   const valsFiltered = useMemo(() =>
     (validations||[]).filter(v => {
@@ -336,18 +345,18 @@ export default function DashboardDirection({ user, navigate, goBack, lang='fr', 
   }, [eleves, validations, kpis]);
 
   // Etape 14 v2 - PERIODES dynamiques pour Dashboard Direction
-  // Pattern hybride : [Ce mois] [T en cours] [Année] + dropdown "Plus"
+  // Pattern hybride : [Ce mois] [T en cours] [Année active] + dropdown "Plus"
   const trimestresBDD = periodesBDD.filter(p => p.type === 'trimestre');
   const semestresBDD  = periodesBDD.filter(p => p.type === 'semestre');
-  const anneesBDD     = periodesBDD.filter(p => p.type === 'annee');
   const trimestreEnCours = detecterPeriodeEnCours(trimestresBDD);
-  const anneeEnCours = detecterPeriodeEnCours(anneesBDD);
 
   // 3 boutons rapides + Dropdown "Plus"
   const boutonsRapides = [
     { key:'mois', label:isAr?'الشهر الحالي':'Ce mois' },
     ...(trimestreEnCours ? [{ key:'bdd_'+trimestreEnCours.id, label: formatPeriodeCourte(trimestreEnCours, lang, true) }] : []),
-    ...(anneeEnCours ? [{ key:'bdd_'+anneeEnCours.id, label: formatPeriodeCourte(anneeEnCours, lang, false) }] : []),
+    // Etape 14 v2 - L'annee scolaire active sert directement comme bouton 'Annee'
+    // (pas besoin de creer une periode type='annee' redondante)
+    ...(anneeActive ? [{ key:'annee_scolaire', label: anneeActive.nom }] : []),
   ];
 
   // Items dropdown (toutes les periodes BDD sauf celles deja en bouton rapide)
@@ -363,10 +372,10 @@ export default function DashboardDirection({ user, navigate, goBack, lang='fr', 
         .filter(item => !idsRapides.includes(item.key))
     },
     // Bilans
-    { groupe: isAr?'الحصيلة':'Bilans', items: [
-      ...semestresBDD.map(p => ({ key:'bdd_'+p.id, label: formatPeriodeCourte(p, lang, true) })),
-      ...anneesBDD.map(p => ({ key:'bdd_'+p.id, label: formatPeriodeCourte(p, lang, false) })),
-    ].filter(item => !idsRapides.includes(item.key)) },
+    { groupe: isAr?'الحصيلة':'Bilans', items:
+      semestresBDD.map(p => ({ key:'bdd_'+p.id, label: formatPeriodeCourte(p, lang, true) }))
+        .filter(item => !idsRapides.includes(item.key))
+    },
   ].filter(g => g.items.length > 0);
 
   // Liste plate pour determiner le label de la periode active

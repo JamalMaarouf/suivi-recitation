@@ -554,13 +554,19 @@ function PeriodesTab({ user, lang, showMsg }) {
   // Modale generique de confirmation (Etape 14 v2)
   const [confirmModale, setConfirmModale] = useState(null); // {titre, message, onConfirm, danger}
 
-  const TYPE_OPTIONS = [
+  // Etape 14 v2 - L'annee scolaire (annees_scolaires) sert directement comme
+  // periode 'Annee' dans les selecteurs. Le type 'annee' n'est plus propose
+  // a la creation pour eviter la redondance, mais reste affichable pour
+  // les anciennes periodes (retrocompatibilite).
+  const TYPE_OPTIONS_AFFICHAGE = [
     { val: 'trimestre', icon: '🗓️', label_fr: 'Trimestre',  label_ar: 'فصل دراسي',   color: '#378ADD' },
     { val: 'semestre',  icon: '📆', label_fr: 'Semestre',   label_ar: 'نصف سنة',     color: '#085041' },
     { val: 'annee',     icon: '📚', label_fr: 'Année',      label_ar: 'سنة كاملة',  color: '#EF9F27' },
     { val: 'libre',     icon: '📅', label_fr: 'Libre',      label_ar: 'حر',          color: '#888'    },
   ];
-  const getTypeMeta = (t) => TYPE_OPTIONS.find(o => o.val === (t || 'libre')) || TYPE_OPTIONS[3];
+  // Options proposees a la creation : sans 'annee' (Q3=A)
+  const TYPE_OPTIONS = TYPE_OPTIONS_AFFICHAGE.filter(o => o.val !== 'annee');
+  const getTypeMeta = (t) => TYPE_OPTIONS_AFFICHAGE.find(o => o.val === (t || 'libre')) || TYPE_OPTIONS_AFFICHAGE[3];
 
   const fmt = (d) => d ? new Date(d).toLocaleDateString(lang==='ar'?'ar-MA':'fr-FR', {day:'2-digit', month:'short', year:'numeric'}) : '—';
 
