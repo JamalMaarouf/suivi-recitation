@@ -2249,13 +2249,21 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile,
     setParents((pd||[]).map(p=>({...p, eleve_ids:liensMap[p.id]||[]})));
 
     // Etape 13 - Charger les compteurs pour les indicateurs (workflow)
+    // FIX B7 - Paralleliser les COUNT au lieu de boucle sequentielle
+    // Avant : 6 requetes sequentielles (~600ms-1s sur reseau lent)
+    // Apres : 6 requetes en parallele (~150-200ms)
     try {
-      const counts = {};
       const tables = ['niveaux','ensembles_sourates','examens','jalons','cours','regles_passage_niveau'];
-      for (const tbl of tables) {
-        const { count } = await supabase.from(tbl).select('id', { count: 'exact', head: true }).eq('ecole_id', user.ecole_id);
-        counts[tbl === 'ensembles_sourates' ? 'ensembles' : tbl === 'regles_passage_niveau' ? 'regles_passage' : tbl] = count || 0;
-      }
+      const countResults = await Promise.all(
+        tables.map(tbl =>
+          supabase.from(tbl).select('id', { count: 'exact', head: true }).eq('ecole_id', user.ecole_id)
+        )
+      );
+      const counts = {};
+      tables.forEach((tbl, i) => {
+        const key = tbl === 'ensembles_sourates' ? 'ensembles' : tbl === 'regles_passage_niveau' ? 'regles_passage' : tbl;
+        counts[key] = countResults[i].count || 0;
+      });
       // Counts deja calcules en local
       counts.eleves = (e || []).length;
       counts.instituteurs = (i || []).length;
