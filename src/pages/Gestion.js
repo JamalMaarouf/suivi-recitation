@@ -4137,6 +4137,7 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
           const isNext = nextStep && nextStep.k === item.k;
           return (
             <div key={item.k} onClick={blocked ? null : item.action}
+              className="gestion-card"
               style={{background:'#fff',borderRadius:14,padding:'1rem',
                 border: isNext ? '2px solid #EF9F27' : `0.5px solid ${item.color}25`,
                 cursor:blocked?'not-allowed':'pointer',
@@ -4146,27 +4147,25 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
                 opacity:blocked?0.55:1,position:'relative'}}
               onMouseEnter={e=>{if(!blocked){e.currentTarget.style.transform='translateY(-2px)';e.currentTarget.style.boxShadow='0 4px 16px rgba(0,0,0,0.08)';}}}
               onMouseLeave={e=>{if(!blocked){e.currentTarget.style.transform='translateY(0)';e.currentTarget.style.boxShadow=isNext?'0 4px 16px rgba(239,159,39,0.25)':'0 1px 4px rgba(0,0,0,0.04)';}}}>
-              {/* Numéro étape */}
+              {/* E1h — Numero d'etape : chip discret en coin (avant : rond plein colore) */}
               <div style={{
-                position:'absolute',top:8,insetInlineStart:8,
-                width:20,height:20,borderRadius:'50%',
-                background:item.color,color:'#fff',fontSize:10,fontWeight:800,
-                display:'flex',alignItems:'center',justifyContent:'center',
-                opacity:0.85,
-              }}>{item.n}</div>
+                position:'absolute',top:6,insetInlineStart:8,
+                fontSize:9,fontWeight:700,color:'#bbb',
+                letterSpacing:0.3,
+              }}>#{item.n}</div>
               {/* Indicateur statut */}
               {item.filled === true && (
-                <div style={{position:'absolute',top:8,insetInlineEnd:8,
-                  fontSize:13,color:'#1D9E75'}} title={lang==='ar'?'مكتمل':'Configuré'}>✓</div>
+                <div style={{position:'absolute',top:6,insetInlineEnd:8,
+                  fontSize:12,color:'#1D9E75',opacity:0.85}} title={lang==='ar'?'مكتمل':'Configuré'}>✓</div>
               )}
               {blocked && (
-                <div style={{position:'absolute',top:8,insetInlineEnd:8,
-                  fontSize:13,color:'#E24B4A'}} title={item.dependLabel}>🔒</div>
+                <div style={{position:'absolute',top:6,insetInlineEnd:8,
+                  fontSize:12,color:'#E24B4A'}} title={item.dependLabel}>🔒</div>
               )}
               {/* Icône */}
               <div style={{width:46,height:46,borderRadius:12,background:item.bg,
                 display:'flex',alignItems:'center',justifyContent:'center',
-                fontSize:22,flexShrink:0,marginInlineStart:12}}>
+                fontSize:22,flexShrink:0,marginInlineStart:8}}>
                 {item.icon}
               </div>
               <div style={{flex:1,minWidth:0,paddingTop:2}}>
@@ -4175,35 +4174,46 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
                   {blocked ? <span style={{color:'#E24B4A'}}>🔒 {item.dependLabel}</span> : item.desc}
                 </div>
               </div>
-              {!blocked && <span style={{color:item.color,fontSize:16,flexShrink:0}}>›</span>}
+              {/* E1h — Chevron : visible seulement au survol (avant : toujours visible) */}
+              {!blocked && <span className="gestion-card-chevron" style={{color:item.color,fontSize:16,flexShrink:0,opacity:0,transition:'opacity 0.15s ease, transform 0.15s ease'}}>›</span>}
             </div>
           );
         };
 
         return (
           <div>
-            {/* Bandeau intelligent : prochaine étape recommandée */}
+            {/* E1h — Style local : chevron visible au survol uniquement */}
+            <style>{`
+              .gestion-card:hover .gestion-card-chevron {
+                opacity: 1 !important;
+                transform: translateX(3px);
+              }
+              [dir="rtl"] .gestion-card:hover .gestion-card-chevron {
+                transform: translateX(-3px);
+              }
+            `}</style>
+            {/* Bandeau intelligent : prochaine étape recommandée — version E1h discrete */}
             {nextStep && (
               <div style={{
-                background:'linear-gradient(90deg,#FFF8EC,#FAEEDA)',
-                border:'1px solid #EF9F2740',borderRadius:12,
-                padding:'12px 16px',marginBottom:16,
-                display:'flex',alignItems:'center',gap:12,flexWrap:'wrap',
+                background:'#FFFCF6',
+                border:'1px solid #EF9F2730',borderRadius:10,
+                padding:'8px 14px',marginBottom:14,
+                display:'flex',alignItems:'center',gap:10,flexWrap:'wrap',
               }}>
-                <div style={{fontSize:24,flexShrink:0}}>💡</div>
-                <div style={{flex:1,minWidth:200}}>
-                  <div style={{fontSize:12,fontWeight:700,color:'#7B5800',marginBottom:2,textTransform:'uppercase',letterSpacing:0.3}}>
-                    {lang==='ar'?'الخطوة التالية الموصى بها':'Étape suivante recommandée'}
-                  </div>
-                  <div style={{fontSize:13,color:'#1a1a1a',fontWeight:600}}>
-                    {nextStep.n}. {nextStep.label}
-                    <span style={{fontWeight:400,color:'#666',marginInlineStart:8}}>— {nextStep.desc}</span>
-                  </div>
+                <div style={{fontSize:16,flexShrink:0,opacity:0.8}}>💡</div>
+                <div style={{flex:1,minWidth:200,display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}>
+                  <span style={{fontSize:11,color:'#7B5800',fontWeight:600,whiteSpace:'nowrap'}}>
+                    {lang==='ar'?'الخطوة التالية:':'Étape suivante :'}
+                  </span>
+                  <span style={{fontSize:12,color:'#1a1a1a',fontWeight:600}}>
+                    {nextStep.label}
+                  </span>
+                  <span style={{fontSize:11,color:'#888'}}>— {nextStep.desc}</span>
                 </div>
                 <button onClick={nextStep.action}
-                  style={{padding:'8px 16px',background:'#EF9F27',color:'#fff',border:'none',
-                    borderRadius:8,fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'inherit',
-                    whiteSpace:'nowrap'}}>
+                  style={{padding:'5px 12px',background:'#EF9F27',color:'#fff',border:'none',
+                    borderRadius:6,fontSize:11,fontWeight:700,cursor:'pointer',fontFamily:'inherit',
+                    whiteSpace:'nowrap',flexShrink:0}}>
                   {lang==='ar'?'اذهب ←':'Y aller →'}
                 </button>
               </div>
