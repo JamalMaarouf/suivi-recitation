@@ -5149,9 +5149,42 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
             </div>
           )}
 
-          <input className="field-input" style={{marginBottom:8}} placeholder={'🔍 '+(lang==='ar'?'بحث عن ولي أمر...':'Rechercher un parent...')} value={searchParent} onChange={e=>setSearchParent(e.target.value)}/>
+          {/* E1c — Bandeau filtres harmonise (style Eleves/Instituteurs) */}
+          {parents.length > 0 && (
+            <div style={{
+              display:'flex', gap:10, marginBottom:12, flexWrap:'wrap',
+              padding:'10px 12px', background:'#fff',
+              border:'0.5px solid #e0e0d8', borderRadius:12,
+              alignItems:'center',
+            }}>
+              <input type="text"
+                value={searchParent}
+                onChange={e=>setSearchParent(e.target.value)}
+                placeholder={'🔍 '+(lang==='ar'?'بحث عن ولي أمر، رقم تعريف...':'Rechercher (nom, identifiant, tél, email)')}
+                style={{
+                  flex:1, minWidth:200, padding:'7px 12px', fontSize:13,
+                  borderRadius:8, border:'0.5px solid #e0e0d8',
+                  fontFamily:'inherit', outline:'none', background:'#f9f9f6',
+                }}/>
+            </div>
+          )}
+
           <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:8,flexWrap:'wrap',gap:8}}>
-            <div style={{fontSize:12,color:'#888'}}>{parents.length} {lang==='ar'?'ولي أمر':'parent(s)'}</div>
+            <div className="section-label" style={{margin:0}}>
+              {lang==='ar'?'أولياء الأمور':'Parents'}
+              {' '}
+              <span style={{fontWeight:500,color:'#888'}}>
+                ({parents.filter(p =>
+                  !searchParent
+                  || (p.prenom+' '+p.nom).toLowerCase().includes(searchParent.toLowerCase())
+                  || (p.identifiant||'').toLowerCase().includes(searchParent.toLowerCase())
+                  || (p.telephone||'').includes(searchParent)
+                  || (p.email||'').toLowerCase().includes(searchParent.toLowerCase())
+                ).length}
+                {parents.length > 0 ? ` / ${parents.length}` : ''}
+                )
+              </span>
+            </div>
             <ExportButtons
               onPDF={exportParentsPDF}
               onExcel={exportParentsExcel}
@@ -5161,47 +5194,81 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
             />
           </div>
           <div style={{display:'flex',flexDirection:'column',gap:8}}>
-            {parents.filter(p=>!searchParent||(p.prenom+' '+p.nom).toLowerCase().includes(searchParent.toLowerCase())||p.identifiant.includes(searchParent)||p.telephone?.includes(searchParent)).map(p=>(
-              <div key={p.id} style={{background:'#fff',border:'0.5px solid #e0e0d8',borderRadius:12,padding:'12px 14px',display:'flex',alignItems:'center',gap:12}}>
-                <div style={{width:40,height:40,borderRadius:'50%',background:'#E1F5EE',color:'#085041',display:'flex',alignItems:'center',justifyContent:'center',fontWeight:700,fontSize:14,flexShrink:0}}>
-                  {(p.prenom[0]||'')+(p.nom[0]||'')}
-                </div>
-                <div style={{flex:1}}>
-                  <div style={{display:'flex',alignItems:'center',gap:6,flexWrap:'wrap'}}>
-                    <div style={{fontSize:13,fontWeight:600}}>{p.prenom} {p.nom}</div>
-                    {(p.eleve_ids||[]).length >= 2 && (
-                      <span style={{display:'inline-block',padding:'1px 7px',borderRadius:8,fontSize:9,fontWeight:700,background:'#E6F1FB',color:'#0C447C',border:'0.5px solid #378ADD30'}}
-                        title={lang==='ar'?`عائلة (${(p.eleve_ids||[]).length} أطفال)`:`Famille (${(p.eleve_ids||[]).length} enfants)`}>
-                        🔗 {lang==='ar'?'عائلة':'Famille'}
+            {parents.filter(p =>
+              !searchParent
+              || (p.prenom+' '+p.nom).toLowerCase().includes(searchParent.toLowerCase())
+              || (p.identifiant||'').toLowerCase().includes(searchParent.toLowerCase())
+              || (p.telephone||'').includes(searchParent)
+              || (p.email||'').toLowerCase().includes(searchParent.toLowerCase())
+            ).map(p=>(
+              <div key={p.id} style={{background:'#fff',border:'0.5px solid #e0e0d8',borderRadius:12,padding:'14px 16px',boxShadow:'0 1px 3px rgba(0,0,0,0.04)'}}>
+                <div style={{display:'flex',alignItems:'flex-start',gap:14}}>
+                  {/* Avatar */}
+                  <div style={{width:42,height:42,borderRadius:'50%',background:'#E1F5EE',color:'#085041',display:'flex',alignItems:'center',justifyContent:'center',fontWeight:700,fontSize:14,flexShrink:0}}>
+                    {(p.prenom[0]||'')+(p.nom[0]||'')}
+                  </div>
+                  {/* Infos */}
+                  <div style={{flex:1,minWidth:0}}>
+                    <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap',marginBottom:4}}>
+                      <div style={{fontSize:14,fontWeight:700,color:'#1a1a1a'}}>{p.prenom} {p.nom}</div>
+                      {(p.eleve_ids||[]).length >= 2 && (
+                        <span style={{display:'inline-flex',alignItems:'center',gap:3,padding:'2px 8px',borderRadius:8,fontSize:10,fontWeight:700,background:'#E6F1FB',color:'#0C447C',border:'0.5px solid #378ADD30'}}
+                          title={lang==='ar'?`عائلة (${(p.eleve_ids||[]).length} أطفال)`:`Famille (${(p.eleve_ids||[]).length} enfants)`}>
+                          🔗 {lang==='ar'?'عائلة':'Famille'} {(p.eleve_ids||[]).length}
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Coordonnees sur 1 ligne : ID · Tel · Email */}
+                    <div style={{fontSize:11,color:'#888',display:'flex',gap:12,flexWrap:'wrap',alignItems:'center'}}>
+                      <span title={lang==='ar'?'المعرف':'Identifiant'}>
+                        🆔 <strong style={{color:'#555'}}>{p.identifiant}</strong>
                       </span>
+                      {p.telephone && (
+                        <span title={lang==='ar'?'الهاتف':'Téléphone'} style={{whiteSpace:'nowrap'}}>
+                          📞 {p.telephone}
+                        </span>
+                      )}
+                      {p.email && (
+                        <span title={p.email} style={{whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis',maxWidth:240,display:'inline-block'}}>
+                          ✉️ {p.email}
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Enfants lies en badges */}
+                    {(p.eleve_ids||[]).length > 0 && (
+                      <div style={{display:'flex',gap:5,flexWrap:'wrap',marginTop:8}}>
+                        {eleves.filter(e=>(p.eleve_ids||[]).includes(e.id)).map(e=>{
+                          const nc=(niveauxDyn||[]).find(n=>n.code===e.code_niveau)?.couleur||'#888';
+                          return (
+                            <span key={e.id} style={{display:'inline-flex',alignItems:'center',gap:4,padding:'2px 8px',borderRadius:12,fontSize:11,fontWeight:500,background:`${nc}15`,color:nc,border:`0.5px solid ${nc}30`}}>
+                              👦 {e.prenom} {e.nom}
+                            </span>
+                          );
+                        })}
+                      </div>
                     )}
                   </div>
-                  <div style={{fontSize:11,color:'#888',marginTop:2}}>
-                    {lang==='ar'?'المعرف:':'ID: '}<strong>{p.identifiant}</strong>
-                    {p.telephone&&' · '+p.telephone}
-                  </div>
-                  <div style={{display:'flex',gap:4,flexWrap:'wrap',marginTop:4}}>
-                    {eleves.filter(e=>(p.eleve_ids||[]).includes(e.id)).map(e=>(
-                      <span key={e.id} style={{padding:'1px 6px',borderRadius:8,fontSize:10,background:'#E1F5EE',color:'#085041'}}>
-                        👦 {e.prenom} {e.nom}
-                      </span>
-                    ))}
-                  </div>
                 </div>
-                <div style={{display:'flex',flexDirection:'column',gap:4}}>
+
+                {/* Actions : boutons en ligne en bas (E1c — avant : empiles verticalement) */}
+                <div style={{display:'flex',gap:6,flexWrap:'wrap',justifyContent:'flex-end',marginTop:10,paddingTop:10,borderTop:'0.5px solid #f5f5f0'}}>
                   <button onClick={()=>{
                     setFormParent({prenom:p.prenom,nom:p.nom,identifiant:p.identifiant,mot_de_passe:p.mot_de_passe||'',telephone:p.telephone||'',email:p.email||'',eleve_ids:p.eleve_ids||[],searchEleve:''});
                     setEditingParentId(p.id);
                     setShowFormParent(true);
                     window.scrollTo(0,0);
-                  }} style={{padding:'4px 8px',borderRadius:6,background:'#E6F1FB',color:'#378ADD',border:'0.5px solid #378ADD30',cursor:'pointer',fontSize:11,fontWeight:600}}>✏️ {lang==='ar'?'تعديل':'Modifier'}</button>
+                  }} style={{padding:'5px 10px',borderRadius:6,background:'#E6F1FB',color:'#378ADD',border:'0.5px solid #378ADD30',cursor:'pointer',fontSize:11,fontWeight:600,whiteSpace:'nowrap',fontFamily:'inherit'}}>
+                    ✏️ {lang==='ar'?'تعديل':'Modifier'}
+                  </button>
                   <button onClick={()=>reinitialiserMDPParent(p)}
-                    style={{padding:'4px 8px',borderRadius:6,background:'#E1F5EE',color:'#085041',border:'0.5px solid #1D9E7530',cursor:'pointer',fontSize:11,fontWeight:600}}>
+                    style={{padding:'5px 10px',borderRadius:6,background:'#E1F5EE',color:'#085041',border:'0.5px solid #1D9E7530',cursor:'pointer',fontSize:11,fontWeight:600,whiteSpace:'nowrap',fontFamily:'inherit'}}>
                     🔑 {lang==='ar'?'إعادة كلمة المرور':'Réinit. MDP'}
                   </button>
                   {(p.eleve_ids||[]).length >= 2 && (
                     <button onClick={()=>ouvrirModaleDelier(p)}
-                      style={{padding:'4px 8px',borderRadius:6,background:'#FFF8EC',color:'#7B5800',border:'0.5px solid #EF9F2740',cursor:'pointer',fontSize:11,fontWeight:600}}>
+                      style={{padding:'5px 10px',borderRadius:6,background:'#FFF8EC',color:'#7B5800',border:'0.5px solid #EF9F2740',cursor:'pointer',fontSize:11,fontWeight:600,whiteSpace:'nowrap',fontFamily:'inherit'}}>
                       🔓 {lang==='ar'?'فصل':'Délier'}
                     </button>
                   )}
@@ -5215,7 +5282,9 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
                       setParents(prev=>prev.filter(x=>x.id!==p.id));
                       hideConfirm();
                     }
-                  )} style={{padding:'4px 8px',borderRadius:6,background:'#FCEBEB',color:'#E24B4A',border:'0.5px solid #E24B4A30',cursor:'pointer',fontSize:11,fontWeight:600}}>🗑 {lang==='ar'?'حذف':'Suppr.'}</button>
+                  )} style={{padding:'5px 10px',borderRadius:6,background:'#FCEBEB',color:'#E24B4A',border:'0.5px solid #E24B4A30',cursor:'pointer',fontSize:11,fontWeight:600,whiteSpace:'nowrap',fontFamily:'inherit'}}>
+                    🗑 {lang==='ar'?'حذف':'Suppr.'}
+                  </button>
                 </div>
               </div>
             ))}
