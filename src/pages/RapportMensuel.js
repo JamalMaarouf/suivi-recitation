@@ -4,6 +4,7 @@ import { calcEtatEleve, getInitiales , loadBareme, BAREME_DEFAUT, getSensForElev
 import { fetchAll } from '../lib/fetchAll';
 import { openPDF } from '../lib/pdf';
 import ExportButtons from '../components/ExportButtons';
+import PageHeader from '../components/PageHeader';
 
 const MOIS_FR = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
 const MOIS_AR = ['يناير','فبراير','مارس','أبريل','مايو','يونيو','يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر'];
@@ -236,26 +237,29 @@ export default function RapportMensuel({ user, navigate, goBack, lang='fr', isMo
           </div>
         </div>
       ) : (
-      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'1.25rem',flexWrap:'wrap',gap:10}}>
-        <div style={{display:'flex',alignItems:'center',gap:10,flex:1,minWidth:200}}>
-          <button onClick={()=>goBack?goBack():navigate('dashboard')} className="back-link"></button>
-          <div style={{fontSize:20,fontWeight:800,color:'#1a1a1a'}}>📊 {lang==='ar'?'التقرير الشهري':'Rapport mensuel'}</div>
-        </div>
-        <div style={{display:'flex',alignItems:'center',gap:10,flexWrap:'wrap'}}>
-          <div style={{display:'flex',alignItems:'center',gap:6}}>
-            <button onClick={prevMois} style={{padding:'6px 12px',border:'0.5px solid #e0e0d8',borderRadius:8,background:'#fff',cursor:'pointer',fontSize:16}}>‹</button>
-            <div style={{fontSize:13,fontWeight:700,minWidth:120,textAlign:'center'}}>{getMoisNom(mois,lang)} {annee}</div>
-            <button onClick={nextMois} style={{padding:'6px 12px',border:'0.5px solid #e0e0d8',borderRadius:8,background:'#fff',cursor:'pointer',fontSize:16}}>›</button>
+      <PageHeader
+        title="Rapport mensuel"
+        titleAr="التقرير الشهري"
+        icon="📊"
+        onBack={() => goBack ? goBack() : navigate('dashboard')}
+        lang={lang}
+        actions={
+          <div style={{display:'flex',alignItems:'center',gap:10,flexWrap:'wrap'}}>
+            <div style={{display:'flex',alignItems:'center',gap:6}}>
+              <button onClick={prevMois} style={{padding:'6px 12px',border:'0.5px solid #e0e0d8',borderRadius:8,background:'#fff',cursor:'pointer',fontSize:16}}>‹</button>
+              <div style={{fontSize:13,fontWeight:700,minWidth:120,textAlign:'center'}}>{getMoisNom(mois,lang)} {annee}</div>
+              <button onClick={nextMois} style={{padding:'6px 12px',border:'0.5px solid #e0e0d8',borderRadius:8,background:'#fff',cursor:'pointer',fontSize:16}}>›</button>
+            </div>
+            <ExportButtons
+              onPDF={genererRapportPDF}
+              lang={lang}
+              variant="inline"
+              compact
+              disabled={generating||loading}
+            />
           </div>
-          <ExportButtons
-            onPDF={genererRapportPDF}
-            lang={lang}
-            variant="inline"
-            compact
-            disabled={generating||loading}
-          />
-        </div>
-      </div>
+        }
+      />
       )}
 
       {loading ? <div style={{textAlign:'center',padding:'3rem',color:'#888'}}>...</div> : (

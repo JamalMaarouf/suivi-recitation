@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase';
 import { getInitiales, formatDate , loadBareme, BAREME_DEFAUT } from '../lib/helpers';
 import { t } from '../lib/i18n';
 import { fetchAll } from '../lib/fetchAll';
+import PageHeader from '../components/PageHeader';
 
 const MOIS_FR=['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
 const MOIS_AR=['يناير','فبراير','مارس','أبريل','مايو','يونيو','يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر'];
@@ -66,7 +67,15 @@ export default function Calendrier({ user, navigate, goBack, lang='fr', isMobile
           </div>
         </div>
       )}
-      {!isMobile && <button onClick={()=>goBack?goBack():navigate('dashboard')} className="back-link"></button>}
+      {!isMobile && (
+        <PageHeader
+          title="Calendrier"
+          titleAr="التقويم"
+          icon="📅"
+          onBack={() => goBack ? goBack() : navigate('dashboard')}
+          lang={lang}
+        />
+      )}
       <div style={{display:'grid',gridTemplateColumns:'repeat(3,minmax(0,1fr))',gap:8,marginBottom:'1.25rem'}}>
         {[{val:tomonMois,lbl:t(lang,'tomon_recites'),color:'#1D9E75',bg:'#E1F5EE'},{val:hizbMois,lbl:t(lang,'hizb_complets_label'),color:'#378ADD',bg:'#E6F1FB'},{val:joursActifsMois,lbl:t(lang,'jours_actifs'),color:'#EF9F27',bg:'#FAEEDA'}].map((k,i)=>(
           <div key={i} style={{background:k.bg,borderRadius:10,padding:'12px',textAlign:'center'}}>

@@ -5,6 +5,7 @@ import { t } from '../lib/i18n';
 import { fetchAll } from '../lib/fetchAll';
 import { openPDF } from '../lib/pdf';
 import { exportExcelSimple } from '../lib/excel';
+import PageHeader from '../components/PageHeader';
 
 export default function TableauHonneur({ user, navigate, goBack, lang='fr', isMobile }) {
   const [eleves, setEleves] = useState([]);
@@ -167,16 +168,17 @@ export default function TableauHonneur({ user, navigate, goBack, lang='fr', isMo
 
   return (
     <div style={{minHeight:'100vh',background:'linear-gradient(135deg,#0a0a0f 0%,#0d1f1a 100%)',padding:'1.5rem 1rem',paddingBottom:80}}>
-      {/* Sticky header */}
-      <div style={{position:'sticky',top:0,zIndex:100,background:'rgba(10,10,15,0.95)',padding:'48px 16px 14px',backdropFilter:'blur(8px)',borderBottom:'0.5px solid rgba(255,255,255,0.05)'}}>
-        <div style={{display:'flex',alignItems:'center',gap:8}}>
-          <button onClick={()=>goBack?goBack():navigate('dashboard')}
-            style={{background:'rgba(255,255,255,0.1)',border:'none',borderRadius:10,padding:'8px 12px',color:'#9FE1CB',fontSize:18,cursor:'pointer',minWidth:38,flexShrink:0}}>←</button>
-          <div style={{flex:1,textAlign:'center',minWidth:0}}>
-            <div style={{fontSize:isMobile?16:20,fontWeight:800,color:'#fff',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>🏆 {t(lang,'tableau_honneur')}</div>
-            <div style={{fontSize:11,color:'#5DCAA5',marginTop:2}}>{periodeLabel()}</div>
-          </div>
-          <div style={{display:'flex',gap:6,flexShrink:0}}>
+      {/* Sticky header — variant 'dark' (gamification) */}
+      <PageHeader
+        title={t(lang, 'tableau_honneur')}
+        icon="🏆"
+        subtitle={periodeLabel()}
+        onBack={() => goBack ? goBack() : navigate('dashboard')}
+        lang={lang}
+        variant="dark"
+        isMobile={isMobile}
+        actions={
+          <>
             <button onClick={handleExportPDF}
               disabled={elevesClasses.length === 0}
               title={lang==='ar'?'تصدير PDF':'Exporter PDF'}
@@ -189,9 +191,9 @@ export default function TableauHonneur({ user, navigate, goBack, lang='fr', isMo
               style={{background:'rgba(29,158,117,0.2)',border:'1px solid rgba(29,158,117,0.4)',borderRadius:10,padding:isMobile?'7px 9px':'7px 11px',color:'#5DCAA5',fontSize:12,fontWeight:700,cursor:elevesClasses.length===0?'default':'pointer',opacity:elevesClasses.length===0?0.4:1,fontFamily:'inherit',whiteSpace:'nowrap'}}>
               📊{!isMobile && ' Excel'}
             </button>
-          </div>
-        </div>
-      </div>
+          </>
+        }
+      />
 
       {/* Sélecteur période */}
       <div style={{marginBottom:'1rem'}}>

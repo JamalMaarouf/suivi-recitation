@@ -10,6 +10,7 @@ import { notifierParents } from '../lib/notificationsParents';
 import { getSouratesForNiveau } from '../lib/sourates';
 import { t } from '../lib/i18n';
 import { fetchAll } from '../lib/fetchAll';
+import PageHeader from '../components/PageHeader';
 
 export default function ValidationRapide({ user, navigate, goBack, lang='fr', isMobile }) {
   const { toast } = useToast();
@@ -660,15 +661,16 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
           </div>
         </div>
       ) : (
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.5rem', padding:'1rem 0 0' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <button className="back-link" onClick={()=>goBack?goBack():navigate('dashboard')}></button>
-          <div>
-            <div style={{ fontSize: 20, fontWeight: 800, color: '#085041' }}>⚡ {lang === 'ar' ? 'تسجيل سريع' : 'Validation express'}</div>
-            <div style={{ fontSize: 12, color: '#aaa' }}>{lang === 'ar' ? 'ابحث عن طالب وسجّل استظهاره بنقرتين' : 'Trouvez un élève et validez en 2 clics'}</div>
-          </div>
+        <div style={{ padding:'1rem 0 0' }}>
+          <PageHeader
+            title="Validation express"
+            titleAr="تسجيل سريع"
+            icon="⚡"
+            subtitle={lang === 'ar' ? 'ابحث عن طالب وسجّل استظهاره بنقرتين' : 'Trouvez un élève et validez en 2 clics'}
+            onBack={() => goBack ? goBack() : navigate('dashboard')}
+            lang={lang}
+          />
         </div>
-      </div>
       )}
 
       {/* Barre de recherche */}

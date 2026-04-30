@@ -5,17 +5,34 @@ import { t } from '../lib/i18n';
 import { openPDF } from '../lib/pdf';
 import { exportExcelSimple } from '../lib/excel';
 import ExportButtons from '../components/ExportButtons';
+import ModaleEditionCertificat from '../components/ModaleEditionCertificat';
+import PageHeader from '../components/PageHeader';
 
 export default function ListeCertificats({ user, navigate, goBack, lang='fr', isMobile, data }) {
   const focusCertId = data?.focusCertId || null;
+  // B3 — Mode création depuis Suivi Résultats (B2 "Émettre cert.")
+  const focusEleveId = data?.focusEleveId || null;
+  const focusResultatId = data?.focusResultatId || null;
+  const focusExamenId = data?.focusExamenId || null;
   const [certificats, setCertificats] = useState([]);
   const [eleves, setEleves] = useState([]);
   const [instituteurs, setInstituteurs] = useState([]);
   const [jalons, setJalons] = useState([]);
   const [niveaux, setNiveaux] = useState([]);
+  const [ecole, setEcole] = useState(null); // B5 — école complète (nom, ville, pays) pour le certificat
   const [loading, setLoading] = useState(true);
   const [genPdfId, setGenPdfId] = useState(null); // id du certificat en cours de génération
   const [genListe, setGenListe] = useState(false);
+
+  // B3 — États modale d'édition / création
+  const [modaleOpen, setModaleOpen] = useState(false);
+  const [modaleMode, setModaleMode] = useState('edit'); // 'edit' | 'create'
+  const [modaleCertif, setModaleCertif] = useState(null);
+  const [modaleEleve, setModaleEleve] = useState(null);
+  const [modaleResultat, setModaleResultat] = useState(null);
+  const [modaleExamen, setModaleExamen] = useState(null);
+  const [examens, setExamens] = useState([]);
+  const [resultatsExamens, setResultatsExamens] = useState([]);
 
   // Filtres
   const [searchNum, setSearchNum] = useState('');
@@ -28,8 +45,10 @@ export default function ListeCertificats({ user, navigate, goBack, lang='fr', is
   useEffect(() => { loadData(); }, []);
 
   // Etape 8 - Si on arrive avec un focusCertId, scroll + highlight le certif
+  // B3 — En plus, auto-ouverture de la modale en mode édition (cohérent avec le bouton "Éditer cert." de Suivi Résultats)
   useEffect(() => {
     if (!focusCertId || loading || certificats.length === 0) return;
+    if (modaleOpen) return; // ne pas ré-ouvrir
     // Donner un peu de temps au DOM pour rendre les elements
     const timer = setTimeout(() => {
       const elem = document.getElementById(`cert-row-${focusCertId}`);
@@ -45,19 +64,30 @@ export default function ListeCertificats({ user, navigate, goBack, lang='fr', is
           elem.style.boxShadow = '';
         }, 3000);
       }
+      // B3 — Ouvrir la modale en mode édition après le scroll
+      const cert = certificats.find(c => c.id === focusCertId);
+      if (cert) {
+        ouvrirEdition(cert);
+      }
     }, 300);
     return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [focusCertId, loading, certificats]);
 
   const loadData = async () => {
     setLoading(true);
     try {
-    const [{ data: certs }, { data: el }, { data: inst }, { data: jal }, { data: niv }] = await Promise.all([
+    const [{ data: certs }, { data: el }, { data: inst }, { data: jal }, { data: niv }, { data: ec }, { data: ex }, { data: re }] = await Promise.all([
       supabase.from('certificats_eleves').select('*').eq('ecole_id', user.ecole_id).order('created_at', { ascending: false }),
       supabase.from('eleves').select('id,prenom,nom,code_niveau,eleve_id_ecole,instituteur_referent_id').eq('ecole_id', user.ecole_id).limit(500).order('nom'),
       supabase.from('utilisateurs').select('id,prenom,nom').eq('role','instituteur').eq('ecole_id', user.ecole_id),
       supabase.from('jalons').select('id,nom,nom_ar,type_jalon').eq('ecole_id', user.ecole_id),
       supabase.from('niveaux').select('id,code,nom,couleur').eq('ecole_id', user.ecole_id).order('ordre'),
+      // B5 — école complète pour header certificat (nom + ville + pays)
+      supabase.from('ecoles').select('id,nom,ville,pays').eq('id', user.ecole_id).maybeSingle(),
+      // B3 — examens + résultats pour mode création depuis Suivi Résultats
+      supabase.from('examens').select('id,nom,niveau_id,type_contenu,contenu_ids').eq('ecole_id', user.ecole_id),
+      supabase.from('resultats_examens').select('id,examen_id,eleve_id,score,date_examen,statut').eq('ecole_id', user.ecole_id),
     ]);
     // Mapping BDD -> aliases utilises partout dans le code
     // BDD: titre, description, date_emission, cree_par
@@ -74,6 +104,9 @@ export default function ListeCertificats({ user, navigate, goBack, lang='fr', is
     setInstituteurs(inst || []);
     setJalons(jal || []);
     setNiveaux(niv || []);
+    setEcole(ec || null);
+    setExamens(ex || []);
+    setResultatsExamens(re || []);
     } catch (e) {
       console.error("Erreur:", e);
     }
@@ -85,20 +118,79 @@ export default function ListeCertificats({ user, navigate, goBack, lang='fr', is
   const getInst = (id) => instituteurs.find(i => i.id === id);
   const getNivColor = (code) => niveaux.find(n => n.code === code)?.couleur || '#888';
 
+  // B3 — Ouverture modale en mode édition
+  const ouvrirEdition = (cert, ev) => {
+    ev?.stopPropagation?.();
+    const eleve = getEleve(cert.eleve_id);
+    setModaleMode('edit');
+    setModaleCertif(cert);
+    setModaleEleve(eleve || null);
+    setModaleResultat(null);
+    setModaleExamen(null);
+    setModaleOpen(true);
+  };
+
+  // B3 — Ouverture modale en mode création (depuis B2 ou bouton interne)
+  const ouvrirCreation = ({ eleve, resultat = null, examen = null }) => {
+    setModaleMode('create');
+    setModaleCertif(null);
+    setModaleEleve(eleve || null);
+    setModaleResultat(resultat);
+    setModaleExamen(examen);
+    setModaleOpen(true);
+  };
+
+  // B3 — Callback après save : recharger la liste pour reflet immédiat
+  const onModaleSaved = () => {
+    loadData();
+  };
+
+  // B3 — Auto-ouverture en mode création quand on arrive depuis Suivi Résultats
+  // (badge orange "Émettre cert." -> navigate avec focusEleveId + focusResultatId)
+  useEffect(() => {
+    if (loading) return;
+    if (modaleOpen) return; // ne pas ré-ouvrir si déjà ouverte
+    if (!focusEleveId) return;
+    // Vérifier qu'aucun cert n'existe déjà pour ce résultat (sécurité)
+    if (focusResultatId) {
+      const dejaCert = certificats.find(c => c.resultat_examen_id_source === focusResultatId);
+      if (dejaCert) {
+        // Cert déjà émis : passer en mode édition
+        ouvrirEdition(dejaCert);
+        return;
+      }
+    }
+    const eleve = eleves.find(e => e.id === focusEleveId);
+    const resultat = focusResultatId ? resultatsExamens.find(r => r.id === focusResultatId) : null;
+    const examen = (focusExamenId || resultat?.examen_id)
+      ? examens.find(e => e.id === (focusExamenId || resultat?.examen_id))
+      : null;
+    if (eleve) {
+      ouvrirCreation({ eleve, resultat, examen });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading, focusEleveId, focusResultatId, focusExamenId, certificats, eleves, resultatsExamens, examens]);
+
   // ── PDF certificat individuel ────────────────────────────────
   const handlePdfCertificat = async (c, e) => {
     e?.stopPropagation?.(); // ne pas naviguer vers la fiche en cliquant le bouton
     if (genPdfId) return;
     const el = getEleve(c.eleve_id);
     const jal = getJalon(c.jalon_id);
+    // B5 — Enrichir payload : niveau + ecole complète (ville/pays) pour le nouveau template
+    const niv = el ? niveaux.find(n => n.code === el.code_niveau) : null;
     setGenPdfId(c.id);
     try {
       await openPDF('certificat', {
-        eleve: el ? { prenom: el.prenom, nom: el.nom } : { prenom: '', nom: '' },
-        jalon: jal ? { nom: jal.nom, nom_ar: jal.nom_ar } : { nom: c.nom_certificat, nom_ar: c.nom_certificat_ar },
-        date: c.date_obtention,
-        ecole: { nom: user?.ecole?.nom || '' },
-        directeur: c.directeur || '',
+        eleve: el ? { prenom: el.prenom, nom: el.nom, code_niveau: el.code_niveau } : { prenom: '', nom: '' },
+        jalon: jal ? { nom: jal.nom, nom_ar: jal.nom_ar } : { nom: c.titre || c.nom_certificat, nom_ar: c.nom_certificat_ar },
+        date: c.date_emission || c.date_obtention,
+        ecole: {
+          nom: ecole?.nom || '',
+          ville: ecole?.ville || '',
+          pays: ecole?.pays || '',
+        },
+        niveau: niv ? { code: niv.code, nom: niv.nom } : null,
       }, lang);
     } catch (err) {
       console.error('PDF certificat:', err);
@@ -129,7 +221,7 @@ export default function ListeCertificats({ user, navigate, goBack, lang='fr', is
         };
       });
       await openPDF('liste_certificats', {
-        ecole: { nom: user?.ecole?.nom || '' },
+        ecole: { nom: ecole?.nom || '' },
         titre: lang === 'ar' ? 'قائمة الشهادات' : 'Liste des certificats',
         certificats: certificatsData,
       }, lang);
@@ -192,6 +284,21 @@ export default function ListeCertificats({ user, navigate, goBack, lang='fr', is
     if (dateFin && new Date(c.date_obtention) > new Date(dateFin+'T23:59:59')) return false;
     return true;
   });
+
+  // B3 — JSX de la modale (réutilisé en mobile et desktop)
+  const modaleJSX = modaleOpen && (
+    <ModaleEditionCertificat
+      mode={modaleMode}
+      certificat={modaleCertif}
+      eleve={modaleEleve}
+      resultat={modaleResultat}
+      examen={modaleExamen}
+      user={user}
+      lang={lang}
+      onClose={()=>setModaleOpen(false)}
+      onSaved={onModaleSaved}
+    />
+  );
 
   // ─── Mobile render ───────────────────────────────────────────
   if (isMobile) {
@@ -283,6 +390,11 @@ export default function ListeCertificats({ user, navigate, goBack, lang='fr', is
                         📅 {c.date_obtention?new Date(c.date_obtention).toLocaleDateString(lang==='ar'?'ar-MA':'fr-FR',{day:'2-digit',month:'short',year:'numeric'}):'—'}
                       </div>
                     </div>
+                    <button onClick={(ev)=>{ev.stopPropagation(); ouvrirEdition(c, ev);}}
+                      style={{background:'#E1F5EE',border:'none',borderRadius:10,width:36,height:36,display:'flex',alignItems:'center',justifyContent:'center',fontSize:15,cursor:'pointer',flexShrink:0}}
+                      title={lang==='ar'?'تحرير':'Éditer'}>
+                      ✏️
+                    </button>
                     <button onClick={(ev)=>handlePdfCertificat(c,ev)} disabled={genPdfId===c.id}
                       style={{background:'#FAEEDA',border:'none',borderRadius:10,width:36,height:36,display:'flex',alignItems:'center',justifyContent:'center',fontSize:15,cursor:genPdfId===c.id?'default':'pointer',flexShrink:0,opacity:genPdfId===c.id?0.5:1}}
                       title={lang==='ar'?'تحميل PDF':'Télécharger PDF'}>
@@ -293,6 +405,7 @@ export default function ListeCertificats({ user, navigate, goBack, lang='fr', is
               })}
             </div>
           )}
+      {modaleJSX}
       </div>
     );
   }
@@ -300,21 +413,24 @@ export default function ListeCertificats({ user, navigate, goBack, lang='fr', is
   // ─── PC render ────────────────────────────────────────────────
   return (
     <div style={{ padding:'1.5rem', paddingBottom: 80 }}>
-      <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:'1.25rem' }}>
-        <button onClick={()=>goBack?goBack():navigate('dashboard')} className="back-link">{t(lang,'retour')}</button>
-        <div style={{flex:1}}>
-          <div style={{ fontSize:20, fontWeight:800, color:'#1a1a1a' }}>🏅 {lang==='ar'?'قائمة الشهادات':'Liste des certificats'}</div>
-          <div style={{ fontSize:12, color:'#888' }}>{filtered.length} {lang==='ar'?'شهادة':'certificat(s)'}</div>
-        </div>
-        <ExportButtons
-          onPDF={handlePdfListe}
-          onExcel={handleExcelListe}
-          lang={lang}
-          variant="inline"
-          compact
-          disabled={genListe || filtered.length === 0}
-        />
-      </div>
+      <PageHeader
+        title={lang==='ar' ? 'قائمة الشهادات' : 'Liste des certificats'}
+        titleAr="قائمة الشهادات"
+        icon="🏅"
+        subtitle={`${filtered.length} ${lang==='ar' ? 'شهادة' : 'certificat(s)'}`}
+        onBack={() => goBack ? goBack() : navigate('dashboard')}
+        lang={lang}
+        actions={
+          <ExportButtons
+            onPDF={handlePdfListe}
+            onExcel={handleExcelListe}
+            lang={lang}
+            variant="inline"
+            compact
+            disabled={genListe || filtered.length === 0}
+          />
+        }
+      />
 
       {/* Filtres */}
       <div className="card" style={{ marginBottom:'1.25rem' }}>
@@ -375,6 +491,11 @@ export default function ListeCertificats({ user, navigate, goBack, lang='fr', is
                     </div>
                     {el && <div style={{fontSize:10,color:'#aaa',marginTop:2}}>{lang==='ar'?'رقم':'N°'} {el.eleve_id_ecole}</div>}
                   </div>
+                  <button onClick={(ev)=>{ev.stopPropagation(); ouvrirEdition(c, ev);}}
+                    style={{background:'#E1F5EE',border:'none',borderRadius:10,padding:'8px 12px',fontSize:13,fontWeight:600,color:'#085041',cursor:'pointer',flexShrink:0,fontFamily:'inherit'}}
+                    title={lang==='ar'?'تحرير':'Éditer'}>
+                    ✏️
+                  </button>
                   <button onClick={(ev)=>handlePdfCertificat(c,ev)} disabled={genPdfId===c.id}
                     style={{background:'#FAEEDA',border:'none',borderRadius:10,padding:'8px 12px',fontSize:13,fontWeight:600,color:'#A85F10',cursor:genPdfId===c.id?'default':'pointer',flexShrink:0,opacity:genPdfId===c.id?0.5:1,fontFamily:'inherit'}}
                     title={lang==='ar'?'تحميل PDF':'Télécharger PDF'}>
@@ -386,6 +507,7 @@ export default function ListeCertificats({ user, navigate, goBack, lang='fr', is
           </div>
         )
       )}
+      {modaleJSX}
     </div>
   );
 }

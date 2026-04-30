@@ -1488,3 +1488,125 @@ export function detecterPeriodeEnCours(periodes) {
   return null;
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// formatContenuExamen — Helper réutilisable B5 (refonte certificat)
+// ─────────────────────────────────────────────────────────────────────────────
+//
+// Retourne un libellé lisible décrivant le contenu d'un examen (Hizb ou Sourates)
+// pour affichage sur le certificat ou dans une UI d'édition (B3).
+//
+// Format adopté (validation Jamal — B5) :
+//   • Hizb (1 seul)        → "Hizb 60"           / "الحزب 60"
+//   • Hizb (2-3, contigus) → "Hizb 60 → 58"      / "من الحزب 60 إلى الحزب 58"
+//   • Hizb (2-3, épars)    → "Hizb 60, 55, 30"   / "الأحزاب: 60، 55، 30"
+//   • Hizb (4+, contigus)  → "5 Hizb (60 → 56)"  / "5 أحزاب (من 60 إلى 56)"
+//   • Hizb (4+, épars)     → "5 Hizb (60, 55, ...)" / "5 أحزاب"
+//   • Ensemble sourates    → "Juz 'Amma (37 sourates)" / "جزء عمّ (37 سورة)"
+//
+// Fallback : si pas de contenu_ids ou type inconnu, retourne null (caller doit gérer).
+//
+// Usage :
+//   const contenu = await formatContenuExamen(supabase, examen, niveau, lang);
+//   if (contenu) afficher(contenu);
+//
+// Paramètres :
+//   - supabase : client Supabase (uniquement utilisé pour le cas 'sourate', pour
+//                charger ensembles_sourates.nom). Peut être null si déjà résolu.
+//   - examen : { type_contenu, contenu_ids, ecole_id }
+//   - niveau : { type } (optionnel, fallback sur examen.type_contenu)
+//   - lang : 'fr' ou 'ar'
+//
+// Retour : string ou null
+//
+export async function formatContenuExamen(supabase, examen, niveau, lang = 'fr') {
+  if (!examen) return null;
+  const ids = examen.contenu_ids || [];
+  if (!Array.isArray(ids) || ids.length === 0) return null;
+
+  const isAr = lang === 'ar';
+  const type = examen.type_contenu || niveau?.type;
+
+  // ── Cas 1 : niveau Hizb ───────────────────────────────────────────────────
+  if (type === 'hizb') {
+    const nums = ids.map(n => Number(n)).filter(n => !isNaN(n));
+    if (nums.length === 0) return null;
+
+    // Détecter contiguïté (sens descendant ou ascendant)
+    const sorted = [...nums].sort((a, b) => b - a); // tri desc
+    const isContigDesc = sorted.every((n, i) => i === 0 || sorted[i - 1] - n === 1);
+    const sortedAsc = [...nums].sort((a, b) => a - b);
+    const isContigAsc = sortedAsc.every((n, i) => i === 0 || sortedAsc[i] - sortedAsc[i - 1] === 1);
+    const isContig = isContigDesc || isContigAsc;
+
+    // 1 seul Hizb
+    if (nums.length === 1) {
+      return isAr ? `الحزب ${nums[0]}` : `Hizb ${nums[0]}`;
+    }
+
+    // 2-3 Hizb
+    if (nums.length <= 3) {
+      if (isContig) {
+        const seq = isContigDesc ? sorted : sortedAsc;
+        return isAr
+          ? `من الحزب ${seq[0]} إلى الحزب ${seq[seq.length - 1]}`
+          : `Hizb ${seq[0]} → ${seq[seq.length - 1]}`;
+      }
+      // Épars : liste compacte
+      const list = sorted.join(isAr ? '، ' : ', ');
+      return isAr ? `الأحزاب: ${list}` : `Hizb ${list}`;
+    }
+
+    // 4+ Hizb
+    if (isContig) {
+      const seq = isContigDesc ? sorted : sortedAsc;
+      return isAr
+        ? `${nums.length} أحزاب (من ${seq[0]} إلى ${seq[seq.length - 1]})`
+        : `${nums.length} Hizb (${seq[0]} → ${seq[seq.length - 1]})`;
+    }
+    return isAr ? `${nums.length} أحزاب` : `${nums.length} Hizb`;
+  }
+
+  // ── Cas 2 : niveau Sourate (ensembles_sourates) ───────────────────────────
+  if (type === 'sourate') {
+    if (!supabase) return null;
+    try {
+      const { data: ensembles } = await supabase
+        .from('ensembles_sourates')
+        .select('id, nom, sourates_ids')
+        .in('id', ids);
+      if (!ensembles || ensembles.length === 0) return null;
+
+      // Si un seul ensemble : "Nom (X sourates)"
+      if (ensembles.length === 1) {
+        const e = ensembles[0];
+        const nbSourates = Array.isArray(e.sourates_ids) ? e.sourates_ids.length : 0;
+        if (nbSourates > 0) {
+          return isAr
+            ? `${e.nom} (${nbSourates} سورة)`
+            : `${e.nom} (${nbSourates} sourates)`;
+        }
+        return e.nom;
+      }
+
+      // Plusieurs ensembles : noms joints + total sourates
+      const noms = ensembles.map(e => e.nom).join(isAr ? '، ' : ', ');
+      const totalSourates = ensembles.reduce(
+        (sum, e) => sum + (Array.isArray(e.sourates_ids) ? e.sourates_ids.length : 0),
+        0
+      );
+      if (totalSourates > 0) {
+        return isAr
+          ? `${noms} (${totalSourates} سورة)`
+          : `${noms} (${totalSourates} sourates)`;
+      }
+      return noms;
+    } catch (err) {
+      console.error('formatContenuExamen sourate error:', err);
+      return null;
+    }
+  }
+
+  // Type inconnu
+  return null;
+}
+

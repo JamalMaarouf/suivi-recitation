@@ -4,6 +4,7 @@ import { useToast } from '../lib/toast';
 import { openPDF } from '../lib/pdf';
 import { exportExcelSimple } from '../lib/excel';
 import ExportButtons from '../components/ExportButtons';
+import PageHeader from '../components/PageHeader';
 
 // ══════════════════════════════════════════════════════════════════════
 // PAGE SUIVI PARENTS — Menu principal surveillant
@@ -311,27 +312,26 @@ export default function SuiviParents({ user, navigate, goBack, lang, isMobile })
         </div>
       ) : (
         <div style={{ padding: '1.5rem 1.5rem 0' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: '1.25rem' }}>
-            <button onClick={() => goBack ? goBack() : navigate('dashboard')} className="back-link"></button>
-            <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 20, fontWeight: 800, color: '#1a1a1a' }}>
-                👨‍👩‍👧 {lang === 'ar' ? 'متابعة الأولياء' : 'Suivi parents'}
-              </div>
-              <div style={{ fontSize: 12, color: '#888' }}>
-                {lang === 'ar'
-                  ? 'تحديد الأولياء غير النشطين للاتصال بهم'
-                  : 'Identifier les parents inactifs pour les contacter'}
-              </div>
-            </div>
-            <ExportButtons
-              onPDF={exportPDF}
-              onExcel={exportExcel}
-              isMobile={false}
-              lang={lang}
-              variant="inline"
-              compact
-            />
-          </div>
+          <PageHeader
+            title="Suivi parents"
+            titleAr="متابعة الأولياء"
+            icon="👨‍👩‍👧"
+            subtitle={lang === 'ar'
+              ? 'تحديد الأولياء غير النشطين للاتصال بهم'
+              : 'Identifier les parents inactifs pour les contacter'}
+            onBack={() => goBack ? goBack() : navigate('dashboard')}
+            lang={lang}
+            actions={
+              <ExportButtons
+                onPDF={exportPDF}
+                onExcel={exportExcel}
+                isMobile={false}
+                lang={lang}
+                variant="inline"
+                compact
+              />
+            }
+          />
         </div>
       )}
 

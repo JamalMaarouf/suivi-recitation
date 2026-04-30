@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase';
 import { calcEtatEleve, getInitiales, scoreLabel, formatDateCourt, isInactif, joursDepuis, niveauTraduit , loadBareme, BAREME_DEFAUT, getSensForEleve} from '../lib/helpers';
 import { t } from '../lib/i18n';
 import { fetchAll } from '../lib/fetchAll';
+import PageHeader from '../components/PageHeader';
 
 function Avatar({ prenom, nom, size=44, bg='#E1F5EE', color='#085041' }) {
   return <div style={{width:size,height:size,borderRadius:'50%',background:bg,color,display:'flex',alignItems:'center',justifyContent:'center',fontWeight:600,fontSize:size*0.33,flexShrink:0}}>{getInitiales(prenom,nom)}</div>;
@@ -57,7 +58,14 @@ export default function ProfilInstituteur({ instituteur, user, navigate, goBack,
           </div>
         </div>
       ) : (
-        <button onClick={()=>goBack?goBack():navigate('dashboard')} className="back-link"></button>
+        <PageHeader
+          title="Profil"
+          titleAr="ملف الأستاذ"
+          icon="👨‍🏫"
+          subtitle={`${instituteur.prenom} ${instituteur.nom}`}
+          onBack={() => goBack ? goBack() : navigate('dashboard')}
+          lang={lang}
+        />
       )}
       <div style={{background:'#fff',border:'0.5px solid #e0e0d8',borderRadius:16,padding:'1.5rem',marginBottom:'1rem'}}>
         <div style={{display:'flex',alignItems:'center',gap:14,marginBottom:16}}>

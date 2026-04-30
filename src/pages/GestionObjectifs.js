@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase';
 import { useToast } from '../lib/toast';
 import ConfirmModal from '../components/ConfirmModal';
 import { t } from '../lib/i18n';
+import PageHeader from '../components/PageHeader';
 
 const PERIODES = [
   { val:'semaine',   label_fr:'Semaine',              label_ar:'أسبوع',           jours:7   },
@@ -687,17 +688,20 @@ export default function GestionObjectifs({ user, navigate, goBack, lang='fr', is
   // ── PC ────────────────────────────────────────────────────────
   return (
     <div>
-      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'1.25rem'}}>
-        <div style={{display:'flex',alignItems:'center',gap:10}}>
-          <button className="back-link" onClick={()=>goBack?goBack():navigate('dashboard')}></button>
-          <div style={{fontSize:20,fontWeight:700,color:'#085041'}}>🎯 {lang==='ar'?'الأهداف':'Gestion des objectifs'}</div>
-        </div>
-        <button onClick={showForm?()=>{setShowForm(false);setEditing(null);}:startCreate}
-          style={{padding:'8px 18px',background:showForm?'#f0f0ec':'#1D9E75',
-            color:showForm?'#666':'#fff',border:'none',borderRadius:10,fontSize:13,fontWeight:600,cursor:'pointer'}}>
-          {showForm?'✕ Annuler':'+ Nouvel objectif'}
-        </button>
-      </div>
+      <PageHeader
+        title="Gestion des objectifs"
+        titleAr="الأهداف"
+        icon="🎯"
+        onBack={() => goBack ? goBack() : navigate('dashboard')}
+        lang={lang}
+        actions={
+          <button onClick={showForm?()=>{setShowForm(false);setEditing(null);}:startCreate}
+            style={{padding:'8px 18px',background:showForm?'#f0f0ec':'#1D9E75',
+              color:showForm?'#666':'#fff',border:'none',borderRadius:10,fontSize:13,fontWeight:600,cursor:'pointer'}}>
+            {showForm?'✕ Annuler':'+ Nouvel objectif'}
+          </button>
+        }
+      />
 
       <StatsBar/>
 

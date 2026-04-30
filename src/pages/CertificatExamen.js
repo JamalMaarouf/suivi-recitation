@@ -1,11 +1,25 @@
 import React, { useState } from 'react';
 import { useToast } from '../lib/toast';
 import { openPDF } from '../lib/pdf';
+import { formatContenuExamen } from '../lib/helpers';
+import { supabase } from '../lib/supabase';
 
 // Génère un PDF certificat d'examen via l'API serveur
 // (remplace l'ancienne implémentation jsPDF + html2canvas de ~400 Ko)
+//
+// B5 — Refonte template :
+// - Nouveau payload "contenu" : { ar, fr } calculé via formatContenuExamen()
+//   pour afficher Hizb 60 / الحزب 60 / Juz 'Amma (37 sourates) etc.
+// - Header école enrichi : nom_ar + ville + pays (si disponibles en BDD)
 export async function genererCertificatPDF({ resultat, eleve, examen, niveau, ecole }, lang = 'fr') {
   try {
+    // B5 — Calcul du libellé Contenu en bilingue (AR + FR) côté React,
+    // pour que le serveur PDF n'ait pas à requêter Supabase.
+    const [contenuAr, contenuFr] = await Promise.all([
+      formatContenuExamen(supabase, examen, niveau, 'ar'),
+      formatContenuExamen(supabase, examen, niveau, 'fr'),
+    ]);
+
     await openPDF('certificat_examen', {
       resultat: {
         score: resultat.score,
@@ -20,7 +34,14 @@ export async function genererCertificatPDF({ resultat, eleve, examen, niveau, ec
       },
       examen: { nom: examen.nom },
       niveau: niveau ? { code: niveau.code, nom: niveau.nom } : null,
-      ecole: { nom: ecole?.nom || '' },
+      ecole: {
+        nom: ecole?.nom || '',
+        nom_ar: ecole?.nom_ar || '',
+        ville: ecole?.ville || '',
+        pays: ecole?.pays || '',
+      },
+      contenu: { ar: contenuAr || '', fr: contenuFr || '' },
+      numero: resultat.numero_certificat || null,
     }, lang);
     return true;
   } catch (err) {

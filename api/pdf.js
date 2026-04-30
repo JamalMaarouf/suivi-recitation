@@ -299,147 +299,283 @@ function generateFicheEleve(data, lang) {
   </body></html>`;
 }
 
-function generateCertificat(data, lang) {
-  const { eleve, jalon, date, ecole, directeur } = data || {};
-  const isAr = lang === 'ar';
+// ─────────────────────────────────────────────────────────────────────────────
+// CERTIFICATS (B5 — refonte complète)
+// ─────────────────────────────────────────────────────────────────────────────
+//
+// Architecture :
+// - certificatStyles()     : CSS commun (fontes, bordures, étoile khatim, layout A4)
+// - certificatHeader(...)  : header bilingue (école + ville/pays + titre)
+// - certificatMedaille()   : SVG inline étoile 8 branches (khatim)
+// - certificatFooter(...)  : footer (numéro + zone signature généreuse)
+// - generateCertificat        : certificat JALON / BLOC (sans score, sans contenu)
+// - generateCertificatExamen  : certificat EXAMEN (avec score + contenu Hizb/Sourates)
+//
+// Style : hybride sobre + touches arabes discrètes (validé Jamal Q2=C)
+// Header : nom école AR + transcription FR + ville/pays (validé Jamal Q3=B)
+// Médaille : SVG khatim (étoile 8 branches), validé Jamal
+// ─────────────────────────────────────────────────────────────────────────────
 
-  return `<!DOCTYPE html><html dir="${isAr ? 'rtl' : 'ltr'}"><head><meta charset="UTF-8"><title>Certificat</title>
-  <style>
-    @import url('https://fonts.googleapis.com/css2?family=Tajawal:wght@400;700;900&display=swap');
+function certificatStyles() {
+  return `
+    @import url('https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;600;700;800;900&display=swap');
+    @page { size: A4 landscape; margin: 0; }
     * { margin:0; padding:0; box-sizing:border-box; }
-    body { font-family:'Tajawal',Arial,sans-serif; background:#fff; }
-    .page { width:794px; height:560px; margin:0 auto; padding:48px 60px; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; border:12px solid #085041; position:relative; }
-    .inner-border { position:absolute; inset:20px; border:2px solid #EF9F27; pointer-events:none; }
-    .icon { font-size:48px; margin-bottom:16px; }
-    .title { font-size:28px; font-weight:900; color:#085041; margin-bottom:8px; }
-    .subtitle { font-size:14px; color:#888; margin-bottom:32px; }
-    .name { font-size:32px; font-weight:700; color:#1a1a1a; margin-bottom:8px; }
-    .achievement { font-size:18px; color:#085041; margin-bottom:32px; }
-    .jalon { font-size:22px; font-weight:700; color:#EF9F27; margin-bottom:24px; }
-    .footer { font-size:12px; color:#888; margin-top:24px; }
-    .signature { margin-top:16px; }
-    @media print { body { -webkit-print-color-adjust:exact; print-color-adjust:exact; } .no-print { display:none; } }
-  </style></head>
-  <body>
-  <div class="no-print" style="position:fixed;top:16px;right:16px;">
-    <button onclick="window.print()" style="padding:10px 20px;background:#085041;color:#fff;border:none;border-radius:8px;cursor:pointer;font-family:'Tajawal',Arial">🖨️ ${isAr ? 'طباعة' : 'Imprimer'}</button>
-  </div>
-  <div class="page">
-    <div class="inner-border"></div>
-    <div class="icon">🏅</div>
-    <div class="title">${isAr ? 'شهادة تقدير' : 'Certificat de réussite'}</div>
-    <div class="subtitle">${ecole?.nom || 'École coranique'}</div>
-    <div style="font-size:16px;color:#888;margin-bottom:8px">${isAr ? 'يُشهد لـ' : 'Décerné à'}</div>
-    <div class="name">${eleve?.prenom || ''} ${eleve?.nom || ''}</div>
-    <div class="achievement">${isAr ? 'لإتمام' : 'pour avoir accompli'}</div>
-    <div class="jalon">${jalon?.nom_ar || jalon?.nom || ''}</div>
+    body { font-family:'Tajawal',Arial,sans-serif; background:#f0f0ec; }
+    .cert { width:1122px; height:794px; margin:0 auto; background:#fff; position:relative; overflow:hidden; }
+    /* Double bordure : verte épaisse + filet doré intérieur */
+    .border-outer { position:absolute; inset:20px; border:6px solid #085041; pointer-events:none; }
+    .border-inner { position:absolute; inset:34px; border:1px solid #EF9F27; pointer-events:none; }
+    /* Coins khatim discrets */
+    .corner { position:absolute; width:24px; height:24px; opacity:0.55; pointer-events:none; }
+    .corner-tl { top:48px; left:48px; }
+    .corner-tr { top:48px; right:48px; }
+    .corner-bl { bottom:48px; left:48px; }
+    .corner-br { bottom:48px; right:48px; }
+    .content { position:absolute; inset:60px; display:flex; flex-direction:column; align-items:center; }
+    /* HEADER */
+    .header { width:100%; text-align:center; padding-bottom:18px; border-bottom:1.5px solid #EF9F27; }
+    .ecole-ar { font-size:22px; font-weight:700; color:#085041; direction:rtl; }
+    .ecole-fr { font-size:13px; color:#888; margin-top:3px; letter-spacing:0.5px; }
+    /* TITRE */
+    .title-block { margin-top:22px; text-align:center; }
+    .title-ar { font-size:54px; font-weight:900; color:#085041; direction:rtl; line-height:1; }
+    .title-fr { font-size:13px; color:#888; letter-spacing:4px; font-weight:600; margin-top:8px; }
+    /* CORPS */
+    .body { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; width:100%; gap:10px; padding:8px 0; }
+    .medal-svg { width:100px; height:100px; }
+    .line-ar { font-size:17px; color:#666; direction:rtl; }
+    .name { font-size:40px; font-weight:800; color:#085041; direction:rtl; padding:4px 32px 6px; border-bottom:2px solid #1D9E75; }
+    .examen-box { font-size:22px; font-weight:700; color:#1D9E75; border:2px solid #1D9E75; border-radius:10px; padding:7px 28px; background:#E1F5EE; direction:rtl; margin-top:4px; }
+    .jalon-box { font-size:24px; font-weight:700; color:#EF9F27; border:2px solid #EF9F27; border-radius:10px; padding:8px 32px; background:#FAEEDA; direction:rtl; margin-top:4px; }
+    /* CONTENU (B5) */
+    .contenu-block { text-align:center; margin-top:6px; }
+    .contenu-label { font-size:11px; color:#aaa; letter-spacing:2px; font-weight:600; }
+    .contenu-ar { font-size:17px; font-weight:600; color:#085041; direction:rtl; margin-top:4px; }
+    .contenu-fr { font-size:12px; color:#666; margin-top:2px; }
+    /* DETAILS (3 colonnes) */
+    .details { width:100%; background:#f9f9f6; border-radius:10px; padding:12px 24px; display:flex; justify-content:space-around; align-items:center; margin-top:10px; }
+    .detail-cell { text-align:center; flex:1; }
+    .detail-label { font-size:10px; color:#aaa; letter-spacing:1.5px; font-weight:600; unicode-bidi:plaintext; }
+    .detail-value { font-size:16px; font-weight:700; color:#1a1a1a; margin-top:4px; }
+    .score-value { font-size:30px; font-weight:800; margin-top:2px; }
+    .separator { width:1px; height:36px; background:#e0e0d8; }
+    .note { font-style:italic; color:#888; font-size:12px; text-align:center; direction:rtl; margin-top:6px; max-width:760px; }
+    /* FOOTER (espace signature généreux) */
+    .footer { width:100%; display:flex; justify-content:space-between; align-items:flex-end; padding-top:14px; margin-top:14px; border-top:1px solid #e0e0d8; min-height:90px; }
+    .footer-left { font-size:11px; color:#aaa; }
+    .footer-left .num { font-weight:600; color:#666; letter-spacing:0.5px; }
+    .footer-left .date-emis { margin-top:4px; direction:rtl; }
+    .sign { text-align:center; min-width:230px; padding-top:30px; }
+    .sign-line { width:230px; border-bottom:1.5px solid #333; margin:0 auto 6px; }
+    .sign-label { font-size:11px; color:#666; direction:rtl; }
+    .sign-label-fr { font-size:10px; color:#aaa; margin-top:2px; }
+    /* IMPRESSION */
+    @media print {
+      body { background:#fff; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+      .no-print { display:none; }
+    }
+  `;
+}
+
+function certificatMedaille() {
+  // SVG étoile 8 branches (khatim) — vert + or + étoile blanche centrale
+  return `<svg class="medal-svg" viewBox="-60 -60 120 120" xmlns="http://www.w3.org/2000/svg">
+    <polygon points="0,-50 12,-12 50,0 12,12 0,50 -12,12 -50,0 -12,-12" fill="#085041"/>
+    <polygon points="0,-50 12,-12 50,0 12,12 0,50 -12,12 -50,0 -12,-12" transform="rotate(45)" fill="#1D9E75" fill-opacity="0.7"/>
+    <circle r="22" fill="#fff" stroke="#085041" stroke-width="1.5"/>
+    <circle r="14" fill="#EF9F27"/>
+    <text y="5" text-anchor="middle" font-family="serif" font-size="14" font-weight="bold" fill="#fff">★</text>
+  </svg>`;
+}
+
+function certificatCornerKhatim() {
+  // Petit motif khatim pour les 4 coins (étoile 8 branches miniature)
+  return `<svg viewBox="-15 -15 30 30" xmlns="http://www.w3.org/2000/svg">
+    <polygon points="0,-12 3,-3 12,0 3,3 0,12 -3,3 -12,0 -3,-3" fill="#EF9F27"/>
+    <polygon points="0,-12 3,-3 12,0 3,3 0,12 -3,3 -12,0 -3,-3" transform="rotate(45)" fill="#085041" fill-opacity="0.4"/>
+  </svg>`;
+}
+
+function certificatHeader(ecole, isAr) {
+  // Nom école : préférer AR si dispo, sinon nom standard. Localité optionnelle.
+  const nomAr = ecole?.nom_ar || ecole?.nom || (isAr ? 'مدرسة قرآنية' : 'École Coranique');
+  const nomFr = ecole?.nom || '';
+  const ville = ecole?.ville || '';
+  const pays = ecole?.pays || '';
+  const localite = [ville, pays].filter(Boolean).join(', ');
+  // Si on a un nom_ar distinct du nom, on affiche les deux ; sinon on n'affiche qu'une fois
+  const showFr = nomFr && nomFr !== nomAr;
+  return `
+    <div class="header">
+      <div class="ecole-ar">${escapeHtml(nomAr)}</div>
+      ${(showFr || localite) ? `<div class="ecole-fr">${escapeHtml(nomFr || '')}${(showFr && localite) ? ' · ' : ''}${escapeHtml(localite)}</div>` : ''}
+    </div>`;
+}
+
+function certificatTitle(isAr) {
+  return `
+    <div class="title-block">
+      <div class="title-ar">شهادة نجاح</div>
+      <div class="title-fr">CERTIFICAT DE RÉUSSITE</div>
+    </div>`;
+}
+
+function certificatFooter(numero, dateStr, isAr) {
+  return `
     <div class="footer">
-      ${date ? new Date(date).toLocaleDateString(isAr ? 'ar-MA' : 'fr-FR', {day:'2-digit',month:'long',year:'numeric'}) : ''}
+      <div class="footer-left">
+        ${numero ? `<div class="num">N° ${escapeHtml(numero)}</div>` : ''}
+        <div class="date-emis">${isAr ? 'أصدر بتاريخ' : 'Émis le'} : ${escapeHtml(dateStr)}</div>
+      </div>
+      <div class="sign">
+        <div class="sign-line"></div>
+        <div class="sign-label">توقيع المشرف العام</div>
+        <div class="sign-label-fr">Signature du Surveillant</div>
+      </div>
+    </div>`;
+}
+
+function certificatPrintBar(isAr) {
+  return `
+    <div class="no-print" style="position:fixed;top:16px;right:16px;z-index:999;display:flex;gap:8px;">
+      <button onclick="window.print()" style="padding:10px 20px;background:#085041;color:#fff;border:none;border-radius:8px;font-size:14px;cursor:pointer;font-family:'Tajawal',Arial,sans-serif;font-weight:700;">
+        🖨️ ${isAr ? 'طباعة / تحميل PDF' : 'Imprimer / Télécharger PDF'}
+      </button>
+      <button onclick="window.close()" style="padding:10px 16px;background:#f0f0ec;color:#666;border:none;border-radius:8px;font-size:14px;cursor:pointer;">✕</button>
+    </div>`;
+}
+
+// Helper sécurité : échappe le HTML pour éviter injection / casse de layout
+function escapeHtml(str) {
+  if (str === null || str === undefined) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// generateCertificat — Certificat JALON / BLOC
+// Pas de score (jalon = palier franchi, pas un examen)
+// Pas de bloc Contenu (le titre du jalon contient déjà l'info)
+// ─────────────────────────────────────────────────────────────────────────────
+function generateCertificat(data, lang) {
+  const { eleve, jalon, date, ecole, niveau, numero } = data || {};
+  const isAr = lang === 'ar';
+  if (!eleve) return '<html><body>Données manquantes</body></html>';
+
+  const d = new Date(date || new Date());
+  const dateStr = d.toLocaleDateString(isAr ? 'ar-MA' : 'fr-FR', { day: '2-digit', month: 'long', year: 'numeric' });
+  const niveauTxt = niveau ? `${escapeHtml(niveau.nom || '')}${niveau.code ? ` (${escapeHtml(niveau.code)})` : ''}` : escapeHtml(eleve.code_niveau || '');
+  const titreJalon = jalon?.nom_ar || jalon?.nom || '';
+  const corner = certificatCornerKhatim();
+
+  return `<!DOCTYPE html><html dir="${isAr ? 'rtl' : 'ltr'}" lang="${isAr ? 'ar' : 'fr'}"><head><meta charset="UTF-8"><title>${isAr ? 'شهادة' : 'Certificat'} ${escapeHtml(eleve.prenom || '')} ${escapeHtml(eleve.nom || '')}</title>
+  <style>${certificatStyles()}</style></head>
+  <body>
+  ${certificatPrintBar(isAr)}
+  <div class="cert">
+    <div class="border-outer"></div>
+    <div class="border-inner"></div>
+    <div class="corner corner-tl">${corner}</div>
+    <div class="corner corner-tr">${corner}</div>
+    <div class="corner corner-bl">${corner}</div>
+    <div class="corner corner-br">${corner}</div>
+    <div class="content">
+      ${certificatHeader(ecole, isAr)}
+      ${certificatTitle(isAr)}
+      <div class="body">
+        ${certificatMedaille()}
+        <div class="line-ar">يُشهد بأن الطالب / الطالبة</div>
+        <div class="name">${escapeHtml(eleve.prenom || '')} ${escapeHtml(eleve.nom || '')}</div>
+        <div class="line-ar">قد أتم بنجاح</div>
+        <div class="jalon-box">${escapeHtml(titreJalon)}</div>
+      </div>
+      <div class="details">
+        <div class="detail-cell">
+          <div class="detail-label">المستوى · NIVEAU</div>
+          <div class="detail-value">${niveauTxt || '—'}</div>
+        </div>
+        <div class="separator"></div>
+        <div class="detail-cell">
+          <div class="detail-label">التاريخ · DATE</div>
+          <div class="detail-value">${escapeHtml(dateStr)}</div>
+        </div>
+      </div>
+      ${certificatFooter(numero, dateStr, isAr)}
     </div>
-    ${directeur ? `<div class="signature">${isAr ? 'المدير' : 'Le directeur'}: ${directeur}</div>` : ''}
   </div>
   </body></html>`;
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// generateCertificatExamen — Certificat EXAMEN
+// Avec score coloré + bloc Contenu (Hizb / Sourates) — ajout B5
+// ─────────────────────────────────────────────────────────────────────────────
 function generateCertificatExamen(data, lang) {
-  const { eleve, examen, niveau, ecole, resultat } = data || {};
+  const { eleve, examen, niveau, ecole, resultat, contenu, numero } = data || {};
   if (!eleve || !examen || !resultat) return '<html><body>Données manquantes</body></html>';
 
+  const isAr = lang === 'ar';
   const d = new Date(resultat.date_examen || resultat.created_at || new Date());
-  const date = `${d.getDate()} ${d.toLocaleDateString('fr-FR', { month: 'long' })} ${d.getFullYear()}`;
-  const ecolNom = ecole?.nom || 'École Coranique';
-  const niveauNom = niveau ? `${niveau.code} — ${niveau.nom}` : (eleve.code_niveau || '');
-  const score = resultat.score;
+  const dateStr = d.toLocaleDateString(isAr ? 'ar-MA' : 'fr-FR', { day: '2-digit', month: 'long', year: 'numeric' });
+  const niveauTxt = niveau ? `${escapeHtml(niveau.nom || '')}${niveau.code ? ` (${escapeHtml(niveau.code)})` : ''}` : escapeHtml(eleve.code_niveau || '');
+  const score = Number(resultat.score) || 0;
   const scoreColor = score >= 90 ? '#1D9E75' : score >= 70 ? '#378ADD' : '#EF9F27';
+  const corner = certificatCornerKhatim();
 
-  return `<!DOCTYPE html><html dir="${lang === 'ar' ? 'rtl' : 'ltr'}"><head><meta charset="UTF-8"><title>Certificat ${eleve.prenom} ${eleve.nom}</title>
-  <style>
-    @import url('https://fonts.googleapis.com/css2?family=Tajawal:wght@400;600;700;800;900&display=swap');
-    @page { size: A4 landscape; margin: 0; }
-    * { margin:0; padding:0; box-sizing:border-box; }
-    body { font-family:'Tajawal',Arial,sans-serif; background:#f0f0ec; }
-    .cert {
-      width: 1122px; height: 794px;
-      margin: 0 auto; background: #fff;
-      border: 6px solid #1D9E75; position: relative;
-      overflow: hidden;
-    }
-    .inner-border { position:absolute; inset:12px; border:1.5px solid #1D9E7560; pointer-events:none; }
-    .bg { position:absolute; inset:0; background:linear-gradient(135deg,#f9fff9 0%,#fff 50%,#f0f8f0 100%); }
-    .content { position:relative; z-index:1; height:100%; display:flex; flex-direction:column; align-items:center; justify-content:space-between; padding:30px 60px; }
-    .header { text-align:center; border-bottom:2px solid #1D9E75; width:100%; padding-bottom:16px; }
-    .ecole-nom { font-size:14px; color:#888; font-weight:600; margin-bottom:4px; }
-    .title-ar { font-size:38px; font-weight:800; color:#085041; direction:rtl; }
-    .title-fr { font-size:12px; color:#aaa; letter-spacing:3px; font-weight:600; }
-    .body { text-align:center; flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:12px; }
-    .medal { font-size:60px; line-height:1; }
-    .line-ar { font-size:16px; color:#666; direction:rtl; }
-    .name { font-size:34px; font-weight:800; color:#085041; direction:rtl; border-bottom:2px solid #1D9E75; padding-bottom:4px; }
-    .examen { font-size:22px; font-weight:700; color:#1D9E75; border:2px solid #1D9E75; border-radius:10px; padding:6px 24px; background:#E1F5EE; direction:rtl; }
-    .details { width:100%; background:#f9f9f6; border-radius:12px; padding:14px 24px; display:flex; justify-content:space-around; align-items:center; margin:10px 0; }
-    .detail-label { font-size:10px; color:#aaa; letter-spacing:1px; text-transform:uppercase; unicode-bidi:plaintext; }
-    .detail-value { font-size:16px; font-weight:700; color:#1a1a1a; }
-    .score-value { font-size:32px; font-weight:800; color:${scoreColor}; }
-    .separator { width:1px; height:40px; background:#e0e0d8; }
-    .note { font-style:italic; color:#888; font-size:13px; text-align:center; direction:rtl; }
-    .footer { width:100%; display:flex; justify-content:space-between; align-items:flex-end; padding-top:10px; border-top:1px solid #e0e0d8; }
-    .date-edit { font-size:12px; color:#aaa; direction:rtl; }
-    .sign { text-align:center; }
-    .sign-line { width:200px; border-bottom:1.5px solid #333; margin-bottom:6px; }
-    .sign-label { font-size:11px; color:#666; direction:rtl; }
-    @media print {
-      body { background:#fff; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
-      .cert { border-color:#1D9E75; box-shadow:none; }
-      .no-print { display:none; }
-    }
-  </style></head>
+  // Bloc Contenu (B5) : affiche AR + FR si fourni, sinon masqué
+  // contenu = { ar: "الحزب 60", fr: "Hizb 60" } — calculé côté React via formatContenuExamen
+  const contenuBloc = (contenu && (contenu.ar || contenu.fr)) ? `
+    <div class="contenu-block">
+      <div class="contenu-label">المحتوى · CONTENU</div>
+      ${contenu.ar ? `<div class="contenu-ar">${escapeHtml(contenu.ar)}</div>` : ''}
+      ${contenu.fr ? `<div class="contenu-fr">${escapeHtml(contenu.fr)}</div>` : ''}
+    </div>` : '';
+
+  return `<!DOCTYPE html><html dir="${isAr ? 'rtl' : 'ltr'}" lang="${isAr ? 'ar' : 'fr'}"><head><meta charset="UTF-8"><title>${isAr ? 'شهادة' : 'Certificat'} ${escapeHtml(eleve.prenom || '')} ${escapeHtml(eleve.nom || '')}</title>
+  <style>${certificatStyles()}</style></head>
   <body>
-  <div class="no-print" style="position:fixed;top:16px;right:16px;z-index:999;display:flex;gap:8px;">
-    <button onclick="window.print()" style="padding:10px 20px;background:#1D9E75;color:#fff;border:none;border-radius:8px;font-size:14px;cursor:pointer;font-family:'Tajawal',Arial,sans-serif;font-weight:700;">
-      🖨️ ${lang === 'ar' ? 'طباعة / تحميل PDF' : 'Imprimer / Télécharger PDF'}
-    </button>
-    <button onclick="window.close()" style="padding:10px 16px;background:#f0f0ec;color:#666;border:none;border-radius:8px;font-size:14px;cursor:pointer;">✕</button>
-  </div>
+  ${certificatPrintBar(isAr)}
   <div class="cert">
-    <div class="inner-border"></div>
-    <div class="bg"></div>
+    <div class="border-outer"></div>
+    <div class="border-inner"></div>
+    <div class="corner corner-tl">${corner}</div>
+    <div class="corner corner-tr">${corner}</div>
+    <div class="corner corner-bl">${corner}</div>
+    <div class="corner corner-br">${corner}</div>
     <div class="content">
-      <div class="header">
-        <div class="ecole-nom">${ecolNom}</div>
-        <div class="title-ar">شهادة نجاح</div>
-        <div class="title-fr">CERTIFICAT DE RÉUSSITE</div>
-      </div>
+      ${certificatHeader(ecole, isAr)}
+      ${certificatTitle(isAr)}
       <div class="body">
-        <div class="medal">🏅</div>
+        ${certificatMedaille()}
         <div class="line-ar">يُشهد بأن الطالب / الطالبة</div>
-        <div class="name">${eleve.prenom} ${eleve.nom}</div>
+        <div class="name">${escapeHtml(eleve.prenom || '')} ${escapeHtml(eleve.nom || '')}</div>
         <div class="line-ar">قد اجتاز بنجاح امتحان</div>
-        <div class="examen">${examen.nom}</div>
+        <div class="examen-box">${escapeHtml(examen.nom || '')}</div>
+        ${contenuBloc}
       </div>
       <div class="details">
-        <div>
-          <div class="detail-label">المستوى · Niveau</div>
-          <div class="detail-value">${niveauNom}</div>
+        <div class="detail-cell">
+          <div class="detail-label">المستوى · NIVEAU</div>
+          <div class="detail-value">${niveauTxt || '—'}</div>
         </div>
         <div class="separator"></div>
-        <div>
-          <div class="detail-label">النقاط · Score</div>
-          <div class="score-value">${score}%</div>
+        <div class="detail-cell">
+          <div class="detail-label">النقاط · SCORE</div>
+          <div class="score-value" style="color:${scoreColor}">${score}%</div>
         </div>
         <div class="separator"></div>
-        <div>
-          <div class="detail-label">التاريخ · Date</div>
-          <div class="detail-value">${date}</div>
+        <div class="detail-cell">
+          <div class="detail-label">التاريخ · DATE</div>
+          <div class="detail-value">${escapeHtml(dateStr)}</div>
         </div>
       </div>
-      ${resultat.notes_examinateur ? `<div class="note">"${resultat.notes_examinateur}"</div>` : ''}
-      <div class="footer">
-        <div class="date-edit">أصدر بتاريخ: ${date}</div>
-        <div class="sign">
-          <div class="sign-line"></div>
-          <div class="sign-label">توقيع المشرف العام · Signature du Surveillant</div>
-        </div>
-      </div>
+      ${resultat.notes_examinateur ? `<div class="note">"${escapeHtml(resultat.notes_examinateur)}"</div>` : ''}
+      ${certificatFooter(numero, dateStr, isAr)}
     </div>
   </div>
   </body></html>`;

@@ -5,6 +5,7 @@ import { t } from '../lib/i18n';
 import KioskExitModal from '../components/KioskExitModal';
 import ConfirmModal from '../components/ConfirmModal';
 import ExportButtons from '../components/ExportButtons';
+import PageHeader from '../components/PageHeader';
 import { openPDF } from '../lib/pdf';
 import { exportExcelSimple } from '../lib/excel';
 import { loadAnneeActiveAvecPeriodes, formatPeriodeCourte, detecterPeriodeEnCours } from '../lib/helpers';
@@ -292,14 +293,16 @@ export default function Assiduite({ user, navigate, goBack, lang, isMobile, kios
   return (
     <div style={{ padding: '1.5rem', paddingBottom: 60, minHeight: 'auto' }}>
 
-      {/* Header classique comme ListeNotes */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: '1.25rem' }}>
-        {!kioskMode && (
-          <button onClick={() => goBack ? goBack() : navigate('dashboard')} className="back-link"></button>
-        )}
-        <div style={{ flex: 1 }}>
-          <div style={{ fontSize: 20, fontWeight: 800, color: '#1a1a1a', display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-            📅 {lang === 'ar' ? 'الحضور' : 'Assiduité'}
+      {/* Header desktop harmonisé (Phase C / B8) */}
+      <PageHeader
+        title="Assiduité"
+        titleAr="الحضور"
+        icon="📅"
+        subtitle={lang === 'ar' ? 'تسجيل و متابعة حضور الطلاب' : 'Saisie et suivi des présences'}
+        onBack={!kioskMode ? (() => goBack ? goBack() : navigate('dashboard')) : null}
+        lang={lang}
+        actions={
+          <>
             {kioskMode && (
               <span style={{
                 fontSize: 11, fontWeight: 700,
@@ -308,37 +311,33 @@ export default function Assiduite({ user, navigate, goBack, lang, isMobile, kios
                 border: '1px solid #EF9F2750',
               }}>🔒 {lang === 'ar' ? 'وضع الكشك مفعل' : 'Mode kiosque activé'}</span>
             )}
-          </div>
-          <div style={{ fontSize: 12, color: '#888' }}>
-            {lang === 'ar' ? 'تسجيل و متابعة حضور الطلاب' : 'Saisie et suivi des présences'}
-          </div>
-        </div>
-        {/* Bouton kiosque */}
-        {kioskMode ? (
-          <button onClick={() => setShowExitModal(true)}
-            style={{
-              padding: '8px 16px',
-              background: '#EF9F27', color: '#fff',
-              border: 'none', borderRadius: 10,
-              fontSize: 12, fontWeight: 700, cursor: 'pointer',
-              fontFamily: 'inherit', flexShrink: 0,
-            }}>
-            🔓 {lang === 'ar' ? 'خروج' : 'Quitter kiosque'}
-          </button>
-        ) : (
-          <button onClick={askActivateKiosk}
-            title={lang === 'ar' ? 'تفعيل وضع الكشك' : 'Activer mode kiosque'}
-            style={{
-              padding: '8px 14px',
-              background: '#fff', color: '#085041',
-              border: '1px solid #1D9E7540', borderRadius: 10,
-              fontSize: 12, fontWeight: 700, cursor: 'pointer',
-              fontFamily: 'inherit', flexShrink: 0,
-            }}>
-            🔒 {lang === 'ar' ? 'وضع الكشك' : 'Mode kiosque'}
-          </button>
-        )}
-      </div>
+            {kioskMode ? (
+              <button onClick={() => setShowExitModal(true)}
+                style={{
+                  padding: '8px 16px',
+                  background: '#EF9F27', color: '#fff',
+                  border: 'none', borderRadius: 10,
+                  fontSize: 12, fontWeight: 700, cursor: 'pointer',
+                  fontFamily: 'inherit', flexShrink: 0,
+                }}>
+                🔓 {lang === 'ar' ? 'خروج' : 'Quitter kiosque'}
+              </button>
+            ) : (
+              <button onClick={askActivateKiosk}
+                title={lang === 'ar' ? 'تفعيل وضع الكشك' : 'Activer mode kiosque'}
+                style={{
+                  padding: '8px 14px',
+                  background: '#fff', color: '#085041',
+                  border: '1px solid #1D9E7540', borderRadius: 10,
+                  fontSize: 12, fontWeight: 700, cursor: 'pointer',
+                  fontFamily: 'inherit', flexShrink: 0,
+                }}>
+                🔒 {lang === 'ar' ? 'وضع الكشك' : 'Mode kiosque'}
+              </button>
+            )}
+          </>
+        }
+      />
 
       {/* Onglets en pilules (comme le sélecteur de période de ListeNotes) */}
       <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: '1.25rem' }}>

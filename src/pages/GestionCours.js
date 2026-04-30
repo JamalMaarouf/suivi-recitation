@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { useToast } from '../lib/toast';
 import ConfirmModal from '../components/ConfirmModal';
+import PageHeader from '../components/PageHeader';
 
 // ══════════════════════════════════════════════════════════════════════
 // PAGE GESTION COURS DE FOND
@@ -256,25 +257,24 @@ export default function GestionCours({ user, navigate, goBack, lang, isMobile })
         </div>
       ) : (
         <div style={{ padding: '1.5rem 1.5rem 0' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: '1.25rem' }}>
-            <button onClick={() => goBack ? goBack() : navigate('gestion')} className="back-link"></button>
-            <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 20, fontWeight: 800, color: '#1a1a1a' }}>
-                📚 {lang === 'ar' ? 'الدروس' : 'Cours'}
-              </div>
-              <div style={{ fontSize: 12, color: '#888' }}>
-                {lang === 'ar' ? 'إدارة الدروس، المحاور و المستويات المعنية' : 'Paramétrer les cours, leurs axes et les niveaux concernés'}
-              </div>
-            </div>
-            <button onClick={openCreate}
-              style={{
-                padding: '9px 14px', background: '#1D9E75', color: '#fff',
-                border: 'none', borderRadius: 10,
-                fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit',
-              }}>
-              ➕ {lang === 'ar' ? 'إضافة درس' : 'Ajouter un cours'}
-            </button>
-          </div>
+          <PageHeader
+            title="Cours"
+            titleAr="الدروس"
+            icon="📚"
+            subtitle={lang === 'ar' ? 'إدارة الدروس، المحاور و المستويات المعنية' : 'Paramétrer les cours, leurs axes et les niveaux concernés'}
+            onBack={() => goBack ? goBack() : navigate('gestion')}
+            lang={lang}
+            actions={
+              <button onClick={openCreate}
+                style={{
+                  padding: '9px 14px', background: '#1D9E75', color: '#fff',
+                  border: 'none', borderRadius: 10,
+                  fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit',
+                }}>
+                ➕ {lang === 'ar' ? 'إضافة درس' : 'Ajouter un cours'}
+              </button>
+            }
+          />
         </div>
       )}
 

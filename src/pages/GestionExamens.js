@@ -6,6 +6,7 @@ import { t } from '../lib/i18n';
 import { openPDF } from '../lib/pdf';
 import { exportExcelSimple } from '../lib/excel';
 import ExportButtons from '../components/ExportButtons';
+import PageHeader from '../components/PageHeader';
 
 export default function GestionExamens({ user, navigate, goBack, lang='fr', isMobile }) {
   const { toast } = useToast();
@@ -731,32 +732,32 @@ export default function GestionExamens({ user, navigate, goBack, lang='fr', isMo
   // ── PC ────────────────────────────────────────────────────────────
   return (
     <div>
-      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',
-        marginBottom:'1.25rem',flexWrap:'wrap',gap:8}}>
-        <div style={{display:'flex',alignItems:'center',gap:10}}>
-          <button className="back-link" onClick={()=>goBack?goBack():navigate('dashboard')}></button>
-          <div style={{fontSize:20,fontWeight:700}}>
-            📝 {lang==='ar'?'إدارة الامتحانات':'Gestion des examens'}
-          </div>
-        </div>
-        <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}>
-          {examsFiltres.length > 0 && (
-            <ExportButtons
-              onPDF={handleExportPDF}
-              onExcel={handleExportExcel}
-              lang={lang}
-              variant="inline"
-            />
-          )}
-          <button onClick={()=>{if(showForm&&!editing)resetForm();else startCreate();}}
-            style={{padding:'8px 18px',
-              background:showForm&&!editing?'#f0f0ec':'#1D9E75',
-              color:showForm&&!editing?'#666':'#fff',border:'none',
-              borderRadius:10,fontSize:13,fontWeight:600,cursor:'pointer'}}>
-            {showForm&&!editing?'✕ Annuler':'+ Nouvel examen'}
-          </button>
-        </div>
-      </div>
+      <PageHeader
+        title="Gestion des examens"
+        titleAr="إدارة الامتحانات"
+        icon="📝"
+        onBack={() => goBack ? goBack() : navigate('dashboard')}
+        lang={lang}
+        actions={
+          <>
+            {examsFiltres.length > 0 && (
+              <ExportButtons
+                onPDF={handleExportPDF}
+                onExcel={handleExportExcel}
+                lang={lang}
+                variant="inline"
+              />
+            )}
+            <button onClick={()=>{if(showForm&&!editing)resetForm();else startCreate();}}
+              style={{padding:'8px 18px',
+                background:showForm&&!editing?'#f0f0ec':'#1D9E75',
+                color:showForm&&!editing?'#666':'#fff',border:'none',
+                borderRadius:10,fontSize:13,fontWeight:600,cursor:'pointer'}}>
+              {showForm&&!editing?'✕ Annuler':'+ Nouvel examen'}
+            </button>
+          </>
+        }
+      />
 
       {/* Filtre niveau PC */}
       <div style={{display:'flex',gap:6,flexWrap:'wrap',marginBottom:'1rem'}}>
