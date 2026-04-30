@@ -2085,11 +2085,77 @@ function MobilePassageNiveauTab({ user, lang, niveaux, showMsg }) {
   );
 }
 
+// ─── SubTabs helper (E1a) ──────────────────────────────────────────
+// Mini-tabs réutilisables pour découper un onglet en sous-vues
+// (ex: Élèves → 📋 Liste / ➕ Ajouter).
+// Charte : pilule arrondie, vert école si active, gris sinon, sobre.
+function SubTabs({ value, onChange, items, lang = 'fr' }) {
+  return (
+    <div style={{
+      display: 'flex',
+      gap: 4,
+      marginBottom: '1.25rem',
+      background: '#f5f5f0',
+      borderRadius: 12,
+      padding: 4,
+      width: 'fit-content',
+    }}>
+      {items.map(item => {
+        const active = value === item.key;
+        return (
+          <button
+            key={item.key}
+            onClick={() => onChange(item.key)}
+            style={{
+              padding: '8px 18px',
+              borderRadius: 10,
+              border: 'none',
+              background: active ? '#fff' : 'transparent',
+              color: active ? '#085041' : '#666',
+              fontSize: 13,
+              fontWeight: active ? 700 : 500,
+              cursor: 'pointer',
+              fontFamily: 'inherit',
+              boxShadow: active ? '0 1px 3px rgba(0,0,0,0.06)' : 'none',
+              transition: 'background 0.15s ease',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+              whiteSpace: 'nowrap',
+            }}
+          >
+            <span>{item.icon}</span>
+            <span>{item.label}</span>
+            {item.count !== undefined && (
+              <span style={{
+                background: active ? '#E1F5EE' : '#e8e8e0',
+                color: active ? '#085041' : '#888',
+                padding: '1px 8px',
+                borderRadius: 10,
+                fontSize: 11,
+                fontWeight: 700,
+              }}>
+                {item.count}
+              </span>
+            )}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile, initialTab, setGestionTab }) {
   const { toast } = useToast();
   const [tab, setTabLocal] = useState(isMobile ? (initialTab && initialTab !== 'parametres' ? initialTab : 'eleves') : (initialTab || 'parametres'));
   const setTab = (t) => { setTabLocal(t); if(setGestionTab) setGestionTab(t); };
   const [searchEleve, setSearchEleve] = useState('');
+  // E1a — Sub-tab 'Liste' / 'Ajouter' pour l'onglet Élèves (charte UX)
+  // Si liste vide → 'ajouter' par défaut, sinon 'liste'
+  const [subTabEleves, setSubTabEleves] = useState('liste');
+  const [filtreNiveauEleve, setFiltreNiveauEleve] = useState('tous');
+  // Pareil pour Instituteurs
+  const [subTabInst, setSubTabInst] = useState('liste');
   // Etape 6 - Suspension eleves
   const [showSuspendreEleve, setShowSuspendreEleve] = useState(null); // eleve a suspendre, null = ferme
   const [motifSuspension, setMotifSuspension] = useState('');
@@ -2184,6 +2250,23 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile,
   const [savingJalon, setSavingJalon] = useState(false);
 
   useEffect(() => { loadData(); }, []);
+
+  // E1a — Vue par défaut selon liste vide (Q4=B : guider l'utilisateur)
+  // Quand l'onglet Élèves devient actif et qu'aucun élève existe → 'ajouter'
+  // Sinon → 'liste' (consultation)
+  useEffect(() => {
+    if (tab === 'eleves' && !loading) {
+      setSubTabEleves(eleves.length === 0 ? 'ajouter' : 'liste');
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab, loading, eleves.length]);
+
+  useEffect(() => {
+    if (tab === 'instituteurs' && !loading) {
+      setSubTabInst(instituteurs.length === 0 ? 'ajouter' : 'liste');
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab, loading, instituteurs.length]);
   useEffect(() => {
     supabase.from('niveaux').select('id,code,nom,type,couleur,sens_recitation')
       .eq('ecole_id', user.ecole_id).order('ordre')
@@ -4193,8 +4276,22 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
       )}
       {tab === 'eleves' && (
         <div>
+          {/* E1a — Sub-tabs Liste / Ajouter */}
+          {!editEleve && (
+            <SubTabs
+              value={subTabEleves}
+              onChange={setSubTabEleves}
+              lang={lang}
+              items={[
+                { key: 'liste',   icon: '📋', label: lang === 'ar' ? 'القائمة' : 'Liste',   count: eleves.length },
+                { key: 'ajouter', icon: '➕', label: lang === 'ar' ? 'إضافة'   : 'Ajouter' },
+              ]}
+            />
+          )}
+
           {/* Formulaire ajout / modification */}
           {!editEleve ? (
+            subTabEleves === 'ajouter' ? (
             <>
               <div className="section-label">{t(lang, 'ajouter_eleve')}</div>
               <div className="card">
@@ -4299,6 +4396,7 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
                 <button className="btn-primary" onClick={ajouterEleve}>{t(lang, 'ajouter_eleve_btn')}</button>
               </div>
             </>
+            ) : null
           ) : (
             <>
               <div className="section-label">{t(lang, 'modifier_eleve')}</div>
@@ -4394,9 +4492,22 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
             </>
           )}
 
-          {/* Liste élèves */}
+          {/* Liste élèves — affichee si sub-tab 'liste' OU si on est en mode edition */}
+          {(subTabEleves === 'liste' || editEleve) && (
+          <>
           <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'0.75rem',flexWrap:'wrap',gap:8}}>
-            <div className="section-label" style={{margin:0}}>{t(lang, 'eleves_inscrits')} ({eleves.length})</div>
+            <div className="section-label" style={{margin:0}}>
+              {t(lang, 'eleves_inscrits')}
+              {' '}
+              <span style={{fontWeight:500,color:'#888'}}>
+                ({eleves.filter(e => (!afficherUniquementActifs || !e.suspendu_at)
+                  && (filtreNiveauEleve === 'tous' || e.code_niveau === filtreNiveauEleve)
+                  && (!searchEleve || `${e.prenom} ${e.nom} ${e.eleve_id_ecole||''}`.toLowerCase().includes(searchEleve.toLowerCase()))
+                ).length}
+                {eleves.length > 0 ? ` / ${eleves.length}` : ''}
+                )
+              </span>
+            </div>
             <ExportButtons
               onPDF={exportElevesPDF}
               onExcel={exportElevesExcel}
@@ -4405,16 +4516,94 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
               compact
             />
           </div>
+
+          {/* E1a — Barre de recherche + filtre niveau */}
+          {!loading && eleves.length > 0 && (
+            <div style={{
+              display:'flex', gap:10, marginBottom:12, flexWrap:'wrap',
+              padding:'10px 12px', background:'#fff',
+              border:'0.5px solid #e0e0d8', borderRadius:12,
+              alignItems:'center',
+            }}>
+              <input type="text"
+                value={searchEleve}
+                onChange={e=>setSearchEleve(e.target.value)}
+                placeholder={lang==='ar' ? '🔍 ابحث بالاسم أو الرقم' : '🔍 Rechercher par nom ou n°'}
+                style={{
+                  flex:1, minWidth:200, padding:'7px 12px', fontSize:13,
+                  borderRadius:8, border:'0.5px solid #e0e0d8',
+                  fontFamily:'inherit', outline:'none', background:'#f9f9f6',
+                }}/>
+              <div style={{display:'flex', gap:4, flexWrap:'wrap', alignItems:'center'}}>
+                <span style={{fontSize:11, color:'#888', fontWeight:600, marginRight:4}}>
+                  {lang==='ar'?'المستوى:':'Niveau :'}
+                </span>
+                <button
+                  onClick={()=>setFiltreNiveauEleve('tous')}
+                  style={{
+                    padding:'5px 12px', borderRadius:20, border:'none', cursor:'pointer',
+                    fontSize:11, fontWeight:600, fontFamily:'inherit',
+                    background: filtreNiveauEleve==='tous' ? '#085041' : '#f5f5f0',
+                    color:    filtreNiveauEleve==='tous' ? '#fff'    : '#666',
+                  }}>
+                  {lang==='ar'?'الكل':'Tous'}
+                </button>
+                {(niveauxDyn||[]).filter(n=>n.actif).map(n => (
+                  <button
+                    key={n.code}
+                    onClick={()=>setFiltreNiveauEleve(n.code)}
+                    style={{
+                      padding:'5px 12px', borderRadius:20, cursor:'pointer',
+                      fontSize:11, fontWeight:600, fontFamily:'inherit',
+                      border:`1px solid ${filtreNiveauEleve===n.code ? n.couleur : 'transparent'}`,
+                      background: filtreNiveauEleve===n.code ? n.couleur : '#f5f5f0',
+                      color:    filtreNiveauEleve===n.code ? '#fff'      : '#666',
+                    }}>
+                    {n.code}
+                  </button>
+                ))}
+              </div>
+              <label style={{display:'flex', alignItems:'center', gap:6, fontSize:11, color:'#666', cursor:'pointer', whiteSpace:'nowrap'}}>
+                <input type="checkbox" checked={afficherUniquementActifs}
+                  onChange={e=>setAfficherUniquementActifs(e.target.checked)}/>
+                {lang==='ar'?'النشطون فقط':'Actifs uniquement'}
+              </label>
+            </div>
+          )}
+
           {loading ? <div className="loading">...</div> : (
             <div className="table-wrap">
-              <div style={{display:'flex',justifyContent:'flex-end',alignItems:'center',gap:8,padding:'8px 12px',fontSize:12,color:'#666'}}>
-                <label style={{display:'flex',alignItems:'center',gap:6,cursor:'pointer'}}>
-                  <input type="checkbox" checked={afficherUniquementActifs}
-                    onChange={e=>setAfficherUniquementActifs(e.target.checked)}/>
-                  {lang==='ar'?'عرض الطلاب النشطين فقط':'Afficher uniquement les actifs'}
-                </label>
-              </div>
-              <table>
+              {/* E1a — Style propre (alignement, no-wrap, vertical-align middle) */}
+              <style>{`
+                .gestion-eleves-table { table-layout: fixed; width: 100%; }
+                .gestion-eleves-table th,
+                .gestion-eleves-table td {
+                  vertical-align: middle;
+                  white-space: nowrap;
+                  overflow: hidden;
+                  text-overflow: ellipsis;
+                }
+                .gestion-eleves-table th {
+                  text-align: start;
+                  padding: 10px 12px;
+                  font-size: 11px;
+                  font-weight: 600;
+                  color: #888;
+                  background: #f9f9f6;
+                  border-bottom: 0.5px solid #e0e0d8;
+                  text-transform: uppercase;
+                  letter-spacing: 0.3px;
+                }
+                .gestion-eleves-table td.actions-cell {
+                  text-align: end;
+                  white-space: nowrap;
+                }
+                .gestion-eleves-table th.th-actions {
+                  text-align: end;
+                }
+                .gestion-eleves-table .col-eleve-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+              `}</style>
+              <table className="gestion-eleves-table">
                 <thead><tr>
                   <th style={{width:'20%'}}>{t(lang,'eleve')}</th>
                   <th style={{width:'11%'}}>{lang==='ar'?'المستوى':'Niveau'}</th>
@@ -4422,11 +4611,15 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
                   <th style={{width:'14%'}}>{lang==='ar'?'المكتسبات':'Acquis'}</th>
                   <th style={{width:'14%'}}>{lang==='ar'?'هاتف ولي الأمر':'Tél. parent'}</th>
                   <th style={{width:'13%'}}>{lang==='ar'?'تاريخ التسجيل':'Inscription'}</th>
-                  <th style={{width:'14%'}}></th>
+                  <th style={{width:'14%'}} className="th-actions">{lang==='ar'?'إجراءات':'Actions'}</th>
                 </tr></thead>
                 <tbody>
                   {eleves.length === 0 && <tr><td colSpan={5} className="empty">{t(lang, 'aucun_eleve')}</td></tr>}
-                  {eleves.filter(e => !afficherUniquementActifs || !e.suspendu_at).map(e => {
+                  {eleves.filter(e =>
+                    (!afficherUniquementActifs || !e.suspendu_at)
+                    && (filtreNiveauEleve === 'tous' || e.code_niveau === filtreNiveauEleve)
+                    && (!searchEleve || `${e.prenom} ${e.nom} ${e.eleve_id_ecole||''}`.toLowerCase().includes(searchEleve.toLowerCase()))
+                  ).map(e => {
                     const nc = (niveauxDyn||[]).find(n=>n.code===e.code_niveau)?.couleur || {'5B':'#534AB7','5A':'#378ADD','2M':'#1D9E75','2':'#EF9F27','1':'#E24B4A'}[e.code_niveau]||'#888';
                     const isSour = (niveauxDyn||[]).find(n=>n.code===e.code_niveau)?.type==='sourate' || ['5B','5A','2M'].includes(e.code_niveau||'');
                     const niv = e.niveau==='Avancé'||e.niveau==='متقدم' ? {label:lang==='ar'?'متقدم':'Avancé',bg:'#E1F5EE',color:'#085041'} : e.niveau==='Intermédiaire'||e.niveau==='متوسط' ? {label:lang==='ar'?'متوسط':'Interm.',bg:'#E6F1FB',color:'#378ADD'} : {label:lang==='ar'?'مبتدئ':'Débutant',bg:'#FAEEDA',color:'#EF9F27'};
@@ -4434,29 +4627,32 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
                     <tr key={e.id} style={{background:editEleve?.id===e.id?'#E1F5EE':'#fff',borderBottom:'0.5px solid #f0f0ec',opacity:e.suspendu_at?0.65:1}}>
                       {/* Élève */}
                       <td style={{padding:'8px 12px'}}>
-                        <div style={{display:'flex',alignItems:'center',gap:8}}>
+                        <div style={{display:'flex',alignItems:'center',gap:8,minWidth:0}}>
                           <div style={{width:32,height:32,borderRadius:'50%',background:`${nc}20`,color:nc,display:'flex',alignItems:'center',justifyContent:'center',fontWeight:700,fontSize:11,flexShrink:0}}>
                             {((e.prenom||'?')[0])+((e.nom||'?')[0])}
                           </div>
-                          <div>
-                            <div style={{fontWeight:600,fontSize:13,display:'flex',alignItems:'center',gap:6,flexWrap:'wrap'}}>
-                              <span>{e.prenom} {e.nom}</span>
+                          <div style={{minWidth:0,flex:1}}>
+                            <div style={{fontWeight:600,fontSize:13,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis',display:'flex',alignItems:'center',gap:6}}
+                              title={`${e.prenom} ${e.nom}`}>
+                              <span style={{whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>
+                                {e.prenom} {e.nom}
+                              </span>
                               {e.suspendu_at && (
-                                <span style={{display:'inline-block',padding:'1px 7px',borderRadius:8,fontSize:9,fontWeight:700,background:'#FFF3E0',color:'#D85A30',border:'0.5px solid #D85A30'}}
+                                <span style={{display:'inline-block',padding:'1px 7px',borderRadius:8,fontSize:9,fontWeight:700,background:'#FFF3E0',color:'#D85A30',border:'0.5px solid #D85A30',flexShrink:0}}
                                   title={e.suspendu_motif || ''}>
-                                  ⏸️ {lang==='ar'?'معلق':'Suspendu'}
+                                  ⏸️ {lang==='ar'?'معلق':'Susp.'}
                                 </span>
                               )}
                             </div>
-                            {e.eleve_id_ecole&&<div style={{fontSize:10,color:'#bbb'}}>#{e.eleve_id_ecole}</div>}
+                            {e.eleve_id_ecole&&<div style={{fontSize:10,color:'#bbb',whiteSpace:'nowrap'}}>#{e.eleve_id_ecole}</div>}
                           </div>
                         </div>
                       </td>
                       {/* Niveau */}
                       <td style={{padding:'8px 12px'}}>
-                        <div style={{display:'flex',flexDirection:'column',gap:3,alignItems:'flex-start'}}>
-                          <span style={{padding:'1px 7px',borderRadius:20,fontSize:11,fontWeight:700,background:`${nc}20`,color:nc}}>{e.code_niveau||'?'}</span>
-                          <span style={{padding:'1px 6px',borderRadius:20,fontSize:9,fontWeight:500,background:niv.bg,color:niv.color}}>{niv.label}</span>
+                        <div style={{display:'flex',flexDirection:'row',gap:6,alignItems:'center',flexWrap:'nowrap'}}>
+                          <span style={{padding:'2px 8px',borderRadius:20,fontSize:11,fontWeight:700,background:`${nc}20`,color:nc,whiteSpace:'nowrap',flexShrink:0}}>{e.code_niveau||'?'}</span>
+                          <span style={{padding:'2px 7px',borderRadius:20,fontSize:9,fontWeight:600,background:niv.bg,color:niv.color,whiteSpace:'nowrap',flexShrink:0}}>{niv.label}</span>
                         </div>
                       </td>
                       {/* Référent */}
@@ -4464,8 +4660,14 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
                       {/* Acquis */}
                       <td style={{padding:'8px 12px'}}>
                         {isSour
-                          ? <div style={{fontSize:11,fontWeight:600,color:'#1D9E75'}}>📖 {e.sourates_acquises||0}<div style={{fontSize:9,color:'#aaa',fontWeight:400}}>{lang==='ar'?'سور':'sourates'}</div></div>
-                          : <div style={{fontSize:11,color:'#534AB7',fontWeight:600}}>H.{e.hizb_depart}<div style={{fontSize:9,color:'#888',fontWeight:400}}>T.{e.tomon_depart}</div></div>
+                          ? <div style={{fontSize:11,fontWeight:600,color:'#1D9E75',whiteSpace:'nowrap'}}>
+                              <span>📖 {e.sourates_acquises||0}</span>
+                              <span style={{fontSize:9,color:'#aaa',fontWeight:400,marginLeft:4}}>{lang==='ar'?'سور':'sourates'}</span>
+                            </div>
+                          : <div style={{fontSize:11,color:'#534AB7',fontWeight:600,whiteSpace:'nowrap'}}>
+                              <span>H.{e.hizb_depart}</span>
+                              <span style={{fontSize:9,color:'#888',fontWeight:400,marginLeft:4}}>T.{e.tomon_depart}</span>
+                            </div>
                         }
                       </td>
                       {/* Téléphone */}
@@ -4480,35 +4682,36 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
                       {/* Date inscription */}
                       <td style={{padding:'8px 12px'}}>
                         {e.date_inscription
-                          ? <div style={{fontSize:11,color:'#555'}}>
-                              <div>📅 {new Date(e.date_inscription).toLocaleDateString(lang==='ar'?'ar-MA':'fr-FR',{day:'2-digit',month:'short'})}</div>
-                              <div style={{fontSize:9,color:'#aaa'}}>{new Date(e.date_inscription).getFullYear()}</div>
+                          ? <div style={{fontSize:11,color:'#555',whiteSpace:'nowrap'}}>
+                              <span>📅 {new Date(e.date_inscription).toLocaleDateString(lang==='ar'?'ar-MA':'fr-FR',{day:'2-digit',month:'short',year:'numeric'})}</span>
                             </div>
                           : <span style={{fontSize:10,color:'#ddd'}}>—</span>
                         }
                       </td>
                       {/* Actions */}
-                      <td style={{padding:'8px 10px'}}>
-                        <div style={{display:'flex',gap:4,flexWrap:'wrap'}}>
+                      <td style={{padding:'8px 10px'}} className="actions-cell">
+                        <div style={{display:'flex',gap:4,flexWrap:'nowrap',justifyContent:'flex-end',alignItems:'center'}}>
                           <button onClick={()=>{setEditEleve({...e});setEditShowAcquisSelector(false);window.scrollTo(0,0);}}
-                            style={{padding:'4px 8px',background:'#E6F1FB',color:'#378ADD',border:'none',borderRadius:6,cursor:'pointer',fontSize:11,fontWeight:600}}>
-                            ✏️ {t(lang,'modifier_btn')}
+                            title={t(lang,'modifier_btn')}
+                            style={{padding:'5px 8px',background:'#E6F1FB',color:'#378ADD',border:'none',borderRadius:6,cursor:'pointer',fontSize:13,fontWeight:600,flexShrink:0}}>
+                            ✏️
                           </button>
                           {e.suspendu_at ? (
                             <button onClick={()=>reactiverEleve(e)}
                               title={lang==='ar'?'إعادة تفعيل':'Réactiver'}
-                              style={{padding:'4px 8px',background:'#E1F5EE',color:'#085041',border:'none',borderRadius:6,cursor:'pointer',fontSize:11,fontWeight:600}}>
-                              ▶️ {lang==='ar'?'تفعيل':'Réactiver'}
+                              style={{padding:'5px 8px',background:'#E1F5EE',color:'#085041',border:'none',borderRadius:6,cursor:'pointer',fontSize:13,fontWeight:600,flexShrink:0}}>
+                              ▶️
                             </button>
                           ) : (
                             <button onClick={()=>ouvrirModaleSuspendre(e)}
                               title={lang==='ar'?'تعليق الطالب':'Suspendre'}
-                              style={{padding:'4px 8px',background:'#FFF3E0',color:'#D85A30',border:'none',borderRadius:6,cursor:'pointer',fontSize:11,fontWeight:600}}>
-                              ⏸️ {lang==='ar'?'تعليق':'Susp.'}
+                              style={{padding:'5px 8px',background:'#FFF3E0',color:'#D85A30',border:'none',borderRadius:6,cursor:'pointer',fontSize:13,fontWeight:600,flexShrink:0}}>
+                              ⏸️
                             </button>
                           )}
                           <button onClick={()=>supprimerEleve(e.id)}
-                            style={{padding:'4px 7px',background:'#FCEBEB',color:'#E24B4A',border:'none',borderRadius:6,cursor:'pointer',fontSize:12}}>
+                            title={lang==='ar'?'حذف':'Supprimer'}
+                            style={{padding:'5px 8px',background:'#FCEBEB',color:'#E24B4A',border:'none',borderRadius:6,cursor:'pointer',fontSize:13,flexShrink:0}}>
                             🗑
                           </button>
                         </div>
@@ -4519,6 +4722,8 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
                 </tbody>
               </table>
             </div>
+          )}
+          </>
           )}
         </div>
       )}
