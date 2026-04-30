@@ -7,6 +7,7 @@ import { openPDF } from '../lib/pdf';
 import ExportButtons from '../components/ExportButtons';
 import PeriodeSelectorHybride from '../components/PeriodeSelectorHybride';
 import PageHeader from '../components/PageHeader';
+import StatsCard from '../components/StatsCard';
 
 export default function ResultatsExamens({ user, navigate, goBack, lang='fr', isMobile, data }) {
   const { toast } = useToast();
@@ -659,28 +660,21 @@ export default function ResultatsExamens({ user, navigate, goBack, lang='fr', is
         gridTemplateColumns: isMobile?'repeat(2,1fr)':'repeat(4,1fr)',
         gap:10, marginBottom:16}}>
         {[
-          {key:'tous',     label:isAr?'المجموع':'Total',           val:stats.total,
-            color:'#085041', bg:'#E1F5EE', icon:'📊'},
-          {key:'reussi',   label:isAr?'ناجحون':'Réussis',          val:stats.reussis,
-            color:'#1D9E75', bg:'#E1F5EE', icon:'✅'},
-          {key:'echoue',   label:isAr?'راسبون':'Échoués',          val:stats.echoues,
-            color:'#E24B4A', bg:'#FCEBEB', icon:'❌'},
-          {key:'a_traiter',label:isAr?'شهادة قيد الإصدار':'À traiter', val:stats.aTraiter,
-            color:'#EF9F27', bg:'#FAEEDA', icon:'⚠️'},
-        ].map((s)=>{
-          const active = filtreStatut===s.key;
-          return (
-            <div key={s.key} onClick={()=>setFiltreStatut(s.key)}
-              style={{background:s.bg, borderRadius:12, padding:'14px 12px',
-                textAlign:'center', cursor:'pointer',
-                border: active ? `2px solid ${s.color}` : '2px solid transparent',
-                transition:'all 0.15s', userSelect:'none'}}>
-              <div style={{fontSize:14, marginBottom:2}}>{s.icon}</div>
-              <div style={{fontSize:24, fontWeight:800, color:s.color, lineHeight:1}}>{s.val}</div>
-              <div style={{fontSize:11, color:s.color, opacity:0.85, marginTop:4, fontWeight:600}}>{s.label}</div>
-            </div>
-          );
-        })}
+          {key:'tous',     label:isAr?'المجموع':'Total',              val:stats.total,    color:'green', icon:'📊'},
+          {key:'reussi',   label:isAr?'ناجحون':'Réussis',             val:stats.reussis,  color:'green', icon:'✅'},
+          {key:'echoue',   label:isAr?'راسبون':'Échoués',             val:stats.echoues,  color:'red',   icon:'❌'},
+          {key:'a_traiter',label:isAr?'شهادة قيد الإصدار':'À traiter', val:stats.aTraiter, color:'amber', icon:'⚠️'},
+        ].map((s)=>(
+          <StatsCard
+            key={s.key}
+            label={s.label}
+            value={s.val}
+            color={s.color}
+            icon={s.icon}
+            onClick={()=>setFiltreStatut(s.key)}
+            active={filtreStatut===s.key}
+          />
+        ))}
       </div>
 
       {/* ── B1 — Taux de réussite (info supplémentaire) ── */}

@@ -4,6 +4,7 @@ import { getInitiales, formatDate , loadBareme, BAREME_DEFAUT } from '../lib/hel
 import { t } from '../lib/i18n';
 import { fetchAll } from '../lib/fetchAll';
 import PageHeader from '../components/PageHeader';
+import StatsCard from '../components/StatsCard';
 
 const MOIS_FR=['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
 const MOIS_AR=['يناير','فبراير','مارس','أبريل','مايو','يونيو','يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر'];
@@ -77,12 +78,9 @@ export default function Calendrier({ user, navigate, goBack, lang='fr', isMobile
         />
       )}
       <div style={{display:'grid',gridTemplateColumns:'repeat(3,minmax(0,1fr))',gap:8,marginBottom:'1.25rem'}}>
-        {[{val:tomonMois,lbl:t(lang,'tomon_recites'),color:'#1D9E75',bg:'#E1F5EE'},{val:hizbMois,lbl:t(lang,'hizb_complets_label'),color:'#378ADD',bg:'#E6F1FB'},{val:joursActifsMois,lbl:t(lang,'jours_actifs'),color:'#EF9F27',bg:'#FAEEDA'}].map((k,i)=>(
-          <div key={i} style={{background:k.bg,borderRadius:10,padding:'12px',textAlign:'center'}}>
-            <div style={{fontSize:24,fontWeight:700,color:k.color}}>{k.val}</div>
-            <div style={{fontSize:11,color:k.color,opacity:0.8}}>{k.lbl}</div>
-          </div>
-        ))}
+        <StatsCard label={t(lang,'tomon_recites')}      value={tomonMois}       color="green" />
+        <StatsCard label={t(lang,'hizb_complets_label')} value={hizbMois}        color="blue"  />
+        <StatsCard label={t(lang,'jours_actifs')}       value={joursActifsMois} color="amber" />
       </div>
 
       <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'1rem'}}>
