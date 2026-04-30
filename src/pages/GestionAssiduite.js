@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { useToast } from '../lib/toast';
 import ConfirmModal from '../components/ConfirmModal';
+import PageHeader from '../components/PageHeader';
 
 // ══════════════════════════════════════════════════════════════════════
 // PAGE GESTION ASSIDUITÉ
@@ -250,17 +251,14 @@ export default function GestionAssiduite({ user, navigate, goBack, lang, isMobil
         </div>
       ) : (
         <div style={{ padding: '1.5rem 1.5rem 0' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: '1.25rem' }}>
-            <button onClick={() => navigate('gestion')} className="back-link"></button>
-            <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 20, fontWeight: 800, color: '#1a1a1a' }}>
-                📅 {lang === 'ar' ? 'إعدادات الحضور' : 'Assiduité'}
-              </div>
-              <div style={{ fontSize: 12, color: '#888' }}>
-                {lang === 'ar' ? 'العتبات و أيام العطل' : 'Seuils & jours non travaillés'}
-              </div>
-            </div>
-          </div>
+          <PageHeader
+            title="Assiduité"
+            titleAr="إعدادات الحضور"
+            icon="📅"
+            subtitle={lang === 'ar' ? 'العتبات و أيام العطل' : 'Seuils & jours non travaillés'}
+            onBack={() => navigate('gestion')}
+            lang={lang}
+          />
         </div>
       )}
 

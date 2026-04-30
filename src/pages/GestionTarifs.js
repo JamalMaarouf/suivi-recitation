@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { useToast } from '../lib/toast';
+import PageHeader from '../components/PageHeader';
 
 // ══════════════════════════════════════════════════════════════════════
 // PAGE GESTION TARIFS INSTITUTEURS
@@ -167,19 +168,16 @@ export default function GestionTarifs({ user, navigate, goBack, lang, isMobile }
         </div>
       ) : (
         <div style={{ padding: '1.5rem 1.5rem 0' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: '1.25rem' }}>
-            <button onClick={() => goBack ? goBack() : navigate('gestion')} className="back-link"></button>
-            <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 20, fontWeight: 800, color: '#1a1a1a' }}>
-                💰 {lang === 'ar' ? 'تعرفات الأساتذة' : 'Tarifs Instituteurs'}
-              </div>
-              <div style={{ fontSize: 12, color: '#888' }}>
-                {lang === 'ar'
-                  ? 'تعرفة الحصة المدفوعة لكل أستاذ'
-                  : 'Montant payé par séance à chaque instituteur'}
-              </div>
-            </div>
-          </div>
+          <PageHeader
+            title="Tarifs Instituteurs"
+            titleAr="تعرفات الأساتذة"
+            icon="💰"
+            subtitle={lang === 'ar'
+              ? 'تعرفة الحصة المدفوعة لكل أستاذ'
+              : 'Montant payé par séance à chaque instituteur'}
+            onBack={() => goBack ? goBack() : navigate('gestion')}
+            lang={lang}
+          />
         </div>
       )}
 

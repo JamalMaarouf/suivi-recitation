@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { supabase } from '../lib/supabase';
 import { useToast } from '../lib/toast';
 import ConfirmModal from '../components/ConfirmModal';
+import PageHeader from '../components/PageHeader';
 
 // ══════════════════════════════════════════════════════════════════════
 // PAGE ÉDITEUR D'AXES D'UN COURS
@@ -341,26 +342,23 @@ export default function GestionCoursAxes({ user, navigate, goBack, lang, isMobil
         </div>
       ) : (
         <div style={{ padding: '1.5rem 1.5rem 0' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: '1.25rem' }}>
-            <button onClick={() => goBack ? goBack() : navigate('gestion_cours')} className="back-link"></button>
-            <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 20, fontWeight: 800, color: '#1a1a1a' }}>
-                📝 {lang === 'ar' ? 'محاور الدرس:' : 'Axes du cours :'} {nomCours}
-              </div>
-              <div style={{ fontSize: 12, color: '#888' }}>
-                {axes.length} {lang === 'ar' ? 'محور إجمالا' : 'axe(s) au total'}
-                {cours?.categorie && <> · {cours.categorie}</>}
-              </div>
-            </div>
-            <button onClick={() => openCreate(null)}
-              style={{
-                padding: '9px 14px', background: '#1D9E75', color: '#fff',
-                border: 'none', borderRadius: 10,
-                fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit',
-              }}>
-              ➕ {lang === 'ar' ? 'محور رئيسي' : 'Axe principal'}
-            </button>
-          </div>
+          <PageHeader
+            title={`${lang === 'ar' ? 'محاور الدرس:' : 'Axes du cours :'} ${nomCours}`}
+            icon="📝"
+            subtitle={`${axes.length} ${lang === 'ar' ? 'محور إجمالا' : 'axe(s) au total'}${cours?.categorie ? ` · ${cours.categorie}` : ''}`}
+            onBack={() => goBack ? goBack() : navigate('gestion_cours')}
+            lang={lang}
+            actions={
+              <button onClick={() => openCreate(null)}
+                style={{
+                  padding: '9px 14px', background: '#1D9E75', color: '#fff',
+                  border: 'none', borderRadius: 10,
+                  fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit',
+                }}>
+                ➕ {lang === 'ar' ? 'محور رئيسي' : 'Axe principal'}
+              </button>
+            }
+          />
         </div>
       )}
 

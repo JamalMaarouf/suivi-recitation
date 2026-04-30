@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 import { useToast } from '../lib/toast';
 import { t } from '../lib/i18n';
+import PageHeader from '../components/PageHeader';
 
 export default function GestionEnsembles({ user, navigate, goBack, lang='fr', isMobile }) {
   const { toast } = useToast();
@@ -432,23 +433,22 @@ export default function GestionEnsembles({ user, navigate, goBack, lang='fr', is
   return (
     <div style={{padding:'0 0 2rem'}}>
       {/* Header */}
-      <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'1.25rem' }}>
-        <div style={{ display:'flex', alignItems:'center', gap:12 }}>
-          <button className="back-link" onClick={() => goBack ? goBack() : navigate('dashboard')}></button>
-          <div>
-            <div style={{ fontSize:20, fontWeight:800, color:'#085041' }}>📦 {lang === 'ar' ? 'مجموعات السور' : 'Ensembles de sourates'}</div>
-            <div style={{ fontSize:11, color:'#888', marginTop:1 }}>
-              {ensembles.length} {lang==='ar'?'مجموعة في':'ensemble(s) sur'} {niveaux.length} {lang==='ar'?'مستوى':'niveaux'}
-            </div>
-          </div>
-        </div>
-        <button onClick={openCreate}
-          style={{ padding:'9px 20px', background:'linear-gradient(135deg,#085041,#1D9E75)', color:'#fff',
-            border:'none', borderRadius:10, fontSize:13, fontWeight:700, cursor:'pointer',
-            boxShadow:'0 2px 8px rgba(8,80,65,0.25)', display:'flex', alignItems:'center', gap:6 }}>
-          + {lang === 'ar' ? 'إضافة مجموعة' : 'Ajouter un ensemble'}
-        </button>
-      </div>
+      <PageHeader
+        title="Ensembles de sourates"
+        titleAr="مجموعات السور"
+        icon="📦"
+        subtitle={`${ensembles.length} ${lang==='ar'?'مجموعة في':'ensemble(s) sur'} ${niveaux.length} ${lang==='ar'?'مستوى':'niveaux'}`}
+        onBack={() => goBack ? goBack() : navigate('dashboard')}
+        lang={lang}
+        actions={
+          <button onClick={openCreate}
+            style={{ padding:'9px 20px', background:'linear-gradient(135deg,#085041,#1D9E75)', color:'#fff',
+              border:'none', borderRadius:10, fontSize:13, fontWeight:700, cursor:'pointer',
+              boxShadow:'0 2px 8px rgba(8,80,65,0.25)', display:'flex', alignItems:'center', gap:6 }}>
+            + {lang === 'ar' ? 'إضافة مجموعة' : 'Ajouter un ensemble'}
+          </button>
+        }
+      />
 
       {/* Filtres niveaux */}
       {!loading && niveaux.length > 1 && (

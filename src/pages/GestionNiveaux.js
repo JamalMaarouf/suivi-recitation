@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase';
 import { useToast } from '../lib/toast';
 import { getSouratesForNiveau, getSouratesDesc } from '../lib/sourates';
 import { t } from '../lib/i18n';
+import PageHeader from '../components/PageHeader';
 
 // Liste des Hizb selon un sens donne (desc = 60->1, asc = 1->60)
 const makeHizbList = (sens) => sens === 'asc'
@@ -1236,17 +1237,20 @@ export default function GestionNiveaux({ user, navigate, goBack, lang='fr', isMo
   // ── PC ───────────────────────────────────────────────────────────────
   return (
     <div>
-      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'1.25rem',flexWrap:'wrap',gap:8}}>
-        <div style={{display:'flex',alignItems:'center',gap:10}}>
-          <button className="back-link" onClick={()=>goBack?goBack():navigate('dashboard')}></button>
-          <div style={{fontSize:20,fontWeight:700}}>📚 {lang==='ar'?'إدارة المستويات':'Gestion des niveaux'}</div>
-        </div>
-        <button onClick={()=>{setEditing(null);setForm({...emptyForm,ordre:niveaux.length+1});setShowForm(v=>!v);}}
-          style={{padding:'8px 18px',background:showForm&&!editing?'#f0f0ec':'#1D9E75',color:showForm&&!editing?'#666':'#fff',
-            border:'none',borderRadius:10,fontSize:13,fontWeight:600,cursor:'pointer'}}>
-          {showForm&&!editing?'✕ Annuler':'+ Nouveau niveau'}
-        </button>
-      </div>
+      <PageHeader
+        title="Gestion des niveaux"
+        titleAr="إدارة المستويات"
+        icon="📚"
+        onBack={() => goBack ? goBack() : navigate('dashboard')}
+        lang={lang}
+        actions={
+          <button onClick={()=>{setEditing(null);setForm({...emptyForm,ordre:niveaux.length+1});setShowForm(v=>!v);}}
+            style={{padding:'8px 18px',background:showForm&&!editing?'#f0f0ec':'#1D9E75',color:showForm&&!editing?'#666':'#fff',
+              border:'none',borderRadius:10,fontSize:13,fontWeight:600,cursor:'pointer'}}>
+            {showForm&&!editing?'✕ Annuler':'+ Nouveau niveau'}
+          </button>
+        }
+      />
 
       {/* Formulaire PC */}
       {showForm && (
