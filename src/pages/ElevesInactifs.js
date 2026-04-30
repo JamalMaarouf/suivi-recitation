@@ -22,6 +22,8 @@ export default function ElevesInactifs({ navigate, goBack, lang='fr', user, isMo
   const [inactifs, setInactifs] = useState([]);
   const [niveaux,  setNiveaux]  = useState([]);
   const [loading,  setLoading]  = useState(true);
+  // C6a — filtre par sévérité d'inactivité (cliquable depuis StatsBreakdown)
+  const [filtreSeverite, setFiltreSeverite] = useState('tous');
 
   useEffect(() => { loadData(); }, []);
 
@@ -85,6 +87,14 @@ export default function ElevesInactifs({ navigate, goBack, lang='fr', user, isMo
   const jamais  = inactifs.filter(e=>e.jours==null).length;
   const plus30  = inactifs.filter(e=>e.jours!=null&&e.jours>30).length;
   const entre14 = inactifs.filter(e=>e.jours!=null&&e.jours>14&&e.jours<=30).length;
+
+  // C6a — Liste affichée selon le filtre courant (les exports gardent TOUT)
+  const inactifsAffiches = (() => {
+    if (filtreSeverite === 'plus30')  return inactifs.filter(e=>e.jours!=null&&e.jours>30);
+    if (filtreSeverite === 'entre14') return inactifs.filter(e=>e.jours!=null&&e.jours>14&&e.jours<=30);
+    if (filtreSeverite === 'jamais')  return inactifs.filter(e=>e.jours==null);
+    return inactifs; // 'tous'
+  })();
 
   // ── Export PDF ──
   const handleExportPDF = async () => {
@@ -219,18 +229,24 @@ export default function ElevesInactifs({ navigate, goBack, lang='fr', user, isMo
           value: inactifs.length,
           label: lang === 'ar' ? 'الإجمالي' : 'Total inactifs',
           emoji: '🚨',
+          key: 'tous',
+          onClick: () => setFiltreSeverite('tous'),
         }}
         segments={[
           { key: 'plus30', value: plus30, color: 'red',
             label: '+30 ' + (lang === 'ar' ? 'يوم' : 'jours'),
-            emoji: '🔴' },
+            emoji: '🔴',
+            onClick: () => setFiltreSeverite('plus30') },
           { key: 'entre14', value: entre14, color: 'amber',
             label: '14-30 ' + (lang === 'ar' ? 'يوم' : 'jours'),
-            emoji: '🟡' },
+            emoji: '🟡',
+            onClick: () => setFiltreSeverite('entre14') },
           { key: 'jamais', value: jamais, color: 'purple',
             label: lang === 'ar' ? 'لم يستظهر' : 'Sans récitation',
-            emoji: '⚪' },
+            emoji: '⚪',
+            onClick: () => setFiltreSeverite('jamais') },
         ]}
+        activeKey={filtreSeverite}
         progress={inactifs.length > 0 ? {
           label: `📊 ${lang === 'ar' ? 'توزيع غير النشطين' : 'Répartition par sévérité'}`,
           caption: `${plus30 + entre14} / ${inactifs.length} ${lang === 'ar' ? 'بدون استظهار' : 'sans récitation récente'}`,
@@ -243,9 +259,19 @@ export default function ElevesInactifs({ navigate, goBack, lang='fr', user, isMo
         <div style={{textAlign:'center',color:'#1D9E75',padding:'3rem',background:'#E1F5EE',borderRadius:12,fontSize:14,fontWeight:600}}>
           {lang==='ar'?'جميع الطلاب نشطون ✓':'Tous les élèves sont actifs ✓'}
         </div>
+      ) : inactifsAffiches.length === 0 ? (
+        <div style={{textAlign:'center',color:'#888',padding:'2rem',background:'#f9f9f6',borderRadius:12,fontSize:13}}>
+          {lang==='ar'
+            ? 'لا أحد في هذه الفئة'
+            : 'Aucun élève dans cette catégorie'}
+          <button onClick={()=>setFiltreSeverite('tous')}
+            style={{display:'block',margin:'10px auto 0',padding:'6px 14px',background:'#1D9E75',color:'#fff',border:'none',borderRadius:8,fontSize:12,fontWeight:600,cursor:'pointer',fontFamily:'inherit'}}>
+            {lang==='ar'?'عرض الجميع':'Voir tous'}
+          </button>
+        </div>
       ) : (
         <div style={{display:'flex',flexDirection:'column',gap:8}}>
-          {inactifs.map(e => {
+          {inactifsAffiches.map(e => {
             const jours = e.jours;
             const estJamais = jours == null;
             const urgent = !estJamais && jours > 30;
