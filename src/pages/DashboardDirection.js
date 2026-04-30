@@ -8,6 +8,7 @@ import { exportExcel } from '../lib/excel';
 import ExportButtons from '../components/ExportButtons';
 import PeriodeSelectorHybride from '../components/PeriodeSelectorHybride';
 import PageHeader from '../components/PageHeader';
+import StatsCard from '../components/StatsCard';
 
 // ─── Couleurs par niveau ───────────────────────────────────────────────────
 const NC = { '5B':'#534AB7','5A':'#378ADD','2M':'#1D9E75','2':'#EF9F27','1':'#E24B4A' };
@@ -15,6 +16,8 @@ const getNc = (niveaux, code) =>
   (niveaux||[]).find(n=>n.code===code)?.couleur || NC[code] || '#888';
 
 // ─── Composants UI ────────────────────────────────────────────────────────
+// KpiCard local : encore utilisé par la branche mobile (ligne ~590).
+// Migration mobile vers <StatsCard> reportée à la Phase E (mobile).
 function KpiCard({ icon, val, label, sub, color='#085041', bg='#E1F5EE', onClick }) {
   return (
     <div onClick={onClick}
@@ -753,19 +756,14 @@ export default function DashboardDirection({ user, navigate, goBack, lang='fr', 
 
       {/* KPIs */}
       <div style={{display:'grid',gridTemplateColumns:'repeat(6,1fr)',gap:12,marginBottom:'1.5rem'}}>
-        <KpiCard icon="👥" val={kpis.elevesActifs} label={isAr?'طالب نشط':'Élèves actifs'}
-          sub={`/ ${kpis.totalEleves}`} color="#085041" bg="#E1F5EE"/>
-        <KpiCard icon="📈" val={`${kpis.tauxActivite}%`} label={isAr?'نسبة النشاط':'Taux activité'}
-          color={kpis.tauxActivite>=70?'#085041':kpis.tauxActivite>=50?'#EF9F27':'#E24B4A'}
-          bg={kpis.tauxActivite>=70?'#E1F5EE':kpis.tauxActivite>=50?'#FEF3DA':'#FCEAEA'}/>
-        <KpiCard icon="📅" val={kpis.totalSeances} label={isAr?'جلسة':'Séances'}
-          color="#378ADD" bg="#E6F1FB"/>
-        <KpiCard icon="📖" val={kpis.totalTomon} label={isAr?'ثُمن':'Tomon'}
-          color="#378ADD" bg="#E6F1FB"/>
-        <KpiCard icon="⭐" val={kpis.totalHizb} label={isAr?'حزب':'Hizb'}
-          color="#534AB7" bg="#EEEDFE"/>
-        <KpiCard icon="🏅" val={kpis.totalCerts} label={isAr?'شهادة':'Certificats'}
-          color="#EF9F27" bg="#FEF3DA"/>
+        <StatsCard icon="👥" value={kpis.elevesActifs}        label={isAr?'طالب نشط':'Élèves actifs'}
+          color="green" subtitle={`/ ${kpis.totalEleves}`} />
+        <StatsCard icon="📈" value={`${kpis.tauxActivite}%`}  label={isAr?'نسبة النشاط':'Taux activité'}
+          color={kpis.tauxActivite>=70 ? 'green' : kpis.tauxActivite>=50 ? 'amber' : 'red'} />
+        <StatsCard icon="📅" value={kpis.totalSeances}        label={isAr?'جلسة':'Séances'}     color="blue"   />
+        <StatsCard icon="📖" value={kpis.totalTomon}          label={isAr?'ثُمن':'Tomon'}        color="blue"   />
+        <StatsCard icon="⭐" value={kpis.totalHizb}           label={isAr?'حزب':'Hizb'}          color="purple" />
+        <StatsCard icon="🏅" value={kpis.totalCerts}          label={isAr?'شهادة':'Certificats'} color="amber"  />
       </div>
 
       {/* 2 colonnes principales */}
