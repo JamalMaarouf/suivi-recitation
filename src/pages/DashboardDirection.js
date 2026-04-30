@@ -7,6 +7,7 @@ import { openPDF } from '../lib/pdf';
 import { exportExcel } from '../lib/excel';
 import ExportButtons from '../components/ExportButtons';
 import PeriodeSelectorHybride from '../components/PeriodeSelectorHybride';
+import PageHeader from '../components/PageHeader';
 
 // ─── Couleurs par niveau ───────────────────────────────────────────────────
 const NC = { '5B':'#534AB7','5A':'#378ADD','2M':'#1D9E75','2':'#EF9F27','1':'#E24B4A' };
@@ -693,27 +694,25 @@ export default function DashboardDirection({ user, navigate, goBack, lang='fr', 
   // ──────────────────────────────────────────────────────────────────────────
   return (
     <div style={{maxWidth:1100,margin:'0 auto',padding:'0 1rem 2rem'}}>
-      {/* Header */}
-      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'1rem',flexWrap:'wrap',gap:12}}>
-        <div style={{display:'flex',alignItems:'center',gap:14,flex:1,minWidth:280}}>
-          <button onClick={()=>goBack?goBack():navigate('dashboard')}
-            title={isAr?'رجوع':'Retour'}
-            style={{background:'#fff',border:'1px solid #e0e0d8',borderRadius:10,padding:0,width:38,height:38,fontSize:18,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',color:'#085041',flexShrink:0}}>←</button>
-          <div>
-            <h1 style={{fontSize:22,fontWeight:800,color:'#085041',margin:0}}>
-              📊 {isAr?'لوحة قيادة المدير':'Tableau de bord direction'}
-            </h1>
-            <p style={{color:'#888',fontSize:13,margin:'4px 0 0'}}>{ecole?.nom} — {isAr?'نظرة شاملة على أداء المدرسة':'Vue analytique de l\'école'}</p>
-          </div>
-        </div>
-        <ExportButtons
-          onPDF={handleExportPDF}
-          onExcel={handleExportExcel}
-          lang={lang}
-          variant="inline"
-          compact
-        />
-      </div>
+      {/* Header — variant 'hero' (titre 22px vert, h1 sémantique) */}
+      <PageHeader
+        title="Tableau de bord direction"
+        titleAr="لوحة قيادة المدير"
+        icon="📊"
+        subtitle={`${ecole?.nom || ''}${ecole?.nom ? ' — ' : ''}${isAr ? 'نظرة شاملة على أداء المدرسة' : "Vue analytique de l'école"}`}
+        onBack={() => goBack ? goBack() : navigate('dashboard')}
+        lang={lang}
+        variant="hero"
+        actions={
+          <ExportButtons
+            onPDF={handleExportPDF}
+            onExcel={handleExportExcel}
+            lang={lang}
+            variant="inline"
+            compact
+          />
+        }
+      />
 
       {/* Sélecteur période - Etape 14 v2 - Composant hybride */}
       <div style={{display:'flex',justifyContent:'center',marginBottom:'1.25rem',flexDirection:'column',alignItems:'center',gap:6}}>
