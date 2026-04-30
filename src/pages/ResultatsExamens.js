@@ -6,6 +6,7 @@ import { t } from '../lib/i18n';
 import { openPDF } from '../lib/pdf';
 import ExportButtons from '../components/ExportButtons';
 import PeriodeSelectorHybride from '../components/PeriodeSelectorHybride';
+import PageHeader from '../components/PageHeader';
 
 export default function ResultatsExamens({ user, navigate, goBack, lang='fr', isMobile, data }) {
   const { toast } = useToast();
@@ -915,39 +916,40 @@ export default function ResultatsExamens({ user, navigate, goBack, lang='fr', is
     }
   };
 
-  const Header = () => (
-    <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:isMobile?12:'1.25rem',flexWrap:'wrap',justifyContent:'space-between'}}>
-      {!isMobile && (
-        <>
-          <div style={{display:'flex',alignItems:'center',gap:10}}>
-            <button onClick={()=>goBack?goBack():navigate('dashboard')} className="back-link" style={{marginBottom:0}}>
-              {t(lang,'retour')}
-            </button>
-            <div style={{fontSize:20,fontWeight:800,color:'#1a1a1a'}}>
-              🏅 {lang==='ar'?'نتائج الامتحانات':'Résultats des examens'}
-            </div>
-          </div>
-          <ExportButtons
-            onPDF={exportResultatsPDF}
-            onExcel={exportResultatsExcel}
-            lang={lang}
-            variant="inline"
-            compact
-          />
-        </>
-      )}
-      {isMobile && (
-        <>
-          <button onClick={()=>goBack?goBack():navigate('dashboard')} className="back-link" style={{marginBottom:0}}>
-            ←
-          </button>
-          <div style={{flex:1,fontSize:17,fontWeight:800,color:'#085041'}}>
-            🏅 {lang==='ar'?'نتائج الامتحانات':'Résultats'}
-          </div>
-        </>
-      )}
-    </div>
-  );
+  const Header = () => {
+    // Desktop : PageHeader harmonisé (Phase C)
+    if (!isMobile) {
+      return (
+        <PageHeader
+          title="Résultats des examens"
+          titleAr="نتائج الامتحانات"
+          icon="🏅"
+          onBack={() => goBack ? goBack() : navigate('dashboard')}
+          lang={lang}
+          actions={
+            <ExportButtons
+              onPDF={exportResultatsPDF}
+              onExcel={exportResultatsExcel}
+              lang={lang}
+              variant="inline"
+              compact
+            />
+          }
+        />
+      );
+    }
+    // Mobile : header existant inchangé (Phase E à venir)
+    return (
+      <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:12,flexWrap:'wrap',justifyContent:'space-between'}}>
+        <button onClick={()=>goBack?goBack():navigate('dashboard')} className="back-link" style={{marginBottom:0}}>
+          ←
+        </button>
+        <div style={{flex:1,fontSize:17,fontWeight:800,color:'#085041'}}>
+          🏅 {lang==='ar'?'نتائج الامتحانات':'Résultats'}
+        </div>
+      </div>
+    );
+  };
 
   // Modale post-examen — partagee mobile + desktop
   const certifsModalJSX = showCertifsModal && (

@@ -6,6 +6,7 @@ import { openPDF } from '../lib/pdf';
 import { exportExcelSimple } from '../lib/excel';
 import ExportButtons from '../components/ExportButtons';
 import ModaleEditionCertificat from '../components/ModaleEditionCertificat';
+import PageHeader from '../components/PageHeader';
 
 export default function ListeCertificats({ user, navigate, goBack, lang='fr', isMobile, data }) {
   const focusCertId = data?.focusCertId || null;
@@ -412,21 +413,24 @@ export default function ListeCertificats({ user, navigate, goBack, lang='fr', is
   // ─── PC render ────────────────────────────────────────────────
   return (
     <div style={{ padding:'1.5rem', paddingBottom: 80 }}>
-      <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:'1.25rem' }}>
-        <button onClick={()=>goBack?goBack():navigate('dashboard')} className="back-link">{t(lang,'retour')}</button>
-        <div style={{flex:1}}>
-          <div style={{ fontSize:20, fontWeight:800, color:'#1a1a1a' }}>🏅 {lang==='ar'?'قائمة الشهادات':'Liste des certificats'}</div>
-          <div style={{ fontSize:12, color:'#888' }}>{filtered.length} {lang==='ar'?'شهادة':'certificat(s)'}</div>
-        </div>
-        <ExportButtons
-          onPDF={handlePdfListe}
-          onExcel={handleExcelListe}
-          lang={lang}
-          variant="inline"
-          compact
-          disabled={genListe || filtered.length === 0}
-        />
-      </div>
+      <PageHeader
+        title={lang==='ar' ? 'قائمة الشهادات' : 'Liste des certificats'}
+        titleAr="قائمة الشهادات"
+        icon="🏅"
+        subtitle={`${filtered.length} ${lang==='ar' ? 'شهادة' : 'certificat(s)'}`}
+        onBack={() => goBack ? goBack() : navigate('dashboard')}
+        lang={lang}
+        actions={
+          <ExportButtons
+            onPDF={handlePdfListe}
+            onExcel={handleExcelListe}
+            lang={lang}
+            variant="inline"
+            compact
+            disabled={genListe || filtered.length === 0}
+          />
+        }
+      />
 
       {/* Filtres */}
       <div className="card" style={{ marginBottom:'1.25rem' }}>
