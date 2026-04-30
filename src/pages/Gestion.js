@@ -2156,6 +2156,7 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile,
   const [filtreNiveauEleve, setFiltreNiveauEleve] = useState('tous');
   // Pareil pour Instituteurs
   const [subTabInst, setSubTabInst] = useState('liste');
+  const [searchInst, setSearchInst] = useState('');
   // Etape 6 - Suspension eleves
   const [showSuspendreEleve, setShowSuspendreEleve] = useState(null); // eleve a suspendre, null = ferme
   const [motifSuspension, setMotifSuspension] = useState('');
@@ -2203,7 +2204,7 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile,
   const [editShowAcquisSelector, setEditShowAcquisSelector] = useState(false);
 
   const [newEleve, setNewEleve] = useState({ prenom: '', nom: '', niveau: 'Débutant', code_niveau: '', eleve_id_ecole: '', instituteur_referent_id: '', hizb_depart: 0, tomon_depart: 1, sourates_acquises: 0, telephone: '', email_parent: '', date_inscription: '', jours_souhaites: [false,false,false,false,false,false,false] });
-  const [newInst, setNewInst] = useState({ prenom: '', nom: '', identifiant: '', mot_de_passe: '', instituteur_id_ecole: '' });
+  const [newInst, setNewInst] = useState({ prenom: '', nom: '', identifiant: '', mot_de_passe: '', instituteur_id_ecole: '', telephone: '', email: '' });
   const [ecoleConfig, setEcoleConfig] = useState({ mdp_defaut_instituteurs: 'ecole2024', mdp_defaut_parents: 'parent2024', sens_recitation_defaut: 'desc' });
   // Hooks niveaux dynamiques
   const [niveauxDyn, setNiveauxDyn] = useState([]);
@@ -2215,7 +2216,7 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile,
   const [showFormInst,   setShowFormInst]   = useState(false);
   const [mobileEditEleve,setMobileEditEleve]= useState(null);
   const [editInstituteur, setEditInstituteur] = useState(null);
-  const [formEditInst, setFormEditInst] = useState({prenom:'',nom:'',identifiant:'',mot_de_passe:'',instituteur_id_ecole:''});
+  const [formEditInst, setFormEditInst] = useState({prenom:'',nom:'',identifiant:'',mot_de_passe:'',instituteur_id_ecole:'',telephone:'',email:''});
 
   // Helper : suggère le prochain numéro instituteur (INST001, INST002...).
   // Regarde les IDs existants de la forme "INST" + nombre, trouve le max et incrémente.
@@ -2668,10 +2669,12 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile,
       identifiant: login, mot_de_passe: mdp, role: 'instituteur',
       ecole_id: user.ecole_id, statut_compte: 'actif',
       instituteur_id_ecole: newInst.instituteur_id_ecole?.trim() || null,
+      telephone: newInst.telephone?.trim() || null,
+      email: newInst.email?.trim() || null,
     });
     if (error) return showMsg('error', error.message);
     showMsg('success', `✅ ${lang==='ar'?'تم الإضافة — المعرف:':'Ajouté — Login :'} ${login} ${lang==='ar'?'/ كلمة السر:':'/ MDP :'} ${mdp}`);
-    setNewInst({ prenom: '', nom: '', identifiant: '', mot_de_passe: '', instituteur_id_ecole: '' });
+    setNewInst({ prenom: '', nom: '', identifiant: '', mot_de_passe: '', instituteur_id_ecole: '', telephone: '', email: '' });
     loadData();
   };
 
@@ -4730,11 +4733,26 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
 
       {tab === 'instituteurs' && (
         <div>
+          {/* E1b — Sub-tabs Liste / Ajouter */}
+          {!editInstituteur && (
+            <SubTabs
+              value={subTabInst}
+              onChange={setSubTabInst}
+              lang={lang}
+              items={[
+                { key: 'liste',   icon: '📋', label: lang === 'ar' ? 'القائمة' : 'Liste',   count: instituteurs.length },
+                { key: 'ajouter', icon: '➕', label: lang === 'ar' ? 'إضافة'   : 'Ajouter' },
+              ]}
+            />
+          )}
+
+          {/* Formulaire création — visible uniquement en sub-tab 'ajouter' (et hors édition) */}
+          {!editInstituteur && subTabInst === 'ajouter' && (<>
           <div className="section-label">{t(lang, 'ajouter_instituteur')}</div>
           <div className="card">
             <div className="form-grid">
-              <div className="field-group"><label className="field-lbl">{t(lang, 'prenom')}</label><input className="field-input" value={newInst.prenom} onChange={e => setNewInst({...newInst,prenom:e.target.value})} placeholder={t(lang,'prenom')}/></div>
-              <div className="field-group"><label className="field-lbl">{t(lang, 'nom_label')}</label><input className="field-input" value={newInst.nom} onChange={e => setNewInst({...newInst,nom:e.target.value})} placeholder={t(lang,'nom_label')}/></div>
+              <div className="field-group"><label className="field-lbl">{t(lang, 'prenom')} <span style={{color:'#E24B4A'}}>*</span></label><input className="field-input" value={newInst.prenom} onChange={e => setNewInst({...newInst,prenom:e.target.value})} placeholder={t(lang,'prenom')}/></div>
+              <div className="field-group"><label className="field-lbl">{t(lang, 'nom_label')} <span style={{color:'#E24B4A'}}>*</span></label><input className="field-input" value={newInst.nom} onChange={e => setNewInst({...newInst,nom:e.target.value})} placeholder={t(lang,'nom_label')}/></div>
               <div className="field-group">
                 <label className="field-lbl">{lang==='ar'?'رقم الأستاذ':'Numéro instituteur'}</label>
                 <div style={{display:'flex',gap:6}}>
@@ -4767,12 +4785,36 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
                 <label className="field-lbl">{lang==='ar'?'كلمة السر (اتركها فارغة للمرور الافتراضي)':'Mot de passe (vide = MDP par défaut)'}</label>
                 <input className="field-input" type="password" value={newInst.mot_de_passe} onChange={e => setNewInst({...newInst,mot_de_passe:e.target.value})} placeholder="••••••••"/>
               </div>
+              {/* E1b — Coordonnees ajoutees au formulaire de creation */}
+              <div className="field-group">
+                <label className="field-lbl">{lang==='ar'?'الهاتف (اختياري)':'Téléphone (optionnel)'}</label>
+                <input className="field-input" type="tel" value={newInst.telephone||''} onChange={e => setNewInst({...newInst,telephone:e.target.value})} placeholder="06XXXXXXXX"/>
+              </div>
+              <div className="field-group">
+                <label className="field-lbl">{lang==='ar'?'البريد الإلكتروني (اختياري)':'Email (optionnel)'}</label>
+                <input className="field-input" type="email" value={newInst.email||''} onChange={e => setNewInst({...newInst,email:e.target.value})} placeholder="instituteur@example.com"/>
+              </div>
             </div>
             <button className="btn-primary" onClick={ajouterInstituteur}>{t(lang, 'ajouter_instituteur_btn')}</button>
           </div>
+          </>)}
 
-          <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'0.75rem'}}>
-            <div className="section-label" style={{margin:0}}>{t(lang, 'instituteurs_actifs')} ({instituteurs.length})</div>
+          {/* Liste instituteurs — visible si subTab 'liste' ou en cours d'edition */}
+          {(subTabInst === 'liste' || editInstituteur) && (
+          <>
+          <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'0.75rem',flexWrap:'wrap',gap:8}}>
+            <div className="section-label" style={{margin:0}}>
+              {t(lang, 'instituteurs_actifs')}
+              {' '}
+              <span style={{fontWeight:500,color:'#888'}}>
+                ({instituteurs.filter(i =>
+                  (!afficherUniquementActifsInst || !i.suspendu_at)
+                  && (!searchInst || `${i.prenom} ${i.nom} ${i.identifiant||''} ${i.instituteur_id_ecole||''}`.toLowerCase().includes(searchInst.toLowerCase()))
+                ).length}
+                {instituteurs.length > 0 ? ` / ${instituteurs.length}` : ''}
+                )
+              </span>
+            </div>
             <ExportButtons
               onPDF={exportInstituteursPDF}
               onExcel={exportInstituteursExcel}
@@ -4781,6 +4823,32 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
               compact
             />
           </div>
+
+          {/* E1b — Bandeau filtres */}
+          {!loading && instituteurs.length > 0 && (
+            <div style={{
+              display:'flex', gap:10, marginBottom:12, flexWrap:'wrap',
+              padding:'10px 12px', background:'#fff',
+              border:'0.5px solid #e0e0d8', borderRadius:12,
+              alignItems:'center',
+            }}>
+              <input type="text"
+                value={searchInst}
+                onChange={e=>setSearchInst(e.target.value)}
+                placeholder={lang==='ar' ? '🔍 ابحث بالاسم أو الرقم' : '🔍 Rechercher par nom ou n°'}
+                style={{
+                  flex:1, minWidth:200, padding:'7px 12px', fontSize:13,
+                  borderRadius:8, border:'0.5px solid #e0e0d8',
+                  fontFamily:'inherit', outline:'none', background:'#f9f9f6',
+                }}/>
+              <label style={{display:'flex', alignItems:'center', gap:6, fontSize:11, color:'#666', cursor:'pointer', whiteSpace:'nowrap'}}>
+                <input type="checkbox" checked={afficherUniquementActifsInst}
+                  onChange={e=>setAfficherUniquementActifsInst(e.target.checked)}/>
+                {lang==='ar'?'النشطون فقط':'Actifs uniquement'}
+              </label>
+            </div>
+          )}
+
           {loading ? <div className="loading">...</div> : (
             <>{editInstituteur && (
               <div style={{background:'#fff',border:'1.5px solid #378ADD',borderRadius:12,padding:'1rem',marginBottom:'1rem'}}>
@@ -4791,10 +4859,20 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
                   <div className="field-group"><label className="field-lbl">{lang==='ar'?'رقم الأستاذ':'Numéro instituteur'}</label><input className="field-input" value={formEditInst.instituteur_id_ecole||''} onChange={e=>setFormEditInst(f=>({...f,instituteur_id_ecole:e.target.value}))} placeholder={suggestNextInstituteurId()}/></div>
                   <div className="field-group"><label className="field-lbl">{lang==='ar'?'المعرف':'Identifiant'}</label><input className="field-input" value={formEditInst.identifiant} onChange={e=>setFormEditInst(f=>({...f,identifiant:e.target.value}))}/></div>
                   <div className="field-group"><label className="field-lbl">{lang==='ar'?'كلمة المرور (اتركها فارغة إن لم تغيرها)':'Mot de passe (vide = inchangé)'}</label><input className="field-input" type="password" value={formEditInst.mot_de_passe} onChange={e=>setFormEditInst(f=>({...f,mot_de_passe:e.target.value}))}/></div>
+                  {/* E1b — Coordonnees */}
+                  <div className="field-group"><label className="field-lbl">{lang==='ar'?'الهاتف':'Téléphone'}</label><input className="field-input" type="tel" value={formEditInst.telephone||''} onChange={e=>setFormEditInst(f=>({...f,telephone:e.target.value}))} placeholder="06XXXXXXXX"/></div>
+                  <div className="field-group" style={{gridColumn:'span 2'}}><label className="field-lbl">{lang==='ar'?'البريد الإلكتروني':'Email'}</label><input className="field-input" type="email" value={formEditInst.email||''} onChange={e=>setFormEditInst(f=>({...f,email:e.target.value}))} placeholder="instituteur@example.com"/></div>
                 </div>
                 <div style={{display:'flex',gap:8}}>
                   <button className="btn-primary" style={{width:'auto',padding:'7px 16px',fontSize:12}} onClick={async()=>{
-                    const upd={prenom:formEditInst.prenom,nom:formEditInst.nom,identifiant:formEditInst.identifiant,instituteur_id_ecole:formEditInst.instituteur_id_ecole?.trim()||null};
+                    const upd={
+                      prenom: formEditInst.prenom,
+                      nom: formEditInst.nom,
+                      identifiant: formEditInst.identifiant,
+                      instituteur_id_ecole: formEditInst.instituteur_id_ecole?.trim()||null,
+                      telephone: formEditInst.telephone?.trim() || null,
+                      email: formEditInst.email?.trim() || null,
+                    };
                     if(formEditInst.mot_de_passe) upd.mot_de_passe=formEditInst.mot_de_passe;
                     // Vérif unicité numéro si renseigné
                     if (upd.instituteur_id_ecole) {
@@ -4818,61 +4896,117 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
               </div>
             )}
             <div className="table-wrap">
-              <div style={{display:'flex',justifyContent:'flex-end',alignItems:'center',gap:8,padding:'8px 12px',fontSize:12,color:'#666'}}>
-                <label style={{display:'flex',alignItems:'center',gap:6,cursor:'pointer'}}>
-                  <input type="checkbox" checked={afficherUniquementActifsInst}
-                    onChange={e=>setAfficherUniquementActifsInst(e.target.checked)}/>
-                  {lang==='ar'?'عرض المدرسين النشطين فقط':'Afficher uniquement les actifs'}
-                </label>
-              </div>
-              <table>
+              {/* E1b — Style propre (alignement, no-wrap, vertical-align middle) */}
+              <style>{`
+                .gestion-inst-table { table-layout: fixed; width: 100%; }
+                .gestion-inst-table th,
+                .gestion-inst-table td {
+                  vertical-align: middle;
+                  white-space: nowrap;
+                  overflow: hidden;
+                  text-overflow: ellipsis;
+                  padding: 10px 12px;
+                }
+                .gestion-inst-table th {
+                  text-align: start;
+                  font-size: 11px;
+                  font-weight: 600;
+                  color: #888;
+                  background: #f9f9f6;
+                  border-bottom: 0.5px solid #e0e0d8;
+                  text-transform: uppercase;
+                  letter-spacing: 0.3px;
+                }
+                .gestion-inst-table td.actions-cell {
+                  text-align: end;
+                }
+                .gestion-inst-table th.th-actions {
+                  text-align: end;
+                }
+              `}</style>
+              <table className="gestion-inst-table">
                 <thead><tr>
-                  <th style={{width:'15%'}}>{lang==='ar'?'الرقم':'Numéro'}</th>
-                  <th style={{width:'35%'}}>{t(lang, 'nom_label')}</th>
-                  <th style={{width:'30%'}}>{t(lang, 'identifiant_label')}</th>
-                  <th style={{width:'20%'}}></th>
+                  <th style={{width:'12%'}}>{lang==='ar'?'الرقم':'Numéro'}</th>
+                  <th style={{width:'24%'}}>{t(lang, 'nom_label')}</th>
+                  <th style={{width:'18%'}}>{t(lang, 'identifiant_label')}</th>
+                  <th style={{width:'14%'}}>{lang==='ar'?'الهاتف':'Téléphone'}</th>
+                  <th style={{width:'18%'}}>{lang==='ar'?'البريد الإلكتروني':'Email'}</th>
+                  <th style={{width:'14%'}} className="th-actions">{lang==='ar'?'إجراءات':'Actions'}</th>
                 </tr></thead>
                 <tbody>
-                  {instituteurs.length === 0 && <tr><td colSpan={4} className="empty">{t(lang, 'aucun_instituteur')}</td></tr>}
-                  {instituteurs.filter(i => !afficherUniquementActifsInst || !i.suspendu_at).map(i => (
-                    <tr key={i.id} style={{opacity:i.suspendu_at?0.65:1}}>
+                  {instituteurs.length === 0 && <tr><td colSpan={6} className="empty">{t(lang, 'aucun_instituteur')}</td></tr>}
+                  {instituteurs.filter(i =>
+                    (!afficherUniquementActifsInst || !i.suspendu_at)
+                    && (!searchInst || `${i.prenom} ${i.nom} ${i.identifiant||''} ${i.instituteur_id_ecole||''}`.toLowerCase().includes(searchInst.toLowerCase()))
+                  ).map(i => (
+                    <tr key={i.id} style={{opacity:i.suspendu_at?0.65:1,borderBottom:'0.5px solid #f0f0ec'}}>
+                      {/* Numéro */}
                       <td>
                         {i.instituteur_id_ecole ? (
-                          <span style={{display:'inline-block',padding:'3px 10px',background:'#E1F5EE',color:'#085041',borderRadius:6,fontSize:11,fontWeight:700}}>
+                          <span style={{display:'inline-block',padding:'2px 10px',background:'#E1F5EE',color:'#085041',borderRadius:6,fontSize:11,fontWeight:700}}>
                             {i.instituteur_id_ecole}
                           </span>
                         ) : (
                           <span style={{color:'#bbb',fontSize:11,fontStyle:'italic'}}>—</span>
                         )}
                       </td>
+                      {/* Nom */}
                       <td>
-                        <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}>
+                        <div style={{display:'flex',alignItems:'center',gap:8,minWidth:0}}>
                           <Avatar prenom={i.prenom} nom={i.nom}/>
-                          <span>{i.prenom} {i.nom}</span>
-                          {i.suspendu_at && (
-                            <span style={{display:'inline-block',padding:'1px 7px',borderRadius:8,fontSize:9,fontWeight:700,background:'#FFF3E0',color:'#D85A30',border:'0.5px solid #D85A30'}}
-                              title={i.suspendu_motif||''}>
-                              ⏸️ {lang==='ar'?'معلق':'Suspendu'}
+                          <div style={{minWidth:0,flex:1,display:'flex',alignItems:'center',gap:6}}>
+                            <span style={{whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis',fontWeight:600,fontSize:13}}
+                              title={`${i.prenom} ${i.nom}`}>
+                              {i.prenom} {i.nom}
                             </span>
-                          )}
+                            {i.suspendu_at && (
+                              <span style={{display:'inline-block',padding:'1px 7px',borderRadius:8,fontSize:9,fontWeight:700,background:'#FFF3E0',color:'#D85A30',border:'0.5px solid #D85A30',flexShrink:0}}
+                                title={i.suspendu_motif||''}>
+                                ⏸️ {lang==='ar'?'معلق':'Susp.'}
+                              </span>
+                            )}
+                          </div>
                         </div>
                       </td>
-                      <td style={{fontSize:12,color:'#888'}}>{i.identifiant}</td>
-                      <td style={{display:'flex',gap:4,alignItems:'center',padding:'8px 4px',flexWrap:'wrap'}}>
-                        <button onClick={()=>{setEditInstituteur(i.id);setFormEditInst({prenom:i.prenom,nom:i.nom,identifiant:i.identifiant,mot_de_passe:'',instituteur_id_ecole:i.instituteur_id_ecole||''});}}
-                          style={{padding:'4px 10px',background:'#E6F1FB',color:'#378ADD',border:'0.5px solid #378ADD30',borderRadius:6,cursor:'pointer',fontSize:11,fontWeight:600}}>✏️ {lang==='ar'?'تعديل':'Modifier'}</button>
-                        {i.suspendu_at ? (
-                          <button onClick={()=>reactiverInst(i)}
-                            style={{padding:'4px 8px',background:'#E1F5EE',color:'#085041',border:'none',borderRadius:6,cursor:'pointer',fontSize:11,fontWeight:600}}>
-                            ▶️ {lang==='ar'?'تفعيل':'Réactiver'}
+                      {/* Identifiant */}
+                      <td style={{fontSize:12,color:'#888'}} title={i.identifiant}>{i.identifiant}</td>
+                      {/* Téléphone */}
+                      <td>
+                        {i.telephone
+                          ? <span style={{fontSize:11,color:'#555',whiteSpace:'nowrap'}}>📞 {i.telephone}</span>
+                          : <span style={{fontSize:10,color:'#ddd'}}>—</span>}
+                      </td>
+                      {/* Email */}
+                      <td>
+                        {i.email
+                          ? <span style={{fontSize:11,color:'#555',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis',display:'inline-block',maxWidth:'100%'}} title={i.email}>✉️ {i.email}</span>
+                          : <span style={{fontSize:10,color:'#ddd'}}>—</span>}
+                      </td>
+                      {/* Actions */}
+                      <td className="actions-cell">
+                        <div style={{display:'flex',gap:4,flexWrap:'nowrap',justifyContent:'flex-end',alignItems:'center'}}>
+                          <button onClick={()=>{setEditInstituteur(i.id);setFormEditInst({prenom:i.prenom,nom:i.nom,identifiant:i.identifiant,mot_de_passe:'',instituteur_id_ecole:i.instituteur_id_ecole||'',telephone:i.telephone||'',email:i.email||''});window.scrollTo(0,0);}}
+                            title={t(lang,'modifier_btn')}
+                            style={{padding:'5px 8px',background:'#E6F1FB',color:'#378ADD',border:'none',borderRadius:6,cursor:'pointer',fontSize:13,fontWeight:600,flexShrink:0}}>✏️</button>
+                          {i.suspendu_at ? (
+                            <button onClick={()=>reactiverInst(i)}
+                              title={lang==='ar'?'إعادة تفعيل':'Réactiver'}
+                              style={{padding:'5px 8px',background:'#E1F5EE',color:'#085041',border:'none',borderRadius:6,cursor:'pointer',fontSize:13,fontWeight:600,flexShrink:0}}>
+                              ▶️
+                            </button>
+                          ) : (
+                            <button onClick={()=>ouvrirModaleSuspendreInst(i)}
+                              title={lang==='ar'?'تعليق':'Suspendre'}
+                              style={{padding:'5px 8px',background:'#FFF3E0',color:'#D85A30',border:'none',borderRadius:6,cursor:'pointer',fontSize:13,fontWeight:600,flexShrink:0}}>
+                              ⏸️
+                            </button>
+                          )}
+                          <button onClick={() => supprimerInstituteur(i)}
+                            title={t(lang, 'retirer')}
+                            style={{padding:'5px 8px',background:'#FCEBEB',color:'#E24B4A',border:'none',borderRadius:6,cursor:'pointer',fontSize:13,flexShrink:0}}>
+                            🗑
                           </button>
-                        ) : (
-                          <button onClick={()=>ouvrirModaleSuspendreInst(i)}
-                            style={{padding:'4px 8px',background:'#FFF3E0',color:'#D85A30',border:'none',borderRadius:6,cursor:'pointer',fontSize:11,fontWeight:600}}>
-                            ⏸️ {lang==='ar'?'تعليق':'Suspendre'}
-                          </button>
-                        )}
-                        <button className="action-btn danger" onClick={() => supprimerInstituteur(i)}>{t(lang, 'retirer')}</button>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -4880,6 +5014,8 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
               </table>
             </div>
             </>
+          )}
+          </>
           )}
         </div>
       )}
