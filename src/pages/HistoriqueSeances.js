@@ -7,6 +7,7 @@ import { fetchAll } from '../lib/fetchAll';
 import ExportButtons from '../components/ExportButtons';
 import PeriodeSelectorHybride from '../components/PeriodeSelectorHybride';
 import PageHeader from '../components/PageHeader';
+import StatsCard from '../components/StatsCard';
 
 const IS_SOURATE = (code) => ['5B','5A','2M'].includes(code||'');
 const NIVEAU_COLORS = { '5B':'#534AB7','5A':'#378ADD','2M':'#1D9E75','2':'#EF9F27','1':'#E24B4A' };
@@ -18,18 +19,7 @@ function NiveauBadge({ code }) {
   const c = NIVEAU_COLORS[code||'1']||'#888';
   return <span style={{padding:'2px 8px',borderRadius:20,fontSize:10,fontWeight:700,background:c+'18',color:c,border:'0.5px solid '+c+'30'}}>{code}</span>;
 }
-function StatCard({ val, lbl, color, bg, sub, icon }) {
-  return (
-    <div style={{background:bg,borderRadius:14,padding:'14px 16px',display:'flex',flexDirection:'column',gap:4}}>
-      <div style={{display:'flex',alignItems:'center',gap:6}}>
-        {icon&&<span style={{fontSize:18}}>{icon}</span>}
-        <div style={{fontSize:11,color:color,opacity:0.8,fontWeight:500}}>{lbl}</div>
-      </div>
-      <div style={{fontSize:26,fontWeight:800,color,letterSpacing:'-1px'}}>{val}</div>
-      {sub&&<div style={{fontSize:11,color:color,opacity:0.6}}>{sub}</div>}
-    </div>
-  );
-}
+// StatCard local migré vers <StatsCard> en C6b (Phase C-final)
 
 // Etape 14 v2 - PERIODES gere par PeriodeSelectorHybride
 // Anciens presets glissants courts conserves (utiles pour analyse operationnelle) :
@@ -734,21 +724,42 @@ export default function HistoriqueSeances({ user, navigate, goBack, lang='fr', i
       </div>
 
       {loading ? <div className="loading">...</div> : (<>
-        {/* KPI */}
+        {/* KPI principaux (3 cartes) */}
         <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:10,marginBottom:'1rem'}}>
-          <StatCard icon="👥" val={filterEleve!=='tous'?1:elevesActifs.size} lbl={lang==='ar'?'طلاب نشطون':(lang==='ar'?'الطلاب النشطون':'Élèves actifs')} color="#1D9E75" bg="#E1F5EE"
-            sub={filterEleve!=='tous'?(eleves.find(e=>e.id===filterEleve)||{prenom:'',nom:''}).prenom+' '+(eleves.find(e=>e.id===filterEleve)||{nom:''}).nom:(elevesActifs.size+'/'+elevesVisibles.length+' · inactifs: '+inactifs.length)}/>
-          <StatCard icon="⭐" val={(filterEleve!=='tous'?(actifs.find(s=>s.eleve.id===filterEleve)||{pts:0}).pts:ptsTotal).toLocaleString()} lbl={lang==='ar'?'نقاط':lang==='ar'?'النقاط':(lang==='ar'?'النقاط':'Points')} color="#534AB7" bg="#EEEDFE"
-            sub={ptsDelta!==0?(ptsDelta>0?'▲ ':'▼ ')+Math.abs(ptsDelta)+' vs période préc.':'Stable'}/>
-          <StatCard icon="📅" val={joursActifs} lbl={lang==='ar'?'أيام نشطة':(lang==='ar'?'أيام النشاط':'Jours actifs')} color="#EF9F27" bg="#FAEEDA" sub={joursActifs+'/'+duree+' jours'}/>
+          <StatsCard
+            icon="👥"
+            value={filterEleve!=='tous' ? 1 : elevesActifs.size}
+            label={lang==='ar' ? 'الطلاب النشطون' : 'Élèves actifs'}
+            color="green"
+            subtitle={filterEleve!=='tous'
+              ? `${(eleves.find(e=>e.id===filterEleve)||{prenom:''}).prenom} ${(eleves.find(e=>e.id===filterEleve)||{nom:''}).nom}`.trim()
+              : `${elevesActifs.size}/${elevesVisibles.length} · inactifs: ${inactifs.length}`}
+          />
+          <StatsCard
+            icon="⭐"
+            value={(filterEleve!=='tous'
+              ? (actifs.find(s=>s.eleve.id===filterEleve)||{pts:0}).pts
+              : ptsTotal).toLocaleString()}
+            label={lang==='ar' ? 'النقاط' : 'Points'}
+            color="purple"
+            subtitle={ptsDelta!==0
+              ? (ptsDelta>0 ? '▲ ' : '▼ ') + Math.abs(ptsDelta) + ' vs période préc.'
+              : 'Stable'}
+          />
+          <StatsCard
+            icon="📅"
+            value={joursActifs}
+            label={lang==='ar' ? 'أيام النشاط' : 'Jours actifs'}
+            color="amber"
+            subtitle={`${joursActifs}/${duree} jours`}
+          />
         </div>
+        {/* KPI détail (4 cartes) */}
         <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:8,marginBottom:'1rem'}}>
-          {[{val:tomonTotal,lbl:(lang==='ar'?'الثُّمن':'Tomon'),color:'#378ADD',bg:'#E6F1FB'},{val:hizbTotal,lbl:'Hizb',color:'#EF9F27',bg:'#FAEEDA'},{val:souratesTotal,lbl:lang==='ar'?'سور':'Sourates',color:'#085041',bg:'#E1F5EE'},{val:sequencesTotal,lbl:lang==='ar'?'مقاطع':'Séq.',color:'#888',bg:'#f5f5f0'}].map(k=>(
-            <div key={k.lbl} style={{background:k.bg,borderRadius:10,padding:'10px',textAlign:'center'}}>
-              <div style={{fontSize:20,fontWeight:700,color:k.color}}>{k.val}</div>
-              <div style={{fontSize:11,color:k.color,opacity:0.8}}>{k.lbl}</div>
-            </div>
-          ))}
+          <StatsCard value={tomonTotal}     label={lang==='ar' ? 'الثُّمن' : 'Tomon'}    color="blue"  />
+          <StatsCard value={hizbTotal}      label="Hizb"                                  color="amber" />
+          <StatsCard value={souratesTotal}  label={lang==='ar' ? 'سور' : 'Sourates'}      color="green" />
+          <StatsCard value={sequencesTotal} label={lang==='ar' ? 'مقاطع' : 'Séq.'}        color="gray"  />
         </div>
 
         {/* Timeline */}

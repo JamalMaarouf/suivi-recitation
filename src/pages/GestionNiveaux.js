@@ -4,6 +4,7 @@ import { useToast } from '../lib/toast';
 import { getSouratesForNiveau, getSouratesDesc } from '../lib/sourates';
 import { t } from '../lib/i18n';
 import PageHeader from '../components/PageHeader';
+import ExportButtons from '../components/ExportButtons';
 
 // Liste des Hizb selon un sens donne (desc = 60->1, asc = 1->60)
 const makeHizbList = (sens) => sens === 'asc'
@@ -478,6 +479,101 @@ export default function GestionNiveaux({ user, navigate, goBack, lang='fr', isMo
     loadData();
   };
 
+
+  // ─── E1f — Exports PDF + Excel (demande Jamal) ─────────────────
+  const exportNiveauxExcel = async () => {
+    if (!window.XLSX) {
+      await new Promise((res, rej) => {
+        const s = document.createElement('script');
+        s.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+        s.onload = res; s.onerror = rej; document.head.appendChild(s);
+      });
+    }
+    const XLSX = window.XLSX;
+    const wb = XLSX.utils.book_new();
+    const headers = ['#',
+      lang === 'ar' ? 'الترتيب' : 'Ordre',
+      lang === 'ar' ? 'الرمز' : 'Code',
+      lang === 'ar' ? 'الاسم' : 'Nom',
+      lang === 'ar' ? 'النوع' : 'Type',
+      lang === 'ar' ? 'الاتجاه' : 'Sens',
+      lang === 'ar' ? 'الحالة' : 'Statut',
+    ];
+    const rows = niveaux.map((n, i) => [
+      i + 1,
+      n.ordre,
+      n.code || '—',
+      n.nom || '—',
+      n.type === 'sourate' ? (lang === 'ar' ? 'سور' : 'Sourates') : (lang === 'ar' ? 'أحزاب' : 'Hizb'),
+      n.sens_recitation === 'asc' ? (lang === 'ar' ? 'تصاعدي' : 'Croissant') : (lang === 'ar' ? 'تنازلي' : 'Décroissant'),
+      n.actif ? (lang === 'ar' ? 'نشط' : 'Actif') : (lang === 'ar' ? 'غير نشط' : 'Inactif'),
+    ]);
+    const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+    ws['!cols'] = [{wch:4},{wch:8},{wch:10},{wch:24},{wch:12},{wch:14},{wch:10}];
+    XLSX.utils.book_append_sheet(wb, ws, lang === 'ar' ? 'المستويات' : 'Niveaux');
+    XLSX.writeFile(wb, 'niveaux_' + new Date().toISOString().split('T')[0] + '.xlsx');
+  };
+
+  const exportNiveauxPDF = () => {
+    const w = window.open('', '_blank', 'width=900,height=700');
+    if (!w) {
+      toast.warning(lang === 'ar' ? 'يرجى السماح بالنوافذ المنبثقة' : 'Autorisez les popups pour exporter');
+      return;
+    }
+    const rows = niveaux.map((n, i) => {
+      const couleur = n.couleur || '#888';
+      const typeLabel = n.type === 'sourate'
+        ? (lang === 'ar' ? '📖 سور' : '📖 Sourates')
+        : (lang === 'ar' ? '📿 أحزاب' : '📿 Hizb');
+      const sensLabel = n.sens_recitation === 'asc'
+        ? (lang === 'ar' ? '↑ تصاعدي' : '↑ Croissant')
+        : (lang === 'ar' ? '↓ تنازلي' : '↓ Décroissant');
+      const statutHTML = n.actif
+        ? `<span style="display:inline-block;padding:2px 8px;border-radius:20px;font-size:10px;font-weight:600;background:#E1F5EE;color:#085041">${lang === 'ar' ? '✓ نشط' : '✓ Actif'}</span>`
+        : `<span style="display:inline-block;padding:2px 8px;border-radius:20px;font-size:10px;font-weight:600;background:#f0f0ec;color:#888">${lang === 'ar' ? 'غير نشط' : 'Inactif'}</span>`;
+      const bg = i % 2 === 0 ? '#fff' : '#f9f9f6';
+      return `<tr style="background:${bg};opacity:${n.actif ? 1 : 0.65}">
+        <td style="text-align:center;color:#bbb;font-size:10px">${i + 1}</td>
+        <td style="text-align:center;font-weight:600">${n.ordre}</td>
+        <td><span style="display:inline-block;padding:2px 10px;border-radius:20px;font-size:11px;font-weight:700;background:${couleur}20;color:${couleur};border:1px solid ${couleur}40">${n.code || '—'}</span></td>
+        <td style="font-size:12px;font-weight:500">${n.nom || '—'}</td>
+        <td style="font-size:11px">${typeLabel}</td>
+        <td style="font-size:11px;color:#666">${sensLabel}</td>
+        <td>${statutHTML}</td>
+      </tr>`;
+    }).join('');
+    const html = `<!DOCTYPE html><html dir="${lang === 'ar' ? 'rtl' : 'ltr'}" lang="${lang === 'ar' ? 'ar' : 'fr'}">
+<head><meta charset="UTF-8"><title>Niveaux</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:Tajawal,Arial,sans-serif;padding:16px;font-size:12px;color:#1a1a1a}
+  .header{background:linear-gradient(135deg,#085041,#1D9E75);color:#fff;padding:14px 20px;border-radius:10px;margin-bottom:14px;display:flex;justify-content:space-between;align-items:center}
+  h1{font-size:17px;font-weight:800}
+  table{width:100%;border-collapse:collapse}
+  th{background:#085041;color:#fff;padding:8px 10px;text-align:start;font-size:11px;font-weight:600;letter-spacing:0.3px}
+  td{padding:8px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle}
+  .footer{margin-top:14px;font-size:9px;color:#bbb;border-top:1px solid #e0e0d8;padding-top:8px;text-align:center}
+  @media print{body{padding:8px}}
+</style></head><body>
+<div class="header">
+  <h1>📚 ${lang === 'ar' ? 'قائمة المستويات' : 'Liste des niveaux'}</h1>
+  <div style="font-size:11px;opacity:0.85">${niveaux.length} ${lang === 'ar' ? 'مستوى' : 'niveau(x)'} · ${new Date().toLocaleDateString('fr-FR')}</div>
+</div>
+<table><thead><tr>
+  <th style="width:5%">#</th>
+  <th style="width:8%">${lang === 'ar' ? 'الترتيب' : 'Ordre'}</th>
+  <th style="width:12%">${lang === 'ar' ? 'الرمز' : 'Code'}</th>
+  <th style="width:32%">${lang === 'ar' ? 'الاسم' : 'Nom'}</th>
+  <th style="width:14%">${lang === 'ar' ? 'النوع' : 'Type'}</th>
+  <th style="width:15%">${lang === 'ar' ? 'الاتجاه' : 'Sens'}</th>
+  <th style="width:14%">${lang === 'ar' ? 'الحالة' : 'Statut'}</th>
+</tr></thead><tbody>${rows}</tbody></table>
+<div class="footer">${lang === 'ar' ? 'تم الإنشاء بتاريخ' : 'Généré le'} ${new Date().toLocaleDateString('fr-FR', {day:'2-digit', month:'long', year:'numeric'})} · متابعة التحفيظ</div>
+</body></html>`;
+    w.document.write(html);
+    w.document.close();
+    setTimeout(function () { w.print(); }, 600);
+  };
 
   // ── PANNEAU PROGRAMME — Affichage + Modification ───────────────
   const PanneauProgramme = () => {
@@ -957,7 +1053,7 @@ export default function GestionNiveaux({ user, navigate, goBack, lang='fr', isMo
         {/* Header */}
         <div style={{background:'linear-gradient(135deg,#085041,#1D9E75)',padding:'48px 16px 14px',position:'sticky',top:0,zIndex:100}}>
           <div style={{display:'flex', alignItems:'center', gap:10, marginBottom:12}}>
-            <button onClick={()=>goBack?goBack():navigate('dashboard')} style={{background:'rgba(255,255,255,0.22)',border:'1px solid rgba(255,255,255,0.25)',borderRadius:10,padding:'0',color:'#fff',fontSize:20,cursor:'pointer',flexShrink:0,width:38,height:38,display:'flex',alignItems:'center',justifyContent:'center'}}>←</button>
+            <button onClick={()=>goBack?goBack():navigate('gestion')} style={{background:'rgba(255,255,255,0.22)',border:'1px solid rgba(255,255,255,0.25)',borderRadius:10,padding:'0',color:'#fff',fontSize:20,cursor:'pointer',flexShrink:0,width:38,height:38,display:'flex',alignItems:'center',justifyContent:'center'}}>←</button>
             <div style={{flex:1, fontSize:17, fontWeight:800, color:'#fff'}}>
               📚 {lang==='ar'?'المستويات':'Niveaux'}
             </div>
@@ -1241,7 +1337,7 @@ export default function GestionNiveaux({ user, navigate, goBack, lang='fr', isMo
         title="Gestion des niveaux"
         titleAr="إدارة المستويات"
         icon="📚"
-        onBack={() => goBack ? goBack() : navigate('dashboard')}
+        onBack={() => goBack ? goBack() : navigate('gestion')}
         lang={lang}
         actions={
           <button onClick={()=>{setEditing(null);setForm({...emptyForm,ordre:niveaux.length+1});setShowForm(v=>!v);}}
@@ -1453,62 +1549,107 @@ export default function GestionNiveaux({ user, navigate, goBack, lang='fr', isMo
           <div style={{fontSize:13}}>Ajoutez votre premier niveau pour commencer</div>
         </div>
       ) : (
+        <>
+        {/* E1f — Bandeau compteur + exports */}
+        <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'0.75rem',flexWrap:'wrap',gap:8}}>
+          <div className="section-label" style={{margin:0}}>
+            {lang==='ar'?'المستويات المُعدّة':'Niveaux configurés'}
+            {' '}
+            <span style={{fontWeight:500,color:'#888'}}>({niveaux.length})</span>
+          </div>
+          <ExportButtons
+            onPDF={exportNiveauxPDF}
+            onExcel={exportNiveauxExcel}
+            lang={lang}
+            variant="inline"
+            compact
+          />
+        </div>
         <div style={{background:'#fff',borderRadius:14,border:'0.5px solid #e0e0d8',overflow:'hidden'}}>
-          <table style={{width:'100%',borderCollapse:'collapse'}}>
+          {/* E1d — Style propre (alignement, vertical-align middle, no-wrap) */}
+          <style>{`
+            .gestion-niv-table { width: 100%; border-collapse: collapse; }
+            .gestion-niv-table th,
+            .gestion-niv-table td {
+              vertical-align: middle;
+              padding: 12px 16px;
+            }
+            .gestion-niv-table th {
+              text-align: start;
+              font-size: 11px;
+              font-weight: 600;
+              color: #888;
+              background: #f9f9f6;
+              border-bottom: 0.5px solid #e0e0d8;
+              text-transform: uppercase;
+              letter-spacing: 0.3px;
+              white-space: nowrap;
+            }
+            .gestion-niv-table th.th-actions,
+            .gestion-niv-table td.actions-cell {
+              text-align: end;
+            }
+          `}</style>
+          <table className="gestion-niv-table">
             <thead>
-              <tr style={{background:'#f5f5f0',borderBottom:'0.5px solid #e0e0d8'}}>
-                <th style={{padding:'12px 16px',textAlign:'left',fontSize:12,fontWeight:600,color:'#888'}}>Ordre</th>
-                <th style={{padding:'12px 16px',textAlign:'left',fontSize:12,fontWeight:600,color:'#888'}}>Code</th>
-                <th style={{padding:'12px 16px',textAlign:'left',fontSize:12,fontWeight:600,color:'#888'}}>Nom</th>
-                <th style={{padding:'12px 16px',textAlign:'left',fontSize:12,fontWeight:600,color:'#888'}}>Type</th>
-                <th style={{padding:'12px 16px',textAlign:'left',fontSize:12,fontWeight:600,color:'#888'}}>Statut</th>
-                <th style={{padding:'12px 16px',textAlign:'right',fontSize:12,fontWeight:600,color:'#888'}}>Actions</th>
+              <tr>
+                <th style={{width:120}}>Ordre</th>
+                <th>Code</th>
+                <th>Nom</th>
+                <th>Type</th>
+                <th>Statut</th>
+                <th className="th-actions">Actions</th>
               </tr>
             </thead>
             <tbody>
               {niveaux.map((n, idx) => (
                 <tr key={n.id} style={{borderBottom:'0.5px solid #f0f0ec',opacity:n.actif?1:0.5}}>
-                  <td style={{padding:'12px 16px'}}>
-                    <div style={{display:'flex',flexDirection:'column',gap:2}}>
+                  <td>
+                    {/* E1d — Boutons ▲ N ▼ en LIGNE (avant : empiles verticalement) */}
+                    <div style={{display:'flex',flexDirection:'row',alignItems:'center',gap:4,whiteSpace:'nowrap'}}>
                       <button onClick={()=>moveUp(n,idx)} disabled={idx===0}
-                        style={{background:'none',border:'none',cursor:idx===0?'not-allowed':'pointer',opacity:idx===0?0.3:1,fontSize:11,padding:'1px 4px'}}>▲</button>
-                      <span style={{textAlign:'center',fontSize:13,fontWeight:500,color:'#888'}}>{n.ordre}</span>
+                        title="Monter"
+                        style={{background:'#f5f5f0',border:'0.5px solid #e0e0d8',borderRadius:6,cursor:idx===0?'not-allowed':'pointer',opacity:idx===0?0.3:1,fontSize:11,padding:'3px 7px',flexShrink:0}}>▲</button>
+                      <span style={{minWidth:24,textAlign:'center',fontSize:13,fontWeight:600,color:'#555'}}>{n.ordre}</span>
                       <button onClick={()=>moveDown(n,idx)} disabled={idx===niveaux.length-1}
-                        style={{background:'none',border:'none',cursor:idx===niveaux.length-1?'not-allowed':'pointer',opacity:idx===niveaux.length-1?0.3:1,fontSize:11,padding:'1px 4px'}}>▼</button>
+                        title="Descendre"
+                        style={{background:'#f5f5f0',border:'0.5px solid #e0e0d8',borderRadius:6,cursor:idx===niveaux.length-1?'not-allowed':'pointer',opacity:idx===niveaux.length-1?0.3:1,fontSize:11,padding:'3px 7px',flexShrink:0}}>▼</button>
                     </div>
                   </td>
-                  <td style={{padding:'12px 16px'}}>
+                  <td>
                     <span style={{padding:'4px 12px',borderRadius:20,background:`${n.couleur}20`,
                       color:n.couleur,fontWeight:700,fontSize:13,border:`1px solid ${n.couleur}40`}}>
                       {n.code}
                     </span>
                   </td>
-                  <td style={{padding:'12px 16px',fontSize:14,fontWeight:500}}>{n.nom}</td>
-                  <td style={{padding:'12px 16px'}}>
+                  <td style={{fontSize:14,fontWeight:500}}>{n.nom}</td>
+                  <td>
                     <span style={{fontSize:12,padding:'3px 10px',borderRadius:20,
                       background:n.type==='sourate'?'#EEEDFE':'#E6F1FB',
-                      color:n.type==='sourate'?'#534AB7':'#0C447C',fontWeight:600}}>
+                      color:n.type==='sourate'?'#534AB7':'#0C447C',fontWeight:600,whiteSpace:'nowrap'}}>
                       {n.type==='sourate'?'📖 Sourates':'📿 Hizb'}
                     </span>
                   </td>
-                  <td style={{padding:'12px 16px'}}>
+                  <td>
                     <span style={{fontSize:12,padding:'3px 10px',borderRadius:20,
                       background:n.actif?'#E1F5EE':'#f0f0ec',
-                      color:n.actif?'#085041':'#888',fontWeight:600}}>
+                      color:n.actif?'#085041':'#888',fontWeight:600,whiteSpace:'nowrap'}}>
                       {n.actif?'✓ Actif':'Inactif'}
                     </span>
                   </td>
-                  <td style={{padding:'12px 16px',textAlign:'right'}}>
-                    <div style={{display:'flex',gap:6,justifyContent:'flex-end'}}>
+                  <td className="actions-cell">
+                    <div style={{display:'flex',gap:6,justifyContent:'flex-end',flexWrap:'nowrap',alignItems:'center'}}>
                       <button onClick={()=>ouvrirProgramme(n)}
                         style={{padding:'6px 12px',background:`${n.couleur}20`,color:n.couleur,
-                          border:`1px solid ${n.couleur}40`,borderRadius:8,fontSize:12,fontWeight:700,cursor:'pointer'}}>
+                          border:`1px solid ${n.couleur}40`,borderRadius:8,fontSize:12,fontWeight:700,cursor:'pointer',whiteSpace:'nowrap',flexShrink:0}}>
                         📚 {lang==='ar'?'البرنامج':'Programme'}
                       </button>
                       <button onClick={()=>startEdit(n)}
-                        style={{padding:'6px 12px',background:'#E6F1FB',color:'#0C447C',border:'none',borderRadius:8,fontSize:12,fontWeight:600,cursor:'pointer'}}>✏️</button>
+                        title={lang==='ar'?'تعديل':'Modifier'}
+                        style={{padding:'6px 10px',background:'#E6F1FB',color:'#0C447C',border:'none',borderRadius:8,fontSize:13,fontWeight:600,cursor:'pointer',flexShrink:0}}>✏️</button>
                       <button onClick={()=>supprimer(n)}
-                        style={{padding:'6px 10px',background:'#FCEBEB',color:'#E24B4A',border:'none',borderRadius:8,fontSize:12,cursor:'pointer'}}>🗑</button>
+                        title={lang==='ar'?'حذف':'Supprimer'}
+                        style={{padding:'6px 10px',background:'#FCEBEB',color:'#E24B4A',border:'none',borderRadius:8,fontSize:13,cursor:'pointer',flexShrink:0}}>🗑</button>
                     </div>
                   </td>
                 </tr>
@@ -1516,6 +1657,7 @@ export default function GestionNiveaux({ user, navigate, goBack, lang='fr', isMo
             </tbody>
           </table>
         </div>
+        </>
       )}
 
       <PanneauProgramme/>

@@ -5,6 +5,7 @@ import { fetchAll } from '../lib/fetchAll';
 import { openPDF } from '../lib/pdf';
 import ExportButtons from '../components/ExportButtons';
 import PageHeader from '../components/PageHeader';
+import StatsCard from '../components/StatsCard';
 
 const MOIS_FR = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
 const MOIS_AR = ['يناير','فبراير','مارس','أبريل','مايو','يونيو','يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر'];
@@ -266,19 +267,12 @@ export default function RapportMensuel({ user, navigate, goBack, lang='fr', isMo
         <>
           {/* KPIs */}
           <div style={{display:'grid',gridTemplateColumns:isMobile?'repeat(2,1fr)':'repeat(6,1fr)',gap:8,marginBottom:'1.25rem'}}>
-            {[
-              {val:nbActifs,       lbl:lang==='ar'?'طلاب نشطون':'Élèves actifs',       c:'#085041',bg:'#E1F5EE'},
-              {val:`${tauxActivite}%`,lbl:lang==='ar'?'نسبة النشاط':'Taux d\'activité', c:'#1D9E75',bg:'#E1F5EE'},
-              {val:totalTomon,     lbl:lang==='ar'?'أثمان مُسمَّعة':'Tomon récités',    c:'#378ADD',bg:'#E6F1FB'},
-              {val:totalHizb,      lbl:lang==='ar'?'أحزاب مكتملة':'Hizb complets',     c:'#EF9F27',bg:'#FAEEDA'},
-              {val:exTotal>0?`${exReussis}/${exTotal}`:'-', lbl:lang==='ar'?'امتحانات':'Examens', c:'#534AB7',bg:'#EEEDFE'},
-              {val:tauxAtteinte!=null?`${tauxAtteinte}%`:'-', lbl:lang==='ar'?'بلوغ الأهداف':'Taux objectifs', c:'#D85A30',bg:'#FAECE7'},
-            ].map((k,i)=>(
-              <div key={i} style={{background:k.bg,borderRadius:12,padding:'12px',textAlign:'center'}}>
-                <div style={{fontSize:isMobile?20:22,fontWeight:800,color:k.c}}>{k.val}</div>
-                <div style={{fontSize:10,color:k.c,opacity:0.8,marginTop:2}}>{k.lbl}</div>
-              </div>
-            ))}
+            <StatsCard value={nbActifs}                                  label={lang==='ar'?'طلاب نشطون':'Élèves actifs'}    color="green"  />
+            <StatsCard value={`${tauxActivite}%`}                        label={lang==='ar'?'نسبة النشاط':"Taux d'activité"} color="green"  />
+            <StatsCard value={totalTomon}                                label={lang==='ar'?'أثمان مُسمَّعة':'Tomon récités'}  color="blue"   />
+            <StatsCard value={totalHizb}                                 label={lang==='ar'?'أحزاب مكتملة':'Hizb complets'}  color="amber"  />
+            <StatsCard value={exTotal>0 ? `${exReussis}/${exTotal}` : '-'} label={lang==='ar'?'امتحانات':'Examens'}            color="purple" />
+            <StatsCard value={tauxAtteinte!=null ? `${tauxAtteinte}%` : '-'} label={lang==='ar'?'بلوغ الأهداف':'Taux objectifs'} color="#D85A30" bg="#FAECE7" />
           </div>
 
           {/* Par niveau */}

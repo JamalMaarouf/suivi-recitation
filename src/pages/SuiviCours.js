@@ -4,6 +4,7 @@ import { openPDF } from '../lib/pdf';
 import { exportExcelSimple } from '../lib/excel';
 import ExportButtons from '../components/ExportButtons';
 import PageHeader from '../components/PageHeader';
+import StatsCard from '../components/StatsCard';
 import { useToast } from '../lib/toast';
 
 // ══════════════════════════════════════════════════════════════════════
@@ -306,10 +307,10 @@ export default function SuiviCours({ user, navigate, goBack, lang, isMobile }) {
               gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(4, 1fr)',
               gap: isMobile ? 8 : 10, marginBottom: 14,
             }}>
-              <StatCard label={lang === 'ar' ? 'الدروس' : 'Cours'} value={statsGlobales.nbCours} color="#0C447C" bg="#E6F1FB" />
-              <StatCard label={lang === 'ar' ? 'أزواج درس/مستوى' : 'Couples cours × niveau'} value={statsGlobales.nbLiaisons} color="#534AB7" bg="#EDE9FE" />
-              <StatCard label={lang === 'ar' ? 'محاور مُتحقق منها' : 'Axes validés'} value={`${statsGlobales.totalValides}/${statsGlobales.totalAxes}`} color="#1D9E75" bg="#E1F5EE" />
-              <StatCard label={lang === 'ar' ? 'التقدم الإجمالي' : 'Progression moyenne'} value={`${statsGlobales.pctMoyen}%`} color="#EF9F27" bg="#FAEEDA" />
+              <StatsCard label={lang === 'ar' ? 'الدروس' : 'Cours'}                           value={statsGlobales.nbCours}                                              color="blue"   />
+              <StatsCard label={lang === 'ar' ? 'أزواج درس/مستوى' : 'Couples cours × niveau'} value={statsGlobales.nbLiaisons}                                           color="purple" />
+              <StatsCard label={lang === 'ar' ? 'محاور مُتحقق منها' : 'Axes validés'}          value={`${statsGlobales.totalValides}/${statsGlobales.totalAxes}`}        color="green"  />
+              <StatsCard label={lang === 'ar' ? 'التقدم الإجمالي' : 'Progression moyenne'}    value={`${statsGlobales.pctMoyen}%`}                                       color="amber"  />
             </div>
 
             {/* Liste des cours */}
@@ -449,14 +450,4 @@ export default function SuiviCours({ user, navigate, goBack, lang, isMobile }) {
 // ──────────────────────────────────────────────────────────────
 // Mini stat card (utilisée localement)
 // ──────────────────────────────────────────────────────────────
-function StatCard({ label, value, color, bg }) {
-  return (
-    <div style={{
-      background: bg || '#fff', borderRadius: 10, padding: '10px 12px',
-      border: `1px solid ${color}30`,
-    }}>
-      <div style={{ fontSize: 10, color: '#888', fontWeight: 600, marginBottom: 4 }}>{label}</div>
-      <div style={{ fontSize: 18, fontWeight: 800, color }}>{value}</div>
-    </div>
-  );
-}
+// StatCard local migré vers <StatsCard> en C6b (Phase C-final)

@@ -5,6 +5,7 @@ import { getInitiales } from '../lib/helpers';
 import { t } from '../lib/i18n';
 import ExportButtons from '../components/ExportButtons';
 import PageHeader from '../components/PageHeader';
+import StatsCard from '../components/StatsCard';
 
 const CATEGORIES = [
   { val: 'salaire',     label: 'Salaires / Honoraires', labelAr: 'الرواتب',       icon: '👨‍🏫', color: '#534AB7' },
@@ -66,18 +67,7 @@ function Avatar({ prenom, nom, size=34, bg='#E1F5EE', color='#085041' }) {
   return <div style={{width:size,height:size,borderRadius:'50%',background:bg,color,display:'flex',alignItems:'center',justifyContent:'center',fontWeight:600,fontSize:size*0.33,flexShrink:0}}>{getInitiales(prenom,nom)}</div>;
 }
 
-function StatCard({ icon, val, lbl, color, bg, sub }) {
-  return (
-    <div style={{background:bg,borderRadius:14,padding:'14px 16px'}}>
-      <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:4}}>
-        <span style={{fontSize:18}}>{icon}</span>
-        <span style={{fontSize:11,color,opacity:0.8,fontWeight:500}}>{lbl}</span>
-      </div>
-      <div style={{fontSize:26,fontWeight:800,color,letterSpacing:'-1px'}}>{val}</div>
-      {sub&&<div style={{fontSize:11,color,opacity:0.6,marginTop:2}}>{sub}</div>}
-    </div>
-  );
-}
+// StatCard local migré vers <StatsCard> en C6c (Phase C-final)
 
 export default function Finance({ user, navigate, goBack, lang='fr', isMobile }) {
   const [onglet, setOnglet] = useState('dashboard');
@@ -1163,24 +1153,26 @@ export default function Finance({ user, navigate, goBack, lang='fr', isMobile })
         {onglet==='dashboard'&&(
           <>
             <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:10,marginBottom:'1rem'}}>
-              <StatCard icon="📥" val={fmtMAD(totalCotisations)} lbl={lang==='ar'?'إجمالي الاشتراكات':'Total cotisations'} color="#1D9E75" bg="#E1F5EE" sub={cotPeriode.length+(lang==='ar'?' دفعة':' versements')}/>
-              <StatCard icon="📤" val={fmtMAD(totalDepenses)} lbl={lang==='ar'?'إجمالي المصاريف':'Total dépenses'} color="#1e3a5f" bg="#E8EDF5" sub={depPeriode.length+(lang==='ar'?' عملية':' opérations')}/>
-              <StatCard icon={solde>=0?'✅':'⚠️'} val={fmtMAD(Math.abs(solde))} lbl={lang==='ar'?'الرصيد':'Solde'} color={solde>=0?'#085041':'#E24B4A'} bg={solde>=0?'#E1F5EE':'#FCEBEB'} sub={solde>=0?(lang==='ar'?'فائض':'Excédent'):(lang==='ar'?'عجز':'Déficit')}/>
+              <StatsCard icon="📥" value={fmtMAD(totalCotisations)}
+                label={lang==='ar'?'إجمالي الاشتراكات':'Total cotisations'}
+                color="green"
+                subtitle={cotPeriode.length+(lang==='ar'?' دفعة':' versements')} />
+              <StatsCard icon="📤" value={fmtMAD(totalDepenses)}
+                label={lang==='ar'?'إجمالي المصاريف':'Total dépenses'}
+                color="#1e3a5f" bg="#E8EDF5"
+                subtitle={depPeriode.length+(lang==='ar'?' عملية':' opérations')} />
+              <StatsCard icon={solde>=0?'✅':'⚠️'} value={fmtMAD(Math.abs(solde))}
+                label={lang==='ar'?'الرصيد':'Solde'}
+                color={solde>=0?'green':'red'}
+                subtitle={solde>=0?(lang==='ar'?'فائض':'Excédent'):(lang==='ar'?'عجز':'Déficit')} />
             </div>
 
             <div style={{display:'grid',gridTemplateColumns:'repeat(5,1fr)',gap:8,marginBottom:'1rem'}}>
-              {[
-                {val:cotPeriode.length, lbl:lang==='ar'?'اشتراك في الفترة':'Cotisations période', color:'#1D9E75', bg:'#E1F5EE'},
-                {val:depPeriode.length, lbl:lang==='ar'?'مصروف في الفترة':'Dépenses période', color:'#1e3a5f', bg:'#E8EDF5'},
-                {val:nbElevesPayes, lbl:lang==='ar'?'طالب مدفوع':'Élèves payés', color:'#378ADD', bg:'#E6F1FB'},
-                {val:nbElevesPartiel, lbl:lang==='ar'?'جزئي':'Partiels', color:'#EF9F27', bg:'#FAEEDA'},
-                {val:nbElevesExoneres, lbl:lang==='ar'?'معفى':'Exonérés', color:'#888', bg:'#f5f5f0'},
-              ].map(k=>(
-                <div key={k.lbl} style={{background:k.bg,borderRadius:10,padding:'10px',textAlign:'center'}}>
-                  <div style={{fontSize:22,fontWeight:800,color:k.color}}>{k.val}</div>
-                  <div style={{fontSize:11,color:k.color,opacity:0.8}}>{lang==='ar'?'طالب':lang==='en'?'students':'élèves'} {k.lbl}</div>
-                </div>
-              ))}
+              <StatsCard value={cotPeriode.length}    label={lang==='ar'?'اشتراك في الفترة':'Cotisations période'} color="green" />
+              <StatsCard value={depPeriode.length}    label={lang==='ar'?'مصروف في الفترة':'Dépenses période'}   color="#1e3a5f" bg="#E8EDF5" />
+              <StatsCard value={nbElevesPayes}        label={lang==='ar'?'طالب مدفوع':'Élèves payés'}            color="blue"  />
+              <StatsCard value={nbElevesPartiel}      label={lang==='ar'?'جزئي':'Partiels'}                       color="amber" />
+              <StatsCard value={nbElevesExoneres}     label={lang==='ar'?'معفى':'Exonérés'}                       color="gray"  />
             </div>
 
             {/* Dépenses par catégorie */}

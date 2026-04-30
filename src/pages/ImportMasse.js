@@ -411,7 +411,7 @@ export default function ImportMasse({ user, navigate, goBack, lang='fr', isMobil
   // ═══════════════════════════════════════════════════════════════
   return (
     <div style={{padding: isMobile ? '12px' : '1.5rem', maxWidth: 1200, margin: '0 auto'}}>
-      <BackButton onClick={goBack} lang={lang} isMobile={isMobile} />
+      <BackButton onClick={() => goBack ? goBack() : navigate('gestion')} lang={lang} isMobile={isMobile} />
 
       <h1 style={{fontSize: isMobile ? 22 : 28, fontWeight: 800, color: '#085041', marginBottom: 8}}>
         📥 {lang === 'ar' ? 'استيراد جماعي' : 'Import en masse'}

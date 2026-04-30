@@ -256,7 +256,7 @@ export default function GestionAssiduite({ user, navigate, goBack, lang, isMobil
             titleAr="إعدادات الحضور"
             icon="📅"
             subtitle={lang === 'ar' ? 'العتبات و أيام العطل' : 'Seuils & jours non travaillés'}
-            onBack={() => navigate('gestion')}
+            onBack={() => goBack ? goBack() : navigate('gestion')}
             lang={lang}
           />
         </div>
