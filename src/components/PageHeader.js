@@ -28,6 +28,7 @@
 //   - title       : string (FR par défaut)                            requis
 //   - titleAr     : string (utilisé si lang === 'ar', fallback = title)  optionnel
 //   - icon        : string (emoji ou caractère)                       optionnel
+//   - titleSuffix : ReactNode (badge, chip, etc. à côté du titre)     optionnel
 //   - subtitle    : string (compteur, contexte, etc.)                 optionnel
 //   - onBack      : () => void  (navigation retour)                   optionnel
 //   - actions     : ReactNode (boutons, badges, etc. à droite)        optionnel
@@ -42,6 +43,7 @@ export default function PageHeader({
   title,
   titleAr,
   icon,
+  titleSuffix,
   subtitle,
   onBack,
   actions,
@@ -83,6 +85,7 @@ export default function PageHeader({
         }}>
           {icon && <span style={{ flexShrink: 0 }}>{icon}</span>}
           <span>{displayTitle}</span>
+          {titleSuffix}
         </div>
         {subtitle && (
           <div style={{

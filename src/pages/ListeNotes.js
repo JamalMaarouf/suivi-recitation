@@ -7,6 +7,7 @@ import { openPDF } from '../lib/pdf';
 import { exportExcelSimple } from '../lib/excel';
 import { fetchAll } from '../lib/fetchAll';
 import ExportButtons from '../components/ExportButtons';
+import PageHeader from '../components/PageHeader';
 
 export default function ListeNotes({ user, navigate, goBack, lang='fr', isMobile }) {
   const [eleves, setEleves] = useState([]);
@@ -224,21 +225,24 @@ export default function ListeNotes({ user, navigate, goBack, lang='fr', isMobile
           </div>
         </div>
       ) : (
-      <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:'1.25rem' }}>
-        <button onClick={()=>goBack?goBack():navigate('dashboard')} className="back-link"></button>
-        <div style={{flex:1}}>
-          <div style={{ fontSize:20, fontWeight:800, color:'#1a1a1a' }}>⭐ {lang==='ar'?'قائمة النقاط':'Liste des notes'}</div>
-          <div style={{ fontSize:12, color:'#888' }}>{filtered.length} {lang==='ar'?'طالب':'élève(s)'}</div>
-        </div>
-        <ExportButtons
-          onPDF={handlePdfExport}
-          onExcel={handleExcelExport}
-          lang={lang}
-          variant="inline"
-          compact
-          disabled={genPdf || filtered.length === 0}
-        />
-      </div>
+      <PageHeader
+        title="Liste des notes"
+        titleAr="قائمة النقاط"
+        icon="⭐"
+        subtitle={`${filtered.length} ${lang==='ar'?'طالب':'élève(s)'}`}
+        onBack={() => goBack ? goBack() : navigate('dashboard')}
+        lang={lang}
+        actions={
+          <ExportButtons
+            onPDF={handlePdfExport}
+            onExcel={handleExcelExport}
+            lang={lang}
+            variant="inline"
+            compact
+            disabled={genPdf || filtered.length === 0}
+          />
+        }
+      />
       )}
 
       {/* Sélecteur période - Etape 14 v2 - Composant hybride */}

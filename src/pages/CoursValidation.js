@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { supabase } from '../lib/supabase';
 import { useToast } from '../lib/toast';
 import ConfirmModal from '../components/ConfirmModal';
+import PageHeader from '../components/PageHeader';
 
 // ══════════════════════════════════════════════════════════════════════
 // PAGE VALIDATION AXES D'UN COURS POUR UN NIVEAU
@@ -347,27 +348,23 @@ export default function CoursValidation({ user, navigate, goBack, lang, isMobile
         </div>
       ) : (
         <div style={{ padding: '1.5rem 1.5rem 0' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: '1.25rem' }}>
-            <button onClick={() => goBack ? goBack() : navigate('cours')} className="back-link"></button>
-            <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 20, fontWeight: 800, color: '#1a1a1a', display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-                📚 {nomCours}
-                {niveau && (
-                  <span style={{
-                    padding: '3px 12px',
-                    background: `${couleurNiveau}20`, color: couleurNiveau,
-                    borderRadius: 20, fontSize: 13, fontWeight: 700,
-                    border: `1px solid ${couleurNiveau}40`,
-                  }}>{niveau.nom}</span>
-                )}
-              </div>
-              <div style={{ fontSize: 12, color: '#888' }}>
-                {lang === 'ar'
-                  ? 'انقر على محور للتحقق منه أو لرؤية التفاصيل'
-                  : 'Clique sur un axe pour le valider ou voir les détails'}
-              </div>
-            </div>
-          </div>
+          <PageHeader
+            title={nomCours}
+            icon="📚"
+            titleSuffix={niveau && (
+              <span style={{
+                padding: '3px 12px',
+                background: `${couleurNiveau}20`, color: couleurNiveau,
+                borderRadius: 20, fontSize: 13, fontWeight: 700,
+                border: `1px solid ${couleurNiveau}40`,
+              }}>{niveau.nom}</span>
+            )}
+            subtitle={lang === 'ar'
+              ? 'انقر على محور للتحقق منه أو لرؤية التفاصيل'
+              : 'Clique sur un axe pour le valider ou voir les détails'}
+            onBack={() => goBack ? goBack() : navigate('cours')}
+            lang={lang}
+          />
         </div>
       )}
 

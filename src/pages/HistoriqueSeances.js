@@ -6,6 +6,7 @@ import { t } from '../lib/i18n';
 import { fetchAll } from '../lib/fetchAll';
 import ExportButtons from '../components/ExportButtons';
 import PeriodeSelectorHybride from '../components/PeriodeSelectorHybride';
+import PageHeader from '../components/PageHeader';
 
 const IS_SOURATE = (code) => ['5B','5A','2M'].includes(code||'');
 const NIVEAU_COLORS = { '5B':'#534AB7','5A':'#378ADD','2M':'#1D9E75','2':'#EF9F27','1':'#E24B4A' };
@@ -633,13 +634,14 @@ export default function HistoriqueSeances({ user, navigate, goBack, lang='fr', i
 
   return (
     <div>
-      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'1.25rem',flexWrap:'wrap',gap:10}}>
-        <div style={{display:'flex',alignItems:'center',gap:10,flex:1,minWidth:200}}>
-          <button className="back-link" onClick={()=>goBack?goBack():navigate('dashboard')}></button>
-          <div style={{fontSize:20,fontWeight:800,color:'#1a1a1a'}}>📊 {lang==='ar'?'تحليل الحصص':'Analyse des Séances'}</div>
-        </div>
-        <div style={{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap'}}>
-          <span style={{fontSize:12,color:'#888'}}>{elevesVisibles.length} {lang==='ar'?'طالب':'élève(s)'}</span>
+      <PageHeader
+        title="Analyse des Séances"
+        titleAr="تحليل الحصص"
+        icon="📊"
+        subtitle={`${elevesVisibles.length} ${lang==='ar'?'طالب':'élève(s)'}`}
+        onBack={() => goBack ? goBack() : navigate('dashboard')}
+        lang={lang}
+        actions={
           <ExportButtons
             onPDF={exportPDF}
             onExcel={exportExcel}
@@ -647,8 +649,8 @@ export default function HistoriqueSeances({ user, navigate, goBack, lang='fr', i
             variant="inline"
             compact
           />
-        </div>
-      </div>
+        }
+      />
 
       {/* FILTRES */}
       <div style={{background:'#fff',border:'0.5px solid #e0e0d8',borderRadius:16,padding:'1.25rem',marginBottom:'1.25rem'}}>

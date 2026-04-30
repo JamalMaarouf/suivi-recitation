@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase';
 import { openPDF } from '../lib/pdf';
 import { exportExcelSimple } from '../lib/excel';
 import ExportButtons from '../components/ExportButtons';
+import PageHeader from '../components/PageHeader';
 import { useToast } from '../lib/toast';
 
 // ══════════════════════════════════════════════════════════════════════
@@ -246,17 +247,14 @@ export default function SuiviCours({ user, navigate, goBack, lang, isMobile }) {
         </div>
       ) : (
         <div style={{ padding: '1.5rem 1.5rem 0' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: '1.25rem', flexWrap:'wrap' }}>
-            <button onClick={() => goBack ? goBack() : navigate('dashboard')} className="back-link"></button>
-            <div style={{ flex: 1, minWidth: 200 }}>
-              <div style={{ fontSize: 20, fontWeight: 800, color: '#1a1a1a' }}>
-                📚 {lang === 'ar' ? 'الدروس' : 'Cours'}
-              </div>
-              <div style={{ fontSize: 12, color: '#888' }}>
-                {lang === 'ar' ? 'متابعة تقدم الدروس حسب المستوى' : 'Suivi de la progression des cours par niveau'}
-              </div>
-            </div>
-            {!loading && cours.length > 0 && statsGlobales.nbLiaisons > 0 && (
+          <PageHeader
+            title="Cours"
+            titleAr="الدروس"
+            icon="📚"
+            subtitle={lang === 'ar' ? 'متابعة تقدم الدروس حسب المستوى' : 'Suivi de la progression des cours par niveau'}
+            onBack={() => goBack ? goBack() : navigate('dashboard')}
+            lang={lang}
+            actions={!loading && cours.length > 0 && statsGlobales.nbLiaisons > 0 && (
               <ExportButtons
                 onPDF={exportCoursPDF}
                 onExcel={exportCoursExcel}
@@ -265,7 +263,7 @@ export default function SuiviCours({ user, navigate, goBack, lang, isMobile }) {
                 compact
               />
             )}
-          </div>
+          />
         </div>
       )}
 
