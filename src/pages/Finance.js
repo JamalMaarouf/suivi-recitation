@@ -4,6 +4,7 @@ import ConfirmModal from '../components/ConfirmModal';
 import { getInitiales } from '../lib/helpers';
 import { t } from '../lib/i18n';
 import ExportButtons from '../components/ExportButtons';
+import PageHeader from '../components/PageHeader';
 
 const CATEGORIES = [
   { val: 'salaire',     label: 'Salaires / Honoraires', labelAr: 'الرواتب',       icon: '👨‍🏫', color: '#534AB7' },
@@ -1074,12 +1075,14 @@ export default function Finance({ user, navigate, goBack, lang='fr', isMobile })
   return (
     <div>
       {/* Header */}
-      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'1rem',flexWrap:'wrap',gap:10}}>
-        <div style={{display:'flex',alignItems:'center',gap:10,flex:1,minWidth:200}}>
-          <button className="back-link" onClick={()=>goBack?goBack():navigate('dashboard')}></button>
-          <div style={{fontSize:20,fontWeight:800,color:'#1a1a1a'}}>💰 {lang==='ar'?'الإدارة المالية':'Gestion Financière'}</div>
-        </div>
-        <div style={{display:'flex',gap:8,alignItems:'center',position:'relative',flexWrap:'wrap'}}>
+      <PageHeader
+        title="Gestion Financière"
+        titleAr="الإدارة المالية"
+        icon="💰"
+        onBack={() => goBack ? goBack() : navigate('dashboard')}
+        lang={lang}
+        actions={
+          <div style={{display:'flex',gap:8,alignItems:'center',position:'relative',flexWrap:'wrap'}}>
           {/* ⚡ Bouton Saisie Rapide (dropdown) — toujours visible, tous onglets */}
           <button onClick={()=>setShowExpressMenu(v=>!v)}
             style={{display:'flex',alignItems:'center',gap:5,padding:'5px 12px',background:showExpressMenu?'#085041':'#1D9E75',color:'#fff',border:'none',borderRadius:8,fontSize:11,fontWeight:700,cursor:'pointer',boxShadow:'0 1px 3px rgba(29,158,117,0.3)'}}>
@@ -1131,7 +1134,8 @@ export default function Finance({ user, navigate, goBack, lang='fr', isMobile })
             compact
           />
         </div>
-      </div>
+        }
+      />
 
       {/* Onglets */}
       <div style={{display:'flex',gap:4,background:'#f0f0ec',borderRadius:12,padding:4,marginBottom:'1.25rem',flexWrap:'wrap'}}>

@@ -7,6 +7,7 @@ import { fetchAll } from '../lib/fetchAll';
 import { openPDF } from '../lib/pdf';
 import { exportExcelSimple } from '../lib/excel';
 import ExportButtons from '../components/ExportButtons';
+import PageHeader from '../components/PageHeader';
 
 // Couleurs niveaux — fallback sur des valeurs par défaut si niveaux pas encore chargés
 const NIVEAU_COLORS_FALLBACK = { '5B':'#534AB7','5A':'#378ADD','2M':'#1D9E75','2':'#EF9F27','1':'#E24B4A' };
@@ -193,20 +194,23 @@ export default function ElevesInactifs({ navigate, goBack, lang='fr', user, isMo
           </div>
         </div>
       ) : (
-        <div style={{display:'flex',alignItems:'center',gap:12,marginBottom:'1.2rem'}}>
-          <button onClick={()=>goBack?goBack():navigate('dashboard')}
-              style={{background:'rgba(255,255,255,0.22)',border:'1px solid rgba(255,255,255,0.25)',borderRadius:10,padding:'0',color:'#fff',fontSize:20,cursor:'pointer',flexShrink:0,width:38,height:38,display:'flex',alignItems:'center',justifyContent:'center'}}>←</button>
-          <div style={{flex:1,fontSize:17,fontWeight:700,color:'#1a1a1a'}}>
-            {lang==='ar'?'الطلاب غير النشطين':'Élèves inactifs'} ({inactifs.length})
-          </div>
-          <ExportButtons
-            onPDF={handleExportPDF}
-            onExcel={handleExportExcel}
-            lang={lang}
-            variant="inline"
-            disabled={inactifs.length === 0}
-          />
-        </div>
+        <PageHeader
+          title="Élèves inactifs"
+          titleAr="الطلاب غير النشطين"
+          icon="🚨"
+          subtitle={`${inactifs.length} ${lang==='ar'?'طالب':'élève(s)'}`}
+          onBack={() => goBack ? goBack() : navigate('dashboard')}
+          lang={lang}
+          actions={
+            <ExportButtons
+              onPDF={handleExportPDF}
+              onExcel={handleExportExcel}
+              lang={lang}
+              variant="inline"
+              disabled={inactifs.length === 0}
+            />
+          }
+        />
       )}
 
       <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:8,marginBottom:'1rem'}}>

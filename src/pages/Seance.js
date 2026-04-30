@@ -6,6 +6,7 @@ import { t } from '../lib/i18n';
 import { getSouratesForNiveau } from '../lib/sourates';
 import { fetchAll } from '../lib/fetchAll';
 import ExportButtons from '../components/ExportButtons';
+import PageHeader from '../components/PageHeader';
 
 const IS_SOURATE = (code) => ['5B','5A','2M'].includes(code||'');
 const NIVEAU_COLORS = { '5B':'#534AB7','5A':'#378ADD','2M':'#1D9E75','2':'#EF9F27','1':'#E24B4A' };
@@ -341,25 +342,28 @@ export default function Seance({ user, navigate, goBack, lang, isMobile=false })
 
   return (
     <div>
-      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'0.75rem',gap:8,flexWrap:'wrap'}}>
-        <div style={{display:'flex',alignItems:'center',gap:10,flex:1,minWidth:200}}>
-          <button className="back-link" onClick={()=>goBack?goBack():navigate('dashboard')}></button>
-          <div style={{fontSize:20,fontWeight:800,color:'#1a1a1a'}}>📚 {lang==='ar'?'الحصة':'Séance'}</div>
-        </div>
-        <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}>
-          <button onClick={()=>navigate('historique_seances')}
-            style={{padding:'6px 14px',background:'#085041',color:'#fff',border:'none',borderRadius:8,fontSize:12,fontWeight:600,cursor:'pointer',display:'flex',alignItems:'center',gap:4}}>
-            📊 {lang==='ar'?'تحليل الحصص':'Analyse des séances'}
-          </button>
-          <ExportButtons
-            onPDF={exportSeancePDF}
-            onExcel={exportSeanceExcel}
-            lang={lang}
-            variant="inline"
-            compact
-          />
-        </div>
-      </div>
+      <PageHeader
+        title="Séance"
+        titleAr="الحصة"
+        icon="📚"
+        onBack={() => goBack ? goBack() : navigate('dashboard')}
+        lang={lang}
+        actions={
+          <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}>
+            <button onClick={()=>navigate('historique_seances')}
+              style={{padding:'6px 14px',background:'#085041',color:'#fff',border:'none',borderRadius:8,fontSize:12,fontWeight:600,cursor:'pointer',display:'flex',alignItems:'center',gap:4}}>
+              📊 {lang==='ar'?'تحليل الحصص':'Analyse des séances'}
+            </button>
+            <ExportButtons
+              onPDF={exportSeancePDF}
+              onExcel={exportSeanceExcel}
+              lang={lang}
+              variant="inline"
+              compact
+            />
+          </div>
+        }
+      />
       <div style={{display:'flex',gap:0,background:'#f0f0ec',borderRadius:10,padding:3,marginBottom:'1.25rem',width:'fit-content'}}>
         {[['seance',t(lang,'ma_seance')],['semaine',t(lang,'cette_semaine')]].map(([k,l])=>(
           <div key={k} onClick={()=>setVue(k)} style={{padding:'7px 16px',borderRadius:8,fontSize:12,fontWeight:vue===k?600:400,cursor:'pointer',background:vue===k?'#fff':'transparent',color:vue===k?'#1a1a1a':'#888',border:vue===k?'0.5px solid #e0e0d8':'none',whiteSpace:'nowrap'}}>{l}</div>
