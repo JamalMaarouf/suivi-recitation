@@ -8,6 +8,7 @@ import { openPDF } from '../lib/pdf';
 import { exportExcelSimple } from '../lib/excel';
 import ExportButtons from '../components/ExportButtons';
 import PageHeader from '../components/PageHeader';
+import StatsBreakdown from '../components/StatsBreakdown';
 
 // Couleurs niveaux — fallback sur des valeurs par défaut si niveaux pas encore chargés
 const NIVEAU_COLORS_FALLBACK = { '5B':'#534AB7','5A':'#378ADD','2M':'#1D9E75','2':'#EF9F27','1':'#E24B4A' };
@@ -213,20 +214,30 @@ export default function ElevesInactifs({ navigate, goBack, lang='fr', user, isMo
         />
       )}
 
-      <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:8,marginBottom:'1rem'}}>
-        <div style={{padding:'10px',borderRadius:10,background:'#FCEBEB',textAlign:'center'}}>
-          <div style={{fontSize:22,fontWeight:800,color:'#E24B4A'}}>{plus30}</div>
-          <div style={{fontSize:10,color:'#E24B4A'}}>{'+30 '+(lang==='ar'?'يوم':'jours')}</div>
-        </div>
-        <div style={{padding:'10px',borderRadius:10,background:'#FFF3CD',textAlign:'center'}}>
-          <div style={{fontSize:22,fontWeight:800,color:'#856404'}}>{entre14}</div>
-          <div style={{fontSize:10,color:'#856404'}}>{'14-30 '+(lang==='ar'?'يوم':'jours')}</div>
-        </div>
-        <div style={{padding:'10px',borderRadius:10,background:'#F0EEFF',textAlign:'center'}}>
-          <div style={{fontSize:22,fontWeight:800,color:'#534AB7'}}>{jamais}</div>
-          <div style={{fontSize:10,color:'#534AB7'}}>{lang==='ar'?'لم يستظهر':'Sans récitation'}</div>
-        </div>
-      </div>
+      <StatsBreakdown
+        total={{
+          value: inactifs.length,
+          label: lang === 'ar' ? 'الإجمالي' : 'Total inactifs',
+          emoji: '🚨',
+        }}
+        segments={[
+          { key: 'plus30', value: plus30, color: 'red',
+            label: '+30 ' + (lang === 'ar' ? 'يوم' : 'jours'),
+            emoji: '🔴' },
+          { key: 'entre14', value: entre14, color: 'amber',
+            label: '14-30 ' + (lang === 'ar' ? 'يوم' : 'jours'),
+            emoji: '🟡' },
+          { key: 'jamais', value: jamais, color: 'purple',
+            label: lang === 'ar' ? 'لم يستظهر' : 'Sans récitation',
+            emoji: '⚪' },
+        ]}
+        progress={inactifs.length > 0 ? {
+          label: `📊 ${lang === 'ar' ? 'توزيع غير النشطين' : 'Répartition par sévérité'}`,
+          caption: `${plus30 + entre14} / ${inactifs.length} ${lang === 'ar' ? 'بدون استظهار' : 'sans récitation récente'}`,
+        } : null}
+        lang={lang}
+        isMobile={isMobile}
+      />
 
       {inactifs.length === 0 ? (
         <div style={{textAlign:'center',color:'#1D9E75',padding:'3rem',background:'#E1F5EE',borderRadius:12,fontSize:14,fontWeight:600}}>

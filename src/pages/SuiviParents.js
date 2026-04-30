@@ -5,6 +5,7 @@ import { openPDF } from '../lib/pdf';
 import { exportExcelSimple } from '../lib/excel';
 import ExportButtons from '../components/ExportButtons';
 import PageHeader from '../components/PageHeader';
+import StatsBreakdown from '../components/StatsBreakdown';
 
 // ══════════════════════════════════════════════════════════════════════
 // PAGE SUIVI PARENTS — Menu principal surveillant
@@ -355,79 +356,38 @@ export default function SuiviParents({ user, navigate, goBack, lang, isMobile })
               </div>
             )}
 
-            {/* KPIs (cliquables → filtrent la liste) */}
-            <div style={{
-              display: 'grid',
-              gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(5, 1fr)',
-              gap: 8, marginBottom: 14,
-            }}>
-              <KpiCard
-                label={lang === 'ar' ? 'الإجمالي' : 'Total'}
-                value={stats.total} emoji="👥" color="#0C447C" bg="#E6F1FB"
-                active={filtreStatut === 'tous'}
-                onClick={() => setFiltreStatut('tous')}
-              />
-              <KpiCard
-                label={lang === 'ar' ? 'نشط' : 'Actifs'}
-                value={stats.actif} emoji="🟢" color="#1D9E75" bg="#E1F5EE"
-                active={filtreStatut === 'actif'}
-                onClick={() => setFiltreStatut('actif')}
-              />
-              <KpiCard
-                label={lang === 'ar' ? 'قليل النشاط' : 'Peu actifs'}
-                value={stats.peu_actif} emoji="🟡" color="#EF9F27" bg="#FAEEDA"
-                active={filtreStatut === 'peu_actif'}
-                onClick={() => setFiltreStatut('peu_actif')}
-              />
-              <KpiCard
-                label={lang === 'ar' ? 'غير نشط' : 'Inactifs'}
-                value={stats.inactif} emoji="🔴" color="#E24B4A" bg="#FCEBEB"
-                active={filtreStatut === 'inactif'}
-                onClick={() => setFiltreStatut('inactif')}
-              />
-              <KpiCard
-                label={lang === 'ar' ? 'لم يزر' : 'Jamais venus'}
-                value={stats.jamais} emoji="⚪" color="#888" bg="#f5f5f0"
-                active={filtreStatut === 'jamais'}
-                onClick={() => setFiltreStatut('jamais')}
-              />
-            </div>
-
-            {/* Barre de répartition */}
-            {stats.total > 0 && (
-              <div style={{
-                background: '#fff', borderRadius: 10, padding: 12,
-                marginBottom: 12, border: '1px solid #e0e0d8',
-              }}>
-                <div style={{ fontSize: 11, color: '#888', fontWeight: 600, marginBottom: 6 }}>
-                  📊 {lang === 'ar' ? 'توزيع الأولياء' : 'Répartition des parents'}
-                </div>
-                <div style={{
-                  height: 14, background: '#f0f0ec', borderRadius: 999,
-                  overflow: 'hidden', display: 'flex',
-                }}>
-                  {stats.actif > 0 && (
-                    <div title={`${stats.actif} actifs`}
-                      style={{ width: `${(stats.actif / stats.total) * 100}%`, background: '#1D9E75' }} />
-                  )}
-                  {stats.peu_actif > 0 && (
-                    <div title={`${stats.peu_actif} peu actifs`}
-                      style={{ width: `${(stats.peu_actif / stats.total) * 100}%`, background: '#EF9F27' }} />
-                  )}
-                  {stats.inactif > 0 && (
-                    <div title={`${stats.inactif} inactifs`}
-                      style={{ width: `${(stats.inactif / stats.total) * 100}%`, background: '#E24B4A' }} />
-                  )}
-                  {stats.jamais > 0 && (
-                    <div title={`${stats.jamais} jamais venus`}
-                      style={{ width: `${(stats.jamais / stats.total) * 100}%`, background: '#aaa' }} />
-                  )}
-                </div>
-                <div style={{ fontSize: 10, color: '#666', marginTop: 6, textAlign: 'center' }}>
-                  {stats.actif + stats.peu_actif} / {stats.total} {lang === 'ar' ? 'ولي على الأقل شوهدوا مرة' : 'parent(s) au moins vus une fois'}
-                </div>
-              </div>
-            )}
+            {/* KPIs (cliquables → filtrent la liste) — Pattern StatsBreakdown */}
+            <StatsBreakdown
+              total={{
+                value: stats.total,
+                label: lang === 'ar' ? 'الإجمالي' : 'Total',
+                emoji: '👥',
+                key: 'tous',
+                onClick: () => setFiltreStatut('tous'),
+              }}
+              segments={[
+                { key: 'actif',     value: stats.actif,     label: lang === 'ar' ? 'نشط' : 'Actifs',
+                  color: 'green',  emoji: '🟢', onClick: () => setFiltreStatut('actif') },
+                { key: 'peu_actif', value: stats.peu_actif, label: lang === 'ar' ? 'قليل النشاط' : 'Peu actifs',
+                  color: 'amber',  emoji: '🟡', onClick: () => setFiltreStatut('peu_actif') },
+                { key: 'inactif',   value: stats.inactif,   label: lang === 'ar' ? 'غير نشط' : 'Inactifs',
+                  color: 'red',    emoji: '🔴', onClick: () => setFiltreStatut('inactif') },
+              ]}
+              outlier={{
+                key: 'jamais',
+                value: stats.jamais,
+                label: lang === 'ar' ? 'لم يزر' : 'Jamais venus',
+                emoji: '⚪',
+                onClick: () => setFiltreStatut('jamais'),
+              }}
+              activeKey={filtreStatut}
+              progress={stats.total > 0 ? {
+                label: `📊 ${lang === 'ar' ? 'توزيع الأولياء' : 'Répartition des parents'}`,
+                caption: `${stats.actif + stats.peu_actif} / ${stats.total} ${lang === 'ar' ? 'ولي على الأقل شوهدوا مرة' : 'parent(s) au moins vus une fois'}`,
+              } : null}
+              lang={lang}
+              isMobile={isMobile}
+            />
 
             {/* Filtres : niveau + recherche */}
             <div style={{
@@ -592,27 +552,4 @@ export default function SuiviParents({ user, navigate, goBack, lang, isMobile })
 // ──────────────────────────────────────────────────────────────
 // KPI Card cliquable (filtre)
 // ──────────────────────────────────────────────────────────────
-function KpiCard({ label, value, emoji, color, bg, active, onClick }) {
-  return (
-    <div onClick={onClick}
-      style={{
-        padding: '10px 8px',
-        background: active ? color : bg,
-        border: `2px solid ${active ? color : color + '30'}`,
-        borderRadius: 10,
-        textAlign: 'center',
-        cursor: 'pointer',
-        transition: 'all 0.2s',
-      }}>
-      <div style={{ fontSize: 20, marginBottom: 4 }}>{emoji}</div>
-      <div style={{
-        fontSize: 9, color: active ? 'rgba(255,255,255,0.85)' : '#888',
-        fontWeight: 600, marginBottom: 2,
-      }}>{label}</div>
-      <div style={{
-        fontSize: 18, fontWeight: 800,
-        color: active ? '#fff' : color,
-      }}>{value}</div>
-    </div>
-  );
-}
+// KpiCard local migré vers <StatsBreakdown> en C5 (Phase C-final)
