@@ -4505,7 +4505,7 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
               <span style={{fontWeight:500,color:'#888'}}>
                 ({eleves.filter(e => (!afficherUniquementActifs || !e.suspendu_at)
                   && (filtreNiveauEleve === 'tous' || e.code_niveau === filtreNiveauEleve)
-                  && (!searchEleve || `${e.prenom} ${e.nom} ${e.eleve_id_ecole||''}`.toLowerCase().includes(searchEleve.toLowerCase()))
+                  && (!searchEleve || `${e.prenom} ${e.nom} ${e.eleve_id_ecole||''} ${e.telephone||''}`.toLowerCase().includes(searchEleve.toLowerCase()))
                 ).length}
                 {eleves.length > 0 ? ` / ${eleves.length}` : ''}
                 )
@@ -4608,24 +4608,28 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
               `}</style>
               <table className="gestion-eleves-table">
                 <thead><tr>
-                  <th style={{width:'20%'}}>{t(lang,'eleve')}</th>
-                  <th style={{width:'11%'}}>{lang==='ar'?'المستوى':'Niveau'}</th>
-                  <th style={{width:'14%'}}>{t(lang,'referent')}</th>
-                  <th style={{width:'14%'}}>{lang==='ar'?'المكتسبات':'Acquis'}</th>
-                  <th style={{width:'14%'}}>{lang==='ar'?'هاتف ولي الأمر':'Tél. parent'}</th>
-                  <th style={{width:'13%'}}>{lang==='ar'?'تاريخ التسجيل':'Inscription'}</th>
-                  <th style={{width:'14%'}} className="th-actions">{lang==='ar'?'إجراءات':'Actions'}</th>
+                  <th style={{width:'18%'}}>{t(lang,'eleve')}</th>
+                  <th style={{width:'9%'}}>{lang==='ar'?'المستوى':'Niveau'}</th>
+                  <th style={{width:'12%'}}>{t(lang,'referent')}</th>
+                  <th style={{width:'11%'}}>{lang==='ar'?'المكتسبات':'Acquis'}</th>
+                  <th style={{width:'11%'}}>{lang==='ar'?'الهاتف':'Téléphone'}</th>
+                  <th style={{width:'17%'}}>{lang==='ar'?'البريد الإلكتروني':'Email'}</th>
+                  <th style={{width:'11%'}}>{lang==='ar'?'تاريخ التسجيل':'Inscription'}</th>
+                  <th style={{width:'11%'}} className="th-actions">{lang==='ar'?'إجراءات':'Actions'}</th>
                 </tr></thead>
                 <tbody>
-                  {eleves.length === 0 && <tr><td colSpan={5} className="empty">{t(lang, 'aucun_eleve')}</td></tr>}
+                  {eleves.length === 0 && <tr><td colSpan={8} className="empty">{t(lang, 'aucun_eleve')}</td></tr>}
                   {eleves.filter(e =>
                     (!afficherUniquementActifs || !e.suspendu_at)
                     && (filtreNiveauEleve === 'tous' || e.code_niveau === filtreNiveauEleve)
-                    && (!searchEleve || `${e.prenom} ${e.nom} ${e.eleve_id_ecole||''}`.toLowerCase().includes(searchEleve.toLowerCase()))
+                    && (!searchEleve || `${e.prenom} ${e.nom} ${e.eleve_id_ecole||''} ${e.telephone||''}`.toLowerCase().includes(searchEleve.toLowerCase()))
                   ).map(e => {
                     const nc = (niveauxDyn||[]).find(n=>n.code===e.code_niveau)?.couleur || {'5B':'#534AB7','5A':'#378ADD','2M':'#1D9E75','2':'#EF9F27','1':'#E24B4A'}[e.code_niveau]||'#888';
                     const isSour = (niveauxDyn||[]).find(n=>n.code===e.code_niveau)?.type==='sourate' || ['5B','5A','2M'].includes(e.code_niveau||'');
                     const niv = e.niveau==='Avancé'||e.niveau==='متقدم' ? {label:lang==='ar'?'متقدم':'Avancé',bg:'#E1F5EE',color:'#085041'} : e.niveau==='Intermédiaire'||e.niveau==='متوسط' ? {label:lang==='ar'?'متوسط':'Interm.',bg:'#E6F1FB',color:'#378ADD'} : {label:lang==='ar'?'مبتدئ':'Débutant',bg:'#FAEEDA',color:'#EF9F27'};
+                    // E1e — Resoudre le parent lie pour afficher son email
+                    const parentLie = (parents||[]).find(p => (p.eleve_ids||[]).includes(e.id));
+                    const emailParent = parentLie?.email || null;
                     return (
                     <tr key={e.id} style={{background:editEleve?.id===e.id?'#E1F5EE':'#fff',borderBottom:'0.5px solid #f0f0ec',opacity:e.suspendu_at?0.65:1}}>
                       {/* Élève */}
@@ -4676,9 +4680,19 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
                       {/* Téléphone */}
                       <td style={{padding:'8px 12px'}}>
                         {e.telephone
-                          ? <div style={{display:'flex',alignItems:'center',gap:4,fontSize:11,color:'#555'}}>
+                          ? <div style={{display:'flex',alignItems:'center',gap:4,fontSize:11,color:'#555',whiteSpace:'nowrap'}}>
                               <span>📞</span><span>{e.telephone}</span>
                             </div>
+                          : <span style={{fontSize:10,color:'#ddd'}}>—</span>
+                        }
+                      </td>
+                      {/* Email parent (E1e) */}
+                      <td style={{padding:'8px 12px'}}>
+                        {emailParent
+                          ? <span style={{fontSize:11,color:'#555',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis',display:'inline-block',maxWidth:'100%'}}
+                              title={emailParent}>
+                              ✉️ {emailParent}
+                            </span>
                           : <span style={{fontSize:10,color:'#ddd'}}>—</span>
                         }
                       </td>
