@@ -3193,7 +3193,8 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile,
       lang==='ar'?'المستوى الدراسي':'Niveau scolaire',
       lang==='ar'?'الصف':'Classe',
       lang==='ar'?'الأستاذ المرجع':'Instituteur référent',
-      lang==='ar'?'هاتف ولي الأمر':'Tél. parent',
+      lang==='ar'?'الهاتف':'Téléphone',
+      lang==='ar'?'البريد الإلكتروني':'Email',
       lang==='ar'?'تاريخ التسجيل':'Date inscription',
       lang==='ar'?'المكتسبات':'Acquis antérieurs',
     ];
@@ -3202,13 +3203,16 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile,
       const isSour = (niveauxDyn||[]).find(n=>n.code===e.code_niveau)?.type==='sourate'||['5B','5A','2M'].includes(e.code_niveau||'');
       const acquis = isSour ? (e.sourates_acquises||0)+' '+(lang==='ar'?'محفوظ':'sourates acquises') : 'Hizb '+e.hizb_depart+', T.'+e.tomon_depart;
       const dateInscr = e.date_inscription ? new Date(e.date_inscription).toLocaleDateString('fr-FR') : '—';
+      // E1f — Email parent depuis liens
+      const parentLie = (parents||[]).find(p => (p.eleve_ids||[]).includes(e.id));
+      const emailParent = parentLie?.email || '—';
       return [i+1, e.prenom, e.nom, e.eleve_id_ecole||'—', e.code_niveau||'?',
         (niveauxDyn||[]).find(n=>n.code===e.code_niveau)?.nom || NIVEAU_LABELS[e.code_niveau||'']||'—',
         inst?inst.prenom+' '+inst.nom:'—',
-        e.telephone||'—', dateInscr, acquis];
+        e.telephone||'—', emailParent, dateInscr, acquis];
     });
     const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
-    ws['!cols'] = [{wch:4},{wch:14},{wch:14},{wch:10},{wch:8},{wch:20},{wch:22},{wch:14},{wch:14},{wch:18}];
+    ws['!cols'] = [{wch:4},{wch:14},{wch:14},{wch:10},{wch:8},{wch:20},{wch:22},{wch:14},{wch:24},{wch:14},{wch:18}];
     // Style header row
     const range = XLSX.utils.decode_range(ws['!ref']);
     for (let C=range.s.c; C<=range.e.c; C++) {
@@ -3250,6 +3254,9 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile,
       const niveauLabel = e.niveau==='Avancé'||e.niveau==='متقدم'?(lang==='ar'?'متقدم':'Avancé'):e.niveau==='Intermédiaire'||e.niveau==='متوسط'?(lang==='ar'?'متوسط':'Interm.'):(lang==='ar'?'مبتدئ':'Débutant');
       const niveauColor = e.niveau==='Avancé'||e.niveau==='متقدم'?'#085041':e.niveau==='Intermédiaire'||e.niveau==='متوسط'?'#378ADD':'#EF9F27';
       const bg = i%2===0?'#fff':'#f9f9f6';
+      // E1f — Resoudre email parent depuis liens
+      const parentLie = (parents||[]).find(p => (p.eleve_ids||[]).includes(e.id));
+      const emailParent = parentLie?.email || '';
       return `<tr style="background:${bg}">
         <td style="color:#bbb;font-size:10px;text-align:center">${i+1}</td>
         <td><strong>${e.prenom} ${e.nom}</strong></td>
@@ -3259,6 +3266,7 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile,
         <td style="font-size:11px;color:#444">${inst?inst.prenom+' '+inst.nom:'—'}</td>
         <td style="font-size:11px;color:#534AB7;font-weight:600">${acquis}</td>
         <td style="font-size:11px;color:#555">${e.telephone||'<span style="color:#ddd">—</span>'}</td>
+        <td style="font-size:10px;color:#555">${emailParent||'<span style="color:#ddd">—</span>'}</td>
         <td style="font-size:11px;color:#555">${e.date_inscription?new Date(e.date_inscription).toLocaleDateString('fr-FR'):'<span style="color:#ddd">—</span>'}</td>
       </tr>`;
     }).join('');
@@ -3282,14 +3290,15 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile,
 </div>
 <table><thead><tr>
   <th style="width:3%">#</th>
-  <th style="width:16%">${lang==='ar'?'الاسم الكامل':'Nom complet'}</th>
-  <th style="width:8%">${lang==='ar'?'رقم التعريف':'N° Élève'}</th>
-  <th style="width:7%">${lang==='ar'?'الصف':'Classe'}</th>
-  <th style="width:8%">${lang==='ar'?'المستوى':'Niveau'}</th>
-  <th style="width:16%">${lang==='ar'?'الأستاذ المرجع':'Instituteur'}</th>
-  <th style="width:10%">${lang==='ar'?'المكتسبات':'Acquis'}</th>
-  <th style="width:16%">${lang==='ar'?'هاتف ولي الأمر':'Tél. parent'}</th>
-  <th style="width:12%">${lang==='ar'?'تاريخ التسجيل':'Inscription'}</th>
+  <th style="width:14%">${lang==='ar'?'الاسم الكامل':'Nom complet'}</th>
+  <th style="width:7%">${lang==='ar'?'رقم التعريف':'N° Élève'}</th>
+  <th style="width:6%">${lang==='ar'?'الصف':'Classe'}</th>
+  <th style="width:7%">${lang==='ar'?'المستوى':'Niveau'}</th>
+  <th style="width:14%">${lang==='ar'?'الأستاذ المرجع':'Instituteur'}</th>
+  <th style="width:9%">${lang==='ar'?'المكتسبات':'Acquis'}</th>
+  <th style="width:11%">${lang==='ar'?'الهاتف':'Téléphone'}</th>
+  <th style="width:18%">${lang==='ar'?'البريد الإلكتروني':'Email'}</th>
+  <th style="width:11%">${lang==='ar'?'تاريخ التسجيل':'Inscription'}</th>
 </tr></thead><tbody>${rows}</tbody></table>
 <div class="footer">Généré le ${new Date().toLocaleDateString('fr-FR',{day:'2-digit',month:'long',year:'numeric'})} · متابعة التحفيظ</div>
 </body></html>`;
@@ -5215,75 +5224,70 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
               || (p.telephone||'').includes(searchParent)
               || (p.email||'').toLowerCase().includes(searchParent.toLowerCase())
             ).map(p=>(
-              <div key={p.id} style={{background:'#fff',border:'0.5px solid #e0e0d8',borderRadius:12,padding:'14px 16px',boxShadow:'0 1px 3px rgba(0,0,0,0.04)'}}>
-                <div style={{display:'flex',alignItems:'flex-start',gap:14}}>
-                  {/* Avatar */}
-                  <div style={{width:42,height:42,borderRadius:'50%',background:'#E1F5EE',color:'#085041',display:'flex',alignItems:'center',justifyContent:'center',fontWeight:700,fontSize:14,flexShrink:0}}>
-                    {(p.prenom[0]||'')+(p.nom[0]||'')}
+              <div key={p.id} style={{background:'#fff',border:'0.5px solid #e0e0d8',borderRadius:12,padding:'10px 14px',boxShadow:'0 1px 3px rgba(0,0,0,0.04)',display:'flex',alignItems:'center',gap:12,flexWrap:'wrap'}}>
+                {/* Avatar */}
+                <div style={{width:38,height:38,borderRadius:'50%',background:'#E1F5EE',color:'#085041',display:'flex',alignItems:'center',justifyContent:'center',fontWeight:700,fontSize:13,flexShrink:0}}>
+                  {(p.prenom[0]||'')+(p.nom[0]||'')}
+                </div>
+
+                {/* Bloc Nom + Coordonnees (1 ligne ou 2 si tres long) */}
+                <div style={{flex:1,minWidth:200,display:'flex',flexDirection:'column',gap:2}}>
+                  <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}>
+                    <span style={{fontSize:13,fontWeight:700,color:'#1a1a1a',whiteSpace:'nowrap'}}>{p.prenom} {p.nom}</span>
+                    {/* Compteur d'enfants compact (avec tooltip listant les enfants) */}
+                    {(p.eleve_ids||[]).length > 0 && (() => {
+                      const enfants = eleves.filter(e=>(p.eleve_ids||[]).includes(e.id));
+                      const titre = enfants.map(e => {
+                        // Eviter redondance : si nom identique, montrer juste prenom dans le tooltip
+                        return p.nom && e.nom === p.nom ? e.prenom : `${e.prenom} ${e.nom}`;
+                      }).join(' · ');
+                      return (
+                        <span title={titre}
+                          style={{display:'inline-flex',alignItems:'center',gap:3,padding:'1px 8px',borderRadius:10,fontSize:10,fontWeight:700,background:enfants.length>=2?'#E6F1FB':'#E1F5EE',color:enfants.length>=2?'#0C447C':'#085041',border:`0.5px solid ${enfants.length>=2?'#378ADD30':'#1D9E7530'}`,whiteSpace:'nowrap',flexShrink:0}}>
+                          {enfants.length>=2 ? '🔗' : '👦'} {enfants.length} {lang==='ar'?(enfants.length>=2?'أطفال':'طفل'):(enfants.length>=2?'enfants':'enfant')}
+                        </span>
+                      );
+                    })()}
                   </div>
-                  {/* Infos */}
-                  <div style={{flex:1,minWidth:0}}>
-                    <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap',marginBottom:4}}>
-                      <div style={{fontSize:14,fontWeight:700,color:'#1a1a1a'}}>{p.prenom} {p.nom}</div>
-                      {(p.eleve_ids||[]).length >= 2 && (
-                        <span style={{display:'inline-flex',alignItems:'center',gap:3,padding:'2px 8px',borderRadius:8,fontSize:10,fontWeight:700,background:'#E6F1FB',color:'#0C447C',border:'0.5px solid #378ADD30'}}
-                          title={lang==='ar'?`عائلة (${(p.eleve_ids||[]).length} أطفال)`:`Famille (${(p.eleve_ids||[]).length} enfants)`}>
-                          🔗 {lang==='ar'?'عائلة':'Famille'} {(p.eleve_ids||[]).length}
-                        </span>
-                      )}
-                    </div>
-
-                    {/* Coordonnees sur 1 ligne : ID · Tel · Email */}
-                    <div style={{fontSize:11,color:'#888',display:'flex',gap:12,flexWrap:'wrap',alignItems:'center'}}>
-                      <span title={lang==='ar'?'المعرف':'Identifiant'}>
-                        🆔 <strong style={{color:'#555'}}>{p.identifiant}</strong>
+                  <div style={{fontSize:11,color:'#888',display:'flex',gap:14,flexWrap:'wrap',alignItems:'center'}}>
+                    <span title={lang==='ar'?'المعرف':'Identifiant'} style={{whiteSpace:'nowrap'}}>
+                      🆔 <strong style={{color:'#555'}}>{p.identifiant}</strong>
+                    </span>
+                    {p.telephone && (
+                      <span title={lang==='ar'?'الهاتف':'Téléphone'} style={{whiteSpace:'nowrap'}}>
+                        📞 {p.telephone}
                       </span>
-                      {p.telephone && (
-                        <span title={lang==='ar'?'الهاتف':'Téléphone'} style={{whiteSpace:'nowrap'}}>
-                          📞 {p.telephone}
-                        </span>
-                      )}
-                      {p.email && (
-                        <span title={p.email} style={{whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis',maxWidth:240,display:'inline-block'}}>
-                          ✉️ {p.email}
-                        </span>
-                      )}
-                    </div>
-
-                    {/* Enfants lies en badges */}
-                    {(p.eleve_ids||[]).length > 0 && (
-                      <div style={{display:'flex',gap:5,flexWrap:'wrap',marginTop:8}}>
-                        {eleves.filter(e=>(p.eleve_ids||[]).includes(e.id)).map(e=>{
-                          const nc=(niveauxDyn||[]).find(n=>n.code===e.code_niveau)?.couleur||'#888';
-                          return (
-                            <span key={e.id} style={{display:'inline-flex',alignItems:'center',gap:4,padding:'2px 8px',borderRadius:12,fontSize:11,fontWeight:500,background:`${nc}15`,color:nc,border:`0.5px solid ${nc}30`}}>
-                              👦 {e.prenom} {e.nom}
-                            </span>
-                          );
-                        })}
-                      </div>
+                    )}
+                    {p.email && (
+                      <span title={p.email} style={{whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis',maxWidth:280,display:'inline-block'}}>
+                        ✉️ {p.email}
+                      </span>
                     )}
                   </div>
                 </div>
 
-                {/* Actions : boutons en ligne en bas (E1c — avant : empiles verticalement) */}
-                <div style={{display:'flex',gap:6,flexWrap:'wrap',justifyContent:'flex-end',marginTop:10,paddingTop:10,borderTop:'0.5px solid #f5f5f0'}}>
+                {/* Actions : boutons en ligne a droite (E1f — compactage card) */}
+                <div style={{display:'flex',gap:6,flexWrap:'nowrap',alignItems:'center',flexShrink:0}}>
                   <button onClick={()=>{
                     setFormParent({prenom:p.prenom,nom:p.nom,identifiant:p.identifiant,mot_de_passe:p.mot_de_passe||'',telephone:p.telephone||'',email:p.email||'',eleve_ids:p.eleve_ids||[],searchEleve:''});
                     setEditingParentId(p.id);
                     setShowFormParent(true);
                     window.scrollTo(0,0);
-                  }} style={{padding:'5px 10px',borderRadius:6,background:'#E6F1FB',color:'#378ADD',border:'0.5px solid #378ADD30',cursor:'pointer',fontSize:11,fontWeight:600,whiteSpace:'nowrap',fontFamily:'inherit'}}>
-                    ✏️ {lang==='ar'?'تعديل':'Modifier'}
+                  }}
+                    title={lang==='ar'?'تعديل':'Modifier'}
+                    style={{padding:'5px 9px',borderRadius:6,background:'#E6F1FB',color:'#378ADD',border:'0.5px solid #378ADD30',cursor:'pointer',fontSize:13,fontWeight:600,fontFamily:'inherit',flexShrink:0}}>
+                    ✏️
                   </button>
                   <button onClick={()=>reinitialiserMDPParent(p)}
-                    style={{padding:'5px 10px',borderRadius:6,background:'#E1F5EE',color:'#085041',border:'0.5px solid #1D9E7530',cursor:'pointer',fontSize:11,fontWeight:600,whiteSpace:'nowrap',fontFamily:'inherit'}}>
-                    🔑 {lang==='ar'?'إعادة كلمة المرور':'Réinit. MDP'}
+                    title={lang==='ar'?'إعادة كلمة المرور':'Réinitialiser MDP'}
+                    style={{padding:'5px 9px',borderRadius:6,background:'#E1F5EE',color:'#085041',border:'0.5px solid #1D9E7530',cursor:'pointer',fontSize:13,fontWeight:600,fontFamily:'inherit',flexShrink:0}}>
+                    🔑
                   </button>
                   {(p.eleve_ids||[]).length >= 2 && (
                     <button onClick={()=>ouvrirModaleDelier(p)}
-                      style={{padding:'5px 10px',borderRadius:6,background:'#FFF8EC',color:'#7B5800',border:'0.5px solid #EF9F2740',cursor:'pointer',fontSize:11,fontWeight:600,whiteSpace:'nowrap',fontFamily:'inherit'}}>
-                      🔓 {lang==='ar'?'فصل':'Délier'}
+                      title={lang==='ar'?'فصل':'Délier'}
+                      style={{padding:'5px 9px',borderRadius:6,background:'#FFF8EC',color:'#7B5800',border:'0.5px solid #EF9F2740',cursor:'pointer',fontSize:13,fontWeight:600,fontFamily:'inherit',flexShrink:0}}>
+                      🔓
                     </button>
                   )}
                   <button onClick={()=>showConfirm(
@@ -5296,8 +5300,10 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
                       setParents(prev=>prev.filter(x=>x.id!==p.id));
                       hideConfirm();
                     }
-                  )} style={{padding:'5px 10px',borderRadius:6,background:'#FCEBEB',color:'#E24B4A',border:'0.5px solid #E24B4A30',cursor:'pointer',fontSize:11,fontWeight:600,whiteSpace:'nowrap',fontFamily:'inherit'}}>
-                    🗑 {lang==='ar'?'حذف':'Suppr.'}
+                  )}
+                    title={lang==='ar'?'حذف':'Supprimer'}
+                    style={{padding:'5px 9px',borderRadius:6,background:'#FCEBEB',color:'#E24B4A',border:'0.5px solid #E24B4A30',cursor:'pointer',fontSize:13,fontWeight:600,fontFamily:'inherit',flexShrink:0}}>
+                    🗑
                   </button>
                 </div>
               </div>

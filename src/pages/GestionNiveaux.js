@@ -4,6 +4,7 @@ import { useToast } from '../lib/toast';
 import { getSouratesForNiveau, getSouratesDesc } from '../lib/sourates';
 import { t } from '../lib/i18n';
 import PageHeader from '../components/PageHeader';
+import ExportButtons from '../components/ExportButtons';
 
 // Liste des Hizb selon un sens donne (desc = 60->1, asc = 1->60)
 const makeHizbList = (sens) => sens === 'asc'
@@ -478,6 +479,101 @@ export default function GestionNiveaux({ user, navigate, goBack, lang='fr', isMo
     loadData();
   };
 
+
+  // ─── E1f — Exports PDF + Excel (demande Jamal) ─────────────────
+  const exportNiveauxExcel = async () => {
+    if (!window.XLSX) {
+      await new Promise((res, rej) => {
+        const s = document.createElement('script');
+        s.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+        s.onload = res; s.onerror = rej; document.head.appendChild(s);
+      });
+    }
+    const XLSX = window.XLSX;
+    const wb = XLSX.utils.book_new();
+    const headers = ['#',
+      lang === 'ar' ? 'الترتيب' : 'Ordre',
+      lang === 'ar' ? 'الرمز' : 'Code',
+      lang === 'ar' ? 'الاسم' : 'Nom',
+      lang === 'ar' ? 'النوع' : 'Type',
+      lang === 'ar' ? 'الاتجاه' : 'Sens',
+      lang === 'ar' ? 'الحالة' : 'Statut',
+    ];
+    const rows = niveaux.map((n, i) => [
+      i + 1,
+      n.ordre,
+      n.code || '—',
+      n.nom || '—',
+      n.type === 'sourate' ? (lang === 'ar' ? 'سور' : 'Sourates') : (lang === 'ar' ? 'أحزاب' : 'Hizb'),
+      n.sens_recitation === 'asc' ? (lang === 'ar' ? 'تصاعدي' : 'Croissant') : (lang === 'ar' ? 'تنازلي' : 'Décroissant'),
+      n.actif ? (lang === 'ar' ? 'نشط' : 'Actif') : (lang === 'ar' ? 'غير نشط' : 'Inactif'),
+    ]);
+    const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+    ws['!cols'] = [{wch:4},{wch:8},{wch:10},{wch:24},{wch:12},{wch:14},{wch:10}];
+    XLSX.utils.book_append_sheet(wb, ws, lang === 'ar' ? 'المستويات' : 'Niveaux');
+    XLSX.writeFile(wb, 'niveaux_' + new Date().toISOString().split('T')[0] + '.xlsx');
+  };
+
+  const exportNiveauxPDF = () => {
+    const w = window.open('', '_blank', 'width=900,height=700');
+    if (!w) {
+      toast.warning(lang === 'ar' ? 'يرجى السماح بالنوافذ المنبثقة' : 'Autorisez les popups pour exporter');
+      return;
+    }
+    const rows = niveaux.map((n, i) => {
+      const couleur = n.couleur || '#888';
+      const typeLabel = n.type === 'sourate'
+        ? (lang === 'ar' ? '📖 سور' : '📖 Sourates')
+        : (lang === 'ar' ? '📿 أحزاب' : '📿 Hizb');
+      const sensLabel = n.sens_recitation === 'asc'
+        ? (lang === 'ar' ? '↑ تصاعدي' : '↑ Croissant')
+        : (lang === 'ar' ? '↓ تنازلي' : '↓ Décroissant');
+      const statutHTML = n.actif
+        ? `<span style="display:inline-block;padding:2px 8px;border-radius:20px;font-size:10px;font-weight:600;background:#E1F5EE;color:#085041">${lang === 'ar' ? '✓ نشط' : '✓ Actif'}</span>`
+        : `<span style="display:inline-block;padding:2px 8px;border-radius:20px;font-size:10px;font-weight:600;background:#f0f0ec;color:#888">${lang === 'ar' ? 'غير نشط' : 'Inactif'}</span>`;
+      const bg = i % 2 === 0 ? '#fff' : '#f9f9f6';
+      return `<tr style="background:${bg};opacity:${n.actif ? 1 : 0.65}">
+        <td style="text-align:center;color:#bbb;font-size:10px">${i + 1}</td>
+        <td style="text-align:center;font-weight:600">${n.ordre}</td>
+        <td><span style="display:inline-block;padding:2px 10px;border-radius:20px;font-size:11px;font-weight:700;background:${couleur}20;color:${couleur};border:1px solid ${couleur}40">${n.code || '—'}</span></td>
+        <td style="font-size:12px;font-weight:500">${n.nom || '—'}</td>
+        <td style="font-size:11px">${typeLabel}</td>
+        <td style="font-size:11px;color:#666">${sensLabel}</td>
+        <td>${statutHTML}</td>
+      </tr>`;
+    }).join('');
+    const html = `<!DOCTYPE html><html dir="${lang === 'ar' ? 'rtl' : 'ltr'}" lang="${lang === 'ar' ? 'ar' : 'fr'}">
+<head><meta charset="UTF-8"><title>Niveaux</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:Tajawal,Arial,sans-serif;padding:16px;font-size:12px;color:#1a1a1a}
+  .header{background:linear-gradient(135deg,#085041,#1D9E75);color:#fff;padding:14px 20px;border-radius:10px;margin-bottom:14px;display:flex;justify-content:space-between;align-items:center}
+  h1{font-size:17px;font-weight:800}
+  table{width:100%;border-collapse:collapse}
+  th{background:#085041;color:#fff;padding:8px 10px;text-align:start;font-size:11px;font-weight:600;letter-spacing:0.3px}
+  td{padding:8px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle}
+  .footer{margin-top:14px;font-size:9px;color:#bbb;border-top:1px solid #e0e0d8;padding-top:8px;text-align:center}
+  @media print{body{padding:8px}}
+</style></head><body>
+<div class="header">
+  <h1>📚 ${lang === 'ar' ? 'قائمة المستويات' : 'Liste des niveaux'}</h1>
+  <div style="font-size:11px;opacity:0.85">${niveaux.length} ${lang === 'ar' ? 'مستوى' : 'niveau(x)'} · ${new Date().toLocaleDateString('fr-FR')}</div>
+</div>
+<table><thead><tr>
+  <th style="width:5%">#</th>
+  <th style="width:8%">${lang === 'ar' ? 'الترتيب' : 'Ordre'}</th>
+  <th style="width:12%">${lang === 'ar' ? 'الرمز' : 'Code'}</th>
+  <th style="width:32%">${lang === 'ar' ? 'الاسم' : 'Nom'}</th>
+  <th style="width:14%">${lang === 'ar' ? 'النوع' : 'Type'}</th>
+  <th style="width:15%">${lang === 'ar' ? 'الاتجاه' : 'Sens'}</th>
+  <th style="width:14%">${lang === 'ar' ? 'الحالة' : 'Statut'}</th>
+</tr></thead><tbody>${rows}</tbody></table>
+<div class="footer">${lang === 'ar' ? 'تم الإنشاء بتاريخ' : 'Généré le'} ${new Date().toLocaleDateString('fr-FR', {day:'2-digit', month:'long', year:'numeric'})} · متابعة التحفيظ</div>
+</body></html>`;
+    w.document.write(html);
+    w.document.close();
+    setTimeout(function () { w.print(); }, 600);
+  };
 
   // ── PANNEAU PROGRAMME — Affichage + Modification ───────────────
   const PanneauProgramme = () => {
@@ -1453,6 +1549,22 @@ export default function GestionNiveaux({ user, navigate, goBack, lang='fr', isMo
           <div style={{fontSize:13}}>Ajoutez votre premier niveau pour commencer</div>
         </div>
       ) : (
+        <>
+        {/* E1f — Bandeau compteur + exports */}
+        <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'0.75rem',flexWrap:'wrap',gap:8}}>
+          <div className="section-label" style={{margin:0}}>
+            {lang==='ar'?'المستويات المُعدّة':'Niveaux configurés'}
+            {' '}
+            <span style={{fontWeight:500,color:'#888'}}>({niveaux.length})</span>
+          </div>
+          <ExportButtons
+            onPDF={exportNiveauxPDF}
+            onExcel={exportNiveauxExcel}
+            lang={lang}
+            variant="inline"
+            compact
+          />
+        </div>
         <div style={{background:'#fff',borderRadius:14,border:'0.5px solid #e0e0d8',overflow:'hidden'}}>
           {/* E1d — Style propre (alignement, vertical-align middle, no-wrap) */}
           <style>{`
@@ -1545,6 +1657,7 @@ export default function GestionNiveaux({ user, navigate, goBack, lang='fr', isMo
             </tbody>
           </table>
         </div>
+        </>
       )}
 
       <PanneauProgramme/>
