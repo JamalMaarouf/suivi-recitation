@@ -42,6 +42,8 @@ export default function GestionCours({ user, navigate, goBack, lang, isMobile })
   const [saving, setSaving] = useState(false);
   // Map : cours_id → nb axes total (pour afficher le badge)
   const [coursAxesCount, setCoursAxesCount] = useState({});
+  // E2a — Recherche
+  const [searchCours, setSearchCours] = useState('');
   // Confirm modal
   const [confirmModal, setConfirmModal] = useState({ isOpen: false, title: '', message: '', onConfirm: null });
 
@@ -314,52 +316,118 @@ export default function GestionCours({ user, navigate, goBack, lang, isMobile })
                 </div>
               </div>
             ) : (
+              <>
+                {/* E2a — Bandeau filtres + compteur dynamique */}
+                {!isMobile && (
+                  <div style={{
+                    display:'flex', gap:10, marginBottom:12, flexWrap:'wrap',
+                    padding:'10px 12px', background:'#fff',
+                    border:'0.5px solid #e0e0d8', borderRadius:12,
+                    alignItems:'center',
+                  }}>
+                    <input type="text"
+                      value={searchCours}
+                      onChange={e => setSearchCours(e.target.value)}
+                      placeholder={'🔍 ' + (lang === 'ar' ? 'بحث عن درس...' : 'Rechercher un cours (nom, catégorie)')}
+                      style={{
+                        flex:1, minWidth:200, padding:'7px 12px', fontSize:13,
+                        borderRadius:8, border:'0.5px solid #e0e0d8',
+                        fontFamily:'inherit', outline:'none', background:'#f9f9f6',
+                      }}/>
+                  </div>
+                )}
+                {!isMobile && (
+                  <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:8,flexWrap:'wrap',gap:8}}>
+                    <div style={{fontSize:13,fontWeight:600,color:'#085041'}}>
+                      {lang === 'ar' ? 'الدروس' : 'Cours'}
+                      {' '}
+                      <span style={{fontWeight:500,color:'#888'}}>
+                        ({cours.filter(c =>
+                          !searchCours
+                          || (c.nom_fr || '').toLowerCase().includes(searchCours.toLowerCase())
+                          || (c.nom_ar || '').toLowerCase().includes(searchCours.toLowerCase())
+                          || (c.nom_en || '').toLowerCase().includes(searchCours.toLowerCase())
+                          || (c.categorie || '').toLowerCase().includes(searchCours.toLowerCase())
+                        ).length}
+                        {cours.length > 0 ? ` / ${cours.length}` : ''}
+                        )
+                      </span>
+                    </div>
+                  </div>
+                )}
+
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                {cours.map(c => (
+                {cours.filter(c =>
+                  !searchCours
+                  || (c.nom_fr || '').toLowerCase().includes(searchCours.toLowerCase())
+                  || (c.nom_ar || '').toLowerCase().includes(searchCours.toLowerCase())
+                  || (c.nom_en || '').toLowerCase().includes(searchCours.toLowerCase())
+                  || (c.categorie || '').toLowerCase().includes(searchCours.toLowerCase())
+                ).map(c => {
+                  // E2a — Eviter redondance multilingue : ne montrer les autres langues
+                  // que si elles different vraiment du nom affiche
+                  const nomAff = nomAffiche(c);
+                  const autresLangues = [];
+                  if (lang !== 'ar' && c.nom_ar && c.nom_ar !== nomAff) autresLangues.push(c.nom_ar);
+                  if (lang !== 'fr' && c.nom_fr && c.nom_fr !== nomAff) autresLangues.push(c.nom_fr);
+                  if (lang !== 'en' && c.nom_en && c.nom_en !== nomAff) autresLangues.push(c.nom_en);
+                  return (
                   <div key={c.id} style={{
-                    background: '#fff', borderRadius: 12, padding: 16,
-                    border: '1px solid #e0e0d8',
+                    background: '#fff', borderRadius: 12, padding: '12px 14px',
+                    border: '0.5px solid #e0e0d8',
                     boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
                   }}>
-                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, flexWrap: 'wrap' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
                       <div style={{
-                        width: 44, height: 44, borderRadius: 12,
+                        width: 40, height: 40, borderRadius: 10,
                         background: '#E6F1FB', color: '#0C447C',
                         display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        fontSize: 22, flexShrink: 0,
+                        fontSize: 20, flexShrink: 0,
                       }}>📚</div>
                       <div style={{ flex: 1, minWidth: 180 }}>
-                        <div style={{ fontSize: 15, fontWeight: 700, color: '#1a1a1a' }}>
-                          {nomAffiche(c)}
+                        <div style={{ fontSize: 14, fontWeight: 700, color: '#1a1a1a' }}>
+                          {nomAff}
+                          {autresLangues.length > 0 && (
+                            <span style={{ fontSize: 11, color: '#888', fontWeight: 400, marginInlineStart: 8 }}>
+                              · {autresLangues.join(' · ')}
+                            </span>
+                          )}
                         </div>
-                        {/* Autres langues */}
-                        <div style={{ fontSize: 11, color: '#888', marginTop: 2 }}>
-                          {lang !== 'ar' && c.nom_ar && <span>{c.nom_ar}</span>}
-                          {lang !== 'fr' && c.nom_fr && <span>{lang !== 'ar' ? ' · ' : ''}{c.nom_fr}</span>}
-                          {lang !== 'en' && c.nom_en && <span>{(lang !== 'ar' || c.nom_fr) ? ' · ' : ''}{c.nom_en}</span>}
-                        </div>
-                        {/* Catégorie + durée */}
-                        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 8 }}>
+                        {/* Catégorie + durée + axes - tout en ligne */}
+                        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 6, alignItems: 'center' }}>
                           {c.categorie && (
                             <span style={{
                               padding: '2px 8px', background: '#EDE9FE', color: '#534AB7',
-                              borderRadius: 6, fontSize: 10, fontWeight: 700,
+                              borderRadius: 6, fontSize: 10, fontWeight: 700, whiteSpace: 'nowrap',
                             }}>{c.categorie}</span>
                           )}
                           {c.annee_estimee && (
                             <span style={{
                               padding: '2px 8px', background: '#FAEEDA', color: '#633806',
-                              borderRadius: 6, fontSize: 10, fontWeight: 700,
+                              borderRadius: 6, fontSize: 10, fontWeight: 700, whiteSpace: 'nowrap',
                             }}>
                               ⏱ {c.annee_estimee} {lang === 'ar' ? 'سنة' : 'an(s)'}
                             </span>
                           )}
                           <span style={{
                             padding: '2px 8px', background: '#E1F5EE', color: '#085041',
-                            borderRadius: 6, fontSize: 10, fontWeight: 700,
+                            borderRadius: 6, fontSize: 10, fontWeight: 700, whiteSpace: 'nowrap',
                           }}>
                             📝 {coursAxesCount[c.id] || 0} {lang === 'ar' ? 'محور' : 'axe(s)'}
                           </span>
+                          {/* Niveaux associes inline (E2a — fusion avec autres chips) */}
+                          {c.niveauCodes && c.niveauCodes.map(code => {
+                            const n = niveauByCode[code];
+                            const couleur = n?.couleur || '#888';
+                            return (
+                              <span key={code} style={{
+                                padding: '2px 8px',
+                                background: `${couleur}15`, color: couleur,
+                                borderRadius: 6, fontSize: 10, fontWeight: 700,
+                                border: `0.5px solid ${couleur}30`, whiteSpace: 'nowrap',
+                              }}>{n?.code || code}</span>
+                            );
+                          })}
                         </div>
                       </div>
                       {/* Actions */}
@@ -370,6 +438,7 @@ export default function GestionCours({ user, navigate, goBack, lang, isMobile })
                             padding: '6px 10px', background: '#E6F1FB', color: '#378ADD',
                             border: '1px solid #378ADD30', borderRadius: 8,
                             fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit',
+                            whiteSpace: 'nowrap',
                           }}>
                           📝 {lang === 'ar' ? 'المحاور' : 'Axes'}
                         </button>
@@ -378,45 +447,22 @@ export default function GestionCours({ user, navigate, goBack, lang, isMobile })
                           style={{
                             padding: '6px 10px', background: '#f5f5f0', color: '#666',
                             border: '1px solid #e0e0d8', borderRadius: 8,
-                            fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
+                            fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
                           }}>✏️</button>
                         <button onClick={() => handleDelete(c)}
                           title={lang === 'ar' ? 'حذف' : 'Supprimer'}
                           style={{
                             padding: '6px 10px', background: '#FCEBEB', color: '#E24B4A',
                             border: '1px solid #E24B4A30', borderRadius: 8,
-                            fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
+                            fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
                           }}>🗑</button>
                       </div>
                     </div>
-
-                    {/* Niveaux associés */}
-                    {c.niveauCodes && c.niveauCodes.length > 0 && (
-                      <div style={{
-                        marginTop: 10, paddingTop: 10,
-                        borderTop: '1px solid #f0f0ec',
-                        display: 'flex', gap: 6, flexWrap: 'wrap',
-                      }}>
-                        <span style={{ fontSize: 10, color: '#888', marginRight: 4, alignSelf: 'center' }}>
-                          🎯 {lang === 'ar' ? 'مستويات:' : 'Niveaux :'}
-                        </span>
-                        {c.niveauCodes.map(code => {
-                          const n = niveauByCode[code];
-                          const couleur = n?.couleur || '#888';
-                          return (
-                            <span key={code} style={{
-                              padding: '2px 10px',
-                              background: `${couleur}20`, color: couleur,
-                              borderRadius: 12, fontSize: 11, fontWeight: 700,
-                              border: `1px solid ${couleur}40`,
-                            }}>{n?.nom || code}</span>
-                          );
-                        })}
-                      </div>
-                    )}
                   </div>
-                ))}
+                  );
+                })}
               </div>
+              </>
             )}
           </>
         )}

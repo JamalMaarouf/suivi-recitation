@@ -19,6 +19,8 @@ export default function GestionExamens({ user, navigate, goBack, lang='fr', isMo
   const [showForm,   setShowForm]   = useState(false);
   const [editing,    setEditing]    = useState(null);
   const [filtreNiveau, setFiltreNiveau] = useState('tous');
+  // E2b — Recherche par nom
+  const [searchExam, setSearchExam] = useState('');
   const [confirmModal, setConfirmModal] = useState({isOpen:false});
 
   const emptyForm = {
@@ -224,9 +226,10 @@ export default function GestionExamens({ user, navigate, goBack, lang='fr', isMo
     }
   };
 
-  const examsFiltres = filtreNiveau==='tous'
+  const examsFiltres = (filtreNiveau==='tous'
     ? examens
-    : examens.filter(e=>e.niveau_id===filtreNiveau);
+    : examens.filter(e=>e.niveau_id===filtreNiveau)
+  ).filter(e => !searchExam || (e.nom||'').toLowerCase().includes(searchExam.toLowerCase()));
 
   // ── Helper : préparer une ligne d'examen pour export ──
   const prepareExamRow = (e) => {
@@ -760,7 +763,7 @@ export default function GestionExamens({ user, navigate, goBack, lang='fr', isMo
       />
 
       {/* Filtre niveau PC */}
-      <div style={{display:'flex',gap:6,flexWrap:'wrap',marginBottom:'1rem'}}>
+      <div style={{display:'flex',gap:6,flexWrap:'wrap',marginBottom:10}}>
         {[{id:'tous',code:lang==='ar'?'الكل':'Tous',couleur:'#1D9E75'},...niveaux].map(n=>(
           <div key={n.id} onClick={()=>setFiltreNiveau(n.id)}
             style={{padding:'5px 14px',borderRadius:20,fontSize:12,fontWeight:600,
@@ -772,6 +775,29 @@ export default function GestionExamens({ user, navigate, goBack, lang='fr', isMo
           </div>
         ))}
       </div>
+
+      {/* E2b — Bandeau recherche + compteur dynamique */}
+      {examens.length > 0 && (
+        <div style={{
+          display:'flex', gap:10, marginBottom:10, flexWrap:'wrap',
+          padding:'10px 12px', background:'#fff',
+          border:'0.5px solid #e0e0d8', borderRadius:12,
+          alignItems:'center',
+        }}>
+          <input type="text"
+            value={searchExam}
+            onChange={e => setSearchExam(e.target.value)}
+            placeholder={'🔍 ' + (lang === 'ar' ? 'بحث عن امتحان...' : 'Rechercher un examen par nom')}
+            style={{
+              flex:1, minWidth:200, padding:'7px 12px', fontSize:13,
+              borderRadius:8, border:'0.5px solid #e0e0d8',
+              fontFamily:'inherit', outline:'none', background:'#f9f9f6',
+            }}/>
+          <span style={{fontSize:12, color:'#888', whiteSpace:'nowrap'}}>
+            {examsFiltres.length} / {examens.length} {lang === 'ar' ? 'امتحان' : 'examen(s)'}
+          </span>
+        </div>
+      )}
 
       {/* Formulaire PC */}
       {showForm&&(
@@ -800,39 +826,45 @@ export default function GestionExamens({ user, navigate, goBack, lang='fr', isMo
             const nc=e.niveau?.couleur||'#888';
             return(
               <div key={e.id} style={{background:'#fff',borderRadius:14,
-                padding:'16px 18px',border:`0.5px solid ${nc}20`,
-                display:'flex',alignItems:'center',gap:16,
+                padding:'14px 16px',border:`0.5px solid ${nc}20`,
+                display:'flex',alignItems:'center',gap:14,
                 opacity:e.actif?1:0.5}}>
-                <div style={{fontSize:28,flexShrink:0}}>
+                <div style={{fontSize:24,flexShrink:0}}>
                   {e.bloquant?'🔒':'📢'}
                 </div>
                 <div style={{flex:1,minWidth:0}}>
-                  <div style={{fontWeight:700,fontSize:15,marginBottom:6}}>
+                  <div style={{fontWeight:700,fontSize:14,marginBottom:4,
+                    overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}
+                    title={e.nom}>
                     {e.nom}
                   </div>
-                  {/* Contenu de l'examen */}
-                  <div style={{fontSize:13,color:'#085041',marginBottom:6,
+                  {/* Contenu de l'examen — avec ellipsis */}
+                  <div style={{fontSize:12,color:'#085041',marginBottom:6,
+                    overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',
                     fontFamily:(e.type_contenu||'hizb')==='sourate'?"'Tajawal',Arial":'inherit',
-                    direction:(e.type_contenu||'hizb')==='sourate'?'rtl':'ltr'}}>
+                    direction:(e.type_contenu||'hizb')==='sourate'?'rtl':'ltr'}}
+                    title={resumeContenu(e)}>
                     {resumeContenu(e)}
                   </div>
                   <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>
                     {e.niveau&&(
                       <span style={{fontSize:11,padding:'2px 8px',borderRadius:20,
-                        background:`${nc}20`,color:nc,fontWeight:600}}>
+                        background:`${nc}20`,color:nc,fontWeight:600,whiteSpace:'nowrap'}}>
                         {e.niveau.code} — {e.niveau.nom}
                       </span>
                     )}
                     <span style={{fontSize:11,padding:'2px 8px',borderRadius:20,
-                      background:'#E1F5EE',color:'#085041',fontWeight:600}}>
+                      background:'#E1F5EE',color:'#085041',fontWeight:600,whiteSpace:'nowrap'}}>
                       Score min: {e.score_minimum}%
                     </span>
+                    {/* E2b — Suppression redondance : 🔒/📢 deja dans icone gauche.
+                        Ici on affiche juste le label texte */}
                     <span style={{fontSize:11,padding:'2px 8px',borderRadius:20,
                       background:e.bloquant?'#FCEBEB':'#FAEEDA',
-                      color:e.bloquant?'#A32D2D':'#633806',fontWeight:600}}>
+                      color:e.bloquant?'#A32D2D':'#633806',fontWeight:600,whiteSpace:'nowrap'}}>
                       {e.bloquant
-                        ?'🔒 Bloquant'
-                        :'📢 Alerte seulement'}
+                        ?(lang==='ar'?'حاجز':'Bloquant')
+                        :(lang==='ar'?'تنبيه':'Alerte')}
                     </span>
                   </div>
                 </div>
