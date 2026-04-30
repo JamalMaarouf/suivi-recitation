@@ -1454,61 +1454,90 @@ export default function GestionNiveaux({ user, navigate, goBack, lang='fr', isMo
         </div>
       ) : (
         <div style={{background:'#fff',borderRadius:14,border:'0.5px solid #e0e0d8',overflow:'hidden'}}>
-          <table style={{width:'100%',borderCollapse:'collapse'}}>
+          {/* E1d — Style propre (alignement, vertical-align middle, no-wrap) */}
+          <style>{`
+            .gestion-niv-table { width: 100%; border-collapse: collapse; }
+            .gestion-niv-table th,
+            .gestion-niv-table td {
+              vertical-align: middle;
+              padding: 12px 16px;
+            }
+            .gestion-niv-table th {
+              text-align: start;
+              font-size: 11px;
+              font-weight: 600;
+              color: #888;
+              background: #f9f9f6;
+              border-bottom: 0.5px solid #e0e0d8;
+              text-transform: uppercase;
+              letter-spacing: 0.3px;
+              white-space: nowrap;
+            }
+            .gestion-niv-table th.th-actions,
+            .gestion-niv-table td.actions-cell {
+              text-align: end;
+            }
+          `}</style>
+          <table className="gestion-niv-table">
             <thead>
-              <tr style={{background:'#f5f5f0',borderBottom:'0.5px solid #e0e0d8'}}>
-                <th style={{padding:'12px 16px',textAlign:'left',fontSize:12,fontWeight:600,color:'#888'}}>Ordre</th>
-                <th style={{padding:'12px 16px',textAlign:'left',fontSize:12,fontWeight:600,color:'#888'}}>Code</th>
-                <th style={{padding:'12px 16px',textAlign:'left',fontSize:12,fontWeight:600,color:'#888'}}>Nom</th>
-                <th style={{padding:'12px 16px',textAlign:'left',fontSize:12,fontWeight:600,color:'#888'}}>Type</th>
-                <th style={{padding:'12px 16px',textAlign:'left',fontSize:12,fontWeight:600,color:'#888'}}>Statut</th>
-                <th style={{padding:'12px 16px',textAlign:'right',fontSize:12,fontWeight:600,color:'#888'}}>Actions</th>
+              <tr>
+                <th style={{width:120}}>Ordre</th>
+                <th>Code</th>
+                <th>Nom</th>
+                <th>Type</th>
+                <th>Statut</th>
+                <th className="th-actions">Actions</th>
               </tr>
             </thead>
             <tbody>
               {niveaux.map((n, idx) => (
                 <tr key={n.id} style={{borderBottom:'0.5px solid #f0f0ec',opacity:n.actif?1:0.5}}>
-                  <td style={{padding:'12px 16px'}}>
-                    <div style={{display:'flex',flexDirection:'column',gap:2}}>
+                  <td>
+                    {/* E1d — Boutons ▲ N ▼ en LIGNE (avant : empiles verticalement) */}
+                    <div style={{display:'flex',flexDirection:'row',alignItems:'center',gap:4,whiteSpace:'nowrap'}}>
                       <button onClick={()=>moveUp(n,idx)} disabled={idx===0}
-                        style={{background:'none',border:'none',cursor:idx===0?'not-allowed':'pointer',opacity:idx===0?0.3:1,fontSize:11,padding:'1px 4px'}}>▲</button>
-                      <span style={{textAlign:'center',fontSize:13,fontWeight:500,color:'#888'}}>{n.ordre}</span>
+                        title="Monter"
+                        style={{background:'#f5f5f0',border:'0.5px solid #e0e0d8',borderRadius:6,cursor:idx===0?'not-allowed':'pointer',opacity:idx===0?0.3:1,fontSize:11,padding:'3px 7px',flexShrink:0}}>▲</button>
+                      <span style={{minWidth:24,textAlign:'center',fontSize:13,fontWeight:600,color:'#555'}}>{n.ordre}</span>
                       <button onClick={()=>moveDown(n,idx)} disabled={idx===niveaux.length-1}
-                        style={{background:'none',border:'none',cursor:idx===niveaux.length-1?'not-allowed':'pointer',opacity:idx===niveaux.length-1?0.3:1,fontSize:11,padding:'1px 4px'}}>▼</button>
+                        title="Descendre"
+                        style={{background:'#f5f5f0',border:'0.5px solid #e0e0d8',borderRadius:6,cursor:idx===niveaux.length-1?'not-allowed':'pointer',opacity:idx===niveaux.length-1?0.3:1,fontSize:11,padding:'3px 7px',flexShrink:0}}>▼</button>
                     </div>
                   </td>
-                  <td style={{padding:'12px 16px'}}>
+                  <td>
                     <span style={{padding:'4px 12px',borderRadius:20,background:`${n.couleur}20`,
                       color:n.couleur,fontWeight:700,fontSize:13,border:`1px solid ${n.couleur}40`}}>
                       {n.code}
                     </span>
                   </td>
-                  <td style={{padding:'12px 16px',fontSize:14,fontWeight:500}}>{n.nom}</td>
-                  <td style={{padding:'12px 16px'}}>
+                  <td style={{fontSize:14,fontWeight:500}}>{n.nom}</td>
+                  <td>
                     <span style={{fontSize:12,padding:'3px 10px',borderRadius:20,
                       background:n.type==='sourate'?'#EEEDFE':'#E6F1FB',
-                      color:n.type==='sourate'?'#534AB7':'#0C447C',fontWeight:600}}>
+                      color:n.type==='sourate'?'#534AB7':'#0C447C',fontWeight:600,whiteSpace:'nowrap'}}>
                       {n.type==='sourate'?'📖 Sourates':'📿 Hizb'}
                     </span>
                   </td>
-                  <td style={{padding:'12px 16px'}}>
+                  <td>
                     <span style={{fontSize:12,padding:'3px 10px',borderRadius:20,
                       background:n.actif?'#E1F5EE':'#f0f0ec',
-                      color:n.actif?'#085041':'#888',fontWeight:600}}>
+                      color:n.actif?'#085041':'#888',fontWeight:600,whiteSpace:'nowrap'}}>
                       {n.actif?'✓ Actif':'Inactif'}
                     </span>
                   </td>
-                  <td style={{padding:'12px 16px',textAlign:'right'}}>
-                    <div style={{display:'flex',gap:6,justifyContent:'flex-end'}}>
+                  <td className="actions-cell">
+                    <div style={{display:'flex',gap:6,justifyContent:'flex-end',flexWrap:'nowrap',alignItems:'center'}}>
                       <button onClick={()=>ouvrirProgramme(n)}
                         style={{padding:'6px 12px',background:`${n.couleur}20`,color:n.couleur,
-                          border:`1px solid ${n.couleur}40`,borderRadius:8,fontSize:12,fontWeight:700,cursor:'pointer'}}>
+                          border:`1px solid ${n.couleur}40`,borderRadius:8,fontSize:12,fontWeight:700,cursor:'pointer',whiteSpace:'nowrap',flexShrink:0}}>
                         📚 {lang==='ar'?'البرنامج':'Programme'}
                       </button>
                       <button onClick={()=>startEdit(n)}
-                        style={{padding:'6px 12px',background:'#E6F1FB',color:'#0C447C',border:'none',borderRadius:8,fontSize:12,fontWeight:600,cursor:'pointer'}}>✏️</button>
+                        title={lang==='ar'?'تعديل':'Modifier'}
+                        style={{padding:'6px 10px',background:'#E6F1FB',color:'#0C447C',border:'none',borderRadius:8,fontSize:13,fontWeight:600,cursor:'pointer',flexShrink:0}}>✏️</button>
                       <button onClick={()=>supprimer(n)}
-                        style={{padding:'6px 10px',background:'#FCEBEB',color:'#E24B4A',border:'none',borderRadius:8,fontSize:12,cursor:'pointer'}}>🗑</button>
+                        title={lang==='ar'?'حذف':'Supprimer'}
+                        style={{padding:'6px 10px',background:'#FCEBEB',color:'#E24B4A',border:'none',borderRadius:8,fontSize:13,cursor:'pointer',flexShrink:0}}>🗑</button>
                     </div>
                   </td>
                 </tr>
