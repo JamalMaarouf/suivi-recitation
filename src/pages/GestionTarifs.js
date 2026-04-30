@@ -32,6 +32,9 @@ export default function GestionTarifs({ user, navigate, goBack, lang, isMobile }
   const [instLoading, setInstLoading] = useState(true);
   const [savingInst, setSavingInst] = useState({});    // { instituteurId: boolean }
 
+  // E2c — Recherche par nom instituteur
+  const [searchInst, setSearchInst] = useState('');
+
   // ─── Chargement initial ────────────────────────────────────
   const loadData = async () => {
     setEcoleLoading(true);
@@ -361,8 +364,39 @@ export default function GestionTarifs({ user, navigate, goBack, lang, isMobile }
                     </div>
                   </div>
                 ) : (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                    {instituteurs.map(inst => (
+                  <>
+                    {/* E2c — Bandeau recherche + compteur (visible si > 5 instituteurs) */}
+                    {instituteurs.length > 5 && (
+                      <div style={{
+                        display:'flex', gap:10, marginBottom:10, flexWrap:'wrap',
+                        padding:'10px 12px', background:'#fff',
+                        border:'0.5px solid #e0e0d8', borderRadius:12,
+                        alignItems:'center',
+                      }}>
+                        <input type="text"
+                          value={searchInst}
+                          onChange={e => setSearchInst(e.target.value)}
+                          placeholder={'🔍 ' + (lang === 'ar' ? 'بحث عن أستاذ...' : 'Rechercher un instituteur')}
+                          style={{
+                            flex:1, minWidth:200, padding:'7px 12px', fontSize:13,
+                            borderRadius:8, border:'0.5px solid #e0e0d8',
+                            fontFamily:'inherit', outline:'none', background:'#f9f9f6',
+                          }}/>
+                        <span style={{fontSize:12, color:'#888', whiteSpace:'nowrap'}}>
+                          {instituteurs.filter(i =>
+                            !searchInst
+                            || (`${i.prenom} ${i.nom}`).toLowerCase().includes(searchInst.toLowerCase())
+                            || (i.instituteur_id_ecole || '').toLowerCase().includes(searchInst.toLowerCase())
+                          ).length} / {instituteurs.length}
+                        </span>
+                      </div>
+                    )}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                      {instituteurs.filter(i =>
+                        !searchInst
+                        || (`${i.prenom} ${i.nom}`).toLowerCase().includes(searchInst.toLowerCase())
+                        || (i.instituteur_id_ecole || '').toLowerCase().includes(searchInst.toLowerCase())
+                      ).map(inst => (
                       <InstituteurTarifRow
                         key={inst.id}
                         inst={inst}
@@ -373,8 +407,9 @@ export default function GestionTarifs({ user, navigate, goBack, lang, isMobile }
                         isMobile={isMobile}
                         lang={lang}
                       />
-                    ))}
-                  </div>
+                      ))}
+                    </div>
+                  </>
                 )}
               </div>
             )}

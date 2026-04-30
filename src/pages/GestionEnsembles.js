@@ -17,6 +17,8 @@ export default function GestionEnsembles({ user, navigate, goBack, lang='fr', is
   const [editing,      setEditing]      = useState(null);
   const [confirmModal, setConfirmModal] = useState({ isOpen: false });
   const [filtreNiveau, setFiltreNiveau] = useState('all');
+  // E2d — Recherche par nom ensemble
+  const [searchEns, setSearchEns] = useState('');
   const scrollRef = useRef(null);
 
   const emptyForm = { niveau_id: '', nom: '', ordre: 1, sourates_ids: [] };
@@ -428,7 +430,14 @@ export default function GestionEnsembles({ user, navigate, goBack, lang='fr', is
   }
 
   // ── PC ──────────────────────────────────────────────────────────
-  const groupesFiltres = filtreNiveau === 'all' ? groupes : groupes.filter(g => g.niv.id === filtreNiveau);
+  // E2d — Filtre niveau + recherche par nom
+  const groupesFiltres = (filtreNiveau === 'all' ? groupes : groupes.filter(g => g.niv.id === filtreNiveau))
+    .map(g => ({
+      ...g,
+      items: !searchEns ? g.items : g.items.filter(e => (e.nom||'').toLowerCase().includes(searchEns.toLowerCase()))
+    }))
+    .filter(g => g.items.length > 0 || !searchEns);
+  const totalFiltre = groupesFiltres.reduce((s, g) => s + g.items.length, 0);
 
   return (
     <div style={{padding:'0 0 2rem'}}>
@@ -487,12 +496,34 @@ export default function GestionEnsembles({ user, navigate, goBack, lang='fr', is
         </div>
       )}
 
-      {!loading && (
-        <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(280px,1fr))', gap:12}}>
-          {groupesFiltres.flatMap(({ niv, items }) =>
-            (items||[]).map(e => <CarteEnsemble key={e.id} e={e} cniv={niv.couleur || '#1D9E75'} />)
-          )}
-        </div>
+      {!loading && ensembles.length > 0 && (
+        <>
+          {/* E2d — Bandeau recherche + compteur dynamique */}
+          <div style={{
+            display:'flex', gap:10, marginBottom:10, flexWrap:'wrap',
+            padding:'10px 12px', background:'#fff',
+            border:'0.5px solid #e0e0d8', borderRadius:12,
+            alignItems:'center',
+          }}>
+            <input type="text"
+              value={searchEns}
+              onChange={e => setSearchEns(e.target.value)}
+              placeholder={'🔍 ' + (lang === 'ar' ? 'بحث عن مجموعة...' : 'Rechercher un ensemble par nom')}
+              style={{
+                flex:1, minWidth:200, padding:'7px 12px', fontSize:13,
+                borderRadius:8, border:'0.5px solid #e0e0d8',
+                fontFamily:'inherit', outline:'none', background:'#f9f9f6',
+              }}/>
+            <span style={{fontSize:12, color:'#888', whiteSpace:'nowrap'}}>
+              {totalFiltre} / {ensembles.length} {lang === 'ar' ? 'مجموعة' : 'ensemble(s)'}
+            </span>
+          </div>
+          <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(280px,1fr))', gap:12}}>
+            {groupesFiltres.flatMap(({ niv, items }) =>
+              (items||[]).map(e => <CarteEnsemble key={e.id} e={e} cniv={niv.couleur || '#1D9E75'} />)
+            )}
+          </div>
+        </>
       )}
 
       <PanneauForm />

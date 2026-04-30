@@ -400,31 +400,38 @@ export default function GestionBlocs({ user, navigate, goBack, lang='fr', isMobi
                 </div>
                 <div style={{flex:1,minWidth:0}}>
                   <div style={{fontWeight:700,fontSize:15,color:'#1a1a1a'}}>{b.nom}</div>
-                  <div style={{fontSize:12,color:'#888',marginTop:4,fontFamily:"'Tajawal',Arial",direction:'rtl',textAlign:'right'}}>
+                  <div style={{fontSize:12,color:'#888',marginTop:4,fontFamily:"'Tajawal',Arial",direction:'rtl',textAlign:'right',
+                    overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}
+                    title={resumeBloc(b)}>
                     {resumeBloc(b)}
                   </div>
                   <div style={{display:'flex',gap:6,marginTop:6,flexWrap:'wrap'}}>
+                    {/* E2f — chip Type/Count : on enleve la redondance icone+label,
+                        on garde juste le compteur avec le label clair */}
                     <span style={{fontSize:11,padding:'2px 8px',borderRadius:20,
                       background:b.type_contenu==='hizb'?'#E6F1FB':'#EEEDFE',
-                      color:b.type_contenu==='hizb'?'#0C447C':'#3C3489',fontWeight:600}}>
-                      {b.type_contenu==='hizb'?`📿 ${(b.contenu_ids||[]).length} Hizb`:`📖 ${(b.contenu_ids||[]).length} sourates`}
+                      color:b.type_contenu==='hizb'?'#0C447C':'#3C3489',fontWeight:600,whiteSpace:'nowrap'}}>
+                      {(b.contenu_ids||[]).length} {b.type_contenu==='hizb'?'Hizb':(lang==='ar'?'سور':'sourates')}
                     </span>
                     <span style={{fontSize:11,padding:'2px 8px',borderRadius:20,
-                      background:'#FAEEDA',color:'#633806',fontWeight:600}}>
+                      background:'#FAEEDA',color:'#633806',fontWeight:600,whiteSpace:'nowrap'}}>
                       📝 {b.examen?.nom||'—'}
                     </span>
                   </div>
                 </div>
-              </div>
-              <div style={{display:'flex',gap:8,marginTop:12}}>
-                <button onClick={()=>startEdit(b)}
-                  style={{flex:1,padding:'9px',background:'#E6F1FB',color:'#0C447C',border:'none',
-                    borderRadius:10,fontSize:13,fontWeight:600,cursor:'pointer',fontFamily:'inherit'}}>
-                  ✏️ {lang==='ar'?'تعديل':'Modifier'}
-                </button>
-                <button onClick={()=>supprimer(b)}
-                  style={{padding:'9px 14px',background:'#FCEBEB',color:'#E24B4A',border:'none',
-                    borderRadius:10,fontSize:13,cursor:'pointer'}}>🗑</button>
+                {/* E2f — Boutons d'action en LIGNE a droite (avant : en bas avec ✏️ flex:1) */}
+                <div style={{display:'flex',gap:6,flexShrink:0,alignItems:'center'}}>
+                  <button onClick={()=>startEdit(b)}
+                    title={lang==='ar'?'تعديل':'Modifier'}
+                    style={{padding:'6px 10px',background:'#E6F1FB',color:'#0C447C',border:'none',
+                      borderRadius:8,fontSize:13,fontWeight:600,cursor:'pointer',fontFamily:'inherit'}}>
+                    ✏️
+                  </button>
+                  <button onClick={()=>supprimer(b)}
+                    title={lang==='ar'?'حذف':'Supprimer'}
+                    style={{padding:'6px 10px',background:'#FCEBEB',color:'#E24B4A',border:'none',
+                      borderRadius:8,fontSize:13,cursor:'pointer',fontFamily:'inherit'}}>🗑</button>
+                </div>
               </div>
             </div>
           );

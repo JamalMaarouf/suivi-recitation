@@ -4,6 +4,7 @@ import { useToast } from '../lib/toast';
 import ConfirmModal from '../components/ConfirmModal';
 import { t } from '../lib/i18n';
 import PageHeader from '../components/PageHeader';
+import StatsCard from '../components/StatsCard';
 
 const PERIODES = [
   { val:'semaine',   label_fr:'Semaine',              label_ar:'أسبوع',           jours:7   },
@@ -459,6 +460,8 @@ export default function GestionObjectifs({ user, navigate, goBack, lang='fr', is
   const [form,      setForm]      = useState(emptyForm);
   const [filtreType,setFiltreType]= useState('tous');
   const [searchEleve,setSearchEleve]=useState('');
+  // E2e — Recherche dans la liste des objectifs
+  const [searchObj, setSearchObj] = useState('');
   const [confirmModal,setConfirmModal]=useState({isOpen:false});
 
   useEffect(()=>{ loadAll(); },[]);
@@ -558,7 +561,25 @@ export default function GestionObjectifs({ user, navigate, goBack, lang='fr', is
   const labelPeriode= (val)=>{const p=PERIODES.find(x=>x.val===val);return p?(lang==='ar'?p.label_ar:p.label_fr):val;};
   const fmtDate     = (d)=>d?new Date(d).toLocaleDateString('fr-FR'):'';
 
-  const objFiltres = objectifs.filter(o=>filtreType==='tous'||o.type_cible===filtreType);
+  // E2e — Filtre type + recherche
+  const nomEleveSearch = (id) => {
+    const e = eleves.find(x => x.id === id);
+    return e ? `${e.prenom} ${e.nom}` : '';
+  };
+  const nomNiveauSearch = (id) => {
+    const n = niveaux.find(x => x.id === id);
+    return n ? `${n.code} ${n.nom}` : '';
+  };
+  const objFiltres = objectifs
+    .filter(o => filtreType === 'tous' || o.type_cible === filtreType)
+    .filter(o => {
+      if (!searchObj) return true;
+      const q = searchObj.toLowerCase();
+      const cible = o.type_cible === 'niveau'
+        ? nomNiveauSearch(o.niveau_id).toLowerCase()
+        : nomEleveSearch(o.eleve_id).toLowerCase();
+      return cible.includes(q);
+    });
   const stats = {
     total:objectifs.length, actifs:objectifs.filter(o=>o.actif).length,
     niveau:objectifs.filter(o=>o.type_cible==='niveau').length,
@@ -598,13 +619,15 @@ export default function GestionObjectifs({ user, navigate, goBack, lang='fr', is
             </div>
             {obj.notes&&<div style={{fontSize:11,color:'#aaa',marginTop:4,fontStyle:'italic'}}>💬 {obj.notes}</div>}
           </div>
-          <div style={{display:'flex',flexDirection:'column',gap:6,flexShrink:0}}>
+          <div style={{display:'flex',gap:6,flexShrink:0,alignItems:'center'}}>
             <button onClick={()=>startEdit(obj)}
-              style={{padding:'5px 12px',borderRadius:8,border:'0.5px solid #e0e0d8',
-                background:'#fff',fontSize:12,cursor:'pointer'}}>✏️</button>
+              title={lang==='ar'?'تعديل':'Modifier'}
+              style={{padding:'6px 10px',borderRadius:8,border:'0.5px solid #e0e0d8',
+                background:'#fff',fontSize:13,cursor:'pointer',fontFamily:'inherit'}}>✏️</button>
             <button onClick={()=>supprimer(obj.id)}
-              style={{padding:'5px 12px',borderRadius:8,border:'0.5px solid #FCEBEB',
-                background:'#FCEBEB',fontSize:12,cursor:'pointer',color:'#E24B4A'}}>🗑️</button>
+              title={lang==='ar'?'حذف':'Supprimer'}
+              style={{padding:'6px 10px',borderRadius:8,border:'0.5px solid #FCEBEB',
+                background:'#FCEBEB',fontSize:13,cursor:'pointer',color:'#E24B4A',fontFamily:'inherit'}}>🗑️</button>
           </div>
         </div>
       </div>
@@ -613,31 +636,56 @@ export default function GestionObjectifs({ user, navigate, goBack, lang='fr', is
 
   const StatsBar = () => (
     <div style={{display:'grid',gridTemplateColumns:`repeat(${isMobile?2:4},1fr)`,gap:isMobile?8:10,marginBottom:isMobile?12:'1.25rem'}}>
-      {[
-        {l:lang==='ar'?'المجموع':'Total',      v:stats.total,  c:'#085041',bg:'#E1F5EE'},
-        {l:lang==='ar'?'نشطة':'Actifs',        v:stats.actifs, c:'#1D9E75',bg:'#E1F5EE'},
-        {l:lang==='ar'?'بالمستوى':'Par niveau', v:stats.niveau, c:'#378ADD',bg:'#E6F1FB'},
-        {l:lang==='ar'?'بالطالب':'Par élève',   v:stats.eleve,  c:'#D85A30',bg:'#FAECE7'},
-      ].map((s,i)=>(
-        <div key={i} style={{background:s.bg,borderRadius:12,padding:isMobile?'12px':'14px',textAlign:'center'}}>
-          <div style={{fontSize:isMobile?22:26,fontWeight:800,color:s.c}}>{s.v}</div>
-          <div style={{fontSize:isMobile?11:12,color:s.c,opacity:0.8,marginTop:2}}>{s.l}</div>
-        </div>
-      ))}
+      <StatsCard
+        label={lang==='ar'?'المجموع':'Total'}
+        value={stats.total}
+        color="green"
+      />
+      <StatsCard
+        label={lang==='ar'?'نشطة':'Actifs'}
+        value={stats.actifs}
+        color="green"
+      />
+      <StatsCard
+        label={lang==='ar'?'بالمستوى':'Par niveau'}
+        value={stats.niveau}
+        color="blue"
+      />
+      <StatsCard
+        label={lang==='ar'?'بالطالب':'Par élève'}
+        value={stats.eleve}
+        color="amber"
+      />
     </div>
   );
 
   const Filtres = () => (
-    <div style={{display:'flex',gap:6,marginBottom:12,flexWrap:'wrap'}}>
-      {[{val:'tous',fr:'Tous',ar:'الكل'},{val:'niveau',fr:'Par niveau',ar:'بالمستوى'},{val:'eleve',fr:'Par élève',ar:'بالطالب'}].map(f=>(
-        <div key={f.val} onClick={()=>setFiltreType(f.val)}
-          style={{padding:isMobile?'5px 12px':'5px 14px',borderRadius:20,cursor:'pointer',fontSize:12,fontWeight:600,
-            background:filtreType===f.val?'#085041':'#f5f5f0',color:filtreType===f.val?'#fff':'#666',
-            border:`0.5px solid ${filtreType===f.val?'#085041':'#e0e0d8'}`}}>
-          {lang==='ar'?f.ar:f.fr}
-        </div>
-      ))}
-      <span style={{fontSize:12,color:'#888',alignSelf:'center'}}>{objFiltres.length} {lang==='ar'?'هدف':'objectif(s)'}</span>
+    <div style={{display:'flex',gap:8,marginBottom:12,flexWrap:'wrap',alignItems:'center'}}>
+      <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>
+        {[{val:'tous',fr:'Tous',ar:'الكل'},{val:'niveau',fr:'Par niveau',ar:'بالمستوى'},{val:'eleve',fr:'Par élève',ar:'بالطالب'}].map(f=>(
+          <div key={f.val} onClick={()=>setFiltreType(f.val)}
+            style={{padding:isMobile?'5px 12px':'5px 14px',borderRadius:20,cursor:'pointer',fontSize:12,fontWeight:600,
+              background:filtreType===f.val?'#085041':'#f5f5f0',color:filtreType===f.val?'#fff':'#666',
+              border:`0.5px solid ${filtreType===f.val?'#085041':'#e0e0d8'}`}}>
+            {lang==='ar'?f.ar:f.fr}
+          </div>
+        ))}
+      </div>
+      {/* E2e — Recherche par cible */}
+      {!isMobile && objectifs.length > 0 && (
+        <input type="text"
+          value={searchObj}
+          onChange={e => setSearchObj(e.target.value)}
+          placeholder={'🔍 ' + (lang === 'ar' ? 'بحث (طالب أو مستوى)' : 'Rechercher (élève ou niveau)')}
+          style={{
+            flex:1, minWidth:180, padding:'6px 12px', fontSize:12,
+            borderRadius:20, border:'0.5px solid #e0e0d8',
+            fontFamily:'inherit', outline:'none', background:'#f9f9f6',
+          }}/>
+      )}
+      <span style={{fontSize:12,color:'#888',whiteSpace:'nowrap'}}>
+        {objFiltres.length}{objectifs.length > 0 ? ` / ${objectifs.length}` : ''} {lang==='ar'?'هدف':'objectif(s)'}
+      </span>
     </div>
   );
 
