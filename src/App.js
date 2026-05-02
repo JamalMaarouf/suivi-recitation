@@ -708,16 +708,18 @@ export default function App() {
           </nav>
         )}
 
-        {/* FAB Recherche — mobile uniquement, non-parent, non-kiosk */}
+        {/* FAB Recherche — mobile uniquement, non-parent, non-kiosk
+            E1 mobile M1b — deplace de top:60 (chevauchait le bandeau alerte)
+            vers bas-droite (pattern mobile standard, accessible au pouce) */}
         {isMobile && user.role !== 'parent' && !kioskMode && (
           <button onClick={()=>setSearchOpen(true)}
             aria-label={lang==='ar'?'بحث':'Rechercher'}
             style={{
-              position:'fixed', top:60, right:14, zIndex:90,
-              width:44, height:44, borderRadius:22,
+              position:'fixed', bottom:80, right:14, zIndex:90,
+              width:52, height:52, borderRadius:26,
               background:'linear-gradient(135deg,#085041,#1D9E75)',
-              border:'none', color:'#fff', fontSize:20,
-              cursor:'pointer', boxShadow:'0 4px 12px rgba(8,80,65,0.35)',
+              border:'none', color:'#fff', fontSize:22,
+              cursor:'pointer', boxShadow:'0 6px 16px rgba(8,80,65,0.40)',
               display:'flex', alignItems:'center', justifyContent:'center',
             }}>
             🔍
