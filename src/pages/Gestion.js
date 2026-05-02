@@ -3598,14 +3598,17 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
               {lang==='ar'?'عرض الطلاب النشطين فقط':'Afficher uniquement les élèves actifs'}
             </label>
             <div style={{fontSize:12,color:'#888',marginBottom:8,paddingLeft:4}}>
-              {eleves.filter(e => (!afficherUniquementActifs || !e.suspendu_at) && (!searchEleve||`${e.prenom} ${e.nom} ${e.eleve_id_ecole||''}`.toLowerCase().includes((searchEleve||'').toLowerCase()))).length} {lang==='ar'?'طالب':'élève(s)'}
+              {eleves.filter(e => (!afficherUniquementActifs || !e.suspendu_at) && (!searchEleve||`${e.prenom} ${e.nom} ${e.eleve_id_ecole||''} ${e.telephone||''}`.toLowerCase().includes((searchEleve||'').toLowerCase()))).length} {lang==='ar'?'طالب':'élève(s)'}
             </div>
 
             {/* Liste élèves */}
-            {eleves.filter(e => (!afficherUniquementActifs || !e.suspendu_at) && (!searchEleve||`${e.prenom} ${e.nom} ${e.eleve_id_ecole||''}`.toLowerCase().includes((searchEleve||'').toLowerCase()))).map(e=>{
+            {eleves.filter(e => (!afficherUniquementActifs || !e.suspendu_at) && (!searchEleve||`${e.prenom} ${e.nom} ${e.eleve_id_ecole||''} ${e.telephone||''}`.toLowerCase().includes((searchEleve||'').toLowerCase()))).map(e=>{
               const nc=getNC(e.code_niveau);
               const isSour=isSourateNiveauDyn(e.code_niveau,niveauxActifs||[]);
               const inst=instituteurs.find(i=>i.id===e.instituteur_referent_id);
+              // M2b — Resoudre email parent depuis liens
+              const parentLie = (parents||[]).find(p => (p.eleve_ids||[]).includes(e.id));
+              const emailParent = parentLie?.email || null;
               return(
                 <div key={e.id} style={{background:'#fff',borderRadius:12,padding:'12px 14px',marginBottom:8,border:'0.5px solid #e0e0d8',display:'flex',alignItems:'center',gap:10,boxShadow:'0 1px 3px rgba(0,0,0,0.04)',opacity:e.suspendu_at?0.65:1}}>
                   <div onClick={()=>navigate('fiche',e,{tab})} style={{cursor:'pointer',width:40,height:40,borderRadius:'50%',background:`${nc}20`,color:nc,display:'flex',alignItems:'center',justifyContent:'center',fontWeight:800,fontSize:13,flexShrink:0}}>
@@ -3627,10 +3630,16 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
                       {isSour&&e.sourates_acquises>0&&<span style={{fontSize:10,color:'#1D9E75',fontWeight:600}}>📖 {e.sourates_acquises}</span>}
                       {!isSour&&<span style={{fontSize:10,color:'#888'}}>H.{e.hizb_depart} T.{e.tomon_depart}</span>}
                     </div>
-                    {(e.telephone||e.date_inscription)&&(
-                      <div style={{display:'flex',gap:8,marginTop:2,fontSize:10,color:'#aaa'}}>
-                        {e.telephone&&<span>📞 {e.telephone}</span>}
-                        {e.date_inscription&&<span>📅 {new Date(e.date_inscription).toLocaleDateString(lang==='ar'?'ar-MA':'fr-FR',{day:'2-digit',month:'short'})}</span>}
+                    {/* M2b — Coordonnees : tel eleve + email parent + date inscription */}
+                    {(e.telephone||emailParent||e.date_inscription)&&(
+                      <div style={{display:'flex',gap:8,marginTop:3,fontSize:10,color:'#aaa',flexWrap:'wrap',alignItems:'center'}}>
+                        {e.telephone&&<span style={{whiteSpace:'nowrap'}}>📞 {e.telephone}</span>}
+                        {emailParent && (
+                          <span title={emailParent} style={{whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis',maxWidth:160,display:'inline-block'}}>
+                            ✉️ {emailParent}
+                          </span>
+                        )}
+                        {e.date_inscription&&<span style={{whiteSpace:'nowrap'}}>📅 {new Date(e.date_inscription).toLocaleDateString(lang==='ar'?'ar-MA':'fr-FR',{day:'2-digit',month:'short'})}</span>}
                       </div>
                     )}
                   </div>
@@ -3832,7 +3841,16 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
                           </span>
                         )}
                       </div>
-                      <div style={{fontSize:11,color:'#888',marginTop:1}}>{p.telephone||p.identifiant}</div>
+                      {/* M2c — Coordonnees claires : ID + Tel + Email */}
+                      <div style={{fontSize:10,color:'#aaa',marginTop:2,display:'flex',gap:8,flexWrap:'wrap',alignItems:'center'}}>
+                        <span style={{whiteSpace:'nowrap'}}>🆔 {p.identifiant}</span>
+                        {p.telephone && <span style={{whiteSpace:'nowrap'}}>📞 {p.telephone}</span>}
+                        {p.email && (
+                          <span title={p.email} style={{whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis',maxWidth:160,display:'inline-block'}}>
+                            ✉️ {p.email}
+                          </span>
+                        )}
+                      </div>
                     </div>
                     {user.role==='surveillant'&&(
                       <div style={{display:'flex',gap:5,flexWrap:'wrap'}}>
@@ -3851,13 +3869,19 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
                       </div>
                     )}
                   </div>
+                  {/* M2c — Badges enfants : eviter redondance noms si meme nom de famille */}
                   {enfants.length>0&&(
                     <div style={{marginTop:8,display:'flex',gap:5,flexWrap:'wrap'}}>
-                      {enfants.map(e=>{const nc=getNC(e.code_niveau);return(
-                        <span key={e.id} style={{padding:'2px 8px',borderRadius:20,fontSize:10,fontWeight:600,background:`${nc}15`,color:nc}}>
-                          {e.prenom} {e.nom}
-                        </span>
-                      );})}
+                      {enfants.map(e=>{
+                        const nc=getNC(e.code_niveau);
+                        // Si meme nom de famille que parent : afficher juste le prenom
+                        const labelEnfant = (p.nom && e.nom === p.nom) ? e.prenom : `${e.prenom} ${e.nom}`;
+                        return(
+                          <span key={e.id} style={{padding:'2px 8px',borderRadius:20,fontSize:10,fontWeight:600,background:`${nc}15`,color:nc}}>
+                            {labelEnfant}
+                          </span>
+                        );
+                      })}
                     </div>
                   )}
                 </div>
