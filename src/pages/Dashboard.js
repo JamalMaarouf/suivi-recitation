@@ -330,6 +330,11 @@ export default function Dashboard({ user, navigate, goBack, lang, isMobile=false
       {icon:'📋', label:lang==='ar'?'التقرير الشهري':'Rapport',     sub:lang==='ar'?'إحصائيات':'Statistiques',     page:'rapport_mensuel',    color:'#374151', bg:'#F3F4F6', role:'surveillant'},
       {icon:'📊', label:lang==='ar'?'لوحة القيادة':'Direction',     sub:lang==='ar'?'تحليلات':'Analytics',     page:'dashboard_direction', color:'#085041', bg:'#E1F5EE', role:'surveillant'},
       {icon:'📈', label:lang==='ar'?'مقارنة':'Comparer',            sub:lang==='ar'?'بين الطلاب':'Élèves',         page:'comparaison',        color:'#534AB7', bg:'#EEEDFE'},
+      // E1 mobile M1a — 4 menus manquants vs PC (alignement navbar)
+      {icon:'📅', label:lang==='ar'?'التقويم':'Calendrier',         sub:lang==='ar'?'البرنامج':'Planning',          page:'calendrier',         color:'#378ADD', bg:'#E6F1FB'},
+      {icon:'📚', label:lang==='ar'?'الدروس':'Cours',                sub:lang==='ar'?'متابعة':'Suivi',               page:'cours',              color:'#378ADD', bg:'#E6F1FB'},
+      {icon:'📅', label:lang==='ar'?'الحضور':'Assiduité',           sub:lang==='ar'?'الغياب':'Présences',           page:'assiduite',          color:'#1D9E75', bg:'#E1F5EE', role:'surveillant'},
+      {icon:'👨‍👩‍👧', label:lang==='ar'?'الأولياء':'Parents',          sub:lang==='ar'?'متابعة':'Suivi',               page:'parents',            color:'#534AB7', bg:'#EEEDFE', role:'surveillant'},
     ].filter(m => !m.role || user.role===m.role);
 
     const podiumColors = ['#EF9F27','#B0B0B0','#CD7F32'];
