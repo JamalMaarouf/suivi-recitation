@@ -3685,6 +3685,11 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
                 </div>
                 <FI label={lang==='ar'?'كلمة المرور':'Mot de passe *'} val={newInst.mot_de_passe} type="password" ph="••••••••"
                   onChange={e=>setNewInst(x=>({...x,mot_de_passe:e.target.value}))}/>
+                {/* M2a — Telephone et Email (alignement avec PC) */}
+                <FI label={lang==='ar'?'الهاتف':'Téléphone'} val={newInst.telephone||''} type="tel" ph="06XXXXXXXX"
+                  onChange={e=>setNewInst(x=>({...x,telephone:e.target.value}))}/>
+                <FI label={lang==='ar'?'البريد الإلكتروني':'Email'} val={newInst.email||''} type="email" ph="prof@email.com"
+                  onChange={e=>setNewInst(x=>({...x,email:e.target.value}))}/>
                 <div style={{display:'flex',gap:8}}>
                   <button onClick={()=>setShowFormInst(false)} style={{flex:1,padding:'13px',background:'#f5f5f0',color:'#666',border:'none',borderRadius:12,fontSize:14,fontWeight:600,cursor:'pointer',fontFamily:'inherit'}}>{lang==='ar'?'إلغاء':'Annuler'}</button>
                   <button onClick={async()=>{await ajouterInstituteur();setShowFormInst(false);}} style={{flex:2,padding:'13px',background:'#085041',color:'#fff',border:'none',borderRadius:12,fontSize:14,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>{lang==='ar'?'حفظ':'Enregistrer'}</button>
@@ -3726,6 +3731,17 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
                       )}
                     </div>
                     <div style={{fontSize:11,color:'#888',marginTop:2}}>{inst.identifiant} · {nb} {lang==='ar'?'طالب':'élève(s)'}</div>
+                    {/* M2a — Coordonnees Tel + Email (alignement avec PC) */}
+                    {(inst.telephone||inst.email)&&(
+                      <div style={{display:'flex',gap:10,marginTop:3,fontSize:10,color:'#aaa',flexWrap:'wrap',alignItems:'center'}}>
+                        {inst.telephone && <span style={{whiteSpace:'nowrap'}}>📞 {inst.telephone}</span>}
+                        {inst.email && (
+                          <span title={inst.email} style={{whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis',maxWidth:180,display:'inline-block'}}>
+                            ✉️ {inst.email}
+                          </span>
+                        )}
+                      </div>
+                    )}
                   </div>
                   {user.role==='surveillant'&&(
                     <div style={{display:'flex',gap:5,flexShrink:0}}>
