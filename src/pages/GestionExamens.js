@@ -600,6 +600,22 @@ export default function GestionExamens({ user, navigate, goBack, lang='fr', isMo
               </div>
             ))}
           </div>
+          {/* M3b — Recherche par nom (alignement avec PC E2b) */}
+          {examens.length > 0 && (
+            <div style={{marginTop:8}}>
+              <input type="text"
+                value={searchExam}
+                onChange={e => setSearchExam(e.target.value)}
+                placeholder={'🔍 ' + (lang === 'ar' ? 'بحث عن امتحان...' : 'Rechercher un examen')}
+                style={{
+                  width:'100%', padding:'8px 12px', fontSize:13,
+                  borderRadius:10, border:'1px solid rgba(255,255,255,0.3)',
+                  fontFamily:'inherit', outline:'none',
+                  background:'rgba(255,255,255,0.15)', color:'#fff',
+                  boxSizing:'border-box',
+                }}/>
+            </div>
+          )}
           {/* Export mobile */}
           {examsFiltres.length > 0 && (
             <div style={{display:'flex',gap:6,marginTop:8}}>
