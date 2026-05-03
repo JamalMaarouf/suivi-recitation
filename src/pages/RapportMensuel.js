@@ -263,6 +263,9 @@ export default function RapportMensuel({ user, navigate, goBack, lang='fr', isMo
       />
       )}
 
+      {/* M4 — Wrapper padding mobile (avant : contenu touchait les bords) */}
+      <div style={{padding: isMobile?'0 12px':0}}>
+
       {loading ? <div style={{textAlign:'center',padding:'3rem',color:'#888'}}>...</div> : (
         <>
           {/* KPIs */}
@@ -466,6 +469,7 @@ export default function RapportMensuel({ user, navigate, goBack, lang='fr', isMo
           )}
         </>
       )}
+      </div>
     </div>
   );
 }

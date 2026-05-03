@@ -77,6 +77,8 @@ export default function Calendrier({ user, navigate, goBack, lang='fr', isMobile
           lang={lang}
         />
       )}
+      {/* M4 — Container avec padding mobile (avant : contenu touchait les bords) */}
+      <div style={{padding:isMobile?'0 12px':0}}>
       <div style={{display:'grid',gridTemplateColumns:'repeat(3,minmax(0,1fr))',gap:8,marginBottom:'1.25rem'}}>
         <StatsCard label={t(lang,'tomon_recites')}      value={tomonMois}       color="green" />
         <StatsCard label={t(lang,'hizb_complets_label')} value={hizbMois}        color="blue"  />
@@ -154,6 +156,7 @@ export default function Calendrier({ user, navigate, goBack, lang='fr', isMobile
           )}
         </>
       )}
+      </div>
     </div>
   );
 }

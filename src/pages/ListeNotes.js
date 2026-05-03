@@ -245,6 +245,9 @@ export default function ListeNotes({ user, navigate, goBack, lang='fr', isMobile
       />
       )}
 
+      {/* M4 — Wrapper padding mobile (avant : contenu touchait les bords) */}
+      <div style={{padding: isMobile?'0 12px':0}}>
+
       {/* Sélecteur période - Etape 14 v2 - Composant hybride */}
       {(() => {
         // Boutons rapides Liste Notes : [Total] [Ce mois] [T en cours]
@@ -385,6 +388,7 @@ export default function ListeNotes({ user, navigate, goBack, lang='fr', isMobile
           </table>
         </div>
       )}
+      </div>
     </div>
   );
 }
