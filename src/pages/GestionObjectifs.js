@@ -671,16 +671,20 @@ export default function GestionObjectifs({ user, navigate, goBack, lang='fr', is
           </div>
         ))}
       </div>
-      {/* E2e — Recherche par cible */}
-      {!isMobile && objectifs.length > 0 && (
+      {/* M3a — Recherche par cible (visible sur mobile aussi) */}
+      {objectifs.length > 0 && (
         <input type="text"
           value={searchObj}
           onChange={e => setSearchObj(e.target.value)}
           placeholder={'🔍 ' + (lang === 'ar' ? 'بحث (طالب أو مستوى)' : 'Rechercher (élève ou niveau)')}
           style={{
-            flex:1, minWidth:180, padding:'6px 12px', fontSize:12,
-            borderRadius:20, border:'0.5px solid #e0e0d8',
+            flex: isMobile ? '1 0 100%' : 1,
+            minWidth: isMobile ? 'auto' : 180,
+            padding: isMobile ? '8px 12px' : '6px 12px',
+            fontSize: isMobile ? 13 : 12,
+            borderRadius: 20, border:'0.5px solid #e0e0d8',
             fontFamily:'inherit', outline:'none', background:'#f9f9f6',
+            marginTop: isMobile ? 6 : 0,
           }}/>
       )}
       <span style={{fontSize:12,color:'#888',whiteSpace:'nowrap'}}>

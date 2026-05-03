@@ -405,8 +405,29 @@ export default function GestionEnsembles({ user, navigate, goBack, lang='fr', is
             <div style={{flex:1, fontSize:17, fontWeight:800, color:'#fff'}}>📦 {lang === 'ar' ? 'مجموعات السور' : 'Ensembles'}</div>
             <button onClick={openCreate} style={{background:'rgba(255,255,255,0.25)',border:'1px solid rgba(255,255,255,0.3)',borderRadius:10,padding:'8px 14px',color:'#fff',fontSize:13,fontWeight:700,cursor:'pointer',fontFamily:'inherit',flexShrink:0,whiteSpace:'nowrap'}}>+ {lang==='ar'?'إضافة':'Ajouter'}</button>
           </div>
+          {/* M3b — Recherche par nom (alignement avec PC E2d) */}
+          {ensembles.length > 0 && (
+            <div style={{marginTop:10}}>
+              <input type="text"
+                value={searchEns}
+                onChange={e => setSearchEns(e.target.value)}
+                placeholder={'🔍 ' + (lang === 'ar' ? 'بحث عن مجموعة...' : 'Rechercher un ensemble')}
+                style={{
+                  width:'100%', padding:'8px 12px', fontSize:13,
+                  borderRadius:10, border:'1px solid rgba(255,255,255,0.3)',
+                  fontFamily:'inherit', outline:'none',
+                  background:'rgba(255,255,255,0.15)', color:'#fff',
+                  boxSizing:'border-box',
+                }}/>
+            </div>
+          )}
         </div>
         <div style={{ padding: '12px' }}>
+          {!loading && ensembles.length > 0 && (
+            <div style={{fontSize:12,color:'#888',marginBottom:10,paddingLeft:4}}>
+              {totalFiltre} / {ensembles.length} {lang === 'ar' ? 'مجموعة' : 'ensemble(s)'}
+            </div>
+          )}
           {loading && <div style={{ textAlign: 'center', padding: '2rem', color: '#888' }}>...</div>}
           {!loading && ensembles.length === 0 && (
             <div style={{ textAlign: 'center', color: '#aaa', padding: '3rem', background: '#fff', borderRadius: 12 }}>
@@ -414,7 +435,8 @@ export default function GestionEnsembles({ user, navigate, goBack, lang='fr', is
               <div>{lang === 'ar' ? 'لا توجد مجموعات بعد' : 'Aucun ensemble configuré'}</div>
             </div>
           )}
-          {!loading && groupes.map(({ niv, items }) => (
+          {/* M3b — Utiliser groupesFiltres (avec recherche) au lieu de groupes */}
+          {!loading && groupesFiltres.map(({ niv, items }) => (
             <div key={niv.id} style={{ marginBottom: 16 }}>
               <div style={{ fontSize: 11, fontWeight: 700, color: niv.couleur, marginBottom: 8, padding: '3px 12px', borderRadius: 20, background: `${niv.couleur}15`, display: 'inline-block', border: `1px solid ${niv.couleur}30` }}>
                 {niv.code} — {niv.nom}

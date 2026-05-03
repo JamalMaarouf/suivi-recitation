@@ -317,44 +317,41 @@ export default function GestionCours({ user, navigate, goBack, lang, isMobile })
               </div>
             ) : (
               <>
-                {/* E2a — Bandeau filtres + compteur dynamique */}
-                {!isMobile && (
-                  <div style={{
-                    display:'flex', gap:10, marginBottom:12, flexWrap:'wrap',
-                    padding:'10px 12px', background:'#fff',
-                    border:'0.5px solid #e0e0d8', borderRadius:12,
-                    alignItems:'center',
-                  }}>
-                    <input type="text"
-                      value={searchCours}
-                      onChange={e => setSearchCours(e.target.value)}
-                      placeholder={'🔍 ' + (lang === 'ar' ? 'بحث عن درس...' : 'Rechercher un cours (nom, catégorie)')}
-                      style={{
-                        flex:1, minWidth:200, padding:'7px 12px', fontSize:13,
-                        borderRadius:8, border:'0.5px solid #e0e0d8',
-                        fontFamily:'inherit', outline:'none', background:'#f9f9f6',
-                      }}/>
+                {/* M3a — Bandeau filtres + compteur dynamique (visible mobile aussi) */}
+                <div style={{
+                  display:'flex', gap:10, marginBottom:12, flexWrap:'wrap',
+                  padding: isMobile ? '8px 10px' : '10px 12px', background:'#fff',
+                  border:'0.5px solid #e0e0d8', borderRadius:12,
+                  alignItems:'center',
+                }}>
+                  <input type="text"
+                    value={searchCours}
+                    onChange={e => setSearchCours(e.target.value)}
+                    placeholder={'🔍 ' + (lang === 'ar' ? 'بحث عن درس...' : 'Rechercher un cours')}
+                    style={{
+                      flex:1, minWidth: isMobile ? 'auto' : 200,
+                      padding:'7px 12px', fontSize:13,
+                      borderRadius:8, border:'0.5px solid #e0e0d8',
+                      fontFamily:'inherit', outline:'none', background:'#f9f9f6',
+                    }}/>
+                </div>
+                <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:8,flexWrap:'wrap',gap:8}}>
+                  <div style={{fontSize:13,fontWeight:600,color:'#085041'}}>
+                    {lang === 'ar' ? 'الدروس' : 'Cours'}
+                    {' '}
+                    <span style={{fontWeight:500,color:'#888'}}>
+                      ({cours.filter(c =>
+                        !searchCours
+                        || (c.nom_fr || '').toLowerCase().includes(searchCours.toLowerCase())
+                        || (c.nom_ar || '').toLowerCase().includes(searchCours.toLowerCase())
+                        || (c.nom_en || '').toLowerCase().includes(searchCours.toLowerCase())
+                        || (c.categorie || '').toLowerCase().includes(searchCours.toLowerCase())
+                      ).length}
+                      {cours.length > 0 ? ` / ${cours.length}` : ''}
+                      )
+                    </span>
                   </div>
-                )}
-                {!isMobile && (
-                  <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:8,flexWrap:'wrap',gap:8}}>
-                    <div style={{fontSize:13,fontWeight:600,color:'#085041'}}>
-                      {lang === 'ar' ? 'الدروس' : 'Cours'}
-                      {' '}
-                      <span style={{fontWeight:500,color:'#888'}}>
-                        ({cours.filter(c =>
-                          !searchCours
-                          || (c.nom_fr || '').toLowerCase().includes(searchCours.toLowerCase())
-                          || (c.nom_ar || '').toLowerCase().includes(searchCours.toLowerCase())
-                          || (c.nom_en || '').toLowerCase().includes(searchCours.toLowerCase())
-                          || (c.categorie || '').toLowerCase().includes(searchCours.toLowerCase())
-                        ).length}
-                        {cours.length > 0 ? ` / ${cours.length}` : ''}
-                        )
-                      </span>
-                    </div>
-                  </div>
-                )}
+                </div>
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                 {cours.filter(c =>

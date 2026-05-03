@@ -1065,6 +1065,23 @@ export default function GestionNiveaux({ user, navigate, goBack, lang='fr', isMo
         </div>
 
         <div style={{padding:'12px'}}>
+          {/* M3a — Bandeau compteur + exports (alignement avec PC E1f) */}
+          {!loading && niveaux.length > 0 && (
+            <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:10,gap:8,flexWrap:'wrap'}}>
+              <div style={{fontSize:13,fontWeight:600,color:'#085041'}}>
+                {lang==='ar'?'المستويات':'Niveaux'}
+                {' '}
+                <span style={{fontWeight:500,color:'#888'}}>({niveaux.length})</span>
+              </div>
+              <ExportButtons
+                onPDF={exportNiveauxPDF}
+                onExcel={exportNiveauxExcel}
+                lang={lang}
+                variant="inline"
+                compact
+              />
+            </div>
+          )}
           {/* Formulaire */}
           {showForm && (
             <div style={{background:'#fff',borderRadius:16,padding:'18px',marginBottom:14,
