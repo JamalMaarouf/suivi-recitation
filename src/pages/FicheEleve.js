@@ -459,37 +459,225 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang, isMobi
 
   const handlePrint = async () => {
     if (!etat) return;
+    const w = window.open('', '_blank', 'width=900,height=700');
+    if (!w) {
+      alert(lang === 'ar' ? 'يرجى السماح بالنوافذ المنبثقة' : 'Autorisez les popups pour imprimer');
+      return;
+    }
     try {
       const pts = etat.points || {};
-      // Préparer le payload pour l'API PDF serveur
-      const payload = {
-        eleve: {
-          prenom: eleve.prenom,
-          nom: eleve.nom,
-          code_niveau: eleve.code_niveau,
-          eleve_id_ecole: eleve.eleve_id_ecole,
-        },
-        stats: {
-          totalPts: pts.total || 0,
-          tomon: etat.tomonTotal || etat.tomonCumul || 0,
-          hizb: etat.hizbsComplets?.size || 0,
-          jours: (validations || []).reduce((set, v) => {
-            if (v.date_validation) set.add(String(v.date_validation).slice(0, 10));
-            return set;
-          }, new Set()).size,
-        },
-        validations: (validations || []).slice(0, 30).map(v => ({
-          date_validation: v.date_validation,
-          type_validation: v.type_validation,
-          nombre_tomon: v.nombre_tomon,
-          points: v.type_validation === 'hizb_complet' ? (baremeEleve?.hizb_complet || 0) : (v.nombre_tomon || 0) * (baremeEleve?.tomon || 0),
-        })),
-        ecole: { nom: user?.ecole?.nom || '' },
+      const sl = sLevel || {bg:'#fff',color:'#085041',label:'—'};
+      const isRTL = lang === 'ar';
+      const now = new Date();
+      const dateGen = now.toLocaleDateString('fr-FR', {day:'2-digit', month:'long', year:'numeric'});
+      const ecoleNom = user?.ecole?.nom || '';
+
+      // Helpers HTML
+      const esc = s => String(s||'').replace(/[<>&"']/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;',"'":'&#39;'}[c]));
+      const fmtDate = (d) => {
+        if (!d) return '—';
+        try { return new Date(d).toLocaleDateString('fr-FR', {day:'2-digit', month:'2-digit', year:'numeric'}); } catch { return '—'; }
       };
-      await openPDF('fiche_eleve', payload, lang);
+      const tomonTotal = etat.tomonTotal || etat.tomonCumul || 0;
+      const hizbComplets = etat.hizbsComplets?.size || 0;
+      const ptsExamens = (examens||[]).reduce((s,e)=>s+(e.score||0),0);
+      const ptsCertificats = (certificats||[]).length * 50;
+
+      // ── KPI cards (les 4 nouvelles refondues) ──
+      const kpiCards = [
+        {label: isRTL?'الأثمان':'Tomon', val: tomonTotal, sub: `${pts.ptsTomon||0} pts`, color:'#378ADD', bg:'#E6F1FB'},
+        {label: isRTL?'الأحزاب':'Hizb', val: hizbComplets, sub: `${pts.ptsHizb||0} pts`, color:'#085041', bg:'#E1F5EE'},
+        {label: isRTL?'الامتحانات':'Examens', val: (examens||[]).length, sub: ptsExamens>0 ? `+${ptsExamens} pts` : '—', color:'#EF9F27', bg:'#FAEEDA'},
+        {label: isRTL?'الشهادات':'Certificats', val: (certificats||[]).length, sub: ptsCertificats>0 ? `+${ptsCertificats} pts` : '—', color:'#D85A30', bg:'#FAECE7'},
+      ].map(k => `
+        <div style="background:${k.bg};border-radius:8px;padding:12px;text-align:center;border:0.5px solid ${k.color}40">
+          <div style="font-size:22px;font-weight:800;color:${k.color}">${k.val}</div>
+          <div style="font-size:11px;color:#666;margin-top:2px">${esc(k.label)}</div>
+          <div style="font-size:10px;color:${k.color};opacity:0.85;margin-top:2px">${esc(k.sub)}</div>
+        </div>
+      `).join('');
+
+      // ── Dernières récitations (20) ──
+      const dernieresRecits = (validations||[]).slice(0, 20).map(v => {
+        const type = v.type_validation === 'hizb_complet'
+          ? (isRTL?'حزب كامل':'Hizb complet')
+          : (isRTL?'ثُمن':'Tomon');
+        const points = v.type_validation === 'hizb_complet'
+          ? (baremeEleve?.hizb_complet || 0)
+          : (v.nombre_tomon || 0) * (baremeEleve?.tomon || 0);
+        return `<tr>
+          <td style="padding:6px 8px;border-bottom:1px solid #f0f0ec;font-size:10px;color:#666">${fmtDate(v.date_validation)}</td>
+          <td style="padding:6px 8px;border-bottom:1px solid #f0f0ec;font-size:10px">${esc(type)}</td>
+          <td style="padding:6px 8px;border-bottom:1px solid #f0f0ec;font-size:10px;text-align:center">${v.nombre_tomon||1}</td>
+          <td style="padding:6px 8px;border-bottom:1px solid #f0f0ec;font-size:10px;text-align:end;font-weight:600;color:#085041">+${points}</td>
+        </tr>`;
+      }).join('');
+
+      // ── Examens ──
+      const examensRows = (examens||[]).map(e => `<tr>
+        <td style="padding:6px 8px;border-bottom:1px solid #f0f0ec;font-size:10px;color:#666">${fmtDate(e.date_examen)}</td>
+        <td style="padding:6px 8px;border-bottom:1px solid #f0f0ec;font-size:10px">${esc(e.nom||e.type||'—')}</td>
+        <td style="padding:6px 8px;border-bottom:1px solid #f0f0ec;font-size:10px;text-align:center">${e.score||0}/${e.score_max||100}</td>
+        <td style="padding:6px 8px;border-bottom:1px solid #f0f0ec;font-size:10px;text-align:end;color:${(e.score||0)>=(e.score_max||100)*0.5 ? '#085041' : '#E24B4A'};font-weight:600">${(e.score||0)>=(e.score_max||100)*0.5 ? '✓' : '✗'}</td>
+      </tr>`).join('');
+
+      // ── Certificats ──
+      const certificatsRows = (certificats||[]).map(c => `<tr>
+        <td style="padding:6px 8px;border-bottom:1px solid #f0f0ec;font-size:10px;color:#666">${fmtDate(c.date_emission||c.created_at)}</td>
+        <td style="padding:6px 8px;border-bottom:1px solid #f0f0ec;font-size:10px">${esc(c.titre||c.type||(isRTL?'شهادة':'Certificat'))}</td>
+        <td style="padding:6px 8px;border-bottom:1px solid #f0f0ec;font-size:10px;text-align:end;font-weight:600;color:#D85A30">+50 pts</td>
+      </tr>`).join('');
+
+      // ── Passages de niveau ──
+      const passagesRows = (passages||[]).map(p => `<tr>
+        <td style="padding:6px 8px;border-bottom:1px solid #f0f0ec;font-size:10px;color:#666">${fmtDate(p.date_passage)}</td>
+        <td style="padding:6px 8px;border-bottom:1px solid #f0f0ec;font-size:10px">${esc(p.niveau_from||'—')} → ${esc(p.niveau_to||'—')}</td>
+        <td style="padding:6px 8px;border-bottom:1px solid #f0f0ec;font-size:10px;text-align:end;color:#534AB7">${esc(p.note||'')}</td>
+      </tr>`).join('');
+
+      const html = `<!DOCTYPE html><html dir="${isRTL?'rtl':'ltr'}" lang="${isRTL?'ar':'fr'}">
+<head><meta charset="UTF-8"><title>${esc(eleve.prenom)} ${esc(eleve.nom)} — ${isRTL?'بطاقة الطالب':'Fiche élève'}</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:Tajawal,Arial,sans-serif;padding:14px;font-size:11px;color:#1a1a1a;background:#fff}
+  .header{background:linear-gradient(135deg,#085041,#1D9E75);color:#fff;padding:14px 18px;border-radius:10px;margin-bottom:14px;display:flex;justify-content:space-between;align-items:flex-start}
+  .header h1{font-size:18px;font-weight:800;margin-bottom:4px}
+  .header .meta{font-size:11px;opacity:0.9}
+  .header-right{text-align:end;font-size:10px;opacity:0.85}
+  .section{margin-bottom:16px;page-break-inside:avoid}
+  .section-title{font-size:13px;font-weight:700;color:#085041;border-bottom:2px solid #1D9E75;padding-bottom:4px;margin-bottom:10px}
+  .kpi-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+  .info-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;font-size:11px}
+  .info-card{background:#f9f9f6;border-radius:6px;padding:8px 10px;border:0.5px solid #e0e0d8}
+  .info-label{font-size:9px;color:#888;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:2px}
+  .info-val{font-size:13px;font-weight:600;color:#1a1a1a}
+  table{width:100%;border-collapse:collapse;background:#fff;border:0.5px solid #e0e0d8;border-radius:6px;overflow:hidden}
+  thead th{background:#085041;color:#fff;padding:7px 8px;text-align:start;font-size:10px;font-weight:600;letter-spacing:0.3px}
+  tbody tr:nth-child(even){background:#fafaf7}
+  .empty{padding:14px;text-align:center;color:#aaa;font-size:11px;font-style:italic}
+  .badge{display:inline-block;padding:2px 8px;border-radius:20px;font-size:10px;font-weight:600;background:#E1F5EE;color:#085041;margin-${isRTL?'left':'right'}:6px}
+  .footer{margin-top:18px;font-size:9px;color:#aaa;border-top:1px solid #e0e0d8;padding-top:8px;text-align:center}
+  @media print{
+    body{padding:8px}
+    .section{page-break-inside:avoid}
+    @page{size:A4;margin:10mm}
+  }
+</style></head><body>
+
+<div class="header">
+  <div>
+    <h1>${esc(eleve.prenom)} ${esc(eleve.nom)}</h1>
+    <div class="meta">
+      ${esc(eleve.eleve_id_ecole||'—')} ·
+      ${isRTL?'المستوى':'Niveau'} ${esc(eleve.code_niveau||'—')}
+      ${eleve.date_inscription?` · ${isRTL?'مسجّل منذ':'Inscrit depuis'} ${fmtDate(eleve.date_inscription)}`:''}
+    </div>
+  </div>
+  <div class="header-right">
+    ${ecoleNom ? `<div style="font-weight:600;font-size:12px">${esc(ecoleNom)}</div>` : ''}
+    <div>${isRTL?'تاريخ التوليد':'Édité le'} ${esc(dateGen)}</div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="section-title">📊 ${isRTL?'لوحة المؤشرات':'Tableau de bord'}</div>
+  <div class="kpi-grid">${kpiCards}</div>
+  <div style="margin-top:10px;text-align:center;background:#085041;color:#fff;padding:8px 14px;border-radius:6px;font-size:13px;font-weight:700">
+    ${isRTL?'مجموع النقاط':'Total des points'} : ${(pts.total||0).toLocaleString()} ${isRTL?'ن':'pts'}
+  </div>
+</div>
+
+<div class="section">
+  <div class="section-title">📋 ${isRTL?'المعلومات':'Informations'}</div>
+  <div class="info-grid">
+    <div class="info-card">
+      <div class="info-label">${isRTL?'حزب الانطلاق':'Hizb de départ'}</div>
+      <div class="info-val">Hizb ${eleve.hizb_depart||'—'}</div>
+    </div>
+    <div class="info-card">
+      <div class="info-label">${isRTL?'ثُمن الانطلاق':'Tomon de départ'}</div>
+      <div class="info-val">T.${eleve.tomon_depart||'—'}</div>
+    </div>
+    <div class="info-card">
+      <div class="info-label">${isRTL?'الحزب الحالي':'Hizb en cours'}</div>
+      <div class="info-val">Hizb ${etat.hizbEnCours||'—'} (T.${etat.prochainTomon||'—'})</div>
+    </div>
+    ${eleve.telephone?`<div class="info-card"><div class="info-label">${isRTL?'الهاتف':'Téléphone'}</div><div class="info-val">${esc(eleve.telephone)}</div></div>`:''}
+    ${(passages||[]).length>0?`<div class="info-card"><div class="info-label">${isRTL?'الانتقالات':'Passages'}</div><div class="info-val">${(passages||[]).length} ${isRTL?'مستوى':'niveau(x)'}</div></div>`:''}
+  </div>
+</div>
+
+<div class="section">
+  <div class="section-title">📖 ${isRTL?'آخر الاستظهارات':'Dernières récitations'} (${(validations||[]).length>20?'20 / ':''}${(validations||[]).length})</div>
+  ${(validations||[]).length === 0
+    ? `<div class="empty">${isRTL?'لا توجد استظهارات':'Aucune récitation'}</div>`
+    : `<table>
+        <thead><tr>
+          <th>${isRTL?'التاريخ':'Date'}</th>
+          <th>${isRTL?'النوع':'Type'}</th>
+          <th style="text-align:center">${isRTL?'الكمية':'Nb'}</th>
+          <th style="text-align:end">${isRTL?'النقاط':'Points'}</th>
+        </tr></thead>
+        <tbody>${dernieresRecits}</tbody>
+      </table>`}
+</div>
+
+<div class="section">
+  <div class="section-title">📝 ${isRTL?'الامتحانات':'Examens'} (${(examens||[]).length})</div>
+  ${(examens||[]).length === 0
+    ? `<div class="empty">${isRTL?'لا توجد امتحانات':'Aucun examen'}</div>`
+    : `<table>
+        <thead><tr>
+          <th>${isRTL?'التاريخ':'Date'}</th>
+          <th>${isRTL?'الاسم':'Nom'}</th>
+          <th style="text-align:center">${isRTL?'النتيجة':'Score'}</th>
+          <th style="text-align:end">${isRTL?'الحالة':'Résultat'}</th>
+        </tr></thead>
+        <tbody>${examensRows}</tbody>
+      </table>`}
+</div>
+
+<div class="section">
+  <div class="section-title">🏅 ${isRTL?'الشهادات':'Certificats'} (${(certificats||[]).length})</div>
+  ${(certificats||[]).length === 0
+    ? `<div class="empty">${isRTL?'لا توجد شهادات':'Aucun certificat'}</div>`
+    : `<table>
+        <thead><tr>
+          <th>${isRTL?'التاريخ':'Date'}</th>
+          <th>${isRTL?'العنوان':'Titre'}</th>
+          <th style="text-align:end">${isRTL?'النقاط':'Points'}</th>
+        </tr></thead>
+        <tbody>${certificatsRows}</tbody>
+      </table>`}
+</div>
+
+${(passages||[]).length > 0 ? `
+<div class="section">
+  <div class="section-title">🎓 ${isRTL?'الانتقالات':'Passages de niveau'}</div>
+  <table>
+    <thead><tr>
+      <th>${isRTL?'التاريخ':'Date'}</th>
+      <th>${isRTL?'الانتقال':'Passage'}</th>
+      <th style="text-align:end">${isRTL?'ملاحظة':'Note'}</th>
+    </tr></thead>
+    <tbody>${passagesRows}</tbody>
+  </table>
+</div>` : ''}
+
+<div class="footer">
+  ${isRTL?'تم الإنشاء بتاريخ':'Généré le'} ${esc(dateGen)} · متابعة التحفيظ — Suivi Récitation
+  ${ecoleNom?` · ${esc(ecoleNom)}`:''}
+</div>
+
+</body></html>`;
+
+      w.document.write(html);
+      w.document.close();
+      setTimeout(function () { w.print(); }, 600);
     } catch (e) {
-      console.error('PDF fiche élève:', e);
-      alert((lang === 'ar' ? 'خطأ في توليد PDF: ' : 'Erreur PDF : ') + e.message);
+      console.error('Erreur impression fiche élève:', e);
+      alert((lang === 'ar' ? 'خطأ في الطباعة: ' : 'Erreur impression : ') + e.message);
+      try { w.close(); } catch {}
     }
   };
 
@@ -1382,13 +1570,16 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang, isMobi
                   <div style={{fontSize:11,color:'#888'}}>{l}</div>
                 </div>
               )) : [
-                ['Tomon',etat?.points.ptsTomon,`${etat?.tomonTotal||etat?.tomonCumul}×${baremeEleve?.tomon||0}`],
-                ['Roboe',etat?.points.ptsRoboe,`${etat?.points.details?.nbRoboe}×25`],
-                ['Nisf',etat?.points.ptsNisf,`${etat?.points.details?.nbNisf}×60`],
-                ['Hizb',etat?.points.ptsHizb,`${etat?.points.details?.nbHizb}×${baremeEleve?.hizb_complet||0}`],
-              ].map(([l,v,s])=>(
-                <div key={l} style={{background:'#f9f9f6',borderRadius:8,padding:'10px',textAlign:'center'}}>
-                  <div style={{fontSize:18,fontWeight:700}}>{v}</div>
+                // Refonte KPIs (mai 2026) : Tomon + Hizb gardes (pertinents)
+                // Roboe et Nisf supprimes (subdivisions hardcodees obsoletes)
+                // Ajout Examens et Certificats (KPIs metier parlants)
+                ['Tomon', etat?.points.ptsTomon, `${etat?.tomonTotal||etat?.tomonCumul}×${baremeEleve?.tomon||0}`, '#378ADD', '#E6F1FB'],
+                ['Hizb', etat?.points.ptsHizb, `${etat?.points.details?.nbHizb}×${baremeEleve?.hizb_complet||0}`, '#085041', '#E1F5EE'],
+                [lang==='ar'?'الامتحانات':'Examens', examens.length, examens.length>0 ? `+${examens.reduce((s,e)=>s+(e.score||0),0)} pts` : '—', '#EF9F27', '#FAEEDA'],
+                [lang==='ar'?'الشهادات':'Certificats', certificats.length, certificats.length>0 ? `+${certificats.length*50} pts` : '—', '#D85A30', '#FAECE7'],
+              ].map(([l,v,s,color,bg])=>(
+                <div key={l} style={{background:bg,borderRadius:8,padding:'10px',textAlign:'center',border:`0.5px solid ${color}20`}}>
+                  <div style={{fontSize:18,fontWeight:700,color}}>{v}</div>
                   <div style={{fontSize:11,color:'#888'}}>{l}</div>
                   {s&&<div style={{fontSize:10,color:'#bbb'}}>{s}</div>}
                 </div>
