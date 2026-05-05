@@ -581,8 +581,16 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang, isMobi
 
   // Redirect 5B/5A AFTER all hooks are declared (React rules of hooks)
   // -- Passage de niveau --
-  const NIVEAUX_ORDRE = ['5B','5A','2M','2','1'];
-  const NIVEAUX_LABELS = {'5B':'Préscolaire (5B)','5A':'Primaire 1-2 (5A)','2M':'Primaire 3-4 (2M)','2':'Primaire 5-6 (2)','1':'Collège/Lycée (1)'};
+  // Bug fix : utiliser niveaux dynamiques de BDD (avant : hardcode 5B/5A/2M/2/1)
+  // Fallback hardcode conserve UNIQUEMENT pour les ecoles ayant des donnees historiques
+  // (eleves avec code_niveau hardcode mais BDD niveaux non encore peuplee)
+  const NIVEAUX_LABELS_FALLBACK = {'5B':'Préscolaire (5B)','5A':'Primaire 1-2 (5A)','2M':'Primaire 3-4 (2M)','2':'Primaire 5-6 (2)','1':'Collège/Lycée (1)'};
+  const NIVEAUX_ORDRE = (niveaux && niveaux.length > 0)
+    ? niveaux.map(n => n.code)
+    : ['5B','5A','2M','2','1']; // Fallback historique
+  const NIVEAUX_LABELS = (niveaux && niveaux.length > 0)
+    ? niveaux.reduce((acc, n) => { acc[n.code] = `${n.nom} (${n.code})`; return acc; }, {})
+    : NIVEAUX_LABELS_FALLBACK;
   const niveauActuelIdx = NIVEAUX_ORDRE.indexOf(eleve.code_niveau||'1');
   const niveauxDisponibles = NIVEAUX_ORDRE.filter(n=>n!==eleve.code_niveau);
 

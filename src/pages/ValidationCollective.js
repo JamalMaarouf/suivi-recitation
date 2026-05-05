@@ -6,14 +6,6 @@ import { getSouratesForNiveau } from '../lib/sourates';
 const NIVEAU_COLORS = { '5B':'#534AB7','5A':'#378ADD','2M':'#1D9E75','2':'#EF9F27','1':'#E24B4A' };
 const getNiveauColor = (code, niveaux=[]) => niveaux.find(n=>n.code===code)?.couleur || NIVEAU_COLORS[code] || '#888';
 
-const NIVEAUX = [
-  { code: '5B', label: 'Préscolaire (5B)',  labelAr: 'تمهيدي (5B)',        type: 'sourate' },
-  { code: '5A', label: 'Primaire 1-2 (5A)', labelAr: 'ابتدائي 1-2 (5A)',   type: 'sourate' },
-  { code: '2M', label: 'Primaire 3-4 (2M)', labelAr: 'ابتدائي 3-4 (2M)',   type: 'sourate' },
-  { code: '2',  label: 'Primaire 5-6 (2)',  labelAr: 'ابتدائي 5-6 (2)',    type: 'hizb' },
-  { code: '1',  label: 'Collège/Lycée (1)', labelAr: 'إعدادي/ثانوي (1)',   type: 'hizb' },
-];
-
 export default function ValidationCollective({ user, navigate, goBack, lang='fr', isMobile }) {
   const [step, setStep]             = useState(1);
   const [niveauxDB, setNiveauxDB]    = useState([]);
@@ -348,31 +340,57 @@ export default function ValidationCollective({ user, navigate, goBack, lang='fr'
           <div style={{fontSize:13,fontWeight:600,color:'#888',marginBottom:10,textAlign:'center'}}>
             {lang==='ar' ? 'اختر المستوى الدراسي' : 'Choisissez le niveau'}
           </div>
-          {/* Affiche niveaux DB ou fallback hardcodé pendant le chargement */}
-          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
-            {(niveauxDB.length > 0 ? niveauxDB : NIVEAUX.map(n=>({...n,nom:n.label}))).map(n=>{
-              const nc=getNiveauColor(n.code, niveauxDB);
-              return (
-                <div key={n.code} onClick={()=>{setSelectedNiveau(n.code);setStep(2);}}
-                  style={{display:'flex',alignItems:'center',gap:12,padding:'12px 14px',borderRadius:12,
-                    border:`1.5px solid ${nc}30`,background:`${nc}08`,cursor:'pointer',transition:'all 0.15s'}}
-                  onMouseEnter={e=>{e.currentTarget.style.background=`${nc}18`;e.currentTarget.style.borderColor=`${nc}60`;}}
-                  onMouseLeave={e=>{e.currentTarget.style.background=`${nc}08`;e.currentTarget.style.borderColor=`${nc}30`;}}>
-                  <div style={{width:40,height:40,borderRadius:10,background:`${nc}20`,color:nc,
-                    display:'flex',alignItems:'center',justifyContent:'center',fontWeight:800,fontSize:14,flexShrink:0}}>
-                    {n.code}
-                  </div>
-                  <div style={{flex:1,minWidth:0}}>
-                    <div style={{fontWeight:700,fontSize:13,color:'#1a1a1a'}}>{n.nom}</div>
-                    <div style={{fontSize:10,color:nc,marginTop:2,fontWeight:500}}>
-                      {n.type==='sourate'?(lang==='ar'?'📖 سور':'📖 Sourates'):(lang==='ar'?'📗 أثمان':'📗 Hizb')}
+          {/* Bug fix : si aucun niveau configure, afficher un message guide
+              au lieu d'afficher 5 niveaux hardcodes historiques */}
+          {niveauxDB.length === 0 ? (
+            <div style={{
+              background:'#FFFCF6', border:'1px solid #EF9F2730', borderRadius:12,
+              padding:'24px 20px', textAlign:'center',
+            }}>
+              <div style={{fontSize:36,marginBottom:8}}>📚</div>
+              <div style={{fontSize:14,fontWeight:700,color:'#1a1a1a',marginBottom:6}}>
+                {lang==='ar' ? 'لم يتم إعداد أي مستوى بعد' : 'Aucun niveau configuré'}
+              </div>
+              <div style={{fontSize:12,color:'#888',marginBottom:14,lineHeight:1.5}}>
+                {lang==='ar'
+                  ? 'لاستعمال المراجعة الجماعية، يجب أولاً إعداد المستويات في الإدارة.'
+                  : "Pour utiliser la Muraja'a collective, il faut d'abord créer les niveaux dans l'Administration."}
+              </div>
+              <button onClick={()=>navigate('niveaux')}
+                style={{
+                  padding:'9px 18px', background:'#085041', color:'#fff', border:'none',
+                  borderRadius:8, fontSize:12, fontWeight:700, cursor:'pointer',
+                  fontFamily:'inherit',
+                }}>
+                ⚙️ {lang==='ar' ? 'إعداد المستويات' : 'Configurer les niveaux'}
+              </button>
+            </div>
+          ) : (
+            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
+              {niveauxDB.map(n=>{
+                const nc=getNiveauColor(n.code, niveauxDB);
+                return (
+                  <div key={n.code} onClick={()=>{setSelectedNiveau(n.code);setStep(2);}}
+                    style={{display:'flex',alignItems:'center',gap:12,padding:'12px 14px',borderRadius:12,
+                      border:`1.5px solid ${nc}30`,background:`${nc}08`,cursor:'pointer',transition:'all 0.15s'}}
+                    onMouseEnter={e=>{e.currentTarget.style.background=`${nc}18`;e.currentTarget.style.borderColor=`${nc}60`;}}
+                    onMouseLeave={e=>{e.currentTarget.style.background=`${nc}08`;e.currentTarget.style.borderColor=`${nc}30`;}}>
+                    <div style={{width:40,height:40,borderRadius:10,background:`${nc}20`,color:nc,
+                      display:'flex',alignItems:'center',justifyContent:'center',fontWeight:800,fontSize:14,flexShrink:0}}>
+                      {n.code}
                     </div>
+                    <div style={{flex:1,minWidth:0}}>
+                      <div style={{fontWeight:700,fontSize:13,color:'#1a1a1a'}}>{n.nom}</div>
+                      <div style={{fontSize:10,color:nc,marginTop:2,fontWeight:500}}>
+                        {n.type==='sourate'?(lang==='ar'?'📖 سور':'📖 Sourates'):(lang==='ar'?'📗 أثمان':'📗 Hizb')}
+                      </div>
+                    </div>
+                    <span style={{color:`${nc}80`,fontSize:16}}>›</span>
                   </div>
-                  <span style={{color:`${nc}80`,fontSize:16}}>›</span>
-                </div>
-              );
-            })}
-          </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       )}
 
