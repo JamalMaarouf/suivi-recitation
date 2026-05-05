@@ -156,8 +156,8 @@ function PassageNiveauModal({ show, onClose, eleve, etat, user, lang, niveauxDis
             {estSourateActuel
               ? <div style={{color:'#1D9E75',fontWeight:600}}>📖 {nbSouratesCompletes} {lang==='ar'?'سورة مكتملة':'sourates complètes'}</div>
               : <>
-                  <div style={{color:'#555'}}>Tomon: <strong>{etat?.tomonCumul||0}</strong></div>
-                  <div style={{color:'#555'}}>Hizb ✓: <strong>{etat?.hizbsComplets?.size||0}</strong></div>
+                  <div style={{color:'#555'}}>{lang==='ar' ? 'ثُمن' : 'Tomon'}: <strong>{etat?.tomonCumul||0}</strong></div>
+                  <div style={{color:'#555'}}>{lang==='ar' ? 'حزب ✓' : 'Hizb ✓'}: <strong>{etat?.hizbsComplets?.size||0}</strong></div>
                 </>
             }
           </div>
@@ -619,7 +619,7 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang, isMobi
       // ── 5 dernieres recitations seulement ──
       const dernieresRecits = (validations||[]).slice(0, 5).map(v => {
         const type = v.type_validation === 'hizb_complet'
-          ? (isRTL?'حزب كامل':'Hizb complet')
+          ? (isRTL?'حزب كامل':(lang==='ar'?'حزب كامل':'Hizb complet'))
           : (isRTL?'ثُمن':'Tomon');
         const points = v.type_validation === 'hizb_complet'
           ? (baremeEleve?.hizb_complet || 0)
@@ -1296,7 +1296,7 @@ ${(passages||[]).length > 0 ? `
                     {label:lang==='ar'?'السور المكتملة':'Sourates complètes', val:recitationsSouratesEleve.filter(r=>r.type_recitation==='complete').length, color:'#1D9E75', bg:'#E1F5EE'},
                     {label:lang==='ar'?'المقاطع':'Séquences', val:recitationsSouratesEleve.filter(r=>r.type_recitation==='sequence').length, color:'#534AB7', bg:'#F0EEFF'},
                     {label:lang==='ar'?'المحفوظات':'Acquis', val:eleve.sourates_acquises||0, color:'#378ADD', bg:'#E6F1FB'},
-                    {label:'Total', val:totalPtsSourates||0, color:'#EF9F27', bg:'#FAEEDA'},
+                    {label:lang==='ar'?'المجموع':'Total', val:totalPtsSourates||0, color:'#EF9F27', bg:'#FAEEDA'},
                   ] : [
                     {label:lang==='ar'?'الثُّمن الحالي':'Tomon actuel', val:`T.${etat?.prochainTomon||'—'}`, color:'#1D9E75', bg:'#E1F5EE'},
                     {label:lang==='ar'?'الحزب الحالي':'Hizb en cours', val:`H.${etat?.hizbEnCours||'—'}`, color:'#534AB7', bg:'#F0EEFF'},
@@ -1324,13 +1324,13 @@ ${(passages||[]).length > 0 ? `
                   <div style={{background:'#FAEEDA', borderRadius:12, padding:'12px 14px', marginBottom:10,
                     display:'flex', alignItems:'center', justifyContent:'space-between'}}>
                     <div>
-                      <div style={{fontWeight:700, color:'#633806'}}>🎉 Hizb complet !</div>
-                      <div style={{fontSize:12, color:'#856404'}}>Prêt pour validation</div>
+                      <div style={{fontWeight:700, color:'#633806'}}>🎉 {lang==='ar' ? 'الحزب كامل !' : 'Hizb complet !'}</div>
+                      <div style={{fontSize:12, color:'#856404'}}>{lang==='ar' ? 'جاهز للاعتماد' : 'Prêt pour validation'}</div>
                     </div>
                     <button onClick={()=>navigate('enregistrer', eleve)}
                       style={{background:'#EF9F27', color:'#fff', border:'none', borderRadius:10,
                         padding:'8px 14px', fontSize:13, fontWeight:700, cursor:'pointer', fontFamily:'inherit'}}>
-                      Valider
+                      {lang==='ar' ? 'اعتماد' : 'Valider'}
                     </button>
                   </div>
                 )}
@@ -1389,7 +1389,7 @@ ${(passages||[]).length > 0 ? `
                         border:'0.5px solid #e0e0d8',display:'flex',alignItems:'center',gap:10}}>
                         <div style={{flex:1}}>
                           <div style={{fontWeight:600,fontSize:13}}>
-                            {v.type_validation==='hizb_complet'?'Hizb complet':`T.${v.tomon_debut} ×${v.nombre_tomon}`}
+                            {v.type_validation==='hizb_complet'?(lang==='ar'?'حزب كامل':'Hizb complet'):`T.${v.tomon_debut} ×${v.nombre_tomon}`}
                           </div>
                           <div style={{fontSize:11,color:'#888'}}>{new Date(v.date_validation).toLocaleDateString(lang==='ar'?'ar-MA':'fr-FR')}</div>
                         </div>
@@ -1419,7 +1419,7 @@ ${(passages||[]).length > 0 ? `
                       <span style={{fontSize:16}}>{isSourate?'📖':'✅'}</span>
                       <div style={{flex:1}}>
                         <div style={{fontWeight:600,fontSize:13}}>
-                          {isSourate?(v.sourate?.nom_ar||'Sourate'):(v.type_validation==='hizb_complet'?'Hizb complet':`T.${v.tomon_debut} ×${v.nombre_tomon}`)}
+                          {isSourate?(v.sourate?.nom_ar||'Sourate'):(v.type_validation==='hizb_complet'?(lang==='ar'?'حزب كامل':'Hizb complet'):`T.${v.tomon_debut} ×${v.nombre_tomon}`)}
                         </div>
                         <div style={{fontSize:11,color:'#888'}}>{new Date(v.date_validation).toLocaleDateString(lang==='ar'?'ar-MA':'fr-FR')}</div>
                       </div>
@@ -1643,7 +1643,7 @@ ${(passages||[]).length > 0 ? `
                 <div style={{fontWeight:600,color:'#534AB7',marginBottom:6}}>{lang==='ar'?'المكتسبات الحالية:':'Acquis actuels :'}</div>
                 {estSourateEleve
                   ? <div style={{color:'#1D9E75',fontWeight:600}}>📖 {nbSouratesCompletes} {lang==='ar'?'سورة مكتملة':'sourates'} · {totalPtsSourates} pts</div>
-                  : <div style={{color:'#555'}}>Hizb {etat?.hizbEnCours} · T.{etat?.prochainTomon} · {etat?.points?.total||0} pts</div>
+                  : <div style={{color:'#555'}}>{lang==='ar' ? `الحزب ${etat?.hizbEnCours} · ث.${etat?.prochainTomon} · ${etat?.points?.total||0} ن` : `Hizb ${etat?.hizbEnCours} · T.${etat?.prochainTomon} · ${etat?.points?.total||0} pts`}</div>
                 }
               </div>
               <div style={{marginBottom:'1rem'}}>
@@ -1757,8 +1757,8 @@ ${(passages||[]).length > 0 ? `
                 // Refonte KPIs (mai 2026) : Tomon + Hizb gardes (pertinents)
                 // Roboe et Nisf supprimes (subdivisions hardcodees obsoletes)
                 // Ajout Examens et Certificats (KPIs metier parlants)
-                ['Tomon', etat?.points.ptsTomon, `${etat?.tomonTotal||etat?.tomonCumul}×${baremeEleve?.tomon||0}`, '#378ADD', '#E6F1FB'],
-                ['Hizb', etat?.points.ptsHizb, `${etat?.points.details?.nbHizb}×${baremeEleve?.hizb_complet||0}`, '#085041', '#E1F5EE'],
+                [lang==='ar'?'الأثمان':'Tomon', etat?.points.ptsTomon, `${etat?.tomonTotal||etat?.tomonCumul}×${baremeEleve?.tomon||0}`, '#378ADD', '#E6F1FB'],
+                [lang==='ar'?'الأحزاب':'Hizb', etat?.points.ptsHizb, `${etat?.points.details?.nbHizb}×${baremeEleve?.hizb_complet||0}`, '#085041', '#E1F5EE'],
                 [lang==='ar'?'الامتحانات':'Examens', examens.length, examens.length>0 ? `+${examens.reduce((s,e)=>s+(e.score||0),0)} pts` : '—', '#EF9F27', '#FAEEDA'],
                 [lang==='ar'?'الشهادات':'Certificats', certificats.length, certificats.length>0 ? `+${certificats.length*50} pts` : '—', '#D85A30', '#FAECE7'],
               ].map(([l,v,s,color,bg])=>(
@@ -1789,10 +1789,10 @@ ${(passages||[]).length > 0 ? `
                     {/* Position de départ */}
                     <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:12}}>
                       {[
-                        {lbl:lang==='ar'?'حزب الانطلاق':lang==='en'?'Starting Hizb':'Hizb de départ',val:`Hizb ${eleve.hizb_depart}`,icon:'📍',color:'#085041',bg:'#E1F5EE'},
-                        {lbl:lang==='ar'?'ثُمن الانطلاق':lang==='en'?'Starting Tomon':'Tomon de départ',val:`T.${eleve.tomon_depart}`,icon:'📍',color:'#085041',bg:'#E1F5EE'},
-                        {lbl:lang==='ar'?'ثُمن مكتسب':lang==='en'?'Acquired Tomon':'Tomon acquis',val:etat.tomonAcquis,icon:'✓',color:'#1D9E75',bg:'#fff'},
-                        {lbl:lang==='ar'?'حزب مكتمل':lang==='en'?'Complete Hizb':(lang==='ar'?'الأحزاب المكتملة':(lang==='ar'?'أحزاب مكتملة':'Hizb complets')),val:etat.hizbAcquisComplets,icon:'✓',color:'#EF9F27',bg:'#fff'},
+                        {lbl:lang==='ar'?'حزب الانطلاق':lang==='en'?(lang==='ar'?'حزب الانطلاق':'Starting Hizb'):(lang==='ar'?'حزب الانطلاق':'Hizb de départ'),val:`Hizb ${eleve.hizb_depart}`,icon:'📍',color:'#085041',bg:'#E1F5EE'},
+                        {lbl:lang==='ar'?'ثُمن الانطلاق':lang==='en'?(lang==='ar'?'ثُمن الانطلاق':'Starting Tomon'):(lang==='ar'?'ثُمن الانطلاق':'Tomon de départ'),val:`T.${eleve.tomon_depart}`,icon:'📍',color:'#085041',bg:'#E1F5EE'},
+                        {lbl:lang==='ar'?'ثُمن مكتسب':lang==='en'?(lang==='ar'?'الأثمان المكتسبة':'Acquired Tomon'):(lang==='ar'?'الأثمان المكتسبة':'Tomon acquis'),val:etat.tomonAcquis,icon:'✓',color:'#1D9E75',bg:'#fff'},
+                        {lbl:lang==='ar'?'حزب مكتمل':lang==='en'?(lang==='ar'?'حزب كامل':'Complete Hizb'):(lang==='ar'?'الأحزاب المكتملة':(lang==='ar'?'أحزاب مكتملة':'Hizb complets')),val:etat.hizbAcquisComplets,icon:'✓',color:'#EF9F27',bg:'#fff'},
                       ].map(k=>(
                         <div key={k.lbl} style={{background:k.bg,borderRadius:8,padding:'10px 12px',border:'0.5px solid #d0ede4',display:'flex',alignItems:'center',gap:8}}>
                           <span style={{fontSize:16}}>{k.icon}</span>
@@ -1804,13 +1804,13 @@ ${(passages||[]).length > 0 ? `
                       ))}
                     </div>
                     {/* Détail des points */}
-                    <div style={{fontSize:11,color:'#085041',fontWeight:600,marginBottom:6}}>{lang==='ar'?'توزيع النقاط':lang==='en'?'Points breakdown':'Détail des points'}</div>
+                    <div style={{fontSize:11,color:'#085041',fontWeight:600,marginBottom:6}}>{lang==='ar'?'توزيع النقاط':lang==='en'?(lang==='ar'?'توزيع النقاط':'Points breakdown'):(lang==='ar'?'توزيع النقاط':'Détail des points')}</div>
                     <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:6,marginBottom:10}}>
                       {[
                         {lbl:t(lang,'tomon_abrev'),val:etat.tomonAcquis*10,sub:`${etat.tomonAcquis}×10`,color:'#1D9E75'},
-                        {lbl:'Roboe',val:Math.floor(etat.tomonAcquis/2)*25,sub:`${Math.floor(etat.tomonAcquis/2)}×25`,color:'#378ADD'},
-                        {lbl:'Nisf',val:Math.floor(etat.tomonAcquis/4)*60,sub:`${Math.floor(etat.tomonAcquis/4)}×60`,color:'#534AB7'},
-                        {lbl:'Hizb',val:etat.hizbAcquisComplets*100,sub:`${etat.hizbAcquisComplets}×100`,color:'#EF9F27'},
+                        {lbl:lang==='ar' ? 'الأرباع' : 'Roboe',val:Math.floor(etat.tomonAcquis/2)*25,sub:`${Math.floor(etat.tomonAcquis/2)}×25`,color:'#378ADD'},
+                        {lbl:lang==='ar' ? 'الأنصاف' : 'Nisf',val:Math.floor(etat.tomonAcquis/4)*60,sub:`${Math.floor(etat.tomonAcquis/4)}×60`,color:'#534AB7'},
+                        {lbl:lang==='ar' ? 'حزب' : 'Hizb',val:etat.hizbAcquisComplets*100,sub:`${etat.hizbAcquisComplets}×100`,color:'#EF9F27'},
                       ].map(k=>(
                         <div key={k.lbl} style={{background:'#fff',borderRadius:8,padding:'8px',textAlign:'center',border:'0.5px solid #d0ede4'}}>
                           <div style={{fontSize:14,fontWeight:700,color:k.color}}>{k.val}</div>
@@ -1821,7 +1821,7 @@ ${(passages||[]).length > 0 ? `
                     </div>
                     {/* Total */}
                     <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',background:'#085041',borderRadius:8,padding:'10px 14px'}}>
-                      <span style={{fontSize:12,color:'#9FE1CB'}}>{lang==='ar'?'مجموع نقاط المكتسبات':lang==='en'?'Total prior points':'Total points acquis antérieurs'}</span>
+                      <span style={{fontSize:12,color:'#9FE1CB'}}>{lang==='ar'?'مجموع نقاط المكتسبات':lang==='en'?(lang==='ar'?'مجموع نقاط المكتسبات':'Total prior points'):(lang==='ar'?'مجموع نقاط المكتسبات':'Total points acquis antérieurs')}</span>
                       <span style={{fontSize:18,fontWeight:800,color:'#fff'}}>{(etat.points.ptsAcquisTotal||0).toLocaleString()} {t(lang,'pts_abrev')}</span>
                     </div>
                   </div>
@@ -2033,7 +2033,7 @@ ${(passages||[]).length > 0 ? `
               ) : (
                 <>
                   <div className="position-card">
-                    <div className="pos-block"><div className="pos-val">{etat?.hizbEnCours}</div><div className="pos-lbl">Hizb</div></div>
+                    <div className="pos-block"><div className="pos-val">{etat?.hizbEnCours}</div><div className="pos-lbl">{lang==='ar' ? 'حزب' : 'Hizb'}</div></div>
                     <div className="pos-block"><div className="pos-val">{etat?.tomonDansHizbActuel}/8</div><div className="pos-lbl">{t(lang,'tomon_abrev')}</div></div>
                     <div className="pos-block"><div className="pos-val" style={{fontSize:14}}>{etat?.enAttenteHizbComplet?'⏳':etat?.prochainTomon?`T.${etat.prochainTomon}`:'✓'}</div><div className="pos-lbl">{t(lang,'prochain')}</div></div>
                   </div>
@@ -2098,10 +2098,10 @@ ${(passages||[]).length > 0 ? `
                           const jours=validation?Math.round((new Date(validation.date_validation)-new Date(appr.date_debut))/(1000*60*60*24)):null;
                           return(
                             <tr key={appr.id}>
-                              <td style={{fontWeight:500}}>Hizb {appr.hizb} — T.{appr.tomon}</td>
+                              <td style={{fontWeight:500}}>{lang==='ar' ? `الحزب ${appr.hizb} — ث.${appr.tomon}` : `Hizb ${appr.hizb} — T.${appr.tomon}`}</td>
                               <td style={{fontSize:12,color:'#888'}}>{formatDateCourt(appr.date_debut)}</td>
                               <td style={{fontSize:12,color:'#888'}}>{validation?formatDateCourt(validation.date_validation):'—'}</td>
-                              <td>{jours!==null?<span style={{fontSize:12,fontWeight:600,color:jours<=7?'#1D9E75':jours<=14?'#EF9F27':'#E24B4A'}}>{jours}j</span>:'—'}</td>
+                              <td>{jours!==null?<span style={{fontSize:12,fontWeight:600,color:jours<=7?'#1D9E75':jours<=14?'#EF9F27':'#E24B4A'}}>{jours}{lang==='ar' ? 'ي' : 'j'}</span>:'—'}</td>
                               <td>{validation?<span className="badge badge-green" style={{fontSize:9}}>✓</span>:<span className="badge" style={{fontSize:9}}>⏳</span>}</td>
                             </tr>
                           );
@@ -2204,7 +2204,7 @@ ${(passages||[]).length > 0 ? `
                     {murajaa.map(v=>(
                       <tr key={'v'+v.id}>
                         <td style={{fontSize:12,color:'#888'}}>{new Date(v.date_validation).toLocaleDateString(lang==='ar'?'ar-MA':'fr-FR')}</td>
-                        <td><span className="badge" style={{background:'#FFF3CD',color:'#856404',fontSize:10}}>{v.type_validation==='hizb_muraja'?(lang==='ar'?'حزب كامل':'Hizb complet'):(lang==='ar'?'ثُمن':'Tomon')}</span></td>
+                        <td><span className="badge" style={{background:'#FFF3CD',color:'#856404',fontSize:10}}>{v.type_validation==='hizb_muraja'?(lang==='ar'?'حزب كامل':(lang==='ar'?'حزب كامل':'Hizb complet')):(lang==='ar'?'ثُمن':'Tomon')}</span></td>
                         <td style={{fontSize:12}}>{v.type_validation==='hizb_muraja'?`Hizb ${v.hizb_validation}`:`Hizb ${v.hizb_validation} — T${v.tomon_debut} ×${v.nombre_tomon}`}</td>
                         <td><span style={{fontSize:12,fontWeight:600,color:'#EF9F27'}}>+{v.type_validation==='hizb_muraja'?100:v.nombre_tomon*10}</span></td>
                         <td style={{fontSize:11,color:'#888'}}>{v.valideur?`${v.valideur.prenom} ${v.valideur.nom}`:'—'}</td>
@@ -2346,8 +2346,8 @@ ${(passages||[]).length > 0 ? `
                         {p.note&&<div style={{fontSize:11,color:'#534AB7',marginTop:2,fontStyle:'italic'}}>{p.note}</div>}
                       </div>
                       <div style={{textAlign:'right',fontSize:11,color:'#888'}}>
-                        <div>Tomon: <strong>{p.acquis_tomon}</strong></div>
-                        <div>Pts: <strong>{p.acquis_points}</strong></div>
+                        <div>{lang==='ar' ? 'ثُمن' : 'Tomon'}: <strong>{p.acquis_tomon}</strong></div>
+                        <div>{lang==='ar' ? 'ن' : 'Pts'}: <strong>{p.acquis_points}</strong></div>
                       </div>
                     </div>
                   ))}
@@ -2399,8 +2399,8 @@ ${(passages||[]).length > 0 ? `
                           <tr key={v.id}>
                             <td style={{fontSize:12,color:'#888'}}>{formatDate(v.date_validation)}</td>
                             <td>{v.type_validation==='hizb_complet'?<span className="badge badge-green">{t(lang,'hizb_complet')}</span>:<span className="badge">{t(lang,'tomon_abrev')} ×{v.nombre_tomon}</span>}</td>
-                            <td style={{fontSize:12,color:'#888'}}>{v.type_validation==='hizb_complet'?('Hizb '+v.hizb_valide):('T'+v.tomon_debut+' Hizb '+v.hizb_validation)}</td>
-                            <td>{joursAppr!==null?<span style={{fontSize:12,fontWeight:600,color:joursAppr<=7?'#1D9E75':joursAppr<=14?'#EF9F27':'#E24B4A'}}>{joursAppr}j</span>:'—'}</td>
+                            <td style={{fontSize:12,color:'#888'}}>{v.type_validation==='hizb_complet'?(lang==='ar' ? `الحزب ${v.hizb_valide}` : 'Hizb '+v.hizb_valide):(lang==='ar' ? `ث.${v.tomon_debut} الحزب ${v.hizb_validation}` : 'T'+v.tomon_debut+' Hizb '+v.hizb_validation)}</td>
+                            <td>{joursAppr!==null?<span style={{fontSize:12,fontWeight:600,color:joursAppr<=7?'#1D9E75':joursAppr<=14?'#EF9F27':'#E24B4A'}}>{joursAppr}{lang==='ar' ? 'ي' : 'j'}</span>:'—'}</td>
                             <td><span style={{fontSize:12,fontWeight:600,color:'#1D9E75'}}>+{v.type_validation==='hizb_complet'?100:v.nombre_tomon*10}</span></td>
                             <td style={{fontSize:12,color:'#888'}}>{v.valideur?(v.valideur.prenom+' '+v.valideur.nom):'—'}</td>
                           </tr>
