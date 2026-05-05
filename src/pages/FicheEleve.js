@@ -459,37 +459,409 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang, isMobi
 
   const handlePrint = async () => {
     if (!etat) return;
+    const w = window.open('', '_blank', 'width=900,height=700');
+    if (!w) {
+      toast.warning(lang === 'ar' ? 'يرجى السماح بالنوافذ المنبثقة للطباعة' : 'Autorisez les popups pour imprimer');
+      return;
+    }
     try {
       const pts = etat.points || {};
-      // Préparer le payload pour l'API PDF serveur
-      const payload = {
-        eleve: {
-          prenom: eleve.prenom,
-          nom: eleve.nom,
-          code_niveau: eleve.code_niveau,
-          eleve_id_ecole: eleve.eleve_id_ecole,
-        },
-        stats: {
-          totalPts: pts.total || 0,
-          tomon: etat.tomonTotal || etat.tomonCumul || 0,
-          hizb: etat.hizbsComplets?.size || 0,
-          jours: (validations || []).reduce((set, v) => {
-            if (v.date_validation) set.add(String(v.date_validation).slice(0, 10));
-            return set;
-          }, new Set()).size,
-        },
-        validations: (validations || []).slice(0, 30).map(v => ({
-          date_validation: v.date_validation,
-          type_validation: v.type_validation,
-          nombre_tomon: v.nombre_tomon,
-          points: v.type_validation === 'hizb_complet' ? (baremeEleve?.hizb_complet || 0) : (v.nombre_tomon || 0) * (baremeEleve?.tomon || 0),
-        })),
-        ecole: { nom: user?.ecole?.nom || '' },
+      const isRTL = lang === 'ar';
+      const now = new Date();
+      const dateGen = now.toLocaleDateString('fr-FR', {day:'2-digit', month:'long', year:'numeric'});
+      const ecoleNom = user?.ecole?.nom || '';
+
+      // Helpers
+      const esc = s => String(s||'').replace(/[<>&"']/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;',"'":'&#39;'}[c]));
+      const fmtDate = (d) => {
+        if (!d) return '—';
+        try { return new Date(d).toLocaleDateString('fr-FR', {day:'2-digit', month:'2-digit', year:'numeric'}); } catch { return '—'; }
       };
-      await openPDF('fiche_eleve', payload, lang);
+
+      // ── Calculs synthese ──
+      const tomonTotal = etat.tomonTotal || etat.tomonCumul || 0;
+      const hizbComplets = etat.hizbsComplets?.size || 0;
+      const ptsExamens = (examens||[]).reduce((s,e)=>s+(e.score||0),0);
+      const ptsCertificats = (certificats||[]).length * 50;
+
+      // Acces securise aux variables derivees (definies plus bas dans le composant)
+      // Au moment du clic, elles sont initialisees, mais on protege au cas ou
+      const _badges = (typeof badges !== 'undefined' && badges) ? badges : [];
+      const _vitesse = (typeof vitesse !== 'undefined' && vitesse) ? vitesse : { moyenne: 0, tendance: 'stable' };
+      const _streak = (typeof streak !== 'undefined' && streak) ? streak : 0;
+
+      // Fetch leger : presences derniers 30 jours (pour resume assiduite)
+      let assidStats = null;
+      try {
+        const il30jISO = new Date();
+        il30jISO.setDate(il30jISO.getDate() - 30);
+        const isoStart = il30jISO.toISOString().slice(0, 10);
+        const { data: presData } = await supabase
+          .from('presences')
+          .select('date_presence')
+          .eq('eleve_id', eleve.id)
+          .gte('date_presence', isoStart);
+        if (presData) {
+          const nbPresences = presData.length;
+          // Estimation simple : 4 jours/semaine × ~4 semaines = ~17 seances attendues
+          const seancesEstimees = 17;
+          const taux = Math.round((nbPresences / seancesEstimees) * 100);
+          assidStats = {
+            presences: nbPresences,
+            estime: seancesEstimees,
+            taux: Math.min(100, Math.max(0, taux)),
+          };
+        }
+      } catch { /* fetch echoue : on n'affiche pas le bloc assiduite */ }
+
+      // Recitations 30 derniers jours
+      const il30j = new Date();
+      il30j.setDate(il30j.getDate() - 30);
+      const recits30j = (validations||[]).filter(v => v.date_validation && new Date(v.date_validation) >= il30j);
+      const tomon30j = recits30j.filter(v => v.type_validation === 'tomon').reduce((s,v)=>s+(v.nombre_tomon||0), 0);
+      const hizb30j = recits30j.filter(v => v.type_validation === 'hizb_complet').length;
+
+      // Muraja'a : stats agregees (Hizb + Sourates)
+      const muraStats = {
+        total: (murajaa||[]).length + (murajaaS||[]).length,
+        hizb: (murajaa||[]).reduce((s,m) => s + (m.nombre_tomon || 1), 0),
+        sourates: (murajaaS||[]).filter(m => m.type_recitation === 'complete').length,
+        sequences: (murajaaS||[]).filter(m => m.type_recitation === 'sequence').length,
+      };
+
+      // Objectif mois en cours
+      const moisCourant = now.getMonth() + 1;
+      const anneeCourante = now.getFullYear();
+      const objMoisCourant = (objectifs||[]).find(o => o.mois === moisCourant && o.annee === anneeCourante);
+      let objStats = null;
+      if (objMoisCourant) {
+        const debutMois = new Date(anneeCourante, moisCourant - 1, 1);
+        const finMois = new Date(anneeCourante, moisCourant, 0, 23, 59, 59);
+        const tomonMois = (validations||[])
+          .filter(v => v.type_validation === 'tomon' && v.date_validation && new Date(v.date_validation) >= debutMois && new Date(v.date_validation) <= finMois)
+          .reduce((s,v) => s + (v.nombre_tomon || 0), 0);
+        const cible = objMoisCourant.nombre_tomon || 0;
+        objStats = {
+          mois: now.toLocaleDateString(isRTL?'ar-MA':'fr-FR', {month:'long', year:'numeric'}),
+          fait: tomonMois,
+          cible,
+          pct: cible > 0 ? Math.min(100, Math.round((tomonMois / cible) * 100)) : 0,
+        };
+      }
+
+      // Examens stats
+      const examensValid = (examens||[]).filter(e => typeof e.score === 'number' && typeof e.score_max === 'number' && e.score_max > 0);
+      const moyenneExamens = examensValid.length > 0
+        ? Math.round(examensValid.reduce((s,e) => s + (e.score / e.score_max * 100), 0) / examensValid.length)
+        : null;
+      const meilleurExamen = examensValid.length > 0
+        ? Math.round(Math.max(...examensValid.map(e => e.score / e.score_max * 100)))
+        : null;
+
+      // Date inscription -> mois
+      const moisInscription = eleve.date_inscription
+        ? Math.max(1, Math.round((now - new Date(eleve.date_inscription)) / (1000 * 60 * 60 * 24 * 30.44)))
+        : null;
+
+      // Synthese pedagogique automatique (3 phrases)
+      const synthesePhrases = [];
+      if (hizbComplets > 0 && moisInscription) {
+        synthesePhrases.push(isRTL
+          ? `${hizbComplets} ${hizbComplets > 1 ? 'أحزاب مكتملة' : 'حزب مكتمل'} في ${moisInscription} ${moisInscription > 1 ? 'أشهر' : 'شهر'}.`
+          : `${hizbComplets} Hizb ${hizbComplets > 1 ? 'complets' : 'complet'} en ${moisInscription} mois.`);
+      }
+      if (_vitesse?.moyenne > 0) {
+        const tendanceTxt = _vitesse.tendance === 'hausse'
+          ? (isRTL ? 'في تصاعد 📈' : 'en hausse 📈')
+          : _vitesse.tendance === 'baisse'
+            ? (isRTL ? 'في تراجع 📉' : 'en baisse 📉')
+            : (isRTL ? 'مستقر ➡️' : 'stable ➡️');
+        synthesePhrases.push(isRTL
+          ? `الوتيرة المتوسطة : ${_vitesse.moyenne} ثُمن/أسبوع (${tendanceTxt}).`
+          : `Vitesse moyenne : ${_vitesse.moyenne} Tomon/semaine (${tendanceTxt}).`);
+      }
+      if (_streak > 0) {
+        synthesePhrases.push(isRTL
+          ? `🔥 سلسلة نشطة : ${_streak} ${_streak > 1 ? 'أسابيع متتالية' : 'أسبوع'}.`
+          : `🔥 Série active : ${_streak} ${_streak > 1 ? 'semaines consécutives' : 'semaine'}.`);
+      } else if (recits30j.length === 0 && validations.length > 0) {
+        synthesePhrases.push(isRTL
+          ? `⚠️ لا توجد استظهارات في آخر 30 يوماً.`
+          : `⚠️ Aucune récitation sur les 30 derniers jours.`);
+      }
+      if (synthesePhrases.length === 0) {
+        synthesePhrases.push(isRTL
+          ? 'لم يتم تسجيل أي نشاط بعد.'
+          : 'Aucune activité enregistrée pour le moment.');
+      }
+
+      // ── KPI cards (4 refondues) ──
+      const kpiCards = [
+        {label: isRTL?'الأثمان':'Tomon', val: tomonTotal, sub: `${pts.ptsTomon||0} pts`, color:'#378ADD', bg:'#E6F1FB'},
+        {label: isRTL?'الأحزاب':'Hizb', val: hizbComplets, sub: `${pts.ptsHizb||0} pts`, color:'#085041', bg:'#E1F5EE'},
+        {label: isRTL?'الامتحانات':'Examens', val: (examens||[]).length, sub: ptsExamens>0 ? `+${ptsExamens} pts` : '—', color:'#EF9F27', bg:'#FAEEDA'},
+        {label: isRTL?'الشهادات':'Certificats', val: (certificats||[]).length, sub: ptsCertificats>0 ? `+${ptsCertificats} pts` : '—', color:'#D85A30', bg:'#FAECE7'},
+      ].map(k => `
+        <div style="background:${k.bg};border-radius:8px;padding:10px 8px;text-align:center;border:0.5px solid ${k.color}40">
+          <div style="font-size:22px;font-weight:800;color:${k.color}">${k.val}</div>
+          <div style="font-size:10px;color:#666;margin-top:1px">${esc(k.label)}</div>
+          <div style="font-size:9px;color:${k.color};opacity:0.85;margin-top:1px">${esc(k.sub)}</div>
+        </div>
+      `).join('');
+
+      // ── Badges (compacts) ──
+      const badgesPills = (_badges || []).slice(0, 6).map(b => `
+        <span style="display:inline-block;padding:2px 8px;border-radius:20px;font-size:9px;font-weight:600;background:${b.bg||'#E1F5EE'};color:${b.color||'#085041'};margin:0 4px 3px 0">
+          ${esc(b.icon||'')} ${esc(b.label||'')}
+        </span>
+      `).join('');
+
+      // ── 5 dernieres recitations seulement ──
+      const dernieresRecits = (validations||[]).slice(0, 5).map(v => {
+        const type = v.type_validation === 'hizb_complet'
+          ? (isRTL?'حزب كامل':'Hizb complet')
+          : (isRTL?'ثُمن':'Tomon');
+        const points = v.type_validation === 'hizb_complet'
+          ? (baremeEleve?.hizb_complet || 0)
+          : (v.nombre_tomon || 0) * (baremeEleve?.tomon || 0);
+        return `<tr>
+          <td style="padding:5px 8px;border-bottom:1px solid #f0f0ec;font-size:10px;color:#666">${fmtDate(v.date_validation)}</td>
+          <td style="padding:5px 8px;border-bottom:1px solid #f0f0ec;font-size:10px">${esc(type)}</td>
+          <td style="padding:5px 8px;border-bottom:1px solid #f0f0ec;font-size:10px;text-align:center">${v.nombre_tomon||1}</td>
+          <td style="padding:5px 8px;border-bottom:1px solid #f0f0ec;font-size:10px;text-align:end;font-weight:600;color:#085041">+${points}</td>
+        </tr>`;
+      }).join('');
+
+      // ── Examens : 5 derniers + stats agregees ──
+      const examensRows = (examens||[]).slice(0, 5).map(e => `<tr>
+        <td style="padding:5px 8px;border-bottom:1px solid #f0f0ec;font-size:10px;color:#666">${fmtDate(e.date_examen)}</td>
+        <td style="padding:5px 8px;border-bottom:1px solid #f0f0ec;font-size:10px">${esc(e.nom||e.type||'—')}</td>
+        <td style="padding:5px 8px;border-bottom:1px solid #f0f0ec;font-size:10px;text-align:center">${e.score||0}/${e.score_max||100}</td>
+        <td style="padding:5px 8px;border-bottom:1px solid #f0f0ec;font-size:10px;text-align:end;color:${(e.score||0)>=(e.score_max||100)*0.5 ? '#085041' : '#E24B4A'};font-weight:600">${(e.score||0)>=(e.score_max||100)*0.5 ? '✓' : '✗'}</td>
+      </tr>`).join('');
+
+      // ── Certificats (tout, peu nombreux) ──
+      const certificatsRows = (certificats||[]).map(c => `<tr>
+        <td style="padding:5px 8px;border-bottom:1px solid #f0f0ec;font-size:10px;color:#666">${fmtDate(c.date_emission||c.created_at)}</td>
+        <td style="padding:5px 8px;border-bottom:1px solid #f0f0ec;font-size:10px">${esc(c.titre||c.type||(isRTL?'شهادة':'Certificat'))}</td>
+        <td style="padding:5px 8px;border-bottom:1px solid #f0f0ec;font-size:10px;text-align:end;font-weight:600;color:#D85A30">+50 pts</td>
+      </tr>`).join('');
+
+      // ── Passages (tout, peu nombreux) ──
+      const passagesRows = (passages||[]).map(p => `<tr>
+        <td style="padding:5px 8px;border-bottom:1px solid #f0f0ec;font-size:10px;color:#666">${fmtDate(p.date_passage)}</td>
+        <td style="padding:5px 8px;border-bottom:1px solid #f0f0ec;font-size:10px">${esc(p.niveau_from||'—')} → ${esc(p.niveau_to||'—')}</td>
+        <td style="padding:5px 8px;border-bottom:1px solid #f0f0ec;font-size:10px;text-align:end;color:#534AB7">${esc(p.note||'')}</td>
+      </tr>`).join('');
+
+      const html = `<!DOCTYPE html><html dir="${isRTL?'rtl':'ltr'}" lang="${isRTL?'ar':'fr'}">
+<head><meta charset="UTF-8"><title>${esc(eleve.prenom)} ${esc(eleve.nom)} — ${isRTL?'بطاقة الطالب':'Fiche élève'}</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:Tajawal,Arial,sans-serif;padding:14px;font-size:11px;color:#1a1a1a;background:#fff}
+  .header{background:linear-gradient(135deg,#085041,#1D9E75);color:#fff;padding:12px 16px;border-radius:8px;margin-bottom:12px;display:flex;justify-content:space-between;align-items:flex-start}
+  .header h1{font-size:17px;font-weight:800;margin-bottom:3px}
+  .header .meta{font-size:10px;opacity:0.92}
+  .header-right{text-align:end;font-size:9px;opacity:0.85}
+  .section{margin-bottom:12px;page-break-inside:avoid}
+  .section-title{font-size:12px;font-weight:700;color:#085041;border-bottom:1.5px solid #1D9E75;padding-bottom:3px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center}
+  .section-title-count{font-size:9px;font-weight:500;color:#888}
+  .kpi-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
+  .infos-row{display:flex;flex-wrap:wrap;gap:6px;font-size:10px}
+  .info-pill{background:#f9f9f6;border:0.5px solid #e0e0d8;border-radius:14px;padding:4px 10px;display:inline-flex;align-items:center;gap:4px}
+  .info-pill .l{color:#888;font-size:9px}
+  .info-pill .v{color:#1a1a1a;font-weight:600;font-size:10px}
+  .synthese{background:#FFFCF6;border-left:3px solid #EF9F27;border-radius:6px;padding:10px 12px;font-size:11px;line-height:1.5}
+  .synthese p{margin:2px 0;color:#5a4a1a}
+  .badges-row{display:flex;flex-wrap:wrap;align-items:center}
+  table{width:100%;border-collapse:collapse;background:#fff;border:0.5px solid #e0e0d8;border-radius:6px;overflow:hidden}
+  thead th{background:#085041;color:#fff;padding:6px 8px;text-align:start;font-size:9px;font-weight:600;letter-spacing:0.3px}
+  tbody tr:nth-child(even){background:#fafaf7}
+  .empty{padding:10px;text-align:center;color:#aaa;font-size:10px;font-style:italic;background:#f9f9f6;border-radius:6px;border:0.5px dashed #e0e0d8}
+  .stat-bar{display:flex;justify-content:space-around;gap:6px;background:#f5f5f0;border-radius:6px;padding:7px 10px;margin-top:6px;font-size:10px}
+  .stat-bar > div{text-align:center}
+  .stat-bar .v{font-weight:700;color:#085041;font-size:13px}
+  .stat-bar .l{color:#888;font-size:9px}
+  .total-pts{background:#085041;color:#fff;padding:7px 14px;border-radius:6px;font-size:12px;font-weight:700;text-align:center;margin-top:6px}
+  .footer{margin-top:14px;font-size:8px;color:#aaa;border-top:1px solid #e0e0d8;padding-top:6px;text-align:center}
+  @media print{
+    body{padding:6px;font-size:10px}
+    .section{page-break-inside:avoid}
+    @page{size:A4;margin:8mm}
+  }
+</style></head><body>
+
+<div class="header">
+  <div>
+    <h1>${esc(eleve.prenom)} ${esc(eleve.nom)}</h1>
+    <div class="meta">
+      ${esc(eleve.eleve_id_ecole||'—')} ·
+      ${isRTL?'المستوى':'Niveau'} ${esc(eleve.code_niveau||'—')}
+      ${eleve.date_inscription?` · ${isRTL?'منذ':'depuis'} ${fmtDate(eleve.date_inscription)}`:''}
+    </div>
+  </div>
+  <div class="header-right">
+    ${ecoleNom ? `<div style="font-weight:600;font-size:11px">${esc(ecoleNom)}</div>` : ''}
+    <div>${esc(dateGen)}</div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="section-title">📊 ${isRTL?'لوحة المؤشرات':'Tableau de bord'}</div>
+  <div class="kpi-grid">${kpiCards}</div>
+  <div class="total-pts">${isRTL?'مجموع النقاط':'Total des points'} : ${(pts.total||0).toLocaleString()} ${isRTL?'ن':'pts'}</div>
+</div>
+
+<div class="section">
+  <div class="section-title">📋 ${isRTL?'الموقع':'Position actuelle'}</div>
+  <div class="infos-row">
+    <span class="info-pill"><span class="l">${isRTL?'الانطلاق':'Départ'}:</span><span class="v">H.${eleve.hizb_depart||'—'} T.${eleve.tomon_depart||'—'}</span></span>
+    <span class="info-pill"><span class="l">${isRTL?'الحالي':'En cours'}:</span><span class="v">H.${etat.hizbEnCours||'—'} T.${etat.prochainTomon||'—'}</span></span>
+    ${_vitesse?.moyenne > 0 ? `<span class="info-pill"><span class="l">${isRTL?'الوتيرة':'Vitesse'}:</span><span class="v">${esc(_vitesse.moyenne)} ${isRTL?'/أسبوع':'/sem.'}</span></span>` : ''}
+    ${_streak > 0 ? `<span class="info-pill"><span class="l">🔥 ${isRTL?'السلسلة':'Streak'}:</span><span class="v">${_streak} ${isRTL?'أسابيع':'sem.'}</span></span>` : ''}
+    ${(passages||[]).length > 0 ? `<span class="info-pill"><span class="l">${isRTL?'الانتقالات':'Passages'}:</span><span class="v">${(passages||[]).length}</span></span>` : ''}
+    ${eleve.telephone?`<span class="info-pill"><span class="l">📞</span><span class="v">${esc(eleve.telephone)}</span></span>`:''}
+  </div>
+  ${badgesPills ? `<div class="badges-row" style="margin-top:8px">${badgesPills}</div>` : ''}
+</div>
+
+<div class="section">
+  <div class="section-title">💡 ${isRTL?'تقييم بيداغوجي':'Synthèse pédagogique'}</div>
+  <div class="synthese">
+    ${synthesePhrases.map(p => `<p>${esc(p)}</p>`).join('')}
+  </div>
+</div>
+
+<div class="section">
+  <div class="section-title">
+    📖 ${isRTL?'آخر الاستظهارات':'Dernières récitations'}
+    <span class="section-title-count">${(validations||[]).length > 0 ? (isRTL?`آخر 5 من ${(validations||[]).length}`:`5 dernières / ${(validations||[]).length}`) : ''}</span>
+  </div>
+  ${(validations||[]).length === 0
+    ? `<div class="empty">${isRTL?'لا توجد استظهارات':'Aucune récitation'}</div>`
+    : `<table>
+        <thead><tr>
+          <th>${isRTL?'التاريخ':'Date'}</th>
+          <th>${isRTL?'النوع':'Type'}</th>
+          <th style="text-align:center">${isRTL?'الكمية':'Nb'}</th>
+          <th style="text-align:end">${isRTL?'النقاط':'Points'}</th>
+        </tr></thead>
+        <tbody>${dernieresRecits}</tbody>
+      </table>
+      <div class="stat-bar">
+        <div><div class="v">${recits30j.length}</div><div class="l">${isRTL?'استظهارات (30 يوم)':'Récit. (30j)'}</div></div>
+        <div><div class="v">${tomon30j}</div><div class="l">${isRTL?'ثُمن (30 يوم)':'Tomon (30j)'}</div></div>
+        <div><div class="v">${hizb30j}</div><div class="l">${isRTL?'حزب كامل (30 يوم)':'Hizb (30j)'}</div></div>
+      </div>`}
+</div>
+
+${objStats ? `
+<div class="section">
+  <div class="section-title">🎯 ${isRTL?'الهدف الشهري':'Objectif du mois'} <span class="section-title-count">${esc(objStats.mois)}</span></div>
+  <div style="background:#fff;border:0.5px solid #e0e0d8;border-radius:6px;padding:10px 12px">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+      <span style="font-size:11px;color:#666">${isRTL?'التقدم':'Progression'}</span>
+      <span style="font-size:13px;font-weight:700;color:${objStats.pct >= 100 ? '#1D9E75' : objStats.pct >= 50 ? '#EF9F27' : '#E24B4A'}">${objStats.fait} / ${objStats.cible} ${isRTL?'ثُمن':'Tomon'} (${objStats.pct}%)</span>
+    </div>
+    <div style="background:#f0f0ec;border-radius:10px;height:8px;overflow:hidden">
+      <div style="background:linear-gradient(90deg,#1D9E75,#085041);height:100%;width:${objStats.pct}%;border-radius:10px"></div>
+    </div>
+  </div>
+</div>` : ''}
+
+${muraStats.total > 0 ? `
+<div class="section">
+  <div class="section-title">📖 ${isRTL?'المراجعة':"Muraja'a"} <span class="section-title-count">${muraStats.total} ${isRTL?'إجمالي':'au total'}</span></div>
+  <div class="stat-bar">
+    ${muraStats.hizb > 0 ? `<div><div class="v">${muraStats.hizb}</div><div class="l">${isRTL?'ثُمن مراجع':'Tomon Hizb'}</div></div>` : ''}
+    ${muraStats.sourates > 0 ? `<div><div class="v">${muraStats.sourates}</div><div class="l">${isRTL?'سور مراجعة':'Sourates'}</div></div>` : ''}
+    ${muraStats.sequences > 0 ? `<div><div class="v">${muraStats.sequences}</div><div class="l">${isRTL?'مقاطع':'Séquences'}</div></div>` : ''}
+    <div><div class="v">${muraStats.total}</div><div class="l">${isRTL?'الإجمالي':'Total'}</div></div>
+  </div>
+</div>` : ''}
+
+${assidStats !== null ? `
+<div class="section">
+  <div class="section-title">📅 ${isRTL?'الحضور (آخر 30 يوم)':'Assiduité (30 derniers jours)'}</div>
+  <div style="background:#fff;border:0.5px solid #e0e0d8;border-radius:6px;padding:10px 12px">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+      <span style="font-size:11px;color:#666">${isRTL?'معدل الحضور التقديري':'Taux de présence estimé'}</span>
+      <span style="font-size:14px;font-weight:700;color:${assidStats.taux >= 80 ? '#1D9E75' : assidStats.taux >= 50 ? '#EF9F27' : '#E24B4A'}">${assidStats.taux}%</span>
+    </div>
+    <div style="background:#f0f0ec;border-radius:10px;height:8px;overflow:hidden;margin-bottom:6px">
+      <div style="background:${assidStats.taux >= 80 ? '#1D9E75' : assidStats.taux >= 50 ? '#EF9F27' : '#E24B4A'};height:100%;width:${assidStats.taux}%;border-radius:10px"></div>
+    </div>
+    <div style="font-size:9px;color:#aaa;text-align:center">${assidStats.presences} ${isRTL?'حضور مسجل':'présences enregistrées'} (${isRTL?'تقدير':'estimé sur'} ${assidStats.estime} ${isRTL?'حصة':'séances'})</div>
+  </div>
+</div>` : ''}
+
+<div class="section">
+  <div class="section-title">
+    📝 ${isRTL?'الامتحانات':'Examens'}
+    <span class="section-title-count">${(examens||[]).length > 5 ? (isRTL?`آخر 5 من ${(examens||[]).length}`:`5 derniers / ${(examens||[]).length}`) : `${(examens||[]).length}`}</span>
+  </div>
+  ${(examens||[]).length === 0
+    ? `<div class="empty">${isRTL?'لا توجد امتحانات':'Aucun examen'}</div>`
+    : `<table>
+        <thead><tr>
+          <th>${isRTL?'التاريخ':'Date'}</th>
+          <th>${isRTL?'الاسم':'Nom'}</th>
+          <th style="text-align:center">${isRTL?'النتيجة':'Score'}</th>
+          <th style="text-align:end">${isRTL?'الحالة':'Résultat'}</th>
+        </tr></thead>
+        <tbody>${examensRows}</tbody>
+      </table>
+      ${moyenneExamens !== null ? `<div class="stat-bar">
+        <div><div class="v">${moyenneExamens}%</div><div class="l">${isRTL?'المعدل':'Moyenne'}</div></div>
+        <div><div class="v">${meilleurExamen}%</div><div class="l">${isRTL?'الأفضل':'Meilleur'}</div></div>
+        <div><div class="v">${examensValid.filter(e => (e.score/e.score_max) >= 0.5).length}/${examensValid.length}</div><div class="l">${isRTL?'النجاحات':'Réussis'}</div></div>
+      </div>` : ''}`}
+</div>
+
+<div class="section">
+  <div class="section-title">
+    🏅 ${isRTL?'الشهادات':'Certificats'}
+    <span class="section-title-count">${(certificats||[]).length}</span>
+  </div>
+  ${(certificats||[]).length === 0
+    ? `<div class="empty">${isRTL?'لا توجد شهادات':'Aucun certificat'}</div>`
+    : `<table>
+        <thead><tr>
+          <th>${isRTL?'التاريخ':'Date'}</th>
+          <th>${isRTL?'العنوان':'Titre'}</th>
+          <th style="text-align:end">${isRTL?'النقاط':'Points'}</th>
+        </tr></thead>
+        <tbody>${certificatsRows}</tbody>
+      </table>`}
+</div>
+
+${(passages||[]).length > 0 ? `
+<div class="section">
+  <div class="section-title">🎓 ${isRTL?'الانتقالات':'Passages de niveau'}</div>
+  <table>
+    <thead><tr>
+      <th>${isRTL?'التاريخ':'Date'}</th>
+      <th>${isRTL?'الانتقال':'Passage'}</th>
+      <th style="text-align:end">${isRTL?'ملاحظة':'Note'}</th>
+    </tr></thead>
+    <tbody>${passagesRows}</tbody>
+  </table>
+</div>` : ''}
+
+<div class="footer">
+  ${isRTL?'تم الإنشاء بتاريخ':'Généré le'} ${esc(dateGen)} · متابعة التحفيظ — Suivi Récitation
+  ${ecoleNom?` · ${esc(ecoleNom)}`:''}
+</div>
+
+</body></html>`;
+
+      w.document.write(html);
+      w.document.close();
+      setTimeout(function () { w.print(); }, 600);
     } catch (e) {
-      console.error('PDF fiche élève:', e);
-      alert((lang === 'ar' ? 'خطأ في توليد PDF: ' : 'Erreur PDF : ') + e.message);
+      console.error('Erreur impression fiche élève:', e);
+      toast.error((lang === 'ar' ? 'خطأ في الطباعة: ' : 'Erreur impression : ') + (e?.message || ''));
+      try { w.close(); } catch {}
     }
   };
 
@@ -581,8 +953,16 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang, isMobi
 
   // Redirect 5B/5A AFTER all hooks are declared (React rules of hooks)
   // -- Passage de niveau --
-  const NIVEAUX_ORDRE = ['5B','5A','2M','2','1'];
-  const NIVEAUX_LABELS = {'5B':'Préscolaire (5B)','5A':'Primaire 1-2 (5A)','2M':'Primaire 3-4 (2M)','2':'Primaire 5-6 (2)','1':'Collège/Lycée (1)'};
+  // Bug fix : utiliser niveaux dynamiques de BDD (avant : hardcode 5B/5A/2M/2/1)
+  // Fallback hardcode conserve UNIQUEMENT pour les ecoles ayant des donnees historiques
+  // (eleves avec code_niveau hardcode mais BDD niveaux non encore peuplee)
+  const NIVEAUX_LABELS_FALLBACK = {'5B':'Préscolaire (5B)','5A':'Primaire 1-2 (5A)','2M':'Primaire 3-4 (2M)','2':'Primaire 5-6 (2)','1':'Collège/Lycée (1)'};
+  const NIVEAUX_ORDRE = (niveaux && niveaux.length > 0)
+    ? niveaux.map(n => n.code)
+    : ['5B','5A','2M','2','1']; // Fallback historique
+  const NIVEAUX_LABELS = (niveaux && niveaux.length > 0)
+    ? niveaux.reduce((acc, n) => { acc[n.code] = `${n.nom} (${n.code})`; return acc; }, {})
+    : NIVEAUX_LABELS_FALLBACK;
   const niveauActuelIdx = NIVEAUX_ORDRE.indexOf(eleve.code_niveau||'1');
   const niveauxDisponibles = NIVEAUX_ORDRE.filter(n=>n!==eleve.code_niveau);
 
@@ -1374,13 +1754,16 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang, isMobi
                   <div style={{fontSize:11,color:'#888'}}>{l}</div>
                 </div>
               )) : [
-                ['Tomon',etat?.points.ptsTomon,`${etat?.tomonTotal||etat?.tomonCumul}×${baremeEleve?.tomon||0}`],
-                ['Roboe',etat?.points.ptsRoboe,`${etat?.points.details?.nbRoboe}×25`],
-                ['Nisf',etat?.points.ptsNisf,`${etat?.points.details?.nbNisf}×60`],
-                ['Hizb',etat?.points.ptsHizb,`${etat?.points.details?.nbHizb}×${baremeEleve?.hizb_complet||0}`],
-              ].map(([l,v,s])=>(
-                <div key={l} style={{background:'#f9f9f6',borderRadius:8,padding:'10px',textAlign:'center'}}>
-                  <div style={{fontSize:18,fontWeight:700}}>{v}</div>
+                // Refonte KPIs (mai 2026) : Tomon + Hizb gardes (pertinents)
+                // Roboe et Nisf supprimes (subdivisions hardcodees obsoletes)
+                // Ajout Examens et Certificats (KPIs metier parlants)
+                ['Tomon', etat?.points.ptsTomon, `${etat?.tomonTotal||etat?.tomonCumul}×${baremeEleve?.tomon||0}`, '#378ADD', '#E6F1FB'],
+                ['Hizb', etat?.points.ptsHizb, `${etat?.points.details?.nbHizb}×${baremeEleve?.hizb_complet||0}`, '#085041', '#E1F5EE'],
+                [lang==='ar'?'الامتحانات':'Examens', examens.length, examens.length>0 ? `+${examens.reduce((s,e)=>s+(e.score||0),0)} pts` : '—', '#EF9F27', '#FAEEDA'],
+                [lang==='ar'?'الشهادات':'Certificats', certificats.length, certificats.length>0 ? `+${certificats.length*50} pts` : '—', '#D85A30', '#FAECE7'],
+              ].map(([l,v,s,color,bg])=>(
+                <div key={l} style={{background:bg,borderRadius:8,padding:'10px',textAlign:'center',border:`0.5px solid ${color}20`}}>
+                  <div style={{fontSize:18,fontWeight:700,color}}>{v}</div>
                   <div style={{fontSize:11,color:'#888'}}>{l}</div>
                   {s&&<div style={{fontSize:10,color:'#bbb'}}>{s}</div>}
                 </div>
