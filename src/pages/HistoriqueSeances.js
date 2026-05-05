@@ -842,14 +842,14 @@ export default function HistoriqueSeances({ user, navigate, goBack, lang='fr', i
               <button onClick={()=>{setDrillDown(false);setSelectedEleve(null);setFilterEleve('tous');}} style={{padding:'4px 10px',border:'0.5px solid #e0e0d8',borderRadius:6,background:'#fff',fontSize:11,cursor:'pointer'}}>←</button>
               <Avatar prenom={eleveDrillDown.prenom} nom={eleveDrillDown.nom} size={38} bg={(NIVEAU_COLORS[eleveDrillDown.code_niveau||'1']||'#888')+'18'} color={NIVEAU_COLORS[eleveDrillDown.code_niveau||'1']||'#888'}/>
               <div style={{flex:1}}><div style={{fontSize:15,fontWeight:700}}>{eleveDrillDown.prenom} {eleveDrillDown.nom}</div><div style={{display:'flex',gap:6,marginTop:2}}><NiveauBadge code={eleveDrillDown.code_niveau}/></div></div>
-              <button onClick={()=>navigate('fiche',eleveDrillDown)} style={{padding:'6px 12px',background:'#1D9E75',color:'#fff',border:'none',borderRadius:8,fontSize:11,cursor:'pointer'}}>Fiche →</button>
+              <button onClick={()=>navigate('fiche',eleveDrillDown)} style={{padding:'6px 12px',background:'#1D9E75',color:'#fff',border:'none',borderRadius:8,fontSize:11,cursor:'pointer'}}>{lang==='ar' ? 'البطاقة ←' : 'Fiche →'}</button>
             </div>
             {allDrill.length===0?<div className="empty">{lang==='ar'?'لا نشاط في هذه الفترة':'Aucune activité sur la période'}</div>:(
               <div className="table-wrap">
                 <table><thead><tr>
-                  <th>Date</th><th>Heure</th><th>Type</th><th>Détails</th>
-                  <th>{lang==='ar'?'السورة/الحزب':lang==='ar'?'السورة/الحزب':'Sourate/Hizb'}</th>
-                  <th>{lang==='ar'?'صحح':'Validé'}</th><th>pts</th>
+                  <th>{lang==='ar' ? 'التاريخ' : 'Date'}</th><th>{lang==='ar' ? 'الساعة' : 'Heure'}</th><th>{lang==='ar' ? 'النوع' : 'Type'}</th><th>{lang==='ar' ? 'التفاصيل' : 'Détails'}</th>
+                  <th>{lang==='ar'?'السورة/الحزب':'Sourate/Hizb'}</th>
+                  <th>{lang==='ar'?'صحح':'Validé'}</th><th>{lang==='ar' ? 'ن' : 'pts'}</th>
                 </tr></thead>
                 <tbody>
                   {allDrill.map((item,i)=>{
