@@ -461,12 +461,11 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang, isMobi
     if (!etat) return;
     const w = window.open('', '_blank', 'width=900,height=700');
     if (!w) {
-      alert(lang === 'ar' ? 'يرجى السماح بالنوافذ المنبثقة' : 'Autorisez les popups pour imprimer');
+      toast.warning(lang === 'ar' ? 'يرجى السماح بالنوافذ المنبثقة للطباعة' : 'Autorisez les popups pour imprimer');
       return;
     }
     try {
       const pts = etat.points || {};
-      const sl = sLevel || {bg:'#fff',color:'#085041',label:'—'};
       const isRTL = lang === 'ar';
       const now = new Date();
       const dateGen = now.toLocaleDateString('fr-FR', {day:'2-digit', month:'long', year:'numeric'});
@@ -676,7 +675,7 @@ ${(passages||[]).length > 0 ? `
       setTimeout(function () { w.print(); }, 600);
     } catch (e) {
       console.error('Erreur impression fiche élève:', e);
-      alert((lang === 'ar' ? 'خطأ في الطباعة: ' : 'Erreur impression : ') + e.message);
+      toast.error((lang === 'ar' ? 'خطأ في الطباعة: ' : 'Erreur impression : ') + (e?.message || ''));
       try { w.close(); } catch {}
     }
   };
