@@ -255,7 +255,7 @@ export default function EnregistrerRecitation({  user, eleve: eleveInitial, navi
 
     setLoading(false);
     if (error) {
-      toast.error(error.message || 'Erreur de validation');
+      toast.error(error.message || (lang==='ar' ? 'خطأ في التحقق' : 'Erreur de validation'));
       return;
     }
 
@@ -585,7 +585,7 @@ export default function EnregistrerRecitation({  user, eleve: eleveInitial, navi
           <div style={{ background: '#E6F1FB', border: '0.5px solid #85B7EB', borderRadius: 10, padding: '10px 16px', margin: '0 auto 1.5rem', maxWidth: 400, fontSize: 13 }}>
             <div style={{ fontWeight: 600, color: '#0C447C', marginBottom: 4 }}>{t(lang,'durees_apprentissage')}</div>
             {(dureesApprentissage||[]).map(d => (
-              <div key={d.tomon} style={{ color: '#185FA5' }}>Tomon {d.tomon} : {d.jours} jour{d.jours > 1 ? 's' : ''}</div>
+              <div key={d.tomon} style={{ color: '#185FA5' }}>{lang==='ar' ? `الثُمن ${d.tomon} : ${d.jours} ${d.jours > 1 ? 'أيام' : 'يوم'}` : `Tomon ${d.tomon} : ${d.jours} jour${d.jours > 1 ? 's' : ''}`}</div>
             ))}
           </div>
         )}
@@ -685,35 +685,35 @@ export default function EnregistrerRecitation({  user, eleve: eleveInitial, navi
 
           {/* Barre */}
           <div className="card" style={{ padding: '1rem', marginBottom: '1rem' }}>
-            <div style={{ fontSize: 12, color: '#888', marginBottom: 10 }}>Tomon du Hizb {etat.hizbEnCours}</div>
+            <div style={{ fontSize: 12, color: '#888', marginBottom: 10 }}>{lang==='ar' ? `أثمان الحزب ${etat.hizbEnCours}` : `Tomon du Hizb ${etat.hizbEnCours}`}</div>
             <div style={{ display: 'flex', gap: 4, marginBottom: 8 }}>
               {[1,2,3,4,5,6,7,8].map(n => (
                 <div key={n} style={{ flex: 1, height: 12, borderRadius: 4, background: n < etat.prochainTomon ? '#1D9E75' : tomonSelectionnes.includes(n) ? '#9FE1CB' : '#e8e8e0' }} />
               ))}
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: '#999' }}>
-              <span>Validés : {etat.tomonDansHizbActuel}</span>
-              {nombreTomon > 0 && <span style={{ color: '#1D9E75', fontWeight: 500 }}>+ {nombreTomon} aujourd'hui</span>}
-              <span>Restants : {etat.tomonRestants - nombreTomon}</span>
+              <span>{lang==='ar' ? `مُعتمدة : ${etat.tomonDansHizbActuel}` : `Validés : ${etat.tomonDansHizbActuel}`}</span>
+              {nombreTomon > 0 && <span style={{ color: '#1D9E75', fontWeight: 500 }}>{lang==='ar' ? `+ ${nombreTomon} اليوم` : `+ ${nombreTomon} aujourd'hui`}</span>}
+              <span>{lang==='ar' ? `متبقية : ${etat.tomonRestants - nombreTomon}` : `Restants : ${etat.tomonRestants - nombreTomon}`}</span>
             </div>
           </div>
 
           {etat.enAttenteHizbComplet ? (
             <div>
               <div style={{ padding: '12px 14px', background: '#FAEEDA', borderRadius: 8, fontSize: 13, color: '#633806', marginBottom: '1rem' }}>
-                ⏳ Les 8 Tomon du Hizb {etat.hizbEnCours} sont validés — valider le Hizb complet pour continuer.
+                ⏳ {lang==='ar' ? `الأثمان الثمانية للحزب ${etat.hizbEnCours} مُعتمدة — اعتمد الحزب كاملاً للمتابعة.` : `Les 8 Tomon du Hizb ${etat.hizbEnCours} sont validés — valider le Hizb complet pour continuer.`}
               </div>
               <div className="card" style={{ cursor: 'pointer', border: '2px solid #1D9E75', textAlign: 'center', padding: '1.5rem' }}
                 onClick={() => setTypeValidation('hizb_complet')}>
                 <div style={{ fontSize: 32, marginBottom: 8 }}>📖</div>
-                <div style={{ fontSize: 15, fontWeight: 600, color: '#1D9E75' }}>Valider le Hizb {etat.hizbEnCours} complet</div>
-                <div style={{ fontSize: 12, color: '#888', marginTop: 4 }}>+100 pts bonus</div>
+                <div style={{ fontSize: 15, fontWeight: 600, color: '#1D9E75' }}>{lang==='ar' ? `اعتماد الحزب ${etat.hizbEnCours} كاملاً` : `Valider le Hizb ${etat.hizbEnCours} complet`}</div>
+                <div style={{ fontSize: 12, color: '#888', marginTop: 4 }}>{lang==='ar' ? '+100 ن إضافية' : '+100 pts bonus'}</div>
               </div>
-              <button className="btn-primary" style={{ marginTop: '1rem' }} onClick={() => { setTypeValidation('hizb_complet'); setStep(3); }}>Continuer</button>
+              <button className="btn-primary" style={{ marginTop: '1rem' }} onClick={() => { setTypeValidation('hizb_complet'); setStep(3); }}>{lang==='ar' ? 'متابعة' : 'Continuer'}</button>
             </div>
           ) : (
             <div>
-              <div className="section-label">Tomon récités — Hizb {etat.hizbEnCours}</div>
+              <div className="section-label">{lang==='ar' ? `الأثمان المُستظهرة — الحزب ${etat.hizbEnCours}` : `Tomon récités — Hizb ${etat.hizbEnCours}`}</div>
               <div className="card">
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(8, minmax(0,1fr))', gap: 6, marginBottom: 12 }}>
                   {[1,2,3,4,5,6,7,8].map(n => {
@@ -740,20 +740,23 @@ export default function EnregistrerRecitation({  user, eleve: eleveInitial, navi
                 </div>
 
                 <div style={{ display: 'flex', gap: 12, fontSize: 11, color: '#999', marginBottom: 12, flexWrap: 'wrap' }}>
-                  {[['#e8e8e0', 'Déjà validé'], ['#1D9E75', "Récité aujourd'hui"], ['#f9f9f6', 'À venir']].map(([c, l]) => (
+                  {(lang==='ar'
+                    ? [['#e8e8e0', 'مُعتمد سابقاً'], ['#1D9E75', 'مُستظهر اليوم'], ['#f9f9f6', 'قادم']]
+                    : [['#e8e8e0', 'Déjà validé'], ['#1D9E75', "Récité aujourd'hui"], ['#f9f9f6', 'À venir']]
+                  ).map(([c, l]) => (
                     <div key={l} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                       <div style={{ width: 10, height: 10, borderRadius: 2, background: c, border: '0.5px solid #d0d0c8' }} />{l}
                     </div>
                   ))}
-                  <div style={{ fontSize: 10, color: '#bbb', marginLeft: 'auto' }}>Le chiffre sous chaque case = jours d'apprentissage</div>
+                  <div style={{ fontSize: 10, color: '#bbb', marginLeft: 'auto' }}>{lang==='ar' ? 'الرقم تحت كل خانة = أيام التعلم' : "Le chiffre sous chaque case = jours d'apprentissage"}</div>
                 </div>
 
                 {posNouvelle && (
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px', background: '#f0faf6', borderRadius: 8, fontSize: 13, marginBottom: 8 }}>
-                    <span style={{ color: '#888' }}>Position atteinte →</span>
-                    <strong>Hizb {posNouvelle.hizb}, T.{posNouvelle.tomon}</strong>
+                    <span style={{ color: '#888' }}>{lang==='ar' ? 'الموقع المحقّق ←' : 'Position atteinte →'}</span>
+                    <strong>{lang==='ar' ? `الحزب ${posNouvelle.hizb}, ث.${posNouvelle.tomon}` : `Hizb ${posNouvelle.hizb}, T.${posNouvelle.tomon}`}</strong>
                     <span className="badge badge-green">{calcUnite(posNouvelle.tomon)}</span>
-                    <span style={{ marginLeft: 'auto', fontWeight: 600, color: '#1D9E75' }}>+{nombreTomon * (bareme?.unites?.tomon||0)} pts</span>
+                    <span style={{ marginLeft: 'auto', fontWeight: 600, color: '#1D9E75' }}>+{nombreTomon * (bareme?.unites?.tomon||0)} {lang==='ar' ? 'ن' : 'pts'}</span>
                   </div>
                 )}
 
@@ -771,36 +774,36 @@ export default function EnregistrerRecitation({  user, eleve: eleveInitial, navi
 
       {step === 3 && selectedEleve && etat && (
         <div>
-          <div className="section-label">Récapitulatif</div>
+          <div className="section-label">{lang==='ar' ? 'الملخّص' : 'Récapitulatif'}</div>
           <div className="recap-card">
             <div className="recap-row"><span className="recap-lbl">{lang==='ar'?'الطالب':'Élève'}</span><span className="recap-val">{selectedEleve.prenom} {selectedEleve.nom}</span></div>
-            <div className="recap-row"><span className="recap-lbl">Hizb</span><span className="recap-val">Hizb {etat.hizbEnCours}</span></div>
+            <div className="recap-row"><span className="recap-lbl">{lang==='ar' ? 'الحزب' : 'Hizb'}</span><span className="recap-val">{lang==='ar' ? `الحزب ${etat.hizbEnCours}` : `Hizb ${etat.hizbEnCours}`}</span></div>
             {typeValidation === 'tomon' ? (
               <>
                 <div className="recap-row">
                   <span className="recap-lbl">{t(lang,'tomon_recites_label')}</span>
-                  <span className="recap-val green">T.{tomonSelectionnes[0]} à T.{tomonSelectionnes[tomonSelectionnes.length - 1]} ({nombreTomon} Tomon)</span>
+                  <span className="recap-val green">{lang==='ar' ? `ث.${tomonSelectionnes[0]} إلى ث.${tomonSelectionnes[tomonSelectionnes.length - 1]} (${nombreTomon} ثُمن)` : `T.${tomonSelectionnes[0]} à T.${tomonSelectionnes[tomonSelectionnes.length - 1]} (${nombreTomon} Tomon)`}</span>
                 </div>
                 {dureesApprentissage.length > 0 && (
                   <div className="recap-row">
                     <span className="recap-lbl">{t(lang,'durees_apprentissage')}</span>
                     <span className="recap-val" style={{ fontSize: 12 }}>
-                      {(dureesApprentissage||[]).map(d => `T.${d.tomon}: ${d.jours}j`).join(' · ')}
+                      {(dureesApprentissage||[]).map(d => lang==='ar' ? `ث.${d.tomon}: ${d.jours}ي` : `T.${d.tomon}: ${d.jours}j`).join(' · ')}
                     </span>
                   </div>
                 )}
-                {posNouvelle && <div className="recap-row"><span className="recap-lbl">Position atteinte</span><span className="recap-val">Hizb {posNouvelle.hizb}, T.{posNouvelle.tomon}</span></div>}
-                <div className="recap-row"><span className="recap-lbl">{t(lang,'points_gagnes')}</span><span className="recap-val green">+{nombreTomon * (bareme?.unites?.tomon||0)} pts</span></div>
+                {posNouvelle && <div className="recap-row"><span className="recap-lbl">{lang==='ar' ? 'الموقع المحقّق' : 'Position atteinte'}</span><span className="recap-val">{lang==='ar' ? `الحزب ${posNouvelle.hizb}, ث.${posNouvelle.tomon}` : `Hizb ${posNouvelle.hizb}, T.${posNouvelle.tomon}`}</span></div>}
+                <div className="recap-row"><span className="recap-lbl">{t(lang,'points_gagnes')}</span><span className="recap-val green">+{nombreTomon * (bareme?.unites?.tomon||0)} {lang==='ar' ? 'ن' : 'pts'}</span></div>
               </>
             ) : (
               <>
-                <div className="recap-row"><span className="recap-lbl">Validation</span><span className="recap-val green">Hizb {etat.hizbEnCours} complet</span></div>
-                <div className="recap-row"><span className="recap-lbl">{t(lang,'points_gagnes')}</span><span className="recap-val green">+100 pts</span></div>
-                <div className="recap-row"><span className="recap-lbl">Hizb suivant</span><span className="recap-val">Hizb {etat.hizbEnCours + 1} s'ouvre</span></div>
+                <div className="recap-row"><span className="recap-lbl">{lang==='ar' ? 'الاعتماد' : 'Validation'}</span><span className="recap-val green">{lang==='ar' ? `الحزب ${etat.hizbEnCours} كامل` : `Hizb ${etat.hizbEnCours} complet`}</span></div>
+                <div className="recap-row"><span className="recap-lbl">{t(lang,'points_gagnes')}</span><span className="recap-val green">+100 {lang==='ar' ? 'ن' : 'pts'}</span></div>
+                <div className="recap-row"><span className="recap-lbl">{lang==='ar' ? 'الحزب التالي' : 'Hizb suivant'}</span><span className="recap-val">{lang==='ar' ? `يُفتح الحزب ${etat.hizbEnCours + 1}` : `Hizb ${etat.hizbEnCours + 1} s'ouvre`}</span></div>
               </>
             )}
             <div className="recap-row"><span className="recap-lbl">{t(lang,'valide_par')}</span><span className="recap-val">{user.prenom} {user.nom}</span></div>
-            <div className="recap-row"><span className="recap-lbl">Date & heure</span><span className="recap-val">{new Date().toLocaleString('fr-FR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}</span></div>
+            <div className="recap-row"><span className="recap-lbl">{lang==='ar' ? 'التاريخ والساعة' : 'Date & heure'}</span><span className="recap-val">{new Date().toLocaleString(lang==='ar' ? 'ar-MA' : 'fr-FR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}</span></div>
           </div>
           <button className="btn-primary" disabled={loading} onClick={confirmer}>
             {loading ? t(lang,'enregistrement') : t(lang,'confirmer')}

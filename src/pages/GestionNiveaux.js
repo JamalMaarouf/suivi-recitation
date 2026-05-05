@@ -1369,37 +1369,37 @@ export default function GestionNiveaux({ user, navigate, goBack, lang='fr', isMo
       {showForm && (
         <div style={{background:'#fff',border:`1.5px solid ${editing?'#378ADD':'#1D9E75'}`,borderRadius:14,padding:'1.5rem',marginBottom:'1.5rem'}}>
           <div style={{fontSize:15,fontWeight:600,color:'#085041',marginBottom:'1rem'}}>
-            {editing?'✏️ Modifier le niveau':'📚 Nouveau niveau'}
+            {editing ? (lang==='ar' ? '✏️ تعديل المستوى' : '✏️ Modifier le niveau') : (lang==='ar' ? '📚 مستوى جديد' : '📚 Nouveau niveau')}
           </div>
           <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:12,marginBottom:16}}>
             <div>
-              <label className="field-lbl">Code *</label>
+              <label className="field-lbl">{lang==='ar' ? 'الرمز *' : 'Code *'}</label>
               <input className="field-input" value={form.code}
                 onChange={e=>setForm(f=>({...f,code:e.target.value.toUpperCase()}))} placeholder="N1"/>
             </div>
             <div>
-              <label className="field-lbl">Nom *</label>
+              <label className="field-lbl">{lang==='ar' ? 'الاسم *' : 'Nom *'}</label>
               <input className="field-input" value={form.nom}
-                onChange={e=>setForm(f=>({...f,nom:e.target.value}))} placeholder="Niveau débutant"/>
+                onChange={e=>setForm(f=>({...f,nom:e.target.value}))} placeholder={lang==='ar' ? 'مستوى مبتدئ' : 'Niveau débutant'}/>
             </div>
             <div>
-              <label className="field-lbl">Ordre</label>
+              <label className="field-lbl">{lang==='ar' ? 'الترتيب' : 'Ordre'}</label>
               <input className="field-input" type="number" min="1" value={form.ordre}
                 onChange={e=>setForm(f=>({...f,ordre:e.target.value}))} inputMode='numeric'/>
             </div>
           </div>
           <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12,marginBottom:16}}>
             <div>
-              <label className="field-lbl">Type de récitation *</label>
+              <label className="field-lbl">{lang==='ar' ? 'نوع الاستظهار *' : 'Type de récitation *'}</label>
               <div style={{display:'flex',gap:8}}>
-                {[{val:'hizb',icon:'📿',fr:'Hizb / Tomon'},{val:'sourate',icon:'📖',fr:'Sourates'}].map(t=>(
+                {[{val:'hizb',icon:'📿',fr:'Hizb / Tomon',ar:'حزب / ثُمن'},{val:'sourate',icon:'📖',fr:'Sourates',ar:'سور'}].map(t=>(
                   <div key={t.val} onClick={()=>setForm(f=>({...f,type:t.val}))}
                     style={{flex:1,padding:'10px',borderRadius:10,textAlign:'center',cursor:'pointer',
                       background:form.type===t.val?'#E1F5EE':'#f5f5f0',
                       border:`1.5px solid ${form.type===t.val?'#1D9E75':'#e0e0d8'}`,
                       color:form.type===t.val?'#085041':'#666'}}>
                     <div style={{fontSize:18}}>{t.icon}</div>
-                    <div style={{fontSize:12,fontWeight:form.type===t.val?600:400,marginTop:4}}>{t.fr}</div>
+                    <div style={{fontSize:12,fontWeight:form.type===t.val?600:400,marginTop:4}}>{lang==='ar' ? t.ar : t.fr}</div>
                   </div>
                 ))}
               </div>
@@ -1426,7 +1426,7 @@ export default function GestionNiveaux({ user, navigate, goBack, lang='fr', isMo
               )}
             </div>
             <div>
-              <label className="field-lbl">Couleur</label>
+              <label className="field-lbl">{lang==='ar' ? 'اللون' : 'Couleur'}</label>
               <div style={{display:'flex',gap:6,flexWrap:'wrap',alignItems:'center'}}>
                 {COULEURS_PRESET.map(col=>(
                   <div key={col} onClick={()=>setForm(f=>({...f,couleur:col}))}
@@ -1562,8 +1562,8 @@ export default function GestionNiveaux({ user, navigate, goBack, lang='fr', isMo
       {loading ? <div className="loading">...</div> : niveaux.length === 0 ? (
         <div style={{textAlign:'center',padding:'3rem',color:'#aaa',background:'#fff',borderRadius:12,border:'0.5px solid #e0e0d8'}}>
           <div style={{fontSize:48,marginBottom:12}}>📚</div>
-          <div style={{fontSize:15,marginBottom:8}}>Aucun niveau configuré</div>
-          <div style={{fontSize:13}}>Ajoutez votre premier niveau pour commencer</div>
+          <div style={{fontSize:15,marginBottom:8}}>{lang==='ar' ? 'لم يتم إعداد أي مستوى' : 'Aucun niveau configuré'}</div>
+          <div style={{fontSize:13}}>{lang==='ar' ? 'أضف مستواك الأول للبدء' : 'Ajoutez votre premier niveau pour commencer'}</div>
         </div>
       ) : (
         <>
@@ -1610,12 +1610,12 @@ export default function GestionNiveaux({ user, navigate, goBack, lang='fr', isMo
           <table className="gestion-niv-table">
             <thead>
               <tr>
-                <th style={{width:120}}>Ordre</th>
-                <th>Code</th>
-                <th>Nom</th>
-                <th>Type</th>
-                <th>Statut</th>
-                <th className="th-actions">Actions</th>
+                <th style={{width:120}}>{lang==='ar' ? 'الترتيب' : 'Ordre'}</th>
+                <th>{lang==='ar' ? 'الرمز' : 'Code'}</th>
+                <th>{lang==='ar' ? 'الاسم' : 'Nom'}</th>
+                <th>{lang==='ar' ? 'النوع' : 'Type'}</th>
+                <th>{lang==='ar' ? 'الحالة' : 'Statut'}</th>
+                <th className="th-actions">{lang==='ar' ? 'الإجراءات' : 'Actions'}</th>
               </tr>
             </thead>
             <tbody>
@@ -1686,9 +1686,9 @@ export default function GestionNiveaux({ user, navigate, goBack, lang='fr', isMo
             <div style={{fontSize:13,color:'#666',marginBottom:20}}>{confirmModal.message}</div>
             <div style={{display:'flex',gap:8,justifyContent:'flex-end'}}>
               <button onClick={()=>setConfirmModal({isOpen:false})}
-                style={{padding:'10px 20px',background:'#f5f5f0',border:'none',borderRadius:10,fontSize:13,fontWeight:600,cursor:'pointer'}}>Annuler</button>
+                style={{padding:'10px 20px',background:'#f5f5f0',border:'none',borderRadius:10,fontSize:13,fontWeight:600,cursor:'pointer'}}>{lang==='ar' ? 'إلغاء' : 'Annuler'}</button>
               <button onClick={confirmModal.onConfirm}
-                style={{padding:'10px 20px',background:'#E24B4A',color:'#fff',border:'none',borderRadius:10,fontSize:13,fontWeight:700,cursor:'pointer'}}>Supprimer</button>
+                style={{padding:'10px 20px',background:'#E24B4A',color:'#fff',border:'none',borderRadius:10,fontSize:13,fontWeight:700,cursor:'pointer'}}>{lang==='ar' ? 'حذف' : 'Supprimer'}</button>
             </div>
           </div>
         </div>

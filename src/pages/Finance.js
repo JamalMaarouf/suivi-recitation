@@ -1207,7 +1207,7 @@ export default function Finance({ user, navigate, goBack, lang='fr', isMobile })
                     </div>
                   );
                 })}
-                {cotPeriode.length===0&&<div className="empty" style={{fontSize:12}}>Aucune cotisation</div>}
+                {cotPeriode.length===0&&<div className="empty" style={{fontSize:12}}>{lang==='ar' ? 'لا توجد اشتراكات' : 'Aucune cotisation'}</div>}
               </div>
               <div style={{background:'#fff',border:'0.5px solid #e0e0d8',borderRadius:14,padding:'1rem'}}>
                 <div style={{fontSize:13,fontWeight:600,marginBottom:8,color:'#1e3a5f'}}>📤 {lang==='ar'?'آخر المصاريف':'Dernières dépenses'}</div>
@@ -1221,7 +1221,7 @@ export default function Finance({ user, navigate, goBack, lang='fr', isMobile })
                     </div>
                   );
                 })}
-                {depPeriode.length===0&&<div className="empty" style={{fontSize:12}}>Aucune dépense</div>}
+                {depPeriode.length===0&&<div className="empty" style={{fontSize:12}}>{lang==='ar' ? 'لا توجد مصاريف' : 'Aucune dépense'}</div>}
               </div>
             </div>
           </>
