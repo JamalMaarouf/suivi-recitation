@@ -1108,7 +1108,7 @@ ${(passages||[]).length > 0 ? `
   const sl = estSourateEleve
     ? scoreLabel(nbSouratesCompletes * 30) // simulate score for label color
     : (etat ? scoreLabel(etat.points.total) : {color:'#888',bg:'#f0f0ec',label:'—'});
-  const badges = etat ? calcBadges(validations,etat) : [];
+  const badges = etat ? calcBadges(validations,etat,lang) : [];
 
   const validationsOuRecitations = estSourateEleve ? [] : validations;
   const vitesse = estSourateEleve ? (() => {

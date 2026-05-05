@@ -121,7 +121,7 @@ export default function Calendrier({ user, navigate, goBack, lang='fr', isMobile
 
           <div style={{display:'flex',gap:16,fontSize:11,color:'#888',marginBottom:'1rem'}}>
             <div style={{display:'flex',alignItems:'center',gap:4}}><div style={{width:8,height:8,borderRadius:'50%',background:'#1D9E75'}}/>{t(lang,'tomon_abrev')}</div>
-            <div style={{display:'flex',alignItems:'center',gap:4}}><div style={{width:8,height:8,borderRadius:'50%',background:'#EF9F27'}}/>Hizb</div>
+            <div style={{display:'flex',alignItems:'center',gap:4}}><div style={{width:8,height:8,borderRadius:'50%',background:'#EF9F27'}}/>{lang==='ar' ? 'حزب' : 'Hizb'}</div>
           </div>
 
           {selectedDay&&valsSelected.length>0&&(
@@ -145,7 +145,7 @@ export default function Calendrier({ user, navigate, goBack, lang='fr', isMobile
                         <div style={{fontSize:11,color:'#bbb'}}>{new Date(v.date_validation).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'})}{v.valideur?` · ${v.valideur.prenom} ${v.valideur.nom}`:''}</div>
                       </div>
                       <div style={{textAlign:'right'}}>
-                        {v.type_validation==='hizb_complet'?<span className="badge badge-green" style={{fontSize:10}}>Hizb</span>:<span className="badge badge-blue" style={{fontSize:10}}>{v.nombre_tomon}{t(lang,'tomon_abrev')}</span>}
+                        {v.type_validation==='hizb_complet'?<span className="badge badge-green" style={{fontSize:10}}>{lang==='ar' ? 'حزب' : 'Hizb'}</span>:<span className="badge badge-blue" style={{fontSize:10}}>{v.nombre_tomon}{t(lang,'tomon_abrev')}</span>}
                         <div style={{fontSize:11,fontWeight:600,color:'#1D9E75',marginTop:2}}>+{v.type_validation==='hizb_complet'?(bareme.hizb_complet || 0):v.nombre_tomon*(bareme.tomon || 0)} {t(lang,'pts_abrev')}</div>
                       </div>
                     </div>

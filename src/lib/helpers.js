@@ -381,28 +381,59 @@ export function scoreLabel(points) {
 }
 
 // Calcul des badges automatiques
-export function calcBadges(validations, etat) {
+export function calcBadges(validations, etat, lang = 'fr') {
   const badges = [];
   const tomonCumul = etat.tomonCumul;
   const hizbsComplets = etat.hizbsComplets.size;
+  const isAr = lang === 'ar';
 
-  if (tomonCumul >= 1) badges.push({ id: 'premier_tomon', icon: '🌱', label: 'Premier Tomon', desc: 'A récité son tout premier Tomon', color: '#1D9E75', bg: '#E1F5EE' });
-  if (hizbsComplets >= 1) badges.push({ id: 'premier_hizb', icon: '📖', label: 'Premier Hizb', desc: 'A complété son premier Hizb', color: '#EF9F27', bg: '#FAEEDA' });
-  if (hizbsComplets >= 5) badges.push({ id: 'cinq_hizb', icon: '🔥', label: '5 Hizb', desc: 'A complété 5 Hizb', color: '#E24B4A', bg: '#FCEBEB' });
-  if (hizbsComplets >= 10) badges.push({ id: 'dix_hizb', icon: '⭐', label: '10 Hizb', desc: 'Maîtrise de 10 Hizb', color: '#534AB7', bg: '#EEEDFE' });
-  if (hizbsComplets >= 30) badges.push({ id: 'moitie_coran', icon: '🌙', label: 'Mi-Coran', desc: 'A atteint la moitié du Coran', color: '#085041', bg: '#E1F5EE' });
-  if (hizbsComplets >= 60) badges.push({ id: 'hafiz', icon: '👑', label: 'Hafiz', desc: 'A mémorisé le Coran complet', color: '#EF9F27', bg: '#FAEEDA' });
-  if (tomonCumul >= 10) badges.push({ id: 'dix_tomon', icon: '💪', label: '10 Tomon', desc: 'A récité 10 Tomon au total', color: '#378ADD', bg: '#E6F1FB' });
-  if (tomonCumul >= 40) badges.push({ id: 'quarante_tomon', icon: '🚀', label: '40 Tomon', desc: 'Mémorisé 5 Hizb en Tomon', color: '#D85A30', bg: '#FAECE7' });
+  if (tomonCumul >= 1) badges.push({ id: 'premier_tomon', icon: '🌱',
+    label: isAr ? 'أول ثُمن' : 'Premier Tomon',
+    desc: isAr ? 'استظهر أول ثُمن له' : 'A récité son tout premier Tomon',
+    color: '#1D9E75', bg: '#E1F5EE' });
+  if (hizbsComplets >= 1) badges.push({ id: 'premier_hizb', icon: '📖',
+    label: isAr ? 'أول حزب' : 'Premier Hizb',
+    desc: isAr ? 'أكمل أول حزب له' : 'A complété son premier Hizb',
+    color: '#EF9F27', bg: '#FAEEDA' });
+  if (hizbsComplets >= 5) badges.push({ id: 'cinq_hizb', icon: '🔥',
+    label: isAr ? '5 أحزاب' : '5 Hizb',
+    desc: isAr ? 'أكمل 5 أحزاب' : 'A complété 5 Hizb',
+    color: '#E24B4A', bg: '#FCEBEB' });
+  if (hizbsComplets >= 10) badges.push({ id: 'dix_hizb', icon: '⭐',
+    label: isAr ? '10 أحزاب' : '10 Hizb',
+    desc: isAr ? 'إتقان 10 أحزاب' : 'Maîtrise de 10 Hizb',
+    color: '#534AB7', bg: '#EEEDFE' });
+  if (hizbsComplets >= 30) badges.push({ id: 'moitie_coran', icon: '🌙',
+    label: isAr ? 'نصف القرآن' : 'Mi-Coran',
+    desc: isAr ? 'بلغ نصف القرآن' : 'A atteint la moitié du Coran',
+    color: '#085041', bg: '#E1F5EE' });
+  if (hizbsComplets >= 60) badges.push({ id: 'hafiz', icon: '👑',
+    label: isAr ? 'حافظ' : 'Hafiz',
+    desc: isAr ? 'حفظ القرآن كاملاً' : 'A mémorisé le Coran complet',
+    color: '#EF9F27', bg: '#FAEEDA' });
+  if (tomonCumul >= 10) badges.push({ id: 'dix_tomon', icon: '💪',
+    label: isAr ? '10 أثمان' : '10 Tomon',
+    desc: isAr ? 'استظهر 10 أثمان' : 'A récité 10 Tomon au total',
+    color: '#378ADD', bg: '#E6F1FB' });
+  if (tomonCumul >= 40) badges.push({ id: 'quarante_tomon', icon: '🚀',
+    label: isAr ? '40 ثُمن' : '40 Tomon',
+    desc: isAr ? 'حفظ 5 أحزاب بالأثمان' : 'Mémorisé 5 Hizb en Tomon',
+    color: '#D85A30', bg: '#FAECE7' });
 
   // Badge vitesse — a récité 6+ Tomon en une semaine
   const semaineDerniere = new Date(); semaineDerniere.setDate(semaineDerniere.getDate()-7);
   const tomonSemaine = validations.filter(v=>v.type_validation==='tomon'&&new Date(v.date_validation)>=semaineDerniere).reduce((s,v)=>s+v.nombre_tomon,0);
-  if (tomonSemaine >= 6) badges.push({ id: 'semaine_record', icon: '⚡', label: 'Semaine record', desc: `${tomonSemaine} Tomon en 7 jours`, color: '#EF9F27', bg: '#FAEEDA' });
+  if (tomonSemaine >= 6) badges.push({ id: 'semaine_record', icon: '⚡',
+    label: isAr ? 'أسبوع قياسي' : 'Semaine record',
+    desc: isAr ? `${tomonSemaine} ثُمن في 7 أيام` : `${tomonSemaine} Tomon en 7 jours`,
+    color: '#EF9F27', bg: '#FAEEDA' });
 
   // Streak 4 semaines
   const streak = calcStreakWeeks(validations);
-  if (streak >= 4) badges.push({ id: 'streak_4', icon: '🔗', label: '4 semaines', desc: '4 semaines consécutives actives', color: '#534AB7', bg: '#EEEDFE' });
+  if (streak >= 4) badges.push({ id: 'streak_4', icon: '🔗',
+    label: isAr ? '4 أسابيع' : '4 semaines',
+    desc: isAr ? '4 أسابيع متتالية نشطة' : '4 semaines consécutives actives',
+    color: '#534AB7', bg: '#EEEDFE' });
 
   return badges;
 }

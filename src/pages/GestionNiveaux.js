@@ -1610,12 +1610,12 @@ export default function GestionNiveaux({ user, navigate, goBack, lang='fr', isMo
           <table className="gestion-niv-table">
             <thead>
               <tr>
-                <th style={{width:120}}>Ordre</th>
-                <th>Code</th>
-                <th>Nom</th>
-                <th>Type</th>
-                <th>Statut</th>
-                <th className="th-actions">Actions</th>
+                <th style={{width:120}}>{lang==='ar' ? 'الترتيب' : 'Ordre'}</th>
+                <th>{lang==='ar' ? 'الرمز' : 'Code'}</th>
+                <th>{lang==='ar' ? 'الاسم' : 'Nom'}</th>
+                <th>{lang==='ar' ? 'النوع' : 'Type'}</th>
+                <th>{lang==='ar' ? 'الحالة' : 'Statut'}</th>
+                <th className="th-actions">{lang==='ar' ? 'الإجراءات' : 'Actions'}</th>
               </tr>
             </thead>
             <tbody>
@@ -1686,9 +1686,9 @@ export default function GestionNiveaux({ user, navigate, goBack, lang='fr', isMo
             <div style={{fontSize:13,color:'#666',marginBottom:20}}>{confirmModal.message}</div>
             <div style={{display:'flex',gap:8,justifyContent:'flex-end'}}>
               <button onClick={()=>setConfirmModal({isOpen:false})}
-                style={{padding:'10px 20px',background:'#f5f5f0',border:'none',borderRadius:10,fontSize:13,fontWeight:600,cursor:'pointer'}}>Annuler</button>
+                style={{padding:'10px 20px',background:'#f5f5f0',border:'none',borderRadius:10,fontSize:13,fontWeight:600,cursor:'pointer'}}>{lang==='ar' ? 'إلغاء' : 'Annuler'}</button>
               <button onClick={confirmModal.onConfirm}
-                style={{padding:'10px 20px',background:'#E24B4A',color:'#fff',border:'none',borderRadius:10,fontSize:13,fontWeight:700,cursor:'pointer'}}>Supprimer</button>
+                style={{padding:'10px 20px',background:'#E24B4A',color:'#fff',border:'none',borderRadius:10,fontSize:13,fontWeight:700,cursor:'pointer'}}>{lang==='ar' ? 'حذف' : 'Supprimer'}</button>
             </div>
           </div>
         </div>
