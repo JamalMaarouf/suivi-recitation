@@ -490,12 +490,64 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang, isMobi
       const _vitesse = (typeof vitesse !== 'undefined' && vitesse) ? vitesse : { moyenne: 0, tendance: 'stable' };
       const _streak = (typeof streak !== 'undefined' && streak) ? streak : 0;
 
+      // Fetch leger : presences derniers 30 jours (pour resume assiduite)
+      let assidStats = null;
+      try {
+        const il30jISO = new Date();
+        il30jISO.setDate(il30jISO.getDate() - 30);
+        const isoStart = il30jISO.toISOString().slice(0, 10);
+        const { data: presData } = await supabase
+          .from('presences')
+          .select('date_presence')
+          .eq('eleve_id', eleve.id)
+          .gte('date_presence', isoStart);
+        if (presData) {
+          const nbPresences = presData.length;
+          // Estimation simple : 4 jours/semaine × ~4 semaines = ~17 seances attendues
+          const seancesEstimees = 17;
+          const taux = Math.round((nbPresences / seancesEstimees) * 100);
+          assidStats = {
+            presences: nbPresences,
+            estime: seancesEstimees,
+            taux: Math.min(100, Math.max(0, taux)),
+          };
+        }
+      } catch { /* fetch echoue : on n'affiche pas le bloc assiduite */ }
+
       // Recitations 30 derniers jours
       const il30j = new Date();
       il30j.setDate(il30j.getDate() - 30);
       const recits30j = (validations||[]).filter(v => v.date_validation && new Date(v.date_validation) >= il30j);
       const tomon30j = recits30j.filter(v => v.type_validation === 'tomon').reduce((s,v)=>s+(v.nombre_tomon||0), 0);
       const hizb30j = recits30j.filter(v => v.type_validation === 'hizb_complet').length;
+
+      // Muraja'a : stats agregees (Hizb + Sourates)
+      const muraStats = {
+        total: (murajaa||[]).length + (murajaaS||[]).length,
+        hizb: (murajaa||[]).reduce((s,m) => s + (m.nombre_tomon || 1), 0),
+        sourates: (murajaaS||[]).filter(m => m.type_recitation === 'complete').length,
+        sequences: (murajaaS||[]).filter(m => m.type_recitation === 'sequence').length,
+      };
+
+      // Objectif mois en cours
+      const moisCourant = now.getMonth() + 1;
+      const anneeCourante = now.getFullYear();
+      const objMoisCourant = (objectifs||[]).find(o => o.mois === moisCourant && o.annee === anneeCourante);
+      let objStats = null;
+      if (objMoisCourant) {
+        const debutMois = new Date(anneeCourante, moisCourant - 1, 1);
+        const finMois = new Date(anneeCourante, moisCourant, 0, 23, 59, 59);
+        const tomonMois = (validations||[])
+          .filter(v => v.type_validation === 'tomon' && v.date_validation && new Date(v.date_validation) >= debutMois && new Date(v.date_validation) <= finMois)
+          .reduce((s,v) => s + (v.nombre_tomon || 0), 0);
+        const cible = objMoisCourant.nombre_tomon || 0;
+        objStats = {
+          mois: now.toLocaleDateString(isRTL?'ar-MA':'fr-FR', {month:'long', year:'numeric'}),
+          fait: tomonMois,
+          cible,
+          pct: cible > 0 ? Math.min(100, Math.round((tomonMois / cible) * 100)) : 0,
+        };
+      }
 
       // Examens stats
       const examensValid = (examens||[]).filter(e => typeof e.score === 'number' && typeof e.score_max === 'number' && e.score_max > 0);
@@ -702,6 +754,46 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang, isMobi
         <div><div class="v">${hizb30j}</div><div class="l">${isRTL?'حزب كامل (30 يوم)':'Hizb (30j)'}</div></div>
       </div>`}
 </div>
+
+${objStats ? `
+<div class="section">
+  <div class="section-title">🎯 ${isRTL?'الهدف الشهري':'Objectif du mois'} <span class="section-title-count">${esc(objStats.mois)}</span></div>
+  <div style="background:#fff;border:0.5px solid #e0e0d8;border-radius:6px;padding:10px 12px">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+      <span style="font-size:11px;color:#666">${isRTL?'التقدم':'Progression'}</span>
+      <span style="font-size:13px;font-weight:700;color:${objStats.pct >= 100 ? '#1D9E75' : objStats.pct >= 50 ? '#EF9F27' : '#E24B4A'}">${objStats.fait} / ${objStats.cible} ${isRTL?'ثُمن':'Tomon'} (${objStats.pct}%)</span>
+    </div>
+    <div style="background:#f0f0ec;border-radius:10px;height:8px;overflow:hidden">
+      <div style="background:linear-gradient(90deg,#1D9E75,#085041);height:100%;width:${objStats.pct}%;border-radius:10px"></div>
+    </div>
+  </div>
+</div>` : ''}
+
+${muraStats.total > 0 ? `
+<div class="section">
+  <div class="section-title">📖 ${isRTL?'المراجعة':"Muraja'a"} <span class="section-title-count">${muraStats.total} ${isRTL?'إجمالي':'au total'}</span></div>
+  <div class="stat-bar">
+    ${muraStats.hizb > 0 ? `<div><div class="v">${muraStats.hizb}</div><div class="l">${isRTL?'ثُمن مراجع':'Tomon Hizb'}</div></div>` : ''}
+    ${muraStats.sourates > 0 ? `<div><div class="v">${muraStats.sourates}</div><div class="l">${isRTL?'سور مراجعة':'Sourates'}</div></div>` : ''}
+    ${muraStats.sequences > 0 ? `<div><div class="v">${muraStats.sequences}</div><div class="l">${isRTL?'مقاطع':'Séquences'}</div></div>` : ''}
+    <div><div class="v">${muraStats.total}</div><div class="l">${isRTL?'الإجمالي':'Total'}</div></div>
+  </div>
+</div>` : ''}
+
+${assidStats !== null ? `
+<div class="section">
+  <div class="section-title">📅 ${isRTL?'الحضور (آخر 30 يوم)':'Assiduité (30 derniers jours)'}</div>
+  <div style="background:#fff;border:0.5px solid #e0e0d8;border-radius:6px;padding:10px 12px">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+      <span style="font-size:11px;color:#666">${isRTL?'معدل الحضور التقديري':'Taux de présence estimé'}</span>
+      <span style="font-size:14px;font-weight:700;color:${assidStats.taux >= 80 ? '#1D9E75' : assidStats.taux >= 50 ? '#EF9F27' : '#E24B4A'}">${assidStats.taux}%</span>
+    </div>
+    <div style="background:#f0f0ec;border-radius:10px;height:8px;overflow:hidden;margin-bottom:6px">
+      <div style="background:${assidStats.taux >= 80 ? '#1D9E75' : assidStats.taux >= 50 ? '#EF9F27' : '#E24B4A'};height:100%;width:${assidStats.taux}%;border-radius:10px"></div>
+    </div>
+    <div style="font-size:9px;color:#aaa;text-align:center">${assidStats.presences} ${isRTL?'حضور مسجل':'présences enregistrées'} (${isRTL?'تقدير':'estimé sur'} ${assidStats.estime} ${isRTL?'حصة':'séances'})</div>
+  </div>
+</div>` : ''}
 
 <div class="section">
   <div class="section-title">
