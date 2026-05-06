@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
-import { getInitiales, scoreLabel, loadBareme, verifierEtCreerCertificats, calculerPointsSourate } from '../lib/helpers';
+import { getInitiales, scoreLabel, loadBareme, verifierEtCreerCertificats } from '../lib/helpers';
 import { t } from '../lib/i18n';
 import { getSouratesForNiveau, isSourateNiveau } from '../lib/sourates';
 import { useToast } from '../lib/toast';
@@ -81,9 +81,6 @@ export default function RecitationSourate({ user, eleve, navigate, goBack, lang=
   const [saving, setSaving] = useState(false);
   const [flash, setFlash] = useState(null);
   const [bareme, setBareme] = useState(null);
-  // Phase 2 : charger les ensembles pour calculer les points avec priorite
-  // (sourate specifique > ensemble > base)
-  const [ensemblesEcole, setEnsemblesEcole] = useState([]);
   const [showExceptionModal, setShowExceptionModal] = useState(false);
   const [sensRecitation, setSensRecitation] = useState('desc');
 
@@ -97,11 +94,6 @@ export default function RecitationSourate({ user, eleve, navigate, goBack, lang=
   useEffect(() => {
     loadData();
     loadBareme(supabase, user.ecole_id).then(b => setBareme(b));
-    // Phase 2 : charger les ensembles avec sourates_ids pour calcul points
-    supabase.from('ensembles_sourates')
-      .select('id,sourates_ids')
-      .eq('ecole_id', user.ecole_id)
-      .then(({data}) => setEnsemblesEcole(data || []));
   }, [eleve.id]);
 
   // Auto-select current sourate when arriving from outside (e.g. from FicheSourate)
@@ -224,15 +216,7 @@ export default function RecitationSourate({ user, eleve, navigate, goBack, lang=
       if (parseInt(versetFin) < parseInt(versetDebut)) { toast.warning(lang==='ar'?'الآية الأخيرة يجب أن تكون أكبر':'Le verset de fin doit être supérieur'); return; }
     }
     setSaving(true);
-    // Phase 2 : nouveau calcul avec priorite (sourate specifique > ensemble > base)
-    const sourateDbId = getDbId(selectedSourate.numero);
-    let pts;
-    if (typeRecitation === 'complete') {
-      const calc = calculerPointsSourate(sourateDbId, bareme, ensemblesEcole, 'complete');
-      pts = calc.points;
-    } else {
-      pts = bareme?.unites?.sequence_sourate || 0;
-    }
+    const pts = typeRecitation === 'complete' ? (bareme?.unites?.sourate||0) : (bareme?.unites?.sequence_sourate||0);
     const { error } = await supabase.from('recitations_sourates').insert({
       eleve_id: eleve.id,
       ecole_id: user.ecole_id,
@@ -389,14 +373,11 @@ export default function RecitationSourate({ user, eleve, navigate, goBack, lang=
                                   setSaving(true);
                                   const dbId = getDbId(s.numero);
                                   if (dbId) {
-                                    // Phase 2 : calcul avec priorite
-                                    const calc = calculerPointsSourate(dbId, bareme, ensemblesEcole, 'complete');
-                                    const ptsCalc = calc.points;
                                     const {error} = await supabase.from('recitations_sourates')
                                       .insert({eleve_id:eleve.id,ecole_id:user.ecole_id,sourate_id:dbId,
-                                        type_recitation:'complete',points:ptsCalc,valide_par:user.id,
+                                        type_recitation:'complete',points:bareme?.unites?.sourate||0,valide_par:user.id,
                                         date_validation:new Date().toISOString()});
-                                    if (!error) { setFlash({msg:`✅ +${ptsCalc} pts`,color:'#1D9E75'}); setTimeout(()=>setFlash(null),2000); loadData(); }
+                                    if (!error) { setFlash({msg:`✅ +${bareme?.unites?.sourate||0} pts`,color:'#1D9E75'}); setTimeout(()=>setFlash(null),2000); loadData(); }
                                   }
                                   setSaving(false); setSelectedSourate(null);
                                 }}
