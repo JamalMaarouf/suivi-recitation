@@ -298,6 +298,9 @@ function BaremeTab({ user, lang, bareme, setBareme, saving, setSaving, showMsg }
   const [criterePoints, setCriterePoints] = useState(0);
   // Nouveau : pour le type 'sourate_dans_ensemble' — multi-sélection
   const [souratesSelectionnees, setSouratesSelectionnees] = useState([]);  // [sourate_id, ...]
+  // Nouveau : pour le type 'ensemble_partage' — multi-sélection libre d'ensembles
+  // Le surveillant choisit explicitement quels ensembles partagent la meme note
+  const [ensemblesPartageSelectionnes, setEnsemblesPartageSelectionnes] = useState([]);  // [ensemble_id, ...]
   // Configurations enregistrées (lignes)
   const [configs, setConfigs] = useState([]);
 
@@ -347,32 +350,6 @@ function BaremeTab({ user, lang, bareme, setBareme, saving, setSaving, showMsg }
     return ens.sourates_ids;
   };
 
-  // Helper pour ensemble_partage : retourne les noms uniques d'ensembles
-  // qui apparaissent dans plusieurs niveaux
-  const getNomsEnsemblesUniques = () => {
-    // Grouper les ensembles par nom (trim + lowercase pour matcher)
-    const parNom = {};
-    (ensembles || []).forEach(e => {
-      const cle = (e.nom || '').trim();
-      if (!cle) return;
-      if (!parNom[cle]) parNom[cle] = [];
-      parNom[cle].push(e);
-    });
-    // Tri par nom
-    return Object.entries(parNom)
-      .sort(([a], [b]) => a.localeCompare(b, 'ar'))
-      .map(([nom, instances]) => ({
-        nom,
-        instances,            // tous les ensembles avec ce nom
-        nbInstances: instances.length,
-        // niveaux concernes (ordonnes par ordre niveau)
-        niveaux: instances
-          .map(e => niveaux.find(n => n.id === e.niveau_id))
-          .filter(Boolean)
-          .sort((a, b) => (a.ordre || 0) - (b.ordre || 0)),
-      }));
-  };
-
   // Options du sélecteur selon type
   const getOptions = () => {
     if (critereType === 'examen') return examens.map(e => ({ id: e.id, label: e.nom }));
@@ -380,15 +357,7 @@ function BaremeTab({ user, lang, bareme, setBareme, saving, setSaving, showMsg }
       // Bug fix Q2 : afficher avec niveau (mais regroupement gere par optgroup)
       return ensembles.map(e => ({ id: e.id, label: e.nom, niveau_id: e.niveau_id }));
     }
-    if (critereType === 'ensemble_partage') {
-      // Pour le mode 'partage', on liste les NOMS uniques d'ensembles
-      // L'identifiant est le nom (string), pas un UUID
-      return getNomsEnsemblesUniques().map(g => ({
-        id: g.nom,
-        label: `${g.nom} (${g.nbInstances} ${lang==='ar' ? (g.nbInstances > 1 ? 'مستويات' : 'مستوى') : (g.nbInstances > 1 ? 'niveaux' : 'niveau')})`,
-        niveau_codes: g.niveaux.map(n => n.code).join(', '),
-      }));
-    }
+    // Pour 'ensemble_partage' : pas de select objet — utilisation du panneau multi-select dedie
     if (critereType === 'jalon') return jalons.map(j => ({ id: j.id, label: j.nom_ar || j.nom }));
     return [];
   };
@@ -412,8 +381,8 @@ function BaremeTab({ user, lang, bareme, setBareme, saving, setSaving, showMsg }
       return { label: niv ? `${niv} — ${e?.nom||''}` : (e?.nom || ''), icon: '🎯', color: '#085041', objet_id: critereObjetId };
     }
     if (critereType === 'ensemble_partage') {
-      // Sera traite specifiquement dans ajouterCritere (creation de N criteres)
-      return { label: critereObjetId, icon: '🔗', color: '#534AB7', objet_id: critereObjetId };
+      // Sera traite specifiquement dans ajouterCritere (multi-selection libre)
+      return { label: '', icon: '🔗', color: '#534AB7', objet_id: null };
     }
     if (critereType === 'jalon') {
       const j = jalons.find(x => x.id === critereObjetId);
@@ -464,38 +433,43 @@ function BaremeTab({ user, lang, bareme, setBareme, saving, setSaving, showMsg }
       return;
     }
 
-    // Cas special : ensemble_partage = applique la meme note a TOUS
-    // les ensembles ayant le meme nom (peu importe le niveau)
-    // critereObjetId contient ici le NOM (string), pas un UUID
+    // Cas special : ensemble_partage = multi-selection LIBRE par le surveillant
+    // qui choisit explicitement quels ensembles partagent la meme note.
+    // Plus robuste qu'un regroupement par nom (gere les homonymes,
+    // contenus differents, et responsabilise le surveillant).
     if (critereType === 'ensemble_partage') {
-      const nomCible = (critereObjetId || '').trim();
-      if (!nomCible) {
-        showMsg('error', lang==='ar'?'اختر اسم المجموعة':'Sélectionnez le nom de l\'ensemble');
+      if (ensemblesPartageSelectionnes.length === 0) {
+        showMsg('error', lang==='ar'?'اختر مجموعة واحدة على الأقل':'Sélectionnez au moins un ensemble');
         return;
       }
-      const instances = (ensembles || []).filter(e => (e.nom || '').trim() === nomCible);
-      if (instances.length === 0) {
-        showMsg('error', lang==='ar'?'لا توجد مجموعات بهذا الاسم':'Aucun ensemble avec ce nom');
+      if (ensemblesPartageSelectionnes.length === 1) {
+        showMsg('error', lang==='ar'
+          ? 'اختر مجموعتين على الأقل (أو استخدم "مجموعة سور" لمجموعة واحدة)'
+          : 'Sélectionnez au moins 2 ensembles (sinon utilisez "Ensemble de sourates" pour un seul)');
         return;
       }
 
+      // Generer un identifiant de groupe partage (timestamp suffisant)
+      // Permet de regrouper visuellement les criteres dans la liste
+      const partageId = `partage_${Date.now()}`;
+
       const nouveaux = [];
-      for (const ens of instances) {
-        // Eviter doublon dans la liste en cours
+      for (const ensId of ensemblesPartageSelectionnes) {
+        const ens = ensembles.find(e => e.id === ensId);
+        if (!ens) continue;
+        // Eviter doublon dans la liste en cours (meme ensemble + meme points deja ajoute)
         const exists = criteres.find(c =>
-          (c.type === 'ensemble_sourates' || c.type === 'ensemble_partage')
-          && c.objet_id === ens.id
+          c.type === 'ensemble_sourates' && c.objet_id === ensId && c.points === criterePoints
         );
         if (exists) continue;
         const niv = niveauNom(ens.niveau_id);
         nouveaux.push({
-          // On enregistre comme 'ensemble_sourates' classique en BDD (pas besoin
-          // d'un nouveau type cote BDD : c'est juste un workflow UI)
-          // Mais on garde une marque 'partage_origin' pour grouper l'affichage
+          // Stocke en BDD comme 'ensemble_sourates' classique (pas de migration)
+          // Marqueur 'partage_origin' uniquement en memoire pour grouping visuel
           type: 'ensemble_sourates',
-          objet_id: ens.id,
-          partage_origin: nomCible,
-          partage_count: instances.length,
+          objet_id: ensId,
+          partage_origin: partageId,
+          partage_count: ensemblesPartageSelectionnes.length,
           label: niv ? `${niv} — ${ens.nom}` : ens.nom,
           icon: '🔗',
           color: '#534AB7',
@@ -508,6 +482,7 @@ function BaremeTab({ user, lang, bareme, setBareme, saving, setSaving, showMsg }
       }
       setCriteres(prev => [...prev, ...nouveaux]);
       setCritereType(''); setCritereObjetId(''); setCriterePoints(0);
+      setEnsemblesPartageSelectionnes([]);
       return;
     }
 
@@ -593,7 +568,8 @@ function BaremeTab({ user, lang, bareme, setBareme, saving, setSaving, showMsg }
     return '⭐';
   };
 
-  const needsObjet = critereType && !UNITES.find(u => u.key === critereType);
+  // Pour ensemble_partage : pas de select objet — on utilise le panneau multi-select dedie
+  const needsObjet = critereType && !UNITES.find(u => u.key === critereType) && critereType !== 'ensemble_partage';
 
   return (
     <div>
@@ -614,7 +590,7 @@ function BaremeTab({ user, lang, bareme, setBareme, saving, setSaving, showMsg }
           <div style={{flex:2,minWidth:160}}>
             <label className="field-lbl">{lang==='ar'?'نوع المعيار':'Type de critère'}</label>
             <select className="field-select" value={critereType}
-              onChange={e => { setCritereType(e.target.value); setCritereObjetId(''); setSouratesSelectionnees([]); }}>
+              onChange={e => { setCritereType(e.target.value); setCritereObjetId(''); setSouratesSelectionnees([]); setEnsemblesPartageSelectionnes([]); }}>
               <option value="">{lang==='ar'?'— اختر —':'— Choisir —'}</option>
               <optgroup label={lang==='ar'?'وحدات أساسية':'Unités de base'}>
                 {UNITES.map(u => <option key={u.key} value={u.key}>{u.icon} {u.label_ar}</option>)}
@@ -624,7 +600,7 @@ function BaremeTab({ user, lang, bareme, setBareme, saving, setSaving, showMsg }
               </optgroup>
               <optgroup label={lang==='ar'?'مجموعات سور':'Ensembles'}>
                 <option value="ensemble_sourates">{lang==='ar'?'مجموعة سور...':'Ensemble de sourates...'}</option>
-                <option value="ensemble_partage">{lang==='ar'?'🔗 مجموعة مشتركة (نفس الاسم)...':'🔗 Ensemble partagé (par nom)...'}</option>
+                <option value="ensemble_partage">{lang==='ar'?'🔗 مجموعة مشتركة (اختيار حر)...':'🔗 Ensemble partagé (sélection libre)...'}</option>
                 <option value="sourate_dans_ensemble">{lang==='ar'?'🎯 سورة محددة في مجموعة...':'🎯 Sourate spécifique dans un ensemble...'}</option>
               </optgroup>
               <optgroup label={lang==='ar'?'شهادات':'Jalons'}>
@@ -658,10 +634,6 @@ function BaremeTab({ user, lang, bareme, setBareme, saving, setSaving, showMsg }
                       </optgroup>
                     ] : []
                   )
-                ) : critereType === 'ensemble_partage' ? (
-                  // Mode partage : lister les noms uniques d'ensembles
-                  // L'identifiant est le nom (string), pas un UUID
-                  getOptions().map(o => <option key={o.id} value={o.id}>{o.label}</option>)
                 ) : (
                   // Cas normal (examen, jalon) : pas de regroupement
                   getOptions().map(o => <option key={o.id} value={o.id}>{o.label}</option>)
@@ -691,50 +663,145 @@ function BaremeTab({ user, lang, bareme, setBareme, saving, setSaving, showMsg }
           </button>
         </div>
 
-        {/* Apercu mode 'ensemble_partage' : afficher les ensembles concernes */}
-        {critereType === 'ensemble_partage' && critereObjetId && (() => {
-          const nomCible = (critereObjetId || '').trim();
-          const instances = (ensembles || []).filter(e => (e.nom || '').trim() === nomCible);
-          if (instances.length === 0) return null;
+        {/* Panneau multi-selection LIBRE pour 'ensemble_partage' :
+            le surveillant choisit explicitement quels ensembles partagent
+            la meme note. Plus robuste que regroupement par nom. */}
+        {critereType === 'ensemble_partage' && (() => {
+          const nbS = ensemblesPartageSelectionnes.length;
+          // Helper toggle ensemble dans la selection
+          const toggleEns = (eId) => {
+            setEnsemblesPartageSelectionnes(prev =>
+              prev.includes(eId) ? prev.filter(x => x !== eId) : [...prev, eId]
+            );
+          };
+          // Tous les ensembles regroupes par niveau
+          const ensParNiveau = niveaux.map(niv => ({
+            niv,
+            ensembles: ensembles.filter(e => e.niveau_id === niv.id),
+          })).filter(g => g.ensembles.length > 0);
+          // Ensembles sans niveau (cas edge)
+          const ensSansNiveau = ensembles.filter(e => !e.niveau_id);
+
+          if (ensembles.length === 0) {
+            return (
+              <div style={{padding:'12px 14px',background:'#FFF3CD',border:'0.5px solid #EF9F2740',borderRadius:8,fontSize:12,color:'#856404',marginBottom:12}}>
+                ⚠️ {lang==='ar' ? 'لا توجد مجموعات. أضفها أولاً في إدارة المجموعات.' : "Aucun ensemble n'existe. Créez-en d'abord dans Gestion → Ensembles."}
+              </div>
+            );
+          }
+
           return (
             <div style={{padding:'12px 14px',background:'#EEEDFE',border:'1px solid #534AB730',borderRadius:8,marginBottom:12}}>
-              <div style={{fontSize:13,fontWeight:600,color:'#534AB7',marginBottom:8}}>
-                🔗 {lang==='ar'
-                  ? `سيتم تطبيق هذه النقطة على ${instances.length} ${instances.length > 1 ? 'مجموعات' : 'مجموعة'}:`
-                  : `Cette note sera appliquée à ${instances.length} ensemble${instances.length > 1 ? 's' : ''} :`}
-              </div>
-              <div style={{display:'flex',flexWrap:'wrap',gap:6}}>
-                {instances.map(ens => {
-                  const niv = niveaux.find(n => n.id === ens.niveau_id);
-                  const couleur = niv?.couleur || '#534AB7';
-                  return (
-                    <div key={ens.id} style={{
-                      display:'inline-flex',alignItems:'center',gap:6,
-                      padding:'5px 10px',
-                      background:'#fff',
-                      border:`0.5px solid ${couleur}40`,
-                      borderRadius:14,
-                      fontSize:11,
+              <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:10,flexWrap:'wrap',gap:6}}>
+                <div style={{fontSize:13,fontWeight:600,color:'#534AB7'}}>
+                  🔗 {lang==='ar' ? 'اختر المجموعات المشتركة' : 'Sélectionnez les ensembles partagés'}
+                </div>
+                <div style={{display:'flex',gap:6,fontSize:11,alignItems:'center'}}>
+                  <button onClick={() => setEnsemblesPartageSelectionnes(ensembles.map(e => e.id))}
+                    disabled={nbS === ensembles.length}
+                    style={{
+                      padding:'4px 10px',
+                      background: nbS === ensembles.length ? '#f0f0ec' : '#534AB7',
+                      border:'none',
+                      color: nbS === ensembles.length ? '#aaa' : '#fff',
+                      borderRadius:6,
+                      cursor: nbS === ensembles.length ? 'not-allowed' : 'pointer',
+                      fontWeight:600,fontFamily:'inherit',
                     }}>
-                      {niv && (
+                    ✓ {lang==='ar' ? 'الكل' : 'Tout cocher'}
+                  </button>
+                  <button onClick={() => setEnsemblesPartageSelectionnes([])}
+                    disabled={nbS === 0}
+                    style={{
+                      padding:'4px 10px',
+                      background:'#fff',
+                      border:'0.5px solid #E24B4A60',
+                      color: nbS === 0 ? '#ccc' : '#E24B4A',
+                      borderRadius:6,
+                      cursor: nbS === 0 ? 'not-allowed' : 'pointer',
+                      fontWeight:600,fontFamily:'inherit',
+                    }}>
+                    ✕ {lang==='ar' ? 'إلغاء الكل' : 'Tout décocher'}
+                  </button>
+                  <span style={{fontSize:11,color:'#666',marginInlineStart:4,fontWeight:600}}>
+                    {nbS} / {ensembles.length}
+                  </span>
+                </div>
+              </div>
+
+              {/* Liste groupee par niveau, pills cliquables */}
+              <div style={{maxHeight:340, overflowY:'auto', display:'flex', flexDirection:'column', gap:10}}>
+                {ensParNiveau.map(({niv, ensembles: ensNiv}) => {
+                  const couleur = niv.couleur || '#534AB7';
+                  return (
+                    <div key={niv.id}>
+                      <div style={{
+                        fontSize:11,fontWeight:700,marginBottom:5,
+                        display:'flex',alignItems:'center',gap:6,
+                      }}>
                         <span style={{
-                          padding:'1px 7px',borderRadius:10,
+                          padding:'2px 8px',borderRadius:10,
                           background: `${couleur}18`, color: couleur,
-                          fontWeight:700, letterSpacing:0.3,
+                          fontWeight:700,letterSpacing:0.3,
                           border: `0.5px solid ${couleur}40`,
-                        }}>
-                          {niv.code}
-                        </span>
-                      )}
-                      <span style={{color:'#1a1a1a',fontWeight:500}}>📦 {ens.nom}</span>
+                        }}>{niv.code}</span>
+                        <span style={{color:'#666'}}>{niv.nom}</span>
+                      </div>
+                      <div style={{display:'flex',flexWrap:'wrap',gap:5,paddingInlineStart:6}}>
+                        {ensNiv.map(ens => {
+                          const sel = ensemblesPartageSelectionnes.includes(ens.id);
+                          return (
+                            <div key={ens.id} onClick={() => toggleEns(ens.id)}
+                              style={{
+                                padding:'6px 10px', borderRadius:6, cursor:'pointer', fontSize:11,
+                                background: sel ? '#534AB7' : '#fff',
+                                color: sel ? '#fff' : '#1a1a1a',
+                                border: `0.5px solid ${sel ? '#3a3387' : '#e0e0d8'}`,
+                                fontWeight: sel ? 600 : 400,
+                                display:'flex',alignItems:'center',gap:5,
+                                transition:'all 0.15s',
+                              }}>
+                              <span style={{fontSize:10,opacity:0.7}}>{sel ? '✓' : ''}</span>
+                              <span>📦 {ens.nom}</span>
+                            </div>
+                          );
+                        })}
+                      </div>
                     </div>
                   );
                 })}
+                {ensSansNiveau.length > 0 && (
+                  <div>
+                    <div style={{fontSize:11,fontWeight:700,marginBottom:5,color:'#888'}}>
+                      {lang==='ar' ? 'بدون مستوى' : 'Sans niveau'}
+                    </div>
+                    <div style={{display:'flex',flexWrap:'wrap',gap:5,paddingInlineStart:6}}>
+                      {ensSansNiveau.map(ens => {
+                        const sel = ensemblesPartageSelectionnes.includes(ens.id);
+                        return (
+                          <div key={ens.id} onClick={() => toggleEns(ens.id)}
+                            style={{
+                              padding:'6px 10px', borderRadius:6, cursor:'pointer', fontSize:11,
+                              background: sel ? '#534AB7' : '#fff',
+                              color: sel ? '#fff' : '#1a1a1a',
+                              border: `0.5px solid ${sel ? '#3a3387' : '#e0e0d8'}`,
+                              fontWeight: sel ? 600 : 400,
+                              display:'flex',alignItems:'center',gap:5,
+                            }}>
+                            <span style={{fontSize:10,opacity:0.7}}>{sel ? '✓' : ''}</span>
+                            <span>📦 {ens.nom}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
               </div>
+
               <div style={{marginTop:8,fontSize:10,color:'#666',fontStyle:'italic'}}>
                 {lang==='ar'
-                  ? `سيتم إنشاء ${instances.length} معيار بنفس عدد النقاط (${criterePoints})`
-                  : `${instances.length} critère${instances.length > 1 ? 's' : ''} sera${instances.length > 1 ? 'nt' : ''} créé${instances.length > 1 ? 's' : ''} avec le même nombre de points (${criterePoints})`}
+                  ? `سيتم إنشاء ${nbS} معيار${nbS > 1 ? '' : ''} بنفس عدد النقاط (${criterePoints})`
+                  : `${nbS} critère${nbS > 1 ? 's' : ''} sera${nbS > 1 ? 'nt' : ''} créé${nbS > 1 ? 's' : ''} avec le même nombre de points (${criterePoints})`}
               </div>
             </div>
           );
