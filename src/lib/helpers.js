@@ -186,7 +186,7 @@ export async function loadBareme(supabase, ecole_id) {
   try {
     const { data } = await supabase
       .from('bareme_notes')
-      .select('type_action, objet_id, points')
+      .select('type_action, objet_id, sourate_id, points')
       .eq('ecole_id', ecole_id)
       .eq('actif', true);
     const b = {
@@ -194,9 +194,15 @@ export async function loadBareme(supabase, ecole_id) {
       examens: {},
       ensembles: {},
       jalons: {},
+      // Nouveau (mai 2026) : notes specifiques sourate dans ensemble
+      // Format: sourates_dans_ensemble[ensemble_id][sourate_id] = points
+      sourates_dans_ensemble: {},
     };
     (data || []).forEach(row => {
-      if (!row.objet_id) {
+      if (row.type_action === 'sourate_dans_ensemble' && row.objet_id && row.sourate_id) {
+        if (!b.sourates_dans_ensemble[row.objet_id]) b.sourates_dans_ensemble[row.objet_id] = {};
+        b.sourates_dans_ensemble[row.objet_id][row.sourate_id] = row.points;
+      } else if (!row.objet_id) {
         b.unites[row.type_action] = row.points;
       } else if (row.type_action === 'examen') {
         b.examens[row.objet_id] = row.points;
@@ -208,19 +214,84 @@ export async function loadBareme(supabase, ecole_id) {
     });
     return b;
   } catch (e) {
-    return { unites: { ...BAREME_DEFAUT }, examens: {}, ensembles: {}, jalons: {} };
+    return { unites: { ...BAREME_DEFAUT }, examens: {}, ensembles: {}, jalons: {}, sourates_dans_ensemble: {} };
   }
 }
 
 /**
- * Sauvegarde une entrée du barème (upsert).
+ * Sauvegarde une entree du bareme (upsert).
+ * @param sourate_id : pour le type 'sourate_dans_ensemble', l'id de la sourate
+ *                    (en complement de objet_id qui est l'ensemble)
+ * @returns { data, error } pour permettre au caller de detecter les echecs
  */
-export async function saveBaremeItem(supabase, ecole_id, type_action, points, objet_id = null) {
+export async function saveBaremeItem(supabase, ecole_id, type_action, points, objet_id = null, sourate_id = null) {
   const row = { ecole_id, type_action, points: parseInt(points) || 0, actif: true };
   if (objet_id) row.objet_id = objet_id;
-  await supabase.from('bareme_notes').upsert(row, {
-    onConflict: objet_id ? 'ecole_id,type_action,objet_id' : 'ecole_id,type_action,objet_id',
-  });
+  if (sourate_id) row.sourate_id = sourate_id;
+  // Conflict detection : pour 'sourate_dans_ensemble', on inclut sourate_id
+  // (necessite la migration migration_notes_sourate_ensemble_FIX.sql)
+  const conflictCols = type_action === 'sourate_dans_ensemble'
+    ? 'ecole_id,type_action,objet_id,sourate_id'
+    : 'ecole_id,type_action,objet_id';
+  const { data, error } = await supabase.from('bareme_notes').upsert(row, { onConflict: conflictCols });
+  return { data, error };
+}
+
+/**
+ * Calcule les points pour une sourate récitée selon la logique de priorité :
+ *   1. Note spécifique pour (sourate, ensemble) si paramétrée → prime
+ *   2. Note d'ensemble si la sourate appartient à un ensemble configuré
+ *   3. Fallback : barème de base (B.unites.sourate)
+ *
+ * Cette fonction NE FAIT PAS de requête SQL : elle utilise les structures
+ * en mémoire (bareme + ensembles avec sourates_ids).
+ *
+ * @param sourate_id : id de la sourate récitée
+ * @param bareme : objet barème complet (chargé via loadBareme)
+ * @param ensembles : tableau des ensembles_sourates de l'école
+ *                   chacun avec { id, sourates_ids: [int, ...] }
+ * @param typeRecitation : 'complete' ou 'sequence' (séquence garde le barème base)
+ * @returns { points, source } : nombre de points + d'où ils viennent
+ *                                source ∈ ['sourate_specifique', 'ensemble', 'base']
+ */
+export function calculerPointsSourate(sourate_id, bareme, ensembles, typeRecitation = 'complete') {
+  // Pour les séquences, on garde la logique simple (pas de spécificité par sourate)
+  if (typeRecitation !== 'complete') {
+    return {
+      points: bareme?.unites?.sequence_sourate || 0,
+      source: 'base',
+    };
+  }
+
+  // ── Étape 1 : chercher une note spécifique pour cette sourate dans un ensemble ──
+  // Une sourate peut appartenir à plusieurs ensembles (cas multi-niveaux).
+  // On prend la première règle spécifique trouvée. En théorie, chaque école a
+  // une logique cohérente : si Al-Mulk est dans 2 ensembles, soit ils ont la
+  // même note, soit le surveillant a fait un choix conscient.
+  const sde = bareme?.sourates_dans_ensemble || {};
+  for (const ens of (ensembles || [])) {
+    if (!ens.sourates_ids || !ens.sourates_ids.includes(sourate_id)) continue;
+    const noteSpec = sde[ens.id]?.[sourate_id];
+    if (typeof noteSpec === 'number') {
+      return { points: noteSpec, source: 'sourate_specifique', ensemble_id: ens.id };
+    }
+  }
+
+  // ── Étape 2 : chercher une note d'ensemble qui contient cette sourate ──
+  const ensembleNotes = bareme?.ensembles || {};
+  for (const ens of (ensembles || [])) {
+    if (!ens.sourates_ids || !ens.sourates_ids.includes(sourate_id)) continue;
+    const noteEns = ensembleNotes[ens.id];
+    if (typeof noteEns === 'number') {
+      return { points: noteEns, source: 'ensemble', ensemble_id: ens.id };
+    }
+  }
+
+  // ── Étape 3 : fallback sur barème de base ──
+  return {
+    points: bareme?.unites?.sourate || 0,
+    source: 'base',
+  };
 }
 
 export function calcPoints(tomonCumul, hizbsCompletsCount, validations, tomonAcquis=0, hizbAcquisComplets=0, bareme=null) {
