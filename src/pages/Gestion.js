@@ -287,20 +287,13 @@ function AcquisSelector({ codeNiveau, hizb, tomon, onHizbChange, onTomonChange, 
 // ══════════════════════════════════════════════════════
 function BaremeTab({ user, lang, bareme, setBareme, saving, setSaving, showMsg }) {
   const [examens,    setExamens]    = useState([]);
-  const [ensembles,  setEnsembles]  = useState([]);  // Maintenant avec niveau_id et sourates_ids
-  const [niveaux,    setNiveaux]    = useState([]);  // Pour optgroup par niveau
-  const [souratesDB, setSouratesDB] = useState([]);  // Pour afficher noms des sourates
+  const [ensembles,  setEnsembles]  = useState([]);
   const [jalons,     setJalons]     = useState([]);
   // Critères en cours de construction
-  const [criteres,   setCriteres]   = useState([]); // [{type, objet_id, sourate_id, label, points, icon, color}]
+  const [criteres,   setCriteres]   = useState([]); // [{type, objet_id, label, points, icon, color}]
   const [critereType, setCritereType] = useState('');
   const [critereObjetId, setCritereObjetId] = useState('');
   const [criterePoints, setCriterePoints] = useState(0);
-  // Nouveau : pour le type 'sourate_dans_ensemble' — multi-sélection
-  const [souratesSelectionnees, setSouratesSelectionnees] = useState([]);  // [sourate_id, ...]
-  // Nouveau : pour le type 'ensemble_partage' — multi-sélection libre d'ensembles
-  // Le surveillant choisit explicitement quels ensembles partagent la meme note
-  const [ensemblesPartageSelectionnes, setEnsemblesPartageSelectionnes] = useState([]);  // [ensemble_id, ...]
   // Configurations enregistrées (lignes)
   const [configs, setConfigs] = useState([]);
 
@@ -315,16 +308,8 @@ function BaremeTab({ user, lang, bareme, setBareme, saving, setSaving, showMsg }
   useEffect(() => {
     supabase.from('examens').select('id,nom').eq('ecole_id', user.ecole_id).eq('actif', true).order('nom')
       .then(({data}) => setExamens(data||[]));
-    // Bug fix Q2 : charger niveau_id + sourates_ids pour pouvoir afficher
-    // le niveau dans le select et lister les sourates de l'ensemble
-    supabase.from('ensembles_sourates').select('id,nom,niveau_id,sourates_ids,ordre').eq('ecole_id', user.ecole_id).order('niveau_id,ordre,nom')
+    supabase.from('ensembles_sourates').select('id,nom').eq('ecole_id', user.ecole_id).order('nom')
       .then(({data}) => setEnsembles(data||[]));
-    // Charger niveaux pour grouper les ensembles par niveau (optgroup)
-    supabase.from('niveaux').select('id,code,nom,ordre').eq('ecole_id', user.ecole_id).order('ordre')
-      .then(({data}) => setNiveaux(data||[]));
-    // Charger sourates DB (pour afficher les noms dans la multi-selection)
-    supabase.from('sourates').select('id,nom_ar,nom_fr,numero').order('numero')
-      .then(({data}) => setSouratesDB(data||[]));
     supabase.from('jalons').select('id,nom,nom_ar,type_jalon').eq('ecole_id', user.ecole_id).eq('actif', true).order('created_at')
       .then(({data}) => setJalons(data||[]));
     // Charger configs existantes
@@ -332,32 +317,10 @@ function BaremeTab({ user, lang, bareme, setBareme, saving, setSaving, showMsg }
       .then(({data}) => { if (data) setConfigs(data); });
   }, []);
 
-  // Helpers : labels niveaux + sourates pour affichages
-  const niveauNom = (niveau_id) => {
-    const n = niveaux.find(x => x.id === niveau_id);
-    if (!n) return null;
-    return lang === 'ar' ? `[${n.code}] ${n.nom}` : `[${n.code}] ${n.nom}`;
-  };
-  const sourateNom = (sourate_id) => {
-    const s = souratesDB.find(x => x.id === sourate_id || x.numero === sourate_id);
-    if (!s) return `#${sourate_id}`;
-    return lang === 'ar' ? (s.nom_ar || s.nom_fr || `#${sourate_id}`) : (s.nom_fr || s.nom_ar || `#${sourate_id}`);
-  };
-  // Sourates de l'ensemble courant (pour multi-selection)
-  const souratesDeLensemble = () => {
-    const ens = ensembles.find(e => e.id === critereObjetId);
-    if (!ens || !ens.sourates_ids) return [];
-    return ens.sourates_ids;
-  };
-
   // Options du sélecteur selon type
   const getOptions = () => {
     if (critereType === 'examen') return examens.map(e => ({ id: e.id, label: e.nom }));
-    if (critereType === 'ensemble_sourates' || critereType === 'sourate_dans_ensemble') {
-      // Bug fix Q2 : afficher avec niveau (mais regroupement gere par optgroup)
-      return ensembles.map(e => ({ id: e.id, label: e.nom, niveau_id: e.niveau_id }));
-    }
-    // Pour 'ensemble_partage' : pas de select objet — utilisation du panneau multi-select dedie
+    if (critereType === 'ensemble_sourates') return ensembles.map(e => ({ id: e.id, label: e.nom }));
     if (critereType === 'jalon') return jalons.map(j => ({ id: j.id, label: j.nom_ar || j.nom }));
     return [];
   };
@@ -371,18 +334,7 @@ function BaremeTab({ user, lang, bareme, setBareme, saving, setSaving, showMsg }
     }
     if (critereType === 'ensemble_sourates') {
       const e = ensembles.find(x => x.id === critereObjetId);
-      const niv = niveauNom(e?.niveau_id);
-      return { label: niv ? `${niv} — ${e?.nom||''}` : (e?.nom || ''), icon: '📦', color: '#D85A30', objet_id: critereObjetId };
-    }
-    if (critereType === 'sourate_dans_ensemble') {
-      // Sera traite specifiquement dans ajouterCritere (multi-selection)
-      const e = ensembles.find(x => x.id === critereObjetId);
-      const niv = niveauNom(e?.niveau_id);
-      return { label: niv ? `${niv} — ${e?.nom||''}` : (e?.nom || ''), icon: '🎯', color: '#085041', objet_id: critereObjetId };
-    }
-    if (critereType === 'ensemble_partage') {
-      // Sera traite specifiquement dans ajouterCritere (multi-selection libre)
-      return { label: '', icon: '🔗', color: '#534AB7', objet_id: null };
+      return { label: e?.nom || '', icon: '📦', color: '#D85A30', objet_id: critereObjetId };
     }
     if (critereType === 'jalon') {
       const j = jalons.find(x => x.id === critereObjetId);
@@ -394,116 +346,8 @@ function BaremeTab({ user, lang, bareme, setBareme, saving, setSaving, showMsg }
   const ajouterCritere = () => {
     if (!critereType) return;
     const isUnite = UNITES.find(u => u.key === critereType);
-    // Pour ensemble_partage : pas de select objet (panneau multi-select dedie)
-    // Pour les autres types non-unite : il faut un objet
-    if (!isUnite && critereType !== 'ensemble_partage' && !critereObjetId) return;
+    if (!isUnite && !critereObjetId) return;
     if (criterePoints <= 0) return;
-
-    // Cas special : sourate_dans_ensemble = multi-selection
-    // On ajoute UN critere par sourate selectionnee (toutes avec la meme note)
-    if (critereType === 'sourate_dans_ensemble') {
-      if (souratesSelectionnees.length === 0) {
-        showMsg('error', lang==='ar'?'اختر سورة واحدة على الأقل':'Sélectionnez au moins une sourate');
-        return;
-      }
-      const ens = ensembles.find(x => x.id === critereObjetId);
-      const niv = niveauNom(ens?.niveau_id);
-      const ensLabel = niv ? `${niv} — ${ens?.nom||''}` : (ens?.nom || '');
-
-      const nouveaux = [];
-      for (const sId of souratesSelectionnees) {
-        // Eviter doublon
-        const exists = criteres.find(c => c.type === 'sourate_dans_ensemble' && c.objet_id === critereObjetId && c.sourate_id === sId);
-        if (exists) continue;
-        nouveaux.push({
-          type: 'sourate_dans_ensemble',
-          objet_id: critereObjetId,
-          sourate_id: sId,
-          label: `${ensLabel} → ${sourateNom(sId)}`,
-          icon: '🎯',
-          color: '#085041',
-          points: criterePoints,
-        });
-      }
-      if (nouveaux.length === 0) {
-        showMsg('error', lang==='ar'?'كل المعايير المحددة موجودة بالفعل':'Tous ces critères sont déjà ajoutés');
-        return;
-      }
-      setCriteres(prev => [...prev, ...nouveaux]);
-      setCritereType(''); setCritereObjetId(''); setCriterePoints(0);
-      setSouratesSelectionnees([]);
-      return;
-    }
-
-    // Cas special : ensemble_partage = multi-selection LIBRE par le surveillant
-    // qui choisit explicitement quels ensembles partagent la meme note.
-    // Plus robuste qu'un regroupement par nom (gere les homonymes,
-    // contenus differents, et responsabilise le surveillant).
-    if (critereType === 'ensemble_partage') {
-      if (ensemblesPartageSelectionnes.length === 0) {
-        showMsg('error', lang==='ar'?'اختر مجموعة واحدة على الأقل':'Sélectionnez au moins un ensemble');
-        return;
-      }
-      if (ensemblesPartageSelectionnes.length === 1) {
-        showMsg('error', lang==='ar'
-          ? 'اختر مجموعتين على الأقل (أو استخدم "مجموعة سور" لمجموعة واحدة)'
-          : 'Sélectionnez au moins 2 ensembles (sinon utilisez "Ensemble de sourates" pour un seul)');
-        return;
-      }
-
-      // Generer un nom de groupe LISIBLE base sur les niveaux concernes
-      // (ex: "Hizb 60 (5A, 5B, 4)" au lieu de "partage_1778089761499")
-      const ensInstances = ensemblesPartageSelectionnes
-        .map(eId => ensembles.find(e => e.id === eId))
-        .filter(Boolean);
-      // Tous les ensembles ont-ils le meme nom ?
-      const nomsUniques = [...new Set(ensInstances.map(e => (e.nom || '').trim()))];
-      const codesNiveaux = ensInstances
-        .map(e => niveaux.find(n => n.id === e.niveau_id)?.code)
-        .filter(Boolean);
-      const nomGroupe = nomsUniques.length === 1
-        ? `${nomsUniques[0]} (${codesNiveaux.join(', ')})`
-        : `${ensInstances.length} ${lang==='ar' ? 'مجموعات' : 'ensembles'} (${codesNiveaux.join(', ')})`;
-      // Marqueur de grouping en memoire (pour affichage 'criteres ajoutes')
-      const partageId = `partage_${Date.now()}`;
-
-      const nouveaux = [];
-      for (const ensId of ensemblesPartageSelectionnes) {
-        const ens = ensembles.find(e => e.id === ensId);
-        if (!ens) continue;
-        // Eviter doublon dans la liste en cours
-        const exists = criteres.find(c =>
-          c.type === 'ensemble_partage' && c.objet_id === ensId && c.points === criterePoints
-        );
-        if (exists) continue;
-        const niv = niveauNom(ens.niveau_id);
-        nouveaux.push({
-          // Type DISTINCT en BDD : 'ensemble_partage' (pas 'ensemble_sourates')
-          // Permet la coexistence des 2 modes sur le meme ensemble :
-          // - 'ensemble_sourates' = note bonus a la complétion (mode classique)
-          // - 'ensemble_partage' = note par sourate récitée (factorisation)
-          type: 'ensemble_partage',
-          objet_id: ensId,
-          partage_origin: partageId,
-          partage_nom: nomGroupe,
-          partage_count: ensemblesPartageSelectionnes.length,
-          label: niv ? `${niv} — ${ens.nom}` : ens.nom,
-          icon: '🔗',
-          color: '#534AB7',
-          points: criterePoints,
-        });
-      }
-      if (nouveaux.length === 0) {
-        showMsg('error', lang==='ar'?'كل المعايير المحددة موجودة بالفعل':'Tous ces critères sont déjà ajoutés');
-        return;
-      }
-      setCriteres(prev => [...prev, ...nouveaux]);
-      setCritereType(''); setCritereObjetId(''); setCriterePoints(0);
-      setEnsemblesPartageSelectionnes([]);
-      return;
-    }
-
-    // Cas normal : un seul critere
     const info = getCritereLabel();
     if (!info || !info.label) return;
     // Éviter doublon
@@ -518,17 +362,9 @@ function BaremeTab({ user, lang, bareme, setBareme, saving, setSaving, showMsg }
   const enregistrerConfig = async () => {
     if (criteres.length === 0) { showMsg('error', lang==='ar'?'أضف معياراً واحداً على الأقل':'Ajoutez au moins un critère'); return; }
     setSaving(true);
-    // Upsert chaque critère et collecter les erreurs
-    const errors = [];
-    let saved = 0;
+    // Upsert chaque critère
     for (const c of criteres) {
-      const res = await saveBaremeItem(supabase, user.ecole_id, c.type, c.points, c.objet_id, c.sourate_id || null);
-      if (res?.error) {
-        errors.push(res.error.message || 'Erreur');
-        console.error('Erreur saveBaremeItem:', res.error);
-      } else {
-        saved++;
-      }
+      await saveBaremeItem(supabase, user.ecole_id, c.type, c.points, c.objet_id);
     }
     // Recharger configs
     const { data } = await supabase.from('bareme_notes').select('*').eq('ecole_id', user.ecole_id).eq('actif', true).order('created_at');
@@ -536,19 +372,9 @@ function BaremeTab({ user, lang, bareme, setBareme, saving, setSaving, showMsg }
     // Recharger bareme global
     const newB = await loadBareme(supabase, user.ecole_id);
     setBareme(newB);
+    setCriteres([]);
     setSaving(false);
-
-    if (errors.length > 0) {
-      // Echec partiel ou total : on garde les criteres pour reessayer
-      showMsg('error', lang==='ar'
-        ? `تم حفظ ${saved}/${criteres.length}. خطأ: ${errors[0]}`
-        : `${saved}/${criteres.length} enregistrés. Erreur: ${errors[0]}`);
-    } else {
-      setCriteres([]);
-      showMsg('success', lang==='ar'
-        ? `تم حفظ ${saved} معيار${saved > 1 ? '' : ''} بنجاح`
-        : `${saved} critère${saved > 1 ? 's' : ''} enregistré${saved > 1 ? 's' : ''}`);
-    }
+    showMsg('success', lang==='ar'?'تم حفظ التنقيط بنجاح':'Configuration enregistrée');
   };
 
   const supprimerConfig = async (id) => {
@@ -561,19 +387,7 @@ function BaremeTab({ user, lang, bareme, setBareme, saving, setSaving, showMsg }
   const getConfigLabel = (c) => {
     if (!c.objet_id) return UNITES.find(u => u.key === c.type)?.label_ar || c.type;
     if (c.type === 'examen') return examens.find(e => e.id === c.objet_id)?.nom || '—';
-    if (c.type === 'ensemble_sourates' || c.type === 'ensemble_partage') {
-      // Affichage simple pour les 2 types ensemble (le grouping visuel partage
-      // se fait au niveau du tableau quand >= 2 instances avec memes points)
-      const e = ensembles.find(x => x.id === c.objet_id);
-      const niv = niveauNom(e?.niveau_id);
-      return niv ? `${niv} — ${e?.nom||'—'}` : (e?.nom || '—');
-    }
-    if (c.type === 'sourate_dans_ensemble') {
-      const e = ensembles.find(x => x.id === c.objet_id);
-      const niv = niveauNom(e?.niveau_id);
-      const ensLabel = niv ? `${niv} — ${e?.nom||'—'}` : (e?.nom || '—');
-      return `${ensLabel} → ${sourateNom(c.sourate_id)}`;
-    }
+    if (c.type === 'ensemble_sourates') return ensembles.find(e => e.id === c.objet_id)?.nom || '—';
     if (c.type === 'jalon') { const j = jalons.find(x => x.id === c.objet_id); return j?.nom_ar || j?.nom || '—'; }
     return c.type;
   };
@@ -582,14 +396,11 @@ function BaremeTab({ user, lang, bareme, setBareme, saving, setSaving, showMsg }
     if (!c.objet_id) return UNITES.find(u => u.key === c.type)?.icon || '⭐';
     if (c.type === 'examen') return '📝';
     if (c.type === 'ensemble_sourates') return '📦';
-    if (c.type === 'ensemble_partage') return '🔗';
-    if (c.type === 'sourate_dans_ensemble') return '🎯';
     if (c.type === 'jalon') return '🏅';
     return '⭐';
   };
 
-  // Pour ensemble_partage : pas de select objet — on utilise le panneau multi-select dedie
-  const needsObjet = critereType && !UNITES.find(u => u.key === critereType) && critereType !== 'ensemble_partage';
+  const needsObjet = critereType && !UNITES.find(u => u.key === critereType);
 
   return (
     <div>
@@ -610,7 +421,7 @@ function BaremeTab({ user, lang, bareme, setBareme, saving, setSaving, showMsg }
           <div style={{flex:2,minWidth:160}}>
             <label className="field-lbl">{lang==='ar'?'نوع المعيار':'Type de critère'}</label>
             <select className="field-select" value={critereType}
-              onChange={e => { setCritereType(e.target.value); setCritereObjetId(''); setSouratesSelectionnees([]); setEnsemblesPartageSelectionnes([]); }}>
+              onChange={e => { setCritereType(e.target.value); setCritereObjetId(''); }}>
               <option value="">{lang==='ar'?'— اختر —':'— Choisir —'}</option>
               <optgroup label={lang==='ar'?'وحدات أساسية':'Unités de base'}>
                 {UNITES.map(u => <option key={u.key} value={u.key}>{u.icon} {u.label_ar}</option>)}
@@ -620,8 +431,6 @@ function BaremeTab({ user, lang, bareme, setBareme, saving, setSaving, showMsg }
               </optgroup>
               <optgroup label={lang==='ar'?'مجموعات سور':'Ensembles'}>
                 <option value="ensemble_sourates">{lang==='ar'?'مجموعة سور...':'Ensemble de sourates...'}</option>
-                <option value="ensemble_partage">{lang==='ar'?'🔗 مجموعة مشتركة (اختيار حر)...':'🔗 Ensemble partagé (sélection libre)...'}</option>
-                <option value="sourate_dans_ensemble">{lang==='ar'?'🎯 سورة محددة في مجموعة...':'🎯 Sourate spécifique dans un ensemble...'}</option>
               </optgroup>
               <optgroup label={lang==='ar'?'شهادات':'Jalons'}>
                 <option value="jalon">{lang==='ar'?'شهادة محددة...':'Jalon spécifique...'}</option>
@@ -633,31 +442,9 @@ function BaremeTab({ user, lang, bareme, setBareme, saving, setSaving, showMsg }
           {needsObjet && (
             <div style={{flex:2,minWidth:160}}>
               <label className="field-lbl">{lang==='ar'?'اختر العنصر':"Choisir l'élément"}</label>
-              <select className="field-select" value={critereObjetId} onChange={e => { setCritereObjetId(e.target.value); setSouratesSelectionnees([]); }}>
+              <select className="field-select" value={critereObjetId} onChange={e => setCritereObjetId(e.target.value)}>
                 <option value="">{lang==='ar'?'— اختر —':'— Choisir —'}</option>
-                {(critereType === 'ensemble_sourates' || critereType === 'sourate_dans_ensemble') ? (
-                  // Bug fix Q2 : grouper par niveau (optgroup) pour distinguer
-                  // les ensembles aux noms similaires de niveaux differents
-                  niveaux.map(niv => {
-                    const ensDuNiveau = ensembles.filter(e => e.niveau_id === niv.id);
-                    if (ensDuNiveau.length === 0) return null;
-                    return (
-                      <optgroup key={niv.id} label={`[${niv.code}] ${niv.nom}`}>
-                        {ensDuNiveau.map(e => <option key={e.id} value={e.id}>{e.nom}</option>)}
-                      </optgroup>
-                    );
-                  }).filter(Boolean).concat(
-                    // Ensembles SANS niveau_id (cas edge)
-                    ensembles.filter(e => !e.niveau_id).length > 0 ? [
-                      <optgroup key="sans-niveau" label={lang==='ar'?'بدون مستوى':'Sans niveau'}>
-                        {ensembles.filter(e => !e.niveau_id).map(e => <option key={e.id} value={e.id}>{e.nom}</option>)}
-                      </optgroup>
-                    ] : []
-                  )
-                ) : (
-                  // Cas normal (examen, jalon) : pas de regroupement
-                  getOptions().map(o => <option key={o.id} value={o.id}>{o.label}</option>)
-                )}
+                {getOptions().map(o => <option key={o.id} value={o.id}>{o.label}</option>)}
               </select>
             </div>
           )}
@@ -676,502 +463,36 @@ function BaremeTab({ user, lang, bareme, setBareme, saving, setSaving, showMsg }
             </div>
           </div>
 
-          {/* Bouton ajouter critere — feedback visuel actif/inactif + raison */}
-          {(() => {
-            // Determiner si le bouton est "pret a etre clique" (au moins visuellement)
-            const isUnite = UNITES.find(u => u.key === critereType);
-            const aPoints = criterePoints > 0;
-            let pret = false;
-            let raison = '';
-            if (!critereType) {
-              pret = false;
-              raison = lang==='ar' ? 'اختر نوع المعيار أولاً' : "Choisissez d'abord le type";
-            } else if (isUnite) {
-              pret = aPoints;
-              if (!aPoints) raison = lang==='ar' ? 'أدخل عدد النقاط' : 'Saisissez les points';
-            } else if (critereType === 'ensemble_partage') {
-              if (ensemblesPartageSelectionnes.length < 2) {
-                pret = false;
-                raison = lang==='ar' ? 'اختر مجموعتين على الأقل' : 'Sélectionnez au moins 2 ensembles';
-              } else if (!aPoints) {
-                pret = false;
-                raison = lang==='ar' ? 'أدخل عدد النقاط' : 'Saisissez les points';
-              } else {
-                pret = true;
-              }
-            } else if (critereType === 'sourate_dans_ensemble') {
-              if (!critereObjetId) {
-                pret = false;
-                raison = lang==='ar' ? 'اختر المجموعة أولاً' : "Choisissez l'ensemble";
-              } else if (souratesSelectionnees.length === 0) {
-                pret = false;
-                raison = lang==='ar' ? 'اختر سورة على الأقل' : 'Sélectionnez une sourate';
-              } else if (!aPoints) {
-                pret = false;
-                raison = lang==='ar' ? 'أدخل عدد النقاط' : 'Saisissez les points';
-              } else {
-                pret = true;
-              }
-            } else {
-              if (!critereObjetId) {
-                pret = false;
-                raison = lang==='ar' ? 'اختر العنصر' : "Choisissez l'élément";
-              } else if (!aPoints) {
-                pret = false;
-                raison = lang==='ar' ? 'أدخل عدد النقاط' : 'Saisissez les points';
-              } else {
-                pret = true;
-              }
-            }
-
-            const onClickAvecFeedback = () => {
-              if (pret) {
-                ajouterCritere();
-              } else if (raison) {
-                // Au lieu de return silencieux : message clair
-                showMsg('error', raison);
-              }
-            };
-
-            return (
-              <button onClick={onClickAvecFeedback}
-                title={pret ? (lang==='ar'?'إضافة المعيار':'Ajouter le critère') : raison}
-                style={{
-                  padding:'8px 16px',
-                  background: pret ? '#1D9E75' : '#E6F1FB',
-                  color: pret ? '#fff' : '#378ADD',
-                  border: pret ? '1px solid #1D9E75' : '1px solid #378ADD40',
-                  borderRadius:8,fontWeight:700,fontSize:13,
-                  cursor: pret ? 'pointer' : 'not-allowed',
-                  opacity: pret ? 1 : 0.7,
-                  alignSelf:'flex-end',height:38,
-                  transition:'all 0.15s',
-                  fontFamily:'inherit',
-                }}>
-                + {lang==='ar'?'أضف':'Ajouter'}
-              </button>
-            );
-          })()}
+          {/* Bouton ajouter critère */}
+          <button onClick={ajouterCritere}
+            style={{padding:'8px 16px',background:'#E6F1FB',color:'#378ADD',border:'1px solid #378ADD40',borderRadius:8,fontWeight:700,fontSize:13,cursor:'pointer',alignSelf:'flex-end',height:38}}>
+            + {lang==='ar'?'أضف':'Ajouter'}
+          </button>
         </div>
 
-        {/* Panneau multi-selection LIBRE pour 'ensemble_partage' :
-            le surveillant choisit explicitement quels ensembles partagent
-            la meme note. Plus robuste que regroupement par nom. */}
-        {critereType === 'ensemble_partage' && (() => {
-          const nbS = ensemblesPartageSelectionnes.length;
-          // Helper toggle ensemble dans la selection
-          const toggleEns = (eId) => {
-            setEnsemblesPartageSelectionnes(prev =>
-              prev.includes(eId) ? prev.filter(x => x !== eId) : [...prev, eId]
-            );
-          };
-          // Tous les ensembles regroupes par niveau
-          const ensParNiveau = niveaux.map(niv => ({
-            niv,
-            ensembles: ensembles.filter(e => e.niveau_id === niv.id),
-          })).filter(g => g.ensembles.length > 0);
-          // Ensembles sans niveau (cas edge)
-          const ensSansNiveau = ensembles.filter(e => !e.niveau_id);
-
-          if (ensembles.length === 0) {
-            return (
-              <div style={{padding:'12px 14px',background:'#FFF3CD',border:'0.5px solid #EF9F2740',borderRadius:8,fontSize:12,color:'#856404',marginBottom:12}}>
-                ⚠️ {lang==='ar' ? 'لا توجد مجموعات. أضفها أولاً في إدارة المجموعات.' : "Aucun ensemble n'existe. Créez-en d'abord dans Gestion → Ensembles."}
-              </div>
-            );
-          }
-
-          return (
-            <div style={{padding:'12px 14px',background:'#EEEDFE',border:'1px solid #534AB730',borderRadius:8,marginBottom:12}}>
-              <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:10,flexWrap:'wrap',gap:6}}>
-                <div style={{fontSize:13,fontWeight:600,color:'#534AB7'}}>
-                  🔗 {lang==='ar' ? 'اختر المجموعات المشتركة' : 'Sélectionnez les ensembles partagés'}
-                </div>
-                <div style={{display:'flex',gap:6,fontSize:11,alignItems:'center'}}>
-                  <button onClick={() => setEnsemblesPartageSelectionnes(ensembles.map(e => e.id))}
-                    disabled={nbS === ensembles.length}
-                    style={{
-                      padding:'4px 10px',
-                      background: nbS === ensembles.length ? '#f0f0ec' : '#534AB7',
-                      border:'none',
-                      color: nbS === ensembles.length ? '#aaa' : '#fff',
-                      borderRadius:6,
-                      cursor: nbS === ensembles.length ? 'not-allowed' : 'pointer',
-                      fontWeight:600,fontFamily:'inherit',
-                    }}>
-                    ✓ {lang==='ar' ? 'الكل' : 'Tout cocher'}
-                  </button>
-                  <button onClick={() => setEnsemblesPartageSelectionnes([])}
-                    disabled={nbS === 0}
-                    style={{
-                      padding:'4px 10px',
-                      background:'#fff',
-                      border:'0.5px solid #E24B4A60',
-                      color: nbS === 0 ? '#ccc' : '#E24B4A',
-                      borderRadius:6,
-                      cursor: nbS === 0 ? 'not-allowed' : 'pointer',
-                      fontWeight:600,fontFamily:'inherit',
-                    }}>
-                    ✕ {lang==='ar' ? 'إلغاء الكل' : 'Tout décocher'}
-                  </button>
-                  <span style={{fontSize:11,color:'#666',marginInlineStart:4,fontWeight:600}}>
-                    {nbS} / {ensembles.length}
-                  </span>
-                </div>
-              </div>
-
-              {/* Liste groupee par niveau, pills cliquables */}
-              <div style={{maxHeight:340, overflowY:'auto', display:'flex', flexDirection:'column', gap:10}}>
-                {ensParNiveau.map(({niv, ensembles: ensNiv}) => {
-                  const couleur = niv.couleur || '#534AB7';
-                  return (
-                    <div key={niv.id}>
-                      <div style={{
-                        fontSize:11,fontWeight:700,marginBottom:5,
-                        display:'flex',alignItems:'center',gap:6,
-                      }}>
-                        <span style={{
-                          padding:'2px 8px',borderRadius:10,
-                          background: `${couleur}18`, color: couleur,
-                          fontWeight:700,letterSpacing:0.3,
-                          border: `0.5px solid ${couleur}40`,
-                        }}>{niv.code}</span>
-                        <span style={{color:'#666'}}>{niv.nom}</span>
-                      </div>
-                      <div style={{display:'flex',flexWrap:'wrap',gap:5,paddingInlineStart:6}}>
-                        {ensNiv.map(ens => {
-                          const sel = ensemblesPartageSelectionnes.includes(ens.id);
-                          return (
-                            <div key={ens.id} onClick={() => toggleEns(ens.id)}
-                              style={{
-                                padding:'6px 10px', borderRadius:6, cursor:'pointer', fontSize:11,
-                                background: sel ? '#534AB7' : '#fff',
-                                color: sel ? '#fff' : '#1a1a1a',
-                                border: `0.5px solid ${sel ? '#3a3387' : '#e0e0d8'}`,
-                                fontWeight: sel ? 600 : 400,
-                                display:'flex',alignItems:'center',gap:5,
-                                transition:'all 0.15s',
-                              }}>
-                              <span style={{fontSize:10,opacity:0.7}}>{sel ? '✓' : ''}</span>
-                              <span>📦 {ens.nom}</span>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  );
-                })}
-                {ensSansNiveau.length > 0 && (
-                  <div>
-                    <div style={{fontSize:11,fontWeight:700,marginBottom:5,color:'#888'}}>
-                      {lang==='ar' ? 'بدون مستوى' : 'Sans niveau'}
-                    </div>
-                    <div style={{display:'flex',flexWrap:'wrap',gap:5,paddingInlineStart:6}}>
-                      {ensSansNiveau.map(ens => {
-                        const sel = ensemblesPartageSelectionnes.includes(ens.id);
-                        return (
-                          <div key={ens.id} onClick={() => toggleEns(ens.id)}
-                            style={{
-                              padding:'6px 10px', borderRadius:6, cursor:'pointer', fontSize:11,
-                              background: sel ? '#534AB7' : '#fff',
-                              color: sel ? '#fff' : '#1a1a1a',
-                              border: `0.5px solid ${sel ? '#3a3387' : '#e0e0d8'}`,
-                              fontWeight: sel ? 600 : 400,
-                              display:'flex',alignItems:'center',gap:5,
-                            }}>
-                            <span style={{fontSize:10,opacity:0.7}}>{sel ? '✓' : ''}</span>
-                            <span>📦 {ens.nom}</span>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              <div style={{marginTop:8,fontSize:10,color:'#666',fontStyle:'italic'}}>
-                {lang==='ar'
-                  ? `سيتم إنشاء ${nbS} معيار${nbS > 1 ? '' : ''} بنفس عدد النقاط (${criterePoints})`
-                  : `${nbS} critère${nbS > 1 ? 's' : ''} sera${nbS > 1 ? 'nt' : ''} créé${nbS > 1 ? 's' : ''} avec le même nombre de points (${criterePoints})`}
-              </div>
+        {/* Liste critères en cours */}
+        {criteres.length > 0 && (
+          <div style={{marginBottom:14}}>
+            <div style={{fontSize:11,color:'#888',marginBottom:6,fontWeight:600}}>
+              {lang==='ar'?'المعايير المضافة:':'Critères ajoutés :'}
             </div>
-          );
-        })()}
-
-        {/* Multi-sélection sourates : visible UNIQUEMENT pour le nouveau type */}
-        {critereType === 'sourate_dans_ensemble' && critereObjetId && (() => {
-          const sourateIds = souratesDeLensemble();
-          if (sourateIds.length === 0) {
-            return (
-              <div style={{padding:'12px 14px',background:'#FFF3CD',border:'0.5px solid #EF9F2740',borderRadius:8,fontSize:12,color:'#856404',marginBottom:12}}>
-                ⚠️ {lang==='ar' ? 'هذه المجموعة لا تحتوي على سور. أضفها أولاً في إدارة المجموعات.' : "Cet ensemble ne contient aucune sourate. Ajoutez-les d'abord dans Gestion → Ensembles."}
-              </div>
-            );
-          }
-          const allSelected = souratesSelectionnees.length === sourateIds.length;
-          const noneSelected = souratesSelectionnees.length === 0;
-          return (
-            <div style={{padding:'12px 14px',background:'#F0FAF6',border:'1px solid #1D9E7530',borderRadius:8,marginBottom:12}}>
-              <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:10,flexWrap:'wrap',gap:6}}>
-                <div style={{fontSize:13,fontWeight:600,color:'#085041'}}>
-                  🎯 {lang==='ar' ? 'اختر السور (نقاط مخصصة لكل سورة)' : 'Sélectionner les sourates (note spécifique)'}
+            <div style={{display:'flex',flexDirection:'column',gap:6}}>
+              {criteres.map((c,i) => (
+                <div key={i} style={{display:'flex',alignItems:'center',gap:10,padding:'8px 12px',background:'#f9f9f6',borderRadius:8,border:'0.5px solid #e0e0d8'}}>
+                  <span style={{fontSize:16}}>{c.icon}</span>
+                  <span style={{flex:1,fontSize:13,fontWeight:600,direction:'rtl',fontFamily:"'Tajawal',Arial,sans-serif"}}>{c.label}</span>
+                  <span style={{fontWeight:800,fontSize:15,color:c.color}}>{c.points}</span>
+                  <span style={{fontSize:10,color:'#aaa'}}>{lang==='ar'?'ن':'pts'}</span>
+                  <button onClick={() => retirerCritere(i)}
+                    style={{padding:'2px 8px',background:'#FCEBEB',color:'#E24B4A',border:'none',borderRadius:6,cursor:'pointer',fontSize:12}}>✕</button>
                 </div>
-                <div style={{display:'flex',gap:6,fontSize:11,alignItems:'center'}}>
-                  {/* Bouton Tout cocher (toujours visible, mais grise si tout deja coche) */}
-                  <button onClick={() => setSouratesSelectionnees(sourateIds)}
-                    disabled={allSelected}
-                    style={{
-                      padding:'4px 10px',
-                      background: allSelected ? '#f0f0ec' : '#1D9E75',
-                      border:'none',
-                      color: allSelected ? '#aaa' : '#fff',
-                      borderRadius:6,
-                      cursor: allSelected ? 'not-allowed' : 'pointer',
-                      fontWeight:600,
-                      fontFamily:'inherit',
-                    }}>
-                    ✓ {lang==='ar'?'الكل':'Tout cocher'}
-                  </button>
-                  {/* Bouton Tout decocher (grise si rien coche) */}
-                  <button onClick={() => setSouratesSelectionnees([])}
-                    disabled={noneSelected}
-                    style={{
-                      padding:'4px 10px',
-                      background:'#fff',
-                      border:'0.5px solid #E24B4A60',
-                      color: noneSelected ? '#ccc' : '#E24B4A',
-                      borderRadius:6,
-                      cursor: noneSelected ? 'not-allowed' : 'pointer',
-                      fontWeight:600,
-                      fontFamily:'inherit',
-                    }}>
-                    ✕ {lang==='ar'?'إلغاء الكل':'Tout décocher'}
-                  </button>
-                  <span style={{fontSize:11,color:'#666',marginInlineStart:4,fontWeight:600}}>
-                    {souratesSelectionnees.length} / {sourateIds.length}
-                  </span>
-                </div>
-              </div>
-              <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(140px,1fr))',gap:6,maxHeight:240,overflowY:'auto'}}>
-                {sourateIds.map(sId => {
-                  const sel = souratesSelectionnees.includes(sId);
-                  return (
-                    <div key={sId} onClick={() => {
-                      setSouratesSelectionnees(prev => sel ? prev.filter(x => x !== sId) : [...prev, sId]);
-                    }}
-                      style={{
-                        padding:'7px 10px', borderRadius:6, cursor:'pointer', fontSize:12,
-                        background: sel ? '#1D9E75' : '#fff',
-                        color: sel ? '#fff' : '#1a1a1a',
-                        border: `0.5px solid ${sel ? '#085041' : '#e0e0d8'}`,
-                        fontWeight: sel ? 600 : 400,
-                        display:'flex',alignItems:'center',gap:5,
-                        transition:'all 0.15s',
-                      }}>
-                      <span style={{fontSize:10,opacity:0.7}}>{sel ? '✓' : ''}</span>
-                      <span style={{flex:1,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{sourateNom(sId)}</span>
-                    </div>
-                  );
-                })}
-              </div>
-              <div style={{marginTop:8,fontSize:10,color:'#666',fontStyle:'italic'}}>
-                {lang==='ar'
-                  ? `سيتم إنشاء ${souratesSelectionnees.length} معيار${souratesSelectionnees.length > 1 ? 'اً' : ''} بنفس عدد النقاط (${criterePoints})`
-                  : `${souratesSelectionnees.length} critère${souratesSelectionnees.length > 1 ? 's' : ''} sera${souratesSelectionnees.length > 1 ? 'nt' : ''} créé${souratesSelectionnees.length > 1 ? 's' : ''} avec le même nombre de points (${criterePoints})`}
-              </div>
+              ))}
             </div>
-          );
-        })()}
-
-        {/* Liste critères en cours - affichage GROUPE par (ensemble, points)
-            pour eviter la verbosite quand on ajoute N sourates d'un coup */}
-        {criteres.length > 0 && (() => {
-          // Grouper : criteres normaux affiches individuellement,
-          // criteres 'sourate_dans_ensemble' regroupes par (objet_id, points)
-          // criteres 'ensemble_sourates' avec partage_origin regroupes par (nom, points)
-          const groupes = [];
-          const dejaTraites = new Set();
-          criteres.forEach((c, i) => {
-            if (dejaTraites.has(i)) return;
-            if (c.type === 'sourate_dans_ensemble') {
-              // Trouver tous les criteres avec meme ensemble + meme points
-              const memeGroupe = criteres
-                .map((c2, j) => ({ c: c2, j }))
-                .filter(({c: c2, j}) => j >= i && c2.type === 'sourate_dans_ensemble' && c2.objet_id === c.objet_id && c2.points === c.points);
-              memeGroupe.forEach(({j}) => dejaTraites.add(j));
-              groupes.push({
-                type: 'groupe_sourates',
-                indices: memeGroupe.map(g => g.j),
-                ensemble_id: c.objet_id,
-                niveau_id: ensembles.find(e => e.id === c.objet_id)?.niveau_id,
-                ensemble_nom: ensembles.find(e => e.id === c.objet_id)?.nom || '—',
-                points: c.points,
-                color: c.color,
-                icon: c.icon,
-                sourates: memeGroupe.map(g => g.c.sourate_id),
-              });
-            } else if (c.partage_origin) {
-              // Regroupement mode 'ensemble_partage' : meme nom + meme points
-              const memeGroupe = criteres
-                .map((c2, j) => ({ c: c2, j }))
-                .filter(({c: c2, j}) => j >= i && c2.partage_origin === c.partage_origin && c2.points === c.points);
-              memeGroupe.forEach(({j}) => dejaTraites.add(j));
-              const ensIds = memeGroupe.map(g => g.c.objet_id);
-              const niveauxConcernes = ensIds.map(eid => {
-                const ens = ensembles.find(e => e.id === eid);
-                return niveaux.find(n => n.id === ens?.niveau_id);
-              }).filter(Boolean);
-              groupes.push({
-                type: 'groupe_partage',
-                indices: memeGroupe.map(g => g.j),
-                // Nouveau : nom propre construit (ex: 'Hizb 60 (5A, 5B, 4)')
-                // Fallback sur partage_origin si pas defini (compat)
-                nom_ensemble: c.partage_nom || c.partage_origin,
-                niveaux_concernes: niveauxConcernes,
-                points: c.points,
-                color: '#534AB7',
-                icon: '🔗',
-              });
-            } else {
-              dejaTraites.add(i);
-              groupes.push({ type: 'simple', critere: c, index: i });
-            }
-          });
-
-          // Pilule niveau coloree (extracted en helper local)
-          const PiluleNiveau = ({ niveau_id }) => {
-            const niv = niveaux.find(n => n.id === niveau_id);
-            if (!niv) return null;
-            const couleur = niv.couleur || '#085041';
-            return (
-              <span style={{
-                display:'inline-block', padding:'2px 8px', borderRadius:12,
-                background: `${couleur}18`, color: couleur,
-                fontSize: 10, fontWeight: 700, letterSpacing: 0.3,
-                border: `0.5px solid ${couleur}40`, flexShrink: 0,
-              }}>
-                {niv.code}
-              </span>
-            );
-          };
-
-          return (
-            <div style={{marginBottom:14}}>
-              <div style={{fontSize:11,color:'#888',marginBottom:6,fontWeight:600}}>
-                {lang==='ar'?'المعايير المضافة:':'Critères ajoutés :'}
-              </div>
-              <div style={{display:'flex',flexDirection:'column',gap:6}}>
-                {groupes.map((g, gi) => {
-                  if (g.type === 'simple') {
-                    const c = g.critere;
-                    // Pour les types ensemble_sourates : afficher pilule niveau
-                    const niveau_id = c.type === 'ensemble_sourates'|| c.type === 'ensemble_partage'
-                      ? ensembles.find(e => e.id === c.objet_id)?.niveau_id
-                      : null;
-                    // Label sans le prefixe niveau (qui sera dans la pilule)
-                    let labelNet = c.label;
-                    if (niveau_id) {
-                      const niv = niveaux.find(n => n.id === niveau_id);
-                      if (niv) {
-                        // Retirer "[code] nom_niveau — " du debut du label
-                        const prefixe = `[${niv.code}] ${niv.nom} — `;
-                        if (labelNet.startsWith(prefixe)) labelNet = labelNet.slice(prefixe.length);
-                      }
-                    }
-                    return (
-                      <div key={gi} style={{display:'flex',alignItems:'center',gap:10,padding:'8px 12px',background:'#f9f9f6',borderRadius:8,border:'0.5px solid #e0e0d8'}}>
-                        <span style={{fontSize:16}}>{c.icon}</span>
-                        {niveau_id && <PiluleNiveau niveau_id={niveau_id} />}
-                        <span style={{flex:1,fontSize:13,fontWeight:600,direction:'rtl',fontFamily:"'Tajawal',Arial,sans-serif"}}>{labelNet}</span>
-                        <span style={{fontWeight:800,fontSize:15,color:c.color}}>{c.points}</span>
-                        <span style={{fontSize:10,color:'#aaa'}}>{lang==='ar'?'ن':'pts'}</span>
-                        <button onClick={() => retirerCritere(g.index)}
-                          style={{padding:'2px 8px',background:'#FCEBEB',color:'#E24B4A',border:'none',borderRadius:6,cursor:'pointer',fontSize:12}}>✕</button>
-                      </div>
-                    );
-                  }
-                  if (g.type === 'groupe_partage') {
-                    // Mode 'ensemble_partage' : 1 ligne avec liste pilules niveaux
-                    const nbN = g.niveaux_concernes.length;
-                    return (
-                      <div key={gi} style={{
-                        display:'flex',alignItems:'center',gap:10,padding:'8px 12px',
-                        background:'#EEEDFE',borderRadius:8,border:'1px solid #534AB730',
-                      }}>
-                        <span style={{fontSize:16}}>{g.icon}</span>
-                        <div style={{flex:1,direction:'rtl',fontFamily:"'Tajawal',Arial,sans-serif",overflow:'hidden'}}>
-                          <div style={{fontSize:12,fontWeight:700,color:'#534AB7',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>
-                            📦 {g.nom_ensemble}
-                          </div>
-                          <div style={{fontSize:10,color:'#666',marginTop:3,display:'flex',flexWrap:'wrap',gap:3}}>
-                            <span style={{marginInlineEnd:4}}>
-                              {lang==='ar' ? `مشترك بين ${nbN} ${nbN > 1 ? 'مستويات' : 'مستوى'}:` : `Partagé sur ${nbN} niveau${nbN > 1 ? 'x' : ''} :`}
-                            </span>
-                            {g.niveaux_concernes.map(niv => (
-                              <span key={niv.id} style={{
-                                padding:'1px 7px',borderRadius:10,
-                                background: `${niv.couleur || '#534AB7'}18`,
-                                color: niv.couleur || '#534AB7',
-                                fontWeight:700,fontSize:9,letterSpacing:0.3,
-                                border: `0.5px solid ${niv.couleur || '#534AB7'}40`,
-                              }}>{niv.code}</span>
-                            ))}
-                          </div>
-                        </div>
-                        <span style={{fontWeight:800,fontSize:15,color:g.color}}>{g.points}</span>
-                        <span style={{fontSize:10,color:'#aaa'}}>{lang==='ar'?'ن':'pts'}</span>
-                        <button onClick={() => {
-                          setCriteres(prev => prev.filter((_, idx) => !g.indices.includes(idx)));
-                        }}
-                          style={{padding:'2px 8px',background:'#FCEBEB',color:'#E24B4A',border:'none',borderRadius:6,cursor:'pointer',fontSize:12}}
-                          title={lang==='ar' ? 'حذف المجموعة كلها' : 'Supprimer le groupe'}>
-                          ✕
-                        </button>
-                      </div>
-                    );
-                  }
-                  // Groupe sourates : 1 ligne avec compteur + liste compacte
-                  const nbSourates = g.sourates.length;
-                  // Liste sourates compactes (ex: "الفاتحة, الإخلاص, الناس")
-                  const sLabels = g.sourates.slice(0, 4).map(sId => sourateNom(sId)).join('، ');
-                  const truncated = nbSourates > 4 ? `${sLabels}...` : sLabels;
-                  return (
-                    <div key={gi} style={{
-                      display:'flex',alignItems:'center',gap:10,padding:'8px 12px',
-                      background:'#F0FAF6',borderRadius:8,border:'1px solid #1D9E7530',
-                    }}>
-                      <span style={{fontSize:16}}>{g.icon}</span>
-                      <PiluleNiveau niveau_id={g.niveau_id} />
-                      <div style={{flex:1,direction:'rtl',fontFamily:"'Tajawal',Arial,sans-serif",overflow:'hidden'}}>
-                        <div style={{fontSize:12,fontWeight:700,color:'#085041',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>
-                          📦 {g.ensemble_nom}
-                        </div>
-                        <div style={{fontSize:11,color:'#666',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis',marginTop:2}}>
-                          🎯 {nbSourates} {lang==='ar' ? (nbSourates > 1 ? 'سور' : 'سورة') : (nbSourates > 1 ? 'sourates' : 'sourate')}
-                          <span style={{color:'#aaa',marginInlineStart:6}}>({truncated})</span>
-                        </div>
-                      </div>
-                      <span style={{fontWeight:800,fontSize:15,color:g.color}}>{g.points}</span>
-                      <span style={{fontSize:10,color:'#aaa'}}>{lang==='ar'?'ن':'pts'}</span>
-                      <button onClick={() => {
-                        // Supprimer tous les criteres du groupe (indices stockes)
-                        setCriteres(prev => prev.filter((_, idx) => !g.indices.includes(idx)));
-                      }}
-                        style={{padding:'2px 8px',background:'#FCEBEB',color:'#E24B4A',border:'none',borderRadius:6,cursor:'pointer',fontSize:12}}
-                        title={lang==='ar' ? 'حذف المجموعة كلها' : 'Supprimer le groupe'}>
-                        ✕
-                      </button>
-                    </div>
-                  );
-                })}
-              </div>
-              <div style={{marginTop:8,fontSize:12,color:'#085041',fontWeight:600}}>
-                {lang==='ar'?'المجموع:':'Total :'} {criteres.reduce((s,c)=>s+c.points,0)} {lang==='ar'?'نقطة':'pts'}
-                <span style={{color:'#aaa',fontWeight:400,marginInlineStart:6}}>({criteres.length} {lang==='ar' ? 'معيار' : 'critères'})</span>
-              </div>
+            <div style={{marginTop:8,fontSize:12,color:'#085041',fontWeight:600}}>
+              {lang==='ar'?'المجموع:':'Total :'} {criteres.reduce((s,c)=>s+c.points,0)} {lang==='ar'?'نقطة':'pts'}
             </div>
-          );
-        })()}
+          </div>
+        )}
 
         <button className="btn-primary" onClick={enregistrerConfig} disabled={saving||criteres.length===0}>
           {saving ? '...' : (lang==='ar'?'حفظ هذه التنقيطات':'Enregistrer ces notations')}
@@ -1182,202 +503,27 @@ function BaremeTab({ user, lang, bareme, setBareme, saving, setSaving, showMsg }
       <div className="section-label">{lang==='ar'?'التنقيطات المُسجَّلة':'Notations enregistrées'} ({configs.length})</div>
       {configs.length === 0 ? (
         <div className="empty">{lang==='ar'?'لا توجد تنقيطات بعد — أضف معايير وسجّلها أعلاه':'Aucune notation enregistrée'}</div>
-      ) : (() => {
-        // Affichage GROUPE pour :
-        // 1. sourate_dans_ensemble (regrouper par ensemble + meme points)
-        // 2. ensemble_sourates avec meme nom + meme points sur PLUSIEURS niveaux
-        //    -> auto-detection comme partage (sans changement BDD)
-        const groupes = [];
-        const dejaTraites = new Set();
-        configs.forEach((c, i) => {
-          if (dejaTraites.has(c.id)) return;
-          if (c.type === 'sourate_dans_ensemble') {
-            const memeGroupe = configs.filter(c2 =>
-              c2.type === 'sourate_dans_ensemble'
-              && c2.objet_id === c.objet_id
-              && c2.points === c.points
-            );
-            memeGroupe.forEach(c2 => dejaTraites.add(c2.id));
-            const ens = ensembles.find(e => e.id === c.objet_id);
-            groupes.push({
-              type: 'groupe_sourates',
-              ids: memeGroupe.map(c2 => c2.id),
-              ensemble_id: c.objet_id,
-              ensemble_nom: ens?.nom || '—',
-              niveau_id: ens?.niveau_id,
-              points: c.points,
-              sourate_ids: memeGroupe.map(c2 => c2.sourate_id).filter(Boolean),
-            });
-          } else if (c.type === 'ensemble_partage') {
-            // Detection NATIVE : type_action distinct en BDD
-            // On regroupe tous les configs 'ensemble_partage' avec memes points
-            const memeGroupe = configs.filter(c2 =>
-              c2.type === 'ensemble_partage' && c2.points === c.points
-            );
-            // Si seulement 1 instance, pas un groupe -> affichage simple
-            if (memeGroupe.length < 2) {
-              dejaTraites.add(c.id);
-              groupes.push({ type: 'simple', config: c });
-              return;
-            }
-            memeGroupe.forEach(c2 => dejaTraites.add(c2.id));
-            const niveauxConcernes = memeGroupe.map(c2 => {
-              const e2 = ensembles.find(e => e.id === c2.objet_id);
-              return niveaux.find(n => n.id === e2?.niveau_id);
-            }).filter(Boolean).sort((a, b) => (a.ordre || 0) - (b.ordre || 0));
-            // Construire un nom lisible : 'Hizb 60 (5A, 5B, 4)' ou similaire
-            const nomsEnsembles = [...new Set(memeGroupe.map(c2 => {
-              const e2 = ensembles.find(e => e.id === c2.objet_id);
-              return (e2?.nom || '').trim();
-            }).filter(Boolean))];
-            const codesNiveaux = niveauxConcernes.map(n => n.code);
-            const nom_groupe = nomsEnsembles.length === 1
-              ? `${nomsEnsembles[0]} (${codesNiveaux.join(', ')})`
-              : `${memeGroupe.length} ${lang==='ar' ? 'مجموعات' : 'ensembles'} (${codesNiveaux.join(', ')})`;
-            groupes.push({
-              type: 'groupe_partage',
-              ids: memeGroupe.map(c2 => c2.id),
-              nom_ensemble: nomsEnsembles[0] || '—',
-              nom_groupe,
-              niveaux_concernes: niveauxConcernes,
-              points: c.points,
-            });
-          } else {
-            dejaTraites.add(c.id);
-            groupes.push({ type: 'simple', config: c });
-          }
-        });
-
-        // Pilule niveau (helper local)
-        const PiluleNiveauTbl = ({ niveau_id }) => {
-          const niv = niveaux.find(n => n.id === niveau_id);
-          if (!niv) return null;
-          const couleur = niv.couleur || '#085041';
-          return (
-            <span style={{
-              display:'inline-flex',alignItems:'center',padding:'3px 10px',borderRadius:14,
-              background: `${couleur}18`, color: couleur,
-              fontSize: 10, fontWeight: 700, letterSpacing: 0.4,
-              border: `0.5px solid ${couleur}40`, flexShrink: 0,
-            }}>
-              {niv.code}
-            </span>
-          );
-        };
-
-        // Helper supprimer un groupe complet
-        const supprimerGroupe = async (ids) => {
-          await supabase.from('bareme_notes').delete().in('id', ids);
-          setConfigs(prev => prev.filter(c => !ids.includes(c.id)));
-          const newB = await loadBareme(supabase, user.ecole_id);
-          setBareme(newB);
-        };
-
-        return (
+      ) : (
         <div style={{display:'flex',flexDirection:'column',gap:6}}>
-          {groupes.map((g, gi) => {
-            if (g.type === 'simple') {
-              const c = g.config;
-              // Pour ensemble_sourates : chercher le niveau associe
-              const niveau_id = c.type === 'ensemble_sourates'|| c.type === 'ensemble_partage'
-                ? ensembles.find(e => e.id === c.objet_id)?.niveau_id
-                : null;
-              // Label sans le prefixe [code] nom_niveau
-              let labelNet = getConfigLabel(c);
-              if (niveau_id) {
-                const niv = niveaux.find(n => n.id === niveau_id);
-                if (niv) {
-                  const prefixe = `[${niv.code}] ${niv.nom} — `;
-                  if (labelNet.startsWith(prefixe)) labelNet = labelNet.slice(prefixe.length);
-                }
-              }
-              return (
-                <div key={c.id} style={{display:'flex',alignItems:'center',gap:10,padding:'10px 14px',background:'#fff',border:'0.5px solid #e0e0d8',borderRadius:10}}>
-                  <span style={{fontSize:18}}>{getConfigIcon(c)}</span>
-                  {niveau_id && <PiluleNiveauTbl niveau_id={niveau_id} />}
-                  <div style={{flex:1,minWidth:0}}>
-                    <div style={{fontWeight:600,fontSize:13,direction:'rtl',fontFamily:"'Tajawal',Arial,sans-serif",whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{labelNet}</div>
-                  </div>
-                  <span style={{fontWeight:800,fontSize:16,color:'#378ADD'}}>{c.points}</span>
-                  <span style={{fontSize:10,color:'#aaa'}}>{lang==='ar'?'ن':'pts'}</span>
-                  <button onClick={() => supprimerConfig(c.id)}
-                    style={{padding:'4px 8px',background:'#FCEBEB',color:'#E24B4A',border:'0.5px solid #E24B4A30',borderRadius:6,cursor:'pointer',fontSize:11}}>
-                    🗑
-                  </button>
+          {configs.map(c => (
+            <div key={c.id} style={{display:'flex',alignItems:'center',gap:12,padding:'10px 14px',background:'#fff',border:'0.5px solid #e0e0d8',borderRadius:10}}>
+              <span style={{fontSize:18}}>{getConfigIcon(c)}</span>
+              <div style={{flex:1}}>
+                <div style={{fontWeight:600,fontSize:13,direction:'rtl',fontFamily:"'Tajawal',Arial,sans-serif"}}>{getConfigLabel(c)}</div>
+                <div style={{fontSize:11,color:'#888',marginTop:1}}>
+                  {c.type} {c.objet_id ? '· '+c.objet_id.slice(0,8)+'...' : ''}
                 </div>
-              );
-            }
-            if (g.type === 'groupe_partage') {
-              // Mode 'ensemble_partage' : 1 ligne avec liste pilules niveaux
-              const nbN = g.niveaux_concernes.length;
-              return (
-                <div key={gi} style={{
-                  display:'flex',alignItems:'center',gap:10,padding:'10px 14px',
-                  background:'#EEEDFE',border:'1px solid #534AB730',borderRadius:10,
-                }}>
-                  <span style={{fontSize:18}}>🔗</span>
-                  <div style={{flex:1,minWidth:0,direction:'rtl',fontFamily:"'Tajawal',Arial,sans-serif"}}>
-                    <div style={{fontSize:13,fontWeight:700,color:'#534AB7',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>
-                      📦 {g.nom_ensemble}
-                    </div>
-                    <div style={{fontSize:10,color:'#666',marginTop:3,display:'flex',flexWrap:'wrap',gap:3,alignItems:'center'}}>
-                      <span style={{marginInlineEnd:4}}>
-                        {lang==='ar' ? `مشترك بين ${nbN} ${nbN > 1 ? 'مستويات' : 'مستوى'}:` : `Partagé sur ${nbN} niveau${nbN > 1 ? 'x' : ''} :`}
-                      </span>
-                      {g.niveaux_concernes.map(niv => (
-                        <span key={niv.id} style={{
-                          padding:'1px 7px',borderRadius:10,
-                          background: `${niv.couleur || '#534AB7'}18`,
-                          color: niv.couleur || '#534AB7',
-                          fontWeight:700,fontSize:9,letterSpacing:0.3,
-                          border: `0.5px solid ${niv.couleur || '#534AB7'}40`,
-                        }}>{niv.code}</span>
-                      ))}
-                    </div>
-                  </div>
-                  <span style={{fontWeight:800,fontSize:16,color:'#534AB7'}}>{g.points}</span>
-                  <span style={{fontSize:10,color:'#aaa'}}>{lang==='ar'?'ن':'pts'}</span>
-                  <button onClick={() => supprimerGroupe(g.ids)}
-                    style={{padding:'4px 8px',background:'#FCEBEB',color:'#E24B4A',border:'0.5px solid #E24B4A30',borderRadius:6,cursor:'pointer',fontSize:11}}
-                    title={lang==='ar' ? 'حذف المجموعة كلها' : 'Supprimer le groupe'}>
-                    🗑
-                  </button>
-                </div>
-              );
-            }
-            // Groupe sourate_dans_ensemble : 1 ligne avec compteur + extrait
-            const nbS = g.sourate_ids.length;
-            const sLabels = g.sourate_ids.slice(0, 3).map(sId => sourateNom(sId)).join('، ');
-            const truncated = nbS > 3 ? `${sLabels} ...` : sLabels;
-            return (
-              <div key={gi} style={{
-                display:'flex',alignItems:'center',gap:10,padding:'10px 14px',
-                background:'#F0FAF6',border:'1px solid #1D9E7530',borderRadius:10,
-              }}>
-                <span style={{fontSize:18}}>🎯</span>
-                <PiluleNiveauTbl niveau_id={g.niveau_id} />
-                <div style={{flex:1,minWidth:0,direction:'rtl',fontFamily:"'Tajawal',Arial,sans-serif"}}>
-                  <div style={{fontSize:13,fontWeight:700,color:'#085041',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>
-                    📦 {g.ensemble_nom}
-                  </div>
-                  <div style={{fontSize:11,color:'#666',marginTop:2,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>
-                    {nbS} {lang==='ar' ? (nbS > 1 ? 'سور' : 'سورة') : (nbS > 1 ? 'sourates' : 'sourate')}
-                    <span style={{color:'#aaa',marginInlineStart:6}}>({truncated})</span>
-                  </div>
-                </div>
-                <span style={{fontWeight:800,fontSize:16,color:'#1D9E75'}}>{g.points}</span>
-                <span style={{fontSize:10,color:'#aaa'}}>{lang==='ar'?'ن':'pts'}</span>
-                <button onClick={() => supprimerGroupe(g.ids)}
-                  style={{padding:'4px 8px',background:'#FCEBEB',color:'#E24B4A',border:'0.5px solid #E24B4A30',borderRadius:6,cursor:'pointer',fontSize:11}}
-                  title={lang==='ar' ? 'حذف المجموعة كلها' : 'Supprimer le groupe'}>
-                  🗑
-                </button>
               </div>
-            );
-          })}
+              <span style={{fontWeight:800,fontSize:16,color:'#378ADD'}}>{c.points}</span>
+              <span style={{fontSize:10,color:'#aaa'}}>{lang==='ar'?'ن':'pts'}</span>
+              <button onClick={() => supprimerConfig(c.id)}
+                style={{padding:'4px 8px',background:'#FCEBEB',color:'#E24B4A',border:'0.5px solid #E24B4A30',borderRadius:6,cursor:'pointer',fontSize:11}}>
+                🗑
+              </button>
+            </div>
+          ))}
         </div>
-        );
-      })()}
+      )}
     </div>
   );
 }
