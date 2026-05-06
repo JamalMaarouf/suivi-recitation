@@ -193,9 +193,9 @@ export async function loadBareme(supabase, ecole_id) {
       unites: { ...BAREME_DEFAUT },
       examens: {},
       ensembles: {},
+      ensembles_partage: {},  // Nouveau (mai 2026) : type distinct du classique
       jalons: {},
-      // Nouveau (mai 2026) : notes specifiques sourate dans ensemble
-      // Format: sourates_dans_ensemble[ensemble_id][sourate_id] = points
+      // Notes specifiques sourate dans ensemble (Phase 2)
       sourates_dans_ensemble: {},
     };
     (data || []).forEach(row => {
@@ -208,32 +208,53 @@ export async function loadBareme(supabase, ecole_id) {
         b.examens[row.objet_id] = row.points;
       } else if (row.type_action === 'ensemble_sourates') {
         b.ensembles[row.objet_id] = row.points;
+      } else if (row.type_action === 'ensemble_partage') {
+        // Mode partage : note par sourate recitee (cumulatif)
+        b.ensembles_partage[row.objet_id] = row.points;
       } else if (row.type_action === 'jalon') {
         b.jalons[row.objet_id] = row.points;
       }
     });
     return b;
   } catch (e) {
-    return { unites: { ...BAREME_DEFAUT }, examens: {}, ensembles: {}, jalons: {}, sourates_dans_ensemble: {} };
+    return { unites: { ...BAREME_DEFAUT }, examens: {}, ensembles: {}, ensembles_partage: {}, jalons: {}, sourates_dans_ensemble: {} };
   }
 }
 
 /**
- * Sauvegarde une entree du bareme (upsert).
+ * Sauvegarde une entree du bareme.
+ * Utilise DELETE + INSERT (pas UPSERT) car les index partiels (avec WHERE)
+ * ne sont pas supportes par 'ON CONFLICT' via l'API Supabase JS.
+ * Ce pattern est aussi plus robuste pour gerer les cas 'mise a jour' explicites.
+ *
  * @param sourate_id : pour le type 'sourate_dans_ensemble', l'id de la sourate
  *                    (en complement de objet_id qui est l'ensemble)
  * @returns { data, error } pour permettre au caller de detecter les echecs
  */
 export async function saveBaremeItem(supabase, ecole_id, type_action, points, objet_id = null, sourate_id = null) {
+  // 1. Construire la query DELETE selon le type
+  let deleteQuery = supabase
+    .from('bareme_notes')
+    .delete()
+    .eq('ecole_id', ecole_id)
+    .eq('type_action', type_action)
+    .eq('actif', true);
+  if (objet_id) {
+    deleteQuery = deleteQuery.eq('objet_id', objet_id);
+  } else {
+    deleteQuery = deleteQuery.is('objet_id', null);
+  }
+  if (type_action === 'sourate_dans_ensemble' && sourate_id) {
+    deleteQuery = deleteQuery.eq('sourate_id', sourate_id);
+  }
+  const { error: deleteError } = await deleteQuery;
+  if (deleteError) return { data: null, error: deleteError };
+
+  // 2. INSERT de la nouvelle valeur
   const row = { ecole_id, type_action, points: parseInt(points) || 0, actif: true };
   if (objet_id) row.objet_id = objet_id;
   if (sourate_id) row.sourate_id = sourate_id;
-  // Conflict detection : pour 'sourate_dans_ensemble', on inclut sourate_id
-  // (necessite la migration migration_notes_sourate_ensemble_FIX.sql)
-  const conflictCols = type_action === 'sourate_dans_ensemble'
-    ? 'ecole_id,type_action,objet_id,sourate_id'
-    : 'ecole_id,type_action,objet_id';
-  const { data, error } = await supabase.from('bareme_notes').upsert(row, { onConflict: conflictCols });
+  const { data, error } = await supabase.from('bareme_notes').insert(row);
   return { data, error };
 }
 
@@ -277,13 +298,17 @@ export function calculerPointsSourate(sourate_id, bareme, ensembles, typeRecitat
     }
   }
 
-  // ── Étape 2 : chercher une note d'ensemble qui contient cette sourate ──
-  const ensembleNotes = bareme?.ensembles || {};
+  // ── Étape 2 : chercher une note 'ensemble_partage' (mode factorisation)
+  // qui contient cette sourate. C'est la note PAR SOURATE.
+  // (Les notes 'ensembles' classiques sont des bonus a la completion,
+  // attribues separement quand l'eleve recite l'ensemble en globalite,
+  // pas a chaque sourate individuellement.)
+  const partageNotes = bareme?.ensembles_partage || {};
   for (const ens of (ensembles || [])) {
     if (!ens.sourates_ids || !ens.sourates_ids.includes(sourate_id)) continue;
-    const noteEns = ensembleNotes[ens.id];
-    if (typeof noteEns === 'number') {
-      return { points: noteEns, source: 'ensemble', ensemble_id: ens.id };
+    const notePartage = partageNotes[ens.id];
+    if (typeof notePartage === 'number') {
+      return { points: notePartage, source: 'ensemble_partage', ensemble_id: ens.id };
     }
   }
 

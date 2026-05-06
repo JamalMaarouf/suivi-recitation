@@ -451,26 +451,41 @@ function BaremeTab({ user, lang, bareme, setBareme, saving, setSaving, showMsg }
         return;
       }
 
-      // Generer un identifiant de groupe partage (timestamp suffisant)
-      // Permet de regrouper visuellement les criteres dans la liste
+      // Generer un nom de groupe LISIBLE base sur les niveaux concernes
+      // (ex: "Hizb 60 (5A, 5B, 4)" au lieu de "partage_1778089761499")
+      const ensInstances = ensemblesPartageSelectionnes
+        .map(eId => ensembles.find(e => e.id === eId))
+        .filter(Boolean);
+      // Tous les ensembles ont-ils le meme nom ?
+      const nomsUniques = [...new Set(ensInstances.map(e => (e.nom || '').trim()))];
+      const codesNiveaux = ensInstances
+        .map(e => niveaux.find(n => n.id === e.niveau_id)?.code)
+        .filter(Boolean);
+      const nomGroupe = nomsUniques.length === 1
+        ? `${nomsUniques[0]} (${codesNiveaux.join(', ')})`
+        : `${ensInstances.length} ${lang==='ar' ? 'مجموعات' : 'ensembles'} (${codesNiveaux.join(', ')})`;
+      // Marqueur de grouping en memoire (pour affichage 'criteres ajoutes')
       const partageId = `partage_${Date.now()}`;
 
       const nouveaux = [];
       for (const ensId of ensemblesPartageSelectionnes) {
         const ens = ensembles.find(e => e.id === ensId);
         if (!ens) continue;
-        // Eviter doublon dans la liste en cours (meme ensemble + meme points deja ajoute)
+        // Eviter doublon dans la liste en cours
         const exists = criteres.find(c =>
-          c.type === 'ensemble_sourates' && c.objet_id === ensId && c.points === criterePoints
+          c.type === 'ensemble_partage' && c.objet_id === ensId && c.points === criterePoints
         );
         if (exists) continue;
         const niv = niveauNom(ens.niveau_id);
         nouveaux.push({
-          // Stocke en BDD comme 'ensemble_sourates' classique (pas de migration)
-          // Marqueur 'partage_origin' uniquement en memoire pour grouping visuel
-          type: 'ensemble_sourates',
+          // Type DISTINCT en BDD : 'ensemble_partage' (pas 'ensemble_sourates')
+          // Permet la coexistence des 2 modes sur le meme ensemble :
+          // - 'ensemble_sourates' = note bonus a la complétion (mode classique)
+          // - 'ensemble_partage' = note par sourate récitée (factorisation)
+          type: 'ensemble_partage',
           objet_id: ensId,
           partage_origin: partageId,
+          partage_nom: nomGroupe,
           partage_count: ensemblesPartageSelectionnes.length,
           label: niv ? `${niv} — ${ens.nom}` : ens.nom,
           icon: '🔗',
@@ -546,7 +561,9 @@ function BaremeTab({ user, lang, bareme, setBareme, saving, setSaving, showMsg }
   const getConfigLabel = (c) => {
     if (!c.objet_id) return UNITES.find(u => u.key === c.type)?.label_ar || c.type;
     if (c.type === 'examen') return examens.find(e => e.id === c.objet_id)?.nom || '—';
-    if (c.type === 'ensemble_sourates') {
+    if (c.type === 'ensemble_sourates' || c.type === 'ensemble_partage') {
+      // Affichage simple pour les 2 types ensemble (le grouping visuel partage
+      // se fait au niveau du tableau quand >= 2 instances avec memes points)
       const e = ensembles.find(x => x.id === c.objet_id);
       const niv = niveauNom(e?.niveau_id);
       return niv ? `${niv} — ${e?.nom||'—'}` : (e?.nom || '—');
@@ -565,6 +582,7 @@ function BaremeTab({ user, lang, bareme, setBareme, saving, setSaving, showMsg }
     if (!c.objet_id) return UNITES.find(u => u.key === c.type)?.icon || '⭐';
     if (c.type === 'examen') return '📝';
     if (c.type === 'ensemble_sourates') return '📦';
+    if (c.type === 'ensemble_partage') return '🔗';
     if (c.type === 'sourate_dans_ensemble') return '🎯';
     if (c.type === 'jalon') return '🏅';
     return '⭐';
@@ -1006,7 +1024,9 @@ function BaremeTab({ user, lang, bareme, setBareme, saving, setSaving, showMsg }
               groupes.push({
                 type: 'groupe_partage',
                 indices: memeGroupe.map(g => g.j),
-                nom_ensemble: c.partage_origin,
+                // Nouveau : nom propre construit (ex: 'Hizb 60 (5A, 5B, 4)')
+                // Fallback sur partage_origin si pas defini (compat)
+                nom_ensemble: c.partage_nom || c.partage_origin,
                 niveaux_concernes: niveauxConcernes,
                 points: c.points,
                 color: '#534AB7',
@@ -1045,7 +1065,7 @@ function BaremeTab({ user, lang, bareme, setBareme, saving, setSaving, showMsg }
                   if (g.type === 'simple') {
                     const c = g.critere;
                     // Pour les types ensemble_sourates : afficher pilule niveau
-                    const niveau_id = c.type === 'ensemble_sourates'
+                    const niveau_id = c.type === 'ensemble_sourates'|| c.type === 'ensemble_partage'
                       ? ensembles.find(e => e.id === c.objet_id)?.niveau_id
                       : null;
                     // Label sans le prefixe niveau (qui sera dans la pilule)
@@ -1188,20 +1208,12 @@ function BaremeTab({ user, lang, bareme, setBareme, saving, setSaving, showMsg }
               points: c.points,
               sourate_ids: memeGroupe.map(c2 => c2.sourate_id).filter(Boolean),
             });
-          } else if (c.type === 'ensemble_sourates') {
-            // Auto-detection partage : memes nom + meme points sur >= 2 niveaux
-            const ensCourant = ensembles.find(e => e.id === c.objet_id);
-            if (!ensCourant) {
-              dejaTraites.add(c.id);
-              groupes.push({ type: 'simple', config: c });
-              return;
-            }
-            const nomCible = (ensCourant.nom || '').trim();
-            const memeGroupe = configs.filter(c2 => {
-              if (c2.type !== 'ensemble_sourates' || c2.points !== c.points) return false;
-              const e2 = ensembles.find(e => e.id === c2.objet_id);
-              return e2 && (e2.nom || '').trim() === nomCible;
-            });
+          } else if (c.type === 'ensemble_partage') {
+            // Detection NATIVE : type_action distinct en BDD
+            // On regroupe tous les configs 'ensemble_partage' avec memes points
+            const memeGroupe = configs.filter(c2 =>
+              c2.type === 'ensemble_partage' && c2.points === c.points
+            );
             // Si seulement 1 instance, pas un groupe -> affichage simple
             if (memeGroupe.length < 2) {
               dejaTraites.add(c.id);
@@ -1213,10 +1225,20 @@ function BaremeTab({ user, lang, bareme, setBareme, saving, setSaving, showMsg }
               const e2 = ensembles.find(e => e.id === c2.objet_id);
               return niveaux.find(n => n.id === e2?.niveau_id);
             }).filter(Boolean).sort((a, b) => (a.ordre || 0) - (b.ordre || 0));
+            // Construire un nom lisible : 'Hizb 60 (5A, 5B, 4)' ou similaire
+            const nomsEnsembles = [...new Set(memeGroupe.map(c2 => {
+              const e2 = ensembles.find(e => e.id === c2.objet_id);
+              return (e2?.nom || '').trim();
+            }).filter(Boolean))];
+            const codesNiveaux = niveauxConcernes.map(n => n.code);
+            const nom_groupe = nomsEnsembles.length === 1
+              ? `${nomsEnsembles[0]} (${codesNiveaux.join(', ')})`
+              : `${memeGroupe.length} ${lang==='ar' ? 'مجموعات' : 'ensembles'} (${codesNiveaux.join(', ')})`;
             groupes.push({
               type: 'groupe_partage',
               ids: memeGroupe.map(c2 => c2.id),
-              nom_ensemble: nomCible,
+              nom_ensemble: nomsEnsembles[0] || '—',
+              nom_groupe,
               niveaux_concernes: niveauxConcernes,
               points: c.points,
             });
@@ -1257,7 +1279,7 @@ function BaremeTab({ user, lang, bareme, setBareme, saving, setSaving, showMsg }
             if (g.type === 'simple') {
               const c = g.config;
               // Pour ensemble_sourates : chercher le niveau associe
-              const niveau_id = c.type === 'ensemble_sourates'
+              const niveau_id = c.type === 'ensemble_sourates'|| c.type === 'ensemble_partage'
                 ? ensembles.find(e => e.id === c.objet_id)?.niveau_id
                 : null;
               // Label sans le prefixe [code] nom_niveau
