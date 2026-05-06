@@ -193,9 +193,9 @@ export async function loadBareme(supabase, ecole_id) {
       unites: { ...BAREME_DEFAUT },
       examens: {},
       ensembles: {},
+      ensembles_partage: {},  // Nouveau (mai 2026) : type distinct du classique
       jalons: {},
-      // Nouveau (mai 2026) : notes specifiques sourate dans ensemble
-      // Format: sourates_dans_ensemble[ensemble_id][sourate_id] = points
+      // Notes specifiques sourate dans ensemble (Phase 2)
       sourates_dans_ensemble: {},
     };
     (data || []).forEach(row => {
@@ -208,13 +208,16 @@ export async function loadBareme(supabase, ecole_id) {
         b.examens[row.objet_id] = row.points;
       } else if (row.type_action === 'ensemble_sourates') {
         b.ensembles[row.objet_id] = row.points;
+      } else if (row.type_action === 'ensemble_partage') {
+        // Mode partage : note par sourate recitee (cumulatif)
+        b.ensembles_partage[row.objet_id] = row.points;
       } else if (row.type_action === 'jalon') {
         b.jalons[row.objet_id] = row.points;
       }
     });
     return b;
   } catch (e) {
-    return { unites: { ...BAREME_DEFAUT }, examens: {}, ensembles: {}, jalons: {}, sourates_dans_ensemble: {} };
+    return { unites: { ...BAREME_DEFAUT }, examens: {}, ensembles: {}, ensembles_partage: {}, jalons: {}, sourates_dans_ensemble: {} };
   }
 }
 
@@ -277,13 +280,17 @@ export function calculerPointsSourate(sourate_id, bareme, ensembles, typeRecitat
     }
   }
 
-  // ── Étape 2 : chercher une note d'ensemble qui contient cette sourate ──
-  const ensembleNotes = bareme?.ensembles || {};
+  // ── Étape 2 : chercher une note 'ensemble_partage' (mode factorisation)
+  // qui contient cette sourate. C'est la note PAR SOURATE.
+  // (Les notes 'ensembles' classiques sont des bonus a la completion,
+  // attribues separement quand l'eleve recite l'ensemble en globalite,
+  // pas a chaque sourate individuellement.)
+  const partageNotes = bareme?.ensembles_partage || {};
   for (const ens of (ensembles || [])) {
     if (!ens.sourates_ids || !ens.sourates_ids.includes(sourate_id)) continue;
-    const noteEns = ensembleNotes[ens.id];
-    if (typeof noteEns === 'number') {
-      return { points: noteEns, source: 'ensemble', ensemble_id: ens.id };
+    const notePartage = partageNotes[ens.id];
+    if (typeof notePartage === 'number') {
+      return { points: notePartage, source: 'ensemble_partage', ensemble_id: ens.id };
     }
   }
 
