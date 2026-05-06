@@ -5,7 +5,7 @@ import { withRetryToast } from '../lib/retry';
 import { invalidateMany } from '../lib/cache';
 import { enqueueOrRun } from '../lib/offlineQueue';
 import { swr } from '../lib/offlineCache';
-import { calcEtatEleve, getInitiales, scoreLabel, motivationMsg, verifierEtCreerCertificats, isSourateNiveauDyn, loadBareme, BAREME_DEFAUT, getSensForEleve, verifierBlocageExamen, calculerPointsSourate} from '../lib/helpers';
+import { calcEtatEleve, getInitiales, scoreLabel, motivationMsg, verifierEtCreerCertificats, isSourateNiveauDyn, loadBareme, BAREME_DEFAUT, getSensForEleve, verifierBlocageExamen} from '../lib/helpers';
 import { notifierParents } from '../lib/notificationsParents';
 import { getSouratesForNiveau } from '../lib/sourates';
 import { t } from '../lib/i18n';
@@ -29,8 +29,6 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
   const [sessionLog, setSessionLog] = useState([]);
   const [nbTomon, setNbTomon] = useState(1); // nombre de tomons à valider
   const [bareme, setBareme] = useState(null); // barème de l'école
-  // Phase 2 : ensembles pour calcul points sourate avec priorite
-  const [ensemblesEcole, setEnsemblesEcole] = useState([]);
   const [programmeNiveau, setProgrammeNiveau] = useState([]); // hizbs ou sourates du programme
   const [programmeCharge, setProgrammeCharge] = useState(false); // true quand chargement terminé
   const [currentSourateState, setCurrentSourateState] = useState(null); // calculé après chargement
@@ -77,11 +75,6 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
     ]);
     const b = await loadBareme(supabase, ecoleId);
     setBareme(b);
-    // Phase 2 : charger les ensembles avec sourates_ids pour calcul points
-    supabase.from('ensembles_sourates')
-      .select('id,sourates_ids')
-      .eq('ecole_id', ecoleId)
-      .then(({data}) => setEnsemblesEcole(data || []));
     setLoading(false);
   };
 
@@ -514,15 +507,9 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
     }
     if (!sourateId) { setSaving(false); return; }
 
-    // Phase 2 : nouveau calcul avec priorite (sourate specifique > ensemble > base)
+    const ptsComplet = bareme?.unites?.sourate || 0;
     const ptsSequence = bareme?.unites?.sequence_sourate || 0;
-    let pts;
-    if (typeRec === 'complete') {
-      const calc = calculerPointsSourate(sourateId, bareme, ensemblesEcole, 'complete');
-      pts = calc.points;
-    } else {
-      pts = ptsSequence;
-    }
+    const pts = typeRec === 'complete' ? ptsComplet : ptsSequence;
 
     // === FIX L1 + Q2=A - OPTIMISTIC UI ===
     // 1. Ajout IMMEDIAT au state local (avant l'INSERT BDD)
