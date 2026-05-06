@@ -347,12 +347,47 @@ function BaremeTab({ user, lang, bareme, setBareme, saving, setSaving, showMsg }
     return ens.sourates_ids;
   };
 
+  // Helper pour ensemble_partage : retourne les noms uniques d'ensembles
+  // qui apparaissent dans plusieurs niveaux
+  const getNomsEnsemblesUniques = () => {
+    // Grouper les ensembles par nom (trim + lowercase pour matcher)
+    const parNom = {};
+    (ensembles || []).forEach(e => {
+      const cle = (e.nom || '').trim();
+      if (!cle) return;
+      if (!parNom[cle]) parNom[cle] = [];
+      parNom[cle].push(e);
+    });
+    // Tri par nom
+    return Object.entries(parNom)
+      .sort(([a], [b]) => a.localeCompare(b, 'ar'))
+      .map(([nom, instances]) => ({
+        nom,
+        instances,            // tous les ensembles avec ce nom
+        nbInstances: instances.length,
+        // niveaux concernes (ordonnes par ordre niveau)
+        niveaux: instances
+          .map(e => niveaux.find(n => n.id === e.niveau_id))
+          .filter(Boolean)
+          .sort((a, b) => (a.ordre || 0) - (b.ordre || 0)),
+      }));
+  };
+
   // Options du sélecteur selon type
   const getOptions = () => {
     if (critereType === 'examen') return examens.map(e => ({ id: e.id, label: e.nom }));
     if (critereType === 'ensemble_sourates' || critereType === 'sourate_dans_ensemble') {
       // Bug fix Q2 : afficher avec niveau (mais regroupement gere par optgroup)
       return ensembles.map(e => ({ id: e.id, label: e.nom, niveau_id: e.niveau_id }));
+    }
+    if (critereType === 'ensemble_partage') {
+      // Pour le mode 'partage', on liste les NOMS uniques d'ensembles
+      // L'identifiant est le nom (string), pas un UUID
+      return getNomsEnsemblesUniques().map(g => ({
+        id: g.nom,
+        label: `${g.nom} (${g.nbInstances} ${lang==='ar' ? (g.nbInstances > 1 ? 'مستويات' : 'مستوى') : (g.nbInstances > 1 ? 'niveaux' : 'niveau')})`,
+        niveau_codes: g.niveaux.map(n => n.code).join(', '),
+      }));
     }
     if (critereType === 'jalon') return jalons.map(j => ({ id: j.id, label: j.nom_ar || j.nom }));
     return [];
@@ -375,6 +410,10 @@ function BaremeTab({ user, lang, bareme, setBareme, saving, setSaving, showMsg }
       const e = ensembles.find(x => x.id === critereObjetId);
       const niv = niveauNom(e?.niveau_id);
       return { label: niv ? `${niv} — ${e?.nom||''}` : (e?.nom || ''), icon: '🎯', color: '#085041', objet_id: critereObjetId };
+    }
+    if (critereType === 'ensemble_partage') {
+      // Sera traite specifiquement dans ajouterCritere (creation de N criteres)
+      return { label: critereObjetId, icon: '🔗', color: '#534AB7', objet_id: critereObjetId };
     }
     if (critereType === 'jalon') {
       const j = jalons.find(x => x.id === critereObjetId);
@@ -422,6 +461,53 @@ function BaremeTab({ user, lang, bareme, setBareme, saving, setSaving, showMsg }
       setCriteres(prev => [...prev, ...nouveaux]);
       setCritereType(''); setCritereObjetId(''); setCriterePoints(0);
       setSouratesSelectionnees([]);
+      return;
+    }
+
+    // Cas special : ensemble_partage = applique la meme note a TOUS
+    // les ensembles ayant le meme nom (peu importe le niveau)
+    // critereObjetId contient ici le NOM (string), pas un UUID
+    if (critereType === 'ensemble_partage') {
+      const nomCible = (critereObjetId || '').trim();
+      if (!nomCible) {
+        showMsg('error', lang==='ar'?'اختر اسم المجموعة':'Sélectionnez le nom de l\'ensemble');
+        return;
+      }
+      const instances = (ensembles || []).filter(e => (e.nom || '').trim() === nomCible);
+      if (instances.length === 0) {
+        showMsg('error', lang==='ar'?'لا توجد مجموعات بهذا الاسم':'Aucun ensemble avec ce nom');
+        return;
+      }
+
+      const nouveaux = [];
+      for (const ens of instances) {
+        // Eviter doublon dans la liste en cours
+        const exists = criteres.find(c =>
+          (c.type === 'ensemble_sourates' || c.type === 'ensemble_partage')
+          && c.objet_id === ens.id
+        );
+        if (exists) continue;
+        const niv = niveauNom(ens.niveau_id);
+        nouveaux.push({
+          // On enregistre comme 'ensemble_sourates' classique en BDD (pas besoin
+          // d'un nouveau type cote BDD : c'est juste un workflow UI)
+          // Mais on garde une marque 'partage_origin' pour grouper l'affichage
+          type: 'ensemble_sourates',
+          objet_id: ens.id,
+          partage_origin: nomCible,
+          partage_count: instances.length,
+          label: niv ? `${niv} — ${ens.nom}` : ens.nom,
+          icon: '🔗',
+          color: '#534AB7',
+          points: criterePoints,
+        });
+      }
+      if (nouveaux.length === 0) {
+        showMsg('error', lang==='ar'?'كل المعايير المحددة موجودة بالفعل':'Tous ces critères sont déjà ajoutés');
+        return;
+      }
+      setCriteres(prev => [...prev, ...nouveaux]);
+      setCritereType(''); setCritereObjetId(''); setCriterePoints(0);
       return;
     }
 
@@ -538,6 +624,7 @@ function BaremeTab({ user, lang, bareme, setBareme, saving, setSaving, showMsg }
               </optgroup>
               <optgroup label={lang==='ar'?'مجموعات سور':'Ensembles'}>
                 <option value="ensemble_sourates">{lang==='ar'?'مجموعة سور...':'Ensemble de sourates...'}</option>
+                <option value="ensemble_partage">{lang==='ar'?'🔗 مجموعة مشتركة (نفس الاسم)...':'🔗 Ensemble partagé (par nom)...'}</option>
                 <option value="sourate_dans_ensemble">{lang==='ar'?'🎯 سورة محددة في مجموعة...':'🎯 Sourate spécifique dans un ensemble...'}</option>
               </optgroup>
               <optgroup label={lang==='ar'?'شهادات':'Jalons'}>
@@ -571,6 +658,10 @@ function BaremeTab({ user, lang, bareme, setBareme, saving, setSaving, showMsg }
                       </optgroup>
                     ] : []
                   )
+                ) : critereType === 'ensemble_partage' ? (
+                  // Mode partage : lister les noms uniques d'ensembles
+                  // L'identifiant est le nom (string), pas un UUID
+                  getOptions().map(o => <option key={o.id} value={o.id}>{o.label}</option>)
                 ) : (
                   // Cas normal (examen, jalon) : pas de regroupement
                   getOptions().map(o => <option key={o.id} value={o.id}>{o.label}</option>)
@@ -599,6 +690,55 @@ function BaremeTab({ user, lang, bareme, setBareme, saving, setSaving, showMsg }
             + {lang==='ar'?'أضف':'Ajouter'}
           </button>
         </div>
+
+        {/* Apercu mode 'ensemble_partage' : afficher les ensembles concernes */}
+        {critereType === 'ensemble_partage' && critereObjetId && (() => {
+          const nomCible = (critereObjetId || '').trim();
+          const instances = (ensembles || []).filter(e => (e.nom || '').trim() === nomCible);
+          if (instances.length === 0) return null;
+          return (
+            <div style={{padding:'12px 14px',background:'#EEEDFE',border:'1px solid #534AB730',borderRadius:8,marginBottom:12}}>
+              <div style={{fontSize:13,fontWeight:600,color:'#534AB7',marginBottom:8}}>
+                🔗 {lang==='ar'
+                  ? `سيتم تطبيق هذه النقطة على ${instances.length} ${instances.length > 1 ? 'مجموعات' : 'مجموعة'}:`
+                  : `Cette note sera appliquée à ${instances.length} ensemble${instances.length > 1 ? 's' : ''} :`}
+              </div>
+              <div style={{display:'flex',flexWrap:'wrap',gap:6}}>
+                {instances.map(ens => {
+                  const niv = niveaux.find(n => n.id === ens.niveau_id);
+                  const couleur = niv?.couleur || '#534AB7';
+                  return (
+                    <div key={ens.id} style={{
+                      display:'inline-flex',alignItems:'center',gap:6,
+                      padding:'5px 10px',
+                      background:'#fff',
+                      border:`0.5px solid ${couleur}40`,
+                      borderRadius:14,
+                      fontSize:11,
+                    }}>
+                      {niv && (
+                        <span style={{
+                          padding:'1px 7px',borderRadius:10,
+                          background: `${couleur}18`, color: couleur,
+                          fontWeight:700, letterSpacing:0.3,
+                          border: `0.5px solid ${couleur}40`,
+                        }}>
+                          {niv.code}
+                        </span>
+                      )}
+                      <span style={{color:'#1a1a1a',fontWeight:500}}>📦 {ens.nom}</span>
+                    </div>
+                  );
+                })}
+              </div>
+              <div style={{marginTop:8,fontSize:10,color:'#666',fontStyle:'italic'}}>
+                {lang==='ar'
+                  ? `سيتم إنشاء ${instances.length} معيار بنفس عدد النقاط (${criterePoints})`
+                  : `${instances.length} critère${instances.length > 1 ? 's' : ''} sera${instances.length > 1 ? 'nt' : ''} créé${instances.length > 1 ? 's' : ''} avec le même nombre de points (${criterePoints})`}
+              </div>
+            </div>
+          );
+        })()}
 
         {/* Multi-sélection sourates : visible UNIQUEMENT pour le nouveau type */}
         {critereType === 'sourate_dans_ensemble' && critereObjetId && (() => {
@@ -690,6 +830,7 @@ function BaremeTab({ user, lang, bareme, setBareme, saving, setSaving, showMsg }
         {criteres.length > 0 && (() => {
           // Grouper : criteres normaux affiches individuellement,
           // criteres 'sourate_dans_ensemble' regroupes par (objet_id, points)
+          // criteres 'ensemble_sourates' avec partage_origin regroupes par (nom, points)
           const groupes = [];
           const dejaTraites = new Set();
           criteres.forEach((c, i) => {
@@ -710,6 +851,26 @@ function BaremeTab({ user, lang, bareme, setBareme, saving, setSaving, showMsg }
                 color: c.color,
                 icon: c.icon,
                 sourates: memeGroupe.map(g => g.c.sourate_id),
+              });
+            } else if (c.partage_origin) {
+              // Regroupement mode 'ensemble_partage' : meme nom + meme points
+              const memeGroupe = criteres
+                .map((c2, j) => ({ c: c2, j }))
+                .filter(({c: c2, j}) => j >= i && c2.partage_origin === c.partage_origin && c2.points === c.points);
+              memeGroupe.forEach(({j}) => dejaTraites.add(j));
+              const ensIds = memeGroupe.map(g => g.c.objet_id);
+              const niveauxConcernes = ensIds.map(eid => {
+                const ens = ensembles.find(e => e.id === eid);
+                return niveaux.find(n => n.id === ens?.niveau_id);
+              }).filter(Boolean);
+              groupes.push({
+                type: 'groupe_partage',
+                indices: memeGroupe.map(g => g.j),
+                nom_ensemble: c.partage_origin,
+                niveaux_concernes: niveauxConcernes,
+                points: c.points,
+                color: '#534AB7',
+                icon: '🔗',
               });
             } else {
               dejaTraites.add(i);
@@ -769,6 +930,46 @@ function BaremeTab({ user, lang, bareme, setBareme, saving, setSaving, showMsg }
                       </div>
                     );
                   }
+                  if (g.type === 'groupe_partage') {
+                    // Mode 'ensemble_partage' : 1 ligne avec liste pilules niveaux
+                    const nbN = g.niveaux_concernes.length;
+                    return (
+                      <div key={gi} style={{
+                        display:'flex',alignItems:'center',gap:10,padding:'8px 12px',
+                        background:'#EEEDFE',borderRadius:8,border:'1px solid #534AB730',
+                      }}>
+                        <span style={{fontSize:16}}>{g.icon}</span>
+                        <div style={{flex:1,direction:'rtl',fontFamily:"'Tajawal',Arial,sans-serif",overflow:'hidden'}}>
+                          <div style={{fontSize:12,fontWeight:700,color:'#534AB7',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>
+                            📦 {g.nom_ensemble}
+                          </div>
+                          <div style={{fontSize:10,color:'#666',marginTop:3,display:'flex',flexWrap:'wrap',gap:3}}>
+                            <span style={{marginInlineEnd:4}}>
+                              {lang==='ar' ? `مشترك بين ${nbN} ${nbN > 1 ? 'مستويات' : 'مستوى'}:` : `Partagé sur ${nbN} niveau${nbN > 1 ? 'x' : ''} :`}
+                            </span>
+                            {g.niveaux_concernes.map(niv => (
+                              <span key={niv.id} style={{
+                                padding:'1px 7px',borderRadius:10,
+                                background: `${niv.couleur || '#534AB7'}18`,
+                                color: niv.couleur || '#534AB7',
+                                fontWeight:700,fontSize:9,letterSpacing:0.3,
+                                border: `0.5px solid ${niv.couleur || '#534AB7'}40`,
+                              }}>{niv.code}</span>
+                            ))}
+                          </div>
+                        </div>
+                        <span style={{fontWeight:800,fontSize:15,color:g.color}}>{g.points}</span>
+                        <span style={{fontSize:10,color:'#aaa'}}>{lang==='ar'?'ن':'pts'}</span>
+                        <button onClick={() => {
+                          setCriteres(prev => prev.filter((_, idx) => !g.indices.includes(idx)));
+                        }}
+                          style={{padding:'2px 8px',background:'#FCEBEB',color:'#E24B4A',border:'none',borderRadius:6,cursor:'pointer',fontSize:12}}
+                          title={lang==='ar' ? 'حذف المجموعة كلها' : 'Supprimer le groupe'}>
+                          ✕
+                        </button>
+                      </div>
+                    );
+                  }
                   // Groupe sourates : 1 ligne avec compteur + liste compacte
                   const nbSourates = g.sourates.length;
                   // Liste sourates compactes (ex: "الفاتحة, الإخلاص, الناس")
@@ -822,7 +1023,10 @@ function BaremeTab({ user, lang, bareme, setBareme, saving, setSaving, showMsg }
       {configs.length === 0 ? (
         <div className="empty">{lang==='ar'?'لا توجد تنقيطات بعد — أضف معايير وسجّلها أعلاه':'Aucune notation enregistrée'}</div>
       ) : (() => {
-        // Affichage GROUPE pour les sourate_dans_ensemble (regrouper par ensemble + meme points)
+        // Affichage GROUPE pour :
+        // 1. sourate_dans_ensemble (regrouper par ensemble + meme points)
+        // 2. ensemble_sourates avec meme nom + meme points sur PLUSIEURS niveaux
+        //    -> auto-detection comme partage (sans changement BDD)
         const groupes = [];
         const dejaTraites = new Set();
         configs.forEach((c, i) => {
@@ -843,6 +1047,38 @@ function BaremeTab({ user, lang, bareme, setBareme, saving, setSaving, showMsg }
               niveau_id: ens?.niveau_id,
               points: c.points,
               sourate_ids: memeGroupe.map(c2 => c2.sourate_id).filter(Boolean),
+            });
+          } else if (c.type === 'ensemble_sourates') {
+            // Auto-detection partage : memes nom + meme points sur >= 2 niveaux
+            const ensCourant = ensembles.find(e => e.id === c.objet_id);
+            if (!ensCourant) {
+              dejaTraites.add(c.id);
+              groupes.push({ type: 'simple', config: c });
+              return;
+            }
+            const nomCible = (ensCourant.nom || '').trim();
+            const memeGroupe = configs.filter(c2 => {
+              if (c2.type !== 'ensemble_sourates' || c2.points !== c.points) return false;
+              const e2 = ensembles.find(e => e.id === c2.objet_id);
+              return e2 && (e2.nom || '').trim() === nomCible;
+            });
+            // Si seulement 1 instance, pas un groupe -> affichage simple
+            if (memeGroupe.length < 2) {
+              dejaTraites.add(c.id);
+              groupes.push({ type: 'simple', config: c });
+              return;
+            }
+            memeGroupe.forEach(c2 => dejaTraites.add(c2.id));
+            const niveauxConcernes = memeGroupe.map(c2 => {
+              const e2 = ensembles.find(e => e.id === c2.objet_id);
+              return niveaux.find(n => n.id === e2?.niveau_id);
+            }).filter(Boolean).sort((a, b) => (a.ordre || 0) - (b.ordre || 0));
+            groupes.push({
+              type: 'groupe_partage',
+              ids: memeGroupe.map(c2 => c2.id),
+              nom_ensemble: nomCible,
+              niveaux_concernes: niveauxConcernes,
+              points: c.points,
             });
           } else {
             dejaTraites.add(c.id);
@@ -904,6 +1140,44 @@ function BaremeTab({ user, lang, bareme, setBareme, saving, setSaving, showMsg }
                   <span style={{fontSize:10,color:'#aaa'}}>{lang==='ar'?'ن':'pts'}</span>
                   <button onClick={() => supprimerConfig(c.id)}
                     style={{padding:'4px 8px',background:'#FCEBEB',color:'#E24B4A',border:'0.5px solid #E24B4A30',borderRadius:6,cursor:'pointer',fontSize:11}}>
+                    🗑
+                  </button>
+                </div>
+              );
+            }
+            if (g.type === 'groupe_partage') {
+              // Mode 'ensemble_partage' : 1 ligne avec liste pilules niveaux
+              const nbN = g.niveaux_concernes.length;
+              return (
+                <div key={gi} style={{
+                  display:'flex',alignItems:'center',gap:10,padding:'10px 14px',
+                  background:'#EEEDFE',border:'1px solid #534AB730',borderRadius:10,
+                }}>
+                  <span style={{fontSize:18}}>🔗</span>
+                  <div style={{flex:1,minWidth:0,direction:'rtl',fontFamily:"'Tajawal',Arial,sans-serif"}}>
+                    <div style={{fontSize:13,fontWeight:700,color:'#534AB7',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>
+                      📦 {g.nom_ensemble}
+                    </div>
+                    <div style={{fontSize:10,color:'#666',marginTop:3,display:'flex',flexWrap:'wrap',gap:3,alignItems:'center'}}>
+                      <span style={{marginInlineEnd:4}}>
+                        {lang==='ar' ? `مشترك بين ${nbN} ${nbN > 1 ? 'مستويات' : 'مستوى'}:` : `Partagé sur ${nbN} niveau${nbN > 1 ? 'x' : ''} :`}
+                      </span>
+                      {g.niveaux_concernes.map(niv => (
+                        <span key={niv.id} style={{
+                          padding:'1px 7px',borderRadius:10,
+                          background: `${niv.couleur || '#534AB7'}18`,
+                          color: niv.couleur || '#534AB7',
+                          fontWeight:700,fontSize:9,letterSpacing:0.3,
+                          border: `0.5px solid ${niv.couleur || '#534AB7'}40`,
+                        }}>{niv.code}</span>
+                      ))}
+                    </div>
+                  </div>
+                  <span style={{fontWeight:800,fontSize:16,color:'#534AB7'}}>{g.points}</span>
+                  <span style={{fontSize:10,color:'#aaa'}}>{lang==='ar'?'ن':'pts'}</span>
+                  <button onClick={() => supprimerGroupe(g.ids)}
+                    style={{padding:'4px 8px',background:'#FCEBEB',color:'#E24B4A',border:'0.5px solid #E24B4A30',borderRadius:6,cursor:'pointer',fontSize:11}}
+                    title={lang==='ar' ? 'حذف المجموعة كلها' : 'Supprimer le groupe'}>
                     🗑
                   </button>
                 </div>
