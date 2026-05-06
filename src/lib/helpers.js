@@ -222,21 +222,39 @@ export async function loadBareme(supabase, ecole_id) {
 }
 
 /**
- * Sauvegarde une entree du bareme (upsert).
+ * Sauvegarde une entree du bareme.
+ * Utilise DELETE + INSERT (pas UPSERT) car les index partiels (avec WHERE)
+ * ne sont pas supportes par 'ON CONFLICT' via l'API Supabase JS.
+ * Ce pattern est aussi plus robuste pour gerer les cas 'mise a jour' explicites.
+ *
  * @param sourate_id : pour le type 'sourate_dans_ensemble', l'id de la sourate
  *                    (en complement de objet_id qui est l'ensemble)
  * @returns { data, error } pour permettre au caller de detecter les echecs
  */
 export async function saveBaremeItem(supabase, ecole_id, type_action, points, objet_id = null, sourate_id = null) {
+  // 1. Construire la query DELETE selon le type
+  let deleteQuery = supabase
+    .from('bareme_notes')
+    .delete()
+    .eq('ecole_id', ecole_id)
+    .eq('type_action', type_action)
+    .eq('actif', true);
+  if (objet_id) {
+    deleteQuery = deleteQuery.eq('objet_id', objet_id);
+  } else {
+    deleteQuery = deleteQuery.is('objet_id', null);
+  }
+  if (type_action === 'sourate_dans_ensemble' && sourate_id) {
+    deleteQuery = deleteQuery.eq('sourate_id', sourate_id);
+  }
+  const { error: deleteError } = await deleteQuery;
+  if (deleteError) return { data: null, error: deleteError };
+
+  // 2. INSERT de la nouvelle valeur
   const row = { ecole_id, type_action, points: parseInt(points) || 0, actif: true };
   if (objet_id) row.objet_id = objet_id;
   if (sourate_id) row.sourate_id = sourate_id;
-  // Conflict detection : pour 'sourate_dans_ensemble', on inclut sourate_id
-  // (necessite la migration migration_notes_sourate_ensemble_FIX.sql)
-  const conflictCols = type_action === 'sourate_dans_ensemble'
-    ? 'ecole_id,type_action,objet_id,sourate_id'
-    : 'ecole_id,type_action,objet_id';
-  const { data, error } = await supabase.from('bareme_notes').upsert(row, { onConflict: conflictCols });
+  const { data, error } = await supabase.from('bareme_notes').insert(row);
   return { data, error };
 }
 
