@@ -394,7 +394,9 @@ function BaremeTab({ user, lang, bareme, setBareme, saving, setSaving, showMsg }
   const ajouterCritere = () => {
     if (!critereType) return;
     const isUnite = UNITES.find(u => u.key === critereType);
-    if (!isUnite && !critereObjetId) return;
+    // Pour ensemble_partage : pas de select objet (panneau multi-select dedie)
+    // Pour les autres types non-unite : il faut un objet
+    if (!isUnite && critereType !== 'ensemble_partage' && !critereObjetId) return;
     if (criterePoints <= 0) return;
 
     // Cas special : sourate_dans_ensemble = multi-selection
@@ -656,11 +658,34 @@ function BaremeTab({ user, lang, bareme, setBareme, saving, setSaving, showMsg }
             </div>
           </div>
 
-          {/* Bouton ajouter critère */}
-          <button onClick={ajouterCritere}
-            style={{padding:'8px 16px',background:'#E6F1FB',color:'#378ADD',border:'1px solid #378ADD40',borderRadius:8,fontWeight:700,fontSize:13,cursor:'pointer',alignSelf:'flex-end',height:38}}>
-            + {lang==='ar'?'أضف':'Ajouter'}
-          </button>
+          {/* Bouton ajouter critere — feedback visuel actif/inactif */}
+          {(() => {
+            // Determiner si le bouton est "pret a etre clique" (au moins visuellement)
+            const isUnite = UNITES.find(u => u.key === critereType);
+            const aPoints = criterePoints > 0;
+            let pret = false;
+            if (!critereType) pret = false;
+            else if (isUnite) pret = aPoints;
+            else if (critereType === 'ensemble_partage') pret = aPoints && ensemblesPartageSelectionnes.length >= 2;
+            else if (critereType === 'sourate_dans_ensemble') pret = aPoints && critereObjetId && souratesSelectionnees.length > 0;
+            else pret = aPoints && !!critereObjetId;
+
+            return (
+              <button onClick={ajouterCritere}
+                style={{
+                  padding:'8px 16px',
+                  background: pret ? '#1D9E75' : '#E6F1FB',
+                  color: pret ? '#fff' : '#378ADD',
+                  border: pret ? '1px solid #1D9E75' : '1px solid #378ADD40',
+                  borderRadius:8,fontWeight:700,fontSize:13,cursor:'pointer',
+                  alignSelf:'flex-end',height:38,
+                  transition:'all 0.15s',
+                  fontFamily:'inherit',
+                }}>
+                + {lang==='ar'?'أضف':'Ajouter'}
+              </button>
+            );
+          })()}
         </div>
 
         {/* Panneau multi-selection LIBRE pour 'ensemble_partage' :
