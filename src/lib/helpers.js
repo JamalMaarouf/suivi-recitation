@@ -222,16 +222,19 @@ export async function loadBareme(supabase, ecole_id) {
  * Sauvegarde une entree du bareme (upsert).
  * @param sourate_id : pour le type 'sourate_dans_ensemble', l'id de la sourate
  *                    (en complement de objet_id qui est l'ensemble)
+ * @returns { data, error } pour permettre au caller de detecter les echecs
  */
 export async function saveBaremeItem(supabase, ecole_id, type_action, points, objet_id = null, sourate_id = null) {
   const row = { ecole_id, type_action, points: parseInt(points) || 0, actif: true };
   if (objet_id) row.objet_id = objet_id;
   if (sourate_id) row.sourate_id = sourate_id;
   // Conflict detection : pour 'sourate_dans_ensemble', on inclut sourate_id
+  // (necessite la migration migration_notes_sourate_ensemble_FIX.sql)
   const conflictCols = type_action === 'sourate_dans_ensemble'
     ? 'ecole_id,type_action,objet_id,sourate_id'
     : 'ecole_id,type_action,objet_id';
-  await supabase.from('bareme_notes').upsert(row, { onConflict: conflictCols });
+  const { data, error } = await supabase.from('bareme_notes').upsert(row, { onConflict: conflictCols });
+  return { data, error };
 }
 
 /**

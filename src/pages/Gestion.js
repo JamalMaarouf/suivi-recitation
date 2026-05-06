@@ -440,9 +440,17 @@ function BaremeTab({ user, lang, bareme, setBareme, saving, setSaving, showMsg }
   const enregistrerConfig = async () => {
     if (criteres.length === 0) { showMsg('error', lang==='ar'?'أضف معياراً واحداً على الأقل':'Ajoutez au moins un critère'); return; }
     setSaving(true);
-    // Upsert chaque critère (en passant sourate_id pour le nouveau type)
+    // Upsert chaque critère et collecter les erreurs
+    const errors = [];
+    let saved = 0;
     for (const c of criteres) {
-      await saveBaremeItem(supabase, user.ecole_id, c.type, c.points, c.objet_id, c.sourate_id || null);
+      const res = await saveBaremeItem(supabase, user.ecole_id, c.type, c.points, c.objet_id, c.sourate_id || null);
+      if (res?.error) {
+        errors.push(res.error.message || 'Erreur');
+        console.error('Erreur saveBaremeItem:', res.error);
+      } else {
+        saved++;
+      }
     }
     // Recharger configs
     const { data } = await supabase.from('bareme_notes').select('*').eq('ecole_id', user.ecole_id).eq('actif', true).order('created_at');
@@ -450,9 +458,19 @@ function BaremeTab({ user, lang, bareme, setBareme, saving, setSaving, showMsg }
     // Recharger bareme global
     const newB = await loadBareme(supabase, user.ecole_id);
     setBareme(newB);
-    setCriteres([]);
     setSaving(false);
-    showMsg('success', lang==='ar'?'تم حفظ التنقيط بنجاح':'Configuration enregistrée');
+
+    if (errors.length > 0) {
+      // Echec partiel ou total : on garde les criteres pour reessayer
+      showMsg('error', lang==='ar'
+        ? `تم حفظ ${saved}/${criteres.length}. خطأ: ${errors[0]}`
+        : `${saved}/${criteres.length} enregistrés. Erreur: ${errors[0]}`);
+    } else {
+      setCriteres([]);
+      showMsg('success', lang==='ar'
+        ? `تم حفظ ${saved} معيار${saved > 1 ? '' : ''} بنجاح`
+        : `${saved} critère${saved > 1 ? 's' : ''} enregistré${saved > 1 ? 's' : ''}`);
+    }
   };
 
   const supprimerConfig = async (id) => {
@@ -593,18 +611,45 @@ function BaremeTab({ user, lang, bareme, setBareme, saving, setSaving, showMsg }
             );
           }
           const allSelected = souratesSelectionnees.length === sourateIds.length;
+          const noneSelected = souratesSelectionnees.length === 0;
           return (
             <div style={{padding:'12px 14px',background:'#F0FAF6',border:'1px solid #1D9E7530',borderRadius:8,marginBottom:12}}>
               <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:10,flexWrap:'wrap',gap:6}}>
                 <div style={{fontSize:13,fontWeight:600,color:'#085041'}}>
                   🎯 {lang==='ar' ? 'اختر السور (نقاط مخصصة لكل سورة)' : 'Sélectionner les sourates (note spécifique)'}
                 </div>
-                <div style={{display:'flex',gap:6,fontSize:11}}>
-                  <button onClick={() => setSouratesSelectionnees(allSelected ? [] : sourateIds)}
-                    style={{padding:'4px 10px',background:'#fff',border:'0.5px solid #1D9E7560',color:'#1D9E75',borderRadius:6,cursor:'pointer',fontWeight:600}}>
-                    {allSelected ? (lang==='ar'?'إلغاء الكل':'Tout désélectionner') : (lang==='ar'?'الكل':'Tout sélectionner')}
+                <div style={{display:'flex',gap:6,fontSize:11,alignItems:'center'}}>
+                  {/* Bouton Tout cocher (toujours visible, mais grise si tout deja coche) */}
+                  <button onClick={() => setSouratesSelectionnees(sourateIds)}
+                    disabled={allSelected}
+                    style={{
+                      padding:'4px 10px',
+                      background: allSelected ? '#f0f0ec' : '#1D9E75',
+                      border:'none',
+                      color: allSelected ? '#aaa' : '#fff',
+                      borderRadius:6,
+                      cursor: allSelected ? 'not-allowed' : 'pointer',
+                      fontWeight:600,
+                      fontFamily:'inherit',
+                    }}>
+                    ✓ {lang==='ar'?'الكل':'Tout cocher'}
                   </button>
-                  <span style={{fontSize:11,color:'#666',alignSelf:'center'}}>
+                  {/* Bouton Tout decocher (grise si rien coche) */}
+                  <button onClick={() => setSouratesSelectionnees([])}
+                    disabled={noneSelected}
+                    style={{
+                      padding:'4px 10px',
+                      background:'#fff',
+                      border:'0.5px solid #E24B4A60',
+                      color: noneSelected ? '#ccc' : '#E24B4A',
+                      borderRadius:6,
+                      cursor: noneSelected ? 'not-allowed' : 'pointer',
+                      fontWeight:600,
+                      fontFamily:'inherit',
+                    }}>
+                    ✕ {lang==='ar'?'إلغاء الكل':'Tout décocher'}
+                  </button>
+                  <span style={{fontSize:11,color:'#666',marginInlineStart:4,fontWeight:600}}>
                     {souratesSelectionnees.length} / {sourateIds.length}
                   </span>
                 </div>
@@ -640,29 +685,132 @@ function BaremeTab({ user, lang, bareme, setBareme, saving, setSaving, showMsg }
           );
         })()}
 
-        {/* Liste critères en cours */}
-        {criteres.length > 0 && (
-          <div style={{marginBottom:14}}>
-            <div style={{fontSize:11,color:'#888',marginBottom:6,fontWeight:600}}>
-              {lang==='ar'?'المعايير المضافة:':'Critères ajoutés :'}
+        {/* Liste critères en cours - affichage GROUPE par (ensemble, points)
+            pour eviter la verbosite quand on ajoute N sourates d'un coup */}
+        {criteres.length > 0 && (() => {
+          // Grouper : criteres normaux affiches individuellement,
+          // criteres 'sourate_dans_ensemble' regroupes par (objet_id, points)
+          const groupes = [];
+          const dejaTraites = new Set();
+          criteres.forEach((c, i) => {
+            if (dejaTraites.has(i)) return;
+            if (c.type === 'sourate_dans_ensemble') {
+              // Trouver tous les criteres avec meme ensemble + meme points
+              const memeGroupe = criteres
+                .map((c2, j) => ({ c: c2, j }))
+                .filter(({c: c2, j}) => j >= i && c2.type === 'sourate_dans_ensemble' && c2.objet_id === c.objet_id && c2.points === c.points);
+              memeGroupe.forEach(({j}) => dejaTraites.add(j));
+              groupes.push({
+                type: 'groupe_sourates',
+                indices: memeGroupe.map(g => g.j),
+                ensemble_id: c.objet_id,
+                niveau_id: ensembles.find(e => e.id === c.objet_id)?.niveau_id,
+                ensemble_nom: ensembles.find(e => e.id === c.objet_id)?.nom || '—',
+                points: c.points,
+                color: c.color,
+                icon: c.icon,
+                sourates: memeGroupe.map(g => g.c.sourate_id),
+              });
+            } else {
+              dejaTraites.add(i);
+              groupes.push({ type: 'simple', critere: c, index: i });
+            }
+          });
+
+          // Pilule niveau coloree (extracted en helper local)
+          const PiluleNiveau = ({ niveau_id }) => {
+            const niv = niveaux.find(n => n.id === niveau_id);
+            if (!niv) return null;
+            const couleur = niv.couleur || '#085041';
+            return (
+              <span style={{
+                display:'inline-block', padding:'2px 8px', borderRadius:12,
+                background: `${couleur}18`, color: couleur,
+                fontSize: 10, fontWeight: 700, letterSpacing: 0.3,
+                border: `0.5px solid ${couleur}40`, flexShrink: 0,
+              }}>
+                {niv.code}
+              </span>
+            );
+          };
+
+          return (
+            <div style={{marginBottom:14}}>
+              <div style={{fontSize:11,color:'#888',marginBottom:6,fontWeight:600}}>
+                {lang==='ar'?'المعايير المضافة:':'Critères ajoutés :'}
+              </div>
+              <div style={{display:'flex',flexDirection:'column',gap:6}}>
+                {groupes.map((g, gi) => {
+                  if (g.type === 'simple') {
+                    const c = g.critere;
+                    // Pour les types ensemble_sourates : afficher pilule niveau
+                    const niveau_id = c.type === 'ensemble_sourates'
+                      ? ensembles.find(e => e.id === c.objet_id)?.niveau_id
+                      : null;
+                    // Label sans le prefixe niveau (qui sera dans la pilule)
+                    let labelNet = c.label;
+                    if (niveau_id) {
+                      const niv = niveaux.find(n => n.id === niveau_id);
+                      if (niv) {
+                        // Retirer "[code] nom_niveau — " du debut du label
+                        const prefixe = `[${niv.code}] ${niv.nom} — `;
+                        if (labelNet.startsWith(prefixe)) labelNet = labelNet.slice(prefixe.length);
+                      }
+                    }
+                    return (
+                      <div key={gi} style={{display:'flex',alignItems:'center',gap:10,padding:'8px 12px',background:'#f9f9f6',borderRadius:8,border:'0.5px solid #e0e0d8'}}>
+                        <span style={{fontSize:16}}>{c.icon}</span>
+                        {niveau_id && <PiluleNiveau niveau_id={niveau_id} />}
+                        <span style={{flex:1,fontSize:13,fontWeight:600,direction:'rtl',fontFamily:"'Tajawal',Arial,sans-serif"}}>{labelNet}</span>
+                        <span style={{fontWeight:800,fontSize:15,color:c.color}}>{c.points}</span>
+                        <span style={{fontSize:10,color:'#aaa'}}>{lang==='ar'?'ن':'pts'}</span>
+                        <button onClick={() => retirerCritere(g.index)}
+                          style={{padding:'2px 8px',background:'#FCEBEB',color:'#E24B4A',border:'none',borderRadius:6,cursor:'pointer',fontSize:12}}>✕</button>
+                      </div>
+                    );
+                  }
+                  // Groupe sourates : 1 ligne avec compteur + liste compacte
+                  const nbSourates = g.sourates.length;
+                  // Liste sourates compactes (ex: "الفاتحة, الإخلاص, الناس")
+                  const sLabels = g.sourates.slice(0, 4).map(sId => sourateNom(sId)).join('، ');
+                  const truncated = nbSourates > 4 ? `${sLabels}...` : sLabels;
+                  return (
+                    <div key={gi} style={{
+                      display:'flex',alignItems:'center',gap:10,padding:'8px 12px',
+                      background:'#F0FAF6',borderRadius:8,border:'1px solid #1D9E7530',
+                    }}>
+                      <span style={{fontSize:16}}>{g.icon}</span>
+                      <PiluleNiveau niveau_id={g.niveau_id} />
+                      <div style={{flex:1,direction:'rtl',fontFamily:"'Tajawal',Arial,sans-serif",overflow:'hidden'}}>
+                        <div style={{fontSize:12,fontWeight:700,color:'#085041',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>
+                          📦 {g.ensemble_nom}
+                        </div>
+                        <div style={{fontSize:11,color:'#666',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis',marginTop:2}}>
+                          🎯 {nbSourates} {lang==='ar' ? (nbSourates > 1 ? 'سور' : 'سورة') : (nbSourates > 1 ? 'sourates' : 'sourate')}
+                          <span style={{color:'#aaa',marginInlineStart:6}}>({truncated})</span>
+                        </div>
+                      </div>
+                      <span style={{fontWeight:800,fontSize:15,color:g.color}}>{g.points}</span>
+                      <span style={{fontSize:10,color:'#aaa'}}>{lang==='ar'?'ن':'pts'}</span>
+                      <button onClick={() => {
+                        // Supprimer tous les criteres du groupe (indices stockes)
+                        setCriteres(prev => prev.filter((_, idx) => !g.indices.includes(idx)));
+                      }}
+                        style={{padding:'2px 8px',background:'#FCEBEB',color:'#E24B4A',border:'none',borderRadius:6,cursor:'pointer',fontSize:12}}
+                        title={lang==='ar' ? 'حذف المجموعة كلها' : 'Supprimer le groupe'}>
+                        ✕
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+              <div style={{marginTop:8,fontSize:12,color:'#085041',fontWeight:600}}>
+                {lang==='ar'?'المجموع:':'Total :'} {criteres.reduce((s,c)=>s+c.points,0)} {lang==='ar'?'نقطة':'pts'}
+                <span style={{color:'#aaa',fontWeight:400,marginInlineStart:6}}>({criteres.length} {lang==='ar' ? 'معيار' : 'critères'})</span>
+              </div>
             </div>
-            <div style={{display:'flex',flexDirection:'column',gap:6}}>
-              {criteres.map((c,i) => (
-                <div key={i} style={{display:'flex',alignItems:'center',gap:10,padding:'8px 12px',background:'#f9f9f6',borderRadius:8,border:'0.5px solid #e0e0d8'}}>
-                  <span style={{fontSize:16}}>{c.icon}</span>
-                  <span style={{flex:1,fontSize:13,fontWeight:600,direction:'rtl',fontFamily:"'Tajawal',Arial,sans-serif"}}>{c.label}</span>
-                  <span style={{fontWeight:800,fontSize:15,color:c.color}}>{c.points}</span>
-                  <span style={{fontSize:10,color:'#aaa'}}>{lang==='ar'?'ن':'pts'}</span>
-                  <button onClick={() => retirerCritere(i)}
-                    style={{padding:'2px 8px',background:'#FCEBEB',color:'#E24B4A',border:'none',borderRadius:6,cursor:'pointer',fontSize:12}}>✕</button>
-                </div>
-              ))}
-            </div>
-            <div style={{marginTop:8,fontSize:12,color:'#085041',fontWeight:600}}>
-              {lang==='ar'?'المجموع:':'Total :'} {criteres.reduce((s,c)=>s+c.points,0)} {lang==='ar'?'نقطة':'pts'}
-            </div>
-          </div>
-        )}
+          );
+        })()}
 
         <button className="btn-primary" onClick={enregistrerConfig} disabled={saving||criteres.length===0}>
           {saving ? '...' : (lang==='ar'?'حفظ هذه التنقيطات':'Enregistrer ces notations')}
@@ -673,27 +821,127 @@ function BaremeTab({ user, lang, bareme, setBareme, saving, setSaving, showMsg }
       <div className="section-label">{lang==='ar'?'التنقيطات المُسجَّلة':'Notations enregistrées'} ({configs.length})</div>
       {configs.length === 0 ? (
         <div className="empty">{lang==='ar'?'لا توجد تنقيطات بعد — أضف معايير وسجّلها أعلاه':'Aucune notation enregistrée'}</div>
-      ) : (
+      ) : (() => {
+        // Affichage GROUPE pour les sourate_dans_ensemble (regrouper par ensemble + meme points)
+        const groupes = [];
+        const dejaTraites = new Set();
+        configs.forEach((c, i) => {
+          if (dejaTraites.has(c.id)) return;
+          if (c.type === 'sourate_dans_ensemble') {
+            const memeGroupe = configs.filter(c2 =>
+              c2.type === 'sourate_dans_ensemble'
+              && c2.objet_id === c.objet_id
+              && c2.points === c.points
+            );
+            memeGroupe.forEach(c2 => dejaTraites.add(c2.id));
+            const ens = ensembles.find(e => e.id === c.objet_id);
+            groupes.push({
+              type: 'groupe_sourates',
+              ids: memeGroupe.map(c2 => c2.id),
+              ensemble_id: c.objet_id,
+              ensemble_nom: ens?.nom || '—',
+              niveau_id: ens?.niveau_id,
+              points: c.points,
+              sourate_ids: memeGroupe.map(c2 => c2.sourate_id).filter(Boolean),
+            });
+          } else {
+            dejaTraites.add(c.id);
+            groupes.push({ type: 'simple', config: c });
+          }
+        });
+
+        // Pilule niveau (helper local)
+        const PiluleNiveauTbl = ({ niveau_id }) => {
+          const niv = niveaux.find(n => n.id === niveau_id);
+          if (!niv) return null;
+          const couleur = niv.couleur || '#085041';
+          return (
+            <span style={{
+              display:'inline-flex',alignItems:'center',padding:'3px 10px',borderRadius:14,
+              background: `${couleur}18`, color: couleur,
+              fontSize: 10, fontWeight: 700, letterSpacing: 0.4,
+              border: `0.5px solid ${couleur}40`, flexShrink: 0,
+            }}>
+              {niv.code}
+            </span>
+          );
+        };
+
+        // Helper supprimer un groupe complet
+        const supprimerGroupe = async (ids) => {
+          await supabase.from('bareme_notes').delete().in('id', ids);
+          setConfigs(prev => prev.filter(c => !ids.includes(c.id)));
+          const newB = await loadBareme(supabase, user.ecole_id);
+          setBareme(newB);
+        };
+
+        return (
         <div style={{display:'flex',flexDirection:'column',gap:6}}>
-          {configs.map(c => (
-            <div key={c.id} style={{display:'flex',alignItems:'center',gap:12,padding:'10px 14px',background:'#fff',border:'0.5px solid #e0e0d8',borderRadius:10}}>
-              <span style={{fontSize:18}}>{getConfigIcon(c)}</span>
-              <div style={{flex:1}}>
-                <div style={{fontWeight:600,fontSize:13,direction:'rtl',fontFamily:"'Tajawal',Arial,sans-serif"}}>{getConfigLabel(c)}</div>
-                <div style={{fontSize:11,color:'#888',marginTop:1}}>
-                  {c.type} {c.objet_id ? '· '+c.objet_id.slice(0,8)+'...' : ''}
+          {groupes.map((g, gi) => {
+            if (g.type === 'simple') {
+              const c = g.config;
+              // Pour ensemble_sourates : chercher le niveau associe
+              const niveau_id = c.type === 'ensemble_sourates'
+                ? ensembles.find(e => e.id === c.objet_id)?.niveau_id
+                : null;
+              // Label sans le prefixe [code] nom_niveau
+              let labelNet = getConfigLabel(c);
+              if (niveau_id) {
+                const niv = niveaux.find(n => n.id === niveau_id);
+                if (niv) {
+                  const prefixe = `[${niv.code}] ${niv.nom} — `;
+                  if (labelNet.startsWith(prefixe)) labelNet = labelNet.slice(prefixe.length);
+                }
+              }
+              return (
+                <div key={c.id} style={{display:'flex',alignItems:'center',gap:10,padding:'10px 14px',background:'#fff',border:'0.5px solid #e0e0d8',borderRadius:10}}>
+                  <span style={{fontSize:18}}>{getConfigIcon(c)}</span>
+                  {niveau_id && <PiluleNiveauTbl niveau_id={niveau_id} />}
+                  <div style={{flex:1,minWidth:0}}>
+                    <div style={{fontWeight:600,fontSize:13,direction:'rtl',fontFamily:"'Tajawal',Arial,sans-serif",whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{labelNet}</div>
+                  </div>
+                  <span style={{fontWeight:800,fontSize:16,color:'#378ADD'}}>{c.points}</span>
+                  <span style={{fontSize:10,color:'#aaa'}}>{lang==='ar'?'ن':'pts'}</span>
+                  <button onClick={() => supprimerConfig(c.id)}
+                    style={{padding:'4px 8px',background:'#FCEBEB',color:'#E24B4A',border:'0.5px solid #E24B4A30',borderRadius:6,cursor:'pointer',fontSize:11}}>
+                    🗑
+                  </button>
                 </div>
+              );
+            }
+            // Groupe sourate_dans_ensemble : 1 ligne avec compteur + extrait
+            const nbS = g.sourate_ids.length;
+            const sLabels = g.sourate_ids.slice(0, 3).map(sId => sourateNom(sId)).join('، ');
+            const truncated = nbS > 3 ? `${sLabels} ...` : sLabels;
+            return (
+              <div key={gi} style={{
+                display:'flex',alignItems:'center',gap:10,padding:'10px 14px',
+                background:'#F0FAF6',border:'1px solid #1D9E7530',borderRadius:10,
+              }}>
+                <span style={{fontSize:18}}>🎯</span>
+                <PiluleNiveauTbl niveau_id={g.niveau_id} />
+                <div style={{flex:1,minWidth:0,direction:'rtl',fontFamily:"'Tajawal',Arial,sans-serif"}}>
+                  <div style={{fontSize:13,fontWeight:700,color:'#085041',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>
+                    📦 {g.ensemble_nom}
+                  </div>
+                  <div style={{fontSize:11,color:'#666',marginTop:2,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>
+                    {nbS} {lang==='ar' ? (nbS > 1 ? 'سور' : 'سورة') : (nbS > 1 ? 'sourates' : 'sourate')}
+                    <span style={{color:'#aaa',marginInlineStart:6}}>({truncated})</span>
+                  </div>
+                </div>
+                <span style={{fontWeight:800,fontSize:16,color:'#1D9E75'}}>{g.points}</span>
+                <span style={{fontSize:10,color:'#aaa'}}>{lang==='ar'?'ن':'pts'}</span>
+                <button onClick={() => supprimerGroupe(g.ids)}
+                  style={{padding:'4px 8px',background:'#FCEBEB',color:'#E24B4A',border:'0.5px solid #E24B4A30',borderRadius:6,cursor:'pointer',fontSize:11}}
+                  title={lang==='ar' ? 'حذف المجموعة كلها' : 'Supprimer le groupe'}>
+                  🗑
+                </button>
               </div>
-              <span style={{fontWeight:800,fontSize:16,color:'#378ADD'}}>{c.points}</span>
-              <span style={{fontSize:10,color:'#aaa'}}>{lang==='ar'?'ن':'pts'}</span>
-              <button onClick={() => supprimerConfig(c.id)}
-                style={{padding:'4px 8px',background:'#FCEBEB',color:'#E24B4A',border:'0.5px solid #E24B4A30',borderRadius:6,cursor:'pointer',fontSize:11}}>
-                🗑
-              </button>
-            </div>
-          ))}
+            );
+          })}
         </div>
-      )}
+        );
+      })()}
     </div>
   );
 }
