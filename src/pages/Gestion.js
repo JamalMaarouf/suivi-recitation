@@ -658,26 +658,74 @@ function BaremeTab({ user, lang, bareme, setBareme, saving, setSaving, showMsg }
             </div>
           </div>
 
-          {/* Bouton ajouter critere — feedback visuel actif/inactif */}
+          {/* Bouton ajouter critere — feedback visuel actif/inactif + raison */}
           {(() => {
             // Determiner si le bouton est "pret a etre clique" (au moins visuellement)
             const isUnite = UNITES.find(u => u.key === critereType);
             const aPoints = criterePoints > 0;
             let pret = false;
-            if (!critereType) pret = false;
-            else if (isUnite) pret = aPoints;
-            else if (critereType === 'ensemble_partage') pret = aPoints && ensemblesPartageSelectionnes.length >= 2;
-            else if (critereType === 'sourate_dans_ensemble') pret = aPoints && critereObjetId && souratesSelectionnees.length > 0;
-            else pret = aPoints && !!critereObjetId;
+            let raison = '';
+            if (!critereType) {
+              pret = false;
+              raison = lang==='ar' ? 'اختر نوع المعيار أولاً' : "Choisissez d'abord le type";
+            } else if (isUnite) {
+              pret = aPoints;
+              if (!aPoints) raison = lang==='ar' ? 'أدخل عدد النقاط' : 'Saisissez les points';
+            } else if (critereType === 'ensemble_partage') {
+              if (ensemblesPartageSelectionnes.length < 2) {
+                pret = false;
+                raison = lang==='ar' ? 'اختر مجموعتين على الأقل' : 'Sélectionnez au moins 2 ensembles';
+              } else if (!aPoints) {
+                pret = false;
+                raison = lang==='ar' ? 'أدخل عدد النقاط' : 'Saisissez les points';
+              } else {
+                pret = true;
+              }
+            } else if (critereType === 'sourate_dans_ensemble') {
+              if (!critereObjetId) {
+                pret = false;
+                raison = lang==='ar' ? 'اختر المجموعة أولاً' : "Choisissez l'ensemble";
+              } else if (souratesSelectionnees.length === 0) {
+                pret = false;
+                raison = lang==='ar' ? 'اختر سورة على الأقل' : 'Sélectionnez une sourate';
+              } else if (!aPoints) {
+                pret = false;
+                raison = lang==='ar' ? 'أدخل عدد النقاط' : 'Saisissez les points';
+              } else {
+                pret = true;
+              }
+            } else {
+              if (!critereObjetId) {
+                pret = false;
+                raison = lang==='ar' ? 'اختر العنصر' : "Choisissez l'élément";
+              } else if (!aPoints) {
+                pret = false;
+                raison = lang==='ar' ? 'أدخل عدد النقاط' : 'Saisissez les points';
+              } else {
+                pret = true;
+              }
+            }
+
+            const onClickAvecFeedback = () => {
+              if (pret) {
+                ajouterCritere();
+              } else if (raison) {
+                // Au lieu de return silencieux : message clair
+                showMsg('error', raison);
+              }
+            };
 
             return (
-              <button onClick={ajouterCritere}
+              <button onClick={onClickAvecFeedback}
+                title={pret ? (lang==='ar'?'إضافة المعيار':'Ajouter le critère') : raison}
                 style={{
                   padding:'8px 16px',
                   background: pret ? '#1D9E75' : '#E6F1FB',
                   color: pret ? '#fff' : '#378ADD',
                   border: pret ? '1px solid #1D9E75' : '1px solid #378ADD40',
-                  borderRadius:8,fontWeight:700,fontSize:13,cursor:'pointer',
+                  borderRadius:8,fontWeight:700,fontSize:13,
+                  cursor: pret ? 'pointer' : 'not-allowed',
+                  opacity: pret ? 1 : 0.7,
                   alignSelf:'flex-end',height:38,
                   transition:'all 0.15s',
                   fontFamily:'inherit',
