@@ -186,7 +186,7 @@ export async function loadBareme(supabase, ecole_id) {
   try {
     const { data } = await supabase
       .from('bareme_notes')
-      .select('type_action, objet_id, points')
+      .select('type_action, objet_id, sourate_id, points')
       .eq('ecole_id', ecole_id)
       .eq('actif', true);
     const b = {
@@ -194,9 +194,15 @@ export async function loadBareme(supabase, ecole_id) {
       examens: {},
       ensembles: {},
       jalons: {},
+      // Nouveau (mai 2026) : notes specifiques sourate dans ensemble
+      // Format: sourates_dans_ensemble[ensemble_id][sourate_id] = points
+      sourates_dans_ensemble: {},
     };
     (data || []).forEach(row => {
-      if (!row.objet_id) {
+      if (row.type_action === 'sourate_dans_ensemble' && row.objet_id && row.sourate_id) {
+        if (!b.sourates_dans_ensemble[row.objet_id]) b.sourates_dans_ensemble[row.objet_id] = {};
+        b.sourates_dans_ensemble[row.objet_id][row.sourate_id] = row.points;
+      } else if (!row.objet_id) {
         b.unites[row.type_action] = row.points;
       } else if (row.type_action === 'examen') {
         b.examens[row.objet_id] = row.points;
@@ -208,19 +214,24 @@ export async function loadBareme(supabase, ecole_id) {
     });
     return b;
   } catch (e) {
-    return { unites: { ...BAREME_DEFAUT }, examens: {}, ensembles: {}, jalons: {} };
+    return { unites: { ...BAREME_DEFAUT }, examens: {}, ensembles: {}, jalons: {}, sourates_dans_ensemble: {} };
   }
 }
 
 /**
- * Sauvegarde une entrée du barème (upsert).
+ * Sauvegarde une entree du bareme (upsert).
+ * @param sourate_id : pour le type 'sourate_dans_ensemble', l'id de la sourate
+ *                    (en complement de objet_id qui est l'ensemble)
  */
-export async function saveBaremeItem(supabase, ecole_id, type_action, points, objet_id = null) {
+export async function saveBaremeItem(supabase, ecole_id, type_action, points, objet_id = null, sourate_id = null) {
   const row = { ecole_id, type_action, points: parseInt(points) || 0, actif: true };
   if (objet_id) row.objet_id = objet_id;
-  await supabase.from('bareme_notes').upsert(row, {
-    onConflict: objet_id ? 'ecole_id,type_action,objet_id' : 'ecole_id,type_action,objet_id',
-  });
+  if (sourate_id) row.sourate_id = sourate_id;
+  // Conflict detection : pour 'sourate_dans_ensemble', on inclut sourate_id
+  const conflictCols = type_action === 'sourate_dans_ensemble'
+    ? 'ecole_id,type_action,objet_id,sourate_id'
+    : 'ecole_id,type_action,objet_id';
+  await supabase.from('bareme_notes').upsert(row, { onConflict: conflictCols });
 }
 
 export function calcPoints(tomonCumul, hizbsCompletsCount, validations, tomonAcquis=0, hizbAcquisComplets=0, bareme=null) {
