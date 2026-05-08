@@ -750,7 +750,9 @@ export default function GestionObjectifs({ user, navigate, goBack, lang='fr', is
           <button onClick={showForm?()=>{setShowForm(false);setEditing(null);}:startCreate}
             style={{padding:'8px 18px',background:showForm?'#f0f0ec':'#1D9E75',
               color:showForm?'#666':'#fff',border:'none',borderRadius:10,fontSize:13,fontWeight:600,cursor:'pointer'}}>
-            {showForm?'✕ Annuler':'+ Nouvel objectif'}
+            {showForm
+              ? (lang==='ar'?'✕ إلغاء':'✕ Annuler')
+              : (lang==='ar'?'+ هدف جديد':'+ Nouvel objectif')}
           </button>
         }
       />

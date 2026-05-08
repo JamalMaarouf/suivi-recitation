@@ -772,7 +772,9 @@ export default function GestionExamens({ user, navigate, goBack, lang='fr', isMo
                 background:showForm&&!editing?'#f0f0ec':'#1D9E75',
                 color:showForm&&!editing?'#666':'#fff',border:'none',
                 borderRadius:10,fontSize:13,fontWeight:600,cursor:'pointer'}}>
-              {showForm&&!editing?'✕ Annuler':'+ Nouvel examen'}
+              {showForm&&!editing
+                ? (lang==='ar'?'✕ إلغاء':'✕ Annuler')
+                : (lang==='ar'?'+ امتحان جديد':'+ Nouvel examen')}
             </button>
           </>
         }
@@ -895,7 +897,9 @@ export default function GestionExamens({ user, navigate, goBack, lang='fr', isMo
                       background:e.actif?'#FAEEDA':'#E1F5EE',
                       color:e.actif?'#633806':'#085041',border:'none',
                       borderRadius:8,fontSize:12,fontWeight:600,cursor:'pointer'}}>
-                    {e.actif?'Désactiver':'Activer'}
+                    {e.actif
+                      ? (lang==='ar'?'تعطيل':'Désactiver')
+                      : (lang==='ar'?'تفعيل':'Activer')}
                   </button>
                   <button onClick={()=>supprimer(e)}
                     style={{padding:'7px 10px',background:'#FCEBEB',color:'#E24B4A',
