@@ -928,9 +928,16 @@ function BaremeTab({ user, lang, bareme, setBareme, saving, setSaving, showMsg }
                   const newB = await loadBareme(supabase, user.ecole_id);
                   setBareme(newB);
                 }}
-                onDeleteItem={async (id) => {
-                  await supabase.from('bareme_notes').delete().eq('id', id);
-                  setConfigs(prev => prev.filter(c => c.id !== id));
+                onUpdatePoints={async (newPts) => {
+                  // Mettre a jour TOUS les items du groupe avec les nouveaux points
+                  const ids = g.items.map(it => it.id);
+                  await supabase.from('bareme_notes')
+                    .update({ points: parseInt(newPts) || 0 })
+                    .in('id', ids);
+                  // Recharger configs
+                  setConfigs(prev => prev.map(c =>
+                    ids.includes(c.id) ? { ...c, points: parseInt(newPts) || 0 } : c
+                  ));
                   const newB = await loadBareme(supabase, user.ecole_id);
                   setBareme(newB);
                 }}
@@ -960,17 +967,15 @@ function BaremeTab({ user, lang, bareme, setBareme, saving, setSaving, showMsg }
 }
 
 // ══════════════════════════════════════════════════════
-// COMPOSANT GroupeCard — affichage replié/déplié d'un groupe factorisé
+// COMPOSANT GroupeCard — affichage compact d'un groupe factorisé
 // (Mode 2 multi ou Mode 3 - sourate dans ensemble)
 // ══════════════════════════════════════════════════════
-function GroupeCard({ groupe, lang, ensembles, niveaux, souratesDB, getConfigLabel, getConfigIcon, onDeleteGroupe, onDeleteItem }) {
-  const [deplie, setDeplie] = useState(false);
+function GroupeCard({ groupe, lang, ensembles, niveaux, souratesDB, getConfigLabel, getConfigIcon, onDeleteGroupe, onUpdatePoints }) {
+  const [editing, setEditing] = useState(false);
+  const [newPoints, setNewPoints] = useState(groupe.points);
+  const [savingEdit, setSavingEdit] = useState(false);
 
   const niveauObj = (niveau_id) => niveaux.find(n => n.id === niveau_id);
-  const sourateNom = (sourate_id) => {
-    const s = souratesDB.find(x => x.id === sourate_id);
-    return lang === 'ar' ? (s?.nom_ar || `#${sourate_id}`) : (s?.nom_fr || s?.nom_ar || `#${sourate_id}`);
-  };
 
   const isMode3 = groupe.type === 'sourate_dans_ensemble';
   const colorMain = isMode3 ? '#085041' : '#534AB7';
@@ -986,71 +991,98 @@ function GroupeCard({ groupe, lang, ensembles, niveaux, souratesDB, getConfigLab
     ? (lang==='ar' ? '🎯 سورة في مجموعات' : '🎯 Sourate dans ensembles')
     : (lang==='ar' ? '📦 مجموعات متعددة' : '📦 Plusieurs ensembles');
 
+  // Stats compactes
+  // Mode 3 : count = nombre de sourates total, ensembles = nombre d'ensembles distincts
+  // Mode 2 : count = nombre d'ensembles
+  const nbEnsembles = ensemblesConcernes.length;
+  const nbSourates = isMode3 ? groupe.count : 0;
+
+  const statLabel = isMode3
+    ? (lang==='ar'
+        ? `${nbSourates} سورة في ${nbEnsembles} ${nbEnsembles > 1 ? 'مجموعات' : 'مجموعة'} × ${groupe.points} = ${totalPts}`
+        : `${nbSourates} sourates dans ${nbEnsembles} ensemble${nbEnsembles > 1 ? 's' : ''} × ${groupe.points} = ${totalPts}`)
+    : (lang==='ar'
+        ? `${nbEnsembles} ${nbEnsembles > 1 ? 'مجموعات' : 'مجموعة'} × ${groupe.points} = ${totalPts}`
+        : `${nbEnsembles} ensemble${nbEnsembles > 1 ? 's' : ''} × ${groupe.points} = ${totalPts}`);
+
+  const validerEdit = async () => {
+    const valeur = parseInt(newPoints) || 0;
+    if (valeur === groupe.points) { setEditing(false); return; }
+    if (valeur <= 0) { setEditing(false); setNewPoints(groupe.points); return; }
+    setSavingEdit(true);
+    await onUpdatePoints(valeur);
+    setSavingEdit(false);
+    setEditing(false);
+  };
+
+  const annulerEdit = () => {
+    setNewPoints(groupe.points);
+    setEditing(false);
+  };
+
   return (
     <div style={{
       background: bgPanneau,
       border: `1px solid ${colorMain}30`,
       borderRadius: 10,
-      overflow: 'hidden',
+      padding:'10px 14px',
+      display:'flex', alignItems:'center', gap:12,
     }}>
-      {/* HEADER (toujours visible) */}
-      <div style={{
-        display:'flex', alignItems:'center', gap:12, padding:'10px 14px',
-        cursor:'pointer',
-      }}
-        onClick={() => setDeplie(d => !d)}>
-        <span style={{fontSize:18}}>{isMode3 ? '🎯' : '📦'}</span>
-        <div style={{flex:1, minWidth:0}}>
-          <div style={{fontWeight:700, fontSize:13, color:colorMain, direction:'rtl', fontFamily:"'Tajawal',Arial,sans-serif"}}>
-            {titreType} ({groupe.points} {lang==='ar'?'نقطة':isMode3?'pts/sourate':'pts/ensemble'})
-          </div>
-          <div style={{fontSize:11, color:'#666', marginTop:2}}>
-            {ensemblesConcernes.map(ens => {
-              const niv = niveauObj(ens.niveau_id);
-              return niv ? `[${niv.code}] ${ens.nom}` : ens.nom;
-            }).join(' · ')}
-          </div>
+      <span style={{fontSize:18}}>{isMode3 ? '🎯' : '📦'}</span>
+      <div style={{flex:1, minWidth:0}}>
+        <div style={{fontWeight:700, fontSize:13, color:colorMain, direction:'rtl', fontFamily:"'Tajawal',Arial,sans-serif"}}>
+          {titreType}
         </div>
-        <div style={{textAlign:'center'}}>
-          <div style={{fontWeight:800, fontSize:16, color:colorMain}}>{totalPts}</div>
-          <div style={{fontSize:9, color:'#888'}}>
-            {groupe.count} × {groupe.points} = {totalPts}
-          </div>
+        <div style={{fontSize:11, color:'#666', marginTop:2}}>
+          {ensemblesConcernes.map(ens => {
+            const niv = niveauObj(ens.niveau_id);
+            return niv ? `[${niv.code}] ${ens.nom}` : ens.nom;
+          }).join(' · ')}
         </div>
-        <button onClick={(e) => { e.stopPropagation(); onDeleteGroupe(); }}
-          style={{padding:'4px 8px',background:'#FCEBEB',color:'#E24B4A',border:'0.5px solid #E24B4A30',borderRadius:6,cursor:'pointer',fontSize:11,whiteSpace:'nowrap'}}>
-          🗑 {lang==='ar' ? 'حذف الكل' : 'Supprimer tout'}
-        </button>
-        <span style={{fontSize:14, color:colorMain, fontWeight:700}}>
-          {deplie ? '⌃' : '⌄'}
-        </span>
+        <div style={{fontSize:10, color:'#888', marginTop:3, fontStyle:'italic'}}>
+          {statLabel}
+        </div>
       </div>
 
-      {/* DETAIL (visible si deplie) */}
-      {deplie && (
-        <div style={{
-          padding:'8px 14px 12px',
-          borderTop: `0.5px solid ${colorMain}30`,
-          display:'flex', flexDirection:'column', gap:5,
-        }}>
-          {groupe.items.map(it => (
-            <div key={it.id} style={{
-              display:'flex', alignItems:'center', gap:10, padding:'6px 10px',
-              background:'#fff', borderRadius:6, fontSize:12,
-            }}>
-              <span style={{fontSize:14}}>{getConfigIcon(it)}</span>
-              <div style={{flex:1, direction:'rtl', fontFamily:"'Tajawal',Arial,sans-serif"}}>
-                {getConfigLabel(it)}
-              </div>
-              <span style={{fontWeight:700, fontSize:13, color:colorMain}}>{it.points}</span>
-              <span style={{fontSize:9, color:'#aaa'}}>{lang==='ar'?'ن':'pts'}</span>
-              <button onClick={(e) => { e.stopPropagation(); onDeleteItem(it.id); }}
-                style={{padding:'2px 6px',background:'#FCEBEB',color:'#E24B4A',border:'none',borderRadius:4,cursor:'pointer',fontSize:10}}>
-                ✕
-              </button>
-            </div>
-          ))}
+      {/* Points (editable inline) */}
+      {editing ? (
+        <div style={{display:'flex', alignItems:'center', gap:4}}>
+          <input type="number" min="0" max="9999" value={newPoints} autoFocus
+            onChange={e => setNewPoints(e.target.value)}
+            onKeyDown={e => {
+              if (e.key === 'Enter') validerEdit();
+              if (e.key === 'Escape') annulerEdit();
+            }}
+            disabled={savingEdit}
+            style={{width:60, padding:'6px', borderRadius:6, border:`1.5px solid ${colorMain}`, fontSize:14, fontWeight:700, textAlign:'center', color:colorMain}} />
+          <button onClick={validerEdit} disabled={savingEdit}
+            title={lang==='ar' ? 'حفظ' : 'Enregistrer'}
+            style={{padding:'4px 8px', background:'#1D9E75', color:'#fff', border:'none', borderRadius:6, cursor: savingEdit ? 'wait' : 'pointer', fontSize:11, fontWeight:700}}>
+            {savingEdit ? '...' : '✓'}
+          </button>
+          <button onClick={annulerEdit} disabled={savingEdit}
+            title={lang==='ar' ? 'إلغاء' : 'Annuler'}
+            style={{padding:'4px 8px', background:'#fff', color:'#888', border:'0.5px solid #ddd', borderRadius:6, cursor:'pointer', fontSize:11}}>
+            ✕
+          </button>
         </div>
+      ) : (
+        <>
+          <div style={{textAlign:'center'}}>
+            <div style={{fontWeight:800, fontSize:16, color:colorMain}}>{groupe.points}</div>
+            <div style={{fontSize:9, color:'#888'}}>{lang==='ar' ? 'لكل واحد' : '/ unité'}</div>
+          </div>
+          <button onClick={() => { setNewPoints(groupe.points); setEditing(true); }}
+            title={lang==='ar' ? 'تعديل النقاط' : 'Modifier les points'}
+            style={{padding:'4px 8px', background:'#fff', color:colorMain, border:`0.5px solid ${colorMain}40`, borderRadius:6, cursor:'pointer', fontSize:11, fontWeight:600, whiteSpace:'nowrap'}}>
+            ✏️ {lang==='ar' ? 'تعديل' : 'Modifier'}
+          </button>
+          <button onClick={onDeleteGroupe}
+            title={lang==='ar' ? 'حذف المجموعة' : 'Supprimer le groupe'}
+            style={{padding:'4px 8px', background:'#FCEBEB', color:'#E24B4A', border:'0.5px solid #E24B4A30', borderRadius:6, cursor:'pointer', fontSize:11, whiteSpace:'nowrap'}}>
+            🗑 {lang==='ar' ? 'حذف' : 'Supprimer'}
+          </button>
+        </>
       )}
     </div>
   );
