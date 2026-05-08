@@ -186,7 +186,7 @@ export async function loadBareme(supabase, ecole_id) {
   try {
     const { data } = await supabase
       .from('bareme_notes')
-      .select('type_action, objet_id, points')
+      .select('type_action, objet_id, sourate_id, points')
       .eq('ecole_id', ecole_id)
       .eq('actif', true);
     const b = {
@@ -194,9 +194,15 @@ export async function loadBareme(supabase, ecole_id) {
       examens: {},
       ensembles: {},
       jalons: {},
+      // Nouveau Mode 3 (mai 2026) : notes par sourate dans un ensemble
+      // Format : sourates_dans_ensemble[ensemble_id][sourate_id] = points
+      sourates_dans_ensemble: {},
     };
     (data || []).forEach(row => {
-      if (!row.objet_id) {
+      if (row.type_action === 'sourate_dans_ensemble' && row.objet_id && row.sourate_id) {
+        if (!b.sourates_dans_ensemble[row.objet_id]) b.sourates_dans_ensemble[row.objet_id] = {};
+        b.sourates_dans_ensemble[row.objet_id][row.sourate_id] = row.points;
+      } else if (!row.objet_id) {
         b.unites[row.type_action] = row.points;
       } else if (row.type_action === 'examen') {
         b.examens[row.objet_id] = row.points;
@@ -208,19 +214,82 @@ export async function loadBareme(supabase, ecole_id) {
     });
     return b;
   } catch (e) {
-    return { unites: { ...BAREME_DEFAUT }, examens: {}, ensembles: {}, jalons: {} };
+    return { unites: { ...BAREME_DEFAUT }, examens: {}, ensembles: {}, jalons: {}, sourates_dans_ensemble: {} };
   }
 }
 
 /**
- * Sauvegarde une entrée du barème (upsert).
+ * Sauvegarde une entree du bareme.
+ * Utilise DELETE + INSERT (pas UPSERT) car les index partiels ne sont
+ * pas supportes par 'ON CONFLICT' via l'API Supabase JS.
+ *
+ * @param sourate_id : pour 'sourate_dans_ensemble', l'id de la sourate
+ * @param groupe_factorisation : optionnel, identifiant de groupe factorise
+ * @returns { data, error }
  */
-export async function saveBaremeItem(supabase, ecole_id, type_action, points, objet_id = null) {
+export async function saveBaremeItem(supabase, ecole_id, type_action, points, objet_id = null, sourate_id = null, groupe_factorisation = null) {
+  // 1. DELETE des entrees existantes pour cette cle
+  let deleteQuery = supabase
+    .from('bareme_notes')
+    .delete()
+    .eq('ecole_id', ecole_id)
+    .eq('type_action', type_action)
+    .eq('actif', true);
+  if (objet_id) {
+    deleteQuery = deleteQuery.eq('objet_id', objet_id);
+  } else {
+    deleteQuery = deleteQuery.is('objet_id', null);
+  }
+  if (type_action === 'sourate_dans_ensemble' && sourate_id) {
+    deleteQuery = deleteQuery.eq('sourate_id', sourate_id);
+  }
+  const { error: deleteError } = await deleteQuery;
+  if (deleteError) return { data: null, error: deleteError };
+
+  // 2. INSERT
   const row = { ecole_id, type_action, points: parseInt(points) || 0, actif: true };
   if (objet_id) row.objet_id = objet_id;
-  await supabase.from('bareme_notes').upsert(row, {
-    onConflict: objet_id ? 'ecole_id,type_action,objet_id' : 'ecole_id,type_action,objet_id',
-  });
+  if (sourate_id) row.sourate_id = sourate_id;
+  if (groupe_factorisation) row.groupe_factorisation = groupe_factorisation;
+  const { data, error } = await supabase.from('bareme_notes').insert(row);
+  return { data, error };
+}
+
+/**
+ * Calcule les points pour une sourate recitee selon la priorite :
+ *   1. Mode 3 (sourate_dans_ensemble) si paramete pour cette sourate
+ *   2. Mode 1 (sourate complete generique) sinon
+ *
+ * @param sourate_id : id de la sourate recitee
+ * @param bareme : objet bareme charge via loadBareme
+ * @param ensembles : tableau des ensembles_sourates avec sourates_ids
+ * @param typeRecitation : 'complete' ou 'sequence'
+ * @returns { points, source }
+ */
+export function calculerPointsSourate(sourate_id, bareme, ensembles, typeRecitation = 'complete') {
+  // Pour les sequences, on garde la logique simple
+  if (typeRecitation !== 'complete') {
+    return {
+      points: bareme?.unites?.sequence_sourate || 0,
+      source: 'base',
+    };
+  }
+
+  // Mode 3 : chercher une note specifique pour cette sourate dans un ensemble
+  const sde = bareme?.sourates_dans_ensemble || {};
+  for (const ens of (ensembles || [])) {
+    if (!ens.sourates_ids || !ens.sourates_ids.includes(sourate_id)) continue;
+    const noteSpec = sde[ens.id]?.[sourate_id];
+    if (typeof noteSpec === 'number') {
+      return { points: noteSpec, source: 'sourate_dans_ensemble', ensemble_id: ens.id };
+    }
+  }
+
+  // Fallback Mode 1 : sourate complete generique
+  return {
+    points: bareme?.unites?.sourate || 0,
+    source: 'base',
+  };
 }
 
 export function calcPoints(tomonCumul, hizbsCompletsCount, validations, tomonAcquis=0, hizbAcquisComplets=0, bareme=null) {
@@ -620,6 +689,114 @@ export async function verifierBlocageExamen(supabase, {
     console.error('verifierBlocageExamen error:', err);
     return null;
   }
+}
+
+/**
+ * Verifie si l'eleve a termine la derniere sourate d'un ensemble
+ * et que cet ensemble n'a pas encore ete valide.
+ *
+ * Retourne les ensembles 'completes mais non valides' avec info :
+ * - ensemble : { id, nom, niveau_id, sourates_ids }
+ * - examen : si l'ensemble est dans un examen bloquant non encore reussi (Cas A)
+ *            sinon null (Cas B - validation simple par le surveillant)
+ *
+ * @returns Array de blocages (ou tableau vide si aucun)
+ */
+export async function verifierBlocageEnsemble(supabase, { eleve_id, ecole_id, niveau_id, niveau_type }) {
+  try {
+    // Ne s'applique qu'aux niveaux recitant en sourates
+    if (niveau_type !== 'sourate') return [];
+
+    // 1. Charger les ensembles du niveau
+    const { data: ensembles } = await supabase
+      .from('ensembles_sourates')
+      .select('id, nom, niveau_id, sourates_ids, ordre')
+      .eq('ecole_id', ecole_id)
+      .eq('niveau_id', niveau_id)
+      .order('ordre');
+
+    if (!ensembles || ensembles.length === 0) return [];
+
+    // 2. Charger les sourates recitees completement par l'eleve
+    const { data: recitations } = await supabase
+      .from('recitations_sourates')
+      .select('sourate_id, type_recitation')
+      .eq('eleve_id', eleve_id)
+      .eq('type_recitation', 'complete');
+
+    const souratesRecitees = new Set((recitations || []).map(r => r.sourate_id));
+
+    // 3. Charger les ensembles deja valides pour cet eleve
+    const { data: validationsEns } = await supabase
+      .from('validations')
+      .select('ensemble_id')
+      .eq('eleve_id', eleve_id)
+      .eq('type_validation', 'ensemble_valide');
+
+    const ensemblesValides = new Set((validationsEns || []).map(v => v.ensemble_id));
+
+    // 4. Charger les examens du niveau (pour distinguer Cas A vs Cas B)
+    const { data: examens } = await supabase
+      .from('examens')
+      .select('id, nom, contenu_ids, bloquant, niveau_id')
+      .eq('ecole_id', ecole_id)
+      .eq('niveau_id', niveau_id)
+      .eq('actif', true);
+
+    // 5. Charger les resultats d'examens deja reussis
+    const { data: resultats } = await supabase
+      .from('resultats_examens')
+      .select('examen_id, reussi')
+      .eq('eleve_id', eleve_id);
+
+    const examensReussis = new Set((resultats || []).filter(r => r.reussi).map(r => r.examen_id));
+
+    // 6. Pour chaque ensemble, verifier si toutes ses sourates sont recitees ET non encore valide
+    const blocages = [];
+    for (const ens of ensembles) {
+      if (!ens.sourates_ids || ens.sourates_ids.length === 0) continue;
+      if (ensemblesValides.has(ens.id)) continue; // deja valide -> pas de blocage
+
+      // Toutes les sourates recitees ?
+      const toutes = ens.sourates_ids.every(sId => souratesRecitees.has(sId));
+      if (!toutes) continue;
+
+      // Cas A : ensemble lie a un examen bloquant non encore reussi
+      const examenLie = (examens || []).find(ex =>
+        ex.bloquant
+        && (ex.contenu_ids || []).includes(ens.id)
+        && !examensReussis.has(ex.id)
+      );
+
+      blocages.push({
+        ensemble: ens,
+        examen: examenLie || null,  // null si Cas B
+        cas: examenLie ? 'A' : 'B',
+      });
+    }
+
+    return blocages;
+  } catch (err) {
+    console.error('verifierBlocageEnsemble error:', err);
+    return [];
+  }
+}
+
+/**
+ * Valide un ensemble pour un eleve (Cas B uniquement).
+ * Insere une ligne dans validations avec type='ensemble_valide'.
+ * @returns { data, error }
+ */
+export async function validerEnsemble(supabase, { eleve_id, ecole_id, ensemble_id, valide_par }) {
+  const { data, error } = await supabase
+    .from('validations')
+    .insert({
+      eleve_id, ecole_id, valide_par, ensemble_id,
+      type_validation: 'ensemble_valide',
+      nombre_tomon: 0, // requis non-null par schema
+      date_validation: new Date().toISOString(),
+    });
+  return { data, error };
 }
 
 // ── HELPERS NIVEAUX DYNAMIQUES ─────────────────────────────────

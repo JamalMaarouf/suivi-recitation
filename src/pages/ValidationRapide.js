@@ -5,7 +5,7 @@ import { withRetryToast } from '../lib/retry';
 import { invalidateMany } from '../lib/cache';
 import { enqueueOrRun } from '../lib/offlineQueue';
 import { swr } from '../lib/offlineCache';
-import { calcEtatEleve, getInitiales, scoreLabel, motivationMsg, verifierEtCreerCertificats, isSourateNiveauDyn, loadBareme, BAREME_DEFAUT, getSensForEleve, verifierBlocageExamen} from '../lib/helpers';
+import { calcEtatEleve, getInitiales, scoreLabel, motivationMsg, verifierEtCreerCertificats, isSourateNiveauDyn, loadBareme, BAREME_DEFAUT, getSensForEleve, verifierBlocageExamen, verifierBlocageEnsemble, validerEnsemble, calculerPointsSourate} from '../lib/helpers';
 import { notifierParents } from '../lib/notificationsParents';
 import { getSouratesForNiveau } from '../lib/sourates';
 import { t } from '../lib/i18n';
@@ -23,12 +23,14 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
   const [selectedEleve, setSelectedEleve] = useState(null);
   const [etat, setEtat] = useState(null);
   const [blocageExamen, setBlocageExamen] = useState(null); // {nom, id, ...} ou null
+  const [blocagesEnsemble, setBlocagesEnsemble] = useState([]); // ensembles termines mais non valides
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [flash, setFlash] = useState(null);
   const [sessionLog, setSessionLog] = useState([]);
   const [nbTomon, setNbTomon] = useState(1); // nombre de tomons à valider
   const [bareme, setBareme] = useState(null); // barème de l'école
+  const [ensemblesData, setEnsemblesData] = useState([]); // pour calcul priorité mode 3
   const [programmeNiveau, setProgrammeNiveau] = useState([]); // hizbs ou sourates du programme
   const [programmeCharge, setProgrammeCharge] = useState(false); // true quand chargement terminé
   const [currentSourateState, setCurrentSourateState] = useState(null); // calculé après chargement
@@ -75,6 +77,9 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
     ]);
     const b = await loadBareme(supabase, ecoleId);
     setBareme(b);
+    // Charger les ensembles pour calculer la priorite Mode 3 > Mode 1
+    supabase.from('ensembles_sourates').select('id,nom,niveau_id,sourates_ids').eq('ecole_id', ecoleId)
+      .then(({data}) => setEnsemblesData(data || []));
     setLoading(false);
   };
 
@@ -82,8 +87,8 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
     ? eleves.filter(e => `${e.prenom} ${e.nom} ${e.eleve_id_ecole || ''}`.toLowerCase().includes(search.toLowerCase())).slice(0, 6)
     : [];
 
-  // Helper reutilisable : verifie le blocage examen pour l'eleve courant
-  // et met a jour le state. Retourne true si bloque, false sinon.
+  // Helper reutilisable : verifie le blocage examen ET ensemble pour l'eleve courant
+  // et met a jour les states. Retourne true si bloque examen, false sinon.
   const checkBlocageExamenEleve = async (eleve, vals, recs) => {
     try {
       const blocage = await verifierBlocageExamen(supabase, {
@@ -91,10 +96,28 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
         validations: vals || [], recitations: recs || [],
       });
       setBlocageExamen(blocage); // null si pas de blocage, objet sinon
+
+      // Detection blocage ensemble (niveaux sourates uniquement)
+      try {
+        const niveauEleve = (niveaux || []).find(n => n.code === eleve?.code_niveau);
+        if (niveauEleve && niveauEleve.type === 'sourate') {
+          const blocagesEns = await verifierBlocageEnsemble(supabase, {
+            eleve_id: eleve.id,
+            ecole_id: user.ecole_id,
+            niveau_id: niveauEleve.id,
+            niveau_type: niveauEleve.type,
+          });
+          setBlocagesEnsemble(blocagesEns || []);
+        } else {
+          setBlocagesEnsemble([]);
+        }
+      } catch (e) { /* reseau instable */ }
+
       return !!blocage;
     } catch (e) {
       console.warn('[verif blocage examen]', e);
-      setBlocageExamen(null);
+      setBlocageExamen(null); setBlocagesEnsemble([]);
+      setBlocagesEnsemble([]);
       return false;
     }
   };
@@ -109,7 +132,7 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
 
     // 1. Affichage IMMEDIAT avec les donnees locales (e)
     setSelectedEleve(e);
-    setBlocageExamen(null);
+    setBlocageExamen(null); setBlocagesEnsemble([]);
     const vals = allValidations.filter(v => v.eleve_id === e.id);
     const sensEl = getSensForEleve(e, niveaux, ecoleConfig);
     setEtat(calcEtatEleve(vals, e.hizb_depart, e.tomon_depart, sensEl));
@@ -474,6 +497,23 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
       return;
     }
 
+    // Blocage dur ensemble : si un ensemble est en attente de validation,
+    // bloquer toute nouvelle sourate hors de cet ensemble (re-recitation OK)
+    if (blocagesEnsemble && blocagesEnsemble.length > 0) {
+      const sourateIdLocal = souratesDB.find(s => s.numero === sourateSelectionnee.numero)?.id;
+      const dansEnsembleBloque = blocagesEnsemble.some(b =>
+        (b.ensemble.sourates_ids || []).includes(sourateIdLocal)
+      );
+      if (!dansEnsembleBloque) {
+        const ensembleNoms = blocagesEnsemble.map(b => b.ensemble.nom).join(', ');
+        toast.error(lang === 'ar'
+          ? `🔒 يجب اعتماد المجموعة "${ensembleNoms}" أولاً قبل المتابعة`
+          : `🔒 Validez d'abord l'ensemble "${ensembleNoms}" avant de continuer`,
+          { duration: 5000 });
+        return;
+      }
+    }
+
     // === FIX B4b - Protection anti-doublon (cote JS) ===
     if (typeRec === 'complete') {
       const sourateIdLocal = souratesDB.find(s => s.numero === sourateSelectionnee.numero)?.id;
@@ -507,9 +547,10 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
     }
     if (!sourateId) { setSaving(false); return; }
 
-    const ptsComplet = bareme?.unites?.sourate || 0;
-    const ptsSequence = bareme?.unites?.sequence_sourate || 0;
-    const pts = typeRec === 'complete' ? ptsComplet : ptsSequence;
+    // Calcul priorite Mode 3 > Mode 1 : note specifique pour cette sourate dans
+    // un ensemble paramétré, sinon note generique
+    const calcPts = calculerPointsSourate(sourateId, bareme, ensemblesData, typeRec);
+    const pts = calcPts.points;
 
     // === FIX L1 + Q2=A - OPTIMISTIC UI ===
     // 1. Ajout IMMEDIAT au state local (avant l'INSERT BDD)
@@ -765,6 +806,66 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
               </button>
             </div>
           )}
+
+          {/* ── BANDEAU BLOCAGES ENSEMBLE (niveaux sourates) ── */}
+          {blocagesEnsemble.length > 0 && blocagesEnsemble.map((b, idx) => {
+            // Cas A deja couvert par le bandeau examen si actif
+            if (b.cas === 'A' && blocageExamen) return null;
+            return (
+              <div key={`ens-${idx}`} style={{
+                background: b.cas === 'A' ? 'linear-gradient(135deg,#FFF3E0,#FCEBEB)' : 'linear-gradient(135deg,#EEEDFE,#F5F0FE)',
+                borderBottom: `2px solid ${b.cas === 'A' ? '#E24B4A' : '#534AB7'}`,
+                padding:'14px 20px', display:'flex', alignItems:'center', gap:14,
+              }}>
+                <div style={{ fontSize:28, flexShrink:0 }}>{b.cas === 'A' ? '📝' : '📦'}</div>
+                <div style={{ flex:1 }}>
+                  <div style={{ fontSize:14, fontWeight:800, color: b.cas === 'A' ? '#7F1D1D' : '#3a3387', marginBottom:3 }}>
+                    {b.cas === 'A'
+                      ? (lang==='ar'?'مجموعة مكتملة - امتحان مطلوب':'Ensemble complété - Examen requis')
+                      : (lang==='ar'?'مجموعة مكتملة - يرجى الاعتماد':'Ensemble complété - Validation requise')}
+                  </div>
+                  <div style={{ fontSize:12, color: b.cas === 'A' ? '#7F1D1D' : '#534AB7', lineHeight:1.5 }}>
+                    {b.cas === 'A'
+                      ? (lang==='ar'
+                          ? `أنهى التلميذ المجموعة "${b.ensemble.nom}". يجب اجتياز الامتحان "${b.examen.nom}".`
+                          : `L'élève a terminé l'ensemble "${b.ensemble.nom}". L'examen "${b.examen.nom}" est requis.`)
+                      : (lang==='ar'
+                          ? `أنهى التلميذ كل سور المجموعة "${b.ensemble.nom}". يرجى الاستماع لاستظهارها كاملة ثم اعتمادها.`
+                          : `L'élève a terminé toutes les sourates de "${b.ensemble.nom}". Écoutez la récitation complète puis validez.`)}
+                  </div>
+                </div>
+                {b.cas === 'A' ? (
+                  <button onClick={()=>navigate('resultats_examens')}
+                    style={{ background:'#E24B4A', color:'#fff', border:'none', borderRadius:10,
+                      padding:'9px 14px', fontSize:12, fontWeight:700, cursor:'pointer', whiteSpace:'nowrap', flexShrink:0 }}>
+                    {lang==='ar'?'إلى الامتحانات ←':'→ Vers les examens'}
+                  </button>
+                ) : (
+                  <button onClick={async ()=>{
+                      if (!window.confirm(lang==='ar' ? 'تأكيد اعتماد المجموعة ؟' : "Confirmer la validation de l'ensemble ?")) return;
+                      const res = await validerEnsemble(supabase, {
+                        eleve_id: selectedEleve.id,
+                        ecole_id: user.ecole_id,
+                        ensemble_id: b.ensemble.id,
+                        valide_par: user.id,
+                      });
+                      if (res?.error) {
+                        toast.error(lang==='ar' ? 'خطأ في الاعتماد' : 'Erreur lors de la validation');
+                        return;
+                      }
+                      toast.success(lang==='ar'
+                        ? `✅ تم اعتماد "${b.ensemble.nom}"`
+                        : `✅ "${b.ensemble.nom}" validé`);
+                      setBlocagesEnsemble(prev => prev.filter((_, i) => i !== idx));
+                    }}
+                    style={{ background:'#534AB7', color:'#fff', border:'none', borderRadius:10,
+                      padding:'9px 14px', fontSize:12, fontWeight:700, cursor:'pointer', whiteSpace:'nowrap', flexShrink:0 }}>
+                    ✓ {lang==='ar' ? 'اعتماد':"Valider"}
+                  </button>
+                )}
+              </div>
+            );
+          })}
 
           <div style={{ padding: '20px' }}>
             {/* ── Pas de programme ── */}
