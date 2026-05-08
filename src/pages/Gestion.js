@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useToast } from '../lib/toast';
 import { supabase } from '../lib/supabase';
 import ConfirmModal from '../components/ConfirmModal';
-import { getInitiales, calcEtatEleve, calcPoints, BAREME_DEFAUT, loadBareme, saveBaremeItem, isSourateNiveauDyn, getSensForEleve, genererLoginParentUnique} from '../lib/helpers';
+import { getInitiales, calcEtatEleve, calcPoints, BAREME_DEFAUT, loadBareme, saveBaremeItem, saveBaremeItemsBulk, isSourateNiveauDyn, getSensForEleve, genererLoginParentUnique} from '../lib/helpers';
 import { SOURATES_5B, SOURATES_5A, SOURATES_2M, isSourateNiveau } from '../lib/sourates';
 import { t } from '../lib/i18n';
 import ExportButtons from '../components/ExportButtons';
@@ -458,42 +458,113 @@ function BaremeTab({ user, lang, bareme, setBareme, saving, setSaving, showMsg }
     setSaving(true);
     const errors = [];
     let saved = 0;
-    for (const c of criteres) {
-      const res = await saveBaremeItem(
-        supabase, user.ecole_id, c.type, c.points,
-        c.objet_id || null,
-        c.sourate_id || null,
-        c.groupe || null
-      );
-      if (res?.error) {
-        errors.push(res.error.message || 'Erreur');
-        console.error('Erreur saveBaremeItem:', res.error);
-      } else {
-        saved++;
+
+    // BULK SAVE : groupe les criteres par (type + objet_id) pour faire un
+    // DELETE bulk puis un INSERT bulk. Beaucoup plus rapide que critère par
+    // critère sequentiellement (gain x10+ pour 100+ criteres).
+    try {
+      // Etape 1 : DELETE par batchs - regroupe par (type, objet_id)
+      // pour les types simples (1 row par cle), et type='sourate_dans_ensemble'
+      // est traite specifiquement (1 DELETE par ensemble)
+      const deletesParEns = {}; // ensemble_id -> Set<sourate_id> pour mode 3
+      const deletesClassiques = []; // {type, objet_id} pour autres types
+
+      criteres.forEach(c => {
+        if (c.type === 'sourate_dans_ensemble') {
+          if (!deletesParEns[c.objet_id]) deletesParEns[c.objet_id] = new Set();
+          deletesParEns[c.objet_id].add(c.sourate_id);
+        } else {
+          deletesClassiques.push({ type: c.type, objet_id: c.objet_id });
+        }
+      });
+
+      // DELETE classiques en bulk
+      for (const { type, objet_id } of deletesClassiques) {
+        let q = supabase.from('bareme_notes').delete()
+          .eq('ecole_id', user.ecole_id).eq('type_action', type).eq('actif', true);
+        q = objet_id ? q.eq('objet_id', objet_id) : q.is('objet_id', null);
+        await q;
       }
+
+      // DELETE mode 3 par ensemble (avec sourate_id IN (...))
+      for (const [ensId, sourateIdsSet] of Object.entries(deletesParEns)) {
+        const sIds = Array.from(sourateIdsSet);
+        await supabase.from('bareme_notes').delete()
+          .eq('ecole_id', user.ecole_id)
+          .eq('type_action', 'sourate_dans_ensemble')
+          .eq('actif', true)
+          .eq('objet_id', ensId)
+          .in('sourate_id', sIds);
+      }
+
+      // Etape 2 : INSERT BULK (1 seule requete pour tous les criteres)
+      const rows = criteres.map(c => {
+        const row = {
+          ecole_id: user.ecole_id,
+          type_action: c.type,
+          points: parseInt(c.points) || 0,
+          actif: true,
+        };
+        if (c.objet_id) row.objet_id = c.objet_id;
+        if (c.sourate_id) row.sourate_id = c.sourate_id;
+        if (c.groupe) row.groupe_factorisation = c.groupe;
+        return row;
+      });
+
+      const { error: insertError } = await supabase.from('bareme_notes').insert(rows);
+      if (insertError) {
+        errors.push(insertError.message || 'Erreur INSERT bulk');
+      } else {
+        saved = rows.length;
+      }
+    } catch (err) {
+      errors.push(err.message || 'Erreur globale');
+      console.error('Erreur bulk save:', err);
     }
-    // Recharger configs
-    const { data } = await supabase.from('bareme_notes').select('*').eq('ecole_id', user.ecole_id).eq('actif', true).order('created_at');
-    if (data) setConfigs(data);
-    const newB = await loadBareme(supabase, user.ecole_id);
-    setBareme(newB);
-    setSaving(false);
 
     if (errors.length > 0) {
+      // En cas d'erreur, on recharge toujours pour synchroniser
+      const { data } = await supabase.from('bareme_notes').select('*').eq('ecole_id', user.ecole_id).eq('actif', true).order('created_at');
+      if (data) setConfigs(data);
+      const newB = await loadBareme(supabase, user.ecole_id);
+      setBareme(newB);
+      setSaving(false);
       showMsg('error', lang==='ar'
         ? `تم حفظ ${saved}/${criteres.length}. خطأ: ${errors[0]}`
         : `${saved}/${criteres.length} enregistrés. Erreur: ${errors[0]}`);
     } else {
+      // SUCCES : feedback immediat + rechargement en arriere-plan
+      // 1. Vider la liste de criteres en cours (UX optimiste)
       setCriteres([]);
+      setSaving(false);
       showMsg('success', lang==='ar'
         ? `تم حفظ ${saved} معيار بنجاح`
         : `${saved} critère${saved > 1 ? 's' : ''} enregistré${saved > 1 ? 's' : ''}`);
+      // 2. Rechargement BDD en arriere-plan (sans bloquer l'UI)
+      (async () => {
+        const { data } = await supabase.from('bareme_notes').select('*').eq('ecole_id', user.ecole_id).eq('actif', true).order('created_at');
+        if (data) setConfigs(data);
+        const newB = await loadBareme(supabase, user.ecole_id);
+        setBareme(newB);
+      })();
     }
   };
 
   const supprimerConfig = async (id) => {
     await supabase.from('bareme_notes').delete().eq('id', id);
     setConfigs(prev => prev.filter(c => c.id !== id));
+    const newB = await loadBareme(supabase, user.ecole_id);
+    setBareme(newB);
+  };
+
+  // Supprime un groupe entier de criteres (factorisation)
+  const supprimerGroupe = async (ids) => {
+    if (!ids || ids.length === 0) return;
+    if (!window.confirm(lang==='ar'
+      ? `حذف ${ids.length} معيار من هذه المجموعة ؟`
+      : `Supprimer ${ids.length} critère(s) de ce groupe ?`)) return;
+    await supabase.from('bareme_notes').delete().in('id', ids);
+    setConfigs(prev => prev.filter(c => !ids.includes(c.id)));
     const newB = await loadBareme(supabase, user.ecole_id);
     setBareme(newB);
   };
@@ -807,22 +878,175 @@ function BaremeTab({ user, lang, bareme, setBareme, saving, setSaving, showMsg }
       <div className="section-label">{lang==='ar'?'التنقيطات المُسجَّلة':'Notations enregistrées'} ({configs.length})</div>
       {configs.length === 0 ? (
         <div className="empty">{lang==='ar'?'لا توجد تنقيطات بعد — أضف معايير وسجّلها أعلاه':'Aucune notation enregistrée'}</div>
-      ) : (
-        <div style={{display:'flex',flexDirection:'column',gap:6}}>
-          {configs.map(c => (
-            <div key={c.id} style={{display:'flex',alignItems:'center',gap:12,padding:'10px 14px',background:'#fff',border:'0.5px solid #e0e0d8',borderRadius:10}}>
-              <span style={{fontSize:18}}>{getConfigIcon(c)}</span>
-              <div style={{flex:1}}>
-                <div style={{fontWeight:600,fontSize:13,direction:'rtl',fontFamily:"'Tajawal',Arial,sans-serif"}}>{getConfigLabel(c)}</div>
-                <div style={{fontSize:11,color:'#888',marginTop:1}}>
-                  {c.type} {c.objet_id ? '· '+c.objet_id.slice(0,8)+'...' : ''}
+      ) : (() => {
+        // GROUPAGE des configs :
+        // - Si groupe_factorisation existe : grouper par cette cle (factorisation Mode 2 multi ou Mode 3)
+        // - Sinon : ligne individuelle
+        const groupes = {};   // groupe_id -> [configs]
+        const isoles = [];    // configs sans groupe
+        configs.forEach(c => {
+          if (c.groupe_factorisation) {
+            if (!groupes[c.groupe_factorisation]) groupes[c.groupe_factorisation] = [];
+            groupes[c.groupe_factorisation].push(c);
+          } else {
+            isoles.push(c);
+          }
+        });
+
+        // Tri : groupes triés par created_at (plus récents en premier),
+        // puis isolés ensuite
+        const groupesTriés = Object.entries(groupes)
+          .map(([gId, items]) => ({
+            groupe_id: gId,
+            items,
+            firstCreated: items[0].created_at,
+            type: items[0].type_action,
+            points: items[0].points,
+            count: items.length,
+          }))
+          .sort((a, b) => new Date(b.firstCreated) - new Date(a.firstCreated));
+
+        return (
+          <div style={{display:'flex',flexDirection:'column',gap:6}}>
+            {/* GROUPES (pliables) */}
+            {groupesTriés.map(g => (
+              <GroupeCard key={g.groupe_id}
+                groupe={g}
+                lang={lang}
+                ensembles={ensembles}
+                niveaux={niveaux}
+                souratesDB={souratesDB}
+                getConfigLabel={getConfigLabel}
+                getConfigIcon={getConfigIcon}
+                onDeleteGroupe={async () => {
+                  if (!window.confirm(lang==='ar'
+                    ? `هل أنت متأكد من حذف هذه المجموعة (${g.count} معيار) ؟`
+                    : `Confirmer la suppression de ce groupe (${g.count} critères) ?`)) return;
+                  const ids = g.items.map(it => it.id);
+                  await supabase.from('bareme_notes').delete().in('id', ids);
+                  setConfigs(prev => prev.filter(c => !ids.includes(c.id)));
+                  const newB = await loadBareme(supabase, user.ecole_id);
+                  setBareme(newB);
+                }}
+                onDeleteItem={async (id) => {
+                  await supabase.from('bareme_notes').delete().eq('id', id);
+                  setConfigs(prev => prev.filter(c => c.id !== id));
+                  const newB = await loadBareme(supabase, user.ecole_id);
+                  setBareme(newB);
+                }}
+              />
+            ))}
+
+            {/* ISOLES (non groupés) - lignes simples comme avant */}
+            {isoles.map(c => (
+              <div key={c.id} style={{display:'flex',alignItems:'center',gap:12,padding:'10px 14px',background:'#fff',border:'0.5px solid #e0e0d8',borderRadius:10}}>
+                <span style={{fontSize:18}}>{getConfigIcon(c)}</span>
+                <div style={{flex:1}}>
+                  <div style={{fontWeight:600,fontSize:13,direction:'rtl',fontFamily:"'Tajawal',Arial,sans-serif"}}>{getConfigLabel(c)}</div>
                 </div>
+                <span style={{fontWeight:800,fontSize:16,color:'#378ADD'}}>{c.points}</span>
+                <span style={{fontSize:10,color:'#aaa'}}>{lang==='ar'?'ن':'pts'}</span>
+                <button onClick={() => supprimerConfig(c.id)}
+                  style={{padding:'4px 8px',background:'#FCEBEB',color:'#E24B4A',border:'0.5px solid #E24B4A30',borderRadius:6,cursor:'pointer',fontSize:11}}>
+                  🗑
+                </button>
               </div>
-              <span style={{fontWeight:800,fontSize:16,color:'#378ADD'}}>{c.points}</span>
-              <span style={{fontSize:10,color:'#aaa'}}>{lang==='ar'?'ن':'pts'}</span>
-              <button onClick={() => supprimerConfig(c.id)}
-                style={{padding:'4px 8px',background:'#FCEBEB',color:'#E24B4A',border:'0.5px solid #E24B4A30',borderRadius:6,cursor:'pointer',fontSize:11}}>
-                🗑
+            ))}
+          </div>
+        );
+      })()}
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════════
+// COMPOSANT GroupeCard — affichage replié/déplié d'un groupe factorisé
+// (Mode 2 multi ou Mode 3 - sourate dans ensemble)
+// ══════════════════════════════════════════════════════
+function GroupeCard({ groupe, lang, ensembles, niveaux, souratesDB, getConfigLabel, getConfigIcon, onDeleteGroupe, onDeleteItem }) {
+  const [deplie, setDeplie] = useState(false);
+
+  const niveauObj = (niveau_id) => niveaux.find(n => n.id === niveau_id);
+  const sourateNom = (sourate_id) => {
+    const s = souratesDB.find(x => x.id === sourate_id);
+    return lang === 'ar' ? (s?.nom_ar || `#${sourate_id}`) : (s?.nom_fr || s?.nom_ar || `#${sourate_id}`);
+  };
+
+  const isMode3 = groupe.type === 'sourate_dans_ensemble';
+  const colorMain = isMode3 ? '#085041' : '#534AB7';
+  const bgPanneau = isMode3 ? '#E8F5EE' : '#EEEDFE';
+  const totalPts = groupe.items.reduce((s, it) => s + (it.points || 0), 0);
+
+  // Construire la liste des ensembles concernés (uniques)
+  const ensemblesConcernes = [...new Set(groupe.items.map(it => it.objet_id))]
+    .map(eId => ensembles.find(e => e.id === eId))
+    .filter(Boolean);
+
+  const titreType = isMode3
+    ? (lang==='ar' ? '🎯 سورة في مجموعات' : '🎯 Sourate dans ensembles')
+    : (lang==='ar' ? '📦 مجموعات متعددة' : '📦 Plusieurs ensembles');
+
+  return (
+    <div style={{
+      background: bgPanneau,
+      border: `1px solid ${colorMain}30`,
+      borderRadius: 10,
+      overflow: 'hidden',
+    }}>
+      {/* HEADER (toujours visible) */}
+      <div style={{
+        display:'flex', alignItems:'center', gap:12, padding:'10px 14px',
+        cursor:'pointer',
+      }}
+        onClick={() => setDeplie(d => !d)}>
+        <span style={{fontSize:18}}>{isMode3 ? '🎯' : '📦'}</span>
+        <div style={{flex:1, minWidth:0}}>
+          <div style={{fontWeight:700, fontSize:13, color:colorMain, direction:'rtl', fontFamily:"'Tajawal',Arial,sans-serif"}}>
+            {titreType} ({groupe.points} {lang==='ar'?'نقطة':isMode3?'pts/sourate':'pts/ensemble'})
+          </div>
+          <div style={{fontSize:11, color:'#666', marginTop:2}}>
+            {ensemblesConcernes.map(ens => {
+              const niv = niveauObj(ens.niveau_id);
+              return niv ? `[${niv.code}] ${ens.nom}` : ens.nom;
+            }).join(' · ')}
+          </div>
+        </div>
+        <div style={{textAlign:'center'}}>
+          <div style={{fontWeight:800, fontSize:16, color:colorMain}}>{totalPts}</div>
+          <div style={{fontSize:9, color:'#888'}}>
+            {groupe.count} × {groupe.points} = {totalPts}
+          </div>
+        </div>
+        <button onClick={(e) => { e.stopPropagation(); onDeleteGroupe(); }}
+          style={{padding:'4px 8px',background:'#FCEBEB',color:'#E24B4A',border:'0.5px solid #E24B4A30',borderRadius:6,cursor:'pointer',fontSize:11,whiteSpace:'nowrap'}}>
+          🗑 {lang==='ar' ? 'حذف الكل' : 'Supprimer tout'}
+        </button>
+        <span style={{fontSize:14, color:colorMain, fontWeight:700}}>
+          {deplie ? '⌃' : '⌄'}
+        </span>
+      </div>
+
+      {/* DETAIL (visible si deplie) */}
+      {deplie && (
+        <div style={{
+          padding:'8px 14px 12px',
+          borderTop: `0.5px solid ${colorMain}30`,
+          display:'flex', flexDirection:'column', gap:5,
+        }}>
+          {groupe.items.map(it => (
+            <div key={it.id} style={{
+              display:'flex', alignItems:'center', gap:10, padding:'6px 10px',
+              background:'#fff', borderRadius:6, fontSize:12,
+            }}>
+              <span style={{fontSize:14}}>{getConfigIcon(it)}</span>
+              <div style={{flex:1, direction:'rtl', fontFamily:"'Tajawal',Arial,sans-serif"}}>
+                {getConfigLabel(it)}
+              </div>
+              <span style={{fontWeight:700, fontSize:13, color:colorMain}}>{it.points}</span>
+              <span style={{fontSize:9, color:'#aaa'}}>{lang==='ar'?'ن':'pts'}</span>
+              <button onClick={(e) => { e.stopPropagation(); onDeleteItem(it.id); }}
+                style={{padding:'2px 6px',background:'#FCEBEB',color:'#E24B4A',border:'none',borderRadius:4,cursor:'pointer',fontSize:10}}>
+                ✕
               </button>
             </div>
           ))}

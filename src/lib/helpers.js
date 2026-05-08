@@ -256,6 +256,97 @@ export async function saveBaremeItem(supabase, ecole_id, type_action, points, ob
 }
 
 /**
+ * Sauvegarde BULK de plusieurs criteres en une seule operation.
+ * Beaucoup plus rapide que d'appeler saveBaremeItem N fois.
+ *
+ * Strategie :
+ * 1. DELETE en bulk : supprime toutes les lignes en conflit potentiel d'un coup
+ * 2. INSERT en bulk : insere toutes les nouvelles lignes en une requete
+ *
+ * @param items : tableau de { type_action, points, objet_id, sourate_id, groupe_factorisation }
+ * @returns { saved, errors }
+ */
+export async function saveBaremeItemsBulk(supabase, ecole_id, items) {
+  if (!items || items.length === 0) return { saved: 0, errors: [] };
+  const errors = [];
+
+  // 1. DELETE en bulk groupe par type_action
+  // (on ne peut pas mettre tous les types dans 1 seul DELETE car les conditions diffèrent)
+  const parType = {};
+  items.forEach(it => {
+    if (!parType[it.type_action]) parType[it.type_action] = [];
+    parType[it.type_action].push(it);
+  });
+
+  for (const [type_action, group] of Object.entries(parType)) {
+    if (type_action === 'sourate_dans_ensemble') {
+      // DELETE des combinaisons (objet_id, sourate_id) pour ce type
+      // Strategie : DELETE par objet_id, puis sourate_id specifique
+      const objetIds = [...new Set(group.map(g => g.objet_id).filter(Boolean))];
+      if (objetIds.length > 0) {
+        const sourateIds = group.map(g => g.sourate_id).filter(Boolean);
+        const { error: delErr } = await supabase
+          .from('bareme_notes')
+          .delete()
+          .eq('ecole_id', ecole_id)
+          .eq('type_action', 'sourate_dans_ensemble')
+          .eq('actif', true)
+          .in('objet_id', objetIds)
+          .in('sourate_id', sourateIds);
+        if (delErr) errors.push(`DELETE sourate_dans_ensemble: ${delErr.message}`);
+      }
+    } else {
+      // DELETE par objet_id (ou null)
+      const avecObjet = group.filter(g => g.objet_id).map(g => g.objet_id);
+      const sansObjet = group.filter(g => !g.objet_id);
+
+      if (avecObjet.length > 0) {
+        const { error: delErr } = await supabase
+          .from('bareme_notes')
+          .delete()
+          .eq('ecole_id', ecole_id)
+          .eq('type_action', type_action)
+          .eq('actif', true)
+          .in('objet_id', avecObjet);
+        if (delErr) errors.push(`DELETE ${type_action}: ${delErr.message}`);
+      }
+      if (sansObjet.length > 0) {
+        const { error: delErr } = await supabase
+          .from('bareme_notes')
+          .delete()
+          .eq('ecole_id', ecole_id)
+          .eq('type_action', type_action)
+          .eq('actif', true)
+          .is('objet_id', null);
+        if (delErr) errors.push(`DELETE ${type_action} (sans objet): ${delErr.message}`);
+      }
+    }
+  }
+
+  // 2. INSERT en bulk
+  const rows = items.map(it => {
+    const r = {
+      ecole_id,
+      type_action: it.type_action,
+      points: parseInt(it.points) || 0,
+      actif: true,
+    };
+    if (it.objet_id) r.objet_id = it.objet_id;
+    if (it.sourate_id) r.sourate_id = it.sourate_id;
+    if (it.groupe_factorisation) r.groupe_factorisation = it.groupe_factorisation;
+    return r;
+  });
+
+  const { error: insErr } = await supabase.from('bareme_notes').insert(rows);
+  if (insErr) {
+    errors.push(`INSERT bulk: ${insErr.message}`);
+    return { saved: 0, errors };
+  }
+
+  return { saved: rows.length, errors };
+}
+
+/**
  * Calcule les points pour une sourate recitee selon la priorite :
  *   1. Mode 3 (sourate_dans_ensemble) si paramete pour cette sourate
  *   2. Mode 1 (sourate complete generique) sinon
