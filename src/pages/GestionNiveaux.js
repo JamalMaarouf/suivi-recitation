@@ -1147,7 +1147,7 @@ export default function GestionNiveaux({ user, navigate, goBack, lang='fr', isMo
                   <input type="color" value={form.couleur}
                     onChange={e=>setForm(f=>({...f,couleur:e.target.value}))}
                     style={{width:32,height:32,borderRadius:'50%',border:'none',cursor:'pointer',padding:0,background:'none'}}
-                    title="Couleur personnalisée"/>
+                    title={lang==='ar'?'لون مخصص':'Couleur personnalisée'}/>
                 </div>
                 {/* Aperçu */}
                 <div style={{marginTop:10,display:'inline-flex',alignItems:'center',gap:8,
@@ -1631,11 +1631,11 @@ export default function GestionNiveaux({ user, navigate, goBack, lang='fr', isMo
                     {/* E1d — Boutons ▲ N ▼ en LIGNE (avant : empiles verticalement) */}
                     <div style={{display:'flex',flexDirection:'row',alignItems:'center',gap:4,whiteSpace:'nowrap'}}>
                       <button onClick={()=>moveUp(n,idx)} disabled={idx===0}
-                        title="Monter"
+                        title={lang==='ar'?'صعود':'Monter'}
                         style={{background:'#f5f5f0',border:'0.5px solid #e0e0d8',borderRadius:6,cursor:idx===0?'not-allowed':'pointer',opacity:idx===0?0.3:1,fontSize:11,padding:'3px 7px',flexShrink:0}}>▲</button>
                       <span style={{minWidth:24,textAlign:'center',fontSize:13,fontWeight:600,color:'#555'}}>{n.ordre}</span>
                       <button onClick={()=>moveDown(n,idx)} disabled={idx===niveaux.length-1}
-                        title="Descendre"
+                        title={lang==='ar'?'نزول':'Descendre'}
                         style={{background:'#f5f5f0',border:'0.5px solid #e0e0d8',borderRadius:6,cursor:idx===niveaux.length-1?'not-allowed':'pointer',opacity:idx===niveaux.length-1?0.3:1,fontSize:11,padding:'3px 7px',flexShrink:0}}>▼</button>
                     </div>
                   </td>

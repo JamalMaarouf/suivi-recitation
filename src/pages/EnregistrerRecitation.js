@@ -846,7 +846,7 @@ export default function EnregistrerRecitation({  user, eleve: eleveInitial, navi
                   </div>
                 )}
               </div>
-              <button className="btn-primary" disabled={nombreTomon === 0} onClick={() => setStep(3)}>Continuer</button>
+              <button className="btn-primary" disabled={nombreTomon === 0} onClick={() => setStep(3)}>{lang==='ar'?'متابعة':'Continuer'}</button>
             </div>
           )}
         </div>

@@ -3487,7 +3487,7 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile,
         .select('eleve_id').in('parent_id', linkSelectedParents);
       const enfantsIds = [...new Set((liens || []).map(l => l.eleve_id))];
       if (enfantsIds.length === 0) {
-        throw new Error('Aucun enfant lie a ces parents');
+        throw new Error(lang==='ar'?'لا يوجد أطفال مرتبطون بهؤلاء الآباء':'Aucun enfant lie a ces parents');
       }
 
       // Etape 1 : Determiner le compte qui sera le compte fusionne

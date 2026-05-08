@@ -101,7 +101,7 @@ export default function HistoriqueSeances({ user, navigate, goBack, lang='fr', i
       setSouratesDB(r5.data||[]);
       setObjectifs(r6.data||[]);
       setNiveaux(r7.data||[]);
-    } catch(e) { toast.error('Erreur de chargement'); }
+    } catch(e) { toast.error(lang==='ar'?'خطأ في التحميل':'Erreur de chargement'); }
     setLoading(false);
   };
 
