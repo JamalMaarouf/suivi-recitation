@@ -4686,7 +4686,27 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
 
   return (
     <div>
-      <div className="page-title">{t(lang, 'gestion')}</div>
+      <div className="page-title">
+        {(() => {
+          // Breadcrumb : 'Administration › Tab actuel' avec icone par tab
+          // (meme logique que la version mobile)
+          const TAB_INFO = {
+            eleves:        { icon:'👥', ar:'الطلاب',         fr:'Élèves' },
+            instituteurs:  { icon:'👨‍🏫', ar:'الأساتذة',        fr:'Profs' },
+            parents:       { icon:'👨‍👩‍👦', ar:'الآباء',          fr:'Parents' },
+            jalons:        { icon:'🏅', ar:'الشهادات',        fr:'Jalons' },
+            passage_niveau:{ icon:'📈', ar:'قواعد الانتقال',   fr:'Règles de passage' },
+            bareme:        { icon:'⭐', ar:'النقاط',           fr:'Notes' },
+            parametres:    { icon:'⚙️', ar:'الإعدادات',        fr:'Paramètres' },
+            sens_recitation:{ icon:'🧭', ar:'اتجاه التلاوة',    fr:'Sens récitation' },
+            periodes:      { icon:'📅', ar:'الفترات',          fr:'Périodes' },
+          };
+          const info = TAB_INFO[tab];
+          const adminLabel = t(lang, 'gestion');
+          if (!info) return adminLabel;
+          return <>{adminLabel} <span style={{opacity:0.5,margin:'0 8px'}}>›</span> {info.icon} {lang==='ar' ? info.ar : info.fr}</>;
+        })()}
+      </div>
       {msg.text && <div className={msg.type === 'error' ? 'error-box' : 'success-box'}>{msg.text}</div>}
 
 
