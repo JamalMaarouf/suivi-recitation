@@ -186,7 +186,7 @@ export async function loadBareme(supabase, ecole_id) {
   try {
     const { data } = await supabase
       .from('bareme_notes')
-      .select('type_action, objet_id, points')
+      .select('type_action, objet_id, sourate_id, points')
       .eq('ecole_id', ecole_id)
       .eq('actif', true);
     const b = {
@@ -194,9 +194,15 @@ export async function loadBareme(supabase, ecole_id) {
       examens: {},
       ensembles: {},
       jalons: {},
+      // Nouveau Mode 3 (mai 2026) : notes par sourate dans un ensemble
+      // Format : sourates_dans_ensemble[ensemble_id][sourate_id] = points
+      sourates_dans_ensemble: {},
     };
     (data || []).forEach(row => {
-      if (!row.objet_id) {
+      if (row.type_action === 'sourate_dans_ensemble' && row.objet_id && row.sourate_id) {
+        if (!b.sourates_dans_ensemble[row.objet_id]) b.sourates_dans_ensemble[row.objet_id] = {};
+        b.sourates_dans_ensemble[row.objet_id][row.sourate_id] = row.points;
+      } else if (!row.objet_id) {
         b.unites[row.type_action] = row.points;
       } else if (row.type_action === 'examen') {
         b.examens[row.objet_id] = row.points;
@@ -208,19 +214,82 @@ export async function loadBareme(supabase, ecole_id) {
     });
     return b;
   } catch (e) {
-    return { unites: { ...BAREME_DEFAUT }, examens: {}, ensembles: {}, jalons: {} };
+    return { unites: { ...BAREME_DEFAUT }, examens: {}, ensembles: {}, jalons: {}, sourates_dans_ensemble: {} };
   }
 }
 
 /**
- * Sauvegarde une entrée du barème (upsert).
+ * Sauvegarde une entree du bareme.
+ * Utilise DELETE + INSERT (pas UPSERT) car les index partiels ne sont
+ * pas supportes par 'ON CONFLICT' via l'API Supabase JS.
+ *
+ * @param sourate_id : pour 'sourate_dans_ensemble', l'id de la sourate
+ * @param groupe_factorisation : optionnel, identifiant de groupe factorise
+ * @returns { data, error }
  */
-export async function saveBaremeItem(supabase, ecole_id, type_action, points, objet_id = null) {
+export async function saveBaremeItem(supabase, ecole_id, type_action, points, objet_id = null, sourate_id = null, groupe_factorisation = null) {
+  // 1. DELETE des entrees existantes pour cette cle
+  let deleteQuery = supabase
+    .from('bareme_notes')
+    .delete()
+    .eq('ecole_id', ecole_id)
+    .eq('type_action', type_action)
+    .eq('actif', true);
+  if (objet_id) {
+    deleteQuery = deleteQuery.eq('objet_id', objet_id);
+  } else {
+    deleteQuery = deleteQuery.is('objet_id', null);
+  }
+  if (type_action === 'sourate_dans_ensemble' && sourate_id) {
+    deleteQuery = deleteQuery.eq('sourate_id', sourate_id);
+  }
+  const { error: deleteError } = await deleteQuery;
+  if (deleteError) return { data: null, error: deleteError };
+
+  // 2. INSERT
   const row = { ecole_id, type_action, points: parseInt(points) || 0, actif: true };
   if (objet_id) row.objet_id = objet_id;
-  await supabase.from('bareme_notes').upsert(row, {
-    onConflict: objet_id ? 'ecole_id,type_action,objet_id' : 'ecole_id,type_action,objet_id',
-  });
+  if (sourate_id) row.sourate_id = sourate_id;
+  if (groupe_factorisation) row.groupe_factorisation = groupe_factorisation;
+  const { data, error } = await supabase.from('bareme_notes').insert(row);
+  return { data, error };
+}
+
+/**
+ * Calcule les points pour une sourate recitee selon la priorite :
+ *   1. Mode 3 (sourate_dans_ensemble) si paramete pour cette sourate
+ *   2. Mode 1 (sourate complete generique) sinon
+ *
+ * @param sourate_id : id de la sourate recitee
+ * @param bareme : objet bareme charge via loadBareme
+ * @param ensembles : tableau des ensembles_sourates avec sourates_ids
+ * @param typeRecitation : 'complete' ou 'sequence'
+ * @returns { points, source }
+ */
+export function calculerPointsSourate(sourate_id, bareme, ensembles, typeRecitation = 'complete') {
+  // Pour les sequences, on garde la logique simple
+  if (typeRecitation !== 'complete') {
+    return {
+      points: bareme?.unites?.sequence_sourate || 0,
+      source: 'base',
+    };
+  }
+
+  // Mode 3 : chercher une note specifique pour cette sourate dans un ensemble
+  const sde = bareme?.sourates_dans_ensemble || {};
+  for (const ens of (ensembles || [])) {
+    if (!ens.sourates_ids || !ens.sourates_ids.includes(sourate_id)) continue;
+    const noteSpec = sde[ens.id]?.[sourate_id];
+    if (typeof noteSpec === 'number') {
+      return { points: noteSpec, source: 'sourate_dans_ensemble', ensemble_id: ens.id };
+    }
+  }
+
+  // Fallback Mode 1 : sourate complete generique
+  return {
+    points: bareme?.unites?.sourate || 0,
+    source: 'base',
+  };
 }
 
 export function calcPoints(tomonCumul, hizbsCompletsCount, validations, tomonAcquis=0, hizbAcquisComplets=0, bareme=null) {

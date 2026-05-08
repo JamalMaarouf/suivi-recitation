@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
-import { getInitiales, scoreLabel, loadBareme, verifierEtCreerCertificats, verifierBlocageEnsemble } from '../lib/helpers';
+import { getInitiales, scoreLabel, loadBareme, verifierEtCreerCertificats, verifierBlocageEnsemble, calculerPointsSourate } from '../lib/helpers';
 import { t } from '../lib/i18n';
 import { getSouratesForNiveau, isSourateNiveau } from '../lib/sourates';
 import { useToast } from '../lib/toast';
@@ -81,6 +81,7 @@ export default function RecitationSourate({ user, eleve, navigate, goBack, lang=
   const [saving, setSaving] = useState(false);
   const [flash, setFlash] = useState(null);
   const [bareme, setBareme] = useState(null);
+  const [ensemblesData, setEnsemblesData] = useState([]); // pour calculer priorité mode 3
   const [showExceptionModal, setShowExceptionModal] = useState(false);
   const [sensRecitation, setSensRecitation] = useState('desc');
   const [niveauData, setNiveauData] = useState(null); // pour blocage ensemble
@@ -95,6 +96,10 @@ export default function RecitationSourate({ user, eleve, navigate, goBack, lang=
   useEffect(() => {
     loadData();
     loadBareme(supabase, user.ecole_id).then(b => setBareme(b));
+    // Charger les ensembles avec sourates_ids pour le calcul de priorite mode 3
+    supabase.from('ensembles_sourates').select('id,nom,niveau_id,sourates_ids')
+      .eq('ecole_id', user.ecole_id)
+      .then(({data}) => setEnsemblesData(data || []));
   }, [eleve.id]);
 
   // Auto-select current sourate when arriving from outside (e.g. from FicheSourate)
@@ -247,7 +252,10 @@ export default function RecitationSourate({ user, eleve, navigate, goBack, lang=
     }
 
     setSaving(true);
-    const pts = typeRecitation === 'complete' ? (bareme?.unites?.sourate||0) : (bareme?.unites?.sequence_sourate||0);
+    // Calcul des points avec priorite Mode 3 > Mode 1
+    const sourateDbId = getDbId(selectedSourate.numero);
+    const calc = calculerPointsSourate(sourateDbId, bareme, ensemblesData, typeRecitation);
+    const pts = calc.points;
     const { error } = await supabase.from('recitations_sourates').insert({
       eleve_id: eleve.id,
       ecole_id: user.ecole_id,
@@ -404,11 +412,12 @@ export default function RecitationSourate({ user, eleve, navigate, goBack, lang=
                                   setSaving(true);
                                   const dbId = getDbId(s.numero);
                                   if (dbId) {
+                                    const calcPts = calculerPointsSourate(dbId, bareme, ensemblesData, 'complete');
                                     const {error} = await supabase.from('recitations_sourates')
                                       .insert({eleve_id:eleve.id,ecole_id:user.ecole_id,sourate_id:dbId,
-                                        type_recitation:'complete',points:bareme?.unites?.sourate||0,valide_par:user.id,
+                                        type_recitation:'complete',points:calcPts.points,valide_par:user.id,
                                         date_validation:new Date().toISOString()});
-                                    if (!error) { setFlash({msg:`✅ +${bareme?.unites?.sourate||0} pts`,color:'#1D9E75'}); setTimeout(()=>setFlash(null),2000); loadData(); }
+                                    if (!error) { setFlash({msg:`✅ +${calcPts.points} pts`,color:'#1D9E75'}); setTimeout(()=>setFlash(null),2000); loadData(); }
                                   }
                                   setSaving(false); setSelectedSourate(null);
                                 }}
