@@ -4014,7 +4014,26 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
           <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:12}}>
             <button onClick={()=>goBack?goBack():navigate('dashboard')}
               style={{background:'rgba(255,255,255,0.22)',border:'1px solid rgba(255,255,255,0.25)',borderRadius:10,padding:'0',color:'#fff',fontSize:20,cursor:'pointer',flexShrink:0,width:38,height:38,display:'flex',alignItems:'center',justifyContent:'center'}}>←</button>
-            <div style={{flex:1,fontSize:17,fontWeight:800,color:'#fff'}}>⚙️ {lang==='ar'?'الإدارة':'Administration'}</div>
+            <div style={{flex:1,fontSize:17,fontWeight:800,color:'#fff'}}>
+              {(() => {
+                // Breadcrumb : 'Administration › Tab actuel' avec icone par tab
+                const TAB_INFO = {
+                  eleves:        { icon:'👥', ar:'الطلاب',         fr:'Élèves' },
+                  instituteurs:  { icon:'👨‍🏫', ar:'الأساتذة',        fr:'Profs' },
+                  parents:       { icon:'👨‍👩‍👦', ar:'الآباء',          fr:'Parents' },
+                  jalons:        { icon:'🏅', ar:'الشهادات',        fr:'Jalons' },
+                  passage_niveau:{ icon:'📈', ar:'قواعد الانتقال',   fr:'Règles de passage' },
+                  bareme:        { icon:'⭐', ar:'النقاط',           fr:'Notes' },
+                  parametres:    { icon:'⚙️', ar:'الإعدادات',        fr:'Paramètres' },
+                  sens_recitation:{ icon:'🧭', ar:'اتجاه التلاوة',    fr:'Sens récitation' },
+                  periodes:      { icon:'📅', ar:'الفترات',          fr:'Périodes' },
+                };
+                const info = TAB_INFO[tab];
+                const adminLabel = lang==='ar' ? 'الإدارة' : 'Administration';
+                if (!info) return <>⚙️ {adminLabel}</>;
+                return <>⚙️ {adminLabel} <span style={{opacity:0.6,margin:'0 6px'}}>›</span> {info.icon} {lang==='ar' ? info.ar : info.fr}</>;
+              })()}
+            </div>
             {tab==='eleves'&&user.role==='surveillant'&&(
               <button onClick={()=>{resetFormEleve();setShowFormEleve(v=>!v);}}
                 style={{background:showFormEleve?'rgba(255,255,255,0.15)':'rgba(255,255,255,0.25)',color:'#fff',

@@ -577,7 +577,7 @@ export default function GestionExamens({ user, navigate, goBack, lang='fr', isMo
             </div>
             <button onClick={()=>{if(showForm&&!editing)resetForm();else startCreate();}}
               style={{background:showForm&&!editing?'rgba(255,255,255,0.15)':'rgba(255,255,255,0.25)',border:'1px solid rgba(255,255,255,0.3)',borderRadius:10,padding:'8px 14px',color:'#fff',fontSize:13,fontWeight:700,cursor:'pointer',fontFamily:'inherit',flexShrink:0}}>
-              {showForm&&!editing?'✕':'+ Ajouter'}
+              {showForm&&!editing?'✕':(lang==='ar'?'+ إضافة':'+ Ajouter')}
             </button>
           </div>
           {/* Filtre niveau */}
