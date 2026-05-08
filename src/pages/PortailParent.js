@@ -80,7 +80,7 @@ export default function PortailParent({ parent, navigate, goBack, lang='fr', onL
       if (!res.ok) return toast.error(data.error || 'Erreur');
       toast.success(lang==='ar'?'✅ تم تغيير كلمة المرور':'✅ Mot de passe modifié');
       setShowChangeMdp(false); setOldPwd(''); setNewPwd(''); setConfirmPwd('');
-    } catch(e) { toast.error('Erreur réseau'); }
+    } catch(e) { toast.error(lang==='ar'?'خطأ في الشبكة':'Erreur réseau'); }
   };
 
   // ─── RGPD : export JSON des données personnelles (art. 20) ────
