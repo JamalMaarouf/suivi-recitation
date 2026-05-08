@@ -300,6 +300,8 @@ function BaremeTab({ user, lang, bareme, setBareme, saving, setSaving, showMsg }
   const [ensemblesSelectionnes, setEnsemblesSelectionnes] = useState([]); // [ensemble_id, ...]
   // Configurations enregistrées (lignes)
   const [configs, setConfigs] = useState([]);
+  // Etats de chargement pour skeleton et affichage progressif
+  const [configsLoading, setConfigsLoading] = useState(true);
 
   const UNITES = [
     { key:'tomon',        icon:'📖', label_ar:'ثمن واحد مُستظهر',       color:'#378ADD' },
@@ -310,6 +312,13 @@ function BaremeTab({ user, lang, bareme, setBareme, saving, setSaving, showMsg }
   ];
 
   useEffect(() => {
+    // PRIORITE 1 : charger configs en premier (c'est ce que l'utilisateur veut voir)
+    supabase.from('bareme_notes').select('*').eq('ecole_id', user.ecole_id).eq('actif', true).order('created_at')
+      .then(({data}) => {
+        if (data) setConfigs(data);
+        setConfigsLoading(false);
+      });
+    // PRIORITE 2 : charger les autres en parallele (servent a enrichir l'affichage)
     supabase.from('examens').select('id,nom').eq('ecole_id', user.ecole_id).eq('actif', true).order('nom')
       .then(({data}) => setExamens(data||[]));
     supabase.from('ensembles_sourates').select('id,nom,niveau_id,sourates_ids,ordre').eq('ecole_id', user.ecole_id).order('niveau_id,ordre,nom')
@@ -320,8 +329,6 @@ function BaremeTab({ user, lang, bareme, setBareme, saving, setSaving, showMsg }
       .then(({data}) => setSouratesDB(data||[]));
     supabase.from('jalons').select('id,nom,nom_ar,type_jalon').eq('ecole_id', user.ecole_id).eq('actif', true).order('created_at')
       .then(({data}) => setJalons(data||[]));
-    supabase.from('bareme_notes').select('*').eq('ecole_id', user.ecole_id).eq('actif', true).order('created_at')
-      .then(({data}) => { if (data) setConfigs(data); });
   }, []);
 
   // Helpers
@@ -875,8 +882,31 @@ function BaremeTab({ user, lang, bareme, setBareme, saving, setSaving, showMsg }
       </div>
 
       {/* Liste des configurations enregistrées */}
-      <div className="section-label">{lang==='ar'?'التنقيطات المُسجَّلة':'Notations enregistrées'} ({configs.length})</div>
-      {configs.length === 0 ? (
+      <div className="section-label">
+        {lang==='ar'?'التنقيطات المُسجَّلة':'Notations enregistrées'}
+        {!configsLoading && ` (${configs.length})`}
+      </div>
+      {configsLoading ? (
+        // Skeleton de chargement (3 lignes grises animees)
+        <div style={{display:'flex',flexDirection:'column',gap:6}}>
+          {[1,2,3].map(i => (
+            <div key={i} style={{
+              display:'flex',alignItems:'center',gap:12,padding:'10px 14px',
+              background:'#fff',border:'0.5px solid #e0e0d8',borderRadius:10,
+              animation: 'pulse 1.5s ease-in-out infinite',
+              opacity: 0.5,
+            }}>
+              <div style={{width:24,height:24,borderRadius:6,background:'#e8e8e0'}}></div>
+              <div style={{flex:1, display:'flex', flexDirection:'column', gap:6}}>
+                <div style={{width:'60%',height:13,background:'#e8e8e0',borderRadius:4}}></div>
+                <div style={{width:'40%',height:10,background:'#f0f0eb',borderRadius:4}}></div>
+              </div>
+              <div style={{width:30,height:20,background:'#e8e8e0',borderRadius:4}}></div>
+            </div>
+          ))}
+          <style>{`@keyframes pulse { 0%, 100% { opacity: 0.5; } 50% { opacity: 0.3; } }`}</style>
+        </div>
+      ) : configs.length === 0 ? (
         <div className="empty">{lang==='ar'?'لا توجد تنقيطات بعد — أضف معايير وسجّلها أعلاه':'Aucune notation enregistrée'}</div>
       ) : (() => {
         // GROUPAGE des configs :
