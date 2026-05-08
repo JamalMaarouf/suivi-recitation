@@ -155,6 +155,50 @@ export default function ResultatsExamens({ user, navigate, goBack, lang='fr', is
             points: ptsExamen, valide_par: user.id,
           });
         }
+
+        // Cas A : auto-validation des ensembles lies a cet examen
+        // (uniquement pour niveaux sourates ou si l'examen contient des ensembles)
+        try {
+          const contenuIds = selectedExamen.contenu_ids || [];
+          if (contenuIds.length > 0) {
+            // Verifier si ce sont des ensembles (vs des hizb)
+            const { data: ensConcernes } = await supabase
+              .from('ensembles_sourates')
+              .select('id, nom')
+              .eq('ecole_id', user.ecole_id)
+              .in('id', contenuIds);
+
+            if (ensConcernes && ensConcernes.length > 0) {
+              // Verifier lesquels ne sont pas deja valides pour cet eleve
+              const { data: dejaValides } = await supabase
+                .from('validations')
+                .select('ensemble_id')
+                .eq('eleve_id', selectedEleve.id)
+                .eq('type_validation', 'ensemble_valide')
+                .in('ensemble_id', ensConcernes.map(e => e.id));
+
+              const idsDejaValides = new Set((dejaValides || []).map(v => v.ensemble_id));
+              const aValider = ensConcernes.filter(e => !idsDejaValides.has(e.id));
+
+              if (aValider.length > 0) {
+                await supabase.from('validations').insert(
+                  aValider.map(e => ({
+                    eleve_id: selectedEleve.id,
+                    ecole_id: user.ecole_id,
+                    valide_par: user.id,
+                    ensemble_id: e.id,
+                    type_validation: 'ensemble_valide',
+                    nombre_tomon: 0,
+                    date_validation: new Date().toISOString(),
+                  }))
+                );
+              }
+            }
+          }
+        } catch (errEns) {
+          console.warn('Auto-validation ensembles echec:', errEns);
+        }
+
         // Vérifier si un jalon est débloqué (Sources A/B/C)
         const { data: valsEleve } = await supabase.from('validations').select('*').eq('eleve_id', selectedEleve.id);
         const { data: recsEleve } = await supabase.from('recitations_sourates').select('*').eq('eleve_id', selectedEleve.id).eq('ecole_id', user.ecole_id);

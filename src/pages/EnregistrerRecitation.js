@@ -6,7 +6,7 @@ import { withRetryToast } from '../lib/retry';
 import { invalidateMany } from '../lib/cache';
 import { enqueueOrRun } from '../lib/offlineQueue';
 import { notifierParents } from '../lib/notificationsParents';
-import { calcEtatEleve, calcPositionAtteinte, calcUnite, formatDate, getInitiales, motivationMsg, verifierBlocageExamen, verifierEtCreerCertificats, verifierEtCreerCertificatsBlocs, loadBareme, getSensForEleve, calcBlocProgression, prochainHizbDansBloc } from '../lib/helpers';
+import { calcEtatEleve, calcPositionAtteinte, calcUnite, formatDate, getInitiales, motivationMsg, verifierBlocageExamen, verifierBlocageEnsemble, validerEnsemble, verifierEtCreerCertificats, verifierEtCreerCertificatsBlocs, loadBareme, getSensForEleve, calcBlocProgression, prochainHizbDansBloc } from '../lib/helpers';
 
 function Avatar({ prenom, nom, size = 36, bg = '#E1F5EE', color = '#085041' }) {
   return (
@@ -21,6 +21,7 @@ export default function EnregistrerRecitation({  user, eleve: eleveInitial, navi
   const [step, setStep] = useState(eleveInitial ? 2 : 1);
   const [bareme, setBareme] = useState(null);
   const [blocage, setBlocage] = useState(null); // examen requis avant de continuer
+  const [blocagesEnsemble, setBlocagesEnsemble] = useState([]); // ensembles termines mais non valides
   const [eleves, setEleves] = useState([]);
   const [search, setSearch] = useState('');
   const [selectedEleve, setSelectedEleve] = useState(eleveInitial || null);
@@ -291,6 +292,20 @@ export default function EnregistrerRecitation({  user, eleve: eleveInitial, navi
       setBlocage(blocageDetecte);
     }
 
+    // Detection blocage ensemble (niveaux sourates uniquement)
+    try {
+      const niveauEleve = (niveaux || []).find(n => n.code === selectedEleve.code_niveau);
+      if (niveauEleve && niveauEleve.type === 'sourate') {
+        const blocagesEns = await verifierBlocageEnsemble(supabase, {
+          eleve_id: selectedEleve.id,
+          ecole_id: user.ecole_id,
+          niveau_id: niveauEleve.id,
+          niveau_type: niveauEleve.type,
+        });
+        setBlocagesEnsemble(blocagesEns || []);
+      }
+    } catch (e) { /* reseau instable, on continue */ }
+
     // Vérifier si un jalon/certificat est débloqué
     const nouveauxCerts = await verifierEtCreerCertificats(supabase, {
       eleve: selectedEleve, ecole_id: user.ecole_id, valide_par: user.id,
@@ -549,6 +564,71 @@ export default function EnregistrerRecitation({  user, eleve: eleveInitial, navi
               </button>
             </div>
           )}
+          {/* Blocages ensemble (niveaux sourates) */}
+          {done && blocagesEnsemble.length > 0 && blocagesEnsemble.map((b, idx) => {
+            // Cas A : examen lie -> meme bannière que examen (deja affichee si blocage examen actif)
+            // On affiche seulement si pas deja couvert par 'blocage' principal
+            if (b.cas === 'A' && blocage) return null;
+
+            if (b.cas === 'A') {
+              // Cas A sans blocage examen actif (rare) : redirection examen
+              return (
+                <div key={idx} style={{margin:'12px 12px 0',padding:'16px',borderRadius:14,
+                  background:'#FAEEDA',border:'1.5px solid #EF9F2730'}}>
+                  <div style={{fontSize:15,fontWeight:700,color:'#633806',marginBottom:8}}>
+                    📝 {lang==='ar' ? 'مجموعة مكتملة - امتحان مطلوب' : 'Ensemble complété - Examen requis'}
+                  </div>
+                  <div style={{fontSize:13,color:'#854F0B',marginBottom:12}}>
+                    {lang==='ar'
+                      ? `أنهى التلميذ المجموعة "${b.ensemble.nom}". يجب اجتياز الامتحان "${b.examen.nom}".`
+                      : `L'élève a terminé l'ensemble "${b.ensemble.nom}". L'examen "${b.examen.nom}" est requis.`}
+                  </div>
+                  <button onClick={()=>navigate('resultats_examens', {eleve:selectedEleve, blocage:{examen:b.examen}})}
+                    style={{width:'100%',padding:'12px',background:'#EF9F27',color:'#fff',border:'none',
+                      borderRadius:10,fontSize:14,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
+                    {lang==='ar'?'تسجيل نتيجة الامتحان':"Enregistrer le résultat d'examen"}
+                  </button>
+                </div>
+              );
+            }
+
+            // Cas B : validation simple par le surveillant
+            return (
+              <div key={idx} style={{margin:'12px 12px 0',padding:'16px',borderRadius:14,
+                background:'#EEEDFE',border:'1.5px solid #534AB730'}}>
+                <div style={{fontSize:15,fontWeight:700,color:'#3a3387',marginBottom:8}}>
+                  📦 {lang==='ar' ? 'مجموعة مكتملة' : 'Ensemble complété'}
+                </div>
+                <div style={{fontSize:13,color:'#534AB7',marginBottom:12}}>
+                  {lang==='ar'
+                    ? `أنهى التلميذ كل سور المجموعة "${b.ensemble.nom}". يرجى الاستماع لاستظهارها كاملة ثم اعتمادها.`
+                    : `L'élève a terminé toutes les sourates de l'ensemble "${b.ensemble.nom}". Écoutez la récitation complète puis validez.`}
+                </div>
+                <button onClick={async ()=>{
+                    if (!window.confirm(lang==='ar' ? 'تأكيد اعتماد المجموعة ؟' : "Confirmer la validation de l'ensemble ?")) return;
+                    const res = await validerEnsemble(supabase, {
+                      eleve_id: selectedEleve.id,
+                      ecole_id: user.ecole_id,
+                      ensemble_id: b.ensemble.id,
+                      valide_par: user.id,
+                    });
+                    if (res?.error) {
+                      toast.error(lang==='ar' ? 'خطأ في الاعتماد' : 'Erreur lors de la validation');
+                      return;
+                    }
+                    toast.success(lang==='ar'
+                      ? `✅ تم اعتماد "${b.ensemble.nom}"`
+                      : `✅ "${b.ensemble.nom}" validé`);
+                    // Retirer ce blocage de la liste
+                    setBlocagesEnsemble(prev => prev.filter((_, i) => i !== idx));
+                  }}
+                  style={{width:'100%',padding:'12px',background:'#534AB7',color:'#fff',border:'none',
+                    borderRadius:10,fontSize:14,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
+                  ✓ {lang==='ar' ? 'اعتماد المجموعة' : "Valider l'ensemble"}
+                </button>
+              </div>
+            );
+          })}
           {done && motivMsg && (
             <div style={{background:'#E1F5EE',borderRadius:14,padding:'24px',textAlign:'center'}}>
               <div style={{fontSize:48,marginBottom:8}}>🎉</div>

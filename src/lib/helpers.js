@@ -622,6 +622,114 @@ export async function verifierBlocageExamen(supabase, {
   }
 }
 
+/**
+ * Verifie si l'eleve a termine la derniere sourate d'un ensemble
+ * et que cet ensemble n'a pas encore ete valide.
+ *
+ * Retourne les ensembles 'completes mais non valides' avec info :
+ * - ensemble : { id, nom, niveau_id, sourates_ids }
+ * - examen : si l'ensemble est dans un examen bloquant non encore reussi (Cas A)
+ *            sinon null (Cas B - validation simple par le surveillant)
+ *
+ * @returns Array de blocages (ou tableau vide si aucun)
+ */
+export async function verifierBlocageEnsemble(supabase, { eleve_id, ecole_id, niveau_id, niveau_type }) {
+  try {
+    // Ne s'applique qu'aux niveaux recitant en sourates
+    if (niveau_type !== 'sourate') return [];
+
+    // 1. Charger les ensembles du niveau
+    const { data: ensembles } = await supabase
+      .from('ensembles_sourates')
+      .select('id, nom, niveau_id, sourates_ids, ordre')
+      .eq('ecole_id', ecole_id)
+      .eq('niveau_id', niveau_id)
+      .order('ordre');
+
+    if (!ensembles || ensembles.length === 0) return [];
+
+    // 2. Charger les sourates recitees completement par l'eleve
+    const { data: recitations } = await supabase
+      .from('recitations_sourates')
+      .select('sourate_id, type_recitation')
+      .eq('eleve_id', eleve_id)
+      .eq('type_recitation', 'complete');
+
+    const souratesRecitees = new Set((recitations || []).map(r => r.sourate_id));
+
+    // 3. Charger les ensembles deja valides pour cet eleve
+    const { data: validationsEns } = await supabase
+      .from('validations')
+      .select('ensemble_id')
+      .eq('eleve_id', eleve_id)
+      .eq('type_validation', 'ensemble_valide');
+
+    const ensemblesValides = new Set((validationsEns || []).map(v => v.ensemble_id));
+
+    // 4. Charger les examens du niveau (pour distinguer Cas A vs Cas B)
+    const { data: examens } = await supabase
+      .from('examens')
+      .select('id, nom, contenu_ids, bloquant, niveau_id')
+      .eq('ecole_id', ecole_id)
+      .eq('niveau_id', niveau_id)
+      .eq('actif', true);
+
+    // 5. Charger les resultats d'examens deja reussis
+    const { data: resultats } = await supabase
+      .from('resultats_examens')
+      .select('examen_id, reussi')
+      .eq('eleve_id', eleve_id);
+
+    const examensReussis = new Set((resultats || []).filter(r => r.reussi).map(r => r.examen_id));
+
+    // 6. Pour chaque ensemble, verifier si toutes ses sourates sont recitees ET non encore valide
+    const blocages = [];
+    for (const ens of ensembles) {
+      if (!ens.sourates_ids || ens.sourates_ids.length === 0) continue;
+      if (ensemblesValides.has(ens.id)) continue; // deja valide -> pas de blocage
+
+      // Toutes les sourates recitees ?
+      const toutes = ens.sourates_ids.every(sId => souratesRecitees.has(sId));
+      if (!toutes) continue;
+
+      // Cas A : ensemble lie a un examen bloquant non encore reussi
+      const examenLie = (examens || []).find(ex =>
+        ex.bloquant
+        && (ex.contenu_ids || []).includes(ens.id)
+        && !examensReussis.has(ex.id)
+      );
+
+      blocages.push({
+        ensemble: ens,
+        examen: examenLie || null,  // null si Cas B
+        cas: examenLie ? 'A' : 'B',
+      });
+    }
+
+    return blocages;
+  } catch (err) {
+    console.error('verifierBlocageEnsemble error:', err);
+    return [];
+  }
+}
+
+/**
+ * Valide un ensemble pour un eleve (Cas B uniquement).
+ * Insere une ligne dans validations avec type='ensemble_valide'.
+ * @returns { data, error }
+ */
+export async function validerEnsemble(supabase, { eleve_id, ecole_id, ensemble_id, valide_par }) {
+  const { data, error } = await supabase
+    .from('validations')
+    .insert({
+      eleve_id, ecole_id, valide_par, ensemble_id,
+      type_validation: 'ensemble_valide',
+      nombre_tomon: 0, // requis non-null par schema
+      date_validation: new Date().toISOString(),
+    });
+  return { data, error };
+}
+
 // ── HELPERS NIVEAUX DYNAMIQUES ─────────────────────────────────
 // Cache des niveaux chargé une fois depuis Supabase
 let _niveauxCache = null;

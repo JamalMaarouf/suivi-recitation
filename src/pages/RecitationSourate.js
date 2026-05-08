@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
-import { getInitiales, scoreLabel, loadBareme, verifierEtCreerCertificats } from '../lib/helpers';
+import { getInitiales, scoreLabel, loadBareme, verifierEtCreerCertificats, verifierBlocageEnsemble } from '../lib/helpers';
 import { t } from '../lib/i18n';
 import { getSouratesForNiveau, isSourateNiveau } from '../lib/sourates';
 import { useToast } from '../lib/toast';
@@ -83,6 +83,7 @@ export default function RecitationSourate({ user, eleve, navigate, goBack, lang=
   const [bareme, setBareme] = useState(null);
   const [showExceptionModal, setShowExceptionModal] = useState(false);
   const [sensRecitation, setSensRecitation] = useState('desc');
+  const [niveauData, setNiveauData] = useState(null); // pour blocage ensemble
 
   const codeNiveau = eleve.code_niveau || '5B';
   const souratesNiveau = getSouratesForNiveau(codeNiveau);
@@ -111,12 +112,13 @@ export default function RecitationSourate({ user, eleve, navigate, goBack, lang=
       supabase.from('sourates').select('*'),
       supabase.from('recitations_sourates').select('*, valideur:valide_par(prenom,nom)')
         .eq('ecole_id', user.ecole_id).eq('eleve_id', eleve.id).order('date_validation', { ascending: false }),
-      supabase.from('niveaux').select('code,sens_recitation').eq('ecole_id', user.ecole_id).eq('code', codeNiveau).maybeSingle(),
+      supabase.from('niveaux').select('id,code,type,sens_recitation').eq('ecole_id', user.ecole_id).eq('code', codeNiveau).maybeSingle(),
       supabase.from('ecoles').select('sens_recitation_defaut').eq('id', user.ecole_id).maybeSingle(),
     ]);
     // Résolution du sens : niveau > école > desc
     const resolvedSens = nv?.sens_recitation || ec?.sens_recitation_defaut || 'desc';
     setSensRecitation(resolvedSens);
+    setNiveauData(nv); // {id, code, type, sens_recitation}
     // Safe load for exceptions (table may not exist)
     let ex = [];
     try {
@@ -215,6 +217,35 @@ export default function RecitationSourate({ user, eleve, navigate, goBack, lang=
       if (!versetDebut || !versetFin) { toast.warning(lang==='ar'?'يجب تحديد الآيات':'Veuillez saisir les versets'); return; }
       if (parseInt(versetFin) < parseInt(versetDebut)) { toast.warning(lang==='ar'?'الآية الأخيرة يجب أن تكون أكبر':'Le verset de fin doit être supérieur'); return; }
     }
+
+    // Blocage dur ensemble : verifier si un ensemble est en attente de validation
+    // pour les niveaux recitant en sourates uniquement
+    if (niveauData && niveauData.type === 'sourate') {
+      try {
+        const blocages = await verifierBlocageEnsemble(supabase, {
+          eleve_id: eleve.id,
+          ecole_id: user.ecole_id,
+          niveau_id: niveauData.id,
+          niveau_type: niveauData.type,
+        });
+        if (blocages && blocages.length > 0) {
+          // Verifier si la sourate actuelle est DANS un ensemble bloque (re-recitation OK)
+          const sourateDbId = getDbId(selectedSourate.numero);
+          const dansEnsembleBloque = blocages.some(b =>
+            (b.ensemble.sourates_ids || []).includes(sourateDbId)
+          );
+          if (!dansEnsembleBloque) {
+            // C'est une NOUVELLE sourate hors ensemble bloque -> bloquer
+            const ensembleNoms = blocages.map(b => b.ensemble.nom).join(', ');
+            toast.warning(lang==='ar'
+              ? `🔒 يجب اعتماد المجموعة "${ensembleNoms}" أولاً قبل المتابعة`
+              : `🔒 Validez d'abord l'ensemble "${ensembleNoms}" avant de continuer`);
+            return;
+          }
+        }
+      } catch (e) { console.warn('blocage ensemble check', e); }
+    }
+
     setSaving(true);
     const pts = typeRecitation === 'complete' ? (bareme?.unites?.sourate||0) : (bareme?.unites?.sequence_sourate||0);
     const { error } = await supabase.from('recitations_sourates').insert({
