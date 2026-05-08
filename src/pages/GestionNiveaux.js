@@ -1554,7 +1554,11 @@ export default function GestionNiveaux({ user, navigate, goBack, lang='fr', isMo
             <button onClick={save} disabled={saving}
               style={{padding:'10px 24px',background:saving?'#ccc':editing?'#378ADD':'#1D9E75',
                 color:'#fff',border:'none',borderRadius:10,cursor:saving?'not-allowed':'pointer',fontSize:13,fontWeight:700}}>
-              {saving?'...':(editing?'Mettre à jour ✓':'Enregistrer')}
+              {saving
+                ? '...'
+                : editing
+                  ? (lang==='ar'?'تحديث ✓':'Mettre à jour ✓')
+                  : (lang==='ar'?'حفظ':'Enregistrer')}
             </button>
           </div>
         </div>
@@ -1653,7 +1657,9 @@ export default function GestionNiveaux({ user, navigate, goBack, lang='fr', isMo
                     <span style={{fontSize:12,padding:'3px 10px',borderRadius:20,
                       background:n.actif?'#E1F5EE':'#f0f0ec',
                       color:n.actif?'#085041':'#888',fontWeight:600,whiteSpace:'nowrap'}}>
-                      {n.actif?'✓ Actif':'Inactif'}
+                      {n.actif
+                        ? (lang==='ar'?'✓ نشط':'✓ Actif')
+                        : (lang==='ar'?'غير نشط':'Inactif')}
                     </span>
                   </td>
                   <td className="actions-cell">
