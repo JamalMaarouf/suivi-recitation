@@ -1059,7 +1059,7 @@ export default function GestionNiveaux({ user, navigate, goBack, lang='fr', isMo
             </div>
             <button onClick={()=>{setEditing(null);setForm({...emptyForm,ordre:niveaux.length+1});setShowForm(v=>!v);}}
               style={{background:'rgba(255,255,255,0.25)',border:'1px solid rgba(255,255,255,0.3)',borderRadius:10,padding:'8px 14px',color:'#fff',fontSize:13,fontWeight:700,cursor:'pointer',fontFamily:'inherit',flexShrink:0,whiteSpace:'nowrap'}}>
-              {showForm&&!editing?'✕':'+ Ajouter'}
+              {showForm&&!editing?'✕':(lang==='ar'?'+ إضافة':'+ Ajouter')}
             </button>
           </div>
         </div>
@@ -1360,7 +1360,9 @@ export default function GestionNiveaux({ user, navigate, goBack, lang='fr', isMo
           <button onClick={()=>{setEditing(null);setForm({...emptyForm,ordre:niveaux.length+1});setShowForm(v=>!v);}}
             style={{padding:'8px 18px',background:showForm&&!editing?'#f0f0ec':'#1D9E75',color:showForm&&!editing?'#666':'#fff',
               border:'none',borderRadius:10,fontSize:13,fontWeight:600,cursor:'pointer'}}>
-            {showForm&&!editing?'✕ Annuler':'+ Nouveau niveau'}
+            {showForm&&!editing
+              ? (lang==='ar'?'✕ إلغاء':'✕ Annuler')
+              : (lang==='ar'?'+ مستوى جديد':'+ Nouveau niveau')}
           </button>
         }
       />
