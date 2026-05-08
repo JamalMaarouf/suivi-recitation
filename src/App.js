@@ -335,8 +335,30 @@ export default function App() {
 
   const goBack = () => {
     if (navHistory.length === 0) { setPageWithRef('dashboard'); return; }
-    const prev = navHistory[navHistory.length - 1];
-    setNavHistory(h => h.slice(0, -1));
+
+    // Bug fix (mai 2026) : filtrer les pages identiques a la page courante
+    // pour eviter le bug 'le 1er clic ne fait rien, le 2e va a dashboard'
+    // Cause : navHistory empile parfois la meme page plusieurs fois
+    let prev = null;
+    let newHistory = [...navHistory];
+    while (newHistory.length > 0) {
+      const candidate = newHistory[newHistory.length - 1];
+      newHistory = newHistory.slice(0, -1);
+      if (candidate.page !== pageRef.current) {
+        prev = candidate;
+        break;
+      }
+      // Sinon : on continue a depiler les doublons
+    }
+
+    if (!prev) {
+      // Tous les elements de navHistory etaient des doublons -> dashboard
+      setNavHistory([]);
+      setPageWithRef('dashboard');
+      return;
+    }
+
+    setNavHistory(newHistory);
     setPageWithRef(prev.page);
     if (prev.selectedEleve !== undefined) setSelectedEleve(prev.selectedEleve);
     if (prev.selectedInstituteur !== undefined) setSelectedInstituteur(prev.selectedInstituteur);
