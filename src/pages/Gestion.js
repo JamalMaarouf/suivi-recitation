@@ -577,29 +577,33 @@ function BaremeTab({ user, lang, bareme, setBareme, saving, setSaving, showMsg }
   };
 
   const getConfigLabel = (c) => {
-    if (!c.objet_id) return UNITES.find(u => u.key === c.type)?.label_ar || c.type;
-    if (c.type === 'examen') return examens.find(e => e.id === c.objet_id)?.nom || '—';
-    if (c.type === 'ensemble_sourates') {
+    // Support BDD (type_action) ET memoire (type) car les criteres en cours
+    // d'ajout utilisent 'type' alors que les configs en BDD utilisent 'type_action'
+    const t = c.type || c.type_action;
+    if (!c.objet_id) return UNITES.find(u => u.key === t)?.label_ar || t;
+    if (t === 'examen') return examens.find(e => e.id === c.objet_id)?.nom || '—';
+    if (t === 'ensemble_sourates') {
       const e = ensembles.find(x => x.id === c.objet_id);
       const niv = niveauObj(e?.niveau_id);
       return niv ? `[${niv.code}] ${e?.nom||'—'}` : (e?.nom || '—');
     }
-    if (c.type === 'sourate_dans_ensemble') {
+    if (t === 'sourate_dans_ensemble') {
       const e = ensembles.find(x => x.id === c.objet_id);
       const niv = niveauObj(e?.niveau_id);
       const ensLabel = niv ? `[${niv.code}] ${e?.nom||'—'}` : (e?.nom || '—');
       return `${ensLabel} → ${sourateNom(c.sourate_id)}`;
     }
-    if (c.type === 'jalon') { const j = jalons.find(x => x.id === c.objet_id); return j?.nom_ar || j?.nom || '—'; }
-    return c.type;
+    if (t === 'jalon') { const j = jalons.find(x => x.id === c.objet_id); return j?.nom_ar || j?.nom || '—'; }
+    return t;
   };
 
   const getConfigIcon = (c) => {
-    if (!c.objet_id) return UNITES.find(u => u.key === c.type)?.icon || '⭐';
-    if (c.type === 'examen') return '📝';
-    if (c.type === 'ensemble_sourates') return '📦';
-    if (c.type === 'sourate_dans_ensemble') return '🎯';
-    if (c.type === 'jalon') return '🏅';
+    const t = c.type || c.type_action;
+    if (!c.objet_id) return UNITES.find(u => u.key === t)?.icon || '⭐';
+    if (t === 'examen') return '📝';
+    if (t === 'ensemble_sourates') return '📦';
+    if (t === 'sourate_dans_ensemble') return '🎯';
+    if (t === 'jalon') return '🏅';
     return '⭐';
   };
 
@@ -974,20 +978,25 @@ function BaremeTab({ user, lang, bareme, setBareme, saving, setSaving, showMsg }
               />
             ))}
 
-            {/* ISOLES (non groupés) - lignes simples comme avant */}
+            {/* ISOLES (non groupés) - lignes simples avec edit inline */}
             {isoles.map(c => (
-              <div key={c.id} style={{display:'flex',alignItems:'center',gap:12,padding:'10px 14px',background:'#fff',border:'0.5px solid #e0e0d8',borderRadius:10}}>
-                <span style={{fontSize:18}}>{getConfigIcon(c)}</span>
-                <div style={{flex:1}}>
-                  <div style={{fontWeight:600,fontSize:13,direction:'rtl',fontFamily:"'Tajawal',Arial,sans-serif"}}>{getConfigLabel(c)}</div>
-                </div>
-                <span style={{fontWeight:800,fontSize:16,color:'#378ADD'}}>{c.points}</span>
-                <span style={{fontSize:10,color:'#aaa'}}>{lang==='ar'?'ن':'pts'}</span>
-                <button onClick={() => supprimerConfig(c.id)}
-                  style={{padding:'4px 8px',background:'#FCEBEB',color:'#E24B4A',border:'0.5px solid #E24B4A30',borderRadius:6,cursor:'pointer',fontSize:11}}>
-                  🗑
-                </button>
-              </div>
+              <ConfigSimpleLine key={c.id}
+                config={c}
+                lang={lang}
+                getConfigLabel={getConfigLabel}
+                getConfigIcon={getConfigIcon}
+                onUpdatePoints={async (newPts) => {
+                  await supabase.from('bareme_notes')
+                    .update({ points: parseInt(newPts) || 0 })
+                    .eq('id', c.id);
+                  setConfigs(prev => prev.map(x =>
+                    x.id === c.id ? { ...x, points: parseInt(newPts) || 0 } : x
+                  ));
+                  const newB = await loadBareme(supabase, user.ecole_id);
+                  setBareme(newB);
+                }}
+                onDelete={() => supprimerConfig(c.id)}
+              />
             ))}
           </div>
         );
@@ -1119,7 +1128,83 @@ function GroupeCard({ groupe, lang, ensembles, niveaux, souratesDB, getConfigLab
 }
 
 // ══════════════════════════════════════════════════════
-// COMPOSANT PeriodesTab — Etape 14 (refonte complete)
+// COMPOSANT ConfigSimpleLine — ligne simple pour critere isolé
+// (Mode 1 generique : Tomon, Hizb complet, Sourate, Examen, Jalon)
+// Avec edit inline des points + bouton supprimer
+// ══════════════════════════════════════════════════════
+function ConfigSimpleLine({ config, lang, getConfigLabel, getConfigIcon, onUpdatePoints, onDelete }) {
+  const [editing, setEditing] = useState(false);
+  const [newPoints, setNewPoints] = useState(config.points);
+  const [savingEdit, setSavingEdit] = useState(false);
+
+  const validerEdit = async () => {
+    const valeur = parseInt(newPoints) || 0;
+    if (valeur === config.points) { setEditing(false); return; }
+    if (valeur <= 0) { setEditing(false); setNewPoints(config.points); return; }
+    setSavingEdit(true);
+    await onUpdatePoints(valeur);
+    setSavingEdit(false);
+    setEditing(false);
+  };
+
+  const annulerEdit = () => {
+    setNewPoints(config.points);
+    setEditing(false);
+  };
+
+  const label = getConfigLabel(config) || '—';
+  const icon = getConfigIcon(config) || '⭐';
+
+  return (
+    <div style={{display:'flex',alignItems:'center',gap:12,padding:'10px 14px',background:'#fff',border:'0.5px solid #e0e0d8',borderRadius:10}}>
+      <span style={{fontSize:18}}>{icon}</span>
+      <div style={{flex:1, minWidth:0}}>
+        <div style={{fontWeight:600,fontSize:13,direction:'rtl',fontFamily:"'Tajawal',Arial,sans-serif"}}>{label}</div>
+      </div>
+
+      {/* Points editable inline */}
+      {editing ? (
+        <div style={{display:'flex', alignItems:'center', gap:4}}>
+          <input type="number" min="0" max="9999" value={newPoints} autoFocus
+            onChange={e => setNewPoints(e.target.value)}
+            onKeyDown={e => {
+              if (e.key === 'Enter') validerEdit();
+              if (e.key === 'Escape') annulerEdit();
+            }}
+            disabled={savingEdit}
+            style={{width:60, padding:'6px', borderRadius:6, border:'1.5px solid #378ADD', fontSize:14, fontWeight:700, textAlign:'center', color:'#378ADD'}} />
+          <button onClick={validerEdit} disabled={savingEdit}
+            title={lang==='ar' ? 'حفظ' : 'Enregistrer'}
+            style={{padding:'4px 8px', background:'#1D9E75', color:'#fff', border:'none', borderRadius:6, cursor: savingEdit ? 'wait' : 'pointer', fontSize:11, fontWeight:700}}>
+            {savingEdit ? '...' : '✓'}
+          </button>
+          <button onClick={annulerEdit} disabled={savingEdit}
+            title={lang==='ar' ? 'إلغاء' : 'Annuler'}
+            style={{padding:'4px 8px', background:'#fff', color:'#888', border:'0.5px solid #ddd', borderRadius:6, cursor:'pointer', fontSize:11}}>
+            ✕
+          </button>
+        </div>
+      ) : (
+        <>
+          <div style={{textAlign:'center'}}>
+            <div style={{fontWeight:800,fontSize:16,color:'#378ADD'}}>{config.points}</div>
+            <div style={{fontSize:9, color:'#888'}}>{lang==='ar' ? 'نقطة' : 'pts'}</div>
+          </div>
+          <button onClick={() => { setNewPoints(config.points); setEditing(true); }}
+            title={lang==='ar' ? 'تعديل النقاط' : 'Modifier les points'}
+            style={{padding:'4px 8px', background:'#fff', color:'#378ADD', border:'0.5px solid #378ADD40', borderRadius:6, cursor:'pointer', fontSize:11, fontWeight:600, whiteSpace:'nowrap'}}>
+            ✏️ {lang==='ar' ? 'تعديل' : 'Modifier'}
+          </button>
+          <button onClick={onDelete}
+            title={lang==='ar' ? 'حذف' : 'Supprimer'}
+            style={{padding:'4px 8px',background:'#FCEBEB',color:'#E24B4A',border:'0.5px solid #E24B4A30',borderRadius:6,cursor:'pointer',fontSize:11,whiteSpace:'nowrap'}}>
+            🗑 {lang==='ar' ? 'حذف' : 'Supprimer'}
+          </button>
+        </>
+      )}
+    </div>
+  );
+}
 // Modele : Annee scolaire = container, periodes attachees a une annee
 // Q1=A : 1 seule annee active a la fois
 // Q3=B : Cloture manuelle puis activation manuelle
