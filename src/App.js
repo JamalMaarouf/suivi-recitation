@@ -321,8 +321,14 @@ export default function App() {
 
 
   const navigate = (p, data = null, extraData = null) => {
-    // Save current page to history before navigating
-    setNavHistory(h => [...h.slice(-19), { page: pageRef.current, selectedEleve, selectedInstituteur, selectedCoursId, selectedCoursValidation, extraData: extraData }]);
+    // Bug fix navigation (mai 2026) :
+    // Ne PAS empiler dans navHistory si on reste sur la MEME page.
+    // Cela evite les doublons (ex: changement d'onglet dans Gestion qui
+    // appelle navigate('gestion', ...) avec un tab different).
+    // navHistory ne doit contenir que des VRAIES transitions de page.
+    if (p !== pageRef.current) {
+      setNavHistory(h => [...h.slice(-19), { page: pageRef.current, selectedEleve, selectedInstituteur, selectedCoursId, selectedCoursValidation, extraData: extraData }]);
+    }
     setPageWithRef(p);
     if (p === 'fiche' || p === 'enregistrer') setSelectedEleve(data);
     if (p === 'profil_instituteur') setSelectedInstituteur(data);
@@ -334,38 +340,12 @@ export default function App() {
   };
 
   const goBack = () => {
+    // Logique simple : depile la derniere entree de navHistory.
+    // Comme navigate() empile uniquement les vraies transitions de page
+    // (page courante != page de destination), pas de doublon possible.
     if (navHistory.length === 0) { setPageWithRef('dashboard'); return; }
-
-    // Bug fix v2 (mai 2026) : filtrer SEULEMENT les vrais doublons
-    // Un vrai doublon = meme page ET meme tab (et meme contexte)
-    // Sinon : changer d'onglet dans Gestion (page='gestion', tab='niveaux'
-    // -> tab='notes') laisse la chance de revenir au tab precedent
-    const currentTab = gestionTab; // tab actuel pour comparaison
-    let prev = null;
-    let newHistory = [...navHistory];
-    while (newHistory.length > 0) {
-      const candidate = newHistory[newHistory.length - 1];
-      newHistory = newHistory.slice(0, -1);
-      // Vrai doublon si : meme page ET (pas de tab OU meme tab que actuel)
-      const candidateTab = candidate.extraData?.tab;
-      const memePage = candidate.page === pageRef.current;
-      const memeTab = candidate.page !== 'gestion' || candidateTab === currentTab;
-      if (memePage && memeTab) {
-        // Vrai doublon -> on continue a depiler
-        continue;
-      }
-      // Page differente OU meme page mais tab different -> on garde
-      prev = candidate;
-      break;
-    }
-
-    if (!prev) {
-      setNavHistory([]);
-      setPageWithRef('dashboard');
-      return;
-    }
-
-    setNavHistory(newHistory);
+    const prev = navHistory[navHistory.length - 1];
+    setNavHistory(h => h.slice(0, -1));
     setPageWithRef(prev.page);
     if (prev.selectedEleve !== undefined) setSelectedEleve(prev.selectedEleve);
     if (prev.selectedInstituteur !== undefined) setSelectedInstituteur(prev.selectedInstituteur);
