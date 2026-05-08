@@ -320,15 +320,46 @@ export default function App() {
   };
 
 
+  // Wrapper pour setGestionTab : empile l'ancien tab dans navHistory
+  // pour que le bouton retour puisse revenir au tab precedent
+  const setGestionTabWithHistory = (newTab) => {
+    if (newTab === gestionTab) return; // pas de doublon
+    setNavHistory(h => [...h.slice(-19), {
+      page: 'gestion',
+      selectedEleve,
+      selectedInstituteur,
+      selectedCoursId,
+      selectedCoursValidation,
+      extraData: { tab: gestionTab }, // tab actuel pour pouvoir y revenir
+    }]);
+    setGestionTab(newTab);
+  };
+
   const navigate = (p, data = null, extraData = null) => {
-    // Bug fix navigation (mai 2026) :
-    // Ne PAS empiler dans navHistory si on reste sur la MEME page.
-    // Cela evite les doublons (ex: changement d'onglet dans Gestion qui
-    // appelle navigate('gestion', ...) avec un tab different).
-    // navHistory ne doit contenir que des VRAIES transitions de page.
-    if (p !== pageRef.current) {
-      setNavHistory(h => [...h.slice(-19), { page: pageRef.current, selectedEleve, selectedInstituteur, selectedCoursId, selectedCoursValidation, extraData: extraData }]);
+    // Bug fix navigation v3 (mai 2026) :
+    // Empile TOUJOURS l'ecran courant pour pouvoir y revenir, SAUF si on
+    // navigue strictement vers le meme ecran (page + tab + meme contexte).
+    //
+    // Important : on empile le TAB ACTUEL (pas le nouveau) pour pouvoir
+    // revenir a l'onglet ou l'utilisateur etait reellement.
+    const newTab = extraData?.tab;
+    const memePage = p === pageRef.current;
+    const memeTab = newTab === undefined || newTab === gestionTab;
+    const memeSelection = data === null || data === undefined;
+    const vraiDoublon = memePage && memeTab && memeSelection;
+
+    if (!vraiDoublon) {
+      setNavHistory(h => [...h.slice(-19), {
+        page: pageRef.current,
+        selectedEleve,
+        selectedInstituteur,
+        selectedCoursId,
+        selectedCoursValidation,
+        // Empile le TAB ACTUEL (pas le nouveau) pour y revenir au goBack
+        extraData: pageRef.current === 'gestion' ? { tab: gestionTab } : null,
+      }]);
     }
+
     setPageWithRef(p);
     if (p === 'fiche' || p === 'enregistrer') setSelectedEleve(data);
     if (p === 'profil_instituteur') setSelectedInstituteur(data);
@@ -340,9 +371,8 @@ export default function App() {
   };
 
   const goBack = () => {
-    // Logique simple : depile la derniere entree de navHistory.
-    // Comme navigate() empile uniquement les vraies transitions de page
-    // (page courante != page de destination), pas de doublon possible.
+    // Logique simple : depile la derniere entree de navHistory et y retourne.
+    // navigate() empile uniquement les vraies transitions, pas de doublon.
     if (navHistory.length === 0) { setPageWithRef('dashboard'); return; }
     const prev = navHistory[navHistory.length - 1];
     setNavHistory(h => h.slice(0, -1));
@@ -672,7 +702,7 @@ export default function App() {
           {page === 'profil_instituteur'&& selectedInstituteur && <ProfilInstituteur instituteur={selectedInstituteur} {...pageProps} />}
           {page === 'comparaison'       && <Comparaison eleves={compareEleves} {...pageProps} />}
           {page === 'rapport_mensuel'   && <RapportMensuel {...pageProps} />}
-          {page === 'gestion'           && <Gestion {...pageProps} initialTab={gestionTab} setGestionTab={setGestionTab} />}
+          {page === 'gestion'           && <Gestion {...pageProps} initialTab={gestionTab} setGestionTab={setGestionTabWithHistory} />}
           {page === 'niveaux'           && user.role === 'surveillant' && <GestionNiveaux {...pageProps} />}
           {page === 'ensembles'         && user.role === 'surveillant' && <GestionEnsembles {...pageProps} />}
           {page === 'examens'           && user.role === 'surveillant' && <GestionExamens {...pageProps} />}
