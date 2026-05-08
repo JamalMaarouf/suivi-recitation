@@ -320,46 +320,14 @@ export default function App() {
   };
 
 
-  // Wrapper pour setGestionTab : empile l'ancien tab dans navHistory
-  // pour que le bouton retour puisse revenir au tab precedent
+  // Wrapper pour setGestionTab : version simple sans empilage
+  // (le retour hierarchique va vers Dashboard, pas vers le tab precedent)
   const setGestionTabWithHistory = (newTab) => {
-    if (newTab === gestionTab) return; // pas de doublon
-    setNavHistory(h => [...h.slice(-19), {
-      page: 'gestion',
-      selectedEleve,
-      selectedInstituteur,
-      selectedCoursId,
-      selectedCoursValidation,
-      extraData: { tab: gestionTab }, // tab actuel pour pouvoir y revenir
-    }]);
+    if (newTab === gestionTab) return;
     setGestionTab(newTab);
   };
 
   const navigate = (p, data = null, extraData = null) => {
-    // Bug fix navigation v3 (mai 2026) :
-    // Empile TOUJOURS l'ecran courant pour pouvoir y revenir, SAUF si on
-    // navigue strictement vers le meme ecran (page + tab + meme contexte).
-    //
-    // Important : on empile le TAB ACTUEL (pas le nouveau) pour pouvoir
-    // revenir a l'onglet ou l'utilisateur etait reellement.
-    const newTab = extraData?.tab;
-    const memePage = p === pageRef.current;
-    const memeTab = newTab === undefined || newTab === gestionTab;
-    const memeSelection = data === null || data === undefined;
-    const vraiDoublon = memePage && memeTab && memeSelection;
-
-    if (!vraiDoublon) {
-      setNavHistory(h => [...h.slice(-19), {
-        page: pageRef.current,
-        selectedEleve,
-        selectedInstituteur,
-        selectedCoursId,
-        selectedCoursValidation,
-        // Empile le TAB ACTUEL (pas le nouveau) pour y revenir au goBack
-        extraData: pageRef.current === 'gestion' ? { tab: gestionTab } : null,
-      }]);
-    }
-
     setPageWithRef(p);
     if (p === 'fiche' || p === 'enregistrer') setSelectedEleve(data);
     if (p === 'profil_instituteur') setSelectedInstituteur(data);
@@ -370,18 +338,73 @@ export default function App() {
     window.scrollTo(0, 0);
   };
 
+  // Bouton retour HIERARCHIQUE (mai 2026) :
+  // Le bouton retour remonte d'un niveau dans l'arborescence de l'app,
+  // pas dans l'historique de navigation. Plus previsible et standard.
+  //
+  // Hierarchie :
+  // - Dashboard / dashboard_direction / pages racines navbar -> dashboard
+  // - Sous-ecrans (fiche, enregistrer, recitation, etc.) -> Gestion ou Dashboard
+  // - Pages internes Gestion (niveaux, ensembles, etc.) -> Gestion
+  // - Tous les onglets de Gestion -> Dashboard
+  const PARENT_PAGE = {
+    // Pages enfants directes de Dashboard (pages racines navbar) -> Dashboard
+    'gestion': 'dashboard',
+    'rapport_mensuel': 'dashboard',
+    'honneur': 'dashboard',
+    'seance': 'dashboard',
+    'calendrier': 'dashboard',
+    'finance': 'dashboard',
+    'assiduite': 'dashboard',
+    'cours': 'dashboard',
+    'parents': 'dashboard',
+    'muraja': 'dashboard',
+    'muraja_dashboard': 'dashboard',
+    'objectifs': 'dashboard',
+    'historique_seances': 'dashboard',
+    'validation_rapide': 'dashboard',
+    'eleves_mobile': 'dashboard',
+    'profil_mobile': 'dashboard',
+    'inactifs': 'dashboard',
+    'dashboard_direction': 'dashboard',
+
+    // Pages enfants de Gestion (sous-pages dediees) -> Gestion
+    'niveaux': 'gestion',
+    'ensembles': 'gestion',
+    'examens': 'gestion',
+    'blocs': 'gestion',
+    'import_masse': 'gestion',
+    'gestion_assiduite': 'gestion',
+    'gestion_tarifs': 'gestion',
+    'gestion_cours': 'gestion',
+    'gestion_parents': 'gestion',
+
+    // Sous-ecrans eleve (fiche, recitation) -> Gestion (eleves)
+    'fiche': 'gestion',
+    'enregistrer': 'gestion',
+    'comparaison': 'gestion',
+
+    // Cours
+    'cours_axes': 'cours',
+    'cours_validation': 'cours',
+
+    // Profil instituteur
+    'profil_instituteur': 'gestion',
+
+    // Resultats examens / certificats
+    'resultats_examens': 'examens',
+    'certificats': 'gestion',
+  };
+
   const goBack = () => {
-    // Logique simple : depile la derniere entree de navHistory et y retourne.
-    // navigate() empile uniquement les vraies transitions, pas de doublon.
-    if (navHistory.length === 0) { setPageWithRef('dashboard'); return; }
-    const prev = navHistory[navHistory.length - 1];
-    setNavHistory(h => h.slice(0, -1));
-    setPageWithRef(prev.page);
-    if (prev.selectedEleve !== undefined) setSelectedEleve(prev.selectedEleve);
-    if (prev.selectedInstituteur !== undefined) setSelectedInstituteur(prev.selectedInstituteur);
-    if (prev.selectedCoursId !== undefined) setSelectedCoursId(prev.selectedCoursId);
-    if (prev.selectedCoursValidation !== undefined) setSelectedCoursValidation(prev.selectedCoursValidation);
-    if (prev.extraData?.tab) setGestionTab(prev.extraData.tab);
+    const currentPage = pageRef.current;
+    const parent = PARENT_PAGE[currentPage] || 'dashboard';
+    setPageWithRef(parent);
+    // Reset des selections specifiques quand on remonte
+    if (currentPage === 'fiche' || currentPage === 'enregistrer') setSelectedEleve(null);
+    if (currentPage === 'profil_instituteur') setSelectedInstituteur(null);
+    if (currentPage === 'cours_axes') setSelectedCoursId(null);
+    if (currentPage === 'cours_validation') setSelectedCoursValidation(null);
     window.scrollTo(0, 0);
   };
 
