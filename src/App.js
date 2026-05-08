@@ -336,23 +336,30 @@ export default function App() {
   const goBack = () => {
     if (navHistory.length === 0) { setPageWithRef('dashboard'); return; }
 
-    // Bug fix (mai 2026) : filtrer les pages identiques a la page courante
-    // pour eviter le bug 'le 1er clic ne fait rien, le 2e va a dashboard'
-    // Cause : navHistory empile parfois la meme page plusieurs fois
+    // Bug fix v2 (mai 2026) : filtrer SEULEMENT les vrais doublons
+    // Un vrai doublon = meme page ET meme tab (et meme contexte)
+    // Sinon : changer d'onglet dans Gestion (page='gestion', tab='niveaux'
+    // -> tab='notes') laisse la chance de revenir au tab precedent
+    const currentTab = gestionTab; // tab actuel pour comparaison
     let prev = null;
     let newHistory = [...navHistory];
     while (newHistory.length > 0) {
       const candidate = newHistory[newHistory.length - 1];
       newHistory = newHistory.slice(0, -1);
-      if (candidate.page !== pageRef.current) {
-        prev = candidate;
-        break;
+      // Vrai doublon si : meme page ET (pas de tab OU meme tab que actuel)
+      const candidateTab = candidate.extraData?.tab;
+      const memePage = candidate.page === pageRef.current;
+      const memeTab = candidate.page !== 'gestion' || candidateTab === currentTab;
+      if (memePage && memeTab) {
+        // Vrai doublon -> on continue a depiler
+        continue;
       }
-      // Sinon : on continue a depiler les doublons
+      // Page differente OU meme page mais tab different -> on garde
+      prev = candidate;
+      break;
     }
 
     if (!prev) {
-      // Tous les elements de navHistory etaient des doublons -> dashboard
       setNavHistory([]);
       setPageWithRef('dashboard');
       return;
