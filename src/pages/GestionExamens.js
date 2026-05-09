@@ -323,9 +323,7 @@ export default function GestionExamens({ user, navigate, goBack, lang='fr', isMo
         <label className="field-lbl">
           {lang==='ar'?'المستوى':'Niveau *'}
         </label>
-        <select style={{width:'100%',padding:'12px 14px',borderRadius:10,
-          border:'0.5px solid #e0e0d8',fontSize:14,fontFamily:'inherit',
-          background:'#fff',boxSizing:'border-box'}}
+        <select className="field-select"
           value={form.niveau_id}
           onChange={e=>{
             const niv = niveaux.find(n=>n.id===e.target.value);

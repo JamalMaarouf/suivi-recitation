@@ -731,7 +731,7 @@ export default function FicheSourate({ eleve, user, navigate, goBack, lang='fr',
             </div>
             <div style={{marginBottom:'1rem'}}>
               <label style={{fontSize:13,fontWeight:600,color:'#444',display:'block',marginBottom:6}}>{lang==='ar'?'المستوى الجديد:':'Nouveau niveau :'}</label>
-              <select style={{width:'100%',padding:'8px 12px',borderRadius:8,border:'1px solid #ddd',fontSize:13}} value={nouveauNiveau} onChange={e=>setNouveauNiveau(e.target.value)}>
+              <select className="field-select" value={nouveauNiveau} onChange={e=>setNouveauNiveau(e.target.value)}>
                 <option value="">{lang==='ar'?'-- اختر المستوى --':'-- Choisir le niveau --'}</option>
                 {niveauxDisponibles.map(n=>(
                   <option key={n} value={n}>{NIVEAUX_LABELS[n]||n}</option>

@@ -2667,7 +2667,7 @@ function MobilePassageNiveauTab({ user, lang, niveaux, showMsg }) {
         <div style={{background:'#fff',borderRadius:14,padding:'16px',marginBottom:14,border:'1.5px solid #1D9E75'}}>
           <div style={{marginBottom:12}}>
             <label style={{fontSize:12,fontWeight:600,color:'#666',display:'block',marginBottom:6}}>{lang==='ar'?'من مستوى':'De niveau'} *</label>
-            <select style={{width:'100%',padding:'11px 12px',borderRadius:10,border:'0.5px solid #e0e0d8',fontSize:14,fontFamily:'inherit',background:'#fff',boxSizing:'border-box'}}
+            <select className="field-select"
               value={newR.niveau_from} onChange={e=>setNewR({...newR,niveau_from:e.target.value})}>
               <option value="">—</option>
               {niveaux.map(n=><option key={n.code} value={n.code}>{n.code} — {n.nom}</option>)}
@@ -2675,7 +2675,7 @@ function MobilePassageNiveauTab({ user, lang, niveaux, showMsg }) {
           </div>
           <div style={{marginBottom:12}}>
             <label style={{fontSize:12,fontWeight:600,color:'#666',display:'block',marginBottom:6}}>{lang==='ar'?'إلى مستوى':'Vers niveau'} *</label>
-            <select style={{width:'100%',padding:'11px 12px',borderRadius:10,border:'0.5px solid #e0e0d8',fontSize:14,fontFamily:'inherit',background:'#fff',boxSizing:'border-box'}}
+            <select className="field-select"
               value={newR.niveau_to} onChange={e=>setNewR({...newR,niveau_to:e.target.value})}>
               <option value="">—</option>
               {niveaux.filter(n=>n.code!==newR.niveau_from).map(n=><option key={n.code} value={n.code}>{n.code} — {n.nom}</option>)}
@@ -2701,7 +2701,7 @@ function MobilePassageNiveauTab({ user, lang, niveaux, showMsg }) {
                 <input type="number" min="0" max="60" style={{width:'100%',padding:'11px',borderRadius:10,border:'0.5px solid #e0e0d8',fontSize:14,fontFamily:'inherit',boxSizing:'border-box'}}
                   value={newR.hizb_depart_fixe} onChange={e=>setNewR({...newR,hizb_depart_fixe:e.target.value})}/></div>
               <div><label style={{fontSize:12,fontWeight:600,color:'#666',display:'block',marginBottom:5}}>Tomon</label>
-                <select style={{width:'100%',padding:'11px',borderRadius:10,border:'0.5px solid #e0e0d8',fontSize:13,fontFamily:'inherit',background:'#fff',boxSizing:'border-box'}}
+                <select className="field-select"
                   value={newR.tomon_depart_fixe} onChange={e=>setNewR({...newR,tomon_depart_fixe:e.target.value})}>
                   {[1,2,3,4,5,6,7,8].map(n=><option key={n} value={n}>T.{n}</option>)}
                 </select></div>
@@ -4216,7 +4216,7 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
                   </div>
                   <div style={{marginBottom:12}}>
                     <label style={{fontSize:12,fontWeight:600,color:'#666',display:'block',marginBottom:5}}>{lang==='ar'?'الأستاذ المرجع':'Référent'} <span style={{color:'#E24B4A'}}>*</span></label>
-                    <select style={{width:'100%',padding:'11px 12px',borderRadius:10,border:'0.5px solid #e0e0d8',fontSize:13,fontFamily:'inherit',background:'#fff',boxSizing:'border-box'}}
+                    <select className="field-select"
                       value={editEleve?editEleve.instituteur_referent_id||'':newEleve.instituteur_referent_id}
                       onChange={e=>editEleve?setEditEleve(x=>({...x,instituteur_referent_id:e.target.value})):setNewEleve(x=>({...x,instituteur_referent_id:e.target.value}))}>
                       <option value="">— {lang==='ar'?'اختر':'Choisir'} —</option>
@@ -4630,7 +4630,7 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
                 {newJalon.condition_obtention==='cumul_puis_examen'&&(
                   <div style={{marginBottom:12}}>
                     <label style={{fontSize:12,fontWeight:600,color:'#666',display:'block',marginBottom:5}}>{lang==='ar'?'الامتحان الختامي *':'Examen final *'}</label>
-                    <select style={{width:'100%',padding:'11px 12px',borderRadius:10,border:'0.5px solid #e0e0d8',fontSize:13,fontFamily:'inherit',background:'#fff',boxSizing:'border-box'}}
+                    <select className="field-select"
                       value={newJalon.examen_final_id||''} onChange={e=>setNewJalon({...newJalon,examen_final_id:e.target.value})}>
                       <option value="">{lang==='ar'?'— اختر —':'— Choisir —'}</option>
                       {(examensDisp||[]).map(e=><option key={e.id} value={e.id}>{e.nom}</option>)}
@@ -4668,7 +4668,7 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
                 {newJalon.type_jalon==='ensemble_sourates'&&(
                   <div style={{marginBottom:12}}>
                     <label style={{fontSize:12,fontWeight:600,color:'#666',display:'block',marginBottom:5}}>{lang==='ar'?'مجموعة السور *':'Ensemble *'}</label>
-                    <select style={{width:'100%',padding:'11px 12px',borderRadius:10,border:'0.5px solid #e0e0d8',fontSize:13,fontFamily:'inherit',background:'#fff',boxSizing:'border-box'}}
+                    <select className="field-select"
                       value={newJalon.ensemble_id} onChange={e=>setNewJalon({...newJalon,ensemble_id:e.target.value})}>
                       <option value="">{lang==='ar'?'— اختر مجموعة —':'— Choisir —'}</option>
                       {(ensemblesDisp||[]).map(e=><option key={e.id} value={e.id}>{e.nom}</option>)}
@@ -4679,7 +4679,7 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
                 {newJalon.type_jalon==='examen'&&(
                   <div style={{marginBottom:12}}>
                     <label style={{fontSize:12,fontWeight:600,color:'#666',display:'block',marginBottom:5}}>{lang==='ar'?'الامتحان *':'Examen *'}</label>
-                    <select style={{width:'100%',padding:'11px 12px',borderRadius:10,border:'0.5px solid #e0e0d8',fontSize:13,fontFamily:'inherit',background:'#fff',boxSizing:'border-box'}}
+                    <select className="field-select"
                       value={newJalon.examen_id} onChange={e=>setNewJalon({...newJalon,examen_id:e.target.value})}>
                       <option value="">{lang==='ar'?'— اختر امتحاناً —':'— Choisir —'}</option>
                       {(examensDisp||[]).map(e=><option key={e.id} value={e.id}>{e.nom}</option>)}

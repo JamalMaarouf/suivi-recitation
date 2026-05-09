@@ -762,7 +762,7 @@ export default function Finance({ user, navigate, goBack, lang='fr', isMobile })
                     placeholder={'🔍 '+(lang==='ar'?'اسم أو رقم':'Nom ou #ID...')}
                     style={{flex:2,padding:'9px 12px',borderRadius:10,border:'1px solid #e0e0d8',fontSize:13,fontFamily:'inherit',boxSizing:'border-box'}}/>
                   <select value={filterSuiviStatut} onChange={e=>setFilterSuiviStatut(e.target.value)}
-                    style={{flex:1,padding:'9px 8px',borderRadius:10,border:'1px solid #e0e0d8',fontSize:12,fontFamily:'inherit',background:'#fff'}}>
+                    className="field-select" style={{flex:1}}>
                     <option value="tous">{lang==='ar'?'الكل':'Tous'}</option>
                     {STATUTS.map(s=><option key={s.val} value={s.val}>{lang==='ar'?s.labelAr:s.label}</option>)}
                   </select>
@@ -905,7 +905,7 @@ export default function Finance({ user, navigate, goBack, lang='fr', isMobile })
               <div style={{display:'flex',gap:6}}>
                 {formCot.typePeriode!=='annee'&&(
                   <select value={formCot.valPeriode} onChange={e=>setFormCot(f=>({...f,valPeriode:e.target.value}))}
-                    style={{flex:2,padding:'10px',borderRadius:10,border:'1px solid #e0e0d8',fontSize:13,fontFamily:'inherit',background:'#fff'}}>
+                    className="field-select" style={{flex:2}}>
                     <option value="">— {lang==='ar'?'اختر':'Choisir'} —</option>
                     {formCot.typePeriode==='mois' && MOIS.map(m=><option key={m.val} value={m.val}>{lang==='ar'?m.ar:m.fr}</option>)}
                     {formCot.typePeriode==='trimestre' && TRIMESTRES.map(t=><option key={t.val} value={t.val}>{lang==='ar'?t.ar:t.fr}</option>)}
@@ -913,7 +913,7 @@ export default function Finance({ user, navigate, goBack, lang='fr', isMobile })
                   </select>
                 )}
                 <select value={formCot.annee} onChange={e=>setFormCot(f=>({...f,annee:e.target.value}))}
-                  style={{flex:1,padding:'10px',borderRadius:10,border:'1px solid #e0e0d8',fontSize:13,fontFamily:'inherit',background:'#fff'}}>
+                  className="field-select" style={{flex:1}}>
                   {getAnnees().map(a=><option key={a.val} value={a.val}>{a.fr}</option>)}
                 </select>
               </div>
@@ -1000,7 +1000,7 @@ export default function Finance({ user, navigate, goBack, lang='fr', isMobile })
               <div style={{marginBottom:12}}>
                 <label style={{display:'block',fontSize:12,fontWeight:600,color:'#555',marginBottom:4}}>{lang==='ar'?'المستفيد (الأستاذ)':'Bénéficiaire (instituteur)'}</label>
                 <select value={formDep.beneficiaire_id||''} onChange={e=>setFormDep(f=>({...f,beneficiaire_id:e.target.value}))}
-                  style={{width:'100%',padding:'10px 12px',borderRadius:10,border:'1px solid #e0e0d8',fontSize:14,fontFamily:'inherit',background:'#fff',boxSizing:'border-box'}}>
+                  className="field-select">
                   <option value="">— {lang==='ar'?'اختر':'Choisir'} —</option>
                   {instituteurs.map(i=><option key={i.id} value={i.id}>{i.prenom} {i.nom}</option>)}
                 </select>
