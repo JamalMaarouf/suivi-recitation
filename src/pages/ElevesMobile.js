@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { isSourateNiveauDyn } from '../lib/helpers';
+import MobileSkeletonList from '../components/MobileSkeletonList';
 
 export default function ElevesMobile({ user, navigate, goBack, lang='ar' }) {
   const [eleves, setEleves] = useState([]);
@@ -289,7 +290,7 @@ export default function ElevesMobile({ user, navigate, goBack, lang='ar' }) {
             {elevesFiltres.length} {lang==='ar'?'طالب':'élève(s)'}
           </div>
           {loading ? (
-            <div style={{textAlign:'center', padding:'3rem', color:'#888'}}>...</div>
+            <MobileSkeletonList type="card-with-avatar" count={6} />
           ) : elevesFiltres.length===0 ? (
             <div style={{textAlign:'center', padding:'3rem', color:'#aaa', fontSize:13}}>
               <div style={{fontSize:36, marginBottom:8}}>👥</div>
