@@ -742,31 +742,34 @@ export default function App() {
         {isMobile && user.role !== 'parent' && !kioskMode && (
           <nav className="bottom-nav" dir={getDir(lang)}>
             {(user.role === 'surveillant' ? [
-              { key: 'dashboard',        icon: '🏠', label: lang==='ar'?'الرئيسية':'Accueil' },
-              { key: 'seance',           icon: '📋', label: lang==='ar'?'الحصة':'Séances' },
-              { key: 'validation_rapide',icon: '⚡', label: lang==='ar'?'استظهار':'Express' },
-              { key: 'honneur',          icon: '🏆', label: lang==='ar'?'شرف':'Honneur' },
-              { key: 'profil_mobile',    icon: '👤', label: lang==='ar'?'حسابي':'Profil' },
+              { key: 'dashboard',         icon: '🏠', label: lang==='ar'?'الرئيسية':'Accueil' },
+              { key: 'eleves_mobile',     icon: '👥', label: lang==='ar'?'الطلاب':'Élèves' },
+              { key: 'validation_rapide', icon: '⚡', label: lang==='ar'?'استظهار':'Express' },
+              { key: 'dashboard_plus',    icon: '⚙️', label: lang==='ar'?'المزيد':'Plus' },
             ] : user.role === 'instituteur' ? [
-              { key: 'dashboard',        icon: '🏠', label: lang==='ar'?'الرئيسية':'Accueil' },
-              { key: 'seance',           icon: '📋', label: lang==='ar'?'الحصة':'Séances' },
-              { key: 'validation_rapide',icon: '⚡', label: lang==='ar'?'استظهار':'Valider' },
-              { key: 'resultats_examens',icon: '🏅', label: lang==='ar'?'نتائج':'Résultats' },
-              { key: 'profil_mobile',    icon: '👤', label: lang==='ar'?'حسابي':'Profil' },
+              { key: 'dashboard',         icon: '🏠', label: lang==='ar'?'الرئيسية':'Accueil' },
+              { key: 'eleves_mobile',     icon: '👥', label: lang==='ar'?'الطلاب':'Élèves' },
+              { key: 'validation_rapide', icon: '⚡', label: lang==='ar'?'استظهار':'Valider' },
+              { key: 'dashboard_plus',    icon: '⚙️', label: lang==='ar'?'المزيد':'Plus' },
             ] : [
-              { key: 'dashboard',        icon: '🏠', label: lang==='ar'?'الرئيسية':'Accueil' },
-              { key: 'seance',           icon: '📋', label: lang==='ar'?'الحصة':'Séances' },
-              { key: 'validation_rapide',icon: '⚡', label: lang==='ar'?'استظهار':'Express' },
-              { key: 'honneur',          icon: '🏆', label: lang==='ar'?'شرف':'Honneur' },
-              { key: 'profil_mobile',    icon: '👤', label: lang==='ar'?'حسابي':'Profil' },
-            ]).map(tab => (
-              <div key={tab.key}
-                className={`bottom-nav-item ${page === tab.key ? 'active' : ''}`}
-                onClick={() => navigateRoot(tab.key)}>
-                <span className="bottom-nav-icon">{tab.icon}</span>
-                <span className="bottom-nav-label">{tab.label}</span>
-              </div>
-            ))}
+              { key: 'dashboard',         icon: '🏠', label: lang==='ar'?'الرئيسية':'Accueil' },
+              { key: 'eleves_mobile',     icon: '👥', label: lang==='ar'?'الطلاب':'Élèves' },
+              { key: 'validation_rapide', icon: '⚡', label: lang==='ar'?'استظهار':'Express' },
+              { key: 'dashboard_plus',    icon: '⚙️', label: lang==='ar'?'المزيد':'Plus' },
+            ]).map(tab => {
+              // 'dashboard_plus' = raccourci vers dashboard. Jamais marque actif
+              // (l'utilisateur comprend que "Plus" est une action, pas un etat)
+              const targetKey = tab.key === 'dashboard_plus' ? 'dashboard' : tab.key;
+              const isActive = tab.key !== 'dashboard_plus' && page === tab.key;
+              return (
+                <div key={tab.key}
+                  className={`bottom-nav-item ${isActive ? 'active' : ''}`}
+                  onClick={() => navigateRoot(targetKey)}>
+                  <span className="bottom-nav-icon">{tab.icon}</span>
+                  <span className="bottom-nav-label">{tab.label}</span>
+                </div>
+              );
+            })}
           </nav>
         )}
 
