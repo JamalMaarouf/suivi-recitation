@@ -210,6 +210,7 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang, isMobi
   const [instituteurNom, setInstituteurNom] = useState('—');
   const [etat, setEtat] = useState(null);
   const [onglet, setOnglet] = useState('apercu');
+  const [showPlusMenu, setShowPlusMenu] = useState(false);
   const [showAcquis, setShowAcquis] = useState(false);
   const [exceptionsHizb, setExceptionsHizb] = useState([]);
   const [murajaa, setMurajaa] = useState([]);
@@ -1181,30 +1182,83 @@ ${(passages||[]).length > 0 ? `
             <div style={{fontSize:13, color:sl2.color, fontWeight:600}}>{sl2.label}</div>
             <div style={{fontSize:26, fontWeight:800, color:sl2.color}}>{estSourateEleve?totalPtsSourates.toLocaleString():(etat?.points?.total?.toLocaleString()||0)} pts</div>
           </div>
-          {/* Onglets scrollables */}
-          <div style={{display:'flex', overflowX:'auto', scrollbarWidth:'none', borderTop:'0.5px solid #f0f0ec'}}>
-            {[
-              {k:'apercu',      label: lang==='ar'?'السجل':'Aperçu'},
-              {k:'progression', label: lang==='ar'?'التقدم':'Progression'},
-              {k:'historique',  label: lang==='ar'?'التاريخ':'Historique'},
-              {k:'muraja',      label: lang==='ar'?'المراجعة':"Murajaʼa"},
-              {k:'objectifs',   label: lang==='ar'?'الأهداف':'Objectifs'},
-              {k:'examens',     label: lang==='ar'?'الامتحانات':'Examens'},
-              {k:'certificats', label: lang==='ar'?'الشهادات':'Certificats'},
-              {k:'assiduite',   label: lang==='ar'?'الحضور':'Assiduité'},
-              {k:'cours',       label: lang==='ar'?'الدروس':'Cours'},
-              {k:'notes',       label: lang==='ar'?'النقاط':'Points'},
-            ].map(tab=>(
-              <div key={tab.k} onClick={()=>setOnglet(tab.k)}
-                style={{padding:'10px 16px', fontSize:13, fontWeight:600, whiteSpace:'nowrap',
-                  cursor:'pointer', flexShrink:0,
-                  color: onglet===tab.k ? '#085041' : '#888',
-                  borderBottom: onglet===tab.k ? '2px solid #1D9E75' : '2px solid transparent',
-                  transition:'all 0.15s'}}>
-                {tab.label}
+          {/* Onglets mobile - Phase 2 refonte : 5 principaux + Plus */}
+          {(() => {
+            const tabsPrincipaux = [
+              {k:'apercu',      label: lang==='ar'?'السجل':'Aperçu',      icon:'📊'},
+              {k:'progression', label: lang==='ar'?'التقدم':'Progression', icon:'📈'},
+              {k:'examens',     label: lang==='ar'?'الامتحانات':'Examens', icon:'📝'},
+              {k:'certificats', label: lang==='ar'?'الشهادات':'Certificats', icon:'🏅'},
+              {k:'notes',       label: lang==='ar'?'النقاط':'Points',     icon:'⭐'},
+            ];
+            const tabsPlus = [
+              {k:'historique', label: lang==='ar'?'التاريخ':'Historique',  icon:'🕐'},
+              {k:'muraja',     label: lang==='ar'?'المراجعة':"Murajaʼa",   icon:'📖'},
+              {k:'objectifs',  label: lang==='ar'?'الأهداف':'Objectifs',   icon:'🎯'},
+              {k:'assiduite',  label: lang==='ar'?'الحضور':'Assiduité',    icon:'📅'},
+              {k:'cours',      label: lang==='ar'?'الدروس':'Cours',        icon:'📚'},
+            ];
+            const ongletDansPlus = tabsPlus.find(t => t.k === onglet);
+            const plusActif = !!ongletDansPlus;
+            return (
+              <div style={{position:'relative', borderTop:'0.5px solid #f0f0ec'}}>
+                <div style={{display:'flex', overflowX:'auto', scrollbarWidth:'none'}}>
+                  {tabsPrincipaux.map(tab => (
+                    <div key={tab.k} onClick={()=>{setOnglet(tab.k); setShowPlusMenu(false);}}
+                      style={{padding:'10px 14px', fontSize:13, fontWeight:600, whiteSpace:'nowrap',
+                        cursor:'pointer', flexShrink:0,
+                        color: onglet===tab.k ? '#085041' : '#888',
+                        borderBottom: onglet===tab.k ? '2px solid #1D9E75' : '2px solid transparent',
+                        transition:'all 0.15s'}}>
+                      {tab.label}
+                    </div>
+                  ))}
+                  {/* Bouton Plus */}
+                  <div onClick={()=>setShowPlusMenu(v=>!v)}
+                    style={{padding:'10px 14px', fontSize:13, fontWeight:600, whiteSpace:'nowrap',
+                      cursor:'pointer', flexShrink:0,
+                      color: plusActif ? '#085041' : '#888',
+                      borderBottom: plusActif ? '2px solid #1D9E75' : '2px solid transparent',
+                      transition:'all 0.15s',
+                      display:'flex', alignItems:'center', gap:5}}>
+                    {plusActif && <span>{ongletDansPlus.icon}</span>}
+                    {plusActif ? ongletDansPlus.label : (lang==='ar'?'المزيد':'Plus')}
+                    <span style={{fontSize:10, opacity:0.7}}>{showPlusMenu ? '▲' : '▼'}</span>
+                  </div>
+                </div>
+                {/* Dropdown Plus */}
+                {showPlusMenu && (
+                  <>
+                    {/* Overlay pour fermer en cliquant ailleurs */}
+                    <div onClick={()=>setShowPlusMenu(false)}
+                      style={{position:'fixed', inset:0, zIndex:99, background:'transparent'}} />
+                    <div style={{position:'absolute', top:'100%', right:8,
+                      background:'#fff', borderRadius:12, padding:6,
+                      boxShadow:'0 4px 16px rgba(0,0,0,0.12)',
+                      border:'0.5px solid #e0e0d8',
+                      zIndex:100, minWidth:170}}>
+                      {tabsPlus.map(tab => {
+                        const sel = onglet === tab.k;
+                        return (
+                          <div key={tab.k}
+                            onClick={()=>{setOnglet(tab.k); setShowPlusMenu(false);}}
+                            style={{display:'flex', alignItems:'center', gap:10,
+                              padding:'10px 12px', borderRadius:8, cursor:'pointer',
+                              background: sel ? '#E1F5EE' : 'transparent',
+                              color: sel ? '#085041' : '#333',
+                              fontWeight: sel ? 700 : 500, fontSize:13,
+                              transition:'all 0.15s'}}>
+                            <span style={{fontSize:16}}>{tab.icon}</span>
+                            {tab.label}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </>
+                )}
               </div>
-            ))}
-          </div>
+            );
+          })()}
         </div>
 
         {/* Loading */}
