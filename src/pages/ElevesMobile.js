@@ -140,12 +140,12 @@ export default function ElevesMobile({ user, navigate, goBack, lang='ar' }) {
             <div style={{fontSize:18, fontWeight:800, color:'#fff'}}>👥 {lang==='ar'?'الطلاب':'Élèves'}</div>
             <div style={{fontSize:11, color:'rgba(255,255,255,0.75)'}}>{eleves.length} {lang==='ar'?'طالب مسجل':'inscrits'}</div>
           </div>
-          {user.role==='surveillant' && (
-            <button onClick={showForm ? ()=>{ setShowForm(false); setEditEleve(null); } : startAdd}
+          {user.role==='surveillant' && showForm && (
+            <button onClick={()=>{ setShowForm(false); setEditEleve(null); }}
               style={{background:'rgba(255,255,255,0.25)',
                 border:'1px solid rgba(255,255,255,0.3)', borderRadius:10, padding:'8px 14px',
                 color:'#fff', fontSize:12, fontWeight:700, cursor:'pointer', fontFamily:'inherit'}}>
-              {showForm ? '✕' : `+ ${lang==='ar'?'إضافة':'Ajouter'}`}
+              ✕
             </button>
           )}
         </div>
@@ -342,6 +342,26 @@ export default function ElevesMobile({ user, navigate, goBack, lang='ar' }) {
             </div>
           )}
         </>
+      )}
+
+      {/* FAB - Floating Action Button (Phase 2 mobile classe mondiale)
+          Place au-dessus du FAB recherche d'App.js (bottom:80) pour eviter chevauchement.
+          Cache si formulaire ouvert (l'action principale est alors "Enregistrer" ou "Annuler"). */}
+      {user.role==='surveillant' && !showForm && (
+        <button onClick={startAdd}
+          aria-label={lang==='ar'?'إضافة طالب':'Ajouter un élève'}
+          style={{
+            position:'fixed', bottom:144, right:14, zIndex:90,
+            width:56, height:56, borderRadius:28,
+            background:'linear-gradient(135deg,#1D9E75,#085041)',
+            border:'none', color:'#fff', fontSize:28, fontWeight:300,
+            cursor:'pointer',
+            boxShadow:'0 6px 16px rgba(8,80,65,0.40)',
+            display:'flex', alignItems:'center', justifyContent:'center',
+            lineHeight:1, paddingBottom:4,
+          }}>
+          +
+        </button>
       )}
     </div>
   );
