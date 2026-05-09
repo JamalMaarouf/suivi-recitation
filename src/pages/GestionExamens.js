@@ -667,7 +667,7 @@ export default function GestionExamens({ user, navigate, goBack, lang='fr', isMo
                   <div style={{flex:1,minWidth:0}}>
                     <div style={{fontWeight:700,fontSize:15}}>{e.nom}</div>
                     {/* Contenu */}
-                    <div style={{fontSize:12,color:'#fff',marginTop:4,
+                    <div style={{fontSize:12,color:'#666',marginTop:4,
                       fontFamily:(e.type_contenu||'hizb')==='sourate'?"'Tajawal',Arial":'inherit',
                       direction:(e.type_contenu||'hizb')==='sourate'?'rtl':'ltr'}}>
                       {resumeContenu(e)}
