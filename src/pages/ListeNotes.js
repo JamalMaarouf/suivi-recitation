@@ -325,13 +325,128 @@ export default function ListeNotes({ user, navigate, goBack, lang='fr', isMobile
         <div>
           <style>{`@keyframes skelPulse{0%,100%{opacity:1}50%{opacity:0.55}}`}</style>
           {[0,1,2,3,4,5,6,7].map(i => (
-            <div key={i} style={{display:'flex', alignItems:'center', gap:10, padding:'10px 14px', background:'#fff', borderBottom:'1px solid #eee', animation:'skelPulse 1.2s ease-in-out infinite'}}>
-              <div style={{width:28, height:16, background:'#e5e5df', borderRadius:4}} />
-              <div style={{flex:1, height:16, background:'#e5e5df', borderRadius:4}} />
-              <div style={{width:60, height:16, background:'#e5e5df', borderRadius:4}} />
-              <div style={{width:40, height:16, background:'#e5e5df', borderRadius:4}} />
+            <div key={i} style={{
+              display:'flex', alignItems:'center', gap:10,
+              padding: isMobile ? '14px' : '10px 14px',
+              background:'#fff',
+              borderRadius: isMobile ? 14 : 0,
+              marginBottom: isMobile ? 8 : 0,
+              borderBottom: isMobile ? 'none' : '1px solid #eee',
+              animation:'skelPulse 1.2s ease-in-out infinite'
+            }}>
+              {isMobile ? (
+                <>
+                  <div style={{width:42, height:42, background:'#e5e5df', borderRadius:'50%', flexShrink:0}} />
+                  <div style={{flex:1}}>
+                    <div style={{width:'70%', height:14, background:'#e5e5df', borderRadius:4, marginBottom:6}} />
+                    <div style={{width:'45%', height:11, background:'#ececec', borderRadius:4}} />
+                  </div>
+                  <div style={{width:50, height:24, background:'#e5e5df', borderRadius:6, flexShrink:0}} />
+                </>
+              ) : (
+                <>
+                  <div style={{width:28, height:16, background:'#e5e5df', borderRadius:4}} />
+                  <div style={{flex:1, height:16, background:'#e5e5df', borderRadius:4}} />
+                  <div style={{width:60, height:16, background:'#e5e5df', borderRadius:4}} />
+                  <div style={{width:40, height:16, background:'#e5e5df', borderRadius:4}} />
+                </>
+              )}
             </div>
           ))}
+        </div>
+      ) : isMobile ? (
+        // ─────────────────────────────────────────────────────────
+        // MOBILE — Cartes empilées (Phase 2 refonte)
+        // Anti-pattern précédent : tableau 9 colonnes illisible
+        // Nouveau : nom + niveau en haut, total points en gros à droite,
+        // décomposition Tomon/Hizb/Examens/Certs en ligne discrète
+        // ─────────────────────────────────────────────────────────
+        <div>
+          {filtered.length === 0 && (
+            <div style={{textAlign:'center', padding:'3rem', color:'#aaa', background:'#fff', borderRadius:14, border:'0.5px solid #e0e0d8'}}>
+              <div style={{fontSize:36, marginBottom:8}}>⭐</div>
+              <div style={{fontSize:13}}>{lang==='ar'?'لا توجد بيانات':'Aucune donnée'}</div>
+            </div>
+          )}
+          {(filtered||[]).map((el, idx) => {
+            const nc = getNivColor(el.code_niveau);
+            const initials = ((el.prenom||'?')[0]||'?') + ((el.nom||'?')[0]||'?');
+            const rank = idx + 1;
+            const isPodium = rank <= 3;
+            const podiumIcon = rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : null;
+            return (
+              <div key={el.id} onClick={()=>navigate('fiche',el)}
+                style={{
+                  background:'#fff', borderRadius:14,
+                  padding:'14px',
+                  marginBottom:8,
+                  border:'0.5px solid #e0e0d8',
+                  display:'flex', alignItems:'center', gap:12,
+                  cursor:'pointer',
+                  boxShadow:'0 1px 4px rgba(0,0,0,0.04)',
+                  position:'relative'
+                }}>
+                {/* Avatar + rank */}
+                <div style={{flexShrink:0, position:'relative'}}>
+                  <div style={{
+                    width:46, height:46, borderRadius:'50%',
+                    background:`${nc}20`, color:nc,
+                    display:'flex', alignItems:'center', justifyContent:'center',
+                    fontWeight:800, fontSize:14
+                  }}>
+                    {initials}
+                  </div>
+                  {isPodium && (
+                    <div style={{
+                      position:'absolute', top:-4, right:-4,
+                      fontSize:16, lineHeight:1
+                    }}>{podiumIcon}</div>
+                  )}
+                </div>
+
+                {/* Infos */}
+                <div style={{flex:1, minWidth:0}}>
+                  <div style={{fontWeight:700, fontSize:14, marginBottom:3, lineHeight:1.2}}>
+                    {el.prenom} {el.nom}
+                  </div>
+                  <div style={{display:'flex', gap:5, alignItems:'center', flexWrap:'wrap', marginBottom:5}}>
+                    <span style={{padding:'2px 7px', borderRadius:10, fontSize:10, fontWeight:700, background:`${nc}20`, color:nc}}>
+                      {el.code_niveau||'?'}
+                    </span>
+                    {el.eleve_id_ecole && (
+                      <span style={{fontSize:10, color:'#bbb'}}>#{el.eleve_id_ecole}</span>
+                    )}
+                    <span style={{fontSize:10, color:'#888'}}>👨‍🏫 {el.instNom}</span>
+                  </div>
+                  {/* Décomposition compacte */}
+                  <div style={{display:'flex', gap:8, flexWrap:'wrap', fontSize:10}}>
+                    <span style={{color:'#378ADD', fontWeight:600}}>
+                      ⭐ {el.pts.tomonPeriode||0}
+                    </span>
+                    <span style={{color:'#085041', fontWeight:600}}>
+                      📖 {el.pts.hizbsPeriode||0}
+                    </span>
+                    <span style={{color:'#EF9F27', fontWeight:600}}>
+                      📝 {el.pts.ptsExamens||0}
+                    </span>
+                    <span style={{color:'#D85A30', fontWeight:600}}>
+                      🏅 {el.pts.ptsCertificats||0}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Total points */}
+                <div style={{flexShrink:0, textAlign:'center'}}>
+                  <div style={{fontSize:22, fontWeight:800, color:'#378ADD', lineHeight:1}}>
+                    {el.pts.total.toLocaleString()}
+                  </div>
+                  <div style={{fontSize:9, color:'#aaa', marginTop:2, fontWeight:600, textTransform:'uppercase', letterSpacing:0.5}}>
+                    {lang==='ar'?'نقطة':'pts'}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
         </div>
       ) : (
         <div className="table-wrap">
