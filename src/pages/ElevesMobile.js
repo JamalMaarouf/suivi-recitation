@@ -330,11 +330,17 @@ export default function ElevesMobile({ user, navigate, goBack, lang='ar' }) {
                     </div>
                     {/* Actions */}
                     {user.role==='surveillant' && (
-                      <div style={{display:'flex', gap:5, flexShrink:0}}>
+                      <div style={{display:'flex', gap:6, flexShrink:0}}>
                         <button onClick={()=>startEdit(e)}
-                          style={{background:'#E6F1FB',color:'#378ADD',border:'none',borderRadius:8,padding:'7px 9px',fontSize:12,cursor:'pointer'}}>✏️</button>
+                          aria-label={lang==='ar'?'تعديل':'Modifier'}
+                          style={{background:'#E6F1FB',color:'#378ADD',border:'none',borderRadius:10,
+                            width:44,height:44,fontSize:16,cursor:'pointer',
+                            display:'flex',alignItems:'center',justifyContent:'center'}}>✏️</button>
                         <button onClick={()=>handleDelete(e.id)}
-                          style={{background:'#FCEBEB',color:'#E24B4A',border:'none',borderRadius:8,padding:'7px 9px',fontSize:12,cursor:'pointer'}}>🗑</button>
+                          aria-label={lang==='ar'?'حذف':'Supprimer'}
+                          style={{background:'#FCEBEB',color:'#E24B4A',border:'none',borderRadius:10,
+                            width:44,height:44,fontSize:16,cursor:'pointer',
+                            display:'flex',alignItems:'center',justifyContent:'center'}}>🗑</button>
                       </div>
                     )}
                   </div>

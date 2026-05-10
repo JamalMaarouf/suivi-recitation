@@ -385,7 +385,10 @@ export default function MurajaDashboard({ user, navigate, goBack, lang='fr', isM
             </optgroup>
           )}
         </select>
-        <button onClick={loadData} style={{padding:'6px 14px',background:'#E1F5EE',color:'#085041',border:'none',borderRadius:8,fontWeight:600,cursor:'pointer'}}>🔄</button>
+        <button onClick={loadData}
+          aria-label={lang==='ar'?'تحديث':'Rafraîchir'}
+          style={{width:44,height:44,background:'#E1F5EE',color:'#085041',border:'none',borderRadius:8,cursor:'pointer',fontSize:16,
+            display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>🔄</button>
       </div>
       </>
       )}
@@ -442,9 +445,15 @@ export default function MurajaDashboard({ user, navigate, goBack, lang='fr', isM
                   <span style={{padding:'2px 8px',borderRadius:8,background:'#FFF3CD',color:'#856404',fontSize:11,fontWeight:600}}>📖 {s.type}</span>
                   {/* Action buttons */}
                   {user.role==='surveillant'&&!isEditing&&(
-                    <div style={{display:'flex',gap:4}}>
-                      <button onClick={()=>startEdit(s)} style={{padding:'3px 8px',background:'#E6F1FB',color:'#378ADD',border:'0.5px solid #378ADD30',borderRadius:6,cursor:'pointer',fontSize:11,fontWeight:600}}>✏️</button>
-                      <button onClick={()=>handleDelete(s)} style={{padding:'3px 8px',background:'#FCEBEB',color:'#E24B4A',border:'0.5px solid #E24B4A30',borderRadius:6,cursor:'pointer',fontSize:11,fontWeight:600}}>🗑</button>
+                    <div style={{display:'flex',gap:6}}>
+                      <button onClick={()=>startEdit(s)}
+                        aria-label={lang==='ar'?'تعديل':'Modifier'}
+                        style={{width:44,height:44,background:'#E6F1FB',color:'#378ADD',border:'0.5px solid #378ADD30',borderRadius:8,cursor:'pointer',fontSize:15,
+                          display:'flex',alignItems:'center',justifyContent:'center'}}>✏️</button>
+                      <button onClick={()=>handleDelete(s)}
+                        aria-label={lang==='ar'?'حذف':'Supprimer'}
+                        style={{width:44,height:44,background:'#FCEBEB',color:'#E24B4A',border:'0.5px solid #E24B4A30',borderRadius:8,cursor:'pointer',fontSize:15,
+                          display:'flex',alignItems:'center',justifyContent:'center'}}>🗑</button>
                     </div>
                   )}
                 </div>

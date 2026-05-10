@@ -86,9 +86,15 @@ export default function Calendrier({ user, navigate, goBack, lang='fr', isMobile
       </div>
 
       <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'1rem'}}>
-        <button onClick={prevMois} style={{padding:'6px 14px',border:'0.5px solid #e0e0d8',borderRadius:8,background:'#fff',cursor:'pointer',fontSize:16}}>‹</button>
+        <button onClick={prevMois}
+          aria-label={lang==='ar'?'الشهر السابق':'Mois précédent'}
+          style={{width:44,height:44,border:'0.5px solid #e0e0d8',borderRadius:8,background:'#fff',cursor:'pointer',fontSize:18,
+            display:'flex',alignItems:'center',justifyContent:'center'}}>‹</button>
         <div style={{fontSize:16,fontWeight:600}}>{getMois(mois,lang)} {annee}</div>
-        <button onClick={nextMois} style={{padding:'6px 14px',border:'0.5px solid #e0e0d8',borderRadius:8,background:'#fff',cursor:'pointer',fontSize:16}}>›</button>
+        <button onClick={nextMois}
+          aria-label={lang==='ar'?'الشهر التالي':'Mois suivant'}
+          style={{width:44,height:44,border:'0.5px solid #e0e0d8',borderRadius:8,background:'#fff',cursor:'pointer',fontSize:18,
+            display:'flex',alignItems:'center',justifyContent:'center'}}>›</button>
       </div>
 
       {loading ? <div className="loading">...</div> : (
