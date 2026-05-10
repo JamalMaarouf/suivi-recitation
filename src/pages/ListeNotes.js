@@ -8,6 +8,7 @@ import { exportExcelSimple } from '../lib/excel';
 import { fetchAll } from '../lib/fetchAll';
 import ExportButtons from '../components/ExportButtons';
 import PageHeader from '../components/PageHeader';
+import { usePullToRefresh, PullToRefreshIndicator } from '../lib/usePullToRefresh';
 
 export default function ListeNotes({ user, navigate, goBack, lang='fr', isMobile }) {
   const [eleves, setEleves] = useState([]);
@@ -201,8 +202,23 @@ export default function ListeNotes({ user, navigate, goBack, lang='fr', isMobile
     return '';
   };
 
+  // Pull-to-refresh (Phase 2 mobile)
+  const {
+    pullDistance, isRefreshing, isThreshold,
+    onTouchStart, onTouchMove, onTouchEnd,
+  } = usePullToRefresh(loadData);
+
   return (
-    <div style={{ padding: isMobile?'0':'1.5rem', paddingBottom:80, background: isMobile?'#f5f5f0':'transparent', minHeight: isMobile?'100vh':'auto' }}>
+    <div style={{ padding: isMobile?'0':'1.5rem', paddingBottom:80, background: isMobile?'#f5f5f0':'transparent', minHeight: isMobile?'100vh':'auto' }}
+      {...(isMobile ? { onTouchStart, onTouchMove, onTouchEnd } : {})}>
+      {isMobile && (
+        <PullToRefreshIndicator
+          pullDistance={pullDistance}
+          isRefreshing={isRefreshing}
+          isThreshold={isThreshold}
+          lang={lang}
+        />
+      )}
       {isMobile ? (
         <div style={{background:'linear-gradient(135deg,#085041,#1D9E75)',padding:'48px 16px 16px',marginBottom:12,position:'sticky',top:0,zIndex:100}}>
           <div style={{display:'flex',alignItems:'center',gap:12,marginBottom:4}}>

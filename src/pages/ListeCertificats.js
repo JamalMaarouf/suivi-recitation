@@ -8,6 +8,7 @@ import ExportButtons from '../components/ExportButtons';
 import ModaleEditionCertificat from '../components/ModaleEditionCertificat';
 import PageHeader from '../components/PageHeader';
 import MobileSkeletonList from '../components/MobileSkeletonList';
+import { usePullToRefresh, PullToRefreshIndicator } from '../lib/usePullToRefresh';
 
 export default function ListeCertificats({ user, navigate, goBack, lang='fr', isMobile, data }) {
   const focusCertId = data?.focusCertId || null;
@@ -301,10 +302,25 @@ export default function ListeCertificats({ user, navigate, goBack, lang='fr', is
     />
   );
 
+  // Pull-to-refresh (Phase 2 mobile - hook appele au top level pour respecter les rules of hooks)
+  const {
+    pullDistance, isRefreshing, isThreshold,
+    onTouchStart, onTouchMove, onTouchEnd,
+  } = usePullToRefresh(loadData);
+
   // ─── Mobile render ───────────────────────────────────────────
   if (isMobile) {
     return (
-      <div style={{paddingBottom:80,background:'#f5f5f0',minHeight:'100vh'}}>
+      <div style={{paddingBottom:80,background:'#f5f5f0',minHeight:'100vh'}}
+        onTouchStart={onTouchStart}
+        onTouchMove={onTouchMove}
+        onTouchEnd={onTouchEnd}>
+        <PullToRefreshIndicator
+          pullDistance={pullDistance}
+          isRefreshing={isRefreshing}
+          isThreshold={isThreshold}
+          lang={lang}
+        />
         {/* Header */}
         <div style={{background:'linear-gradient(135deg,#085041,#1D9E75)',padding:'48px 16px 16px',position:'sticky',top:0,zIndex:100}}>
           <div style={{display:'flex',alignItems:'center',gap:12,marginBottom:12}}>
