@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { isSourateNiveauDyn } from '../lib/helpers';
 import MobileSkeletonList from '../components/MobileSkeletonList';
+import { usePullToRefresh, PullToRefreshIndicator } from '../lib/usePullToRefresh';
 
 export default function ElevesMobile({ user, navigate, goBack, lang='ar' }) {
   const [eleves, setEleves] = useState([]);
@@ -129,8 +130,17 @@ export default function ElevesMobile({ user, navigate, goBack, lang='ar' }) {
     return { label:lang==='ar'?'مبتدئ':'Débutant', color:'#EF9F27' };
   };
 
+  // Pull-to-refresh (Phase 2 mobile)
+  const {
+    pullDistance, isRefreshing, isThreshold,
+    onTouchStart, onTouchMove, onTouchEnd,
+  } = usePullToRefresh(loadData);
+
   return (
-    <div style={{paddingBottom:80, background:'#f5f5f0', minHeight:'100vh'}}>
+    <div style={{paddingBottom:80, background:'#f5f5f0', minHeight:'100vh'}}
+      onTouchStart={onTouchStart}
+      onTouchMove={onTouchMove}
+      onTouchEnd={onTouchEnd}>
 
       {/* ── HEADER ── */}
       <div style={{background:'linear-gradient(135deg,#085041,#1D9E75)', padding:'48px 16px 16px', position:'sticky', top:0, zIndex:100}}>
@@ -168,6 +178,14 @@ export default function ElevesMobile({ user, navigate, goBack, lang='ar' }) {
           {msgText}
         </div>
       )}
+
+      {/* Pull-to-refresh indicator (Phase 2 mobile) */}
+      <PullToRefreshIndicator
+        pullDistance={pullDistance}
+        isRefreshing={isRefreshing}
+        isThreshold={isThreshold}
+        lang={lang}
+      />
 
       {/* ── FORMULAIRE ── */}
       {showForm && (
