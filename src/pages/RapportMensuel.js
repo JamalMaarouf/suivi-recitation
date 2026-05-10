@@ -230,11 +230,17 @@ export default function RapportMensuel({ user, navigate, goBack, lang='fr', isMo
           </div>
           {/* Navigation mois */}
           <div style={{display:'flex',alignItems:'center',justifyContent:'center',gap:12}}>
-            <button onClick={prevMois} style={{background:'rgba(255,255,255,0.22)',border:'1px solid rgba(255,255,255,0.25)',borderRadius:8,padding:'6px 14px',color:'#fff',cursor:'pointer',fontSize:18}}>‹</button>
+            <button onClick={prevMois}
+              aria-label={lang==='ar'?'الشهر السابق':'Mois précédent'}
+              style={{width:44,height:44,background:'rgba(255,255,255,0.22)',border:'1px solid rgba(255,255,255,0.25)',borderRadius:8,color:'#fff',cursor:'pointer',fontSize:20,
+                display:'flex',alignItems:'center',justifyContent:'center'}}>‹</button>
             <div style={{fontSize:15,fontWeight:700,color:'#fff',minWidth:140,textAlign:'center'}}>
               {getMoisNom(mois,lang)} {annee}
             </div>
-            <button onClick={nextMois} style={{background:'rgba(255,255,255,0.22)',border:'1px solid rgba(255,255,255,0.25)',borderRadius:8,padding:'6px 14px',color:'#fff',cursor:'pointer',fontSize:18}}>›</button>
+            <button onClick={nextMois}
+              aria-label={lang==='ar'?'الشهر التالي':'Mois suivant'}
+              style={{width:44,height:44,background:'rgba(255,255,255,0.22)',border:'1px solid rgba(255,255,255,0.25)',borderRadius:8,color:'#fff',cursor:'pointer',fontSize:20,
+                display:'flex',alignItems:'center',justifyContent:'center'}}>›</button>
           </div>
         </div>
       ) : (
