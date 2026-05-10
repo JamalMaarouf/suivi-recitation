@@ -39,6 +39,7 @@ const EnregistrerRecitation = lazy(() => import('./pages/EnregistrerRecitation')
 const Seance              = lazy(() => import('./pages/Seance'));
 const ValidationRapide    = lazy(() => import('./pages/ValidationRapide'));
 const ProfilMobile        = lazy(() => import('./pages/ProfilMobile'));
+const ModulesMobile       = lazy(() => import('./pages/ModulesMobile'));
 const Gestion             = lazy(() => import('./pages/Gestion'));
 const TableauHonneur      = lazy(() => import('./pages/TableauHonneur'));
 const Calendrier          = lazy(() => import('./pages/Calendrier'));
@@ -365,6 +366,7 @@ export default function App() {
     'validation_rapide': 'dashboard',
     'eleves_mobile': 'dashboard',
     'profil_mobile': 'dashboard',
+    'modules': 'dashboard',
     'inactifs': 'dashboard',
     'dashboard_direction': 'dashboard',
 
@@ -823,6 +825,7 @@ export default function App() {
           {page === 'eleves_mobile'      && <ElevesMobile navigate={navigate} goBack={goBack} lang={lang} user={user} niveaux={niveauxApp} />}
           {page === 'muraja_dashboard'  && <MurajaDashboard {...pageProps} />}
           {page === 'profil_mobile'    && <ProfilMobile user={user} lang={lang} onLogout={handleLogout} navigate={navigate} goBack={goBack} isMobile={isMobile}/>}
+          {page === 'modules'          && <ModulesMobile user={user} navigate={navigate} lang={lang} />}
           {page === 'validation_rapide' && <ValidationRapide {...pageProps} />}
           {page === 'honneur'           && <TableauHonneur {...pageProps} />}
           {page === 'seance'            && <Seance {...pageProps} />}
@@ -862,10 +865,12 @@ export default function App() {
               { key: 'validation_rapide', icon: '⚡', label: lang==='ar'?'استظهار':'Express' },
               { key: 'dashboard_plus',    icon: '⚙️', label: lang==='ar'?'المزيد':'Plus' },
             ]).map(tab => {
-              // 'dashboard_plus' = raccourci vers dashboard. Jamais marque actif
-              // (l'utilisateur comprend que "Plus" est une action, pas un etat)
-              const targetKey = tab.key === 'dashboard_plus' ? 'dashboard' : tab.key;
-              const isActive = tab.key !== 'dashboard_plus' && page === tab.key;
+              // 'dashboard_plus' = raccourci vers la page Modules (page de navigation dediee)
+              // (Phase 2 : Dashboard pure synthese, navigation des modules dans une page separee)
+              const targetKey = tab.key === 'dashboard_plus' ? 'modules' : tab.key;
+              const isActive = tab.key === 'dashboard_plus'
+                ? page === 'modules'
+                : page === tab.key;
               return (
                 <div key={tab.key}
                   className={`bottom-nav-item ${isActive ? 'active' : ''}`}

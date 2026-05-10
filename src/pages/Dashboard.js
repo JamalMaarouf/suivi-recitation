@@ -58,7 +58,6 @@ export default function Dashboard({ user, navigate, goBack, lang, isMobile=false
   const [vue, setVue] = useState('general');
   const [stats, setStats] = useState({});
   const [bareme, setBareme] = useState({...BAREME_DEFAUT});
-  const [showPlusModules, setShowPlusModules] = useState(false);
   const [exportMsg, setExportMsg] = useState('');
   const [selectedEleves, setSelectedEleves] = useState([]);
   const [searchEleve, setSearchEleve] = useState('');
@@ -317,53 +316,10 @@ export default function Dashboard({ user, navigate, goBack, lang, isMobile=false
     const inactifs30 = eleves.filter(e=>e.jours!=null&&e.jours>30);
     const inactifs14 = eleves.filter(e=>e.jours!=null&&e.jours>14&&e.jours<=30);
     const sansRecit  = eleves.filter(e=>e.jours==null);
-    // ─── NAV MODULES CATÉGORISÉS (Phase 2 mobile - 17 modules en 3 sections + Plus) ───
-    // Au lieu d'une grille plate de 17 cartes (anti-pattern), regrouper par usage :
-    //   1. Pédagogie (le plus utilisé au quotidien)
-    //   2. Suivi & Analyse
-    //   3. Administration
-    //   + Section dépliable "Plus" pour les modules secondaires
-    const navSections = [
-      {
-        title: lang==='ar'?'📚 التعليم':'📚 Pédagogie',
-        modules: [
-          {icon:'👥', label:lang==='ar'?'الطلاب':'Élèves',          sub:`${eleves.length} ${lang==='ar'?'طالب':'inscrits'}`, page:'eleves_mobile', color:'#378ADD', bg:'#E6F1FB'},
-          {icon:'⭐', label:lang==='ar'?'النقاط':'Notes',            sub:lang==='ar'?'الترتيب':'Classement',         page:'liste_notes',        color:'#EF9F27', bg:'#FAEEDA'},
-          {icon:'📝', label:lang==='ar'?'الامتحانات':'Examens',     sub:lang==='ar'?'النتائج':'Résultats',          page:'resultats_examens',  color:'#378ADD', bg:'#E6F1FB'},
-          {icon:'🏅', label:lang==='ar'?'الشهادات':'Certificats',    sub:lang==='ar'?'متابعة':'Suivi',               page:'liste_certificats',  color:'#EF9F27', bg:'#FAEEDA'},
-          {icon:'📊', label:lang==='ar'?'السجل':'Historique',        sub:lang==='ar'?'تحليل':'Analyse',              page:'historique_seances', color:'#378ADD', bg:'#E6F1FB'},
-          {icon:'🎯', label:lang==='ar'?'الأهداف':'Objectifs',       sub:lang==='ar'?'متابعة':'Suivi',               page:'objectifs',          color:'#534AB7', bg:'#EEEDFE', role:'surveillant'},
-        ],
-      },
-      {
-        title: lang==='ar'?'📊 التحليل والمتابعة':'📊 Suivi & Analyse',
-        modules: [
-          {icon:'🏆', label:lang==='ar'?'لوحة الشرف':'Honneur',      sub:lang==='ar'?'المتصدرون':'Top élèves',       page:'honneur',            color:'#EF9F27', bg:'#FAEEDA'},
-          {icon:'📅', label:lang==='ar'?'التقويم':'Calendrier',      sub:lang==='ar'?'البرنامج':'Planning',          page:'calendrier',         color:'#378ADD', bg:'#E6F1FB'},
-          {icon:'📋', label:lang==='ar'?'التقرير':'Rapport',         sub:lang==='ar'?'شهري':'Mensuel',               page:'rapport_mensuel',    color:'#374151', bg:'#F3F4F6', role:'surveillant'},
-          {icon:'📈', label:lang==='ar'?'مقارنة':'Comparer',         sub:lang==='ar'?'بين الطلاب':'Élèves',         page:'comparaison',        color:'#534AB7', bg:'#EEEDFE'},
-        ],
-      },
-      {
-        title: lang==='ar'?'⚙️ الإدارة':'⚙️ Administration',
-        modules: [
-          {icon:'⚙️', label:lang==='ar'?'الإدارة':'Gestion',          sub:lang==='ar'?'إعدادات':'Paramètres',         page:'gestion',            color:'#085041', bg:'#E1F5EE'},
-          {icon:'💰', label:lang==='ar'?'المالية':'Finance',           sub:lang==='ar'?'الاشتراكات':'Cotisations',     page:'finance',            color:'#E24B4A', bg:'#FCEBEB', role:'surveillant'},
-          {icon:'👨‍👩‍👧', label:lang==='ar'?'الأولياء':'Parents',         sub:lang==='ar'?'متابعة':'Suivi',               page:'parents',            color:'#534AB7', bg:'#EEEDFE', role:'surveillant'},
-          {icon:'📚', label:lang==='ar'?'الدروس':'Cours',              sub:lang==='ar'?'متابعة':'Suivi',               page:'cours',              color:'#378ADD', bg:'#E6F1FB'},
-        ],
-      },
-    ];
-    // Section dépliable "Plus" : modules secondaires/avancés
-    const navPlus = [
-      {icon:'📖', label:lang==='ar'?'مراجعة':"Muraja'a",            sub:lang==='ar'?'جماعية':'Collective',          page:'muraja',             color:'#534AB7', bg:'#F0EEFF'},
-      {icon:'📊', label:lang==='ar'?'لوحة القيادة':'Direction',     sub:lang==='ar'?'تحليلات':'Analytics',          page:'dashboard_direction', color:'#085041', bg:'#E1F5EE', role:'surveillant'},
-      {icon:'📅', label:lang==='ar'?'الحضور':'Assiduité',           sub:lang==='ar'?'الغياب':'Présences',           page:'assiduite',          color:'#1D9E75', bg:'#E1F5EE', role:'surveillant'},
-    ];
-    // Filtrer par rôle
-    const filterByRole = m => !m.role || user.role===m.role;
-    const sectionsFiltered = navSections.map(s => ({...s, modules: s.modules.filter(filterByRole)})).filter(s => s.modules.length > 0);
-    const plusFiltered = navPlus.filter(filterByRole);
+    // ─── Modules supprimes du Dashboard (Phase 2 - Dashboard pure synthese) ──
+    // Les 17 modules sont desormais accessibles via la page ModulesMobile
+    // qui s'ouvre depuis le tab "Plus" de la bottom tab bar.
+    // Voir src/pages/ModulesMobile.js pour la configuration des sections.
 
     const podiumColors = ['#EF9F27','#B0B0B0','#CD7F32'];
     const podiumBg     = ['#FAEEDA','#f5f5f0','#f9f3ec'];
@@ -472,57 +428,9 @@ export default function Dashboard({ user, navigate, goBack, lang, isMobile=false
             )}
           </div>
 
-          {/* ── NAVIGATION CATÉGORISÉE (Phase 2 - 17 modules en 3 sections + Plus) ── */}
-          {(() => {
-            const renderModule = (m) => (
-              <div key={m.page+m.label} onClick={()=>navigate(m.page)}
-                style={{background:'#fff',borderRadius:14,padding:'14px 10px',
-                  display:'flex',flexDirection:'column',alignItems:'center',gap:7,
-                  border:'0.5px solid #e0e0d8',cursor:'pointer',
-                  boxShadow:'0 1px 4px rgba(0,0,0,0.04)'}}>
-                <div style={{width:40,height:40,borderRadius:12,background:m.bg,
-                  display:'flex',alignItems:'center',justifyContent:'center',fontSize:18}}>
-                  {m.icon}
-                </div>
-                <div style={{fontSize:12,fontWeight:700,color:'#1a1a1a',textAlign:'center',
-                  lineHeight:1.2}}>{m.label}</div>
-                <div style={{fontSize:10,color:'#888',textAlign:'center'}}>{m.sub}</div>
-              </div>
-            );
-            return (
-              <>
-                {sectionsFiltered.map((section, idx) => (
-                  <div key={section.title} style={{padding:idx===0?'12px 12px 4px':'16px 12px 4px'}}>
-                    <div style={{fontSize:12,fontWeight:700,color:'#666',
-                      letterSpacing:'0.3px',marginBottom:10}}>
-                      {section.title}
-                    </div>
-                    <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:8}}>
-                      {section.modules.map(renderModule)}
-                    </div>
-                  </div>
-                ))}
-                {/* Section Plus dépliable */}
-                {plusFiltered.length > 0 && (
-                  <div style={{padding:'16px 12px 4px'}}>
-                    <button onClick={()=>setShowPlusModules(v=>!v)}
-                      style={{width:'100%',padding:'12px 16px',background:'#fff',
-                        border:'0.5px solid #e0e0d8',borderRadius:12,cursor:'pointer',
-                        display:'flex',alignItems:'center',justifyContent:'space-between',
-                        fontFamily:'inherit',fontSize:13,fontWeight:600,color:'#666'}}>
-                      <span>{lang==='ar'?'➕ المزيد':'➕ Plus de modules'} ({plusFiltered.length})</span>
-                      <span style={{fontSize:11,opacity:0.7}}>{showPlusModules ? '▲' : '▼'}</span>
-                    </button>
-                    {showPlusModules && (
-                      <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:8,marginTop:10}}>
-                        {plusFiltered.map(renderModule)}
-                      </div>
-                    )}
-                  </div>
-                )}
-              </>
-            );
-          })()}
+          {/* ── NAVIGATION DEPLACEE VERS LA PAGE ModulesMobile (Phase 2 - Dashboard pure synthese) ──
+              Les modules sont desormais accessibles via le tab 'Plus' de la bottom tab bar.
+              Le Dashboard se concentre uniquement sur l'INFORMATION (KPIs, alertes, podium, activites). */}
 
           {/* ── STATS SEMAINE ── */}
           <div style={{padding:'12px 12px 4px'}}>
