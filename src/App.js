@@ -679,6 +679,111 @@ export default function App() {
           </nav>
         )}
 
+        {/* Avatar profil mobile (Phase 2) - bouton fixed top-right
+            qui ouvre un dropdown avec Profil / Deconnexion / Langue
+            Standard mondial : Gmail, Notion, WhatsApp, Linear, etc.
+            Reutilise le state showUserMenu deja existant pour PC. */}
+        {isMobile && user.role !== 'parent' && !kioskMode && (
+          <div style={{position:'fixed', top:8, right:8, zIndex:1000}}>
+            <button onClick={e=>{e.stopPropagation();setShowUserMenu(v=>!v);setShowLangMenu(false);}}
+              aria-label={lang==='ar'?'الملف الشخصي':'Mon profil'}
+              style={{
+                width:38, height:38, borderRadius:'50%',
+                background:'rgba(255,255,255,0.95)',
+                border:'1.5px solid rgba(8,80,65,0.15)',
+                color:'#085041', fontSize:14, fontWeight:800,
+                cursor:'pointer', fontFamily:'inherit',
+                display:'flex', alignItems:'center', justifyContent:'center',
+                boxShadow:'0 2px 8px rgba(0,0,0,0.08)',
+                backdropFilter:'blur(8px)',
+                WebkitBackdropFilter:'blur(8px)',
+              }}>
+              {(user.prenom?user.prenom[0]:user.email?.[0]||'?').toUpperCase()}
+            </button>
+            {showUserMenu && (
+              <>
+                {/* Overlay click outside */}
+                <div onClick={()=>setShowUserMenu(false)}
+                  style={{position:'fixed', inset:0, zIndex:998, background:'transparent'}} />
+                <div style={{
+                  position:'absolute', top:46, right:0,
+                  background:'#fff', borderRadius:14, minWidth:240,
+                  boxShadow:'0 8px 24px rgba(0,0,0,0.15)',
+                  border:'0.5px solid #e0e0d8',
+                  zIndex:999, overflow:'hidden',
+                }}>
+                  {/* Header avec info utilisateur */}
+                  <div style={{padding:'14px 16px', background:'linear-gradient(135deg,#085041,#1D9E75)'}}>
+                    <div style={{display:'flex', alignItems:'center', gap:10}}>
+                      <div style={{width:38, height:38, borderRadius:'50%', flexShrink:0,
+                        background:'rgba(255,255,255,0.2)', border:'2px solid rgba(255,255,255,0.4)',
+                        display:'flex', alignItems:'center', justifyContent:'center',
+                        fontSize:15, fontWeight:900, color:'#fff'}}>
+                        {(user.prenom?user.prenom[0]:user.email?.[0]||'?').toUpperCase()}
+                      </div>
+                      <div style={{flex:1, minWidth:0, overflow:'hidden'}}>
+                        <div style={{fontWeight:700, fontSize:13, color:'#fff',
+                          whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis'}}>
+                          {user.prenom} {user.nom}
+                        </div>
+                        <div style={{fontSize:10, color:'rgba(255,255,255,0.85)', marginTop:2,
+                          background:'rgba(255,255,255,0.15)', padding:'1px 7px',
+                          borderRadius:8, display:'inline-block'}}>
+                          {t(lang, user.role==='surveillant' ? 'role_surveillant'
+                            : user.role==='instituteur' ? 'role_instituteur'
+                            : 'role_admin')}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  {/* Actions */}
+                  <div style={{padding:'6px 0'}}>
+                    <button onClick={()=>{setShowUserMenu(false); navigate('profil_mobile');}}
+                      style={{display:'flex', alignItems:'center', gap:12,
+                        width:'100%', padding:'12px 16px', border:'none', background:'#fff',
+                        color:'#333', cursor:'pointer', fontSize:13, fontFamily:'inherit',
+                        textAlign:lang==='ar'?'right':'left'}}
+                      onMouseEnter={e=>e.currentTarget.style.background='#f5f5f0'}
+                      onMouseLeave={e=>e.currentTarget.style.background='#fff'}>
+                      <span style={{width:30, height:30, borderRadius:8, background:'#E1F5EE',
+                        display:'flex', alignItems:'center', justifyContent:'center',
+                        fontSize:15, flexShrink:0}}>👤</span>
+                      <span style={{flex:1}}>{lang==='ar'?'الملف الشخصي':'Mon profil'}</span>
+                    </button>
+                    <button onClick={()=>{setShowUserMenu(false); setLang(lang==='fr'?'ar':'fr');}}
+                      style={{display:'flex', alignItems:'center', gap:12,
+                        width:'100%', padding:'12px 16px', border:'none', background:'#fff',
+                        color:'#333', cursor:'pointer', fontSize:13, fontFamily:'inherit',
+                        textAlign:lang==='ar'?'right':'left'}}
+                      onMouseEnter={e=>e.currentTarget.style.background='#f5f5f0'}
+                      onMouseLeave={e=>e.currentTarget.style.background='#fff'}>
+                      <span style={{width:30, height:30, borderRadius:8, background:'#FFF3D6',
+                        display:'flex', alignItems:'center', justifyContent:'center',
+                        fontSize:14, flexShrink:0}}>🌐</span>
+                      <span style={{flex:1}}>
+                        {lang==='ar'?'Français':'العربية'}
+                      </span>
+                    </button>
+                    <div style={{height:'0.5px', background:'#f0f0ec', margin:'4px 14px'}}/>
+                    <button onClick={()=>{setShowUserMenu(false); handleLogout();}}
+                      style={{display:'flex', alignItems:'center', gap:12,
+                        width:'100%', padding:'12px 16px', border:'none', background:'#fff',
+                        color:'#E24B4A', cursor:'pointer', fontSize:13, fontFamily:'inherit',
+                        textAlign:lang==='ar'?'right':'left', fontWeight:600}}
+                      onMouseEnter={e=>e.currentTarget.style.background='#fff5f5'}
+                      onMouseLeave={e=>e.currentTarget.style.background='#fff'}>
+                      <span style={{width:30, height:30, borderRadius:8, background:'#FCEBEB',
+                        display:'flex', alignItems:'center', justifyContent:'center',
+                        fontSize:14, flexShrink:0}}>🚪</span>
+                      <span style={{flex:1}}>{t(lang,'deconnexion')}</span>
+                    </button>
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
+        )}
+
         <main className={isMobile ? 'main-content-mobile' : 'main-content'}>
           {user.role === 'parent' && (
             <Suspense fallback={<div style={{display:'flex',alignItems:'center',justifyContent:'center',padding:'3rem',color:'#888',fontSize:13}}><span style={{marginRight:8}}>⏳</span>{lang==='ar'?'جاري التحميل...':'Chargement...'}</div>}>
