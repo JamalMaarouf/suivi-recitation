@@ -7,6 +7,7 @@ import { openPDF } from '../lib/pdf';
 import { exportExcelSimple } from '../lib/excel';
 import ExportButtons from '../components/ExportButtons';
 import PageHeader from '../components/PageHeader';
+import MobileSkeletonList from '../components/MobileSkeletonList';
 
 export default function GestionExamens({ user, navigate, goBack, lang='fr', isMobile }) {
   const { toast } = useToast();
@@ -642,7 +643,7 @@ export default function GestionExamens({ user, navigate, goBack, lang='fr', isMo
             </div>
           )}
 
-          {loading&&<div style={{textAlign:'center',padding:'2rem',color:'#888'}}>...</div>}
+          {loading&&<MobileSkeletonList type="card-simple" count={4} padding="0" />}
 
           {!loading&&examsFiltres.length===0&&!showForm&&(
             <div style={{textAlign:'center',color:'#aaa',padding:'3rem',

@@ -10,6 +10,7 @@ import { fetchAll } from '../lib/fetchAll';
 import OngletAssiduiteEleve from '../components/OngletAssiduiteEleve';
 import OngletCoursEleve from '../components/OngletCoursEleve';
 import BadgeStatutParent from '../components/BadgeStatutParent';
+import MobileSkeletonList from '../components/MobileSkeletonList';
 
 function Avatar({ prenom, nom, size=44, bg='#E1F5EE', color='#085041' }) {
   return <div style={{width:size,height:size,borderRadius:'50%',background:bg,color,display:'flex',alignItems:'center',justifyContent:'center',fontWeight:600,fontSize:size*0.33,flexShrink:0}}>{getInitiales(prenom,nom)}</div>;
@@ -1262,7 +1263,7 @@ ${(passages||[]).length > 0 ? `
         </div>
 
         {/* Loading */}
-        {loading && <div style={{textAlign:'center', padding:'2rem', color:'#888'}}>...</div>}
+        {loading && <MobileSkeletonList type="card-with-tabs" count={2} padding="12px" />}
 
         {/* Content */}
         {!loading && (

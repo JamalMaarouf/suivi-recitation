@@ -7,6 +7,7 @@ import { exportExcelSimple } from '../lib/excel';
 import ExportButtons from '../components/ExportButtons';
 import ModaleEditionCertificat from '../components/ModaleEditionCertificat';
 import PageHeader from '../components/PageHeader';
+import MobileSkeletonList from '../components/MobileSkeletonList';
 
 export default function ListeCertificats({ user, navigate, goBack, lang='fr', isMobile, data }) {
   const focusCertId = data?.focusCertId || null;
@@ -357,7 +358,7 @@ export default function ListeCertificats({ user, navigate, goBack, lang='fr', is
         </div>
 
         {/* Liste */}
-        {loading ? <div style={{textAlign:'center',padding:'3rem',color:'#888'}}>...</div>
+        {loading ? <MobileSkeletonList type="card-with-avatar" count={6} padding="10px 12px" />
           : filtered.length===0 ? (
             <div style={{textAlign:'center',padding:'3rem',color:'#aaa'}}>
               <div style={{fontSize:36,marginBottom:8}}>🏅</div>

@@ -3,6 +3,7 @@ import { useToast } from '../lib/toast';
 import { t } from '../lib/i18n';
 import { supabase } from '../lib/supabase';
 import { withRetryToast } from '../lib/retry';
+import MobileSkeletonList from '../components/MobileSkeletonList';
 import { invalidateMany } from '../lib/cache';
 import { enqueueOrRun } from '../lib/offlineQueue';
 import { notifierParents } from '../lib/notificationsParents';
@@ -451,10 +452,7 @@ export default function EnregistrerRecitation({  user, eleve: eleveInitial, navi
           )}
           {/* Loading */}
           {!etat && (
-            <div style={{textAlign:'center',color:'#888',padding:'2rem'}}>
-              <div style={{fontSize:32,marginBottom:8}}>⏳</div>
-              <div>{lang==='ar'?'جاري التحميل...':'Chargement...'}</div>
-            </div>
+            <MobileSkeletonList type="card-with-tabs" count={3} padding="0" />
           )}
           {/* Validation - etat loaded */}
           {etat && !done && (
