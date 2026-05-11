@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useCallback } from 'react';
+import { hapticError } from './haptic';
 
 // ─── Context ───────────────────────────────────────────────────────────────
 export const ToastContext = createContext({ showToast: () => {} });
@@ -86,6 +87,8 @@ export function ToastProvider({ children, isMobile }) {
     const id = Date.now() + Math.random();
     const duration = options.duration ?? (type === 'error' ? 5000 : 3500);
     setToasts(prev => [...prev.slice(-4), { id, type, message, title: options.title }]);
+    // Haptic feedback pour erreurs critiques (Phase 2 Sprint 5)
+    if (type === 'error') hapticError();
     if (duration > 0) {
       setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), duration);
     }
