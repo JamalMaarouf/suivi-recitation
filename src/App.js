@@ -682,23 +682,25 @@ export default function App() {
         )}
 
         {/* Avatar profil mobile (Phase 2) - bouton fixed top-right
-            qui ouvre un dropdown avec Profil / Deconnexion / Langue
+            qui ouvre un dropdown avec Profil / Langue / Deconnexion
             Standard mondial : Gmail, Notion, WhatsApp, Linear, etc.
-            Reutilise le state showUserMenu deja existant pour PC. */}
+            Reutilise le state showUserMenu deja existant pour PC.
+
+            CACHE SUR DASHBOARD : sur Dashboard mobile, l'avatar est integre
+            DANS le header gradient (a cote de la salutation "مرحباً jamal").
+            Voir Dashboard.js pour cette integration. */}
         {isMobile && user.role !== 'parent' && !kioskMode && (
-          <div style={{position:'fixed', top:8, right:8, zIndex:1000}}>
+          <div style={{position:'fixed', top:12, right:12, zIndex:1000}}>
             <button onClick={e=>{e.stopPropagation();setShowUserMenu(v=>!v);setShowLangMenu(false);}}
               aria-label={lang==='ar'?'الملف الشخصي':'Mon profil'}
               style={{
-                width:38, height:38, borderRadius:'50%',
-                background:'rgba(255,255,255,0.95)',
-                border:'1.5px solid rgba(8,80,65,0.15)',
-                color:'#085041', fontSize:14, fontWeight:800,
+                width:44, height:44, borderRadius:'50%',
+                background:'#fff',
+                border:'1.5px solid rgba(8,80,65,0.18)',
+                color:'#085041', fontSize:15, fontWeight:800,
                 cursor:'pointer', fontFamily:'inherit',
                 display:'flex', alignItems:'center', justifyContent:'center',
-                boxShadow:'0 2px 8px rgba(0,0,0,0.08)',
-                backdropFilter:'blur(8px)',
-                WebkitBackdropFilter:'blur(8px)',
+                boxShadow:'0 3px 10px rgba(0,0,0,0.10)',
               }}>
               {(user.prenom?user.prenom[0]:user.email?.[0]||'?').toUpperCase()}
             </button>
@@ -714,30 +716,10 @@ export default function App() {
                   border:'0.5px solid #e0e0d8',
                   zIndex:999, overflow:'hidden',
                 }}>
-                  {/* Header avec info utilisateur */}
-                  <div style={{padding:'14px 16px', background:'linear-gradient(135deg,#085041,#1D9E75)'}}>
-                    <div style={{display:'flex', alignItems:'center', gap:10}}>
-                      <div style={{width:38, height:38, borderRadius:'50%', flexShrink:0,
-                        background:'rgba(255,255,255,0.2)', border:'2px solid rgba(255,255,255,0.4)',
-                        display:'flex', alignItems:'center', justifyContent:'center',
-                        fontSize:15, fontWeight:900, color:'#fff'}}>
-                        {(user.prenom?user.prenom[0]:user.email?.[0]||'?').toUpperCase()}
-                      </div>
-                      <div style={{flex:1, minWidth:0, overflow:'hidden'}}>
-                        <div style={{fontWeight:700, fontSize:13, color:'#fff',
-                          whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis'}}>
-                          {user.prenom} {user.nom}
-                        </div>
-                        <div style={{fontSize:10, color:'rgba(255,255,255,0.85)', marginTop:2,
-                          background:'rgba(255,255,255,0.15)', padding:'1px 7px',
-                          borderRadius:8, display:'inline-block'}}>
-                          {t(lang, user.role==='surveillant' ? 'role_surveillant'
-                            : user.role==='instituteur' ? 'role_instituteur'
-                            : 'role_admin')}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
+                  {/* Dropdown simplifie (Phase 2) - sans header redondant
+                      Le nom + role sont deja visibles sur le Dashboard.
+                      Pattern standard : Gmail, GitHub, etc. n'ont pas de header
+                      dans le dropdown profil. */}
                   {/* Actions */}
                   <div style={{padding:'6px 0'}}>
                     <button onClick={()=>{setShowUserMenu(false); navigate('profil_mobile');}}
