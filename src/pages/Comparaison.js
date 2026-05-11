@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase';
 import { calcEtatEleve, getInitiales, scoreLabel, formatDateCourt, niveauTraduit, getSensForEleve, loadBareme, BAREME_DEFAUT} from '../lib/helpers';
 import { t } from '../lib/i18n';
 import { fetchAll } from '../lib/fetchAll';
+import MobileSkeletonList from '../components/MobileSkeletonList';
 
 const PALETTE = ['#1D9E75','#378ADD','#EF9F27','#E24B4A','#534AB7','#D85A30'];
 
@@ -85,7 +86,7 @@ export default function Comparaison({ navigate, goBack, lang='fr', isMobile, use
         </div>
       )}
       <div style={{padding:isMobile?'0 12px':'0'}}>
-      {loading?<div className="loading">...</div>:(
+      {loading?<MobileSkeletonList type="card-with-tabs" count={4} />:(
         <>
           <div style={{background:'#fff',border:'0.5px solid #e0e0d8',borderRadius:12,padding:'1rem',marginBottom:'1.25rem'}}>
             <div style={{fontSize:12,color:'#888',marginBottom:8}}>{t(lang,'selectionner_comparer')} :</div>

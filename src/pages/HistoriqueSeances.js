@@ -8,6 +8,7 @@ import ExportButtons from '../components/ExportButtons';
 import PeriodeSelectorHybride from '../components/PeriodeSelectorHybride';
 import PageHeader from '../components/PageHeader';
 import StatsCard from '../components/StatsCard';
+import MobileSkeletonList from '../components/MobileSkeletonList';
 
 const IS_SOURATE = (code) => ['5B','5A','2M'].includes(code||'');
 const NIVEAU_COLORS = { '5B':'#534AB7','5A':'#378ADD','2M':'#1D9E75','2':'#EF9F27','1':'#E24B4A' };
@@ -568,7 +569,7 @@ export default function HistoriqueSeances({ user, navigate, goBack, lang='fr', i
           )}
         </div>
 
-        {loading ? <div style={{textAlign:'center',padding:'2rem',color:'#888'}}>...</div> : (
+        {loading ? <MobileSkeletonList type="card-simple" count={4} /> : (
           <div style={{padding:'12px'}}>
             {/* KPIs 2x2 */}
             <div style={{display:'grid',gridTemplateColumns:'repeat(2,1fr)',gap:10,marginBottom:14}}>
@@ -723,7 +724,7 @@ export default function HistoriqueSeances({ user, navigate, goBack, lang='fr', i
         </div>
       </div>
 
-      {loading ? <div className="loading">...</div> : (<>
+      {loading ? <MobileSkeletonList type="card-simple" count={5} /> : (<>
         {/* KPI principaux (3 cartes) */}
         <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:10,marginBottom:'1rem'}}>
           <StatsCard

@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase';
 import { useToast } from '../lib/toast';
 import ConfirmModal from '../components/ConfirmModal';
 import PageHeader from '../components/PageHeader';
+import MobileSkeletonList from '../components/MobileSkeletonList';
 
 // ══════════════════════════════════════════════════════════════════════
 // PAGE GESTION ASSIDUITÉ

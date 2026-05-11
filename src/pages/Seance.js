@@ -7,6 +7,7 @@ import { getSouratesForNiveau } from '../lib/sourates';
 import { fetchAll } from '../lib/fetchAll';
 import ExportButtons from '../components/ExportButtons';
 import PageHeader from '../components/PageHeader';
+import MobileSkeletonList from '../components/MobileSkeletonList';
 
 const IS_SOURATE = (code) => ['5B','5A','2M'].includes(code||'');
 const NIVEAU_COLORS = { '5B':'#534AB7','5A':'#378ADD','2M':'#1D9E75','2':'#EF9F27','1':'#E24B4A' };
@@ -241,7 +242,7 @@ export default function Seance({ user, navigate, goBack, lang, isMobile=false })
           </div>
         </div>
 
-        {loading ? <div style={{textAlign:'center',padding:'2rem',color:'#888'}}>...</div> : (
+        {loading ? <MobileSkeletonList type="card-simple" count={4} /> : (
           <>
             {/* Semaine view */}
             {vue==='semaine' && (
@@ -370,7 +371,7 @@ export default function Seance({ user, navigate, goBack, lang, isMobile=false })
         ))}
       </div>
 
-      {loading ? <div className="loading">...</div> : (
+      {loading ? <MobileSkeletonList type="card-simple" count={4} /> : (
         <>
           {vue==='seance' && (
             <>

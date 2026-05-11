@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase';
 import { useToast } from '../lib/toast';
 import ConfirmModal from '../components/ConfirmModal';
 import PageHeader from '../components/PageHeader';
+import MobileSkeletonList from '../components/MobileSkeletonList';
 
 // ══════════════════════════════════════════════════════════════════════
 // PAGE ÉDITEUR D'AXES D'UN COURS
@@ -365,9 +366,7 @@ export default function GestionCoursAxes({ user, navigate, goBack, lang, isMobil
       {/* Contenu */}
       <div style={{ padding: isMobile ? '14px' : '0 1.5rem' }}>
         {loading ? (
-          <div style={{ padding: 40, textAlign: 'center', color: '#888' }}>
-            {lang === 'ar' ? '...جاري التحميل' : 'Chargement...'}
-          </div>
+          <MobileSkeletonList type="card-simple" count={4} padding="12px" />
         ) : (
           <>
             {/* Bouton ajouter mobile */}

@@ -6,6 +6,7 @@ import { fetchAll } from '../lib/fetchAll';
 import { openPDF } from '../lib/pdf';
 import { exportExcelSimple } from '../lib/excel';
 import PageHeader from '../components/PageHeader';
+import MobileSkeletonList from '../components/MobileSkeletonList';
 
 export default function TableauHonneur({ user, navigate, goBack, lang='fr', isMobile }) {
   const [eleves, setEleves] = useState([]);
@@ -257,7 +258,7 @@ export default function TableauHonneur({ user, navigate, goBack, lang='fr', isMo
         ))}
       </div>
 
-      {loading ? <div style={{color:'#5DCAA5',textAlign:'center',padding:'3rem'}}>...</div> : (
+      {loading ? <MobileSkeletonList type="card-with-avatar" count={6} padding="12px" /> : (
         <>
           {elevesClasses.length === 0 ? (
             <div style={{textAlign:'center',color:'#3a6657',padding:'3rem',fontSize:14}}>

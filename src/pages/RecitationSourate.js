@@ -4,6 +4,7 @@ import { getInitiales, scoreLabel, loadBareme, verifierEtCreerCertificats, verif
 import { t } from '../lib/i18n';
 import { getSouratesForNiveau, isSourateNiveau } from '../lib/sourates';
 import { useToast } from '../lib/toast';
+import MobileSkeletonList from '../components/MobileSkeletonList';
 
 function Avatar({ prenom, nom, size=36, bg='#E1F5EE', color='#085041' }) {
   return <div style={{width:size,height:size,borderRadius:'50%',background:bg,color,display:'flex',alignItems:'center',justifyContent:'center',fontWeight:600,fontSize:size*0.33,flexShrink:0}}>{getInitiales(prenom,nom)}</div>;
@@ -375,7 +376,7 @@ export default function RecitationSourate({ user, eleve, navigate, goBack, lang=
           </div>
         )}
 
-        {loading ? <div style={{textAlign:'center',padding:'2rem',color:'#888'}}>...</div> : (
+        {loading ? <MobileSkeletonList type="card-simple" count={4} /> : (
           <div style={{padding:'12px'}}>
             {/* Liste sourates */}
             {step!=='recap' && (
@@ -589,7 +590,7 @@ export default function RecitationSourate({ user, eleve, navigate, goBack, lang=
         </div>
       )}
 
-      {loading ? <div className="loading">...</div> : (
+      {loading ? <MobileSkeletonList type="card-simple" count={4} /> : (
         <>
           {step === 'liste' && (
             <>

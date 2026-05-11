@@ -5,6 +5,7 @@ import ConfirmModal from '../components/ConfirmModal';
 import { t } from '../lib/i18n';
 import PageHeader from '../components/PageHeader';
 import StatsCard from '../components/StatsCard';
+import MobileSkeletonList from '../components/MobileSkeletonList';
 
 const PERIODES = [
   { val:'semaine',   label_fr:'Semaine',              label_ar:'أسبوع',           jours:7   },

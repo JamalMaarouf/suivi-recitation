@@ -6,6 +6,7 @@ import { t } from '../lib/i18n';
 import ExportButtons from '../components/ExportButtons';
 import PageHeader from '../components/PageHeader';
 import StatsCard from '../components/StatsCard';
+import MobileSkeletonList from '../components/MobileSkeletonList';
 
 const CATEGORIES = [
   { val: 'salaire',     label: 'Salaires / Honoraires', labelAr: 'الرواتب',       icon: '👨‍🏫', color: '#534AB7' },
@@ -666,7 +667,7 @@ export default function Finance({ user, navigate, goBack, lang='fr', isMobile })
           </div>
         </div>
 
-        {loading ? <div style={{textAlign:'center',padding:'2rem',color:'rgba(255,255,255,0.75)'}}>...</div> : (
+        {loading ? <MobileSkeletonList type="card-stat" count={4} padding="12px" /> : (
           <div style={{padding:'12px'}}>
             {/* Dashboard KPIs */}
             {onglet==='dashboard' && (
@@ -1147,7 +1148,7 @@ export default function Finance({ user, navigate, goBack, lang='fr', isMobile })
         <div className="field-group"><label className="field-lbl">{lang==='ar'?'إلى':'Au'}</label><input className="field-input" type="date" value={dateFin} onChange={e=>setDateFin(e.target.value)}/></div>
       </div>
 
-      {loading ? <div className="loading">...</div> : (<>
+      {loading ? <MobileSkeletonList type="card-simple" count={5} /> : (<>
 
         {/* ═══ DASHBOARD ═══ */}
         {onglet==='dashboard'&&(
