@@ -410,12 +410,41 @@ export default function ImportMasse({ user, navigate, goBack, lang='fr', isMobil
   // RENDU
   // ═══════════════════════════════════════════════════════════════
   return (
-    <div style={{padding: isMobile ? '12px' : '1.5rem', maxWidth: 1200, margin: '0 auto'}}>
-      <BackButton onClick={() => goBack ? goBack() : navigate('gestion')} lang={lang} isMobile={isMobile} />
+    <div style={isMobile
+      ? {paddingBottom:80, background:'#f5f5f0', minHeight:'100vh'}
+      : {padding: '1.5rem', maxWidth: 1200, margin: '0 auto'}}>
 
-      <h1 style={{fontSize: isMobile ? 22 : 28, fontWeight: 800, color: '#085041', marginBottom: 8}}>
-        📥 {lang === 'ar' ? 'استيراد جماعي' : 'Import en masse'}
-      </h1>
+      {/* Header */}
+      {isMobile ? (
+        <div style={{background:'linear-gradient(135deg,#085041,#1D9E75)',padding:'48px 16px 16px',position:'sticky',top:0,zIndex:100}}>
+          <div style={{display:'flex',alignItems:'center',gap:12,marginBottom:6}}>
+            <button onClick={()=>goBack?goBack():navigate('gestion')}
+              aria-label={lang==='ar'?'رجوع':'Retour'}
+              style={{background:'rgba(255,255,255,0.22)',border:'1px solid rgba(255,255,255,0.25)',
+                borderRadius:10,padding:'0',color:'#fff',fontSize:20,cursor:'pointer',flexShrink:0,
+                width:44,height:44,display:'flex',alignItems:'center',justifyContent:'center'}}>
+              ←
+            </button>
+            <div style={{flex:1}}>
+              <div style={{fontSize:17,fontWeight:800,color:'#fff'}}>
+                📥 {lang === 'ar' ? 'استيراد جماعي' : 'Import en masse'}
+              </div>
+              <div style={{fontSize:11,color:'rgba(255,255,255,0.85)',marginTop:2}}>
+                {lang === 'ar' ? 'استيراد البيانات من ملف Excel' : 'Importer les données depuis Excel'}
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : (
+        <>
+          <BackButton onClick={() => goBack ? goBack() : navigate('gestion')} lang={lang} isMobile={isMobile} />
+          <h1 style={{fontSize: 28, fontWeight: 800, color: '#085041', marginBottom: 8}}>
+            📥 {lang === 'ar' ? 'استيراد جماعي' : 'Import en masse'}
+          </h1>
+        </>
+      )}
+
+      <div style={{padding: isMobile ? '14px' : '0'}}>
       <p style={{fontSize: 13, color: '#666', marginBottom: 24, lineHeight: 1.5}}>
         {lang === 'ar'
           ? 'استورد المستويات والطلاب والمدرسين والآباء من ملف Excel واحد. الأخطاء يتم الإبلاغ عنها بدقة دون حظر الأسطر الصحيحة.'
@@ -581,6 +610,7 @@ export default function ImportMasse({ user, navigate, goBack, lang='fr', isMobil
           </div>
         </div>
       )}
+      </div>
     </div>
   );
 }

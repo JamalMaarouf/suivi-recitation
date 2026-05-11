@@ -288,48 +288,97 @@ export default function GestionBlocs({ user, navigate, goBack, lang='fr', isMobi
   return (
     <div style={isMobile?{paddingBottom:80,background:'#f5f5f0',minHeight:'100vh'}:{}}>
       {/* Header */}
-      <div style={isMobile?{background:'#fff',padding:'14px 16px 0',borderBottom:'0.5px solid #e0e0d8',position:'sticky',top:0,zIndex:100}:{}}>
-        <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:12}}>
-          <button onClick={()=>goBack?goBack():navigate('dashboard')}
-            style={{background:'none',border:'none',cursor:'pointer',fontSize:isMobile?22:14,
-              color:'#085041',padding:0,fontFamily:'inherit',fontWeight:600}}>
-            ←
-          </button>
-          {!isMobile&&<div style={{fontSize:20,fontWeight:700}}>🔧 Blocs d'examen</div>}
-          {isMobile&&<div style={{flex:1,fontSize:17,fontWeight:800,color:'#085041'}}>🔧 {lang==='ar'?'مجموعات الامتحان':'Blocs'}</div>}
-        </div>
-
-        {/* Filtre Niveau */}
-        <div style={{display:'flex',gap:6,overflowX:'auto',scrollbarWidth:'none',
-          paddingBottom:isMobile?10:8,flexWrap:isMobile?'nowrap':'wrap'}}>
-          {niveaux.map(n=>(
-            <div key={n.id} onClick={()=>changerNiveau(n.id)}
-              style={{padding:'6px 14px',borderRadius:20,fontSize:12,fontWeight:600,
-                flexShrink:0,cursor:'pointer',
-                background:filtreNiveau===n.id?n.couleur:'#f0f0ec',
-                color:filtreNiveau===n.id?'#fff':'#666'}}>
-              {n.code}
+      {isMobile ? (
+        <div style={{background:'linear-gradient(135deg,#085041,#1D9E75)',padding:'48px 16px 14px',position:'sticky',top:0,zIndex:100}}>
+          <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:12}}>
+            <button onClick={()=>goBack?goBack():navigate('gestion')}
+              aria-label={lang==='ar'?'رجوع':'Retour'}
+              style={{background:'rgba(255,255,255,0.22)',border:'1px solid rgba(255,255,255,0.25)',
+                borderRadius:10,padding:'0',color:'#fff',fontSize:20,cursor:'pointer',flexShrink:0,
+                width:44,height:44,display:'flex',alignItems:'center',justifyContent:'center'}}>
+              ←
+            </button>
+            <div style={{flex:1,fontSize:17,fontWeight:800,color:'#fff'}}>
+              🔧 {lang==='ar'?'مجموعات الامتحان':'Blocs'}
             </div>
-          ))}
-        </div>
+          </div>
 
-        {/* Filtre Examen */}
-        {examensNiveau.length>0&&(
+          {/* Filtre Niveau */}
           <div style={{display:'flex',gap:6,overflowX:'auto',scrollbarWidth:'none',
-            paddingBottom:isMobile?10:8,flexWrap:isMobile?'nowrap':'wrap'}}>
-            {examensNiveau.map(e=>(
-              <div key={e.id} onClick={()=>{setFiltreExamen(e.id);setShowForm(false);}}
+            paddingBottom:10,flexWrap:'nowrap'}}>
+            {niveaux.map(n=>(
+              <div key={n.id} onClick={()=>changerNiveau(n.id)}
                 style={{padding:'6px 14px',borderRadius:20,fontSize:12,fontWeight:600,
                   flexShrink:0,cursor:'pointer',
-                  background:filtreExamen===e.id?'#EF9F27':'#f5f5f0',
-                  color:filtreExamen===e.id?'#fff':'#666',
-                  border:`0.5px solid ${filtreExamen===e.id?'#EF9F27':'#e0e0d8'}`}}>
-                📝 {e.nom}
+                  background:filtreNiveau===n.id?'#fff':'rgba(255,255,255,0.15)',
+                  color:filtreNiveau===n.id?n.couleur:'rgba(255,255,255,0.9)',
+                  border: filtreNiveau===n.id?`1.5px solid #fff`:'1px solid rgba(255,255,255,0.2)'}}>
+                {n.code}
               </div>
             ))}
           </div>
-        )}
-      </div>
+
+          {/* Filtre Examen */}
+          {examensNiveau.length>0&&(
+            <div style={{display:'flex',gap:6,overflowX:'auto',scrollbarWidth:'none',
+              paddingBottom:10,flexWrap:'nowrap',marginTop:6}}>
+              {examensNiveau.map(e=>(
+                <div key={e.id} onClick={()=>{setFiltreExamen(e.id);setShowForm(false);}}
+                  style={{padding:'6px 14px',borderRadius:20,fontSize:12,fontWeight:600,
+                    flexShrink:0,cursor:'pointer',
+                    background:filtreExamen===e.id?'#EF9F27':'rgba(255,255,255,0.15)',
+                    color:filtreExamen===e.id?'#fff':'rgba(255,255,255,0.9)',
+                    border:`1px solid ${filtreExamen===e.id?'#EF9F27':'rgba(255,255,255,0.2)'}`}}>
+                  📝 {e.nom}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      ) : (
+        /* Header PC inchange */
+        <div>
+          <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:12}}>
+            <button onClick={()=>goBack?goBack():navigate('dashboard')}
+              style={{background:'none',border:'none',cursor:'pointer',fontSize:14,
+                color:'#085041',padding:0,fontFamily:'inherit',fontWeight:600}}>
+              ←
+            </button>
+            <div style={{fontSize:20,fontWeight:700}}>🔧 Blocs d'examen</div>
+          </div>
+
+          {/* Filtre Niveau */}
+          <div style={{display:'flex',gap:6,overflowX:'auto',scrollbarWidth:'none',
+            paddingBottom:8,flexWrap:'wrap'}}>
+            {niveaux.map(n=>(
+              <div key={n.id} onClick={()=>changerNiveau(n.id)}
+                style={{padding:'6px 14px',borderRadius:20,fontSize:12,fontWeight:600,
+                  flexShrink:0,cursor:'pointer',
+                  background:filtreNiveau===n.id?n.couleur:'#f0f0ec',
+                  color:filtreNiveau===n.id?'#fff':'#666'}}>
+                {n.code}
+              </div>
+            ))}
+          </div>
+
+          {/* Filtre Examen */}
+          {examensNiveau.length>0&&(
+            <div style={{display:'flex',gap:6,overflowX:'auto',scrollbarWidth:'none',
+              paddingBottom:8,flexWrap:'wrap'}}>
+              {examensNiveau.map(e=>(
+                <div key={e.id} onClick={()=>{setFiltreExamen(e.id);setShowForm(false);}}
+                  style={{padding:'6px 14px',borderRadius:20,fontSize:12,fontWeight:600,
+                    flexShrink:0,cursor:'pointer',
+                    background:filtreExamen===e.id?'#EF9F27':'#f5f5f0',
+                    color:filtreExamen===e.id?'#fff':'#666',
+                    border:`0.5px solid ${filtreExamen===e.id?'#EF9F27':'#e0e0d8'}`}}>
+                  📝 {e.nom}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       <div style={{padding:isMobile?'12px':'0',marginTop:isMobile?0:'1rem'}}>
 
