@@ -30,9 +30,9 @@
 //
 // ═══════════════════════════════════════════════════════════════════════════
 
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import { calcPoints } from '../lib/helpers';
-import { supabase } from '../lib/supabase';
+import { SOURATES_CORAN } from '../lib/sourates';
 
 export default function AcquisSelector({
   codeNiveau,
@@ -47,28 +47,15 @@ export default function AcquisSelector({
   const _niv = niveauxDyn.find(n => n.code === codeNiveau);
   const isSourate = _niv ? _niv.type === 'sourate' : ['5B', '5A', '2M'].includes(codeNiveau);
 
-  // ─── Charger les 114 sourates depuis la BDD (table 'sourates') ─────────
-  // (validation Jamal : toujours afficher les 114 du Coran, peu importe le niveau)
-  const [souratesDB, setSouratesDB] = useState([]);
-  useEffect(() => {
-    if (!isSourate) return;
-    let cancelled = false;
-    supabase
-      .from('sourates')
-      .select('id, nom_ar, nom_fr, numero')
-      .order('numero')
-      .then(({ data }) => {
-        if (!cancelled) setSouratesDB(data || []);
-      });
-    return () => { cancelled = true; };
-  }, [isSourate]);
-
   // ══════════════════════════════════════════════════════════════════════
-  // VUE SOURATES (114 du Coran)
+  // VUE SOURATES (114 du Coran - hardcodees dans le code source)
   // ══════════════════════════════════════════════════════════════════════
+  // Note : la table BDD 'sourates' peut etre incomplete ou mal triee
+  // (validation Jamal). On utilise donc la constante SOURATES_CORAN
+  // qui contient les 114 sourates dans l'ordre coranique.
   if (isSourate) {
     // Ordre selon sens : asc = 1 → 114, desc = 114 → 1
-    const souratesOrdonnees = [...souratesDB].sort((a, b) =>
+    const souratesOrdonnees = [...SOURATES_CORAN].sort((a, b) =>
       sens === 'asc' ? a.numero - b.numero : b.numero - a.numero);
     const nbAcquis = souratesAcquises || 0;
     const ptsAcquis = nbAcquis * 30; // 30 pts par sourate complete
