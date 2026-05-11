@@ -4998,10 +4998,10 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
                       hizb={newEleve.hizb_depart} tomon={newEleve.tomon_depart} lang={lang}
                       sens={(niveauxDyn.find(n=>n.code===newEleve.code_niveau)?.sens_recitation) || ecoleConfig?.sens_recitation_defaut || 'desc'}
                       programmeNiveau={programmesParNiveau[newEleve.code_niveau] || []}
-                      onHizbChange={h => setNewEleve({ ...newEleve, hizb_depart: h })}
-                      onTomonChange={tv => setNewEleve({ ...newEleve, tomon_depart: tv })}
+                      onHizbChange={h => setNewEleve(prev => ({ ...prev, hizb_depart: h }))}
+                      onTomonChange={tv => setNewEleve(prev => ({ ...prev, tomon_depart: tv }))}
                       souratesAcquises={newEleve.sourates_acquises}
-                      onSouratesChange={n => setNewEleve({ ...newEleve, sourates_acquises: n })}
+                      onSouratesChange={n => setNewEleve(prev => ({ ...prev, sourates_acquises: n }))}
                     />
                   )}
                 </div>
@@ -5104,10 +5104,10 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
                       hizb={editEleve.hizb_depart} tomon={editEleve.tomon_depart} lang={lang}
                       sens={(niveauxDyn.find(n=>n.code===editEleve.code_niveau)?.sens_recitation) || ecoleConfig?.sens_recitation_defaut || 'desc'}
                       programmeNiveau={programmesParNiveau[editEleve.code_niveau] || []}
-                      onHizbChange={h => setEditEleve({ ...editEleve, hizb_depart: h })}
-                      onTomonChange={tv => setEditEleve({ ...editEleve, tomon_depart: tv })}
+                      onHizbChange={h => setEditEleve(prev => ({ ...prev, hizb_depart: h }))}
+                      onTomonChange={tv => setEditEleve(prev => ({ ...prev, tomon_depart: tv }))}
                       souratesAcquises={editEleve.sourates_acquises||0}
-                      onSouratesChange={n => setEditEleve({ ...editEleve, sourates_acquises: n })}
+                      onSouratesChange={n => setEditEleve(prev => ({ ...prev, sourates_acquises: n }))}
                     />
                   )}
                 </div>

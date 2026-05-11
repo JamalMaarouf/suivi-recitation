@@ -159,11 +159,8 @@ export default function AcquisSelector({
 
   // Handler clic Hizb : stocker le NEXT du Hizb cliqué + reset tomon a 0
   const handleHizbClick = (n) => {
-    // DEBUG TEMPORAIRE - retirer apres diagnostic
-    console.log('[AcquisSelector] handleHizbClick', { n, hizb, dernierAcquis, sens });
     // Cas "deselection" : si on re-clique sur le Hizb déjà acquis
     if (n === dernierAcquis) {
-      console.log('[AcquisSelector] -> deselection (n === dernierAcquis)');
       onHizbChange(0);
       onTomonChange(0);
       return;
@@ -179,7 +176,6 @@ export default function AcquisSelector({
       // Si on clique sur 1 en desc = tout est acquis
       nextClamped = n <= 1 ? 0 : Math.max(1, Math.min(60, next));
     }
-    console.log('[AcquisSelector] -> onHizbChange(' + nextClamped + ')');
     onHizbChange(nextClamped);
     // FIX retours surveillant : aucun tomon coche par défaut
     onTomonChange(0);
