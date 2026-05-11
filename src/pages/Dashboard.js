@@ -5,6 +5,7 @@ import { fetchAll } from '../lib/fetchAll';
 import { calcEtatEleve, isSourateNiveauDyn, niveauTraduit, calcStats, formatDate, formatDateCourt, isInactif, joursDepuis, getInitiales, scoreLabel, loadBareme, BAREME_DEFAUT, getSensForEleve} from '../lib/helpers';
 import { t } from '../lib/i18n';
 import ExportButtons from '../components/ExportButtons';
+import { usePullToRefresh, PullToRefreshIndicator } from '../lib/usePullToRefresh';
 
 const C = { green:'#1D9E75',greenBg:'#E1F5EE',blue:'#378ADD',blueBg:'#E6F1FB',amber:'#EF9F27',amberBg:'#FAEEDA',red:'#E24B4A',redBg:'#FCEBEB',border:'#e0e0d8',muted:'#888',dark:'#1a1a1a' };
 // Couleurs niveaux — fallback sur des valeurs par défaut si niveaux pas encore chargés
@@ -605,8 +606,23 @@ export default function Dashboard({ user, navigate, goBack, lang, isMobile=false
   }
 
 
+
+  // Pull-to-refresh (Phase 2 Sprint 4)
+  const {
+    pullDistance, isRefreshing, isThreshold,
+    onTouchStart, onTouchMove, onTouchEnd,
+  } = usePullToRefresh(loadData);
   return (
-    <div>
+    <div
+      {...(isMobile ? { onTouchStart, onTouchMove, onTouchEnd } : {})}>
+      {isMobile && (
+        <PullToRefreshIndicator
+          pullDistance={pullDistance}
+          isRefreshing={isRefreshing}
+          isThreshold={isThreshold}
+          lang={lang}
+        />
+      )}
       <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'1rem',flexWrap:'wrap',gap:8}}>
         <div style={{fontSize:20,fontWeight:700}}>{t(lang,tabs.find(tb=>tb.key===vue)?.labelKey||'tableau_de_bord')}</div>
         <div style={{display:'flex',gap:6,flexWrap:'wrap',alignItems:'center'}}>
