@@ -6,6 +6,7 @@ import { fetchAll } from '../lib/fetchAll';
 import PageHeader from '../components/PageHeader';
 import StatsCard from '../components/StatsCard';
 import MobileSkeletonList from '../components/MobileSkeletonList';
+import { usePullToRefresh, PullToRefreshIndicator } from '../lib/usePullToRefresh';
 
 const MOIS_FR=['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
 const MOIS_AR=['يناير','فبراير','مارس','أبريل','مايو','يونيو','يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر'];
@@ -58,8 +59,23 @@ export default function Calendrier({ user, navigate, goBack, lang='fr', isMobile
   const prevMois=()=>{setSelectedDay(null);if(mois===0){setMois(11);setAnnee(a=>a-1);}else setMois(m=>m-1);};
   const nextMois=()=>{setSelectedDay(null);if(mois===11){setMois(0);setAnnee(a=>a+1);}else setMois(m=>m+1);};
 
+
+  // Pull-to-refresh (Phase 2 Sprint 4)
+  const {
+    pullDistance, isRefreshing, isThreshold,
+    onTouchStart, onTouchMove, onTouchEnd,
+  } = usePullToRefresh(loadData);
   return (
-    <div style={{paddingBottom:80,background:isMobile?'#f5f5f0':'transparent',minHeight:isMobile?'100vh':'auto'}}>
+    <div style={{paddingBottom:80,background:isMobile?'#f5f5f0':'transparent',minHeight:isMobile?'100vh':'auto'}}
+      {...(isMobile ? { onTouchStart, onTouchMove, onTouchEnd } : {})}>
+      {isMobile && (
+        <PullToRefreshIndicator
+          pullDistance={pullDistance}
+          isRefreshing={isRefreshing}
+          isThreshold={isThreshold}
+          lang={lang}
+        />
+      )}
       {isMobile && (
         <div style={{background:'linear-gradient(135deg,#085041,#1D9E75)',padding:'48px 16px 16px',position:'sticky',top:0,zIndex:100,marginBottom:12}}>
           <div style={{display:'flex',alignItems:'center',gap:12}}>

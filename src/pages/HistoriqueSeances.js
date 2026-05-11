@@ -9,6 +9,7 @@ import PeriodeSelectorHybride from '../components/PeriodeSelectorHybride';
 import PageHeader from '../components/PageHeader';
 import StatsCard from '../components/StatsCard';
 import MobileSkeletonList from '../components/MobileSkeletonList';
+import { usePullToRefresh, PullToRefreshIndicator } from '../lib/usePullToRefresh';
 
 const IS_SOURATE = (code) => ['5B','5A','2M'].includes(code||'');
 const NIVEAU_COLORS = { '5B':'#534AB7','5A':'#378ADD','2M':'#1D9E75','2':'#EF9F27','1':'#E24B4A' };
@@ -623,8 +624,23 @@ export default function HistoriqueSeances({ user, navigate, goBack, lang='fr', i
   }
 
 
+
+  // Pull-to-refresh (Phase 2 Sprint 4)
+  const {
+    pullDistance, isRefreshing, isThreshold,
+    onTouchStart, onTouchMove, onTouchEnd,
+  } = usePullToRefresh(loadData);
   return (
-    <div>
+    <div
+      {...(isMobile ? { onTouchStart, onTouchMove, onTouchEnd } : {})}>
+      {isMobile && (
+        <PullToRefreshIndicator
+          pullDistance={pullDistance}
+          isRefreshing={isRefreshing}
+          isThreshold={isThreshold}
+          lang={lang}
+        />
+      )}
       <PageHeader
         title="Analyse des Séances"
         titleAr="تحليل الحصص"

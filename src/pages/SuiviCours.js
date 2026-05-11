@@ -7,6 +7,7 @@ import PageHeader from '../components/PageHeader';
 import StatsCard from '../components/StatsCard';
 import { useToast } from '../lib/toast';
 import MobileSkeletonList from '../components/MobileSkeletonList';
+import { usePullToRefresh, PullToRefreshIndicator } from '../lib/usePullToRefresh';
 
 // ══════════════════════════════════════════════════════════════════════
 // PAGE SUIVI COURS — hub principal
@@ -219,8 +220,23 @@ export default function SuiviCours({ user, navigate, goBack, lang, isMobile }) {
     }
   };
 
+
+  // Pull-to-refresh (Phase 2 Sprint 4)
+  const {
+    pullDistance, isRefreshing, isThreshold,
+    onTouchStart, onTouchMove, onTouchEnd,
+  } = usePullToRefresh(loadData);
   return (
-    <div style={{ background: isMobile ? '#f5f5f0' : 'transparent', minHeight: isMobile ? '100vh' : 'auto', paddingBottom: 80 }}>
+    <div style={{ background: isMobile ? '#f5f5f0' : 'transparent', minHeight: isMobile ? '100vh' : 'auto', paddingBottom: 80 }}
+      {...(isMobile ? { onTouchStart, onTouchMove, onTouchEnd } : {})}>
+      {isMobile && (
+        <PullToRefreshIndicator
+          pullDistance={pullDistance}
+          isRefreshing={isRefreshing}
+          isThreshold={isThreshold}
+          lang={lang}
+        />
+      )}
 
       {/* Header */}
       {isMobile ? (

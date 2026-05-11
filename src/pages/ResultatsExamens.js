@@ -8,6 +8,7 @@ import ExportButtons from '../components/ExportButtons';
 import PeriodeSelectorHybride from '../components/PeriodeSelectorHybride';
 import PageHeader from '../components/PageHeader';
 import StatsCard from '../components/StatsCard';
+import { usePullToRefresh, PullToRefreshIndicator } from '../lib/usePullToRefresh';
 
 export default function ResultatsExamens({ user, navigate, goBack, lang='fr', isMobile, data }) {
   const { toast } = useToast();
@@ -1068,8 +1069,23 @@ export default function ResultatsExamens({ user, navigate, goBack, lang='fr', is
     );
   }
 
+
+  // Pull-to-refresh (Phase 2 Sprint 4)
+  const {
+    pullDistance, isRefreshing, isThreshold,
+    onTouchStart, onTouchMove, onTouchEnd,
+  } = usePullToRefresh(loadAll);
   return (
-    <>
+    <div
+      {...(isMobile ? { onTouchStart, onTouchMove, onTouchEnd } : {})}>
+      {isMobile && (
+        <PullToRefreshIndicator
+          pullDistance={pullDistance}
+          isRefreshing={isRefreshing}
+          isThreshold={isThreshold}
+          lang={lang}
+        />
+      )}
     <div>
       <Header/>
       <Tabs/>
@@ -1078,6 +1094,6 @@ export default function ResultatsExamens({ user, navigate, goBack, lang='fr', is
         : activeTab==='saisir' ? tabSaisirJSX : tabRegistreJSX}
     </div>
     {certifsModalJSX}
-    </>
+    </div>
   );
 }

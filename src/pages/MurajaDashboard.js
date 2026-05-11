@@ -8,6 +8,7 @@ import { exportExcelSimple } from '../lib/excel';
 import { loadAnneeActiveAvecPeriodes, formatPeriodeCourte } from '../lib/helpers';
 import ExportButtons from '../components/ExportButtons';
 import MobileSkeletonList from '../components/MobileSkeletonList';
+import { usePullToRefresh, PullToRefreshIndicator } from '../lib/usePullToRefresh';
 
 const getNiveauColor = (code, niveaux=[]) => niveaux.find(n=>n.code===code)?.couleur || {'5B':'#534AB7','5A':'#378ADD','2M':'#1D9E75','2':'#EF9F27','1':'#E24B4A'}[code] || '#888';
 
@@ -282,10 +283,25 @@ export default function MurajaDashboard({ user, navigate, goBack, lang='fr', isM
     }
   };
 
+  // Pull-to-refresh (Phase 2 Sprint 4)
+  const {
+    pullDistance, isRefreshing, isThreshold,
+    onTouchStart, onTouchMove, onTouchEnd,
+  } = usePullToRefresh(loadData);
+
   if (loading) return <MobileSkeletonList type="card-simple" count={4} padding="12px" />;
 
   return (
-    <div style={{paddingBottom: isMobile ? 80 : 0, padding: isMobile ? 0 : '1rem',maxWidth:800,margin:'0 auto',background: isMobile ? '#f5f5f0' : 'transparent',minHeight: isMobile ? '100vh' : 'auto'}}>
+    <div style={{paddingBottom: isMobile ? 80 : 0, padding: isMobile ? 0 : '1rem',maxWidth:800,margin:'0 auto',background: isMobile ? '#f5f5f0' : 'transparent',minHeight: isMobile ? '100vh' : 'auto'}}
+      {...(isMobile ? { onTouchStart, onTouchMove, onTouchEnd } : {})}>
+      {isMobile && (
+        <PullToRefreshIndicator
+          pullDistance={pullDistance}
+          isRefreshing={isRefreshing}
+          isThreshold={isThreshold}
+          lang={lang}
+        />
+      )}
       {isMobile ? (
         <div style={{background:'linear-gradient(135deg,#085041,#1D9E75)',padding:'48px 16px 16px',position:'sticky',top:0,zIndex:100}}>
           <div style={{display:'flex',alignItems:'center',gap:12,marginBottom:12}}>
