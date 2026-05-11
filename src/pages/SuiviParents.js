@@ -296,7 +296,7 @@ export default function SuiviParents({ user, navigate, goBack, lang, isMobile })
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             <button onClick={() => goBack ? goBack() : navigate('dashboard')}
               style={{
-                width: 38, height: 38,
+                width: 44, height: 44,
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 background: 'rgba(255,255,255,0.2)', border: 'none', borderRadius: 10,
                 padding: 0, flexShrink: 0, color: '#fff', fontSize: 18, cursor: 'pointer',
