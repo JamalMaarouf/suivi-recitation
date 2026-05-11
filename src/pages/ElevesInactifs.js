@@ -9,6 +9,7 @@ import { exportExcelSimple } from '../lib/excel';
 import ExportButtons from '../components/ExportButtons';
 import PageHeader from '../components/PageHeader';
 import StatsBreakdown from '../components/StatsBreakdown';
+import MobileSkeletonList from '../components/MobileSkeletonList';
 
 // Couleurs niveaux — fallback sur des valeurs par défaut si niveaux pas encore chargés
 const NIVEAU_COLORS_FALLBACK = { '5B':'#534AB7','5A':'#378ADD','2M':'#1D9E75','2':'#EF9F27','1':'#E24B4A' };
@@ -172,7 +173,7 @@ export default function ElevesInactifs({ navigate, goBack, lang='fr', user, isMo
 
   if (loading) return (
     <div style={{padding:'2rem',textAlign:'center'}}>
-      <div className="loading">...</div>
+      <MobileSkeletonList type="card-simple" count={4} />
       <button onClick={()=>goBack?goBack():navigate('dashboard')} className="back-link" style={{marginTop:'1rem'}}>
         ←
       </button>

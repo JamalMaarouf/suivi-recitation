@@ -7,6 +7,7 @@ import { openPDF } from '../lib/pdf';
 import { exportExcelSimple } from '../lib/excel';
 import { loadAnneeActiveAvecPeriodes, formatPeriodeCourte } from '../lib/helpers';
 import ExportButtons from '../components/ExportButtons';
+import MobileSkeletonList from '../components/MobileSkeletonList';
 
 const getNiveauColor = (code, niveaux=[]) => niveaux.find(n=>n.code===code)?.couleur || {'5B':'#534AB7','5A':'#378ADD','2M':'#1D9E75','2':'#EF9F27','1':'#E24B4A'}[code] || '#888';
 
@@ -281,7 +282,7 @@ export default function MurajaDashboard({ user, navigate, goBack, lang='fr', isM
     }
   };
 
-  if (loading) return <div style={{padding:'2rem',textAlign:'center'}}><div className="loading">...</div></div>;
+  if (loading) return <MobileSkeletonList type="card-simple" count={4} padding="12px" />;
 
   return (
     <div style={{paddingBottom: isMobile ? 80 : 0, padding: isMobile ? 0 : '1rem',maxWidth:800,margin:'0 auto',background: isMobile ? '#f5f5f0' : 'transparent',minHeight: isMobile ? '100vh' : 'auto'}}>

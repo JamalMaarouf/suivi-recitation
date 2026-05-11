@@ -6,6 +6,7 @@ import { getInitiales, calcEtatEleve, calcPoints, BAREME_DEFAUT, loadBareme, sav
 import { SOURATES_5B, SOURATES_5A, SOURATES_2M, isSourateNiveau } from '../lib/sourates';
 import { t } from '../lib/i18n';
 import ExportButtons from '../components/ExportButtons';
+import MobileSkeletonList from '../components/MobileSkeletonList';
 
 function Avatar({ prenom, nom, size = 28 }) {
   return (
@@ -2349,7 +2350,7 @@ function PassageNiveauTab({ user, lang, niveaux, showMsg }) {
 
       {/* Liste des règles */}
       <div className="section-label">{lang==='ar'?'القواعد المُعرَّفة':'Règles configurées'} ({regles.length})</div>
-      {loading ? <div className="loading">...</div> : regles.length===0 ? (
+      {loading ? <MobileSkeletonList type="card-simple" count={4} /> : regles.length===0 ? (
         <div className="empty">{lang==='ar'?'لا توجد قواعد — الانتقال الافتراضي: الطالب يستمر من موقعه':"Aucune règle — comportement par défaut : l'élève continue depuis sa position"}</div>
       ) : (
         <div style={{display:'flex',flexDirection:'column',gap:8}}>
@@ -2726,7 +2727,7 @@ function MobilePassageNiveauTab({ user, lang, niveaux, showMsg }) {
           </button>
         </div>
       )}
-      {loading?<div style={{textAlign:'center',padding:'2rem',color:'#888'}}>...</div>
+      {loading?<MobileSkeletonList type="card-simple" count={4} />
         :regles.length===0?(
           <div style={{textAlign:'center',padding:'2rem',background:'#fff',borderRadius:12,color:'#aaa'}}>
             <div style={{fontSize:32,marginBottom:8}}>🎓</div>

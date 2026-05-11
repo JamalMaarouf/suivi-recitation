@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { useToast } from '../lib/toast';
 import PageHeader from '../components/PageHeader';
+import MobileSkeletonList from '../components/MobileSkeletonList';
 
 // ══════════════════════════════════════════════════════════════════════
 // PAGE GESTION PARAMÈTRES PARENTS
@@ -120,9 +121,7 @@ export default function GestionParents({ user, navigate, goBack, lang, isMobile 
 
       <div style={{ padding: isMobile ? '14px' : '0 1.5rem' }}>
         {loading ? (
-          <div style={{ padding: 40, textAlign: 'center', color: '#888' }}>
-            {lang === 'ar' ? '...جاري التحميل' : 'Chargement...'}
-          </div>
+          <MobileSkeletonList type="card-simple" count={4} padding="12px" />
         ) : (
           <>
             {/* Info explicative */}

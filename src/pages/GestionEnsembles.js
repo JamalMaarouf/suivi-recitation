@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase';
 import { useToast } from '../lib/toast';
 import { t } from '../lib/i18n';
 import PageHeader from '../components/PageHeader';
+import MobileSkeletonList from '../components/MobileSkeletonList';
 
 export default function GestionEnsembles({ user, navigate, goBack, lang='fr', isMobile }) {
   const { toast } = useToast();
@@ -428,7 +429,7 @@ export default function GestionEnsembles({ user, navigate, goBack, lang='fr', is
               {totalFiltre} / {ensembles.length} {lang === 'ar' ? 'مجموعة' : 'ensemble(s)'}
             </div>
           )}
-          {loading && <div style={{ textAlign: 'center', padding: '2rem', color: '#888' }}>...</div>}
+          {loading && <MobileSkeletonList type="card-simple" count={4} />}
           {!loading && ensembles.length === 0 && (
             <div style={{ textAlign: 'center', color: '#aaa', padding: '3rem', background: '#fff', borderRadius: 12 }}>
               <div style={{ fontSize: 40, marginBottom: 10 }}>📦</div>
@@ -507,7 +508,7 @@ export default function GestionEnsembles({ user, navigate, goBack, lang='fr', is
         </div>
       )}
 
-      {loading && <div style={{ textAlign:'center', padding:'3rem', color:'#888' }}>...</div>}
+      {loading && <MobileSkeletonList type="card-simple" count={5} />}
 
       {!loading && ensembles.length === 0 && (
         <div style={{ textAlign:'center', padding:'3rem', color:'#aaa', background:'#fff',

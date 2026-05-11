@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase';
 import { getInitiales, scoreLabel, formatDate, formatDateCourt } from '../lib/helpers';
 import { t } from '../lib/i18n';
 import { getSouratesForNiveau, isSourateNiveau } from '../lib/sourates';
+import MobileSkeletonList from '../components/MobileSkeletonList';
 
 function Avatar({ prenom, nom, size=44, bg='#E1F5EE', color='#085041' }) {
   return <div style={{width:size,height:size,borderRadius:'50%',background:bg,color,display:'flex',alignItems:'center',justifyContent:'center',fontWeight:600,fontSize:size*0.33,flexShrink:0}}>{getInitiales(prenom,nom)}</div>;
@@ -165,7 +166,7 @@ export default function FicheSourate({ eleve, user, navigate, goBack, lang='fr',
 
   if (loading) return (
     <div style={{padding:'2rem',textAlign:'center'}}>
-      <div className="loading">...</div>
+      <MobileSkeletonList type="card-with-tabs" count={4} />
       <div style={{marginTop:'1rem',fontSize:13,color:'#888'}}>{eleve?.prenom} {eleve?.nom}</div>
       <button onClick={()=>goBack?goBack():navigate('dashboard')} className="back-link" style={{marginTop:'1rem'}}>
         ← {lang==='ar'?'رجوع':'Retour'}
@@ -501,7 +502,7 @@ export default function FicheSourate({ eleve, user, navigate, goBack, lang='fr',
         ))}
       </div>
 
-      {loading ? <div className="loading">...</div> : (
+      {loading ? <MobileSkeletonList type="card-with-tabs" count={4} /> : (
         <>
           {/* PROGRESSION */}
           {onglet === 'progression' && (

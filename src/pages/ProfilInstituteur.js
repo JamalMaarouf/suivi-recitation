@@ -4,6 +4,7 @@ import { calcEtatEleve, getInitiales, scoreLabel, formatDateCourt, isInactif, jo
 import { t } from '../lib/i18n';
 import { fetchAll } from '../lib/fetchAll';
 import PageHeader from '../components/PageHeader';
+import MobileSkeletonList from '../components/MobileSkeletonList';
 
 function Avatar({ prenom, nom, size=44, bg='#E1F5EE', color='#085041' }) {
   return <div style={{width:size,height:size,borderRadius:'50%',background:bg,color,display:'flex',alignItems:'center',justifyContent:'center',fontWeight:600,fontSize:size*0.33,flexShrink:0}}>{getInitiales(prenom,nom)}</div>;
@@ -85,7 +86,7 @@ export default function ProfilInstituteur({ instituteur, user, navigate, goBack,
         </div>
       </div>
 
-      {loading?<div className="loading">...</div>:(
+      {loading?<MobileSkeletonList type="card-with-tabs" count={4} />:(
         <>
           {meilleur&&(
             <>

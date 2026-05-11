@@ -626,7 +626,7 @@ function SaisieKiosque({ user, lang, cible = 'eleves', dateSaisie = null, isRatt
     showFlash('success', nomComplet, msg);
   };
 
-  if (loading) return <div style={{ padding: 40, textAlign: 'center', color: '#888' }}>{lang === 'ar' ? '...جاري التحميل' : 'Chargement...'}</div>;
+  if (loading) return <MobileSkeletonList type="card-simple" count={4} padding="12px" />;
 
   if (flash) {
     const colors = {
@@ -902,7 +902,7 @@ function SaisieDesktop({ user, lang, cible = 'eleves', dateSaisie = null, isRatt
     }
   };
 
-  if (loading) return <div style={{ padding: 40, textAlign: 'center', color: '#888' }}>{lang === 'ar' ? '...جاري التحميل' : 'Chargement...'}</div>;
+  if (loading) return <MobileSkeletonList type="card-simple" count={4} padding="12px" />;
 
   return (
     <div>
@@ -1361,7 +1361,7 @@ function OngletSuivi({ lang, user, isMobile }) {
 
   // Etape 14 v2 - PERIODES gere par PeriodeSelectorHybride
 
-  if (loading) return <div style={{ padding: 40, textAlign: 'center', color: '#888' }}>{lang === 'ar' ? '...جاري التحميل' : 'Chargement...'}</div>;
+  if (loading) return <MobileSkeletonList type="card-simple" count={4} padding="12px" />;
 
   // ─── Export PDF + Excel ────────────────────────────────────
   // Récupère tous les élèves filtrés (même logique que l'affichage) + les stats
@@ -2106,7 +2106,7 @@ function OngletSuiviInstituteurs({ lang, user, isMobile }) {
 
   // Etape 14 v2 - PERIODES gere par PeriodeSelectorHybride
 
-  if (loading) return <div style={{ padding: 40, textAlign: 'center', color: '#888' }}>{lang === 'ar' ? '...جاري التحميل' : 'Chargement...'}</div>;
+  if (loading) return <MobileSkeletonList type="card-simple" count={4} padding="12px" />;
 
   // ─── Alerte si mode tarif pas configuré ────────────────────
   if (!modeTarif) {

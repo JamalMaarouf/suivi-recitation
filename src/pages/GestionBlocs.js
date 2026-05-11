@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { useToast } from '../lib/toast';
 import { getSouratesForNiveau } from '../lib/sourates';
+import MobileSkeletonList from '../components/MobileSkeletonList';
 
 const makeHizbList = (sens) => sens === 'asc'
   ? Array.from({length:60}, (_,i) => i+1)
@@ -423,7 +424,7 @@ export default function GestionBlocs({ user, navigate, goBack, lang='fr', isMobi
         )}
 
         {/* Loading */}
-        {loading&&<div style={{textAlign:'center',padding:'2rem',color:'#888'}}>...</div>}
+        {loading&&<MobileSkeletonList type="card-simple" count={4} />}
 
         {/* Liste blocs */}
         {!loading&&filtreExamen&&blocsExamen.length===0&&!showForm&&(

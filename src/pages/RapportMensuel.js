@@ -6,6 +6,7 @@ import { openPDF } from '../lib/pdf';
 import ExportButtons from '../components/ExportButtons';
 import PageHeader from '../components/PageHeader';
 import StatsCard from '../components/StatsCard';
+import MobileSkeletonList from '../components/MobileSkeletonList';
 
 const MOIS_FR = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
 const MOIS_AR = ['يناير','فبراير','مارس','أبريل','مايو','يونيو','يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر'];
@@ -272,7 +273,7 @@ export default function RapportMensuel({ user, navigate, goBack, lang='fr', isMo
       {/* M4 — Wrapper padding mobile (avant : contenu touchait les bords) */}
       <div style={{padding: isMobile?'0 12px':0}}>
 
-      {loading ? <div style={{textAlign:'center',padding:'3rem',color:'#888'}}>...</div> : (
+      {loading ? <MobileSkeletonList type="card-stat" count={4} padding="12px" /> : (
         <>
           {/* KPIs */}
           <div style={{display:'grid',gridTemplateColumns:isMobile?'repeat(2,1fr)':'repeat(6,1fr)',gap:8,marginBottom:'1.25rem'}}>

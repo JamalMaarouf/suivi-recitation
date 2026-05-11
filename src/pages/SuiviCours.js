@@ -6,6 +6,7 @@ import ExportButtons from '../components/ExportButtons';
 import PageHeader from '../components/PageHeader';
 import StatsCard from '../components/StatsCard';
 import { useToast } from '../lib/toast';
+import MobileSkeletonList from '../components/MobileSkeletonList';
 
 // ══════════════════════════════════════════════════════════════════════
 // PAGE SUIVI COURS — hub principal
@@ -271,9 +272,7 @@ export default function SuiviCours({ user, navigate, goBack, lang, isMobile }) {
       {/* Contenu */}
       <div style={{ padding: isMobile ? '14px' : '0 1.5rem' }}>
         {loading ? (
-          <div style={{ padding: 40, textAlign: 'center', color: '#888' }}>
-            {lang === 'ar' ? '...جاري التحميل' : 'Chargement...'}
-          </div>
+          <MobileSkeletonList type="card-simple" count={4} padding="12px" />
         ) : cours.length === 0 ? (
           <div style={{
             padding: 40, textAlign: 'center', color: '#888',

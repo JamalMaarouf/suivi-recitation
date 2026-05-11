@@ -5,6 +5,7 @@ import { t } from '../lib/i18n';
 import { fetchAll } from '../lib/fetchAll';
 import PageHeader from '../components/PageHeader';
 import StatsCard from '../components/StatsCard';
+import MobileSkeletonList from '../components/MobileSkeletonList';
 
 const MOIS_FR=['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
 const MOIS_AR=['يناير','فبراير','مارس','أبريل','مايو','يونيو','يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر'];
@@ -97,7 +98,7 @@ export default function Calendrier({ user, navigate, goBack, lang='fr', isMobile
             display:'flex',alignItems:'center',justifyContent:'center'}}>›</button>
       </div>
 
-      {loading ? <div className="loading">...</div> : (
+      {loading ? <MobileSkeletonList type="card-simple" count={4} /> : (
         <>
           <div style={{display:'grid',gridTemplateColumns:'repeat(7,minmax(0,1fr))',gap:4,marginBottom:6}}>
             {joursNoms.map(j=><div key={j} style={{textAlign:'center',fontSize:11,fontWeight:500,color:'#888',padding:'4px 0'}}>{j}</div>)}

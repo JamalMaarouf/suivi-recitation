@@ -5,6 +5,7 @@ import { getSouratesForNiveau, getSouratesDesc } from '../lib/sourates';
 import { t } from '../lib/i18n';
 import PageHeader from '../components/PageHeader';
 import ExportButtons from '../components/ExportButtons';
+import MobileSkeletonList from '../components/MobileSkeletonList';
 
 // Liste des Hizb selon un sens donne (desc = 60->1, asc = 1->60)
 const makeHizbList = (sens) => sens === 'asc'
@@ -1253,7 +1254,7 @@ export default function GestionNiveaux({ user, navigate, goBack, lang='fr', isMo
           )}
 
           {/* Loading */}
-          {loading && <div style={{textAlign:'center',padding:'2rem',color:'#888'}}>...</div>}
+          {loading && <MobileSkeletonList type="card-simple" count={4} />}
 
           {/* Liste niveaux */}
           {!loading && niveaux.length === 0 && (

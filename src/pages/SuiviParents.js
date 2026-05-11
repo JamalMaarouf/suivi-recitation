@@ -6,6 +6,7 @@ import { exportExcelSimple } from '../lib/excel';
 import ExportButtons from '../components/ExportButtons';
 import PageHeader from '../components/PageHeader';
 import StatsBreakdown from '../components/StatsBreakdown';
+import MobileSkeletonList from '../components/MobileSkeletonList';
 
 // ══════════════════════════════════════════════════════════════════════
 // PAGE SUIVI PARENTS — Menu principal surveillant
@@ -338,9 +339,7 @@ export default function SuiviParents({ user, navigate, goBack, lang, isMobile })
 
       <div style={{ padding: isMobile ? '14px' : '0 1.5rem' }}>
         {loading ? (
-          <div style={{ padding: 40, textAlign: 'center', color: '#888' }}>
-            {lang === 'ar' ? '...جاري التحميل' : 'Chargement...'}
-          </div>
+          <MobileSkeletonList type="card-simple" count={4} padding="12px" />
         ) : (
           <>
             {/* Boutons export mobile (PDF + CSV) */}
