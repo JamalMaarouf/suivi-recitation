@@ -9,6 +9,7 @@ import ExportButtons from '../components/ExportButtons';
 import PeriodeSelectorHybride from '../components/PeriodeSelectorHybride';
 import PageHeader from '../components/PageHeader';
 import StatsCard from '../components/StatsCard';
+import { usePullToRefresh, PullToRefreshIndicator } from '../lib/usePullToRefresh';
 
 // ─── Couleurs par niveau ───────────────────────────────────────────────────
 const NC = { '5B':'#534AB7','5A':'#378ADD','2M':'#1D9E75','2':'#EF9F27','1':'#E24B4A' };
@@ -517,6 +518,12 @@ export default function DashboardDirection({ user, navigate, goBack, lang='fr', 
     }
   };
 
+  // Pull-to-refresh (Phase 2 Sprint 5)
+  const {
+    pullDistance, isRefreshing, isThreshold,
+    onTouchStart, onTouchMove, onTouchEnd,
+  } = usePullToRefresh(loadData);
+
   if (loading) return (
     <div style={{display:'flex',alignItems:'center',justifyContent:'center',height:'60vh',flexDirection:'column',gap:16}}>
       <div style={{fontSize:32}}>📊</div>
@@ -529,7 +536,16 @@ export default function DashboardDirection({ user, navigate, goBack, lang='fr', 
   // ──────────────────────────────────────────────────────────────────────────
   if (isMobile) {
     return (
-      <div style={{paddingBottom:80,background:'#f5f5f0',minHeight:'100vh'}}>
+      <div style={{paddingBottom:80,background:'#f5f5f0',minHeight:'100vh'}}
+        onTouchStart={onTouchStart}
+        onTouchMove={onTouchMove}
+        onTouchEnd={onTouchEnd}>
+        <PullToRefreshIndicator
+          pullDistance={pullDistance}
+          isRefreshing={isRefreshing}
+          isThreshold={isThreshold}
+          lang={lang}
+        />
         {/* Header */}
         <div style={{background:'linear-gradient(135deg,#085041,#1D9E75)',padding:'48px 16px 16px',position:'sticky',top:0,zIndex:100}}>
           <div style={{display:'flex',alignItems:'center',gap:12}}>

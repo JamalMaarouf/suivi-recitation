@@ -76,7 +76,7 @@ export default function ProfilInstituteur({ instituteur, user, navigate, goBack,
             <div style={{fontSize:13,color:'#888'}}>{t(lang,'role_instituteur')} · {eleves.length} {t(lang,'eleves_referents')}</div>
           </div>
         </div>
-        <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:8}}>
+        <div style={{display:'grid',gridTemplateColumns:isMobile?'repeat(2,1fr)':'repeat(4,1fr)',gap:8}}>
           {[{lbl:t(lang,'score_groupe'),val:totalPoints.toLocaleString(),color:'#1D9E75',bg:'#E1F5EE'},{lbl:t(lang,'tomon_abrev'),val:totalTomon,color:'#378ADD',bg:'#E6F1FB'},{lbl:t(lang,'inactifs_filter'),val:nbInactifs,color:nbInactifs>0?'#A32D2D':'#bbb',bg:nbInactifs>0?'#FCEBEB':'#f9f9f6'},{lbl:t(lang,'attente_filter'),val:nbAttente,color:nbAttente>0?'#633806':'#bbb',bg:nbAttente>0?'#FAEEDA':'#f9f9f6'}].map(k=>(
             <div key={k.lbl} style={{background:k.bg,borderRadius:8,padding:'10px',textAlign:'center'}}>
               <div style={{fontSize:18,fontWeight:700,color:k.color}}>{k.val}</div>
