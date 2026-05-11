@@ -182,13 +182,27 @@ export default function TableauHonneur({ user, navigate, goBack, lang='fr', isMo
             <button onClick={handleExportPDF}
               disabled={elevesClasses.length === 0}
               title={lang==='ar'?'تصدير PDF':'Exporter PDF'}
-              style={{background:'rgba(226,75,74,0.2)',border:'1px solid rgba(226,75,74,0.4)',borderRadius:10,padding:isMobile?'7px 9px':'7px 11px',color:'#FCA5A4',fontSize:12,fontWeight:700,cursor:elevesClasses.length===0?'default':'pointer',opacity:elevesClasses.length===0?0.4:1,fontFamily:'inherit',whiteSpace:'nowrap'}}>
+              aria-label={lang==='ar'?'تصدير PDF':'Exporter PDF'}
+              style={{background:'rgba(226,75,74,0.2)',border:'1px solid rgba(226,75,74,0.4)',borderRadius:10,
+                padding: isMobile?'0 12px':'7px 11px',
+                height: isMobile?44:undefined,
+                color:'#FCA5A4',fontSize:isMobile?16:12,fontWeight:700,
+                cursor:elevesClasses.length===0?'default':'pointer',
+                opacity:elevesClasses.length===0?0.4:1,fontFamily:'inherit',whiteSpace:'nowrap',
+                display:'flex',alignItems:'center',justifyContent:'center'}}>
               📄{!isMobile && ' PDF'}
             </button>
             <button onClick={handleExportExcel}
               disabled={elevesClasses.length === 0}
               title={lang==='ar'?'تصدير Excel':'Exporter Excel'}
-              style={{background:'rgba(29,158,117,0.2)',border:'1px solid rgba(29,158,117,0.4)',borderRadius:10,padding:isMobile?'7px 9px':'7px 11px',color:'#5DCAA5',fontSize:12,fontWeight:700,cursor:elevesClasses.length===0?'default':'pointer',opacity:elevesClasses.length===0?0.4:1,fontFamily:'inherit',whiteSpace:'nowrap'}}>
+              aria-label={lang==='ar'?'تصدير Excel':'Exporter Excel'}
+              style={{background:'rgba(29,158,117,0.2)',border:'1px solid rgba(29,158,117,0.4)',borderRadius:10,
+                padding: isMobile?'0 12px':'7px 11px',
+                height: isMobile?44:undefined,
+                color:'#5DCAA5',fontSize:isMobile?16:12,fontWeight:700,
+                cursor:elevesClasses.length===0?'default':'pointer',
+                opacity:elevesClasses.length===0?0.4:1,fontFamily:'inherit',whiteSpace:'nowrap',
+                display:'flex',alignItems:'center',justifyContent:'center'}}>
               📊{!isMobile && ' Excel'}
             </button>
           </>

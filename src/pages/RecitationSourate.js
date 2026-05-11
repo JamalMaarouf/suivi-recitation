@@ -335,16 +335,23 @@ export default function RecitationSourate({ user, eleve, navigate, goBack, lang=
         <div style={{background:`linear-gradient(135deg,#085041,#1D9E75)`, padding:'48px 0 0', position:'sticky', top:0, zIndex:100}}>
           <div style={{display:'flex', alignItems:'center', gap:12, padding:'12px 16px'}}>
             <button onClick={()=>goBack?goBack():navigate('dashboard')}
-              style={{background:'none',border:'none',cursor:'pointer',fontSize:22,color:'#085041',padding:0,lineHeight:1}}>
-              
+              aria-label={lang==='ar'?'رجوع':'Retour'}
+              style={{background:'rgba(255,255,255,0.22)', border:'1px solid rgba(255,255,255,0.25)',
+                cursor:'pointer', flexShrink:0, borderRadius:10, padding:'0',
+                color:'#fff', fontSize:20, width:44, height:44,
+                display:'flex', alignItems:'center', justifyContent:'center'}}>
+              ←
             </button>
             <div style={{flex:1}}>
-              <div style={{fontSize:17,fontWeight:800}}>{eleve.prenom} {eleve.nom}</div>
-              <div style={{fontSize:12,color:'#888'}}>{codeNiveau} · {lang==='ar'?'استظهار السور':'Récitation des sourates'}</div>
+              <div style={{fontSize:17,fontWeight:800,color:'#fff'}}>{eleve.prenom} {eleve.nom}</div>
+              <div style={{fontSize:12,color:'rgba(255,255,255,0.85)'}}>{codeNiveau} · {lang==='ar'?'استظهار السور':'Récitation des sourates'}</div>
             </div>
             {isPrivilegied && (
               <button onClick={()=>setShowExceptionModal(true)}
-                style={{background:'#FCEBEB',color:'#E24B4A',border:'none',borderRadius:8,padding:'6px 10px',fontSize:12,cursor:'pointer'}}>
+                aria-label={lang==='ar'?'استثناء':'Exception'}
+                style={{background:'rgba(255,255,255,0.25)',color:'#fff',border:'1px solid rgba(255,255,255,0.3)',
+                  borderRadius:10,padding:'0',width:44,height:44,fontSize:18,cursor:'pointer',
+                  display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
                 🔓
               </button>
             )}
