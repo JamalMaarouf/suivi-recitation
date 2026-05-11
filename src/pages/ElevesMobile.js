@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase';
 import { isSourateNiveauDyn } from '../lib/helpers';
 import MobileSkeletonList from '../components/MobileSkeletonList';
 import { usePullToRefresh, PullToRefreshIndicator } from '../lib/usePullToRefresh';
+import { hapticSuccess } from '../lib/haptic';
 
 export default function ElevesMobile({ user, navigate, goBack, lang='ar' }) {
   const [eleves, setEleves] = useState([]);
@@ -107,6 +108,7 @@ export default function ElevesMobile({ user, navigate, goBack, lang='ar' }) {
     setShowForm(false);
     setEditEleve(null);
     setForm({ ...emptyForm, code_niveau: niveaux[0]?.code||'' });
+    hapticSuccess();
     loadData();
   };
 
@@ -316,7 +318,67 @@ export default function ElevesMobile({ user, navigate, goBack, lang='ar' }) {
             </div>
           ) : (
             <div style={{padding:'0 12px'}}>
-              {elevesFiltres.map(e => {
+              {(() => {
+                // Phase 2 Sprint 5 - Groupement sectionne par niveau
+                // Activation : pas de recherche ET filtre 'tous'
+                const shouldGroup = !search && filtreNiveau === 'tous';
+                if (!shouldGroup) return elevesFiltres;
+                // Construire liste avec headers de section intercales
+                const ordered = [...elevesFiltres].sort((a, b) => {
+                  // Ordre selon niveaux[]
+                  const ia = niveaux.findIndex(n => n.code === a.code_niveau);
+                  const ib = niveaux.findIndex(n => n.code === b.code_niveau);
+                  const da = ia === -1 ? 999 : ia;
+                  const db = ib === -1 ? 999 : ib;
+                  if (da !== db) return da - db;
+                  return (a.nom || '').localeCompare(b.nom || '');
+                });
+                const result = [];
+                let lastNiveau = null;
+                ordered.forEach(e => {
+                  if (e.code_niveau !== lastNiveau) {
+                    const niv = niveaux.find(n => n.code === e.code_niveau);
+                    const color = niv?.couleur || '#888';
+                    const nbInNiveau = ordered.filter(x => x.code_niveau === e.code_niveau).length;
+                    result.push({
+                      __section: true,
+                      code: e.code_niveau || '?',
+                      label: niv?.nom || e.code_niveau || '?',
+                      color,
+                      count: nbInNiveau,
+                    });
+                    lastNiveau = e.code_niveau;
+                  }
+                  result.push(e);
+                });
+                return result;
+              })().map(e => {
+                // Rendu d'un header de section
+                if (e.__section) {
+                  return (
+                    <div key={`section-${e.code}`} style={{
+                      position:'sticky', top:0, zIndex:10,
+                      background:'#f5f5f0',
+                      padding:'10px 4px 6px',
+                      display:'flex', alignItems:'center', gap:8,
+                      borderBottom:`0.5px solid ${e.color}30`,
+                      marginBottom:6,
+                    }}>
+                      <span style={{
+                        padding:'3px 9px', borderRadius:12,
+                        background:`${e.color}20`, color:e.color,
+                        fontSize:11, fontWeight:800, letterSpacing:'0.3px',
+                      }}>{e.code}</span>
+                      <span style={{fontSize:12, color:'#666', fontWeight:600}}>
+                        {e.label}
+                      </span>
+                      <span style={{fontSize:11, color:'#aaa', marginLeft:'auto'}}>
+                        {e.count} {lang==='ar'?'طالب':'élèves'}
+                      </span>
+                    </div>
+                  );
+                }
+                // Rendu normal d'une carte eleve
                 const nc = getNiveauColor(e.code_niveau);
                 const inst = instituteurs.find(i=>i.id===e.instituteur_referent_id);
                 const nl = niveauLabel(e);

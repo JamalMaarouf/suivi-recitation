@@ -4,6 +4,7 @@ import { t } from '../lib/i18n';
 import { supabase } from '../lib/supabase';
 import { withRetryToast } from '../lib/retry';
 import MobileSkeletonList from '../components/MobileSkeletonList';
+import { hapticSuccess } from '../lib/haptic';
 import { invalidateMany } from '../lib/cache';
 import { enqueueOrRun } from '../lib/offlineQueue';
 import { notifierParents } from '../lib/notificationsParents';
@@ -267,6 +268,7 @@ export default function EnregistrerRecitation({  user, eleve: eleveInitial, navi
       const msg = motivationMsg(nombreTomon, etat, typeValidation === 'hizb_complet');
       setMotivMsg(msg);
       setDone(true);
+      hapticSuccess();
       return;
     }
 
@@ -417,6 +419,7 @@ export default function EnregistrerRecitation({  user, eleve: eleveInitial, navi
     const msg = motivationMsg(nombreTomon, etat, typeValidation === 'hizb_complet');
     setMotivMsg(msg);
     setDone(true);
+    hapticSuccess();
   };
 
   const elevesFiltre = eleves.filter(e => `${e.prenom} ${e.nom} ${e.eleve_id_ecole||''}`.toLowerCase().includes(search.toLowerCase()));
