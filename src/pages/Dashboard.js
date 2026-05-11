@@ -316,26 +316,10 @@ export default function Dashboard({ user, navigate, goBack, lang, isMobile=false
     const inactifs30 = eleves.filter(e=>e.jours!=null&&e.jours>30);
     const inactifs14 = eleves.filter(e=>e.jours!=null&&e.jours>14&&e.jours<=30);
     const sansRecit  = eleves.filter(e=>e.jours==null);
-    const navModules = [
-      {icon:'⚙️', label:lang==='ar'?'الإدارة':'Administration',  sub:lang==='ar'?'إدارة':'Gestion',              page:'gestion',            color:'#085041', bg:'#E1F5EE'},
-      {icon:'👥', label:lang==='ar'?'الطلاب':'Élèves',            sub:`${eleves.length} ${lang==='ar'?'طالب':'inscrits'}`, page:'eleves_mobile', color:'#378ADD', bg:'#E6F1FB'},
-      {icon:'💰', label:lang==='ar'?'المالية':'Finance',           sub:lang==='ar'?'الاشتراكات':'Cotisations',     page:'finance',            color:'#E24B4A', bg:'#FCEBEB', role:'surveillant'},
-      {icon:'🎯', label:lang==='ar'?'الأهداف':'Objectifs',         sub:lang==='ar'?'متابعة':'Suivi',               page:'objectifs',          color:'#534AB7', bg:'#EEEDFE', role:'surveillant'},
-      {icon:'📊', label:lang==='ar'?'السجل':'Historique',          sub:lang==='ar'?'تحليل':'Analyse',              page:'historique_seances', color:'#378ADD', bg:'#E6F1FB'},
-      {icon:'📖', label:lang==='ar'?'مراجعة':"Muraja'a",          sub:lang==='ar'?'جماعية':'Collective',          page:'muraja',             color:'#534AB7', bg:'#F0EEFF'},
-      {icon:'🏅', label:lang==='ar'?'الشهادات':'Certificats',      sub:lang==='ar'?'متابعة':'Suivi',               page:'liste_certificats',  color:'#EF9F27', bg:'#FAEEDA'},
-      {icon:'📝', label:lang==='ar'?'نتائج الامتحانات':'Examens',  sub:lang==='ar'?'النتائج':'Résultats',          page:'resultats_examens',  color:'#378ADD', bg:'#E6F1FB'},
-      {icon:'⭐', label:lang==='ar'?'النقاط':'Notes',              sub:lang==='ar'?'الترتيب':'Classement',         page:'liste_notes',        color:'#EF9F27', bg:'#FAEEDA'},
-      {icon:'🏆', label:lang==='ar'?'لوحة الشرف':'Honneur',        sub:lang==='ar'?'المتصدرون':'Top élèves',       page:'honneur',            color:'#EF9F27', bg:'#FAEEDA'},
-      {icon:'📋', label:lang==='ar'?'التقرير الشهري':'Rapport',     sub:lang==='ar'?'إحصائيات':'Statistiques',     page:'rapport_mensuel',    color:'#374151', bg:'#F3F4F6', role:'surveillant'},
-      {icon:'📊', label:lang==='ar'?'لوحة القيادة':'Direction',     sub:lang==='ar'?'تحليلات':'Analytics',     page:'dashboard_direction', color:'#085041', bg:'#E1F5EE', role:'surveillant'},
-      {icon:'📈', label:lang==='ar'?'مقارنة':'Comparer',            sub:lang==='ar'?'بين الطلاب':'Élèves',         page:'comparaison',        color:'#534AB7', bg:'#EEEDFE'},
-      // E1 mobile M1a — 4 menus manquants vs PC (alignement navbar)
-      {icon:'📅', label:lang==='ar'?'التقويم':'Calendrier',         sub:lang==='ar'?'البرنامج':'Planning',          page:'calendrier',         color:'#378ADD', bg:'#E6F1FB'},
-      {icon:'📚', label:lang==='ar'?'الدروس':'Cours',                sub:lang==='ar'?'متابعة':'Suivi',               page:'cours',              color:'#378ADD', bg:'#E6F1FB'},
-      {icon:'📅', label:lang==='ar'?'الحضور':'Assiduité',           sub:lang==='ar'?'الغياب':'Présences',           page:'assiduite',          color:'#1D9E75', bg:'#E1F5EE', role:'surveillant'},
-      {icon:'👨‍👩‍👧', label:lang==='ar'?'الأولياء':'Parents',          sub:lang==='ar'?'متابعة':'Suivi',               page:'parents',            color:'#534AB7', bg:'#EEEDFE', role:'surveillant'},
-    ].filter(m => !m.role || user.role===m.role);
+    // ─── Modules supprimes du Dashboard (Phase 2 - Dashboard pure synthese) ──
+    // Les 17 modules sont desormais accessibles via la page ModulesMobile
+    // qui s'ouvre depuis le tab "Plus" de la bottom tab bar.
+    // Voir src/pages/ModulesMobile.js pour la configuration des sections.
 
     const podiumColors = ['#EF9F27','#B0B0B0','#CD7F32'];
     const podiumBg     = ['#FAEEDA','#f5f5f0','#f9f3ec'];
@@ -444,30 +428,9 @@ export default function Dashboard({ user, navigate, goBack, lang, isMobile=false
             )}
           </div>
 
-          {/* ── NAVIGATION 6 MODULES ── */}
-          <div style={{padding:'12px 12px 4px'}}>
-            <div style={{fontSize:11,fontWeight:700,color:'#888',textTransform:'uppercase',
-              letterSpacing:'1px',marginBottom:10}}>
-              {lang==='ar'?'القائمة الرئيسية':'Navigation'}
-            </div>
-            <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:8}}>
-              {navModules.map(m=>(
-                <div key={m.page+m.label} onClick={()=>navigate(m.page)}
-                  style={{background:'#fff',borderRadius:14,padding:'14px 10px',
-                    display:'flex',flexDirection:'column',alignItems:'center',gap:7,
-                    border:'0.5px solid #e0e0d8',cursor:'pointer',
-                    boxShadow:'0 1px 4px rgba(0,0,0,0.04)'}}>
-                  <div style={{width:40,height:40,borderRadius:12,background:m.bg,
-                    display:'flex',alignItems:'center',justifyContent:'center',fontSize:18}}>
-                    {m.icon}
-                  </div>
-                  <div style={{fontSize:12,fontWeight:700,color:'#1a1a1a',textAlign:'center',
-                    lineHeight:1.2}}>{m.label}</div>
-                  <div style={{fontSize:10,color:'#888',textAlign:'center'}}>{m.sub}</div>
-                </div>
-              ))}
-            </div>
-          </div>
+          {/* ── NAVIGATION DEPLACEE VERS LA PAGE ModulesMobile (Phase 2 - Dashboard pure synthese) ──
+              Les modules sont desormais accessibles via le tab 'Plus' de la bottom tab bar.
+              Le Dashboard se concentre uniquement sur l'INFORMATION (KPIs, alertes, podium, activites). */}
 
           {/* ── STATS SEMAINE ── */}
           <div style={{padding:'12px 12px 4px'}}>
