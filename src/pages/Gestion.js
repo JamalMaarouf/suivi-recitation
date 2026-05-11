@@ -2891,6 +2891,7 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile,
   const [showFormInst,   setShowFormInst]   = useState(false);
   const [mobileEditEleve,setMobileEditEleve]= useState(null);
   const [editInstituteur, setEditInstituteur] = useState(null);
+  const [showGestionPlusMenu, setShowGestionPlusMenu] = useState(false);
   const [formEditInst, setFormEditInst] = useState({prenom:'',nom:'',identifiant:'',mot_de_passe:'',instituteur_id_ecole:'',telephone:'',email:''});
 
   // Helper : suggère le prochain numéro instituteur (INST001, INST002...).
@@ -4064,16 +4065,20 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
       setShowFormEleve(true); window.scrollTo(0,0);
     };
 
-    const TABS_MOBILE = [
-      {k:'eleves',        l:lang==='ar'?'الطلاب':'Élèves'},
-      {k:'instituteurs',  l:lang==='ar'?'الأساتذة':'Profs'},
-      {k:'parents',       l:lang==='ar'?'الآباء':'Parents'},
-      {k:'jalons',        l:lang==='ar'?'الشهادات':'Jalons'},
-      {k:'passage_niveau',l:lang==='ar'?'الانتقال':'Passage'},
-      {k:'niveaux_link',  l:lang==='ar'?'المستويات':'Niveaux'},
-      {k:'ensembles_link',l:lang==='ar'?'مجموعات السور':'Ensembles'},
-      {k:'bareme',        l:lang==='ar'?'النقاط':'Barème'},
-      {k:'examens_link',  l:lang==='ar'?'الامتحانات':'Examens'},
+    // Phase 2 - Refonte 9 onglets -> 5 visibles + Plus (dropdown)
+    // Pattern identique a FicheEleve mobile
+    const TABS_PRINCIPAUX = [
+      {k:'eleves',        l:lang==='ar'?'الطلاب':'Élèves',     icon:'👥'},
+      {k:'instituteurs',  l:lang==='ar'?'الأساتذة':'Profs',     icon:'👨‍🏫'},
+      {k:'parents',       l:lang==='ar'?'الآباء':'Parents',     icon:'👨‍👩‍👧'},
+      {k:'jalons',        l:lang==='ar'?'الشهادات':'Jalons',    icon:'🏅'},
+      {k:'examens_link',  l:lang==='ar'?'الامتحانات':'Examens', icon:'📝'},
+    ];
+    const TABS_PLUS = [
+      {k:'passage_niveau',l:lang==='ar'?'الانتقال':'Passage',    icon:'📈'},
+      {k:'niveaux_link',  l:lang==='ar'?'المستويات':'Niveaux',   icon:'📚'},
+      {k:'ensembles_link',l:lang==='ar'?'مجموعات السور':'Ensembles', icon:'📦'},
+      {k:'bareme',        l:lang==='ar'?'النقاط':'Barème',       icon:'⭐'},
     ];
 
     if (loading) return <div style={{padding:'3rem',textAlign:'center',color:'#888'}}>...</div>;
@@ -4147,21 +4152,68 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
             </div>
           )}
         </div>
-        {/* Tabs scrollables — barre séparée sous le header */}
-        <div style={{display:'flex',gap:0,overflowX:'auto',scrollbarWidth:'none',
-          background:'#064e3b',position:'sticky',top:72,zIndex:99,
-          borderBottom:'1px solid rgba(255,255,255,0.1)'}}>
-          {TABS_MOBILE.map(({k,l})=>(
-            <div key={k} onClick={()=>setTab(k)}
-              style={{padding:'10px 14px',fontSize:11,fontWeight:600,cursor:'pointer',flexShrink:0,
-                whiteSpace:'nowrap',
-                color:tab===k?'#4AE4A8':'rgba(255,255,255,0.65)',
-                borderBottom:tab===k?'2.5px solid #4AE4A8':'2.5px solid transparent',
-                background:'transparent',transition:'all 0.15s'}}>
-              {l}
+        {/* Tabs Phase 2 — 5 visibles + Plus (pattern FicheEleve) */}
+        {(() => {
+          const tabDansPlus = TABS_PLUS.find(t => t.k === tab);
+          const plusActif = !!tabDansPlus;
+          return (
+            <div style={{position:'relative',background:'#064e3b',zIndex:99,
+              position:'sticky',top:72,borderBottom:'1px solid rgba(255,255,255,0.1)'}}>
+              <div style={{display:'flex',gap:0,overflowX:'auto',scrollbarWidth:'none'}}>
+                {TABS_PRINCIPAUX.map(({k,l})=>(
+                  <div key={k} onClick={()=>{setTab(k); setShowGestionPlusMenu(false);}}
+                    style={{padding:'10px 14px',fontSize:11,fontWeight:600,cursor:'pointer',flexShrink:0,
+                      whiteSpace:'nowrap',
+                      color:tab===k?'#4AE4A8':'rgba(255,255,255,0.65)',
+                      borderBottom:tab===k?'2.5px solid #4AE4A8':'2.5px solid transparent',
+                      background:'transparent',transition:'all 0.15s'}}>
+                    {l}
+                  </div>
+                ))}
+                {/* Bouton Plus */}
+                <div onClick={()=>setShowGestionPlusMenu(v=>!v)}
+                  style={{padding:'10px 14px',fontSize:11,fontWeight:600,cursor:'pointer',flexShrink:0,
+                    whiteSpace:'nowrap',display:'flex',alignItems:'center',gap:5,
+                    color:plusActif?'#4AE4A8':'rgba(255,255,255,0.65)',
+                    borderBottom:plusActif?'2.5px solid #4AE4A8':'2.5px solid transparent',
+                    background:'transparent',transition:'all 0.15s'}}>
+                  {plusActif && <span>{tabDansPlus.icon}</span>}
+                  {plusActif ? tabDansPlus.l : (lang==='ar'?'المزيد':'Plus')}
+                  <span style={{fontSize:9,opacity:0.7}}>{showGestionPlusMenu ? '▲' : '▼'}</span>
+                </div>
+              </div>
+              {/* Dropdown Plus */}
+              {showGestionPlusMenu && (
+                <>
+                  <div onClick={()=>setShowGestionPlusMenu(false)}
+                    style={{position:'fixed',inset:0,zIndex:99,background:'transparent'}} />
+                  <div style={{position:'absolute',top:'100%',right:8,
+                    background:'#fff',borderRadius:12,padding:6,
+                    boxShadow:'0 4px 16px rgba(0,0,0,0.18)',
+                    border:'0.5px solid #e0e0d8',
+                    zIndex:100,minWidth:170}}>
+                    {TABS_PLUS.map(t => {
+                      const sel = tab === t.k;
+                      return (
+                        <div key={t.k}
+                          onClick={()=>{setTab(t.k); setShowGestionPlusMenu(false);}}
+                          style={{display:'flex',alignItems:'center',gap:10,
+                            padding:'10px 12px',borderRadius:8,cursor:'pointer',
+                            background:sel?'#E1F5EE':'transparent',
+                            color:sel?'#085041':'#333',
+                            fontWeight:sel?700:500,fontSize:13,
+                            transition:'all 0.15s'}}>
+                          <span style={{fontSize:16}}>{t.icon}</span>
+                          {t.l}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </>
+              )}
             </div>
-          ))}
-        </div>
+          );
+        })()}
 
         {/* ─── ONGLET ÉLÈVES ─── */}
         {tab==='eleves'&&(
