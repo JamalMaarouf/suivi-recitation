@@ -2678,7 +2678,7 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile,
   const [showAcquisSelector, setShowAcquisSelector] = useState(false);
   const [editShowAcquisSelector, setEditShowAcquisSelector] = useState(false);
 
-  const [newEleve, setNewEleve] = useState({ prenom: '', nom: '', niveau: 'Débutant', code_niveau: '', eleve_id_ecole: '', instituteur_referent_id: '', hizb_depart: 0, tomon_depart: 1, sourates_acquises: 0, telephone: '', email_parent: '', date_inscription: '', jours_souhaites: [false,false,false,false,false,false,false] });
+  const [newEleve, setNewEleve] = useState({ prenom: '', nom: '', niveau: 'Débutant', code_niveau: '', eleve_id_ecole: '', instituteur_referent_id: '', hizb_depart: 0, tomon_depart: 1, sourates_acquises: 0, hizbs_acquis: [], telephone: '', email_parent: '', date_inscription: '', jours_souhaites: [false,false,false,false,false,false,false] });
   const [newInst, setNewInst] = useState({ prenom: '', nom: '', identifiant: '', mot_de_passe: '', instituteur_id_ecole: '', telephone: '', email: '' });
   const [ecoleConfig, setEcoleConfig] = useState({ mdp_defaut_instituteurs: 'ecole2024', mdp_defaut_parents: 'parent2024', sens_recitation_defaut: 'desc' });
   // Hooks niveaux dynamiques
@@ -2794,7 +2794,7 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile,
     if (ecData) setEcoleConfig(prev => ({...prev, ...ecData}));
     setLoading(true);
     try {
-    const { data: e } = await supabase.from('eleves').select('id,prenom,nom,code_niveau,eleve_id_ecole,hizb_depart,tomon_depart,sourates_acquises,instituteur_referent_id,ecole_id,telephone,date_inscription,jours_souhaites,suspendu_at,suspendu_par,suspendu_motif')
+    const { data: e } = await supabase.from('eleves').select('id,prenom,nom,code_niveau,eleve_id_ecole,hizb_depart,tomon_depart,sourates_acquises,hizbs_acquis,instituteur_referent_id,ecole_id,telephone,date_inscription,jours_souhaites,suspendu_at,suspendu_par,suspendu_motif')
         .eq('ecole_id', user.ecole_id).order('nom');
     const { data: i } = await supabase.from('utilisateurs').select('id,prenom,nom,identifiant,role,instituteur_id_ecole,tarif_seance,suspendu_at,suspendu_par,suspendu_motif').eq('role', 'instituteur').eq('ecole_id', user.ecole_id);
     setEleves(e || []);
@@ -2869,6 +2869,7 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile,
       hizb_depart: parseInt(newEleve.hizb_depart) || 0,
       tomon_depart: parseInt(newEleve.tomon_depart) || 1,
       sourates_acquises: parseInt(newEleve.sourates_acquises) || 0,
+      hizbs_acquis: Array.isArray(newEleve.hizbs_acquis) ? newEleve.hizbs_acquis : [],
       telephone: newEleve.telephone?.trim() || null,
       date_inscription: newEleve.date_inscription || null,
       jours_souhaites: newEleve.jours_souhaites || [false,false,false,false,false,false,false]
@@ -2939,6 +2940,7 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile,
       hizb_depart: parseInt(editEleve.hizb_depart) || 0,
       tomon_depart: parseInt(editEleve.tomon_depart) || 1,
       sourates_acquises: parseInt(editEleve.sourates_acquises) || 0,
+      hizbs_acquis: Array.isArray(editEleve.hizbs_acquis) ? editEleve.hizbs_acquis : [],
       telephone: editEleve.telephone?.trim() || null,
       date_inscription: editEleve.date_inscription || null,
       jours_souhaites: editEleve.jours_souhaites || [false,false,false,false,false,false,false]
@@ -5002,6 +5004,8 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
                       onTomonChange={tv => setNewEleve(prev => ({ ...prev, tomon_depart: tv }))}
                       souratesAcquises={newEleve.sourates_acquises}
                       onSouratesChange={n => setNewEleve(prev => ({ ...prev, sourates_acquises: n }))}
+                      hizbsAcquis={newEleve.hizbs_acquis || []}
+                      onHizbsAcquisChange={arr => setNewEleve(prev => ({ ...prev, hizbs_acquis: arr }))}
                     />
                   )}
                 </div>
@@ -5108,6 +5112,8 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
                       onTomonChange={tv => setEditEleve(prev => ({ ...prev, tomon_depart: tv }))}
                       souratesAcquises={editEleve.sourates_acquises||0}
                       onSouratesChange={n => setEditEleve(prev => ({ ...prev, sourates_acquises: n }))}
+                      hizbsAcquis={editEleve.hizbs_acquis || []}
+                      onHizbsAcquisChange={arr => setEditEleve(prev => ({ ...prev, hizbs_acquis: arr }))}
                     />
                   )}
                 </div>
