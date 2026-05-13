@@ -348,7 +348,7 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang, isMobi
       // s'affiche même si l'élève n'a pas encore d'instituteur assigné.
       try {
         const [{ data: nivData }, { data: ecData }] = await Promise.all([
-          supabase.from('niveaux').select('id,code,nom,sens_recitation').eq('ecole_id', eleve.ecole_id),
+          supabase.from('niveaux').select('id,code,nom,type,sens_recitation').eq('ecole_id', eleve.ecole_id),
           supabase.from('ecoles').select('sens_recitation_defaut').eq('id', eleve.ecole_id).maybeSingle(),
         ]);
         setNiveaux(nivData || []);
