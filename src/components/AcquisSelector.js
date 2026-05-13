@@ -47,13 +47,14 @@ import { SOURATES_CORAN } from '../lib/sourates';
 // Exemple : Bloc1 (60→46 desc) complet + Bloc2 (31→45 asc) avec 31,32,33,34 acquis
 //   -> hizb_depart = 35 (premier non acquis dans le sens asc du bloc 2)
 // ═══════════════════════════════════════════════════════════════════════════
-export function calculerHizbDepartDepuisBlocs(programmeNiveau, hizbsAcquis) {
+export function calculerHizbDepartDepuisBlocs(programmeNiveau, hizbsAcquis, sensNiveau = 'asc') {
   if (!programmeNiveau || programmeNiveau.length === 0) return 0;
   // Grouper par bloc
+  // bloc_sens prioritaire si defini, sinon fallback sur le sens du niveau
   const blocsMap = new Map();
   for (const l of programmeNiveau) {
     const n = l.bloc_numero || 1;
-    if (!blocsMap.has(n)) blocsMap.set(n, { numero: n, sens: l.bloc_sens || 'asc', hizbs: [] });
+    if (!blocsMap.has(n)) blocsMap.set(n, { numero: n, sens: l.bloc_sens || sensNiveau || 'asc', hizbs: [] });
     const h = parseInt(l.reference_id);
     if (!isNaN(h)) blocsMap.get(n).hizbs.push(h);
   }
@@ -219,7 +220,7 @@ export default function AcquisSelector({
       onHizbsAcquisChange(newAcquis);
       // hizb_depart sera recalcule via useEffect dans le parent, ou affiche en live
       // ICI on calcule aussi le nouveau hizb_depart pour le synchroniser
-      const newDepart = calculerHizbDepartDepuisBlocs(programmeNiveau, newAcquis);
+      const newDepart = calculerHizbDepartDepuisBlocs(programmeNiveau, newAcquis, sens);
       onHizbChange(newDepart);
       onTomonChange(0);
       return;
@@ -253,7 +254,7 @@ export default function AcquisSelector({
     if (nbAcquisTotal === 0) {
       acquisLabel = lang === 'ar' ? 'لا توجد مكتسبات سابقة' : 'Aucun acquis antérieur';
     } else {
-      const departCalcule = calculerHizbDepartDepuisBlocs(programmeNiveau, hizbsAcquis);
+      const departCalcule = calculerHizbDepartDepuisBlocs(programmeNiveau, hizbsAcquis, sens);
       acquisLabel = departCalcule === 0
         ? `${lang === 'ar' ? 'جميع البلوكات مكتسبة' : 'Tous les blocs acquis'} (${nbAcquisTotal} ${lang === 'ar' ? 'حزب' : 'Hizbs'})`
         : `${nbAcquisTotal} ${lang === 'ar' ? 'حزب مكتسب' : 'Hizbs acquis'} · ${lang === 'ar' ? 'حزب الانطلاق' : 'Hizb de départ'} : ${departCalcule}`;

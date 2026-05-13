@@ -240,10 +240,11 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
     if (estSourate || !etat) return false;
     if (programmeNiveau.length === 0) return etat.hizbEnCours === 1; // fallback
     // Programme hizb : reference_id = numéro du hizb, trié par ordre
-    // En ordre décroissant, le dernier hizb = celui avec le plus petit numéro
+    // En desc : dernier hizb = plus petit numero. En asc : dernier hizb = plus grand numero.
+    const sensEl = selectedEleve ? getSensForEleve(selectedEleve, niveaux, ecoleConfig) : 'desc';
     const hizbsProg = programmeNiveau.map(p => parseInt(p.reference_id)).filter(n => !isNaN(n));
     if (hizbsProg.length === 0) return etat.hizbEnCours === 1;
-    const dernierHizb = Math.min(...hizbsProg); // le plus petit numéro = dernier en ordre décroissant
+    const dernierHizb = sensEl === 'asc' ? Math.max(...hizbsProg) : Math.min(...hizbsProg);
     return etat.hizbEnCours === dernierHizb;
   })();
 
