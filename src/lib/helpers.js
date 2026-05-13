@@ -928,10 +928,10 @@ export async function verifierBlocageEnsemble(supabase, { eleve_id, ecole_id, ni
     // 5. Charger les resultats d'examens deja reussis
     const { data: resultats } = await supabase
       .from('resultats_examens')
-      .select('examen_id, reussi')
+      .select('examen_id, statut')
       .eq('eleve_id', eleve_id);
 
-    const examensReussis = new Set((resultats || []).filter(r => r.reussi).map(r => r.examen_id));
+    const examensReussis = new Set((resultats || []).filter(r => r.statut === 'reussi').map(r => r.examen_id));
 
     // 6. Pour chaque ensemble, verifier si toutes ses sourates sont recitees ET non encore valide
     const blocages = [];
