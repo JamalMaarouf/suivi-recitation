@@ -290,6 +290,7 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
       return;
     }
     setSaving(true);
+    try {
     const payload = {
       eleve_id: selectedEleve.id, ecole_id: user.ecole_id, valide_par: user.id,
       nombre_tomon: nbTomon, type_validation: 'tomon',
@@ -374,6 +375,12 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
           console.warn('[validerTomon background]', e);
         }
       })();
+    }
+    } catch (err) {
+      console.error('[validerTomon] ERREUR INATTENDUE', err);
+      toast.error(lang === 'ar' ? `❌ خطأ : ${err.message}` : `❌ Erreur : ${err.message}`, { duration: 5000 });
+    } finally {
+      setSaving(false); // Garde-fou : toujours liberer le bouton
     }
   };
 
