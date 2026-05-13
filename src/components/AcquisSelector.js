@@ -58,17 +58,32 @@ export function calculerHizbDepartDepuisBlocs(programmeNiveau, hizbsAcquis, sens
     sensNiveau,
     sample: programmeNiveau.slice(0, 3),
   });
+
+  // ─── Detection mode "vrai monobloc" ──────────────────────────────────
+  // Si tout le programme est dans un seul bloc, le bloc n'a pas ete configure
+  // explicitement par le surveillant. Donc le sens stocke (bloc_sens) est une
+  // valeur par defaut qui peut etre fausse. On utilise SYSTEMATIQUEMENT le
+  // sens du niveau dans ce cas.
+  const blocsUniques = new Set(programmeNiveau.map(p => p.bloc_numero || 1));
+  const estVraiMonobloc = blocsUniques.size <= 1;
+
   // Grouper par bloc
-  // bloc_sens prioritaire si defini, sinon fallback sur le sens du niveau
+  // En vrai monobloc : sens = sensNiveau (ignore bloc_sens potentiellement faux)
+  // En multi-blocs : sens = bloc_sens (configure explicitement par le surveillant)
   const blocsMap = new Map();
   for (const l of programmeNiveau) {
     const n = l.bloc_numero || 1;
-    if (!blocsMap.has(n)) blocsMap.set(n, { numero: n, sens: l.bloc_sens || sensNiveau || 'asc', hizbs: [] });
+    if (!blocsMap.has(n)) {
+      const sensEffectif = estVraiMonobloc
+        ? (sensNiveau || 'asc')
+        : (l.bloc_sens || sensNiveau || 'asc');
+      blocsMap.set(n, { numero: n, sens: sensEffectif, hizbs: [] });
+    }
     const h = parseInt(l.reference_id);
     if (!isNaN(h)) blocsMap.get(n).hizbs.push(h);
   }
   const blocsList = Array.from(blocsMap.values()).sort((a, b) => a.numero - b.numero);
-  console.log('[calcHizbDepart] blocs', blocsList.map(b => ({ numero: b.numero, sens: b.sens, count: b.hizbs.length })));
+  console.log('[calcHizbDepart] blocs', blocsList.map(b => ({ numero: b.numero, sens: b.sens, count: b.hizbs.length })), 'estVraiMonobloc:', estVraiMonobloc);
   const acquisSet = new Set(hizbsAcquis || []);
   // Parcourir chaque bloc dans l'ordre
   for (const b of blocsList) {
