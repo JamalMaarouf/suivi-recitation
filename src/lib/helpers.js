@@ -773,7 +773,7 @@ export async function verifierBlocageExamen(supabase, {
     // Trouver le niveau_id depuis la table niveaux via code_niveau
     const { data: niveauData } = await supabase
       .from('niveaux')
-      .select('id, type, code')
+      .select('id, type, code, sens_recitation')
       .eq('ecole_id', ecole_id)
       .eq('code', eleve.code_niveau || '')
       .maybeSingle();
@@ -833,12 +833,36 @@ export async function verifierBlocageExamen(supabase, {
         // Toutes les sourates de tous ces ensembles
         const toutesLesSourates = ensembles.flatMap(e => e.sourates_ids || []);
 
-        // Sourates complètes de l'élève
+        // Sourates complètes de l'élève (depuis validations explicites)
         const souratesCompletes = new Set(
           (recitations||[])
             .filter(r => r.type_recitation === 'complete' || r.complete === true)
             .map(r => r.sourate_id)
         );
+
+        // ─── AJOUT : prendre en compte les sourates acquises ANTERIEUREMENT ─────
+        // sourates_acquises = nombre N = les N premieres sourates (en sens du niveau)
+        // sont considerees deja maitrisees AVANT le suivi.
+        // Sans cela, un eleve avec acquis prealables ne pourra jamais declencher
+        // le blocage (le compteur de recitations en BDD n'atteindra jamais le total).
+        const nbAcquises = eleve?.sourates_acquises || 0;
+        if (nbAcquises > 0) {
+          try {
+            // Charger les 114 sourates de la BDD triees selon le sens du niveau
+            const sensNiveau = niveauData.sens_recitation || 'desc';
+            const { data: souratesData } = await supabase
+              .from('sourates')
+              .select('id, numero')
+              .order('numero', { ascending: sensNiveau === 'asc' });
+            if (souratesData && souratesData.length > 0) {
+              // Les N premieres dans cet ordre = acquises avant le suivi
+              const idsAcquis = souratesData.slice(0, nbAcquises).map(s => s.id);
+              for (const sId of idsAcquis) souratesCompletes.add(sId);
+            }
+          } catch (e) {
+            console.warn('[verifierBlocageExamen] echec ajout sourates_acquises:', e);
+          }
+        }
 
         examTermine = toutesLesSourates.length > 0 &&
           toutesLesSourates.every(sid => souratesCompletes.has(sid));
@@ -907,6 +931,35 @@ export async function verifierBlocageEnsemble(supabase, { eleve_id, ecole_id, ni
       .eq('type_recitation', 'complete');
 
     const souratesRecitees = new Set((recitations || []).map(r => r.sourate_id));
+
+    // 2bis. AJOUT : prendre en compte les sourates acquises ANTERIEUREMENT
+    // (logique identique a verifierBlocageExamen pour coherence)
+    try {
+      const { data: eleveData } = await supabase
+        .from('eleves')
+        .select('sourates_acquises')
+        .eq('id', eleve_id)
+        .maybeSingle();
+      const nbAcquises = eleveData?.sourates_acquises || 0;
+      if (nbAcquises > 0) {
+        const { data: nivData } = await supabase
+          .from('niveaux')
+          .select('sens_recitation')
+          .eq('id', niveau_id)
+          .maybeSingle();
+        const sensNiveau = nivData?.sens_recitation || 'desc';
+        const { data: souratesData } = await supabase
+          .from('sourates')
+          .select('id, numero')
+          .order('numero', { ascending: sensNiveau === 'asc' });
+        if (souratesData && souratesData.length > 0) {
+          const idsAcquis = souratesData.slice(0, nbAcquises).map(s => s.id);
+          for (const sId of idsAcquis) souratesRecitees.add(sId);
+        }
+      }
+    } catch (e) {
+      console.warn('[verifierBlocageEnsemble] echec ajout sourates_acquises:', e);
+    }
 
     // 3. Charger les ensembles deja valides pour cet eleve
     const { data: validationsEns } = await supabase
