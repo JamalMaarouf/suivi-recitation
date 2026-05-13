@@ -660,31 +660,40 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
       return;
     }
 
-    // === SUCCES - Refresh BDD en background pour remplacer l'optimistic id par le vrai ===
-    // Et lancer les verifications lentes (certificats, blocage)
-    (async () => {
-      try {
-        const [recsResult, valsResult] = await Promise.all([
-          supabase.from('recitations_sourates').select('*').eq('eleve_id', selectedEleve.id).eq('ecole_id', user.ecole_id),
-          supabase.from('validations').select('*').eq('eleve_id', selectedEleve.id).eq('ecole_id', user.ecole_id),
-        ]);
-        const newRecsData = recsResult.data || [];
-        const valsData = valsResult.data || [];
-        setRecitationsSourates(newRecsData);
+    // === SUCCES - Refresh BDD pour remplacer l'optimistic id par le vrai ===
+    // checkBlocageExamenEleve fait SYNCHRONEMENT pour empecher l'eleve de valider
+    // une sourate de plus avant que le blocage soit reflete dans l'UI.
+    // (Sinon course condition : l'eleve clique 2x rapidement et passe-outre le blocage)
+    try {
+      const [recsResult, valsResult] = await Promise.all([
+        supabase.from('recitations_sourates').select('*').eq('eleve_id', selectedEleve.id).eq('ecole_id', user.ecole_id),
+        supabase.from('validations').select('*').eq('eleve_id', selectedEleve.id).eq('ecole_id', user.ecole_id),
+      ]);
+      const newRecsData = recsResult.data || [];
+      const valsData = valsResult.data || [];
+      setRecitationsSourates(newRecsData);
 
-        await checkBlocageExamenEleve(selectedEleve, valsData, newRecsData);
-        const nouveauxCertsSourate = await verifierEtCreerCertificats(supabase, {
-          eleve: selectedEleve, ecole_id: user.ecole_id, valide_par: user.id,
-          validations: valsData, recitations: newRecsData,
-        });
-        if (nouveauxCertsSourate.length > 0) {
-          setTimeout(() => setFlash({ msg: `🏅 ${(nouveauxCertsSourate||[]).map(c => c.nom_certificat_ar||c.nom_certificat).join(', ')} !`, color: '#EF9F27', pts: 0 }), 600);
-          setTimeout(() => setFlash(null), 4500);
+      // SYNCHRONE : verifier blocage AVANT de rendre la main au surveillant
+      await checkBlocageExamenEleve(selectedEleve, valsData, newRecsData);
+
+      // Certificats en background (non bloquant pour l'UI)
+      (async () => {
+        try {
+          const nouveauxCertsSourate = await verifierEtCreerCertificats(supabase, {
+            eleve: selectedEleve, ecole_id: user.ecole_id, valide_par: user.id,
+            validations: valsData, recitations: newRecsData,
+          });
+          if (nouveauxCertsSourate.length > 0) {
+            setTimeout(() => setFlash({ msg: `🏅 ${(nouveauxCertsSourate||[]).map(c => c.nom_certificat_ar||c.nom_certificat).join(', ')} !`, color: '#EF9F27', pts: 0 }), 600);
+            setTimeout(() => setFlash(null), 4500);
+          }
+        } catch (e) {
+          console.warn('[validerSourate certs background]', e);
         }
-      } catch (e) {
-        console.warn('[validerSourate background]', e);
-      }
-    })();
+      })();
+    } catch (e) {
+      console.warn('[validerSourate post-insert]', e);
+    }
   };
 
   const sl = selectedEleve && etat ? scoreLabel(etat.points.total) : null;
