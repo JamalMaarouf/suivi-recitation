@@ -518,6 +518,95 @@ export function calcEtatEleve(validations, hizbDepart, tomonDepart, sens = 'desc
   };
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// calcEtatEleveAvecBlocs — wrapper pour la progression multi-blocs
+// ═══════════════════════════════════════════════════════════════════════════
+//
+// PRINCIPE DIRECTEUR (validation Jamal) :
+//   Les recitations des eleves appartenant aux niveaux avec blocs doivent
+//   respecter la chronologie des blocs ainsi que leur sens de recitation.
+//
+// COMPORTEMENT :
+//   - Niveau monobloc OU sans programme : retourne calcEtatEleve directement
+//     (zero changement de comportement, retrocompatibilite totale)
+//   - Niveau multi-blocs :
+//     1. Calcule la liste hizbsFaits = hizbs_acquis ∪ hizbsComplets (validations)
+//     2. Determine le bloc actuel selon les Hizbs deja faits
+//     3. Si l'eleve est AU MILIEU d'un Hizb (tomons partiels < 8) : garde le
+//        Hizb actuellement en cours, prochainTomon, etc.
+//     4. Si l'eleve DEBUTE un nouveau Hizb (tomonCumul=0 ou hizb_complet
+//        valide juste avant) : recalcule hizbEnCours = premier Hizb non acquis
+//        dans le bloc actuel selon son SENS PROPRE.
+//
+// COHERENCE :
+//   La validation utilisera le hizbEnCours retourne par cette fonction,
+//   donc l'enregistrement BDD sera coherent avec l'affichage.
+// ═══════════════════════════════════════════════════════════════════════════
+export function calcEtatEleveAvecBlocs(validations, eleve, programmeNiveau, sens = 'desc') {
+  // Etape 1 : calcEtatEleve standard (toujours fait pour tomonCumul, points, etc.)
+  const etatBrut = calcEtatEleve(
+    validations || [],
+    eleve?.hizb_depart || 0,
+    eleve?.tomon_depart || 0,
+    sens
+  );
+
+  // Etape 2 : detecter si multi-blocs (sinon retour direct)
+  if (!programmeNiveau || programmeNiveau.length === 0) return etatBrut;
+  const blocsUniques = new Set(programmeNiveau.map(p => p.bloc_numero || 1));
+  if (blocsUniques.size <= 1) return etatBrut;
+
+  // Etape 3 : calculer hizbsFaits (acquis + valides pendant le suivi)
+  const hizbsFaits = new Set(etatBrut.hizbsComplets || []);
+  if (Array.isArray(eleve?.hizbs_acquis) && eleve.hizbs_acquis.length > 0) {
+    for (const h of eleve.hizbs_acquis) hizbsFaits.add(h);
+  }
+  // Note : pas de fallback hizb_depart en multi-blocs (cf. principe "ne pas inventer")
+
+  // Etape 4 : calcBlocProgression pour determiner bloc actuel et sens
+  const prog = calcBlocProgression(programmeNiveau, hizbsFaits, etatBrut.hizbEnCours);
+  if (!prog || prog.estMonoBloc || !prog.blocActuel) return etatBrut;
+
+  // Etape 5 : si l'eleve est AU MILIEU d'un Hizb (tomons partiels), preserver l'etat
+  //   - prochainTomon != 1 signifie que des tomons ont ete valides sur le Hizb en cours
+  //   - dans ce cas, hizbEnCours doit rester celui en cours (pas basculer)
+  const auMilieuHizb = etatBrut.prochainTomon > 1 && etatBrut.prochainTomon <= 8;
+  if (auMilieuHizb) {
+    // Verifier quand meme que le Hizb en cours est dans un bloc connu (sinon le proposer en debut du bloc)
+    const hizbDansProg = programmeNiveau.some(p => parseInt(p.reference_id) === etatBrut.hizbEnCours);
+    if (hizbDansProg) {
+      return { ...etatBrut, _blocActuel: { numero: prog.blocActuel.numero, nom: prog.blocActuel.nom, sens: prog.blocActuel.sens } };
+    }
+  }
+
+  // Etape 6 : recalculer le prochain Hizb selon le bloc actuel et son sens
+  const { hizb: prochainSelonBloc } = prochainHizbDansBloc(prog);
+  if (!prochainSelonBloc) {
+    // Tous les blocs sont termines
+    return { ...etatBrut, _blocActuel: { numero: prog.blocActuel.numero, nom: prog.blocActuel.nom, sens: prog.blocActuel.sens } };
+  }
+
+  // Si le Hizb propose par calcEtatEleve est deja le bon, ne pas modifier
+  if (etatBrut.hizbEnCours === prochainSelonBloc) {
+    return { ...etatBrut, _blocActuel: { numero: prog.blocActuel.numero, nom: prog.blocActuel.nom, sens: prog.blocActuel.sens } };
+  }
+
+  // Etape 7 : correction necessaire -> Hizb = prochainSelonBloc, repart a T.1
+  // (l'eleve va debuter ce Hizb depuis le tomon 1)
+  return {
+    ...etatBrut,
+    hizbEnCours: prochainSelonBloc,
+    prochainTomon: 1,
+    tomonDansHizbActuel: 0,
+    tomonRestants: 8,
+    tous8Faits: false,
+    hizbCompletValide: false,
+    enAttenteHizbComplet: false,
+    _ajusteParBloc: true,
+    _blocActuel: { numero: prog.blocActuel.numero, nom: prog.blocActuel.nom, sens: prog.blocActuel.sens },
+  };
+}
+
 export function calcStats(validations) {
   const maintenant = new Date();
   const debutMois = new Date(maintenant.getFullYear(), maintenant.getMonth(), 1);

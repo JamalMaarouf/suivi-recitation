@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useToast } from '../lib/toast';
 import { supabase } from '../lib/supabase';
-import { calcEtatEleve, isSourateNiveauDyn, calcPositionAtteinte, calcUnite, calcPoints, formatDate, formatDateCourt, getInitiales, scoreLabel, calcBadges, calcVitesse, niveauTraduit, calcPointsPeriode, loadBareme, BAREME_DEFAUT, getSensForEleve, calcBlocProgression} from '../lib/helpers';
+import { calcEtatEleve, calcEtatEleveAvecBlocs, isSourateNiveauDyn, calcPositionAtteinte, calcUnite, calcPoints, formatDate, formatDateCourt, getInitiales, scoreLabel, calcBadges, calcVitesse, niveauTraduit, calcPointsPeriode, loadBareme, BAREME_DEFAUT, getSensForEleve, calcBlocProgression} from '../lib/helpers';
 import { t } from '../lib/i18n';
 import { openPDF } from '../lib/pdf';
 import { getCachedSWR } from '../lib/cache';
@@ -297,6 +297,11 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang, isMobi
     }
     setLoading(true);
 
+    // Variable locale pour partager progData entre la section chargement (~ligne 356)
+    // et l'appel a calcEtatEleveAvecBlocs (~ligne 418). On ne peut pas utiliser le state
+    // programmeNiveau car React met le state a jour asynchrone.
+    let progDataLoaded = [];
+
     // Recharger l'eleve frais depuis la DB (ses hizb_depart/tomon_depart peuvent avoir
     // change depuis le render parent). Sinon on calcule etat a partir de donnees periees.
     try {
@@ -358,7 +363,8 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang, isMobi
               .eq('niveau_id', niveauEleve.id)
               .eq('ecole_id', eleve.ecole_id)
               .order('ordre');
-            setProgrammeNiveau(progData || []);
+            progDataLoaded = progData || [];
+            setProgrammeNiveau(progDataLoaded);
           } catch(e) {
             setProgrammeNiveau([]);
           }
@@ -415,7 +421,7 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang, isMobi
         if(inst) setInstituteurNom(inst.prenom+' '+inst.nom);
       }
       const sensE = getSensForEleve(eleve, niveaux, ecoleConfig);
-      const e = calcEtatEleve(vals||[],eleve.hizb_depart,eleve.tomon_depart, sensE);
+      const e = calcEtatEleveAvecBlocs(vals||[], eleve, progDataLoaded, sensE);
 
       // PROTECTION CRITIQUE : si on avait déjà un état avec des validations
       // et que le reload ne retourne rien, c'est un signal d'erreur transitoire.

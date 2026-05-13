@@ -5,7 +5,7 @@ import { withRetryToast } from '../lib/retry';
 import { invalidateMany } from '../lib/cache';
 import { enqueueOrRun } from '../lib/offlineQueue';
 import { swr } from '../lib/offlineCache';
-import { calcEtatEleve, getInitiales, scoreLabel, motivationMsg, verifierEtCreerCertificats, isSourateNiveauDyn, loadBareme, BAREME_DEFAUT, getSensForEleve, verifierBlocageExamen, verifierBlocageEnsemble, validerEnsemble, calculerPointsSourate} from '../lib/helpers';
+import { calcEtatEleve, calcEtatEleveAvecBlocs, getInitiales, scoreLabel, motivationMsg, verifierEtCreerCertificats, isSourateNiveauDyn, loadBareme, BAREME_DEFAUT, getSensForEleve, verifierBlocageExamen, verifierBlocageEnsemble, validerEnsemble, calculerPointsSourate} from '../lib/helpers';
 import { notifierParents } from '../lib/notificationsParents';
 import { getSouratesForNiveau } from '../lib/sourates';
 import { t } from '../lib/i18n';
@@ -135,7 +135,7 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
     setBlocageExamen(null); setBlocagesEnsemble([]);
     const vals = allValidations.filter(v => v.eleve_id === e.id);
     const sensEl = getSensForEleve(e, niveaux, ecoleConfig);
-    setEtat(calcEtatEleve(vals, e.hizb_depart, e.tomon_depart, sensEl));
+    setEtat(calcEtatEleveAvecBlocs(vals, e, programmeNiveau, sensEl));
     setSearch('');
     setNbTomon(1);
     setSourateSelectionnee(null);
@@ -155,7 +155,7 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
     if (fresh && (fresh.hizb_depart !== e.hizb_depart || fresh.tomon_depart !== e.tomon_depart || fresh.code_niveau !== e.code_niveau)) {
       setSelectedEleve(freshEleve);
       const sensFresh = getSensForEleve(freshEleve, niveaux, ecoleConfig);
-      setEtat(calcEtatEleve(vals, freshEleve.hizb_depart, freshEleve.tomon_depart, sensFresh));
+      setEtat(calcEtatEleveAvecBlocs(vals, freshEleve, programmeNiveau, sensFresh));
     }
 
     const souratesLocal = sourFresh || [];
@@ -167,10 +167,17 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
     let progData = [];
     const { data: niv } = await supabase.from('niveaux').select('id').eq('code', freshEleve.code_niveau).eq('ecole_id', user.ecole_id).maybeSingle();
     if (niv) {
-      const { data: prog } = await supabase.from('programmes').select('reference_id,ordre')
+      const { data: prog } = await supabase.from('programmes').select('reference_id,ordre,bloc_numero,bloc_nom,bloc_sens,type_contenu')
         .eq('niveau_id', niv.id).eq('ecole_id', user.ecole_id).order('ordre');
       progData = prog || [];
       setProgrammeNiveau(progData);
+
+      // ─── Apres chargement du programme, RE-APPLIQUER l'etat avec cascade blocs ──
+      // Pourquoi : a l'etape 1 (affichage immediat), progData n'etait pas encore charge.
+      // Maintenant qu'on l'a, on recalcule l'etat avec calcEtatEleveAvecBlocs pour
+      // que les niveaux multi-blocs aient hizbEnCours correct selon le bloc actuel.
+      const sensFinal = getSensForEleve(freshEleve, niveaux, ecoleConfig);
+      setEtat(calcEtatEleveAvecBlocs(vals, freshEleve, progData, sensFinal));
     } else {
       setProgrammeNiveau([]);
     }
@@ -303,7 +310,7 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
     setAllValidations(newValsOpt);
     const sensEl = getSensForEleve(selectedEleve, niveaux, ecoleConfig);
     const valsEleveOpt = newValsOpt.filter(v => v.eleve_id === selectedEleve.id);
-    setEtat(calcEtatEleve(valsEleveOpt, selectedEleve.hizb_depart, selectedEleve.tomon_depart, sensEl));
+    setEtat(calcEtatEleveAvecBlocs(valsEleveOpt, selectedEleve, programmeNiveau, sensEl));
 
     // Affichage flash + reset IMMEDIATS
     const ptsParTomon = bareme?.unites?.tomon || 0;
@@ -343,7 +350,7 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
           ...prev.filter(v => v.eleve_id !== selectedEleve.id),
           ...refreshVals,
         ]);
-        setEtat(calcEtatEleve(refreshVals, selectedEleve.hizb_depart, selectedEleve.tomon_depart, sensEl));
+        setEtat(calcEtatEleveAvecBlocs(refreshVals, selectedEleve, programmeNiveau, sensEl));
       }
       return;
     }
@@ -400,7 +407,7 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
     setAllValidations(newValsOpt);
     const sensEl = getSensForEleve(selectedEleve, niveaux, ecoleConfig);
     const valsEleveOpt = newValsOpt.filter(v => v.eleve_id === selectedEleve.id);
-    setEtat(calcEtatEleve(valsEleveOpt, selectedEleve.hizb_depart, selectedEleve.tomon_depart, sensEl));
+    setEtat(calcEtatEleveAvecBlocs(valsEleveOpt, selectedEleve, programmeNiveau, sensEl));
 
     // Affichage flash IMMEDIAT
     const ptsHizb = bareme?.unites?.hizb_complet || 0;
@@ -435,7 +442,7 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
           ...prev.filter(v => v.eleve_id !== selectedEleve.id),
           ...refreshVals,
         ]);
-        setEtat(calcEtatEleve(refreshVals, selectedEleve.hizb_depart, selectedEleve.tomon_depart, sensEl));
+        setEtat(calcEtatEleveAvecBlocs(refreshVals, selectedEleve, programmeNiveau, sensEl));
       }
       return;
     }
