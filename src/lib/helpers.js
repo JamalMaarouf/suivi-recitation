@@ -590,7 +590,10 @@ export function calcEtatEleveAvecBlocs(validations, eleve, programmeNiveau, sens
 
   // Etape 7 : construire l'etat coherent
   const tous8Faits = tomonsSurHizbCible >= 8;
-  const hizbCompletValide = (etatBrut.hizbsComplets || []).includes(hizbCibleSelonBloc);
+  // hizbsComplets de calcEtatEleve est un Set (pas un Array), utiliser .has() pas .includes()
+  const hizbCompletValide = etatBrut.hizbsComplets instanceof Set
+    ? etatBrut.hizbsComplets.has(hizbCibleSelonBloc)
+    : Array.isArray(etatBrut.hizbsComplets) && etatBrut.hizbsComplets.includes(hizbCibleSelonBloc);
 
   return {
     ...etatBrut,
