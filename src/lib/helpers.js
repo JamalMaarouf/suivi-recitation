@@ -567,42 +567,41 @@ export function calcEtatEleveAvecBlocs(validations, eleve, programmeNiveau, sens
   const prog = calcBlocProgression(programmeNiveau, hizbsFaits, etatBrut.hizbEnCours);
   if (!prog || prog.estMonoBloc || !prog.blocActuel) return etatBrut;
 
-  // Etape 5 : si l'eleve est AU MILIEU d'un Hizb (tomons partiels), preserver l'etat
-  //   - prochainTomon != 1 signifie que des tomons ont ete valides sur le Hizb en cours
-  //   - dans ce cas, hizbEnCours doit rester celui en cours (pas basculer)
-  const auMilieuHizb = etatBrut.prochainTomon > 1 && etatBrut.prochainTomon <= 8;
-  if (auMilieuHizb) {
-    // Verifier quand meme que le Hizb en cours est dans un bloc connu (sinon le proposer en debut du bloc)
-    const hizbDansProg = programmeNiveau.some(p => parseInt(p.reference_id) === etatBrut.hizbEnCours);
-    if (hizbDansProg) {
-      return { ...etatBrut, _blocActuel: { numero: prog.blocActuel.numero, nom: prog.blocActuel.nom, sens: prog.blocActuel.sens } };
+  // Etape 5 : determiner le Hizb que l'eleve doit reciter MAINTENANT selon le bloc
+  // C'est le premier Hizb non present dans hizbsFaits, en parcourant les blocs
+  // dans l'ordre, chaque bloc dans son sens propre.
+  const { hizb: hizbCibleSelonBloc } = prochainHizbDansBloc(prog);
+  if (!hizbCibleSelonBloc) {
+    // Tous les Hizbs des blocs sont termines -> rien a faire de plus
+    return { ...etatBrut, _blocActuel: { numero: prog.blocActuel.numero, nom: prog.blocActuel.nom, sens: prog.blocActuel.sens } };
+  }
+
+  // Etape 6 : compter les tomons deja valides SUR ce Hizb-cible specifique
+  // (Cas typique : l'eleve a valide 3 tomons sur le Hizb 42. On veut prochainTomon=4.)
+  let tomonsSurHizbCible = 0;
+  for (const v of (validations || [])) {
+    if (v.type_validation === 'tomon' && (v.hizb_validation === hizbCibleSelonBloc || v.hizb === hizbCibleSelonBloc)) {
+      const n = parseInt(v.nombre_tomon) || 1;
+      tomonsSurHizbCible += n;
     }
   }
+  // Bornes : 0 a 8 (au-dela = Hizb deja complet, ce qui aurait du etre detecte par hizbsFaits)
+  tomonsSurHizbCible = Math.max(0, Math.min(8, tomonsSurHizbCible));
 
-  // Etape 6 : recalculer le prochain Hizb selon le bloc actuel et son sens
-  const { hizb: prochainSelonBloc } = prochainHizbDansBloc(prog);
-  if (!prochainSelonBloc) {
-    // Tous les blocs sont termines
-    return { ...etatBrut, _blocActuel: { numero: prog.blocActuel.numero, nom: prog.blocActuel.nom, sens: prog.blocActuel.sens } };
-  }
+  // Etape 7 : construire l'etat coherent
+  const tous8Faits = tomonsSurHizbCible >= 8;
+  const hizbCompletValide = (etatBrut.hizbsComplets || []).includes(hizbCibleSelonBloc);
 
-  // Si le Hizb propose par calcEtatEleve est deja le bon, ne pas modifier
-  if (etatBrut.hizbEnCours === prochainSelonBloc) {
-    return { ...etatBrut, _blocActuel: { numero: prog.blocActuel.numero, nom: prog.blocActuel.nom, sens: prog.blocActuel.sens } };
-  }
-
-  // Etape 7 : correction necessaire -> Hizb = prochainSelonBloc, repart a T.1
-  // (l'eleve va debuter ce Hizb depuis le tomon 1)
   return {
     ...etatBrut,
-    hizbEnCours: prochainSelonBloc,
-    prochainTomon: 1,
-    tomonDansHizbActuel: 0,
-    tomonRestants: 8,
-    tous8Faits: false,
-    hizbCompletValide: false,
-    enAttenteHizbComplet: false,
-    _ajusteParBloc: true,
+    hizbEnCours: hizbCibleSelonBloc,
+    prochainTomon: tous8Faits ? null : (tomonsSurHizbCible + 1),
+    tomonDansHizbActuel: tomonsSurHizbCible,
+    tomonRestants: tous8Faits ? 0 : (8 - tomonsSurHizbCible),
+    tous8Faits,
+    hizbCompletValide,
+    enAttenteHizbComplet: tous8Faits && !hizbCompletValide,
+    _ajusteParBloc: etatBrut.hizbEnCours !== hizbCibleSelonBloc,
     _blocActuel: { numero: prog.blocActuel.numero, nom: prog.blocActuel.nom, sens: prog.blocActuel.sens },
   };
 }
