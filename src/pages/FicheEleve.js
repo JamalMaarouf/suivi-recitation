@@ -2133,31 +2133,9 @@ ${(passages||[]).length > 0 ? `
             </div>
           )}
 
-          {/* Objectif mensuel */}
-          <div className="card" style={{marginBottom:'1rem'}}>
-            <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:10}}>
-              <div style={{fontSize:13,fontWeight:600}}>🎯 {t(lang,'objectif_mensuel')}</div>
-              <div style={{display:'flex',alignItems:'center',gap:6}}>
-                <button onClick={()=>{if(selectedMoisObj===0){setSelectedMoisObj(11);setSelectedAnneeObj(y=>y-1);}else setSelectedMoisObj(m=>m-1);}} style={{padding:'2px 8px',border:'0.5px solid #e0e0d8',borderRadius:4,background:'#fff',cursor:'pointer'}}>‹</button>
-                <span style={{fontSize:12,color:'#888',minWidth:70,textAlign:'center'}}>{getMoisCourt(selectedMoisObj,lang)} {selectedAnneeObj}</span>
-                <button onClick={()=>{if(selectedMoisObj===11){setSelectedMoisObj(0);setSelectedAnneeObj(y=>y+1);}else setSelectedMoisObj(m=>m+1);}} style={{padding:'2px 8px',border:'0.5px solid #e0e0d8',borderRadius:4,background:'#fff',cursor:'pointer'}}>›</button>
-                {user.role==='surveillant'&&<button className="action-btn" onClick={()=>navigate('objectifs')}>🎯 {t(lang,'definir')}</button>}
-              </div>
-            </div>
-            
-            {objActuel?(
-              <div>
-                <div style={{display:'flex',justifyContent:'space-between',fontSize:12,color:'#888',marginBottom:6}}>
-                  <span>{tomonMoisSel} / {objActuel.nombre_tomon} {t(lang,'tomon_abrev')}</span>
-                  <span style={{fontWeight:700,color:pctColor(pctObj)}}>{pctObj}%</span>
-                </div>
-                <div style={{height:10,background:'#e8e8e0',borderRadius:5,overflow:'hidden'}}>
-                  <div style={{height:'100%',width:`${pctObj}%`,background:pctColor(pctObj),borderRadius:5,transition:'width 0.5s'}}/>
-                </div>
-                {pctObj>=100&&<div style={{fontSize:12,color:'#1D9E75',marginTop:6}}>{t(lang,'objectif_atteint')}</div>}
-              </div>
-            ):<div style={{fontSize:12,color:'#bbb',textAlign:'center',padding:'8px 0'}}>{t(lang,'aucun_objectif')}</div>}
-          </div>
+          {/* Bloc 'Objectif mensuel' retire (validation Jamal) : */}
+          {/* Les objectifs sont fixes via le menu 'Objectifs' de la navbar. */}
+          {/* Pas besoin de doublon ici sur la fiche eleve. */}
 
           {/* Tabs */}
           <div className="tabs-row" style={{marginBottom:'1rem'}}>
