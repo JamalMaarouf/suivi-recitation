@@ -1212,8 +1212,19 @@ ${(passages||[]).length > 0 ? `
     // Sinon avec 1 seule recitation : evolution.length=1 -> message "pas assez de donnees"
     // ET la courbe ne peut pas s'afficher (besoin de min 2 points pour tracer).
     const pts = [{ score: 0, date: null, label: 'Départ' }];
+    // FALLBACK BAREME : si r.points=0 (bareme pas configure au moment de la recitation),
+    // utiliser le bareme actuel pour calculer dynamiquement. Permet aux courbes des
+    // anciennes recitations de monter retroactivement quand le surveillant configure
+    // le bareme apres coup, sans necessiter une migration BDD.
+    const ptsSouratFallback = baremeEleve?.unites?.sourate || baremeEleve?.sourate || 0;
+    const ptsSeqFallback = baremeEleve?.unites?.sequence_sourate || baremeEleve?.sequence_sourate || 0;
     tries.forEach(r => {
-      cumul += (r.points || 0);
+      let p = r.points || 0;
+      if (p === 0) {
+        // Fallback selon type de recitation
+        p = r.type_recitation === 'complete' ? ptsSouratFallback : ptsSeqFallback;
+      }
+      cumul += p;
       pts.push({ score: cumul, date: r.date_validation });
     });
     return pts;
@@ -1280,6 +1291,7 @@ ${(passages||[]).length > 0 ? `
             const tabsPlus = [
               {k:'historique', label: lang==='ar'?'التاريخ':'Historique',  icon:'🕐'},
               {k:'muraja',     label: lang==='ar'?'المراجعة':"Murajaʼa",   icon:'📖'},
+              {k:'objectifs',  label: lang==='ar'?'الأهداف':'Objectifs',   icon:'🎯'},
               {k:'assiduite',  label: lang==='ar'?'الحضور':'Assiduité',    icon:'📅'},
               {k:'cours',      label: lang==='ar'?'الدروس':'Cours',        icon:'📚'},
             ];
@@ -2340,6 +2352,14 @@ ${(passages||[]).length > 0 ? `
                 <span>{t(lang,'score_total')}: <strong style={{color:'#1D9E75'}}>{estSourateEleve?totalPtsSourates.toLocaleString():(etat?.points.total.toLocaleString()||0)} {t(lang,'pts_abrev')}</strong></span>
                 <span>{lang==='ar'?'السرعة':lang==='en'?'Speed':(lang==='ar'?'الوتيرة':'Vitesse')}: <strong style={{color:vitesse.tendance==='hausse'?'#1D9E75':vitesse.tendance==='baisse'?'#E24B4A':'#888'}}>{vitesse.moyenne} T/{t(lang,+(lang==='ar'?' أسابيع':' semaines'))} {vitesse.tendance==='hausse'?'📈':vitesse.tendance==='baisse'?'📉':'➡️'}</strong></span>
               </div>
+              {/* Avertissement bareme non configure - uniquement pour sourate */}
+              {estSourateEleve && recitationsSouratesEleve.length > 0 && (baremeEleve?.unites?.sourate || 0) === 0 && (
+                <div style={{marginTop:12, padding:'10px 14px', background:'#FAEEDA', border:'1px solid #EF9F2740', borderRadius:8, fontSize:12, color:'#633806'}}>
+                  ℹ️ {lang==='ar'
+                    ? 'لم يتم ضبط نقاط السورة بعد. اذهب إلى الإدارة > النقاط لتحديد النقاط لكل تلاوة.'
+                    : 'Le barème sourate n\'est pas configuré. Allez dans Gestion > Notes pour définir les points par récitation.'}
+                </div>
+              )}
             </div>
           )}
 
