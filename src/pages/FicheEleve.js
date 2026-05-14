@@ -1172,11 +1172,25 @@ ${(passages||[]).length > 0 ? `
 
   const validationsOuRecitations = estSourateEleve ? [] : validations;
   const vitesse = estSourateEleve ? (() => {
-    const nbCompletes = recitationsSouratesEleve.filter(r=>r.type_recitation==='complete').length;
+    const recsValides = recitationsSouratesEleve.filter(r => r.date_validation && r.type_recitation === 'complete');
+    const nbCompletes = recsValides.length;
     if (nbCompletes === 0) return { moyenne: 0, tendance: 'stable' };
-    const oldest = recitationsSouratesEleve.filter(r=>r.date_validation).sort((a,b)=>new Date(a.date_validation)-new Date(b.date_validation))[0];
+    const oldest = [...recsValides].sort((a,b)=>new Date(a.date_validation)-new Date(b.date_validation))[0];
     const semaines = oldest ? Math.max(1, Math.ceil((new Date() - new Date(oldest.date_validation)) / (1000*60*60*24*7))) : 1;
-    return { moyenne: (nbCompletes / semaines).toFixed(1), tendance: 'stable' };
+    const moyenne = parseFloat((nbCompletes / semaines).toFixed(1));
+    // Tendance : comparer la derniere semaine vs la semaine d'avant
+    const now = new Date();
+    const il_y_a_1sem = new Date(now); il_y_a_1sem.setDate(il_y_a_1sem.getDate() - 7);
+    const il_y_a_2sem = new Date(now); il_y_a_2sem.setDate(il_y_a_2sem.getDate() - 14);
+    const dernSem = recsValides.filter(r => new Date(r.date_validation) >= il_y_a_1sem).length;
+    const semPrec = recsValides.filter(r => {
+      const d = new Date(r.date_validation);
+      return d >= il_y_a_2sem && d < il_y_a_1sem;
+    }).length;
+    let tendance = 'stable';
+    if (dernSem > semPrec) tendance = 'hausse';
+    else if (dernSem < semPrec) tendance = 'baisse';
+    return { moyenne, tendance };
   })() : calcVitesse(validations);
   const streak = estSourateEleve ? 0 : calcStreak(validations);
   const heatmapSourates = {};
@@ -1191,14 +1205,18 @@ ${(passages||[]).length > 0 ? `
     let cumul = 0;
     // IMPORTANT : trier explicitement par date_validation croissant (ascendant)
     // car recitationsSouratesEleve n'a pas d'ordre garanti (chargement sans .order()).
-    // Sans tri, le score cumule monte/descend au hasard -> graphique incoherent.
     const tries = [...recitationsSouratesEleve]
       .filter(r => r.date_validation)
       .sort((a, b) => new Date(a.date_validation) - new Date(b.date_validation));
-    return tries.map(r => {
+    // Point initial a 0 (Depart) - aligne sur calcEvolution pour cohérence avec Hizb.
+    // Sinon avec 1 seule recitation : evolution.length=1 -> message "pas assez de donnees"
+    // ET la courbe ne peut pas s'afficher (besoin de min 2 points pour tracer).
+    const pts = [{ score: 0, date: null, label: 'Départ' }];
+    tries.forEach(r => {
       cumul += (r.points || 0);
-      return { score: cumul, date: r.date_validation };
+      pts.push({ score: cumul, date: r.date_validation });
     });
+    return pts;
   })();
   const evolution = estSourateEleve ? evolutionSourates : calcEvolution(validations, baremeEleve);
   const maxScore = Math.max(...evolution.map(p=>p.score),1);
@@ -1262,7 +1280,6 @@ ${(passages||[]).length > 0 ? `
             const tabsPlus = [
               {k:'historique', label: lang==='ar'?'التاريخ':'Historique',  icon:'🕐'},
               {k:'muraja',     label: lang==='ar'?'المراجعة':"Murajaʼa",   icon:'📖'},
-              {k:'objectifs',  label: lang==='ar'?'الأهداف':'Objectifs',   icon:'🎯'},
               {k:'assiduite',  label: lang==='ar'?'الحضور':'Assiduité',    icon:'📅'},
               {k:'cours',      label: lang==='ar'?'الدروس':'Cours',        icon:'📚'},
             ];
