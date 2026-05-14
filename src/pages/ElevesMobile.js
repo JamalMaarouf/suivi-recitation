@@ -4,11 +4,14 @@ import { isSourateNiveauDyn } from '../lib/helpers';
 import MobileSkeletonList from '../components/MobileSkeletonList';
 import { usePullToRefresh, PullToRefreshIndicator } from '../lib/usePullToRefresh';
 import { hapticSuccess } from '../lib/haptic';
+import AcquisSelector from '../components/AcquisSelector';
 
 export default function ElevesMobile({ user, navigate, goBack, lang='ar' }) {
   const [eleves, setEleves] = useState([]);
   const [instituteurs, setInstituteurs] = useState([]);
   const [niveaux, setNiveaux] = useState([]);
+  const [programmesParNiveau, setProgrammesParNiveau] = useState({});
+  const [ecoleConfig, setEcoleConfig] = useState(null);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [filtreNiveau, setFiltreNiveau] = useState('tous');
@@ -17,24 +20,48 @@ export default function ElevesMobile({ user, navigate, goBack, lang='ar' }) {
   const [saving, setSaving] = useState(false);
   const [msgText, setMsgText] = useState('');
   const [msgType, setMsgType] = useState('');
+  const [showAcquis, setShowAcquis] = useState(false);
 
   const emptyForm = { prenom:'', nom:'', niveau:'Débutant', code_niveau:'', eleve_id_ecole:'',
-    instituteur_referent_id:'', hizb_depart:0, tomon_depart:1, sourates_acquises:0, telephone:'', date_inscription:'' };
+    instituteur_referent_id:'', hizb_depart:0, tomon_depart:1, sourates_acquises:0,
+    hizbs_acquis:[], telephone:'', date_inscription:'' };
   const [form, setForm] = useState(emptyForm);
 
   useEffect(() => { loadData(); }, []);
 
+  // Body scroll lock quand drawer ouvert (evite double-scroll iOS/Android)
+  useEffect(() => {
+    if (showForm) {
+      const prev = document.body.style.overflow;
+      document.body.style.overflow = 'hidden';
+      return () => { document.body.style.overflow = prev; };
+    }
+  }, [showForm]);
+
   const loadData = async () => {
     setLoading(true);
     try {
-    const [{ data: ed }, { data: id }, { data: niv }] = await Promise.all([
+    const [{ data: ed }, { data: id }, { data: niv }, { data: prog }, { data: ec }] = await Promise.all([
       supabase.from('eleves').select('*').eq('ecole_id', user.ecole_id).limit(500).order('nom').order('nom'),
       supabase.from('utilisateurs').select('id,prenom,nom').eq('role','instituteur').eq('ecole_id', user.ecole_id).is('suspendu_at', null),
-      supabase.from('niveaux').select('id,code,nom,couleur,type').eq('ecole_id', user.ecole_id).order('ordre'),
+      supabase.from('niveaux').select('id,code,nom,couleur,type,sens_recitation').eq('ecole_id', user.ecole_id).order('ordre'),
+      supabase.from('programmes').select('niveau_id,reference_id,ordre,bloc_numero,bloc_nom,bloc_sens,type_contenu').eq('ecole_id', user.ecole_id),
+      supabase.from('ecoles').select('sens_recitation_defaut').eq('id', user.ecole_id).maybeSingle(),
     ]);
     setEleves(ed || []);
     setInstituteurs(id || []);
     setNiveaux(niv || []);
+    setEcoleConfig(ec || null);
+    // Indexer programmes par code de niveau (et non niveau_id) pour usage AcquisSelector
+    const niveauxById = Object.fromEntries((niv || []).map(n => [n.id, n.code]));
+    const progByCode = {};
+    (prog || []).forEach(p => {
+      const code = niveauxById[p.niveau_id];
+      if (!code) return;
+      if (!progByCode[code]) progByCode[code] = [];
+      progByCode[code].push(p);
+    });
+    setProgrammesParNiveau(progByCode);
     // Set default code_niveau to first niveau
     if (niv && niv.length > 0) {
       setForm(f => f.code_niveau ? f : { ...f, code_niveau: niv[0].code });
@@ -58,6 +85,7 @@ export default function ElevesMobile({ user, navigate, goBack, lang='ar' }) {
     const defaultCode = niveaux[0]?.code || '1';
     setForm({ ...emptyForm, code_niveau: defaultCode });
     setEditEleve(null);
+    setShowAcquis(false);
     setShowForm(true);
     window.scrollTo(0,0);
   };
@@ -68,8 +96,10 @@ export default function ElevesMobile({ user, navigate, goBack, lang='ar' }) {
       instituteur_referent_id:e.instituteur_referent_id||'',
       hizb_depart:e.hizb_depart||0, tomon_depart:e.tomon_depart||1,
       sourates_acquises:e.sourates_acquises||0,
+      hizbs_acquis: Array.isArray(e.hizbs_acquis) ? e.hizbs_acquis : [],
       telephone:e.telephone||'', date_inscription:e.date_inscription||'' });
     setEditEleve(e);
+    setShowAcquis(false);
     setShowForm(true);
     window.scrollTo(0,0);
   };
@@ -88,6 +118,7 @@ export default function ElevesMobile({ user, navigate, goBack, lang='ar' }) {
       hizb_depart: parseInt(form.hizb_depart)||0,
       tomon_depart: parseInt(form.tomon_depart)||1,
       sourates_acquises: parseInt(form.sourates_acquises)||0,
+      hizbs_acquis: Array.isArray(form.hizbs_acquis) ? form.hizbs_acquis : [],
       telephone: form.telephone?.trim()||null,
       date_inscription: form.date_inscription||null,
     };
@@ -153,14 +184,6 @@ export default function ElevesMobile({ user, navigate, goBack, lang='ar' }) {
             <div style={{fontSize:18, fontWeight:800, color:'#fff'}}>👥 {lang==='ar'?'الطلاب':'Élèves'}</div>
             <div style={{fontSize:11, color:'rgba(255,255,255,0.75)'}}>{eleves.length} {lang==='ar'?'طالب مسجل':'inscrits'}</div>
           </div>
-          {user.role==='surveillant' && showForm && (
-            <button onClick={()=>{ setShowForm(false); setEditEleve(null); }}
-              style={{background:'rgba(255,255,255,0.25)',
-                border:'1px solid rgba(255,255,255,0.3)', borderRadius:10, padding:'8px 14px',
-                color:'#fff', fontSize:12, fontWeight:700, cursor:'pointer', fontFamily:'inherit'}}>
-              ✕
-            </button>
-          )}
         </div>
         {/* Barre de recherche */}
         {!showForm && (
@@ -189,101 +212,169 @@ export default function ElevesMobile({ user, navigate, goBack, lang='ar' }) {
         lang={lang}
       />
 
-      {/* ── FORMULAIRE ── */}
+      {/* ── DRAWER FORMULAIRE — Plein écran slide-up ── */}
       {showForm && (
-        <div style={{background:'#fff', margin:'12px', borderRadius:16, padding:'16px',
-          border:`1.5px solid ${editEleve?'#378ADD':'#1D9E75'}`}}>
-          <div style={{fontSize:15, fontWeight:700, color:'#085041', marginBottom:14}}>
-            {editEleve ? (lang==='ar'?'✏️ تعديل الطالب':'✏️ Modifier') : (lang==='ar'?'👤 إضافة طالب':'👤 Nouvel élève')}
-          </div>
-
-          {/* Prénom + Nom */}
-          <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:10, marginBottom:2}}>
-            {[{l:lang==='ar'?'الاسم *':'Prénom *',k:'prenom'},{l:lang==='ar'?'اللقب *':'Nom *',k:'nom'}].map(f=>(
-              <div key={f.k} style={{marginBottom:10}}>
-                <label style={{fontSize:12,fontWeight:600,color:'#666',display:'block',marginBottom:4}}>{f.l}</label>
-                <input style={{width:'100%',padding:'11px 12px',borderRadius:10,border:'0.5px solid #e0e0d8',fontSize:14,fontFamily:'inherit',boxSizing:'border-box'}}
-                  value={form[f.k]} onChange={e=>setForm(x=>({...x,[f.k]:e.target.value}))} placeholder={f.l.replace(' *','')}/>
+        <>
+          <style>{`
+            @keyframes drawerSlideUp {
+              from { transform: translateY(100%); }
+              to { transform: translateY(0); }
+            }
+          `}</style>
+          <div style={{
+            position:'fixed', inset:0, zIndex:1000,
+            background:'#f5f5f0',
+            display:'flex', flexDirection:'column',
+            animation:'drawerSlideUp 0.3s ease-out',
+            direction: lang==='ar' ? 'rtl' : 'ltr',
+          }}>
+            {/* ── HEADER DRAWER (sticky) ── */}
+            <div style={{
+              flexShrink:0, height:56, background:'#fff',
+              borderBottom:'0.5px solid #e0e0d8',
+              display:'flex', alignItems:'center',
+              padding:'0 8px', gap:8,
+              boxShadow:'0 1px 3px rgba(0,0,0,0.04)',
+            }}>
+              <button
+                onClick={()=>{setShowForm(false);setEditEleve(null);setShowAcquis(false);setForm({...emptyForm,code_niveau:niveaux[0]?.code||''});}}
+                aria-label={lang==='ar'?'إغلاق':'Fermer'}
+                style={{
+                  width:44, height:44, border:'none', background:'transparent',
+                  color:'#666', fontSize:22, cursor:'pointer',
+                  display:'flex', alignItems:'center', justifyContent:'center',
+                  borderRadius:10,
+                }}>✕</button>
+              <div style={{flex:1, textAlign:'center', fontSize:15, fontWeight:700, color:'#1a1a1a'}}>
+                {editEleve ? (lang==='ar'?'تعديل الطالب':'Modifier l\'élève') : (lang==='ar'?'طالب جديد':'Nouvel élève')}
               </div>
-            ))}
-          </div>
+              <div style={{width:44}}/>
+            </div>
 
-          {/* Niveau scolaire — chips */}
-          <div style={{marginBottom:12}}>
-            <label style={{fontSize:12,fontWeight:600,color:'#666',display:'block',marginBottom:8}}>{lang==='ar'?'المستوى الدراسي *':'Niveau scolaire *'}</label>
-            <div style={{display:'flex', gap:6, flexWrap:'wrap'}}>
-              {niveaux.map(n => {
-                const nc = n.couleur || getNiveauColor(n.code);
-                const sel = form.code_niveau === n.code;
-                return (
-                  <div key={n.code} onClick={()=>setForm(x=>({...x,code_niveau:n.code}))}
-                    style={{padding:'7px 13px', borderRadius:20, cursor:'pointer', fontSize:12, fontWeight:sel?700:400,
-                      background:sel?nc:'#f5f5f0', color:sel?'#fff':'#666',
-                      border:`1.5px solid ${sel?nc:'#e0e0d8'}`}}>
-                    {n.code}
+            {/* ── BODY DRAWER (scrollable) ── */}
+            <div style={{flex:1, overflowY:'auto', WebkitOverflowScrolling:'touch', padding:'16px'}}>
+              {/* Prénom + Nom */}
+              <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:10, marginBottom:2}}>
+                {[{l:lang==='ar'?'الاسم *':'Prénom *',k:'prenom'},{l:lang==='ar'?'اللقب *':'Nom *',k:'nom'}].map(f=>(
+                  <div key={f.k} style={{marginBottom:10}}>
+                    <label style={{fontSize:12,fontWeight:600,color:'#666',display:'block',marginBottom:4}}>{f.l}</label>
+                    <input style={{width:'100%',padding:'11px 12px',borderRadius:10,border:'0.5px solid #e0e0d8',fontSize:14,fontFamily:'inherit',boxSizing:'border-box'}}
+                      value={form[f.k]} onChange={e=>setForm(x=>({...x,[f.k]:e.target.value}))} placeholder={f.l.replace(' *','')}/>
                   </div>
-                );
-              })}
-            </div>
-          </div>
+                ))}
+              </div>
 
-          {/* ID + Référent */}
-          <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:10, marginBottom:2}}>
-            <div style={{marginBottom:10}}>
-              <label style={{fontSize:12,fontWeight:600,color:'#666',display:'block',marginBottom:4}}>{lang==='ar'?'رقم التعريف *':'ID élève *'}</label>
-              <input style={{width:'100%',padding:'11px 12px',borderRadius:10,border:'0.5px solid #e0e0d8',fontSize:14,fontFamily:'inherit',boxSizing:'border-box'}}
-                value={form.eleve_id_ecole} onChange={e=>setForm(x=>({...x,eleve_id_ecole:e.target.value}))} placeholder="001"/>
-            </div>
-            <div style={{marginBottom:10}}>
-              <label style={{fontSize:12,fontWeight:600,color:'#666',display:'block',marginBottom:4}}>{lang==='ar'?'الأستاذ *':'Référent *'}</label>
-              <select style={{width:'100%',padding:'11px 10px',borderRadius:10,border:'0.5px solid #e0e0d8',fontSize:12,fontFamily:'inherit',background:'#fff',boxSizing:'border-box'}}
-                value={form.instituteur_referent_id} onChange={e=>setForm(x=>({...x,instituteur_referent_id:e.target.value}))}>
-                <option value="">—</option>
-                {instituteurs.map(i=><option key={i.id} value={i.id}>{i.prenom} {i.nom}</option>)}
-              </select>
-            </div>
-          </div>
-
-          {/* Téléphone + Date */}
-          <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:10, marginBottom:2}}>
-            <div style={{marginBottom:10}}>
-              <label style={{fontSize:12,fontWeight:600,color:'#666',display:'block',marginBottom:4}}>{lang==='ar'?'هاتف الولي':'Tél. parent'}</label>
-              <input type="tel" style={{width:'100%',padding:'11px 12px',borderRadius:10,border:'0.5px solid #e0e0d8',fontSize:14,fontFamily:'inherit',boxSizing:'border-box'}}
-                value={form.telephone} onChange={e=>setForm(x=>({...x,telephone:e.target.value}))} placeholder="06XXXXXXXX"/>
-            </div>
-            <div style={{marginBottom:10}}>
-              <label style={{fontSize:12,fontWeight:600,color:'#666',display:'block',marginBottom:4}}>{lang==='ar'?'تاريخ التسجيل':'Inscription'}</label>
-              <input type="date" style={{width:'100%',padding:'11px 10px',borderRadius:10,border:'0.5px solid #e0e0d8',fontSize:12,fontFamily:'inherit',boxSizing:'border-box'}}
-                value={form.date_inscription} onChange={e=>setForm(x=>({...x,date_inscription:e.target.value}))}/>
-            </div>
-          </div>
-
-          {/* Hizb/Tomon si niveau hizb */}
-          {!isSour(form.code_niveau) && (
-            <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:10, marginBottom:12}}>
-              {[{l:lang==='ar'?'حزب الانطلاق':'Hizb départ',k:'hizb_depart',max:60},{l:'Tomon',k:'tomon_depart',max:8}].map(f=>(
-                <div key={f.k}>
-                  <label style={{fontSize:12,fontWeight:600,color:'#666',display:'block',marginBottom:4}}>{f.l}</label>
-                  <input type="number" min="0" max={f.max}
-                    style={{width:'100%',padding:'11px 12px',borderRadius:10,border:'0.5px solid #e0e0d8',fontSize:14,fontFamily:'inherit',boxSizing:'border-box'}}
-                    value={form[f.k]} onChange={e=>setForm(x=>({...x,[f.k]:e.target.value}))}/>
+              {/* Niveau scolaire — chips */}
+              <div style={{marginBottom:12}}>
+                <label style={{fontSize:12,fontWeight:600,color:'#666',display:'block',marginBottom:8}}>{lang==='ar'?'المستوى الدراسي *':'Niveau scolaire *'}</label>
+                <div style={{display:'flex', gap:6, flexWrap:'wrap'}}>
+                  {niveaux.map(n => {
+                    const nc = n.couleur || getNiveauColor(n.code);
+                    const sel = form.code_niveau === n.code;
+                    return (
+                      <div key={n.code} onClick={()=>{setForm(x=>({...x,code_niveau:n.code,hizbs_acquis:[],hizb_depart:0,tomon_depart:1,sourates_acquises:0}));setShowAcquis(false);}}
+                        style={{padding:'7px 13px', borderRadius:20, cursor:'pointer', fontSize:12, fontWeight:sel?700:400,
+                          background:sel?nc:'#f5f5f0', color:sel?'#fff':'#666',
+                          border:`1.5px solid ${sel?nc:'#e0e0d8'}`}}>
+                        {n.code}
+                      </div>
+                    );
+                  })}
                 </div>
-              ))}
-            </div>
-          )}
+              </div>
 
-          {/* Boutons */}
-          <div style={{display:'flex', gap:8, marginTop:4}}>
-            <button onClick={()=>{setShowForm(false);setEditEleve(null);setForm({...emptyForm,code_niveau:niveaux[0]?.code||''});}}
-              style={{flex:1,padding:'13px',background:'#f5f5f0',color:'#666',border:'none',borderRadius:12,fontSize:14,fontWeight:600,cursor:'pointer',fontFamily:'inherit'}}>
-              {lang==='ar'?'إلغاء':'Annuler'}
-            </button>
-            <button onClick={handleSave} disabled={saving}
-              style={{flex:2,padding:'13px',background:editEleve?'#378ADD':'#1D9E75',color:'#fff',border:'none',borderRadius:12,fontSize:14,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
-              {saving?'...':(editEleve?(lang==='ar'?'تحديث ✓':'Mettre à jour ✓'):(lang==='ar'?'حفظ':'Enregistrer'))}
-            </button>
+              {/* ID + Référent */}
+              <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:10, marginBottom:2}}>
+                <div style={{marginBottom:10}}>
+                  <label style={{fontSize:12,fontWeight:600,color:'#666',display:'block',marginBottom:4}}>{lang==='ar'?'رقم التعريف *':'ID élève *'}</label>
+                  <input style={{width:'100%',padding:'11px 12px',borderRadius:10,border:'0.5px solid #e0e0d8',fontSize:14,fontFamily:'inherit',boxSizing:'border-box'}}
+                    value={form.eleve_id_ecole} onChange={e=>setForm(x=>({...x,eleve_id_ecole:e.target.value}))} placeholder="001"/>
+                </div>
+                <div style={{marginBottom:10}}>
+                  <label style={{fontSize:12,fontWeight:600,color:'#666',display:'block',marginBottom:4}}>{lang==='ar'?'الأستاذ *':'Référent *'}</label>
+                  <select style={{width:'100%',padding:'11px 10px',borderRadius:10,border:'0.5px solid #e0e0d8',fontSize:12,fontFamily:'inherit',background:'#fff',boxSizing:'border-box'}}
+                    value={form.instituteur_referent_id} onChange={e=>setForm(x=>({...x,instituteur_referent_id:e.target.value}))}>
+                    <option value="">—</option>
+                    {instituteurs.map(i=><option key={i.id} value={i.id}>{i.prenom} {i.nom}</option>)}
+                  </select>
+                </div>
+              </div>
+
+              {/* Téléphone + Date */}
+              <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:10, marginBottom:2}}>
+                <div style={{marginBottom:10}}>
+                  <label style={{fontSize:12,fontWeight:600,color:'#666',display:'block',marginBottom:4}}>{lang==='ar'?'هاتف الولي':'Tél. parent'}</label>
+                  <input type="tel" style={{width:'100%',padding:'11px 12px',borderRadius:10,border:'0.5px solid #e0e0d8',fontSize:14,fontFamily:'inherit',boxSizing:'border-box'}}
+                    value={form.telephone} onChange={e=>setForm(x=>({...x,telephone:e.target.value}))} placeholder="06XXXXXXXX"/>
+                </div>
+                <div style={{marginBottom:10}}>
+                  <label style={{fontSize:12,fontWeight:600,color:'#666',display:'block',marginBottom:4}}>{lang==='ar'?'تاريخ التسجيل':'Inscription'}</label>
+                  <input type="date" style={{width:'100%',padding:'11px 10px',borderRadius:10,border:'0.5px solid #e0e0d8',fontSize:12,fontFamily:'inherit',boxSizing:'border-box'}}
+                    value={form.date_inscription} onChange={e=>setForm(x=>({...x,date_inscription:e.target.value}))}/>
+                </div>
+              </div>
+
+              {/* ── ACQUIS ANTERIEURS — Bouton repli + AcquisSelector ── */}
+              <div style={{marginBottom:14, marginTop:6}}>
+                <div style={{display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:8, gap:8}}>
+                  <label style={{fontSize:12, fontWeight:600, color:'#666', margin:0}}>
+                    {lang==='ar'?'المكتسبات السابقة':'Acquis antérieurs'}
+                  </label>
+                  <button onClick={()=>setShowAcquis(s=>!s)}
+                    style={{padding:'6px 12px', border:'0.5px solid #e0e0d8', borderRadius:8,
+                      background: showAcquis ? '#E1F5EE' : '#fff',
+                      fontSize:11, cursor:'pointer', fontFamily:'inherit',
+                      color: showAcquis ? '#085041' : '#666', fontWeight:600}}>
+                    {showAcquis
+                      ? (lang==='ar'?'▲ طي':'▲ Réduire')
+                      : (isSour(form.code_niveau)
+                          ? `▼ ${lang==='ar'?'سور':'Sourates'} ${form.sourates_acquises||0}`
+                          : `▼ Hizb ${form.hizb_depart||0}, T.${form.tomon_depart||1}`)}
+                  </button>
+                </div>
+                {showAcquis && (
+                  <AcquisSelector
+                    codeNiveau={form.code_niveau}
+                    niveauxDyn={niveaux}
+                    hizb={form.hizb_depart}
+                    tomon={form.tomon_depart}
+                    lang={lang}
+                    sens={(niveaux.find(n=>n.code===form.code_niveau)?.sens_recitation) || ecoleConfig?.sens_recitation_defaut || 'desc'}
+                    programmeNiveau={programmesParNiveau[form.code_niveau] || []}
+                    onHizbChange={h => setForm(prev => ({ ...prev, hizb_depart: h }))}
+                    onTomonChange={tv => setForm(prev => ({ ...prev, tomon_depart: tv }))}
+                    souratesAcquises={form.sourates_acquises}
+                    onSouratesChange={n => setForm(prev => ({ ...prev, sourates_acquises: n }))}
+                    hizbsAcquis={form.hizbs_acquis || []}
+                    onHizbsAcquisChange={arr => setForm(prev => ({ ...prev, hizbs_acquis: arr }))}
+                  />
+                )}
+              </div>
+
+              <div style={{fontSize:11,color:'#888',marginBottom:8}}>
+                <span style={{color:'#E24B4A'}}>*</span> {lang==='ar'?'حقول إلزامية':'Champs obligatoires'}
+              </div>
+            </div>
+
+            {/* ── FOOTER DRAWER (sticky) ── */}
+            <div style={{
+              flexShrink:0, padding:'12px 16px',
+              background:'#fff', borderTop:'0.5px solid #e0e0d8',
+              boxShadow:'0 -2px 8px rgba(0,0,0,0.04)',
+              display:'flex', gap:10,
+              paddingBottom:'max(12px, env(safe-area-inset-bottom))',
+            }}>
+              <button onClick={()=>{setShowForm(false);setEditEleve(null);setShowAcquis(false);setForm({...emptyForm,code_niveau:niveaux[0]?.code||''});}}
+                style={{flex:1,padding:'14px',background:'#f5f5f0',color:'#666',border:'none',borderRadius:12,fontSize:14,fontWeight:600,cursor:'pointer',fontFamily:'inherit'}}>
+                {lang==='ar'?'إلغاء':'Annuler'}
+              </button>
+              <button onClick={handleSave} disabled={saving}
+                style={{flex:2,padding:'14px',background:editEleve?'#378ADD':'#1D9E75',color:'#fff',border:'none',borderRadius:12,fontSize:14,fontWeight:700,cursor:'pointer',fontFamily:'inherit',opacity:saving?0.6:1}}>
+                {saving?'...':(editEleve?(lang==='ar'?'تحديث ✓':'Mettre à jour ✓'):(lang==='ar'?'حفظ':'Enregistrer'))}
+              </button>
+            </div>
           </div>
-        </div>
+        </>
       )}
 
       {/* ── FILTRES NIVEAUX ── */}
