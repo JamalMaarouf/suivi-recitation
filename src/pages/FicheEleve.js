@@ -1972,6 +1972,64 @@ ${(passages||[]).length > 0 ? `
               </div>
             )}
 
+            {/* ─── BANDEAU ACQUIS ANTERIEURS — Sourates ─── */}
+            {/* Equivalent du bandeau Hizb mais pour les eleves de niveau sourate */}
+            {/* Adapte la metrique aux sourates : nombre de sourates acquises, points x bareme */}
+            {estSourateEleve && (eleve.sourates_acquises || 0) > 0 && (
+              <div style={{marginBottom:8}}>
+                <button onClick={()=>setShowAcquis(v=>!v)}
+                  style={{display:'flex',alignItems:'center',justifyContent:'space-between',width:'100%',padding:'10px 14px',border:`1.5px solid ${showAcquis?'#1D9E75':'#9FE1CB'}`,borderRadius:showAcquis?'10px 10px 0 0':'10px',background:showAcquis?'#E1F5EE':'#f0faf6',cursor:'pointer',transition:'all 0.2s'}}>
+                  <div style={{display:'flex',alignItems:'center',gap:8}}>
+                    <span style={{fontSize:18}}>🎓</span>
+                    <div style={{textAlign:'left'}}>
+                      <div style={{fontSize:13,fontWeight:600,color:'#085041'}}>{lang==='ar'?'المكتسبات السابقة':'Acquis antérieurs'}</div>
+                      <div style={{fontSize:11,color:'#0F6E56'}}>
+                        {eleve.sourates_acquises} {lang==='ar'?'سورة':'sourates'}
+                        {(baremeEleve?.sourate || 0) > 0 && (
+                          <> · <strong>{(eleve.sourates_acquises * (baremeEleve.sourate || 0)).toLocaleString()} {t(lang,'pts_abrev')}</strong></>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                  <span style={{fontSize:16,color:'#1D9E75',fontWeight:700,transition:'transform 0.2s',display:'inline-block',transform:showAcquis?'rotate(180deg)':'rotate(0deg)'}}>{showAcquis?'▲':'▼'}</span>
+                </button>
+                {showAcquis && (
+                  <div style={{background:'#f0faf6',border:'1.5px solid #1D9E75',borderTop:'none',borderRadius:'0 0 10px 10px',padding:'1rem'}}>
+                    {/* Listing des sourates acquises */}
+                    <div style={{fontSize:11,color:'#085041',fontWeight:600,marginBottom:6}}>
+                      {lang==='ar'?'السور المحفوظة':'Sourates acquises'}
+                    </div>
+                    {(() => {
+                      // Calcul des sourates acquises selon le sens du niveau
+                      const niveauEleve = (_niveauxCtx || []).find(n => n.code === eleve.code_niveau);
+                      const sensRecit = niveauEleve?.sens_recitation || ecoleConfig?.sens_recitation_defaut || 'desc';
+                      const souratesOrd = [...souratesDB].sort((a, b) => sensRecit === 'asc' ? a.numero - b.numero : b.numero - a.numero);
+                      const idsAcquises = souratesOrd.slice(0, eleve.sourates_acquises);
+                      if (idsAcquises.length === 0) return null;
+                      return (
+                        <div style={{display:'flex',flexWrap:'wrap',gap:6,marginBottom:12,maxHeight:120,overflowY:'auto'}}>
+                          {idsAcquises.map(s => (
+                            <span key={s.id} style={{padding:'4px 10px',background:'#fff',border:'0.5px solid #d0ede4',borderRadius:14,fontSize:11,color:'#085041',fontWeight:500}}>
+                              {s.nom_ar} <span style={{color:'#888',fontSize:10}}>({s.numero})</span>
+                            </span>
+                          ))}
+                        </div>
+                      );
+                    })()}
+                    {/* Total points */}
+                    {(baremeEleve?.sourate || 0) > 0 && (
+                      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',background:'#085041',borderRadius:8,padding:'10px 14px'}}>
+                        <span style={{fontSize:12,color:'#9FE1CB'}}>{lang==='ar'?'مجموع نقاط المكتسبات':'Total points acquis antérieurs'}</span>
+                        <span style={{fontSize:18,fontWeight:800,color:'#fff'}}>
+                          {(eleve.sourates_acquises * baremeEleve.sourate).toLocaleString()} {t(lang,'pts_abrev')}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* Exception Hizb/Tomon — Hizb uniquement */}
             {user.role==='surveillant'&&!estSourateEleve&&(
               <div style={{marginBottom:8}}>
