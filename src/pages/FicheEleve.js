@@ -1189,7 +1189,16 @@ ${(passages||[]).length > 0 ? `
   const heatmap = estSourateEleve ? heatmapSourates : calcHeatmap(validations);
   const evolutionSourates = (() => {
     let cumul = 0;
-    return [...recitationsSouratesEleve].reverse().map(r => { cumul += (r.points||0); return { score: cumul, date: r.date_validation }; });
+    // IMPORTANT : trier explicitement par date_validation croissant (ascendant)
+    // car recitationsSouratesEleve n'a pas d'ordre garanti (chargement sans .order()).
+    // Sans tri, le score cumule monte/descend au hasard -> graphique incoherent.
+    const tries = [...recitationsSouratesEleve]
+      .filter(r => r.date_validation)
+      .sort((a, b) => new Date(a.date_validation) - new Date(b.date_validation));
+    return tries.map(r => {
+      cumul += (r.points || 0);
+      return { score: cumul, date: r.date_validation };
+    });
   })();
   const evolution = estSourateEleve ? evolutionSourates : calcEvolution(validations, baremeEleve);
   const maxScore = Math.max(...evolution.map(p=>p.score),1);
@@ -2567,7 +2576,7 @@ ${(passages||[]).length > 0 ? `
                         <th>{t(lang,'valide_par')}</th>
                       </tr></thead>
                       <tbody>
-                        {recitationsSouratesEleve.map(r=>(
+                        {[...recitationsSouratesEleve].sort((a,b)=>new Date(b.date_validation||0)-new Date(a.date_validation||0)).map(r=>(
                           <tr key={r.id}>
                             <td style={{fontSize:12,color:'#888'}}>{formatDate(r.date_validation||r.created_at)}</td>
                             <td style={{fontWeight:600,direction:'rtl'}}>{r.sourate?.nom_ar||'—'}</td>
