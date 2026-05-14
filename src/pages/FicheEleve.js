@@ -237,6 +237,7 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang, isMobi
   const [ecoleConfig, setEcoleConfig] = useState(null);
   // Programme du niveau (pour calcul progression par blocs pédagogiques — Étape B)
   const [programmeNiveau, setProgrammeNiveau] = useState([]);
+  const [souratesDB, setSouratesDB] = useState([]); // table sourates pour mapper id <-> numero (pour fiche sourate)
   const now = new Date();
   const [selectedMoisObj, setSelectedMoisObj] = useState(now.getMonth());
   const [selectedAnneeObj, setSelectedAnneeObj] = useState(now.getFullYear());
@@ -367,6 +368,15 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang, isMobi
             setProgrammeNiveau(progDataLoaded);
           } catch(e) {
             setProgrammeNiveau([]);
+          }
+          // Charger les sourates (id <-> numero <-> nom_ar) pour l'affichage fiche sourate
+          if (niveauEleve.type === 'sourate' || ['5B','5A','2M'].includes(eleve.code_niveau)) {
+            try {
+              const { data: sourData } = await supabase.from('sourates').select('id, numero, nom_ar').order('numero');
+              setSouratesDB(sourData || []);
+            } catch(e) {
+              setSouratesDB([]);
+            }
           }
         }
       } catch(e) { /* gardé par défaut */ }
@@ -1110,6 +1120,48 @@ ${(passages||[]).length > 0 ? `
 
   const _niveauxCtx = typeof niveaux !== 'undefined' ? niveaux : [];
   const estSourateEleve = isSourateNiveauDyn(eleve.code_niveau, _niveauxCtx);
+
+  // ─── Calcul sourate actuelle / séquences / prochaine sourate (pour onglet aperçu) ───
+  // Réutilise la même logique que ValidationRapide.js pour la cohérence d'affichage.
+  // Ne s'active que pour les élèves de niveau sourate.
+  let currentSourateApercu = null;
+  let sequencesValideesSurCourante = 0;
+  let prochaineSourateApercu = null;
+  if (estSourateEleve && souratesDB.length > 0) {
+    try {
+      // Trier les sourates selon le programme du niveau (ou par defaut tout le Coran)
+      let souratesOrd;
+      if (programmeNiveau.length > 0) {
+        souratesOrd = programmeNiveau
+          .map(p => souratesDB.find(s => String(s.id) === String(p.reference_id)))
+          .filter(Boolean);
+      } else {
+        souratesOrd = [...souratesDB];
+      }
+      // Sens : recuperer depuis niveaux ou ecoleConfig
+      const niveauEleve = (_niveauxCtx || []).find(n => n.code === eleve.code_niveau);
+      const sensRecit = niveauEleve?.sens_recitation || ecoleConfig?.sens_recitation_defaut || 'desc';
+      souratesOrd.sort((a, b) => sensRecit === 'asc' ? a.numero - b.numero : b.numero - a.numero);
+
+      const souratesAcq = eleve.sourates_acquises || 0;
+      const isComplete = (id) =>
+        recitationsSouratesEleve.some(r => r.sourate_id === id && r.type_recitation === 'complete');
+
+      const idxCurrent = souratesOrd.findIndex((sr, i) => {
+        if (i < souratesAcq) return false;
+        return !isComplete(sr.id);
+      });
+      if (idxCurrent >= 0) {
+        currentSourateApercu = souratesOrd[idxCurrent];
+        // Compter les sequences validees pour cette sourate
+        sequencesValideesSurCourante = recitationsSouratesEleve.filter(
+          r => r.sourate_id === currentSourateApercu.id && r.type_recitation === 'sequence'
+        ).length;
+        // Prochaine sourate = la suivante dans l'ordre
+        prochaineSourateApercu = souratesOrd[idxCurrent + 1] || null;
+      }
+    } catch(e) { /* silent fallback */ }
+  }
 
   const totalPtsSourates = recitationsSouratesEleve.reduce((s,r)=>s+(r.points||0),0);
   const nbSouratesCompletes = recitationsSouratesEleve.filter(r=>r.type_recitation==='complete').length;
@@ -2074,20 +2126,20 @@ ${(passages||[]).length > 0 ? `
                 <>
                   <div className="position-card">
                     <div className="pos-block">
-                      <div className="pos-val" style={{fontSize:14}}>{recitationsSouratesEleve.filter(r=>r.type_recitation==='complete').length}</div>
-                      <div className="pos-lbl">{lang==='ar'?'سور مكتملة':'Complètes'}</div>
+                      <div className="pos-val" style={{fontSize:14}}>
+                        {currentSourateApercu ? currentSourateApercu.nom_ar : '✓'}
+                      </div>
+                      <div className="pos-lbl">{lang==='ar'?'السورة الحالية':'Sourate actuelle'}</div>
                     </div>
                     <div className="pos-block">
-                      <div className="pos-val" style={{fontSize:14}}>{recitationsSouratesEleve.filter(r=>r.type_recitation==='sequence').length}</div>
-                      <div className="pos-lbl">{lang==='ar'?'مقاطع':'Séquences'}</div>
+                      <div className="pos-val">{sequencesValideesSurCourante}/3</div>
+                      <div className="pos-lbl">{lang==='ar'?'المقاطع':'Séquences'}</div>
                     </div>
                     <div className="pos-block">
-                      <div className="pos-val" style={{fontSize:14}}>{eleve.sourates_acquises||0}</div>
-                      <div className="pos-lbl">{lang==='ar'?'محفوظات':'Acquis'}</div>
-                    </div>
-                    <div className="pos-block">
-                      <div className="pos-val" style={{fontSize:14}}>{totalPtsSourates.toLocaleString()}</div>
-                      <div className="pos-lbl">{t(lang,'pts_abrev')}</div>
+                      <div className="pos-val" style={{fontSize:14}}>
+                        {prochaineSourateApercu ? prochaineSourateApercu.nom_ar : (currentSourateApercu ? '🎉' : '—')}
+                      </div>
+                      <div className="pos-lbl">{lang==='ar'?'السورة التالية':'Sourate suivante'}</div>
                     </div>
                   </div>
                 </>
