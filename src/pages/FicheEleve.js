@@ -1328,6 +1328,36 @@ ${(passages||[]).length > 0 ? `
           <div style={{padding:'12px 12px'}}>
             {onglet==='progression' && (
               <div>
+                {/* ─── Barre de progression GLOBALE (sourates uniquement) ─── */}
+                {/* Historique : montre % sourates completees + repartition acquis/suivi */}
+                {estSourateEleve && souratesDB.length > 0 && (() => {
+                  // Calcul du total de sourates dans le programme du niveau (ou 114 si pas de prog)
+                  const totalSourates = programmeNiveau.length > 0 ? programmeNiveau.length : 114;
+                  const acq = parseInt(eleve.sourates_acquises) || 0;
+                  const completes = recitationsSouratesEleve.filter(r => r.type_recitation === 'complete').length;
+                  const total_validees = acq + completes;
+                  const pct = Math.min(100, Math.round((total_validees / Math.max(totalSourates, 1)) * 100));
+                  return (
+                    <div style={{background:'#fff', border:'0.5px solid #e0e0d8', borderRadius:14, padding:'14px', marginBottom:12}}>
+                      <div style={{fontSize:13, fontWeight:700, marginBottom:10, color:'#085041'}}>
+                        {lang==='ar'?'التقدم العام':'Progression générale'}
+                      </div>
+                      <div style={{display:'flex', justifyContent:'space-between', fontSize:12, color:'#888', marginBottom:6}}>
+                        <span>{total_validees}/{totalSourates} {lang==='ar'?'سورة':'sourates'}</span>
+                        <span style={{fontWeight:700, color:'#1D9E75'}}>{pct}%</span>
+                      </div>
+                      <div style={{height:14, background:'#e8e8e0', borderRadius:7, overflow:'hidden'}}>
+                        <div style={{height:'100%', width:pct+'%',
+                          background:'linear-gradient(90deg, #1D9E75, #5DCAA5)', borderRadius:7, transition:'width 0.5s'}}/>
+                      </div>
+                      <div style={{fontSize:11, color:'#888', marginTop:8}}>
+                        {lang==='ar'?'المكتسبات السابقة:':'Acquis antérieurs:'} <strong style={{color:'#378ADD'}}>{acq}</strong>
+                        {' · '}
+                        {lang==='ar'?'منذ المتابعة:':'Depuis le suivi:'} <strong style={{color:'#1D9E75'}}>{completes}</strong>
+                      </div>
+                    </div>
+                  );
+                })()}
                 {/* ─── Progression par BLOCS pédagogiques (Étape B) ─── */}
                 {/* N'apparaît que si le niveau a plusieurs blocs configurés. */}
                 {blocProgression && (
