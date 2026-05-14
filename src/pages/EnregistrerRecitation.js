@@ -8,7 +8,7 @@ import { hapticSuccess } from '../lib/haptic';
 import { invalidateMany } from '../lib/cache';
 import { enqueueOrRun } from '../lib/offlineQueue';
 import { notifierParents } from '../lib/notificationsParents';
-import { calcEtatEleve, calcPositionAtteinte, calcUnite, formatDate, getInitiales, motivationMsg, verifierBlocageExamen, verifierBlocageEnsemble, validerEnsemble, verifierEtCreerCertificats, verifierEtCreerCertificatsBlocs, loadBareme, getSensForEleve, calcBlocProgression, prochainHizbDansBloc } from '../lib/helpers';
+import { calcEtatEleve, calcEtatEleveAvecBlocs, calcPositionAtteinte, calcUnite, formatDate, getInitiales, motivationMsg, verifierBlocageExamen, verifierBlocageEnsemble, validerEnsemble, verifierEtCreerCertificats, verifierEtCreerCertificatsBlocs, loadBareme, getSensForEleve, calcBlocProgression, prochainHizbDansBloc } from '../lib/helpers';
 
 function Avatar({ prenom, nom, size = 36, bg = '#E1F5EE', color = '#085041' }) {
   return (
@@ -79,70 +79,27 @@ export default function EnregistrerRecitation({  user, eleve: eleveInitial, navi
         .eq('ecole_id', user.ecole_id).eq('eleve_id', el.id)
     ]);
     const sens = getSensForEleve(el, niveaux, ecoleConfig);
-    let e = calcEtatEleve(vals || [], el.hizb_depart, el.tomon_depart, sens);
 
-    // ─── Prise en compte des BLOCS pédagogiques (Étape B) ────────
-    // Si le niveau de l'élève a plusieurs blocs configurés, on vérifie
-    // que le Hizb proposé (etat.hizbEnCours) appartient bien au bloc actuel.
-    // Si ce n'est pas le cas (par exemple : fin d'un bloc), on bascule
-    // automatiquement vers le premier Hizb du bloc suivant.
+    // ─── Charger le programme du niveau pour gerer les blocs ─────────────
+    // calcEtatEleveAvecBlocs gere automatiquement :
+    //   - Niveaux monobloc : retourne calcEtatEleve classique (zero changement)
+    //   - Niveaux multi-blocs : applique la chronologie + sens propres aux blocs
+    let progData = [];
     try {
       const niveauEleve = (niveaux || []).find(n => n.code === el.code_niveau);
       if (niveauEleve) {
-        const { data: progData } = await supabase.from('programmes')
+        const { data } = await supabase.from('programmes')
           .select('reference_id, ordre, bloc_numero, bloc_nom, bloc_sens, type_contenu')
           .eq('niveau_id', niveauEleve.id)
           .eq('ecole_id', user.ecole_id)
           .order('ordre');
-
-        if (progData && progData.length > 0) {
-          // Rassembler les Hizbs "faits" = Hizb complets + acquis antérieurs
-          const hizbsFaits = new Set(e.hizbsComplets || []);
-          const hizbDep = el.hizb_depart;
-          if (hizbDep && hizbDep > 0) {
-            if (sens === 'asc') {
-              for (let h = 1; h < hizbDep; h++) hizbsFaits.add(h);
-            } else {
-              for (let h = 60; h > hizbDep; h--) hizbsFaits.add(h);
-            }
-          }
-          const prog = calcBlocProgression(progData, hizbsFaits, e.hizbEnCours);
-          // On n'agit QUE si multi-blocs (monobloc = comportement classique préservé)
-          if (prog && !prog.estMonoBloc && prog.blocActuel) {
-            const bloc = prog.blocActuel;
-            // Si le Hizb proposé par calcEtatEleve n'est PAS dans le bloc actif :
-            // - Soit l'élève a fini son Hizb et doit basculer au bloc suivant
-            // - Soit l'élève n'a jamais commencé (hizbEnCours calculé par défaut)
-            if (!bloc.hizbs.includes(e.hizbEnCours)) {
-              const { hizb: prochain } = prochainHizbDansBloc(prog);
-              if (prochain) {
-                // On force le Hizb en cours vers le prochain du bloc actuel,
-                // et on repart à Tomon 1 (début d'un nouveau Hizb)
-                e = {
-                  ...e,
-                  hizbEnCours: prochain,
-                  prochainTomon: 1,
-                  tomonDansHizbActuel: 0,
-                  tomonRestants: 8,
-                  tous8Faits: false,
-                  hizbCompletValide: false,
-                  enAttenteHizbComplet: false,
-                  _ajusteParBloc: true, // flag interne pour debug
-                  _blocActuel: { numero: bloc.numero, nom: bloc.nom },
-                };
-              }
-            } else {
-              // Le Hizb est bien dans le bloc actuel → on garde l'état tel quel,
-              // on enrichit juste avec le bloc actif (pour affichage éventuel)
-              e = { ...e, _blocActuel: { numero: bloc.numero, nom: bloc.nom } };
-            }
-          }
-        }
+        progData = data || [];
       }
     } catch(err) {
-      // En cas d'erreur sur le calcul des blocs, on retombe sur le comportement classique
-      console.warn('[EnregistrerRecitation] calcul blocs échoué, mode classique:', err);
+      console.warn('[EnregistrerRecitation] echec chargement programme, mode classique:', err);
     }
+
+    const e = calcEtatEleveAvecBlocs(vals || [], el, progData, sens);
 
     setEtat(e);
     setApprentissages(appr || []);

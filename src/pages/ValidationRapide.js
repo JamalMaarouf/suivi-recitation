@@ -5,7 +5,7 @@ import { withRetryToast } from '../lib/retry';
 import { invalidateMany } from '../lib/cache';
 import { enqueueOrRun } from '../lib/offlineQueue';
 import { swr } from '../lib/offlineCache';
-import { calcEtatEleve, getInitiales, scoreLabel, motivationMsg, verifierEtCreerCertificats, isSourateNiveauDyn, loadBareme, BAREME_DEFAUT, getSensForEleve, verifierBlocageExamen, verifierBlocageEnsemble, validerEnsemble, calculerPointsSourate} from '../lib/helpers';
+import { calcEtatEleve, calcEtatEleveAvecBlocs, getInitiales, scoreLabel, motivationMsg, verifierEtCreerCertificats, isSourateNiveauDyn, loadBareme, BAREME_DEFAUT, getSensForEleve, verifierBlocageExamen, verifierBlocageEnsemble, validerEnsemble, calculerPointsSourate} from '../lib/helpers';
 import { notifierParents } from '../lib/notificationsParents';
 import { getSouratesForNiveau } from '../lib/sourates';
 import { t } from '../lib/i18n';
@@ -135,7 +135,7 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
     setBlocageExamen(null); setBlocagesEnsemble([]);
     const vals = allValidations.filter(v => v.eleve_id === e.id);
     const sensEl = getSensForEleve(e, niveaux, ecoleConfig);
-    setEtat(calcEtatEleve(vals, e.hizb_depart, e.tomon_depart, sensEl));
+    setEtat(calcEtatEleveAvecBlocs(vals, e, programmeNiveau, sensEl));
     setSearch('');
     setNbTomon(1);
     setSourateSelectionnee(null);
@@ -155,7 +155,7 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
     if (fresh && (fresh.hizb_depart !== e.hizb_depart || fresh.tomon_depart !== e.tomon_depart || fresh.code_niveau !== e.code_niveau)) {
       setSelectedEleve(freshEleve);
       const sensFresh = getSensForEleve(freshEleve, niveaux, ecoleConfig);
-      setEtat(calcEtatEleve(vals, freshEleve.hizb_depart, freshEleve.tomon_depart, sensFresh));
+      setEtat(calcEtatEleveAvecBlocs(vals, freshEleve, programmeNiveau, sensFresh));
     }
 
     const souratesLocal = sourFresh || [];
@@ -167,10 +167,17 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
     let progData = [];
     const { data: niv } = await supabase.from('niveaux').select('id').eq('code', freshEleve.code_niveau).eq('ecole_id', user.ecole_id).maybeSingle();
     if (niv) {
-      const { data: prog } = await supabase.from('programmes').select('reference_id,ordre')
+      const { data: prog } = await supabase.from('programmes').select('reference_id,ordre,bloc_numero,bloc_nom,bloc_sens,type_contenu')
         .eq('niveau_id', niv.id).eq('ecole_id', user.ecole_id).order('ordre');
       progData = prog || [];
       setProgrammeNiveau(progData);
+
+      // ─── Apres chargement du programme, RE-APPLIQUER l'etat avec cascade blocs ──
+      // Pourquoi : a l'etape 1 (affichage immediat), progData n'etait pas encore charge.
+      // Maintenant qu'on l'a, on recalcule l'etat avec calcEtatEleveAvecBlocs pour
+      // que les niveaux multi-blocs aient hizbEnCours correct selon le bloc actuel.
+      const sensFinal = getSensForEleve(freshEleve, niveaux, ecoleConfig);
+      setEtat(calcEtatEleveAvecBlocs(vals, freshEleve, progData, sensFinal));
     } else {
       setProgrammeNiveau([]);
     }
@@ -233,10 +240,11 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
     if (estSourate || !etat) return false;
     if (programmeNiveau.length === 0) return etat.hizbEnCours === 1; // fallback
     // Programme hizb : reference_id = numéro du hizb, trié par ordre
-    // En ordre décroissant, le dernier hizb = celui avec le plus petit numéro
+    // En desc : dernier hizb = plus petit numero. En asc : dernier hizb = plus grand numero.
+    const sensEl = selectedEleve ? getSensForEleve(selectedEleve, niveaux, ecoleConfig) : 'desc';
     const hizbsProg = programmeNiveau.map(p => parseInt(p.reference_id)).filter(n => !isNaN(n));
     if (hizbsProg.length === 0) return etat.hizbEnCours === 1;
-    const dernierHizb = Math.min(...hizbsProg); // le plus petit numéro = dernier en ordre décroissant
+    const dernierHizb = sensEl === 'asc' ? Math.max(...hizbsProg) : Math.min(...hizbsProg);
     return etat.hizbEnCours === dernierHizb;
   })();
 
@@ -283,6 +291,7 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
       return;
     }
     setSaving(true);
+    try {
     const payload = {
       eleve_id: selectedEleve.id, ecole_id: user.ecole_id, valide_par: user.id,
       nombre_tomon: nbTomon, type_validation: 'tomon',
@@ -303,7 +312,7 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
     setAllValidations(newValsOpt);
     const sensEl = getSensForEleve(selectedEleve, niveaux, ecoleConfig);
     const valsEleveOpt = newValsOpt.filter(v => v.eleve_id === selectedEleve.id);
-    setEtat(calcEtatEleve(valsEleveOpt, selectedEleve.hizb_depart, selectedEleve.tomon_depart, sensEl));
+    setEtat(calcEtatEleveAvecBlocs(valsEleveOpt, selectedEleve, programmeNiveau, sensEl));
 
     // Affichage flash + reset IMMEDIATS
     const ptsParTomon = bareme?.unites?.tomon || 0;
@@ -343,7 +352,7 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
           ...prev.filter(v => v.eleve_id !== selectedEleve.id),
           ...refreshVals,
         ]);
-        setEtat(calcEtatEleve(refreshVals, selectedEleve.hizb_depart, selectedEleve.tomon_depart, sensEl));
+        setEtat(calcEtatEleveAvecBlocs(refreshVals, selectedEleve, programmeNiveau, sensEl));
       }
       return;
     }
@@ -367,6 +376,12 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
           console.warn('[validerTomon background]', e);
         }
       })();
+    }
+    } catch (err) {
+      console.error('[validerTomon] ERREUR INATTENDUE', err);
+      toast.error(lang === 'ar' ? `❌ خطأ : ${err.message}` : `❌ Erreur : ${err.message}`, { duration: 5000 });
+    } finally {
+      setSaving(false); // Garde-fou : toujours liberer le bouton
     }
   };
 
@@ -400,7 +415,7 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
     setAllValidations(newValsOpt);
     const sensEl = getSensForEleve(selectedEleve, niveaux, ecoleConfig);
     const valsEleveOpt = newValsOpt.filter(v => v.eleve_id === selectedEleve.id);
-    setEtat(calcEtatEleve(valsEleveOpt, selectedEleve.hizb_depart, selectedEleve.tomon_depart, sensEl));
+    setEtat(calcEtatEleveAvecBlocs(valsEleveOpt, selectedEleve, programmeNiveau, sensEl));
 
     // Affichage flash IMMEDIAT
     const ptsHizb = bareme?.unites?.hizb_complet || 0;
@@ -435,7 +450,7 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
           ...prev.filter(v => v.eleve_id !== selectedEleve.id),
           ...refreshVals,
         ]);
-        setEtat(calcEtatEleve(refreshVals, selectedEleve.hizb_depart, selectedEleve.tomon_depart, sensEl));
+        setEtat(calcEtatEleveAvecBlocs(refreshVals, selectedEleve, programmeNiveau, sensEl));
       }
       return;
     }
@@ -645,31 +660,40 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
       return;
     }
 
-    // === SUCCES - Refresh BDD en background pour remplacer l'optimistic id par le vrai ===
-    // Et lancer les verifications lentes (certificats, blocage)
-    (async () => {
-      try {
-        const [recsResult, valsResult] = await Promise.all([
-          supabase.from('recitations_sourates').select('*').eq('eleve_id', selectedEleve.id).eq('ecole_id', user.ecole_id),
-          supabase.from('validations').select('*').eq('eleve_id', selectedEleve.id).eq('ecole_id', user.ecole_id),
-        ]);
-        const newRecsData = recsResult.data || [];
-        const valsData = valsResult.data || [];
-        setRecitationsSourates(newRecsData);
+    // === SUCCES - Refresh BDD pour remplacer l'optimistic id par le vrai ===
+    // checkBlocageExamenEleve fait SYNCHRONEMENT pour empecher l'eleve de valider
+    // une sourate de plus avant que le blocage soit reflete dans l'UI.
+    // (Sinon course condition : l'eleve clique 2x rapidement et passe-outre le blocage)
+    try {
+      const [recsResult, valsResult] = await Promise.all([
+        supabase.from('recitations_sourates').select('*').eq('eleve_id', selectedEleve.id).eq('ecole_id', user.ecole_id),
+        supabase.from('validations').select('*').eq('eleve_id', selectedEleve.id).eq('ecole_id', user.ecole_id),
+      ]);
+      const newRecsData = recsResult.data || [];
+      const valsData = valsResult.data || [];
+      setRecitationsSourates(newRecsData);
 
-        await checkBlocageExamenEleve(selectedEleve, valsData, newRecsData);
-        const nouveauxCertsSourate = await verifierEtCreerCertificats(supabase, {
-          eleve: selectedEleve, ecole_id: user.ecole_id, valide_par: user.id,
-          validations: valsData, recitations: newRecsData,
-        });
-        if (nouveauxCertsSourate.length > 0) {
-          setTimeout(() => setFlash({ msg: `🏅 ${(nouveauxCertsSourate||[]).map(c => c.nom_certificat_ar||c.nom_certificat).join(', ')} !`, color: '#EF9F27', pts: 0 }), 600);
-          setTimeout(() => setFlash(null), 4500);
+      // SYNCHRONE : verifier blocage AVANT de rendre la main au surveillant
+      await checkBlocageExamenEleve(selectedEleve, valsData, newRecsData);
+
+      // Certificats en background (non bloquant pour l'UI)
+      (async () => {
+        try {
+          const nouveauxCertsSourate = await verifierEtCreerCertificats(supabase, {
+            eleve: selectedEleve, ecole_id: user.ecole_id, valide_par: user.id,
+            validations: valsData, recitations: newRecsData,
+          });
+          if (nouveauxCertsSourate.length > 0) {
+            setTimeout(() => setFlash({ msg: `🏅 ${(nouveauxCertsSourate||[]).map(c => c.nom_certificat_ar||c.nom_certificat).join(', ')} !`, color: '#EF9F27', pts: 0 }), 600);
+            setTimeout(() => setFlash(null), 4500);
+          }
+        } catch (e) {
+          console.warn('[validerSourate certs background]', e);
         }
-      } catch (e) {
-        console.warn('[validerSourate background]', e);
-      }
-    })();
+      })();
+    } catch (e) {
+      console.warn('[validerSourate post-insert]', e);
+    }
   };
 
   const sl = selectedEleve && etat ? scoreLabel(etat.points.total) : null;

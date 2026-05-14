@@ -518,6 +518,97 @@ export function calcEtatEleve(validations, hizbDepart, tomonDepart, sens = 'desc
   };
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// calcEtatEleveAvecBlocs — wrapper pour la progression multi-blocs
+// ═══════════════════════════════════════════════════════════════════════════
+//
+// PRINCIPE DIRECTEUR (validation Jamal) :
+//   Les recitations des eleves appartenant aux niveaux avec blocs doivent
+//   respecter la chronologie des blocs ainsi que leur sens de recitation.
+//
+// COMPORTEMENT :
+//   - Niveau monobloc OU sans programme : retourne calcEtatEleve directement
+//     (zero changement de comportement, retrocompatibilite totale)
+//   - Niveau multi-blocs :
+//     1. Calcule la liste hizbsFaits = hizbs_acquis ∪ hizbsComplets (validations)
+//     2. Determine le bloc actuel selon les Hizbs deja faits
+//     3. Si l'eleve est AU MILIEU d'un Hizb (tomons partiels < 8) : garde le
+//        Hizb actuellement en cours, prochainTomon, etc.
+//     4. Si l'eleve DEBUTE un nouveau Hizb (tomonCumul=0 ou hizb_complet
+//        valide juste avant) : recalcule hizbEnCours = premier Hizb non acquis
+//        dans le bloc actuel selon son SENS PROPRE.
+//
+// COHERENCE :
+//   La validation utilisera le hizbEnCours retourne par cette fonction,
+//   donc l'enregistrement BDD sera coherent avec l'affichage.
+// ═══════════════════════════════════════════════════════════════════════════
+export function calcEtatEleveAvecBlocs(validations, eleve, programmeNiveau, sens = 'desc') {
+  // Etape 1 : calcEtatEleve standard (toujours fait pour tomonCumul, points, etc.)
+  const etatBrut = calcEtatEleve(
+    validations || [],
+    eleve?.hizb_depart || 0,
+    eleve?.tomon_depart || 0,
+    sens
+  );
+
+  // Etape 2 : detecter si multi-blocs (sinon retour direct)
+  if (!programmeNiveau || programmeNiveau.length === 0) return etatBrut;
+  const blocsUniques = new Set(programmeNiveau.map(p => p.bloc_numero || 1));
+  if (blocsUniques.size <= 1) return etatBrut;
+
+  // Etape 3 : calculer hizbsFaits (acquis + valides pendant le suivi)
+  const hizbsFaits = new Set(etatBrut.hizbsComplets || []);
+  if (Array.isArray(eleve?.hizbs_acquis) && eleve.hizbs_acquis.length > 0) {
+    for (const h of eleve.hizbs_acquis) hizbsFaits.add(h);
+  }
+  // Note : pas de fallback hizb_depart en multi-blocs (cf. principe "ne pas inventer")
+
+  // Etape 4 : calcBlocProgression pour determiner bloc actuel et sens
+  const prog = calcBlocProgression(programmeNiveau, hizbsFaits, etatBrut.hizbEnCours);
+  if (!prog || prog.estMonoBloc || !prog.blocActuel) return etatBrut;
+
+  // Etape 5 : determiner le Hizb que l'eleve doit reciter MAINTENANT selon le bloc
+  // C'est le premier Hizb non present dans hizbsFaits, en parcourant les blocs
+  // dans l'ordre, chaque bloc dans son sens propre.
+  const { hizb: hizbCibleSelonBloc } = prochainHizbDansBloc(prog);
+  if (!hizbCibleSelonBloc) {
+    // Tous les Hizbs des blocs sont termines -> rien a faire de plus
+    return { ...etatBrut, _blocActuel: { numero: prog.blocActuel.numero, nom: prog.blocActuel.nom, sens: prog.blocActuel.sens } };
+  }
+
+  // Etape 6 : compter les tomons deja valides SUR ce Hizb-cible specifique
+  // (Cas typique : l'eleve a valide 3 tomons sur le Hizb 42. On veut prochainTomon=4.)
+  let tomonsSurHizbCible = 0;
+  for (const v of (validations || [])) {
+    if (v.type_validation === 'tomon' && (v.hizb_validation === hizbCibleSelonBloc || v.hizb === hizbCibleSelonBloc)) {
+      const n = parseInt(v.nombre_tomon) || 1;
+      tomonsSurHizbCible += n;
+    }
+  }
+  // Bornes : 0 a 8 (au-dela = Hizb deja complet, ce qui aurait du etre detecte par hizbsFaits)
+  tomonsSurHizbCible = Math.max(0, Math.min(8, tomonsSurHizbCible));
+
+  // Etape 7 : construire l'etat coherent
+  const tous8Faits = tomonsSurHizbCible >= 8;
+  // hizbsComplets de calcEtatEleve est un Set (pas un Array), utiliser .has() pas .includes()
+  const hizbCompletValide = etatBrut.hizbsComplets instanceof Set
+    ? etatBrut.hizbsComplets.has(hizbCibleSelonBloc)
+    : Array.isArray(etatBrut.hizbsComplets) && etatBrut.hizbsComplets.includes(hizbCibleSelonBloc);
+
+  return {
+    ...etatBrut,
+    hizbEnCours: hizbCibleSelonBloc,
+    prochainTomon: tous8Faits ? null : (tomonsSurHizbCible + 1),
+    tomonDansHizbActuel: tomonsSurHizbCible,
+    tomonRestants: tous8Faits ? 0 : (8 - tomonsSurHizbCible),
+    tous8Faits,
+    hizbCompletValide,
+    enAttenteHizbComplet: tous8Faits && !hizbCompletValide,
+    _ajusteParBloc: etatBrut.hizbEnCours !== hizbCibleSelonBloc,
+    _blocActuel: { numero: prog.blocActuel.numero, nom: prog.blocActuel.nom, sens: prog.blocActuel.sens },
+  };
+}
+
 export function calcStats(validations) {
   const maintenant = new Date();
   const debutMois = new Date(maintenant.getFullYear(), maintenant.getMonth(), 1);
@@ -682,7 +773,7 @@ export async function verifierBlocageExamen(supabase, {
     // Trouver le niveau_id depuis la table niveaux via code_niveau
     const { data: niveauData } = await supabase
       .from('niveaux')
-      .select('id, type, code')
+      .select('id, type, code, sens_recitation')
       .eq('ecole_id', ecole_id)
       .eq('code', eleve.code_niveau || '')
       .maybeSingle();
@@ -742,12 +833,36 @@ export async function verifierBlocageExamen(supabase, {
         // Toutes les sourates de tous ces ensembles
         const toutesLesSourates = ensembles.flatMap(e => e.sourates_ids || []);
 
-        // Sourates complètes de l'élève
+        // Sourates complètes de l'élève (depuis validations explicites)
         const souratesCompletes = new Set(
           (recitations||[])
             .filter(r => r.type_recitation === 'complete' || r.complete === true)
             .map(r => r.sourate_id)
         );
+
+        // ─── AJOUT : prendre en compte les sourates acquises ANTERIEUREMENT ─────
+        // sourates_acquises = nombre N = les N premieres sourates (en sens du niveau)
+        // sont considerees deja maitrisees AVANT le suivi.
+        // Sans cela, un eleve avec acquis prealables ne pourra jamais declencher
+        // le blocage (le compteur de recitations en BDD n'atteindra jamais le total).
+        const nbAcquises = eleve?.sourates_acquises || 0;
+        if (nbAcquises > 0) {
+          try {
+            // Charger les 114 sourates de la BDD triees selon le sens du niveau
+            const sensNiveau = niveauData.sens_recitation || 'desc';
+            const { data: souratesData } = await supabase
+              .from('sourates')
+              .select('id, numero')
+              .order('numero', { ascending: sensNiveau === 'asc' });
+            if (souratesData && souratesData.length > 0) {
+              // Les N premieres dans cet ordre = acquises avant le suivi
+              const idsAcquis = souratesData.slice(0, nbAcquises).map(s => s.id);
+              for (const sId of idsAcquis) souratesCompletes.add(sId);
+            }
+          } catch (e) {
+            console.warn('[verifierBlocageExamen] echec ajout sourates_acquises:', e);
+          }
+        }
 
         examTermine = toutesLesSourates.length > 0 &&
           toutesLesSourates.every(sid => souratesCompletes.has(sid));
@@ -817,6 +932,35 @@ export async function verifierBlocageEnsemble(supabase, { eleve_id, ecole_id, ni
 
     const souratesRecitees = new Set((recitations || []).map(r => r.sourate_id));
 
+    // 2bis. AJOUT : prendre en compte les sourates acquises ANTERIEUREMENT
+    // (logique identique a verifierBlocageExamen pour coherence)
+    try {
+      const { data: eleveData } = await supabase
+        .from('eleves')
+        .select('sourates_acquises')
+        .eq('id', eleve_id)
+        .maybeSingle();
+      const nbAcquises = eleveData?.sourates_acquises || 0;
+      if (nbAcquises > 0) {
+        const { data: nivData } = await supabase
+          .from('niveaux')
+          .select('sens_recitation')
+          .eq('id', niveau_id)
+          .maybeSingle();
+        const sensNiveau = nivData?.sens_recitation || 'desc';
+        const { data: souratesData } = await supabase
+          .from('sourates')
+          .select('id, numero')
+          .order('numero', { ascending: sensNiveau === 'asc' });
+        if (souratesData && souratesData.length > 0) {
+          const idsAcquis = souratesData.slice(0, nbAcquises).map(s => s.id);
+          for (const sId of idsAcquis) souratesRecitees.add(sId);
+        }
+      }
+    } catch (e) {
+      console.warn('[verifierBlocageEnsemble] echec ajout sourates_acquises:', e);
+    }
+
     // 3. Charger les ensembles deja valides pour cet eleve
     const { data: validationsEns } = await supabase
       .from('validations')
@@ -837,10 +981,10 @@ export async function verifierBlocageEnsemble(supabase, { eleve_id, ecole_id, ni
     // 5. Charger les resultats d'examens deja reussis
     const { data: resultats } = await supabase
       .from('resultats_examens')
-      .select('examen_id, reussi')
+      .select('examen_id, statut')
       .eq('eleve_id', eleve_id);
 
-    const examensReussis = new Set((resultats || []).filter(r => r.reussi).map(r => r.examen_id));
+    const examensReussis = new Set((resultats || []).filter(r => r.statut === 'reussi').map(r => r.examen_id));
 
     // 6. Pour chaque ensemble, verifier si toutes ses sourates sont recitees ET non encore valide
     const blocages = [];

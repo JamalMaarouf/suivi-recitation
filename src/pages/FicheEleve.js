@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useToast } from '../lib/toast';
 import { supabase } from '../lib/supabase';
-import { calcEtatEleve, isSourateNiveauDyn, calcPositionAtteinte, calcUnite, calcPoints, formatDate, formatDateCourt, getInitiales, scoreLabel, calcBadges, calcVitesse, niveauTraduit, calcPointsPeriode, loadBareme, BAREME_DEFAUT, getSensForEleve, calcBlocProgression} from '../lib/helpers';
+import { calcEtatEleve, calcEtatEleveAvecBlocs, isSourateNiveauDyn, calcPositionAtteinte, calcUnite, calcPoints, formatDate, formatDateCourt, getInitiales, scoreLabel, calcBadges, calcVitesse, niveauTraduit, calcPointsPeriode, loadBareme, BAREME_DEFAUT, getSensForEleve, calcBlocProgression} from '../lib/helpers';
 import { t } from '../lib/i18n';
 import { openPDF } from '../lib/pdf';
 import { getCachedSWR } from '../lib/cache';
@@ -237,6 +237,7 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang, isMobi
   const [ecoleConfig, setEcoleConfig] = useState(null);
   // Programme du niveau (pour calcul progression par blocs pédagogiques — Étape B)
   const [programmeNiveau, setProgrammeNiveau] = useState([]);
+  const [souratesDB, setSouratesDB] = useState([]); // table sourates pour mapper id <-> numero (pour fiche sourate)
   const now = new Date();
   const [selectedMoisObj, setSelectedMoisObj] = useState(now.getMonth());
   const [selectedAnneeObj, setSelectedAnneeObj] = useState(now.getFullYear());
@@ -297,6 +298,11 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang, isMobi
     }
     setLoading(true);
 
+    // Variable locale pour partager progData entre la section chargement (~ligne 356)
+    // et l'appel a calcEtatEleveAvecBlocs (~ligne 418). On ne peut pas utiliser le state
+    // programmeNiveau car React met le state a jour asynchrone.
+    let progDataLoaded = [];
+
     // Recharger l'eleve frais depuis la DB (ses hizb_depart/tomon_depart peuvent avoir
     // change depuis le render parent). Sinon on calcule etat a partir de donnees periees.
     try {
@@ -343,7 +349,7 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang, isMobi
       // s'affiche même si l'élève n'a pas encore d'instituteur assigné.
       try {
         const [{ data: nivData }, { data: ecData }] = await Promise.all([
-          supabase.from('niveaux').select('id,code,nom,sens_recitation').eq('ecole_id', eleve.ecole_id),
+          supabase.from('niveaux').select('id,code,nom,type,sens_recitation').eq('ecole_id', eleve.ecole_id),
           supabase.from('ecoles').select('sens_recitation_defaut').eq('id', eleve.ecole_id).maybeSingle(),
         ]);
         setNiveaux(nivData || []);
@@ -358,9 +364,19 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang, isMobi
               .eq('niveau_id', niveauEleve.id)
               .eq('ecole_id', eleve.ecole_id)
               .order('ordre');
-            setProgrammeNiveau(progData || []);
+            progDataLoaded = progData || [];
+            setProgrammeNiveau(progDataLoaded);
           } catch(e) {
             setProgrammeNiveau([]);
+          }
+          // Charger les sourates (id <-> numero <-> nom_ar) pour l'affichage fiche sourate
+          if (niveauEleve.type === 'sourate' || ['5B','5A','2M'].includes(eleve.code_niveau)) {
+            try {
+              const { data: sourData } = await supabase.from('sourates').select('id, numero, nom_ar').order('numero');
+              setSouratesDB(sourData || []);
+            } catch(e) {
+              setSouratesDB([]);
+            }
           }
         }
       } catch(e) { /* gardé par défaut */ }
@@ -415,7 +431,7 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang, isMobi
         if(inst) setInstituteurNom(inst.prenom+' '+inst.nom);
       }
       const sensE = getSensForEleve(eleve, niveaux, ecoleConfig);
-      const e = calcEtatEleve(vals||[],eleve.hizb_depart,eleve.tomon_depart, sensE);
+      const e = calcEtatEleveAvecBlocs(vals||[], eleve, progDataLoaded, sensE);
 
       // PROTECTION CRITIQUE : si on avait déjà un état avec des validations
       // et que le reload ne retourne rien, c'est un signal d'erreur transitoire.
@@ -1105,6 +1121,48 @@ ${(passages||[]).length > 0 ? `
   const _niveauxCtx = typeof niveaux !== 'undefined' ? niveaux : [];
   const estSourateEleve = isSourateNiveauDyn(eleve.code_niveau, _niveauxCtx);
 
+  // ─── Calcul sourate actuelle / séquences / prochaine sourate (pour onglet aperçu) ───
+  // Réutilise la même logique que ValidationRapide.js pour la cohérence d'affichage.
+  // Ne s'active que pour les élèves de niveau sourate.
+  let currentSourateApercu = null;
+  let sequencesValideesSurCourante = 0;
+  let prochaineSourateApercu = null;
+  if (estSourateEleve && souratesDB.length > 0) {
+    try {
+      // Trier les sourates selon le programme du niveau (ou par defaut tout le Coran)
+      let souratesOrd;
+      if (programmeNiveau.length > 0) {
+        souratesOrd = programmeNiveau
+          .map(p => souratesDB.find(s => String(s.id) === String(p.reference_id)))
+          .filter(Boolean);
+      } else {
+        souratesOrd = [...souratesDB];
+      }
+      // Sens : recuperer depuis niveaux ou ecoleConfig
+      const niveauEleve = (_niveauxCtx || []).find(n => n.code === eleve.code_niveau);
+      const sensRecit = niveauEleve?.sens_recitation || ecoleConfig?.sens_recitation_defaut || 'desc';
+      souratesOrd.sort((a, b) => sensRecit === 'asc' ? a.numero - b.numero : b.numero - a.numero);
+
+      const souratesAcq = eleve.sourates_acquises || 0;
+      const isComplete = (id) =>
+        recitationsSouratesEleve.some(r => r.sourate_id === id && r.type_recitation === 'complete');
+
+      const idxCurrent = souratesOrd.findIndex((sr, i) => {
+        if (i < souratesAcq) return false;
+        return !isComplete(sr.id);
+      });
+      if (idxCurrent >= 0) {
+        currentSourateApercu = souratesOrd[idxCurrent];
+        // Compter les sequences validees pour cette sourate
+        sequencesValideesSurCourante = recitationsSouratesEleve.filter(
+          r => r.sourate_id === currentSourateApercu.id && r.type_recitation === 'sequence'
+        ).length;
+        // Prochaine sourate = la suivante dans l'ordre
+        prochaineSourateApercu = souratesOrd[idxCurrent + 1] || null;
+      }
+    } catch(e) { /* silent fallback */ }
+  }
+
   const totalPtsSourates = recitationsSouratesEleve.reduce((s,r)=>s+(r.points||0),0);
   const nbSouratesCompletes = recitationsSouratesEleve.filter(r=>r.type_recitation==='complete').length;
   const sl = estSourateEleve
@@ -1114,11 +1172,25 @@ ${(passages||[]).length > 0 ? `
 
   const validationsOuRecitations = estSourateEleve ? [] : validations;
   const vitesse = estSourateEleve ? (() => {
-    const nbCompletes = recitationsSouratesEleve.filter(r=>r.type_recitation==='complete').length;
+    const recsValides = recitationsSouratesEleve.filter(r => r.date_validation && r.type_recitation === 'complete');
+    const nbCompletes = recsValides.length;
     if (nbCompletes === 0) return { moyenne: 0, tendance: 'stable' };
-    const oldest = recitationsSouratesEleve.filter(r=>r.date_validation).sort((a,b)=>new Date(a.date_validation)-new Date(b.date_validation))[0];
+    const oldest = [...recsValides].sort((a,b)=>new Date(a.date_validation)-new Date(b.date_validation))[0];
     const semaines = oldest ? Math.max(1, Math.ceil((new Date() - new Date(oldest.date_validation)) / (1000*60*60*24*7))) : 1;
-    return { moyenne: (nbCompletes / semaines).toFixed(1), tendance: 'stable' };
+    const moyenne = parseFloat((nbCompletes / semaines).toFixed(1));
+    // Tendance : comparer la derniere semaine vs la semaine d'avant
+    const now = new Date();
+    const il_y_a_1sem = new Date(now); il_y_a_1sem.setDate(il_y_a_1sem.getDate() - 7);
+    const il_y_a_2sem = new Date(now); il_y_a_2sem.setDate(il_y_a_2sem.getDate() - 14);
+    const dernSem = recsValides.filter(r => new Date(r.date_validation) >= il_y_a_1sem).length;
+    const semPrec = recsValides.filter(r => {
+      const d = new Date(r.date_validation);
+      return d >= il_y_a_2sem && d < il_y_a_1sem;
+    }).length;
+    let tendance = 'stable';
+    if (dernSem > semPrec) tendance = 'hausse';
+    else if (dernSem < semPrec) tendance = 'baisse';
+    return { moyenne, tendance };
   })() : calcVitesse(validations);
   const streak = estSourateEleve ? 0 : calcStreak(validations);
   const heatmapSourates = {};
@@ -1131,7 +1203,31 @@ ${(passages||[]).length > 0 ? `
   const heatmap = estSourateEleve ? heatmapSourates : calcHeatmap(validations);
   const evolutionSourates = (() => {
     let cumul = 0;
-    return [...recitationsSouratesEleve].reverse().map(r => { cumul += (r.points||0); return { score: cumul, date: r.date_validation }; });
+    // IMPORTANT : trier explicitement par date_validation croissant (ascendant)
+    // car recitationsSouratesEleve n'a pas d'ordre garanti (chargement sans .order()).
+    const tries = [...recitationsSouratesEleve]
+      .filter(r => r.date_validation)
+      .sort((a, b) => new Date(a.date_validation) - new Date(b.date_validation));
+    // Point initial a 0 (Depart) - aligne sur calcEvolution pour cohérence avec Hizb.
+    // Sinon avec 1 seule recitation : evolution.length=1 -> message "pas assez de donnees"
+    // ET la courbe ne peut pas s'afficher (besoin de min 2 points pour tracer).
+    const pts = [{ score: 0, date: null, label: 'Départ' }];
+    // FALLBACK BAREME : si r.points=0 (bareme pas configure au moment de la recitation),
+    // utiliser le bareme actuel pour calculer dynamiquement. Permet aux courbes des
+    // anciennes recitations de monter retroactivement quand le surveillant configure
+    // le bareme apres coup, sans necessiter une migration BDD.
+    const ptsSouratFallback = baremeEleve?.unites?.sourate || baremeEleve?.sourate || 0;
+    const ptsSeqFallback = baremeEleve?.unites?.sequence_sourate || baremeEleve?.sequence_sourate || 0;
+    tries.forEach(r => {
+      let p = r.points || 0;
+      if (p === 0) {
+        // Fallback selon type de recitation
+        p = r.type_recitation === 'complete' ? ptsSouratFallback : ptsSeqFallback;
+      }
+      cumul += p;
+      pts.push({ score: cumul, date: r.date_validation });
+    });
+    return pts;
   })();
   const evolution = estSourateEleve ? evolutionSourates : calcEvolution(validations, baremeEleve);
   const maxScore = Math.max(...evolution.map(p=>p.score),1);
@@ -1270,6 +1366,36 @@ ${(passages||[]).length > 0 ? `
           <div style={{padding:'12px 12px'}}>
             {onglet==='progression' && (
               <div>
+                {/* ─── Barre de progression GLOBALE (sourates uniquement) ─── */}
+                {/* Historique : montre % sourates completees + repartition acquis/suivi */}
+                {estSourateEleve && souratesDB.length > 0 && (() => {
+                  // Calcul du total de sourates dans le programme du niveau (ou 114 si pas de prog)
+                  const totalSourates = programmeNiveau.length > 0 ? programmeNiveau.length : 114;
+                  const acq = parseInt(eleve.sourates_acquises) || 0;
+                  const completes = recitationsSouratesEleve.filter(r => r.type_recitation === 'complete').length;
+                  const total_validees = acq + completes;
+                  const pct = Math.min(100, Math.round((total_validees / Math.max(totalSourates, 1)) * 100));
+                  return (
+                    <div style={{background:'#fff', border:'0.5px solid #e0e0d8', borderRadius:14, padding:'14px', marginBottom:12}}>
+                      <div style={{fontSize:13, fontWeight:700, marginBottom:10, color:'#085041'}}>
+                        {lang==='ar'?'التقدم العام':'Progression générale'}
+                      </div>
+                      <div style={{display:'flex', justifyContent:'space-between', fontSize:12, color:'#888', marginBottom:6}}>
+                        <span>{total_validees}/{totalSourates} {lang==='ar'?'سورة':'sourates'}</span>
+                        <span style={{fontWeight:700, color:'#1D9E75'}}>{pct}%</span>
+                      </div>
+                      <div style={{height:14, background:'#e8e8e0', borderRadius:7, overflow:'hidden'}}>
+                        <div style={{height:'100%', width:pct+'%',
+                          background:'linear-gradient(90deg, #1D9E75, #5DCAA5)', borderRadius:7, transition:'width 0.5s'}}/>
+                      </div>
+                      <div style={{fontSize:11, color:'#888', marginTop:8}}>
+                        {lang==='ar'?'المكتسبات السابقة:':'Acquis antérieurs:'} <strong style={{color:'#378ADD'}}>{acq}</strong>
+                        {' · '}
+                        {lang==='ar'?'منذ المتابعة:':'Depuis le suivi:'} <strong style={{color:'#1D9E75'}}>{completes}</strong>
+                      </div>
+                    </div>
+                  );
+                })()}
                 {/* ─── Progression par BLOCS pédagogiques (Étape B) ─── */}
                 {/* N'apparaît que si le niveau a plusieurs blocs configurés. */}
                 {blocProgression && (
@@ -1884,6 +2010,64 @@ ${(passages||[]).length > 0 ? `
               </div>
             )}
 
+            {/* ─── BANDEAU ACQUIS ANTERIEURS — Sourates ─── */}
+            {/* Equivalent du bandeau Hizb mais pour les eleves de niveau sourate */}
+            {/* Adapte la metrique aux sourates : nombre de sourates acquises, points x bareme */}
+            {estSourateEleve && (eleve.sourates_acquises || 0) > 0 && (
+              <div style={{marginBottom:8}}>
+                <button onClick={()=>setShowAcquis(v=>!v)}
+                  style={{display:'flex',alignItems:'center',justifyContent:'space-between',width:'100%',padding:'10px 14px',border:`1.5px solid ${showAcquis?'#1D9E75':'#9FE1CB'}`,borderRadius:showAcquis?'10px 10px 0 0':'10px',background:showAcquis?'#E1F5EE':'#f0faf6',cursor:'pointer',transition:'all 0.2s'}}>
+                  <div style={{display:'flex',alignItems:'center',gap:8}}>
+                    <span style={{fontSize:18}}>🎓</span>
+                    <div style={{textAlign:'left'}}>
+                      <div style={{fontSize:13,fontWeight:600,color:'#085041'}}>{lang==='ar'?'المكتسبات السابقة':'Acquis antérieurs'}</div>
+                      <div style={{fontSize:11,color:'#0F6E56'}}>
+                        {eleve.sourates_acquises} {lang==='ar'?'سورة':'sourates'}
+                        {(baremeEleve?.sourate || 0) > 0 && (
+                          <> · <strong>{(eleve.sourates_acquises * (baremeEleve.sourate || 0)).toLocaleString()} {t(lang,'pts_abrev')}</strong></>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                  <span style={{fontSize:16,color:'#1D9E75',fontWeight:700,transition:'transform 0.2s',display:'inline-block',transform:showAcquis?'rotate(180deg)':'rotate(0deg)'}}>{showAcquis?'▲':'▼'}</span>
+                </button>
+                {showAcquis && (
+                  <div style={{background:'#f0faf6',border:'1.5px solid #1D9E75',borderTop:'none',borderRadius:'0 0 10px 10px',padding:'1rem'}}>
+                    {/* Listing des sourates acquises */}
+                    <div style={{fontSize:11,color:'#085041',fontWeight:600,marginBottom:6}}>
+                      {lang==='ar'?'السور المحفوظة':'Sourates acquises'}
+                    </div>
+                    {(() => {
+                      // Calcul des sourates acquises selon le sens du niveau
+                      const niveauEleve = (_niveauxCtx || []).find(n => n.code === eleve.code_niveau);
+                      const sensRecit = niveauEleve?.sens_recitation || ecoleConfig?.sens_recitation_defaut || 'desc';
+                      const souratesOrd = [...souratesDB].sort((a, b) => sensRecit === 'asc' ? a.numero - b.numero : b.numero - a.numero);
+                      const idsAcquises = souratesOrd.slice(0, eleve.sourates_acquises);
+                      if (idsAcquises.length === 0) return null;
+                      return (
+                        <div style={{display:'flex',flexWrap:'wrap',gap:6,marginBottom:12,maxHeight:120,overflowY:'auto'}}>
+                          {idsAcquises.map(s => (
+                            <span key={s.id} style={{padding:'4px 10px',background:'#fff',border:'0.5px solid #d0ede4',borderRadius:14,fontSize:11,color:'#085041',fontWeight:500}}>
+                              {s.nom_ar} <span style={{color:'#888',fontSize:10}}>({s.numero})</span>
+                            </span>
+                          ))}
+                        </div>
+                      );
+                    })()}
+                    {/* Total points */}
+                    {(baremeEleve?.sourate || 0) > 0 && (
+                      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',background:'#085041',borderRadius:8,padding:'10px 14px'}}>
+                        <span style={{fontSize:12,color:'#9FE1CB'}}>{lang==='ar'?'مجموع نقاط المكتسبات':'Total points acquis antérieurs'}</span>
+                        <span style={{fontSize:18,fontWeight:800,color:'#fff'}}>
+                          {(eleve.sourates_acquises * baremeEleve.sourate).toLocaleString()} {t(lang,'pts_abrev')}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* Exception Hizb/Tomon — Hizb uniquement */}
             {user.role==='surveillant'&&!estSourateEleve&&(
               <div style={{marginBottom:8}}>
@@ -1961,31 +2145,9 @@ ${(passages||[]).length > 0 ? `
             </div>
           )}
 
-          {/* Objectif mensuel */}
-          <div className="card" style={{marginBottom:'1rem'}}>
-            <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:10}}>
-              <div style={{fontSize:13,fontWeight:600}}>🎯 {t(lang,'objectif_mensuel')}</div>
-              <div style={{display:'flex',alignItems:'center',gap:6}}>
-                <button onClick={()=>{if(selectedMoisObj===0){setSelectedMoisObj(11);setSelectedAnneeObj(y=>y-1);}else setSelectedMoisObj(m=>m-1);}} style={{padding:'2px 8px',border:'0.5px solid #e0e0d8',borderRadius:4,background:'#fff',cursor:'pointer'}}>‹</button>
-                <span style={{fontSize:12,color:'#888',minWidth:70,textAlign:'center'}}>{getMoisCourt(selectedMoisObj,lang)} {selectedAnneeObj}</span>
-                <button onClick={()=>{if(selectedMoisObj===11){setSelectedMoisObj(0);setSelectedAnneeObj(y=>y+1);}else setSelectedMoisObj(m=>m+1);}} style={{padding:'2px 8px',border:'0.5px solid #e0e0d8',borderRadius:4,background:'#fff',cursor:'pointer'}}>›</button>
-                {user.role==='surveillant'&&<button className="action-btn" onClick={()=>navigate('objectifs')}>🎯 {t(lang,'definir')}</button>}
-              </div>
-            </div>
-            
-            {objActuel?(
-              <div>
-                <div style={{display:'flex',justifyContent:'space-between',fontSize:12,color:'#888',marginBottom:6}}>
-                  <span>{tomonMoisSel} / {objActuel.nombre_tomon} {t(lang,'tomon_abrev')}</span>
-                  <span style={{fontWeight:700,color:pctColor(pctObj)}}>{pctObj}%</span>
-                </div>
-                <div style={{height:10,background:'#e8e8e0',borderRadius:5,overflow:'hidden'}}>
-                  <div style={{height:'100%',width:`${pctObj}%`,background:pctColor(pctObj),borderRadius:5,transition:'width 0.5s'}}/>
-                </div>
-                {pctObj>=100&&<div style={{fontSize:12,color:'#1D9E75',marginTop:6}}>{t(lang,'objectif_atteint')}</div>}
-              </div>
-            ):<div style={{fontSize:12,color:'#bbb',textAlign:'center',padding:'8px 0'}}>{t(lang,'aucun_objectif')}</div>}
-          </div>
+          {/* Bloc 'Objectif mensuel' retire (validation Jamal) : */}
+          {/* Les objectifs sont fixes via le menu 'Objectifs' de la navbar. */}
+          {/* Pas besoin de doublon ici sur la fiche eleve. */}
 
           {/* Tabs */}
           <div className="tabs-row" style={{marginBottom:'1rem'}}>
@@ -2068,20 +2230,20 @@ ${(passages||[]).length > 0 ? `
                 <>
                   <div className="position-card">
                     <div className="pos-block">
-                      <div className="pos-val" style={{fontSize:14}}>{recitationsSouratesEleve.filter(r=>r.type_recitation==='complete').length}</div>
-                      <div className="pos-lbl">{lang==='ar'?'سور مكتملة':'Complètes'}</div>
+                      <div className="pos-val" style={{fontSize:14}}>
+                        {currentSourateApercu ? currentSourateApercu.nom_ar : '✓'}
+                      </div>
+                      <div className="pos-lbl">{lang==='ar'?'السورة الحالية':'Sourate actuelle'}</div>
                     </div>
                     <div className="pos-block">
-                      <div className="pos-val" style={{fontSize:14}}>{recitationsSouratesEleve.filter(r=>r.type_recitation==='sequence').length}</div>
-                      <div className="pos-lbl">{lang==='ar'?'مقاطع':'Séquences'}</div>
+                      <div className="pos-val">{sequencesValideesSurCourante}/3</div>
+                      <div className="pos-lbl">{lang==='ar'?'المقاطع':'Séquences'}</div>
                     </div>
                     <div className="pos-block">
-                      <div className="pos-val" style={{fontSize:14}}>{eleve.sourates_acquises||0}</div>
-                      <div className="pos-lbl">{lang==='ar'?'محفوظات':'Acquis'}</div>
-                    </div>
-                    <div className="pos-block">
-                      <div className="pos-val" style={{fontSize:14}}>{totalPtsSourates.toLocaleString()}</div>
-                      <div className="pos-lbl">{t(lang,'pts_abrev')}</div>
+                      <div className="pos-val" style={{fontSize:14}}>
+                        {prochaineSourateApercu ? prochaineSourateApercu.nom_ar : (currentSourateApercu ? '🎉' : '—')}
+                      </div>
+                      <div className="pos-lbl">{lang==='ar'?'السورة التالية':'Sourate suivante'}</div>
                     </div>
                   </div>
                 </>
@@ -2190,6 +2352,14 @@ ${(passages||[]).length > 0 ? `
                 <span>{t(lang,'score_total')}: <strong style={{color:'#1D9E75'}}>{estSourateEleve?totalPtsSourates.toLocaleString():(etat?.points.total.toLocaleString()||0)} {t(lang,'pts_abrev')}</strong></span>
                 <span>{lang==='ar'?'السرعة':lang==='en'?'Speed':(lang==='ar'?'الوتيرة':'Vitesse')}: <strong style={{color:vitesse.tendance==='hausse'?'#1D9E75':vitesse.tendance==='baisse'?'#E24B4A':'#888'}}>{vitesse.moyenne} T/{t(lang,+(lang==='ar'?' أسابيع':' semaines'))} {vitesse.tendance==='hausse'?'📈':vitesse.tendance==='baisse'?'📉':'➡️'}</strong></span>
               </div>
+              {/* Avertissement bareme non configure - uniquement pour sourate */}
+              {estSourateEleve && recitationsSouratesEleve.length > 0 && (baremeEleve?.unites?.sourate || 0) === 0 && (
+                <div style={{marginTop:12, padding:'10px 14px', background:'#FAEEDA', border:'1px solid #EF9F2740', borderRadius:8, fontSize:12, color:'#633806'}}>
+                  ℹ️ {lang==='ar'
+                    ? 'لم يتم ضبط نقاط السورة بعد. اذهب إلى الإدارة > النقاط لتحديد النقاط لكل تلاوة.'
+                    : 'Le barème sourate n\'est pas configuré. Allez dans Gestion > Notes pour définir les points par récitation.'}
+                </div>
+              )}
             </div>
           )}
 
@@ -2421,7 +2591,7 @@ ${(passages||[]).length > 0 ? `
                         <th>{t(lang,'valide_par')}</th>
                       </tr></thead>
                       <tbody>
-                        {recitationsSouratesEleve.map(r=>(
+                        {[...recitationsSouratesEleve].sort((a,b)=>new Date(b.date_validation||0)-new Date(a.date_validation||0)).map(r=>(
                           <tr key={r.id}>
                             <td style={{fontSize:12,color:'#888'}}>{formatDate(r.date_validation||r.created_at)}</td>
                             <td style={{fontWeight:600,direction:'rtl'}}>{r.sourate?.nom_ar||'—'}</td>
