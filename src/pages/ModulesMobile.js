@@ -62,7 +62,7 @@ export default function ModulesMobile({ user, navigate, lang='ar' }) {
     {
       title: lang==='ar'?'⚙️ الإدارة':'⚙️ Administration',
       modules: [
-        {icon:'⚙️', label:lang==='ar'?'الإدارة':'Gestion',          sub:lang==='ar'?'إعدادات':'Paramètres',         page:'gestion',            bg:'#E1F5EE'},
+        {icon:'⚙️', label:lang==='ar'?'الإدارة':'Gestion',          sub:lang==='ar'?'إعدادات':'Paramètres',         page:'gestion',            bg:'#E1F5EE', role:'surveillant'},
         {icon:'💰', label:lang==='ar'?'المالية':'Finance',           sub:lang==='ar'?'الاشتراكات':'Cotisations',     page:'finance',            bg:'#FCEBEB', role:'surveillant'},
         {icon:'👨‍👩‍👧', label:lang==='ar'?'الأولياء':'Parents',         sub:lang==='ar'?'متابعة':'Suivi',               page:'parents',            bg:'#EEEDFE', role:'surveillant'},
         {icon:'📚', label:lang==='ar'?'الدروس':'Cours',              sub:lang==='ar'?'متابعة':'Suivi',               page:'cours',              bg:'#E6F1FB'},
