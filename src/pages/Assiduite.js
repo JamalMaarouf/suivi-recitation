@@ -10,7 +10,6 @@ import { openPDF } from '../lib/pdf';
 import { exportExcelSimple } from '../lib/excel';
 import { loadAnneeActiveAvecPeriodes, formatPeriodeCourte, detecterPeriodeEnCours } from '../lib/helpers';
 import PeriodeSelectorHybride from '../components/PeriodeSelectorHybride';
-import { usePullToRefresh, PullToRefreshIndicator } from '../lib/usePullToRefresh';
 
 // ══════════════════════════════════════════════════════════════════════
 // PAGE ASSIDUITÉ — الحضور
@@ -291,23 +290,8 @@ export default function Assiduite({ user, navigate, goBack, lang, isMobile, kios
   }
 
   // ─── Rendu ORDINATEUR : header classique + onglets pilule ─────
-
-  // Pull-to-refresh (Phase 2 Sprint 4)
-  const {
-    pullDistance, isRefreshing, isThreshold,
-    onTouchStart, onTouchMove, onTouchEnd,
-  } = usePullToRefresh(loadData);
   return (
-    <div style={{ padding: '1.5rem', paddingBottom: 60, minHeight: 'auto' }}
-      {...(isMobile ? { onTouchStart, onTouchMove, onTouchEnd } : {})}>
-      {isMobile && (
-        <PullToRefreshIndicator
-          pullDistance={pullDistance}
-          isRefreshing={isRefreshing}
-          isThreshold={isThreshold}
-          lang={lang}
-        />
-      )}
+    <div style={{ padding: '1.5rem', paddingBottom: 60, minHeight: 'auto' }}>
 
       {/* Header desktop harmonisé (Phase C / B8) */}
       <PageHeader

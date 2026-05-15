@@ -61,6 +61,15 @@
 - Le mode kiosk mobile fonctionne bien.
 - L'offline queue / NetworkBanner est testée mobile + desktop.
 
+### Pull-to-refresh sur Assiduité (retiré J2 sprint 12j)
+
+Le bloc pull-to-refresh qui était dans `src/pages/Assiduite.js` (commenté "Phase 2 Sprint 4") **n'a jamais fonctionné en Prod** : `loadData` n'existait pas dans la scope du composant top-level, et l'import `usePullToRefresh` était absent. Code mort-né, supprimé dans le commit J2 (page Assiduité cassée par `ReferenceError`).
+
+**Si réintroduction souhaitée plus tard** : refactor propre nécessaire car :
+1. La page Assiduité a un early return pour le mode kiosque/mobile, donc le hook doit être placé AVANT ce return (règle des hooks React)
+2. `useAssiduiteData` (le hook qui contient `loadData` réel) est appelé dans les sous-composants `SaisieKiosque` et `SaisieDesktop`, pas dans `Assiduite` top-level
+3. Vu que le mode mobile est un **kiosque tactile**, le pull-to-refresh peut être contre-intuitif (un parent tire l'écran par erreur). À questionner avant d'ajouter.
+
 ---
 
 ## Futur — Droits étendus instituteur (noté J2 sprint 12j)
