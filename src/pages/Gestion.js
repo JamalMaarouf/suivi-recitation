@@ -2621,6 +2621,17 @@ function SubTabs({ value, onChange, items, lang = 'fr' }) {
 }
 
 export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile, initialTab, setGestionTab }) {
+  // ─── Garde-fou rôle : Gestion est réservée au surveillant ───
+  // Defense-in-depth (App.js filtre déjà la route, ce hook redirige
+  // au cas où le composant serait monté autrement). L'instituteur ne
+  // doit voir ni les élèves de l'école, ni les profs, ni les parents.
+  useEffect(() => {
+    if (user && user.role !== 'surveillant') {
+      navigate('dashboard');
+    }
+  }, [user, navigate]);
+  if (!user || user.role !== 'surveillant') return null;
+
   const { toast } = useToast();
   const [tab, setTabLocal] = useState(isMobile ? (initialTab && initialTab !== 'parametres' ? initialTab : 'eleves') : (initialTab || 'parametres'));
   const setTab = (t) => { setTabLocal(t); if(setGestionTab) setGestionTab(t); };

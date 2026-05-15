@@ -60,3 +60,21 @@
 - Le portail parent mobile a été refait en bottom sheets lors de P.A.1. C'est la nouvelle référence.
 - Le mode kiosk mobile fonctionne bien.
 - L'offline queue / NetworkBanner est testée mobile + desktop.
+
+---
+
+## Futur — Droits étendus instituteur (noté J2 sprint 12j)
+
+**Demande Jamal** : à terme, l'instituteur doit pouvoir **paramétrer les cours** (créer un cours, définir ses axes), pas seulement valider/suivre.
+
+**État actuel (J2 sprint 12j)** :
+- `cours` / `SuiviCours` : surveillant + instituteur ✅ (déjà OK)
+- `cours_validation` : surveillant + instituteur ✅ (déjà OK)
+- `gestion_cours` : surveillant uniquement ❌ (à étendre à instituteur)
+- `cours_axes` : surveillant uniquement ❌ (à étendre à instituteur)
+
+**Décision J2** : noté, **pas implémenté maintenant**. Sera traité dans un sprint dédié "droits étendus instituteur" (post-landing).
+
+**Risque à valider avant impl** :
+- Un instituteur pourrait-il créer des cours qui s'appliquent à TOUS les élèves de l'école ? (probablement oui, donc à scoper)
+- Conflits possibles si 2 instituteurs créent des cours en parallèle
