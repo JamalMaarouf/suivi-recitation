@@ -815,7 +815,7 @@ export default function App() {
           {page === 'profil_instituteur'&& selectedInstituteur && <ProfilInstituteur instituteur={selectedInstituteur} {...pageProps} />}
           {page === 'comparaison'       && <Comparaison eleves={compareEleves} {...pageProps} />}
           {page === 'rapport_mensuel'   && <RapportMensuel {...pageProps} />}
-          {page === 'gestion'           && <Gestion {...pageProps} initialTab={gestionTab} setGestionTab={setGestionTabWithHistory} />}
+          {page === 'gestion'           && user.role === 'surveillant' && <Gestion {...pageProps} initialTab={gestionTab} setGestionTab={setGestionTabWithHistory} />}
           {page === 'niveaux'           && user.role === 'surveillant' && <GestionNiveaux {...pageProps} />}
           {page === 'ensembles'         && user.role === 'surveillant' && <GestionEnsembles {...pageProps} />}
           {page === 'examens'           && user.role === 'surveillant' && <GestionExamens {...pageProps} />}

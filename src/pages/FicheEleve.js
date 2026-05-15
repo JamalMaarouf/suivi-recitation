@@ -201,7 +201,7 @@ function PassageNiveauModal({ show, onClose, eleve, etat, user, lang, niveauxDis
   );
 }
 
-export default function FicheEleve({ eleve, user, navigate, goBack, lang, isMobile='fr' }) {
+export default function FicheEleve({ eleve, user, navigate, goBack, lang, isMobile=false }) {
   if (!eleve) return <div style={{padding:'2rem',textAlign:'center',color:'#888'}}>...</div>;
   const { toast } = useToast();
   const [validations, setValidations] = useState([]);
@@ -1776,6 +1776,9 @@ ${(passages||[]).length > 0 ? `
 
             {onglet==='muraja' && (
               <div>
+                <div style={{fontSize:12,color:'#856404',marginBottom:12,padding:'8px 12px',background:'#FFF3CD',borderRadius:8,border:'0.5px solid #EF9F2730'}}>
+                  ℹ️ {lang==='ar'?'هذه المراجعات الجماعية لا تؤثر على التقدم الفردي':"Ces muraja\u02bca collectives n'affectent pas la progression individuelle"}
+                </div>
                 {(murajaa.length+murajaaS.length)===0 ? (
                   <div style={{textAlign:'center',color:'#aaa',padding:'2rem'}}>
                     {lang==='ar'?'لا توجد مراجعات':"Aucune muraja'a"}
@@ -1786,7 +1789,9 @@ ${(passages||[]).length > 0 ? `
                     <span style={{fontSize:16}}>📖</span>
                     <div style={{flex:1}}>
                       <div style={{fontWeight:600,fontSize:13}}>
-                        {v.type_validation==='hizb_muraja'?`Hizb ${v.hizb_validation}`:v.sourate?.nom_ar||"Murajaʼa"}
+                        {v.type_validation==='hizb_muraja'
+                          ? `Hizb ${v.hizb_validation}`
+                          : (v.sourate?.[lang==='ar'?'nom_ar':'nom_fr'] || v.sourate?.nom_ar || "Murajaʼa")}
                       </div>
                       <div style={{fontSize:11,color:'#888'}}>{new Date(v.date_validation).toLocaleDateString(lang==='ar'?'ar-MA':'fr-FR')}</div>
                     </div>
