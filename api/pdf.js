@@ -550,13 +550,28 @@ function certificatCornerKhatim() {
 
 function certificatHeader(ecole, isAr) {
   // Nom école : préférer AR si dispo, sinon nom standard. Localité optionnelle.
-  const nomAr = ecole?.nom_ar || ecole?.nom || (isAr ? 'مدرسة قرآنية' : 'École Coranique');
+  // B5 J3 : préfixe "المدرسة القرآنية" devant le nom pour le caractère officiel
+  //         du document (= "École coranique X"). Logique intelligente : si le
+  //         nom contient déjà "مدرسة" (cas fréquent où l'école s'appelle déjà
+  //         "Madrasa X"), on ne préfixe pas pour éviter la redondance.
+  const PREFIXE_AR = 'المدرسة القرآنية';
+  const rawNomAr = ecole?.nom_ar || ecole?.nom || '';
+  let nomAr;
+  if (!rawNomAr) {
+    nomAr = 'مدرسة قرآنية';
+  } else if (rawNomAr.includes('مدرسة') || rawNomAr.includes('المدرسة')) {
+    // Le nom contient déjà "école" en arabe : on ne préfixe pas
+    nomAr = rawNomAr;
+  } else {
+    nomAr = `${PREFIXE_AR} ${rawNomAr}`;
+  }
+
   const nomFr = ecole?.nom || '';
   const ville = ecole?.ville || '';
   const pays = ecole?.pays || '';
   const localite = [ville, pays].filter(Boolean).join(', ');
   // Si on a un nom_ar distinct du nom, on affiche les deux ; sinon on n'affiche qu'une fois
-  const showFr = nomFr && nomFr !== nomAr;
+  const showFr = nomFr && nomFr !== (ecole?.nom_ar || nomFr);
   // Construire la 2e ligne proprement : pieces non-vides separees par ' · '
   const pieces = [];
   if (showFr) pieces.push(escapeHtml(nomFr));
