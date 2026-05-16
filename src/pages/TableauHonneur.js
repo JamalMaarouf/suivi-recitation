@@ -6,6 +6,7 @@ import { fetchAll } from '../lib/fetchAll';
 import { openPDF } from '../lib/pdf';
 import { exportExcelSimple } from '../lib/excel';
 import PageHeader from '../components/PageHeader';
+import PeriodeSelectorHybride from '../components/PeriodeSelectorHybride';
 import MobileSkeletonList from '../components/MobileSkeletonList';
 import { usePullToRefresh, PullToRefreshIndicator } from '../lib/usePullToRefresh';
 
@@ -67,6 +68,9 @@ export default function TableauHonneur({ user, navigate, goBack, lang='fr', isMo
   };
 
   // Calcul des points selon période sélectionnée
+  // Clés possibles : 'semaine' / 'mois' / 'trimestre' (rapides fixes)
+  //                  'bdd_<id>' (période définie en BDD via Gestion)
+  // Pas de 'global' pour TableauHonneur — toujours dans une période.
   const getPointsPeriode = (eleve) => {
     const now = new Date();
     if (periodeId === 'semaine') {
@@ -81,16 +85,49 @@ export default function TableauHonneur({ user, navigate, goBack, lang='fr', isMo
       const d = new Date(now); d.setMonth(now.getMonth() - 3); d.setDate(1);
       return calcPointsPeriode(eleve.validations, d, now, bareme, eleve.pointsEvenements);
     }
-    const p = periodes.find(x => x.id === periodeId);
+    // Periode BDD : clé prefixée "bdd_<id>" pour eviter collision avec rapides
+    const bddId = periodeId.startsWith('bdd_') ? periodeId.substring(4) : periodeId;
+    const p = periodes.find(x => x.id === bddId);
     if (p) return calcPointsPeriode(eleve.validations, p.date_debut, p.date_fin, bareme, eleve.pointsEvenements);
     return calcPointsPeriode(eleve.validations, new Date(0), now, bareme, eleve.pointsEvenements);
   };
 
-  const PERIODES_FIXES = [
-    { id: 'semaine', label: lang==='ar'?'الأسبوع':'Semaine' },
-    { id: 'mois',    label: lang==='ar'?'الشهر':'Mois' },
-    { id: 'trimestre', label: lang==='ar'?'الفصل (3 أشهر)':'Trimestre' },
+  // ─── Pattern hybride : 3 boutons rapides + dropdown "Plus" ────────────────
+  // Alignement avec ResultatsExamens.js (boutonsRapides + dropdownItems)
+  // Periodes rapides toujours visibles : Semaine / Mois / Trimestre.
+  // Le reste (periodes BDD) regroupe dans le dropdown par type.
+  const boutonsRapides = [
+    { key: 'semaine',   label: lang === 'ar' ? 'الأسبوع' : 'Semaine' },
+    { key: 'mois',      label: lang === 'ar' ? 'الشهر' : 'Mois' },
+    { key: 'trimestre', label: lang === 'ar' ? 'الفصل (3 أشهر)' : 'Trimestre (3 mois)' },
   ];
+
+  // Periodes BDD regroupees par type pour le dropdown
+  const periodesTrimestres = (periodes || []).filter(p => p.type === 'trimestre' || p.type === 'fasl');
+  const periodesSemestres  = (periodes || []).filter(p => p.type === 'semestre' || p.type === 'nisf');
+  const periodesAnnees     = (periodes || []).filter(p => p.type === 'annee' || p.type === 'sana');
+  const periodesAutres     = (periodes || []).filter(p =>
+    !['trimestre', 'fasl', 'semestre', 'nisf', 'annee', 'sana'].includes(p.type)
+  );
+
+  const dropdownItems = [
+    periodesTrimestres.length > 0 && {
+      groupe: lang === 'ar' ? 'الفصول الدراسية' : 'Trimestres',
+      items: periodesTrimestres.map(p => ({ key: 'bdd_' + p.id, label: p.nom_ar || p.nom }))
+    },
+    periodesSemestres.length > 0 && {
+      groupe: lang === 'ar' ? 'الأنصاف' : 'Semestres',
+      items: periodesSemestres.map(p => ({ key: 'bdd_' + p.id, label: p.nom_ar || p.nom }))
+    },
+    periodesAnnees.length > 0 && {
+      groupe: lang === 'ar' ? 'السنوات' : 'Années',
+      items: periodesAnnees.map(p => ({ key: 'bdd_' + p.id, label: p.nom_ar || p.nom }))
+    },
+    periodesAutres.length > 0 && {
+      groupe: lang === 'ar' ? 'فترات أخرى' : 'Autres périodes',
+      items: periodesAutres.map(p => ({ key: 'bdd_' + p.id, label: p.nom_ar || p.nom }))
+    },
+  ].filter(Boolean);
 
   const elevesClasses = useMemo(() => {
     const filtered = vue === 'global' ? eleves : eleves.filter(e => e.code_niveau === vue);
@@ -113,9 +150,11 @@ export default function TableauHonneur({ user, navigate, goBack, lang='fr', isMo
       ];
 
   const periodeLabel = () => {
-    const f = PERIODES_FIXES.find(p => p.id === periodeId);
+    const f = boutonsRapides.find(p => p.key === periodeId);
     if (f) return f.label;
-    const p = periodes.find(x => x.id === periodeId);
+    // Periode BDD : clé "bdd_<id>"
+    const bddId = periodeId.startsWith('bdd_') ? periodeId.substring(4) : periodeId;
+    const p = periodes.find(x => x.id === bddId);
     return p ? (p.nom_ar || p.nom) : '';
   };
 
@@ -305,31 +344,21 @@ export default function TableauHonneur({ user, navigate, goBack, lang='fr', isMo
         }
       />
 
-      {/* Sélecteur période */}
-      <div style={{marginBottom:'1rem'}}>
-        <div style={{fontSize:11,color:T.fgMuted,marginBottom:6,textAlign:'center',fontWeight:600}}>
-          {lang==='ar'?'الفترة':'Période'}
+      {/* Sélecteur période — pattern hybride aligne avec ResultatsExamens */}
+      <div style={{marginBottom:'1rem',maxWidth:720,margin:'0 auto 1rem'}}>
+        <div style={{fontSize:11,color:T.fgMuted,marginBottom:6,textAlign:'center',fontWeight:600,letterSpacing:0.5}}>
+          {lang==='ar'?'الفترة':'PÉRIODE'}
         </div>
-        <div style={{display:'flex',gap:6,flexWrap:'wrap',justifyContent:'center'}}>
-          {PERIODES_FIXES.map(p => (
-            <div key={p.id} onClick={()=>setPeriodeId(p.id)}
-              style={{padding:'5px 14px',borderRadius:20,cursor:'pointer',fontSize:12,fontWeight:periodeId===p.id?700:400,
-                background:periodeId===p.id?T.chipBgActive:T.chipBg,
-                color:periodeId===p.id?T.chipFgActive:T.chipFg,
-                border:'1px solid '+(periodeId===p.id?T.chipBgActive:T.chipBorder)}}>
-              {p.label}
-            </div>
-          ))}
-          {periodes.map(p => (
-            <div key={p.id} onClick={()=>setPeriodeId(p.id)}
-              style={{padding:'5px 14px',borderRadius:20,cursor:'pointer',fontSize:12,fontWeight:periodeId===p.id?700:400,
-                background:periodeId===p.id?'#534AB7':T.chipBg,
-                color:periodeId===p.id?'#fff':T.chipFg,
-                border:'1px solid '+(periodeId===p.id?'#534AB7':T.chipBorder),
-                direction:'rtl',fontFamily:"'Tajawal',Arial,sans-serif"}}>
-              {p.nom_ar||p.nom}
-            </div>
-          ))}
+        <div style={{display:'flex',justifyContent:'center'}}>
+          <PeriodeSelectorHybride
+            boutonsRapides={boutonsRapides}
+            dropdownItems={dropdownItems}
+            allowCustom={false}
+            periode={periodeId}
+            setPeriode={setPeriodeId}
+            lang={lang}
+            variant={isTV ? 'dark' : 'default'}
+          />
         </div>
       </div>
 
