@@ -1570,7 +1570,9 @@ ${(passages||[]).length > 0 ? `
                         border:'0.5px solid #e0e0d8',display:'flex',alignItems:'center',gap:10}}>
                         <div style={{flex:1}}>
                           <div style={{fontWeight:600,fontSize:13}}>
-                            {v.type_validation==='hizb_complet'?(lang==='ar'?'حزب كامل':'Hizb complet'):`T.${v.tomon_debut} ×${v.nombre_tomon}`}
+                            {v.type_validation==='hizb_complet'
+                              ? (lang==='ar'?'حزب كامل':'Hizb complet')
+                              : `${lang==='ar'?'ث':'T'}.${v.tomon_debut} ×${v.nombre_tomon}`}
                           </div>
                           <div style={{fontSize:11,color:'#888'}}>{new Date(v.date_validation).toLocaleDateString(lang==='ar'?'ar-MA':'fr-FR')}</div>
                         </div>
@@ -1600,7 +1602,11 @@ ${(passages||[]).length > 0 ? `
                       <span style={{fontSize:16}}>{isSourate?'📖':'✅'}</span>
                       <div style={{flex:1}}>
                         <div style={{fontWeight:600,fontSize:13}}>
-                          {isSourate?(v.sourate?.nom_ar||'Sourate'):(v.type_validation==='hizb_complet'?(lang==='ar'?'حزب كامل':'Hizb complet'):`T.${v.tomon_debut} ×${v.nombre_tomon}`)}
+                          {isSourate
+                            ? (v.sourate?.nom_ar||'Sourate')
+                            : (v.type_validation==='hizb_complet'
+                              ? (lang==='ar'?'حزب كامل':'Hizb complet')
+                              : `${lang==='ar'?'ث':'T'}.${v.tomon_debut} ×${v.nombre_tomon}`)}
                         </div>
                         <div style={{fontSize:11,color:'#888'}}>{new Date(v.date_validation).toLocaleDateString(lang==='ar'?'ar-MA':'fr-FR')}</div>
                       </div>
@@ -1995,8 +2001,8 @@ ${(passages||[]).length > 0 ? `
                     {/* Position de départ */}
                     <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:12}}>
                       {[
-                        {lbl:lang==='ar'?'حزب الانطلاق':lang==='en'?(lang==='ar'?'حزب الانطلاق':'Starting Hizb'):(lang==='ar'?'حزب الانطلاق':'Hizb de départ'),val:`Hizb ${eleve.hizb_depart}`,icon:'📍',color:'#085041',bg:'#E1F5EE'},
-                        {lbl:lang==='ar'?'ثُمن الانطلاق':lang==='en'?(lang==='ar'?'ثُمن الانطلاق':'Starting Tomon'):(lang==='ar'?'ثُمن الانطلاق':'Tomon de départ'),val:`T.${eleve.tomon_depart}`,icon:'📍',color:'#085041',bg:'#E1F5EE'},
+                        {lbl:lang==='ar'?'حزب الانطلاق':lang==='en'?(lang==='ar'?'حزب الانطلاق':'Starting Hizb'):(lang==='ar'?'حزب الانطلاق':'Hizb de départ'),val:`${lang==='ar'?'الحزب':'Hizb'} ${eleve.hizb_depart}`,icon:'📍',color:'#085041',bg:'#E1F5EE'},
+                        {lbl:lang==='ar'?'ثُمن الانطلاق':lang==='en'?(lang==='ar'?'ثُمن الانطلاق':'Starting Tomon'):(lang==='ar'?'ثُمن الانطلاق':'Tomon de départ'),val:`${lang==='ar'?'ث':'T'}.${eleve.tomon_depart}`,icon:'📍',color:'#085041',bg:'#E1F5EE'},
                         {lbl:lang==='ar'?'ثُمن مكتسب':lang==='en'?(lang==='ar'?'الأثمان المكتسبة':'Acquired Tomon'):(lang==='ar'?'الأثمان المكتسبة':'Tomon acquis'),val:etat.tomonAcquis,icon:'✓',color:'#1D9E75',bg:'#fff'},
                         {lbl:lang==='ar'?'حزب مكتمل':lang==='en'?(lang==='ar'?'حزب كامل':'Complete Hizb'):(lang==='ar'?'الأحزاب المكتملة':(lang==='ar'?'أحزاب مكتملة':'Hizb complets')),val:etat.hizbAcquisComplets,icon:'✓',color:'#EF9F27',bg:'#fff'},
                       ].map(k=>(

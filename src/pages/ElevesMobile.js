@@ -329,7 +329,7 @@ export default function ElevesMobile({ user, navigate, goBack, lang='ar' }) {
                       ? (lang==='ar'?'▲ طي':'▲ Réduire')
                       : (isSour(form.code_niveau)
                           ? `▼ ${lang==='ar'?'سور':'Sourates'} ${form.sourates_acquises||0}`
-                          : `▼ Hizb ${form.hizb_depart||0}, T.${form.tomon_depart||1}`)}
+                          : `▼ ${lang==='ar'?'الحزب':'Hizb'} ${form.hizb_depart||0}, ${lang==='ar'?'ث':'T'}.${form.tomon_depart||1}`)}
                   </button>
                 </div>
                 {showAcquis && (
@@ -495,7 +495,7 @@ export default function ElevesMobile({ user, navigate, goBack, lang='ar' }) {
                         {inst&&<span>👨‍🏫 {inst.prenom} {inst.nom}</span>}
                         {isSour(e.code_niveau)
                           ? <span style={{color:'#1D9E75',fontWeight:600}}>📖 {e.sourates_acquises||0}</span>
-                          : <span>H.{e.hizb_depart} T.{e.tomon_depart}</span>}
+                          : <span>{lang==='ar'?'ح':'H'}.{e.hizb_depart} {lang==='ar'?'ث':'T'}.{e.tomon_depart}</span>}
                         {e.telephone&&<span>📞 {e.telephone}</span>}
                       </div>
                     </div>

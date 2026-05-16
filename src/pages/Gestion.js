@@ -2348,7 +2348,7 @@ function PassageNiveauTab({ user, lang, niveaux, showMsg }) {
               <div className="field-group">
                 <label className="field-lbl">{lang==='ar'?'الثُّمن':'Tomon'}</label>
                 <select className="field-select" value={newRegle.tomon_depart_fixe} onChange={e=>setNewRegle({...newRegle,tomon_depart_fixe:e.target.value})}>
-                  {[1,2,3,4,5,6,7,8].map(n=><option key={n} value={n}>T.{n}</option>)}
+                  {[1,2,3,4,5,6,7,8].map(n=><option key={n} value={n}>{lang==='ar'?'ث':'T'}.{n}</option>)}
                 </select>
               </div>
             </div>
@@ -2390,7 +2390,7 @@ function PassageNiveauTab({ user, lang, niveaux, showMsg }) {
                   <div style={{fontSize:11,color:'#888',marginBottom:6}}>
                     {niveaux.find(n=>n.code===r.niveau_to)?.type==='sourate'
                       ? `📖 ${lang==='ar'?'السور المحفوظة:':'Sourates acquises:'} ${r.sourates_acquises_fixe}`
-                      : `📍 Hizb ${r.hizb_depart_fixe} · T.${r.tomon_depart_fixe}`
+                      : `📍 ${lang==='ar'?'الحزب':'Hizb'} ${r.hizb_depart_fixe} · ${lang==='ar'?'ث':'T'}.${r.tomon_depart_fixe}`
                     }
                   </div>
                 )}
@@ -2721,7 +2721,7 @@ function MobilePassageNiveauTab({ user, lang, niveaux, showMsg }) {
               <div><label style={{fontSize:12,fontWeight:600,color:'#666',display:'block',marginBottom:5}}>Tomon</label>
                 <select className="field-select"
                   value={newR.tomon_depart_fixe} onChange={e=>setNewR({...newR,tomon_depart_fixe:e.target.value})}>
-                  {[1,2,3,4,5,6,7,8].map(n=><option key={n} value={n}>T.{n}</option>)}
+                  {[1,2,3,4,5,6,7,8].map(n=><option key={n} value={n}>{lang==='ar'?'ث':'T'}.{n}</option>)}
                 </select></div>
             </div>
           )}
@@ -3957,7 +3957,7 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile,
       const inst = instituteurs.find(x=>x.id===e.instituteur_referent_id);
       const nc = (niveauxDyn||[]).find(n=>n.code===e.code_niveau)?.couleur || {'5B':'#534AB7','5A':'#378ADD','2M':'#1D9E75','2':'#EF9F27','1':'#E24B4A'}[e.code_niveau||'']||'#888';
       const isSour = (niveauxDyn||[]).find(n=>n.code===e.code_niveau)?.type==='sourate'||['5B','5A','2M'].includes(e.code_niveau||'');
-      const acquis = isSour ? (e.sourates_acquises||0)+' '+(lang==='ar'?'محفوظ':'sour.') : 'H.'+e.hizb_depart+' / T.'+e.tomon_depart;
+      const acquis = isSour ? (e.sourates_acquises||0)+' '+(lang==='ar'?'محفوظ':'sour.') : (lang==='ar'?'ح':'H')+'.'+e.hizb_depart+' / '+(lang==='ar'?'ث':'T')+'.'+e.tomon_depart;
       const niveauLabel = e.niveau==='Avancé'||e.niveau==='متقدم'?(lang==='ar'?'متقدم':'Avancé'):e.niveau==='Intermédiaire'||e.niveau==='متوسط'?(lang==='ar'?'متوسط':'Interm.'):(lang==='ar'?'مبتدئ':'Débutant');
       const niveauColor = e.niveau==='Avancé'||e.niveau==='متقدم'?'#085041':e.niveau==='Intermédiaire'||e.niveau==='متوسط'?'#378ADD':'#EF9F27';
       const bg = i%2===0?'#fff':'#f9f9f6';
@@ -4405,7 +4405,7 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
                       <span style={{padding:'1px 6px',borderRadius:10,background:`${nc}20`,color:nc,fontSize:10,fontWeight:700}}>{e.code_niveau||'?'}</span>
                       {e.eleve_id_ecole&&<span style={{fontSize:10,color:'#bbb'}}>#{e.eleve_id_ecole}</span>}
                       {isSour&&e.sourates_acquises>0&&<span style={{fontSize:10,color:'#1D9E75',fontWeight:600}}>📖 {e.sourates_acquises}</span>}
-                      {!isSour&&<span style={{fontSize:10,color:'#888'}}>H.{e.hizb_depart} T.{e.tomon_depart}</span>}
+                      {!isSour&&<span style={{fontSize:10,color:'#888'}}>{lang==='ar'?'ح':'H'}.{e.hizb_depart} {lang==='ar'?'ث':'T'}.{e.tomon_depart}</span>}
                     </div>
                     {/* M2b — Coordonnees : tel eleve + email parent + date inscription */}
                     {(e.telephone||emailParent||e.date_inscription)&&(
@@ -5224,7 +5224,7 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
                     <label className="field-lbl" style={{ margin: 0 }}>{t(lang, 'acquis_anterieurs')}</label>
                     <button onClick={() => setShowAcquisSelector(!showAcquisSelector)}
                       style={{ padding: '4px 12px', border: '0.5px solid #e0e0d8', borderRadius: 6, background: showAcquisSelector ? '#E1F5EE' : '#fff', fontSize: 11, cursor: 'pointer', color: showAcquisSelector ? '#085041' : '#666' }}>
-                      {showAcquisSelector ? '▲ Réduire' : `▼ Hizb ${newEleve.hizb_depart}, T.${newEleve.tomon_depart}`}
+                      {showAcquisSelector ? (lang==='ar'?'▲ طي':'▲ Réduire') : `▼ ${lang==='ar'?'الحزب':'Hizb'} ${newEleve.hizb_depart}, ${lang==='ar'?'ث':'T'}.${newEleve.tomon_depart}`}
                     </button>
                   </div>
                   {showAcquisSelector && (
@@ -5332,7 +5332,7 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
                     <label className="field-lbl" style={{ margin: 0 }}>{t(lang, 'acquis_anterieurs')}</label>
                     <button onClick={() => setEditShowAcquisSelector(!editShowAcquisSelector)}
                       style={{ padding: '4px 12px', border: '0.5px solid #e0e0d8', borderRadius: 6, background: editShowAcquisSelector ? '#E1F5EE' : '#fff', fontSize: 11, cursor: 'pointer', color: editShowAcquisSelector ? '#085041' : '#666' }}>
-                      {editShowAcquisSelector ? '▲ Réduire' : `▼ Hizb ${editEleve.hizb_depart}, T.${editEleve.tomon_depart}`}
+                      {editShowAcquisSelector ? (lang==='ar'?'▲ طي':'▲ Réduire') : `▼ ${lang==='ar'?'الحزب':'Hizb'} ${editEleve.hizb_depart}, ${lang==='ar'?'ث':'T'}.${editEleve.tomon_depart}`}
                     </button>
                   </div>
                   {editShowAcquisSelector && (
@@ -5536,8 +5536,8 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
                               <span style={{fontSize:9,color:'#aaa',fontWeight:400,marginLeft:4}}>{lang==='ar'?'سور':'sourates'}</span>
                             </div>
                           : <div style={{fontSize:11,color:'#534AB7',fontWeight:600,whiteSpace:'nowrap'}}>
-                              <span>H.{e.hizb_depart}</span>
-                              <span style={{fontSize:9,color:'#888',fontWeight:400,marginLeft:4}}>T.{e.tomon_depart}</span>
+                              <span>{lang==='ar'?'ح':'H'}.{e.hizb_depart}</span>
+                              <span style={{fontSize:9,color:'#888',fontWeight:400,marginLeft:4}}>{lang==='ar'?'ث':'T'}.{e.tomon_depart}</span>
                             </div>
                         }
                       </td>
