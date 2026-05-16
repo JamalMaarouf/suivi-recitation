@@ -715,8 +715,8 @@ export default function EnregistrerRecitation({  user, eleve: eleveInitial, navi
             const jours = Math.round((new Date() - new Date(appr.date_debut)) / (1000 * 60 * 60 * 24));
             return (
               <div style={{ padding: '10px 14px', background: '#E6F1FB', border: '0.5px solid #85B7EB', borderRadius: 8, marginBottom: '1rem', fontSize: 12, color: '#0C447C' }}>
-                ⏱ <strong>T.{etat.prochainTomon}</strong> en apprentissage depuis <strong>{jours} jour{jours > 1 ? 's' : ''}</strong>
-                {jours > 14 && <span style={{ color: '#E24B4A', marginLeft: 6 }}>⚠️ Apprentissage long</span>}
+                ⏱ <strong>{lang==='ar'?'ث':'T'}.{etat.prochainTomon}</strong> {lang==='ar'?'في طور التعلم منذ':'en apprentissage depuis'} <strong>{jours} {lang==='ar'?(jours>1?'أيام':'يوم'):(jours>1?'jours':'jour')}</strong>
+                {jours > 14 && <span style={{ color: '#E24B4A', marginLeft: 6 }}>⚠️ {lang==='ar'?'تعلم طويل':'Apprentissage long'}</span>}
               </div>
             );
           })()}
