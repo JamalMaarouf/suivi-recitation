@@ -253,7 +253,22 @@ function App() {
   useEffect(() => {
     const saved = localStorage.getItem('suivi_user');
     if (saved) setUser(JSON.parse(saved));
-    const handleResize = () => setIsMobile(window.innerWidth < 768);
+
+    // Resize handler debounce a 250ms.
+    // CONTEXTE : sans debounce, Chrome 'Capture full size screenshot' fait
+    // des resizes rapides (~10-50ms) qui bascule l'app entre mode mobile et
+    // desktop pendant la capture. Comme certains composants ont des hooks
+    // conditionnels selon isMobile, on declenche React error #300 ('fewer
+    // hooks than expected') et la capture est blanche.
+    // Un user normal ne resize jamais en <250ms, donc l'experience est
+    // identique pour eux.
+    let resizeTimer = null;
+    const handleResize = () => {
+      if (resizeTimer) clearTimeout(resizeTimer);
+      resizeTimer = setTimeout(() => {
+        setIsMobile(window.innerWidth < 768);
+      }, 250);
+    };
     window.addEventListener('resize', handleResize);
 
     // Raccourci clavier global Ctrl+K (ou Cmd+K sur Mac) pour la recherche
@@ -273,6 +288,7 @@ function App() {
     return () => {
       window.removeEventListener('resize', handleResize);
       window.removeEventListener('keydown', handleKeyDown);
+      if (resizeTimer) clearTimeout(resizeTimer);
     };
   }, []);
 
