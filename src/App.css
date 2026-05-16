@@ -191,13 +191,32 @@ tr.inactive td.name-cell { color: #A32D2D; font-weight: 500; }
   gap: 16px; margin-bottom: 1.25rem;
 }
 
-/* ── Section label ── */
+/* ── Section label (refonte J7 : barre verticale colorée pour hiérarchie) ── */
 .section-label {
-  font-size: 11px; font-weight: 700; color: #888;
-  text-transform: uppercase; letter-spacing: 0.6px;
-  margin-bottom: 12px; margin-top: 4px;
-  padding-bottom: 6px; border-bottom: 1px solid #f0f0ec;
+  font-size: 12px; font-weight: 700; color: #444;
+  text-transform: uppercase; letter-spacing: 1px;
+  margin-bottom: 14px; margin-top: 8px;
+  padding: 6px 0 6px 12px;
+  border-left: 3px solid #1D9E75;
+  display: flex; align-items: center; gap: 8px;
 }
+/* Variantes couleur sémantique (override via inline style ou class) */
+.section-label.section-label--gold   { border-left-color: #EF9F27; }
+.section-label.section-label--blue   { border-left-color: #378ADD; }
+.section-label.section-label--purple { border-left-color: #534AB7; }
+.section-label.section-label--red    { border-left-color: #E24B4A; }
+.section-label.section-label--amber  { border-left-color: #EF9F27; }
+/* En RTL : barre passe à droite */
+[dir="rtl"] .section-label {
+  border-left: none;
+  border-right: 3px solid #1D9E75;
+  padding: 6px 12px 6px 0;
+}
+[dir="rtl"] .section-label.section-label--gold   { border-right-color: #EF9F27; border-left-color: transparent; }
+[dir="rtl"] .section-label.section-label--blue   { border-right-color: #378ADD; border-left-color: transparent; }
+[dir="rtl"] .section-label.section-label--purple { border-right-color: #534AB7; border-left-color: transparent; }
+[dir="rtl"] .section-label.section-label--red    { border-right-color: #E24B4A; border-left-color: transparent; }
+[dir="rtl"] .section-label.section-label--amber  { border-right-color: #EF9F27; border-left-color: transparent; }
 
 /* ── Card ── */
 .card {
@@ -438,7 +457,6 @@ tr.inactive td.name-cell { color: #A32D2D; font-weight: 500; }
 [dir="rtl"] .stat-card { direction: rtl; }
 [dir="rtl"] .card { direction: rtl; }
 [dir="rtl"] .badge { direction: rtl; }
-[dir="rtl"] .section-label { text-align: right; }
 [dir="rtl"] .page-title { text-align: right; }
 [dir="rtl"] .recap-row { flex-direction: row-reverse; }
 [dir="rtl"] .tabs-row { flex-direction: row-reverse; }

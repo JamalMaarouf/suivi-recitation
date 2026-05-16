@@ -679,8 +679,9 @@ export default function Dashboard({ user, navigate, goBack, lang, isMobile=false
           </div>
           {certifNotifs.length>0&&(
             <div style={{marginBottom:'1.25rem'}}>
-              <div className="section-label" style={{color:'#EF9F27'}}>
-                🏅 {lang==='ar'?'شهادات في انتظار التسليم':'Certificats à délivrer'} ({certifNotifs.length})
+              <div className="section-label section-label--gold">
+                <span style={{fontSize:14}}>🏅</span>
+                {lang==='ar'?'شهادات في انتظار التسليم':'Certificats à délivrer'} ({certifNotifs.length})
               </div>
               <div style={{display:'flex',flexDirection:'column',gap:6}}>
                 {certifNotifs.map((n,i)=>(
@@ -705,21 +706,53 @@ export default function Dashboard({ user, navigate, goBack, lang, isMobile=false
               </div>
             </div>
           )}
-          {alertes.length>0&&(<><div className="section-label">{t(lang,'alertes')} ({alertes.length})</div><div style={{display:'flex',flexDirection:'column',gap:6,marginBottom:'1.25rem'}}>{alertes.slice(0,5).map((a,i)=>(<div key={i} onClick={()=>navigate('fiche',a.eleve)} onMouseEnter={()=>prefetchEleve(a.eleve.id)} onTouchStart={()=>prefetchEleve(a.eleve.id)} style={{display:'flex',alignItems:'center',gap:12,padding:'10px 14px',background:a.bg,borderLeft:`4px solid ${a.color}`,borderRadius:'0 10px 10px 0',cursor:'pointer'}}><span style={{fontSize:18}}>{a.icon}</span><span style={{fontSize:13,color:a.color,flex:1}}>{a.msg}</span><span style={{fontSize:11,color:a.color,opacity:0.6}}>›</span></div>))}</div></>)}
-          <div className="section-label">{t(lang,'podium')}</div>
-          <div style={{display:'flex',alignItems:'flex-end',justifyContent:'center',gap:10,marginBottom:'1.5rem'}}>
+          {alertes.length>0&&(<><div className="section-label section-label--amber"><span style={{fontSize:14}}>🔔</span>{t(lang,'alertes')} ({alertes.length})</div><div style={{display:'flex',flexDirection:'column',gap:6,marginBottom:'1.25rem'}}>{alertes.slice(0,5).map((a,i)=>(<div key={i} onClick={()=>navigate('fiche',a.eleve)} onMouseEnter={()=>prefetchEleve(a.eleve.id)} onTouchStart={()=>prefetchEleve(a.eleve.id)} style={{display:'flex',alignItems:'center',gap:12,padding:'10px 14px',background:a.bg,borderLeft:`4px solid ${a.color}`,borderRadius:'0 10px 10px 0',cursor:'pointer'}}><span style={{fontSize:18}}>{a.icon}</span><span style={{fontSize:13,color:a.color,flex:1}}>{a.msg}</span><span style={{fontSize:11,color:a.color,opacity:0.6}}>›</span></div>))}</div></>)}
+          <div className="section-label section-label--gold"><span style={{fontSize:14}}>🏆</span>{t(lang,'podium')}</div>
+          <div style={{display:'flex',alignItems:'flex-end',justifyContent:'center',gap:14,marginBottom:'1.5rem',padding:'8px 0 0'}}>
             {[1,0,2].map(rank=>{
               const e=[...eleves].sort((a,b)=>b.etat.points.total-a.etat.points.total)[rank];
               if(!e) return null;
-              const pc=['#EF9F27','#B0B0B0','#CD7F32'],pb=['#FAEEDA','#f5f5f0','#f9f3ec'],ph=[140,110,90];
-              return(<div key={e.id} onClick={()=>navigate('fiche',e)} onMouseEnter={()=>prefetchEleve(e.id)} onTouchStart={()=>prefetchEleve(e.id)} style={{flex:1,display:'flex',flexDirection:'column',alignItems:'center',cursor:'pointer',maxWidth:160}}>{rank===0&&<div style={{fontSize:20,marginBottom:2}}>👑</div>}<Avatar prenom={e.prenom} nom={e.nom} size={rank===0?52:42} bg={pb[rank]} color={pc[rank]}/><div style={{fontSize:rank===0?13:12,fontWeight:600,marginTop:6,textAlign:'center'}}>{e.prenom} {e.nom}</div><div style={{fontSize:rank===0?15:13,fontWeight:700,color:pc[rank],margin:'4px 0'}}>{e.etat.points.total.toLocaleString()} {t(lang,'pts_abrev')}</div><div style={{width:'100%',height:ph[rank],background:pb[rank],border:`0.5px solid ${pc[rank]}40`,borderRadius:'8px 8px 0 0',display:'flex',alignItems:'center',justifyContent:'center'}}><span style={{fontSize:rank===0?36:28,fontWeight:800,color:pc[rank],opacity:0.7}}>{rank+1}</span></div></div>);
+              // J7 polish : couleurs vives or/argent/bronze + gradients + ombres
+              // Or vif (#EF9F27 + #FFC55A), Argent (#9E9E9E + #C8C8C8), Bronze (#CD7F32 + #E8A55F)
+              const pc = ['#D48717','#7A7A7A','#A36422']; // Texte/bordure foncé
+              const pcLight = ['#EF9F27','#9E9E9E','#CD7F32']; // Couleur principale
+              const pbGrad = [
+                'linear-gradient(180deg,#FFE7B5 0%,#FAC775 100%)',  // or doré profond
+                'linear-gradient(180deg,#EEEEEE 0%,#C8C8C8 100%)',  // argent métallique
+                'linear-gradient(180deg,#F0CD9F 0%,#D6985B 100%)',  // bronze cuivré
+              ];
+              const pbSoft = ['#FFF5E0','#F5F5F5','#FCEDD8']; // pour fond avatar
+              const ph = [150, 110, 88]; // 1ère vraiment dominante (150px vs 110/88)
+              const medals = ['🥇','🥈','🥉'];
+              return(
+                <div key={e.id} onClick={()=>navigate('fiche',e)} onMouseEnter={()=>prefetchEleve(e.id)} onTouchStart={()=>prefetchEleve(e.id)}
+                  style={{flex:1,display:'flex',flexDirection:'column',alignItems:'center',cursor:'pointer',maxWidth:170}}>
+                  {rank===0&&<div style={{fontSize:24,marginBottom:4,lineHeight:1}}>👑</div>}
+                  <Avatar prenom={e.prenom} nom={e.nom} size={rank===0?54:44} bg={pbSoft[rank]} color={pcLight[rank]}/>
+                  <div style={{fontSize:rank===0?13:12,fontWeight:700,marginTop:6,textAlign:'center',color:'#1a1a1a'}}>{e.prenom} {e.nom}</div>
+                  <div style={{fontSize:rank===0?15:13,fontWeight:800,color:pc[rank],margin:'3px 0 8px'}}>{e.etat.points.total.toLocaleString()} {t(lang,'pts_abrev')}</div>
+                  <div style={{
+                    width:'100%',height:ph[rank],
+                    background:pbGrad[rank],
+                    border:`1.5px solid ${pcLight[rank]}`,
+                    borderRadius:'10px 10px 0 0',
+                    display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:4,
+                    boxShadow:rank===0?`0 4px 14px ${pcLight[rank]}55`:`0 2px 8px ${pcLight[rank]}30`,
+                    position:'relative',
+                  }}>
+                    <span style={{fontSize:rank===0?30:22,lineHeight:1}}>{medals[rank]}</span>
+                    <span style={{fontSize:rank===0?38:30,fontWeight:900,color:'#fff',
+                      textShadow:`0 1px 3px ${pc[rank]}90`,lineHeight:1}}>{rank+1}</span>
+                  </div>
+                </div>
+              );
             })}
           </div>
           <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'1rem'}}>
-            <div><div className="section-label">{t(lang,'a_relancer')}</div>{eleves.filter(e=>e.inactif).length===0?<div style={{padding:'1rem',background:C.greenBg,borderRadius:10,fontSize:13,color:'#085041',textAlign:'center'}}>{t(lang,'tous_actifs')}</div>:(<div style={{display:'flex',flexDirection:'column',gap:6}}>{[...eleves].filter(e=>e.inactif).sort((a,b)=>(b.jours||0)-(a.jours||0)).slice(0,5).map(e=>(<div key={e.id} onClick={()=>navigate('fiche',e)} onMouseEnter={()=>prefetchEleve(e.id)} onTouchStart={()=>prefetchEleve(e.id)} style={{display:'flex',alignItems:'center',gap:10,padding:'10px 12px',background:e.jours>30?C.redBg:C.amberBg,borderRadius:10,cursor:'pointer'}}><Avatar prenom={e.prenom} nom={e.nom} size={30} bg="transparent" color={e.jours>30?C.red:'#633806'}/><div style={{flex:1}}><div style={{fontSize:13,fontWeight:500,color:e.jours>30?C.red:'#412402'}}>{e.prenom} {e.nom}</div><div style={{fontSize:11,color:e.jours>30?'#A32D2D':'#854F0B',opacity:0.8}}>{e.instituteurNom}</div></div><div style={{fontSize:13,fontWeight:700,color:e.jours>30?C.red:'#633806'}}>{e.jours!=null?`${e.jours} ${t(lang,'jour')}`:'∞'}</div></div>))}</div>)}</div>
-            <div><div className="section-label">{t(lang,'attente_hizb')}</div>{nbAttente===0?<div style={{padding:'1rem',background:C.greenBg,borderRadius:10,fontSize:13,color:'#085041',textAlign:'center'}}>{t(lang,'aucun_attente')}</div>:(<div style={{display:'flex',flexDirection:'column',gap:6}}>{eleves.filter(e=>e.etat.enAttenteHizbComplet).map(e=>(<div key={e.id} onClick={()=>navigate('enregistrer',e)} style={{display:'flex',alignItems:'center',gap:10,padding:'10px 12px',background:C.amberBg,border:`0.5px solid ${C.amber}40`,borderRadius:10,cursor:'pointer'}}><Avatar prenom={e.prenom} nom={e.nom} size={30} bg="#FAC775" color="#412402"/><div style={{flex:1}}><div style={{fontSize:13,fontWeight:500,color:'#412402'}}>{e.prenom} {e.nom}</div><div style={{fontSize:11,color:'#854F0B'}}>Hizb {e.etat.hizbEnCours} · {e.instituteurNom}</div></div><span style={{fontSize:10,background:C.amber,color:'#fff',borderRadius:20,padding:'2px 8px',fontWeight:600}}>{t(lang,'valider')}</span></div>))}</div>)}</div>
+            <div><div className="section-label section-label--red"><span style={{fontSize:14}}>📞</span>{t(lang,'a_relancer')}</div>{eleves.filter(e=>e.inactif).length===0?<div style={{padding:'1rem',background:C.greenBg,borderRadius:10,fontSize:13,color:'#085041',textAlign:'center'}}>{t(lang,'tous_actifs')}</div>:(<div style={{display:'flex',flexDirection:'column',gap:6}}>{[...eleves].filter(e=>e.inactif).sort((a,b)=>(b.jours||0)-(a.jours||0)).slice(0,5).map(e=>(<div key={e.id} onClick={()=>navigate('fiche',e)} onMouseEnter={()=>prefetchEleve(e.id)} onTouchStart={()=>prefetchEleve(e.id)} style={{display:'flex',alignItems:'center',gap:10,padding:'10px 12px',background:e.jours>30?C.redBg:C.amberBg,borderRadius:10,cursor:'pointer'}}><Avatar prenom={e.prenom} nom={e.nom} size={30} bg="transparent" color={e.jours>30?C.red:'#633806'}/><div style={{flex:1}}><div style={{fontSize:13,fontWeight:500,color:e.jours>30?C.red:'#412402'}}>{e.prenom} {e.nom}</div><div style={{fontSize:11,color:e.jours>30?'#A32D2D':'#854F0B',opacity:0.8}}>{e.instituteurNom}</div></div><div style={{fontSize:13,fontWeight:700,color:e.jours>30?C.red:'#633806'}}>{e.jours!=null?`${e.jours} ${t(lang,'jour')}`:'∞'}</div></div>))}</div>)}</div>
+            <div><div className="section-label section-label--amber"><span style={{fontSize:14}}>⏳</span>{t(lang,'attente_hizb')}</div>{nbAttente===0?<div style={{padding:'1rem',background:C.greenBg,borderRadius:10,fontSize:13,color:'#085041',textAlign:'center'}}>{t(lang,'aucun_attente')}</div>:(<div style={{display:'flex',flexDirection:'column',gap:6}}>{eleves.filter(e=>e.etat.enAttenteHizbComplet).map(e=>(<div key={e.id} onClick={()=>navigate('enregistrer',e)} style={{display:'flex',alignItems:'center',gap:10,padding:'10px 12px',background:C.amberBg,border:`0.5px solid ${C.amber}40`,borderRadius:10,cursor:'pointer'}}><Avatar prenom={e.prenom} nom={e.nom} size={30} bg="#FAC775" color="#412402"/><div style={{flex:1}}><div style={{fontSize:13,fontWeight:500,color:'#412402'}}>{e.prenom} {e.nom}</div><div style={{fontSize:11,color:'#854F0B'}}>Hizb {e.etat.hizbEnCours} · {e.instituteurNom}</div></div><span style={{fontSize:10,background:C.amber,color:'#fff',borderRadius:20,padding:'2px 8px',fontWeight:600}}>{t(lang,'valider')}</span></div>))}</div>)}</div>
           </div>
-          <div className="section-label">{t(lang,'activite_recente')}</div>
+          <div className="section-label section-label--blue"><span style={{fontSize:14}}>📊</span>{t(lang,'activite_recente')}</div>
           <div className="table-wrap"><table><thead><tr><th style={{width:'18%'}}>{lang==='ar'?'التاريخ':'Date'}</th><th style={{width:'28%'}}>{t(lang,'eleve')}</th><th style={{width:'30%'}}>{lang==='ar'?'الاستظهار':'Validation'}</th><th style={{width:'24%'}}>{t(lang,'valide_par')}</th></tr></thead><tbody>{allValidations.slice(0,8).length===0&&<tr><td colSpan={4} className="empty">{t(lang,'aucune_activite')}</td></tr>}{allValidations.slice(0,8).map(v=>{const e=eleves.find(el=>el.id===v.eleve_id);return(<tr key={v.id} className={e?'clickable':''} onClick={()=>e&&navigate('fiche',e)}><td style={{fontSize:12,color:C.muted}}>{formatDateCourt(v.date_validation)}</td><td>{e?<div style={{display:'flex',alignItems:'center',gap:6}}><Avatar prenom={e.prenom} nom={e.nom} size={22}/><span style={{fontSize:13}}>{e.prenom} {e.nom}</span></div>:'—'}</td><td>{v.type_validation==='hizb_complet'?<span className="badge badge-green">Hizb {v.hizb_valide} {lang==='ar'?'مكتمل':'complet'}</span>:<span className="badge badge-blue">{v.nombre_tomon} {t(lang,'tomon_abrev')}{v.tomon_debut?` (T.${v.tomon_debut}→${v.tomon_debut+v.nombre_tomon-1})`:''}</span>}</td><td style={{fontSize:12,color:C.muted}}>{v.valideur?`${v.valideur.prenom} ${v.valideur.nom}`:'—'}</td></tr>);})}</tbody></table></div>
         </>
       )}
@@ -736,7 +769,15 @@ export default function Dashboard({ user, navigate, goBack, lang, isMobile=false
               {[['points_desc',t(lang,'tri_score_desc')],['points_asc',t(lang,'tri_score_asc')],['hizb_desc',t(lang,'tri_hizb_desc')],['hizb_asc',t(lang,'tri_hizb_asc')],['nom_asc',t(lang,'tri_nom')],['recente',t(lang,'tri_recente')],['inactif',t(lang,'tri_inactif')]].map(([k,l])=>(
                 <div key={k} onClick={()=>setTri(k)} style={{padding:'4px 12px',borderRadius:20,fontSize:11,cursor:'pointer',background:tri===k?C.greenBg:'#f5f5f0',color:tri===k?'#085041':C.muted,border:`0.5px solid ${tri===k?C.green:C.border}`,fontWeight:tri===k?500:400}}>{l}</div>
               ))}
-              <span style={{fontSize:11,color:C.muted,marginLeft:'auto'}}>{elevesFiltres.length} {t(lang,'eleves')}</span>
+              {/* J7 polish : compteur visuellement detache des chips de tri.
+                  borderInlineStart se traduit automatiquement en border-left (LTR)
+                  ou border-right (RTL). paddingInlineStart pareil. */}
+              <div style={{marginInlineStart:'auto',display:'flex',alignItems:'center',gap:6,
+                paddingInlineStart:12,borderInlineStart:`1px solid ${C.border}`,fontSize:11,color:C.muted}}>
+                <span style={{fontSize:14}}>👥</span>
+                <strong style={{color:C.dark,fontWeight:700}}>{elevesFiltres.length}</strong>
+                <span>{t(lang,'eleves')}</span>
+              </div>
             </div>
           </div>
           {elevesFiltres.length===0?<div className="empty">{t(lang,'aucun_eleve')}</div>:(
@@ -761,10 +802,40 @@ export default function Dashboard({ user, navigate, goBack, lang, isMobile=false
                         <Medaille idx={rang-1}/>
                       </div>
                       <div style={{display:'flex',alignItems:'baseline',gap:4,marginBottom:10}}>
-                        <span style={{fontSize:28,fontWeight:800,color:sl.color,letterSpacing:'-1px'}}>
-                          {isSourateNiveauDyn(eleve.code_niveau,niveaux)?eleve.recSouratesCount.toLocaleString():eleve.etat.points.total.toLocaleString()}
-                        </span>
-                        <span style={{fontSize:12,color:C.muted}}>{isSourateNiveauDyn(eleve.code_niveau,niveaux)?(lang==='ar'?'سورة':'sour.'):t(lang,'pts_abrev')}</span>
+                        {(() => {
+                          // J7 polish : si niveau Sourate -> nb sourates
+                          //              sinon si points total = 0 -> nb Hizb complets (donnee alternative qui parle)
+                          //              sinon points total
+                          const isSourate = isSourateNiveauDyn(eleve.code_niveau, niveaux);
+                          const points = eleve.etat.points.total || 0;
+                          const hizbComplets = eleve.etat.hizbsComplets?.size || 0;
+                          if (isSourate) {
+                            return (<>
+                              <span style={{fontSize:28,fontWeight:800,color:sl.color,letterSpacing:'-1px'}}>
+                                {eleve.recSouratesCount.toLocaleString()}
+                              </span>
+                              <span style={{fontSize:12,color:C.muted}}>
+                                {lang==='ar'?'سورة':'sour.'}
+                              </span>
+                            </>);
+                          }
+                          if (points === 0 && hizbComplets > 0) {
+                            return (<>
+                              <span style={{fontSize:28,fontWeight:800,color:sl.color,letterSpacing:'-1px'}}>
+                                {hizbComplets}
+                              </span>
+                              <span style={{fontSize:12,color:C.muted}}>
+                                {lang==='ar'?'حزب مكتمل':'Hizb complet'}{hizbComplets>1?(lang==='ar'?'':'s'):''}
+                              </span>
+                            </>);
+                          }
+                          return (<>
+                            <span style={{fontSize:28,fontWeight:800,color:sl.color,letterSpacing:'-1px'}}>
+                              {points.toLocaleString()}
+                            </span>
+                            <span style={{fontSize:12,color:C.muted}}>{t(lang,'pts_abrev')}</span>
+                          </>);
+                        })()}
                       </div>
                       {isSourateNiveauDyn(eleve.code_niveau,niveaux)?(
                         <div style={{fontSize:11,color:C.muted,marginBottom:6}}>
