@@ -1916,14 +1916,34 @@ ${(passages||[]).length > 0 ? `
                 </div>
               </div>
               <div style={{textAlign:'right'}}>
-                <div style={{fontSize:38,fontWeight:800,color:sl.color,letterSpacing:'-2px'}}>
-                  {estSourateEleve
-                    ? recitationsSouratesEleve.filter(r=>r.type_recitation==='complete').length
-                    : (etat?.points.total.toLocaleString()||0)}
-                </div>
-                <div style={{fontSize:11,color:'#888'}}>
-                  {estSourateEleve?(lang==='ar'?'سورة مكتملة':'sourates'):t(lang,'pts_abrev')}
-                </div>
+                {(() => {
+                  // J7 polish : logique en 3 niveaux pour le score affiche en gros.
+                  //  1. Eleve Sourate -> nb sourates completes (existant)
+                  //  2. Eleve Hizb avec points=0 ET au moins 1 Hizb complete -> 'X Hizb complets'
+                  //     (donnees riches pour les ecoles sans bareme parametre)
+                  //  3. Sinon -> points total comme avant
+                  if (estSourateEleve) {
+                    const nbSourates = recitationsSouratesEleve.filter(r=>r.type_recitation==='complete').length;
+                    return (<>
+                      <div style={{fontSize:38,fontWeight:800,color:sl.color,letterSpacing:'-2px'}}>{nbSourates}</div>
+                      <div style={{fontSize:11,color:'#888'}}>{lang==='ar'?'سورة مكتملة':'sourates'}</div>
+                    </>);
+                  }
+                  const points = etat?.points.total || 0;
+                  const hizbComplets = etat?.hizbsComplets?.size || 0;
+                  if (points === 0 && hizbComplets > 0) {
+                    return (<>
+                      <div style={{fontSize:38,fontWeight:800,color:sl.color,letterSpacing:'-2px'}}>{hizbComplets}</div>
+                      <div style={{fontSize:11,color:'#888'}}>
+                        {lang==='ar'?(hizbComplets>1?'أحزاب مكتملة':'حزب مكتمل'):(hizbComplets>1?'Hizb complets':'Hizb complet')}
+                      </div>
+                    </>);
+                  }
+                  return (<>
+                    <div style={{fontSize:38,fontWeight:800,color:sl.color,letterSpacing:'-2px'}}>{points.toLocaleString()}</div>
+                    <div style={{fontSize:11,color:'#888'}}>{t(lang,'pts_abrev')}</div>
+                  </>);
+                })()}
               </div>
             </div>
 
@@ -2255,9 +2275,18 @@ ${(passages||[]).length > 0 ? `
               ) : (
                 <>
                   <div className="position-card">
-                    <div className="pos-block"><div className="pos-val">{etat?.hizbEnCours}</div><div className="pos-lbl">{lang==='ar' ? 'حزب' : 'Hizb'}</div></div>
-                    <div className="pos-block"><div className="pos-val">{etat?.tomonDansHizbActuel}/8</div><div className="pos-lbl">{t(lang,'tomon_abrev')}</div></div>
-                    <div className="pos-block"><div className="pos-val" style={{fontSize:14}}>{etat?.enAttenteHizbComplet?'⏳':etat?.prochainTomon?`T.${etat.prochainTomon}`:'✓'}</div><div className="pos-lbl">{t(lang,'prochain')}</div></div>
+                    <div className="pos-block">
+                      <div className="pos-val">{etat?.hizbEnCours||'—'}</div>
+                      <div className="pos-lbl">{lang==='ar'?'الحزب الحالي':'Hizb actuel'}</div>
+                    </div>
+                    <div className="pos-block">
+                      <div className="pos-val">{etat?.tomonDansHizbActuel||0}/8</div>
+                      <div className="pos-lbl">{lang==='ar'?'الأثمان المعتمدة':'Tomon validés'}</div>
+                    </div>
+                    <div className="pos-block">
+                      <div className="pos-val" style={{fontSize:14}}>{etat?.enAttenteHizbComplet?'⏳':etat?.prochainTomon?`T.${etat.prochainTomon}`:'✓'}</div>
+                      <div className="pos-lbl">{lang==='ar'?'الثُمن التالي':'Tomon suivant'}</div>
+                    </div>
                   </div>
                   <div className="card">
                     <div style={{display:'flex',gap:4,marginBottom:8}}>
