@@ -769,7 +769,15 @@ export default function Dashboard({ user, navigate, goBack, lang, isMobile=false
               {[['points_desc',t(lang,'tri_score_desc')],['points_asc',t(lang,'tri_score_asc')],['hizb_desc',t(lang,'tri_hizb_desc')],['hizb_asc',t(lang,'tri_hizb_asc')],['nom_asc',t(lang,'tri_nom')],['recente',t(lang,'tri_recente')],['inactif',t(lang,'tri_inactif')]].map(([k,l])=>(
                 <div key={k} onClick={()=>setTri(k)} style={{padding:'4px 12px',borderRadius:20,fontSize:11,cursor:'pointer',background:tri===k?C.greenBg:'#f5f5f0',color:tri===k?'#085041':C.muted,border:`0.5px solid ${tri===k?C.green:C.border}`,fontWeight:tri===k?500:400}}>{l}</div>
               ))}
-              <span style={{fontSize:11,color:C.muted,marginLeft:'auto'}}>{elevesFiltres.length} {t(lang,'eleves')}</span>
+              {/* J7 polish : compteur visuellement detache des chips de tri.
+                  borderInlineStart se traduit automatiquement en border-left (LTR)
+                  ou border-right (RTL). paddingInlineStart pareil. */}
+              <div style={{marginInlineStart:'auto',display:'flex',alignItems:'center',gap:6,
+                paddingInlineStart:12,borderInlineStart:`1px solid ${C.border}`,fontSize:11,color:C.muted}}>
+                <span style={{fontSize:14}}>👥</span>
+                <strong style={{color:C.dark,fontWeight:700}}>{elevesFiltres.length}</strong>
+                <span>{t(lang,'eleves')}</span>
+              </div>
             </div>
           </div>
           {elevesFiltres.length===0?<div className="empty">{t(lang,'aucun_eleve')}</div>:(
@@ -794,10 +802,40 @@ export default function Dashboard({ user, navigate, goBack, lang, isMobile=false
                         <Medaille idx={rang-1}/>
                       </div>
                       <div style={{display:'flex',alignItems:'baseline',gap:4,marginBottom:10}}>
-                        <span style={{fontSize:28,fontWeight:800,color:sl.color,letterSpacing:'-1px'}}>
-                          {isSourateNiveauDyn(eleve.code_niveau,niveaux)?eleve.recSouratesCount.toLocaleString():eleve.etat.points.total.toLocaleString()}
-                        </span>
-                        <span style={{fontSize:12,color:C.muted}}>{isSourateNiveauDyn(eleve.code_niveau,niveaux)?(lang==='ar'?'سورة':'sour.'):t(lang,'pts_abrev')}</span>
+                        {(() => {
+                          // J7 polish : si niveau Sourate -> nb sourates
+                          //              sinon si points total = 0 -> nb Hizb complets (donnee alternative qui parle)
+                          //              sinon points total
+                          const isSourate = isSourateNiveauDyn(eleve.code_niveau, niveaux);
+                          const points = eleve.etat.points.total || 0;
+                          const hizbComplets = eleve.etat.hizbsComplets?.size || 0;
+                          if (isSourate) {
+                            return (<>
+                              <span style={{fontSize:28,fontWeight:800,color:sl.color,letterSpacing:'-1px'}}>
+                                {eleve.recSouratesCount.toLocaleString()}
+                              </span>
+                              <span style={{fontSize:12,color:C.muted}}>
+                                {lang==='ar'?'سورة':'sour.'}
+                              </span>
+                            </>);
+                          }
+                          if (points === 0 && hizbComplets > 0) {
+                            return (<>
+                              <span style={{fontSize:28,fontWeight:800,color:sl.color,letterSpacing:'-1px'}}>
+                                {hizbComplets}
+                              </span>
+                              <span style={{fontSize:12,color:C.muted}}>
+                                {lang==='ar'?'حزب مكتمل':'Hizb complet'}{hizbComplets>1?(lang==='ar'?'':'s'):''}
+                              </span>
+                            </>);
+                          }
+                          return (<>
+                            <span style={{fontSize:28,fontWeight:800,color:sl.color,letterSpacing:'-1px'}}>
+                              {points.toLocaleString()}
+                            </span>
+                            <span style={{fontSize:12,color:C.muted}}>{t(lang,'pts_abrev')}</span>
+                          </>);
+                        })()}
                       </div>
                       {isSourateNiveauDyn(eleve.code_niveau,niveaux)?(
                         <div style={{fontSize:11,color:C.muted,marginBottom:6}}>
