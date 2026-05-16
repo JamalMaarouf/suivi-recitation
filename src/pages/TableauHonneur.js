@@ -362,13 +362,34 @@ export default function TableauHonneur({ user, navigate, goBack, lang='fr', isMo
         </div>
       </div>
 
-      {/* Sélecteur niveau */}
-      <div style={{display:'flex',gap:6,marginBottom:'1.5rem',flexWrap:'wrap',justifyContent:'center'}}>
+      {/* Sélecteur niveau — scroll horizontal sur mobile (gain hauteur),
+          wrap multi-lignes centré sur desktop */}
+      <div style={{
+        display:'flex',
+        gap:6,
+        marginBottom:'1.5rem',
+        ...(isMobile ? {
+          // Mobile : scroll horizontal, pas de wrap
+          flexWrap:'nowrap',
+          overflowX:'auto',
+          overflowY:'hidden',
+          WebkitOverflowScrolling:'touch',
+          paddingBottom:4,
+          // Masquer scrollbar sur mobile (geste de scroll suffit)
+          msOverflowStyle:'none',
+          scrollbarWidth:'none',
+        } : {
+          // Desktop : wrap multi-lignes centre
+          flexWrap:'wrap',
+          justifyContent:'center',
+        })
+      }}>
         <div onClick={()=>setVue('global')}
           style={{padding:'5px 14px',borderRadius:20,cursor:'pointer',fontSize:12,fontWeight:vue==='global'?700:400,
             background:vue==='global'?'#1D9E75':T.chipBg,
             color:vue==='global'?'#fff':T.chipFg,
-            border:'1px solid '+(vue==='global'?'#1D9E75':T.chipBorder)}}>
+            border:'1px solid '+(vue==='global'?'#1D9E75':T.chipBorder),
+            flexShrink:0,whiteSpace:'nowrap'}}>
           🌍 {lang==='ar'?'الكل':'Global'}
         </div>
         {niveauxVues.map(n => (
@@ -376,7 +397,8 @@ export default function TableauHonneur({ user, navigate, goBack, lang='fr', isMo
             style={{padding:'5px 14px',borderRadius:20,cursor:'pointer',fontSize:12,fontWeight:vue===n.code?700:400,
               background:vue===n.code?n.color:T.chipBg,
               color:vue===n.code?'#fff':T.chipFg,
-              border:'1px solid '+(vue===n.code?n.color:T.chipBorder)}}>
+              border:'1px solid '+(vue===n.code?n.color:T.chipBorder),
+              flexShrink:0,whiteSpace:'nowrap'}}>
             {n.label}
           </div>
         ))}
