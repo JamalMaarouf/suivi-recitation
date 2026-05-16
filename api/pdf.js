@@ -456,7 +456,7 @@ function certificatStyles() {
     .corner-bl { bottom:48px; left:48px; }
     .corner-br { bottom:48px; right:48px; }
 
-    .content { position:absolute; top:78px; bottom:78px; left:60px; right:60px; display:flex; flex-direction:column; align-items:center; z-index:3; }
+    .content { position:absolute; top:78px; bottom:94px; left:60px; right:60px; display:flex; flex-direction:column; align-items:center; z-index:3; }
 
     /* HEADER */
     .header { width:100%; text-align:center; padding-bottom:16px; border-bottom:1.5px solid #EF9F27; }
@@ -499,7 +499,7 @@ function certificatStyles() {
     .note { font-style:italic; color:#888; font-size:12px; text-align:center; direction:rtl; margin-top:6px; max-width:760px; font-family:'Tajawal',Arial,sans-serif; }
 
     /* FOOTER */
-    .footer { width:100%; display:flex; justify-content:space-between; align-items:flex-end; padding-top:12px; margin-top:12px; border-top:1px solid #e0e0d8; min-height:96px; gap:16px; }
+    .footer { width:100%; display:flex; justify-content:space-between; align-items:flex-end; padding-top:10px; margin-top:10px; border-top:1px solid #e0e0d8; min-height:84px; gap:16px; background:#fff; position:relative; z-index:4; }
     .footer-info { display:flex; flex-direction:column; align-items:flex-start; }
     .footer-num { font-size:13px; font-weight:700; color:#085041; letter-spacing:0.5px; }
     .footer-date-emis { font-size:11px; color:#888; margin-top:4px; direction:rtl; font-family:'Tajawal',Arial,sans-serif; }
@@ -507,12 +507,12 @@ function certificatStyles() {
 
     /* QR Code de vérification */
     .qr-block { display:flex; flex-direction:column; align-items:center; gap:4px; }
-    .qr-img { width:78px; height:78px; border:1px solid #e0e0d8; padding:3px; background:#fff; border-radius:4px; }
+    .qr-img { width:72px; height:72px; border:1px solid #e0e0d8; padding:3px; background:#fff; border-radius:4px; }
     .qr-label { font-size:8.5px; color:#aaa; letter-spacing:0.5px; text-align:center; }
 
     /* SIGNATURES */
     .signatures { display:flex; gap:36px; align-items:flex-end; }
-    .sign { text-align:center; min-width:200px; padding-top:28px; }
+    .sign { text-align:center; min-width:200px; padding-top:18px; }
     .sign-line { width:200px; border-bottom:1.5px solid #333; margin:0 auto 6px; }
     .sign-name-ar { font-size:12px; color:#1a1a1a; font-weight:700; direction:rtl; font-family:'Tajawal',Arial,sans-serif; }
     .sign-role-ar { font-size:11px; color:#666; direction:rtl; margin-top:2px; font-family:'Tajawal',Arial,sans-serif; }

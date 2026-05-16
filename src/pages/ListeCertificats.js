@@ -86,7 +86,7 @@ export default function ListeCertificats({ user, navigate, goBack, lang='fr', is
       supabase.from('jalons').select('id,nom,nom_ar,type_jalon').eq('ecole_id', user.ecole_id),
       supabase.from('niveaux').select('id,code,nom,couleur').eq('ecole_id', user.ecole_id).order('ordre'),
       // B5 — école complète pour header certificat (nom + ville + pays)
-      supabase.from('ecoles').select('id,nom,ville,pays').eq('id', user.ecole_id).maybeSingle(),
+      supabase.from('ecoles').select('id,nom,nom_ar,ville,pays,nom_directeur,nom_directeur_ar').eq('id', user.ecole_id).maybeSingle(),
       // B3 — examens + résultats pour mode création depuis Suivi Résultats
       supabase.from('examens').select('id,nom,niveau_id,type_contenu,contenu_ids').eq('ecole_id', user.ecole_id),
       supabase.from('resultats_examens').select('id,examen_id,eleve_id,score,date_examen,statut').eq('ecole_id', user.ecole_id),
@@ -189,10 +189,14 @@ export default function ListeCertificats({ user, navigate, goBack, lang='fr', is
         date: c.date_emission || c.date_obtention,
         ecole: {
           nom: ecole?.nom || '',
+          nom_ar: ecole?.nom_ar || '',
           ville: ecole?.ville || '',
           pays: ecole?.pays || '',
+          nom_directeur: ecole?.nom_directeur || '',
+          nom_directeur_ar: ecole?.nom_directeur_ar || '',
         },
         niveau: niv ? { code: niv.code, nom: niv.nom } : null,
+        numero: c.numero || null,
       }, lang);
     } catch (err) {
       console.error('PDF certificat:', err);
