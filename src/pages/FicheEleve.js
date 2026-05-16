@@ -1277,7 +1277,33 @@ ${(passages||[]).length > 0 ? `
           {/* Score banner */}
           <div style={{background:`${sl2.bg}`, padding:'8px 16px', display:'flex', justifyContent:'space-between', alignItems:'center'}}>
             <div style={{fontSize:13, color:sl2.color, fontWeight:600}}>{sl2.label}</div>
-            <div style={{fontSize:26, fontWeight:800, color:sl2.color}}>{estSourateEleve?totalPtsSourates.toLocaleString():(etat?.points?.total?.toLocaleString()||0)} pts</div>
+            {(() => {
+              // J8 polish : meme logique que PC (Liste eleves + Fiche eleve PC)
+              //  1. Eleve Sourate -> nb sourates completes + label
+              //  2. Eleve Hizb avec points=0 et hizbComplets>0 -> 'X Hizb complets'
+              //  3. Sinon -> points total comme avant
+              if (estSourateEleve) {
+                return (
+                  <div style={{fontSize:26, fontWeight:800, color:sl2.color}}>
+                    {totalPtsSourates.toLocaleString()} pts
+                  </div>
+                );
+              }
+              const points = etat?.points?.total || 0;
+              const hizbComplets = etat?.hizbsComplets?.size || 0;
+              if (points === 0 && hizbComplets > 0) {
+                return (
+                  <div style={{fontSize:20, fontWeight:800, color:sl2.color, textAlign:'right'}}>
+                    {hizbComplets} <span style={{fontSize:13}}>{lang==='ar'?(hizbComplets>1?'حزب مكتمل':'حزب مكتمل'):(hizbComplets>1?'Hizb complets':'Hizb complet')}</span>
+                  </div>
+                );
+              }
+              return (
+                <div style={{fontSize:26, fontWeight:800, color:sl2.color}}>
+                  {points.toLocaleString()} pts
+                </div>
+              );
+            })()}
           </div>
           {/* Onglets mobile - Phase 2 refonte : 5 principaux + Plus */}
           {(() => {
