@@ -32,6 +32,7 @@ const SuperAdminDashboard = lazy(() => import('./pages/SuperAdminDashboard'));
 const PortailParent       = lazy(() => import('./pages/PortailParent'));
 const InscriptionEcole    = lazy(() => import('./pages/InscriptionEcole'));
 const PageVerification    = lazy(() => import('./pages/PageVerification'));
+const PageLanding         = lazy(() => import('./pages/PageLanding'));
 
 // ── Pages secondaires — chargées à la demande (lazy) ─────────────────────
 const DashboardDirection  = lazy(() => import('./pages/DashboardDirection'));
@@ -475,11 +476,28 @@ function App() {
 
   const [showLangMenu, setShowLangMenu] = React.useState(false);
   const [showUserMenu, setShowUserMenu] = React.useState(false);
+  // J9 Landing : afficher la landing si on est sur la racine '/' ET pas encore connecte.
+  // Le bouton 'Espace ecole' de la landing bascule showLanding a false -> on voit Login.
+  // Une fois connecte, la landing ne reapparait plus (user est defini).
+  const [showLanding, setShowLanding] = React.useState(() => {
+    if (typeof window === 'undefined') return false;
+    // Si racine -> landing par defaut. Si autre route -> login direct.
+    return window.location.pathname === '/' || window.location.pathname === '';
+  });
   const LANGS = [
     { code: 'fr', flag: '🇫🇷', label: 'FR' },
     { code: 'ar', flag: '🇸🇦', label: 'AR' },
     { code: 'en', flag: '🇬🇧', label: 'EN' },
   ];
+
+  // J9 Landing : si pas connecte ET showLanding=true -> page landing publique
+  if (!user && showLanding) {
+    return (
+      <Suspense fallback={<div style={{padding:60,textAlign:'center',color:'#888',fontFamily:"'Tajawal',Arial,sans-serif"}}>⏳ Chargement…</div>}>
+        <PageLanding onGoToLogin={() => setShowLanding(false)} />
+      </Suspense>
+    );
+  }
 
   if (!user) return (
     <ToastProvider isMobile={isMobile}>
