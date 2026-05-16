@@ -18,6 +18,21 @@ export default function TableauHonneur({ user, navigate, goBack, lang='fr', isMo
   const [periodeId, setPeriodeId] = useState('semaine');
   const [niveauxDyn, setNiveauxDyn] = useState([]);
   const [bareme, setBareme] = useState({...BAREME_DEFAUT});
+  // J7 polish : 2 modes d'affichage du Tableau d'honneur
+  //   - 'light' (defaut) : coherent avec le reste de l'app, fond clair
+  //   - 'tv'             : mode presentation en salle (projection ecran),
+  //                        fond fonce, ambiance ceremonie de remise de prix
+  // Persistance choix utilisateur via localStorage
+  const [displayMode, setDisplayMode] = useState(() => {
+    try {
+      return localStorage.getItem('honneur_mode') || 'light';
+    } catch { return 'light'; }
+  });
+  const setMode = (m) => {
+    setDisplayMode(m);
+    try { localStorage.setItem('honneur_mode', m); } catch {}
+  };
+  const isTV = displayMode === 'tv';
 
   useEffect(() => { loadData(); }, []);
 
@@ -174,8 +189,71 @@ export default function TableauHonneur({ user, navigate, goBack, lang='fr', isMo
     pullDistance, isRefreshing, isThreshold,
     onTouchStart, onTouchMove, onTouchEnd,
   } = usePullToRefresh(loadData);
+
+  // J7 polish : theme centralise selon le mode (light/tv).
+  // Objet T = palette + utilitaires pour generer les styles dynamiquement.
+  // En light : couleurs cohrent avec le reste de l'app (#f5f5f0 fond, vert principal)
+  // En TV    : ambiance ceremonie (degrade vert tres fonce, accents or vif)
+  const T = isTV ? {
+    bg: 'linear-gradient(135deg,#0A1F1C 0%,#0d2a23 60%,#0A1F1C 100%)',
+    fgPrimary: '#fff',
+    fgSecondary: '#9FE1CB',
+    fgMuted: '#5DCAA5',
+    fgDim: '#3a6657',
+    chipBg: 'rgba(255,255,255,0.08)',
+    chipBgActive: '#378ADD',
+    chipBorder: 'rgba(255,255,255,0.15)',
+    chipFg: '#9FE1CB',
+    chipFgActive: '#fff',
+    cardBg: 'rgba(255,255,255,0.04)',
+    cardBorder: 'rgba(255,255,255,0.08)',
+    accentGold: '#FFD700',  // or eclatant (TV)
+    pdfBg: 'rgba(226,75,74,0.2)', pdfBorder: 'rgba(226,75,74,0.4)', pdfFg: '#FCA5A4',
+    excelBg: 'rgba(29,158,117,0.2)', excelBorder: 'rgba(29,158,117,0.4)', excelFg: '#5DCAA5',
+    toggleBg: 'rgba(239,159,39,0.15)',
+    toggleBorder: 'rgba(239,159,39,0.4)',
+    toggleFg: '#FFD700',
+  } : {
+    bg: '#f5f5f0',
+    fgPrimary: '#1a1a1a',
+    fgSecondary: '#666',
+    fgMuted: '#888',
+    fgDim: '#aaa',
+    chipBg: '#fff',
+    chipBgActive: '#378ADD',
+    chipBorder: '#e0e0d8',
+    chipFg: '#666',
+    chipFgActive: '#fff',
+    cardBg: '#fff',
+    cardBorder: '#e0e0d8',
+    accentGold: '#EF9F27',
+    pdfBg: '#FCEBEB', pdfBorder: '#E24B4A', pdfFg: '#E24B4A',
+    excelBg: '#E1F5EE', excelBorder: '#1D9E75', excelFg: '#1D9E75',
+    toggleBg: '#FAEEDA',
+    toggleBorder: '#EF9F27',
+    toggleFg: '#854F0B',
+  };
+
+  // Bouton toggle mode (light <-> TV)
+  const ModeToggle = (
+    <button onClick={()=>setMode(isTV ? 'light' : 'tv')}
+      title={isTV ? (lang==='ar'?'الوضع العادي':'Mode normal') : (lang==='ar'?'وضع العرض':'Mode présentation')}
+      style={{
+        background:T.toggleBg,border:`1px solid ${T.toggleBorder}`,borderRadius:10,
+        padding: isMobile?'0 12px':'7px 11px',
+        height: isMobile?44:undefined,
+        color:T.toggleFg,fontSize:isMobile?16:12,fontWeight:700,
+        cursor:'pointer',fontFamily:'inherit',whiteSpace:'nowrap',
+        display:'flex',alignItems:'center',justifyContent:'center',gap:5}}>
+      {isTV ? '☀️' : '📺'}{!isMobile && ' '}{!isMobile && (isTV
+        ? (lang==='ar'?'عادي':'Normal')
+        : (lang==='ar'?'عرض':'Présentation'))}
+    </button>
+  );
+
   return (
-    <div style={{minHeight:'100vh',background:'linear-gradient(135deg,#0a0a0f 0%,#0d1f1a 100%)',padding:'1.5rem 1rem',paddingBottom:80}}
+    <div style={{minHeight:'100vh',background:T.bg,padding:'1.5rem 1rem',paddingBottom:80,
+      transition:'background 0.3s ease'}}
       {...(isMobile ? { onTouchStart, onTouchMove, onTouchEnd } : {})}>
       {isMobile && (
         <PullToRefreshIndicator
@@ -185,25 +263,26 @@ export default function TableauHonneur({ user, navigate, goBack, lang='fr', isMo
           lang={lang}
         />
       )}
-      {/* Sticky header — variant 'dark' (gamification) */}
+      {/* Sticky header — variant adapte au mode */}
       <PageHeader
         title={t(lang, 'tableau_honneur')}
         icon="🏆"
         subtitle={periodeLabel()}
         onBack={() => goBack ? goBack() : navigate('dashboard')}
         lang={lang}
-        variant="dark"
+        variant={isTV ? "dark" : "default"}
         isMobile={isMobile}
         actions={
           <>
+            {ModeToggle}
             <button onClick={handleExportPDF}
               disabled={elevesClasses.length === 0}
               title={lang==='ar'?'تصدير PDF':'Exporter PDF'}
               aria-label={lang==='ar'?'تصدير PDF':'Exporter PDF'}
-              style={{background:'rgba(226,75,74,0.2)',border:'1px solid rgba(226,75,74,0.4)',borderRadius:10,
+              style={{background:T.pdfBg,border:`1px solid ${T.pdfBorder}`,borderRadius:10,
                 padding: isMobile?'0 12px':'7px 11px',
                 height: isMobile?44:undefined,
-                color:'#FCA5A4',fontSize:isMobile?16:12,fontWeight:700,
+                color:T.pdfFg,fontSize:isMobile?16:12,fontWeight:700,
                 cursor:elevesClasses.length===0?'default':'pointer',
                 opacity:elevesClasses.length===0?0.4:1,fontFamily:'inherit',whiteSpace:'nowrap',
                 display:'flex',alignItems:'center',justifyContent:'center'}}>
@@ -213,10 +292,10 @@ export default function TableauHonneur({ user, navigate, goBack, lang='fr', isMo
               disabled={elevesClasses.length === 0}
               title={lang==='ar'?'تصدير Excel':'Exporter Excel'}
               aria-label={lang==='ar'?'تصدير Excel':'Exporter Excel'}
-              style={{background:'rgba(29,158,117,0.2)',border:'1px solid rgba(29,158,117,0.4)',borderRadius:10,
+              style={{background:T.excelBg,border:`1px solid ${T.excelBorder}`,borderRadius:10,
                 padding: isMobile?'0 12px':'7px 11px',
                 height: isMobile?44:undefined,
-                color:'#5DCAA5',fontSize:isMobile?16:12,fontWeight:700,
+                color:T.excelFg,fontSize:isMobile?16:12,fontWeight:700,
                 cursor:elevesClasses.length===0?'default':'pointer',
                 opacity:elevesClasses.length===0?0.4:1,fontFamily:'inherit',whiteSpace:'nowrap',
                 display:'flex',alignItems:'center',justifyContent:'center'}}>
@@ -228,25 +307,25 @@ export default function TableauHonneur({ user, navigate, goBack, lang='fr', isMo
 
       {/* Sélecteur période */}
       <div style={{marginBottom:'1rem'}}>
-        <div style={{fontSize:11,color:'#5DCAA5',marginBottom:6,textAlign:'center',fontWeight:600}}>
+        <div style={{fontSize:11,color:T.fgMuted,marginBottom:6,textAlign:'center',fontWeight:600}}>
           {lang==='ar'?'الفترة':'Période'}
         </div>
         <div style={{display:'flex',gap:6,flexWrap:'wrap',justifyContent:'center'}}>
           {PERIODES_FIXES.map(p => (
             <div key={p.id} onClick={()=>setPeriodeId(p.id)}
               style={{padding:'5px 14px',borderRadius:20,cursor:'pointer',fontSize:12,fontWeight:periodeId===p.id?700:400,
-                background:periodeId===p.id?'#378ADD':'rgba(255,255,255,0.08)',
-                color:periodeId===p.id?'#fff':'#9FE1CB',
-                border:'1px solid '+(periodeId===p.id?'#378ADD':'rgba(255,255,255,0.15)')}}>
+                background:periodeId===p.id?T.chipBgActive:T.chipBg,
+                color:periodeId===p.id?T.chipFgActive:T.chipFg,
+                border:'1px solid '+(periodeId===p.id?T.chipBgActive:T.chipBorder)}}>
               {p.label}
             </div>
           ))}
           {periodes.map(p => (
             <div key={p.id} onClick={()=>setPeriodeId(p.id)}
               style={{padding:'5px 14px',borderRadius:20,cursor:'pointer',fontSize:12,fontWeight:periodeId===p.id?700:400,
-                background:periodeId===p.id?'#534AB7':'rgba(255,255,255,0.08)',
-                color:periodeId===p.id?'#fff':'#9FE1CB',
-                border:'1px solid '+(periodeId===p.id?'#534AB7':'rgba(255,255,255,0.15)'),
+                background:periodeId===p.id?'#534AB7':T.chipBg,
+                color:periodeId===p.id?'#fff':T.chipFg,
+                border:'1px solid '+(periodeId===p.id?'#534AB7':T.chipBorder),
                 direction:'rtl',fontFamily:"'Tajawal',Arial,sans-serif"}}>
               {p.nom_ar||p.nom}
             </div>
@@ -258,17 +337,17 @@ export default function TableauHonneur({ user, navigate, goBack, lang='fr', isMo
       <div style={{display:'flex',gap:6,marginBottom:'1.5rem',flexWrap:'wrap',justifyContent:'center'}}>
         <div onClick={()=>setVue('global')}
           style={{padding:'5px 14px',borderRadius:20,cursor:'pointer',fontSize:12,fontWeight:vue==='global'?700:400,
-            background:vue==='global'?'#1D9E75':'rgba(255,255,255,0.08)',
-            color:vue==='global'?'#fff':'#5DCAA5',
-            border:'1px solid '+(vue==='global'?'#1D9E75':'rgba(255,255,255,0.15)')}}>
+            background:vue==='global'?'#1D9E75':T.chipBg,
+            color:vue==='global'?'#fff':T.chipFg,
+            border:'1px solid '+(vue==='global'?'#1D9E75':T.chipBorder)}}>
           🌍 {lang==='ar'?'الكل':'Global'}
         </div>
         {niveauxVues.map(n => (
           <div key={n.code} onClick={()=>setVue(n.code)}
             style={{padding:'5px 14px',borderRadius:20,cursor:'pointer',fontSize:12,fontWeight:vue===n.code?700:400,
-              background:vue===n.code?n.color:'rgba(255,255,255,0.08)',
-              color:vue===n.code?'#fff':'#9FE1CB',
-              border:'1px solid '+(vue===n.code?n.color:'rgba(255,255,255,0.15)')}}>
+              background:vue===n.code?n.color:T.chipBg,
+              color:vue===n.code?'#fff':T.chipFg,
+              border:'1px solid '+(vue===n.code?n.color:T.chipBorder)}}>
             {n.label}
           </div>
         ))}
@@ -277,26 +356,68 @@ export default function TableauHonneur({ user, navigate, goBack, lang='fr', isMo
       {loading ? <MobileSkeletonList type="card-with-avatar" count={6} padding="12px" /> : (
         <>
           {elevesClasses.length === 0 ? (
-            <div style={{textAlign:'center',color:'#3a6657',padding:'3rem',fontSize:14}}>
+            <div style={{textAlign:'center',color:T.fgDim,padding:'3rem',fontSize:14}}>
               {lang==='ar'?'لا توجد استظهارات في هذه الفترة':'Aucune récitation sur cette période'}
             </div>
           ) : (
             <>
               {/* Podium */}
               {elevesClasses.length >= 3 && (
-                <div style={{display:'flex',alignItems:'flex-end',justifyContent:'center',gap:12,marginBottom:'2.5rem'}}>
+                <div style={{display:'flex',alignItems:'flex-end',justifyContent:'center',gap:14,marginBottom:'2.5rem',padding:'8px 0 0'}}>
                   {[1,0,2].map(rank => {
                     const e = elevesClasses[rank];
                     if (!e) return null;
+                    // Couleurs podium adaptees au mode
+                    // En TV : couleurs vives or/argent/bronze sur fond fonce -> halo lumineux
+                    // En light : meme contraste que le podium du Dashboard (gradient metallique)
+                    const pc = ['#EF9F27','#9E9E9E','#CD7F32']; // text/border
+                    const pbGrad = isTV ? [
+                      'linear-gradient(180deg,#FFD700 0%,#F0A500 100%)',
+                      'linear-gradient(180deg,#E5E5E5 0%,#A0A0A0 100%)',
+                      'linear-gradient(180deg,#D6985B 0%,#A36422 100%)',
+                    ] : [
+                      'linear-gradient(180deg,#FFE7B5 0%,#FAC775 100%)',
+                      'linear-gradient(180deg,#EEEEEE 0%,#C8C8C8 100%)',
+                      'linear-gradient(180deg,#F0CD9F 0%,#D6985B 100%)',
+                    ];
+                    const ph = [150, 110, 88];
+                    const medals = ['🥇','🥈','🥉'];
                     return (
-                      <div key={e.id} onClick={()=>navigate('fiche',e)} style={{flex:1,maxWidth:160,display:'flex',flexDirection:'column',alignItems:'center',cursor:'pointer'}}>
-                        {rank===0 && <div style={{fontSize:24,marginBottom:4}}>👑</div>}
-                        <div style={{width:rank===0?60:48,height:rank===0?60:48,borderRadius:'50%',background:podiumBg[rank],display:'flex',alignItems:'center',justifyContent:'center',fontWeight:700,fontSize:rank===0?22:18,color:podiumColors[rank]}}>{getInitiales(e.prenom,e.nom)}</div>
-                        <div style={{fontSize:rank===0?13:12,fontWeight:600,color:'#fff',marginTop:8,textAlign:'center'}}>{e.prenom} {e.nom}</div>
-                        <div style={{fontSize:rank===0?18:15,fontWeight:800,color:podiumColors[rank],margin:'4px 0'}}>{e.ptsPeriode.total.toLocaleString()} {t(lang,'pts_abrev')}</div>
-                        <div style={{fontSize:10,color:podiumColors[rank],opacity:0.7}}>{e.ptsPeriode.tomonPeriode} {t(lang,'tomon_abrev')} · {e.ptsPeriode.hizbsPeriode} {t(lang,'hizb_abrev')}</div>
-                        <div style={{width:'100%',height:rank===0?120:90,background:podiumBg[rank]+'22',border:`1px solid ${podiumColors[rank]}40`,borderRadius:'8px 8px 0 0',display:'flex',alignItems:'center',justifyContent:'center'}}>
-                          <span style={{fontSize:rank===0?40:30,fontWeight:800,color:podiumColors[rank],opacity:0.6}}>{rank+1}</span>
+                      <div key={e.id} onClick={()=>navigate('fiche',e)}
+                        style={{flex:1,maxWidth:170,display:'flex',flexDirection:'column',alignItems:'center',cursor:'pointer'}}>
+                        {rank===0 && <div style={{fontSize:28,marginBottom:4,lineHeight:1,
+                          filter:isTV?'drop-shadow(0 0 12px rgba(255,215,0,0.5))':'none'}}>👑</div>}
+                        <div style={{width:rank===0?58:46,height:rank===0?58:46,borderRadius:'50%',
+                          background:isTV?'rgba(255,255,255,0.1)':'#fff',
+                          border:`2px solid ${pc[rank]}`,
+                          display:'flex',alignItems:'center',justifyContent:'center',
+                          fontWeight:800,fontSize:rank===0?20:16,color:pc[rank],
+                          boxShadow:isTV?`0 0 16px ${pc[rank]}80`:`0 2px 8px ${pc[rank]}30`}}>
+                          {getInitiales(e.prenom,e.nom)}
+                        </div>
+                        <div style={{fontSize:rank===0?14:12,fontWeight:700,
+                          color:T.fgPrimary,marginTop:8,textAlign:'center'}}>
+                          {e.prenom} {e.nom}
+                        </div>
+                        <div style={{fontSize:rank===0?17:14,fontWeight:800,color:pc[rank],margin:'4px 0 8px'}}>
+                          {e.ptsPeriode.total.toLocaleString()} {t(lang,'pts_abrev')}
+                        </div>
+                        <div style={{fontSize:10,color:T.fgMuted,marginBottom:6}}>
+                          {e.ptsPeriode.tomonPeriode} {t(lang,'tomon_abrev')} · {e.ptsPeriode.hizbsPeriode} {t(lang,'hizb_abrev')}
+                        </div>
+                        <div style={{width:'100%',height:ph[rank],
+                          background:pbGrad[rank],
+                          border:`1.5px solid ${pc[rank]}`,
+                          borderRadius:'10px 10px 0 0',
+                          display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:4,
+                          boxShadow:isTV
+                            ? `0 0 ${rank===0?24:16}px ${pc[rank]}90, inset 0 0 20px rgba(255,255,255,0.15)`
+                            : `0 ${rank===0?4:2}px ${rank===0?14:8}px ${pc[rank]}${rank===0?'55':'30'}`}}>
+                          <span style={{fontSize:rank===0?32:24,lineHeight:1}}>{medals[rank]}</span>
+                          <span style={{fontSize:rank===0?40:32,fontWeight:900,color:'#fff',
+                            textShadow:`0 1px 3px ${pc[rank]}cc, 0 0 8px ${pc[rank]}80`,lineHeight:1}}>
+                            {rank+1}
+                          </span>
                         </div>
                       </div>
                     );
@@ -310,21 +431,28 @@ export default function TableauHonneur({ user, navigate, goBack, lang='fr', isMo
                   const sl = scoreLabel(e.ptsPeriode.total);
                   return (
                     <div key={e.id} onClick={()=>navigate('fiche',e)}
-                      style={{display:'flex',alignItems:'center',gap:12,padding:'12px 16px',background:'rgba(255,255,255,0.04)',border:'0.5px solid rgba(255,255,255,0.08)',borderRadius:12,marginBottom:8,cursor:'pointer'}}>
+                      style={{display:'flex',alignItems:'center',gap:12,padding:'12px 16px',
+                        background:T.cardBg,border:`0.5px solid ${T.cardBorder}`,
+                        borderRadius:12,marginBottom:8,cursor:'pointer'}}>
                       <div style={{fontSize:18,minWidth:32,textAlign:'center'}}>
-                        {medals[idx] || <span style={{color:'#3a6657',fontSize:13,fontWeight:700}}>{idx+1}</span>}
+                        {medals[idx] || <span style={{color:T.fgDim,fontSize:13,fontWeight:700}}>{idx+1}</span>}
                       </div>
-                      <div style={{width:38,height:38,borderRadius:'50%',background:'rgba(255,255,255,0.1)',display:'flex',alignItems:'center',justifyContent:'center',fontWeight:700,fontSize:14,color:'#9FE1CB',flexShrink:0}}>{getInitiales(e.prenom,e.nom)}</div>
+                      <div style={{width:38,height:38,borderRadius:'50%',
+                        background:isTV?'rgba(255,255,255,0.1)':'#f5f5f0',
+                        display:'flex',alignItems:'center',justifyContent:'center',
+                        fontWeight:700,fontSize:14,color:isTV?'#9FE1CB':'#1D9E75',flexShrink:0}}>
+                        {getInitiales(e.prenom,e.nom)}
+                      </div>
                       <div style={{flex:1}}>
-                        <div style={{fontSize:14,fontWeight:600,color:'#fff'}}>{e.prenom} {e.nom}</div>
-                        <div style={{fontSize:11,color:'#5DCAA5',marginTop:2}}>
+                        <div style={{fontSize:14,fontWeight:600,color:T.fgPrimary}}>{e.prenom} {e.nom}</div>
+                        <div style={{fontSize:11,color:T.fgMuted,marginTop:2}}>
                           {e.ptsPeriode.tomonPeriode} {t(lang,'tomon_abrev')}
                           {e.ptsPeriode.hizbsPeriode > 0 && ` · ${e.ptsPeriode.hizbsPeriode} ${t(lang,'hizb_abrev')} ✓`}
                         </div>
                       </div>
                       <div style={{textAlign:'right'}}>
-                        <div style={{fontSize:16,fontWeight:800,color:'#EF9F27'}}>{e.ptsPeriode.total.toLocaleString()}</div>
-                        <div style={{fontSize:10,color:'#3a6657'}}>{t(lang,'pts_abrev')}</div>
+                        <div style={{fontSize:16,fontWeight:800,color:T.accentGold}}>{e.ptsPeriode.total.toLocaleString()}</div>
+                        <div style={{fontSize:10,color:T.fgDim}}>{t(lang,'pts_abrev')}</div>
                       </div>
                     </div>
                   );
