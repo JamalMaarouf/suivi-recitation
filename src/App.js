@@ -31,6 +31,7 @@ import ElevesMobile        from './pages/ElevesMobile';
 const SuperAdminDashboard = lazy(() => import('./pages/SuperAdminDashboard'));
 const PortailParent       = lazy(() => import('./pages/PortailParent'));
 const InscriptionEcole    = lazy(() => import('./pages/InscriptionEcole'));
+const PageVerification    = lazy(() => import('./pages/PageVerification'));
 
 // ── Pages secondaires — chargées à la demande (lazy) ─────────────────────
 const DashboardDirection  = lazy(() => import('./pages/DashboardDirection'));
@@ -143,7 +144,34 @@ class ErrorBoundary extends React.Component {
 
 export const LangContext = React.createContext({ lang: 'fr', setLang: () => {} });
 
-export default function App() {
+// ─── ROOT : split entre la page publique de vérification et l'app principale ───
+// La page /verify/:numero est publique (accessible sans auth) et doit donc
+// être montée AVANT App() qui contient toute la logique d'auth + hooks.
+// Pattern propre : un wrapper qui choisit le bon composant racine selon
+// l'URL, comme ça App() reste 100% identique et ses hooks sont stables.
+function RootApp() {
+  const pathname = typeof window !== 'undefined' ? window.location.pathname : '';
+  const verifyMatch = pathname.match(/^\/verify\/(.+)$/);
+  const verifyNumero = verifyMatch ? decodeURIComponent(verifyMatch[1]) : null;
+
+  const [verifyLang, setVerifyLang] = useState(() => localStorage.getItem('suivi_lang') || 'fr');
+
+  if (verifyNumero) {
+    return (
+      <Suspense fallback={<div style={{padding:60,textAlign:'center',color:'#888',fontFamily:"'Tajawal',Arial,sans-serif"}}>⏳ Chargement…</div>}>
+        <PageVerification
+          numero={verifyNumero}
+          lang={verifyLang}
+          setLang={(l) => { setVerifyLang(l); localStorage.setItem('suivi_lang', l); }}
+        />
+      </Suspense>
+    );
+  }
+
+  return <App />;
+}
+
+function App() {
   const [user, setUser] = useState(null);
   const [niveauxApp, setNiveauxApp] = useState([]);
   const [showInscription, setShowInscription] = useState(false);
@@ -898,3 +926,5 @@ export default function App() {
     </ToastProvider>
   );
 }
+
+export default RootApp;
