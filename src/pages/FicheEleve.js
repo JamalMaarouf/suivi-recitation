@@ -733,8 +733,8 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang, isMobi
 <div class="section">
   <div class="section-title">📋 ${isRTL?'الموقع':'Position actuelle'}</div>
   <div class="infos-row">
-    <span class="info-pill"><span class="l">${isRTL?'الانطلاق':'Départ'}:</span><span class="v">H.${eleve.hizb_depart||'—'} T.${eleve.tomon_depart||'—'}</span></span>
-    <span class="info-pill"><span class="l">${isRTL?'الحالي':'En cours'}:</span><span class="v">H.${etat.hizbEnCours||'—'} T.${etat.prochainTomon||'—'}</span></span>
+    <span class="info-pill"><span class="l">${isRTL?'الانطلاق':'Départ'}:</span><span class="v">${isRTL?'ح':'H'}.${eleve.hizb_depart||'—'} ${isRTL?'ث':'T'}.${eleve.tomon_depart||'—'}</span></span>
+    <span class="info-pill"><span class="l">${isRTL?'الحالي':'En cours'}:</span><span class="v">${isRTL?'ح':'H'}.${etat.hizbEnCours||'—'} ${isRTL?'ث':'T'}.${etat.prochainTomon||'—'}</span></span>
     ${_vitesse?.moyenne > 0 ? `<span class="info-pill"><span class="l">${isRTL?'الوتيرة':'Vitesse'}:</span><span class="v">${esc(_vitesse.moyenne)} ${isRTL?'/أسبوع':'/sem.'}</span></span>` : ''}
     ${_streak > 0 ? `<span class="info-pill"><span class="l">🔥 ${isRTL?'السلسلة':'Streak'}:</span><span class="v">${_streak} ${isRTL?'أسابيع':'sem.'}</span></span>` : ''}
     ${(passages||[]).length > 0 ? `<span class="info-pill"><span class="l">${isRTL?'الانتقالات':'Passages'}:</span><span class="v">${(passages||[]).length}</span></span>` : ''}
@@ -1479,8 +1479,8 @@ ${(passages||[]).length > 0 ? `
                     {label:lang==='ar'?'المحفوظات':'Acquis', val:eleve.sourates_acquises||0, color:'#378ADD', bg:'#E6F1FB'},
                     {label:lang==='ar'?'المجموع':'Total', val:totalPtsSourates||0, color:'#EF9F27', bg:'#FAEEDA'},
                   ] : [
-                    {label:lang==='ar'?'الثُّمن الحالي':'Tomon actuel', val:`T.${etat?.prochainTomon||'—'}`, color:'#1D9E75', bg:'#E1F5EE'},
-                    {label:lang==='ar'?'الحزب الحالي':'Hizb en cours', val:`H.${etat?.hizbEnCours||'—'}`, color:'#534AB7', bg:'#F0EEFF'},
+                    {label:lang==='ar'?'الثُّمن الحالي':'Tomon actuel', val:`${lang==='ar'?'ث':'T'}.${etat?.prochainTomon||'—'}`, color:'#1D9E75', bg:'#E1F5EE'},
+                    {label:lang==='ar'?'الحزب الحالي':'Hizb en cours', val:`${lang==='ar'?'ح':'H'}.${etat?.hizbEnCours||'—'}`, color:'#534AB7', bg:'#F0EEFF'},
                     {label:lang==='ar'?'الثُّمنات المكتملة':'Tomon cumulés', val:etat?.tomonCumul||0, color:'#378ADD', bg:'#E6F1FB'},
                     {label:lang==='ar'?'الأحزاب المكتملة':'Hizb complets', val:etat?.hizbsComplets?.size||0, color:'#EF9F27', bg:'#FAEEDA'},
                   ]).map((k,i)=>(
@@ -1848,7 +1848,7 @@ ${(passages||[]).length > 0 ? `
                 const cible = isSourateNiveauDyn(nouveauNiveau, _niveauxCtx);
                 let msg = '';
                 if (estSourateEleve && cible) msg = lang==='ar'?`📖 سيبدأ من السورة رقم ${nbSouratesCompletes+1}`:`📖 Départ sourate n°${nbSouratesCompletes+1}`;
-                else if (!estSourateEleve && !cible) msg = lang==='ar'?`📍 سيبدأ من Hizb ${etat?.hizbEnCours||1} T.${etat?.prochainTomon||1}`:`📍 Départ Hizb ${etat?.hizbEnCours||1} T.${etat?.prochainTomon||1}`;
+                else if (!estSourateEleve && !cible) msg = lang==='ar'?`📍 سيبدأ من الحزب ${etat?.hizbEnCours||1} ث.${etat?.prochainTomon||1}`:`📍 Départ Hizb ${etat?.hizbEnCours||1} T.${etat?.prochainTomon||1}`;
                 else if (estSourateEleve && !cible) msg = lang==='ar'?'📍 بداية نظام الأحزاب':'📍 Début système Hizb';
                 else msg = lang==='ar'?'📍 بداية برنامج السور':'📍 Début programme Sourates';
                 return <div style={{background:'#E1F5EE',borderRadius:10,padding:'10px 12px',marginBottom:'1rem',fontSize:12,color:'#085041',fontWeight:500}}>{msg}</div>;
@@ -1916,14 +1916,34 @@ ${(passages||[]).length > 0 ? `
                 </div>
               </div>
               <div style={{textAlign:'right'}}>
-                <div style={{fontSize:38,fontWeight:800,color:sl.color,letterSpacing:'-2px'}}>
-                  {estSourateEleve
-                    ? recitationsSouratesEleve.filter(r=>r.type_recitation==='complete').length
-                    : (etat?.points.total.toLocaleString()||0)}
-                </div>
-                <div style={{fontSize:11,color:'#888'}}>
-                  {estSourateEleve?(lang==='ar'?'سورة مكتملة':'sourates'):t(lang,'pts_abrev')}
-                </div>
+                {(() => {
+                  // J7 polish : logique en 3 niveaux pour le score affiche en gros.
+                  //  1. Eleve Sourate -> nb sourates completes (existant)
+                  //  2. Eleve Hizb avec points=0 ET au moins 1 Hizb complete -> 'X Hizb complets'
+                  //     (donnees riches pour les ecoles sans bareme parametre)
+                  //  3. Sinon -> points total comme avant
+                  if (estSourateEleve) {
+                    const nbSourates = recitationsSouratesEleve.filter(r=>r.type_recitation==='complete').length;
+                    return (<>
+                      <div style={{fontSize:38,fontWeight:800,color:sl.color,letterSpacing:'-2px'}}>{nbSourates}</div>
+                      <div style={{fontSize:11,color:'#888'}}>{lang==='ar'?'سورة مكتملة':'sourates'}</div>
+                    </>);
+                  }
+                  const points = etat?.points.total || 0;
+                  const hizbComplets = etat?.hizbsComplets?.size || 0;
+                  if (points === 0 && hizbComplets > 0) {
+                    return (<>
+                      <div style={{fontSize:38,fontWeight:800,color:sl.color,letterSpacing:'-2px'}}>{hizbComplets}</div>
+                      <div style={{fontSize:11,color:'#888'}}>
+                        {lang==='ar'?(hizbComplets>1?'أحزاب مكتملة':'حزب مكتمل'):(hizbComplets>1?'Hizb complets':'Hizb complet')}
+                      </div>
+                    </>);
+                  }
+                  return (<>
+                    <div style={{fontSize:38,fontWeight:800,color:sl.color,letterSpacing:'-2px'}}>{points.toLocaleString()}</div>
+                    <div style={{fontSize:11,color:'#888'}}>{t(lang,'pts_abrev')}</div>
+                  </>);
+                })()}
               </div>
             </div>
 
@@ -2255,9 +2275,18 @@ ${(passages||[]).length > 0 ? `
               ) : (
                 <>
                   <div className="position-card">
-                    <div className="pos-block"><div className="pos-val">{etat?.hizbEnCours}</div><div className="pos-lbl">{lang==='ar' ? 'حزب' : 'Hizb'}</div></div>
-                    <div className="pos-block"><div className="pos-val">{etat?.tomonDansHizbActuel}/8</div><div className="pos-lbl">{t(lang,'tomon_abrev')}</div></div>
-                    <div className="pos-block"><div className="pos-val" style={{fontSize:14}}>{etat?.enAttenteHizbComplet?'⏳':etat?.prochainTomon?`T.${etat.prochainTomon}`:'✓'}</div><div className="pos-lbl">{t(lang,'prochain')}</div></div>
+                    <div className="pos-block">
+                      <div className="pos-val">{etat?.hizbEnCours||'—'}</div>
+                      <div className="pos-lbl">{lang==='ar'?'الحزب الحالي':'Hizb actuel'}</div>
+                    </div>
+                    <div className="pos-block">
+                      <div className="pos-val">{etat?.tomonDansHizbActuel||0}/8</div>
+                      <div className="pos-lbl">{lang==='ar'?'الأثمان المعتمدة':'Tomon validés'}</div>
+                    </div>
+                    <div className="pos-block">
+                      <div className="pos-val" style={{fontSize:14}}>{etat?.enAttenteHizbComplet?'⏳':etat?.prochainTomon?`${lang==='ar'?'ث':'T'}.${etat.prochainTomon}`:'✓'}</div>
+                      <div className="pos-lbl">{lang==='ar'?'الثُمن التالي':'Tomon suivant'}</div>
+                    </div>
                   </div>
                   <div className="card">
                     <div style={{display:'flex',gap:4,marginBottom:8}}>

@@ -769,7 +769,7 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
                     <div style={{ fontWeight: 700, fontSize: 14 }}>{e.prenom} {e.nom}</div>
                     <div style={{ fontSize: 11, color: '#aaa' }}>
                       <span style={{ padding: '1px 6px', borderRadius: 6, background: `${nivColor}15`, color: nivColor, fontWeight: 700, marginLeft: 4 }}>{e.code_niveau}</span>
-                      {isSour ? ` · ${lang === 'ar' ? 'سور' : 'Sourates'}` : ` · الحزب ${et.hizbEnCours} · T.${et.prochainTomon || '—'}`}
+                      {isSour ? ` · ${lang === 'ar' ? 'سور' : 'Sourates'}` : ` · ${lang === 'ar' ? 'الحزب' : 'Hizb'} ${et.hizbEnCours} · ${lang === 'ar' ? 'ث' : 'T'}.${et.prochainTomon || '—'}`}
                     </div>
                   </div>
                   <span style={{ color: '#ccc', fontSize: 18 }}>›</span>
@@ -951,7 +951,7 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
 
                     {/* Prochain tomon info */}
                     <div style={{ textAlign: 'center', marginBottom: 16, fontSize: 13, color: '#666' }}>
-                      {lang === 'ar' ? `الثمن التالي : T.${etat.prochainTomon} من الحزب ${etat.hizbEnCours}` : `Prochain : T.${etat.prochainTomon} — Hizb ${etat.hizbEnCours}`}
+                      {lang === 'ar' ? `الثمن التالي : ث.${etat.prochainTomon} من الحزب ${etat.hizbEnCours}` : `Prochain : T.${etat.prochainTomon} — Hizb ${etat.hizbEnCours}`}
                     </div>
 
                     {/* Sélecteur nombre de tomons */}
