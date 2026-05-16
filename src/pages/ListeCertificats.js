@@ -297,6 +297,7 @@ export default function ListeCertificats({ user, navigate, goBack, lang='fr', is
       mode={modaleMode}
       certificat={modaleCertif}
       eleve={modaleEleve}
+      eleves={eleves}
       resultat={modaleResultat}
       examen={modaleExamen}
       user={user}
@@ -305,6 +306,16 @@ export default function ListeCertificats({ user, navigate, goBack, lang='fr', is
       onSaved={onModaleSaved}
     />
   );
+
+  // B3 — Ouvrir modale en mode manuel pur (depuis bouton header)
+  const ouvrirCreationManuelle = () => {
+    setModaleMode('create');
+    setModaleCertif(null);
+    setModaleEleve(null);   // Pas d'élève pré-sélectionné -> selecteur dans la modale
+    setModaleResultat(null);
+    setModaleExamen(null);
+    setModaleOpen(true);
+  };
 
   // Pull-to-refresh (Phase 2 mobile - hook appele au top level pour respecter les rules of hooks)
   const {
@@ -335,6 +346,11 @@ export default function ListeCertificats({ user, navigate, goBack, lang='fr', is
               <div style={{fontSize:11,color:'rgba(255,255,255,0.8)'}}>{filtered.length} {lang==='ar'?'شهادة':'certificat(s)'}</div>
             </div>
             <div style={{display:'flex',gap:6,flexShrink:0}}>
+              <button onClick={ouvrirCreationManuelle}
+                title={lang==='ar' ? 'إصدار شهادة يدوية' : 'Émettre un certificat manuel'}
+                style={{background:'#1D9E75',border:'1px solid rgba(255,255,255,0.3)',borderRadius:10,padding:'7px 11px',color:'#fff',fontSize:14,fontWeight:700,cursor:'pointer',whiteSpace:'nowrap',fontFamily:'inherit'}}>
+                ➕
+              </button>
               <button onClick={handlePdfListe} disabled={genListe||filtered.length===0}
                 style={{background:'rgba(255,255,255,0.25)',border:'1px solid rgba(255,255,255,0.3)',borderRadius:10,padding:'7px 11px',color:'#fff',fontSize:12,fontWeight:600,cursor:(genListe||filtered.length===0)?'default':'pointer',opacity:(genListe||filtered.length===0)?0.5:1,whiteSpace:'nowrap',fontFamily:'inherit'}}>
                 {genListe ? '⏳' : '📄 PDF'}
@@ -442,14 +458,24 @@ export default function ListeCertificats({ user, navigate, goBack, lang='fr', is
         onBack={() => goBack ? goBack() : navigate('dashboard')}
         lang={lang}
         actions={
-          <ExportButtons
-            onPDF={handlePdfListe}
-            onExcel={handleExcelListe}
-            lang={lang}
-            variant="inline"
-            compact
-            disabled={genListe || filtered.length === 0}
-          />
+          <div style={{display:'flex', gap:8, alignItems:'center'}}>
+            <button onClick={ouvrirCreationManuelle}
+              title={lang==='ar' ? 'إصدار شهادة يدوية' : 'Émettre un certificat manuel'}
+              style={{padding:'8px 14px', borderRadius:10, border:'none',
+                background:'#1D9E75', color:'#fff', fontSize:12, fontWeight:700,
+                cursor:'pointer', fontFamily:'inherit', display:'flex',
+                alignItems:'center', gap:6, whiteSpace:'nowrap'}}>
+              ➕ {lang==='ar' ? 'شهادة جديدة' : 'Nouveau certificat'}
+            </button>
+            <ExportButtons
+              onPDF={handlePdfListe}
+              onExcel={handleExcelListe}
+              lang={lang}
+              variant="inline"
+              compact
+              disabled={genListe || filtered.length === 0}
+            />
+          </div>
         }
       />
 

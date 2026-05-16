@@ -31,6 +31,7 @@ export default function ModaleEditionCertificat({
   mode = 'edit',
   certificat = null,
   eleve = null,
+  eleves = null,    // B3 : liste pour selecteur si eleve null en mode create
   resultat = null,
   examen = null,
   user,
@@ -47,6 +48,11 @@ export default function ModaleEditionCertificat({
   const [description, setDescription] = useState('');
   const [dateEmission, setDateEmission] = useState('');
   const [saving, setSaving] = useState(false);
+  // B3 : élève sélectionné quand pas pré-fourni (mode 'create' manuel pur)
+  const [elevePicked, setElevePicked] = useState(null);
+  const [searchEleve, setSearchEleve] = useState('');
+  // L'eleve effectif : celui passé en prop ou celui choisi via sélecteur
+  const eleveEffectif = eleve || elevePicked;
 
   // Snapshot initial pour calculer le diff (audit metadata)
   const [snapshotInitial, setSnapshotInitial] = useState(null);
@@ -80,7 +86,7 @@ export default function ModaleEditionCertificat({
 
   // ─── Validation simple ─────────────────────────────────────────────────
   const titreClean = (titre || '').trim();
-  const isValid = titreClean.length > 0 && !!dateEmission;
+  const isValid = titreClean.length > 0 && !!dateEmission && (!isCreate || !!eleveEffectif?.id);
 
   // ─── Save : update (edit) ou insert (create) ───────────────────────────
   const handleSave = async () => {
@@ -89,13 +95,13 @@ export default function ModaleEditionCertificat({
     try {
       if (isCreate) {
         // ── CRÉATION ──
-        if (!eleve?.id || !user?.ecole_id) {
+        if (!eleveEffectif?.id || !user?.ecole_id) {
           toast.error(isAr ? 'بيانات ناقصة' : 'Données manquantes');
           setSaving(false);
           return;
         }
         const payload = {
-          eleve_id: eleve.id,
+          eleve_id: eleveEffectif.id,
           ecole_id: user.ecole_id,
           jalon_id: null,
           titre: titreClean,
@@ -121,10 +127,10 @@ export default function ModaleEditionCertificat({
           action: 'creer_certificat_manuel',
           target_type: 'certificat',
           target_id: inserted.id,
-          target_label: `${eleve.prenom} ${eleve.nom} — ${titreClean}`,
+          target_label: `${eleveEffectif.prenom} ${eleveEffectif.nom} — ${titreClean}`,
           metadata: {
             type_certificat: 'examen_manuel',
-            eleve_id: eleve.id,
+            eleve_id: eleveEffectif.id,
             examen_id: examen?.id || null,
             resultat_examen_id: resultat?.id || null,
             valeurs: { titre: titreClean, description, date_emission: dateEmission },
@@ -233,9 +239,9 @@ export default function ModaleEditionCertificat({
                 ? (isAr ? '✨ إصدار شهادة' : '✨ Émettre un certificat')
                 : (isAr ? '✏️ تحرير الشهادة' : '✏️ Éditer le certificat')}
             </div>
-            {eleve && (
+            {eleveEffectif && (
               <div style={{fontSize:12, color:'#888', marginTop:3}}>
-                {eleve.prenom} {eleve.nom}
+                {eleveEffectif.prenom} {eleveEffectif.nom}
               </div>
             )}
           </div>
@@ -248,6 +254,85 @@ export default function ModaleEditionCertificat({
 
         {/* Body */}
         <div style={{padding:'20px 24px', display:'flex', flexDirection:'column', gap:16}}>
+
+          {/* B3 — Sélecteur élève : uniquement en mode create + sans élève pré-fourni */}
+          {isCreate && !eleve && Array.isArray(eleves) && (
+            <div>
+              <div style={{fontSize:11, color:'#888', fontWeight:600, marginBottom:6, letterSpacing:0.5}}>
+                {isAr ? 'الطالب' : 'ÉLÈVE'} <span style={{color:'#E24B4A'}}>*</span>
+              </div>
+              {elevePicked ? (
+                <div style={{display:'flex', alignItems:'center', gap:10,
+                  padding:'10px 14px', background:'#E1F5EE', borderRadius:10,
+                  border:'0.5px solid #1D9E7530'}}>
+                  <span style={{fontSize:14, fontWeight:700, color:'#085041', flex:1}}>
+                    👤 {elevePicked.prenom} {elevePicked.nom}
+                    {elevePicked.eleve_id_ecole && (
+                      <span style={{marginLeft:8, fontSize:11, color:'#666', fontWeight:500}}>
+                        #{elevePicked.eleve_id_ecole}
+                      </span>
+                    )}
+                  </span>
+                  <button onClick={() => setElevePicked(null)}
+                    style={{background:'none', border:'none', color:'#666',
+                      fontSize:18, cursor:'pointer', padding:'0 4px'}}
+                    title={isAr ? 'تغيير' : 'Changer'}>✕</button>
+                </div>
+              ) : (
+                <div>
+                  <input type="text"
+                    value={searchEleve}
+                    onChange={e => setSearchEleve(e.target.value)}
+                    placeholder={isAr ? '🔍 ابحث بالاسم أو الرقم' : '🔍 Rechercher par nom ou ID'}
+                    style={{width:'100%', padding:'10px 12px', borderRadius:10,
+                      border:'0.5px solid #e0e0d8', fontSize:14, fontFamily:'inherit',
+                      boxSizing:'border-box'}} />
+                  {searchEleve.trim().length >= 2 && (() => {
+                    const q = searchEleve.trim().toLowerCase();
+                    const matches = eleves.filter(e => {
+                      const full = `${e.prenom || ''} ${e.nom || ''}`.toLowerCase();
+                      const id = String(e.eleve_id_ecole || '').toLowerCase();
+                      return full.includes(q) || id.includes(q);
+                    }).slice(0, 8);
+                    if (matches.length === 0) {
+                      return (
+                        <div style={{padding:'10px 12px', fontSize:12, color:'#aaa', textAlign:'center'}}>
+                          {isAr ? 'لا توجد نتائج' : 'Aucun résultat'}
+                        </div>
+                      );
+                    }
+                    return (
+                      <div style={{marginTop:6, maxHeight:240, overflowY:'auto',
+                        border:'0.5px solid #e0e0d8', borderRadius:10}}>
+                        {matches.map(e => (
+                          <div key={e.id}
+                            onClick={() => { setElevePicked(e); setSearchEleve(''); }}
+                            style={{padding:'10px 14px', cursor:'pointer',
+                              borderBottom:'0.5px solid #f0f0ec', fontSize:13,
+                              display:'flex', alignItems:'center', gap:8}}
+                            onMouseEnter={ev => ev.currentTarget.style.background='#f9f9f6'}
+                            onMouseLeave={ev => ev.currentTarget.style.background='#fff'}>
+                            <span style={{fontWeight:700}}>{e.prenom} {e.nom}</span>
+                            {e.eleve_id_ecole && (
+                              <span style={{fontSize:11, color:'#666', background:'#f0f0ec',
+                                padding:'1px 7px', borderRadius:20}}>
+                                #{e.eleve_id_ecole}
+                              </span>
+                            )}
+                            {e.code_niveau && (
+                              <span style={{marginLeft:'auto', fontSize:11, color:'#888'}}>
+                                {e.code_niveau}
+                              </span>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    );
+                  })()}
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Type de certificat (lecture seule — Q3=A) */}
           {typeCertif && (
