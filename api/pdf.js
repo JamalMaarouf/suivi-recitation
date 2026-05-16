@@ -435,18 +435,18 @@ function certificatStyles() {
     .cert { width:1122px; height:794px; margin:0 auto; background:#fff; position:relative; overflow:hidden; }
 
     /* WATERMARK central — étoile khatim géante très discrète */
-    .watermark { position:absolute; top:50%; left:50%; width:520px; height:520px;
-      transform:translate(-50%, -50%); opacity:0.035; pointer-events:none; z-index:0; }
+    .watermark { position:absolute; top:50%; left:50%; width:380px; height:380px;
+      transform:translate(-50%, -50%); opacity:0.025; pointer-events:none; z-index:0; }
 
     /* Double bordure : verte épaisse + filet doré intérieur */
     .border-outer { position:absolute; inset:20px; border:6px solid #085041; pointer-events:none; z-index:1; }
     .border-inner { position:absolute; inset:34px; border:1px solid #EF9F27; pointer-events:none; z-index:1; }
 
     /* Filet zellige : bande de motifs géométriques juste sous la bordure dorée */
-    .zellige-band { position:absolute; left:42px; right:42px; height:14px; pointer-events:none; z-index:1;
-      display:flex; gap:6px; align-items:center; opacity:0.5; }
-    .zellige-band.top { top:42px; }
-    .zellige-band.bottom { bottom:42px; transform:scaleY(-1); }
+    .zellige-band { position:absolute; left:50px; right:50px; height:14px; pointer-events:none; z-index:1;
+      display:flex; gap:6px; align-items:center; opacity:0.45; overflow:hidden; }
+    .zellige-band.top { top:44px; }
+    .zellige-band.bottom { bottom:44px; transform:scaleY(-1); }
     .zellige-band > * { flex-shrink:0; }
 
     /* Coins khatim discrets */
@@ -456,7 +456,7 @@ function certificatStyles() {
     .corner-bl { bottom:48px; left:48px; }
     .corner-br { bottom:48px; right:48px; }
 
-    .content { position:absolute; inset:72px 60px; display:flex; flex-direction:column; align-items:center; z-index:3; }
+    .content { position:absolute; top:78px; bottom:78px; left:60px; right:60px; display:flex; flex-direction:column; align-items:center; z-index:3; }
 
     /* HEADER */
     .header { width:100%; text-align:center; padding-bottom:16px; border-bottom:1.5px solid #EF9F27; }
@@ -522,8 +522,10 @@ function certificatStyles() {
     /* IMPRESSION */
     @media print {
       body { background:#fff; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
-      .no-print { display:none; }
+      .no-print, .no-print * { display:none !important; visibility:hidden !important; }
     }
+    /* Classe explicite quand on lance window.print() depuis JS (fallback) */
+    body.printing .no-print, body.printing .no-print * { display:none !important; visibility:hidden !important; }
   `;
 }
 
@@ -555,10 +557,15 @@ function certificatHeader(ecole, isAr) {
   const localite = [ville, pays].filter(Boolean).join(', ');
   // Si on a un nom_ar distinct du nom, on affiche les deux ; sinon on n'affiche qu'une fois
   const showFr = nomFr && nomFr !== nomAr;
+  // Construire la 2e ligne proprement : pieces non-vides separees par ' · '
+  const pieces = [];
+  if (showFr) pieces.push(escapeHtml(nomFr));
+  if (localite) pieces.push(escapeHtml(localite));
+  const ligne2 = pieces.join(' · ');
   return `
     <div class="header">
       <div class="ecole-ar">${escapeHtml(nomAr)}</div>
-      ${(showFr || localite) ? `<div class="ecole-fr">${escapeHtml(nomFr || '')}${(showFr && localite) ? ' · ' : ''}${escapeHtml(localite)}</div>` : ''}
+      ${ligne2 ? `<div class="ecole-fr">${ligne2}</div>` : ''}
     </div>`;
 }
 
@@ -625,11 +632,17 @@ function certificatFooter(numero, dateStr, dateHijri, qrDataUrl, qrUrl, ecole, i
 function certificatPrintBar(isAr) {
   return `
     <div class="no-print" style="position:fixed;top:16px;right:16px;z-index:999;display:flex;gap:8px;">
-      <button onclick="window.print()" style="padding:10px 20px;background:#085041;color:#fff;border:none;border-radius:8px;font-size:14px;cursor:pointer;font-family:'Tajawal',Arial,sans-serif;font-weight:700;">
+      <button onclick="(function(){document.body.classList.add('printing');setTimeout(function(){window.print();setTimeout(function(){document.body.classList.remove('printing');},500);},50);})()" style="padding:10px 20px;background:#085041;color:#fff;border:none;border-radius:8px;font-size:14px;cursor:pointer;font-family:'Tajawal',Arial,sans-serif;font-weight:700;">
         🖨️ ${isAr ? 'طباعة / تحميل PDF' : 'Imprimer / Télécharger PDF'}
       </button>
       <button onclick="window.close()" style="padding:10px 16px;background:#f0f0ec;color:#666;border:none;border-radius:8px;font-size:14px;cursor:pointer;">✕</button>
-    </div>`;
+    </div>
+    <script>
+      // Robustesse multi-navigateur : ajouter classe printing pendant l'impression
+      // (au cas où @media print ne s'applique pas dans l'apercu inline du navigateur)
+      window.addEventListener('beforeprint', function(){ document.body.classList.add('printing'); });
+      window.addEventListener('afterprint', function(){ document.body.classList.remove('printing'); });
+    </script>`;
 }
 
 // Helper sécurité : échappe le HTML pour éviter injection / casse de layout
