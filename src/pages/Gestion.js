@@ -1983,6 +1983,136 @@ function SensRecitationTab({ user, lang, ecoleConfig, setEcoleConfig, niveaux, s
 }
 
 // ══════════════════════════════════════════════════════
+// COMPOSANT IdentiteEcoleTab — Identité école (J3 sprint 12j)
+// Phase 1 : Directeur uniquement. Pourra accueillir + tard logo, nom AR/FR
+// ══════════════════════════════════════════════════════
+function IdentiteEcoleTab({ user, lang, ecoleConfig, setEcoleConfig, showMsg }) {
+  const [nomDirecteur, setNomDirecteur] = React.useState(ecoleConfig?.nom_directeur || '');
+  const [nomDirecteurAr, setNomDirecteurAr] = React.useState(ecoleConfig?.nom_directeur_ar || '');
+  const [saving, setSaving] = React.useState(false);
+
+  // Resync si ecoleConfig change apres montage (rare mais propre)
+  React.useEffect(() => {
+    setNomDirecteur(ecoleConfig?.nom_directeur || '');
+    setNomDirecteurAr(ecoleConfig?.nom_directeur_ar || '');
+  }, [ecoleConfig?.nom_directeur, ecoleConfig?.nom_directeur_ar]);
+
+  const handleSave = async () => {
+    setSaving(true);
+    const payload = {
+      nom_directeur: nomDirecteur.trim() || null,
+      nom_directeur_ar: nomDirecteurAr.trim() || null,
+    };
+    const { error } = await supabase.from('ecoles')
+      .update(payload)
+      .eq('id', user.ecole_id);
+    setSaving(false);
+    if (error) {
+      showMsg('error', lang === 'ar' ? 'خطأ في الحفظ' : 'Erreur de sauvegarde');
+      return;
+    }
+    setEcoleConfig(prev => ({ ...prev, ...payload }));
+    showMsg('success', lang === 'ar' ? 'تم الحفظ' : 'Identité enregistrée');
+  };
+
+  const labelStyle = { fontSize: 12, fontWeight: 600, color: '#666', display: 'block', marginBottom: 6 };
+  const inputStyle = {
+    width: '100%', padding: '11px 14px', borderRadius: 10,
+    border: '0.5px solid #e0e0d8', fontSize: 14, fontFamily: 'inherit',
+    boxSizing: 'border-box', background: '#fff',
+  };
+
+  return (
+    <div style={{ padding: '1.5rem', maxWidth: 720 }}>
+      <h2 style={{ fontSize: 18, fontWeight: 700, color: '#085041', marginBottom: 8 }}>
+        👔 {lang === 'ar' ? 'هوية المدرسة' : "Identité de l'école"}
+      </h2>
+      <p style={{ fontSize: 13, color: '#666', marginBottom: 22, lineHeight: 1.5 }}>
+        {lang === 'ar'
+          ? 'هذه المعلومات تظهر على شهادات الامتحانات. اترك حقل المدير فارغًا إذا لم يكن لمدرستك مدير منفصل عن المشرف.'
+          : "Ces informations apparaissent sur les certificats d'examens. Laisse le champ Directeur vide si ton école n'a pas de Directeur distinct du Surveillant."}
+      </p>
+
+      <div style={{ background: '#fff', borderRadius: 14, padding: 24, border: '0.5px solid #e0e0d8' }}>
+        <div style={{ marginBottom: 18 }}>
+          <label style={labelStyle}>
+            {lang === 'ar' ? 'اسم المدير (بالفرنسية)' : 'Nom du Directeur (français)'}
+          </label>
+          <input
+            type="text"
+            value={nomDirecteur}
+            onChange={e => setNomDirecteur(e.target.value)}
+            placeholder={lang === 'ar' ? 'مثال: محمد الأمين' : 'Ex: Mohammed El Amine'}
+            style={inputStyle}
+            maxLength={100}
+          />
+        </div>
+
+        <div style={{ marginBottom: 22 }}>
+          <label style={labelStyle}>
+            {lang === 'ar' ? 'اسم المدير (بالعربية)' : 'Nom du Directeur (arabe)'}
+          </label>
+          <input
+            type="text"
+            value={nomDirecteurAr}
+            onChange={e => setNomDirecteurAr(e.target.value)}
+            placeholder={lang === 'ar' ? 'مثال: محمد الأمين' : 'مثال: محمد الأمين'}
+            style={{ ...inputStyle, direction: 'rtl', textAlign: 'right' }}
+            maxLength={100}
+          />
+          <div style={{ fontSize: 11, color: '#aaa', marginTop: 6 }}>
+            {lang === 'ar'
+              ? 'اختياري. إذا تركته فارغًا، سيُستخدم الاسم الفرنسي على الشهادات بالعربية أيضًا.'
+              : 'Optionnel. Si vide, le nom français sera utilisé aussi sur les certificats en arabe.'}
+          </div>
+        </div>
+
+        <button
+          onClick={handleSave}
+          disabled={saving}
+          style={{
+            padding: '12px 28px', background: '#1D9E75', color: '#fff',
+            border: 'none', borderRadius: 12, fontSize: 14, fontWeight: 700,
+            cursor: saving ? 'wait' : 'pointer', fontFamily: 'inherit',
+            opacity: saving ? 0.6 : 1,
+          }}>
+          {saving ? '⏳' : '✓'} {lang === 'ar' ? 'حفظ' : 'Enregistrer'}
+        </button>
+      </div>
+
+      {/* Aperçu signature certificat */}
+      {(nomDirecteur || nomDirecteurAr) && (
+        <div style={{ marginTop: 24, padding: 18, background: '#f9f9f6', borderRadius: 12, border: '0.5px solid #e0e0d8' }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: '#aaa', letterSpacing: 1.5, marginBottom: 10 }}>
+            {lang === 'ar' ? 'معاينة على الشهادة' : 'APERÇU SUR LE CERTIFICAT'}
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-around', gap: 24, paddingTop: 28 }}>
+            <div style={{ textAlign: 'center', minWidth: 180 }}>
+              <div style={{ borderBottom: '1.5px solid #333', marginBottom: 6 }}></div>
+              <div style={{ fontSize: 12, color: '#666', direction: 'rtl' }}>
+                {nomDirecteurAr || nomDirecteur} · المدير
+              </div>
+              <div style={{ fontSize: 10, color: '#aaa', marginTop: 2 }}>
+                {nomDirecteur || nomDirecteurAr} · Directeur
+              </div>
+            </div>
+            <div style={{ textAlign: 'center', minWidth: 180 }}>
+              <div style={{ borderBottom: '1.5px solid #333', marginBottom: 6 }}></div>
+              <div style={{ fontSize: 12, color: '#666', direction: 'rtl' }}>
+                المشرف
+              </div>
+              <div style={{ fontSize: 10, color: '#aaa', marginTop: 2 }}>
+                Surveillant
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════════
 // COMPOSANT PassageNiveauTab — Règles de passage de niveau
 // ══════════════════════════════════════════════════════
 function PassageNiveauTab({ user, lang, niveaux, showMsg }) {
@@ -2801,7 +2931,7 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile,
   }, []);
 
   const loadData = async () => {
-    const { data: ecData } = await supabase.from('ecoles').select('mdp_defaut_instituteurs,mdp_defaut_parents,sens_recitation_defaut').eq('id', user.ecole_id).maybeSingle();
+    const { data: ecData } = await supabase.from('ecoles').select('mdp_defaut_instituteurs,mdp_defaut_parents,sens_recitation_defaut,nom_directeur,nom_directeur_ar').eq('id', user.ecole_id).maybeSingle();
     if (ecData) setEcoleConfig(prev => ({...prev, ...ecData}));
     setLoading(true);
     try {
@@ -4729,10 +4859,14 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
            desc:lang==='ar'?'حسابات الأولياء (تلقائي)':'Comptes parents (auto)',
            action:()=>setTab('parents'), color:'#534AB7', bg:'#EEEDFE',
            filled: tableCounts.parents > 0},
+          {n:16, k:'identite_ecole', icon:'👔', label:lang==='ar'?'هوية المدرسة':"Identité école",
+           desc:lang==='ar'?'مدير المدرسة، الاسم...':'Directeur, infos école',
+           action:()=>setTab('identite_ecole'), color:'#085041', bg:'#E1F5EE',
+           filled: !!(ecoleConfig?.nom_directeur)},
         ];
 
         const OUTILS = [
-          {n:16, k:'mass', icon:'📥', label:lang==='ar'?'استيراد جماعي':'Import en masse',
+          {n:17, k:'mass', icon:'📥', label:lang==='ar'?'استيراد جماعي':'Import en masse',
            desc:lang==='ar'?'من ملف Excel':'Depuis Excel',
            action:()=>navigate('import_masse',null,{tab}), color:'#EF9F27', bg:'#FAEEDA',
            depends: tableCounts.niveaux > 0,
@@ -5978,6 +6112,13 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
           user={user} lang={lang}
           ecoleConfig={ecoleConfig} setEcoleConfig={setEcoleConfig}
           niveaux={niveauxActifs||[]} setNiveaux={setNiveauxDyn}
+          showMsg={showMsg}
+        />
+      )}
+      {tab === 'identite_ecole' && (
+        <IdentiteEcoleTab
+          user={user} lang={lang}
+          ecoleConfig={ecoleConfig} setEcoleConfig={setEcoleConfig}
           showMsg={showMsg}
         />
       )}
