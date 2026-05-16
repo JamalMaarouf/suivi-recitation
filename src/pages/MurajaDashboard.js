@@ -106,7 +106,9 @@ export default function MurajaDashboard({ user, navigate, goBack, lang='fr', isM
       date: v.date_validation,
       niveau: v.eleve?.code_niveau || '?',
       eleve: v.eleve,
-      contenu: v.type_validation === 'hizb_muraja' ? `Hizb ${v.hizb_validation}` : `Hizb ${v.hizb_validation} — T${v.tomon_debut} ×${v.nombre_tomon}`,
+      contenu: v.type_validation === 'hizb_muraja'
+        ? `${lang==='ar'?'الحزب':'Hizb'} ${v.hizb_validation}`
+        : `${lang==='ar'?'الحزب':'Hizb'} ${v.hizb_validation} — ${lang==='ar'?'ث':'T'}${v.tomon_debut} ×${v.nombre_tomon}`,
       type: v.type_validation === 'hizb_muraja' ? (lang==='ar'?'حزب كامل':'Hizb complet') : (lang==='ar'?'ثُمن':'Tomon'),
       valideur: v.valideur ? `${v.valideur.prenom} ${v.valideur.nom}` : '?',
       valideurId: v.valide_par,

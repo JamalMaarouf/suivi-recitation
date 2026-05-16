@@ -162,8 +162,9 @@ export default function Calendrier({ user, navigate, goBack, lang='fr', isMobile
                       <div style={{flex:1}}>
                         <div style={{fontSize:13,fontWeight:500}}>{eleve?`${eleve.prenom} ${eleve.nom}`:'—'}</div>
                         <div style={{fontSize:12,color:'#888'}}>
-                          {v.type_validation==='hizb_complet'?`Hizb ${v.hizb_valide} ${t(lang,'hizb_complets_label')}`:
-                           `${v.nombre_tomon} ${t(lang,'tomon_abrev')}${v.tomon_debut?` (T.${v.tomon_debut}→T.${v.tomon_debut+v.nombre_tomon-1})`:''} · Hizb ${v.hizb_validation||'—'}`}
+                          {v.type_validation==='hizb_complet'
+                            ? `${lang==='ar'?'الحزب':'Hizb'} ${v.hizb_valide} ${t(lang,'hizb_complets_label')}`
+                            : `${v.nombre_tomon} ${t(lang,'tomon_abrev')}${v.tomon_debut?` (${lang==='ar'?'ث':'T'}.${v.tomon_debut}→${lang==='ar'?'ث':'T'}.${v.tomon_debut+v.nombre_tomon-1})`:''} · ${lang==='ar'?'الحزب':'Hizb'} ${v.hizb_validation||'—'}`}
                         </div>
                         <div style={{fontSize:11,color:'#bbb'}}>{new Date(v.date_validation).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'})}{v.valideur?` · ${v.valideur.prenom} ${v.valideur.nom}`:''}</div>
                       </div>

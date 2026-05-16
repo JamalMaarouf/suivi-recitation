@@ -526,7 +526,9 @@ export default function PortailParent({ parent, navigate, goBack, lang='fr', onL
                     <div style={{width:8,height:8,borderRadius:'50%',background:'#1D9E75',flexShrink:0}}/>
                     <div style={{flex:1}}>
                       <div style={{fontWeight:600,fontSize:13}}>
-                        {v.type_validation==='hizb_complet'?'Hizb complet':`T.${v.tomon_debut} ×${v.nombre_tomon}`}
+                        {v.type_validation==='hizb_complet'
+                          ? (lang==='ar'?'الحزب مكتمل':'Hizb complet')
+                          : `${lang==='ar'?'ث':'T'}.${v.tomon_debut} ×${v.nombre_tomon}`}
                       </div>
                       <div style={{fontSize:11,color:'#888'}}>{new Date(v.date_validation).toLocaleDateString(lang==='ar'?'ar-MA':'fr-FR')}</div>
                     </div>
@@ -1155,7 +1157,9 @@ export default function PortailParent({ parent, navigate, goBack, lang='fr', onL
           <div style={{fontSize:12,color:'#888',marginTop:4}}>
             {isSourate
               ? (sourateActuelle?<span>{lang==='ar'?'السورة الحالية:':'En cours: '}<strong style={{fontFamily:"'Tajawal',Arial"}}>{sourateActuelle.nom_ar}</strong></span>:<span>{lang==='ar'?'أتم البرنامج 🎉':'Programme terminé 🎉'}</span>)
-              : `Hizb ${eleve.hizb_depart||1} · T.${eleve.tomon_depart||1}`
+              : (lang==='ar'
+                ? `الحزب ${eleve.hizb_depart||1} · ث.${eleve.tomon_depart||1}`
+                : `Hizb ${eleve.hizb_depart||1} · T.${eleve.tomon_depart||1}`)
             }
           </div>
           <div style={{fontSize:11,color:joursInactif>14?'#E24B4A':'#888',marginTop:2}}>
