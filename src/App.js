@@ -144,30 +144,39 @@ class ErrorBoundary extends React.Component {
 
 export const LangContext = React.createContext({ lang: 'fr', setLang: () => {} });
 
-// ─── ROOT : split entre la page publique de vérification et l'app principale ───
-// La page /verify/:numero est publique (accessible sans auth) et doit donc
-// être montée AVANT App() qui contient toute la logique d'auth + hooks.
-// Pattern propre : un wrapper qui choisit le bon composant racine selon
-// l'URL, comme ça App() reste 100% identique et ses hooks sont stables.
-function RootApp() {
-  const pathname = typeof window !== 'undefined' ? window.location.pathname : '';
-  const verifyMatch = pathname.match(/^\/verify\/(.+)$/);
-  const verifyNumero = verifyMatch ? decodeURIComponent(verifyMatch[1]) : null;
+// ─── ROUTING : split entre la page publique de vérification et l'app principale ───
+// La page /verify/:numero est publique (accessible sans auth) et doit donc être
+// montée AVANT App() qui contient toute la logique d'auth + hooks.
+//
+// IMPORTANT : on calcule la route UNE SEULE FOIS au module load, pas a chaque
+// render. Si on le faisait dans un composant, un re-render qui changerait la
+// branche provoquerait React error #300 ("Rendered fewer hooks than expected").
+// Comme l'app n'a pas de routing client-side (pas de react-router), la route
+// initiale est stable pour toute la session — on peut donc la calculer ici.
+const VERIFY_MATCH = typeof window !== 'undefined'
+  ? window.location.pathname.match(/^\/verify\/(.+)$/)
+  : null;
+const VERIFY_NUMERO = VERIFY_MATCH ? decodeURIComponent(VERIFY_MATCH[1]) : null;
 
+// Composant racine de la page publique de verification.
+// N'est rendu que si l'URL match /verify/:numero (decision prise au module load).
+function PageVerificationRoute() {
   const [verifyLang, setVerifyLang] = useState(() => localStorage.getItem('suivi_lang') || 'fr');
+  return (
+    <Suspense fallback={<div style={{padding:60,textAlign:'center',color:'#888',fontFamily:"'Tajawal',Arial,sans-serif"}}>⏳ Chargement…</div>}>
+      <PageVerification
+        numero={VERIFY_NUMERO}
+        lang={verifyLang}
+        setLang={(l) => { setVerifyLang(l); localStorage.setItem('suivi_lang', l); }}
+      />
+    </Suspense>
+  );
+}
 
-  if (verifyNumero) {
-    return (
-      <Suspense fallback={<div style={{padding:60,textAlign:'center',color:'#888',fontFamily:"'Tajawal',Arial,sans-serif"}}>⏳ Chargement…</div>}>
-        <PageVerification
-          numero={verifyNumero}
-          lang={verifyLang}
-          setLang={(l) => { setVerifyLang(l); localStorage.setItem('suivi_lang', l); }}
-        />
-      </Suspense>
-    );
-  }
-
+// RootApp : aiguille statique entre PageVerificationRoute et App.
+// Pas de hook dans ce composant -> aucun risque de violation des regles des hooks.
+function RootApp() {
+  if (VERIFY_NUMERO) return <PageVerificationRoute />;
   return <App />;
 }
 
