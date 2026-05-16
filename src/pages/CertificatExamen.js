@@ -39,8 +39,12 @@ export async function genererCertificatPDF({ resultat, eleve, examen, niveau, ec
         nom_ar: ecole?.nom_ar || '',
         ville: ecole?.ville || '',
         pays: ecole?.pays || '',
+        nom_directeur: ecole?.nom_directeur || '',
+        nom_directeur_ar: ecole?.nom_directeur_ar || '',
       },
       contenu: { ar: contenuAr || '', fr: contenuFr || '' },
+      // B5 : le numéro vient de certificats_eleves (table dédiée + trigger BDD),
+      // pas de resultats_examens. Le caller doit fetch et passer la valeur.
       numero: resultat.numero_certificat || null,
     }, lang);
     return true;
@@ -62,7 +66,44 @@ export default function BoutonCertificat({ resultat, eleves, examens, niveaux, e
 
   const telecharger = async () => {
     setLoading(true);
-    const ok = await genererCertificatPDF({ resultat, eleve, examen, niveau, ecole }, lang);
+
+    // B5 — Fetch enrichi (1 seul aller-retour groupé via Promise.all)
+    //   1. numéro du certificat (table certificats_eleves, lien via resultat_examen_id_source)
+    //   2. infos directeur école si non fournies dans la prop ecole
+    let numero = null;
+    let ecoleEnrichie = ecole;
+    try {
+      const promises = [
+        supabase.from('certificats_eleves')
+          .select('numero')
+          .eq('resultat_examen_id_source', resultat.id)
+          .maybeSingle(),
+      ];
+      // Fetch directeur uniquement si pas déjà dans la prop ecole
+      const needDirecteurFetch = ecole && !('nom_directeur' in ecole);
+      const ecoleIdForFetch = resultat.ecole_id || eleve.ecole_id;
+      if (needDirecteurFetch && ecoleIdForFetch) {
+        promises.push(
+          supabase.from('ecoles')
+            .select('nom_directeur,nom_directeur_ar')
+            .eq('id', ecoleIdForFetch)
+            .maybeSingle()
+        );
+      }
+      const results = await Promise.all(promises);
+      numero = results[0]?.data?.numero || null;
+      if (needDirecteurFetch && results[1]?.data) {
+        ecoleEnrichie = { ...ecole, ...results[1].data };
+      }
+    } catch (err) {
+      // On continue sans le numero/directeur plutôt que de bloquer la génération
+      console.warn('[Certificat] fetch enrichi partiel:', err);
+    }
+
+    // Injecter le numero dans le resultat pour que genererCertificatPDF le voie
+    const resultatEnrichi = { ...resultat, numero_certificat: numero };
+
+    const ok = await genererCertificatPDF({ resultat: resultatEnrichi, eleve, examen, niveau, ecole: ecoleEnrichie }, lang);
     setLoading(false);
     if (ok) toast.success(lang === 'ar' ? '✅ تم فتح الشهادة' : '✅ Certificat ouvert');
     else toast.error(lang === 'ar' ? 'خطأ في إنشاء الشهادة' : 'Erreur génération certificat');

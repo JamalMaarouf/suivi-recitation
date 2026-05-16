@@ -23,9 +23,9 @@ module.exports = async function handler(req, res) {
     } else if (type === 'liste_notes') {
       html = generateListeNotes(data, lang);
     } else if (type === 'certificat') {
-      html = generateCertificat(data, lang);
+      html = await generateCertificat(data, lang);
     } else if (type === 'certificat_examen') {
-      html = generateCertificatExamen(data, lang);
+      html = await generateCertificatExamen(data, lang);
     } else if (type === 'fiche_eleve') {
       html = generateFicheEleve(data, lang);
     } else if (type === 'rapport_assiduite') {
@@ -314,62 +314,211 @@ function generateFicheEleve(data, lang) {
 // Style : hybride sobre + touches arabes discrètes (validé Jamal Q2=C)
 // Header : nom école AR + transcription FR + ville/pays (validé Jamal Q3=B)
 // Médaille : SVG khatim (étoile 8 branches), validé Jamal
+//
+// REFONTE B5 (J3 sprint 12j) — diplôme académique style officiel marocain :
+//   * Police Amiri (Google Fonts) pour le titre arabe principal
+//   * Watermark khatim géant 4% opacity en arrière-plan
+//   * Motif zellige géométrique en bordure intérieure
+//   * Score affiché dans un cercle décoratif
+//   * Date au format Hijri + grégorien (systématique)
+//   * Numéro certificat AAAA/NNNN (généré par trigger BDD)
+//   * QR code de vérification (bas-droite, lien vers /verify/:numero)
+//   * Signature configurable : Surveillant seul OU Directeur + Surveillant
 // ─────────────────────────────────────────────────────────────────────────────
+
+// ─── HELPER : conversion grégorien → Hijri ───
+// Algorithme tabular Umm al-Qura simplifié (precision : ±1 jour, acceptable
+// pour un certificat décoratif). Pour précision astronomique, utiliser
+// une table Umm al-Qura officielle, mais c'est ~30 KB en plus pour gain
+// minime sur un certificat.
+function gregorianToHijri(date) {
+  const jd = gregorianToJulianDay(date);
+  // Constante époque hégirienne : Julian Day du 1er Muharram 1 AH = 1948440
+  const daysSinceEpoch = jd - 1948440;
+  // Année hégirienne moyenne : 354.367 jours
+  const hYear = Math.floor((daysSinceEpoch - 1) / 354.367) + 1;
+  const hYearStart = 1948440 + Math.floor((hYear - 1) * 354.367);
+  const daysInYear = jd - hYearStart;
+  // Mois alternés 30/29 jours, mois 12 (Dhu al-Hijja) = 29 ou 30
+  const monthDays = [30, 29, 30, 29, 30, 29, 30, 29, 30, 29, 30, 29];
+  let dayCount = daysInYear;
+  let hMonth = 1;
+  for (let i = 0; i < 12; i++) {
+    if (dayCount < monthDays[i]) break;
+    dayCount -= monthDays[i];
+    hMonth++;
+  }
+  const hDay = dayCount + 1;
+  return { year: hYear, month: hMonth, day: hDay };
+}
+
+function gregorianToJulianDay(date) {
+  const y = date.getFullYear();
+  const m = date.getMonth() + 1;
+  const d = date.getDate();
+  const a = Math.floor((14 - m) / 12);
+  const yy = y + 4800 - a;
+  const mm = m + 12 * a - 3;
+  return d + Math.floor((153 * mm + 2) / 5) + 365 * yy
+    + Math.floor(yy / 4) - Math.floor(yy / 100) + Math.floor(yy / 400) - 32045;
+}
+
+function formatHijriDate(date, isAr) {
+  const h = gregorianToHijri(date);
+  const moisAr = ['مُحَرَّم', 'صَفَر', 'رَبيع الأوّل', 'رَبيع الثاني', 'جُمادى الأولى',
+                  'جُمادى الآخرة', 'رَجَب', 'شَعبان', 'رَمَضان', 'شَوّال',
+                  'ذو القَعدة', 'ذو الحِجّة'];
+  const moisFr = ['Muharram', 'Safar', 'Rabi al-Awwal', 'Rabi al-Thani',
+                  'Jumada al-Ula', 'Jumada al-Akhira', 'Rajab', 'Shaban',
+                  'Ramadan', 'Shawwal', 'Dhu al-Qida', 'Dhu al-Hijja'];
+  if (isAr) {
+    return `${h.day} ${moisAr[h.month - 1]} ${h.year} هـ`;
+  }
+  return `${h.day} ${moisFr[h.month - 1]} ${h.year} H.`;
+}
+
+// ─── HELPER : génération QR Code (data URL) ───
+// Utilise la lib `qrcode` côté Node. Retourne une dataURL PNG embarquable
+// dans <img src="..."/>. Si la génération échoue, retourne null silencieusement
+// pour que le certificat ne soit pas bloqué.
+async function generateQRCodeDataURL(text) {
+  try {
+    const QRCode = require('qrcode');
+    return await QRCode.toDataURL(text, {
+      width: 200,
+      margin: 1,
+      color: { dark: '#085041', light: '#ffffff' },
+      errorCorrectionLevel: 'M',
+    });
+  } catch (err) {
+    console.error('[QR] Generation failed:', err);
+    return null;
+  }
+}
+
+// ─── HELPER : URL de vérification publique ───
+// Base URL = origin du serveur Vercel (auto-detection via env)
+function buildVerificationUrl(numero) {
+  if (!numero) return null;
+  const base = process.env.VERCEL_URL
+    ? `https://${process.env.VERCEL_URL}`
+    : (process.env.NEXT_PUBLIC_BASE_URL || 'https://suivi-recitation.vercel.app');
+  // Encode le numero (contient un '/' → doit être URL-encodé)
+  return `${base}/verify/${encodeURIComponent(numero)}`;
+}
+
+// ─── HELPER : motif zellige (bordure géométrique répétée) ───
+// SVG inline d'un petit motif géométrique islamique, répété en filet
+function zelligeBorder() {
+  // Petit motif : étoile à 8 branches + cercle, répétable
+  return `<svg width="20" height="20" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg" style="display:block;">
+    <polygon points="10,2 12,8 18,10 12,12 10,18 8,12 2,10 8,8" fill="#EF9F27" opacity="0.6"/>
+    <circle cx="10" cy="10" r="2" fill="#085041" opacity="0.4"/>
+  </svg>`;
+}
+
+// ─── HELPER : watermark khatim géant central ───
+function watermarkKhatim() {
+  // Etoile 8 branches géante, 4% opacity, derrière tout le contenu
+  return `<svg class="watermark" viewBox="-60 -60 120 120" xmlns="http://www.w3.org/2000/svg">
+    <polygon points="0,-50 12,-12 50,0 12,12 0,50 -12,12 -50,0 -12,-12" fill="#085041"/>
+    <polygon points="0,-50 12,-12 50,0 12,12 0,50 -12,12 -50,0 -12,-12" transform="rotate(45)" fill="#085041"/>
+  </svg>`;
+}
 
 function certificatStyles() {
   return `
-    @import url('https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;600;700;800;900&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;600;700;800;900&family=Amiri:wght@400;700&display=swap');
     @page { size: A4 landscape; margin: 0; }
     * { margin:0; padding:0; box-sizing:border-box; }
     body { font-family:'Tajawal',Arial,sans-serif; background:#f0f0ec; }
     .cert { width:1122px; height:794px; margin:0 auto; background:#fff; position:relative; overflow:hidden; }
+
+    /* WATERMARK central — étoile khatim géante très discrète */
+    .watermark { position:absolute; top:50%; left:50%; width:520px; height:520px;
+      transform:translate(-50%, -50%); opacity:0.035; pointer-events:none; z-index:0; }
+
     /* Double bordure : verte épaisse + filet doré intérieur */
-    .border-outer { position:absolute; inset:20px; border:6px solid #085041; pointer-events:none; }
-    .border-inner { position:absolute; inset:34px; border:1px solid #EF9F27; pointer-events:none; }
+    .border-outer { position:absolute; inset:20px; border:6px solid #085041; pointer-events:none; z-index:1; }
+    .border-inner { position:absolute; inset:34px; border:1px solid #EF9F27; pointer-events:none; z-index:1; }
+
+    /* Filet zellige : bande de motifs géométriques juste sous la bordure dorée */
+    .zellige-band { position:absolute; left:42px; right:42px; height:14px; pointer-events:none; z-index:1;
+      display:flex; gap:6px; align-items:center; opacity:0.5; }
+    .zellige-band.top { top:42px; }
+    .zellige-band.bottom { bottom:42px; transform:scaleY(-1); }
+    .zellige-band > * { flex-shrink:0; }
+
     /* Coins khatim discrets */
-    .corner { position:absolute; width:24px; height:24px; opacity:0.55; pointer-events:none; }
+    .corner { position:absolute; width:24px; height:24px; opacity:0.55; pointer-events:none; z-index:2; }
     .corner-tl { top:48px; left:48px; }
     .corner-tr { top:48px; right:48px; }
     .corner-bl { bottom:48px; left:48px; }
     .corner-br { bottom:48px; right:48px; }
-    .content { position:absolute; inset:60px; display:flex; flex-direction:column; align-items:center; }
+
+    .content { position:absolute; inset:72px 60px; display:flex; flex-direction:column; align-items:center; z-index:3; }
+
     /* HEADER */
-    .header { width:100%; text-align:center; padding-bottom:18px; border-bottom:1.5px solid #EF9F27; }
-    .ecole-ar { font-size:22px; font-weight:700; color:#085041; direction:rtl; }
+    .header { width:100%; text-align:center; padding-bottom:16px; border-bottom:1.5px solid #EF9F27; }
+    .ecole-ar { font-size:22px; font-weight:700; color:#085041; direction:rtl; font-family:'Tajawal',Arial,sans-serif; }
     .ecole-fr { font-size:13px; color:#888; margin-top:3px; letter-spacing:0.5px; }
-    /* TITRE */
-    .title-block { margin-top:22px; text-align:center; }
-    .title-ar { font-size:54px; font-weight:900; color:#085041; direction:rtl; line-height:1; }
-    .title-fr { font-size:13px; color:#888; letter-spacing:4px; font-weight:600; margin-top:8px; }
+
+    /* TITRE — Amiri pour l'arabe (calligraphie classique) */
+    .title-block { margin-top:18px; text-align:center; }
+    .title-ar { font-family:'Amiri',serif; font-size:64px; font-weight:700; color:#085041;
+      direction:rtl; line-height:1; letter-spacing:2px; }
+    .title-fr { font-size:13px; color:#888; letter-spacing:6px; font-weight:600; margin-top:10px; }
+
     /* CORPS */
-    .body { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; width:100%; gap:10px; padding:8px 0; }
-    .medal-svg { width:100px; height:100px; }
-    .line-ar { font-size:17px; color:#666; direction:rtl; }
-    .name { font-size:40px; font-weight:800; color:#085041; direction:rtl; padding:4px 32px 6px; border-bottom:2px solid #1D9E75; }
-    .examen-box { font-size:22px; font-weight:700; color:#1D9E75; border:2px solid #1D9E75; border-radius:10px; padding:7px 28px; background:#E1F5EE; direction:rtl; margin-top:4px; }
-    .jalon-box { font-size:24px; font-weight:700; color:#EF9F27; border:2px solid #EF9F27; border-radius:10px; padding:8px 32px; background:#FAEEDA; direction:rtl; margin-top:4px; }
+    .body { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; width:100%; gap:8px; padding:6px 0; }
+    .medal-svg { width:90px; height:90px; }
+    .line-ar { font-size:17px; color:#666; direction:rtl; font-family:'Tajawal',Arial,sans-serif; }
+    .name { font-size:38px; font-weight:800; color:#085041; direction:rtl; padding:4px 32px 6px; border-bottom:2px solid #1D9E75; font-family:'Tajawal',Arial,sans-serif; }
+    .examen-box { font-size:21px; font-weight:700; color:#1D9E75; border:2px solid #1D9E75; border-radius:10px; padding:6px 26px; background:#E1F5EE; direction:rtl; margin-top:2px; }
+    .jalon-box { font-size:23px; font-weight:700; color:#EF9F27; border:2px solid #EF9F27; border-radius:10px; padding:8px 32px; background:#FAEEDA; direction:rtl; margin-top:4px; }
+
     /* CONTENU (B5) */
-    .contenu-block { text-align:center; margin-top:6px; }
+    .contenu-block { text-align:center; margin-top:4px; }
     .contenu-label { font-size:11px; color:#aaa; letter-spacing:2px; font-weight:600; }
-    .contenu-ar { font-size:17px; font-weight:600; color:#085041; direction:rtl; margin-top:4px; }
+    .contenu-ar { font-size:17px; font-weight:600; color:#085041; direction:rtl; margin-top:3px; font-family:'Tajawal',Arial,sans-serif; }
     .contenu-fr { font-size:12px; color:#666; margin-top:2px; }
-    /* DETAILS (3 colonnes) */
-    .details { width:100%; background:#f9f9f6; border-radius:10px; padding:12px 24px; display:flex; justify-content:space-around; align-items:center; margin-top:10px; }
-    .detail-cell { text-align:center; flex:1; }
+
+    /* DÉTAILS (3 colonnes) — Score dans un cercle */
+    .details { width:100%; background:#f9f9f6; border-radius:10px; padding:14px 24px; display:flex; justify-content:space-around; align-items:center; margin-top:10px; }
+    .detail-cell { text-align:center; flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; }
     .detail-label { font-size:10px; color:#aaa; letter-spacing:1.5px; font-weight:600; unicode-bidi:plaintext; }
-    .detail-value { font-size:16px; font-weight:700; color:#1a1a1a; margin-top:4px; }
-    .score-value { font-size:30px; font-weight:800; margin-top:2px; }
-    .separator { width:1px; height:36px; background:#e0e0d8; }
-    .note { font-style:italic; color:#888; font-size:12px; text-align:center; direction:rtl; margin-top:6px; max-width:760px; }
-    /* FOOTER (espace signature généreux) */
-    .footer { width:100%; display:flex; justify-content:space-between; align-items:flex-end; padding-top:14px; margin-top:14px; border-top:1px solid #e0e0d8; min-height:90px; }
-    .footer-left { font-size:11px; color:#aaa; }
-    .footer-left .num { font-weight:600; color:#666; letter-spacing:0.5px; }
-    .footer-left .date-emis { margin-top:4px; direction:rtl; }
-    .sign { text-align:center; min-width:230px; padding-top:30px; }
-    .sign-line { width:230px; border-bottom:1.5px solid #333; margin:0 auto 6px; }
-    .sign-label { font-size:11px; color:#666; direction:rtl; }
-    .sign-label-fr { font-size:10px; color:#aaa; margin-top:2px; }
+    .detail-value { font-size:15px; font-weight:700; color:#1a1a1a; margin-top:5px; }
+    .detail-date { font-size:13px; font-weight:700; color:#1a1a1a; margin-top:5px; line-height:1.3; }
+    .detail-date-hijri { font-size:11px; color:#888; margin-top:2px; font-family:'Amiri',serif; direction:rtl; }
+    /* Score : pastille circulaire colorée */
+    .score-circle { width:72px; height:72px; border-radius:50%; display:flex; align-items:center; justify-content:center; margin-top:4px; flex-direction:column; }
+    .score-value { font-size:24px; font-weight:800; line-height:1; }
+    .score-percent { font-size:11px; font-weight:600; margin-top:-2px; }
+    .separator { width:1px; height:48px; background:#e0e0d8; }
+
+    .note { font-style:italic; color:#888; font-size:12px; text-align:center; direction:rtl; margin-top:6px; max-width:760px; font-family:'Tajawal',Arial,sans-serif; }
+
+    /* FOOTER */
+    .footer { width:100%; display:flex; justify-content:space-between; align-items:flex-end; padding-top:12px; margin-top:12px; border-top:1px solid #e0e0d8; min-height:96px; gap:16px; }
+    .footer-info { display:flex; flex-direction:column; align-items:flex-start; }
+    .footer-num { font-size:13px; font-weight:700; color:#085041; letter-spacing:0.5px; }
+    .footer-date-emis { font-size:11px; color:#888; margin-top:4px; direction:rtl; font-family:'Tajawal',Arial,sans-serif; }
+    .footer-date-emis-fr { font-size:10px; color:#aaa; margin-top:2px; }
+
+    /* QR Code de vérification */
+    .qr-block { display:flex; flex-direction:column; align-items:center; gap:4px; }
+    .qr-img { width:78px; height:78px; border:1px solid #e0e0d8; padding:3px; background:#fff; border-radius:4px; }
+    .qr-label { font-size:8.5px; color:#aaa; letter-spacing:0.5px; text-align:center; }
+
+    /* SIGNATURES */
+    .signatures { display:flex; gap:36px; align-items:flex-end; }
+    .sign { text-align:center; min-width:200px; padding-top:28px; }
+    .sign-line { width:200px; border-bottom:1.5px solid #333; margin:0 auto 6px; }
+    .sign-name-ar { font-size:12px; color:#1a1a1a; font-weight:700; direction:rtl; font-family:'Tajawal',Arial,sans-serif; }
+    .sign-role-ar { font-size:11px; color:#666; direction:rtl; margin-top:2px; font-family:'Tajawal',Arial,sans-serif; }
+    .sign-name-fr { font-size:10px; color:#666; margin-top:2px; }
+    .sign-role-fr { font-size:9.5px; color:#aaa; }
+
     /* IMPRESSION */
     @media print {
       body { background:#fff; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
@@ -421,18 +570,55 @@ function certificatTitle(isAr) {
     </div>`;
 }
 
-function certificatFooter(numero, dateStr, isAr) {
+function certificatFooter(numero, dateStr, dateHijri, qrDataUrl, qrUrl, ecole, isAr) {
+  // ─── Bloc info gauche : numéro + date d'émission (FR + Hijri) ───
+  const numeroLine = numero
+    ? `<div class="footer-num">N° ${escapeHtml(numero)}</div>`
+    : '';
+  const dateEmisLabel = isAr ? 'أُصدر بتاريخ' : 'Émis le';
+  const infoBloc = `
+    <div class="footer-info">
+      ${numeroLine}
+      <div class="footer-date-emis">${dateEmisLabel} : ${escapeHtml(dateStr)}</div>
+      ${dateHijri ? `<div class="footer-date-emis-fr">${escapeHtml(dateHijri)}</div>` : ''}
+    </div>`;
+
+  // ─── Bloc QR central : code de vérification ───
+  const qrBloc = qrDataUrl ? `
+    <div class="qr-block">
+      <img class="qr-img" src="${qrDataUrl}" alt="QR vérification"/>
+      <div class="qr-label">${isAr ? 'تحقّق · Vérifier' : 'Vérifier · تحقّق'}</div>
+    </div>` : '<div></div>';
+
+  // ─── Bloc signatures droite : Directeur (optionnel) + Surveillant ───
+  const nomDir = (ecole?.nom_directeur || '').trim();
+  const nomDirAr = (ecole?.nom_directeur_ar || '').trim() || nomDir; // Fallback FR si AR vide
+  const hasDirecteur = !!nomDir;
+
+  const signSurv = `
+    <div class="sign">
+      <div class="sign-line"></div>
+      <div class="sign-name-ar">&nbsp;</div>
+      <div class="sign-role-ar">المُشرف</div>
+      <div class="sign-role-fr">Surveillant</div>
+    </div>`;
+
+  const signDir = hasDirecteur ? `
+    <div class="sign">
+      <div class="sign-line"></div>
+      <div class="sign-name-ar">${escapeHtml(nomDirAr)}</div>
+      <div class="sign-role-ar">المُدير</div>
+      <div class="sign-name-fr">${escapeHtml(nomDir)}</div>
+      <div class="sign-role-fr">Directeur</div>
+    </div>` : '';
+
+  const signaturesBloc = `<div class="signatures">${signDir}${signSurv}</div>`;
+
   return `
     <div class="footer">
-      <div class="footer-left">
-        ${numero ? `<div class="num">N° ${escapeHtml(numero)}</div>` : ''}
-        <div class="date-emis">${isAr ? 'أصدر بتاريخ' : 'Émis le'} : ${escapeHtml(dateStr)}</div>
-      </div>
-      <div class="sign">
-        <div class="sign-line"></div>
-        <div class="sign-label">توقيع المشرف العام</div>
-        <div class="sign-label-fr">Signature du Surveillant</div>
-      </div>
+      ${infoBloc}
+      ${qrBloc}
+      ${signaturesBloc}
     </div>`;
 }
 
@@ -462,24 +648,35 @@ function escapeHtml(str) {
 // Pas de score (jalon = palier franchi, pas un examen)
 // Pas de bloc Contenu (le titre du jalon contient déjà l'info)
 // ─────────────────────────────────────────────────────────────────────────────
-function generateCertificat(data, lang) {
+async function generateCertificat(data, lang) {
   const { eleve, jalon, date, ecole, niveau, numero } = data || {};
   const isAr = lang === 'ar';
   if (!eleve) return '<html><body>Données manquantes</body></html>';
 
   const d = new Date(date || new Date());
   const dateStr = d.toLocaleDateString(isAr ? 'ar-MA' : 'fr-FR', { day: '2-digit', month: 'long', year: 'numeric' });
+  const dateHijri = formatHijriDate(d, isAr);
   const niveauTxt = niveau ? `${escapeHtml(niveau.nom || '')}${niveau.code ? ` (${escapeHtml(niveau.code)})` : ''}` : escapeHtml(eleve.code_niveau || '');
   const titreJalon = jalon?.nom_ar || jalon?.nom || '';
   const corner = certificatCornerKhatim();
+
+  // QR code de vérification (genere uniquement si on a un numero)
+  const qrUrl = buildVerificationUrl(numero);
+  const qrDataUrl = qrUrl ? await generateQRCodeDataURL(qrUrl) : null;
+
+  // Bandes zellige
+  const zelligePattern = Array.from({ length: 40 }, () => zelligeBorder()).join('');
 
   return `<!DOCTYPE html><html dir="${isAr ? 'rtl' : 'ltr'}" lang="${isAr ? 'ar' : 'fr'}"><head><meta charset="UTF-8"><title>${isAr ? 'شهادة' : 'Certificat'} ${escapeHtml(eleve.prenom || '')} ${escapeHtml(eleve.nom || '')}</title>
   <style>${certificatStyles()}</style></head>
   <body>
   ${certificatPrintBar(isAr)}
   <div class="cert">
+    ${watermarkKhatim()}
     <div class="border-outer"></div>
     <div class="border-inner"></div>
+    <div class="zellige-band top">${zelligePattern}</div>
+    <div class="zellige-band bottom">${zelligePattern}</div>
     <div class="corner corner-tl">${corner}</div>
     <div class="corner corner-tr">${corner}</div>
     <div class="corner corner-bl">${corner}</div>
@@ -502,10 +699,11 @@ function generateCertificat(data, lang) {
         <div class="separator"></div>
         <div class="detail-cell">
           <div class="detail-label">التاريخ · DATE</div>
-          <div class="detail-value">${escapeHtml(dateStr)}</div>
+          <div class="detail-date">${escapeHtml(dateStr)}</div>
+          <div class="detail-date-hijri">${escapeHtml(dateHijri)}</div>
         </div>
       </div>
-      ${certificatFooter(numero, dateStr, isAr)}
+      ${certificatFooter(numero, dateStr, dateHijri, qrDataUrl, qrUrl, ecole, isAr)}
     </div>
   </div>
   </body></html>`;
@@ -515,20 +713,21 @@ function generateCertificat(data, lang) {
 // generateCertificatExamen — Certificat EXAMEN
 // Avec score coloré + bloc Contenu (Hizb / Sourates) — ajout B5
 // ─────────────────────────────────────────────────────────────────────────────
-function generateCertificatExamen(data, lang) {
+async function generateCertificatExamen(data, lang) {
   const { eleve, examen, niveau, ecole, resultat, contenu, numero } = data || {};
   if (!eleve || !examen || !resultat) return '<html><body>Données manquantes</body></html>';
 
   const isAr = lang === 'ar';
   const d = new Date(resultat.date_examen || resultat.created_at || new Date());
   const dateStr = d.toLocaleDateString(isAr ? 'ar-MA' : 'fr-FR', { day: '2-digit', month: 'long', year: 'numeric' });
+  const dateHijri = formatHijriDate(d, isAr);
   const niveauTxt = niveau ? `${escapeHtml(niveau.nom || '')}${niveau.code ? ` (${escapeHtml(niveau.code)})` : ''}` : escapeHtml(eleve.code_niveau || '');
   const score = Number(resultat.score) || 0;
   const scoreColor = score >= 90 ? '#1D9E75' : score >= 70 ? '#378ADD' : '#EF9F27';
+  const scoreBg = score >= 90 ? '#E1F5EE' : score >= 70 ? '#E6F1FB' : '#FAEEDA';
   const corner = certificatCornerKhatim();
 
   // Bloc Contenu (B5) : affiche AR + FR si fourni, sinon masqué
-  // contenu = { ar: "الحزب 60", fr: "Hizb 60" } — calculé côté React via formatContenuExamen
   const contenuBloc = (contenu && (contenu.ar || contenu.fr)) ? `
     <div class="contenu-block">
       <div class="contenu-label">المحتوى · CONTENU</div>
@@ -536,13 +735,23 @@ function generateCertificatExamen(data, lang) {
       ${contenu.fr ? `<div class="contenu-fr">${escapeHtml(contenu.fr)}</div>` : ''}
     </div>` : '';
 
+  // QR code de vérification (genere uniquement si on a un numero)
+  const qrUrl = buildVerificationUrl(numero);
+  const qrDataUrl = qrUrl ? await generateQRCodeDataURL(qrUrl) : null;
+
+  // Bandes zellige (motif géométrique) : 40 répétitions ~ couvre 1040px de large
+  const zelligePattern = Array.from({ length: 40 }, () => zelligeBorder()).join('');
+
   return `<!DOCTYPE html><html dir="${isAr ? 'rtl' : 'ltr'}" lang="${isAr ? 'ar' : 'fr'}"><head><meta charset="UTF-8"><title>${isAr ? 'شهادة' : 'Certificat'} ${escapeHtml(eleve.prenom || '')} ${escapeHtml(eleve.nom || '')}</title>
   <style>${certificatStyles()}</style></head>
   <body>
   ${certificatPrintBar(isAr)}
   <div class="cert">
+    ${watermarkKhatim()}
     <div class="border-outer"></div>
     <div class="border-inner"></div>
+    <div class="zellige-band top">${zelligePattern}</div>
+    <div class="zellige-band bottom">${zelligePattern}</div>
     <div class="corner corner-tl">${corner}</div>
     <div class="corner corner-tr">${corner}</div>
     <div class="corner corner-bl">${corner}</div>
@@ -565,17 +774,21 @@ function generateCertificatExamen(data, lang) {
         </div>
         <div class="separator"></div>
         <div class="detail-cell">
-          <div class="detail-label">النقاط · SCORE</div>
-          <div class="score-value" style="color:${scoreColor}">${score}%</div>
+          <div class="detail-label">النتيجة · SCORE</div>
+          <div class="score-circle" style="background:${scoreBg};border:2px solid ${scoreColor};color:${scoreColor}">
+            <div class="score-value">${score}</div>
+            <div class="score-percent">%</div>
+          </div>
         </div>
         <div class="separator"></div>
         <div class="detail-cell">
           <div class="detail-label">التاريخ · DATE</div>
-          <div class="detail-value">${escapeHtml(dateStr)}</div>
+          <div class="detail-date">${escapeHtml(dateStr)}</div>
+          <div class="detail-date-hijri">${escapeHtml(dateHijri)}</div>
         </div>
       </div>
       ${resultat.notes_examinateur ? `<div class="note">"${escapeHtml(resultat.notes_examinateur)}"</div>` : ''}
-      ${certificatFooter(numero, dateStr, isAr)}
+      ${certificatFooter(numero, dateStr, dateHijri, qrDataUrl, qrUrl, ecole, isAr)}
     </div>
   </div>
   </body></html>`;
