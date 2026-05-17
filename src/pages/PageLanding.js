@@ -287,7 +287,7 @@ export default function PageLanding({ onGoToLogin }) {
             {isAr ? '🎁 مجاني • بدون بطاقة ائتمان • تثبيت في دقائق' : '🎁 Gratuit • Sans carte bancaire • Mise en route en minutes'}
           </div>
 
-          {/* Screenshot Dashboard (placeholder pour l'instant) */}
+          {/* Screenshot Dashboard - capture reelle AR (a remplacer par capture Test avec donnees riches plus tard) */}
           <div style={{
             marginTop: 64,
             position: 'relative',
@@ -295,26 +295,27 @@ export default function PageLanding({ onGoToLogin }) {
             marginLeft: 'auto',
             marginRight: 'auto',
           }}>
+            {/* Halo lumineux derriere la capture pour effet 'leve' */}
             <div style={{
-              background: `linear-gradient(135deg, ${T.bgAlt}, ${T.bg})`,
-              borderRadius: 14,
-              padding: '64px 40px',
-              border: '1px solid rgba(0,0,0,0.06)',
-              boxShadow: '0 24px 60px -20px rgba(8,80,65,0.25), 0 8px 24px -8px rgba(0,0,0,0.08)',
-              minHeight: 420,
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              flexDirection: 'column',
-              gap: 16,
-              color: T.textMuted,
-              fontSize: 13,
-              fontFamily: T.fontBody,
-            }}>
-              <div style={{fontSize: 64, opacity: 0.3}}>📊</div>
-              <div>{isAr ? '[ صورة لوحة القيادة هنا ]' : '[ Capture du Dashboard ici ]'}</div>
-              <div style={{fontSize: 11, opacity: 0.7}}>
-                {isAr ? 'سيتم إضافتها لاحقا' : 'À ajouter plus tard avec capture Chrome DevTools + Screely'}
-              </div>
-            </div>
+              position: 'absolute',
+              inset: '-40px',
+              background: `radial-gradient(ellipse at center, ${T.primaryLight}15 0%, transparent 60%)`,
+              pointerEvents: 'none',
+              zIndex: 0,
+            }} />
+            <img
+              src="/landing-images/dashboard-ar.png"
+              alt={isAr ? 'لوحة قيادة التطبيق' : 'Dashboard de l\'application'}
+              style={{
+                position: 'relative',
+                width: '100%',
+                height: 'auto',
+                display: 'block',
+                borderRadius: 14,
+                boxShadow: '0 24px 60px -20px rgba(8,80,65,0.25), 0 8px 24px -8px rgba(0,0,0,0.08)',
+                zIndex: 1,
+              }}
+            />
           </div>
         </div>
       </section>
@@ -709,6 +710,166 @@ export default function PageLanding({ onGoToLogin }) {
         </div>
       </section>
 
+      {/* ─────────────── FEATURE 02 : FICHE ELEVE ─────────────── */}
+      <section style={{
+        background: T.bg,
+        padding: '110px 0',
+        position: 'relative',
+        overflow: 'hidden',
+      }}>
+        {/* Decoration : grand cercle dore tres tenu */}
+        <div style={{
+          position: 'absolute',
+          bottom: '-150px',
+          [isAr ? 'right' : 'left']: '-150px',
+          width: 500, height: 500,
+          background: `radial-gradient(circle, ${T.gold}10 0%, transparent 60%)`,
+          pointerEvents: 'none',
+        }} />
+
+        <div style={containerStyle}>
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(380px, 1fr))',
+            gap: 64,
+            alignItems: 'center',
+            position: 'relative',
+          }}>
+            {/* COLONNE VISUEL — inverse par rapport a Feature 01 */}
+            <div style={{order: isAr ? 2 : 1, position: 'relative'}}>
+              {/* Card decorative inclinee dans l'autre sens */}
+              <div style={{
+                position: 'absolute',
+                inset: 0,
+                background: `linear-gradient(135deg, ${T.gold}, ${T.goldLight})`,
+                borderRadius: 18,
+                transform: 'rotate(2deg) scale(1.02)',
+                opacity: 0.08,
+              }} />
+              <img
+                src="/landing-images/fiche-eleve-ar.png"
+                alt={isAr ? 'صفحة الطالب' : 'Fiche élève'}
+                style={{
+                  position: 'relative',
+                  width: '100%',
+                  height: 'auto',
+                  display: 'block',
+                  borderRadius: 18,
+                  boxShadow: '0 24px 60px -20px rgba(8,80,65,0.2), 0 8px 24px -8px rgba(0,0,0,0.08)',
+                }}
+              />
+            </div>
+
+            {/* COLONNE TEXTE */}
+            <div style={{order: isAr ? 1 : 2}}>
+              {/* Mini-eyebrow numerotation */}
+              <div style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 10,
+                marginBottom: 24,
+              }}>
+                <span style={{
+                  fontFamily: T.fontDisplay,
+                  fontSize: 13,
+                  fontWeight: 600,
+                  color: T.gold,
+                  letterSpacing: 2,
+                }}>02</span>
+                <span style={{
+                  width: 30, height: 1,
+                  background: T.gold,
+                  opacity: 0.5,
+                }} />
+                <span style={{
+                  fontFamily: T.fontBody,
+                  fontSize: 11,
+                  fontWeight: 700,
+                  color: T.gold,
+                  letterSpacing: 2,
+                  textTransform: 'uppercase',
+                }}>{isAr ? 'صفحة الطالب' : 'Fiche élève'}</span>
+              </div>
+
+              <h2 style={{
+                fontFamily: T.fontDisplay,
+                fontSize: 'clamp(28px, 3.5vw, 42px)',
+                fontWeight: isAr ? 700 : 600,
+                lineHeight: 1.15,
+                letterSpacing: isAr ? 0 : -0.8,
+                color: T.text,
+                margin: '0 0 24px',
+              }}>
+                {isAr ? (
+                  <>كل شيء عن طالب،<br/>
+                  <em style={{fontStyle: 'normal', color: T.primary}}>في صفحة واحدة.</em></>
+                ) : (
+                  <>Tout sur un élève,<br/>
+                  <em style={{
+                    fontStyle: 'italic',
+                    color: T.primary,
+                    fontFamily: "'Fraunces', Georgia, serif",
+                    fontWeight: 500,
+                  }}>sur une seule page.</em></>
+                )}
+              </h2>
+
+              <p style={{
+                fontSize: 17,
+                color: T.textBody,
+                lineHeight: 1.65,
+                margin: '0 0 32px',
+              }}>
+                {isAr
+                  ? 'لا حاجة للتنقل بين الدفاتر. كل ما يخص الطالب: تقدمه، حضوره، شهاداته، نقاطه، تاريخ استظهاراته، تحفه، علاماته. كل شيء، في مكان واحد.'
+                  : 'Plus besoin de jongler entre les cahiers. Tout ce qui concerne l\'élève : sa progression, ses présences, ses certificats, ses points, l\'historique de ses récitations, sa mémorisation, ses notes. Tout, en un seul endroit.'}
+              </p>
+
+              {/* Liste de benefits */}
+              <ul style={{
+                listStyle: 'none',
+                padding: 0,
+                margin: '0 0 0',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 14,
+              }}>
+                {[
+                  {fr: 'Progression par blocs avec barres visuelles', ar: 'تقدم بحسب البلوكات مع أشرطة بصرية'},
+                  {fr: 'Onglets dédiés : récitation, présence, examens, certificats', ar: 'تبويبات مخصصة: الاستظهار، الحضور، الامتحانات، الشهادات'},
+                  {fr: 'Score intelligent et label de niveau automatique', ar: 'تقييم ذكي ومستوى محتسب تلقائيا'},
+                  {fr: 'Export PDF de la fiche complète en un clic', ar: 'تصدير PDF للصفحة كاملة بنقرة واحدة'},
+                ].map((b, i) => (
+                  <li key={i} style={{
+                    display: 'flex',
+                    alignItems: 'flex-start',
+                    gap: 14,
+                    fontSize: 15,
+                    color: T.textBody,
+                    lineHeight: 1.5,
+                  }}>
+                    <span style={{
+                      flexShrink: 0,
+                      width: 22, height: 22,
+                      borderRadius: '50%',
+                      background: `${T.gold}20`,
+                      color: T.gold,
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontSize: 12,
+                      fontWeight: 800,
+                      marginTop: 1,
+                    }}>✓</span>
+                    <span>{isAr ? b.ar : b.fr}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* ─────────────── PLACEHOLDER : Suite landing en cours ─────────────── */}
       <section style={{
         background: T.bgDeep,
@@ -726,7 +887,7 @@ export default function PageLanding({ onGoToLogin }) {
             {isAr ? '🚧 المزيد من الميزات قريبا' : '🚧 D\'autres fonctionnalités bientôt'}
           </div>
           <div style={{fontSize: 13, opacity: 0.4}}>
-            Fiche élève • Murajaʼa de groupe • Certificats • Tableau honneur TV • Pour qui • Tarifs • CTA à venir
+            Murajaʼa de groupe • Certificats • Tableau honneur TV • Pour qui • Tarifs • CTA à venir
           </div>
         </div>
       </section>
