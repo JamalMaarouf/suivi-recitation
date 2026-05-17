@@ -972,29 +972,48 @@ export default function PageLanding({ onGoToLogin }) {
             alignItems: 'center',
             position: 'relative',
           }}>
-            {/* COLONNE VISUEL — 2 captures : PDF certificat + page Verify */}
+            {/* COLONNE VISUEL — 2 captures cote a cote (Option A)
+                - Stack vertical: certificat PDF en haut, page Verify en dessous
+                - Mais sans recouvrement : les 2 sont entierement visibles
+                - Inclinaisons symetriques opposees (-1deg / +1deg) pour dynamisme
+                - Ombres differenciees : doree pour PDF, verte pour Verify */}
             <div style={{order: isAr ? 2 : 1, position: 'relative'}}>
-              <div style={{position: 'absolute', inset: 0, background: `linear-gradient(135deg, ${T.gold}, ${T.goldLight})`, borderRadius: 18, transform: 'rotate(2deg) scale(1.02)', opacity: 0.08}} />
-              <div style={{position: 'relative', display: 'flex', flexDirection: 'column', gap: 16}}>
-                {/* Certificat PDF (en arriere : grand format paysage) */}
-                <img
-                  src="/landing-images/certificat-pdf-ar.png"
-                  alt={isAr ? 'نموذج شهادة' : 'Exemple de certificat'}
-                  style={{
-                    width: '100%',
-                    height: 'auto',
-                    display: 'block',
-                    borderRadius: 12,
-                    boxShadow: '0 16px 40px -16px rgba(200,148,26,0.3), 0 4px 16px -4px rgba(0,0,0,0.08)',
-                  }}
-                />
-                {/* Page Verify (mockup en dessous, plus petit, decale a gauche/droite) */}
+              {/* Decoration arriere-plan : halo dore tres tenu */}
+              <div style={{
+                position: 'absolute',
+                inset: '-20px',
+                background: `radial-gradient(ellipse at center, ${T.gold}10 0%, transparent 70%)`,
+                pointerEvents: 'none',
+              }} />
+
+              <div style={{
+                position: 'relative',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 24,
+              }}>
+                {/* Certificat PDF : grand format paysage, incline -1deg */}
                 <div style={{
-                  position: 'relative',
-                  width: '60%',
-                  [isAr ? 'marginRight' : 'marginLeft']: 'auto',
-                  marginTop: -32,
-                  zIndex: 2,
+                  transform: 'rotate(-1deg)',
+                  transition: 'transform 0.3s ease',
+                }}>
+                  <img
+                    src="/landing-images/certificat-pdf-ar.png"
+                    alt={isAr ? 'نموذج شهادة' : 'Exemple de certificat'}
+                    style={{
+                      width: '100%',
+                      height: 'auto',
+                      display: 'block',
+                      borderRadius: 12,
+                      boxShadow: '0 20px 50px -16px rgba(200,148,26,0.3), 0 8px 20px -6px rgba(0,0,0,0.08)',
+                    }}
+                  />
+                </div>
+
+                {/* Page Verify : meme largeur, inclinaison opposee +1deg */}
+                <div style={{
+                  transform: 'rotate(1deg)',
+                  transition: 'transform 0.3s ease',
                 }}>
                   <img
                     src="/landing-images/verify-page-ar.png"
@@ -1004,8 +1023,7 @@ export default function PageLanding({ onGoToLogin }) {
                       height: 'auto',
                       display: 'block',
                       borderRadius: 12,
-                      boxShadow: '0 20px 40px -12px rgba(8,80,65,0.3), 0 6px 16px -4px rgba(0,0,0,0.1)',
-                      border: '4px solid #fff',
+                      boxShadow: '0 20px 50px -16px rgba(8,80,65,0.25), 0 8px 20px -6px rgba(0,0,0,0.08)',
                     }}
                   />
                 </div>
