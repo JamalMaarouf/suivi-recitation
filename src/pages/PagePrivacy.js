@@ -140,7 +140,7 @@ export default function PagePrivacy({ onBack }) {
           <ul style={{ paddingInlineStart: 24, margin: '12px 0' }}>
             <li><strong>[NOM COMPLET]</strong></li>
             <li>{isAr ? 'المقر:' : 'Domicile :'} <strong>[VILLE]</strong>, {isAr ? 'المغرب' : 'Maroc'}</li>
-            <li>{isAr ? 'البريد الإلكتروني:' : 'Email :'} <strong>[EMAIL DE CONTACT]</strong></li>
+            <li>{isAr ? 'البريد الإلكتروني:' : 'Email :'} <strong>contact@tartily.com</strong></li>
           </ul>
           <p style={{ marginTop: 12 }}>
             {isAr
@@ -267,7 +267,7 @@ export default function PagePrivacy({ onBack }) {
             {isAr
               ? 'لممارسة هذه الحقوق، اكتبوا إلى:'
               : 'Pour exercer ces droits, écrivez à :'}
-            {' '}<strong>[EMAIL DE CONTACT]</strong>
+            {' '}<strong>contact@tartily.com</strong>
           </p>
           <p style={{ marginTop: 12, fontSize: 13, color: T.textMuted }}>
             {isAr
@@ -338,7 +338,7 @@ export default function PagePrivacy({ onBack }) {
             : 'Pour toute question ou demande relative à la protection de vos données personnelles :'}
           </p>
           <ul style={{ paddingInlineStart: 24, margin: '12px 0' }}>
-            <li>{isAr ? 'البريد الإلكتروني:' : 'Email :'} <strong>[EMAIL DE CONTACT]</strong></li>
+            <li>{isAr ? 'البريد الإلكتروني:' : 'Email :'} <strong>contact@tartily.com</strong></li>
             <li>{isAr ? 'CNDP المغرب:' : 'CNDP Maroc :'} <a href="https://www.cndp.ma" target="_blank" rel="noopener noreferrer" style={{ color: T.primary, textDecoration: 'underline' }}>www.cndp.ma</a></li>
           </ul>
         </Section>

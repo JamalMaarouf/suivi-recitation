@@ -147,7 +147,7 @@ export default function PageTerms({ onBack }) {
           <ul style={{ paddingInlineStart: 24, margin: '12px 0' }}>
             <li><strong>[NOM COMPLET]</strong> ({isAr ? 'شخص ذاتي' : 'personne physique'})</li>
             <li>{isAr ? 'المقر:' : 'Domicile :'} <strong>[VILLE]</strong>, {isAr ? 'المغرب' : 'Maroc'}</li>
-            <li>{isAr ? 'البريد الإلكتروني:' : 'Email :'} <strong>[EMAIL DE CONTACT]</strong></li>
+            <li>{isAr ? 'البريد الإلكتروني:' : 'Email :'} <strong>contact@tartily.com</strong></li>
           </ul>
           <p style={{ fontSize: 13, color: T.textMuted, marginTop: 12, fontStyle: 'italic' }}>
             {isAr
@@ -260,7 +260,7 @@ export default function PageTerms({ onBack }) {
           <p>{isAr
             ? 'لأي سؤال أو طلب يتعلق بهذه الشروط، يُرجى الاتصال على:'
             : 'Pour toute question ou demande relative à ces conditions, veuillez contacter :'}
-            {' '}<strong>[EMAIL DE CONTACT]</strong>
+            {' '}<strong>contact@tartily.com</strong>
           </p>
         </Section>
 

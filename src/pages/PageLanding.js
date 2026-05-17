@@ -1681,8 +1681,13 @@ export default function PageLanding({ onGoToLogin }) {
                     {isAr ? 'سياسة الخصوصية' : 'Politique de confidentialité'}
                   </a>
                 </li>
-                <li style={{color: 'rgba(255,255,255,0.4)', fontSize: 12, fontStyle: 'italic'}}>
-                  {isAr ? 'البريد الإلكتروني للاتصال قريبا' : 'Email de contact à venir'}
+                <li>
+                  <a href="mailto:contact@tartily.com"
+                    style={{color: 'rgba(255,255,255,0.7)', textDecoration: 'none', fontSize: 13}}
+                    onMouseEnter={e => e.currentTarget.style.color = '#fff'}
+                    onMouseLeave={e => e.currentTarget.style.color = 'rgba(255,255,255,0.7)'}>
+                    📧 contact@tartily.com
+                  </a>
                 </li>
               </ul>
             </div>
