@@ -529,6 +529,186 @@ export default function PageLanding({ onGoToLogin }) {
         </div>
       </section>
 
+      {/* ─────────────── FEATURE 01 : VALIDATION RAPIDE ─────────────── */}
+      <section style={{
+        background: T.bgAlt,
+        padding: '110px 0',
+        position: 'relative',
+        overflow: 'hidden',
+      }}>
+        {/* Decoration : grand cercle vert tres tenu */}
+        <div style={{
+          position: 'absolute',
+          top: '-200px',
+          [isAr ? 'left' : 'right']: '-200px',
+          width: 600, height: 600,
+          background: `radial-gradient(circle, ${T.primaryLight}08 0%, transparent 60%)`,
+          pointerEvents: 'none',
+        }} />
+
+        <div style={containerStyle}>
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(380px, 1fr))',
+            gap: 64,
+            alignItems: 'center',
+            position: 'relative',
+          }}>
+            {/* COLONNE TEXTE */}
+            <div style={{order: isAr ? 2 : 1}}>
+              {/* Mini-eyebrow numerotation */}
+              <div style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 10,
+                marginBottom: 24,
+              }}>
+                <span style={{
+                  fontFamily: T.fontDisplay,
+                  fontSize: 13,
+                  fontWeight: 600,
+                  color: T.gold,
+                  letterSpacing: 2,
+                }}>01</span>
+                <span style={{
+                  width: 30, height: 1,
+                  background: T.gold,
+                  opacity: 0.5,
+                }} />
+                <span style={{
+                  fontFamily: T.fontBody,
+                  fontSize: 11,
+                  fontWeight: 700,
+                  color: T.gold,
+                  letterSpacing: 2,
+                  textTransform: 'uppercase',
+                }}>{isAr ? 'تسجيل سريع' : 'Validation rapide'}</span>
+              </div>
+
+              <h2 style={{
+                fontFamily: T.fontDisplay,
+                fontSize: 'clamp(28px, 3.5vw, 42px)',
+                fontWeight: isAr ? 700 : 600,
+                lineHeight: 1.15,
+                letterSpacing: isAr ? 0 : -0.8,
+                color: T.text,
+                margin: '0 0 24px',
+              }}>
+                {isAr ? (
+                  <>سجّل استظهار طالب<br/>
+                  <em style={{fontStyle: 'normal', color: T.primary}}>بنقرتين فقط.</em></>
+                ) : (
+                  <>Validez une récitation<br/>
+                  <em style={{
+                    fontStyle: 'italic',
+                    color: T.primary,
+                    fontFamily: "'Fraunces', Georgia, serif",
+                    fontWeight: 500,
+                  }}>en deux clics.</em></>
+                )}
+              </h2>
+
+              <p style={{
+                fontSize: 17,
+                color: T.textBody,
+                lineHeight: 1.65,
+                margin: '0 0 32px',
+              }}>
+                {isAr
+                  ? 'في خضم الحصة، ليس للأستاذ وقت يضيعه. الواجهة مصممة للعمل بسرعة: ابحث عن الطالب، اختر الثُمن أو الحزب، احفظ. النقاط تُحسب تلقائيا.'
+                  : 'En pleine séance, l\'instituteur n\'a pas le temps à perdre. L\'interface est pensée pour aller vite : on cherche l\'élève, on sélectionne le tomon ou le hizb, on valide. Les points sont calculés automatiquement.'}
+              </p>
+
+              {/* Liste de benefits */}
+              <ul style={{
+                listStyle: 'none',
+                padding: 0,
+                margin: '0 0 0',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 14,
+              }}>
+                {[
+                  {fr: 'Recherche instantanée par nom ou numéro', ar: 'بحث فوري بالاسم أو الرقم'},
+                  {fr: 'Calcul automatique des points selon barème', ar: 'حساب تلقائي للنقاط حسب السلم'},
+                  {fr: 'Détection des hizb complets et certificats à délivrer', ar: 'كشف الأحزاب المكتملة والشهادات الواجب تسليمها'},
+                  {fr: 'Mode hors-ligne : continue de fonctionner sans connexion', ar: 'وضع عدم الاتصال: يعمل دون انترنت'},
+                ].map((b, i) => (
+                  <li key={i} style={{
+                    display: 'flex',
+                    alignItems: 'flex-start',
+                    gap: 14,
+                    fontSize: 15,
+                    color: T.textBody,
+                    lineHeight: 1.5,
+                  }}>
+                    <span style={{
+                      flexShrink: 0,
+                      width: 22, height: 22,
+                      borderRadius: '50%',
+                      background: `${T.primaryLight}20`,
+                      color: T.primary,
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontSize: 12,
+                      fontWeight: 800,
+                      marginTop: 1,
+                    }}>✓</span>
+                    <span>{isAr ? b.ar : b.fr}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+
+            {/* COLONNE VISUEL : placeholder capture validation rapide */}
+            <div style={{order: isAr ? 1 : 2, position: 'relative'}}>
+              {/* Card decoratif derriere */}
+              <div style={{
+                position: 'absolute',
+                inset: 0,
+                background: `linear-gradient(135deg, ${T.primary}, ${T.primaryLight})`,
+                borderRadius: 18,
+                transform: 'rotate(-2deg) scale(1.02)',
+                opacity: 0.08,
+              }} />
+              <div style={{
+                position: 'relative',
+                background: '#fff',
+                borderRadius: 18,
+                padding: '48px 32px',
+                border: '1px solid rgba(0,0,0,0.06)',
+                boxShadow: '0 24px 60px -20px rgba(8,80,65,0.2), 0 8px 24px -8px rgba(0,0,0,0.08)',
+                minHeight: 380,
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 16,
+              }}>
+                <div style={{fontSize: 56, opacity: 0.3}}>⚡</div>
+                <div style={{
+                  fontFamily: T.fontBody,
+                  fontSize: 13,
+                  color: T.textMuted,
+                  textAlign: 'center',
+                }}>
+                  {isAr ? '[ صورة شاشة التسجيل السريع ]' : '[ Capture Validation rapide ]'}
+                </div>
+                <div style={{
+                  fontSize: 11,
+                  color: T.textMuted,
+                  opacity: 0.7,
+                  textAlign: 'center',
+                }}>
+                  {isAr ? 'سيتم إضافتها قريبا' : 'À ajouter avec capture Chrome DevTools + Screely'}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* ─────────────── PLACEHOLDER : Suite landing en cours ─────────────── */}
       <section style={{
         background: T.bgDeep,
@@ -543,10 +723,10 @@ export default function PageLanding({ onGoToLogin }) {
             opacity: 0.6,
             marginBottom: 12,
           }}>
-            {isAr ? '🚧 قسم الميزات قيد الإنشاء' : '🚧 Sections suivantes en cours de construction'}
+            {isAr ? '🚧 المزيد من الميزات قريبا' : '🚧 D\'autres fonctionnalités bientôt'}
           </div>
           <div style={{fontSize: 13, opacity: 0.4}}>
-            Hero + Problème + Solution livrés • Features TIER S + Tableau honneur TV + Pour qui + Tarifs + CTA à venir
+            Fiche élève • Murajaʼa de groupe • Certificats • Tableau honneur TV • Pour qui • Tarifs • CTA à venir
           </div>
         </div>
       </section>
