@@ -948,27 +948,21 @@ export default function PageLanding({ onGoToLogin }) {
               </ul>
             </div>
 
-            {/* COLONNE VISUEL — placeholder Murajaa */}
+            {/* COLONNE VISUEL — capture Murajaa */}
             <div style={{order: isAr ? 1 : 2, position: 'relative'}}>
               <div style={{position: 'absolute', inset: 0, background: `linear-gradient(135deg, ${T.primary}, ${T.primaryLight})`, borderRadius: 18, transform: 'rotate(-2deg) scale(1.02)', opacity: 0.08}} />
-              <div style={{
-                position: 'relative',
-                background: '#fff',
-                borderRadius: 18,
-                padding: '48px 32px',
-                border: '1px solid rgba(0,0,0,0.06)',
-                boxShadow: '0 24px 60px -20px rgba(8,80,65,0.2), 0 8px 24px -8px rgba(0,0,0,0.08)',
-                minHeight: 380,
-                display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 16,
-              }}>
-                <div style={{fontSize: 56, opacity: 0.3}}>👥</div>
-                <div style={{fontFamily: T.fontBody, fontSize: 13, color: T.textMuted, textAlign: 'center'}}>
-                  {isAr ? '[ صورة المراجعة الجماعية ]' : '[ Capture Murajaʼa de groupe ]'}
-                </div>
-                <div style={{fontSize: 11, color: T.textMuted, opacity: 0.7, textAlign: 'center'}}>
-                  {isAr ? 'سيتم إضافتها قريبا' : 'À venir : capture avec données riches'}
-                </div>
-              </div>
+              <img
+                src="/landing-images/muraja-ar.png"
+                alt={isAr ? 'لوحة المراجعة الجماعية' : 'Tableau Murajaʼa de groupe'}
+                style={{
+                  position: 'relative',
+                  width: '100%',
+                  height: 'auto',
+                  display: 'block',
+                  borderRadius: 18,
+                  boxShadow: '0 24px 60px -20px rgba(8,80,65,0.2), 0 8px 24px -8px rgba(0,0,0,0.08)',
+                }}
+              />
             </div>
           </div>
         </div>
@@ -998,25 +992,42 @@ export default function PageLanding({ onGoToLogin }) {
             alignItems: 'center',
             position: 'relative',
           }}>
-            {/* COLONNE VISUEL (alternance : visuel a gauche/LTR) */}
+            {/* COLONNE VISUEL — 2 captures : PDF certificat + page Verify */}
             <div style={{order: isAr ? 2 : 1, position: 'relative'}}>
               <div style={{position: 'absolute', inset: 0, background: `linear-gradient(135deg, ${T.gold}, ${T.goldLight})`, borderRadius: 18, transform: 'rotate(2deg) scale(1.02)', opacity: 0.08}} />
-              <div style={{
-                position: 'relative',
-                background: '#fff',
-                borderRadius: 18,
-                padding: '48px 32px',
-                border: '1px solid rgba(0,0,0,0.06)',
-                boxShadow: '0 24px 60px -20px rgba(200,148,26,0.2), 0 8px 24px -8px rgba(0,0,0,0.08)',
-                minHeight: 380,
-                display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 16,
-              }}>
-                <div style={{fontSize: 56, opacity: 0.4}}>🏅</div>
-                <div style={{fontFamily: T.fontBody, fontSize: 13, color: T.textMuted, textAlign: 'center'}}>
-                  {isAr ? '[ نموذج شهادة + صفحة التحقق ]' : '[ Exemple de certificat + page vérification ]'}
-                </div>
-                <div style={{fontSize: 11, color: T.textMuted, opacity: 0.7, textAlign: 'center'}}>
-                  {isAr ? 'سيتم إضافتها قريبا' : 'À venir : certificat PDF + page /verify'}
+              <div style={{position: 'relative', display: 'flex', flexDirection: 'column', gap: 16}}>
+                {/* Certificat PDF (en arriere : grand format paysage) */}
+                <img
+                  src="/landing-images/certificat-pdf-ar.png"
+                  alt={isAr ? 'نموذج شهادة' : 'Exemple de certificat'}
+                  style={{
+                    width: '100%',
+                    height: 'auto',
+                    display: 'block',
+                    borderRadius: 12,
+                    boxShadow: '0 16px 40px -16px rgba(200,148,26,0.3), 0 4px 16px -4px rgba(0,0,0,0.08)',
+                  }}
+                />
+                {/* Page Verify (mockup en dessous, plus petit, decale a gauche/droite) */}
+                <div style={{
+                  position: 'relative',
+                  width: '60%',
+                  [isAr ? 'marginRight' : 'marginLeft']: 'auto',
+                  marginTop: -32,
+                  zIndex: 2,
+                }}>
+                  <img
+                    src="/landing-images/verify-page-ar.png"
+                    alt={isAr ? 'صفحة التحقق' : 'Page de vérification'}
+                    style={{
+                      width: '100%',
+                      height: 'auto',
+                      display: 'block',
+                      borderRadius: 12,
+                      boxShadow: '0 20px 40px -12px rgba(8,80,65,0.3), 0 6px 16px -4px rgba(0,0,0,0.1)',
+                      border: '4px solid #fff',
+                    }}
+                  />
                 </div>
               </div>
             </div>
@@ -1141,7 +1152,7 @@ export default function PageLanding({ onGoToLogin }) {
               : 'En un clic, le tableau d\'honneur passe en mode présentation : fond sombre cérémoniel, médailles dorées lumineuses, noms des meilleurs en grands caractères. Diffusez-le sur l\'écran de votre salle et créez un moment de fierté.'}
           </p>
 
-          {/* Visuel mode TV - placeholder */}
+          {/* Visuel mode TV - capture reelle */}
           <div style={{
             position: 'relative',
             maxWidth: 980,
@@ -1153,23 +1164,19 @@ export default function PageLanding({ onGoToLogin }) {
               background: `radial-gradient(ellipse at center, ${T.goldLight}20 0%, transparent 50%)`,
               pointerEvents: 'none',
             }} />
-            <div style={{
-              position: 'relative',
-              background: 'rgba(255,255,255,0.04)',
-              borderRadius: 18,
-              padding: '64px 40px',
-              border: `1px solid rgba(255,255,255,0.1)`,
-              minHeight: 360,
-              display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 16,
-            }}>
-              <div style={{fontSize: 64, opacity: 0.5}}>🏆</div>
-              <div style={{fontFamily: T.fontBody, fontSize: 13, color: 'rgba(255,255,255,0.5)', textAlign: 'center'}}>
-                {isAr ? '[ صورة وضع العرض ]' : '[ Capture mode présentation ]'}
-              </div>
-              <div style={{fontSize: 11, color: 'rgba(255,255,255,0.3)', textAlign: 'center'}}>
-                {isAr ? 'سيتم إضافتها قريبا' : 'À venir : capture mode TV'}
-              </div>
-            </div>
+            <img
+              src="/landing-images/honneur-tv-ar.png"
+              alt={isAr ? 'لوحة الشرف في وضع العرض' : 'Tableau d\'honneur mode présentation'}
+              style={{
+                position: 'relative',
+                width: '100%',
+                height: 'auto',
+                display: 'block',
+                borderRadius: 14,
+                boxShadow: '0 24px 60px -20px rgba(255,215,0,0.2), 0 8px 24px -8px rgba(0,0,0,0.3)',
+                border: '1px solid rgba(255,255,255,0.1)',
+              }}
+            />
           </div>
 
           <div style={{
@@ -1187,27 +1194,539 @@ export default function PageLanding({ onGoToLogin }) {
         </div>
       </section>
 
-      {/* ─────────────── PLACEHOLDER : Suite landing en cours ─────────────── */}
+      {/* ─────────────── POUR QUI : 4 ROLES ─────────────── */}
       <section style={{
-        background: T.bgDeep,
-        color: '#fff',
-        padding: '80px 0',
-        textAlign: 'center',
+        background: T.bg,
+        padding: '110px 0',
+        position: 'relative',
       }}>
         <div style={containerStyle}>
-          <div style={{
-            fontFamily: T.fontDisplay,
-            fontSize: 18,
-            opacity: 0.6,
-            marginBottom: 12,
-          }}>
-            {isAr ? '🚧 المزيد قريبا' : '🚧 D\'autres sections bientôt'}
+          <div style={{textAlign: 'center', maxWidth: 760, margin: '0 auto 64px'}}>
+            <div style={{
+              fontFamily: T.fontBody,
+              fontSize: 12,
+              fontWeight: 700,
+              letterSpacing: 2,
+              color: T.gold,
+              textTransform: 'uppercase',
+              marginBottom: 16,
+            }}>
+              {isAr ? '— لمن —' : '— Pour qui —'}
+            </div>
+            <h2 style={{
+              fontFamily: T.fontDisplay,
+              fontSize: 'clamp(28px, 4vw, 44px)',
+              fontWeight: isAr ? 700 : 600,
+              lineHeight: 1.2,
+              letterSpacing: isAr ? 0 : -0.8,
+              color: T.text,
+              margin: '0 0 20px',
+            }}>
+              {isAr
+                ? 'تطبيق واحد، أربعة أدوار.'
+                : 'Une application, quatre rôles.'}
+            </h2>
+            <p style={{
+              fontSize: 17,
+              color: T.textBody,
+              lineHeight: 1.65,
+              margin: 0,
+            }}>
+              {isAr
+                ? 'كل مستخدم يجد ما يحتاجه، بواجهة مصممة خصيصا لدوره.'
+                : 'Chaque utilisateur trouve ce dont il a besoin, dans une interface conçue pour son rôle.'}
+            </p>
           </div>
-          <div style={{fontSize: 13, opacity: 0.4}}>
-            Pour qui (4 rôles) • Tarifs • CTA final + Footer à venir
+
+          {/* 4 cards roles */}
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
+            gap: 20,
+            maxWidth: 1080,
+            margin: '0 auto',
+          }}>
+            {[
+              {
+                icon: '👨‍💼',
+                colorBg: `${T.primaryLight}12`,
+                colorFg: T.primary,
+                titreFr: 'Surveillant général',
+                titreAr: 'المراقب العام',
+                descFr: 'Pilotez votre école. Statistiques globales, certificats, suivi par niveau et par instituteur.',
+                descAr: 'قيادة المدرسة. إحصائيات شاملة، الشهادات، متابعة حسب المستوى والأستاذ.',
+              },
+              {
+                icon: '👨‍🏫',
+                colorBg: `${T.gold}12`,
+                colorFg: T.gold,
+                titreFr: 'Instituteur',
+                titreAr: 'الأستاذ',
+                descFr: 'Validez en classe. Suivez vos élèves au quotidien, identifiez ceux à relancer.',
+                descAr: 'سجّل في القسم. تابع طلابك يوميا، حدد من يحتاج إلى مراجعة.',
+              },
+              {
+                icon: '👨‍👩‍👧',
+                colorBg: '#534AB712',
+                colorFg: '#534AB7',
+                titreFr: 'Parent',
+                titreAr: 'الولي',
+                descFr: 'Restez informé. Voyez la progression de votre enfant et soyez impliqué dans son parcours.',
+                descAr: 'كن مطّلعا. شاهد تقدم ابنك واشترك في مساره.',
+              },
+              {
+                icon: '🎓',
+                colorBg: '#378ADD12',
+                colorFg: '#378ADD',
+                titreFr: 'Élève',
+                titreAr: 'الطالب',
+                descFr: 'Restez motivé. Voyez votre progression, vos certificats, et votre place au tableau d\'honneur.',
+                descAr: 'حافظ على حماسك. شاهد تقدمك، شهاداتك، ومكانتك في لوحة الشرف.',
+              },
+            ].map((r, i) => (
+              <div key={i} style={{
+                background: '#fff',
+                borderRadius: 14,
+                padding: '32px 24px',
+                border: '1px solid rgba(0,0,0,0.06)',
+                textAlign: 'center',
+                transition: 'all 0.3s ease',
+                cursor: 'default',
+              }}
+                onMouseEnter={e => {
+                  e.currentTarget.style.transform = 'translateY(-4px)';
+                  e.currentTarget.style.boxShadow = '0 16px 32px -12px rgba(0,0,0,0.1)';
+                }}
+                onMouseLeave={e => {
+                  e.currentTarget.style.transform = 'translateY(0)';
+                  e.currentTarget.style.boxShadow = 'none';
+                }}>
+                {/* Icone dans cercle colore */}
+                <div style={{
+                  width: 64, height: 64,
+                  borderRadius: '50%',
+                  background: r.colorBg,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: 32,
+                  margin: '0 auto 20px',
+                }}>{r.icon}</div>
+                <div style={{
+                  fontSize: 11,
+                  fontWeight: 700,
+                  color: r.colorFg,
+                  letterSpacing: 1.5,
+                  textTransform: 'uppercase',
+                  marginBottom: 8,
+                }}>{isAr ? r.titreAr : r.titreFr}</div>
+                <p style={{
+                  fontSize: 14,
+                  color: T.textBody,
+                  margin: 0,
+                  lineHeight: 1.55,
+                }}>{isAr ? r.descAr : r.descFr}</p>
+              </div>
+            ))}
           </div>
         </div>
       </section>
+
+      {/* ─────────────── TARIFS ─────────────── */}
+      <section style={{
+        background: T.bgAlt,
+        padding: '110px 0',
+        position: 'relative',
+        overflow: 'hidden',
+      }}>
+        <div style={{
+          position: 'absolute',
+          top: '-100px',
+          left: '50%',
+          transform: 'translateX(-50%)',
+          width: 700, height: 400,
+          background: `radial-gradient(ellipse, ${T.gold}10 0%, transparent 60%)`,
+          pointerEvents: 'none',
+        }} />
+
+        <div style={{...containerStyle, position: 'relative'}}>
+          <div style={{textAlign: 'center', maxWidth: 760, margin: '0 auto 56px'}}>
+            <div style={{
+              fontFamily: T.fontBody,
+              fontSize: 12,
+              fontWeight: 700,
+              letterSpacing: 2,
+              color: T.gold,
+              textTransform: 'uppercase',
+              marginBottom: 16,
+            }}>
+              {isAr ? '— التسعير —' : '— Tarifs —'}
+            </div>
+            <h2 style={{
+              fontFamily: T.fontDisplay,
+              fontSize: 'clamp(28px, 4vw, 44px)',
+              fontWeight: isAr ? 700 : 600,
+              lineHeight: 1.2,
+              letterSpacing: isAr ? 0 : -0.8,
+              color: T.text,
+              margin: 0,
+            }}>
+              {isAr
+                ? 'مجاني. بدون استثناء.'
+                : 'Gratuit. Sans exception.'}
+            </h2>
+          </div>
+
+          {/* Card tarif centrale */}
+          <div style={{
+            maxWidth: 540,
+            margin: '0 auto',
+            background: '#fff',
+            borderRadius: 24,
+            padding: 'clamp(40px, 5vw, 56px)',
+            border: `2px solid ${T.gold}30`,
+            boxShadow: '0 24px 60px -16px rgba(200,148,26,0.15), 0 8px 24px -8px rgba(0,0,0,0.06)',
+            position: 'relative',
+            textAlign: 'center',
+          }}>
+            {/* Ribbon en haut */}
+            <div style={{
+              position: 'absolute',
+              top: -14,
+              left: '50%',
+              transform: 'translateX(-50%)',
+              background: `linear-gradient(135deg, ${T.gold}, ${T.goldLight})`,
+              color: '#fff',
+              padding: '6px 20px',
+              borderRadius: 100,
+              fontSize: 11,
+              fontWeight: 700,
+              letterSpacing: 1.5,
+              textTransform: 'uppercase',
+              boxShadow: '0 4px 12px rgba(200,148,26,0.3)',
+            }}>
+              🎁 {isAr ? 'هدية للمدارس' : 'Offert aux écoles'}
+            </div>
+
+            {/* Prix */}
+            <div style={{margin: '16px 0 28px'}}>
+              <div style={{
+                fontFamily: T.fontDisplay,
+                fontSize: 'clamp(56px, 8vw, 84px)',
+                fontWeight: 700,
+                lineHeight: 1,
+                color: T.primary,
+                letterSpacing: -3,
+              }}>
+                {isAr ? 'مجاني' : 'Gratuit'}
+              </div>
+              <div style={{
+                fontSize: 14,
+                color: T.textMuted,
+                marginTop: 12,
+              }}>
+                {isAr ? 'لا رسوم • لا قيود • لا بطاقة ائتمان' : 'Aucun frais. Aucune limite. Aucune carte bancaire.'}
+              </div>
+            </div>
+
+            {/* Liste de features */}
+            <ul style={{
+              listStyle: 'none',
+              padding: 0,
+              margin: '0 0 36px',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 14,
+              textAlign: isAr ? 'right' : 'left',
+            }}>
+              {[
+                {fr: 'Élèves illimités', ar: 'طلاب بلا حدود'},
+                {fr: 'Instituteurs illimités', ar: 'أساتذة بلا حدود'},
+                {fr: 'Certificats illimités avec QR vérification', ar: 'شهادات بلا حدود مع رمز QR للتحقق'},
+                {fr: 'Mode hors-ligne inclus', ar: 'وضع عدم الاتصال مضمّن'},
+                {fr: 'Bilingue FR/AR avec RTL natif', ar: 'ثنائي اللغة فرنسي/عربي مع RTL أصلي'},
+                {fr: 'Tableau d\'honneur mode présentation', ar: 'لوحة الشرف بوضع العرض'},
+              ].map((f, i) => (
+                <li key={i} style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 12,
+                  fontSize: 15,
+                  color: T.text,
+                }}>
+                  <span style={{
+                    flexShrink: 0,
+                    width: 22, height: 22,
+                    borderRadius: '50%',
+                    background: `${T.primaryLight}20`,
+                    color: T.primary,
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: 12,
+                    fontWeight: 800,
+                  }}>✓</span>
+                  <span>{isAr ? f.ar : f.fr}</span>
+                </li>
+              ))}
+            </ul>
+
+            {/* CTA */}
+            <button onClick={onGoToLogin}
+              style={{
+                width: '100%',
+                background: T.primary,
+                color: '#fff',
+                border: 'none',
+                padding: '16px 24px',
+                borderRadius: 100,
+                fontSize: 15,
+                fontWeight: 700,
+                cursor: 'pointer',
+                fontFamily: T.fontBody,
+                transition: 'all 0.2s ease',
+                boxShadow: '0 4px 14px rgba(8,80,65,0.25)',
+              }}
+              onMouseEnter={e => {
+                e.currentTarget.style.transform = 'translateY(-2px)';
+                e.currentTarget.style.boxShadow = '0 6px 20px rgba(8,80,65,0.35)';
+              }}
+              onMouseLeave={e => {
+                e.currentTarget.style.transform = 'translateY(0)';
+                e.currentTarget.style.boxShadow = '0 4px 14px rgba(8,80,65,0.25)';
+              }}>
+              {isAr ? 'سجل مدرستي مجانا' : 'Inscrire mon école gratuitement'} {isAr ? '←' : '→'}
+            </button>
+
+            {/* Note future */}
+            <div style={{
+              marginTop: 28,
+              padding: '16px 20px',
+              background: `${T.gold}08`,
+              border: `1px solid ${T.gold}20`,
+              borderRadius: 10,
+              fontSize: 12,
+              color: T.textBody,
+              lineHeight: 1.55,
+              fontStyle: 'italic',
+            }}>
+              {isAr
+                ? 'في المستقبل، قد يُطلب مساهمة رمزية للمشاركة في تكاليف الاستضافة. المدارس المسجلة قبل هذا التحول ستستفيد من شروط امتيازية.'
+                : 'À l\'avenir, une contribution forfaitaire modique pourra être demandée pour participer aux frais d\'hébergement. Les écoles inscrites avant cette transition bénéficieront de conditions privilégiées.'}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ─────────────── CTA FINAL ─────────────── */}
+      <section style={{
+        background: `linear-gradient(135deg, ${T.primary} 0%, ${T.primaryLight} 100%)`,
+        color: '#fff',
+        padding: '100px 0',
+        position: 'relative',
+        overflow: 'hidden',
+        textAlign: 'center',
+      }}>
+        {/* Halos decoratifs */}
+        <div style={{position: 'absolute', top: '-100px', left: '10%', width: 400, height: 400, background: `radial-gradient(circle, ${T.goldLight}20 0%, transparent 60%)`, pointerEvents: 'none'}} />
+        <div style={{position: 'absolute', bottom: '-100px', right: '10%', width: 400, height: 400, background: `radial-gradient(circle, rgba(255,255,255,0.1) 0%, transparent 60%)`, pointerEvents: 'none'}} />
+
+        <div style={{...containerStyle, position: 'relative'}}>
+          <h2 style={{
+            fontFamily: T.fontDisplay,
+            fontSize: 'clamp(32px, 5vw, 56px)',
+            fontWeight: isAr ? 800 : 600,
+            lineHeight: 1.1,
+            letterSpacing: isAr ? 0 : -1.2,
+            color: '#fff',
+            margin: '0 auto 24px',
+            maxWidth: 880,
+          }}>
+            {isAr ? (
+              <>هل أنتم مستعدون لتحويل<br/>
+              <em style={{fontStyle: 'normal', color: T.goldLight}}>متابعة مدرستكم؟</em></>
+            ) : (
+              <>Prêts à transformer<br/>
+              <em style={{fontStyle: 'italic', color: T.goldLight, fontFamily: "'Fraunces', Georgia, serif", fontWeight: 500}}>le suivi de votre école ?</em></>
+            )}
+          </h2>
+
+          <p style={{
+            fontSize: 'clamp(15px, 1.6vw, 18px)',
+            color: 'rgba(255,255,255,0.85)',
+            maxWidth: 600,
+            margin: '0 auto 44px',
+            lineHeight: 1.6,
+          }}>
+            {isAr
+              ? 'تسجيل في 3 دقائق. لا بطاقة ائتمان. بيانات في أمان.'
+              : 'Inscription en 3 minutes. Aucune carte bancaire. Données en sécurité.'}
+          </p>
+
+          <button onClick={onGoToLogin}
+            style={{
+              background: '#fff',
+              color: T.primary,
+              border: 'none',
+              padding: '18px 44px',
+              borderRadius: 100,
+              fontSize: 16,
+              fontWeight: 700,
+              cursor: 'pointer',
+              fontFamily: T.fontBody,
+              transition: 'all 0.2s ease',
+              boxShadow: '0 8px 24px rgba(0,0,0,0.15)',
+              display: 'inline-flex', alignItems: 'center', gap: 10,
+            }}
+            onMouseEnter={e => {
+              e.currentTarget.style.transform = 'translateY(-3px) scale(1.02)';
+              e.currentTarget.style.boxShadow = '0 12px 30px rgba(0,0,0,0.2)';
+            }}
+            onMouseLeave={e => {
+              e.currentTarget.style.transform = 'translateY(0) scale(1)';
+              e.currentTarget.style.boxShadow = '0 8px 24px rgba(0,0,0,0.15)';
+            }}>
+            {isAr ? 'سجل مدرستي الآن' : 'Inscrire mon école maintenant'} {isAr ? '←' : '→'}
+          </button>
+        </div>
+      </section>
+
+      {/* ─────────────── FOOTER ─────────────── */}
+      <footer style={{
+        background: T.bgDeep,
+        color: 'rgba(255,255,255,0.7)',
+        padding: '64px 0 32px',
+        fontSize: 13,
+      }}>
+        <div style={containerStyle}>
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
+            gap: 40,
+            marginBottom: 48,
+          }}>
+            {/* Colonne 1 : Brand */}
+            <div>
+              <div style={{display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16}}>
+                <div style={{
+                  width: 36, height: 36, borderRadius: 9,
+                  background: `linear-gradient(135deg, ${T.primary}, ${T.primaryLight})`,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontSize: 19,
+                }}>📖</div>
+                <div style={{
+                  fontFamily: T.fontDisplay,
+                  fontSize: 17,
+                  fontWeight: 700,
+                  color: '#fff',
+                }}>
+                  {isAr ? 'متابعة التحفيظ' : 'Suivi Récitation'}
+                </div>
+              </div>
+              <p style={{margin: 0, lineHeight: 1.6, fontSize: 13, color: 'rgba(255,255,255,0.6)'}}>
+                {isAr
+                  ? 'تطبيق متابعة تحفيظ القرآن، مصمم خصيصا للمدارس القرآنية الحديثة.'
+                  : 'L\'application de suivi de récitation du Coran, conçue pour les écoles coraniques modernes.'}
+              </p>
+            </div>
+
+            {/* Colonne 2 : Navigation */}
+            <div>
+              <div style={{fontFamily: T.fontDisplay, fontSize: 13, fontWeight: 700, color: '#fff', marginBottom: 16, letterSpacing: 0.5}}>
+                {isAr ? 'التطبيق' : 'Application'}
+              </div>
+              <ul style={{listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: 10}}>
+                <li><a href="#decouvrir" style={{color: 'rgba(255,255,255,0.7)', textDecoration: 'none', fontSize: 13}}>
+                  {isAr ? 'الميزات' : 'Fonctionnalités'}
+                </a></li>
+                <li>
+                  <button onClick={onGoToLogin} style={{background: 'none', border: 'none', color: 'rgba(255,255,255,0.7)', fontSize: 13, padding: 0, cursor: 'pointer', fontFamily: 'inherit', textAlign: isAr ? 'right' : 'left'}}>
+                    {isAr ? 'دخول' : 'Connexion'}
+                  </button>
+                </li>
+                <li>
+                  <button onClick={onGoToLogin} style={{background: 'none', border: 'none', color: 'rgba(255,255,255,0.7)', fontSize: 13, padding: 0, cursor: 'pointer', fontFamily: 'inherit', textAlign: isAr ? 'right' : 'left'}}>
+                    {isAr ? 'تسجيل مدرسة' : 'Inscrire une école'}
+                  </button>
+                </li>
+              </ul>
+            </div>
+
+            {/* Colonne 3 : Ressources */}
+            <div>
+              <div style={{fontFamily: T.fontDisplay, fontSize: 13, fontWeight: 700, color: '#fff', marginBottom: 16, letterSpacing: 0.5}}>
+                {isAr ? 'موارد' : 'Ressources'}
+              </div>
+              <ul style={{listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: 10}}>
+                <li>
+                  <span style={{color: 'rgba(255,255,255,0.5)', fontSize: 13}}>
+                    {isAr ? 'التحقق من شهادة' : 'Vérifier un certificat'}
+                  </span>
+                  <span style={{fontSize: 11, color: 'rgba(255,255,255,0.3)', marginLeft: 6}}>
+                    {isAr ? '(عبر QR)' : '(via QR code)'}
+                  </span>
+                </li>
+                <li style={{color: 'rgba(255,255,255,0.4)', fontSize: 12, fontStyle: 'italic'}}>
+                  {isAr ? 'البريد الإلكتروني للاتصال قريبا' : 'Email de contact à venir'}
+                </li>
+              </ul>
+            </div>
+
+            {/* Colonne 4 : Langues */}
+            <div>
+              <div style={{fontFamily: T.fontDisplay, fontSize: 13, fontWeight: 700, color: '#fff', marginBottom: 16, letterSpacing: 0.5}}>
+                {isAr ? 'اللغة' : 'Langue'}
+              </div>
+              <div style={{display: 'flex', gap: 8}}>
+                <button onClick={() => setLang('fr')}
+                  style={{
+                    background: lang === 'fr' ? T.primaryLight : 'rgba(255,255,255,0.08)',
+                    color: '#fff',
+                    border: 'none',
+                    padding: '8px 16px',
+                    borderRadius: 6,
+                    fontSize: 12,
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    fontFamily: T.fontBody,
+                  }}>Français</button>
+                <button onClick={() => setLang('ar')}
+                  style={{
+                    background: lang === 'ar' ? T.primaryLight : 'rgba(255,255,255,0.08)',
+                    color: '#fff',
+                    border: 'none',
+                    padding: '8px 16px',
+                    borderRadius: 6,
+                    fontSize: 12,
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    fontFamily: T.fontBody,
+                  }}>العربية</button>
+              </div>
+            </div>
+          </div>
+
+          {/* Bottom row */}
+          <div style={{
+            paddingTop: 32,
+            borderTop: '1px solid rgba(255,255,255,0.1)',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            flexWrap: 'wrap',
+            gap: 16,
+            fontSize: 12,
+            color: 'rgba(255,255,255,0.4)',
+          }}>
+            <div>
+              © 2026 {isAr ? 'متابعة التحفيظ' : 'Suivi Récitation'}. {isAr ? 'كل الحقوق محفوظة.' : 'Tous droits réservés.'}
+            </div>
+            <div style={{fontStyle: 'italic', fontSize: 11}}>
+              {isAr ? 'مع كل الحب للمدارس القرآنية 💚' : 'Avec amour pour les écoles coraniques 💚'}
+            </div>
+          </div>
+        </div>
+      </footer>
 
       {/* Animation pulse */}
       <style>{`
