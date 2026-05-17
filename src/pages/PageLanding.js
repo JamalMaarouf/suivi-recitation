@@ -1666,6 +1666,23 @@ export default function PageLanding({ onGoToLogin }) {
                     {isAr ? '(عبر QR)' : '(via QR code)'}
                   </span>
                 </li>
+                {/* J11-bis : liens pages legales */}
+                <li>
+                  <a href="/terms" target="_blank" rel="noopener noreferrer"
+                    style={{color: 'rgba(255,255,255,0.7)', textDecoration: 'none', fontSize: 13}}
+                    onMouseEnter={e => e.currentTarget.style.color = '#fff'}
+                    onMouseLeave={e => e.currentTarget.style.color = 'rgba(255,255,255,0.7)'}>
+                    {isAr ? 'الشروط العامة للاستخدام' : 'Conditions d\'utilisation'}
+                  </a>
+                </li>
+                <li>
+                  <a href="/privacy" target="_blank" rel="noopener noreferrer"
+                    style={{color: 'rgba(255,255,255,0.7)', textDecoration: 'none', fontSize: 13}}
+                    onMouseEnter={e => e.currentTarget.style.color = '#fff'}
+                    onMouseLeave={e => e.currentTarget.style.color = 'rgba(255,255,255,0.7)'}>
+                    {isAr ? 'سياسة الخصوصية' : 'Politique de confidentialité'}
+                  </a>
+                </li>
                 <li style={{color: 'rgba(255,255,255,0.4)', fontSize: 12, fontStyle: 'italic'}}>
                   {isAr ? 'البريد الإلكتروني للاتصال قريبا' : 'Email de contact à venir'}
                 </li>

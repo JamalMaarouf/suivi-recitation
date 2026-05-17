@@ -6,6 +6,10 @@ export default function InscriptionEcole({ onBack, lang }) {
   const [step, setStep] = useState(1); // 1=infos école, 2=compte surveillant, 3=succès
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  // J11-bis : acceptation legale (RGPD + CGU)
+  const [acceptCGU, setAcceptCGU] = useState(false);
+  const [acceptPrivacy, setAcceptPrivacy] = useState(false);
+  const [acceptAuthority, setAcceptAuthority] = useState(false);
 
   const set = (k, v) => setForm(f => ({...f, [k]: v}));
 
@@ -29,6 +33,13 @@ export default function InscriptionEcole({ onBack, lang }) {
       setError(lang==='ar' ? 'كلمة المرور يجب أن تحتوي على 6 أحرف على الأقل' : 'Le mot de passe doit contenir au moins 6 caractères.');
       return;
     }
+    // J11-bis : verification acceptation CGU + Confidentialite + Autorite
+    if (!acceptCGU || !acceptPrivacy || !acceptAuthority) {
+      setError(lang==='ar'
+        ? 'يجب قبول الشروط العامة وسياسة الخصوصية والتصريح بالصلاحية للمتابعة'
+        : 'Vous devez accepter les CGU, la Politique de Confidentialité et certifier votre autorité pour continuer.');
+      return;
+    }
     setLoading(true);
     setError('');
     try {
@@ -47,10 +58,26 @@ export default function InscriptionEcole({ onBack, lang }) {
       // Generate code_acces
       const code = 'ECO-' + Math.random().toString(36).substring(2,8).toUpperCase();
 
-      // 1. Create école (statut en_attente)
+      // J11-bis : timestamp acceptation (legal opposable)
+      const acceptedAt = new Date().toISOString();
+
+      // 1. Create école (statut en_attente) + traceabilite legale
       const { data: ecole, error: errEcole } = await supabase
         .from('ecoles')
-        .insert({ nom: form.nom.trim(), ville: form.ville.trim(), pays: form.pays, telephone: form.telephone||null, email: form.email||null, code_acces: code, statut: 'en_attente' })
+        .insert({
+          nom: form.nom.trim(),
+          ville: form.ville.trim(),
+          pays: form.pays,
+          telephone: form.telephone||null,
+          email: form.email||null,
+          code_acces: code,
+          statut: 'en_attente',
+          // J11-bis : tracabilite acceptation legale
+          cgu_accepted_at: acceptedAt,
+          cgu_version: '1.0',
+          privacy_accepted_at: acceptedAt,
+          privacy_version: '1.0',
+        })
         .select()
         .single();
       if (errEcole) throw errEcole;
@@ -186,13 +213,49 @@ export default function InscriptionEcole({ onBack, lang }) {
                 ? 'سيتم مراجعة طلبكم وتفعيل حسابكم من طرف المشرف العام'
                 : 'Votre demande sera examinée et activée par le super admin avant de pouvoir vous connecter.'}
             </div>
+
+            {/* J11-bis : checkboxes acceptation legale */}
+            <div style={{marginTop:'1.25rem',padding:'14px 14px 10px',background:'#F8F8F4',border:'0.5px solid #e0e0d8',borderRadius:10}}>
+              <div style={{fontSize:11,fontWeight:700,color:'#444',letterSpacing:0.5,textTransform:'uppercase',marginBottom:10}}>
+                {lang==='ar' ? '⚖️ القبول القانوني' : '⚖️ Acceptation légale'}
+              </div>
+              <label style={{display:'flex',alignItems:'flex-start',gap:8,fontSize:12,color:'#444',cursor:'pointer',marginBottom:8,lineHeight:1.5}}>
+                <input type="checkbox" checked={acceptCGU} onChange={e=>setAcceptCGU(e.target.checked)}
+                  style={{marginTop:2,flexShrink:0,accentColor:'#1D9E75'}}/>
+                <span>
+                  {lang==='ar' ? 'قرأتُ وأقبل ' : 'J\'ai lu et j\'accepte les '}
+                  <a href="/terms" target="_blank" rel="noopener noreferrer" style={{color:'#1D9E75',textDecoration:'underline',fontWeight:600}}>
+                    {lang==='ar' ? 'الشروط العامة للاستخدام' : 'Conditions Générales d\'Utilisation'}
+                  </a>
+                </span>
+              </label>
+              <label style={{display:'flex',alignItems:'flex-start',gap:8,fontSize:12,color:'#444',cursor:'pointer',marginBottom:8,lineHeight:1.5}}>
+                <input type="checkbox" checked={acceptPrivacy} onChange={e=>setAcceptPrivacy(e.target.checked)}
+                  style={{marginTop:2,flexShrink:0,accentColor:'#1D9E75'}}/>
+                <span>
+                  {lang==='ar' ? 'قرأتُ وأقبل ' : 'J\'ai lu et j\'accepte la '}
+                  <a href="/privacy" target="_blank" rel="noopener noreferrer" style={{color:'#1D9E75',textDecoration:'underline',fontWeight:600}}>
+                    {lang==='ar' ? 'سياسة الخصوصية' : 'Politique de Confidentialité'}
+                  </a>
+                </span>
+              </label>
+              <label style={{display:'flex',alignItems:'flex-start',gap:8,fontSize:12,color:'#444',cursor:'pointer',lineHeight:1.5}}>
+                <input type="checkbox" checked={acceptAuthority} onChange={e=>setAcceptAuthority(e.target.checked)}
+                  style={{marginTop:2,flexShrink:0,accentColor:'#1D9E75'}}/>
+                <span>
+                  {lang==='ar'
+                    ? 'أؤكد أنني أملك الصلاحية القانونية لتسجيل هذه المدرسة وبياناتها'
+                    : 'Je certifie avoir l\'autorité pour inscrire cette école et ses données'}
+                </span>
+              </label>
+            </div>
             <div style={{display:'flex',gap:10,marginTop:'1.25rem'}}>
               <button type="button" onClick={()=>{setStep(1);setError('');}}
                 style={{padding:'11px 16px',background:'#f5f5f0',color:'#444',border:'0.5px solid #e0e0d8',borderRadius:10,fontWeight:600,cursor:'pointer',fontSize:13}}>
                 ←
               </button>
-              <button type="submit" disabled={loading}
-                style={{flex:1,padding:'11px',background:loading?'#ccc':'#1D9E75',color:'#fff',border:'none',borderRadius:10,fontWeight:700,cursor:'pointer',fontSize:13}}>
+              <button type="submit" disabled={loading || !acceptCGU || !acceptPrivacy || !acceptAuthority}
+                style={{flex:1,padding:'11px',background:(loading || !acceptCGU || !acceptPrivacy || !acceptAuthority)?'#ccc':'#1D9E75',color:'#fff',border:'none',borderRadius:10,fontWeight:700,cursor:(loading || !acceptCGU || !acceptPrivacy || !acceptAuthority)?'not-allowed':'pointer',fontSize:13}}>
                 {loading ? '...' : (lang==='ar' ? '✓ إرسال الطلب' : '✓ Envoyer la demande')}
               </button>
             </div>

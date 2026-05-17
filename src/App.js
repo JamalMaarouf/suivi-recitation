@@ -33,6 +33,8 @@ const PortailParent       = lazy(() => import('./pages/PortailParent'));
 const InscriptionEcole    = lazy(() => import('./pages/InscriptionEcole'));
 const PageVerification    = lazy(() => import('./pages/PageVerification'));
 const PageLanding         = lazy(() => import('./pages/PageLanding'));
+const PageTerms           = lazy(() => import('./pages/PageTerms'));
+const PagePrivacy         = lazy(() => import('./pages/PagePrivacy'));
 
 // ── Pages secondaires — chargées à la demande (lazy) ─────────────────────
 const DashboardDirection  = lazy(() => import('./pages/DashboardDirection'));
@@ -159,6 +161,13 @@ const VERIFY_MATCH = typeof window !== 'undefined'
   : null;
 const VERIFY_NUMERO = VERIFY_MATCH ? decodeURIComponent(VERIFY_MATCH[1]) : null;
 
+// J11-bis : pages publiques legales (CGU + Confidentialite)
+// Calculees au module load pour la meme raison que VERIFY_NUMERO (eviter React #300)
+const IS_TERMS_ROUTE = typeof window !== 'undefined'
+  && (window.location.pathname === '/terms' || window.location.pathname === '/terms/');
+const IS_PRIVACY_ROUTE = typeof window !== 'undefined'
+  && (window.location.pathname === '/privacy' || window.location.pathname === '/privacy/');
+
 // Composant racine de la page publique de verification.
 // N'est rendu que si l'URL match /verify/:numero (decision prise au module load).
 function PageVerificationRoute() {
@@ -174,10 +183,38 @@ function PageVerificationRoute() {
   );
 }
 
-// RootApp : aiguille statique entre PageVerificationRoute et App.
+// J11-bis : Composants racines pour CGU et Confidentialite.
+// La fonction onBack ramene a la racine en utilisant window.history.back si
+// possible, sinon vers '/' (la landing).
+function PageTermsRoute() {
+  const onBack = () => {
+    if (window.history.length > 1) window.history.back();
+    else window.location.href = '/';
+  };
+  return (
+    <Suspense fallback={<div style={{padding:60,textAlign:'center',color:'#888',fontFamily:"'Tajawal',Arial,sans-serif"}}>⏳ Chargement…</div>}>
+      <PageTerms onBack={onBack} />
+    </Suspense>
+  );
+}
+function PagePrivacyRoute() {
+  const onBack = () => {
+    if (window.history.length > 1) window.history.back();
+    else window.location.href = '/';
+  };
+  return (
+    <Suspense fallback={<div style={{padding:60,textAlign:'center',color:'#888',fontFamily:"'Tajawal',Arial,sans-serif"}}>⏳ Chargement…</div>}>
+      <PagePrivacy onBack={onBack} />
+    </Suspense>
+  );
+}
+
+// RootApp : aiguille statique entre les pages publiques et App.
 // Pas de hook dans ce composant -> aucun risque de violation des regles des hooks.
 function RootApp() {
   if (VERIFY_NUMERO) return <PageVerificationRoute />;
+  if (IS_TERMS_ROUTE) return <PageTermsRoute />;
+  if (IS_PRIVACY_ROUTE) return <PagePrivacyRoute />;
   return <App />;
 }
 
