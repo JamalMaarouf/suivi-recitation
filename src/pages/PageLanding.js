@@ -662,7 +662,7 @@ export default function PageLanding({ onGoToLogin }) {
               </ul>
             </div>
 
-            {/* COLONNE VISUEL : placeholder capture validation rapide */}
+            {/* COLONNE VISUEL : capture Validation rapide */}
             <div style={{order: isAr ? 1 : 2, position: 'relative'}}>
               {/* Card decoratif derriere */}
               <div style={{
@@ -673,38 +673,18 @@ export default function PageLanding({ onGoToLogin }) {
                 transform: 'rotate(-2deg) scale(1.02)',
                 opacity: 0.08,
               }} />
-              <div style={{
-                position: 'relative',
-                background: '#fff',
-                borderRadius: 18,
-                padding: '48px 32px',
-                border: '1px solid rgba(0,0,0,0.06)',
-                boxShadow: '0 24px 60px -20px rgba(8,80,65,0.2), 0 8px 24px -8px rgba(0,0,0,0.08)',
-                minHeight: 380,
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: 16,
-              }}>
-                <div style={{fontSize: 56, opacity: 0.3}}>⚡</div>
-                <div style={{
-                  fontFamily: T.fontBody,
-                  fontSize: 13,
-                  color: T.textMuted,
-                  textAlign: 'center',
-                }}>
-                  {isAr ? '[ صورة شاشة التسجيل السريع ]' : '[ Capture Validation rapide ]'}
-                </div>
-                <div style={{
-                  fontSize: 11,
-                  color: T.textMuted,
-                  opacity: 0.7,
-                  textAlign: 'center',
-                }}>
-                  {isAr ? 'سيتم إضافتها قريبا' : 'À ajouter avec capture Chrome DevTools + Screely'}
-                </div>
-              </div>
+              <img
+                src="/landing-images/validation-rapide-ar.png"
+                alt={isAr ? 'شاشة التسجيل السريع' : 'Validation rapide'}
+                style={{
+                  position: 'relative',
+                  width: '100%',
+                  height: 'auto',
+                  display: 'block',
+                  borderRadius: 18,
+                  boxShadow: '0 24px 60px -20px rgba(8,80,65,0.2), 0 8px 24px -8px rgba(0,0,0,0.08)',
+                }}
+              />
             </div>
           </div>
         </div>
