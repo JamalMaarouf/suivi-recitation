@@ -870,6 +870,323 @@ export default function PageLanding({ onGoToLogin }) {
         </div>
       </section>
 
+      {/* ─────────────── FEATURE 03 : MURAJAʼA DE GROUPE ─────────────── */}
+      <section style={{
+        background: T.bgAlt,
+        padding: '110px 0',
+        position: 'relative',
+        overflow: 'hidden',
+      }}>
+        <div style={{
+          position: 'absolute',
+          top: '20%',
+          [isAr ? 'left' : 'right']: '-200px',
+          width: 500, height: 500,
+          background: `radial-gradient(circle, ${T.primaryLight}10 0%, transparent 60%)`,
+          pointerEvents: 'none',
+        }} />
+
+        <div style={containerStyle}>
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(380px, 1fr))',
+            gap: 64,
+            alignItems: 'center',
+            position: 'relative',
+          }}>
+            {/* COLONNE TEXTE (alternance : a gauche en LTR, a droite en RTL) */}
+            <div style={{order: isAr ? 2 : 1}}>
+              <div style={{display: 'inline-flex', alignItems: 'center', gap: 10, marginBottom: 24}}>
+                <span style={{fontFamily: T.fontDisplay, fontSize: 13, fontWeight: 600, color: T.gold, letterSpacing: 2}}>03</span>
+                <span style={{width: 30, height: 1, background: T.gold, opacity: 0.5}} />
+                <span style={{fontFamily: T.fontBody, fontSize: 11, fontWeight: 700, color: T.gold, letterSpacing: 2, textTransform: 'uppercase'}}>
+                  {isAr ? 'مراجعة جماعية' : 'Murajaʼa de groupe'}
+                </span>
+              </div>
+
+              <h2 style={{
+                fontFamily: T.fontDisplay,
+                fontSize: 'clamp(28px, 3.5vw, 42px)',
+                fontWeight: isAr ? 700 : 600,
+                lineHeight: 1.15,
+                letterSpacing: isAr ? 0 : -0.8,
+                color: T.text,
+                margin: '0 0 24px',
+              }}>
+                {isAr ? (
+                  <>المراجعة الجماعية،<br/>
+                  <em style={{fontStyle: 'normal', color: T.primary}}>متتبعة كما يجب.</em></>
+                ) : (
+                  <>La révision collective,<br/>
+                  <em style={{fontStyle: 'italic', color: T.primary, fontFamily: "'Fraunces', Georgia, serif", fontWeight: 500}}>tracée comme il se doit.</em></>
+                )}
+              </h2>
+
+              <p style={{
+                fontSize: 17,
+                color: T.textBody,
+                lineHeight: 1.65,
+                margin: '0 0 32px',
+              }}>
+                {isAr
+                  ? 'فريد من نوعه في تطبيقات تحفيظ القرآن: تتبع جلسات المراجعة الجماعية. كل حصة، كل حزب راجعه الفصل، كل غياب، يسجل ويحلل. لا أحد آخر يقدم هذه الميزة.'
+                  : 'Unique parmi les applications de tahfîz : le suivi des séances de Murajaʼa collective. Chaque séance, chaque hizb révisé par la classe, chaque absence — tracé et analysé. Aucune autre application n\'offre cette fonctionnalité.'}
+              </p>
+
+              <ul style={{listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: 14}}>
+                {[
+                  {fr: 'Séance par séance, hizb par hizb, élève par élève', ar: 'حصة بحصة، حزب بحزب، طالب بطالب'},
+                  {fr: 'Détection automatique des élèves en retard de révision', ar: 'كشف تلقائي للطلاب المتأخرين في المراجعة'},
+                  {fr: 'Statistiques d\'assiduité aux séances de groupe', ar: 'إحصائيات الانتظام في الحصص الجماعية'},
+                  {fr: 'Vue unifiée intégrée à la fiche de chaque élève', ar: 'عرض موحد مدمج في صفحة كل طالب'},
+                ].map((b, i) => (
+                  <li key={i} style={{display: 'flex', alignItems: 'flex-start', gap: 14, fontSize: 15, color: T.textBody, lineHeight: 1.5}}>
+                    <span style={{flexShrink: 0, width: 22, height: 22, borderRadius: '50%', background: `${T.primaryLight}20`, color: T.primary, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 800, marginTop: 1}}>✓</span>
+                    <span>{isAr ? b.ar : b.fr}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+
+            {/* COLONNE VISUEL — placeholder Murajaa */}
+            <div style={{order: isAr ? 1 : 2, position: 'relative'}}>
+              <div style={{position: 'absolute', inset: 0, background: `linear-gradient(135deg, ${T.primary}, ${T.primaryLight})`, borderRadius: 18, transform: 'rotate(-2deg) scale(1.02)', opacity: 0.08}} />
+              <div style={{
+                position: 'relative',
+                background: '#fff',
+                borderRadius: 18,
+                padding: '48px 32px',
+                border: '1px solid rgba(0,0,0,0.06)',
+                boxShadow: '0 24px 60px -20px rgba(8,80,65,0.2), 0 8px 24px -8px rgba(0,0,0,0.08)',
+                minHeight: 380,
+                display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 16,
+              }}>
+                <div style={{fontSize: 56, opacity: 0.3}}>👥</div>
+                <div style={{fontFamily: T.fontBody, fontSize: 13, color: T.textMuted, textAlign: 'center'}}>
+                  {isAr ? '[ صورة المراجعة الجماعية ]' : '[ Capture Murajaʼa de groupe ]'}
+                </div>
+                <div style={{fontSize: 11, color: T.textMuted, opacity: 0.7, textAlign: 'center'}}>
+                  {isAr ? 'سيتم إضافتها قريبا' : 'À venir : capture avec données riches'}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ─────────────── FEATURE 04 : CERTIFICATS OFFICIELS ─────────────── */}
+      <section style={{
+        background: T.bg,
+        padding: '110px 0',
+        position: 'relative',
+        overflow: 'hidden',
+      }}>
+        <div style={{
+          position: 'absolute',
+          top: '10%',
+          [isAr ? 'right' : 'left']: '-200px',
+          width: 600, height: 600,
+          background: `radial-gradient(circle, ${T.gold}10 0%, transparent 60%)`,
+          pointerEvents: 'none',
+        }} />
+
+        <div style={containerStyle}>
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(380px, 1fr))',
+            gap: 64,
+            alignItems: 'center',
+            position: 'relative',
+          }}>
+            {/* COLONNE VISUEL (alternance : visuel a gauche/LTR) */}
+            <div style={{order: isAr ? 2 : 1, position: 'relative'}}>
+              <div style={{position: 'absolute', inset: 0, background: `linear-gradient(135deg, ${T.gold}, ${T.goldLight})`, borderRadius: 18, transform: 'rotate(2deg) scale(1.02)', opacity: 0.08}} />
+              <div style={{
+                position: 'relative',
+                background: '#fff',
+                borderRadius: 18,
+                padding: '48px 32px',
+                border: '1px solid rgba(0,0,0,0.06)',
+                boxShadow: '0 24px 60px -20px rgba(200,148,26,0.2), 0 8px 24px -8px rgba(0,0,0,0.08)',
+                minHeight: 380,
+                display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 16,
+              }}>
+                <div style={{fontSize: 56, opacity: 0.4}}>🏅</div>
+                <div style={{fontFamily: T.fontBody, fontSize: 13, color: T.textMuted, textAlign: 'center'}}>
+                  {isAr ? '[ نموذج شهادة + صفحة التحقق ]' : '[ Exemple de certificat + page vérification ]'}
+                </div>
+                <div style={{fontSize: 11, color: T.textMuted, opacity: 0.7, textAlign: 'center'}}>
+                  {isAr ? 'سيتم إضافتها قريبا' : 'À venir : certificat PDF + page /verify'}
+                </div>
+              </div>
+            </div>
+
+            {/* COLONNE TEXTE */}
+            <div style={{order: isAr ? 1 : 2}}>
+              <div style={{display: 'inline-flex', alignItems: 'center', gap: 10, marginBottom: 24}}>
+                <span style={{fontFamily: T.fontDisplay, fontSize: 13, fontWeight: 600, color: T.gold, letterSpacing: 2}}>04</span>
+                <span style={{width: 30, height: 1, background: T.gold, opacity: 0.5}} />
+                <span style={{fontFamily: T.fontBody, fontSize: 11, fontWeight: 700, color: T.gold, letterSpacing: 2, textTransform: 'uppercase'}}>
+                  {isAr ? 'شهادات رسمية' : 'Certificats officiels'}
+                </span>
+              </div>
+
+              <h2 style={{
+                fontFamily: T.fontDisplay,
+                fontSize: 'clamp(28px, 3.5vw, 42px)',
+                fontWeight: isAr ? 700 : 600,
+                lineHeight: 1.15,
+                letterSpacing: isAr ? 0 : -0.8,
+                color: T.text,
+                margin: '0 0 24px',
+              }}>
+                {isAr ? (
+                  <>شهادات رسمية،<br/>
+                  <em style={{fontStyle: 'normal', color: T.gold}}>قابلة للتحقق برمز QR.</em></>
+                ) : (
+                  <>Certificats officiels,<br/>
+                  <em style={{fontStyle: 'italic', color: T.gold, fontFamily: "'Fraunces', Georgia, serif", fontWeight: 500}}>vérifiables par QR code.</em></>
+                )}
+              </h2>
+
+              <p style={{
+                fontSize: 17,
+                color: T.textBody,
+                lineHeight: 1.65,
+                margin: '0 0 32px',
+              }}>
+                {isAr
+                  ? 'PDF عالي الجودة، خطوط رسمية، ختم المدرسة، توقيع المدير، رمز QR للتحقق العمومي. كل شهادة تصدرها مدرستك قابلة للتحقق فورا من قبل أي مستلم.'
+                  : 'PDF de qualité professionnelle, calligraphies officielles, sceau de l\'école, signature du directeur, QR code de vérification publique. Chaque certificat délivré par votre école est vérifiable instantanément par n\'importe quel destinataire.'}
+              </p>
+
+              <ul style={{listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: 14}}>
+                {[
+                  {fr: 'Templates haut de gamme : Khatim, Imtihan, Hizb complet', ar: 'قوالب راقية: ختم، امتحان، حزب مكتمل'},
+                  {fr: 'Numéro unique inviolable type 2026-0001', ar: 'رقم فريد لا يمكن تزويره بصيغة 2026-0001'},
+                  {fr: 'Page publique de vérification (suivi-recitation.com/verify/XXX)', ar: 'صفحة تحقق علنية'},
+                  {fr: 'Modifiable : numéro, date, lieu, signataire', ar: 'قابل للتعديل: الرقم، التاريخ، المكان، الموقع'},
+                ].map((b, i) => (
+                  <li key={i} style={{display: 'flex', alignItems: 'flex-start', gap: 14, fontSize: 15, color: T.textBody, lineHeight: 1.5}}>
+                    <span style={{flexShrink: 0, width: 22, height: 22, borderRadius: '50%', background: `${T.gold}20`, color: T.gold, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 800, marginTop: 1}}>✓</span>
+                    <span>{isAr ? b.ar : b.fr}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ─────────────── SECTION SPECIALE : TABLEAU HONNEUR MODE TV ─────────────── */}
+      {/* Cette section change de ton : fond sombre, ambiance 'theatre/ceremonie',
+          pour mettre en valeur LE differentiateur marketing fort */}
+      <section style={{
+        background: T.bgDeep,
+        color: '#fff',
+        padding: '120px 0',
+        position: 'relative',
+        overflow: 'hidden',
+      }}>
+        {/* Decorations lumineuses pour ambiance 'spectacle' */}
+        <div style={{position: 'absolute', top: '10%', left: '15%', width: 400, height: 400, background: `radial-gradient(circle, ${T.goldLight}15 0%, transparent 60%)`, pointerEvents: 'none'}} />
+        <div style={{position: 'absolute', bottom: '10%', right: '10%', width: 350, height: 350, background: `radial-gradient(circle, ${T.primaryLight}20 0%, transparent 60%)`, pointerEvents: 'none'}} />
+
+        <div style={{...containerStyle, position: 'relative', textAlign: 'center'}}>
+          <div style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 8,
+            background: `${T.goldLight}15`,
+            color: T.goldLight,
+            padding: '7px 16px',
+            borderRadius: 100,
+            fontSize: 12,
+            fontWeight: 600,
+            letterSpacing: 1,
+            marginBottom: 28,
+            border: `1px solid ${T.goldLight}30`,
+          }}>
+            📺 {isAr ? 'وضع العرض في القاعة' : 'Mode présentation en salle'}
+          </div>
+
+          <h2 style={{
+            fontFamily: T.fontDisplay,
+            fontSize: 'clamp(32px, 5vw, 56px)',
+            fontWeight: isAr ? 800 : 600,
+            lineHeight: 1.1,
+            letterSpacing: isAr ? 0 : -1.2,
+            color: '#fff',
+            margin: '0 auto 24px',
+            maxWidth: 880,
+          }}>
+            {isAr ? (
+              <>اعرض لوحة الشرف على شاشة قاعتك،<br/>
+              <em style={{fontStyle: 'normal', color: T.goldLight}}>وحفّز طلابك.</em></>
+            ) : (
+              <>Projetez le tableau d'honneur,<br/>
+              <em style={{fontStyle: 'italic', color: T.goldLight, fontFamily: "'Fraunces', Georgia, serif", fontWeight: 500}}>motivez vos élèves.</em></>
+            )}
+          </h2>
+
+          <p style={{
+            fontSize: 'clamp(15px, 1.6vw, 18px)',
+            color: 'rgba(255,255,255,0.7)',
+            maxWidth: 680,
+            margin: '0 auto 48px',
+            lineHeight: 1.6,
+          }}>
+            {isAr
+              ? 'بنقرة واحدة، يتحول لوحة الشرف إلى وضع عرض كامل: خلفية داكنة احتفالية، أوسمة ذهبية مضيئة، أسماء المتفوقين بحروف كبيرة. اعرضها على التلفاز في قاعتك واصنع لحظة فخر.'
+              : 'En un clic, le tableau d\'honneur passe en mode présentation : fond sombre cérémoniel, médailles dorées lumineuses, noms des meilleurs en grands caractères. Diffusez-le sur l\'écran de votre salle et créez un moment de fierté.'}
+          </p>
+
+          {/* Visuel mode TV - placeholder */}
+          <div style={{
+            position: 'relative',
+            maxWidth: 980,
+            margin: '0 auto',
+          }}>
+            <div style={{
+              position: 'absolute',
+              inset: '-30px',
+              background: `radial-gradient(ellipse at center, ${T.goldLight}20 0%, transparent 50%)`,
+              pointerEvents: 'none',
+            }} />
+            <div style={{
+              position: 'relative',
+              background: 'rgba(255,255,255,0.04)',
+              borderRadius: 18,
+              padding: '64px 40px',
+              border: `1px solid rgba(255,255,255,0.1)`,
+              minHeight: 360,
+              display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 16,
+            }}>
+              <div style={{fontSize: 64, opacity: 0.5}}>🏆</div>
+              <div style={{fontFamily: T.fontBody, fontSize: 13, color: 'rgba(255,255,255,0.5)', textAlign: 'center'}}>
+                {isAr ? '[ صورة وضع العرض ]' : '[ Capture mode présentation ]'}
+              </div>
+              <div style={{fontSize: 11, color: 'rgba(255,255,255,0.3)', textAlign: 'center'}}>
+                {isAr ? 'سيتم إضافتها قريبا' : 'À venir : capture mode TV'}
+              </div>
+            </div>
+          </div>
+
+          <div style={{
+            marginTop: 40,
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 8,
+            fontSize: 13,
+            color: 'rgba(255,255,255,0.6)',
+            fontStyle: 'italic',
+            fontFamily: T.fontDisplay,
+          }}>
+            ✨ {isAr ? 'فريد من نوعه: لا تطبيق آخر يقدم هذه الميزة' : 'Unique en son genre : aucune autre application ne propose ça'}
+          </div>
+        </div>
+      </section>
+
       {/* ─────────────── PLACEHOLDER : Suite landing en cours ─────────────── */}
       <section style={{
         background: T.bgDeep,
@@ -884,10 +1201,10 @@ export default function PageLanding({ onGoToLogin }) {
             opacity: 0.6,
             marginBottom: 12,
           }}>
-            {isAr ? '🚧 المزيد من الميزات قريبا' : '🚧 D\'autres fonctionnalités bientôt'}
+            {isAr ? '🚧 المزيد قريبا' : '🚧 D\'autres sections bientôt'}
           </div>
           <div style={{fontSize: 13, opacity: 0.4}}>
-            Murajaʼa de groupe • Certificats • Tableau honneur TV • Pour qui • Tarifs • CTA à venir
+            Pour qui (4 rôles) • Tarifs • CTA final + Footer à venir
           </div>
         </div>
       </section>
