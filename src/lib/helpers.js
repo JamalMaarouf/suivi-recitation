@@ -531,41 +531,47 @@ export function calculerPointsSourate(sourate_id, bareme, ensembles, typeRecitat
 
 export function calcPoints(tomonCumul, hizbsCompletsCount, validations, tomonAcquis=0, hizbAcquisComplets=0, bareme=null) {
   const B = (bareme && bareme.unites) ? bareme.unites : (bareme || BAREME_DEFAUT);
+  // BUG-FIX BAREME (mai 2026)
+  // Avant : 4 unites comptees (Tomon + Roba × 2.5 + Nisf × 6 + Hizb).
+  //         Les coefficients (×2.5, ×6) etaient hardcodes et n'avaient pas
+  //         de sens metier dans le modele actuel ou seuls les types
+  //         configures dans Gestion -> Notes existent.
+  // Apres : 2 unites uniquement (Tomon + Hizb), chacune valorisee selon
+  //         le bareme parametre par l'ecole. Les concepts Roba'/Nisf
+  //         disparaissent completement du calcul de points.
+  // Impact : tous les totaux de points des eleves vont diminuer (suppression
+  //          des bonus Roba/Nisf). Le tableau d'honneur et les classements
+  //          seront automatiquement rejoues. Decision validee par Jamal.
+
   // tomonCumul = total Tomon (acquis + nouveaux)
   // hizbsCompletsCount = total Hizb complets (acquis + nouveaux)
   const ptsTomon = tomonCumul * B.tomon;
-  const nbRoboe = Math.floor(tomonCumul / 2);
-  const nbNisf = Math.floor(tomonCumul / 4);
-  const ptsRoboe = nbRoboe * Math.round(B.tomon * 2.5);
-  const ptsNisf = nbNisf * Math.round(B.tomon * 6);
   const ptsHizb = hizbsCompletsCount * B.hizb_complet;
 
   // Points acquis antérieurs séparément (pour affichage informatif)
   const ptsAcquisTomon = tomonAcquis * B.tomon;
-  const ptsAcquisRoboe = Math.floor(tomonAcquis / 2) * Math.round(B.tomon * 2.5);
-  const ptsAcquisNisf = Math.floor(tomonAcquis / 4) * Math.round(B.tomon * 6);
   const ptsAcquisHizb = hizbAcquisComplets * B.hizb_complet;
-  const ptsAcquisTotal = ptsAcquisTomon + ptsAcquisRoboe + ptsAcquisNisf + ptsAcquisHizb;
+  const ptsAcquisTotal = ptsAcquisTomon + ptsAcquisHizb;
 
   // Points gagnés depuis le début du suivi
   const tomonNouveaux = tomonCumul - tomonAcquis;
   const hizbNouveaux = hizbsCompletsCount - hizbAcquisComplets;
   const ptsSuiviTomon = tomonNouveaux * B.tomon;
-  const ptsSuiviRoboe = (Math.floor(tomonCumul / 2) - Math.floor(tomonAcquis / 2)) * Math.round(B.tomon * 2.5);
-  const ptsSuiviNisf = (Math.floor(tomonCumul / 4) - Math.floor(tomonAcquis / 4)) * Math.round(B.tomon * 6);
   const ptsSuiviHizb = hizbNouveaux * B.hizb_complet;
 
   return {
-    total: ptsTomon + ptsRoboe + ptsNisf + ptsHizb,
+    total: ptsTomon + ptsHizb,
     ptsTomon,
-    ptsRoboe,
-    ptsNisf,
     ptsHizb,
+    // Compat retrocompatible : ces champs existent toujours pour eviter de
+    // casser les consommateurs qui les lisent. Ils valent 0 desormais.
+    ptsRoboe: 0,
+    ptsNisf: 0,
     ptsAcquisTotal,    // Points provenant des acquis antérieurs
-    ptsDepuisSuivi: ptsSuiviTomon + ptsSuiviRoboe + ptsSuiviNisf + ptsSuiviHizb, // Gagnés depuis le suivi
+    ptsDepuisSuivi: ptsSuiviTomon + ptsSuiviHizb, // Gagnés depuis le suivi
     tomonAcquis,
     hizbAcquisComplets,
-    details: { nbRoboe, nbNisf, nbHizb: hizbsCompletsCount }
+    details: { nbRoboe: 0, nbNisf: 0, nbHizb: hizbsCompletsCount }
   };
 }
 
@@ -1678,11 +1684,8 @@ export function calcPointsPeriode(validations, dateDebut, dateFin, bareme=null, 
     }
   }
 
+  // BUG-FIX BAREME (mai 2026) : suppression Roba/Nisf, calcul Tomon+Hizb uniquement
   const ptsTomon = tomonPeriode * B.tomon;
-  const nbRoboe = Math.floor(tomonPeriode / 2);
-  const nbNisf = Math.floor(tomonPeriode / 4);
-  const ptsRoboe = nbRoboe * Math.round(B.tomon * 2.5);
-  const ptsNisf = nbNisf * Math.round(B.tomon * 6);
   const ptsHizb = hizbsCompletsPeriode.size * B.hizb_complet;
 
   // ── Événements ponctuels (examens réussis, certificats, ensembles) ──
@@ -1694,16 +1697,18 @@ export function calcPointsPeriode(validations, dateDebut, dateFin, bareme=null, 
   const ptsCertificats = evtPeriode.filter(e=>e.type_event==='jalon').reduce((s,e)=>s+e.points,0);
   const ptsEnsembles = evtPeriode.filter(e=>e.type_event==='ensemble_sourates').reduce((s,e)=>s+e.points,0);
 
-  const total = ptsTomon + ptsRoboe + ptsNisf + ptsHizb + ptsExamens + ptsCertificats + ptsEnsembles;
+  const total = ptsTomon + ptsHizb + ptsExamens + ptsCertificats + ptsEnsembles;
 
   return {
     total,
-    ptsTomon, ptsRoboe, ptsNisf, ptsHizb,
+    ptsTomon, ptsHizb,
+    // Compat retrocompatible : Roboe/Nisf existent toujours mais valent 0
+    ptsRoboe: 0, ptsNisf: 0,
     ptsExamens, ptsCertificats, ptsEnsembles,
     tomonPeriode,
     hizbsPeriode: hizbsCompletsPeriode.size,
     nbValidations: vPeriode.length,
-    details: { nbRoboe, nbNisf, nbHizb: hizbsCompletsPeriode.size },
+    details: { nbRoboe: 0, nbNisf: 0, nbHizb: hizbsCompletsPeriode.size },
   };
 }
 

@@ -1782,8 +1782,6 @@ ${(passages||[]).length > 0 ? `
                     <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:12}}>
                       {[
                         {label:lang==='ar'?'الأثمان':'Tomon validés', val:pts.tomonPeriode, pts:pts.ptsTomon, color:'#378ADD', bg:'#E6F1FB', icon:'📖'},
-                        {label:lang==='ar'?'الأرباع':'Roboâ', val:pts.details?.nbRoboe||0, pts:pts.ptsRoboe, color:'#1D9E75', bg:'#E1F5EE', icon:'✦'},
-                        {label:lang==='ar'?'الأنصاف':'Nisf', val:pts.details?.nbNisf||0, pts:pts.ptsNisf, color:'#EF9F27', bg:'#FAEEDA', icon:'◈'},
                         {label:lang==='ar'?'أحزاب كاملة':'Hizb complets', val:pts.hizbsPeriode, pts:pts.ptsHizb, color:'#085041', bg:'#E1F5EE', icon:'🎯'},
                         {label:lang==='ar'?'الامتحانات':'Examens', val:'', pts:pts.ptsExamens||0, color:'#EF9F27', bg:'#FAEEDA', icon:'📝'},
                         {label:lang==='ar'?'الشهادات':'Certificats', val:'', pts:pts.ptsCertificats||0, color:'#D85A30', bg:'#FAECE7', icon:'🏅'},
@@ -2043,19 +2041,32 @@ ${(passages||[]).length > 0 ? `
                         </div>
                       ))}
                     </div>
-                    {/* Détail des points */}
+                    {/* Détail des points — BUG-FIX BAREME (mai 2026)
+                        Avant : 4 colonnes hardcodees (Tomon×10, Arba×25, Nisf×60, Hizb×100).
+                        Ces valeurs etaient deconnectees du bareme reel de l'ecole
+                        et incluaient Arba/Nisf qui n'existent plus dans le modele actuel.
+                        Apres : 2 lignes uniquement (Tomon + Hizb) avec les VRAIS pts/unite
+                        du bareme parametre dans Gestion -> Notes. */}
                     <div style={{fontSize:11,color:'#085041',fontWeight:600,marginBottom:6}}>{lang==='ar'?'توزيع النقاط':lang==='en'?(lang==='ar'?'توزيع النقاط':'Points breakdown'):(lang==='ar'?'توزيع النقاط':'Détail des points')}</div>
-                    <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:6,marginBottom:10}}>
+                    <div style={{display:'grid',gridTemplateColumns:'repeat(2,1fr)',gap:6,marginBottom:10}}>
                       {[
-                        {lbl:t(lang,'tomon_abrev'),val:etat.tomonAcquis*10,sub:`${etat.tomonAcquis}×10`,color:'#1D9E75'},
-                        {lbl:lang==='ar' ? 'الأرباع' : 'Roboe',val:Math.floor(etat.tomonAcquis/2)*25,sub:`${Math.floor(etat.tomonAcquis/2)}×25`,color:'#378ADD'},
-                        {lbl:lang==='ar' ? 'الأنصاف' : 'Nisf',val:Math.floor(etat.tomonAcquis/4)*60,sub:`${Math.floor(etat.tomonAcquis/4)}×60`,color:'#534AB7'},
-                        {lbl:lang==='ar' ? 'حزب' : 'Hizb',val:etat.hizbAcquisComplets*100,sub:`${etat.hizbAcquisComplets}×100`,color:'#EF9F27'},
+                        {
+                          lbl: lang==='ar' ? 'الأثمان المكتسبة' : 'Tomon',
+                          count: etat.tomonAcquis,
+                          unitPts: baremeEleve?.tomon || 0,
+                          color: '#1D9E75',
+                        },
+                        {
+                          lbl: lang==='ar' ? 'الأحزاب المكتملة' : 'Hizb complets',
+                          count: etat.hizbAcquisComplets,
+                          unitPts: baremeEleve?.hizb_complet || 0,
+                          color: '#EF9F27',
+                        },
                       ].map(k=>(
-                        <div key={k.lbl} style={{background:'#fff',borderRadius:8,padding:'8px',textAlign:'center',border:'0.5px solid #d0ede4'}}>
-                          <div style={{fontSize:14,fontWeight:700,color:k.color}}>{k.val}</div>
-                          <div style={{fontSize:10,color:'#888'}}>{k.lbl}</div>
-                          <div style={{fontSize:9,color:'#bbb'}}>{k.sub}</div>
+                        <div key={k.lbl} style={{background:'#fff',borderRadius:8,padding:'10px',textAlign:'center',border:'0.5px solid #d0ede4'}}>
+                          <div style={{fontSize:15,fontWeight:700,color:k.color}}>{(k.count * k.unitPts).toLocaleString()} {t(lang,'pts_abrev')}</div>
+                          <div style={{fontSize:11,color:'#888',marginTop:2}}>{k.lbl}</div>
+                          <div style={{fontSize:9,color:'#bbb',marginTop:1}}>{k.count}×{k.unitPts}</div>
                         </div>
                       ))}
                     </div>
@@ -2113,6 +2124,28 @@ ${(passages||[]).length > 0 ? `
                         </div>
                       );
                     })()}
+                    {/* BUG-FIX BAREME (mai 2026) — Detail des points sourate
+                        avec bareme parametre (et non plus hardcode). */}
+                    {(baremeEleve?.sourate || 0) > 0 && (
+                      <>
+                        <div style={{fontSize:11,color:'#085041',fontWeight:600,marginBottom:6}}>
+                          {lang==='ar'?'توزيع النقاط':'Détail des points'}
+                        </div>
+                        <div style={{display:'grid',gridTemplateColumns:'1fr',gap:6,marginBottom:10}}>
+                          <div style={{background:'#fff',borderRadius:8,padding:'10px',textAlign:'center',border:'0.5px solid #d0ede4'}}>
+                            <div style={{fontSize:15,fontWeight:700,color:'#1D9E75'}}>
+                              {(eleve.sourates_acquises * baremeEleve.sourate).toLocaleString()} {t(lang,'pts_abrev')}
+                            </div>
+                            <div style={{fontSize:11,color:'#888',marginTop:2}}>
+                              {lang==='ar' ? 'السور المحفوظة' : 'Sourates acquises'}
+                            </div>
+                            <div style={{fontSize:9,color:'#bbb',marginTop:1}}>
+                              {eleve.sourates_acquises}×{baremeEleve.sourate}
+                            </div>
+                          </div>
+                        </div>
+                      </>
+                    )}
                     {/* Total points */}
                     {(baremeEleve?.sourate || 0) > 0 && (
                       <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',background:'#085041',borderRadius:8,padding:'10px 14px'}}>
@@ -2596,8 +2629,6 @@ ${(passages||[]).length > 0 ? `
                     {label:lang==='ar'?'الشهادات':'Certs', val:'', pts:pts.ptsCertificats||0, color:'#085041', bg:'#E1F5EE', icon:'🏅'},
                   ] : [
                     {label:lang==='ar'?'الأثمان':'Tomon', val:pts.tomonPeriode, pts:pts.ptsTomon, color:'#378ADD', bg:'#E6F1FB', icon:'📖'},
-                    {label:lang==='ar'?'الأرباع':'Roboâ', val:pts.details?.nbRoboe||0, pts:pts.ptsRoboe, color:'#1D9E75', bg:'#E1F5EE', icon:'✦'},
-                    {label:lang==='ar'?'الأنصاف':'Nisf', val:pts.details?.nbNisf||0, pts:pts.ptsNisf, color:'#EF9F27', bg:'#FAEEDA', icon:'◈'},
                     {label:lang==='ar'?'أحزاب كاملة':'Hizb ✓', val:pts.hizbsPeriode, pts:pts.ptsHizb, color:'#085041', bg:'#E1F5EE', icon:'🎯'},
                     ...(pts.ptsExamens>0?[{label:lang==='ar'?'الامتحانات':'Examens', val:'', pts:pts.ptsExamens, color:'#EF9F27', bg:'#FAEEDA', icon:'📝'}]:[]),
                     ...(pts.ptsCertificats>0?[{label:lang==='ar'?'الشهادات':'Certs', val:'', pts:pts.ptsCertificats, color:'#D85A30', bg:'#FAECE7', icon:'🏅'}]:[]),
