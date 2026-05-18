@@ -84,7 +84,7 @@ function wrapBuilder(builder, tableName) {
             try { window.dispatchEvent(new CustomEvent('impersonation-blocked', { detail: { operation: 'delete', table: tableName } })); } catch {}
             return buildBlockedThenable();
           }
-          console.log('[SOFT-DELETE] ' + tableName + ' -> UPDATE deleted_at');
+          // [SOFT-DELETE] log retire pour eviter fuite d'info en production
           // Appel direct .update() sur le builder original
           const updateFn = target.update || builder.update;
           if (typeof updateFn !== 'function') {
