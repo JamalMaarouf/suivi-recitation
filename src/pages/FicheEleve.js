@@ -2103,58 +2103,112 @@ ${(passages||[]).length > 0 ? `
                 </button>
                 {showAcquis && (
                   <div style={{background:'#f0faf6',border:'1.5px solid #1D9E75',borderTop:'none',borderRadius:'0 0 10px 10px',padding:'1rem'}}>
-                    {/* Listing des sourates acquises */}
-                    <div style={{fontSize:11,color:'#085041',fontWeight:600,marginBottom:6}}>
-                      {lang==='ar'?'السور المحفوظة':'Sourates acquises'}
-                    </div>
                     {(() => {
-                      // Calcul des sourates acquises selon le sens du niveau
+                      // Calcul des sourates acquises et de la position selon le sens du niveau
                       const niveauEleve = (_niveauxCtx || []).find(n => n.code === eleve.code_niveau);
                       const sensRecit = niveauEleve?.sens_recitation || ecoleConfig?.sens_recitation_defaut || 'desc';
                       const souratesOrd = [...souratesDB].sort((a, b) => sensRecit === 'asc' ? a.numero - b.numero : b.numero - a.numero);
-                      const idsAcquises = souratesOrd.slice(0, eleve.sourates_acquises);
-                      if (idsAcquises.length === 0) return null;
+                      const totalSouratesProg = souratesOrd.length;
+                      const nbAcquises = eleve.sourates_acquises || 0;
+                      const premiereSourate = souratesOrd[0] || null;
+                      const sourateCourante = souratesOrd[nbAcquises] || null; // prochaine a apprendre = courante de l'eleve
+                      const idsAcquises = souratesOrd.slice(0, nbAcquises);
+
                       return (
-                        <div style={{display:'flex',flexWrap:'wrap',gap:6,marginBottom:12,maxHeight:120,overflowY:'auto'}}>
-                          {idsAcquises.map(s => (
-                            <span key={s.id} style={{padding:'4px 10px',background:'#fff',border:'0.5px solid #d0ede4',borderRadius:14,fontSize:11,color:'#085041',fontWeight:500}}>
-                              {s.nom_ar} <span style={{color:'#888',fontSize:10}}>({s.numero})</span>
-                            </span>
-                          ))}
-                        </div>
-                      );
-                    })()}
-                    {/* BUG-FIX BAREME (mai 2026) — Detail des points sourate
-                        avec bareme parametre (et non plus hardcode). */}
-                    {(baremeEleve?.sourate || 0) > 0 && (
-                      <>
-                        <div style={{fontSize:11,color:'#085041',fontWeight:600,marginBottom:6}}>
-                          {lang==='ar'?'توزيع النقاط':'Détail des points'}
-                        </div>
-                        <div style={{display:'grid',gridTemplateColumns:'1fr',gap:6,marginBottom:10}}>
-                          <div style={{background:'#fff',borderRadius:8,padding:'10px',textAlign:'center',border:'0.5px solid #d0ede4'}}>
-                            <div style={{fontSize:15,fontWeight:700,color:'#1D9E75'}}>
-                              {(eleve.sourates_acquises * baremeEleve.sourate).toLocaleString()} {t(lang,'pts_abrev')}
+                        <>
+                          {/* ── SOUS-SECTION A : Position de depart ── */}
+                          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:12}}>
+                            <div style={{background:'#fff',borderRadius:8,padding:'12px',border:'0.5px solid #d0ede4',position:'relative'}}>
+                              <div style={{position:'absolute',top:8,right:8,fontSize:14}}>📍</div>
+                              <div style={{fontSize:10,color:'#888',marginBottom:4}}>{lang==='ar'?'السورة الأولى للبرنامج':'Première sourate'}</div>
+                              <div style={{fontSize:15,fontWeight:700,color:'#085041'}}>
+                                {premiereSourate ? `${premiereSourate.nom_ar}` : '—'}
+                              </div>
+                              {premiereSourate && (
+                                <div style={{fontSize:10,color:'#aaa',marginTop:2}}>({premiereSourate.numero})</div>
+                              )}
                             </div>
-                            <div style={{fontSize:11,color:'#888',marginTop:2}}>
-                              {lang==='ar' ? 'السور المحفوظة' : 'Sourates acquises'}
-                            </div>
-                            <div style={{fontSize:9,color:'#bbb',marginTop:1}}>
-                              {eleve.sourates_acquises}×{baremeEleve.sourate}
+                            <div style={{background:'#fff',borderRadius:8,padding:'12px',border:'0.5px solid #d0ede4',position:'relative'}}>
+                              <div style={{position:'absolute',top:8,right:8,fontSize:14}}>📍</div>
+                              <div style={{fontSize:10,color:'#888',marginBottom:4}}>{lang==='ar'?'السورة الحالية':'Sourate actuelle'}</div>
+                              <div style={{fontSize:15,fontWeight:700,color:'#1D9E75'}}>
+                                {sourateCourante ? `${sourateCourante.nom_ar}` : '—'}
+                              </div>
+                              {sourateCourante && (
+                                <div style={{fontSize:10,color:'#aaa',marginTop:2}}>({sourateCourante.numero})</div>
+                              )}
                             </div>
                           </div>
-                        </div>
-                      </>
-                    )}
-                    {/* Total points */}
-                    {(baremeEleve?.sourate || 0) > 0 && (
-                      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',background:'#085041',borderRadius:8,padding:'10px 14px'}}>
-                        <span style={{fontSize:12,color:'#9FE1CB'}}>{lang==='ar'?'مجموع نقاط المكتسبات':'Total points acquis antérieurs'}</span>
-                        <span style={{fontSize:18,fontWeight:800,color:'#fff'}}>
-                          {(eleve.sourates_acquises * baremeEleve.sourate).toLocaleString()} {t(lang,'pts_abrev')}
-                        </span>
-                      </div>
-                    )}
+
+                          {/* ── SOUS-SECTION B : Details (acquises / restantes) ── */}
+                          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:12}}>
+                            <div style={{background:'#fff',borderRadius:8,padding:'12px',border:'0.5px solid #d0ede4'}}>
+                              <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:4}}>
+                                <span style={{fontSize:14}}>✓</span>
+                                <div style={{fontSize:10,color:'#888'}}>{lang==='ar'?'السور المكتسبة':'Sourates acquises'}</div>
+                              </div>
+                              <div style={{fontSize:18,fontWeight:800,color:'#EF9F27'}}>
+                                {nbAcquises}<span style={{fontSize:12,color:'#aaa',fontWeight:600}}> / {totalSouratesProg}</span>
+                              </div>
+                            </div>
+                            <div style={{background:'#fff',borderRadius:8,padding:'12px',border:'0.5px solid #d0ede4'}}>
+                              <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:4}}>
+                                <span style={{fontSize:14}}>⏳</span>
+                                <div style={{fontSize:10,color:'#888'}}>{lang==='ar'?'السور المتبقية':'Restantes'}</div>
+                              </div>
+                              <div style={{fontSize:18,fontWeight:800,color:'#085041'}}>
+                                {Math.max(0, totalSouratesProg - nbAcquises)}<span style={{fontSize:12,color:'#aaa',fontWeight:600}}> / {totalSouratesProg}</span>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* ── BONUS : Listing des sourates acquises (existant) ── */}
+                          {idsAcquises.length > 0 && (
+                            <>
+                              <div style={{fontSize:11,color:'#085041',fontWeight:600,marginBottom:6}}>
+                                {lang==='ar'?'السور المحفوظة':'Sourates acquises'}
+                              </div>
+                              <div style={{display:'flex',flexWrap:'wrap',gap:6,marginBottom:12,maxHeight:120,overflowY:'auto'}}>
+                                {idsAcquises.map(s => (
+                                  <span key={s.id} style={{padding:'4px 10px',background:'#fff',border:'0.5px solid #d0ede4',borderRadius:14,fontSize:11,color:'#085041',fontWeight:500}}>
+                                    {s.nom_ar} <span style={{color:'#888',fontSize:10}}>({s.numero})</span>
+                                  </span>
+                                ))}
+                              </div>
+                            </>
+                          )}
+
+                          {/* ── SOUS-SECTION C : Distribution des points (existant) ── */}
+                          {(baremeEleve?.sourate || 0) > 0 && (
+                            <>
+                              <div style={{fontSize:11,color:'#085041',fontWeight:600,marginBottom:6}}>
+                                {lang==='ar'?'توزيع النقاط':'Détail des points'}
+                              </div>
+                              <div style={{display:'grid',gridTemplateColumns:'1fr',gap:6,marginBottom:10}}>
+                                <div style={{background:'#fff',borderRadius:8,padding:'10px',textAlign:'center',border:'0.5px solid #d0ede4'}}>
+                                  <div style={{fontSize:15,fontWeight:700,color:'#1D9E75'}}>
+                                    {(nbAcquises * baremeEleve.sourate).toLocaleString()} {t(lang,'pts_abrev')}
+                                  </div>
+                                  <div style={{fontSize:11,color:'#888',marginTop:2}}>
+                                    {lang==='ar' ? 'السور المحفوظة' : 'Sourates acquises'}
+                                  </div>
+                                  <div style={{fontSize:9,color:'#bbb',marginTop:1}}>
+                                    {nbAcquises}×{baremeEleve.sourate}
+                                  </div>
+                                </div>
+                              </div>
+                              {/* Total points */}
+                              <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',background:'#085041',borderRadius:8,padding:'10px 14px'}}>
+                                <span style={{fontSize:12,color:'#9FE1CB'}}>{lang==='ar'?'مجموع نقاط المكتسبات':'Total points acquis antérieurs'}</span>
+                                <span style={{fontSize:18,fontWeight:800,color:'#fff'}}>
+                                  {(nbAcquises * baremeEleve.sourate).toLocaleString()} {t(lang,'pts_abrev')}
+                                </span>
+                              </div>
+                            </>
+                          )}
+                        </>
+                      );
+                    })()}
                   </div>
                 )}
               </div>
@@ -2201,14 +2255,32 @@ ${(passages||[]).length > 0 ? `
 
 
 
-            {/* KPI */}
+            {/* KPI Footer Zone 3 — pertinents pour le pedagogique
+                Pour Hizb : HIZB actuel | TOMON/HIZB | أحزاب complets | TOTAL
+                Pour Sourate : Sourate courante | المقاطع | السور (X/Total) | TOTAL pts */}
             <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:8,borderTop:'0.5px solid #e8e8e0',paddingTop:12}}>
-              {(estSourateEleve ? [
-                [lang==='ar'?'السور المنجزة':'Sourates', recitationsSouratesEleve.filter(r=>r.type_recitation==='complete').length],
-                [lang==='ar'?'المقاطع':'Séquences', recitationsSouratesEleve.filter(r=>r.type_recitation==='sequence').length],
-                [lang==='ar'?'المحفوظات':'Acquis', eleve.sourates_acquises||0],
-                ['Total', totalPtsSourates || 0],
-              ] : [
+              {(estSourateEleve ? (() => {
+                // Calcul KPI Sourate pour la Zone 3
+                const niveauElv = (_niveauxCtx || []).find(n => n.code === eleve.code_niveau);
+                const sensRecit = niveauElv?.sens_recitation || ecoleConfig?.sens_recitation_defaut || 'desc';
+                const souratesOrd = [...souratesDB].sort((a, b) => sensRecit === 'asc' ? a.numero - b.numero : b.numero - a.numero);
+                const totalProg = souratesOrd.length;
+                // Sourates completes : recitations type 'complete' uniques
+                const nbCompletes = new Set(
+                  recitationsSouratesEleve.filter(r => r.type_recitation === 'complete').map(r => r.sourate_id)
+                ).size;
+                const nbSequences = recitationsSouratesEleve.filter(r => r.type_recitation === 'sequence').length;
+                const nbAcq = eleve.sourates_acquises || 0;
+                // Sourate courante = celle apres les acquises + les completes
+                const idxCourante = nbAcq + nbCompletes;
+                const sourateCour = souratesOrd[idxCourante] || null;
+                return [
+                  [lang==='ar'?'السورة الحالية':'Sourate actuelle', sourateCour ? `${sourateCour.nom_ar}` : '—'],
+                  [lang==='ar'?'المقاطع المنجزة':'Séquences', nbSequences],
+                  [lang==='ar'?'السور المكتملة':'Sourates ✓', `${nbAcq + nbCompletes}/${totalProg}`],
+                  ['Total', `${(totalPtsSourates || 0).toLocaleString()} ${lang==='ar'?'ن':'pts'}`],
+                ];
+              })() : [
                 ['Hizb',`Hizb ${etat?.hizbEnCours}`],
                 ['Tomon/Hizb',`${etat?.tomonDansHizbActuel}/8`],
                 [t(lang,'hizb_complets'),etat?.hizbsComplets?.size],
