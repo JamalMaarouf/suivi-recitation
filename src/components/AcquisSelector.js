@@ -473,7 +473,7 @@ export default function AcquisSelector({
             </div>
             <div style={{ fontSize: 24, fontWeight: 800, color: '#085041' }}>{pts.total.toLocaleString()} {lang === 'ar' ? 'ن' : 'pts'}</div>
             <div style={{ display: 'flex', gap: 6, justifyContent: 'center', marginTop: 6, flexWrap: 'wrap' }}>
-              {[{ l: 'T', v: pts.ptsTomon }, { l: 'R', v: pts.ptsRoboe }, { l: 'N', v: pts.ptsNisf }, { l: 'H', v: pts.ptsHizb }].map(k => (
+              {[{ l: 'T', v: pts.ptsTomon }, { l: 'H', v: pts.ptsHizb }].map(k => (
                 <div key={k.l} style={{ background: '#fff', borderRadius: 6, padding: '4px 8px', textAlign: 'center', minWidth: 45 }}>
                   <div style={{ fontSize: 12, fontWeight: 700, color: '#1D9E75' }}>{k.v}</div>
                   <div style={{ fontSize: 9, color: '#888' }}>{k.l}</div>

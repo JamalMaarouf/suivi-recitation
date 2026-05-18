@@ -92,6 +92,152 @@ export function getSensForEleve(eleve, niveaux, ecole) {
 }
 
 /**
+ * BUG-FIX MULTI-BLOCS (mai 2026) — Calcule les Hizbs acquis avant l'arrivee
+ * de l'eleve a l'ecole, en tenant compte de la STRUCTURE EN BLOCS du niveau.
+ *
+ * PROBLEME RESOLU :
+ * Avant ce fix, le code utilisait une logique mono-bloc (boucle 1->hizbDep
+ * ou 60->hizbDep selon un 'sens global' du niveau). Pour un niveau multi-blocs
+ * comme AH1 (4 blocs avec sens differents par bloc), ca produisait des
+ * resultats faux : eleve hizb_depart=21 affichait 39 Hizbs acquis au lieu
+ * de 35, et son bloc 3 montrait 9/15 au lieu de 5/15.
+ *
+ * SOLUTION :
+ * 1. Identifier dans QUEL bloc se trouve hizbDepart
+ * 2. Marquer comme acquis : TOUS les Hizbs des blocs PRECEDENTS
+ * 3. Marquer comme acquis : dans le bloc courant, les Hizbs avant hizbDepart
+ *    selon le SENS DU BLOC (pas le sens global de l'eleve)
+ *
+ * RETROCOMPATIBILITE :
+ * - Si programmeNiveau est null/vide -> fallback sur l'ancienne logique
+ *   (calcul lineaire 1->hizbDep ou 60->hizbDep selon sens global)
+ * - Si le programme n'a qu'un seul bloc -> equivalent fonctionnel a l'ancien
+ *   comportement (un seul bloc = mono-bloc)
+ * - Si hizb_depart est null/0 -> retourne Set vide (eleve demarre de zero)
+ *
+ * @param eleve : objet eleve avec hizb_depart
+ * @param programmeNiveau : tableau des lignes table 'programmes' (avec
+ *                         bloc_numero, bloc_sens, reference_id, ordre)
+ * @param sensGlobal : 'asc' ou 'desc' — sens global du niveau (fallback)
+ * @returns Set des numeros de Hizb consideres comme acquis avant arrivee
+ */
+export function calcHizbsAcquisAvantArrivee(eleve, programmeNiveau, sensGlobal = 'desc') {
+  const hizbsAcquis = new Set();
+  if (!eleve) return hizbsAcquis;
+
+  const hizbDep = eleve.hizb_depart;
+  // Cas "demarre de zero" : aucun acquis
+  if (!hizbDep || hizbDep <= 0) return hizbsAcquis;
+
+  // FALLBACK : pas de programme defini -> ancienne logique mono-bloc lineaire
+  // (preserve la compatibilite pour les niveaux sans programme structure)
+  if (!programmeNiveau || programmeNiveau.length === 0) {
+    if (sensGlobal === 'asc') {
+      for (let h = 1; h < hizbDep; h++) hizbsAcquis.add(h);
+    } else {
+      for (let h = 60; h > hizbDep; h--) hizbsAcquis.add(h);
+    }
+    return hizbsAcquis;
+  }
+
+  // Verifier que le programme est de type 'hizb' (sinon pas de calcul de blocs)
+  const firstType = programmeNiveau[0]?.type_contenu;
+  if (firstType && firstType !== 'hizb') {
+    // Pour les niveaux 'sourate', on ne gere pas les blocs ici
+    if (sensGlobal === 'asc') {
+      for (let h = 1; h < hizbDep; h++) hizbsAcquis.add(h);
+    } else {
+      for (let h = 60; h > hizbDep; h--) hizbsAcquis.add(h);
+    }
+    return hizbsAcquis;
+  }
+
+  // ─── LOGIQUE MULTI-BLOCS ───
+  // 1. Regrouper le programme par bloc_numero
+  const blocsMap = new Map();
+  for (const ligne of programmeNiveau) {
+    const numBloc = ligne.bloc_numero || 1;
+    if (!blocsMap.has(numBloc)) {
+      blocsMap.set(numBloc, {
+        numero: numBloc,
+        sens: ligne.bloc_sens || 'asc',
+        hizbs: [],
+      });
+    }
+    const hizb = parseInt(ligne.reference_id);
+    if (!isNaN(hizb)) blocsMap.get(numBloc).hizbs.push(hizb);
+  }
+
+  // 2. Trier les blocs par numero d'ordre dans le parcours pedagogique
+  // BUG-FIX MONO-BLOC (mai 2026) : pour les niveaux MONO-bloc (un seul bloc),
+  // on ignore bloc_sens (qui peut etre desaligne avec le sens reel du niveau
+  // tel qu'affiche dans l'UI) et on utilise sensGlobal a la place.
+  // Pour les multi-blocs, on respecte bien le sens propre de chaque bloc.
+  const estMonoBloc = blocsMap.size === 1;
+  const blocs = Array.from(blocsMap.values())
+    .sort((a, b) => a.numero - b.numero)
+    .map(bloc => {
+      // Si mono-bloc : utiliser sensGlobal (= sens du niveau dans l'UI)
+      // Si multi-blocs : utiliser le sens propre du bloc
+      const sensEffectif = estMonoBloc ? sensGlobal : bloc.sens;
+      return {
+        ...bloc,
+        sens: sensEffectif,  // on remplace pour coherence des consommateurs
+        // Trier les Hizb DANS le bloc selon le sens effectif
+        hizbsTries: [...bloc.hizbs].sort((a, b) =>
+          sensEffectif === 'asc' ? a - b : b - a
+        ),
+      };
+    });
+
+  // 3. Trouver dans quel bloc se trouve hizbDepart
+  const blocCourantIdx = blocs.findIndex(b => b.hizbs.includes(hizbDep));
+
+  if (blocCourantIdx === -1) {
+    // hizbDepart n'est dans aucun bloc -> fallback ancienne logique
+    if (sensGlobal === 'asc') {
+      for (let h = 1; h < hizbDep; h++) hizbsAcquis.add(h);
+    } else {
+      for (let h = 60; h > hizbDep; h--) hizbsAcquis.add(h);
+    }
+    return hizbsAcquis;
+  }
+
+  // 4. Marquer comme acquis : tous les Hizbs des blocs PRECEDENTS
+  for (let i = 0; i < blocCourantIdx; i++) {
+    for (const h of blocs[i].hizbs) hizbsAcquis.add(h);
+  }
+
+  // 5. Dans le bloc courant, marquer les Hizbs avant hizbDepart selon le sens DU BLOC
+  const blocCourant = blocs[blocCourantIdx];
+  for (const h of blocCourant.hizbsTries) {
+    if (h === hizbDep) break;  // on s'arrete des qu'on atteint le hizb de depart
+    hizbsAcquis.add(h);
+  }
+
+  return hizbsAcquis;
+}
+
+/**
+ * BUG-FIX MULTI-BLOCS (mai 2026) — Compte les tomons acquis avant l'arrivee
+ * en utilisant la logique multi-blocs corrigee.
+ *
+ * Calcule : nombre de Hizbs acquis × 8 + (tomonDepart - 1)
+ * Le tomonDepart represente la position DANS le hizb actuel (le hizb en cours).
+ *
+ * Utilise par calcEtatEleve pour calculer les points/totaux.
+ */
+export function calcTomonAcquisAvantArrivee(eleve, programmeNiveau, sensGlobal = 'desc') {
+  if (!eleve) return 0;
+  const hizbDep = eleve.hizb_depart;
+  if (!hizbDep || hizbDep <= 0) return 0;
+  const tomonD = eleve.tomon_depart || 1;
+  const hizbsAcquis = calcHizbsAcquisAvantArrivee(eleve, programmeNiveau, sensGlobal);
+  // tomonAcquis = (Hizbs complets acquis * 8 tomons par Hizb) + tomons faits dans le Hizb en cours
+  return hizbsAcquis.size * 8 + (tomonD - 1);
+}
+
+/**
  * Calcule la position courante (prochain tomon à valider) d'un élève.
  * @param hizbDepart/tomonDepart : position de départ (acquis avant l'école)
  * @param totalTomonValides : nombre de tomons validés depuis l'arrivée
@@ -385,41 +531,47 @@ export function calculerPointsSourate(sourate_id, bareme, ensembles, typeRecitat
 
 export function calcPoints(tomonCumul, hizbsCompletsCount, validations, tomonAcquis=0, hizbAcquisComplets=0, bareme=null) {
   const B = (bareme && bareme.unites) ? bareme.unites : (bareme || BAREME_DEFAUT);
+  // BUG-FIX BAREME (mai 2026)
+  // Avant : 4 unites comptees (Tomon + Roba × 2.5 + Nisf × 6 + Hizb).
+  //         Les coefficients (×2.5, ×6) etaient hardcodes et n'avaient pas
+  //         de sens metier dans le modele actuel ou seuls les types
+  //         configures dans Gestion -> Notes existent.
+  // Apres : 2 unites uniquement (Tomon + Hizb), chacune valorisee selon
+  //         le bareme parametre par l'ecole. Les concepts Roba'/Nisf
+  //         disparaissent completement du calcul de points.
+  // Impact : tous les totaux de points des eleves vont diminuer (suppression
+  //          des bonus Roba/Nisf). Le tableau d'honneur et les classements
+  //          seront automatiquement rejoues. Decision validee par Jamal.
+
   // tomonCumul = total Tomon (acquis + nouveaux)
   // hizbsCompletsCount = total Hizb complets (acquis + nouveaux)
   const ptsTomon = tomonCumul * B.tomon;
-  const nbRoboe = Math.floor(tomonCumul / 2);
-  const nbNisf = Math.floor(tomonCumul / 4);
-  const ptsRoboe = nbRoboe * Math.round(B.tomon * 2.5);
-  const ptsNisf = nbNisf * Math.round(B.tomon * 6);
   const ptsHizb = hizbsCompletsCount * B.hizb_complet;
 
   // Points acquis antérieurs séparément (pour affichage informatif)
   const ptsAcquisTomon = tomonAcquis * B.tomon;
-  const ptsAcquisRoboe = Math.floor(tomonAcquis / 2) * Math.round(B.tomon * 2.5);
-  const ptsAcquisNisf = Math.floor(tomonAcquis / 4) * Math.round(B.tomon * 6);
   const ptsAcquisHizb = hizbAcquisComplets * B.hizb_complet;
-  const ptsAcquisTotal = ptsAcquisTomon + ptsAcquisRoboe + ptsAcquisNisf + ptsAcquisHizb;
+  const ptsAcquisTotal = ptsAcquisTomon + ptsAcquisHizb;
 
   // Points gagnés depuis le début du suivi
   const tomonNouveaux = tomonCumul - tomonAcquis;
   const hizbNouveaux = hizbsCompletsCount - hizbAcquisComplets;
   const ptsSuiviTomon = tomonNouveaux * B.tomon;
-  const ptsSuiviRoboe = (Math.floor(tomonCumul / 2) - Math.floor(tomonAcquis / 2)) * Math.round(B.tomon * 2.5);
-  const ptsSuiviNisf = (Math.floor(tomonCumul / 4) - Math.floor(tomonAcquis / 4)) * Math.round(B.tomon * 6);
   const ptsSuiviHizb = hizbNouveaux * B.hizb_complet;
 
   return {
-    total: ptsTomon + ptsRoboe + ptsNisf + ptsHizb,
+    total: ptsTomon + ptsHizb,
     ptsTomon,
-    ptsRoboe,
-    ptsNisf,
     ptsHizb,
+    // Compat retrocompatible : ces champs existent toujours pour eviter de
+    // casser les consommateurs qui les lisent. Ils valent 0 desormais.
+    ptsRoboe: 0,
+    ptsNisf: 0,
     ptsAcquisTotal,    // Points provenant des acquis antérieurs
-    ptsDepuisSuivi: ptsSuiviTomon + ptsSuiviRoboe + ptsSuiviNisf + ptsSuiviHizb, // Gagnés depuis le suivi
+    ptsDepuisSuivi: ptsSuiviTomon + ptsSuiviHizb, // Gagnés depuis le suivi
     tomonAcquis,
     hizbAcquisComplets,
-    details: { nbRoboe, nbNisf, nbHizb: hizbsCompletsCount }
+    details: { nbRoboe: 0, nbNisf: 0, nbHizb: hizbsCompletsCount }
   };
 }
 
@@ -428,8 +580,12 @@ export function calcPoints(tomonCumul, hizbsCompletsCount, validations, tomonAcq
  * @param validations : liste des validations (tomon, hizb_complet, muraja...)
  * @param hizbDepart/tomonDepart : acquis avant suivi (0 = aucun)
  * @param sens : 'desc' (défaut) ou 'asc' — sens de progression du niveau
+ * @param eleve : (optionnel) objet eleve complet pour calcul multi-blocs
+ * @param programmeNiveau : (optionnel) tableau des lignes table 'programmes'
+ *                          du niveau de l'eleve. Si fourni avec eleve, active
+ *                          la logique multi-blocs corrigee.
  */
-export function calcEtatEleve(validations, hizbDepart, tomonDepart, sens = 'desc') {
+export function calcEtatEleve(validations, hizbDepart, tomonDepart, sens = 'desc', eleve = null, programmeNiveau = null) {
   // Valeurs par défaut selon le sens
   const defaultHizb = sens === 'asc' ? 1 : 60;
   const hizbD = (hizbDepart === 0 || hizbDepart === null || hizbDepart === undefined) ? defaultHizb : hizbDepart;
@@ -462,11 +618,26 @@ export function calcEtatEleve(validations, hizbDepart, tomonDepart, sens = 'desc
     : pos.hizb;
   const hizbCompletValide = hizbsComplets.has(hizbBrut);
 
-  // Acquis antérieurs : nombre de tomons mémorisés avant l'arrivée à l'école
-  // En desc : de Hizb 60 à Hizb (hizbD+1) complets, + (tomonD-1) dans Hizb hizbD
-  // En asc  : de Hizb 1 à Hizb (hizbD-1) complets, + (tomonD-1) dans Hizb hizbD
-  const tomonAcquis = sansAcquis ? 0 : (sens === 'asc' ? (hizbD - 1) * 8 + (tomonD - 1) : (60 - hizbD) * 8 + (tomonD - 1));
-  const hizbAcquisComplets = sansAcquis ? 0 : (sens === 'asc' ? (hizbD - 1) : (60 - hizbD));
+  // BUG-FIX MULTI-BLOCS (mai 2026)
+  // Si on a l'eleve + programmeNiveau, on utilise la nouvelle logique correcte
+  // qui tient compte de la structure en blocs (sens different par bloc).
+  // Sinon, on retombe sur l'ancienne logique mono-bloc lineaire (retrocompatible).
+  let tomonAcquis, hizbAcquisComplets;
+  if (!sansAcquis && eleve && programmeNiveau && programmeNiveau.length > 0) {
+    // Nouvelle logique multi-blocs
+    const hizbsAcquisSet = calcHizbsAcquisAvantArrivee(eleve, programmeNiveau, sens);
+    hizbAcquisComplets = hizbsAcquisSet.size;
+    tomonAcquis = hizbAcquisComplets * 8 + (tomonD - 1);
+  } else if (!sansAcquis) {
+    // Ancienne logique mono-bloc (fallback retrocompatible)
+    // En desc : de Hizb 60 à Hizb (hizbD+1) complets, + (tomonD-1) dans Hizb hizbD
+    // En asc  : de Hizb 1 à Hizb (hizbD-1) complets, + (tomonD-1) dans Hizb hizbD
+    tomonAcquis = (sens === 'asc' ? (hizbD - 1) * 8 + (tomonD - 1) : (60 - hizbD) * 8 + (tomonD - 1));
+    hizbAcquisComplets = (sens === 'asc' ? (hizbD - 1) : (60 - hizbD));
+  } else {
+    tomonAcquis = 0;
+    hizbAcquisComplets = 0;
+  }
   // Points totaux = acquis antérieurs + nouveaux validés depuis le suivi
   const tomonTotal = tomonAcquis + tomonCumul;
   const hizbCompletsTotal = hizbAcquisComplets + hizbsComplets.size;
@@ -544,11 +715,16 @@ export function calcEtatEleve(validations, hizbDepart, tomonDepart, sens = 'desc
 // ═══════════════════════════════════════════════════════════════════════════
 export function calcEtatEleveAvecBlocs(validations, eleve, programmeNiveau, sens = 'desc') {
   // Etape 1 : calcEtatEleve standard (toujours fait pour tomonCumul, points, etc.)
+  // BUG-FIX MULTI-BLOCS : on passe eleve + programmeNiveau pour que le calcul
+  // des tomons/hizbs acquis utilise la logique multi-blocs corrigee
+  // (au lieu de la boucle lineaire 1->hizbDep / 60->hizbDep).
   const etatBrut = calcEtatEleve(
     validations || [],
     eleve?.hizb_depart || 0,
     eleve?.tomon_depart || 0,
-    sens
+    sens,
+    eleve,
+    programmeNiveau
   );
 
   // Etape 2 : detecter si multi-blocs (sinon retour direct)
@@ -1508,11 +1684,8 @@ export function calcPointsPeriode(validations, dateDebut, dateFin, bareme=null, 
     }
   }
 
+  // BUG-FIX BAREME (mai 2026) : suppression Roba/Nisf, calcul Tomon+Hizb uniquement
   const ptsTomon = tomonPeriode * B.tomon;
-  const nbRoboe = Math.floor(tomonPeriode / 2);
-  const nbNisf = Math.floor(tomonPeriode / 4);
-  const ptsRoboe = nbRoboe * Math.round(B.tomon * 2.5);
-  const ptsNisf = nbNisf * Math.round(B.tomon * 6);
   const ptsHizb = hizbsCompletsPeriode.size * B.hizb_complet;
 
   // ── Événements ponctuels (examens réussis, certificats, ensembles) ──
@@ -1524,16 +1697,18 @@ export function calcPointsPeriode(validations, dateDebut, dateFin, bareme=null, 
   const ptsCertificats = evtPeriode.filter(e=>e.type_event==='jalon').reduce((s,e)=>s+e.points,0);
   const ptsEnsembles = evtPeriode.filter(e=>e.type_event==='ensemble_sourates').reduce((s,e)=>s+e.points,0);
 
-  const total = ptsTomon + ptsRoboe + ptsNisf + ptsHizb + ptsExamens + ptsCertificats + ptsEnsembles;
+  const total = ptsTomon + ptsHizb + ptsExamens + ptsCertificats + ptsEnsembles;
 
   return {
     total,
-    ptsTomon, ptsRoboe, ptsNisf, ptsHizb,
+    ptsTomon, ptsHizb,
+    // Compat retrocompatible : Roboe/Nisf existent toujours mais valent 0
+    ptsRoboe: 0, ptsNisf: 0,
     ptsExamens, ptsCertificats, ptsEnsembles,
     tomonPeriode,
     hizbsPeriode: hizbsCompletsPeriode.size,
     nbValidations: vPeriode.length,
-    details: { nbRoboe, nbNisf, nbHizb: hizbsCompletsPeriode.size },
+    details: { nbRoboe: 0, nbNisf: 0, nbHizb: hizbsCompletsPeriode.size },
   };
 }
 

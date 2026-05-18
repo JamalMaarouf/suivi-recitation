@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useToast } from '../lib/toast';
 import { supabase } from '../lib/supabase';
-import { calcEtatEleve, calcEtatEleveAvecBlocs, isSourateNiveauDyn, calcPositionAtteinte, calcUnite, calcPoints, formatDate, formatDateCourt, getInitiales, scoreLabel, calcBadges, calcVitesse, niveauTraduit, calcPointsPeriode, loadBareme, BAREME_DEFAUT, getSensForEleve, calcBlocProgression} from '../lib/helpers';
+import { calcEtatEleve, calcEtatEleveAvecBlocs, isSourateNiveauDyn, calcPositionAtteinte, calcUnite, calcPoints, formatDate, formatDateCourt, getInitiales, scoreLabel, calcBadges, calcVitesse, niveauTraduit, calcPointsPeriode, loadBareme, BAREME_DEFAUT, getSensForEleve, calcBlocProgression, calcHizbsAcquisAvantArrivee} from '../lib/helpers';
 import { t } from '../lib/i18n';
 import { openPDF } from '../lib/pdf';
 import { getCachedSWR } from '../lib/cache';
@@ -254,19 +254,19 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang, isMobi
     if (!etat || !programmeNiveau || programmeNiveau.length === 0) return null;
     // Rassembler TOUS les Hizbs considérés comme "faits" :
     // - Les Hizb validés complets pendant le suivi
-    // - Les Hizb acquis AVANT l'arrivée (via hizb_depart + sens)
+    // - Les Hizb acquis AVANT l'arrivée (via hizb_depart + sens DU BLOC)
+    //
+    // BUG-FIX MULTI-BLOCS (mai 2026) — On utilise calcHizbsAcquisAvantArrivee
+    // qui tient compte de la structure en blocs (chaque bloc a son sens propre).
+    // Avant ce fix, on bouclait lineairement de 1 a hizbDep (ou 60 a hizbDep)
+    // selon le sens global, ce qui donnait des resultats faux pour les
+    // niveaux multi-blocs (ex: Yusuf hizb_dep=21 en AH1 -> 39 acquis au lieu
+    // de 35, bloc 3 -> 9/15 au lieu de 5/15).
     const sens = getSensForEleve(eleve, niveaux, ecoleConfig);
     const hizbsFaits = new Set(etat.hizbsComplets || []);
-    const hizbDep = eleve.hizb_depart;
-    if (hizbDep && hizbDep > 0) {
-      // En asc : acquis = Hizb 1 à (hizbDep - 1)
-      // En desc : acquis = Hizb 60 à (hizbDep + 1)
-      if (sens === 'asc') {
-        for (let h = 1; h < hizbDep; h++) hizbsFaits.add(h);
-      } else {
-        for (let h = 60; h > hizbDep; h--) hizbsFaits.add(h);
-      }
-    }
+    const hizbsAcquisAvant = calcHizbsAcquisAvantArrivee(eleve, programmeNiveau, sens);
+    for (const h of hizbsAcquisAvant) hizbsFaits.add(h);
+
     const prog = calcBlocProgression(programmeNiveau, hizbsFaits, etat.hizbEnCours);
     // On ne montre pas l'UI blocs si monobloc (comportement classique inchangé)
     if (!prog || prog.estMonoBloc) return null;
@@ -461,8 +461,10 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang, isMobi
       // Sinon, après une sync offline, les points remis à 0 alors que tout va bien côté serveur.
       if (!etat) {
         // Premier chargement raté : afficher un état minimal pour que la page ne crash pas
+        // BUG-FIX MULTI-BLOCS : on passe eleve + progDataLoaded pour benefier de
+        // la logique corrigee meme en cas d'erreur de chargement.
         const sensE = getSensForEleve(eleve, niveaux, ecoleConfig);
-        setEtat(calcEtatEleve([],eleve.hizb_depart,eleve.tomon_depart, sensE));
+        setEtat(calcEtatEleve([],eleve.hizb_depart,eleve.tomon_depart, sensE, eleve, progDataLoaded));
       }
       // Si etat existe deja, on le laisse tel quel et on retry plus tard
       if (typeof navigator !== 'undefined' && navigator.onLine) {
@@ -1780,8 +1782,6 @@ ${(passages||[]).length > 0 ? `
                     <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:12}}>
                       {[
                         {label:lang==='ar'?'الأثمان':'Tomon validés', val:pts.tomonPeriode, pts:pts.ptsTomon, color:'#378ADD', bg:'#E6F1FB', icon:'📖'},
-                        {label:lang==='ar'?'الأرباع':'Roboâ', val:pts.details?.nbRoboe||0, pts:pts.ptsRoboe, color:'#1D9E75', bg:'#E1F5EE', icon:'✦'},
-                        {label:lang==='ar'?'الأنصاف':'Nisf', val:pts.details?.nbNisf||0, pts:pts.ptsNisf, color:'#EF9F27', bg:'#FAEEDA', icon:'◈'},
                         {label:lang==='ar'?'أحزاب كاملة':'Hizb complets', val:pts.hizbsPeriode, pts:pts.ptsHizb, color:'#085041', bg:'#E1F5EE', icon:'🎯'},
                         {label:lang==='ar'?'الامتحانات':'Examens', val:'', pts:pts.ptsExamens||0, color:'#EF9F27', bg:'#FAEEDA', icon:'📝'},
                         {label:lang==='ar'?'الشهادات':'Certificats', val:'', pts:pts.ptsCertificats||0, color:'#D85A30', bg:'#FAECE7', icon:'🏅'},
@@ -2041,19 +2041,32 @@ ${(passages||[]).length > 0 ? `
                         </div>
                       ))}
                     </div>
-                    {/* Détail des points */}
+                    {/* Détail des points — BUG-FIX BAREME (mai 2026)
+                        Avant : 4 colonnes hardcodees (Tomon×10, Arba×25, Nisf×60, Hizb×100).
+                        Ces valeurs etaient deconnectees du bareme reel de l'ecole
+                        et incluaient Arba/Nisf qui n'existent plus dans le modele actuel.
+                        Apres : 2 lignes uniquement (Tomon + Hizb) avec les VRAIS pts/unite
+                        du bareme parametre dans Gestion -> Notes. */}
                     <div style={{fontSize:11,color:'#085041',fontWeight:600,marginBottom:6}}>{lang==='ar'?'توزيع النقاط':lang==='en'?(lang==='ar'?'توزيع النقاط':'Points breakdown'):(lang==='ar'?'توزيع النقاط':'Détail des points')}</div>
-                    <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:6,marginBottom:10}}>
+                    <div style={{display:'grid',gridTemplateColumns:'repeat(2,1fr)',gap:6,marginBottom:10}}>
                       {[
-                        {lbl:t(lang,'tomon_abrev'),val:etat.tomonAcquis*10,sub:`${etat.tomonAcquis}×10`,color:'#1D9E75'},
-                        {lbl:lang==='ar' ? 'الأرباع' : 'Roboe',val:Math.floor(etat.tomonAcquis/2)*25,sub:`${Math.floor(etat.tomonAcquis/2)}×25`,color:'#378ADD'},
-                        {lbl:lang==='ar' ? 'الأنصاف' : 'Nisf',val:Math.floor(etat.tomonAcquis/4)*60,sub:`${Math.floor(etat.tomonAcquis/4)}×60`,color:'#534AB7'},
-                        {lbl:lang==='ar' ? 'حزب' : 'Hizb',val:etat.hizbAcquisComplets*100,sub:`${etat.hizbAcquisComplets}×100`,color:'#EF9F27'},
+                        {
+                          lbl: lang==='ar' ? 'الأثمان المكتسبة' : 'Tomon',
+                          count: etat.tomonAcquis,
+                          unitPts: baremeEleve?.tomon || 0,
+                          color: '#1D9E75',
+                        },
+                        {
+                          lbl: lang==='ar' ? 'الأحزاب المكتملة' : 'Hizb complets',
+                          count: etat.hizbAcquisComplets,
+                          unitPts: baremeEleve?.hizb_complet || 0,
+                          color: '#EF9F27',
+                        },
                       ].map(k=>(
-                        <div key={k.lbl} style={{background:'#fff',borderRadius:8,padding:'8px',textAlign:'center',border:'0.5px solid #d0ede4'}}>
-                          <div style={{fontSize:14,fontWeight:700,color:k.color}}>{k.val}</div>
-                          <div style={{fontSize:10,color:'#888'}}>{k.lbl}</div>
-                          <div style={{fontSize:9,color:'#bbb'}}>{k.sub}</div>
+                        <div key={k.lbl} style={{background:'#fff',borderRadius:8,padding:'10px',textAlign:'center',border:'0.5px solid #d0ede4'}}>
+                          <div style={{fontSize:15,fontWeight:700,color:k.color}}>{(k.count * k.unitPts).toLocaleString()} {t(lang,'pts_abrev')}</div>
+                          <div style={{fontSize:11,color:'#888',marginTop:2}}>{k.lbl}</div>
+                          <div style={{fontSize:9,color:'#bbb',marginTop:1}}>{k.count}×{k.unitPts}</div>
                         </div>
                       ))}
                     </div>
@@ -2090,36 +2103,112 @@ ${(passages||[]).length > 0 ? `
                 </button>
                 {showAcquis && (
                   <div style={{background:'#f0faf6',border:'1.5px solid #1D9E75',borderTop:'none',borderRadius:'0 0 10px 10px',padding:'1rem'}}>
-                    {/* Listing des sourates acquises */}
-                    <div style={{fontSize:11,color:'#085041',fontWeight:600,marginBottom:6}}>
-                      {lang==='ar'?'السور المحفوظة':'Sourates acquises'}
-                    </div>
                     {(() => {
-                      // Calcul des sourates acquises selon le sens du niveau
+                      // Calcul des sourates acquises et de la position selon le sens du niveau
                       const niveauEleve = (_niveauxCtx || []).find(n => n.code === eleve.code_niveau);
                       const sensRecit = niveauEleve?.sens_recitation || ecoleConfig?.sens_recitation_defaut || 'desc';
                       const souratesOrd = [...souratesDB].sort((a, b) => sensRecit === 'asc' ? a.numero - b.numero : b.numero - a.numero);
-                      const idsAcquises = souratesOrd.slice(0, eleve.sourates_acquises);
-                      if (idsAcquises.length === 0) return null;
+                      const totalSouratesProg = souratesOrd.length;
+                      const nbAcquises = eleve.sourates_acquises || 0;
+                      const premiereSourate = souratesOrd[0] || null;
+                      const sourateCourante = souratesOrd[nbAcquises] || null; // prochaine a apprendre = courante de l'eleve
+                      const idsAcquises = souratesOrd.slice(0, nbAcquises);
+
                       return (
-                        <div style={{display:'flex',flexWrap:'wrap',gap:6,marginBottom:12,maxHeight:120,overflowY:'auto'}}>
-                          {idsAcquises.map(s => (
-                            <span key={s.id} style={{padding:'4px 10px',background:'#fff',border:'0.5px solid #d0ede4',borderRadius:14,fontSize:11,color:'#085041',fontWeight:500}}>
-                              {s.nom_ar} <span style={{color:'#888',fontSize:10}}>({s.numero})</span>
-                            </span>
-                          ))}
-                        </div>
+                        <>
+                          {/* ── SOUS-SECTION A : Position de depart ── */}
+                          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:12}}>
+                            <div style={{background:'#fff',borderRadius:8,padding:'12px',border:'0.5px solid #d0ede4',position:'relative'}}>
+                              <div style={{position:'absolute',top:8,right:8,fontSize:14}}>📍</div>
+                              <div style={{fontSize:10,color:'#888',marginBottom:4}}>{lang==='ar'?'السورة الأولى للبرنامج':'Première sourate'}</div>
+                              <div style={{fontSize:15,fontWeight:700,color:'#085041'}}>
+                                {premiereSourate ? `${premiereSourate.nom_ar}` : '—'}
+                              </div>
+                              {premiereSourate && (
+                                <div style={{fontSize:10,color:'#aaa',marginTop:2}}>({premiereSourate.numero})</div>
+                              )}
+                            </div>
+                            <div style={{background:'#fff',borderRadius:8,padding:'12px',border:'0.5px solid #d0ede4',position:'relative'}}>
+                              <div style={{position:'absolute',top:8,right:8,fontSize:14}}>📍</div>
+                              <div style={{fontSize:10,color:'#888',marginBottom:4}}>{lang==='ar'?'السورة الحالية':'Sourate actuelle'}</div>
+                              <div style={{fontSize:15,fontWeight:700,color:'#1D9E75'}}>
+                                {sourateCourante ? `${sourateCourante.nom_ar}` : '—'}
+                              </div>
+                              {sourateCourante && (
+                                <div style={{fontSize:10,color:'#aaa',marginTop:2}}>({sourateCourante.numero})</div>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* ── SOUS-SECTION B : Details (acquises / restantes) ── */}
+                          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:12}}>
+                            <div style={{background:'#fff',borderRadius:8,padding:'12px',border:'0.5px solid #d0ede4'}}>
+                              <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:4}}>
+                                <span style={{fontSize:14}}>✓</span>
+                                <div style={{fontSize:10,color:'#888'}}>{lang==='ar'?'السور المكتسبة':'Sourates acquises'}</div>
+                              </div>
+                              <div style={{fontSize:18,fontWeight:800,color:'#EF9F27'}}>
+                                {nbAcquises}<span style={{fontSize:12,color:'#aaa',fontWeight:600}}> / {totalSouratesProg}</span>
+                              </div>
+                            </div>
+                            <div style={{background:'#fff',borderRadius:8,padding:'12px',border:'0.5px solid #d0ede4'}}>
+                              <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:4}}>
+                                <span style={{fontSize:14}}>⏳</span>
+                                <div style={{fontSize:10,color:'#888'}}>{lang==='ar'?'السور المتبقية':'Restantes'}</div>
+                              </div>
+                              <div style={{fontSize:18,fontWeight:800,color:'#085041'}}>
+                                {Math.max(0, totalSouratesProg - nbAcquises)}<span style={{fontSize:12,color:'#aaa',fontWeight:600}}> / {totalSouratesProg}</span>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* ── BONUS : Listing des sourates acquises (existant) ── */}
+                          {idsAcquises.length > 0 && (
+                            <>
+                              <div style={{fontSize:11,color:'#085041',fontWeight:600,marginBottom:6}}>
+                                {lang==='ar'?'السور المحفوظة':'Sourates acquises'}
+                              </div>
+                              <div style={{display:'flex',flexWrap:'wrap',gap:6,marginBottom:12,maxHeight:120,overflowY:'auto'}}>
+                                {idsAcquises.map(s => (
+                                  <span key={s.id} style={{padding:'4px 10px',background:'#fff',border:'0.5px solid #d0ede4',borderRadius:14,fontSize:11,color:'#085041',fontWeight:500}}>
+                                    {s.nom_ar} <span style={{color:'#888',fontSize:10}}>({s.numero})</span>
+                                  </span>
+                                ))}
+                              </div>
+                            </>
+                          )}
+
+                          {/* ── SOUS-SECTION C : Distribution des points (existant) ── */}
+                          {(baremeEleve?.sourate || 0) > 0 && (
+                            <>
+                              <div style={{fontSize:11,color:'#085041',fontWeight:600,marginBottom:6}}>
+                                {lang==='ar'?'توزيع النقاط':'Détail des points'}
+                              </div>
+                              <div style={{display:'grid',gridTemplateColumns:'1fr',gap:6,marginBottom:10}}>
+                                <div style={{background:'#fff',borderRadius:8,padding:'10px',textAlign:'center',border:'0.5px solid #d0ede4'}}>
+                                  <div style={{fontSize:15,fontWeight:700,color:'#1D9E75'}}>
+                                    {(nbAcquises * baremeEleve.sourate).toLocaleString()} {t(lang,'pts_abrev')}
+                                  </div>
+                                  <div style={{fontSize:11,color:'#888',marginTop:2}}>
+                                    {lang==='ar' ? 'السور المحفوظة' : 'Sourates acquises'}
+                                  </div>
+                                  <div style={{fontSize:9,color:'#bbb',marginTop:1}}>
+                                    {nbAcquises}×{baremeEleve.sourate}
+                                  </div>
+                                </div>
+                              </div>
+                              {/* Total points */}
+                              <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',background:'#085041',borderRadius:8,padding:'10px 14px'}}>
+                                <span style={{fontSize:12,color:'#9FE1CB'}}>{lang==='ar'?'مجموع نقاط المكتسبات':'Total points acquis antérieurs'}</span>
+                                <span style={{fontSize:18,fontWeight:800,color:'#fff'}}>
+                                  {(nbAcquises * baremeEleve.sourate).toLocaleString()} {t(lang,'pts_abrev')}
+                                </span>
+                              </div>
+                            </>
+                          )}
+                        </>
                       );
                     })()}
-                    {/* Total points */}
-                    {(baremeEleve?.sourate || 0) > 0 && (
-                      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',background:'#085041',borderRadius:8,padding:'10px 14px'}}>
-                        <span style={{fontSize:12,color:'#9FE1CB'}}>{lang==='ar'?'مجموع نقاط المكتسبات':'Total points acquis antérieurs'}</span>
-                        <span style={{fontSize:18,fontWeight:800,color:'#fff'}}>
-                          {(eleve.sourates_acquises * baremeEleve.sourate).toLocaleString()} {t(lang,'pts_abrev')}
-                        </span>
-                      </div>
-                    )}
                   </div>
                 )}
               </div>
@@ -2166,14 +2255,32 @@ ${(passages||[]).length > 0 ? `
 
 
 
-            {/* KPI */}
+            {/* KPI Footer Zone 3 — pertinents pour le pedagogique
+                Pour Hizb : HIZB actuel | TOMON/HIZB | أحزاب complets | TOTAL
+                Pour Sourate : Sourate courante | المقاطع | السور (X/Total) | TOTAL pts */}
             <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:8,borderTop:'0.5px solid #e8e8e0',paddingTop:12}}>
-              {(estSourateEleve ? [
-                [lang==='ar'?'السور المنجزة':'Sourates', recitationsSouratesEleve.filter(r=>r.type_recitation==='complete').length],
-                [lang==='ar'?'المقاطع':'Séquences', recitationsSouratesEleve.filter(r=>r.type_recitation==='sequence').length],
-                [lang==='ar'?'المحفوظات':'Acquis', eleve.sourates_acquises||0],
-                ['Total', totalPtsSourates || 0],
-              ] : [
+              {(estSourateEleve ? (() => {
+                // Calcul KPI Sourate pour la Zone 3
+                const niveauElv = (_niveauxCtx || []).find(n => n.code === eleve.code_niveau);
+                const sensRecit = niveauElv?.sens_recitation || ecoleConfig?.sens_recitation_defaut || 'desc';
+                const souratesOrd = [...souratesDB].sort((a, b) => sensRecit === 'asc' ? a.numero - b.numero : b.numero - a.numero);
+                const totalProg = souratesOrd.length;
+                // Sourates completes : recitations type 'complete' uniques
+                const nbCompletes = new Set(
+                  recitationsSouratesEleve.filter(r => r.type_recitation === 'complete').map(r => r.sourate_id)
+                ).size;
+                const nbSequences = recitationsSouratesEleve.filter(r => r.type_recitation === 'sequence').length;
+                const nbAcq = eleve.sourates_acquises || 0;
+                // Sourate courante = celle apres les acquises + les completes
+                const idxCourante = nbAcq + nbCompletes;
+                const sourateCour = souratesOrd[idxCourante] || null;
+                return [
+                  [lang==='ar'?'السورة الحالية':'Sourate actuelle', sourateCour ? `${sourateCour.nom_ar}` : '—'],
+                  [lang==='ar'?'المقاطع المنجزة':'Séquences', nbSequences],
+                  [lang==='ar'?'السور المكتملة':'Sourates ✓', `${nbAcq + nbCompletes}/${totalProg}`],
+                  ['Total', `${(totalPtsSourates || 0).toLocaleString()} ${lang==='ar'?'ن':'pts'}`],
+                ];
+              })() : [
                 ['Hizb',`Hizb ${etat?.hizbEnCours}`],
                 ['Tomon/Hizb',`${etat?.tomonDansHizbActuel}/8`],
                 [t(lang,'hizb_complets'),etat?.hizbsComplets?.size],
@@ -2594,8 +2701,6 @@ ${(passages||[]).length > 0 ? `
                     {label:lang==='ar'?'الشهادات':'Certs', val:'', pts:pts.ptsCertificats||0, color:'#085041', bg:'#E1F5EE', icon:'🏅'},
                   ] : [
                     {label:lang==='ar'?'الأثمان':'Tomon', val:pts.tomonPeriode, pts:pts.ptsTomon, color:'#378ADD', bg:'#E6F1FB', icon:'📖'},
-                    {label:lang==='ar'?'الأرباع':'Roboâ', val:pts.details?.nbRoboe||0, pts:pts.ptsRoboe, color:'#1D9E75', bg:'#E1F5EE', icon:'✦'},
-                    {label:lang==='ar'?'الأنصاف':'Nisf', val:pts.details?.nbNisf||0, pts:pts.ptsNisf, color:'#EF9F27', bg:'#FAEEDA', icon:'◈'},
                     {label:lang==='ar'?'أحزاب كاملة':'Hizb ✓', val:pts.hizbsPeriode, pts:pts.ptsHizb, color:'#085041', bg:'#E1F5EE', icon:'🎯'},
                     ...(pts.ptsExamens>0?[{label:lang==='ar'?'الامتحانات':'Examens', val:'', pts:pts.ptsExamens, color:'#EF9F27', bg:'#FAEEDA', icon:'📝'}]:[]),
                     ...(pts.ptsCertificats>0?[{label:lang==='ar'?'الشهادات':'Certs', val:'', pts:pts.ptsCertificats, color:'#D85A30', bg:'#FAECE7', icon:'🏅'}]:[]),
