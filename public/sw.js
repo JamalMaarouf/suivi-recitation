@@ -33,6 +33,14 @@ self.addEventListener('fetch', (event) => {
 
   if (event.request.method !== 'GET') return;
 
+  // ROBUSTESSE (mai 2026) : ignorer les requetes avec un schema non-http(s).
+  // L'API Cache.put() refuse les schemas comme 'chrome-extension://', 'moz-extension://',
+  // 'safari-extension://', 'about:', 'data:', etc. Sans ce filtre, les extensions
+  // installees par l'utilisateur (ad-blockers, password managers...) declenchent
+  // des TypeError visibles dans la console : "Request scheme 'X' is unsupported".
+  // L'app fonctionne normalement, mais ces erreurs polluent le debug.
+  if (url.protocol !== 'http:' && url.protocol !== 'https:') return;
+
   // NE PAS intercepter les APIs (Supabase, Resend, /api/*)
   if (url.hostname.includes('supabase.co')) return;
   if (url.hostname.includes('resend.com')) return;

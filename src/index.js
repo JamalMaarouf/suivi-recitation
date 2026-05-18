@@ -11,7 +11,7 @@ if ('serviceWorker' in navigator) {
     navigator.serviceWorker
       .register('/sw.js')
       .then((reg) => {
-        console.log('SW registered:', reg.scope);
+        // SW enregistre avec succes (log retire pour eviter bruit console)
 
         // Verifier toutes les 60 secondes s'il y a une mise a jour
         setInterval(() => { reg.update().catch(()=>{}); }, 60 * 1000);
@@ -29,8 +29,7 @@ if ('serviceWorker' in navigator) {
           if (!newWorker) return;
           newWorker.addEventListener('statechange', () => {
             if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-              // Une nouvelle version est prete — on l'active
-              console.log('[SW] Nouvelle version detectee, activation...');
+              // Une nouvelle version est prete — on l'active (log retire)
               newWorker.postMessage({ type: 'SKIP_WAITING' });
             }
           });
@@ -41,12 +40,13 @@ if ('serviceWorker' in navigator) {
         navigator.serviceWorker.addEventListener('controllerchange', () => {
           if (refreshing) return;
           refreshing = true;
-          console.log('[SW] Controleur change, rechargement de la page');
+          // Rechargement silencieux (log retire)
           window.location.reload();
         });
       })
       .catch((err) => {
-        console.log('SW registration failed:', err);
+        // Conserve en error : utile si la PWA casse pour un utilisateur
+        console.error('SW registration failed:', err);
       });
   });
 }

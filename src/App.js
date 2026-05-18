@@ -319,8 +319,8 @@ function App() {
     window.addEventListener('keydown', handleKeyDown);
 
     // Installer la sync automatique offline (une seule fois)
-    installAutoSync(supabase, ({ synced }) => {
-      if (synced > 0) console.log(`[offline-sync] ${synced} opérations synchronisées`);
+    installAutoSync(supabase, () => {
+      // Sync silencieuse en production (anciennement console.log retiré pour eviter fuite info)
     });
 
     return () => {

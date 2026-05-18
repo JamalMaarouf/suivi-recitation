@@ -59,7 +59,7 @@ export async function trackParentVisite(parentId, eleveId, ecoleId, onglet) {
         })
         .eq('id', existing.id);
       if (updateError) console.error('[trackParentVisite] erreur UPDATE :', updateError);
-      else console.log('[trackParentVisite] ✅ UPDATE OK', { onglet, onglets });
+      // Succes silencieux en production
     } else {
       // INSERT : nouvelle visite du jour
       const { error: insertError } = await supabase
@@ -74,7 +74,7 @@ export async function trackParentVisite(parentId, eleveId, ecoleId, onglet) {
           nb_consultations: 1,
         });
       if (insertError) console.error('[trackParentVisite] erreur INSERT :', insertError);
-      else console.log('[trackParentVisite] ✅ INSERT OK', { parentId, eleveId, onglet });
+      // Succes silencieux en production
     }
   } catch (err) {
     // Silencieux : on ne doit pas casser l'UX du parent pour un log raté

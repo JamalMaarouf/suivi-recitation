@@ -49,15 +49,6 @@ import { SOURATES_CORAN } from '../lib/sourates';
 // ═══════════════════════════════════════════════════════════════════════════
 export function calculerHizbDepartDepuisBlocs(programmeNiveau, hizbsAcquis, sensNiveau = 'asc') {
   if (!programmeNiveau || programmeNiveau.length === 0) return 0;
-  // DEBUG TEMPORAIRE - retirer apres diagnostic Jamal
-  console.log('[calcHizbDepart] entree', {
-    programme_count: programmeNiveau.length,
-    programme_blocs_uniques: [...new Set(programmeNiveau.map(p => p.bloc_numero))],
-    programme_sens_uniques: [...new Set(programmeNiveau.map(p => p.bloc_sens))],
-    hizbsAcquis,
-    sensNiveau,
-    sample: programmeNiveau.slice(0, 3),
-  });
 
   // ─── Detection mode "vrai monobloc" ──────────────────────────────────
   // Si tout le programme est dans un seul bloc, le bloc n'a pas ete configure
@@ -83,21 +74,17 @@ export function calculerHizbDepartDepuisBlocs(programmeNiveau, hizbsAcquis, sens
     if (!isNaN(h)) blocsMap.get(n).hizbs.push(h);
   }
   const blocsList = Array.from(blocsMap.values()).sort((a, b) => a.numero - b.numero);
-  console.log('[calcHizbDepart] blocs', blocsList.map(b => ({ numero: b.numero, sens: b.sens, count: b.hizbs.length })), 'estVraiMonobloc:', estVraiMonobloc);
   const acquisSet = new Set(hizbsAcquis || []);
   // Parcourir chaque bloc dans l'ordre
   for (const b of blocsList) {
     // Trier les Hizbs du bloc dans son propre sens
     const hizbsOrdonnes = [...b.hizbs].sort((x, y) => b.sens === 'asc' ? x - y : y - x);
-    console.log('[calcHizbDepart] bloc', b.numero, 'sens', b.sens, 'tries', hizbsOrdonnes.slice(0, 5), '...');
     for (const h of hizbsOrdonnes) {
       if (!acquisSet.has(h)) {
-        console.log('[calcHizbDepart] retour', h);
         return h; // Premier non acquis
       }
     }
   }
-  console.log('[calcHizbDepart] retour 0 (tout acquis)');
   return 0; // Tous acquis
 }
 

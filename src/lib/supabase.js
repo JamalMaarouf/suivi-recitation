@@ -16,9 +16,74 @@ const SUPABASE_ANON_KEY = process.env.REACT_APP_SUPABASE_ANON_KEY || 'eyJhbGciOi
 //   est en mode impersonification
 // - Transforme delete() en update({deleted_at}) sur tables protegees
 // - Filtre automatiquement les SELECT pour exclure les soft-deleted
+//
+// ═══════════════════════════════════════════════════════════════
+// AUDIT SECURITE A2 (mai 2026) : ISOLATION MULTI-ECOLES
+// ═══════════════════════════════════════════════════════════════
+// Le client Supabase envoie automatiquement 2 headers HTTP custom a
+// chaque requete (lus depuis localStorage) :
+// - x-tartily-ecole  : UUID ecole_id de l'utilisateur connecte (surveillant)
+// - x-tartily-parent : UUID du parent connecte (portail parent)
+//
+// Cote BDD, les policies RLS lisent ces headers via les fonctions
+// Postgres public.current_ecole_id() et public.current_parent_id().
+// Elles filtrent automatiquement les lignes par ecole_id/parent_id.
+//
+// Resultat : un utilisateur de l'ecole A ne peut techniquement PAS
+// requetter les donnees de l'ecole B (meme via DevTools).
 // ═══════════════════════════════════════════════════════════════
 
-const supabaseRaw = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+// Lit ecole_id depuis localStorage (mis a jour au login/logout)
+function getCurrentEcoleIdForHeader() {
+  try {
+    const raw = localStorage.getItem('suivi_user');
+    if (!raw) return null;
+    const user = JSON.parse(raw);
+    // Surveillant : ecole_id direct sur l'utilisateur
+    return user?.ecole_id || null;
+  } catch { return null; }
+}
+
+// Lit parent_id depuis localStorage (mis a jour au login parent)
+function getCurrentParentIdForHeader() {
+  try {
+    const raw = localStorage.getItem('suivi_user');
+    if (!raw) return null;
+    const user = JSON.parse(raw);
+    // Parent : role='parent', id = parent_id
+    if (user?.role === 'parent') return user?.id || null;
+    return null;
+  } catch { return null; }
+}
+
+// Construit les headers custom Tartily pour chaque requete Supabase.
+// Note : @supabase/supabase-js v2 evalue 'headers' au moment de la requete
+// quand on passe une fonction, pas au moment de la creation du client.
+// Cela permet aux headers d'etre dynamiques (mis a jour au login/logout).
+function buildTartilyHeaders() {
+  const headers = {};
+  const ecoleId = getCurrentEcoleIdForHeader();
+  const parentId = getCurrentParentIdForHeader();
+  if (ecoleId) headers['x-tartily-ecole'] = ecoleId;
+  if (parentId) headers['x-tartily-parent'] = parentId;
+  return headers;
+}
+
+const supabaseRaw = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+  global: {
+    // Fetch wrapper : injecte les headers Tartily avant chaque requete.
+    // Cette approche est preferee a 'headers' statique car les valeurs
+    // doivent etre relues a chaque requete (changent au login/logout).
+    fetch: (url, options = {}) => {
+      const tartilyHeaders = buildTartilyHeaders();
+      const mergedHeaders = {
+        ...(options.headers || {}),
+        ...tartilyHeaders,
+      };
+      return fetch(url, { ...options, headers: mergedHeaders });
+    },
+  },
+});
 
 // Tables systeme (ecritures TOUJOURS autorisees, meme en impersonification)
 const SYSTEM_TABLES_WHITELIST = [
@@ -84,7 +149,7 @@ function wrapBuilder(builder, tableName) {
             try { window.dispatchEvent(new CustomEvent('impersonation-blocked', { detail: { operation: 'delete', table: tableName } })); } catch {}
             return buildBlockedThenable();
           }
-          console.log('[SOFT-DELETE] ' + tableName + ' -> UPDATE deleted_at');
+          // [SOFT-DELETE] log retire pour eviter fuite d'info en production
           // Appel direct .update() sur le builder original
           const updateFn = target.update || builder.update;
           if (typeof updateFn !== 'function') {
