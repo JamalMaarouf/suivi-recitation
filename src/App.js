@@ -514,13 +514,36 @@ function App() {
   const [showLangMenu, setShowLangMenu] = React.useState(false);
   const [showUserMenu, setShowUserMenu] = React.useState(false);
   // J9 Landing : afficher la landing si on est sur la racine '/' ET pas encore connecte.
-  // Le bouton 'Espace ecole' de la landing bascule showLanding a false -> on voit Login.
+  // Le bouton 'Espace ecole' de la landing bascule vers '/login' via pushState
+  // -> ainsi le bouton 'Retour' du navigateur fonctionne pour revenir a la landing.
   // Une fois connecte, la landing ne reapparait plus (user est defini).
   const [showLanding, setShowLanding] = React.useState(() => {
     if (typeof window === 'undefined') return false;
     // Si racine -> landing par defaut. Si autre route -> login direct.
     return window.location.pathname === '/' || window.location.pathname === '';
   });
+
+  // J11-bis-2 (HOTFIX navigation) : écouter les changements d'historique navigateur
+  // (boutons Retour/Avancer) pour synchroniser showLanding avec l'URL actuelle.
+  // Sans cela, le bouton 'Retour' depuis /login renvoyait l'utilisateur vers Google
+  // au lieu de revenir a la landing (car l'URL n'avait pas change lors du toggle).
+  React.useEffect(() => {
+    const handlePopState = () => {
+      const isRoot = window.location.pathname === '/' || window.location.pathname === '';
+      setShowLanding(isRoot && !user);
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, [user]);
+
+  // Fonction passee a PageLanding : bascule vers '/login' avec pushState
+  // pour creer une entree d'historique. Ainsi le bouton 'Retour' navigateur
+  // ramene a la landing au lieu de quitter le site.
+  const goToLoginFromLanding = React.useCallback(() => {
+    window.history.pushState({}, '', '/login');
+    setShowLanding(false);
+  }, []);
+
   const LANGS = [
     { code: 'fr', flag: '🇫🇷', label: 'FR' },
     { code: 'ar', flag: '🇸🇦', label: 'AR' },
@@ -531,7 +554,7 @@ function App() {
   if (!user && showLanding) {
     return (
       <Suspense fallback={<div style={{padding:60,textAlign:'center',color:'#888',fontFamily:"'Tajawal',Arial,sans-serif"}}>⏳ Chargement…</div>}>
-        <PageLanding onGoToLogin={() => setShowLanding(false)} />
+        <PageLanding onGoToLogin={goToLoginFromLanding} />
       </Suspense>
     );
   }
