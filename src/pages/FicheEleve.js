@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useToast } from '../lib/toast';
 import { supabase } from '../lib/supabase';
-import { calcEtatEleve, calcEtatEleveAvecBlocs, isSourateNiveauDyn, calcPositionAtteinte, calcUnite, calcPoints, formatDate, formatDateCourt, getInitiales, scoreLabel, calcBadges, calcVitesse, niveauTraduit, calcPointsPeriode, loadBareme, BAREME_DEFAUT, getSensForEleve, calcBlocProgression} from '../lib/helpers';
+import { calcEtatEleve, calcEtatEleveAvecBlocs, isSourateNiveauDyn, calcPositionAtteinte, calcUnite, calcPoints, formatDate, formatDateCourt, getInitiales, scoreLabel, calcBadges, calcVitesse, niveauTraduit, calcPointsPeriode, loadBareme, BAREME_DEFAUT, getSensForEleve, calcBlocProgression, calcHizbsAcquisAvantArrivee} from '../lib/helpers';
 import { t } from '../lib/i18n';
 import { openPDF } from '../lib/pdf';
 import { getCachedSWR } from '../lib/cache';
@@ -254,19 +254,19 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang, isMobi
     if (!etat || !programmeNiveau || programmeNiveau.length === 0) return null;
     // Rassembler TOUS les Hizbs considérés comme "faits" :
     // - Les Hizb validés complets pendant le suivi
-    // - Les Hizb acquis AVANT l'arrivée (via hizb_depart + sens)
+    // - Les Hizb acquis AVANT l'arrivée (via hizb_depart + sens DU BLOC)
+    //
+    // BUG-FIX MULTI-BLOCS (mai 2026) — On utilise calcHizbsAcquisAvantArrivee
+    // qui tient compte de la structure en blocs (chaque bloc a son sens propre).
+    // Avant ce fix, on bouclait lineairement de 1 a hizbDep (ou 60 a hizbDep)
+    // selon le sens global, ce qui donnait des resultats faux pour les
+    // niveaux multi-blocs (ex: Yusuf hizb_dep=21 en AH1 -> 39 acquis au lieu
+    // de 35, bloc 3 -> 9/15 au lieu de 5/15).
     const sens = getSensForEleve(eleve, niveaux, ecoleConfig);
     const hizbsFaits = new Set(etat.hizbsComplets || []);
-    const hizbDep = eleve.hizb_depart;
-    if (hizbDep && hizbDep > 0) {
-      // En asc : acquis = Hizb 1 à (hizbDep - 1)
-      // En desc : acquis = Hizb 60 à (hizbDep + 1)
-      if (sens === 'asc') {
-        for (let h = 1; h < hizbDep; h++) hizbsFaits.add(h);
-      } else {
-        for (let h = 60; h > hizbDep; h--) hizbsFaits.add(h);
-      }
-    }
+    const hizbsAcquisAvant = calcHizbsAcquisAvantArrivee(eleve, programmeNiveau, sens);
+    for (const h of hizbsAcquisAvant) hizbsFaits.add(h);
+
     const prog = calcBlocProgression(programmeNiveau, hizbsFaits, etat.hizbEnCours);
     // On ne montre pas l'UI blocs si monobloc (comportement classique inchangé)
     if (!prog || prog.estMonoBloc) return null;
@@ -461,8 +461,10 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang, isMobi
       // Sinon, après une sync offline, les points remis à 0 alors que tout va bien côté serveur.
       if (!etat) {
         // Premier chargement raté : afficher un état minimal pour que la page ne crash pas
+        // BUG-FIX MULTI-BLOCS : on passe eleve + progDataLoaded pour benefier de
+        // la logique corrigee meme en cas d'erreur de chargement.
         const sensE = getSensForEleve(eleve, niveaux, ecoleConfig);
-        setEtat(calcEtatEleve([],eleve.hizb_depart,eleve.tomon_depart, sensE));
+        setEtat(calcEtatEleve([],eleve.hizb_depart,eleve.tomon_depart, sensE, eleve, progDataLoaded));
       }
       // Si etat existe deja, on le laisse tel quel et on retry plus tard
       if (typeof navigator !== 'undefined' && navigator.onLine) {
