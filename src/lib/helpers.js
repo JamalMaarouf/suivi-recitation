@@ -169,15 +169,26 @@ export function calcHizbsAcquisAvantArrivee(eleve, programmeNiveau, sensGlobal =
   }
 
   // 2. Trier les blocs par numero d'ordre dans le parcours pedagogique
+  // BUG-FIX MONO-BLOC (mai 2026) : pour les niveaux MONO-bloc (un seul bloc),
+  // on ignore bloc_sens (qui peut etre desaligne avec le sens reel du niveau
+  // tel qu'affiche dans l'UI) et on utilise sensGlobal a la place.
+  // Pour les multi-blocs, on respecte bien le sens propre de chaque bloc.
+  const estMonoBloc = blocsMap.size === 1;
   const blocs = Array.from(blocsMap.values())
     .sort((a, b) => a.numero - b.numero)
-    .map(bloc => ({
-      ...bloc,
-      // Trier les Hizb DANS le bloc selon son sens propre
-      hizbsTries: [...bloc.hizbs].sort((a, b) =>
-        bloc.sens === 'asc' ? a - b : b - a
-      ),
-    }));
+    .map(bloc => {
+      // Si mono-bloc : utiliser sensGlobal (= sens du niveau dans l'UI)
+      // Si multi-blocs : utiliser le sens propre du bloc
+      const sensEffectif = estMonoBloc ? sensGlobal : bloc.sens;
+      return {
+        ...bloc,
+        sens: sensEffectif,  // on remplace pour coherence des consommateurs
+        // Trier les Hizb DANS le bloc selon le sens effectif
+        hizbsTries: [...bloc.hizbs].sort((a, b) =>
+          sensEffectif === 'asc' ? a - b : b - a
+        ),
+      };
+    });
 
   // 3. Trouver dans quel bloc se trouve hizbDepart
   const blocCourantIdx = blocs.findIndex(b => b.hizbs.includes(hizbDep));
