@@ -56,6 +56,18 @@ function getCurrentParentIdForHeader() {
   } catch { return null; }
 }
 
+// Detecte si l'utilisateur est super-admin SANS impersonification.
+// En impersonification, il devient un surveillant et envoie x-tartily-ecole.
+// Sans impersonification, il doit pouvoir voir toutes les ecoles (vue globale).
+function isCurrentUserSuperAdmin() {
+  try {
+    const raw = localStorage.getItem('suivi_user');
+    if (!raw) return false;
+    const user = JSON.parse(raw);
+    return user?.role === 'super_admin' && !user?._impersonating;
+  } catch { return false; }
+}
+
 // Construit les headers custom Tartily pour chaque requete Supabase.
 // Note : @supabase/supabase-js v2 evalue 'headers' au moment de la requete
 // quand on passe une fonction, pas au moment de la creation du client.
@@ -64,8 +76,10 @@ function buildTartilyHeaders() {
   const headers = {};
   const ecoleId = getCurrentEcoleIdForHeader();
   const parentId = getCurrentParentIdForHeader();
+  const isSuperAdmin = isCurrentUserSuperAdmin();
   if (ecoleId) headers['x-tartily-ecole'] = ecoleId;
   if (parentId) headers['x-tartily-parent'] = parentId;
+  if (isSuperAdmin) headers['x-tartily-super-admin'] = 'true';
   return headers;
 }
 

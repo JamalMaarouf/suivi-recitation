@@ -90,6 +90,23 @@ AS $$
   )::uuid;
 $$;
 
+-- Lit si l'utilisateur courant est super-admin (sans impersonification).
+-- Retourne TRUE si le header 'x-tartily-super-admin' est present et vaut 'true'.
+-- En impersonification, le super-admin devient un surveillant et n'envoie
+-- PAS ce header (il envoie x-tartily-ecole a la place).
+CREATE OR REPLACE FUNCTION public.is_current_user_super_admin()
+RETURNS boolean
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT COALESCE(
+    (current_setting('request.headers', true)::json ->> 'x-tartily-super-admin') = 'true',
+    false
+  );
+$$;
+
 -- Helper : check si l'utilisateur courant peut acceder a une ecole donnee
 -- Renvoie TRUE si :
 -- - l'utilisateur est connecte avec cet ecole_id (surveillant)
@@ -117,6 +134,7 @@ $$;
 -- Grant execution aux roles anon (frontend) et authenticated (Supabase Auth si jamais utilise)
 GRANT EXECUTE ON FUNCTION public.current_ecole_id() TO anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.current_parent_id() TO anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.is_current_user_super_admin() TO anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.can_access_ecole(uuid) TO anon, authenticated;
 
 
