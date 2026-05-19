@@ -56,6 +56,18 @@ function getCurrentParentIdForHeader() {
   } catch { return null; }
 }
 
+// Detecte si l'utilisateur est super-admin SANS impersonification.
+// En impersonification, il devient un surveillant et envoie x-tartily-ecole.
+// Sans impersonification, il doit pouvoir voir toutes les ecoles (vue globale).
+function isCurrentUserSuperAdmin() {
+  try {
+    const raw = localStorage.getItem('suivi_user');
+    if (!raw) return false;
+    const user = JSON.parse(raw);
+    return user?.role === 'super_admin' && !user?._impersonating;
+  } catch { return false; }
+}
+
 // Construit les headers custom Tartily pour chaque requete Supabase.
 // Note : @supabase/supabase-js v2 evalue 'headers' au moment de la requete
 // quand on passe une fonction, pas au moment de la creation du client.
@@ -64,8 +76,10 @@ function buildTartilyHeaders() {
   const headers = {};
   const ecoleId = getCurrentEcoleIdForHeader();
   const parentId = getCurrentParentIdForHeader();
+  const isSuperAdmin = isCurrentUserSuperAdmin();
   if (ecoleId) headers['x-tartily-ecole'] = ecoleId;
   if (parentId) headers['x-tartily-parent'] = parentId;
+  if (isSuperAdmin) headers['x-tartily-super-admin'] = 'true';
   return headers;
 }
 
@@ -74,13 +88,22 @@ const supabaseRaw = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
     // Fetch wrapper : injecte les headers Tartily avant chaque requete.
     // Cette approche est preferee a 'headers' statique car les valeurs
     // doivent etre relues a chaque requete (changent au login/logout).
+    //
+    // IMPORTANT (fix mai 2026) : Supabase passe ses headers (apikey,
+    // Authorization, Content-Type...) via une instance Headers native,
+    // pas un objet plain. Le spread ...options.headers ne fonctionne PAS
+    // sur une instance Headers et perd les headers, causant des erreurs
+    // 401 sur TOUTES les requetes. Il faut construire un nouvel objet
+    // Headers a partir de l'existant, puis ajouter les Tartily headers.
     fetch: (url, options = {}) => {
       const tartilyHeaders = buildTartilyHeaders();
-      const mergedHeaders = {
-        ...(options.headers || {}),
-        ...tartilyHeaders,
-      };
-      return fetch(url, { ...options, headers: mergedHeaders });
+      // Construire un nouvel objet Headers en preservant l'existant
+      const newHeaders = new Headers(options.headers || {});
+      // Ajouter les headers Tartily
+      for (const [key, value] of Object.entries(tartilyHeaders)) {
+        newHeaders.set(key, value);
+      }
+      return fetch(url, { ...options, headers: newHeaders });
     },
   },
 });
