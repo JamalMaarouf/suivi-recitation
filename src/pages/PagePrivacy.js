@@ -2,7 +2,8 @@
 // Page legale publique accessible via /privacy.
 // Conforme RGPD (UE) + Loi marocaine 09-08 (CNDP).
 // Bilingue FR / AR.
-// Placeholders [NOM COMPLET], [VILLE], [EMAIL] a remplacer avant Prod.
+// Responsable : Jamal Maarouf (personne physique), Casablanca, Maroc.
+// Email contact : contact@tartily.com (Cloudflare Email Routing -> Gmail).
 import React, { useState, useEffect } from 'react';
 
 export const PRIVACY_VERSION = '1.0';
@@ -138,8 +139,8 @@ export default function PagePrivacy({ onBack }) {
             : 'Le responsable du traitement des données personnelles est :'}
           </p>
           <ul style={{ paddingInlineStart: 24, margin: '12px 0' }}>
-            <li><strong>[NOM COMPLET]</strong></li>
-            <li>{isAr ? 'المقر:' : 'Domicile :'} <strong>[VILLE]</strong>, {isAr ? 'المغرب' : 'Maroc'}</li>
+            <li><strong>Jamal Maarouf</strong></li>
+            <li>{isAr ? 'المقر:' : 'Domicile :'} <strong>Casablanca</strong>, {isAr ? 'المغرب' : 'Maroc'}</li>
             <li>{isAr ? 'البريد الإلكتروني:' : 'Email :'} <strong>contact@tartily.com</strong></li>
           </ul>
           <p style={{ marginTop: 12 }}>
