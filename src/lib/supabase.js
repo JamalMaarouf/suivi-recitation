@@ -88,13 +88,22 @@ const supabaseRaw = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
     // Fetch wrapper : injecte les headers Tartily avant chaque requete.
     // Cette approche est preferee a 'headers' statique car les valeurs
     // doivent etre relues a chaque requete (changent au login/logout).
+    //
+    // IMPORTANT (fix mai 2026) : Supabase passe ses headers (apikey,
+    // Authorization, Content-Type...) via une instance Headers native,
+    // pas un objet plain. Le spread ...options.headers ne fonctionne PAS
+    // sur une instance Headers et perd les headers, causant des erreurs
+    // 401 sur TOUTES les requetes. Il faut construire un nouvel objet
+    // Headers a partir de l'existant, puis ajouter les Tartily headers.
     fetch: (url, options = {}) => {
       const tartilyHeaders = buildTartilyHeaders();
-      const mergedHeaders = {
-        ...(options.headers || {}),
-        ...tartilyHeaders,
-      };
-      return fetch(url, { ...options, headers: mergedHeaders });
+      // Construire un nouvel objet Headers en preservant l'existant
+      const newHeaders = new Headers(options.headers || {});
+      // Ajouter les headers Tartily
+      for (const [key, value] of Object.entries(tartilyHeaders)) {
+        newHeaders.set(key, value);
+      }
+      return fetch(url, { ...options, headers: newHeaders });
     },
   },
 });
