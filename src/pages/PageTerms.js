@@ -1,7 +1,8 @@
 // ─── PAGE PUBLIQUE : CONDITIONS GENERALES D'UTILISATION ──────────────────
 // Page legale publique accessible via /terms.
 // Bilingue FR / AR avec toggle.
-// Placeholders [NOM COMPLET], [VILLE], [EMAIL] a remplacer avant Prod.
+// Responsable : Jamal Maarouf (personne physique), Casablanca, Maroc.
+// Email contact : contact@tartily.com (Cloudflare Email Routing -> Gmail).
 import React, { useState, useEffect } from 'react';
 
 // Version des CGU - incrémenter quand on modifie le contenu
@@ -145,8 +146,8 @@ export default function PageTerms({ onBack }) {
             : 'L\'Application est éditée et publiée par :'}
           </p>
           <ul style={{ paddingInlineStart: 24, margin: '12px 0' }}>
-            <li><strong>[NOM COMPLET]</strong> ({isAr ? 'شخص ذاتي' : 'personne physique'})</li>
-            <li>{isAr ? 'المقر:' : 'Domicile :'} <strong>[VILLE]</strong>, {isAr ? 'المغرب' : 'Maroc'}</li>
+            <li><strong>Jamal Maarouf</strong> ({isAr ? 'شخص ذاتي' : 'personne physique'})</li>
+            <li>{isAr ? 'المقر:' : 'Domicile :'} <strong>Casablanca</strong>, {isAr ? 'المغرب' : 'Maroc'}</li>
             <li>{isAr ? 'البريد الإلكتروني:' : 'Email :'} <strong>contact@tartily.com</strong></li>
           </ul>
           <p style={{ fontSize: 13, color: T.textMuted, marginTop: 12, fontStyle: 'italic' }}>
@@ -192,8 +193,8 @@ export default function PageTerms({ onBack }) {
 
         <Section num={6} titreFr="Propriété intellectuelle" titreAr="الملكية الفكرية">
           <p>{isAr
-            ? 'يبقى التطبيق وجميع عناصره (الشيفرة المصدرية، التصميم، الشعارات، النصوص، الأيقونات) ملكا حصريا للناشر [NOM COMPLET]. يُمنح للمستخدم حق استعمال غير حصري وغير قابل للنقل، يقتصر على المدة التي يستعمل فيها التطبيق.'
-            : 'L\'Application et l\'ensemble de ses éléments (code source, design, logos, textes, icônes) demeurent la propriété exclusive de l\'éditeur [NOM COMPLET]. Il est accordé à l\'utilisateur un droit d\'utilisation non exclusif et non cessible, limité à la durée d\'utilisation de l\'Application.'}
+            ? 'يبقى التطبيق وجميع عناصره (الشيفرة المصدرية، التصميم، الشعارات، النصوص، الأيقونات) ملكا حصريا للناشر جمال معروف. يُمنح للمستخدم حق استعمال غير حصري وغير قابل للنقل، يقتصر على المدة التي يستعمل فيها التطبيق.'
+            : 'L\'Application et l\'ensemble de ses éléments (code source, design, logos, textes, icônes) demeurent la propriété exclusive de l\'éditeur Jamal Maarouf. Il est accordé à l\'utilisateur un droit d\'utilisation non exclusif et non cessible, limité à la durée d\'utilisation de l\'Application.'}
           </p>
           <p style={{ marginTop: 12 }}>
             {isAr
@@ -251,8 +252,8 @@ export default function PageTerms({ onBack }) {
 
         <Section num={13} titreFr="Droit applicable et juridiction" titreAr="القانون المطبق والاختصاص القضائي">
           <p>{isAr
-            ? 'يخضع هذا العقد للقانون المغربي. في حالة نزاع، يلتزم الطرفان أولا بمحاولة حل ودي. عند تعذر ذلك، تكون محاكم [VILLE] هي المختصة حصريا.'
-            : 'Le présent contrat est régi par le droit marocain. En cas de litige, les parties s\'engagent à tenter une résolution amiable. À défaut, les tribunaux de [VILLE] seront seuls compétents.'}
+            ? 'يخضع هذا العقد للقانون المغربي. في حالة نزاع، يلتزم الطرفان أولا بمحاولة حل ودي. عند تعذر ذلك، تكون محاكم الدار البيضاء هي المختصة حصريا.'
+            : 'Le présent contrat est régi par le droit marocain. En cas de litige, les parties s\'engagent à tenter une résolution amiable. À défaut, les tribunaux de Casablanca seront seuls compétents.'}
           </p>
         </Section>
 
