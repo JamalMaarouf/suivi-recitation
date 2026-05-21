@@ -1,5 +1,15 @@
+# Variables d'environnement — NE JAMAIS committer les vrais secrets
+# Regle : seuls .env.example (modele vide) et .env.production
+# (flags de build sans secrets) sont autorises dans le repo.
+.env
 .env.local
+.env.development
+.env.development.local
+.env.test
+.env.test.local
+.env.production.local
 .env.*.local
+
 node_modules/
 build/
 .DS_Store
