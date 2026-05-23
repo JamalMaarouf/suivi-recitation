@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useToast } from '../lib/toast';
 import { supabase } from '../lib/supabase';
 import ConfirmModal from '../components/ConfirmModal';
@@ -138,13 +138,33 @@ function BaremeTab({ user, lang, bareme, setBareme, saving, setSaving, showMsg }
     return lang === 'ar' ? (s?.nom_ar || `#${sourate_id}`) : (s?.nom_fr || s?.nom_ar || `#${sourate_id}`);
   };
 
-  // Options du sélecteur selon type
-  const getOptions = () => {
+  // PERF (mai 2026) : memoize un index 'niveau_id -> ensembles' pour
+  // eviter de faire ensembles.filter() dans des boucles imbriquees a
+  // chaque re-render. Acces O(1) au lieu de O(N) par niveau.
+  // Utilise par le selecteur d'ensembles (mode classique) et le panneau
+  // de multi-selection (mode 2/3).
+  const ensemblesByNiveauId = useMemo(() => {
+    const map = new Map();
+    for (const e of ensembles) {
+      const key = e.niveau_id || '__sans_niveau__';
+      if (!map.has(key)) map.set(key, []);
+      map.get(key).push(e);
+    }
+    return map;
+  }, [ensembles]);
+
+  // PERF (mai 2026) : memoize les options du selecteur de criteres pour
+  // eviter le .map() a chaque re-render. Recalcul uniquement si le type
+  // de critere ou les listes sources changent.
+  const optionsCritere = useMemo(() => {
     if (critereType === 'examen') return examens.map(e => ({ id: e.id, label: e.nom }));
     if (critereType === 'ensemble_sourates') return ensembles.map(e => ({ id: e.id, label: e.nom }));
     if (critereType === 'jalon') return jalons.map(j => ({ id: j.id, label: j.nom_ar || j.nom }));
     return [];
-  };
+  }, [critereType, examens, ensembles, jalons]);
+
+  // Wrapper conserve pour compatibilite avec le code existant
+  const getOptions = () => optionsCritere;
 
   const getCritereLabel = () => {
     const u = UNITES.find(u => u.key === critereType);
@@ -465,7 +485,7 @@ function BaremeTab({ user, lang, bareme, setBareme, saving, setSaving, showMsg }
                 {critereType === 'ensemble_sourates' ? (
                   // Optgroup par niveau pour distinguer ensembles homonymes
                   niveaux.map(niv => {
-                    const ensDuNiveau = ensembles.filter(e => e.niveau_id === niv.id);
+                    const ensDuNiveau = ensemblesByNiveauId.get(niv.id) || [];
                     if (ensDuNiveau.length === 0) return null;
                     return (
                       <optgroup key={niv.id} label={`[${niv.code}] ${niv.nom}`}>
@@ -537,9 +557,9 @@ function BaremeTab({ user, lang, bareme, setBareme, saving, setSaving, showMsg }
           };
           const ensParNiveau = niveaux.map(niv => ({
             niv,
-            ensembles: ensembles.filter(e => e.niveau_id === niv.id),
+            ensembles: ensemblesByNiveauId.get(niv.id) || [],
           })).filter(g => g.ensembles.length > 0);
-          const ensSansNiveau = ensembles.filter(e => !e.niveau_id);
+          const ensSansNiveau = ensemblesByNiveauId.get('__sans_niveau__') || [];
 
           if (ensembles.length === 0) {
             return (
