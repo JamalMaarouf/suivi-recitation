@@ -3179,7 +3179,12 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile,
     });
     setNewEleve({ prenom: '', nom: '', niveau: 'Débutant', code_niveau: (niveauxDyn && niveauxDyn[0]?.code) || '', eleve_id_ecole: '', instituteur_referent_id: '', hizb_depart: 0, tomon_depart: 1, sourates_acquises: 0, email_parent: '' });
     setShowAcquisSelector(false);
-    loadData();
+    // PERF (mai 2026) : differer loadData() au prochain frame pour que
+    // React puisse PEINDRE la modale avant le travail lourd de rechargement
+    // des donnees. Avant : modale apparaissait apres loadData (impression
+    // de lenteur). Apres : modale apparait IMMEDIATEMENT, loadData se fait
+    // pendant que l'utilisateur lit la modale.
+    setTimeout(() => loadData(), 0);
   };
 
   const modifierEleve = async () => {
@@ -3420,7 +3425,7 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile,
       mdp,
     });
     setNewInst({ prenom: '', nom: '', identifiant: '', mot_de_passe: '', instituteur_id_ecole: '', telephone: '', email: '' });
-    loadData();
+    setTimeout(() => loadData(), 0);
   };
 
   // ────── ETAPE 7 - SUSPENSION D'INSTITUTEURS ────────────────────────
