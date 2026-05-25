@@ -1,0 +1,69 @@
+# ═══════════════════════════════════════════════════════════════════════
+# CI Tartily : verification automatique du build a chaque push
+# ═══════════════════════════════════════════════════════════════════════
+#
+# Objectif : empecher qu'un code casse merge dans main (Prod) ou develop (QA).
+#
+# Decisions Jamal (mai 2026) :
+# - Q1=alpha : build uniquement (lint + tests reportes a plus tard)
+# - Q2=a    : surveille push sur develop + toute PR vers main
+# - Q3=ii   : require status checks sur main (a configurer cote github.com)
+# - Q4=I    : Node.js 18 (coherence avec Vercel)
+#
+# Workflow :
+# 1. Trigger sur push develop OU pull request vers main
+# 2. Checkout du repo
+# 3. Setup Node.js 18 + cache npm pour rapidite
+# 4. npm ci (install deterministe depuis package-lock.json)
+# 5. Build production (CI=false comme dans le workflow Vercel)
+# 6. Status check vert (OK) ou rouge (echec) visible dans GitHub
+#
+# Duree typique d'un run : 2-3 minutes.
+# Quota GitHub Free : 2000 min/mois (largement suffisant pour Tartily).
+# ═══════════════════════════════════════════════════════════════════════
+
+name: CI Build
+
+on:
+  push:
+    branches:
+      - develop
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  build:
+    name: Build production
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout du repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 18
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+
+      - name: Installation des dependances (npm ci)
+        # npm ci est plus rapide et deterministe que npm install
+        # car il utilise strictement package-lock.json
+        run: npm ci
+
+      - name: Build production
+        # Memes variables que le build Vercel pour coherence parfaite :
+        # CI=false : ne pas traiter les warnings ESLint comme des erreurs
+        # DISABLE_ESLINT_PLUGIN=true : skip ESLint lors du build (deja teste localement)
+        run: CI=false DISABLE_ESLINT_PLUGIN=true npx react-scripts build
+
+      - name: Verification taille build
+        # Sanity check : si le build n'a pas produit de fichiers, echec
+        run: |
+          if [ ! -d "build/static/js" ]; then
+            echo "::error::Le dossier build/static/js n'existe pas - build defectueux"
+            exit 1
+          fi
+          BUILD_SIZE=$(du -sh build/ | cut -f1)
+          echo "Build produit avec succes : $BUILD_SIZE"

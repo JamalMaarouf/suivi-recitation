@@ -35,12 +35,70 @@ const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY;
 const LIMIT_HOUR = 5;        // 5 inscriptions par IP par heure
 const LIMIT_DAY = 20;        // 20 inscriptions par IP par 24h
 
+// ── Configuration Cloudflare Turnstile (CAPTCHA invisible) ───────────
+// Cloudflare verifie automatiquement si l'utilisateur est humain ou bot.
+// Site Key (publique) est dans le frontend, Secret Key (privee) ici.
+// Note : le domaine vercel.app n'est pas eligible cote Cloudflare Turnstile
+// (politique de securite de CF). Donc on bypass le CAPTCHA en QA (tests
+// internes) et on l'active uniquement sur tartily.com (Prod).
+// Le rate-limit BDD continue de proteger les 2 environnements.
+const TURNSTILE_SECRET_KEY = process.env.TURNSTILE_SECRET_KEY;
+const TURNSTILE_VERIFY_URL = 'https://challenges.cloudflare.com/turnstile/v0/siteverify';
+
 // ── Utilities ────────────────────────────────────────────────────────
 
 function getClientIp(req) {
   const xff = req.headers['x-forwarded-for'];
   if (xff) return xff.split(',')[0].trim();
   return req.headers['x-real-ip'] || req.socket?.remoteAddress || 'unknown';
+}
+
+/**
+ * Verifie un token Turnstile aupres de Cloudflare.
+ * Retourne { success: true } si valide, sinon { success: false, error }.
+ *
+ * Si TURNSTILE_SECRET_KEY n'est pas configure (mode local/dev) OU si le
+ * token est 'bypass' (envoye explicitement par QA), on retourne true.
+ */
+async function verifyTurnstileToken(token, ip) {
+  // Mode bypass : QA ou local dev (pas de secret configure)
+  if (!TURNSTILE_SECRET_KEY) {
+    console.log('[inscription] Turnstile : pas de secret -> bypass');
+    return { success: true, bypass: true };
+  }
+
+  // Mode bypass explicite (QA envoie 'bypass' car CAPTCHA inactif sur vercel.app)
+  if (token === 'bypass') {
+    console.log('[inscription] Turnstile : token bypass explicite (QA)');
+    return { success: true, bypass: true };
+  }
+
+  if (!token) {
+    return { success: false, error: 'missing_captcha_token' };
+  }
+
+  try {
+    const body = new URLSearchParams();
+    body.append('secret', TURNSTILE_SECRET_KEY);
+    body.append('response', token);
+    if (ip) body.append('remoteip', ip);
+
+    const res = await fetch(TURNSTILE_VERIFY_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: body.toString(),
+    });
+    const data = await res.json();
+    if (data.success === true) {
+      return { success: true };
+    }
+    console.warn('[inscription] Turnstile rejected:', data['error-codes']);
+    return { success: false, error: 'captcha_failed', codes: data['error-codes'] };
+  } catch (err) {
+    console.error('[inscription] Turnstile verification error:', err.message);
+    // En cas d'erreur reseau Cloudflare, on REJETTE (fail-closed pour securite)
+    return { success: false, error: 'captcha_verification_error' };
+  }
 }
 
 // Fetch wrapper pour Supabase REST (utilise SERVICE_KEY qui bypass RLS)
@@ -122,6 +180,7 @@ module.exports = async function handler(req, res) {
       nom, ville, pays, telephone, email,
       prenom_surveillant, nom_surveillant, identifiant, mot_de_passe,
       cgu_accepted, privacy_accepted,
+      captcha_token,
     } = req.body || {};
 
     if (!nom || !ville || !prenom_surveillant || !identifiant || !mot_de_passe) {
@@ -136,7 +195,19 @@ module.exports = async function handler(req, res) {
       return res.status(400).json({ error: 'password_too_short' });
     }
 
-    // ─── 2. Rate-limit check ─────────────────────────────────────────
+    // ─── 2. Verification CAPTCHA (Cloudflare Turnstile) ──────────────
+    // En Prod (tartily.com) : Turnstile fait sa magie et envoie un token.
+    // En QA (vercel.app) : Turnstile n'est pas active -> token='bypass' -> OK.
+    const captchaResult = await verifyTurnstileToken(captcha_token, ip);
+    if (!captchaResult.success) {
+      // Log la tentative (pour stats anti-bot)
+      await logAttempt(ip, false);
+      return res.status(403).json({
+        error: captchaResult.error || 'captcha_failed',
+      });
+    }
+
+    // ─── 3. Rate-limit check ─────────────────────────────────────────
     const [countHour, countDay] = await Promise.all([
       countAttemptsByIp(ip, 1),
       countAttemptsByIp(ip, 24),
