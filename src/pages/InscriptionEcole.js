@@ -1,4 +1,18 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+
+// Cloudflare Turnstile : Site Key publique (peut etre dans le code).
+// Active uniquement sur tartily.com (Prod). Sur vercel.app (QA), Turnstile
+// n'est pas verifie cote frontend (le widget ne se charge pas), et le
+// backend recoit token='bypass' pour autoriser quand meme l'inscription.
+const TURNSTILE_SITE_KEY = '0x4AAAAAADWGV3YzG2tM4c_H';
+
+// Detection : sommes-nous sur Prod (Turnstile actif) ou QA/local (bypass) ?
+// Turnstile n'accepte que tartily.com cote Cloudflare donc on bypass ailleurs.
+function isTurnstileActive() {
+  if (typeof window === 'undefined') return false;
+  const host = window.location.hostname;
+  return host === 'tartily.com' || host === 'www.tartily.com';
+}
 
 export default function InscriptionEcole({ onBack, lang }) {
   const [form, setForm] = useState({ nom:'', ville:'', pays:'Maroc', telephone:'', email:'', identifiant:'', mot_de_passe:'', prenom_surveillant:'', nom_surveillant:'' });
@@ -9,6 +23,57 @@ export default function InscriptionEcole({ onBack, lang }) {
   const [acceptCGU, setAcceptCGU] = useState(false);
   const [acceptPrivacy, setAcceptPrivacy] = useState(false);
   const [acceptAuthority, setAcceptAuthority] = useState(false);
+
+  // ── Turnstile (CAPTCHA) ─────────────────────────────────────────────
+  const [captchaToken, setCaptchaToken] = useState('');
+  const turnstileRef = useRef(null);
+  const widgetIdRef = useRef(null);
+
+  // Chargement du script Turnstile + rendu du widget invisible (Prod uniquement)
+  useEffect(() => {
+    if (!isTurnstileActive()) {
+      // QA / local dev : pas de Turnstile, on envoie 'bypass' au backend
+      setCaptchaToken('bypass');
+      return;
+    }
+
+    // Charger le script Turnstile si pas deja present
+    const scriptId = 'cf-turnstile-script';
+    if (!document.getElementById(scriptId)) {
+      const script = document.createElement('script');
+      script.id = scriptId;
+      script.src = 'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit';
+      script.async = true;
+      script.defer = true;
+      document.head.appendChild(script);
+    }
+
+    // Render explicite du widget une fois le script charge
+    const tryRender = () => {
+      if (window.turnstile && turnstileRef.current && !widgetIdRef.current) {
+        widgetIdRef.current = window.turnstile.render(turnstileRef.current, {
+          sitekey: TURNSTILE_SITE_KEY,
+          callback: (token) => setCaptchaToken(token),
+          'error-callback': () => setCaptchaToken(''),
+          'expired-callback': () => setCaptchaToken(''),
+          theme: 'light',
+          size: 'normal',
+        });
+      } else if (!window.turnstile) {
+        // Attendre que le script se charge
+        setTimeout(tryRender, 300);
+      }
+    };
+    tryRender();
+
+    // Cleanup au unmount
+    return () => {
+      if (window.turnstile && widgetIdRef.current) {
+        try { window.turnstile.remove(widgetIdRef.current); } catch {}
+        widgetIdRef.current = null;
+      }
+    };
+  }, []);
 
   const set = (k, v) => setForm(f => ({...f, [k]: v}));
 
@@ -39,12 +104,22 @@ export default function InscriptionEcole({ onBack, lang }) {
         : 'Vous devez accepter les CGU, la Politique de Confidentialité et certifier votre autorité pour continuer.');
       return;
     }
+
+    // Verification CAPTCHA (Turnstile) - actif sur Prod uniquement
+    if (isTurnstileActive() && !captchaToken) {
+      setError(lang==='ar'
+        ? 'يرجى الانتظار حتى ينتهي التحقق الأمني...'
+        : 'Veuillez patienter le temps de la vérification de sécurité...');
+      return;
+    }
+
     setLoading(true);
     setError('');
     try {
       // REFACTOR (mai 2026) : appel a l'API /api/inscription au lieu d'appeler
       // directement Supabase. L'API serveur :
       // - Applique un rate-limit par IP (5/h + 20/24h) anti-spam
+      // - Verifie le CAPTCHA Turnstile (Prod) ou bypass (QA)
       // - Hash le mot de passe avec bcrypt (au lieu de stocker en clair)
       // - Verifie l'unicite de l'identifiant cote serveur (pas falsifiable)
       // - Fait les INSERT en atomique avec rollback si echec
@@ -63,6 +138,7 @@ export default function InscriptionEcole({ onBack, lang }) {
           mot_de_passe: form.mot_de_passe,
           cgu_accepted: acceptCGU,
           privacy_accepted: acceptPrivacy,
+          captcha_token: captchaToken,
         }),
       });
 
@@ -255,6 +331,14 @@ export default function InscriptionEcole({ onBack, lang }) {
                 </span>
               </label>
             </div>
+
+            {/* Cloudflare Turnstile (CAPTCHA invisible) - Prod uniquement */}
+            {isTurnstileActive() && (
+              <div style={{marginTop:'1rem',display:'flex',justifyContent:'center'}}>
+                <div ref={turnstileRef}></div>
+              </div>
+            )}
+
             <div style={{display:'flex',gap:10,marginTop:'1.25rem'}}>
               <button type="button" onClick={()=>{setStep(1);setError('');}}
                 style={{padding:'11px 16px',background:'#f5f5f0',color:'#444',border:'0.5px solid #e0e0d8',borderRadius:10,fontWeight:600,cursor:'pointer',fontSize:13}}>
