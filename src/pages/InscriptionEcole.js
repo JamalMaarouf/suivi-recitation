@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import { supabase } from '../lib/supabase';
 
 export default function InscriptionEcole({ onBack, lang }) {
   const [form, setForm] = useState({ nom:'', ville:'', pays:'Maroc', telephone:'', email:'', identifiant:'', mot_de_passe:'', prenom_surveillant:'', nom_surveillant:'' });
@@ -43,51 +42,58 @@ export default function InscriptionEcole({ onBack, lang }) {
     setLoading(true);
     setError('');
     try {
-      // Check identifiant not taken
-      const { data: existing } = await supabase
-        .from('utilisateurs')
-        .select('id')
-        .eq('identifiant', form.identifiant.trim())
-        .single();
-      if (existing) {
-        setError(lang==='ar' ? 'هذا المعرف مستخدم بالفعل' : 'Cet identifiant est déjà utilisé.');
+      // REFACTOR (mai 2026) : appel a l'API /api/inscription au lieu d'appeler
+      // directement Supabase. L'API serveur :
+      // - Applique un rate-limit par IP (5/h + 20/24h) anti-spam
+      // - Hash le mot de passe avec bcrypt (au lieu de stocker en clair)
+      // - Verifie l'unicite de l'identifiant cote serveur (pas falsifiable)
+      // - Fait les INSERT en atomique avec rollback si echec
+      const response = await fetch('/api/inscription', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          nom: form.nom.trim(),
+          ville: form.ville.trim(),
+          pays: form.pays,
+          telephone: form.telephone || null,
+          email: form.email || null,
+          prenom_surveillant: form.prenom_surveillant.trim(),
+          nom_surveillant: form.nom_surveillant.trim() || '',
+          identifiant: form.identifiant.trim(),
+          mot_de_passe: form.mot_de_passe,
+          cgu_accepted: acceptCGU,
+          privacy_accepted: acceptPrivacy,
+        }),
+      });
+
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        // Gestion des erreurs serveur avec messages adaptes
+        if (response.status === 429) {
+          // Rate-limit depasse (Q4=b : message avec canal de sortie)
+          setError(lang === 'ar'
+            ? 'لقد تجاوزتم عدد التسجيلات المسموح به. إذا كنتم مدرسة قرآنية شرعية، يرجى التواصل معنا على contact@tartily.com'
+            : 'Vous avez dépassé la limite d\'inscriptions autorisées. Si vous êtes une école coranique légitime, veuillez nous contacter à contact@tartily.com');
+        } else if (data.error === 'identifiant_taken') {
+          setError(lang === 'ar' ? 'هذا المعرف مستخدم بالفعل' : 'Cet identifiant est déjà utilisé.');
+        } else if (data.error === 'password_too_short') {
+          setError(lang === 'ar' ? 'كلمة المرور يجب أن تحتوي على 6 أحرف على الأقل' : 'Le mot de passe doit contenir au moins 6 caractères.');
+        } else if (data.error === 'legal_not_accepted') {
+          setError(lang === 'ar'
+            ? 'يجب قبول الشروط العامة وسياسة الخصوصية للمتابعة'
+            : 'Vous devez accepter les CGU et la Politique de Confidentialité pour continuer.');
+        } else if (data.error === 'missing_fields') {
+          setError(lang === 'ar' ? 'يرجى ملء جميع الحقول الإلزامية' : 'Veuillez remplir tous les champs obligatoires.');
+        } else {
+          // Erreur generique
+          setError((lang === 'ar' ? 'خطأ: ' : 'Erreur : ') + (data.message || 'inscription_failed'));
+        }
         setLoading(false);
         return;
       }
 
-      // Generate code_acces
-      const code = 'ECO-' + Math.random().toString(36).substring(2,8).toUpperCase();
-
-      // J11-bis : timestamp acceptation (legal opposable)
-      const acceptedAt = new Date().toISOString();
-
-      // 1. Create école (statut en_attente) + traceabilite legale
-      const { data: ecole, error: errEcole } = await supabase
-        .from('ecoles')
-        .insert({
-          nom: form.nom.trim(),
-          ville: form.ville.trim(),
-          pays: form.pays,
-          telephone: form.telephone||null,
-          email: form.email||null,
-          code_acces: code,
-          statut: 'en_attente',
-          // J11-bis : tracabilite acceptation legale
-          cgu_accepted_at: acceptedAt,
-          cgu_version: '1.0',
-          privacy_accepted_at: acceptedAt,
-          privacy_version: '1.0',
-        })
-        .select()
-        .single();
-      if (errEcole) throw errEcole;
-
-      // 2. Create surveillant account (statut en_attente)
-      const { error: errUser } = await supabase
-        .from('utilisateurs')
-        .insert({ prenom: form.prenom_surveillant.trim(), nom: form.nom_surveillant.trim()||'', identifiant: form.identifiant.trim(), mot_de_passe: form.mot_de_passe, role: 'surveillant', ecole_id: ecole.id, statut_compte: 'en_attente' });
-      if (errUser) throw errUser;
-
+      // Succes : passage a l'ecran de confirmation
       setStep(3);
     } catch(err) {
       setError((lang==='ar' ? 'خطأ: ' : 'Erreur : ') + err.message);
