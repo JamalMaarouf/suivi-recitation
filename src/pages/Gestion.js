@@ -3117,7 +3117,13 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile,
       .select('id').eq('eleve_id_ecole', newEleve.eleve_id_ecole.trim()).eq('ecole_id', user.ecole_id).maybeSingle();
     if (existing) return showMsg('error', lang==='ar'?'رقم التعريف مستخدم مسبقاً، اختر رقماً آخر':'Ce numéro élève existe déjà, choisissez-en un autre');
 
-    const { error } = await supabase.from('eleves').insert({
+    // PERF (mai 2026) : INSERT + .select().single() en une seule requete au
+    // lieu de 2 (le re-SELECT separé qui suivait est devenu obsolete).
+    // Le commentaire historique disait 'RLS bloque .select() apres insert'
+    // mais l'audit securite A2 (mai 2026) a ajoute une policy strict_select
+    // sur eleves qui MATCH bien l'ecole_id du surveillant qui insere, donc
+    // le RETURNING SELECT passe correctement.
+    const { data: eleveData, error } = await supabase.from('eleves').insert({
       prenom: newEleve.prenom, nom: newEleve.nom, niveau: newEleve.niveau, ecole_id: user.ecole_id,
       code_niveau: newEleve.code_niveau,  // garanti valide par validation ci-dessus
       eleve_id_ecole: newEleve.eleve_id_ecole || null,
@@ -3129,16 +3135,13 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile,
       telephone: newEleve.telephone?.trim() || null,
       date_inscription: newEleve.date_inscription || null,
       jours_souhaites: newEleve.jours_souhaites || [false,false,false,false,false,false,false]
-    });
+    }).select('id').single();
     if (error) {
       // Afficher la vraie cause de l'erreur pour faciliter le debug
       console.error('[ajouterEleve] Erreur insertion élève:', error);
       const detail = error.message || error.details || error.hint || 'inconnue';
       return showMsg('error', (lang==='ar' ? 'خطأ: ' : 'Erreur: ') + detail);
     }
-    // Récupérer l'élève créé par son numéro (RLS bloque .select() après insert)
-    const { data: eleveData } = await supabase.from('eleves')
-      .select('id').eq('eleve_id_ecole', newEleve.eleve_id_ecole.trim()).eq('ecole_id', user.ecole_id).maybeSingle();
 
     // ⑥ Créer compte parent automatiquement
     const mdpParent = ecoleConfig?.mdp_defaut_parents || 'parent2024';
