@@ -1944,22 +1944,30 @@ export async function genererLoginParentUnique(supabase, baseLogin) {
   const base = (baseLogin || '').trim();
   if (!base) throw new Error('baseLogin manquant');
 
+  // PERF (mai 2026) : 1 seule requete au lieu de N sequentielles.
+  // Avant : on faisait jusqu'a 99 SELECT en serie (1 par candidat) ->
+  //         latence cumulative pouvant atteindre plusieurs secondes
+  //         sur connexion lente, ce qui faisait paraitre la creation
+  //         d'eleve plus lente que celle d'instituteur.
+  // Apres : 1 SELECT 'identifiant IN (...)' qui ramene en bloc tous les
+  //         logins deja pris parmi les candidats, puis on trouve le
+  //         premier libre en memoire (O(1) lookup avec Set).
   const candidates = [base];
   for (let i = 2; i <= 99; i++) candidates.push(`${base}-${i}`);
 
+  // Utiliser supabaseRaw pour bypass le filtre auto deleted_at
+  const { data, error } = await supabaseRaw.from('utilisateurs')
+    .select('identifiant')
+    .in('identifiant', candidates);
+
+  if (error) {
+    console.error('[genererLoginParentUnique] erreur SELECT:', error.message);
+    throw new Error('Erreur lecture utilisateurs: ' + error.message);
+  }
+
+  const taken = new Set((data || []).map(row => row.identifiant));
   for (const candidate of candidates) {
-    // Utiliser supabaseRaw pour bypass le filtre auto deleted_at
-    const { data, error } = await supabaseRaw.from('utilisateurs')
-      .select('id')
-      .eq('identifiant', candidate)
-      .limit(1);
-    if (error) {
-      console.warn('[genererLoginParentUnique] select error:', error.message);
-      continue;
-    }
-    if (!data || data.length === 0) {
-      return candidate;
-    }
+    if (!taken.has(candidate)) return candidate;
   }
 
   throw new Error(`Impossible de generer un login unique pour ${base} apres 99 tentatives`);

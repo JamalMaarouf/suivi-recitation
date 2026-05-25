@@ -1603,10 +1603,12 @@ function PeriodesTab({ user, lang, showMsg }) {
 
       {/* MODALE de confirmation generique (Etape 14 v2 - remplace window.confirm) */}
       {confirmModale && (
-        <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.55)',zIndex:10000,display:'flex',alignItems:'center',justifyContent:'center',padding:20}}
+        <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.55)',zIndex:10000,display:'flex',alignItems:'center',justifyContent:'center',padding:20,
+          animation:'modalFadeIn 0.15s ease-out'}}
           onClick={()=>{ if(!saving) setConfirmModale(null); }}>
           <div onClick={e=>e.stopPropagation()}
-            style={{background:'#fff',borderRadius:16,maxWidth:440,width:'100%',padding:24,boxShadow:'0 20px 60px rgba(0,0,0,0.3)'}}>
+            style={{background:'#fff',borderRadius:16,maxWidth:440,width:'100%',padding:24,boxShadow:'0 20px 60px rgba(0,0,0,0.3)',
+              animation:'modalSlideIn 0.18s ease-out'}}>
             <div style={{display:'flex',alignItems:'center',gap:12,marginBottom:14}}>
               <div style={{
                 width:48,height:48,borderRadius:14,
@@ -1642,10 +1644,12 @@ function PeriodesTab({ user, lang, showMsg }) {
 
       {/* MODALE creation/edition annee */}
       {showAnneeForm && (
-        <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.55)',zIndex:9999,display:'flex',alignItems:'center',justifyContent:'center',padding:20}}
+        <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.55)',zIndex:9999,display:'flex',alignItems:'center',justifyContent:'center',padding:20,
+          animation:'modalFadeIn 0.15s ease-out'}}
           onClick={()=>{ if(!saving) setShowAnneeForm(false); }}>
           <div onClick={e=>e.stopPropagation()}
-            style={{background:'#fff',borderRadius:16,maxWidth:480,width:'100%',padding:24,boxShadow:'0 20px 60px rgba(0,0,0,0.3)'}}>
+            style={{background:'#fff',borderRadius:16,maxWidth:480,width:'100%',padding:24,boxShadow:'0 20px 60px rgba(0,0,0,0.3)',
+              animation:'modalSlideIn 0.18s ease-out'}}>
             <div style={{fontSize:17,fontWeight:800,color:'#085041',marginBottom:14}}>
               {editingAnneeId ? (lang==='ar'?'تعديل السنة':'Modifier l\'année') : (lang==='ar'?'سنة دراسية جديدة':'Nouvelle année scolaire')}
             </div>
@@ -1683,10 +1687,12 @@ function PeriodesTab({ user, lang, showMsg }) {
 
       {/* MODALE creation/edition periode */}
       {showPeriodeForm && (
-        <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.55)',zIndex:9999,display:'flex',alignItems:'center',justifyContent:'center',padding:20}}
+        <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.55)',zIndex:9999,display:'flex',alignItems:'center',justifyContent:'center',padding:20,
+          animation:'modalFadeIn 0.15s ease-out'}}
           onClick={()=>{ if(!saving) setShowPeriodeForm(false); }}>
           <div onClick={e=>e.stopPropagation()}
-            style={{background:'#fff',borderRadius:16,maxWidth:520,width:'100%',padding:24,boxShadow:'0 20px 60px rgba(0,0,0,0.3)',maxHeight:'90vh',overflowY:'auto'}}>
+            style={{background:'#fff',borderRadius:16,maxWidth:520,width:'100%',padding:24,boxShadow:'0 20px 60px rgba(0,0,0,0.3)',maxHeight:'90vh',overflowY:'auto',
+              animation:'modalSlideIn 0.18s ease-out'}}>
             <div style={{fontSize:17,fontWeight:800,color:'#085041',marginBottom:14}}>
               {editingPeriodeId ? (lang==='ar'?'تعديل الفترة':'Modifier la période') : (lang==='ar'?'فترة جديدة':'Nouvelle période')}
             </div>
@@ -2895,6 +2901,7 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile,
   const [afficherUniquementActifsInst, setAfficherUniquementActifsInst] = useState(true);
   // Etape 11a - Modale recap creation eleve avec compte parent
   const [showEleveCree, setShowEleveCree] = useState(null); // {eleve, parent: {login, mdp}} ou null
+  const [showInstCree, setShowInstCree] = useState(null); // {instituteur, login, mdp} ou null
   // Etape 11b - Liaison/deliaison parents
   const [showLinkParents, setShowLinkParents] = useState(false);
   const [linkSelectedParents, setLinkSelectedParents] = useState([]); // ids des parents a fusionner
@@ -3110,7 +3117,13 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile,
       .select('id').eq('eleve_id_ecole', newEleve.eleve_id_ecole.trim()).eq('ecole_id', user.ecole_id).maybeSingle();
     if (existing) return showMsg('error', lang==='ar'?'رقم التعريف مستخدم مسبقاً، اختر رقماً آخر':'Ce numéro élève existe déjà, choisissez-en un autre');
 
-    const { error } = await supabase.from('eleves').insert({
+    // PERF (mai 2026) : INSERT + .select().single() en une seule requete au
+    // lieu de 2 (le re-SELECT separé qui suivait est devenu obsolete).
+    // Le commentaire historique disait 'RLS bloque .select() apres insert'
+    // mais l'audit securite A2 (mai 2026) a ajoute une policy strict_select
+    // sur eleves qui MATCH bien l'ecole_id du surveillant qui insere, donc
+    // le RETURNING SELECT passe correctement.
+    const { data: eleveData, error } = await supabase.from('eleves').insert({
       prenom: newEleve.prenom, nom: newEleve.nom, niveau: newEleve.niveau, ecole_id: user.ecole_id,
       code_niveau: newEleve.code_niveau,  // garanti valide par validation ci-dessus
       eleve_id_ecole: newEleve.eleve_id_ecole || null,
@@ -3122,16 +3135,13 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile,
       telephone: newEleve.telephone?.trim() || null,
       date_inscription: newEleve.date_inscription || null,
       jours_souhaites: newEleve.jours_souhaites || [false,false,false,false,false,false,false]
-    });
+    }).select('id').single();
     if (error) {
       // Afficher la vraie cause de l'erreur pour faciliter le debug
       console.error('[ajouterEleve] Erreur insertion élève:', error);
       const detail = error.message || error.details || error.hint || 'inconnue';
       return showMsg('error', (lang==='ar' ? 'خطأ: ' : 'Erreur: ') + detail);
     }
-    // Récupérer l'élève créé par son numéro (RLS bloque .select() après insert)
-    const { data: eleveData } = await supabase.from('eleves')
-      .select('id').eq('eleve_id_ecole', newEleve.eleve_id_ecole.trim()).eq('ecole_id', user.ecole_id).maybeSingle();
 
     // ⑥ Créer compte parent automatiquement
     const mdpParent = ecoleConfig?.mdp_defaut_parents || 'parent2024';
@@ -3172,7 +3182,12 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile,
     });
     setNewEleve({ prenom: '', nom: '', niveau: 'Débutant', code_niveau: (niveauxDyn && niveauxDyn[0]?.code) || '', eleve_id_ecole: '', instituteur_referent_id: '', hizb_depart: 0, tomon_depart: 1, sourates_acquises: 0, email_parent: '' });
     setShowAcquisSelector(false);
-    loadData();
+    // PERF (mai 2026) : differer loadData() au prochain frame pour que
+    // React puisse PEINDRE la modale avant le travail lourd de rechargement
+    // des donnees. Avant : modale apparaissait apres loadData (impression
+    // de lenteur). Apres : modale apparait IMMEDIATEMENT, loadData se fait
+    // pendant que l'utilisateur lit la modale.
+    setTimeout(() => loadData(), 0);
   };
 
   const modifierEleve = async () => {
@@ -3400,9 +3415,20 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile,
       email: newInst.email?.trim() || null,
     });
     if (error) return showMsg('error', error.message);
-    showMsg('success', `✅ ${lang==='ar'?'تم الإضافة — المعرف:':'Ajouté — Login :'} ${login} ${lang==='ar'?'/ كلمة السر:':'/ MDP :'} ${mdp}`);
+    // UX (mai 2026) : remplacer le showMsg flash 3s par une vraie modale
+    // recap (cohérent avec ModaleEleveCree). Le surveillant a tout son
+    // temps pour noter le login/mdp avant de fermer.
+    setShowInstCree({
+      instituteur: {
+        prenom: newInst.prenom,
+        nom: newInst.nom,
+        instituteur_id_ecole: newInst.instituteur_id_ecole?.trim() || '',
+      },
+      login,
+      mdp,
+    });
     setNewInst({ prenom: '', nom: '', identifiant: '', mot_de_passe: '', instituteur_id_ecole: '', telephone: '', email: '' });
-    loadData();
+    setTimeout(() => loadData(), 0);
   };
 
   // ────── ETAPE 7 - SUSPENSION D'INSTITUTEURS ────────────────────────
@@ -6239,11 +6265,13 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
         const candidatsParents = (parents || []).filter(p => p.role !== 'instituteur');
         return (
           <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.55)',zIndex:9999,
-            display:'flex',alignItems:'center',justifyContent:'center',padding:20}}
+            display:'flex',alignItems:'center',justifyContent:'center',padding:20,
+            animation:'modalFadeIn 0.15s ease-out'}}
             onClick={()=>{ if(!linkLoading) setShowLinkParents(false); }}>
             <div onClick={e=>e.stopPropagation()}
               style={{background:'#fff',borderRadius:16,maxWidth:600,width:'100%',padding:24,
-                boxShadow:'0 20px 60px rgba(0,0,0,0.3)',maxHeight:'90vh',overflowY:'auto'}}>
+                boxShadow:'0 20px 60px rgba(0,0,0,0.3)',maxHeight:'90vh',overflowY:'auto',
+                animation:'modalSlideIn 0.18s ease-out'}}>
               <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:14}}>
                 <div style={{fontSize:32}}>🔗</div>
                 <div>
@@ -6385,11 +6413,13 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
         const { parent: pUn, enfants: enfantsUn } = showUnlinkParent;
         return (
           <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.55)',zIndex:9999,
-            display:'flex',alignItems:'center',justifyContent:'center',padding:20}}
+            display:'flex',alignItems:'center',justifyContent:'center',padding:20,
+            animation:'modalFadeIn 0.15s ease-out'}}
             onClick={()=>{ if(!unlinkLoading) setShowUnlinkParent(null); }}>
             <div onClick={e=>e.stopPropagation()}
               style={{background:'#fff',borderRadius:16,maxWidth:480,width:'100%',padding:24,
-                boxShadow:'0 20px 60px rgba(0,0,0,0.3)',maxHeight:'90vh',overflowY:'auto'}}>
+                boxShadow:'0 20px 60px rgba(0,0,0,0.3)',maxHeight:'90vh',overflowY:'auto',
+                animation:'modalSlideIn 0.18s ease-out'}}>
               <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:14}}>
                 <div style={{fontSize:32}}>🔓</div>
                 <div>
@@ -6461,13 +6491,28 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
       })()}
 
       {/* ─── Modale recap création élève + compte parent (Etape 11a) ─── */}
+      {/* UX (mai 2026) : animation fadeIn pour douceur visuelle.
+          Les keyframes sont declarees une seule fois ici, valides pour
+          toutes les modales du composant Gestion. */}
+      <style>{`
+        @keyframes modalFadeIn {
+          from { opacity: 0; }
+          to { opacity: 1; }
+        }
+        @keyframes modalSlideIn {
+          from { opacity: 0; transform: translateY(-8px) scale(0.98); }
+          to   { opacity: 1; transform: translateY(0) scale(1); }
+        }
+      `}</style>
       {showEleveCree && (
         <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.55)',zIndex:9999,
-          display:'flex',alignItems:'center',justifyContent:'center',padding:20}}
+          display:'flex',alignItems:'center',justifyContent:'center',padding:20,
+          animation:'modalFadeIn 0.15s ease-out'}}
           onClick={()=>setShowEleveCree(null)}>
           <div onClick={e=>e.stopPropagation()}
             style={{background:'#fff',borderRadius:16,maxWidth:520,width:'100%',padding:24,
-              boxShadow:'0 20px 60px rgba(0,0,0,0.3)',maxHeight:'90vh',overflowY:'auto'}}>
+              boxShadow:'0 20px 60px rgba(0,0,0,0.3)',maxHeight:'90vh',overflowY:'auto',
+              animation:'modalSlideIn 0.18s ease-out'}}>
             <div style={{textAlign:'center',marginBottom:18}}>
               <div style={{fontSize:48,marginBottom:8}}>🎉</div>
               <div style={{fontSize:18,fontWeight:800,color:'#085041',marginBottom:4}}>
@@ -6538,17 +6583,102 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
         </div>
       )}
 
+      {/* ─── Modale recap création instituteur (mai 2026) ─── */}
+      {/* UX : equivalent de ModaleEleveCree pour donner le temps au surveillant
+          de noter le login/mdp sans pression de disparition. */}
+      {showInstCree && (
+        <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.55)',zIndex:9999,
+          display:'flex',alignItems:'center',justifyContent:'center',padding:20,
+          animation:'modalFadeIn 0.15s ease-out'}}
+          onClick={()=>setShowInstCree(null)}>
+          <div onClick={e=>e.stopPropagation()}
+            style={{background:'#fff',borderRadius:16,maxWidth:520,width:'100%',padding:24,
+              boxShadow:'0 20px 60px rgba(0,0,0,0.3)',maxHeight:'90vh',overflowY:'auto',
+              animation:'modalSlideIn 0.18s ease-out'}}>
+            <div style={{textAlign:'center',marginBottom:18}}>
+              <div style={{fontSize:48,marginBottom:8}}>🎉</div>
+              <div style={{fontSize:18,fontWeight:800,color:'#085041',marginBottom:4}}>
+                {lang==='ar'?'تم إضافة الأستاذ بنجاح!':'Instituteur créé avec succès !'}
+              </div>
+            </div>
+
+            {/* Récap instituteur */}
+            <div style={{
+              background:'#E1F5EE',border:'1px solid #1D9E7530',borderRadius:10,
+              padding:'12px 14px',marginBottom:12,
+            }}>
+              <div style={{fontSize:11,fontWeight:700,color:'#085041',marginBottom:6,textTransform:'uppercase',letterSpacing:0.3}}>
+                👨‍🏫 {lang==='ar'?'الأستاذ':'Instituteur'}
+              </div>
+              <div style={{fontSize:15,fontWeight:700,color:'#1a1a1a'}}>
+                {showInstCree.instituteur.prenom} {showInstCree.instituteur.nom}
+              </div>
+              {showInstCree.instituteur.instituteur_id_ecole && (
+                <div style={{fontSize:12,color:'#666',marginTop:3}}>
+                  🆔 {showInstCree.instituteur.instituteur_id_ecole}
+                </div>
+              )}
+            </div>
+
+            {/* Récap compte instituteur (login/mdp) */}
+            <div style={{
+              background:'#FFF8EC',border:'1px solid #EF9F2740',borderRadius:10,
+              padding:'12px 14px',marginBottom:14,
+            }}>
+              <div style={{fontSize:11,fontWeight:700,color:'#7B5800',marginBottom:8,textTransform:'uppercase',letterSpacing:0.3}}>
+                🔑 {lang==='ar'?'بيانات الاتصال':'Identifiants de connexion'}
+              </div>
+              <div style={{display:'grid',gridTemplateColumns:'auto 1fr',gap:'6px 10px',fontSize:13}}>
+                <div style={{color:'#666',fontWeight:600}}>{lang==='ar'?'المعرف:':'Login :'}</div>
+                <div style={{fontWeight:700,color:'#1a1a1a',fontFamily:'monospace'}}>{showInstCree.login}</div>
+                <div style={{color:'#666',fontWeight:600}}>{lang==='ar'?'كلمة المرور:':'Mot de passe :'}</div>
+                <div style={{fontWeight:700,color:'#1a1a1a',fontFamily:'monospace'}}>{showInstCree.mdp}</div>
+              </div>
+              <div style={{fontSize:11,color:'#8a5a00',marginTop:10,lineHeight:1.5,fontStyle:'italic'}}>
+                ℹ️ {lang==='ar'
+                  ? 'يمكن للأستاذ تغيير كلمة المرور بعد أول اتصال. سلّم هذه المعلومات إليه.'
+                  : 'L\'instituteur peut changer son mot de passe à la première connexion. Communiquez-lui ces informations.'}
+              </div>
+            </div>
+
+            {/* Boutons */}
+            <div style={{display:'flex',gap:8}}>
+              <button onClick={()=>{
+                const txt = lang==='ar'
+                  ? `بيانات الأستاذ:\nالمعرف: ${showInstCree.login}\nكلمة المرور: ${showInstCree.mdp}`
+                  : `Identifiants instituteur :\nLogin : ${showInstCree.login}\nMot de passe : ${showInstCree.mdp}`;
+                navigator.clipboard?.writeText(txt).then(() => {
+                  showMsg('success', lang==='ar'?'✅ تم النسخ':'✅ Copié dans le presse-papier');
+                }).catch(()=>{});
+              }}
+                style={{flex:1,padding:'12px',background:'#fff',color:'#085041',border:'1.5px solid #085041',
+                  borderRadius:10,fontSize:13,fontWeight:600,cursor:'pointer',fontFamily:'inherit'}}>
+                📋 {lang==='ar'?'نسخ المعلومات':'Copier les identifiants'}
+              </button>
+              <button onClick={()=>setShowInstCree(null)}
+                style={{flex:1,padding:'12px',background:'linear-gradient(135deg,#1D9E75,#085041)',color:'#fff',
+                  border:'none',borderRadius:10,fontSize:13,fontWeight:700,cursor:'pointer',fontFamily:'inherit',
+                  boxShadow:'0 2px 8px rgba(8,80,65,0.3)'}}>
+                ✓ {lang==='ar'?'حسناً':'OK'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ─── Modale Suspendre instituteur (Etape 7) ─── */}
       {showSuspendreInst && (() => {
         const { inst, elevesRattaches } = showSuspendreInst;
         const instituteursDispo = (instituteurs||[]).filter(i =>
           i.id !== inst.id && !i.suspendu_at && !i.deleted_at);
         return (
-          <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.5)',zIndex:1000,
-            display:'flex',alignItems:'center',justifyContent:'center',padding:20}}
+          <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.55)',zIndex:9999,
+            display:'flex',alignItems:'center',justifyContent:'center',padding:20,
+            animation:'modalFadeIn 0.15s ease-out'}}
             onClick={()=>{ if(!savingSuspensionInst) setShowSuspendreInst(null); }}>
             <div onClick={e=>e.stopPropagation()}
-              style={{background:'#fff',borderRadius:14,maxWidth:540,width:'100%',padding:24,boxShadow:'0 10px 40px rgba(0,0,0,0.2)',maxHeight:'90vh',overflowY:'auto'}}>
+              style={{background:'#fff',borderRadius:14,maxWidth:540,width:'100%',padding:24,boxShadow:'0 10px 40px rgba(0,0,0,0.2)',maxHeight:'90vh',overflowY:'auto',
+                animation:'modalSlideIn 0.18s ease-out'}}>
               <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:14}}>
                 <div style={{fontSize:28}}>⏸️</div>
                 <div>
@@ -6650,11 +6780,13 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
 
       {/* ─── Modale Suspendre élève (Etape 6) ─── */}
       {showSuspendreEleve && (
-        <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.5)',zIndex:1000,
-          display:'flex',alignItems:'center',justifyContent:'center',padding:20}}
+        <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.55)',zIndex:9999,
+          display:'flex',alignItems:'center',justifyContent:'center',padding:20,
+          animation:'modalFadeIn 0.15s ease-out'}}
           onClick={()=>{ if(!savingSuspension) setShowSuspendreEleve(null); }}>
           <div onClick={e=>e.stopPropagation()}
-            style={{background:'#fff',borderRadius:14,maxWidth:480,width:'100%',padding:24,boxShadow:'0 10px 40px rgba(0,0,0,0.2)'}}>
+            style={{background:'#fff',borderRadius:14,maxWidth:480,width:'100%',padding:24,boxShadow:'0 10px 40px rgba(0,0,0,0.2)',
+              animation:'modalSlideIn 0.18s ease-out'}}>
             <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:14}}>
               <div style={{fontSize:28}}>⏸️</div>
               <div>
