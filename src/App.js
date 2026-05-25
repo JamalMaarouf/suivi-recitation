@@ -172,14 +172,18 @@ const IS_PRIVACY_ROUTE = typeof window !== 'undefined'
 // N'est rendu que si l'URL match /verify/:numero (decision prise au module load).
 function PageVerificationRoute() {
   const [verifyLang, setVerifyLang] = useState(() => localStorage.getItem('suivi_lang') || 'fr');
+  // ToastProvider necessaire pour useToast dans PageVerification (erreur DL PDF)
+  const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
   return (
-    <Suspense fallback={<div style={{padding:60,textAlign:'center',color:'#888',fontFamily:"'Tajawal',Arial,sans-serif"}}>⏳ Chargement…</div>}>
-      <PageVerification
-        numero={VERIFY_NUMERO}
-        lang={verifyLang}
-        setLang={(l) => { setVerifyLang(l); localStorage.setItem('suivi_lang', l); }}
-      />
-    </Suspense>
+    <ToastProvider isMobile={isMobile}>
+      <Suspense fallback={<div style={{padding:60,textAlign:'center',color:'#888',fontFamily:"'Tajawal',Arial,sans-serif"}}>⏳ Chargement…</div>}>
+        <PageVerification
+          numero={VERIFY_NUMERO}
+          lang={verifyLang}
+          setLang={(l) => { setVerifyLang(l); localStorage.setItem('suivi_lang', l); }}
+        />
+      </Suspense>
+    </ToastProvider>
   );
 }
 

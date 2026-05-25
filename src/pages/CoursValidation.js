@@ -592,7 +592,7 @@ function ModaleValidation({ axe, axeLabel, niveau, eleves, existante, onClose, o
     const res = await onConfirm({ qualite, commentaire, exceptionsElev });
     setSaving(false);
     if (!res.ok) {
-      alert(res.error || 'Erreur');
+      toast.error(res.error || 'Erreur');
     }
   };
 

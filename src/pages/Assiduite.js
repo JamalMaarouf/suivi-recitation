@@ -1408,7 +1408,7 @@ function OngletSuivi({ lang, user, isMobile }) {
         rows,
       }, lang);
     } catch (err) {
-      alert('Erreur PDF : ' + err.message);
+      toast.error('Erreur PDF : ' + err.message);
     }
   };
 
@@ -1457,7 +1457,7 @@ function OngletSuivi({ lang, user, isMobile }) {
         lang === 'ar' ? 'حضور الطلاب' : 'Assiduité élèves',
       );
     } catch (err) {
-      alert('Erreur Excel : ' + err.message);
+      toast.error('Erreur Excel : ' + err.message);
     }
   };
 
@@ -2187,7 +2187,7 @@ function OngletSuiviInstituteurs({ lang, user, isMobile }) {
         rows,
       }, lang);
     } catch (err) {
-      alert('Erreur PDF : ' + err.message);
+      toast.error('Erreur PDF : ' + err.message);
     }
   };
 
@@ -2227,7 +2227,7 @@ function OngletSuiviInstituteurs({ lang, user, isMobile }) {
         lang === 'ar' ? 'حضور المؤطرين' : 'Assiduité instituteurs',
       );
     } catch (err) {
-      alert('Erreur Excel : ' + err.message);
+      toast.error('Erreur Excel : ' + err.message);
     }
   };
 

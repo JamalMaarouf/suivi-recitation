@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
+import { useToast } from '../lib/toast';
 import { t } from '../lib/i18n';
 import ConfirmModal from '../components/ConfirmModal';
 import { fetchAll } from '../lib/fetchAll';
@@ -13,6 +14,7 @@ import { usePullToRefresh, PullToRefreshIndicator } from '../lib/usePullToRefres
 const getNiveauColor = (code, niveaux=[]) => niveaux.find(n=>n.code===code)?.couleur || {'5B':'#534AB7','5A':'#378ADD','2M':'#1D9E75','2':'#EF9F27','1':'#E24B4A'}[code] || '#888';
 
 export default function MurajaDashboard({ user, navigate, goBack, lang='fr', isMobile }) {
+  const { toast } = useToast();
   const [recitations, setRecitations] = useState([]);
   const [validations, setValidations] = useState([]);
   const [eleves, setEleves]           = useState([]);
@@ -248,7 +250,7 @@ export default function MurajaDashboard({ user, navigate, goBack, lang='fr', isM
         sessions: sessionsData,
       }, lang);
     } catch (err) {
-      alert((lang === 'ar' ? 'خطأ PDF : ' : 'Erreur PDF : ') + err.message);
+      toast.error((lang === 'ar' ? 'خطأ PDF : ' : 'Erreur PDF : ') + err.message);
     }
   };
 
@@ -281,7 +283,7 @@ export default function MurajaDashboard({ user, navigate, goBack, lang='fr', isM
         lang === 'ar' ? 'المراجعات' : 'Muraja',
       );
     } catch (err) {
-      alert((lang === 'ar' ? 'خطأ Excel : ' : 'Erreur Excel : ') + err.message);
+      toast.error((lang === 'ar' ? 'خطأ Excel : ' : 'Erreur Excel : ') + err.message);
     }
   };
 
