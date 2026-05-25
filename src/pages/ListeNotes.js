@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { supabase } from '../lib/supabase';
+import { useToast } from '../lib/toast';
 import { calcEtatEleve, calcPointsPeriode, loadBareme, BAREME_DEFAUT, getSensForEleve, loadAnneeActiveAvecPeriodes, formatPeriodeCourte, detecterPeriodeEnCours} from '../lib/helpers';
 import PeriodeSelectorHybride from '../components/PeriodeSelectorHybride';
 import { t } from '../lib/i18n';
@@ -11,6 +12,7 @@ import PageHeader from '../components/PageHeader';
 import { usePullToRefresh, PullToRefreshIndicator } from '../lib/usePullToRefresh';
 
 export default function ListeNotes({ user, navigate, goBack, lang='fr', isMobile }) {
+  const { toast } = useToast();
   const [eleves, setEleves] = useState([]);
   const [allValidations, setAllValidations] = useState([]);
   const [pointsEvts, setPointsEvts] = useState([]);
@@ -141,7 +143,7 @@ export default function ListeNotes({ user, navigate, goBack, lang='fr', isMobile
       }, lang);
     } catch (err) {
       console.error('PDF liste notes:', err);
-      alert((lang === 'ar' ? 'خطأ: ' : 'Erreur : ') + err.message);
+      toast.error((lang === 'ar' ? 'خطأ: ' : 'Erreur : ') + err.message);
     }
     setGenPdf(false);
   };
@@ -181,7 +183,7 @@ export default function ListeNotes({ user, navigate, goBack, lang='fr', isMobile
         lang === 'ar' ? 'النقاط' : 'Notes',
       );
     } catch (err) {
-      alert((lang === 'ar' ? 'خطأ Excel : ' : 'Erreur Excel : ') + err.message);
+      toast.error((lang === 'ar' ? 'خطأ Excel : ' : 'Erreur Excel : ') + err.message);
     }
   };
 

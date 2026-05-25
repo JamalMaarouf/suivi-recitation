@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
+import { useToast } from '../lib/toast';
 import { logAudit } from '../lib/auditLog';
 
 const S = { green:'#1D9E75', purple:'#534AB7', amber:'#EF9F27', red:'#E24B4A', gray:'#888', border:'#e0e0d8' };
 
 export default function SuperAdminDashboard({ user, navigate, lang, onLogout, isMobile, startImpersonation }) {
+  const { toast } = useToast();
   const [ecoles, setEcoles] = useState([]);
   const [loading, setLoading] = useState(true);
   const [vue, setVue] = useState('ecoles'); // 'ecoles' | 'attente' | 'creer' | 'audit'
@@ -95,13 +97,13 @@ export default function SuperAdminDashboard({ user, navigate, lang, onLogout, is
     try {
       const { error } = await supabase.from(table).update({ deleted_at: null, deleted_by: null }).eq('id', id);
       if (error) {
-        alert('Erreur: ' + error.message);
+        toast.error('Erreur: ' + error.message);
       } else {
         try { await logAudit({ user_id: user.id, action: 'restore_'+table, details: { id, label } }); } catch {}
         await loadCorbeille();
       }
     } catch (err) {
-      alert('Erreur: ' + err.message);
+      toast.error('Erreur: ' + err.message);
     }
     setRestoring(null);
   };

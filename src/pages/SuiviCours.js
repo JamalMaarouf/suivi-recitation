@@ -172,7 +172,7 @@ export default function SuiviCours({ user, navigate, goBack, lang, isMobile }) {
         rows,
       }, lang);
     } catch (err) {
-      alert('Erreur PDF : ' + err.message);
+      toast.error('Erreur PDF : ' + err.message);
     }
   };
 
@@ -216,7 +216,7 @@ export default function SuiviCours({ user, navigate, goBack, lang, isMobile }) {
         lang === 'ar' ? 'تقدم الدروس' : 'Progression cours',
       );
     } catch (err) {
-      alert('Erreur Excel : ' + err.message);
+      toast.error('Erreur Excel : ' + err.message);
     }
   };
 

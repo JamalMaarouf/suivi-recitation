@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
+import { useToast } from '../lib/toast';
 import { getInitiales, formatDate } from '../lib/helpers';
 import { t } from '../lib/i18n';
 import { openPDF } from '../lib/pdf';
@@ -11,6 +12,7 @@ import MobileSkeletonList from '../components/MobileSkeletonList';
 import { usePullToRefresh, PullToRefreshIndicator } from '../lib/usePullToRefresh';
 
 export default function ListeCertificats({ user, navigate, goBack, lang='fr', isMobile, data }) {
+  const { toast } = useToast();
   const focusCertId = data?.focusCertId || null;
   // B3 — Mode création depuis Suivi Résultats (B2 "Émettre cert.")
   const focusEleveId = data?.focusEleveId || null;
@@ -200,7 +202,7 @@ export default function ListeCertificats({ user, navigate, goBack, lang='fr', is
       }, lang);
     } catch (err) {
       console.error('PDF certificat:', err);
-      alert((lang === 'ar' ? 'خطأ: ' : 'Erreur : ') + err.message);
+      toast.error((lang === 'ar' ? 'خطأ: ' : 'Erreur : ') + err.message);
     }
     setGenPdfId(null);
   };
@@ -233,7 +235,7 @@ export default function ListeCertificats({ user, navigate, goBack, lang='fr', is
       }, lang);
     } catch (err) {
       console.error('PDF liste certificats:', err);
-      alert((lang === 'ar' ? 'خطأ: ' : 'Erreur : ') + err.message);
+      toast.error((lang === 'ar' ? 'خطأ: ' : 'Erreur : ') + err.message);
     }
     setGenListe(false);
   };
@@ -275,7 +277,7 @@ export default function ListeCertificats({ user, navigate, goBack, lang='fr', is
         lang === 'ar' ? 'الشهادات' : 'Certificats',
       );
     } catch (err) {
-      alert((lang === 'ar' ? 'خطأ Excel : ' : 'Erreur Excel : ') + err.message);
+      toast.error((lang === 'ar' ? 'خطأ Excel : ' : 'Erreur Excel : ') + err.message);
     }
   };
 

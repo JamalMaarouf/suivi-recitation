@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { supabase } from '../lib/supabase';
+import { useToast } from '../lib/toast';
 import { calcEtatEleve, getInitiales , loadBareme, BAREME_DEFAUT, getSensForEleve} from '../lib/helpers';
 import { fetchAll } from '../lib/fetchAll';
 import { openPDF } from '../lib/pdf';
@@ -27,6 +28,7 @@ function Avatar({ prenom, nom, size=34 }) {
 }
 
 export default function RapportMensuel({ user, navigate, goBack, lang='fr', isMobile }) {
+  const { toast } = useToast();
   const now = new Date();
   const [mois,       setMois]       = useState(now.getMonth());
   const [annee,      setAnnee]      = useState(now.getFullYear());
@@ -207,7 +209,7 @@ export default function RapportMensuel({ user, navigate, goBack, lang='fr', isMo
       }, lang);
     } catch(err) {
       console.error(err);
-      alert('Erreur génération PDF : ' + err.message);
+      toast.error('Erreur génération PDF : ' + err.message);
     }
     setGenerating(false);
   };

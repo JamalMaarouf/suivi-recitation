@@ -18,9 +18,11 @@
 
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
+import { useToast } from '../lib/toast';
 import { openPDF } from '../lib/pdf';
 
 export default function PageVerification({ numero, lang = 'fr', setLang }) {
+  const { toast } = useToast();
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState(null);
   const [error, setError] = useState(null);
@@ -143,7 +145,7 @@ export default function PageVerification({ numero, lang = 'fr', setLang }) {
       }
     } catch (err) {
       console.error('[PageVerification] download error:', err);
-      alert(isAr ? 'خطأ في تحميل الشهادة' : 'Erreur lors du téléchargement');
+      toast.error(isAr ? 'خطأ في تحميل الشهادة' : 'Erreur lors du téléchargement');
     }
     setDownloading(false);
   };

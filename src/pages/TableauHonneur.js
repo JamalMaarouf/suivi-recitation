@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { supabase } from '../lib/supabase';
+import { useToast } from '../lib/toast';
 import { calcEtatEleve, getInitiales, scoreLabel, calcPointsPeriode, loadBareme, BAREME_DEFAUT, getSensForEleve} from '../lib/helpers';
 import { t } from '../lib/i18n';
 import { fetchAll } from '../lib/fetchAll';
@@ -11,6 +12,7 @@ import MobileSkeletonList from '../components/MobileSkeletonList';
 import { usePullToRefresh, PullToRefreshIndicator } from '../lib/usePullToRefresh';
 
 export default function TableauHonneur({ user, navigate, goBack, lang='fr', isMobile }) {
+  const { toast } = useToast();
   const [eleves, setEleves] = useState([]);
   const [allValidations, setAllValidations] = useState([]);
   const [periodes, setPeriodes] = useState([]);
@@ -185,7 +187,7 @@ export default function TableauHonneur({ user, navigate, goBack, lang='fr', isMo
         eleves: elevesData,
       }, lang);
     } catch (err) {
-      alert((lang === 'ar' ? 'خطأ PDF : ' : 'Erreur PDF : ') + err.message);
+      toast.error((lang === 'ar' ? 'خطأ PDF : ' : 'Erreur PDF : ') + err.message);
     }
   };
 
@@ -218,7 +220,7 @@ export default function TableauHonneur({ user, navigate, goBack, lang='fr', isMo
         lang === 'ar' ? 'لوحة الشرف' : 'Tableau honneur',
       );
     } catch (err) {
-      alert((lang === 'ar' ? 'خطأ Excel : ' : 'Erreur Excel : ') + err.message);
+      toast.error((lang === 'ar' ? 'خطأ Excel : ' : 'Erreur Excel : ') + err.message);
     }
   };
 

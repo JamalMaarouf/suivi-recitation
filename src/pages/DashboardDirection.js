@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { supabase } from '../lib/supabase';
+import { useToast } from '../lib/toast';
 import { t } from '../lib/i18n';
 import { BAREME_DEFAUT, loadBareme, loadAnneeActiveAvecPeriodes, formatPeriodeCourte, detecterPeriodeEnCours } from '../lib/helpers';
 import { fetchAll } from '../lib/fetchAll';
@@ -98,6 +99,7 @@ function MiniSparkline({ values, color='#1D9E75', height=40 }) {
 
 // ─── Page principale ───────────────────────────────────────────────────────
 export default function DashboardDirection({ user, navigate, goBack, lang='fr', isMobile=false }) {
+  const { toast } = useToast();
   const [loading, setLoading] = useState(true);
   const [eleves, setEleves] = useState([]);
   const [validations, setValidations] = useState([]);
@@ -432,7 +434,7 @@ export default function DashboardDirection({ user, navigate, goBack, lang='fr', 
       }, lang);
     } catch (err) {
       console.error('Erreur PDF direction:', err);
-      alert((isAr ? 'خطأ PDF : ' : 'Erreur PDF : ') + err.message);
+      toast.error((isAr ? 'خطأ PDF : ' : 'Erreur PDF : ') + err.message);
     }
   };
 
@@ -514,7 +516,7 @@ export default function DashboardDirection({ user, navigate, goBack, lang='fr', 
       );
     } catch (err) {
       console.error('Erreur Excel direction:', err);
-      alert((isAr ? 'خطأ Excel : ' : 'Erreur Excel : ') + err.message);
+      toast.error((isAr ? 'خطأ Excel : ' : 'Erreur Excel : ') + err.message);
     }
   };
 
