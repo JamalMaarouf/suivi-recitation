@@ -1,12 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
-import { isSourateNiveauDyn } from '../lib/helpers';
+import { isSourateNiveauDyn, genererLoginParentUnique } from '../lib/helpers';
+import { useToast } from '../lib/toast';
 import MobileSkeletonList from '../components/MobileSkeletonList';
 import { usePullToRefresh, PullToRefreshIndicator } from '../lib/usePullToRefresh';
 import { hapticSuccess } from '../lib/haptic';
 import AcquisSelector from '../components/AcquisSelector';
 
 export default function ElevesMobile({ user, navigate, goBack, lang='ar' }) {
+  const { toast } = useToast();
   const [eleves, setEleves] = useState([]);
   const [instituteurs, setInstituteurs] = useState([]);
   const [niveaux, setNiveaux] = useState([]);
@@ -21,10 +23,12 @@ export default function ElevesMobile({ user, navigate, goBack, lang='ar' }) {
   const [msgText, setMsgText] = useState('');
   const [msgType, setMsgType] = useState('');
   const [showAcquis, setShowAcquis] = useState(false);
+  const [showEleveCree, setShowEleveCree] = useState(null); // {eleve, parent} ou null
+  const [showConfirmDelete, setShowConfirmDelete] = useState(null); // {id, nom} ou null
 
   const emptyForm = { prenom:'', nom:'', niveau:'Débutant', code_niveau:'', eleve_id_ecole:'',
     instituteur_referent_id:'', hizb_depart:0, tomon_depart:1, sourates_acquises:0,
-    hizbs_acquis:[], telephone:'', date_inscription:'' };
+    hizbs_acquis:[], telephone:'', date_inscription:'', email_parent:'' };
   const [form, setForm] = useState(emptyForm);
 
   useEffect(() => { loadData(); }, []);
@@ -126,26 +130,88 @@ export default function ElevesMobile({ user, navigate, goBack, lang='ar' }) {
       const { error } = await supabase.from('eleves').update(payload).eq('id', editEleve.id);
       if (error) { showMsg('error', error.message); setSaving(false); return; }
       showMsg('success', lang==='ar'?'✅ تم تحديث الطالب':'✅ Élève mis à jour');
+      setSaving(false);
+      setShowForm(false);
+      setEditEleve(null);
+      setForm({ ...emptyForm, code_niveau: niveaux[0]?.code||'' });
+      hapticSuccess();
+      loadData();
     } else {
-      // Check duplicate
+      // ── Creation eleve : reproduit la logique complete de Gestion.js
+      // 1. Check unicite eleve_id_ecole
       const { data: ex } = await supabase.from('eleves').select('id')
         .eq('eleve_id_ecole', form.eleve_id_ecole.trim()).eq('ecole_id', user.ecole_id).maybeSingle();
       if (ex) { showMsg('error', lang==='ar'?'رقم التعريف مستخدم مسبقاً':'ID élève déjà utilisé'); setSaving(false); return; }
-      const { error } = await supabase.from('eleves').insert(payload);
+
+      // 2. INSERT eleve avec .select() pour recuperer l'ID (Opt 2 : 1 seule requete grace a A2)
+      const { data: eleveData, error } = await supabase.from('eleves').insert(payload).select('id').single();
       if (error) { showMsg('error', error.message); setSaving(false); return; }
-      showMsg('success', lang==='ar'?'✅ تم إضافة الطالب':'✅ Élève ajouté');
+
+      // 3. ⭐ Creer le compte parent automatiquement (manquait sur mobile, fix mai 2026)
+      const mdpParent = ecoleConfig?.mdp_defaut_parents || 'parent2024';
+      let loginParent;
+      try {
+        loginParent = await genererLoginParentUnique(supabase, form.eleve_id_ecole.trim());
+      } catch (err) {
+        console.error('[ElevesMobile] genererLoginParentUnique:', err);
+        showMsg('error', (lang==='ar'?'فشل إنشاء معرف ولي الأمر: ':'Échec génération login parent: ') + err.message);
+        setSaving(false);
+        return;
+      }
+
+      const { data: parentData, error: parentErr } = await supabase.from('utilisateurs').insert({
+        prenom: form.prenom.trim(), nom: form.nom.trim(),
+        identifiant: loginParent, mot_de_passe: mdpParent,
+        role: 'parent', ecole_id: user.ecole_id, statut_compte: 'actif',
+        email: (form.email_parent || '').trim() || null,
+      }).select().single();
+      if (parentErr) {
+        console.error('[ElevesMobile] Erreur creation parent:', parentErr);
+        // Non-bloquant : l'eleve a ete cree, on signale juste
+        showMsg('error', (lang==='ar'?'تحذير: فشل إنشاء حساب الأب: ':'Avertissement: échec compte parent: ') + parentErr.message);
+      }
+
+      // 4. Creer le lien parent_eleve
+      if (parentData?.id && eleveData?.id) {
+        await supabase.from('parent_eleve').insert({
+          parent_id: parentData.id, eleve_id: eleveData.id
+        });
+      }
+
+      // 5. Modale recap avec login/mdp du parent (equivalent ModaleEleveCree desktop)
+      setShowEleveCree({
+        eleve: {
+          prenom: form.prenom.trim(),
+          nom: form.nom.trim(),
+          eleve_id_ecole: form.eleve_id_ecole.trim(),
+          code_niveau: form.code_niveau,
+        },
+        parent: { login: loginParent, mdp: mdpParent },
+      });
+
+      setSaving(false);
+      setShowForm(false);
+      setForm({ ...emptyForm, code_niveau: niveaux[0]?.code||'' });
+      hapticSuccess();
+      setTimeout(() => loadData(), 0); // Defer pour laisser React peindre la modale d'abord
     }
-    setSaving(false);
-    setShowForm(false);
-    setEditEleve(null);
-    setForm({ ...emptyForm, code_niveau: niveaux[0]?.code||'' });
-    hapticSuccess();
-    loadData();
   };
 
   const handleDelete = async (id) => {
-    if (!window.confirm(lang==='ar'?'هل أنت متأكد من حذف الطالب؟':'Confirmer la suppression ?')) return;
-    await supabase.from('eleves').delete().eq('id', id);
+    // UX (mai 2026) : remplacer window.confirm() natif moche par modale stylee
+    const eleve = eleves.find(e => e.id === id);
+    setShowConfirmDelete({ id, nom: eleve ? `${eleve.prenom} ${eleve.nom}` : '' });
+  };
+
+  const confirmDelete = async () => {
+    if (!showConfirmDelete) return;
+    const { error } = await supabase.from('eleves').delete().eq('id', showConfirmDelete.id);
+    if (error) {
+      toast.error((lang==='ar'?'خطأ: ':'Erreur: ') + error.message);
+    } else {
+      toast.success(lang==='ar'?'✅ تم الحذف':'✅ Élève supprimé');
+    }
+    setShowConfirmDelete(null);
     loadData();
   };
 
@@ -313,6 +379,17 @@ export default function ElevesMobile({ user, navigate, goBack, lang='ar' }) {
                     value={form.date_inscription} onChange={e=>setForm(x=>({...x,date_inscription:e.target.value}))}/>
                 </div>
               </div>
+
+              {/* Email parent (optionnel, utilise lors de la creation du compte parent) */}
+              {!editEleve && (
+                <div style={{marginBottom:10}}>
+                  <label style={{fontSize:12,fontWeight:600,color:'#666',display:'block',marginBottom:4}}>
+                    {lang==='ar'?'البريد الإلكتروني للولي (اختياري)':'Email parent (optionnel)'}
+                  </label>
+                  <input type="email" style={{width:'100%',padding:'11px 12px',borderRadius:10,border:'0.5px solid #e0e0d8',fontSize:14,fontFamily:'inherit',boxSizing:'border-box'}}
+                    value={form.email_parent} onChange={e=>setForm(x=>({...x,email_parent:e.target.value}))} placeholder="parent@example.com"/>
+                </div>
+              )}
 
               {/* ── ACQUIS ANTERIEURS — Bouton repli + AcquisSelector ── */}
               <div style={{marginBottom:14, marginTop:6}}>
@@ -540,6 +617,139 @@ export default function ElevesMobile({ user, navigate, goBack, lang='ar' }) {
           }}>
           +
         </button>
+      )}
+
+      {/* ─── Modale recap creation eleve (equivalent ModaleEleveCree desktop) ─── */}
+      {/* UX (mai 2026) : sur mobile aussi, donner le temps au surveillant
+          de noter le login/mdp du parent. Pattern slide-up depuis le bas. */}
+      {showEleveCree && (
+        <>
+          <style>{`
+            @keyframes modalMobileFadeIn { from { opacity: 0; } to { opacity: 1; } }
+            @keyframes modalMobileSlideUp { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+          `}</style>
+          <div style={{position:'fixed', inset:0, background:'rgba(0,0,0,0.55)', zIndex:9999,
+            display:'flex', alignItems:'center', justifyContent:'center', padding:16,
+            animation:'modalMobileFadeIn 0.15s ease-out'}}
+            onClick={()=>setShowEleveCree(null)}>
+            <div onClick={e=>e.stopPropagation()}
+              style={{background:'#fff', borderRadius:16, width:'100%', maxWidth:480, padding:20,
+                maxHeight:'90vh', overflowY:'auto', boxShadow:'0 20px 60px rgba(0,0,0,0.3)',
+                animation:'modalMobileSlideUp 0.18s ease-out'}}>
+              <div style={{textAlign:'center', marginBottom:16}}>
+                <div style={{fontSize:44, marginBottom:6}}>🎉</div>
+                <div style={{fontSize:17, fontWeight:800, color:'#085041'}}>
+                  {lang==='ar'?'تم إضافة الطالب بنجاح!':'Élève créé avec succès !'}
+                </div>
+              </div>
+
+              {/* Récap élève */}
+              <div style={{background:'#E1F5EE', border:'1px solid #1D9E7530', borderRadius:10,
+                padding:'10px 12px', marginBottom:10}}>
+                <div style={{fontSize:11, fontWeight:700, color:'#085041', marginBottom:4, textTransform:'uppercase', letterSpacing:0.3}}>
+                  👤 {lang==='ar'?'الطالب':'Élève'}
+                </div>
+                <div style={{fontSize:15, fontWeight:700, color:'#1a1a1a'}}>
+                  {showEleveCree.eleve.prenom} {showEleveCree.eleve.nom}
+                </div>
+                <div style={{fontSize:12, color:'#666', marginTop:3, display:'flex', gap:10, flexWrap:'wrap'}}>
+                  <span>🆔 {showEleveCree.eleve.eleve_id_ecole}</span>
+                  <span>🎓 {showEleveCree.eleve.code_niveau}</span>
+                </div>
+              </div>
+
+              {/* Récap compte parent */}
+              <div style={{background:'#FFF8EC', border:'1px solid #EF9F2740', borderRadius:10,
+                padding:'10px 12px', marginBottom:12}}>
+                <div style={{fontSize:11, fontWeight:700, color:'#7B5800', marginBottom:6, textTransform:'uppercase', letterSpacing:0.3}}>
+                  👨‍👩‍👧 {lang==='ar'?'حساب الولي':'Compte parent'}
+                </div>
+                <div style={{display:'grid', gridTemplateColumns:'auto 1fr', gap:'5px 10px', fontSize:13}}>
+                  <div style={{color:'#666', fontWeight:600}}>{lang==='ar'?'المعرف:':'Login :'}</div>
+                  <div style={{fontWeight:700, color:'#1a1a1a', fontFamily:'monospace', wordBreak:'break-all'}}>{showEleveCree.parent.login}</div>
+                  <div style={{color:'#666', fontWeight:600}}>{lang==='ar'?'كلمة المرور:':'Mot de passe :'}</div>
+                  <div style={{fontWeight:700, color:'#1a1a1a', fontFamily:'monospace'}}>{showEleveCree.parent.mdp}</div>
+                </div>
+                <div style={{fontSize:11, color:'#8a5a00', marginTop:8, lineHeight:1.5, fontStyle:'italic'}}>
+                  ℹ️ {lang==='ar'
+                    ? 'يمكن للولي تغيير كلمة المرور لاحقاً. سلّم هذه المعلومات إليه.'
+                    : 'Le parent peut changer son mot de passe. Communiquez-lui ces informations.'}
+                </div>
+              </div>
+
+              {/* Boutons */}
+              <div style={{display:'flex', gap:8}}>
+                <button onClick={()=>{
+                  const txt = lang==='ar'
+                    ? `حساب ولي الأمر:\nالمعرف: ${showEleveCree.parent.login}\nكلمة المرور: ${showEleveCree.parent.mdp}`
+                    : `Compte parent :\nLogin : ${showEleveCree.parent.login}\nMot de passe : ${showEleveCree.parent.mdp}`;
+                  navigator.clipboard?.writeText(txt).then(() => {
+                    toast.success(lang==='ar'?'✅ تم النسخ':'✅ Copié');
+                  }).catch(()=>{});
+                }}
+                  style={{flex:1, padding:'12px', background:'#fff', color:'#085041',
+                    border:'1.5px solid #085041', borderRadius:10, fontSize:13, fontWeight:600,
+                    cursor:'pointer', fontFamily:'inherit'}}>
+                  📋 {lang==='ar'?'نسخ':'Copier'}
+                </button>
+                <button onClick={()=>setShowEleveCree(null)}
+                  style={{flex:1, padding:'12px',
+                    background:'linear-gradient(135deg,#1D9E75,#085041)', color:'#fff',
+                    border:'none', borderRadius:10, fontSize:13, fontWeight:700,
+                    cursor:'pointer', fontFamily:'inherit',
+                    boxShadow:'0 2px 8px rgba(8,80,65,0.3)'}}>
+                  ✓ {lang==='ar'?'حسناً':'OK'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* ─── Modale confirmation suppression (remplace window.confirm) ─── */}
+      {showConfirmDelete && (
+        <div style={{position:'fixed', inset:0, background:'rgba(0,0,0,0.55)', zIndex:9999,
+          display:'flex', alignItems:'center', justifyContent:'center', padding:16,
+          animation:'modalMobileFadeIn 0.15s ease-out'}}
+          onClick={()=>setShowConfirmDelete(null)}>
+          <div onClick={e=>e.stopPropagation()}
+            style={{background:'#fff', borderRadius:16, width:'100%', maxWidth:380, padding:20,
+              boxShadow:'0 20px 60px rgba(0,0,0,0.3)',
+              animation:'modalMobileSlideUp 0.18s ease-out'}}>
+            <div style={{display:'flex', alignItems:'center', gap:12, marginBottom:14}}>
+              <div style={{width:48, height:48, borderRadius:14, background:'#FFE5E5',
+                display:'flex', alignItems:'center', justifyContent:'center', fontSize:24, flexShrink:0}}>🗑️</div>
+              <div>
+                <div style={{fontSize:16, fontWeight:700, color:'#1a1a1a', marginBottom:2}}>
+                  {lang==='ar'?'تأكيد الحذف':'Confirmer la suppression'}
+                </div>
+                <div style={{fontSize:13, color:'#666'}}>
+                  {lang==='ar'?'هل أنت متأكد؟':'Cette action est définitive'}
+                </div>
+              </div>
+            </div>
+            {showConfirmDelete.nom && (
+              <div style={{background:'#f5f5f0', borderRadius:8, padding:'10px 12px', marginBottom:14,
+                fontSize:13, color:'#444'}}>
+                <span style={{fontWeight:600}}>{lang==='ar'?'الطالب: ':'Élève : '}</span>{showConfirmDelete.nom}
+              </div>
+            )}
+            <div style={{display:'flex', gap:8}}>
+              <button onClick={()=>setShowConfirmDelete(null)}
+                style={{flex:1, padding:'11px', background:'#f5f5f0', color:'#444',
+                  border:'0.5px solid #e0e0d8', borderRadius:10, fontSize:13, fontWeight:600,
+                  cursor:'pointer', fontFamily:'inherit'}}>
+                {lang==='ar'?'إلغاء':'Annuler'}
+              </button>
+              <button onClick={confirmDelete}
+                style={{flex:1, padding:'11px', background:'#E24B4A', color:'#fff',
+                  border:'none', borderRadius:10, fontSize:13, fontWeight:700,
+                  cursor:'pointer', fontFamily:'inherit'}}>
+                🗑️ {lang==='ar'?'حذف':'Supprimer'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
