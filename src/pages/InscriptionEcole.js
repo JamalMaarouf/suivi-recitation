@@ -30,6 +30,8 @@ export default function InscriptionEcole({ onBack, lang }) {
   const widgetIdRef = useRef(null);
 
   // Chargement du script Turnstile + rendu du widget invisible (Prod uniquement)
+  // Le widget div n'existe dans le DOM que lorsque step === 2, donc on ne peut
+  // pas le rendre au mount. Solution : observer step et rendre quand step=2.
   useEffect(() => {
     if (!isTurnstileActive()) {
       // QA / local dev : pas de Turnstile, on envoie 'bypass' au backend
@@ -37,7 +39,7 @@ export default function InscriptionEcole({ onBack, lang }) {
       return;
     }
 
-    // Charger le script Turnstile si pas deja present
+    // Charger le script Turnstile une seule fois (idempotent)
     const scriptId = 'cf-turnstile-script';
     if (!document.getElementById(scriptId)) {
       const script = document.createElement('script');
@@ -48,8 +50,14 @@ export default function InscriptionEcole({ onBack, lang }) {
       document.head.appendChild(script);
     }
 
-    // Render explicite du widget une fois le script charge
+    // Le widget div n'apparait que lorsque step === 2
+    // Donc on attend que step === 2 ET que turnstileRef.current soit non-null
+    if (step !== 2) return;
+
+    // Render explicite du widget une fois le script charge ET le div present
+    let cancelled = false;
     const tryRender = () => {
+      if (cancelled) return;
       if (window.turnstile && turnstileRef.current && !widgetIdRef.current) {
         widgetIdRef.current = window.turnstile.render(turnstileRef.current, {
           sitekey: TURNSTILE_SITE_KEY,
@@ -59,21 +67,22 @@ export default function InscriptionEcole({ onBack, lang }) {
           theme: 'light',
           size: 'normal',
         });
-      } else if (!window.turnstile) {
-        // Attendre que le script se charge
-        setTimeout(tryRender, 300);
+      } else if (!window.turnstile || !turnstileRef.current) {
+        // Attendre que le script se charge OU que le div soit monte
+        setTimeout(tryRender, 200);
       }
     };
     tryRender();
 
-    // Cleanup au unmount
+    // Cleanup quand on quitte l'etape 2 ou unmount
     return () => {
+      cancelled = true;
       if (window.turnstile && widgetIdRef.current) {
         try { window.turnstile.remove(widgetIdRef.current); } catch {}
         widgetIdRef.current = null;
       }
     };
-  }, []);
+  }, [step]);
 
   const set = (k, v) => setForm(f => ({...f, [k]: v}));
 
