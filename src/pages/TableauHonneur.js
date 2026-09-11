@@ -47,20 +47,26 @@ export default function TableauHonneur({ user, navigate, goBack, lang='fr', isMo
     const periodesQuery = anneeActive
       ? supabase.from('periodes_notes').select('*').eq('annee_scolaire_id', anneeActive.id).eq('actif', true).order('date_debut')
       : supabase.from('periodes_notes').select('*').eq('ecole_id', user.ecole_id).eq('actif', true).order('date_debut'); // fallback
-    const [{ data: ed }, { data: vd }, { data: pd }, { data: nv }, { data: pe }, { data: ec }] = await Promise.all([
+    const [{ data: ed }, { data: vd }, { data: pd }, { data: nv }, { data: pe }, { data: ec }, { data: rs }, { data: cert }] = await Promise.all([
       supabase.from('eleves').select('id,prenom,nom,code_niveau,niveau,hizb_depart,tomon_depart,ecole_id').eq('ecole_id', user.ecole_id).order('nom'),
-      fetchAll(supabase.from('validations').select('id,eleve_id,type_validation,nombre_tomon,hizb_valide,date_validation').eq('ecole_id', user.ecole_id)).then(data=>({data})),
+      fetchAll(supabase.from('validations').select('id,eleve_id,type_validation,nombre_tomon,hizb_valide,date_validation,ensemble_id,is_muraja').eq('ecole_id', user.ecole_id)).then(data=>({data})),
       periodesQuery,
       supabase.from('niveaux').select('id,code,nom,couleur,sens_recitation').eq('ecole_id', user.ecole_id).order('ordre'),
       supabase.from('points_eleves').select('*').eq('ecole_id', user.ecole_id).order('created_at', {ascending:false}),
       supabase.from('ecoles').select('sens_recitation_defaut').eq('id', user.ecole_id).maybeSingle(),
+      // FIX-BAREME (sep 2026) : ajout recitations_sourates + certificats
+      fetchAll(supabase.from('recitations_sourates').select('id,eleve_id,type_recitation,is_muraja,points,date_validation').eq('ecole_id', user.ecole_id)).then(data=>({data})),
+      supabase.from('certificats_eleves').select('id,eleve_id,jalon_id,date_obtention,created_at').eq('ecole_id', user.ecole_id),
     ]);
     const elevesData = (ed||[]).map(e => {
       const vals = (vd||[]).filter(v => v.eleve_id === e.id);
       const sensE = getSensForEleve(e, nv, ec);
       const etat = calcEtatEleve(vals, e.hizb_depart, e.tomon_depart, sensE);
       const evts = (pe||[]).filter(p=>p.eleve_id===e.id);
-      return { ...e, etat, validations: vals, pointsEvenements: evts };
+      // FIX-BAREME (sep 2026) : ajout des sourates et certificats par eleve
+      const recs = (rs||[]).filter(r => r.eleve_id === e.id);
+      const certs = (cert||[]).filter(c => c.eleve_id === e.id);
+      return { ...e, etat, validations: vals, pointsEvenements: evts, recitations: recs, certificats: certs };
     });
     setEleves(elevesData);
     setAllValidations(vd||[]);
@@ -75,23 +81,24 @@ export default function TableauHonneur({ user, navigate, goBack, lang='fr', isMo
   // Pas de 'global' pour TableauHonneur — toujours dans une période.
   const getPointsPeriode = (eleve) => {
     const now = new Date();
+    // FIX-BAREME (sep 2026) : passer aussi eleve.recitations et eleve.certificats
     if (periodeId === 'semaine') {
       const d = new Date(now); d.setDate(now.getDate() - 7);
-      return calcPointsPeriode(eleve.validations, d, now, bareme, eleve.pointsEvenements);
+      return calcPointsPeriode(eleve.validations, d, now, bareme, eleve.pointsEvenements, eleve.recitations, eleve.certificats);
     }
     if (periodeId === 'mois') {
       const d = new Date(now.getFullYear(), now.getMonth(), 1);
-      return calcPointsPeriode(eleve.validations, d, now, bareme, eleve.pointsEvenements);
+      return calcPointsPeriode(eleve.validations, d, now, bareme, eleve.pointsEvenements, eleve.recitations, eleve.certificats);
     }
     if (periodeId === 'trimestre') {
       const d = new Date(now); d.setMonth(now.getMonth() - 3); d.setDate(1);
-      return calcPointsPeriode(eleve.validations, d, now, bareme, eleve.pointsEvenements);
+      return calcPointsPeriode(eleve.validations, d, now, bareme, eleve.pointsEvenements, eleve.recitations, eleve.certificats);
     }
     // Periode BDD : clé prefixée "bdd_<id>" pour eviter collision avec rapides
     const bddId = periodeId.startsWith('bdd_') ? periodeId.substring(4) : periodeId;
     const p = periodes.find(x => x.id === bddId);
-    if (p) return calcPointsPeriode(eleve.validations, p.date_debut, p.date_fin, bareme, eleve.pointsEvenements);
-    return calcPointsPeriode(eleve.validations, new Date(0), now, bareme, eleve.pointsEvenements);
+    if (p) return calcPointsPeriode(eleve.validations, p.date_debut, p.date_fin, bareme, eleve.pointsEvenements, eleve.recitations, eleve.certificats);
+    return calcPointsPeriode(eleve.validations, new Date(0), now, bareme, eleve.pointsEvenements, eleve.recitations, eleve.certificats);
   };
 
   // ─── Pattern hybride : 3 boutons rapides + dropdown "Plus" ────────────────

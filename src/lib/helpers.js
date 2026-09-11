@@ -1662,51 +1662,124 @@ export async function verifierEtCreerCertificatsExamens(supabase, {
  * Calcule les points gagnés par un élève sur une période donnée.
  * N'inclut PAS les acquis antérieurs — uniquement les validations dans la plage.
  */
-export function calcPointsPeriode(validations, dateDebut, dateFin, bareme=null, pointsEvenements=[]) {
+/**
+ * Calcule les points d'un eleve sur une periode donnee.
+ *
+ * MAJOR-FIX BAREME (sep 2026) : la fonction ne comptait que Tomon/Hizb
+ * de la table 'validations' et les points_eleves des examens.
+ * Elle IGNORAIT :
+ * - Recitations de sourates (table 'recitations_sourates')
+ * - Muraja Tomon/Hizb (types 'tomon_muraja' / 'hizb_muraja' dans validations)
+ * - Bonus ensembles complets (type 'ensemble_valide' dans validations)
+ * - Certificats obtenus (table 'certificats_eleves')
+ *
+ * Consequence : eleves recitant en sourates (niveaux 5A/5B/2M) affichaient
+ * 0 points partout (menu Notes, tableau d'honneur), alors qu'ils recitaient
+ * activement. Bug remonte par Jamal + surveillant general fin aout 2026.
+ *
+ * @param validations : lignes de la table 'validations' pour l'eleve
+ * @param dateDebut, dateFin : bornes temporelles inclusives
+ * @param bareme : objet du barème (unites, examens, ensembles, jalons)
+ * @param pointsEvenements : lignes de 'points_eleves' pour l'eleve
+ * @param recitationsSourates : lignes de 'recitations_sourates' (NEW sep 2026)
+ * @param certificats : lignes de 'certificats_eleves' (NEW sep 2026)
+ */
+export function calcPointsPeriode(validations, dateDebut, dateFin, bareme=null, pointsEvenements=[], recitationsSourates=[], certificats=[]) {
   const B = (bareme && bareme.unites) ? bareme.unites : (bareme || BAREME_DEFAUT);
   const debut = new Date(dateDebut);
   const fin = new Date(dateFin);
   fin.setHours(23, 59, 59, 999);
 
-  // ── Validations (Tomon / Hizb) ──
-  const vPeriode = validations.filter(v => {
-    const d = new Date(v.date_validation);
-    return d >= debut && d <= fin;
-  });
+  // ── Filtre commun par periode ──
+  const inPeriode = (d) => {
+    const dt = new Date(d);
+    return dt >= debut && dt <= fin;
+  };
+
+  // ── 1. Validations Tomon / Hizb / Muraja / Ensemble ──
+  const vPeriode = validations.filter(v => inPeriode(v.date_validation));
 
   let tomonPeriode = 0;
+  let muraTomonPeriode = 0;
+  let muraHizbPeriode = 0;
   const hizbsCompletsPeriode = new Set();
+  const ensemblesValidesPeriode = []; // ids
+
   for (const v of vPeriode) {
     if (v.type_validation === 'hizb_complet') {
       hizbsCompletsPeriode.add(v.hizb_valide);
+    } else if (v.type_validation === 'tomon_muraja') {
+      if (v.nombre_tomon > 0) muraTomonPeriode += v.nombre_tomon;
+    } else if (v.type_validation === 'hizb_muraja') {
+      muraHizbPeriode += 1;
+    } else if (v.type_validation === 'ensemble_valide') {
+      if (v.ensemble_id) ensemblesValidesPeriode.push(v.ensemble_id);
     } else if (v.nombre_tomon > 0) {
+      // Par defaut : type_validation='tomon' ou absent + nombre_tomon > 0
       tomonPeriode += v.nombre_tomon;
     }
   }
 
-  // BUG-FIX BAREME (mai 2026) : suppression Roba/Nisf, calcul Tomon+Hizb uniquement
-  const ptsTomon = tomonPeriode * B.tomon;
-  const ptsHizb = hizbsCompletsPeriode.size * B.hizb_complet;
+  const ptsTomon = tomonPeriode * (B.tomon || 0);
+  const ptsHizb = hizbsCompletsPeriode.size * (B.hizb_complet || 0);
+  const ptsMuraTomon = muraTomonPeriode * (B.muraja_tomon || 0);
+  const ptsMuraHizb = muraHizbPeriode * (B.muraja_hizb || 0);
 
-  // ── Événements ponctuels (examens réussis, certificats, ensembles) ──
-  const evtPeriode = (pointsEvenements || []).filter(e => {
-    const d = new Date(e.date_event);
-    return d >= debut && d <= fin;
-  });
-  const ptsExamens   = evtPeriode.filter(e=>e.type_event==='examen').reduce((s,e)=>s+e.points,0);
-  const ptsCertificats = evtPeriode.filter(e=>e.type_event==='jalon').reduce((s,e)=>s+e.points,0);
-  const ptsEnsembles = evtPeriode.filter(e=>e.type_event==='ensemble_sourates').reduce((s,e)=>s+e.points,0);
+  // Bonus ensemble complet : lookup dans bareme.ensembles[ensemble_id]
+  const baremeEnsembles = (bareme && bareme.ensembles) || {};
+  let ptsBonusEnsembles = 0;
+  for (const eid of ensemblesValidesPeriode) {
+    ptsBonusEnsembles += (baremeEnsembles[eid] || 0);
+  }
 
-  const total = ptsTomon + ptsHizb + ptsExamens + ptsCertificats + ptsEnsembles;
+  // ── 2. Recitations de sourates (points deja stockes en BDD) ──
+  // La colonne 'points' est pre-calculee par calculerPointsSourate au moment
+  // de la validation. Il suffit de sommer.
+  const recPeriode = (recitationsSourates || []).filter(r => inPeriode(r.date_validation));
+  const ptsSourates = recPeriode.reduce((s, r) => s + (Number(r.points) || 0), 0);
+  const nbSouratesCompletes = recPeriode.filter(r => r.type_recitation === 'complete' && !r.is_muraja).length;
+  const nbSouratesMuraja = recPeriode.filter(r => r.is_muraja).length;
+
+  // ── 3. Certificats obtenus dans la periode ──
+  const baremeJalons = (bareme && bareme.jalons) || {};
+  const certifPeriode = (certificats || []).filter(c => inPeriode(c.date_obtention || c.created_at));
+  let ptsCertificats = 0;
+  for (const c of certifPeriode) {
+    // Chaque certificat correspond a un jalon (colonne jalon_id)
+    ptsCertificats += (baremeJalons[c.jalon_id] || 0);
+  }
+
+  // ── 4. Evenements ponctuels historiques (compat retro) ──
+  // Certaines ecoles pourraient avoir des points_eleves historiques.
+  // On garde pour ne pas casser la retrocompat.
+  const evtPeriode = (pointsEvenements || []).filter(e => inPeriode(e.date_event));
+  const ptsExamens = evtPeriode.filter(e => e.type_event === 'examen').reduce((s, e) => s + (Number(e.points) || 0), 0);
+  // Note : on NE compte PAS ici les type_event='jalon' ou 'ensemble_sourates'
+  // pour eviter le double-comptage (deja compte en 3. et via ensemblesValides).
+  // Historiquement personne n'enregistrait ces types dans points_eleves donc
+  // aucun risque de regression.
+
+  const total = ptsTomon + ptsHizb + ptsMuraTomon + ptsMuraHizb + ptsBonusEnsembles
+              + ptsSourates + ptsCertificats + ptsExamens;
 
   return {
     total,
+    // Points par categorie (utile pour affichage detaille)
     ptsTomon, ptsHizb,
-    // Compat retrocompatible : Roboe/Nisf existent toujours mais valent 0
+    ptsMuraTomon, ptsMuraHizb,
+    ptsBonusEnsembles,
+    ptsSourates,
+    ptsCertificats, ptsExamens,
+    // Compat retro : anciens champs conserves
     ptsRoboe: 0, ptsNisf: 0,
-    ptsExamens, ptsCertificats, ptsEnsembles,
+    ptsEnsembles: ptsBonusEnsembles, // alias historique
+    // Compteurs bruts
     tomonPeriode,
     hizbsPeriode: hizbsCompletsPeriode.size,
+    muraTomonPeriode, muraHizbPeriode,
+    nbSouratesCompletes, nbSouratesMuraja,
+    nbCertificats: certifPeriode.length,
+    nbEnsemblesComplets: ensemblesValidesPeriode.length,
     nbValidations: vPeriode.length,
     details: { nbRoboe: 0, nbNisf: 0, nbHizb: hizbsCompletsPeriode.size },
   };

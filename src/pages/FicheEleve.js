@@ -1746,9 +1746,10 @@ ${(passages||[]).length > 0 ? `
               const ptsSourCompl = recitationsSouratesEleve.filter(r=>r.type_recitation==='complete').reduce((s,r)=>s+(r.points||0),0);
               const nbSourCompl = recitationsSouratesEleve.filter(r=>r.type_recitation==='complete').length;
               const nbSourSeq = recitationsSouratesEleve.filter(r=>r.type_recitation==='sequence').length;
-              const pts = estSourate
-                ? { total: ptsSourTot, tomonPeriode: nbSourCompl, ptsTomon: ptsSourCompl, ptsEnsembles:0, ptsExamens: examens.reduce((s,e)=>s+(e.score||0),0), ptsCertificats: certificats.length*50, hizbsPeriode:0, ptsHizb:0, ptsRoboe:0, ptsNisf:0, details:{nbRoboe:0,nbNisf:0,nbHizb:0} }
-                : calcPointsPeriode(validations||[], new Date('2000-01-01'), new Date(), baremeEleve, pointsEvenements);
+              // FIX-BAREME (sep 2026) : plus besoin de branche 'estSourate' custom.
+              // calcPointsPeriode gere maintenant nativement les recitations sourates
+              // et les certificats via ses parametres 5 et 6.
+              const pts = calcPointsPeriode(validations||[], new Date('2000-01-01'), new Date(), baremeEleve, pointsEvenements, recitationsSouratesEleve||[], certificats||[]);
               return (
                 <div style={{padding:'1rem 0'}}>
                   {/* Total depuis le début */}
@@ -2681,9 +2682,8 @@ ${(passages||[]).length > 0 ? `
             const ptsSourateTotal = recitationsSouratesEleve.reduce((s,r)=>s+(r.points||0),0);
             const ptsSourateCompletes = recitationsSouratesEleve.filter(r=>r.type_recitation==='complete').reduce((s,r)=>s+(r.points||0),0);
             const ptsSourateSequences = recitationsSouratesEleve.filter(r=>r.type_recitation==='sequence').reduce((s,r)=>s+(r.points||0),0);
-            const pts = estSourate2
-              ? { total: ptsSourateTotal, tomonPeriode: recitationsSouratesEleve.filter(r=>r.type_recitation==='complete').length, ptsTomon: ptsSourateCompletes, ptsEnsembles: 0, ptsExamens: examens.reduce((s,e)=>s+(e.score||0),0), ptsCertificats: certificats.length*50, hizbsPeriode:0, ptsHizb:0, ptsRoboe:0, ptsNisf:0, details:{nbRoboe:0,nbNisf:0,nbHizb:0} }
-              : calcPointsPeriode(validations||[], new Date('2000-01-01'), new Date(), baremeEleve, pointsEvenements);
+            // FIX-BAREME (sep 2026) : idem, appel unifie
+            const pts = calcPointsPeriode(validations||[], new Date('2000-01-01'), new Date(), baremeEleve, pointsEvenements, recitationsSouratesEleve||[], certificats||[]);
             return (
               <div style={{padding:'0.5rem 0'}}>
                 {/* Total depuis le début */}

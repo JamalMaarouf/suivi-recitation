@@ -16,6 +16,8 @@ export default function ListeNotes({ user, navigate, goBack, lang='fr', isMobile
   const [eleves, setEleves] = useState([]);
   const [allValidations, setAllValidations] = useState([]);
   const [pointsEvts, setPointsEvts] = useState([]);
+  const [allRecitations, setAllRecitations] = useState([]);
+  const [allCertificats, setAllCertificats] = useState([]);
   const [instituteurs, setInstituteurs] = useState([]);
   const [niveaux, setNiveaux] = useState([]);
   const [bareme, setBareme] = useState({ unites:{...BAREME_DEFAUT}, examens:{}, ensembles:{}, jalons:{} });
@@ -46,18 +48,24 @@ export default function ListeNotes({ user, navigate, goBack, lang='fr', isMobile
   const loadData = async () => {
     setLoading(true);
     try {
-    const [{ data: el }, { data: vd }, { data: pe }, { data: inst }, { data: niv }] = await Promise.all([
+    // FIX-BAREME (sep 2026) : charger AUSSI recitations_sourates et certificats
+    // pour que les eleves recitant en sourates aient enfin leurs points comptes.
+    const [{ data: el }, { data: vd }, { data: pe }, { data: inst }, { data: niv }, { data: rs }, { data: cert }] = await Promise.all([
       supabase.from('eleves').select('id,prenom,nom,code_niveau,eleve_id_ecole,hizb_depart,tomon_depart,instituteur_referent_id').eq('ecole_id', user.ecole_id).order('nom'),
-      fetchAll(supabase.from('validations').select('id,eleve_id,type_validation,nombre_tomon,hizb_valide,date_validation').eq('ecole_id', user.ecole_id)).then(data=>({data})),
+      fetchAll(supabase.from('validations').select('id,eleve_id,type_validation,nombre_tomon,hizb_valide,date_validation,ensemble_id,is_muraja').eq('ecole_id', user.ecole_id)).then(data=>({data})),
       supabase.from('points_eleves').select('*').eq('ecole_id', user.ecole_id).order('created_at', {ascending:false}),
       supabase.from('utilisateurs').select('id,prenom,nom').eq('role','instituteur').eq('ecole_id', user.ecole_id),
       supabase.from('niveaux').select('id,code,nom,couleur').eq('ecole_id', user.ecole_id).order('ordre'),
+      fetchAll(supabase.from('recitations_sourates').select('id,eleve_id,type_recitation,is_muraja,points,date_validation').eq('ecole_id', user.ecole_id)).then(data=>({data})),
+      supabase.from('certificats_eleves').select('id,eleve_id,jalon_id,date_obtention,created_at').eq('ecole_id', user.ecole_id),
     ]);
     setEleves(el || []);
     setAllValidations(vd || []);
     setPointsEvts(pe || []);
     setInstituteurs(inst || []);
     setNiveaux(niv || []);
+    setAllRecitations(rs || []);
+    setAllCertificats(cert || []);
     const b = await loadBareme(supabase, user.ecole_id);
     setBareme(b);
     } catch (e) {
@@ -98,16 +106,29 @@ export default function ListeNotes({ user, navigate, goBack, lang='fr', isMobile
       if (!evtsByEleve.has(p.eleve_id)) evtsByEleve.set(p.eleve_id, []);
       evtsByEleve.get(p.eleve_id).push(p);
     });
+    // FIX-BAREME (sep 2026) : idem pour recitations + certificats
+    const recsByEleve = new Map();
+    allRecitations.forEach(r => {
+      if (!recsByEleve.has(r.eleve_id)) recsByEleve.set(r.eleve_id, []);
+      recsByEleve.get(r.eleve_id).push(r);
+    });
+    const certsByEleve = new Map();
+    allCertificats.forEach(c => {
+      if (!certsByEleve.has(c.eleve_id)) certsByEleve.set(c.eleve_id, []);
+      certsByEleve.get(c.eleve_id).push(c);
+    });
     const instById = new Map(instituteurs.map(i => [i.id, i]));
 
     return eleves.map(el => {
       const vals = valsByEleve.get(el.id) || [];
       const evts = evtsByEleve.get(el.id) || [];
-      const pts = calcPointsPeriode(vals, debut, fin, bareme, evts);
+      const recs = recsByEleve.get(el.id) || [];
+      const certs = certsByEleve.get(el.id) || [];
+      const pts = calcPointsPeriode(vals, debut, fin, bareme, evts, recs, certs);
       const inst = instById.get(el.instituteur_referent_id);
       return { ...el, pts, instNom: inst ? `${inst.prenom} ${inst.nom}` : '—' };
     }).sort((a, b) => b.pts.total - a.pts.total);
-  }, [eleves, allValidations, pointsEvts, bareme, periode, dateDebut, dateFin, periodesBDD, anneeActive]);
+  }, [eleves, allValidations, pointsEvts, allRecitations, allCertificats, bareme, periode, dateDebut, dateFin, periodesBDD, anneeActive]);
 
   const filtered = elevesAvecPts.filter(el => {
     if (searchNum && !el.eleve_id_ecole?.includes(searchNum) && !(el.prenom+' '+el.nom).toLowerCase().includes(searchNum.toLowerCase())) return false;
