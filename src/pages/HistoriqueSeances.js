@@ -531,6 +531,14 @@ export default function HistoriqueSeances({ user, navigate, goBack, lang='fr', i
               <option value="tomon" style={{color:'#333'}}>Tomon</option>
               <option value="hizb" style={{color:'#333'}}>Hizb</option>
             </select>
+            {/* F8 (oct 2026) : filtre instituteur, comme sur PC (surveillant) */}
+            {user.role==='surveillant' && (
+              <select value={filterInstituteur} onChange={e=>setFilterInstituteur(e.target.value)}
+                style={{gridColumn:'1 / -1',padding:'8px 10px',borderRadius:10,border:'none',fontSize:13,fontFamily:'inherit',background:'rgba(255,255,255,0.2)',color:'#fff'}}>
+                <option value="tous" style={{color:'#333'}}>{lang==='ar'?'كل الأساتذة':'Tous les instituteurs'}</option>
+                {instituteurs.map(i=><option key={i.id} value={i.id} style={{color:'#333'}}>{i.prenom} {i.nom}</option>)}
+              </select>
+            )}
           </div>
         </div>
         {/* Recherche élève — EN DEHORS du header sticky pour éviter le clipping */}
@@ -598,6 +606,9 @@ export default function HistoriqueSeances({ user, navigate, goBack, lang='fr', i
                 {label:lang==='ar'?'إجمالي النقاط':'Total points',val:(actifs||[]).reduce((s,e)=>s+(e.pts||0),0).toLocaleString(),color:'#534AB7',bg:'#F0EEFF'},
                 {label:lang==='ar'?'الثُّمنات':'Tomon',val:(actifs||[]).reduce((s,e)=>s+(e.tomon||0),0),color:'#378ADD',bg:'#E6F1FB'},
                 {label:lang==='ar'?'الأحزاب':'Hizb',val:(actifs||[]).reduce((s,e)=>s+(e.hizb||0),0),color:'#EF9F27',bg:'#FAEEDA'},
+                // F8 : sourates + sequences (un eleve sourate apparaissait "vide")
+                {label:lang==='ar'?'السور':'Sourates',val:(actifs||[]).reduce((s,e)=>s+(e.sourates||0),0),color:'#085041',bg:'#E1F5EE'},
+                {label:lang==='ar'?'المقاطع':'Séquences',val:(actifs||[]).reduce((s,e)=>s+(e.seqs||0),0),color:'#D85A30',bg:'#FAECE7'},
               ].map((k,i)=>(
                 <div key={i} style={{background:k.bg,borderRadius:12,padding:'14px',textAlign:'center',border:`0.5px solid ${k.color}20`}}>
                   <div style={{fontSize:24,fontWeight:800,color:k.color}}>{k.val}</div>
@@ -606,33 +617,86 @@ export default function HistoriqueSeances({ user, navigate, goBack, lang='fr', i
               ))}
             </div>
 
-            {/* Liste élèves */}
+            {/* F8 (oct 2026) : activite quotidienne (points par jour), comme sur PC */}
+            {timelineArr.length>0 && (
+              <div style={{background:'#fff',borderRadius:12,padding:'12px',marginBottom:14,border:'0.5px solid #e0e0d8'}}>
+                <div style={{fontSize:12,fontWeight:700,color:'#888',marginBottom:8}}>
+                  {lang==='ar'?'النشاط اليومي':'Activité quotidienne'}
+                  <span style={{fontWeight:400,marginInlineStart:6}}>
+                    · {lang==='ar'?'المعدل':'moy.'} {Math.round(timelineArr.reduce((s,d)=>s+d.pts,0)/timelineArr.length)} pts/{lang==='ar'?'يوم':'jour'}
+                  </span>
+                </div>
+                <div style={{display:'flex',alignItems:'flex-end',gap:2,height:70}}>
+                  {timelineArr.slice(-31).map(d=>(
+                    <div key={d.date} title={`${d.date} : ${d.pts} pts`}
+                      style={{flex:1,minWidth:3,height:`${Math.max(4,Math.round(d.pts/maxPtsDay*100))}%`,
+                        background:d.pts===maxPtsDay?'#EF9F27':'#1D9E75',borderRadius:'3px 3px 0 0',opacity:0.85}}/>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Liste eleves - F8 (oct 2026) : iterait sur elevesVisibles (eleves bruts) au lieu des
+                statistiques calculees -> 0 pt / 0 tomon pour tous, ni tri ni tendance. Utilise
+                maintenant 'actifs' (comme le PC) ; un appui deplie le detail de la periode. */}
             <div style={{fontSize:12,fontWeight:700,color:'#888',marginBottom:8}}>
-              {lang==='ar'?'أداء الطلاب':'Performance des élèves'} ({elevesVisibles?.length||0})
+              {lang==='ar'?'أداء الطلاب':'Performance des élèves'} ({actifs.length}/{elevesVisibles?.length||0})
             </div>
-            {(elevesVisibles||[]).map((e,idx)=>{
+            {actifs.map((st,idx)=>{
+              const e=st.eleve;
               const nc={'5B':'#534AB7','5A':'#378ADD','2M':'#1D9E75','2':'#EF9F27','1':'#E24B4A'}[e.code_niveau||'1']||'#888';
+              const ouvert = selectedEleve===e.id;
               return(
-                <div key={e.id} onTouchEnd={()=>navigate('fiche',e)} onClick={()=>navigate('fiche',e)}
-                  style={{background:'#fff',borderRadius:12,padding:'13px 14px',marginBottom:8,
-                    border:'0.5px solid #e0e0d8',display:'flex',alignItems:'center',gap:12,cursor:'pointer'}}>
-                  <div style={{width:32,height:32,borderRadius:'50%',background:`${nc}20`,color:nc,
-                    display:'flex',alignItems:'center',justifyContent:'center',fontWeight:800,fontSize:12,flexShrink:0}}>
-                    {idx+1}
-                  </div>
-                  <div style={{flex:1,minWidth:0}}>
-                    <div style={{fontWeight:700,fontSize:14}}>{e.prenom} {e.nom}</div>
-                    <div style={{display:'flex',gap:6,alignItems:'center',marginTop:2}}>
-                      <span style={{padding:'1px 7px',borderRadius:8,background:`${nc}20`,color:nc,fontSize:11,fontWeight:700}}>{e.code_niveau||'?'}</span>
-                      <span style={{fontSize:11,color:'#888'}}>{e.joursActifs||0} j · {e.tomon||0} T</span>
+                <div key={e.id} style={{marginBottom:8}}>
+                  <div onClick={()=>setSelectedEleve(ouvert?null:e.id)}
+                    style={{background:'#fff',borderRadius:ouvert?'12px 12px 0 0':12,padding:'13px 14px',
+                      border:`0.5px solid ${ouvert?'#1D9E75':'#e0e0d8'}`,display:'flex',alignItems:'center',gap:12,cursor:'pointer'}}>
+                    <div style={{width:32,height:32,borderRadius:'50%',background:`${nc}20`,color:nc,
+                      display:'flex',alignItems:'center',justifyContent:'center',fontWeight:800,fontSize:12,flexShrink:0}}>
+                      {idx+1}
                     </div>
+                    <div style={{flex:1,minWidth:0}}>
+                      <div style={{fontWeight:700,fontSize:14}}>{e.prenom} {e.nom}</div>
+                      <div style={{display:'flex',gap:6,alignItems:'center',marginTop:2,flexWrap:'wrap'}}>
+                        <span style={{padding:'1px 7px',borderRadius:8,background:`${nc}20`,color:nc,fontSize:11,fontWeight:700}}>{e.code_niveau||'?'}</span>
+                        <span style={{fontSize:11,color:'#888'}}>
+                          {st.nbSeances||0} {lang==='ar'?'حصة':'séance(s)'} · {st.isSourate ? `${st.sourates||0} ${lang==='ar'?'سورة':'sour.'}` : `${st.tomon||0} T · ${st.hizb||0} H`}
+                        </span>
+                      </div>
+                    </div>
+                    <div style={{textAlign:'right',flexShrink:0}}>
+                      <div style={{fontSize:18,fontWeight:800,color:'#1D9E75'}}>{(st.pts||0).toLocaleString()}</div>
+                      <div style={{fontSize:10,color:'#888'}}>pts</div>
+                    </div>
+                    {st.trend==='up'&&<span style={{fontSize:14}}>📈</span>}
+                    {st.trend==='down'&&<span style={{fontSize:14}}>📉</span>}
                   </div>
-                  <div style={{textAlign:'right',flexShrink:0}}>
-                    <div style={{fontSize:18,fontWeight:800,color:'#1D9E75'}}>{(e.pts||0).toLocaleString()}</div>
-                    <div style={{fontSize:10,color:'#888'}}>pts</div>
-                  </div>
-                  {e.trend==='up'&&<span style={{fontSize:14}}>📈</span>}
-                  {e.trend==='down'&&<span style={{fontSize:14}}>📉</span>}
+                  {ouvert && (
+                    <div style={{background:'#fff',border:'0.5px solid #1D9E75',borderTop:'none',borderRadius:'0 0 12px 12px',padding:'8px 12px 12px'}}>
+                      {allDrill.length===0 ? (
+                        <div style={{fontSize:12,color:'#aaa',padding:'6px 0'}}>{lang==='ar'?'لا نشاط في هذه الفترة':'Aucune activité sur la période'}</div>
+                      ) : allDrill.slice(0,30).map((item,i)=>{
+                        const isSR=!!item.type_recitation;
+                        const sourate=souratesDB.find(x=>x.id===item.sourate_id);
+                        const pts=isSR?(item.points||0):(item.type_validation==='hizb_complet'?(bareme.hizb_complet||0):item.nombre_tomon*(bareme.tomon||0));
+                        return (
+                          <div key={i} style={{display:'flex',alignItems:'center',gap:8,padding:'6px 0',borderBottom:'0.5px solid #f0f0ec',fontSize:12}}>
+                            <span style={{color:'#888',minWidth:52}}>{new Date(item.date_validation).toLocaleDateString('fr-FR',{day:'2-digit',month:'short'})}</span>
+                            <span style={{flex:1,minWidth:0,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>
+                              {isSR
+                                ? <span style={{fontFamily:"'Tajawal',Arial"}}>{sourate?sourate.nom_ar:'—'} {item.type_recitation==='sequence'?`(V.${item.verset_debut}→${item.verset_fin})`:''}</span>
+                                : (item.type_validation==='hizb_complet' ? `Hizb ${item.hizb_valide} ✓` : `${item.nombre_tomon} T · Hizb ${item.hizb_validation||'—'}`)}
+                            </span>
+                            <span style={{fontWeight:700,color:'#1D9E75'}}>+{pts}</span>
+                          </div>
+                        );
+                      })}
+                      <button onClick={()=>navigate('fiche',e)}
+                        style={{marginTop:10,width:'100%',padding:'9px',background:'#1D9E75',color:'#fff',border:'none',borderRadius:8,fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
+                        {lang==='ar'?'بطاقة الطالب ←':'Fiche élève →'}
+                      </button>
+                    </div>
+                  )}
                 </div>
               );
             })}
