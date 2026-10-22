@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 import { getInitiales, scoreLabel, loadBareme, verifierEtCreerCertificats, verifierBlocageEnsemble, calculerPointsSourate, verifierBlocageExamen } from '../lib/helpers';
 import { t } from '../lib/i18n';
@@ -148,29 +148,13 @@ export default function RecitationSourate({ user, eleve, navigate, goBack, lang=
       setLoading(false);
     }
     
-    // Auto-navigate to current sourate after loading
-    // Only if we're still on liste (not already on a specific sourate)
-    // Find the current sourate based on acquis and completions
-    const souratesAcq = eleve.sourates_acquises || 0;
-    const souratesNiv = getSouratesForNiveau(eleve.code_niveau || '5B');
-    const souratesOrd = [...souratesNiv].sort((a,b) =>
-      resolvedSens === 'asc' ? a.numero - b.numero : b.numero - a.numero);
-    
-    const getDbIdLocal = (numero) => sdbData.find(s => s.numero === numero)?.id;
-    const isCompleteLocal = (numero) => {
-      const dbId = getDbIdLocal(numero);
-      return dbId ? rdData.some(r => r.sourate_id === dbId && r.type_recitation === 'complete') : false;
-    };
-    
-    const currentIdxLocal = souratesOrd.findIndex((sr, i) => {
-      if (i < souratesAcq) return false;
-      return !isCompleteLocal(sr.numero);
-    });
-    
-    if (currentIdxLocal >= 0) {
-      setSelectedSourate(souratesOrd[currentIdxLocal]);
-      setStep('valider');
-    }
+    // BUG-FIX (oct 2026) : ici se trouvait une "navigation automatique vers la sourate
+    // en cours" qui utilisait resolvedSens / sdbData / rdData HORS du try ou ils sont
+    // declares -> ReferenceError a chaque loadData. Consequence : apres chaque
+    // recitation (confirmer -> await loadData()), la suite etait sautee : verification
+    // des certificats, retour a la liste, remise a zero des versets. Le bloc n'avait
+    // donc jamais fonctionne ; il est retire pour garder le comportement actuel
+    // (ouverture sur la liste) tout en laissant enfin s'executer la suite.
   };
 
   const getDbId = (numero) => souratesDB.find(s => s.numero === numero)?.id;
@@ -226,7 +210,15 @@ export default function RecitationSourate({ user, eleve, navigate, goBack, lang=
   // rien) : on pouvait continuer a reciter alors qu'un examen etait requis.
   // Page reservee aux eleves sourate : leurs recitations (deja chargees) suffisent.
   // Retourne true (et previent l'utilisateur) si l'enregistrement doit etre bloque.
+  // Verrou anti double-appui (revue oct 2026) : la verification fait plusieurs requetes ;
+  // sans verrou, un 2e appui pendant ce delai inserait la recitation deux fois.
+  // Pris ici, libere si blocage, sinon a la fin de l'enregistrement (saving -> false).
+  const verrouRef = useRef(false);
+  useEffect(() => { if (!saving) verrouRef.current = false; }, [saving]);
+
   const examenBloque = async () => {
+    if (verrouRef.current) return true; // enregistrement deja en cours : ignorer
+    verrouRef.current = true;
     try {
       const blocageExamen = await verifierBlocageExamen(supabase, {
         eleve, ecole_id: user.ecole_id, validations: [], recitations: recitations || [],
@@ -236,10 +228,11 @@ export default function RecitationSourate({ user, eleve, navigate, goBack, lang=
         toast.error(lang==='ar'
           ? `⛔ امتحان مطلوب: "${nomExamen}" قبل المتابعة`
           : `⛔ Examen requis : "${nomExamen}" avant de continuer`, { duration: 5000 });
+        verrouRef.current = false;
         return true;
       }
     } catch (e) { console.warn('blocage examen check', e); }
-    return false;
+    return false; // verrou garde jusqu'a la fin de l'enregistrement (voir useEffect sur saving)
   };
 
   const confirmer = async () => {
@@ -456,7 +449,7 @@ export default function RecitationSourate({ user, eleve, navigate, goBack, lang=
                                         date_validation:new Date().toISOString()});
                                     if (!error) { setFlash({msg:`✅ +${calcPts.points} pts`,color:'#1D9E75'}); setTimeout(()=>setFlash(null),2000); loadData(); }
                                   }
-                                  setSaving(false); setSelectedSourate(null);
+                                  setSaving(false); setSelectedSourate(null); verrouRef.current = false;
                                 }}
                                 style={{padding:'10px',background:nc,color:'#fff',border:'none',borderRadius:10,
                                   fontSize:13,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
@@ -475,7 +468,7 @@ export default function RecitationSourate({ user, eleve, navigate, goBack, lang=
                                       date_validation:new Date().toISOString(),verset_debut:1,verset_fin:1});
                                   if (!error) { setFlash({msg:'📝 +10 pts',color:'#378ADD'}); setTimeout(()=>setFlash(null),2000); loadData(); }
                                 }
-                                setSaving(false);
+                                setSaving(false); verrouRef.current = false;
                               }}
                               style={{padding:'10px',background:`${nc}20`,color:nc,border:`1px solid ${nc}30`,borderRadius:10,
                                 fontSize:13,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>

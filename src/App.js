@@ -292,8 +292,11 @@ function App() {
     if (outcome === 'accepted') { deferredPrompt = null; setShowInstallBtn(false); }
   };
   const pageRef = React.useRef('dashboard');
-  // F9 (oct 2026) : page ouverte depuis le menu mobile "Plus" (modules) -> Retour y revient
-  const ouverteDepuisModulesRef = React.useRef(null);
+  // F9 (oct 2026) : origine memorisee pour le Retour mobile : {page, vers}
+  // - page ouverte depuis le menu "Plus" (modules) -> Retour revient a "Plus"
+  // - liste eleves (eleves_mobile) ouverte depuis Gestion -> Retour revient a Gestion
+  // Effacee des qu'on revient a l'accueil / au menu Plus (revue oct 2026).
+  const retourMobileRef = React.useRef(null);
   const setPageWithRef = (p) => { pageRef.current = p; setPage(p); };
 
   useEffect(() => {
@@ -428,7 +431,9 @@ function App() {
   };
 
   const navigate = (p, data = null, extraData = null) => {
-    if (pageRef.current === 'modules') ouverteDepuisModulesRef.current = p; // F9
+    if (pageRef.current === 'modules') retourMobileRef.current = { page: p, vers: 'modules' }; // F9
+    else if (pageRef.current === 'gestion' && p === 'eleves_mobile') retourMobileRef.current = { page: p, vers: 'gestion' };
+    else if (p === 'dashboard' || p === 'modules') retourMobileRef.current = null;
     setPageWithRef(p);
     if (p === 'fiche' || p === 'enregistrer') setSelectedEleve(data);
     if (p === 'profil_instituteur') setSelectedInstituteur(data);
@@ -517,9 +522,9 @@ function App() {
     let parent = PARENT_PAGE[currentPage] || 'dashboard';
     if (user?.role !== 'surveillant' && PAGES_SURVEILLANT.has(parent)) parent = 'dashboard';
     // F9 : sur mobile, une page ouverte depuis "Plus" revient au menu Plus (et non a l'accueil)
-    if (isMobile && ouverteDepuisModulesRef.current === currentPage) {
-      parent = 'modules';
-      ouverteDepuisModulesRef.current = null;
+    if (isMobile && retourMobileRef.current && retourMobileRef.current.page === currentPage) {
+      parent = retourMobileRef.current.vers;
+      retourMobileRef.current = null;
     }
     setPageWithRef(parent);
     // Reset des selections specifiques quand on remonte
@@ -536,7 +541,7 @@ function App() {
   // a une page anciennement visitee dans une autre branche).
   const navigateRoot = (p) => {
     setNavHistory([]);
-    ouverteDepuisModulesRef.current = null; // F9 : la navbar repart de zero
+    retourMobileRef.current = null; // F9 : la navbar repart de zero
     setPageWithRef(p);
     // Reset des donnees contextuelles de deep-link : la navbar est un "fresh start",
     // donc on ne doit pas pre-selectionner un eleve/examen residuel d'un deep-link
