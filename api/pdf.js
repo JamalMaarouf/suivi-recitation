@@ -140,7 +140,7 @@ function generateRapportMensuel(data, lang) {
         <th>${isAr ? 'الطالب' : 'Élève'}</th>
         <th>${isAr ? 'المستوى' : 'Niveau'}</th>
         <th>${isAr ? 'النقاط' : 'Points'}</th>
-        <th>${isAr ? 'الثُّمنات' : 'Tomon'}</th>
+        <th>${isAr ? 'الأثمان/السور' : 'Tomon/Sourates'}</th>
         <th>${isAr ? 'الأحزاب' : 'Hizb'}</th>
         <th>${isAr ? 'أيام نشطة' : 'Jours actifs'}</th>
       </tr></thead>

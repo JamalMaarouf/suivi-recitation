@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { supabase } from '../lib/supabase';
 import { useToast } from '../lib/toast';
-import { calcEtatEleve, getInitiales , loadBareme, BAREME_DEFAUT, getSensForEleve} from '../lib/helpers';
+import { calcEtatEleve, getInitiales , loadBareme, BAREME_DEFAUT, getSensForEleve, calcPointsPeriode} from '../lib/helpers';
 import { fetchAll } from '../lib/fetchAll';
 import { openPDF } from '../lib/pdf';
 import ExportButtons from '../components/ExportButtons';
@@ -43,6 +43,8 @@ export default function RapportMensuel({ user, navigate, goBack, lang='fr', isMo
   const [ecole,      setEcole]      = useState(null);
   const [loading,    setLoading]    = useState(true);
   const [bareme, setBareme] = React.useState({...BAREME_DEFAUT});
+  const [pointsEvts, setPointsEvts] = useState([]);   // points_eleves (examens)
+  const [certificats, setCertificats] = useState([]); // certificats_eleves
   const [generating, setGenerating] = useState(false);
 
   useEffect(() => { loadAll(); }, []);
@@ -52,7 +54,8 @@ export default function RapportMensuel({ user, navigate, goBack, lang='fr', isMo
     try {
     const [
       {data:el},{data:nv},{data:inst},{data:vd},{data:rd},
-      {data:ob},{data:ex},{data:re},{data:ec}
+      {data:ob},{data:ex},{data:re},{data:ec},
+      br, {data:pe}, {data:ce}
     ] = await Promise.all([
       supabase.from('eleves').select('*').eq('ecole_id',user.ecole_id).is('suspendu_at', null).order('nom'),
       supabase.from('niveaux').select('*').eq('ecole_id',user.ecole_id).order('ordre'),
@@ -63,7 +66,16 @@ export default function RapportMensuel({ user, navigate, goBack, lang='fr', isMo
       supabase.from('examens').select('*').eq('ecole_id',user.ecole_id),
       supabase.from('resultats_examens').select('*').eq('ecole_id',user.ecole_id),
       supabase.from('ecoles').select('*').eq('id',user.ecole_id).maybeSingle(),
+      // BUG-FIX RAPPORT MENSUEL (oct 2026) : le bareme n'etait JAMAIS charge
+      // (state reste BAREME_DEFAUT, tomon=0) -> points faux. On charge aussi
+      // examens et certificats pour calculer comme la liste des notes.
+      loadBareme(supabase, user.ecole_id).catch(() => null),
+      supabase.from('points_eleves').select('eleve_id,type_event,points,date_event').eq('ecole_id',user.ecole_id),
+      supabase.from('certificats_eleves').select('eleve_id,jalon_id,date_obtention,created_at').eq('ecole_id',user.ecole_id),
     ]);
+    if (br) setBareme(br);
+    setPointsEvts(pe||[]);
+    setCertificats(ce||[]);
     setEleves(el||[]);
     setNiveaux(nv||[]);
     setInstituteurs(inst||[]);
@@ -100,9 +112,16 @@ export default function RapportMensuel({ user, navigate, goBack, lang='fr', isMo
     const seqMois     = rMois.filter(r=>r.type_recitation==='sequence').length;
     const seances     = new Set(vMois.map(v=>new Date(v.date_validation).toDateString())).size +
                         new Set(rMois.map(r=>new Date(r.date_validation).toDateString())).size;
-    const ptsMois     = isSourate
-      ? rMois.reduce((s,r)=>s+(r.points||0),0)
-      : tomonMois*(bareme.tomon || 0) + Math.floor(tomonMois/2)*25 + Math.floor(tomonMois/4)*60 + hizbMois*100;
+    // BUG-FIX RAPPORT MENSUEL (oct 2026) : avant, formule de mai obsolete
+    // (bonus Roba +25 / Nisf +60 codes en dur, 100 pts/hizb) + bareme jamais
+    // charge, et pour les sourates seuls les points de recitations (ensembles
+    // oublies). Maintenant : meme calcul que la liste des notes, borne au mois.
+    const ptsMois = calcPointsPeriode(
+      vals, debutMois, finMois, bareme,
+      pointsEvts.filter(p=>p.eleve_id===e.id),
+      recitations.filter(r=>r.eleve_id===e.id),
+      certificats.filter(c=>c.eleve_id===e.id),
+    ).total;
 
     // Objectifs
     const objNiveau = objectifs.find(o=>
@@ -133,7 +152,7 @@ export default function RapportMensuel({ user, navigate, goBack, lang='fr', isMo
       actif: tomonMois>0||hizbMois>0||souratesMois>0,
     };
   }).sort((a,b)=>b.ptsMois-a.ptsMois),
-  [eleves, validations, recitations, niveaux, instituteurs, objectifs, ecole, bareme, debutMois, finMois]);
+  [eleves, validations, recitations, niveaux, instituteurs, objectifs, ecole, bareme, pointsEvts, certificats, debutMois, finMois]);
 
   // ── KPIs globaux ───────────────────────────────────────────────
   const nbActifs     = statsEleves.filter(e=>e.actif).length;
@@ -190,10 +209,12 @@ export default function RapportMensuel({ user, navigate, goBack, lang='fr', isMo
       const elevesData = (statsEleves||[]).map(e => ({
         prenom: e.prenom, nom: e.nom,
         code_niveau: e.code_niveau,
-        pts: e.pts || 0,
-        tomon: e.tomon || 0,
-        hizb: e.hizb || 0,
-        jours: e.joursActifs || 0,
+        // BUG-FIX PDF (oct 2026) : lisait e.pts / e.tomon / e.hizb / e.joursActifs,
+        // champs inexistants -> PDF a 0 partout. Champs reels de statsEleves :
+        pts: e.ptsMois || 0,
+        tomon: e.isSourate ? (e.souratesMois || 0) : (e.tomonMois || 0),
+        hizb: e.hizbMois || 0,
+        jours: e.seances || 0,
       }));
 
       await openPDF('rapport_mensuel', {
