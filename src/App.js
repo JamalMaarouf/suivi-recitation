@@ -60,7 +60,6 @@ const ElevesInactifs      = lazy(() => import('./pages/ElevesInactifs'));
 const GestionNiveaux      = lazy(() => import('./pages/GestionNiveaux'));
 const GestionExamens      = lazy(() => import('./pages/GestionExamens'));
 const GestionEnsembles    = lazy(() => import('./pages/GestionEnsembles'));
-const GestionBlocs        = lazy(() => import('./pages/GestionBlocs'));
 const ImportMasse         = lazy(() => import('./pages/ImportMasse'));
 const ResultatsExamens    = lazy(() => import('./pages/ResultatsExamens'));
 const ListeCertificats    = lazy(() => import('./pages/ListeCertificats'));
@@ -293,6 +292,8 @@ function App() {
     if (outcome === 'accepted') { deferredPrompt = null; setShowInstallBtn(false); }
   };
   const pageRef = React.useRef('dashboard');
+  // F9 (oct 2026) : page ouverte depuis le menu mobile "Plus" (modules) -> Retour y revient
+  const ouverteDepuisModulesRef = React.useRef(null);
   const setPageWithRef = (p) => { pageRef.current = p; setPage(p); };
 
   useEffect(() => {
@@ -427,6 +428,7 @@ function App() {
   };
 
   const navigate = (p, data = null, extraData = null) => {
+    if (pageRef.current === 'modules') ouverteDepuisModulesRef.current = p; // F9
     setPageWithRef(p);
     if (p === 'fiche' || p === 'enregistrer') setSelectedEleve(data);
     if (p === 'profil_instituteur') setSelectedInstituteur(data);
@@ -476,7 +478,6 @@ function App() {
     'niveaux': 'gestion',
     'ensembles': 'gestion',
     'examens': 'gestion',
-    'blocs': 'gestion',
     'import_masse': 'gestion',
     'gestion_assiduite': 'gestion',
     'gestion_tarifs': 'gestion',
@@ -508,13 +509,18 @@ function App() {
   const PAGES_SURVEILLANT = new Set([
     'dashboard_direction','finance','assiduite','gestion_assiduite','gestion_tarifs',
     'gestion_cours','cours_axes','gestion_parents','parents','rapport_mensuel',
-    'gestion','niveaux','ensembles','examens','blocs','import_masse',
+    'gestion','niveaux','ensembles','examens','import_masse',
   ]);
 
   const goBack = () => {
     const currentPage = pageRef.current;
     let parent = PARENT_PAGE[currentPage] || 'dashboard';
     if (user?.role !== 'surveillant' && PAGES_SURVEILLANT.has(parent)) parent = 'dashboard';
+    // F9 : sur mobile, une page ouverte depuis "Plus" revient au menu Plus (et non a l'accueil)
+    if (isMobile && ouverteDepuisModulesRef.current === currentPage) {
+      parent = 'modules';
+      ouverteDepuisModulesRef.current = null;
+    }
     setPageWithRef(parent);
     // Reset des selections specifiques quand on remonte
     if (currentPage === 'fiche' || currentPage === 'enregistrer') setSelectedEleve(null);
@@ -530,6 +536,7 @@ function App() {
   // a une page anciennement visitee dans une autre branche).
   const navigateRoot = (p) => {
     setNavHistory([]);
+    ouverteDepuisModulesRef.current = null; // F9 : la navbar repart de zero
     setPageWithRef(p);
     // Reset des donnees contextuelles de deep-link : la navbar est un "fresh start",
     // donc on ne doit pas pre-selectionner un eleve/examen residuel d'un deep-link
@@ -979,7 +986,6 @@ function App() {
           {page === 'niveaux'           && user.role === 'surveillant' && <GestionNiveaux {...pageProps} />}
           {page === 'ensembles'         && user.role === 'surveillant' && <GestionEnsembles {...pageProps} />}
           {page === 'examens'           && user.role === 'surveillant' && <GestionExamens {...pageProps} />}
-          {page === 'blocs'             && user.role === 'surveillant' && <GestionBlocs {...pageProps} />}
           {page === 'import_masse'      && user.role === 'surveillant' && <ImportMasse {...pageProps} />}
           {page === 'resultats_examens' && <ResultatsExamens {...pageProps} data={resultatsExamensData} />}
           {page === 'liste_certificats' && <ErrorBoundary><Suspense fallback={<div className="loading">...</div>}><ListeCertificats {...pageProps} /></Suspense></ErrorBoundary>}

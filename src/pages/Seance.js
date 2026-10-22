@@ -258,11 +258,14 @@ export default function Seance({ user, navigate, goBack, lang, isMobile=false })
                 <div style={{fontSize:12,fontWeight:700,color:'#888',marginBottom:8}}>
                   {lang==='ar'?'هذا الأسبوع':'Cette semaine'}
                 </div>
+                {/* F7 (oct 2026) : la vue "Cette semaine" filtrait et calculait sur les donnees DU JOUR.
+                    Alignement PC : volume de la semaine (sourates pour un eleve sourate, tomons sinon). */}
                 {elevesDataState.filter(e=>filterNiveau==='tous'||e.code_niveau===filterNiveau)
-                  .filter(e=>e.valsAujourdhui?.length>0||e.souratesCompletesAujourdhui>0)
+                  .filter(e=>(e.isSourate?(e.souratesSemaine||0):(e.tomonSemaine||0))>0)
+                  .sort((a,b)=>(b.isSourate?(b.souratesSemaine||0):(b.tomonSemaine||0))-(a.isSourate?(a.souratesSemaine||0):(a.tomonSemaine||0)))
                   .map((e,idx)=>{
                     const nc=NIVEAU_COLORS[e.code_niveau||'1']||'#888';
-                    const pts=e.ptsAujourdhui||0; // NETTOYAGE oct 2026 : avant replis ||30/||10 codes en dur + nombre de tomons ignore
+                    const volSemaine = e.isSourate ? (e.souratesSemaine||0) : (e.tomonSemaine||0);
                     return(
                       <div key={e.id} onTouchEnd={()=>navigate('fiche',e)} onClick={()=>navigate('fiche',e)}
                         style={{background:'#fff',borderRadius:12,padding:'13px 14px',marginBottom:8,
@@ -276,8 +279,8 @@ export default function Seance({ user, navigate, goBack, lang, isMobile=false })
                           <span style={{padding:'1px 7px',borderRadius:8,background:`${nc}20`,color:nc,fontSize:11,fontWeight:700}}>{e.code_niveau||'?'}</span>
                         </div>
                         <div style={{textAlign:'right',flexShrink:0}}>
-                          <div style={{fontSize:18,fontWeight:800,color:'#1D9E75'}}>+{pts}</div>
-                          <div style={{fontSize:10,color:'#888'}}>pts</div>
+                          <div style={{fontSize:18,fontWeight:800,color:'#1D9E75'}}>{volSemaine}</div>
+                          <div style={{fontSize:10,color:'#888'}}>{e.isSourate?(lang==='ar'?'سورة':'sourates'):(lang==='ar'?'ثُمن':'tomon')}</div>
                         </div>
                         <span style={{color:'#ccc',fontSize:16}}>{'›'}</span>
                       </div>

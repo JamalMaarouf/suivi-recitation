@@ -492,6 +492,7 @@ function useAssiduiteData(user, cible = 'eleves', dateSaisie = null) {
           .select('id, prenom, nom, instituteur_id_ecole')
           .eq('ecole_id', user.ecole_id)
           .eq('role', 'instituteur')
+          .is('suspendu_at', null) // F13 (oct 2026) : exclure les suspendus (comme Dashboard / ValidationRapide)
           .order('instituteur_id_ecole', { ascending: true })
           .limit(500),
         supabase.from('seances_instituteurs')
@@ -517,6 +518,7 @@ function useAssiduiteData(user, cible = 'eleves', dateSaisie = null) {
         supabase.from('eleves')
           .select('id, prenom, nom, eleve_id_ecole, code_niveau')
           .eq('ecole_id', user.ecole_id)
+          .is('suspendu_at', null) // F13 (oct 2026) : exclure les suspendus (comme Dashboard / ValidationRapide)
           .order('eleve_id_ecole', { ascending: true })
           .limit(500),
         supabase.from('presences')
@@ -1179,6 +1181,7 @@ function OngletSuivi({ lang, user, isMobile }) {
         supabase.from('eleves')
           .select('id, prenom, nom, eleve_id_ecole, code_niveau, jours_souhaites')
           .eq('ecole_id', user.ecole_id)
+          .is('suspendu_at', null) // F13 (oct 2026) : exclure les suspendus (comme Dashboard / ValidationRapide) : sinon absents en permanence
           .order('nom'),
         supabase.from('niveaux')
           .select('code, nom')

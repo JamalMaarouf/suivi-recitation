@@ -26,7 +26,8 @@ export default function ProfilInstituteur({ instituteur, user, navigate, goBack,
     const baremeLocal = brRes ? {...BAREME_DEFAUT, ...brRes.unites} : {...BAREME_DEFAUT};
     setBareme(baremeLocal);
     const {data:ed}=await supabase.from('eleves').select('*')
-        .eq('ecole_id', user.ecole_id).eq('instituteur_referent_id',instituteur.id);
+        .eq('ecole_id', user.ecole_id).eq('instituteur_referent_id',instituteur.id)
+        .is('suspendu_at', null); // F13 (oct 2026) : exclure les suspendus (comme Dashboard / ValidationRapide)
     const vd = await fetchAll(supabase.from('validations').select('*, valideur:valide_par(prenom,nom)')
         .eq('ecole_id', user.ecole_id).eq('valide_par',instituteur.id).order('date_validation',{ascending:false}));
     const allVd = await fetchAll(supabase.from('validations').select('*')
