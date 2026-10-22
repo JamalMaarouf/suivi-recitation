@@ -2488,8 +2488,30 @@ ${(passages||[]).length > 0 ? `
                   </div>
                 )
               ) : (
-                apprentissages.length===0?<div className="empty">{t(lang,'aucun_suivi')}</div>:(
-                  <>
+                (() => {
+                  // ENRICHISSEMENT (oct 2026) : afficher aussi les validations tomon qui
+                  // n'ont PAS d'apprentissage formel enregistre (ligne table apprentissages).
+                  // Avant : si l'instituteur validait des tomons sans passer par "+ Istizhar",
+                  // la table restait vide alors que l'eleve avait bien recite.
+                  // Apres : chaque tomon valide genere une ligne (reelle ou virtuelle) avec
+                  // "—" dans la colonne "debut apprentissage" si pas de debut enregistre.
+                  const tomonsValides = validations.filter(v=>v.type_validation==='tomon');
+                  const virtuels = [];
+                  tomonsValides.forEach(v => {
+                    for (let t=v.tomon_debut; t<v.tomon_debut+(v.nombre_tomon||1); t++) {
+                      const existe = apprentissages.find(a => a.hizb === v.hizb_validation && a.tomon === t);
+                      if (!existe) {
+                        virtuels.push({ id:`v-${v.id}-${t}`, hizb:v.hizb_validation, tomon:t, date_debut:null, _virtual:true, _validation:v });
+                      }
+                    }
+                  });
+                  const all = [...apprentissages, ...virtuels].sort((a,b)=>{
+                    // Tri par hizb desc, tomon asc
+                    if (a.hizb !== b.hizb) return b.hizb - a.hizb;
+                    return a.tomon - b.tomon;
+                  });
+                  if (all.length === 0) return <div className="empty">{t(lang,'aucun_suivi')}</div>;
+                  return (
                     <div className="table-wrap">
                       <table><thead><tr>
                         <th style={{width:'22%'}}>{t(lang,'tomon_abrev')}</th>
@@ -2499,13 +2521,13 @@ ${(passages||[]).length > 0 ? `
                         <th style={{width:'12%'}}>{t(lang,'statut')}</th>
                       </tr></thead>
                       <tbody>
-                        {apprentissages.map(appr=>{
-                          const validation=validations.find(v=>v.type_validation==='tomon'&&v.hizb_validation===appr.hizb&&v.tomon_debut<=appr.tomon&&(v.tomon_debut+v.nombre_tomon-1)>=appr.tomon);
-                          const jours=validation?Math.round((new Date(validation.date_validation)-new Date(appr.date_debut))/(1000*60*60*24)):null;
+                        {all.map(appr=>{
+                          const validation = appr._validation || validations.find(v=>v.type_validation==='tomon'&&v.hizb_validation===appr.hizb&&v.tomon_debut<=appr.tomon&&(v.tomon_debut+v.nombre_tomon-1)>=appr.tomon);
+                          const jours = (validation && appr.date_debut) ? Math.round((new Date(validation.date_validation)-new Date(appr.date_debut))/(1000*60*60*24)) : null;
                           return(
                             <tr key={appr.id}>
                               <td style={{fontWeight:500}}>{lang==='ar' ? `الحزب ${appr.hizb} — ث.${appr.tomon}` : `Hizb ${appr.hizb} — T.${appr.tomon}`}</td>
-                              <td style={{fontSize:12,color:'#888'}}>{formatDateCourt(appr.date_debut)}</td>
+                              <td style={{fontSize:12,color:'#888'}}>{appr.date_debut?formatDateCourt(appr.date_debut):'—'}</td>
                               <td style={{fontSize:12,color:'#888'}}>{validation?formatDateCourt(validation.date_validation):'—'}</td>
                               <td>{jours!==null?<span style={{fontSize:12,fontWeight:600,color:jours<=7?'#1D9E75':jours<=14?'#EF9F27':'#E24B4A'}}>{jours}{lang==='ar' ? 'ي' : 'j'}</span>:'—'}</td>
                               <td>{validation?<span className="badge badge-green" style={{fontSize:9}}>✓</span>:<span className="badge" style={{fontSize:9}}>⏳</span>}</td>
@@ -2514,8 +2536,8 @@ ${(passages||[]).length > 0 ? `
                         })}
                       </tbody></table>
                     </div>
-                  </>
-                )
+                  );
+                })()
               )}
             </>
           )}

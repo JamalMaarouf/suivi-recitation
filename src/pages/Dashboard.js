@@ -840,12 +840,23 @@ export default function Dashboard({ user, navigate, goBack, lang, isMobile=false
                       </div>
                       <div style={{display:'flex',alignItems:'baseline',gap:4,marginBottom:10}}>
                         {(() => {
-                          // J7 polish : si niveau Sourate -> nb sourates
-                          //              sinon si points total = 0 -> nb Hizb complets (donnee alternative qui parle)
-                          //              sinon points total
+                          // HOMOGENEISATION (oct 2026) : afficher les POINTS en grand pour
+                          // tous les eleves (hizb comme sourate), tant qu'il y en a.
+                          // Avant : les eleves sourate affichaient le nb de sourates, les
+                          // hizb affichaient les points -> incoherent.
+                          // Fallback (points==0) : nb sourates OU nb hizbs complets.
                           const isSourate = isSourateNiveauDyn(eleve.code_niveau, niveaux);
                           const points = eleve.etat.points.total || 0;
                           const hizbComplets = eleve.etat.hizbsComplets?.size || 0;
+                          if (points > 0) {
+                            return (<>
+                              <span style={{fontSize:28,fontWeight:800,color:sl.color,letterSpacing:'-1px'}}>
+                                {points.toLocaleString()}
+                              </span>
+                              <span style={{fontSize:12,color:C.muted}}>{t(lang,'pts_abrev')}</span>
+                            </>);
+                          }
+                          // Fallback si pas de points : compteur alternatif
                           if (isSourate) {
                             return (<>
                               <span style={{fontSize:28,fontWeight:800,color:sl.color,letterSpacing:'-1px'}}>
@@ -856,7 +867,7 @@ export default function Dashboard({ user, navigate, goBack, lang, isMobile=false
                               </span>
                             </>);
                           }
-                          if (points === 0 && hizbComplets > 0) {
+                          if (hizbComplets > 0) {
                             return (<>
                               <span style={{fontSize:28,fontWeight:800,color:sl.color,letterSpacing:'-1px'}}>
                                 {hizbComplets}
