@@ -675,6 +675,24 @@ export default function Finance({ user, navigate, goBack, lang='fr', isMobile })
               </div>
             ))}
           </div>
+          {/* F4 (oct 2026) : periode + exports, comme sur PC. Avant : les totaux mobiles etaient
+              bornes a une periode (3 derniers mois par defaut) invisible et non modifiable. */}
+          <div style={{display:'flex',gap:6,alignItems:'center',marginTop:10,flexWrap:'wrap'}}>
+            <input type="date" value={dateDebut} onChange={e=>setDateDebut(e.target.value)}
+              style={{flex:1,minWidth:120,padding:'7px 8px',borderRadius:8,border:'none',fontSize:12,fontFamily:'inherit'}}/>
+            <span style={{color:'#fff',fontSize:12}}>→</span>
+            <input type="date" value={dateFin} onChange={e=>setDateFin(e.target.value)}
+              style={{flex:1,minWidth:120,padding:'7px 8px',borderRadius:8,border:'none',fontSize:12,fontFamily:'inherit'}}/>
+            <ExportButtons
+              onPDF={exportPDF}
+              onExcel={
+                onglet === 'cotisations' ? exportCotisationsExcel
+                : onglet === 'depenses'  ? exportDepensesExcel
+                : onglet === 'suivi'     ? exportSuiviExcel
+                : exportExcel
+              }
+              lang={lang} variant="inline" compact isMobile />
+          </div>
         </div>
 
         {loading ? <MobileSkeletonList type="card-stat" count={4} padding="12px" /> : (
@@ -709,7 +727,8 @@ export default function Finance({ user, navigate, goBack, lang='fr', isMobile })
                     borderRadius:12,fontSize:15,fontWeight:700,cursor:'pointer',fontFamily:'inherit',marginBottom:12}}>
                   + {lang==='ar'?'إضافة اشتراك':'Ajouter cotisation'}
                 </button>
-                {cotisations.slice(0,50).map(c=>{
+                {/* F4 : liste bornee a la periode (comme les totaux et le PC) */}
+                {[...cotPeriode].sort((x,y)=>new Date(y.date_paiement)-new Date(x.date_paiement)).slice(0,100).map(c=>{
                   const el=eleves.find(e=>e.id===c.eleve_id);
                   return(
                     <div key={c.id} style={{background:'#fff',borderRadius:12,padding:'13px 14px',marginBottom:8,
@@ -728,6 +747,15 @@ export default function Finance({ user, navigate, goBack, lang='fr', isMobile })
                         <div style={{fontSize:16,fontWeight:800,color:'#1D9E75'}}>{fmtMAD(c.montant)}</div>
                         {c.mois_concerne&&<div style={{fontSize:11,color:'#888'}}>{c.mois_concerne}</div>}
                       </div>
+                      {/* F4 : modifier / supprimer (surveillant), comme sur PC */}
+                      {user.role==='surveillant'&&(
+                        <div style={{display:'flex',flexDirection:'column',gap:4,flexShrink:0}}>
+                          <button onClick={()=>startEditCotisation(c)} aria-label={lang==='ar'?'تعديل':'Modifier'}
+                            style={{width:36,height:36,background:'#E6F1FB',color:'#378ADD',border:'none',borderRadius:8,cursor:'pointer',fontSize:14}}>✏️</button>
+                          <button onClick={()=>deleteCotisation(c.id)} aria-label={lang==='ar'?'حذف':'Supprimer'}
+                            style={{width:36,height:36,background:'#FCEBEB',color:'#E24B4A',border:'none',borderRadius:8,cursor:'pointer',fontSize:14}}>🗑</button>
+                        </div>
+                      )}
                     </div>
                   );
                 })}
@@ -742,7 +770,8 @@ export default function Finance({ user, navigate, goBack, lang='fr', isMobile })
                     borderRadius:12,fontSize:15,fontWeight:700,cursor:'pointer',fontFamily:'inherit',marginBottom:12}}>
                   + {lang==='ar'?'إضافة مصروف':'Ajouter dépense'}
                 </button>
-                {depenses.slice(0,50).map(d=>(
+                {/* F4 : liste bornee a la periode (comme les totaux et le PC) */}
+                {[...depPeriode].sort((x,y)=>new Date(y.date_depense)-new Date(x.date_depense)).slice(0,100).map(d=>(
                   <div key={d.id} style={{background:'#fff',borderRadius:12,padding:'13px 14px',marginBottom:8,
                     border:'0.5px solid #FCEBEB',display:'flex',alignItems:'center',gap:12}}>
                     <span style={{fontSize:20,flexShrink:0}}>📤</span>
@@ -758,6 +787,14 @@ export default function Finance({ user, navigate, goBack, lang='fr', isMobile })
                     <div style={{textAlign:'right',flexShrink:0}}>
                       <div style={{fontSize:16,fontWeight:800,color:'#1e3a5f'}}>{fmtMAD(d.montant)}</div>
                     </div>
+                    {user.role==='surveillant'&&(
+                      <div style={{display:'flex',flexDirection:'column',gap:4,flexShrink:0}}>
+                        <button onClick={()=>startEditDepense(d)} aria-label={lang==='ar'?'تعديل':'Modifier'}
+                          style={{width:36,height:36,background:'#E6F1FB',color:'#378ADD',border:'none',borderRadius:8,cursor:'pointer',fontSize:14}}>✏️</button>
+                        <button onClick={()=>deleteDepense(d.id)} aria-label={lang==='ar'?'حذف':'Supprimer'}
+                          style={{width:36,height:36,background:'#FCEBEB',color:'#E24B4A',border:'none',borderRadius:8,cursor:'pointer',fontSize:14}}>🗑</button>
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
@@ -1069,6 +1106,10 @@ export default function Finance({ user, navigate, goBack, lang='fr', isMobile })
           </div>
         </div>
       )}
+      {/* F4 (oct 2026) : sans ce rendu, les suppressions mobiles restaient silencieuses */}
+      <ConfirmModal isOpen={confirmModal.isOpen} title={confirmModal.title} message={confirmModal.message}
+        onConfirm={confirmModal.onConfirm} onCancel={hideConfirm}
+        confirmLabel={confirmModal.confirmLabel} confirmColor={confirmModal.confirmColor} lang={lang}/>
       </div>
     );
   }
