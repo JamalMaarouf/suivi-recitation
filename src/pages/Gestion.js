@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useToast } from '../lib/toast';
 import { supabase } from '../lib/supabase';
+import { supprimerEleveDefinitivement } from '../lib/suppressionEleve';
 import ConfirmModal from '../components/ConfirmModal';
 import { getInitiales, calcEtatEleve, calcPoints, BAREME_DEFAUT, loadBareme, saveBaremeItem, saveBaremeItemsBulk, isSourateNiveauDyn, getSensForEleve, genererLoginParentUnique} from '../lib/helpers';
 import AcquisSelector from '../components/AcquisSelector';
@@ -3271,43 +3272,13 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile,
           lang==='ar'?'هل أنت متأكد تماماً؟ لا يمكن التراجع عن هذا الإجراء.':'Êtes-vous absolument sûr ? Cette action est définitive et irréversible.',
           async () => {
             setConfirmLoading(true);
-            // Supprimer toutes les données liées (ordre important pour contourner les FK)
-            const tablesLiees = [
-              'exceptions_recitation',
-              'exceptions_hizb',
-              'recitations_sourates',
-              'validations',
-              'apprentissages',
-              'cotisations',
-              'parent_eleve',
-              'certificats_eleves',  // Étape D - les certificats doivent être supprimés
-              'points_eleves',       // points/bonus/malus liés
-              'passages_niveaux',    // historique passages
-              'resultats_examens',   // résultats examens
-            ];
-            const erreurs = [];
-            for (const table of tablesLiees) {
-              try {
-                const { error } = await supabase.from(table).delete().eq('eleve_id', id);
-                if (error) erreurs.push(`${table}: ${error.message}`);
-              } catch(e) {
-                // Table n'existe peut-être pas - on ignore silencieusement
-                console.warn(`[supprimerEleve] ${table} ignorée:`, e.message);
-              }
-            }
-            // Détacher des objectifs (ne pas supprimer, juste null)
-            // try/catch car .catch() sur une requete Supabase plante (voir note supprimerInstituteur)
-            try { await supabase.from('objectifs_globaux').update({eleve_id:null}).eq('eleve_id', id); } catch(e) { console.warn('[supprimerEleve] objectifs_globaux ignoré:', e); }
-            // Enfin supprimer l'élève lui-même
-            const { error: errFinal } = await supabase.from('eleves').delete().eq('id', id);
+            // Logique partagee avec le mobile (src/lib/suppressionEleve.js)
+            const { error: errFinal } = await supprimerEleveDefinitivement(id);
             if (errFinal) {
               console.error('[supprimerEleve] Echec suppression:', errFinal);
               showMsg('error', (lang==='ar' ? 'خطأ في الحذف: ' : 'Erreur suppression: ') + (errFinal.message || 'inconnue'));
               hideConfirm();
               return;
-            }
-            if (erreurs.length > 0) {
-              console.warn('[supprimerEleve] Erreurs liées (élève supprimé malgré tout):', erreurs);
             }
             showMsg('success', t(lang, 'eleve_retire'));
             hideConfirm();

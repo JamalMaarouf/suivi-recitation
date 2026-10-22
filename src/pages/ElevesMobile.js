@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
+import { supprimerEleveDefinitivement } from '../lib/suppressionEleve';
 import { isSourateNiveauDyn, genererLoginParentUnique } from '../lib/helpers';
 import { useToast } from '../lib/toast';
 import MobileSkeletonList from '../components/MobileSkeletonList';
@@ -249,15 +250,23 @@ export default function ElevesMobile({ user, navigate, goBack, lang='ar' }) {
     setShowConfirmDelete({ id, nom: eleve ? `${eleve.prenom} ${eleve.nom}` : '' });
   };
 
+  // Suppression definitive (oct 2026) : meme logique que le PC (donnees liees supprimees),
+  // avec la meme double confirmation (etape 1 -> etape 2 'definitif').
+  const [etapeSuppr, setEtapeSuppr] = useState(1);
+  const [suppressionEnCours, setSuppressionEnCours] = useState(false);
+  const fermerSuppr = () => { setShowConfirmDelete(null); setEtapeSuppr(1); };
   const confirmDelete = async () => {
-    if (!showConfirmDelete) return;
-    const { error } = await supabase.from('eleves').delete().eq('id', showConfirmDelete.id);
+    if (!showConfirmDelete || suppressionEnCours) return;
+    if (etapeSuppr === 1) { setEtapeSuppr(2); return; }
+    setSuppressionEnCours(true);
+    const { error } = await supprimerEleveDefinitivement(showConfirmDelete.id);
+    setSuppressionEnCours(false);
     if (error) {
       toast.error((lang==='ar'?'خطأ: ':'Erreur: ') + error.message);
     } else {
       toast.success(lang==='ar'?'✅ تم الحذف':'✅ Élève supprimé');
     }
-    setShowConfirmDelete(null);
+    fermerSuppr();
     loadData();
   };
 
@@ -834,7 +843,7 @@ export default function ElevesMobile({ user, navigate, goBack, lang='ar' }) {
         <div style={{position:'fixed', inset:0, background:'rgba(0,0,0,0.55)', zIndex:9999,
           display:'flex', alignItems:'center', justifyContent:'center', padding:16,
           animation:'modalMobileFadeIn 0.15s ease-out'}}
-          onClick={()=>setShowConfirmDelete(null)}>
+          onClick={()=>!suppressionEnCours && fermerSuppr()}>
           <div onClick={e=>e.stopPropagation()}
             style={{background:'#fff', borderRadius:16, width:'100%', maxWidth:380, padding:20,
               boxShadow:'0 20px 60px rgba(0,0,0,0.3)',
@@ -844,10 +853,14 @@ export default function ElevesMobile({ user, navigate, goBack, lang='ar' }) {
                 display:'flex', alignItems:'center', justifyContent:'center', fontSize:24, flexShrink:0}}>🗑️</div>
               <div>
                 <div style={{fontSize:16, fontWeight:700, color:'#1a1a1a', marginBottom:2}}>
-                  {lang==='ar'?'تأكيد الحذف':'Confirmer la suppression'}
+                  {etapeSuppr===1
+                    ? (lang==='ar'?'⚠️ حذف الطالب':'⚠️ Supprimer l\'élève')
+                    : (lang==='ar'?'تأكيد نهائي':'Confirmation finale')}
                 </div>
                 <div style={{fontSize:13, color:'#666'}}>
-                  {lang==='ar'?'هل أنت متأكد؟':'Cette action est définitive'}
+                  {etapeSuppr===1
+                    ? (lang==='ar'?'سيتم حذف جميع بياناته (الاستظهارات، النقاط، الشهادات، الاشتراكات…)':'Toutes ses données (récitations, points, certificats, cotisations…) seront supprimées.')
+                    : (lang==='ar'?'هل أنت متأكد تماماً؟ لا يمكن التراجع عن هذا الإجراء.':'Êtes-vous absolument sûr ? Action définitive et irréversible.')}
                 </div>
               </div>
             </div>
@@ -858,17 +871,19 @@ export default function ElevesMobile({ user, navigate, goBack, lang='ar' }) {
               </div>
             )}
             <div style={{display:'flex', gap:8}}>
-              <button onClick={()=>setShowConfirmDelete(null)}
+              <button onClick={fermerSuppr} disabled={suppressionEnCours}
                 style={{flex:1, padding:'11px', background:'#f5f5f0', color:'#444',
                   border:'0.5px solid #e0e0d8', borderRadius:10, fontSize:13, fontWeight:600,
                   cursor:'pointer', fontFamily:'inherit'}}>
                 {lang==='ar'?'إلغاء':'Annuler'}
               </button>
-              <button onClick={confirmDelete}
-                style={{flex:1, padding:'11px', background:'#E24B4A', color:'#fff',
+              <button onClick={confirmDelete} disabled={suppressionEnCours}
+                style={{flex:1, padding:'11px', background:etapeSuppr===1?'#EF9F27':'#E24B4A', opacity:suppressionEnCours?0.6:1, color:'#fff',
                   border:'none', borderRadius:10, fontSize:13, fontWeight:700,
                   cursor:'pointer', fontFamily:'inherit'}}>
-                🗑️ {lang==='ar'?'حذف':'Supprimer'}
+                {suppressionEnCours ? '…' : etapeSuppr===1
+                  ? (lang==='ar'?'نعم، متابعة':'Oui, continuer')
+                  : <>🗑️ {lang==='ar'?'حذف نهائي':'Supprimer définitivement'}</>}
               </button>
             </div>
           </div>
