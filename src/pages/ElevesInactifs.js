@@ -172,6 +172,14 @@ export default function ElevesInactifs({ navigate, goBack, lang='fr', user, isMo
     }
   };
 
+  // BUG-FIX (oct 2026) : ce hook etait appele APRES le "if (loading) return" -> au
+  // passage loading true -> false, React rendait plus de hooks qu'au rendu precedent
+  // et plantait ("Rendered more hooks than during the previous render").
+  const {
+    pullDistance, isRefreshing, isThreshold,
+    onTouchStart, onTouchMove, onTouchEnd,
+  } = usePullToRefresh(loadData);
+
   if (loading) return (
     <div style={{padding:'2rem',textAlign:'center'}}>
       <MobileSkeletonList type="card-simple" count={4} />
@@ -182,11 +190,6 @@ export default function ElevesInactifs({ navigate, goBack, lang='fr', user, isMo
   );
 
 
-  // Pull-to-refresh (Phase 2 Sprint 4)
-  const {
-    pullDistance, isRefreshing, isThreshold,
-    onTouchStart, onTouchMove, onTouchEnd,
-  } = usePullToRefresh(loadData);
   return (
     <div style={{paddingBottom: isMobile ? 80 : 0, padding: isMobile ? 0 : '1rem',maxWidth:700,margin:'0 auto',background: isMobile ? '#f5f5f0' : 'transparent',minHeight: isMobile ? '100vh' : 'auto'}}
       {...(isMobile ? { onTouchStart, onTouchMove, onTouchEnd } : {})}>
