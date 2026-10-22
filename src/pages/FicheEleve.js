@@ -1773,9 +1773,14 @@ ${(passages||[]).length > 0 ? `
                   {/* Détail selon type élève */}
                   {estSourate ? (
                     // ── Élève Sourates ──
+                    // BUG-FIX AFFICHAGE SOURATES (oct 2026) : ajout de la carte "المجموعات"
+                    // pour que les points d'ensembles completes (ptsEnsembles alias de
+                    // ptsBonusEnsembles) soient visibles - sans elle, un eleve pouvait avoir
+                    // Total=191 mais Sourates=75 + autres=0, soit un ecart inexplique de 116.
                     <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:12}}>
                       {[
                         {label:lang==='ar'?'السور المستظهرة':'Sourates récitées', val:nbSourCompl, pts:ptsSourCompl, color:'#534AB7', bg:'#EEEDFE', icon:'📜'},
+                        {label:lang==='ar'?'المجموعات':'Ensembles', val:pts.nbEnsemblesComplets||0, pts:pts.ptsEnsembles||0, color:'#D85A30', bg:'#FAECE7', icon:'📦'},
                         {label:lang==='ar'?'المقاطع':'Séquences', val:nbSourSeq, pts:recitationsSouratesEleve.filter(r=>r.type_recitation==='sequence').reduce((s,r)=>s+(r.points||0),0), color:'#1D9E75', bg:'#E1F5EE', icon:'📌'},
                         {label:lang==='ar'?'الامتحانات':'Examens', val:'', pts:pts.ptsExamens||0, color:'#EF9F27', bg:'#FAEEDA', icon:'📝'},
                         {label:lang==='ar'?'الشهادات':'Certificats', val:certificats.length, pts:pts.ptsCertificats||0, color:'#085041', bg:'#E1F5EE', icon:'🏅'},
@@ -2705,10 +2710,14 @@ ${(passages||[]).length > 0 ? `
                 {/* Détail */}
                 <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
                   {(estSourate2 ? [
-                    {label:lang==='ar'?'السور':'Sourates', val:pts.tomonPeriode, pts:pts.ptsTomon, color:'#534AB7', bg:'#EEEDFE', icon:'📜'},
-                    {label:lang==='ar'?'المجموعات':'Ensembles', val:'', pts:pts.ptsEnsembles||0, color:'#D85A30', bg:'#FAECE7', icon:'📦'},
+                    // BUG-FIX AFFICHAGE SOURATES (oct 2026) : la carte "السور" affichait
+                    // pts.tomonPeriode (toujours 0 pour un eleve sourate) + pts.ptsTomon (0).
+                    // Elle doit utiliser nbSouratesCompletes et ptsSourates (voir calcPointsPeriode
+                    // helpers.js L1783-1784).
+                    {label:lang==='ar'?'السور':'Sourates', val:pts.nbSouratesCompletes||0, pts:pts.ptsSourates||0, color:'#534AB7', bg:'#EEEDFE', icon:'📜'},
+                    {label:lang==='ar'?'المجموعات':'Ensembles', val:pts.nbEnsemblesComplets||0, pts:pts.ptsEnsembles||0, color:'#D85A30', bg:'#FAECE7', icon:'📦'},
                     {label:lang==='ar'?'الامتحانات':'Examens', val:'', pts:pts.ptsExamens||0, color:'#EF9F27', bg:'#FAEEDA', icon:'📝'},
-                    {label:lang==='ar'?'الشهادات':'Certs', val:'', pts:pts.ptsCertificats||0, color:'#085041', bg:'#E1F5EE', icon:'🏅'},
+                    {label:lang==='ar'?'الشهادات':'Certs', val:certificats.length||'', pts:pts.ptsCertificats||0, color:'#085041', bg:'#E1F5EE', icon:'🏅'},
                   ] : [
                     {label:lang==='ar'?'الأثمان':'Tomon', val:pts.tomonPeriode, pts:pts.ptsTomon, color:'#378ADD', bg:'#E6F1FB', icon:'📖'},
                     {label:lang==='ar'?'أحزاب كاملة':'Hizb ✓', val:pts.hizbsPeriode, pts:pts.ptsHizb, color:'#085041', bg:'#E1F5EE', icon:'🎯'},

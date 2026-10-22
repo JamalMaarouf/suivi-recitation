@@ -100,10 +100,32 @@ export default function Dashboard({ user, navigate, goBack, lang, isMobile=false
       }
     });
 
+    // BUG-FIX POINTS SOURATES DASHBOARD (oct 2026) : calcEtatEleve.points.total ne
+    // compte que les tomons/hizbs. Pour un eleve sourate, cela donne toujours 0,
+    // alors que son score reel = sourates + ensembles valides + (certificats/examens
+    // non charges ici). On enrichit donc etat.points.total pour les eleves sourate
+    // avec les points des recitations_sourates et des ensembles valides.
+    const baremeEnsembles = (bar && bar.ensembles) || {};
+    const recsByEleve = new Map();
+    (rd||[]).forEach(r => {
+      if (!recsByEleve.has(r.eleve_id)) recsByEleve.set(r.eleve_id, []);
+      recsByEleve.get(r.eleve_id).push(r);
+    });
+
     return (ed||[]).map(eleve => {
       const vals = valsByEleve.get(eleve.id) || [];
       const sensE = getSensForEleve(eleve, nv, ec);
       const etat = calcEtatEleve(vals, eleve.hizb_depart, eleve.tomon_depart, sensE, null, null, bar);
+      // Enrichissement pour les eleves sourate
+      const isSourateE = isSourateNiveauDyn(eleve.code_niveau, nv||[]);
+      if (isSourateE && etat && etat.points) {
+        const recsEleve = recsByEleve.get(eleve.id) || [];
+        const ptsSourates = recsEleve.reduce((s, r) => s + (Number(r.points) || 0), 0);
+        const ptsEnsembles = vals
+          .filter(v => v.type_validation === 'ensemble_valide' && v.ensemble_id)
+          .reduce((s, v) => s + (baremeEnsembles[v.ensemble_id] || 0), 0);
+        etat.points.total = (etat.points.total || 0) + ptsSourates + ptsEnsembles;
+      }
       const derniereHizb = vals[0]?.date_validation||null;
       const derniereSourate = recSouratesMap[eleve.id]||null;
       const derniere = derniereHizb && derniereSourate

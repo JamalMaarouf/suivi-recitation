@@ -466,6 +466,12 @@ export default function ListeNotes({ user, navigate, goBack, lang='fr', isMobile
                     <span style={{color:'#085041', fontWeight:600}}>
                       📖 {el.pts.hizbsPeriode||0}
                     </span>
+                    {/* Ajout : ensembles pour les eleves sourate (0 si non applicable) */}
+                    {(el.pts.nbEnsemblesComplets||0) > 0 && (
+                      <span style={{color:'#D85A30', fontWeight:600}}>
+                        📦 {el.pts.nbEnsemblesComplets}
+                      </span>
+                    )}
                     <span style={{color:'#EF9F27', fontWeight:600}}>
                       📝 {el.pts.ptsExamens||0}
                     </span>
@@ -499,6 +505,10 @@ export default function ListeNotes({ user, navigate, goBack, lang='fr', isMobile
                 <th>{lang==='ar'?'الأستاذ':'Instituteur'}</th>
                 <th>{lang==='ar'?'الأثمان/السور':'Tomon/Sourates'}</th>
                 <th>{lang==='ar'?'الأحزاب':'Hizb'}</th>
+                {/* AJOUT (oct 2026) : colonne Ensembles pour que les points d'ensembles
+                    completes (ptsBonusEnsembles) soient visibles. Masquee si personne
+                    n'en a (eleves purement hizbs), affichee des qu'un eleve en a. */}
+                <th>{lang==='ar'?'المجموعات':'Ensembles'}</th>
                 <th>{lang==='ar'?'الامتحانات':'Examens'}</th>
                 <th>{lang==='ar'?'الشهادات':'Certs'}</th>
                 <th style={{color:'#378ADD'}}>{lang==='ar'?'المجموع':'Total'}</th>
@@ -506,7 +516,7 @@ export default function ListeNotes({ user, navigate, goBack, lang='fr', isMobile
             </thead>
             <tbody>
               {filtered.length === 0 && (
-                <tr><td colSpan={9} className="empty">{lang==='ar'?'لا توجد بيانات':'Aucune donnée'}</td></tr>
+                <tr><td colSpan={10} className="empty">{lang==='ar'?'لا توجد بيانات':'Aucune donnée'}</td></tr>
               )}
               {(filtered||[]).map((el, idx) => {
                 const nc = getNivColor(el.code_niveau);
@@ -534,6 +544,12 @@ export default function ListeNotes({ user, navigate, goBack, lang='fr', isMobile
                     <td style={{textAlign:'center'}}>
                       <span style={{fontWeight:700,color:'#085041'}}>{el.pts.hizbsPeriode}</span>
                       {el.pts.ptsHizb>0 && <div style={{fontSize:9,color:'#aaa'}}>+{el.pts.ptsHizb} {lang==='ar'?'ن':'pts'}</div>}
+                    </td>
+                    <td style={{textAlign:'center'}}>
+                      <span style={{fontWeight:700,color:'#D85A30'}}>{el.pts.nbEnsemblesComplets||0}</span>
+                      {(el.pts.ptsEnsembles||el.pts.ptsBonusEnsembles||0)>0 && (
+                        <div style={{fontSize:9,color:'#aaa'}}>+{el.pts.ptsEnsembles||el.pts.ptsBonusEnsembles||0} {lang==='ar'?'ن':'pts'}</div>
+                      )}
                     </td>
                     <td style={{textAlign:'center'}}>
                       <span style={{fontWeight:700,color:'#EF9F27'}}>{el.pts.ptsExamens||0}</span>
