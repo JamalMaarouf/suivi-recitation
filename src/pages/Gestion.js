@@ -5113,12 +5113,15 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
               const nb=eleves.filter(e=>e.instituteur_referent_id===inst.id).length;
               return(
                 <div key={inst.id} style={{background:'#fff',borderRadius:12,padding:'14px',marginBottom:8,border:'0.5px solid #e0e0d8',display:'flex',alignItems:'center',gap:12,opacity:inst.suspendu_at?0.65:1}}>
-                  <div style={{width:42,height:42,borderRadius:'50%',background:'#E6F1FB',color:'#0C447C',display:'flex',alignItems:'center',justifyContent:'center',fontWeight:800,fontSize:14,flexShrink:0}}>
+                  {/* F10 (oct 2026) : avatar + nom ouvrent le profil instituteur (avant : PC seulement, via Dashboard) */}
+                  <div onClick={()=>navigate('profil_instituteur', inst)}
+                    style={{width:42,height:42,borderRadius:'50%',background:'#E6F1FB',color:'#0C447C',display:'flex',alignItems:'center',justifyContent:'center',fontWeight:800,fontSize:14,flexShrink:0,cursor:'pointer'}}>
                     {((inst.prenom||'?')[0])+((inst.nom||'?')[0])}
                   </div>
                   <div style={{flex:1,minWidth:0}}>
                     <div style={{display:'flex',alignItems:'center',gap:6,flexWrap:'wrap'}}>
-                      <div style={{fontWeight:700,fontSize:14}}>{inst.prenom} {inst.nom}</div>
+                      <div onClick={()=>navigate('profil_instituteur', inst)}
+                        style={{fontWeight:700,fontSize:14,cursor:'pointer',color:'#0C447C'}}>{inst.prenom} {inst.nom} ›</div>
                       {inst.instituteur_id_ecole && (
                         <div style={{
                           padding:'2px 8px',background:'#E1F5EE',color:'#085041',
