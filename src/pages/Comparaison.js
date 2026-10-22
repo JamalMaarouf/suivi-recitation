@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
-import { calcEtatEleve, getInitiales, scoreLabel, formatDateCourt, niveauTraduit, getSensForEleve, loadBareme, BAREME_DEFAUT} from '../lib/helpers';
+import { calcEtatEleve, getInitiales, scoreLabel, formatDateCourt, niveauTraduit, getSensForEleve, loadBareme, BAREME_DEFAUT, ptsValidation} from '../lib/helpers';
 import { t } from '../lib/i18n';
 import { fetchAll } from '../lib/fetchAll';
 import MobileSkeletonList from '../components/MobileSkeletonList';
@@ -49,17 +49,17 @@ export default function Comparaison({ navigate, goBack, lang='fr', isMobile, use
 
   const calcEvolution = (eleve) => {
     const vals=[...eleve.validations].sort((a,b)=>new Date(a.date_validation)-new Date(b.date_validation));
-    let cumul=0; let hc=new Set();
+    let hc=new Set(); let score=0;
     const pts=[{score:0}];
-    // Bareme parametrable depuis Gestion (avec fallbacks anciens : tomon=10, hizb=100)
-    const ptsTomon = bareme.tomon || 0;
-    const ptsHizb  = bareme.hizb_complet || 0;
+    // NETTOYAGE (oct 2026) : suppression des bonus codes en dur (+25 / +60) de
+    // l'ancien modele Roba/Nisf. Points = bareme seul via ptsValidation.
     vals.forEach(v=>{
-      if(v.type_validation==='hizb_complet') hc.add(v.hizb_valide); else cumul+=v.nombre_tomon;
-      // Note : les bonus tomon/2 et tomon/4 (25 et 60) restaient hardcodes car
-      // ils ne correspondent pas a une unite parametrable du bareme actuel.
-      // Si le bareme s'enrichit dans le futur, on ajoutera bareme.bonus_demi_hizb etc.
-      pts.push({date:v.date_validation,score:cumul*ptsTomon+Math.floor(cumul/2)*25+Math.floor(cumul/4)*60+hc.size*ptsHizb,label:formatDateCourt(v.date_validation)});
+      if (v.type_validation==='hizb_complet') {
+        if (hc.has(v.hizb_valide)) return; // deja compte
+        hc.add(v.hizb_valide);
+      }
+      score += ptsValidation(v, bareme);
+      pts.push({date:v.date_validation,score,label:formatDateCourt(v.date_validation)});
     });
     return pts;
   };

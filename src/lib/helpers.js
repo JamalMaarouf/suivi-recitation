@@ -529,6 +529,25 @@ export function calculerPointsSourate(sourate_id, bareme, ensembles, typeRecitat
   };
 }
 
+/**
+ * Points d'UNE validation selon le bareme (memes regles que calcPointsPeriode).
+ * Source unique pour les affichages ligne a ligne / courbes (oct 2026) : remplace
+ * les anciennes formules codees en dur (bonus Roba +25 / Nisf +60, 10/100/30 pts).
+ * Accepte un bareme complet (avec .unites) ou plat. Les ensembles valides ne
+ * rapportent rien ici (leur bonus depend de bareme.ensembles, voir calcPointsPeriode).
+ */
+export function ptsValidation(v, bareme) {
+  const B = (bareme && bareme.unites) ? bareme.unites : (bareme || BAREME_DEFAUT);
+  if (!v) return 0;
+  switch (v.type_validation) {
+    case 'hizb_complet': return B.hizb_complet || 0;
+    case 'tomon_muraja': return (v.nombre_tomon || 0) * (B.muraja_tomon || 0);
+    case 'hizb_muraja':  return B.muraja_hizb || 0;
+    case 'ensemble_valide': return (bareme && bareme.ensembles && v.ensemble_id) ? (bareme.ensembles[v.ensemble_id] || 0) : 0;
+    default: return (v.nombre_tomon || 0) * (B.tomon || 0);
+  }
+}
+
 export function calcPoints(tomonCumul, hizbsCompletsCount, validations, tomonAcquis=0, hizbAcquisComplets=0, bareme=null) {
   const B = (bareme && bareme.unites) ? bareme.unites : (bareme || BAREME_DEFAUT);
   // BUG-FIX BAREME (mai 2026)

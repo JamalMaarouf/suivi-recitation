@@ -331,8 +331,9 @@ export default function DashboardDirection({ user, navigate, goBack, lang='fr', 
     const pts = {};
     valsFiltered.forEach(v => {
       if (!pts[v.eleve_id]) pts[v.eleve_id] = 0;
-      if (v.type_validation==='tomon') pts[v.eleve_id] += (v.nombre_tomon||0) * (bareme?.tomon||1);
-      if (v.type_validation==='hizb_complet') pts[v.eleve_id] += bareme?.hizb_complet||8;
+      // NETTOYAGE (oct 2026) : avant replis codes en dur (||1 par tomon, ||8 par hizb).
+      if (v.type_validation==='tomon') pts[v.eleve_id] += (v.nombre_tomon||0) * (bareme?.tomon||0);
+      if (v.type_validation==='hizb_complet') pts[v.eleve_id] += bareme?.hizb_complet||0;
     });
     return Object.entries(pts)
       .map(([id, p]) => {

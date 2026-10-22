@@ -262,7 +262,7 @@ export default function Seance({ user, navigate, goBack, lang, isMobile=false })
                   .filter(e=>e.valsAujourdhui?.length>0||e.souratesCompletesAujourdhui>0)
                   .map((e,idx)=>{
                     const nc=NIVEAU_COLORS[e.code_niveau||'1']||'#888';
-                    const pts=e.isSourate?(e.souratesCompletesAujourdhui*(bareme.sourate||30)+e.sequencesAujourdhui*(bareme.sequence_sourate||10)):(e.valsAujourdhui?.reduce((s,v)=>s+(v.type_validation==='hizb_complet'?(bareme.hizb_complet || 0):(bareme.tomon || 0)),0)||0);
+                    const pts=e.ptsAujourdhui||0; // NETTOYAGE oct 2026 : avant replis ||30/||10 codes en dur + nombre de tomons ignore
                     return(
                       <div key={e.id} onTouchEnd={()=>navigate('fiche',e)} onClick={()=>navigate('fiche',e)}
                         style={{background:'#fff',borderRadius:12,padding:'13px 14px',marginBottom:8,
@@ -311,7 +311,7 @@ export default function Seance({ user, navigate, goBack, lang, isMobile=false })
                 </div>
               ) : elevesVus.map((e,idx)=>{
                 const nc=NIVEAU_COLORS[e.code_niveau||'1']||'#888';
-                const pts=e.isSourate?(e.souratesCompletesAujourdhui*(bareme.sourate||30)+e.sequencesAujourdhui*(bareme.sequence_sourate||10)):(e.valsAujourdhui?.reduce((s,v)=>s+(v.type_validation==='hizb_complet'?(bareme.hizb_complet || 0):(bareme.tomon || 0)),0)||0);
+                const pts=e.ptsAujourdhui||0; // NETTOYAGE oct 2026 : avant replis ||30/||10 codes en dur + nombre de tomons ignore
                 return(
                   <div key={e.id} onTouchEnd={()=>navigate('fiche',e)} onClick={()=>navigate('fiche',e)}
                     style={{background:'#fff',borderRadius:12,padding:'13px 14px',marginBottom:8,

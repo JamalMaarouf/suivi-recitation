@@ -179,7 +179,9 @@ export default function HistoriqueSeances({ user, navigate, goBack, lang='fr', i
   const hizbTotal = valsFiltrees.filter(v=>v.type_validation==='hizb_complet').length;
   const souratesTotal = recsFiltrees.filter(r=>r.type_recitation==='complete').length;
   const sequencesTotal = recsFiltrees.filter(r=>r.type_recitation==='sequence').length;
-  const ptsTotal = tomonTotal*(bareme.tomon || 0)+Math.floor(tomonTotal/2)*25+Math.floor(tomonTotal/4)*60+hizbTotal*100+recsFiltrees.reduce((s,r)=>s+(r.points||0),0);
+  // NETTOYAGE (oct 2026) : suppression de l'ancienne formule (+25/+60 Roba/Nisf, 100 pts/hizb)
+  // -> points = bareme seul (tomon, hizb_complet) + points stockes des recitations.
+  const ptsTotal = tomonTotal*(bareme.tomon || 0)+hizbTotal*(bareme.hizb_complet || 0)+recsFiltrees.reduce((s,r)=>s+(r.points||0),0);
   const elevesActifs = new Set([...valsFiltrees.map(v=>v.eleve_id),...recsFiltrees.map(r=>r.eleve_id)]);
   const joursActifs = new Set([...valsFiltrees,...recsFiltrees].map(x=>new Date(x.date_validation).toDateString())).size;
 
@@ -188,7 +190,10 @@ export default function HistoriqueSeances({ user, navigate, goBack, lang='fr', i
   const finPrec = new Date(debut); finPrec.setDate(finPrec.getDate()-1);
   const valsPrec = validations.filter(v=>{const d=new Date(v.date_validation);return d>=debutPrec&&d<=finPrec&&elevesVisiblesIds.has(v.eleve_id);});
   const recsPrec = recitations.filter(r=>{const d=new Date(r.date_validation);return d>=debutPrec&&d<=finPrec&&elevesVisiblesIds.has(r.eleve_id);});
-  const ptsPrec = valsPrec.filter(v=>v.type_validation==='tomon').reduce((s,v)=>s+v.nombre_tomon,0)*10+recsPrec.reduce((s,r)=>s+(r.points||0),0);
+  // Meme calcul que ptsTotal (avant : tomon*10 code en dur, hizbs oublies -> delta fausse)
+  const ptsPrec = valsPrec.filter(v=>v.type_validation==='tomon').reduce((s,v)=>s+v.nombre_tomon,0)*(bareme.tomon || 0)
+    + valsPrec.filter(v=>v.type_validation==='hizb_complet').length*(bareme.hizb_complet || 0)
+    + recsPrec.reduce((s,r)=>s+(r.points||0),0);
   const ptsDelta = ptsTotal - ptsPrec;
 
   const statsParEleve = useMemo(() => (elevesVisibles||[]).map(eleve => {
@@ -198,7 +203,7 @@ export default function HistoriqueSeances({ user, navigate, goBack, lang='fr', i
     const hizb = vE.filter(v=>v.type_validation==='hizb_complet').length;
     const sourates = rE.filter(r=>r.type_recitation==='complete').length;
     const seqs = rE.filter(r=>r.type_recitation==='sequence').length;
-    const pts = tomon*10+Math.floor(tomon/2)*25+Math.floor(tomon/4)*60+hizb*100+rE.reduce((s,r)=>s+(r.points||0),0);
+    const pts = tomon*(bareme.tomon || 0)+hizb*(bareme.hizb_complet || 0)+rE.reduce((s,r)=>s+(r.points||0),0);
     const nbSeances = new Set([...vE,...rE].map(x=>new Date(x.date_validation).toDateString())).size;
     const derniere = [...vE,...rE].sort((a,b)=>new Date(b.date_validation)-new Date(a.date_validation))[0]?.date_validation||null;
     const isSourate = IS_SOURATE(eleve.code_niveau);
@@ -218,12 +223,15 @@ export default function HistoriqueSeances({ user, navigate, goBack, lang='fr', i
     }
     const vEPrec = valsPrec.filter(v=>v.eleve_id===eleve.id);
     const rEPrec = recsPrec.filter(r=>r.eleve_id===eleve.id);
-    const ptsPrec2 = vEPrec.filter(v=>v.type_validation==='tomon').reduce((s,v)=>s+v.nombre_tomon,0)*10+rEPrec.reduce((s,r)=>s+(r.points||0),0);
+    // NETTOYAGE (oct 2026) : meme calcul que pts (avant tomon*10 code en dur, hizbs oublies)
+    const ptsPrec2 = vEPrec.filter(v=>v.type_validation==='tomon').reduce((s,v)=>s+v.nombre_tomon,0)*(bareme.tomon || 0)
+      + vEPrec.filter(v=>v.type_validation==='hizb_complet').length*(bareme.hizb_complet || 0)
+      + rEPrec.reduce((s,r)=>s+(r.points||0),0);
     const trend = pts>ptsPrec2?'up':pts<ptsPrec2?'down':'stable';
     const inst = instituteurs.find(i=>i.id===eleve.instituteur_referent_id);
     return { eleve, tomon, hizb, sourates, seqs, pts, nbSeances, derniere, isSourate, obj, pctObj, trend, instituteurNom:inst?inst.prenom+' '+inst.nom:'—' };
   }),
-  [elevesVisibles, valsFiltrees, recsFiltrees, objectifs, valsPrec, recsPrec, instituteurs, debut, fin]);
+  [elevesVisibles, valsFiltrees, recsFiltrees, objectifs, valsPrec, recsPrec, instituteurs, debut, fin, bareme]);
 
   const actifs = (statsParEleve||[]).filter(s=>s.pts>0||s.nbSeances>0).sort((a,b)=>b.pts-a.pts);
   const inactifs = (statsParEleve||[]).filter(s=>s.pts===0&&s.nbSeances===0);
@@ -234,7 +242,7 @@ export default function HistoriqueSeances({ user, navigate, goBack, lang='fr', i
     if(!timeline[key]) timeline[key]={date:key,pts:0,tomon:0,hizb:0,sourate:0,seq:0};
     if(item.type_validation==='tomon'){timeline[key].tomon+=item.nombre_tomon;timeline[key].pts+=item.nombre_tomon*(bareme.tomon || 0);}
     else if(item.type_validation==='hizb_complet'){timeline[key].hizb++;timeline[key].pts+=(bareme.hizb_complet || 0);}
-    else if(item.type_recitation==='complete'){timeline[key].sourate++;timeline[key].pts+=(item.points||30);}
+    else if(item.type_recitation==='complete'){timeline[key].sourate++;timeline[key].pts+=(item.points||0);}
     else if(item.type_recitation==='sequence'){timeline[key].seq++;timeline[key].pts+=(item.points || 0);}
   });
   const timelineArr = Object.values(timeline).sort((a,b)=>a.date.localeCompare(b.date));

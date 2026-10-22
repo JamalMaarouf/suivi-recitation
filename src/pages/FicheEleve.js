@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useToast } from '../lib/toast';
 import { supabase } from '../lib/supabase';
-import { calcEtatEleve, calcEtatEleveAvecBlocs, isSourateNiveauDyn, calcPositionAtteinte, calcUnite, calcPoints, formatDate, formatDateCourt, getInitiales, scoreLabel, calcBadges, calcVitesse, niveauTraduit, calcPointsPeriode, loadBareme, BAREME_DEFAUT, getSensForEleve, calcBlocProgression, calcHizbsAcquisAvantArrivee} from '../lib/helpers';
+import { calcEtatEleve, calcEtatEleveAvecBlocs, isSourateNiveauDyn, calcPositionAtteinte, calcUnite, calcPoints, formatDate, formatDateCourt, getInitiales, scoreLabel, calcBadges, calcVitesse, niveauTraduit, calcPointsPeriode, loadBareme, BAREME_DEFAUT, getSensForEleve, calcBlocProgression, calcHizbsAcquisAvantArrivee, ptsValidation} from '../lib/helpers';
 import { t } from '../lib/i18n';
 import { openPDF } from '../lib/pdf';
 import { getCachedSWR } from '../lib/cache';
@@ -45,15 +45,20 @@ function calcHeatmap(validations) {
 
 function calcEvolution(validations, bareme) {
   const vals = [...validations].sort((a,b)=>new Date(a.date_validation)-new Date(b.date_validation));
-  let cumul=0; let hc=new Set();
+  let hc=new Set();
   const pts = [{score:0,label:'Départ'}];
-  // Bareme parametrable depuis Gestion. Fallbacks aux valeurs historiques (10/100)
-  // si bareme non fourni (ex : appel sans bareme charge).
-  const ptsTomon = bareme?.tomon || 0;
-  const ptsHizb  = bareme?.hizb_complet || 0;
+  // NETTOYAGE (oct 2026) : suppression des bonus codes en dur (+25 tous les 2
+  // tomons, +60 tous les 4) de l'ancien modele Roba/Nisf. Points = bareme seul,
+  // via ptsValidation (memes regles que calcPointsPeriode). Les hizbs complets
+  // restent dedoublonnes par numero de hizb, comme dans calcPointsPeriode.
+  let score = 0;
   vals.forEach(v => {
-    if(v.type_validation==='hizb_complet') hc.add(v.hizb_valide); else cumul+=v.nombre_tomon;
-    pts.push({score:cumul*ptsTomon+Math.floor(cumul/2)*25+Math.floor(cumul/4)*60+hc.size*ptsHizb,label:formatDateCourt(v.date_validation)});
+    if (v.type_validation==='hizb_complet') {
+      if (hc.has(v.hizb_valide)) return; // deja compte
+      hc.add(v.hizb_valide);
+    }
+    score += ptsValidation(v, bareme);
+    pts.push({score, label:formatDateCourt(v.date_validation)});
   });
   return pts;
 }
@@ -1615,7 +1620,7 @@ ${(passages||[]).length > 0 ? `
                           <div style={{fontSize:11,color:'#888'}}>{new Date(v.date_validation).toLocaleDateString(lang==='ar'?'ar-MA':'fr-FR')}</div>
                         </div>
                         <span style={{fontSize:13,fontWeight:700,color:'#1D9E75'}}>
-                          +{v.type_validation==='hizb_complet'?100:v.nombre_tomon*30} pts
+                          +{ptsValidation(v, baremeEleve)} pts
                         </span>
                       </div>
                     ))}
@@ -1633,7 +1638,8 @@ ${(passages||[]).length > 0 ? `
                 </div>
                 {[...validations].sort((a,b)=>new Date(b.date_validation)-new Date(a.date_validation)).slice(0,15).map((v,i)=>{
                   const isSourate = v.sourate_id !== undefined;
-                  const pts = isSourate?(v.type_recitation==='complete'?30:10):(v.type_validation==='hizb_complet'?100:(v.nombre_tomon||1)*30);
+                  // NETTOYAGE (oct 2026) : avant 30/10/100/30 pts codes en dur. Maintenant barème.
+                  const pts = isSourate ? (v.points||0) : ptsValidation(v, baremeEleve);
                   return(
                     <div key={i} style={{background:'#fff',borderRadius:10,padding:'10px 12px',marginBottom:6,
                       border:'0.5px solid #e0e0d8',display:'flex',alignItems:'center',gap:10}}>
@@ -1844,7 +1850,7 @@ ${(passages||[]).length > 0 ? `
                       <div style={{fontSize:11,color:'#888'}}>{new Date(v.date_validation).toLocaleDateString(lang==='ar'?'ar-MA':'fr-FR')}</div>
                     </div>
                     <span style={{fontSize:13,fontWeight:700,color:'#EF9F27'}}>
-                      +{v.type_validation==='hizb_muraja'?100:30} pts
+                      +{ptsValidation(v, baremeEleve)} pts
                     </span>
                   </div>
                 ))}
@@ -2642,7 +2648,7 @@ ${(passages||[]).length > 0 ? `
                         <td style={{fontSize:12,color:'#888'}}>{new Date(v.date_validation).toLocaleDateString(lang==='ar'?'ar-MA':'fr-FR')}</td>
                         <td><span className="badge" style={{background:'#FFF3CD',color:'#856404',fontSize:10}}>{v.type_validation==='hizb_muraja'?(lang==='ar'?'حزب كامل':(lang==='ar'?'حزب كامل':'Hizb complet')):(lang==='ar'?'ثُمن':'Tomon')}</span></td>
                         <td style={{fontSize:12}}>{v.type_validation==='hizb_muraja'?`Hizb ${v.hizb_validation}`:`Hizb ${v.hizb_validation} — T${v.tomon_debut} ×${v.nombre_tomon}`}</td>
-                        <td><span style={{fontSize:12,fontWeight:600,color:'#EF9F27'}}>+{v.type_validation==='hizb_muraja'?100:v.nombre_tomon*10}</span></td>
+                        <td><span style={{fontSize:12,fontWeight:600,color:'#EF9F27'}}>+{ptsValidation(v, baremeEleve)}</span></td>
                         <td style={{fontSize:11,color:'#888'}}>{v.valideur?`${v.valideur.prenom} ${v.valideur.nom}`:'—'}</td>
                       </tr>
                     ))}
@@ -2838,7 +2844,7 @@ ${(passages||[]).length > 0 ? `
                             <td>{v.type_validation==='hizb_complet'?<span className="badge badge-green">{t(lang,'hizb_complet')}</span>:<span className="badge">{t(lang,'tomon_abrev')} ×{v.nombre_tomon}</span>}</td>
                             <td style={{fontSize:12,color:'#888'}}>{v.type_validation==='hizb_complet'?(lang==='ar' ? `الحزب ${v.hizb_valide}` : 'Hizb '+v.hizb_valide):(lang==='ar' ? `ث.${v.tomon_debut} الحزب ${v.hizb_validation}` : 'T'+v.tomon_debut+' Hizb '+v.hizb_validation)}</td>
                             <td>{joursAppr!==null?<span style={{fontSize:12,fontWeight:600,color:joursAppr<=7?'#1D9E75':joursAppr<=14?'#EF9F27':'#E24B4A'}}>{joursAppr}{lang==='ar' ? 'ي' : 'j'}</span>:'—'}</td>
-                            <td><span style={{fontSize:12,fontWeight:600,color:'#1D9E75'}}>+{v.type_validation==='hizb_complet'?100:v.nombre_tomon*10}</span></td>
+                            <td><span style={{fontSize:12,fontWeight:600,color:'#1D9E75'}}>+{ptsValidation(v, baremeEleve)}</span></td>
                             <td style={{fontSize:12,color:'#888'}}>{v.valideur?(v.valideur.prenom+' '+v.valideur.nom):'—'}</td>
                           </tr>
                         );

@@ -22,6 +22,9 @@ export default function EnregistrerRecitation({  user, eleve: eleveInitial, navi
   const { toast } = useToast();
   const [step, setStep] = useState(eleveInitial ? 2 : 1);
   const [bareme, setBareme] = useState(null);
+  // NETTOYAGE (oct 2026) : libelles "+X pts" alimentes par le bareme (avant 100 / x30 / x10 codes en dur)
+  const ptsTomonB = ((bareme && bareme.unites) ? bareme.unites : (bareme || {})).tomon || 0;
+  const ptsHizbB  = ((bareme && bareme.unites) ? bareme.unites : (bareme || {})).hizb_complet || 0;
   const [blocage, setBlocage] = useState(null); // examen requis avant de continuer
   const [blocagesEnsemble, setBlocagesEnsemble] = useState([]); // ensembles termines mais non valides
   const [eleves, setEleves] = useState([]);
@@ -462,7 +465,7 @@ export default function EnregistrerRecitation({  user, eleve: eleveInitial, navi
                   }}
                     style={{width:'100%',padding:'18px',background:'#EF9F27',color:'#fff',
                       border:'none',borderRadius:14,fontSize:17,fontWeight:800,cursor:'pointer',fontFamily:'inherit'}}>
-                    ✓ Valider Hizb (+100 pts)
+                    ✓ Valider Hizb (+{ptsHizbB} pts)
                   </button>
                 </div>
               ) : (
@@ -484,11 +487,11 @@ export default function EnregistrerRecitation({  user, eleve: eleveInitial, navi
                         const wasQueued = res.status === 'queued';
                         if (!res.error) {
                           setDone(true);
-                          setMotivMsg({msg:`✅ +${n*30} pts !`});
+                          setMotivMsg({msg:`✅ +${n*ptsTomonB} pts !`});
                           if (wasQueued) {
                             toast.success(lang==='ar'?'✓ تم الحفظ (مزامنة تلقائية)':'✓ Enregistré (sync auto)');
                           } else {
-                            toast.success(`✅ +${n*30} pts enregistrés !`);
+                            toast.success(`✅ +${n*ptsTomonB} pts enregistrés !`);
                           }
                           invalidateMany(['validations', 'recitations_sourates_min', `validations_${eleveInitial.id}`, `recitations_eleve_${eleveInitial.id}`], user.ecole_id);
                         }
@@ -497,7 +500,7 @@ export default function EnregistrerRecitation({  user, eleve: eleveInitial, navi
                           border:'none',borderRadius:14,fontSize:16,fontWeight:800,
                           cursor:'pointer',fontFamily:'inherit',textAlign:'center'}}>
                         +{n} tomon
-                        <div style={{fontSize:12,opacity:0.8,marginTop:4}}>(+{n*30} pts)</div>
+                        <div style={{fontSize:12,opacity:0.8,marginTop:4}}>(+{n*ptsTomonB} pts)</div>
                       </button>
                     ))}
                   </div>
@@ -630,8 +633,8 @@ export default function EnregistrerRecitation({  user, eleve: eleveInitial, navi
         <div style={{ fontSize: 13, color: '#888', marginBottom: '1.5rem' }}>
           {selectedEleve?.prenom} {selectedEleve?.nom} —
           {typeValidation === 'hizb_complet'
-            ? ` Hizb ${etat?.hizbEnCours} validé complet (+100 pts)`
-            : ` ${nombreTomon} Tomon validé${nombreTomon > 1 ? 's' : ''} (+${nombreTomon * 10} pts)`}
+            ? ` Hizb ${etat?.hizbEnCours} validé complet (+${ptsHizbB} pts)`
+            : ` ${nombreTomon} Tomon validé${nombreTomon > 1 ? 's' : ''} (+${nombreTomon * ptsTomonB} pts)`}
         </div>
         <div style={{ display: 'flex', gap: 10, justifyContent: 'center', flexWrap: 'wrap' }}>
           <button className="btn-primary" style={{ maxWidth: 220 }}
@@ -745,7 +748,7 @@ export default function EnregistrerRecitation({  user, eleve: eleveInitial, navi
                 onClick={() => setTypeValidation('hizb_complet')}>
                 <div style={{ fontSize: 32, marginBottom: 8 }}>📖</div>
                 <div style={{ fontSize: 15, fontWeight: 600, color: '#1D9E75' }}>{lang==='ar' ? `اعتماد الحزب ${etat.hizbEnCours} كاملاً` : `Valider le Hizb ${etat.hizbEnCours} complet`}</div>
-                <div style={{ fontSize: 12, color: '#888', marginTop: 4 }}>{lang==='ar' ? '+100 ن إضافية' : '+100 pts bonus'}</div>
+                <div style={{ fontSize: 12, color: '#888', marginTop: 4 }}>{lang==='ar' ? `+${ptsHizbB} ن إضافية` : `+${ptsHizbB} pts bonus`}</div>
               </div>
               <button className="btn-primary" style={{ marginTop: '1rem' }} onClick={() => { setTypeValidation('hizb_complet'); setStep(3); }}>{lang==='ar' ? 'متابعة' : 'Continuer'}</button>
             </div>
