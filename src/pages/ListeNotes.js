@@ -139,6 +139,16 @@ export default function ListeNotes({ user, navigate, goBack, lang='fr', isMobile
 
   const getNivColor = (code) => niveaux.find(n=>n.code===code)?.couleur || '#888';
 
+  // Colonnes communes ecran / PDF / Excel (oct 2026). Avant : les exports lisaient
+  // details.nbTomon (champ inexistant -> toujours 0) et ignoraient sourates/ensembles.
+  const colonnesNotes = (pts) => ({
+    tomonSourates: (pts?.tomonPeriode||0) + (pts?.nbSouratesCompletes||0) + (pts?.nbSouratesMuraja||0),
+    hizb: pts?.hizbsPeriode || 0,
+    ensembles: pts?.nbEnsemblesComplets || 0,
+    ptsExamens: pts?.ptsExamens || 0,
+    ptsCertificats: pts?.ptsCertificats || 0,
+  });
+
   // ── PDF export ─────────────────────────────────────────────
   const handlePdfExport = async () => {
     if (genPdf || filtered.length === 0) return;
@@ -153,8 +163,7 @@ export default function ListeNotes({ user, navigate, goBack, lang='fr', isMobile
         couleur: getNivColor(el.code_niveau),
         instituteur: el.instNom || '—',
         points: el.pts?.total || 0,
-        tomon: el.pts?.details?.nbTomon || 0,
-        hizb: el.pts?.details?.nbHizb || 0,
+        ...colonnesNotes(el.pts),
       }));
       await openPDF('liste_notes', {
         ecole: { nom: user?.ecole?.nom || '' },
@@ -181,20 +190,25 @@ export default function ListeNotes({ user, navigate, goBack, lang='fr', isMobile
       lang === 'ar' ? 'المستوى' : 'Niveau',
       lang === 'ar' ? 'الأستاذ' : 'Instituteur',
       lang === 'ar' ? 'النقاط' : 'Points',
-      lang === 'ar' ? 'الثُّمنات' : 'Tomon',
+      lang === 'ar' ? 'الأثمان/السور' : 'Tomon/Sourates',
       lang === 'ar' ? 'الأحزاب' : 'Hizb',
+      lang === 'ar' ? 'المجموعات' : 'Ensembles',
+      lang === 'ar' ? 'الامتحانات' : 'Examens (pts)',
+      lang === 'ar' ? 'الشهادات' : 'Certificats (pts)',
     ];
-    const rows = filtered.map((el, i) => [
-      i + 1,
-      el.prenom || '',
-      el.nom || '',
-      el.eleve_id_ecole || '',
-      niveaux.find(n => n.code === el.code_niveau)?.nom || el.code_niveau || '',
-      el.instNom || '',
-      el.pts?.total || 0,
-      el.pts?.details?.nbTomon || 0,
-      el.pts?.details?.nbHizb || 0,
-    ]);
+    const rows = filtered.map((el, i) => {
+      const c = colonnesNotes(el.pts);
+      return [
+        i + 1,
+        el.prenom || '',
+        el.nom || '',
+        el.eleve_id_ecole || '',
+        niveaux.find(n => n.code === el.code_niveau)?.nom || el.code_niveau || '',
+        el.instNom || '',
+        el.pts?.total || 0,
+        c.tomonSourates, c.hizb, c.ensembles, c.ptsExamens, c.ptsCertificats,
+      ];
+    });
     const dateStr = new Date().toISOString().slice(0, 10);
     const filename = `notes_${periode}_${dateStr}.xlsx`;
     try {

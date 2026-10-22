@@ -82,7 +82,9 @@ export default function Dashboard({ user, navigate, goBack, lang, isMobile=false
   // Transforme les données brutes en format d'affichage
   // Optimisé O(n+m) au lieu de O(n*m) via Map
   // BUG-FIX POINTS (oct 2026) : parametre `bar` ajoute pour passer le bareme a calcEtatEleve.
-  const buildElevesData = (ed, id, vd, rd, nv, ec, bar) => {
+  // Ajout (oct 2026) : pe (points_eleves) et certs (certificats_eleves) pour que le
+  // total des eleves sourate inclue examens + certificats, comme ListeNotes.
+  const buildElevesData = (ed, id, vd, rd, nv, ec, bar, pe, certs) => {
     // Index des validations par eleve_id pour un lookup O(1) au lieu de filtrer n fois
     const valsByEleve = new Map();
     (vd||[]).forEach(v => {
@@ -106,10 +108,22 @@ export default function Dashboard({ user, navigate, goBack, lang, isMobile=false
     // non charges ici). On enrichit donc etat.points.total pour les eleves sourate
     // avec les points des recitations_sourates et des ensembles valides.
     const baremeEnsembles = (bar && bar.ensembles) || {};
+    const baremeJalons = (bar && bar.jalons) || {};
     const recsByEleve = new Map();
     (rd||[]).forEach(r => {
       if (!recsByEleve.has(r.eleve_id)) recsByEleve.set(r.eleve_id, []);
       recsByEleve.get(r.eleve_id).push(r);
+    });
+    // Memes regles que calcPointsPeriode (helpers.js) :
+    // examens = points_eleves type_event='examen' ; certificats = bareme.jalons[jalon_id]
+    const ptsExamensByEleve = new Map();
+    (pe||[]).forEach(e => {
+      if (e.type_event !== 'examen') return;
+      ptsExamensByEleve.set(e.eleve_id, (ptsExamensByEleve.get(e.eleve_id)||0) + (Number(e.points)||0));
+    });
+    const ptsCertifsByEleve = new Map();
+    (certs||[]).forEach(c => {
+      ptsCertifsByEleve.set(c.eleve_id, (ptsCertifsByEleve.get(c.eleve_id)||0) + (baremeJalons[c.jalon_id]||0));
     });
 
     return (ed||[]).map(eleve => {
@@ -124,7 +138,9 @@ export default function Dashboard({ user, navigate, goBack, lang, isMobile=false
         const ptsEnsembles = vals
           .filter(v => v.type_validation === 'ensemble_valide' && v.ensemble_id)
           .reduce((s, v) => s + (baremeEnsembles[v.ensemble_id] || 0), 0);
-        etat.points.total = (etat.points.total || 0) + ptsSourates + ptsEnsembles;
+        const ptsExamens = ptsExamensByEleve.get(eleve.id) || 0;
+        const ptsCertifs = ptsCertifsByEleve.get(eleve.id) || 0;
+        etat.points.total = (etat.points.total || 0) + ptsSourates + ptsEnsembles + ptsExamens + ptsCertifs;
       }
       const derniereHizb = vals[0]?.date_validation||null;
       const derniereSourate = recSouratesMap[eleve.id]||null;
@@ -138,8 +154,8 @@ export default function Dashboard({ user, navigate, goBack, lang, isMobile=false
 
   // Applique les données chargées au state
   // BUG-FIX POINTS (oct 2026) : parametre `bar` ajoute pour passer le bareme.
-  const applyData = (ed, id, vd, rd, nv, ec, bar) => {
-    const elevesData = buildElevesData(ed, id, vd, rd, nv, ec, bar);
+  const applyData = (ed, id, vd, rd, nv, ec, bar, pe, certs) => {
+    const elevesData = buildElevesData(ed, id, vd, rd, nv, ec, bar, pe, certs);
     setNiveaux(nv||[]);
     if (ec !== undefined) setEcoleConfig(ec);
     setEleves(elevesData);
@@ -192,6 +208,10 @@ export default function Dashboard({ user, navigate, goBack, lang, isMobile=false
           const etat = calcEtatEleve(fakeVals, r.hizb_depart, r.tomon_depart, sensE, null, null, baremeLocal);
           etat.hizbsComplets = new Set();
           for (let i = 0; i < (r.hizb_complets_count || 0); i++) etat.hizbsComplets.add(i);
+          // Eleves sourate : la RPC ne fournit ni points de recitations ni ensembles.
+          // On marque les points "en cours" pour afficher "…" au lieu d'un faux 0,
+          // jusqu'a ce que buildElevesData (donnees completes) remplace l'etat.
+          if (isSourateNiveauDyn(r.code_niveau, nv||[])) etat._ptsPending = true;
           return {
             id: r.eleve_id,
             prenom: r.prenom, nom: r.nom,
@@ -216,7 +236,7 @@ export default function Dashboard({ user, navigate, goBack, lang, isMobile=false
       }
 
       // Charger les validations détaillées en arrière-plan
-      const [edRes, vd, rd, ecRes] = await Promise.all([
+      const [edRes, vd, rd, ecRes, peData, certsData] = await Promise.all([
         // FIX (mai 2026) : select('*') au lieu d'une liste explicite tronquee.
         // ValidationRapide utilise select('*') et la recherche par eleve_id_ecole
         // fonctionne. La liste explicite oubliait colonnes -> bug filtre Dashboard.
@@ -233,12 +253,18 @@ export default function Dashboard({ user, navigate, goBack, lang, isMobile=false
           // -> ptsSourates=0 -> eleves sourate affichaient 0ن meme avec recitations faites.
           () => fetchAll(supabase.from('recitations_sourates').select('eleve_id,date_validation,type_recitation,points').eq('ecole_id', user.ecole_id).order('date_validation',{ascending:false}))),
         supabase.from('ecoles').select('sens_recitation_defaut').eq('id', user.ecole_id).maybeSingle(),
+        // Ajout (oct 2026) : examens + certificats pour le total des eleves sourate.
+        // En cas d'echec : [] -> total identique a avant (pas de blocage du Dashboard).
+        supabase.from('points_eleves').select('eleve_id,type_event,points').eq('ecole_id', user.ecole_id)
+          .then(r => r.data || []).catch(() => []),
+        supabase.from('certificats_eleves').select('eleve_id,jalon_id').eq('ecole_id', user.ecole_id)
+          .then(r => r.data || []).catch(() => []),
       ]);
 
 
       // Recalcul précis avec toutes les données (remplace l'affichage RPC)
       // BUG-FIX POINTS (oct 2026) : passer baremeLocal pour avoir les vrais points.
-      applyData(edRes.data || [], id, vd, rd, nv, ecRes?.data || null, baremeLocal);
+      applyData(edRes.data || [], id, vd, rd, nv, ecRes?.data || null, baremeLocal, peData, certsData);
 
       if (!rpcEleves) setLoading(false);
     } catch (e) {
@@ -854,6 +880,12 @@ export default function Dashboard({ user, navigate, goBack, lang, isMobile=false
                           const isSourate = isSourateNiveauDyn(eleve.code_niveau, niveaux);
                           const points = eleve.etat.points.total || 0;
                           const hizbComplets = eleve.etat.hizbsComplets?.size || 0;
+                          if (eleve.etat._ptsPending) {
+                            return (<>
+                              <span style={{fontSize:28,fontWeight:800,color:'#ccc',letterSpacing:'-1px'}}>…</span>
+                              <span style={{fontSize:12,color:C.muted}}>{t(lang,'pts_abrev')}</span>
+                            </>);
+                          }
                           if (points > 0) {
                             return (<>
                               <span style={{fontSize:28,fontWeight:800,color:sl.color,letterSpacing:'-1px'}}>
@@ -893,7 +925,7 @@ export default function Dashboard({ user, navigate, goBack, lang, isMobile=false
                       </div>
                       {isSourateNiveauDyn(eleve.code_niveau,niveaux)?(
                         <div style={{fontSize:11,color:C.muted,marginBottom:6}}>
-                          {eleve.recSouratesCount} {lang==='ar'?'سورة مكتملة':'sourates'} · {eleve.etat.points.total||0} {t(lang,'pts_abrev')}
+                          {eleve.recSouratesCount} {lang==='ar'?'سورة مكتملة':'sourates'} · {eleve.etat._ptsPending ? '…' : (eleve.etat.points.total||0)} {t(lang,'pts_abrev')}
                         </div>
                       ):(
                         <div style={{fontSize:11,color:C.muted,marginBottom:6}}>Hizb {eleve.etat.hizbEnCours} · {eleve.etat.tomonCumul} {t(lang,'tomon_abrev')} · {eleve.etat.hizbsComplets.size} {t(lang,'hizb_abrev')}</div>

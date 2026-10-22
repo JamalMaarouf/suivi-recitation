@@ -843,8 +843,11 @@ function generateListeNotes(data, lang) {
         <td><span class="badge" style="background:${e.couleur || '#085041'}20;color:${e.couleur || '#085041'}">${e.code_niveau || '—'}</span></td>
         <td>${e.instituteur || '—'}</td>
         <td style="text-align:center;color:#085041;font-weight:700;font-size:14px">${(e.points || 0).toLocaleString()}</td>
-        <td style="text-align:center;color:#888">${e.tomon || 0}</td>
+        <td style="text-align:center;color:#888">${e.tomonSourates ?? e.tomon ?? 0}</td>
         <td style="text-align:center;color:#888">${e.hizb || 0}</td>
+        <td style="text-align:center;color:#888">${e.ensembles || 0}</td>
+        <td style="text-align:center;color:#888">${e.ptsExamens || 0}</td>
+        <td style="text-align:center;color:#888">${e.ptsCertificats || 0}</td>
       </tr>
     `;
   }).join('');
@@ -879,8 +882,11 @@ function generateListeNotes(data, lang) {
         <th>${isAr ? 'المستوى' : 'Niveau'}</th>
         <th>${isAr ? 'الأستاذ' : 'Instituteur'}</th>
         <th style="text-align:center">${isAr ? 'النقاط' : 'Points'}</th>
-        <th style="text-align:center">${isAr ? 'الثُّمنات' : 'Tomon'}</th>
+        <th style="text-align:center">${isAr ? 'الأثمان/السور' : 'Tomon/Sourates'}</th>
         <th style="text-align:center">${isAr ? 'الأحزاب' : 'Hizb'}</th>
+        <th style="text-align:center">${isAr ? 'المجموعات' : 'Ensembles'}</th>
+        <th style="text-align:center">${isAr ? 'الامتحانات' : 'Examens'}</th>
+        <th style="text-align:center">${isAr ? 'الشهادات' : 'Certs'}</th>
       </tr></thead>
       <tbody>${rows}</tbody>
     </table>
