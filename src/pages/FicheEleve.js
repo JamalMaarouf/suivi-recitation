@@ -1260,6 +1260,134 @@ ${(passages||[]).length > 0 ? `
     (niveauxList||[]).find(n=>n.code===code)?.couleur ||
     {'5B':'#534AB7','5A':'#378ADD','2M':'#1D9E75','2':'#EF9F27','1':'#E24B4A'}[code] || '#888';
 
+  // F2 (oct 2026) : contenu de l'onglet الحفظ partage PC + mobile (avant : PC seulement).
+  const contenuHifz = (
+    <>
+      <div className="section-label">{estSourateEleve?(lang==='ar'?'سجل التلاوات':'Historique des récitations'):t(lang,'suivi_apprentissage')}</div>
+      {estSourateEleve ? (
+        recitationsSouratesEleve.length===0 ? <div className="empty">{t(lang,'aucune_recitation_label')}</div> : (
+          <div className="table-wrap">
+            <table><thead><tr>
+              <th>{lang==='ar'?'التاريخ':'Date'}</th>
+              <th>{lang==='ar'?'السورة':'Sourate'}</th>
+              <th>{lang==='ar'?'النوع':'Type'}</th>
+              <th>{lang==='ar'?'الآيات':'Versets'}</th>
+              <th>{lang==='ar'?'النقاط':'Pts'}</th>
+              <th>{lang==='ar'?'صحَّح بواسطة':'Validé par'}</th>
+            </tr></thead>
+            <tbody>
+              {[...recitationsSouratesEleve].sort((a,b)=>new Date(b.date_validation||0)-new Date(a.date_validation||0)).map(r=>(
+                <tr key={r.id}>
+                  <td style={{fontSize:12,color:'#888'}}>{r.date_validation?new Date(r.date_validation).toLocaleDateString(lang==='ar'?'ar-MA':'fr-FR'):'—'}</td>
+                  <td style={{fontWeight:600,direction:'rtl',fontFamily:"'Tajawal',Arial"}}>{r.sourate?.nom_ar||'—'}</td>
+                  <td><span className={r.type_recitation==='complete'?'badge badge-green':'badge'}>{r.type_recitation==='complete'?(lang==='ar'?'كاملة':'Complète'):(lang==='ar'?'مقطع':'Séquence')}</span></td>
+                  <td style={{fontSize:12,color:'#888'}}>{r.type_recitation==='sequence'&&r.verset_debut?`V.${r.verset_debut}→${r.verset_fin}`:'—'}</td>
+                  <td style={{fontSize:12,fontWeight:600,color:'#1D9E75'}}>{r.points>0?`+${r.points}`:'—'}</td>
+                  <td style={{fontSize:11,color:'#888'}}>{r.valideur?`${r.valideur.prenom} ${r.valideur.nom}`:(r.valide_par?'✓':'—')}</td>
+                </tr>
+              ))}
+            </tbody></table>
+          </div>
+        )
+      ) : (
+        (() => {
+          // ENRICHISSEMENT (oct 2026) : afficher aussi les validations tomon qui
+          // n'ont PAS d'apprentissage formel enregistre (ligne table apprentissages).
+          // Avant : si l'instituteur validait des tomons sans passer par "+ Istizhar",
+          // la table restait vide alors que l'eleve avait bien recite.
+          // Apres : chaque tomon valide genere une ligne (reelle ou virtuelle) avec
+          // "—" dans la colonne "debut apprentissage" si pas de debut enregistre.
+          const tomonsValides = validations.filter(v=>v.type_validation==='tomon');
+          const virtuels = [];
+          tomonsValides.forEach(v => {
+            for (let t=v.tomon_debut; t<v.tomon_debut+(v.nombre_tomon||1); t++) {
+              const existe = apprentissages.find(a => a.hizb === v.hizb_validation && a.tomon === t);
+              if (!existe) {
+                virtuels.push({ id:`v-${v.id}-${t}`, hizb:v.hizb_validation, tomon:t, date_debut:null, _virtual:true, _validation:v });
+              }
+            }
+          });
+          const all = [...apprentissages, ...virtuels].sort((a,b)=>{
+            // Tri par hizb desc, tomon asc
+            if (a.hizb !== b.hizb) return b.hizb - a.hizb;
+            return a.tomon - b.tomon;
+          });
+          if (all.length === 0) return <div className="empty">{t(lang,'aucun_suivi')}</div>;
+          return (
+            <div className="table-wrap">
+              <table><thead><tr>
+                <th style={{width:'22%'}}>{t(lang,'tomon_abrev')}</th>
+                <th style={{width:'26%'}}>{t(lang,'debut_apprentissage')}</th>
+                <th style={{width:'26%'}}>{t(lang,'validation_label')}</th>
+                <th style={{width:'14%'}}>{t(lang,'duree')}</th>
+                <th style={{width:'12%'}}>{t(lang,'statut')}</th>
+              </tr></thead>
+              <tbody>
+                {all.map(appr=>{
+                  const validation = appr._validation || validations.find(v=>v.type_validation==='tomon'&&v.hizb_validation===appr.hizb&&v.tomon_debut<=appr.tomon&&(v.tomon_debut+v.nombre_tomon-1)>=appr.tomon);
+                  const jours = (validation && appr.date_debut) ? Math.round((new Date(validation.date_validation)-new Date(appr.date_debut))/(1000*60*60*24)) : null;
+                  return(
+                    <tr key={appr.id}>
+                      <td style={{fontWeight:500}}>{lang==='ar' ? `الحزب ${appr.hizb} — ث.${appr.tomon}` : `Hizb ${appr.hizb} — T.${appr.tomon}`}</td>
+                      <td style={{fontSize:12,color:'#888'}}>{appr.date_debut?formatDateCourt(appr.date_debut):'—'}</td>
+                      <td style={{fontSize:12,color:'#888'}}>{validation?formatDateCourt(validation.date_validation):'—'}</td>
+                      <td>{jours!==null?<span style={{fontSize:12,fontWeight:600,color:jours<=7?'#1D9E75':jours<=14?'#EF9F27':'#E24B4A'}}>{jours}{lang==='ar' ? 'ي' : 'j'}</span>:'—'}</td>
+                      <td>{validation?<span className="badge badge-green" style={{fontSize:9}}>✓</span>:<span className="badge" style={{fontSize:9}}>⏳</span>}</td>
+                    </tr>
+                  );
+                })}
+              </tbody></table>
+            </div>
+          );
+        })()
+      )}
+    </>
+  );
+
+  // F2 (oct 2026) : deblocage exceptionnel Hizb/Tomon partage PC + mobile (avant : PC seulement).
+  const blocExceptionHizb = (
+    <>
+  {/* Exception Hizb/Tomon — Hizb uniquement */}
+  {user.role==='surveillant'&&!estSourateEleve&&(
+    <div style={{marginBottom:8}}>
+      <button onClick={()=>setShowExceptionModal(true)}
+        style={{padding:'6px 12px',border:'1px solid #E24B4A',borderRadius:8,background:'#fff',color:'#E24B4A',fontSize:11,cursor:'pointer',fontWeight:500}}>
+        🔓 {lang==='ar'?'فتح استثنائي (Hizb/Tomon)':lang==='en'?'Unlock Hizb/Tomon (exception)':'Exception Hizb/Tomon'}
+      </button>
+      {exceptionsHizb.length>0&&(
+        <div style={{marginTop:6,padding:'8px 12px',background:'#FCEBEB',border:'1px solid #E24B4A',borderRadius:8}}>
+          <div style={{fontSize:11,fontWeight:600,color:'#A32D2D',marginBottom:4}}>
+            🔓 {lang==='ar'?'استثناءات نشطة':lang==='en'?'Active exceptions':'Exceptions actives'}
+          </div>
+          <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>
+            {exceptionsHizb.map(ex=>(
+              <div key={ex.id} style={{display:'flex',alignItems:'center',gap:4,padding:'2px 8px',background:'#fff',borderRadius:20,border:'1px solid #E24B4A',fontSize:12}}>
+                Hizb {ex.hizb_numero}
+                <span onClick={async()=>{await supabase.from('exceptions_hizb').update({active:false}).eq('id',ex.id);await loadData();}} style={{cursor:'pointer',color:'#E24B4A',fontSize:14,fontWeight:700,marginLeft:2}}>×</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  )}
+
+  {/* Exception modal */}
+  {showExceptionModal&&user.role==='surveillant'&&(
+    <ExceptionHizbModal
+      etat={etat} eleve={eleve} user={user}
+      onConfirm={async(hizbs)=>{
+        await supabase.from('exceptions_hizb').insert(hizbs.map(h=>({eleve_id:eleve.id,ecole_id:user.ecole_id,hizb_numero:h,active:true,cree_par:user.id,date_creation:new Date().toISOString()})));
+        setShowExceptionModal(false);
+        await loadData();
+      }}
+      onCancel={()=>setShowExceptionModal(false)}
+      lang={lang}
+    />
+  )}
+    </>
+  );
+
   if (isMobile) {
     const sl2 = estSourateEleve ? scoreLabel(totalPtsSourates) : (etat ? scoreLabel(etat.points.total) : {color:'#888',bg:'#f0f0ec',label:'—'});
     const _niveauxFe = typeof niveaux !== 'undefined' ? niveaux : [];
@@ -1337,6 +1465,7 @@ ${(passages||[]).length > 0 ? `
               {k:'objectifs',  label: lang==='ar'?'الأهداف':'Objectifs',   icon:'🎯'},
               {k:'assiduite',  label: lang==='ar'?'الحضور':'Assiduité',    icon:'📅'},
               {k:'cours',      label: lang==='ar'?'الدروس':'Cours',        icon:'📚'},
+              {k:'apprentissage', label: lang==='ar'?'الحفظ':'Mémorisation', icon:'🧠'}, // F2 (oct 2026)
             ];
             const ongletDansPlus = tabsPlus.find(t => t.k === onglet);
             const plusActif = !!ongletDansPlus;
@@ -1409,6 +1538,8 @@ ${(passages||[]).length > 0 ? `
           <div style={{padding:'12px 12px'}}>
             {onglet==='progression' && (
               <div>
+                {/* F2 (oct 2026) : deblocage exceptionnel Hizb/Tomon (surveillant, eleve hizb) */}
+                <div style={{padding:'12px 0 0'}}>{blocExceptionHizb}</div>
                 {/* ─── Barre de progression GLOBALE (sourates uniquement) ─── */}
                 {/* Historique : montre % sourates completees + repartition acquis/suivi */}
                 {estSourateEleve && souratesDB.length > 0 && (() => {
@@ -1751,6 +1882,11 @@ ${(passages||[]).length > 0 ? `
             {/* ─── Onglet Cours (mobile) ─── */}
             {onglet==='cours' && (
               <OngletCoursEleve eleve={eleve} lang={lang} isMobile={true} />
+            )}
+
+            {/* F2 (oct 2026) : onglet الحفظ sur mobile, meme contenu que le PC */}
+            {onglet==='apprentissage' && (
+              <div style={{padding:'12px 0'}}>{contenuHifz}</div>
             )}
 
 
@@ -2236,44 +2372,7 @@ ${(passages||[]).length > 0 ? `
               </div>
             )}
 
-            {/* Exception Hizb/Tomon — Hizb uniquement */}
-            {user.role==='surveillant'&&!estSourateEleve&&(
-              <div style={{marginBottom:8}}>
-                <button onClick={()=>setShowExceptionModal(true)}
-                  style={{padding:'6px 12px',border:'1px solid #E24B4A',borderRadius:8,background:'#fff',color:'#E24B4A',fontSize:11,cursor:'pointer',fontWeight:500}}>
-                  🔓 {lang==='ar'?'فتح استثنائي (Hizb/Tomon)':lang==='en'?'Unlock Hizb/Tomon (exception)':'Exception Hizb/Tomon'}
-                </button>
-                {exceptionsHizb.length>0&&(
-                  <div style={{marginTop:6,padding:'8px 12px',background:'#FCEBEB',border:'1px solid #E24B4A',borderRadius:8}}>
-                    <div style={{fontSize:11,fontWeight:600,color:'#A32D2D',marginBottom:4}}>
-                      🔓 {lang==='ar'?'استثناءات نشطة':lang==='en'?'Active exceptions':'Exceptions actives'}
-                    </div>
-                    <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>
-                      {exceptionsHizb.map(ex=>(
-                        <div key={ex.id} style={{display:'flex',alignItems:'center',gap:4,padding:'2px 8px',background:'#fff',borderRadius:20,border:'1px solid #E24B4A',fontSize:12}}>
-                          Hizb {ex.hizb_numero}
-                          <span onClick={async()=>{await supabase.from('exceptions_hizb').update({active:false}).eq('id',ex.id);await loadData();}} style={{cursor:'pointer',color:'#E24B4A',fontSize:14,fontWeight:700,marginLeft:2}}>×</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Exception modal */}
-            {showExceptionModal&&user.role==='surveillant'&&(
-              <ExceptionHizbModal
-                etat={etat} eleve={eleve} user={user}
-                onConfirm={async(hizbs)=>{
-                  await supabase.from('exceptions_hizb').insert(hizbs.map(h=>({eleve_id:eleve.id,ecole_id:user.ecole_id,hizb_numero:h,active:true,cree_par:user.id,date_creation:new Date().toISOString()})));
-                  setShowExceptionModal(false);
-                  await loadData();
-                }}
-                onCancel={()=>setShowExceptionModal(false)}
-                lang={lang}
-              />
-            )}
+            {blocExceptionHizb}
 
 
 
@@ -2465,88 +2564,7 @@ ${(passages||[]).length > 0 ? `
           )}
 
           {/* APPRENTISSAGE */}
-          {onglet==='apprentissage'&&(
-            <>
-              <div className="section-label">{estSourateEleve?(lang==='ar'?'سجل التلاوات':'Historique des récitations'):t(lang,'suivi_apprentissage')}</div>
-              {estSourateEleve ? (
-                recitationsSouratesEleve.length===0 ? <div className="empty">{t(lang,'aucune_recitation_label')}</div> : (
-                  <div className="table-wrap">
-                    <table><thead><tr>
-                      <th>{lang==='ar'?'التاريخ':'Date'}</th>
-                      <th>{lang==='ar'?'السورة':'Sourate'}</th>
-                      <th>{lang==='ar'?'النوع':'Type'}</th>
-                      <th>{lang==='ar'?'الآيات':'Versets'}</th>
-                      <th>{lang==='ar'?'النقاط':'Pts'}</th>
-                      <th>{lang==='ar'?'صحَّح بواسطة':'Validé par'}</th>
-                    </tr></thead>
-                    <tbody>
-                      {[...recitationsSouratesEleve].sort((a,b)=>new Date(b.date_validation||0)-new Date(a.date_validation||0)).map(r=>(
-                        <tr key={r.id}>
-                          <td style={{fontSize:12,color:'#888'}}>{r.date_validation?new Date(r.date_validation).toLocaleDateString(lang==='ar'?'ar-MA':'fr-FR'):'—'}</td>
-                          <td style={{fontWeight:600,direction:'rtl',fontFamily:"'Tajawal',Arial"}}>{r.sourate?.nom_ar||'—'}</td>
-                          <td><span className={r.type_recitation==='complete'?'badge badge-green':'badge'}>{r.type_recitation==='complete'?(lang==='ar'?'كاملة':'Complète'):(lang==='ar'?'مقطع':'Séquence')}</span></td>
-                          <td style={{fontSize:12,color:'#888'}}>{r.type_recitation==='sequence'&&r.verset_debut?`V.${r.verset_debut}→${r.verset_fin}`:'—'}</td>
-                          <td style={{fontSize:12,fontWeight:600,color:'#1D9E75'}}>{r.points>0?`+${r.points}`:'—'}</td>
-                          <td style={{fontSize:11,color:'#888'}}>{r.valideur?`${r.valideur.prenom} ${r.valideur.nom}`:(r.valide_par?'✓':'—')}</td>
-                        </tr>
-                      ))}
-                    </tbody></table>
-                  </div>
-                )
-              ) : (
-                (() => {
-                  // ENRICHISSEMENT (oct 2026) : afficher aussi les validations tomon qui
-                  // n'ont PAS d'apprentissage formel enregistre (ligne table apprentissages).
-                  // Avant : si l'instituteur validait des tomons sans passer par "+ Istizhar",
-                  // la table restait vide alors que l'eleve avait bien recite.
-                  // Apres : chaque tomon valide genere une ligne (reelle ou virtuelle) avec
-                  // "—" dans la colonne "debut apprentissage" si pas de debut enregistre.
-                  const tomonsValides = validations.filter(v=>v.type_validation==='tomon');
-                  const virtuels = [];
-                  tomonsValides.forEach(v => {
-                    for (let t=v.tomon_debut; t<v.tomon_debut+(v.nombre_tomon||1); t++) {
-                      const existe = apprentissages.find(a => a.hizb === v.hizb_validation && a.tomon === t);
-                      if (!existe) {
-                        virtuels.push({ id:`v-${v.id}-${t}`, hizb:v.hizb_validation, tomon:t, date_debut:null, _virtual:true, _validation:v });
-                      }
-                    }
-                  });
-                  const all = [...apprentissages, ...virtuels].sort((a,b)=>{
-                    // Tri par hizb desc, tomon asc
-                    if (a.hizb !== b.hizb) return b.hizb - a.hizb;
-                    return a.tomon - b.tomon;
-                  });
-                  if (all.length === 0) return <div className="empty">{t(lang,'aucun_suivi')}</div>;
-                  return (
-                    <div className="table-wrap">
-                      <table><thead><tr>
-                        <th style={{width:'22%'}}>{t(lang,'tomon_abrev')}</th>
-                        <th style={{width:'26%'}}>{t(lang,'debut_apprentissage')}</th>
-                        <th style={{width:'26%'}}>{t(lang,'validation_label')}</th>
-                        <th style={{width:'14%'}}>{t(lang,'duree')}</th>
-                        <th style={{width:'12%'}}>{t(lang,'statut')}</th>
-                      </tr></thead>
-                      <tbody>
-                        {all.map(appr=>{
-                          const validation = appr._validation || validations.find(v=>v.type_validation==='tomon'&&v.hizb_validation===appr.hizb&&v.tomon_debut<=appr.tomon&&(v.tomon_debut+v.nombre_tomon-1)>=appr.tomon);
-                          const jours = (validation && appr.date_debut) ? Math.round((new Date(validation.date_validation)-new Date(appr.date_debut))/(1000*60*60*24)) : null;
-                          return(
-                            <tr key={appr.id}>
-                              <td style={{fontWeight:500}}>{lang==='ar' ? `الحزب ${appr.hizb} — ث.${appr.tomon}` : `Hizb ${appr.hizb} — T.${appr.tomon}`}</td>
-                              <td style={{fontSize:12,color:'#888'}}>{appr.date_debut?formatDateCourt(appr.date_debut):'—'}</td>
-                              <td style={{fontSize:12,color:'#888'}}>{validation?formatDateCourt(validation.date_validation):'—'}</td>
-                              <td>{jours!==null?<span style={{fontSize:12,fontWeight:600,color:jours<=7?'#1D9E75':jours<=14?'#EF9F27':'#E24B4A'}}>{jours}{lang==='ar' ? 'ي' : 'j'}</span>:'—'}</td>
-                              <td>{validation?<span className="badge badge-green" style={{fontSize:9}}>✓</span>:<span className="badge" style={{fontSize:9}}>⏳</span>}</td>
-                            </tr>
-                          );
-                        })}
-                      </tbody></table>
-                    </div>
-                  );
-                })()
-              )}
-            </>
-          )}
+          {onglet==='apprentissage'&&contenuHifz}
 
           {/* GRAPHIQUE */}
           {onglet==='graphique'&&(
