@@ -157,7 +157,7 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
     setBlocageExamen(null); setBlocagesEnsemble([]);
     const vals = validationsByEleveId.get(e.id) || [];
     const sensEl = getSensForEleve(e, niveaux, ecoleConfig);
-    setEtat(calcEtatEleveAvecBlocs(vals, e, programmeNiveau, sensEl));
+    setEtat(calcEtatEleveAvecBlocs(vals, e, programmeNiveau, sensEl, bareme));
     setSearch('');
     setNbTomon(1);
     setSourateSelectionnee(null);
@@ -177,7 +177,7 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
     if (fresh && (fresh.hizb_depart !== e.hizb_depart || fresh.tomon_depart !== e.tomon_depart || fresh.code_niveau !== e.code_niveau)) {
       setSelectedEleve(freshEleve);
       const sensFresh = getSensForEleve(freshEleve, niveaux, ecoleConfig);
-      setEtat(calcEtatEleveAvecBlocs(vals, freshEleve, programmeNiveau, sensFresh));
+      setEtat(calcEtatEleveAvecBlocs(vals, freshEleve, programmeNiveau, sensFresh, bareme));
     }
 
     const souratesLocal = sourFresh || [];
@@ -199,7 +199,7 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
       // Maintenant qu'on l'a, on recalcule l'etat avec calcEtatEleveAvecBlocs pour
       // que les niveaux multi-blocs aient hizbEnCours correct selon le bloc actuel.
       const sensFinal = getSensForEleve(freshEleve, niveaux, ecoleConfig);
-      setEtat(calcEtatEleveAvecBlocs(vals, freshEleve, progData, sensFinal));
+      setEtat(calcEtatEleveAvecBlocs(vals, freshEleve, progData, sensFinal, bareme));
     } else {
       setProgrammeNiveau([]);
     }
@@ -334,7 +334,7 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
     setAllValidations(newValsOpt);
     const sensEl = getSensForEleve(selectedEleve, niveaux, ecoleConfig);
     const valsEleveOpt = newValsOpt.filter(v => v.eleve_id === selectedEleve.id);
-    setEtat(calcEtatEleveAvecBlocs(valsEleveOpt, selectedEleve, programmeNiveau, sensEl));
+    setEtat(calcEtatEleveAvecBlocs(valsEleveOpt, selectedEleve, programmeNiveau, sensEl, bareme));
 
     // Affichage flash + reset IMMEDIATS
     const ptsParTomon = bareme?.unites?.tomon || 0;
@@ -374,7 +374,7 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
           ...prev.filter(v => v.eleve_id !== selectedEleve.id),
           ...refreshVals,
         ]);
-        setEtat(calcEtatEleveAvecBlocs(refreshVals, selectedEleve, programmeNiveau, sensEl));
+        setEtat(calcEtatEleveAvecBlocs(refreshVals, selectedEleve, programmeNiveau, sensEl, bareme));
       }
       return;
     }
@@ -437,7 +437,7 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
     setAllValidations(newValsOpt);
     const sensEl = getSensForEleve(selectedEleve, niveaux, ecoleConfig);
     const valsEleveOpt = newValsOpt.filter(v => v.eleve_id === selectedEleve.id);
-    setEtat(calcEtatEleveAvecBlocs(valsEleveOpt, selectedEleve, programmeNiveau, sensEl));
+    setEtat(calcEtatEleveAvecBlocs(valsEleveOpt, selectedEleve, programmeNiveau, sensEl, bareme));
 
     // Affichage flash IMMEDIAT
     const ptsHizb = bareme?.unites?.hizb_complet || 0;
@@ -472,7 +472,7 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
           ...prev.filter(v => v.eleve_id !== selectedEleve.id),
           ...refreshVals,
         ]);
-        setEtat(calcEtatEleveAvecBlocs(refreshVals, selectedEleve, programmeNiveau, sensEl));
+        setEtat(calcEtatEleveAvecBlocs(refreshVals, selectedEleve, programmeNiveau, sensEl, bareme));
       }
       return;
     }
@@ -773,7 +773,12 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
             {(filteredEleves||[]).map(e => {
               const vals = validationsByEleveId.get(e.id) || [];
               const sensEl = getSensForEleve(e, niveaux, ecoleConfig);
-              const et = calcEtatEleve(vals, e.hizb_depart, e.tomon_depart, sensEl);
+              // BUG-FIX POINTS (oct 2026) : passer bareme pour afficher les vrais
+              // points dans la liste de recherche. On garde eleve=null et
+              // programmeNiveau=null : programmeNiveau en state ici correspond
+              // a l'eleve selectionne precedent, pas forcement a `e`. L'ancienne
+              // logique mono-bloc reste donc utilisee pour le dropdown.
+              const et = calcEtatEleve(vals, e.hizb_depart, e.tomon_depart, sensEl, null, null, bareme);
               const isSour = isSourateNiveauDyn(e.code_niveau, niveaux);
               const nivColor = ({ '5B': '#534AB7', '5A': '#378ADD', '2M': '#1D9E75', '2': '#EF9F27', '1': '#E24B4A' }[e.code_niveau] || '#888');
               return (

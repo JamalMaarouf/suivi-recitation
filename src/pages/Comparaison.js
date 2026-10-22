@@ -30,7 +30,10 @@ export default function Comparaison({ navigate, goBack, lang='fr', isMobile, use
     setAllEleves((ed||[]).map(e => {
       const vals=(vd||[]).filter(v=>v.eleve_id===e.id);
       const sensE = getSensForEleve(e, nv, ec);
-      const etat=calcEtatEleve(vals,e.hizb_depart,e.tomon_depart, sensE);
+      // BUG-FIX POINTS (oct 2026) : passer `bareme` (deja plat .unites) en 7eme
+      // position pour avoir les vrais points dans etat.points.
+      // calcPoints accepte barème plat ou avec .unites (voir helpers.js L533).
+      const etat=calcEtatEleve(vals,e.hizb_depart,e.tomon_depart, sensE, null, null, br?.unites || br);
       return {...e,etat,validations:vals};
     }));
     } catch (e) {

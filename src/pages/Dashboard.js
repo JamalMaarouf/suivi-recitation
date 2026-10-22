@@ -81,7 +81,8 @@ export default function Dashboard({ user, navigate, goBack, lang, isMobile=false
 
   // Transforme les données brutes en format d'affichage
   // Optimisé O(n+m) au lieu de O(n*m) via Map
-  const buildElevesData = (ed, id, vd, rd, nv, ec) => {
+  // BUG-FIX POINTS (oct 2026) : parametre `bar` ajoute pour passer le bareme a calcEtatEleve.
+  const buildElevesData = (ed, id, vd, rd, nv, ec, bar) => {
     // Index des validations par eleve_id pour un lookup O(1) au lieu de filtrer n fois
     const valsByEleve = new Map();
     (vd||[]).forEach(v => {
@@ -102,7 +103,7 @@ export default function Dashboard({ user, navigate, goBack, lang, isMobile=false
     return (ed||[]).map(eleve => {
       const vals = valsByEleve.get(eleve.id) || [];
       const sensE = getSensForEleve(eleve, nv, ec);
-      const etat = calcEtatEleve(vals, eleve.hizb_depart, eleve.tomon_depart, sensE);
+      const etat = calcEtatEleve(vals, eleve.hizb_depart, eleve.tomon_depart, sensE, null, null, bar);
       const derniereHizb = vals[0]?.date_validation||null;
       const derniereSourate = recSouratesMap[eleve.id]||null;
       const derniere = derniereHizb && derniereSourate
@@ -114,8 +115,9 @@ export default function Dashboard({ user, navigate, goBack, lang, isMobile=false
   };
 
   // Applique les données chargées au state
-  const applyData = (ed, id, vd, rd, nv, ec) => {
-    const elevesData = buildElevesData(ed, id, vd, rd, nv, ec);
+  // BUG-FIX POINTS (oct 2026) : parametre `bar` ajoute pour passer le bareme.
+  const applyData = (ed, id, vd, rd, nv, ec, bar) => {
+    const elevesData = buildElevesData(ed, id, vd, rd, nv, ec, bar);
     setNiveaux(nv||[]);
     if (ec !== undefined) setEcoleConfig(ec);
     setEleves(elevesData);
@@ -127,7 +129,9 @@ export default function Dashboard({ user, navigate, goBack, lang, isMobile=false
   const loadData = async () => {
     setLoading(true);
     try {
-      loadBareme(supabase, user.ecole_id).then(b => setBareme(b));
+      // BUG-FIX POINTS (oct 2026) : on await loadBareme en parallele des autres chargements
+      // pour pouvoir passer le bareme a calcEtatEleve des le premier rendu.
+      // Avant : loadBareme etait fire-and-forget -> calcEtatEleve toujours sans bareme -> 0 pts.
 
       // OPTIM Phase 2 : rendu progressif
       // Étape 1 : RPC pré-calculée (~200ms) → affichage rapide des stats de base
@@ -137,13 +141,19 @@ export default function Dashboard({ user, navigate, goBack, lang, isMobile=false
         .then(res => (!res.error && Array.isArray(res.data)) ? res.data : null)
         .catch(() => null);
 
-      const [rpcEleves, id, nv] = await Promise.all([
+      const baremePromise = loadBareme(supabase, user.ecole_id).catch(() => null);
+
+      const [rpcEleves, id, nv, baremeData] = await Promise.all([
         rpcPromise,
         getCachedSWR('instituteurs', user.ecole_id,
           () => supabase.from('utilisateurs').select('id,prenom,nom,role').eq('role','instituteur').eq('ecole_id', user.ecole_id)),
         getCachedSWR('niveaux', user.ecole_id,
           () => supabase.from('niveaux').select('id,code,nom,type,couleur').eq('ecole_id', user.ecole_id).order('ordre')),
+        baremePromise,
       ]);
+      // Memoriser le bareme pour le state ET pour un usage immediat ci-dessous
+      const baremeLocal = baremeData || {...BAREME_DEFAUT};
+      if (baremeData) setBareme(baremeData);
 
       // Affichage rapide avec données RPC si disponibles
       if (rpcEleves) {
@@ -157,7 +167,7 @@ export default function Dashboard({ user, navigate, goBack, lang, isMobile=false
             ? [{ type_validation: 'tomon', nombre_tomon: r.tomon_cumul, date_validation: r.derniere_validation || new Date().toISOString() }]
             : [];
           const sensE = getSensForEleve({ code_niveau: r.code_niveau }, nv, ecoleConfig);
-          const etat = calcEtatEleve(fakeVals, r.hizb_depart, r.tomon_depart, sensE);
+          const etat = calcEtatEleve(fakeVals, r.hizb_depart, r.tomon_depart, sensE, null, null, baremeLocal);
           etat.hizbsComplets = new Set();
           for (let i = 0; i < (r.hizb_complets_count || 0); i++) etat.hizbsComplets.add(i);
           return {
@@ -199,7 +209,8 @@ export default function Dashboard({ user, navigate, goBack, lang, isMobile=false
 
 
       // Recalcul précis avec toutes les données (remplace l'affichage RPC)
-      applyData(edRes.data || [], id, vd, rd, nv, ecRes?.data || null);
+      // BUG-FIX POINTS (oct 2026) : passer baremeLocal pour avoir les vrais points.
+      applyData(edRes.data || [], id, vd, rd, nv, ecRes?.data || null, baremeLocal);
 
       if (!rpcEleves) setLoading(false);
     } catch (e) {

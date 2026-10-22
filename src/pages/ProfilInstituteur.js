@@ -19,8 +19,12 @@ export default function ProfilInstituteur({ instituteur, user, navigate, goBack,
   useEffect(() => { loadData(); }, [instituteur.id]);
 
   const loadData = async () => {
-    loadBareme(supabase, user.ecole_id).then(b=>setBareme({...BAREME_DEFAUT,...b.unites}));
     setLoading(true);
+    // BUG-FIX POINTS (oct 2026) : on await le bareme pour pouvoir le passer
+    // a calcEtatEleve des le premier rendu (avant : fire-and-forget -> 0 pts).
+    const brRes = await loadBareme(supabase, user.ecole_id).catch(() => null);
+    const baremeLocal = brRes ? {...BAREME_DEFAUT, ...brRes.unites} : {...BAREME_DEFAUT};
+    setBareme(baremeLocal);
     const {data:ed}=await supabase.from('eleves').select('*')
         .eq('ecole_id', user.ecole_id).eq('instituteur_referent_id',instituteur.id);
     const vd = await fetchAll(supabase.from('validations').select('*, valideur:valide_par(prenom,nom)')
@@ -34,7 +38,8 @@ export default function ProfilInstituteur({ instituteur, user, navigate, goBack,
     const elevesData=(ed||[]).map(e=>{
       const vals=(allVd||[]).filter(v=>v.eleve_id===e.id);
       const sensE = getSensForEleve(e, nv, ec);
-      const etat=calcEtatEleve(vals,e.hizb_depart,e.tomon_depart, sensE);
+      // BUG-FIX POINTS (oct 2026) : passer baremeLocal (deja plat .tomon/.hizb_complet).
+      const etat=calcEtatEleve(vals,e.hizb_depart,e.tomon_depart, sensE, null, null, baremeLocal);
       const derniere=vals[0]?.date_validation||null;
       return {...e,etat,derniere,jours:joursDepuis(derniere),inactif:isInactif(derniere)};
     });

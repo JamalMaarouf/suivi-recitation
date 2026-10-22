@@ -414,8 +414,7 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang, isMobi
           }));
           setCertificats(certsMapped);
         } catch(e) { setCertificats([]); }
-        // Charger barème et points événements (avec .catch pour ne pas casser)
-        loadBareme(supabase, eleve.ecole_id).then(b => setBaremeEleve(b)).catch(()=>{});
+        // Charger points événements (avec .catch pour ne pas casser)
         supabase.from('points_eleves').select('*').eq('eleve_id', eleve.id).order('date_event')
           .then(({data}) => setPointsEvenements(data||[]))
           .catch(()=> setPointsEvenements([]));
@@ -431,7 +430,16 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang, isMobi
         if(inst) setInstituteurNom(inst.prenom+' '+inst.nom);
       }
       const sensE = getSensForEleve(eleve, niveaux, ecoleConfig);
-      const e = calcEtatEleveAvecBlocs(vals||[], eleve, progDataLoaded, sensE);
+      // BUG-FIX POINTS (oct 2026) : charger le bareme AVANT calcEtatEleveAvecBlocs
+      // pour que les points soient calcules avec le vrai bareme (au lieu de 0).
+      // Le state baremeEleve est aussi mis a jour pour les autres usages du
+      // composant (notamment calcPointsPeriode ligne 1752).
+      let baremeLocal = null;
+      try {
+        baremeLocal = await loadBareme(supabase, eleve.ecole_id);
+        if (baremeLocal) setBaremeEleve(baremeLocal);
+      } catch (e) { /* bareme optionnel, continuer avec null */ }
+      const e = calcEtatEleveAvecBlocs(vals||[], eleve, progDataLoaded, sensE, baremeLocal);
 
       // PROTECTION CRITIQUE : si on avait déjà un état avec des validations
       // et que le reload ne retourne rien, c'est un signal d'erreur transitoire.
@@ -463,8 +471,10 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang, isMobi
         // Premier chargement raté : afficher un état minimal pour que la page ne crash pas
         // BUG-FIX MULTI-BLOCS : on passe eleve + progDataLoaded pour benefier de
         // la logique corrigee meme en cas d'erreur de chargement.
+        // BUG-FIX POINTS (oct 2026) : passer baremeEleve (state actuel) pour
+        // avoir les points corrects si le barème a deja ete charge dans un render precedent.
         const sensE = getSensForEleve(eleve, niveaux, ecoleConfig);
-        setEtat(calcEtatEleve([],eleve.hizb_depart,eleve.tomon_depart, sensE, eleve, progDataLoaded));
+        setEtat(calcEtatEleve([],eleve.hizb_depart,eleve.tomon_depart, sensE, eleve, progDataLoaded, baremeEleve));
       }
       // Si etat existe deja, on le laisse tel quel et on retry plus tard
       if (typeof navigator !== 'undefined' && navigator.onLine) {

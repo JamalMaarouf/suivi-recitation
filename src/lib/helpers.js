@@ -585,7 +585,17 @@ export function calcPoints(tomonCumul, hizbsCompletsCount, validations, tomonAcq
  *                          du niveau de l'eleve. Si fourni avec eleve, active
  *                          la logique multi-blocs corrigee.
  */
-export function calcEtatEleve(validations, hizbDepart, tomonDepart, sens = 'desc', eleve = null, programmeNiveau = null) {
+export function calcEtatEleve(validations, hizbDepart, tomonDepart, sens = 'desc', eleve = null, programmeNiveau = null, bareme = null) {
+  // BUG-FIX POINTS FICHE ELEVE (oct 2026) : nouveau param `bareme` optionnel.
+  // Avant : calcPoints etait appele sans bareme -> toujours 0 pts sur la
+  //         fiche eleve (BAREME_DEFAUT a tomon=0, hizb_complet=0).
+  //         Le menu Notes affichait correctement les points (via
+  //         calcPointsPeriode fixee en sep 2026) mais pas la fiche.
+  // Apres : si bareme passe, les points sont calcules correctement.
+  //         Si bareme non passe (appelants sans barème dispo = ElevesInactifs),
+  //         comportement identique a avant = 0 pts (retrocompat totale).
+  // Note : accepte barème complet (avec .unites) ou objet plat {tomon, hizb_complet, ...}
+  //        grace a la logique de calcPoints ligne 533.
   // Valeurs par défaut selon le sens
   const defaultHizb = sens === 'asc' ? 1 : 60;
   const hizbD = (hizbDepart === 0 || hizbDepart === null || hizbDepart === undefined) ? defaultHizb : hizbDepart;
@@ -641,7 +651,10 @@ export function calcEtatEleve(validations, hizbDepart, tomonDepart, sens = 'desc
   // Points totaux = acquis antérieurs + nouveaux validés depuis le suivi
   const tomonTotal = tomonAcquis + tomonCumul;
   const hizbCompletsTotal = hizbAcquisComplets + hizbsComplets.size;
-  const points = calcPoints(tomonTotal, hizbCompletsTotal, validations, tomonAcquis, hizbAcquisComplets);
+  // BUG-FIX POINTS (oct 2026) : passer `bareme` a calcPoints pour avoir
+  // les vrais points au lieu de 0. Si bareme est null, calcPoints utilise
+  // BAREME_DEFAUT (comportement identique a avant).
+  const points = calcPoints(tomonTotal, hizbCompletsTotal, validations, tomonAcquis, hizbAcquisComplets, bareme);
 
   if (tous8Faits && hizbCompletValide) {
     // Hizb complet validé → passer au hizb SUIVANT selon le sens
@@ -713,7 +726,11 @@ export function calcEtatEleve(validations, hizbDepart, tomonDepart, sens = 'desc
 //   La validation utilisera le hizbEnCours retourne par cette fonction,
 //   donc l'enregistrement BDD sera coherent avec l'affichage.
 // ═══════════════════════════════════════════════════════════════════════════
-export function calcEtatEleveAvecBlocs(validations, eleve, programmeNiveau, sens = 'desc') {
+export function calcEtatEleveAvecBlocs(validations, eleve, programmeNiveau, sens = 'desc', bareme = null) {
+  // BUG-FIX POINTS FICHE ELEVE (oct 2026) : nouveau param `bareme` optionnel.
+  // Transmis a calcEtatEleve pour avoir les vrais points.
+  // Si non passe, comportement identique a avant (points = 0 via BAREME_DEFAUT).
+
   // Etape 1 : calcEtatEleve standard (toujours fait pour tomonCumul, points, etc.)
   // BUG-FIX MULTI-BLOCS : on passe eleve + programmeNiveau pour que le calcul
   // des tomons/hizbs acquis utilise la logique multi-blocs corrigee
@@ -724,7 +741,8 @@ export function calcEtatEleveAvecBlocs(validations, eleve, programmeNiveau, sens
     eleve?.tomon_depart || 0,
     sens,
     eleve,
-    programmeNiveau
+    programmeNiveau,
+    bareme   // NEW oct 2026
   );
 
   // Etape 2 : detecter si multi-blocs (sinon retour direct)
@@ -978,19 +996,45 @@ export async function verifierBlocageExamen(supabase, {
       if (niveauType === 'hizb') {
         // ── Niveau Hizb ──
         // ids = numéros de Hizb
-        // L'examen se déclenche quand tous ces Hizb sont validés (hizb_complet)
+        // L'examen se déclenche quand tous ces Hizb sont valides (hizb_complet)
         //
         // Note metier : l'application impose deja a l'utilisateur de cliquer
         // "Valider Hizb complet" apres avoir valide les 8 tomons d'un Hizb
         // (le bouton "Valider Tomon" du Hizb suivant n'est dispo qu'apres ce
         // clic explicite). Donc une ligne type='hizb_complet' existe forcement
-        // en BDD pour chaque Hizb termine. Pas besoin de detecter via cumul
-        // de tomons.
+        // en BDD pour chaque Hizb termine pendant le suivi.
         const hizbComplets = new Set(
           (validations||[])
             .filter(v => v.type_validation === 'hizb_complet')
             .map(v => Number(v.hizb_valide))
         );
+
+        // ─── BUG-FIX (oct 2026) : prendre en compte les hizbs acquis AVANT le suivi ─────
+        // Symetrique au traitement sourates ligne ~1019.
+        // Sans cela, un eleve avec hizb_depart au milieu (ex: Hizb 57) ne pourra
+        // jamais declencher les examens couvrant les hizbs au-dela de son depart
+        // (les hizbs 58-60 sont acquis d'office, pas en BDD).
+        //
+        // Convention metier (cf. calcEtatEleve ligne 635) :
+        //   - En desc : hizb_depart = N -> hizbs N+1 a 60 sont acquis d'office
+        //   - En asc  : hizb_depart = N -> hizbs 1 a N-1 sont acquis d'office
+        //   - hizbs_acquis = tableau explicite de hizbs acquis supplementaires
+        const sensNiveau = niveauData.sens_recitation || 'desc';
+        const hd = parseInt(eleve?.hizb_depart) || 0;
+        if (hd > 0) {
+          if (sensNiveau === 'desc') {
+            for (let h = hd + 1; h <= 60; h++) hizbComplets.add(h);
+          } else {
+            for (let h = 1; h < hd; h++) hizbComplets.add(h);
+          }
+        }
+        if (Array.isArray(eleve?.hizbs_acquis)) {
+          for (const h of eleve.hizbs_acquis) {
+            const n = Number(h);
+            if (!isNaN(n)) hizbComplets.add(n);
+          }
+        }
+
         examTermine = ids.every(h => hizbComplets.has(Number(h)));
 
       } else {
