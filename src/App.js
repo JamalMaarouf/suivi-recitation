@@ -241,6 +241,9 @@ function App() {
   // Cours × niveau sélectionné pour la page de validation (objet {coursId, codeNiveau})
   const [selectedCoursValidation, setSelectedCoursValidation] = useState(null);
   const [selectedInstituteur, setSelectedInstituteur] = useState(null);
+  // Deep-link vers resultats_examens : {eleve, blocage:{examen}} pour pre-selection
+  // (depuis ValidationRapide ou EnregistrerRecitation apres clic "Vers les examens")
+  const [resultatsExamensData, setResultatsExamensData] = useState(null);
   const [compareEleves, setCompareEleves] = useState([]);
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
   const [lang, setLangRaw] = useState(() => localStorage.getItem('suivi_lang') || 'fr');
@@ -430,6 +433,10 @@ function App() {
     if (p === 'comparaison') setCompareEleves(data || []);
     if (p === 'cours_axes') setSelectedCoursId(data);
     if (p === 'cours_validation') setSelectedCoursValidation(data);
+    // Deep-link vers resultats_examens : stocke {eleve, blocage:{examen}}
+    // pour que ResultatsExamens pre-selectionne l'eleve ET l'examen bloquant.
+    // data=null (navbar) => reset, les champs restent vides.
+    if (p === 'resultats_examens') setResultatsExamensData(data);
     if (extraData?.tab) setGestionTab(extraData.tab);
     window.scrollTo(0, 0);
   };
@@ -956,7 +963,7 @@ function App() {
           {page === 'examens'           && user.role === 'surveillant' && <GestionExamens {...pageProps} />}
           {page === 'blocs'             && user.role === 'surveillant' && <GestionBlocs {...pageProps} />}
           {page === 'import_masse'      && user.role === 'surveillant' && <ImportMasse {...pageProps} />}
-          {page === 'resultats_examens' && <ResultatsExamens {...pageProps} data={selectedEleve} />}
+          {page === 'resultats_examens' && <ResultatsExamens {...pageProps} data={resultatsExamensData} />}
           {page === 'liste_certificats' && <ErrorBoundary><Suspense fallback={<div className="loading">...</div>}><ListeCertificats {...pageProps} /></Suspense></ErrorBoundary>}
           {page === 'liste_notes'       && <ErrorBoundary><Suspense fallback={<div className="loading">...</div>}><ListeNotes       {...pageProps} /></Suspense></ErrorBoundary>}
           </Suspense>

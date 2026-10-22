@@ -349,6 +349,13 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
     setNbTomon(1);
     setSaving(false); // Liberer le bouton IMMEDIATEMENT
 
+    // === BLOCAGE EXAMEN AFFICHE IMMEDIATEMENT (oct 2026) ===
+    // On lance verifierBlocageExamen EN PARALLELE avec l'INSERT BDD, en utilisant
+    // les validations OPTIMISTES (sans attendre le round-trip BDD).
+    // Avant : la verif se faisait apres l'INSERT -> delai de 500ms-2s avant que le
+    // bandeau rouge "Examen requis" apparaisse. Maintenant : <500ms.
+    checkBlocageExamenEleve(selectedEleve, valsEleveOpt, recitationsSourates).catch(() => {});
+
     // === INSERT BDD + ROLLBACK SI ERREUR (background) ===
     const res = await enqueueOrRun(supabase, 'validations', 'insert', payload, user.ecole_id);
     const error = res.error;
@@ -450,6 +457,10 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
     }, ...prev.slice(0, 9)]);
     const hizbValide = etat.hizbEnCours;
     setSaving(false); // Liberer le bouton IMMEDIATEMENT
+
+    // === BLOCAGE EXAMEN AFFICHE IMMEDIATEMENT (oct 2026) ===
+    // Verif en parallele avec l'INSERT BDD en utilisant les validations optimistes.
+    checkBlocageExamenEleve(selectedEleve, valsEleveOpt, recitationsSourates).catch(() => {});
 
     // === INSERT BDD + ROLLBACK SI ERREUR (background) ===
     const res = await enqueueOrRun(supabase, 'validations', 'insert', payload, user.ecole_id);
@@ -635,6 +646,13 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
     setSourateSelectionnee(null); setTypeRec('complete');
     setVersetDebut(''); setVersetFin('');
     setSaving(false); // Liberer le bouton IMMEDIATEMENT (UI optimiste a jour)
+
+    // === BLOCAGE EXAMEN AFFICHE IMMEDIATEMENT (oct 2026) ===
+    // Verif en parallele avec l'INSERT BDD en utilisant les recitations optimistes
+    // (les validations hizb/tomon ne changent pas ici, on passe l'etat courant).
+    // La verif post-INSERT (ci-dessous) reste SYNCHRONE pour empecher la course condition.
+    const valsEleveOpt = allValidations.filter(v => v.eleve_id === selectedEleve.id);
+    checkBlocageExamenEleve(selectedEleve, valsEleveOpt, optimisticRecs).catch(() => {});
 
     // === INSERT BDD + ROLLBACK SI ERREUR (background) ===
     const res = await enqueueOrRun(supabase, 'recitations_sourates', 'insert', {
@@ -850,7 +868,7 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
                     : `Vous devez faire passer et valider l'examen "${blocageExamen.examen?.nom||blocageExamen.nom||''}" avant de pouvoir enregistrer une nouvelle récitation pour cet élève.`}
                 </div>
               </div>
-              <button onClick={()=>navigate('resultats_examens')}
+              <button onClick={()=>navigate('resultats_examens', {eleve:selectedEleve, blocage:blocageExamen})}
                 style={{ background:'#E24B4A', color:'#fff', border:'none', borderRadius:10,
                   padding:'9px 14px', fontSize:12, fontWeight:700, cursor:'pointer', whiteSpace:'nowrap', flexShrink:0 }}>
                 {lang==='ar'?'إلى الامتحانات ←':'→ Vers les examens'}
@@ -886,7 +904,7 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
                   </div>
                 </div>
                 {b.cas === 'A' ? (
-                  <button onClick={()=>navigate('resultats_examens')}
+                  <button onClick={()=>navigate('resultats_examens', {eleve:selectedEleve, blocage:{examen:b.examen}})}
                     style={{ background:'#E24B4A', color:'#fff', border:'none', borderRadius:10,
                       padding:'9px 14px', fontSize:12, fontWeight:700, cursor:'pointer', whiteSpace:'nowrap', flexShrink:0 }}>
                     {lang==='ar'?'إلى الامتحانات ←':'→ Vers les examens'}
