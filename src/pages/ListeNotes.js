@@ -459,8 +459,9 @@ export default function ListeNotes({ user, navigate, goBack, lang='fr', isMobile
                   </div>
                   {/* Décomposition compacte */}
                   <div style={{display:'flex', gap:8, flexWrap:'wrap', fontSize:10}}>
+                    {/* Idem bureau : on somme tomons + sourates pour couvrir hizb/sourate */}
                     <span style={{color:'#378ADD', fontWeight:600}}>
-                      ⭐ {el.pts.tomonPeriode||0}
+                      ⭐ {(el.pts.tomonPeriode||0) + (el.pts.nbSouratesCompletes||0) + (el.pts.nbSouratesMuraja||0)}
                     </span>
                     <span style={{color:'#085041', fontWeight:600}}>
                       📖 {el.pts.hizbsPeriode||0}
@@ -519,8 +520,16 @@ export default function ListeNotes({ user, navigate, goBack, lang='fr', isMobile
                     <td><span style={{padding:'2px 6px',borderRadius:8,fontSize:10,fontWeight:700,background:nc+'18',color:nc}}>{el.code_niveau}</span></td>
                     <td style={{fontSize:11,color:'#888'}}>{el.instNom}</td>
                     <td style={{textAlign:'center'}}>
-                      <span style={{fontWeight:700,color:'#378ADD'}}>{el.pts.tomonPeriode}</span>
-                      {el.pts.ptsTomon>0 && <div style={{fontSize:9,color:'#aaa'}}>+{el.pts.ptsTomon} {lang==='ar'?'ن':'pts'}</div>}
+                      {/* BUG-FIX AFFICHAGE SOURATES (oct 2026) : la colonne "Thamanes/Sourates"
+                          affichait tomonPeriode seul -> 0 pour les eleves recitant en sourates
+                          alors que leurs ptsSourates etaient bien dans le total. On somme ici
+                          tomons + sourates (completes + muraja) pour couvrir les deux cas.
+                          Pour un eleve hizb : nbSouratesCompletes=0, donc comportement inchange.
+                          Pour un eleve sourate : tomonPeriode=0, donc on affiche les sourates. */}
+                      <span style={{fontWeight:700,color:'#378ADD'}}>{(el.pts.tomonPeriode||0) + (el.pts.nbSouratesCompletes||0) + (el.pts.nbSouratesMuraja||0)}</span>
+                      {((el.pts.ptsTomon||0) + (el.pts.ptsSourates||0)) > 0 && (
+                        <div style={{fontSize:9,color:'#aaa'}}>+{(el.pts.ptsTomon||0) + (el.pts.ptsSourates||0)} {lang==='ar'?'ن':'pts'}</div>
+                      )}
                     </td>
                     <td style={{textAlign:'center'}}>
                       <span style={{fontWeight:700,color:'#085041'}}>{el.pts.hizbsPeriode}</span>

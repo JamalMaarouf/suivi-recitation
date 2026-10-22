@@ -96,11 +96,6 @@ export default function RecitationSourate({ user, eleve, navigate, goBack, lang=
 
   useEffect(() => {
     loadData();
-    loadBareme(supabase, user.ecole_id).then(b => setBareme(b));
-    // Charger les ensembles avec sourates_ids pour le calcul de priorite mode 3
-    supabase.from('ensembles_sourates').select('id,nom,niveau_id,sourates_ids')
-      .eq('ecole_id', user.ecole_id)
-      .then(({data}) => setEnsemblesData(data || []));
   }, [eleve.id]);
 
   // Auto-select current sourate when arriving from outside (e.g. from FicheSourate)
@@ -114,13 +109,22 @@ export default function RecitationSourate({ user, eleve, navigate, goBack, lang=
   const loadData = async () => {
     setLoading(true);
     try {
-    const [{ data: sdb }, { data: rd }, { data: nv }, { data: ec }] = await Promise.all([
+    // BUG-FIX POINTS SOURATES (oct 2026) : bareme et ensemblesData sont charges
+    // ICI (await) et non en fire-and-forget. Avant : si l'instituteur cliquait
+    // "Valider" avant que loadBareme ne resolve, calculerPointsSourate retournait
+    // points=0 -> INSERT en BDD avec points=0 -> classement Seance a 0 et
+    // ptsSourates=0 dans ListeNotes. Maintenant : garanti charges avant tout clic.
+    const [{ data: sdb }, { data: rd }, { data: nv }, { data: ec }, brData, { data: ensData }] = await Promise.all([
       supabase.from('sourates').select('*'),
       supabase.from('recitations_sourates').select('*, valideur:valide_par(prenom,nom)')
         .eq('ecole_id', user.ecole_id).eq('eleve_id', eleve.id).order('date_validation', { ascending: false }),
       supabase.from('niveaux').select('id,code,type,sens_recitation').eq('ecole_id', user.ecole_id).eq('code', codeNiveau).maybeSingle(),
       supabase.from('ecoles').select('sens_recitation_defaut').eq('id', user.ecole_id).maybeSingle(),
+      loadBareme(supabase, user.ecole_id).catch(() => null),
+      supabase.from('ensembles_sourates').select('id,nom,niveau_id,sourates_ids').eq('ecole_id', user.ecole_id),
     ]);
+    if (brData) setBareme(brData);
+    setEnsemblesData(ensData || []);
     // Résolution du sens : niveau > école > desc
     const resolvedSens = nv?.sens_recitation || ec?.sens_recitation_defaut || 'desc';
     setSensRecitation(resolvedSens);
