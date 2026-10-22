@@ -500,9 +500,21 @@ function App() {
     'certificats': 'gestion',
   };
 
+  // Pages dont la route est reservee au surveillant (gardes de role plus bas).
+  // BUG-FIX (oct 2026) : un instituteur qui faisait Retour depuis la fiche eleve,
+  // Comparaison, un profil instituteur ou Resultats examens etait renvoye vers
+  // 'gestion' ou 'examens' (surveillant seul) -> page blanche. On retombe alors
+  // sur le dashboard. A tenir a jour si une garde de role est ajoutee/retiree.
+  const PAGES_SURVEILLANT = new Set([
+    'dashboard_direction','finance','assiduite','gestion_assiduite','gestion_tarifs',
+    'gestion_cours','cours_axes','gestion_parents','parents','rapport_mensuel',
+    'gestion','niveaux','ensembles','examens','blocs','import_masse',
+  ]);
+
   const goBack = () => {
     const currentPage = pageRef.current;
-    const parent = PARENT_PAGE[currentPage] || 'dashboard';
+    let parent = PARENT_PAGE[currentPage] || 'dashboard';
+    if (user?.role !== 'surveillant' && PAGES_SURVEILLANT.has(parent)) parent = 'dashboard';
     setPageWithRef(parent);
     // Reset des selections specifiques quand on remonte
     if (currentPage === 'fiche' || currentPage === 'enregistrer') setSelectedEleve(null);

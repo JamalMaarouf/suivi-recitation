@@ -1050,10 +1050,26 @@ export default function ResultatsExamens({ user, navigate, goBack, lang='fr', is
     </div>
   );
 
+  // BUG-FIX (oct 2026) : ce hook etait appele APRES le return mobile ci-dessous
+  // (violation des regles des hooks) -> crash React si l'ecran passe de part et
+  // d'autre de 768 px (rotation tablette), et pull-to-refresh inactif sur mobile.
+  // Il est maintenant appele inconditionnellement, avant tout return.
+  const {
+    pullDistance, isRefreshing, isThreshold,
+    onTouchStart, onTouchMove, onTouchEnd,
+  } = usePullToRefresh(loadAll);
+
   if (isMobile) {
     return (
       <>
-      <div style={{paddingBottom:80,background:'#f5f5f0',minHeight:'100vh'}}>
+      <div style={{paddingBottom:80,background:'#f5f5f0',minHeight:'100vh'}}
+        onTouchStart={onTouchStart} onTouchMove={onTouchMove} onTouchEnd={onTouchEnd}>
+        <PullToRefreshIndicator
+          pullDistance={pullDistance}
+          isRefreshing={isRefreshing}
+          isThreshold={isThreshold}
+          lang={lang}
+        />
         <div style={{background:'linear-gradient(135deg,#085041,#1D9E75)',padding:'48px 16px 14px',position:'sticky',top:0,zIndex:100}}>
           <Header/>
           <Tabs/>
@@ -1070,22 +1086,8 @@ export default function ResultatsExamens({ user, navigate, goBack, lang='fr', is
   }
 
 
-  // Pull-to-refresh (Phase 2 Sprint 4)
-  const {
-    pullDistance, isRefreshing, isThreshold,
-    onTouchStart, onTouchMove, onTouchEnd,
-  } = usePullToRefresh(loadAll);
   return (
-    <div
-      {...(isMobile ? { onTouchStart, onTouchMove, onTouchEnd } : {})}>
-      {isMobile && (
-        <PullToRefreshIndicator
-          pullDistance={pullDistance}
-          isRefreshing={isRefreshing}
-          isThreshold={isThreshold}
-          lang={lang}
-        />
-      )}
+    <div>
     <div>
       <Header/>
       <Tabs/>
