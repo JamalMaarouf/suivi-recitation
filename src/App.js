@@ -782,10 +782,10 @@ function App() {
                   {p:'validation_rapide', icon:'⚡', text:t(lang,'express'),                                          roles:['surveillant','instituteur']},
                   {p:'muraja',            icon:'📖', text:lang==='ar'?'مراجعة جماعية':"Muraja'a",                     roles:['surveillant','instituteur']},
                   {p:'cours',             icon:'📚', text:lang==='ar'?'الدروس':'Cours',                              roles:['surveillant','instituteur']},
-                  {p:'rapport_mensuel',   icon:'📊', text:t(lang,'rapport'),                                          roles:['surveillant','instituteur']},
-                  {p:'liste_certificats', icon:'🏅', text:lang==='ar'?'الشهادات':'Certificats',                       roles:['surveillant']},
+                  {p:'rapport_mensuel',   icon:'📊', text:t(lang,'rapport'),                                          roles:['surveillant']},
+                  {p:'liste_certificats', icon:'🏅', text:lang==='ar'?'الشهادات':'Certificats',                       roles:['surveillant','instituteur']},
                   {p:'historique_seances',icon:'📈', text:lang==='ar'?'السجل':t(lang,'historique')||'Registre',       roles:['surveillant','instituteur']},
-                  {p:'liste_notes',       icon:'⭐', text:lang==='ar'?'النقاط':'Notes',                               roles:['surveillant']},
+                  {p:'liste_notes',       icon:'⭐', text:lang==='ar'?'النقاط':'Notes',                               roles:['surveillant','instituteur']},
                   {p:'resultats_examens', icon:'🏅', text:lang==='ar'?'نتائج الامتحانات':'Résultats',                 roles:['surveillant','instituteur']},
                   {p:'seance',            icon:'📋', text:t(lang,'seance'),                                           roles:['surveillant','instituteur']},
                   {p:'objectifs',         icon:'🎯', text:lang==='ar'?'الأهداف':lang==='en'?'Objectives':'Objectifs', roles:['surveillant']},
@@ -961,7 +961,8 @@ function App() {
           {page === 'calendrier'        && <Calendrier {...pageProps} />}
           {page === 'profil_instituteur'&& selectedInstituteur && <ProfilInstituteur instituteur={selectedInstituteur} {...pageProps} />}
           {page === 'comparaison'       && <Comparaison eleves={compareEleves} {...pageProps} />}
-          {page === 'rapport_mensuel'   && <RapportMensuel {...pageProps} />}
+          {/* Droits (decision Jamal oct 2026) : rapport mensuel = surveillant uniquement, PC et mobile */}
+          {page === 'rapport_mensuel'   && user.role === 'surveillant' && <RapportMensuel {...pageProps} />}
           {page === 'gestion'           && user.role === 'surveillant' && <Gestion {...pageProps} initialTab={gestionTab} setGestionTab={setGestionTabWithHistory} />}
           {page === 'niveaux'           && user.role === 'surveillant' && <GestionNiveaux {...pageProps} />}
           {page === 'ensembles'         && user.role === 'surveillant' && <GestionEnsembles {...pageProps} />}
