@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
-import { getInitiales, scoreLabel, loadBareme, verifierEtCreerCertificats, verifierBlocageEnsemble, calculerPointsSourate } from '../lib/helpers';
+import { getInitiales, scoreLabel, loadBareme, verifierEtCreerCertificats, verifierBlocageEnsemble, calculerPointsSourate, verifierBlocageExamen } from '../lib/helpers';
 import { t } from '../lib/i18n';
 import { getSouratesForNiveau, isSourateNiveau } from '../lib/sourates';
 import { useToast } from '../lib/toast';
@@ -221,6 +221,27 @@ export default function RecitationSourate({ user, eleve, navigate, goBack, lang=
   const currentSourate = currentIdx >= 0 ? souratesOrdonnees[currentIdx] : null;
   const sl = scoreLabel(totalPoints);
 
+  // F12 (oct 2026) : blocage examen, comme Validation Rapide. Avant, cette page ne
+  // verifiait que les ensembles (et les 2 boutons rapides de la liste ne verifiaient
+  // rien) : on pouvait continuer a reciter alors qu'un examen etait requis.
+  // Page reservee aux eleves sourate : leurs recitations (deja chargees) suffisent.
+  // Retourne true (et previent l'utilisateur) si l'enregistrement doit etre bloque.
+  const examenBloque = async () => {
+    try {
+      const blocageExamen = await verifierBlocageExamen(supabase, {
+        eleve, ecole_id: user.ecole_id, validations: [], recitations: recitations || [],
+      });
+      if (blocageExamen) {
+        const nomExamen = blocageExamen.examen?.nom || blocageExamen.nom || '';
+        toast.error(lang==='ar'
+          ? `⛔ امتحان مطلوب: "${nomExamen}" قبل المتابعة`
+          : `⛔ Examen requis : "${nomExamen}" avant de continuer`, { duration: 5000 });
+        return true;
+      }
+    } catch (e) { console.warn('blocage examen check', e); }
+    return false;
+  };
+
   const confirmer = async () => {
     if (!selectedSourate || saving) return;
     if (typeRecitation === 'sequence') {
@@ -255,6 +276,9 @@ export default function RecitationSourate({ user, eleve, navigate, goBack, lang=
         }
       } catch (e) { console.warn('blocage ensemble check', e); }
     }
+
+    // F12 (oct 2026) : blocage examen, comme Validation Rapide (voir examenBloque).
+    if (await examenBloque()) return;
 
     setSaving(true);
     // Calcul des points avec priorite Mode 3 > Mode 1
@@ -421,6 +445,7 @@ export default function RecitationSourate({ user, eleve, navigate, goBack, lang=
                                   e.stopPropagation();
                                   setSelectedSourate(s);
                                   setTypeRecitation('complete');
+                                  if (await examenBloque()) return; // F12
                                   setSaving(true);
                                   const dbId = getDbId(s.numero);
                                   if (dbId) {
@@ -440,6 +465,7 @@ export default function RecitationSourate({ user, eleve, navigate, goBack, lang=
                             )}
                             <button onClick={async e=>{
                                 e.stopPropagation();
+                                if (await examenBloque()) return; // F12
                                 setSaving(true);
                                 const dbId = getDbId(s.numero);
                                 if (dbId) {
