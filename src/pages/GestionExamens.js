@@ -38,13 +38,16 @@ export default function GestionExamens({ user, navigate, goBack, lang='fr', isMo
 
   const loadData = async () => {
     setLoading(true);
+    // fix (oct 2026) : 'nd' etait declare dans le try puis utilise apres -> ReferenceError
+    let nd = null;
     try {
-    const [{data:nd},{data:ed},{data:sd},{data:ec}] = await Promise.all([
+    const [{data:_nd},{data:ed},{data:sd},{data:ec}] = await Promise.all([
       supabase.from('niveaux').select('id,code,nom,type,couleur,sens_recitation').eq('ecole_id',user.ecole_id).order('ordre'),
       supabase.from('examens').select('*').eq('ecole_id',user.ecole_id).order('ordre'),
       supabase.from('sourates').select('*').order('numero'),
       supabase.from('ecoles').select('sens_recitation_defaut').eq('id',user.ecole_id).maybeSingle(),
     ]);
+    nd = _nd;
     setNiveaux(nd||[]);
     setEcoleConfig(ec||null);
     // Enrichir chaque examen avec les données de son niveau

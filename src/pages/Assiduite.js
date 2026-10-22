@@ -1165,7 +1165,15 @@ function SuiviPlaceholder({ lang, user, isMobile, cible, setCible }) {
   );
 }
 
+// Libelle de periode pour les exports PDF du suivi (oct 2026). Remplace l'ancienne
+// table PERIODES, supprimee lors du passage a PeriodeSelectorHybride.
+function libellePeriode(debut, fin, lang) {
+  const fmt = (d) => { try { return new Date(d).toLocaleDateString(lang === 'ar' ? 'ar-MA' : 'fr-FR'); } catch (e) { return ''; } };
+  return debut && fin ? `${fmt(debut)} → ${fmt(fin)}` : '';
+}
+
 function OngletSuivi({ lang, user, isMobile }) {
+  const { toast } = useToast(); // BUG-FIX oct 2026 : toast utilise dans les exports mais jamais declare
   const [loading, setLoading] = useState(true);
   const [eleves, setEleves] = useState([]);
   const [presences, setPresences] = useState([]);         // toutes les presences sur la periode
@@ -1408,7 +1416,7 @@ function OngletSuivi({ lang, user, isMobile }) {
 
   const exportAssiduitePDF = async () => {
     const rows = prepareExportRows();
-    const periodeLabel = PERIODES.find(p => p.id === periode)?.label || '';
+    const periodeLabel = libellePeriode(debut, fin, lang); // BUG-FIX oct 2026 : PERIODES n'existait plus -> export PDF en erreur
     const niveauLabel = filtreNiveau ? (niveaux.find(n => n.code === filtreNiveau)?.nom || filtreNiveau) : '';
     try {
       await openPDF('rapport_assiduite', {
@@ -2188,7 +2196,7 @@ function OngletSuiviInstituteurs({ lang, user, isMobile }) {
 
   const exportInstPDF = async () => {
     const rows = prepareInstExportRows();
-    const periodeLabel = PERIODES.find(p => p.id === periode)?.label || '';
+    const periodeLabel = libellePeriode(debut, fin, lang); // BUG-FIX oct 2026 : PERIODES n'existait plus -> export PDF en erreur
     const tauxGlobal = totalSeances > 0 ? Math.round((totalValides / totalSeances) * 100) : 0;
     try {
       await openPDF('rapport_assiduite', {

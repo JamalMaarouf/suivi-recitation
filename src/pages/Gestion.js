@@ -4085,6 +4085,38 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
     if (tab==='cours_link')     { navigate('gestion_cours',     null, {tab:'instituteurs'}); setTab('instituteurs'); }
   }, [tab, isMobile]); // eslint-disable-line
 
+  // Enregistrement parent (creation / modification) partage PC + mobile (oct 2026).
+  // Avant : le bouton mobile appelait modifierParent() / ajouterParent(), fonctions
+  // inexistantes -> ReferenceError, impossible d'enregistrer un parent sur mobile.
+  // Corps repris tel quel du bouton PC.
+  const sauvegarderParent = async () => {
+    if(!formParent.prenom||!formParent.nom||!formParent.identifiant) { toast.warning(lang==='ar'?'يرجى ملء الحقول المطلوبة':'Remplissez les champs obligatoires'); return; }
+    if(!editingParentId && !formParent.mot_de_passe) { toast.warning(lang==='ar'?'كلمة المرور مطلوبة':'Mot de passe requis'); return; }
+    let pid = editingParentId;
+    if(editingParentId) {
+      const upd={prenom:formParent.prenom,nom:formParent.nom,identifiant:formParent.identifiant,telephone:formParent.telephone||null,email:(formParent.email||'').trim()||null};
+      if(formParent.mot_de_passe) upd.mot_de_passe=formParent.mot_de_passe;
+      const {error:ue}=await supabase.from('utilisateurs').update(upd).eq('id',editingParentId);
+      if(ue){ toast.error(ue.message||'Erreur utilisateur'); return; }
+      await supabase.from('parent_eleve').delete().eq('parent_id',editingParentId);
+    } else {
+      const {data:pd,error:pe}=await supabase.from('utilisateurs').insert({prenom:formParent.prenom,nom:formParent.nom,identifiant:formParent.identifiant,mot_de_passe:formParent.mot_de_passe,telephone:formParent.telephone||null,email:(formParent.email||'').trim()||null,role:'parent',ecole_id:user.ecole_id,statut_compte:'actif'}).select().single();
+      if(pe){ toast.error(pe.message||'Erreur parent'); return; }
+      toast.success(lang==='ar'?'✅ تم حفظ ولي الأمر':'✅ Parent enregistré avec succès');
+      pid=pd.id;
+    }
+    if(formParent.eleve_ids.length>0){
+      await supabase.from('parent_eleve').insert(formParent.eleve_ids.map(eid=>({parent_id:pid,eleve_id:eid})));
+    }
+    setShowFormParent(false);
+    setEditingParentId(null);
+    setFormParent({prenom:'',nom:'',identifiant:'',mot_de_passe:'',telephone:'',email:'',eleve_ids:[],searchEleve:''});
+    const {data:pd2}=await supabase.from('utilisateurs').select('id,prenom,nom,identifiant,telephone,email').eq('role','parent').eq('ecole_id',user.ecole_id);
+    const {data:pl2}=await supabase.from('parent_eleve').select('parent_id,eleve_id');
+    const lm2={}; (pl2||[]).forEach(l=>{if(!lm2[l.parent_id])lm2[l.parent_id]=[];lm2[l.parent_id].push(l.eleve_id);});
+    setParents((pd2||[]).map(p=>({...p,eleve_ids:lm2[p.id]||[]})));
+  };
+
   // MODALES PARTAGEES PC + MOBILE (bloquant B1, oct 2026).
   // Avant : rendues uniquement dans le return desktop -> sur mobile, suspendre /
   // reactiver / supprimer / reinit MDP / lier parents ne faisaient rien de visible
@@ -5204,11 +5236,7 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
                 <div style={{display:'flex',gap:8}}>
                   <button onClick={()=>{setShowFormParent(false);setEditingParentId(null);setFormParent({prenom:'',nom:'',identifiant:'',mot_de_passe:'',telephone:'',email:'',eleve_ids:[]});}}
                     style={{flex:1,padding:'13px',background:'#f5f5f0',color:'#666',border:'none',borderRadius:12,fontSize:14,fontWeight:600,cursor:'pointer',fontFamily:'inherit'}}>{lang==='ar'?'إلغاء':'Annuler'}</button>
-                  <button onClick={async()=>{
-                    if(editingParentId) await modifierParent();
-                    else await ajouterParent();
-                    setShowFormParent(false);setEditingParentId(null);setFormParent({prenom:'',nom:'',identifiant:'',mot_de_passe:'',telephone:'',email:'',eleve_ids:[]});loadData();
-                  }} style={{flex:2,padding:'13px',background:editingParentId?'#378ADD':'#EF9F27',color:'#fff',border:'none',borderRadius:12,fontSize:14,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
+                  <button onClick={sauvegarderParent} style={{flex:2,padding:'13px',background:editingParentId?'#378ADD':'#EF9F27',color:'#fff',border:'none',borderRadius:12,fontSize:14,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
                     {lang==='ar'?'حفظ':'Enregistrer'}
                   </button>
                 </div>
@@ -6635,33 +6663,7 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
                 </div>
                 {eleves.length===0&&<div style={{fontSize:11,color:'#E24B4A',marginTop:4}}>⚠️ {lang==='ar'?'لا يوجد طلاب مسجلون بعد':'Aucun élève enregistré'}</div>}
               </div>
-              <button className="btn-primary" onClick={async()=>{
-                if(!formParent.prenom||!formParent.nom||!formParent.identifiant) { toast.warning(lang==='ar'?'يرجى ملء الحقول المطلوبة':'Remplissez les champs obligatoires'); return; }
-                if(!editingParentId && !formParent.mot_de_passe) { toast.warning(lang==='ar'?'كلمة المرور مطلوبة':'Mot de passe requis'); return; }
-                let pid = editingParentId;
-                if(editingParentId) {
-                  const upd={prenom:formParent.prenom,nom:formParent.nom,identifiant:formParent.identifiant,telephone:formParent.telephone||null,email:(formParent.email||'').trim()||null};
-                  if(formParent.mot_de_passe) upd.mot_de_passe=formParent.mot_de_passe;
-                  const {error:ue}=await supabase.from('utilisateurs').update(upd).eq('id',editingParentId);
-                  if(ue){ toast.error(ue.message||'Erreur utilisateur'); return; }
-                  await supabase.from('parent_eleve').delete().eq('parent_id',editingParentId);
-                } else {
-                  const {data:pd,error:pe}=await supabase.from('utilisateurs').insert({prenom:formParent.prenom,nom:formParent.nom,identifiant:formParent.identifiant,mot_de_passe:formParent.mot_de_passe,telephone:formParent.telephone||null,email:(formParent.email||'').trim()||null,role:'parent',ecole_id:user.ecole_id,statut_compte:'actif'}).select().single();
-                  if(pe){ toast.error(pe.message||'Erreur parent'); return; }
-                  toast.success(lang==='ar'?'✅ تم حفظ ولي الأمر':'✅ Parent enregistré avec succès');
-                  pid=pd.id;
-                }
-                if(formParent.eleve_ids.length>0){
-                  await supabase.from('parent_eleve').insert(formParent.eleve_ids.map(eid=>({parent_id:pid,eleve_id:eid})));
-                }
-                setShowFormParent(false);
-                setEditingParentId(null);
-                setFormParent({prenom:'',nom:'',identifiant:'',mot_de_passe:'',telephone:'',email:'',eleve_ids:[],searchEleve:''});
-                const {data:pd2}=await supabase.from('utilisateurs').select('id,prenom,nom,identifiant,telephone,email').eq('role','parent').eq('ecole_id',user.ecole_id);
-                const {data:pl2}=await supabase.from('parent_eleve').select('parent_id,eleve_id');
-                const lm2={}; (pl2||[]).forEach(l=>{if(!lm2[l.parent_id])lm2[l.parent_id]=[];lm2[l.parent_id].push(l.eleve_id);});
-                setParents((pd2||[]).map(p=>({...p,eleve_ids:lm2[p.id]||[]})));
-              }}>
+              <button className="btn-primary" onClick={sauvegarderParent}>
                 {editingParentId?('✓ '+(lang==='ar'?'تحديث':'Mettre à jour')):('✓ '+(lang==='ar'?'إضافة':'Ajouter'))}
               </button>
             </div>

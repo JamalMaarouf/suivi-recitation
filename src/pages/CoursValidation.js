@@ -546,6 +546,7 @@ function Kpi({ label, value, color, bg }) {
 // 3. Si exceptions : recherche + liste à cocher
 // ══════════════════════════════════════════════════════════════════════
 function ModaleValidation({ axe, axeLabel, niveau, eleves, existante, onClose, onConfirm, lang, isMobile }) {
+  const { toast } = useToast();
   // Étapes : 1 = qualité, 2 = mode élèves, 3 = exceptions
   const [etape, setEtape] = useState(1);
   const [qualite, setQualite] = useState(existante?.qualite || 'acquis');

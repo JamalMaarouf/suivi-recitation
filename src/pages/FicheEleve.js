@@ -2029,7 +2029,8 @@ ${(passages||[]).length > 0 ? `
                 <select style={{width:'100%',padding:'13px 16px',borderRadius:12,border:'0.5px solid #e0e0d8',fontSize:16,fontFamily:'inherit',boxSizing:'border-box'}}
                   value={nouveauNiveau} onChange={e=>setNouveauNiveau(e.target.value)}>
                   <option value="">{lang==='ar'?'-- اختر --':'-- Choisir --'}</option>
-                  {NIVEAUX_DISPONIBLES.map(n=>(
+                  {/* BUG-FIX oct 2026 : NIVEAUX_DISPONIBLES n'existait pas -> la fiche mobile plantait a l'ouverture du passage de niveau */}
+                  {niveauxDisponibles.map(n=>(
                     <option key={n} value={n}>{NIVEAUX_LABELS[n]||n}</option>
                   ))}
                 </select>
