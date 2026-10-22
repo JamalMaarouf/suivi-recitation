@@ -7,6 +7,7 @@ import AcquisSelector from '../components/AcquisSelector';
 import { t } from '../lib/i18n';
 import ExportButtons from '../components/ExportButtons';
 import MobileSkeletonList from '../components/MobileSkeletonList';
+import JoursSouhaitesField from '../components/JoursSouhaitesField';
 
 function Avatar({ prenom, nom, size = 28 }) {
   return (
@@ -16,56 +17,6 @@ function Avatar({ prenom, nom, size = 28 }) {
   );
 }
 
-// ─── Composant : zone "Jours souhaités" (feature Assiduité) ───
-// Utilisé dans les 3 variantes du formulaire élève (mobile, desktop création, desktop modification).
-// Ordre des jours : Sam → Ven (semaine scolaire marocaine).
-function JoursSouhaitesField({ value, onChange, lang }) {
-  const joursLabels = lang === 'ar'
-    ? ['السبت', 'الأحد', 'الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة']
-    : ['Sam', 'Dim', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven'];
-  const jours = Array.isArray(value) ? value : [false, false, false, false, false, false, false];
-  const toggleJour = (idx) => {
-    const next = [...jours];
-    next[idx] = !next[idx];
-    onChange(next);
-  };
-  return (
-    <div style={{ marginBottom: 12, padding: '12px', background: '#E1F5EE', borderRadius: 10, border: '1px solid #1D9E7540' }}>
-      <label style={{ fontSize: 12, fontWeight: 700, color: '#085041', display: 'block', marginBottom: 8 }}>
-        {lang === 'ar' ? '📅 أيام الحضور المرغوبة' : '📅 Jours de présence souhaités'}
-      </label>
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-        {joursLabels.map((label, idx) => {
-          const actif = !!jours[idx];
-          return (
-            <button key={idx} type="button"
-              onClick={() => toggleJour(idx)}
-              style={{
-                padding: '8px 12px',
-                borderRadius: 8,
-                border: actif ? '2px solid #1D9E75' : '1px solid #c0c0b8',
-                background: actif ? '#1D9E75' : '#fff',
-                color: actif ? '#fff' : '#666',
-                fontSize: 12,
-                fontWeight: 600,
-                cursor: 'pointer',
-                fontFamily: 'inherit',
-                flex: '1 1 auto',
-                minWidth: 56,
-              }}>
-              {label}
-            </button>
-          );
-        })}
-      </div>
-      <div style={{ fontSize: 11, color: '#666', marginTop: 8 }}>
-        {lang === 'ar'
-          ? 'اختر الأيام التي يحضر فيها الطالب. تُستعمل لحساب الغياب.'
-          : 'Sélectionne les jours où l\'élève vient. Utilisé pour calculer les absences.'}
-      </div>
-    </div>
-  );
-}
 
 // Sélecteur acquis antérieurs — adapté selon le niveau et le sens de récitation
 // Prop programmeNiveau (optionnel) : si fourni et contient plusieurs blocs, affiche une
@@ -2877,7 +2828,9 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile,
   if (!user || user.role !== 'surveillant') return null;
 
   const { toast } = useToast();
-  const [tab, setTabLocal] = useState(isMobile ? (initialTab && initialTab !== 'parametres' ? initialTab : 'eleves') : (initialTab || 'parametres'));
+  // F1 (oct 2026) : sur mobile, l'onglet par defaut devient 'instituteurs' ; 'eleves' est un lien vers
+  // la liste unique ElevesMobile (voir useEffect des onglets liens).
+  const [tab, setTabLocal] = useState(isMobile ? (initialTab && initialTab !== 'parametres' ? initialTab : 'instituteurs') : (initialTab || 'parametres'));
   const setTab = (t) => { setTabLocal(t); if(setGestionTab) setGestionTab(t); };
   const [searchEleve, setSearchEleve] = useState('');
   // E1a — Sub-tab 'Liste' / 'Ajouter' pour l'onglet Élèves (charte UX)
@@ -4117,15 +4070,19 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
   useEffect(() => {
     if (!isMobile) return;
     // Naviguer vers la page dédiée en sauvegardant tab:'eleves' pour que goBack revienne correctement
-    if (tab==='niveaux_link')   { navigate('niveaux',  null, {tab:'eleves'}); setTab('eleves'); }
-    if (tab==='ensembles_link') { navigate('ensembles',null, {tab:'eleves'}); setTab('eleves'); }
-    if (tab==='examens_link')   { navigate('examens',  null, {tab:'eleves'}); setTab('eleves'); }
+    // F1 (oct 2026) : liste eleves unique sur mobile = ElevesMobile (AcquisSelector multi-blocs,
+    // creation parent, suspension, jours souhaites). L'onglet eleves de Gestion y renvoie.
+    // extraData tab:'instituteurs' evite de revenir sur 'eleves' (sinon redirection en boucle).
+    if (tab==='eleves')         { navigate('eleves_mobile', null, {tab:'instituteurs'}); setTab('instituteurs'); }
+    if (tab==='niveaux_link')   { navigate('niveaux',  null, {tab:'instituteurs'}); setTab('instituteurs'); }
+    if (tab==='ensembles_link') { navigate('ensembles',null, {tab:'instituteurs'}); setTab('instituteurs'); }
+    if (tab==='examens_link')   { navigate('examens',  null, {tab:'instituteurs'}); setTab('instituteurs'); }
     // B2 (oct 2026) : pages de parametrage jusque-la inaccessibles sur mobile
-    if (tab==='tarifs_link')    { navigate('gestion_tarifs',    null, {tab:'eleves'}); setTab('eleves'); }
-    if (tab==='import_link')    { navigate('import_masse',      null, {tab:'eleves'}); setTab('eleves'); }
-    if (tab==='seuils_link')    { navigate('gestion_parents',   null, {tab:'eleves'}); setTab('eleves'); }
-    if (tab==='presences_link') { navigate('gestion_assiduite', null, {tab:'eleves'}); setTab('eleves'); }
-    if (tab==='cours_link')     { navigate('gestion_cours',     null, {tab:'eleves'}); setTab('eleves'); }
+    if (tab==='tarifs_link')    { navigate('gestion_tarifs',    null, {tab:'instituteurs'}); setTab('instituteurs'); }
+    if (tab==='import_link')    { navigate('import_masse',      null, {tab:'instituteurs'}); setTab('instituteurs'); }
+    if (tab==='seuils_link')    { navigate('gestion_parents',   null, {tab:'instituteurs'}); setTab('instituteurs'); }
+    if (tab==='presences_link') { navigate('gestion_assiduite', null, {tab:'instituteurs'}); setTab('instituteurs'); }
+    if (tab==='cours_link')     { navigate('gestion_cours',     null, {tab:'instituteurs'}); setTab('instituteurs'); }
   }, [tab, isMobile]); // eslint-disable-line
 
   // MODALES PARTAGEES PC + MOBILE (bloquant B1, oct 2026).

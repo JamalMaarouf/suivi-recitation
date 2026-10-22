@@ -250,7 +250,7 @@ function App() {
   // Recherche transversale (Ctrl+K)
   const [searchOpen, setSearchOpen] = useState(false);
   const [navHistory, setNavHistory] = useState([]);
-  const [gestionTab, setGestionTab] = useState(isMobile ? 'eleves' : 'parametres');
+  const [gestionTab, setGestionTab] = useState(isMobile ? 'instituteurs' : 'parametres'); // F1 : 'eleves' mobile = lien vers ElevesMobile
 
   // ─── MODE KIOSQUE ────────────────────────────────────────────
   // Quand activé : la navbar est masquée, la page est verrouillée sur

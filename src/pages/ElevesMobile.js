@@ -6,6 +6,7 @@ import MobileSkeletonList from '../components/MobileSkeletonList';
 import { usePullToRefresh, PullToRefreshIndicator } from '../lib/usePullToRefresh';
 import { hapticSuccess } from '../lib/haptic';
 import AcquisSelector from '../components/AcquisSelector';
+import JoursSouhaitesField from '../components/JoursSouhaitesField';
 
 export default function ElevesMobile({ user, navigate, goBack, lang='ar' }) {
   const { toast } = useToast();
@@ -27,10 +28,15 @@ export default function ElevesMobile({ user, navigate, goBack, lang='ar' }) {
   const [showAcquis, setShowAcquis] = useState(false);
   const [showEleveCree, setShowEleveCree] = useState(null); // {eleve, parent} ou null
   const [showConfirmDelete, setShowConfirmDelete] = useState(null); // {id, nom} ou null
+  // F1 (oct 2026) : suspension / reactivation, comme Gestion.js sur PC
+  const [suspension, setSuspension] = useState(null); // {eleve, mode:'suspendre'|'reactiver'} ou null
+  const [motifSuspension, setMotifSuspension] = useState('');
+  const [savingSuspension, setSavingSuspension] = useState(false);
 
   const emptyForm = { prenom:'', nom:'', niveau:'Débutant', code_niveau:'', eleve_id_ecole:'',
     instituteur_referent_id:'', hizb_depart:0, tomon_depart:1, sourates_acquises:0,
-    hizbs_acquis:[], telephone:'', date_inscription:'', email_parent:'' };
+    hizbs_acquis:[], telephone:'', date_inscription:'', email_parent:'',
+    jours_souhaites:[false,false,false,false,false,false,false] };
   const [form, setForm] = useState(emptyForm);
 
   useEffect(() => { loadData(); }, []);
@@ -103,7 +109,8 @@ export default function ElevesMobile({ user, navigate, goBack, lang='ar' }) {
       hizb_depart:e.hizb_depart||0, tomon_depart:e.tomon_depart||1,
       sourates_acquises:e.sourates_acquises||0,
       hizbs_acquis: Array.isArray(e.hizbs_acquis) ? e.hizbs_acquis : [],
-      telephone:e.telephone||'', date_inscription:e.date_inscription||'' });
+      telephone:e.telephone||'', date_inscription:e.date_inscription||'',
+      jours_souhaites: Array.isArray(e.jours_souhaites) ? e.jours_souhaites : [false,false,false,false,false,false,false] });
     setEditEleve(e);
     setShowAcquis(false);
     setShowForm(true);
@@ -127,6 +134,8 @@ export default function ElevesMobile({ user, navigate, goBack, lang='ar' }) {
       hizbs_acquis: Array.isArray(form.hizbs_acquis) ? form.hizbs_acquis : [],
       telephone: form.telephone?.trim()||null,
       date_inscription: form.date_inscription||null,
+      // F1 (oct 2026) : jours souhaites, comme le formulaire PC (Gestion.js)
+      jours_souhaites: Array.isArray(form.jours_souhaites) ? form.jours_souhaites : [false,false,false,false,false,false,false],
     };
     if (editEleve) {
       const { error } = await supabase.from('eleves').update(payload).eq('id', editEleve.id);
@@ -196,6 +205,41 @@ export default function ElevesMobile({ user, navigate, goBack, lang='ar' }) {
       setForm({ ...emptyForm, code_niveau: niveaux[0]?.code||'' });
       hapticSuccess();
       setTimeout(() => loadData(), 0); // Defer pour laisser React peindre la modale d'abord
+    }
+  };
+
+  // F1 (oct 2026) : meme logique que Gestion.js (confirmerSuspension / reactiverEleve),
+  // y compris la trace dans audit_log.
+  const confirmerSuspension = async () => {
+    if (!suspension || savingSuspension) return;
+    const { eleve, mode } = suspension;
+    setSavingSuspension(true);
+    try {
+      const motif = motifSuspension.trim() || null;
+      const patch = mode === 'suspendre'
+        ? { suspendu_at: new Date().toISOString(), suspendu_par: user.id, suspendu_motif: motif }
+        : { suspendu_at: null, suspendu_par: null, suspendu_motif: null };
+      const { error } = await supabase.from('eleves').update(patch).eq('id', eleve.id);
+      if (error) throw error;
+      try {
+        await supabase.from('audit_log').insert({
+          actor_user_id: user.id, actor_role: user.role || 'surveillant',
+          action: mode === 'suspendre' ? 'eleve.suspendu' : 'eleve.reactive',
+          target_type: 'eleves', target_id: eleve.id,
+          target_label: `${eleve.prenom} ${eleve.nom}`,
+          metadata: mode === 'suspendre' ? { motif, ecole_id: user.ecole_id } : { ecole_id: user.ecole_id },
+        });
+      } catch (e) { console.warn('[ElevesMobile suspension] audit_log:', e); }
+      toast.success(mode === 'suspendre'
+        ? (lang==='ar'?'⏸️ تم تعليق الطالب':'⏸️ Élève suspendu')
+        : (lang==='ar'?'▶️ تم إعادة التفعيل':'▶️ Élève réactivé'));
+      setSuspension(null); setMotifSuspension('');
+      setShowForm(false); setEditEleve(null);
+      loadData();
+    } catch (err) {
+      toast.error((lang==='ar'?'خطأ: ':'Erreur : ') + err.message);
+    } finally {
+      setSavingSuspension(false);
     }
   };
 
@@ -391,6 +435,10 @@ export default function ElevesMobile({ user, navigate, goBack, lang='ar' }) {
                 </div>
               </div>
 
+              {/* F1 (oct 2026) : jours souhaites (Assiduite), meme composant que le PC */}
+              <JoursSouhaitesField lang={lang} value={form.jours_souhaites}
+                onChange={(next)=>setForm(x=>({...x,jours_souhaites:next}))}/>
+
               {/* Email parent (optionnel, utilise lors de la creation du compte parent) */}
               {!editEleve && (
                 <div style={{marginBottom:10}}>
@@ -443,6 +491,22 @@ export default function ElevesMobile({ user, navigate, goBack, lang='ar' }) {
                 <span style={{color:'#E24B4A'}}>*</span> {lang==='ar'?'حقول إلزامية':'Champs obligatoires'}
               </div>
             </div>
+
+            {/* F1 (oct 2026) : suspension / reactivation (surveillant, en modification) */}
+            {editEleve && user.role==='surveillant' && (
+              <div style={{flexShrink:0, padding:'8px 16px', background:'#fff', borderTop:'0.5px solid #f0f0ec'}}>
+                <button type="button"
+                  onClick={()=>{ setMotifSuspension(''); setSuspension({ eleve: editEleve, mode: editEleve.suspendu_at ? 'reactiver' : 'suspendre' }); }}
+                  style={{width:'100%', padding:'11px', borderRadius:10, fontSize:13, fontWeight:700, cursor:'pointer', fontFamily:'inherit',
+                    background: editEleve.suspendu_at ? '#E1F5EE' : '#FFF3E0',
+                    color: editEleve.suspendu_at ? '#085041' : '#B26A00',
+                    border: `0.5px solid ${editEleve.suspendu_at ? '#1D9E75' : '#EF9F27'}40`}}>
+                  {editEleve.suspendu_at
+                    ? (lang==='ar'?'▶️ إعادة تفعيل الطالب':"▶️ Réactiver l'élève")
+                    : (lang==='ar'?'⏸️ تعليق الطالب':"⏸️ Suspendre l'élève")}
+                </button>
+              </div>
+            )}
 
             {/* ── FOOTER DRAWER (sticky) ── */}
             <div style={{
@@ -725,6 +789,47 @@ export default function ElevesMobile({ user, navigate, goBack, lang='ar' }) {
       )}
 
       {/* ─── Modale confirmation suppression (remplace window.confirm) ─── */}
+      {/* F1 (oct 2026) : modale suspension / reactivation */}
+      {suspension && (
+        <div style={{position:'fixed', inset:0, background:'rgba(0,0,0,0.55)', zIndex:10001,
+          display:'flex', alignItems:'center', justifyContent:'center', padding:16}}
+          onClick={()=>!savingSuspension && setSuspension(null)}>
+          <div onClick={e=>e.stopPropagation()}
+            style={{background:'#fff', borderRadius:16, width:'100%', maxWidth:380, padding:20,
+              boxShadow:'0 20px 60px rgba(0,0,0,0.3)'}}>
+            <div style={{fontSize:16, fontWeight:700, color:'#1a1a1a', marginBottom:6}}>
+              {suspension.mode==='suspendre'
+                ? (lang==='ar'?'⏸️ تعليق الطالب':"⏸️ Suspendre l'élève")
+                : (lang==='ar'?'▶️ إعادة تفعيل الطالب':"▶️ Réactiver l'élève")}
+            </div>
+            <div style={{fontSize:13, color:'#666', marginBottom:12}}>
+              <b>{suspension.eleve.prenom} {suspension.eleve.nom}</b> — {suspension.mode==='suspendre'
+                ? (lang==='ar'?'لن يظهر في قوائم التسجيل والتقارير. يمكن التراجع.':'Il sera masqué des listes de validation et des rapports. Réversible.')
+                : (lang==='ar'?'سيظهر مجددًا في قوائم التسجيل والتقارير.':'Il réapparaîtra dans les listes de validation et les rapports.')}
+            </div>
+            {suspension.mode==='suspendre' && (
+              <textarea value={motifSuspension} onChange={e=>setMotifSuspension(e.target.value)} rows={2}
+                placeholder={lang==='ar'?'السبب (اختياري)':'Motif (optionnel)'}
+                style={{width:'100%', padding:'10px 12px', borderRadius:10, border:'0.5px solid #e0e0d8', fontSize:14,
+                  fontFamily:'inherit', boxSizing:'border-box', marginBottom:12, resize:'vertical'}}/>
+            )}
+            <div style={{display:'flex', gap:8}}>
+              <button onClick={()=>setSuspension(null)} disabled={savingSuspension}
+                style={{flex:1, padding:'11px', background:'#f5f5f0', color:'#444', border:'0.5px solid #e0e0d8',
+                  borderRadius:10, fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:'inherit'}}>
+                {lang==='ar'?'إلغاء':'Annuler'}
+              </button>
+              <button onClick={confirmerSuspension} disabled={savingSuspension}
+                style={{flex:1, padding:'11px', border:'none', borderRadius:10, fontSize:13, fontWeight:700,
+                  cursor:'pointer', fontFamily:'inherit', color:'#fff', opacity:savingSuspension?0.6:1,
+                  background: suspension.mode==='suspendre' ? '#EF9F27' : '#1D9E75'}}>
+                {savingSuspension ? '...' : (lang==='ar'?'تأكيد':'Confirmer')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {showConfirmDelete && (
         <div style={{position:'fixed', inset:0, background:'rgba(0,0,0,0.55)', zIndex:9999,
           display:'flex', alignItems:'center', justifyContent:'center', padding:16,
