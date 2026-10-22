@@ -2196,8 +2196,8 @@ function IdentiteEcoleTab({ user, lang, ecoleConfig, setEcoleConfig, showMsg }) 
         {/* Aperçu signatures (si directeur) */}
         {(nomDirecteur || nomDirecteurAr) ? (
           <div style={{ background: '#fff', padding: '20px 24px 16px', borderRadius: '0 0 8px 8px',
-            display: 'flex', justifyContent: 'space-around', gap: 24 }}>
-            <div style={{ textAlign: 'center', minWidth: 160 }}>
+            display: 'flex', justifyContent: 'space-around', gap: 24, flexWrap: 'wrap' }}>
+            <div style={{ textAlign: 'center', minWidth: 120 }}>
               <div style={{ borderBottom: '1.5px solid #333', marginBottom: 6, paddingTop: 14 }}></div>
               <div style={{ fontSize: 12, color: '#1a1a1a', fontWeight: 700, direction: 'rtl' }}>
                 {nomDirecteurAr || nomDirecteur}
@@ -2205,7 +2205,7 @@ function IdentiteEcoleTab({ user, lang, ecoleConfig, setEcoleConfig, showMsg }) 
               <div style={{ fontSize: 11, color: '#666', direction: 'rtl', marginTop: 2 }}>المُدير</div>
               <div style={{ fontSize: 9.5, color: '#aaa', marginTop: 2 }}>Directeur</div>
             </div>
-            <div style={{ textAlign: 'center', minWidth: 160 }}>
+            <div style={{ textAlign: 'center', minWidth: 120 }}>
               <div style={{ borderBottom: '1.5px solid #333', marginBottom: 6, paddingTop: 14 }}></div>
               <div style={{ fontSize: 11, color: '#666', direction: 'rtl' }}>المُشرف</div>
               <div style={{ fontSize: 9.5, color: '#aaa', marginTop: 2 }}>Surveillant</div>
@@ -2214,7 +2214,7 @@ function IdentiteEcoleTab({ user, lang, ecoleConfig, setEcoleConfig, showMsg }) 
         ) : (
           <div style={{ background: '#fff', padding: '20px 24px 16px', borderRadius: '0 0 8px 8px',
             display: 'flex', justifyContent: 'flex-end' }}>
-            <div style={{ textAlign: 'center', minWidth: 160 }}>
+            <div style={{ textAlign: 'center', minWidth: 120 }}>
               <div style={{ borderBottom: '1.5px solid #333', marginBottom: 6, paddingTop: 14 }}></div>
               <div style={{ fontSize: 11, color: '#666', direction: 'rtl' }}>المُشرف</div>
               <div style={{ fontSize: 9.5, color: '#aaa', marginTop: 2 }}>Surveillant</div>
@@ -4120,6 +4120,12 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
     if (tab==='niveaux_link')   { navigate('niveaux',  null, {tab:'eleves'}); setTab('eleves'); }
     if (tab==='ensembles_link') { navigate('ensembles',null, {tab:'eleves'}); setTab('eleves'); }
     if (tab==='examens_link')   { navigate('examens',  null, {tab:'eleves'}); setTab('eleves'); }
+    // B2 (oct 2026) : pages de parametrage jusque-la inaccessibles sur mobile
+    if (tab==='tarifs_link')    { navigate('gestion_tarifs',    null, {tab:'eleves'}); setTab('eleves'); }
+    if (tab==='import_link')    { navigate('import_masse',      null, {tab:'eleves'}); setTab('eleves'); }
+    if (tab==='seuils_link')    { navigate('gestion_parents',   null, {tab:'eleves'}); setTab('eleves'); }
+    if (tab==='presences_link') { navigate('gestion_assiduite', null, {tab:'eleves'}); setTab('eleves'); }
+    if (tab==='cours_link')     { navigate('gestion_cours',     null, {tab:'eleves'}); setTab('eleves'); }
   }, [tab, isMobile]); // eslint-disable-line
 
   // MODALES PARTAGEES PC + MOBILE (bloquant B1, oct 2026).
@@ -4753,6 +4759,15 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
       {k:'niveaux_link',  l:lang==='ar'?'المستويات':'Niveaux',   icon:'📚'},
       {k:'ensembles_link',l:lang==='ar'?'مجموعات السور':'Ensembles', icon:'📦'},
       {k:'bareme',        l:lang==='ar'?'النقاط':'Barème',       icon:'⭐'},
+      // B2 (oct 2026) : parametrage accessible sur mobile (avant : seulement via le hub PC)
+      {k:'sens_recitation',l:lang==='ar'?'اتجاه التحفيظ':'Sens récitation', icon:'🔄'},
+      {k:'periodes',      l:lang==='ar'?'الفترات':'Périodes',      icon:'🗓️'},
+      {k:'identite_ecole',l:lang==='ar'?'هوية المدرسة':'Identité école', icon:'👔'},
+      {k:'cours_link',    l:lang==='ar'?'الدروس':'Cours',          icon:'📚'},
+      {k:'presences_link',l:lang==='ar'?'الحضور':'Présences',      icon:'📅'},
+      {k:'tarifs_link',   l:lang==='ar'?'تعرفات الأساتذة':'Tarifs profs', icon:'💰'},
+      {k:'seuils_link',   l:lang==='ar'?'عتبات الأولياء':'Seuils parents', icon:'👨‍👩‍👧'},
+      {k:'import_link',   l:lang==='ar'?'استيراد جماعي':'Import en masse', icon:'📥'},
     ];
 
     if (loading) return <div style={{padding:'3rem',textAlign:'center',color:'#888'}}>...</div>;
@@ -4791,6 +4806,7 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
                   parametres:    { icon:'⚙️', ar:'الإعدادات',        fr:'Paramètres' },
                   sens_recitation:{ icon:'🧭', ar:'اتجاه التلاوة',    fr:'Sens récitation' },
                   periodes:      { icon:'📅', ar:'الفترات',          fr:'Périodes' },
+                  identite_ecole:{ icon:'👔', ar:'هوية المدرسة',     fr:'Identité école' },
                 };
                 const info = TAB_INFO[tab];
                 const adminLabel = lang==='ar' ? 'الإدارة' : 'Administration';
@@ -5490,6 +5506,26 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
           </div>
         )}
 
+
+        {/* B2 (oct 2026) : onglets de parametrage rendus aussi sur mobile (memes composants que le PC) */}
+        {tab==='sens_recitation'&&(
+          <div style={{padding:'12px'}}>
+            <SensRecitationTab user={user} lang={lang}
+              ecoleConfig={ecoleConfig} setEcoleConfig={setEcoleConfig}
+              niveaux={niveauxActifs||[]} setNiveaux={setNiveauxDyn} showMsg={showMsg}/>
+          </div>
+        )}
+        {tab==='identite_ecole'&&(
+          <div style={{padding:'12px'}}>
+            <IdentiteEcoleTab user={user} lang={lang}
+              ecoleConfig={ecoleConfig} setEcoleConfig={setEcoleConfig} showMsg={showMsg}/>
+          </div>
+        )}
+        {tab==='periodes'&&(
+          <div style={{padding:'12px'}}>
+            <PeriodesTab user={user} lang={lang} showMsg={showMsg}/>
+          </div>
+        )}
 
         {modalesPartagees}
       </div>
