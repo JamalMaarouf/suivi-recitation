@@ -17,6 +17,8 @@ export default function ElevesMobile({ user, navigate, goBack, lang='ar' }) {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [filtreNiveau, setFiltreNiveau] = useState('tous');
+  // ALIGNEMENT PC (oct 2026) : comme Gestion.js, les eleves suspendus sont masques par defaut
+  const [afficherUniquementActifs, setAfficherUniquementActifs] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [editEleve, setEditEleve] = useState(null);
   const [saving, setSaving] = useState(false);
@@ -218,7 +220,8 @@ export default function ElevesMobile({ user, navigate, goBack, lang='ar' }) {
   const elevesFiltres = eleves.filter(e => {
     const matchSearch = !search || `${e.prenom} ${e.nom} ${e.eleve_id_ecole||''}`.toLowerCase().includes(search.toLowerCase());
     const matchNiveau = filtreNiveau === 'tous' || e.code_niveau === filtreNiveau;
-    return matchSearch && matchNiveau;
+    const matchActif = !afficherUniquementActifs || !e.suspendu_at;
+    return matchSearch && matchNiveau && matchActif;
   });
 
   const isSour = (code) => niveaux.find(n=>n.code===code)?.type === 'sourate' || ['5B','5A','2M'].includes(code||'');
@@ -258,6 +261,14 @@ export default function ElevesMobile({ user, navigate, goBack, lang='ar' }) {
             style={{width:'100%', padding:'10px 14px', borderRadius:12, border:'none', fontSize:14,
               fontFamily:'inherit', boxSizing:'border-box', background:'rgba(255,255,255,0.15)',
               color:'#fff', outline:'none'}}/>
+        )}
+        {!showForm && eleves.some(e => e.suspendu_at) && (
+          <label style={{display:'flex', alignItems:'center', gap:8, marginTop:8, fontSize:12, color:'rgba(255,255,255,0.9)', cursor:'pointer'}}>
+            <input type="checkbox" checked={afficherUniquementActifs}
+              onChange={e=>setAfficherUniquementActifs(e.target.checked)}
+              style={{width:16, height:16, accentColor:'#fff'}}/>
+            {lang==='ar'?'الطلاب النشطون فقط':'Actifs uniquement'}
+          </label>
         )}
       </div>
 
@@ -553,7 +564,7 @@ export default function ElevesMobile({ user, navigate, goBack, lang='ar' }) {
                 return (
                   <div key={e.id} style={{background:'#fff', borderRadius:14, padding:'12px 14px', marginBottom:8,
                     border:'0.5px solid #e0e0d8', display:'flex', alignItems:'center', gap:10,
-                    boxShadow:'0 1px 4px rgba(0,0,0,0.04)'}}>
+                    boxShadow:'0 1px 4px rgba(0,0,0,0.04)', opacity:e.suspendu_at?0.65:1}}>
                     {/* Avatar */}
                     <div onClick={()=>navigate('fiche',e)}
                       style={{width:42,height:42,borderRadius:'50%',background:`${nc}20`,color:nc,
@@ -562,7 +573,14 @@ export default function ElevesMobile({ user, navigate, goBack, lang='ar' }) {
                     </div>
                     {/* Info */}
                     <div onClick={()=>navigate('fiche',e)} style={{flex:1, minWidth:0, cursor:'pointer'}}>
-                      <div style={{fontWeight:700, fontSize:13}}>{e.prenom} {e.nom}</div>
+                      <div style={{fontWeight:700, fontSize:13}}>
+                        {e.prenom} {e.nom}
+                        {e.suspendu_at && (
+                          <span title={e.suspendu_motif||''} style={{marginInlineStart:6, padding:'1px 6px', borderRadius:10, fontSize:9, fontWeight:700, background:'#FCEBEB', color:'#E24B4A'}}>
+                            {lang==='ar'?'موقوف':'Suspendu'}
+                          </span>
+                        )}
+                      </div>
                       <div style={{display:'flex', gap:5, marginTop:2, alignItems:'center', flexWrap:'wrap'}}>
                         <span style={{padding:'1px 6px',borderRadius:10,fontSize:10,fontWeight:700,background:`${nc}20`,color:nc}}>{e.code_niveau||'?'}</span>
                         <span style={{fontSize:10,fontWeight:500,color:nl.color}}>{nl.label}</span>

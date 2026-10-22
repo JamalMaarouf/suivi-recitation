@@ -46,6 +46,7 @@ export default function ModulesMobile({ user, navigate, lang='ar' }) {
         {icon:'⭐', label:lang==='ar'?'النقاط':'Notes',            sub:lang==='ar'?'الترتيب':'Classement',         page:'liste_notes',        bg:'#FAEEDA'},
         {icon:'📝', label:lang==='ar'?'الامتحانات':'Examens',     sub:lang==='ar'?'النتائج':'Résultats',          page:'resultats_examens',  bg:'#E6F1FB'},
         {icon:'🏅', label:lang==='ar'?'الشهادات':'Certificats',    sub:lang==='ar'?'متابعة':'Suivi',               page:'liste_certificats',  bg:'#FAEEDA'},
+        {icon:'📋', label:lang==='ar'?'الحصة':'Séance',            sub:lang==='ar'?'حصة اليوم':"Aujourd'hui",      page:'seance',             bg:'#E1F5EE'},
         {icon:'📊', label:lang==='ar'?'السجل':'Historique',        sub:lang==='ar'?'تحليل':'Analyse',              page:'historique_seances', bg:'#E6F1FB'},
         {icon:'🎯', label:lang==='ar'?'الأهداف':'Objectifs',       sub:lang==='ar'?'متابعة':'Suivi',               page:'objectifs',          bg:'#EEEDFE', role:'surveillant'},
       ],
