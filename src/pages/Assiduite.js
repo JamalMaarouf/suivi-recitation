@@ -30,6 +30,8 @@ import MobileSkeletonList from '../components/MobileSkeletonList';
 
 export default function Assiduite({ user, navigate, goBack, lang, isMobile, kioskMode, enterKiosk, exitKiosk }) {
   const [onglet, setOnglet] = useState('saisie');  // 'saisie' | 'suivi'
+  // F5 (oct 2026) : sur mobile hors kiosque, choix pave numerique / liste nominative (SaisieDesktop)
+  const [modeSaisieMobile, setModeSaisieMobile] = useState('pave'); // 'pave' | 'liste'
   // Cible de la saisie : 'eleves' (par defaut) ou 'instituteurs'
   // Permet d'enregistrer les presences des 2 populations sur le meme kiosque.
   const [cible, setCible] = useState('eleves');
@@ -261,7 +263,22 @@ export default function Assiduite({ user, navigate, goBack, lang, isMobile, kios
               </div>
             )}
 
-            <SaisieKiosque user={user} lang={lang} cible={cible} dateSaisie={dateSaisie} isRattrapage={isRattrapage} />
+            {/* F5 (oct 2026) : hors kiosque, le surveillant peut basculer sur la liste nominative
+                (recherche, filtre presents/absents) - meme composant que le PC. */}
+            {!kioskMode && (
+              <div style={{display:'flex',gap:0,background:'#f0f0ec',borderRadius:10,padding:3,margin:'10px 12px 0'}}>
+                {[['pave', lang==='ar'?'🔢 لوحة الأرقام':'🔢 Pavé'], ['liste', lang==='ar'?'📋 القائمة':'📋 Liste']].map(([k,l])=>(
+                  <div key={k} onClick={()=>setModeSaisieMobile(k)}
+                    style={{flex:1,padding:'8px 4px',borderRadius:8,textAlign:'center',fontSize:12,fontWeight:600,cursor:'pointer',
+                      background:modeSaisieMobile===k?'#fff':'transparent',color:modeSaisieMobile===k?'#085041':'#888'}}>
+                    {l}
+                  </div>
+                ))}
+              </div>
+            )}
+            {(!kioskMode && modeSaisieMobile==='liste')
+              ? <div style={{padding:'12px'}}><SaisieDesktop user={user} lang={lang} cible={cible} dateSaisie={dateSaisie} isRattrapage={isRattrapage} /></div>
+              : <SaisieKiosque user={user} lang={lang} cible={cible} dateSaisie={dateSaisie} isRattrapage={isRattrapage} />}
           </>
         )}
         {onglet === 'suivi'  && <SuiviPlaceholder lang={lang} user={user} isMobile={true} cible={cible} setCible={setCible} />}
