@@ -223,9 +223,15 @@ export default function Dashboard({ user, navigate, goBack, lang, isMobile=false
         // select('*') garantit que tout est present (eleve_id_ecole, etc.)
         supabase.from('eleves').select('*').eq('ecole_id', user.ecole_id).is('suspendu_at', null).order('nom'),
         getCachedSWR('validations', user.ecole_id,
-          () => fetchAll(supabase.from('validations').select('id,eleve_id,type_validation,nombre_tomon,hizb_valide,tomon_debut,date_validation,valide_par,ecole_id,valideur:valide_par(prenom,nom)').eq('ecole_id', user.ecole_id).order('date_validation',{ascending:false}))),
+          // BUG-FIX POINTS ENSEMBLES (oct 2026) : ajout de `ensemble_id` pour que
+          // buildElevesData puisse sommer les points d'ensembles valides (type_validation
+          // = 'ensemble_valide') via bareme.ensembles[ensemble_id].
+          () => fetchAll(supabase.from('validations').select('id,eleve_id,type_validation,nombre_tomon,hizb_valide,tomon_debut,date_validation,valide_par,ecole_id,ensemble_id,valideur:valide_par(prenom,nom)').eq('ecole_id', user.ecole_id).order('date_validation',{ascending:false}))),
         getCachedSWR('recitations_sourates_min', user.ecole_id,
-          () => fetchAll(supabase.from('recitations_sourates').select('eleve_id,date_validation,type_recitation').eq('ecole_id', user.ecole_id).order('date_validation',{ascending:false}))),
+          // BUG-FIX POINTS DASHBOARD (oct 2026) : ajout de `points` au select pour que
+          // buildElevesData puisse sommer ptsSourates. Sans ca, r.points etait undefined
+          // -> ptsSourates=0 -> eleves sourate affichaient 0ن meme avec recitations faites.
+          () => fetchAll(supabase.from('recitations_sourates').select('eleve_id,date_validation,type_recitation,points').eq('ecole_id', user.ecole_id).order('date_validation',{ascending:false}))),
         supabase.from('ecoles').select('sens_recitation_defaut').eq('id', user.ecole_id).maybeSingle(),
       ]);
 

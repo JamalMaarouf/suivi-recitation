@@ -78,9 +78,11 @@ export default function Login({ onLogin, lang, LangSelector, onShowInscription }
           getCachedSWR('niveaux', ecoleId,
             () => supabase.from('niveaux').select('id,code,nom,type,couleur').eq('ecole_id', ecoleId).order('ordre')),
           getCachedSWR('validations', ecoleId,
-            () => fetchAll(supabase.from('validations').select('id,eleve_id,type_validation,nombre_tomon,hizb_valide,tomon_debut,date_validation,valide_par,ecole_id,valideur:valide_par(prenom,nom)').eq('ecole_id', ecoleId).order('date_validation',{ascending:false}))),
+            // Alignement avec Dashboard.js : inclure `ensemble_id` pour le prechargement.
+            () => fetchAll(supabase.from('validations').select('id,eleve_id,type_validation,nombre_tomon,hizb_valide,tomon_debut,date_validation,valide_par,ecole_id,ensemble_id,valideur:valide_par(prenom,nom)').eq('ecole_id', ecoleId).order('date_validation',{ascending:false}))),
           getCachedSWR('recitations_sourates_min', ecoleId,
-            () => fetchAll(supabase.from('recitations_sourates').select('eleve_id,date_validation,type_recitation').eq('ecole_id', ecoleId).order('date_validation',{ascending:false}))),
+            // Alignement avec Dashboard.js : inclure `points` pour le prechargement du cache.
+            () => fetchAll(supabase.from('recitations_sourates').select('eleve_id,date_validation,type_recitation,points').eq('ecole_id', ecoleId).order('date_validation',{ascending:false}))),
         ]).catch(() => { /* silencieux — Dashboard fera le retry normal si échec */ });
       }
 
