@@ -986,6 +986,8 @@ export default function ResultatsExamens({ user, navigate, goBack, lang='fr', is
         <div style={{flex:1,fontSize:17,fontWeight:800,color:'#085041'}}>
           🏅 {lang==='ar'?'نتائج الامتحانات':'Résultats'}
         </div>
+            {/* F6 (oct 2026) : exports aussi sur mobile (avant : PC seulement) */}
+            <ExportButtons onPDF={exportResultatsPDF} onExcel={exportResultatsExcel} lang={lang} variant="inline" compact isMobile />
       </div>
     );
   };

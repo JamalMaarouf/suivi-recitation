@@ -455,6 +455,8 @@ export default function HistoriqueSeances({ user, navigate, goBack, lang='fr', i
             <div style={{flex:1,fontSize:17,fontWeight:800,color:'#fff'}}>
               📊 {lang==='ar'?'السجل':'Historique'}
             </div>
+            {/* F6 (oct 2026) : exports aussi sur mobile (avant : PC seulement) */}
+            <ExportButtons onPDF={exportPDF} onExcel={exportExcel} lang={lang} variant="inline" compact isMobile />
           </div>
 
           {/* Sélecteur période - Etape 14 v2 - Composant hybride */}

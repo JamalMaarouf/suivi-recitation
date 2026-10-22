@@ -411,8 +411,13 @@ export default function Dashboard({ user, navigate, goBack, lang, isMobile=false
           <div style={{fontSize:13,color:'rgba(255,255,255,0.75)',marginBottom:2,position:'relative'}}>
             {lang==='ar'?'مرحباً':'Bonjour'} {user.prenom} 👋
           </div>
-          <div style={{fontSize:21,fontWeight:800,color:'#fff',marginBottom:16,position:'relative'}}>
-            {lang==='ar'?'لوحة التحكم':'Tableau de bord'}
+          <div style={{fontSize:21,fontWeight:800,color:'#fff',marginBottom:16,position:'relative',
+            display:'flex',alignItems:'center',justifyContent:'space-between',gap:8}}>
+            <span>{lang==='ar'?'لوحة التحكم':'Tableau de bord'}</span>
+            {/* F6 (oct 2026) : export Excel aussi sur mobile (surveillant, comme le PC) */}
+            {user.role==='surveillant' && (
+              <ExportButtons onExcel={exportExcel} lang={lang} variant="inline" compact isMobile />
+            )}
           </div>
 
           {/* KPIs row */}

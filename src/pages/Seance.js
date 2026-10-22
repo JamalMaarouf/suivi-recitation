@@ -223,6 +223,8 @@ export default function Seance({ user, navigate, goBack, lang, isMobile=false })
             <button onClick={()=>goBack?goBack():navigate('dashboard')}
               style={{background:'rgba(255,255,255,0.22)',border:'1px solid rgba(255,255,255,0.25)',borderRadius:10,padding:'0',color:'#fff',fontSize:20,cursor:'pointer',flexShrink:0,width:44,height:44,display:'flex',alignItems:'center',justifyContent:'center'}}>←</button>
             <div style={{flex:1,fontSize:16,fontWeight:800,color:'#fff'}}>📋 {lang==='ar'?'الحصة':'Séance'}</div>
+            {/* F6 (oct 2026) : exports aussi sur mobile (avant : PC seulement) */}
+            <ExportButtons onPDF={exportSeancePDF} onExcel={exportSeanceExcel} lang={lang} variant="inline" compact isMobile />
           </div>
           <div style={{fontSize:18,fontWeight:800,color:'#fff',marginBottom:10}}>
             {new Date().toLocaleDateString(lang==='ar'?'ar-MA':'fr-FR',{weekday:'long',day:'numeric',month:'long'})}
