@@ -275,6 +275,7 @@ export default function Dashboard({ user, navigate, goBack, lang, isMobile=false
 
   const alertes = useMemo(() => calcAlertes(eleves, allValidations, lang), [eleves, allValidations, lang]);
   const [certifNotifs, setCertifNotifs] = useState([]);
+  const [showAttenteMobile, setShowAttenteMobile] = useState(false); // F3 (oct 2026)
 
   useEffect(() => {
     if (!user || !eleves.length) return;
@@ -477,8 +478,10 @@ export default function Dashboard({ user, navigate, goBack, lang, isMobile=false
                 <span style={{color:'#E24B4A',fontSize:16}}>›</span>
               </div>
             )}
-            {nbAttente>0&&(
-              <div onClick={()=>navigate('inactifs')}
+            {nbAttente>0&&(<>
+              {/* F3 (oct 2026) : renvoyait vers 'inactifs' (qui ne liste pas ces eleves).
+                  Deplie la liste ; chaque eleve ouvre l'enregistrement, comme sur PC. */}
+              <div onClick={()=>setShowAttenteMobile(v=>!v)}
                 style={{display:'flex',alignItems:'center',gap:10,padding:'12px 14px',
                   background:'#FAEEDA',borderRadius:12,marginBottom:8,cursor:'pointer',
                   border:'0.5px solid #EF9F2730'}}>
@@ -486,9 +489,20 @@ export default function Dashboard({ user, navigate, goBack, lang, isMobile=false
                 <div style={{flex:1,fontSize:13,fontWeight:700,color:'#633806'}}>
                   {nbAttente} {lang==='ar'?'في انتظار تصحيح الحزب':'en attente validation Hizb'}
                 </div>
-                <span style={{color:'#EF9F27',fontSize:16}}>›</span>
+                <span style={{color:'#EF9F27',fontSize:16}}>{showAttenteMobile?'▾':'›'}</span>
               </div>
-            )}
+              {showAttenteMobile && eleves.filter(e=>e.etat.enAttenteHizbComplet).map(e=>(
+                <div key={e.id} onClick={()=>navigate('enregistrer',e)}
+                  style={{display:'flex',alignItems:'center',gap:10,padding:'10px 12px',margin:'0 0 6px 12px',
+                    background:'#fff',border:'0.5px solid #EF9F2740',borderRadius:10,cursor:'pointer'}}>
+                  <div style={{flex:1}}>
+                    <div style={{fontSize:13,fontWeight:600,color:'#412402'}}>{e.prenom} {e.nom}</div>
+                    <div style={{fontSize:11,color:'#854F0B'}}>Hizb {e.etat.hizbEnCours} · {e.instituteurNom}</div>
+                  </div>
+                  <span style={{fontSize:10,background:'#EF9F27',color:'#fff',borderRadius:20,padding:'2px 8px',fontWeight:600}}>{t(lang,'valider')}</span>
+                </div>
+              ))}
+            </>)}
             {inactifs14.length>0&&!inactifs30.length&&(
               <div onClick={()=>navigate('inactifs')}
                 style={{display:'flex',alignItems:'center',gap:10,padding:'12px 14px',
@@ -502,6 +516,42 @@ export default function Dashboard({ user, navigate, goBack, lang, isMobile=false
               </div>
             )}
           </div>
+
+          {/* F3 (oct 2026) : certificats a delivrer + alertes intelligentes, comme sur PC */}
+          {certifNotifs.length>0&&(
+            <div style={{padding:'12px 12px 4px'}}>
+              <div style={{fontSize:11,fontWeight:700,color:'#888',textTransform:'uppercase',letterSpacing:'1px',marginBottom:10}}>
+                🏅 {lang==='ar'?'شهادات في انتظار التسليم':'Certificats à délivrer'} ({certifNotifs.length})
+              </div>
+              {certifNotifs.map((n,i)=>(
+                <div key={i} onClick={()=>navigate('fiche',n.eleve)}
+                  style={{display:'flex',alignItems:'center',gap:10,padding:'11px 12px',marginBottom:6,
+                    background:'#FAEEDA',borderLeft:'4px solid #EF9F27',borderRadius:'0 12px 12px 0',cursor:'pointer'}}>
+                  <div style={{flex:1,minWidth:0}}>
+                    <div style={{fontSize:13,fontWeight:700,color:'#085041'}}>{n.eleve.prenom} {n.eleve.nom}</div>
+                    <div style={{fontSize:11,color:'#B26A00',marginTop:1}}>{lang==='ar'?'مستحق:':'Certificat :'} {n.jalon.nom}</div>
+                  </div>
+                  <span style={{fontSize:11,color:'#EF9F27',fontWeight:600}}>{lang==='ar'?'تسليم ←':'Délivrer →'}</span>
+                </div>
+              ))}
+            </div>
+          )}
+          {alertes.length>0&&(
+            <div style={{padding:'12px 12px 4px'}}>
+              <div style={{fontSize:11,fontWeight:700,color:'#888',textTransform:'uppercase',letterSpacing:'1px',marginBottom:10}}>
+                🔔 {t(lang,'alertes')} ({alertes.length})
+              </div>
+              {alertes.slice(0,5).map((a,i)=>(
+                <div key={i} onClick={()=>navigate('fiche',a.eleve)}
+                  style={{display:'flex',alignItems:'center',gap:10,padding:'10px 12px',marginBottom:6,
+                    background:a.bg,borderLeft:`4px solid ${a.color}`,borderRadius:'0 10px 10px 0',cursor:'pointer'}}>
+                  <span style={{fontSize:16}}>{a.icon}</span>
+                  <span style={{fontSize:12.5,color:a.color,flex:1}}>{a.msg}</span>
+                  <span style={{fontSize:11,color:a.color,opacity:0.6}}>›</span>
+                </div>
+              ))}
+            </div>
+          )}
 
           {/* ── NAVIGATION DEPLACEE VERS LA PAGE ModulesMobile (Phase 2 - Dashboard pure synthese) ──
               Les modules sont desormais accessibles via le tab 'Plus' de la bottom tab bar.
