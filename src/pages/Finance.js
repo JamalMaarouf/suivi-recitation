@@ -643,9 +643,18 @@ export default function Finance({ user, navigate, goBack, lang='fr', isMobile })
   // Variable manquante pour le bloc mobile
   const elevesNonPayes = parEleve.filter(p => p.statutDernier === 'non_paye');
 
+  // BUG-FIX (oct 2026) : hook appele avant le return mobile (il l'etait apres ->
+  // violation des regles des hooks, crash au passage du seuil 768 px).
+  const {
+    pullDistance, isRefreshing, isThreshold,
+    onTouchStart, onTouchMove, onTouchEnd,
+  } = usePullToRefresh(loadData);
+
   if (isMobile) {
     return (
-      <div style={{paddingBottom:80,background:'#f5f5f0',minHeight:'100vh'}}>
+      <div style={{paddingBottom:80,background:'#f5f5f0',minHeight:'100vh'}}
+        onTouchStart={onTouchStart} onTouchMove={onTouchMove} onTouchEnd={onTouchEnd}>
+        <PullToRefreshIndicator pullDistance={pullDistance} isRefreshing={isRefreshing} isThreshold={isThreshold} lang={lang} />
         {/* Sticky header */}
         <div style={{background:'linear-gradient(135deg,#1e3a5f,#3b5a82)',padding:'48px 16px 14px',position:'sticky',top:0,zIndex:100}}>
           <div style={{display:'flex',alignItems:'center',gap:12,marginBottom:8}}>
@@ -1065,11 +1074,6 @@ export default function Finance({ user, navigate, goBack, lang='fr', isMobile })
   }
 
 
-  // Pull-to-refresh (Phase 2 Sprint 4)
-  const {
-    pullDistance, isRefreshing, isThreshold,
-    onTouchStart, onTouchMove, onTouchEnd,
-  } = usePullToRefresh(loadData);
   return (
     <div
       {...(isMobile ? { onTouchStart, onTouchMove, onTouchEnd } : {})}>

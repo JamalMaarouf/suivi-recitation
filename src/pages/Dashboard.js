@@ -382,6 +382,13 @@ export default function Dashboard({ user, navigate, goBack, lang, isMobile=false
   // donnees). Remplacee par l'export RGPD individuel dans les profils.
   const tabs = [{key:'general',icon:'🏠',labelKey:'vue_generale'},{key:'eleves',icon:'👥',labelKey:'eleves'},{key:'instituteurs',icon:'👨‍🏫',labelKey:'instituteurs'},...(user.role==='surveillant'?[{key:'rapport',icon:'📊',labelKey:'rapport_tab'}]:[])];
 
+  // BUG-FIX (oct 2026) : hook appele avant le return mobile (il l'etait apres ->
+  // violation des regles des hooks, crash au passage du seuil 768 px).
+  const {
+    pullDistance, isRefreshing, isThreshold,
+    onTouchStart, onTouchMove, onTouchEnd,
+  } = usePullToRefresh(loadData);
+
   if (isMobile) {
     const podium = [...eleves].sort((a,b)=>b.etat.points.total-a.etat.points.total).slice(0,3);
     const inactifs30 = eleves.filter(e=>e.jours!=null&&e.jours>30);
@@ -398,7 +405,9 @@ export default function Dashboard({ user, navigate, goBack, lang, isMobile=false
     const podiumOrder  = [1,0,2];
 
     return (
-      <div style={{paddingBottom:80, background:'#f5f5f0', minHeight:'100vh'}}>
+      <div style={{paddingBottom:80, background:'#f5f5f0', minHeight:'100vh'}}
+        onTouchStart={onTouchStart} onTouchMove={onTouchMove} onTouchEnd={onTouchEnd}>
+        <PullToRefreshIndicator pullDistance={pullDistance} isRefreshing={isRefreshing} isThreshold={isThreshold} lang={lang} />
 
         {/* ── HEADER GRADIENT ── */}
         <div style={{background:'linear-gradient(135deg,#064e3b 0%,#085041 40%,#1D9E75 100%)',
@@ -731,11 +740,6 @@ export default function Dashboard({ user, navigate, goBack, lang, isMobile=false
 
 
 
-  // Pull-to-refresh (Phase 2 Sprint 4)
-  const {
-    pullDistance, isRefreshing, isThreshold,
-    onTouchStart, onTouchMove, onTouchEnd,
-  } = usePullToRefresh(loadData);
   return (
     <div
       {...(isMobile ? { onTouchStart, onTouchMove, onTouchEnd } : {})}>

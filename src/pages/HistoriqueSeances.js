@@ -445,9 +445,18 @@ export default function HistoriqueSeances({ user, navigate, goBack, lang='fr', i
 
   const medals = ['🥇','🥈','🥉'];
 
+  // BUG-FIX (oct 2026) : hook appele avant le return mobile (il l'etait apres ->
+  // violation des regles des hooks, crash au passage du seuil 768 px).
+  const {
+    pullDistance, isRefreshing, isThreshold,
+    onTouchStart, onTouchMove, onTouchEnd,
+  } = usePullToRefresh(loadData);
+
   if (isMobile) {
     return (
-      <div style={{paddingBottom:80, background:'#f5f5f0', minHeight:'100vh'}}>
+      <div style={{paddingBottom:80, background:'#f5f5f0', minHeight:'100vh'}}
+        onTouchStart={onTouchStart} onTouchMove={onTouchMove} onTouchEnd={onTouchEnd}>
+        <PullToRefreshIndicator pullDistance={pullDistance} isRefreshing={isRefreshing} isThreshold={isThreshold} lang={lang} />
         {/* Header sticky */}
         <div style={{background:'linear-gradient(135deg,#085041,#1D9E75)',padding:'48px 16px 14px',position:'sticky',top:0,zIndex:100}}>
           <div style={{display:'flex', alignItems:'center', gap:10, padding:'14px 16px 8px'}}>
@@ -635,11 +644,6 @@ export default function HistoriqueSeances({ user, navigate, goBack, lang='fr', i
 
 
 
-  // Pull-to-refresh (Phase 2 Sprint 4)
-  const {
-    pullDistance, isRefreshing, isThreshold,
-    onTouchStart, onTouchMove, onTouchEnd,
-  } = usePullToRefresh(loadData);
   return (
     <div
       {...(isMobile ? { onTouchStart, onTouchMove, onTouchEnd } : {})}>
