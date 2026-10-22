@@ -4122,6 +4122,603 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
     if (tab==='examens_link')   { navigate('examens',  null, {tab:'eleves'}); setTab('eleves'); }
   }, [tab, isMobile]); // eslint-disable-line
 
+  // MODALES PARTAGEES PC + MOBILE (bloquant B1, oct 2026).
+  // Avant : rendues uniquement dans le return desktop -> sur mobile, suspendre /
+  // reactiver / supprimer / reinit MDP / lier parents ne faisaient rien de visible
+  // (le state changeait mais aucune modale ne s'affichait). Contenu deplace tel quel.
+  const modalesPartagees = (
+    <>
+        {/* ─── Modale Lier comptes parents (Etape 11b) ─── */}
+        {showLinkParents && (() => {
+          const candidatsParents = (parents || []).filter(p => p.role !== 'instituteur');
+          return (
+            <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.55)',zIndex:9999,
+              display:'flex',alignItems:'center',justifyContent:'center',padding:20,
+              animation:'modalFadeIn 0.15s ease-out'}}
+              onClick={()=>{ if(!linkLoading) setShowLinkParents(false); }}>
+              <div onClick={e=>e.stopPropagation()}
+                style={{background:'#fff',borderRadius:16,maxWidth:600,width:'100%',padding:24,
+                  boxShadow:'0 20px 60px rgba(0,0,0,0.3)',maxHeight:'90vh',overflowY:'auto',
+                  animation:'modalSlideIn 0.18s ease-out'}}>
+                <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:14}}>
+                  <div style={{fontSize:32}}>🔗</div>
+                  <div>
+                    <div style={{fontSize:17,fontWeight:800,color:'#085041'}}>
+                      {lang==='ar'?'ربط حسابات الأولياء':'Lier des comptes parents'}
+                    </div>
+                    <div style={{fontSize:12,color:'#666',marginTop:2}}>
+                      {lang==='ar'?'دمج عدة حسابات في حساب عائلي واحد':'Fusionner plusieurs comptes en un compte famille'}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Etape 1 - Selection des parents */}
+                <div style={{marginBottom:14}}>
+                  <div style={{fontSize:12,fontWeight:700,color:'#666',marginBottom:6,textTransform:'uppercase',letterSpacing:0.3}}>
+                    1. {lang==='ar'?'اختر الحسابات للربط (2 على الأقل)':'Sélectionner les comptes à lier (2 minimum)'}
+                  </div>
+                  <div style={{maxHeight:200,overflowY:'auto',background:'#f5f5f0',borderRadius:8,padding:6}}>
+                    {candidatsParents.length === 0 ? (
+                      <div style={{padding:12,textAlign:'center',color:'#888',fontSize:12,fontStyle:'italic'}}>
+                        {lang==='ar'?'لا يوجد حسابات':'Aucun compte disponible'}
+                      </div>
+                    ) : candidatsParents.map(p => {
+                      const enfantsP = eleves.filter(e => (p.eleve_ids||[]).includes(e.id));
+                      const checked = linkSelectedParents.includes(p.id);
+                      return (
+                        <label key={p.id} style={{
+                          display:'flex',alignItems:'flex-start',gap:8,padding:'8px 10px',
+                          background:checked?'#fff':'transparent',borderRadius:6,cursor:'pointer',
+                          marginBottom:3,border:checked?'1px solid #1D9E75':'1px solid transparent',
+                        }}>
+                          <input type="checkbox" checked={checked}
+                            onChange={e=>{
+                              if (e.target.checked) setLinkSelectedParents(prev=>[...prev,p.id]);
+                              else setLinkSelectedParents(prev=>prev.filter(x=>x!==p.id));
+                            }}
+                            style={{marginTop:3}}/>
+                          <div style={{flex:1,minWidth:0}}>
+                            <div style={{fontSize:13,fontWeight:600,color:'#1a1a1a'}}>
+                              {p.prenom} {p.nom}
+                              <span style={{fontSize:11,fontWeight:400,color:'#888',marginInlineStart:6,fontFamily:'monospace'}}>
+                                ({p.identifiant})
+                              </span>
+                            </div>
+                            {enfantsP.length > 0 && (
+                              <div style={{fontSize:11,color:'#666',marginTop:2}}>
+                                👶 {enfantsP.map(e=>`${e.prenom} ${e.nom}`).join(', ')}
+                              </div>
+                            )}
+                          </div>
+                        </label>
+                      );
+                    })}
+                  </div>
+                  <div style={{fontSize:11,color:'#888',marginTop:4}}>
+                    ✓ {linkSelectedParents.length} {lang==='ar'?'محدد':'sélectionné(s)'}
+                  </div>
+                </div>
+
+                {/* Etape 2 - Choix du login */}
+                {linkSelectedParents.length >= 2 && (
+                  <div style={{marginBottom:14}}>
+                    <div style={{fontSize:12,fontWeight:700,color:'#666',marginBottom:6,textTransform:'uppercase',letterSpacing:0.3}}>
+                      2. {lang==='ar'?'معرف الحساب الجديد':'Login du compte fusionné'}
+                    </div>
+                    <div style={{display:'flex',flexDirection:'column',gap:8}}>
+                      <label style={{display:'flex',alignItems:'flex-start',gap:8,padding:8,borderRadius:8,background:linkLoginMode==='manuel'?'#fff':'transparent',border:linkLoginMode==='manuel'?'1px solid #1D9E75':'1px solid transparent',cursor:'pointer'}}>
+                        <input type="radio" name="lk-mode" checked={linkLoginMode==='manuel'}
+                          onChange={()=>setLinkLoginMode('manuel')} style={{marginTop:3}}/>
+                        <div style={{flex:1}}>
+                          <div style={{fontSize:13,fontWeight:600,color:'#1a1a1a'}}>
+                            {lang==='ar'?'إنشاء معرف جديد':'Créer un nouveau login'}
+                          </div>
+                          {linkLoginMode==='manuel' && (
+                            <input type="text" value={linkLoginManuel}
+                              onChange={e=>setLinkLoginManuel(e.target.value)}
+                              placeholder={lang==='ar'?'مثلاً: famille.benali':'Ex: famille.benali'}
+                              style={{width:'100%',padding:'8px 10px',marginTop:6,borderRadius:8,border:'1px solid #d0d8e8',fontSize:12,fontFamily:'inherit'}}/>
+                          )}
+                        </div>
+                      </label>
+
+                      <label style={{display:'flex',alignItems:'flex-start',gap:8,padding:8,borderRadius:8,background:linkLoginMode==='existant'?'#fff':'transparent',border:linkLoginMode==='existant'?'1px solid #1D9E75':'1px solid transparent',cursor:'pointer'}}>
+                        <input type="radio" name="lk-mode" checked={linkLoginMode==='existant'}
+                          onChange={()=>setLinkLoginMode('existant')} style={{marginTop:3}}/>
+                        <div style={{flex:1}}>
+                          <div style={{fontSize:13,fontWeight:600,color:'#1a1a1a'}}>
+                            {lang==='ar'?'الإبقاء على معرف موجود':'Garder un login existant'}
+                          </div>
+                          {linkLoginMode==='existant' && (
+                            <select value={linkLoginExistant} onChange={e=>setLinkLoginExistant(e.target.value)}
+                              style={{width:'100%',padding:'8px 10px',marginTop:6,borderRadius:8,border:'1px solid #d0d8e8',fontSize:12,fontFamily:'inherit'}}>
+                              <option value="">— {lang==='ar'?'اختر':'Choisir'}</option>
+                              {parents.filter(p=>linkSelectedParents.includes(p.id)).map(p=>(
+                                <option key={p.id} value={p.identifiant}>{p.identifiant} ({p.prenom} {p.nom})</option>
+                              ))}
+                            </select>
+                          )}
+                        </div>
+                      </label>
+                    </div>
+                  </div>
+                )}
+
+                {/* Etape 3 - Avertissement */}
+                {linkSelectedParents.length >= 2 && (
+                  <div style={{
+                    background:'#FFF8EC',border:'1px solid #EF9F2740',borderRadius:8,
+                    padding:'10px 12px',fontSize:11,color:'#7B5800',marginBottom:14,lineHeight:1.5,
+                  }}>
+                    ⚠️ {lang==='ar'
+                      ? `سيتم حذف ${linkSelectedParents.length - (linkLoginMode==='existant'?1:0)} حسابات قديمة وكلمة المرور الافتراضية ستكون: `
+                      : `${linkSelectedParents.length - (linkLoginMode==='existant'?1:0)} ancien(s) compte(s) seront supprimé(s). Le mot de passe sera réinitialisé à : `}
+                    <b>{ecoleConfig?.mdp_defaut_parents || 'parent2024'}</b>
+                  </div>
+                )}
+
+                <div style={{display:'flex',gap:8}}>
+                  <button onClick={()=>setShowLinkParents(false)} disabled={linkLoading}
+                    style={{flex:1,padding:'11px',background:'#f5f5f0',color:'#666',border:'none',borderRadius:10,fontSize:13,fontWeight:600,cursor:linkLoading?'not-allowed':'pointer',fontFamily:'inherit'}}>
+                    {lang==='ar'?'إلغاء':'Annuler'}
+                  </button>
+                  <button onClick={confirmerLiaisonParents} disabled={linkLoading || linkSelectedParents.length < 2}
+                    style={{flex:2,padding:'11px',
+                      background:(linkLoading || linkSelectedParents.length < 2)?'#ccc':'linear-gradient(135deg,#1D9E75,#085041)',
+                      color:'#fff',border:'none',borderRadius:10,fontSize:13,fontWeight:700,
+                      cursor:(linkLoading || linkSelectedParents.length < 2)?'not-allowed':'pointer',
+                      fontFamily:'inherit',boxShadow:'0 2px 8px rgba(8,80,65,0.3)'}}>
+                    {linkLoading ? '⏳ '+(lang==='ar'?'جاري...':'En cours...') : '🔗 '+(lang==='ar'?'ربط':'Lier')}
+                  </button>
+                </div>
+              </div>
+            </div>
+          );
+        })()}
+
+        {/* ─── Modale Délier un enfant (Etape 11b) ─── */}
+        {showUnlinkParent && (() => {
+          const { parent: pUn, enfants: enfantsUn } = showUnlinkParent;
+          return (
+            <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.55)',zIndex:9999,
+              display:'flex',alignItems:'center',justifyContent:'center',padding:20,
+              animation:'modalFadeIn 0.15s ease-out'}}
+              onClick={()=>{ if(!unlinkLoading) setShowUnlinkParent(null); }}>
+              <div onClick={e=>e.stopPropagation()}
+                style={{background:'#fff',borderRadius:16,maxWidth:480,width:'100%',padding:24,
+                  boxShadow:'0 20px 60px rgba(0,0,0,0.3)',maxHeight:'90vh',overflowY:'auto',
+                  animation:'modalSlideIn 0.18s ease-out'}}>
+                <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:14}}>
+                  <div style={{fontSize:32}}>🔓</div>
+                  <div>
+                    <div style={{fontSize:17,fontWeight:800,color:'#7B5800'}}>
+                      {lang==='ar'?'فصل طفل':'Détacher un enfant'}
+                    </div>
+                    <div style={{fontSize:12,color:'#666',marginTop:2}}>
+                      {pUn.prenom} {pUn.nom} · {pUn.identifiant}
+                    </div>
+                  </div>
+                </div>
+
+                <div style={{fontSize:12,fontWeight:700,color:'#666',marginBottom:8,textTransform:'uppercase',letterSpacing:0.3}}>
+                  {lang==='ar'?'أي طفل تريد فصله؟':'Quel enfant détacher ?'}
+                </div>
+
+                <div style={{marginBottom:14}}>
+                  {enfantsUn.map(e => (
+                    <label key={e.id} style={{
+                      display:'flex',alignItems:'flex-start',gap:8,padding:10,borderRadius:8,
+                      background:unlinkChildId===e.id?'#FFF8EC':'#f5f5f0',
+                      border:unlinkChildId===e.id?'1px solid #EF9F27':'1px solid transparent',
+                      cursor:'pointer',marginBottom:6,
+                    }}>
+                      <input type="radio" name="unlk-child" checked={unlinkChildId===e.id}
+                        onChange={()=>setUnlinkChildId(e.id)} style={{marginTop:3}}/>
+                      <div style={{flex:1}}>
+                        <div style={{fontSize:13,fontWeight:600,color:'#1a1a1a'}}>{e.prenom} {e.nom}</div>
+                        <div style={{fontSize:11,color:'#666',marginTop:2}}>
+                          🆔 {e.eleve_id_ecole} · 🎓 {e.code_niveau || '-'}
+                        </div>
+                      </div>
+                    </label>
+                  ))}
+                </div>
+
+                {unlinkChildId && (() => {
+                  const enf = enfantsUn.find(e => e.id === unlinkChildId);
+                  return (
+                    <div style={{
+                      background:'#E1F5EE',border:'1px solid #1D9E7530',borderRadius:8,
+                      padding:'10px 12px',fontSize:11,color:'#085041',marginBottom:14,lineHeight:1.5,
+                    }}>
+                      ℹ️ {lang==='ar'?'سيتم إنشاء حساب جديد:':'Un nouveau compte sera créé :'}<br/>
+                      <span style={{fontFamily:'monospace',fontWeight:700}}>
+                        {lang==='ar'?'المعرف':'Login'}: {enf.eleve_id_ecole}<br/>
+                        {lang==='ar'?'كلمة المرور':'MDP'}: {ecoleConfig?.mdp_defaut_parents || 'parent2024'}
+                      </span>
+                    </div>
+                  );
+                })()}
+
+                <div style={{display:'flex',gap:8}}>
+                  <button onClick={()=>setShowUnlinkParent(null)} disabled={unlinkLoading}
+                    style={{flex:1,padding:'11px',background:'#f5f5f0',color:'#666',border:'none',borderRadius:10,fontSize:13,fontWeight:600,cursor:unlinkLoading?'not-allowed':'pointer',fontFamily:'inherit'}}>
+                    {lang==='ar'?'إلغاء':'Annuler'}
+                  </button>
+                  <button onClick={confirmerDeliaison} disabled={unlinkLoading || !unlinkChildId}
+                    style={{flex:2,padding:'11px',
+                      background:(unlinkLoading || !unlinkChildId)?'#ccc':'#EF9F27',
+                      color:'#fff',border:'none',borderRadius:10,fontSize:13,fontWeight:700,
+                      cursor:(unlinkLoading || !unlinkChildId)?'not-allowed':'pointer',fontFamily:'inherit'}}>
+                    {unlinkLoading ? '⏳ '+(lang==='ar'?'جاري...':'En cours...') : '🔓 '+(lang==='ar'?'فصل':'Détacher')}
+                  </button>
+                </div>
+              </div>
+            </div>
+          );
+        })()}
+
+        {/* ─── Modale recap création élève + compte parent (Etape 11a) ─── */}
+        {/* UX (mai 2026) : animation fadeIn pour douceur visuelle.
+            Les keyframes sont declarees une seule fois ici, valides pour
+            toutes les modales du composant Gestion. */}
+        <style>{`
+          @keyframes modalFadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+          }
+          @keyframes modalSlideIn {
+            from { opacity: 0; transform: translateY(-8px) scale(0.98); }
+            to   { opacity: 1; transform: translateY(0) scale(1); }
+          }
+        `}</style>
+        {showEleveCree && (
+          <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.55)',zIndex:9999,
+            display:'flex',alignItems:'center',justifyContent:'center',padding:20,
+            animation:'modalFadeIn 0.15s ease-out'}}
+            onClick={()=>setShowEleveCree(null)}>
+            <div onClick={e=>e.stopPropagation()}
+              style={{background:'#fff',borderRadius:16,maxWidth:520,width:'100%',padding:24,
+                boxShadow:'0 20px 60px rgba(0,0,0,0.3)',maxHeight:'90vh',overflowY:'auto',
+                animation:'modalSlideIn 0.18s ease-out'}}>
+              <div style={{textAlign:'center',marginBottom:18}}>
+                <div style={{fontSize:48,marginBottom:8}}>🎉</div>
+                <div style={{fontSize:18,fontWeight:800,color:'#085041',marginBottom:4}}>
+                  {lang==='ar'?'تم إضافة الطالب بنجاح!':'Élève créé avec succès !'}
+                </div>
+              </div>
+
+              {/* Récap élève */}
+              <div style={{
+                background:'#E1F5EE',border:'1px solid #1D9E7530',borderRadius:10,
+                padding:'12px 14px',marginBottom:12,
+              }}>
+                <div style={{fontSize:11,fontWeight:700,color:'#085041',marginBottom:6,textTransform:'uppercase',letterSpacing:0.3}}>
+                  👤 {lang==='ar'?'الطالب':'Élève'}
+                </div>
+                <div style={{fontSize:15,fontWeight:700,color:'#1a1a1a'}}>
+                  {showEleveCree.eleve.prenom} {showEleveCree.eleve.nom}
+                </div>
+                <div style={{fontSize:12,color:'#666',marginTop:3,display:'flex',gap:10,flexWrap:'wrap'}}>
+                  <span>🆔 {showEleveCree.eleve.eleve_id_ecole}</span>
+                  <span>🎓 {showEleveCree.eleve.code_niveau}</span>
+                </div>
+              </div>
+
+              {/* Récap compte parent */}
+              <div style={{
+                background:'#FFF8EC',border:'1px solid #EF9F2740',borderRadius:10,
+                padding:'12px 14px',marginBottom:14,
+              }}>
+                <div style={{fontSize:11,fontWeight:700,color:'#7B5800',marginBottom:8,textTransform:'uppercase',letterSpacing:0.3}}>
+                  👨‍👩‍👧 {lang==='ar'?'حساب ولي الأمر (تم إنشاؤه تلقائياً)':'Compte parent (créé automatiquement)'}
+                </div>
+                <div style={{display:'grid',gridTemplateColumns:'auto 1fr',gap:'6px 10px',fontSize:13}}>
+                  <div style={{color:'#666',fontWeight:600}}>{lang==='ar'?'المعرف:':'Login :'}</div>
+                  <div style={{fontWeight:700,color:'#1a1a1a',fontFamily:'monospace'}}>{showEleveCree.parent.login}</div>
+                  <div style={{color:'#666',fontWeight:600}}>{lang==='ar'?'كلمة المرور:':'Mot de passe :'}</div>
+                  <div style={{fontWeight:700,color:'#1a1a1a',fontFamily:'monospace'}}>{showEleveCree.parent.mdp}</div>
+                </div>
+                <div style={{fontSize:11,color:'#8a5a00',marginTop:10,lineHeight:1.5,fontStyle:'italic'}}>
+                  ℹ️ {lang==='ar'
+                    ? 'يمكن لولي الأمر تغيير كلمة المرور بعد أول اتصال. سلّم هذه المعلومات إليه.'
+                    : 'Le parent peut changer son mot de passe à la première connexion. Communiquez-lui ces informations.'}
+                </div>
+              </div>
+
+              {/* Boutons */}
+              <div style={{display:'flex',gap:8}}>
+                <button onClick={()=>{
+                  const txt = lang==='ar'
+                    ? `حساب ولي الأمر:\nالمعرف: ${showEleveCree.parent.login}\nكلمة المرور: ${showEleveCree.parent.mdp}`
+                    : `Compte parent :\nLogin : ${showEleveCree.parent.login}\nMot de passe : ${showEleveCree.parent.mdp}`;
+                  navigator.clipboard?.writeText(txt).then(() => {
+                    showMsg('success', lang==='ar'?'✅ تم النسخ':'✅ Copié dans le presse-papier');
+                  }).catch(()=>{});
+                }}
+                  style={{flex:1,padding:'12px',background:'#fff',color:'#085041',border:'1.5px solid #085041',
+                    borderRadius:10,fontSize:13,fontWeight:600,cursor:'pointer',fontFamily:'inherit'}}>
+                  📋 {lang==='ar'?'نسخ المعلومات':'Copier les identifiants'}
+                </button>
+                <button onClick={()=>setShowEleveCree(null)}
+                  style={{flex:1,padding:'12px',background:'linear-gradient(135deg,#1D9E75,#085041)',color:'#fff',
+                    border:'none',borderRadius:10,fontSize:13,fontWeight:700,cursor:'pointer',fontFamily:'inherit',
+                    boxShadow:'0 2px 8px rgba(8,80,65,0.3)'}}>
+                  ✓ {lang==='ar'?'حسناً':'OK'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ─── Modale recap création instituteur (mai 2026) ─── */}
+        {/* UX : equivalent de ModaleEleveCree pour donner le temps au surveillant
+            de noter le login/mdp sans pression de disparition. */}
+        {showInstCree && (
+          <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.55)',zIndex:9999,
+            display:'flex',alignItems:'center',justifyContent:'center',padding:20,
+            animation:'modalFadeIn 0.15s ease-out'}}
+            onClick={()=>setShowInstCree(null)}>
+            <div onClick={e=>e.stopPropagation()}
+              style={{background:'#fff',borderRadius:16,maxWidth:520,width:'100%',padding:24,
+                boxShadow:'0 20px 60px rgba(0,0,0,0.3)',maxHeight:'90vh',overflowY:'auto',
+                animation:'modalSlideIn 0.18s ease-out'}}>
+              <div style={{textAlign:'center',marginBottom:18}}>
+                <div style={{fontSize:48,marginBottom:8}}>🎉</div>
+                <div style={{fontSize:18,fontWeight:800,color:'#085041',marginBottom:4}}>
+                  {lang==='ar'?'تم إضافة الأستاذ بنجاح!':'Instituteur créé avec succès !'}
+                </div>
+              </div>
+
+              {/* Récap instituteur */}
+              <div style={{
+                background:'#E1F5EE',border:'1px solid #1D9E7530',borderRadius:10,
+                padding:'12px 14px',marginBottom:12,
+              }}>
+                <div style={{fontSize:11,fontWeight:700,color:'#085041',marginBottom:6,textTransform:'uppercase',letterSpacing:0.3}}>
+                  👨‍🏫 {lang==='ar'?'الأستاذ':'Instituteur'}
+                </div>
+                <div style={{fontSize:15,fontWeight:700,color:'#1a1a1a'}}>
+                  {showInstCree.instituteur.prenom} {showInstCree.instituteur.nom}
+                </div>
+                {showInstCree.instituteur.instituteur_id_ecole && (
+                  <div style={{fontSize:12,color:'#666',marginTop:3}}>
+                    🆔 {showInstCree.instituteur.instituteur_id_ecole}
+                  </div>
+                )}
+              </div>
+
+              {/* Récap compte instituteur (login/mdp) */}
+              <div style={{
+                background:'#FFF8EC',border:'1px solid #EF9F2740',borderRadius:10,
+                padding:'12px 14px',marginBottom:14,
+              }}>
+                <div style={{fontSize:11,fontWeight:700,color:'#7B5800',marginBottom:8,textTransform:'uppercase',letterSpacing:0.3}}>
+                  🔑 {lang==='ar'?'بيانات الاتصال':'Identifiants de connexion'}
+                </div>
+                <div style={{display:'grid',gridTemplateColumns:'auto 1fr',gap:'6px 10px',fontSize:13}}>
+                  <div style={{color:'#666',fontWeight:600}}>{lang==='ar'?'المعرف:':'Login :'}</div>
+                  <div style={{fontWeight:700,color:'#1a1a1a',fontFamily:'monospace'}}>{showInstCree.login}</div>
+                  <div style={{color:'#666',fontWeight:600}}>{lang==='ar'?'كلمة المرور:':'Mot de passe :'}</div>
+                  <div style={{fontWeight:700,color:'#1a1a1a',fontFamily:'monospace'}}>{showInstCree.mdp}</div>
+                </div>
+                <div style={{fontSize:11,color:'#8a5a00',marginTop:10,lineHeight:1.5,fontStyle:'italic'}}>
+                  ℹ️ {lang==='ar'
+                    ? 'يمكن للأستاذ تغيير كلمة المرور بعد أول اتصال. سلّم هذه المعلومات إليه.'
+                    : 'L\'instituteur peut changer son mot de passe à la première connexion. Communiquez-lui ces informations.'}
+                </div>
+              </div>
+
+              {/* Boutons */}
+              <div style={{display:'flex',gap:8}}>
+                <button onClick={()=>{
+                  const txt = lang==='ar'
+                    ? `بيانات الأستاذ:\nالمعرف: ${showInstCree.login}\nكلمة المرور: ${showInstCree.mdp}`
+                    : `Identifiants instituteur :\nLogin : ${showInstCree.login}\nMot de passe : ${showInstCree.mdp}`;
+                  navigator.clipboard?.writeText(txt).then(() => {
+                    showMsg('success', lang==='ar'?'✅ تم النسخ':'✅ Copié dans le presse-papier');
+                  }).catch(()=>{});
+                }}
+                  style={{flex:1,padding:'12px',background:'#fff',color:'#085041',border:'1.5px solid #085041',
+                    borderRadius:10,fontSize:13,fontWeight:600,cursor:'pointer',fontFamily:'inherit'}}>
+                  📋 {lang==='ar'?'نسخ المعلومات':'Copier les identifiants'}
+                </button>
+                <button onClick={()=>setShowInstCree(null)}
+                  style={{flex:1,padding:'12px',background:'linear-gradient(135deg,#1D9E75,#085041)',color:'#fff',
+                    border:'none',borderRadius:10,fontSize:13,fontWeight:700,cursor:'pointer',fontFamily:'inherit',
+                    boxShadow:'0 2px 8px rgba(8,80,65,0.3)'}}>
+                  ✓ {lang==='ar'?'حسناً':'OK'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ─── Modale Suspendre instituteur (Etape 7) ─── */}
+        {showSuspendreInst && (() => {
+          const { inst, elevesRattaches } = showSuspendreInst;
+          const instituteursDispo = (instituteurs||[]).filter(i =>
+            i.id !== inst.id && !i.suspendu_at && !i.deleted_at);
+          return (
+            <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.55)',zIndex:9999,
+              display:'flex',alignItems:'center',justifyContent:'center',padding:20,
+              animation:'modalFadeIn 0.15s ease-out'}}
+              onClick={()=>{ if(!savingSuspensionInst) setShowSuspendreInst(null); }}>
+              <div onClick={e=>e.stopPropagation()}
+                style={{background:'#fff',borderRadius:14,maxWidth:540,width:'100%',padding:24,boxShadow:'0 10px 40px rgba(0,0,0,0.2)',maxHeight:'90vh',overflowY:'auto',
+                  animation:'modalSlideIn 0.18s ease-out'}}>
+                <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:14}}>
+                  <div style={{fontSize:28}}>⏸️</div>
+                  <div>
+                    <div style={{fontSize:17,fontWeight:800,color:'#D85A30'}}>
+                      {lang==='ar'?'تعليق المدرس':'Suspendre l\'instituteur'}
+                    </div>
+                    <div style={{fontSize:13,color:'#666',marginTop:2}}>
+                      {inst.prenom} {inst.nom} · {inst.identifiant}
+                    </div>
+                  </div>
+                </div>
+                <div style={{background:'#FFF8EC',border:'0.5px solid #FFE0B5',borderRadius:10,padding:'10px 12px',fontSize:12,color:'#8a5a00',marginBottom:14,lineHeight:1.5}}>
+                  {lang==='ar'
+                    ? 'المدرس المعلق لن يستطيع تسجيل الدخول إلى التطبيق. السجل السابق لتصحيحاته يبقى محفوظًا تحت اسمه. يمكنك إعادة تفعيله في أي وقت.'
+                    : 'L\'instituteur suspendu ne pourra plus se connecter à l\'application. Son historique de validations reste figé sous son nom. Réactivable à tout moment.'}
+                </div>
+
+                {/* Section transfert eleves */}
+                {elevesRattaches.length > 0 && (
+                  <div style={{background:'#F0F4FA',border:'0.5px solid #d0d8e8',borderRadius:10,padding:'12px 14px',marginBottom:14}}>
+                    <div style={{fontSize:13,fontWeight:700,color:'#374151',marginBottom:8}}>
+                      👥 {elevesRattaches.length} {lang==='ar'?'طالب مرتبط':elevesRattaches.length===1?'élève rattaché':'élèves rattachés'}
+                    </div>
+                    <div style={{fontSize:12,color:'#6b7280',marginBottom:10,lineHeight:1.5}}>
+                      {lang==='ar'
+                        ? 'اختر ماذا تفعل بطلابه. السجل السابق يبقى تحت اسمه.'
+                        : 'Choisissez ce que vous voulez faire de ses élèves. L\'historique passé reste sous son nom.'}
+                    </div>
+
+                    <label style={{display:'flex',alignItems:'flex-start',gap:8,padding:8,borderRadius:8,background:transfertOption==='transferer'?'#fff':'transparent',border:transfertOption==='transferer'?'0.5px solid #1D9E75':'0.5px solid transparent',marginBottom:6,cursor:'pointer'}}>
+                      <input type="radio" name="transfert-opt" checked={transfertOption==='transferer'}
+                        onChange={()=>setTransfertOption('transferer')} style={{marginTop:3}}/>
+                      <div style={{flex:1}}>
+                        <div style={{fontSize:13,fontWeight:600,color:'#085041'}}>
+                          {lang==='ar'?'➡️ نقل إلى مدرس آخر (موصى به)':'➡️ Transférer vers un autre instituteur (recommandé)'}
+                        </div>
+                        {transfertOption==='transferer' && (
+                          <select value={transfertVers} onChange={e=>setTransfertVers(e.target.value)}
+                            style={{width:'100%',padding:'8px 10px',marginTop:6,borderRadius:8,border:'0.5px solid #d0d8e8',fontSize:12,fontFamily:'inherit'}}>
+                            <option value="">— {lang==='ar'?'اختر مدرسًا...':'Choisir...'}</option>
+                            {instituteursDispo.map(i=>(
+                              <option key={i.id} value={i.id}>{i.prenom} {i.nom} ({i.identifiant})</option>
+                            ))}
+                          </select>
+                        )}
+                      </div>
+                    </label>
+
+                    <label style={{display:'flex',alignItems:'flex-start',gap:8,padding:8,borderRadius:8,background:transfertOption==='detacher'?'#fff':'transparent',border:transfertOption==='detacher'?'0.5px solid #EF9F27':'0.5px solid transparent',marginBottom:6,cursor:'pointer'}}>
+                      <input type="radio" name="transfert-opt" checked={transfertOption==='detacher'}
+                        onChange={()=>setTransfertOption('detacher')} style={{marginTop:3}}/>
+                      <div style={{fontSize:13,color:'#374151'}}>
+                        {lang==='ar'?'🔓 فصل الطلاب (بدون مدرس مرجعي)':'🔓 Détacher les élèves (sans référent)'}
+                      </div>
+                    </label>
+
+                    <label style={{display:'flex',alignItems:'flex-start',gap:8,padding:8,borderRadius:8,background:transfertOption==='garder'?'#fff':'transparent',border:transfertOption==='garder'?'0.5px solid #888':'0.5px solid transparent',cursor:'pointer'}}>
+                      <input type="radio" name="transfert-opt" checked={transfertOption==='garder'}
+                        onChange={()=>setTransfertOption('garder')} style={{marginTop:3}}/>
+                      <div style={{fontSize:13,color:'#374151'}}>
+                        {lang==='ar'?'⏸️ الإبقاء كما هو (الطلاب يبقون مرتبطين بالمدرس المعلق)':'⏸️ Garder en l\'état (élèves restent rattachés)'}
+                      </div>
+                    </label>
+                  </div>
+                )}
+
+                <label style={{display:'block',fontSize:12,fontWeight:600,color:'#666',marginBottom:6}}>
+                  {lang==='ar'?'سبب التعليق (اختياري)':'Motif de suspension (optionnel)'}
+                </label>
+                <input type="text" list="motif-inst-suggestions" value={motifSuspensionInst}
+                  onChange={e=>setMotifSuspensionInst(e.target.value)}
+                  placeholder={lang==='ar'?'مثلاً: عطلة، مرض، انتهاء العقد...':'Ex: vacances, maladie, fin de contrat...'}
+                  style={{width:'100%',padding:'10px 12px',borderRadius:10,border:'0.5px solid #e0e0d8',
+                    fontSize:13,fontFamily:'inherit',boxSizing:'border-box'}}/>
+                <datalist id="motif-inst-suggestions">
+                  <option value={lang==='ar'?'عطلة':'Vacances'}/>
+                  <option value={lang==='ar'?'مرض':'Maladie'}/>
+                  <option value={lang==='ar'?'انتهاء العقد':'Fin de contrat'}/>
+                  <option value={lang==='ar'?'استقالة':'Démission'}/>
+                  <option value={lang==='ar'?'أخرى':'Autre'}/>
+                </datalist>
+
+                <div style={{display:'flex',gap:8,marginTop:14}}>
+                  <button onClick={()=>setShowSuspendreInst(null)} disabled={savingSuspensionInst}
+                    style={{flex:1,padding:'11px',background:'#f5f5f0',color:'#666',border:'none',borderRadius:10,fontSize:13,fontWeight:600,cursor:savingSuspensionInst?'not-allowed':'pointer',fontFamily:'inherit'}}>
+                    {lang==='ar'?'إلغاء':'Annuler'}
+                  </button>
+                  <button onClick={confirmerSuspensionInst} disabled={savingSuspensionInst}
+                    style={{flex:2,padding:'11px',background:savingSuspensionInst?'#ccc':'#D85A30',color:'#fff',border:'none',borderRadius:10,fontSize:13,fontWeight:700,cursor:savingSuspensionInst?'not-allowed':'pointer',fontFamily:'inherit'}}>
+                    {savingSuspensionInst
+                      ? '⏳ '+(lang==='ar'?'جاري الحفظ...':'En cours...')
+                      : '⏸️ '+(lang==='ar'?'تعليق':'Suspendre')}
+                  </button>
+                </div>
+              </div>
+            </div>
+          );
+        })()}
+
+        {/* ─── Modale Suspendre élève (Etape 6) ─── */}
+        {showSuspendreEleve && (
+          <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.55)',zIndex:9999,
+            display:'flex',alignItems:'center',justifyContent:'center',padding:20,
+            animation:'modalFadeIn 0.15s ease-out'}}
+            onClick={()=>{ if(!savingSuspension) setShowSuspendreEleve(null); }}>
+            <div onClick={e=>e.stopPropagation()}
+              style={{background:'#fff',borderRadius:14,maxWidth:480,width:'100%',padding:24,boxShadow:'0 10px 40px rgba(0,0,0,0.2)',
+                animation:'modalSlideIn 0.18s ease-out'}}>
+              <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:14}}>
+                <div style={{fontSize:28}}>⏸️</div>
+                <div>
+                  <div style={{fontSize:17,fontWeight:800,color:'#D85A30'}}>
+                    {lang==='ar'?'تعليق الطالب':'Suspendre l\'élève'}
+                  </div>
+                  <div style={{fontSize:13,color:'#666',marginTop:2}}>
+                    {showSuspendreEleve.prenom} {showSuspendreEleve.nom}
+                  </div>
+                </div>
+              </div>
+              <div style={{background:'#FFF8EC',border:'0.5px solid #FFE0B5',borderRadius:10,padding:'10px 12px',fontSize:12,color:'#8a5a00',marginBottom:14,lineHeight:1.5}}>
+                {lang==='ar'
+                  ? 'الطالب المعلق لن يظهر في قوائم التسجيل والتقارير، لكن بياناته السابقة (الاستظهارات، الشهادات، إلخ) تبقى محفوظة. يمكنك إعادة تفعيله في أي وقت.'
+                  : 'L\'élève suspendu n\'apparaîtra plus dans les listes de validation et les rapports, mais toutes ses données (récitations, certificats, etc.) restent conservées. Réactivable à tout moment.'}
+              </div>
+              <label style={{display:'block',fontSize:12,fontWeight:600,color:'#666',marginBottom:6}}>
+                {lang==='ar'?'سبب التعليق (اختياري)':'Motif de suspension (optionnel)'}
+              </label>
+              <input type="text" list="motif-suggestions" value={motifSuspension}
+                onChange={e=>setMotifSuspension(e.target.value)}
+                placeholder={lang==='ar'?'مثلاً: عطلة، مرض، انتقال...':'Ex: vacances, maladie, déménagement...'}
+                style={{width:'100%',padding:'10px 12px',borderRadius:10,border:'0.5px solid #e0e0d8',
+                  fontSize:13,fontFamily:'inherit',boxSizing:'border-box',marginBottom:6}}/>
+              <datalist id="motif-suggestions">
+                <option value={lang==='ar'?'عطلة':'Vacances'}/>
+                <option value={lang==='ar'?'مرض':'Maladie'}/>
+                <option value={lang==='ar'?'انتقال':'Déménagement'}/>
+                <option value={lang==='ar'?'تغيير مدرسة':'Changement d\'école'}/>
+                <option value={lang==='ar'?'أخرى':'Autre'}/>
+              </datalist>
+              <div style={{display:'flex',gap:8,marginTop:14}}>
+                <button onClick={()=>setShowSuspendreEleve(null)} disabled={savingSuspension}
+                  style={{flex:1,padding:'11px',background:'#f5f5f0',color:'#666',border:'none',borderRadius:10,fontSize:13,fontWeight:600,cursor:savingSuspension?'not-allowed':'pointer',fontFamily:'inherit'}}>
+                  {lang==='ar'?'إلغاء':'Annuler'}
+                </button>
+                <button onClick={confirmerSuspension} disabled={savingSuspension}
+                  style={{flex:2,padding:'11px',background:savingSuspension?'#ccc':'#D85A30',color:'#fff',border:'none',borderRadius:10,fontSize:13,fontWeight:700,cursor:savingSuspension?'not-allowed':'pointer',fontFamily:'inherit'}}>
+                  {savingSuspension
+                    ? '⏳ '+(lang==='ar'?'جاري الحفظ...':'En cours...')
+                    : '⏸️ '+(lang==='ar'?'تعليق':'Suspendre')}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ─── Modale de confirmation (utilisée par showConfirm) ─── */}
+        {/* Sans ce rendu, tous les boutons 🗑 Supprimer sont silencieux */}
+        {/* car le state passe bien à isOpen:true mais rien ne l'affiche. */}
+        <ConfirmModal
+          isOpen={confirmModal.isOpen}
+          title={confirmModal.title}
+          message={confirmModal.message}
+          onConfirm={confirmModal.onConfirm}
+          onCancel={hideConfirm}
+          confirmLabel={confirmModal.confirmLabel}
+          confirmColor={confirmModal.confirmColor}
+          loading={confirmLoading}
+          lang={lang}
+        />
+    </>
+  );
+
   if (isMobile) {
     // Couleurs dynamiques depuis niveauxActifs, fallback hardcoded
     const getNC = (code) => (niveauxActifs||[]).find(n=>n.code===code)?.couleur ||
@@ -4894,6 +5491,7 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
         )}
 
 
+        {modalesPartagees}
       </div>
     );
   }
@@ -6260,594 +6858,7 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
         <PeriodesTab user={user} lang={lang} showMsg={showMsg} />
       )}
 
-      {/* ─── Modale Lier comptes parents (Etape 11b) ─── */}
-      {showLinkParents && (() => {
-        const candidatsParents = (parents || []).filter(p => p.role !== 'instituteur');
-        return (
-          <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.55)',zIndex:9999,
-            display:'flex',alignItems:'center',justifyContent:'center',padding:20,
-            animation:'modalFadeIn 0.15s ease-out'}}
-            onClick={()=>{ if(!linkLoading) setShowLinkParents(false); }}>
-            <div onClick={e=>e.stopPropagation()}
-              style={{background:'#fff',borderRadius:16,maxWidth:600,width:'100%',padding:24,
-                boxShadow:'0 20px 60px rgba(0,0,0,0.3)',maxHeight:'90vh',overflowY:'auto',
-                animation:'modalSlideIn 0.18s ease-out'}}>
-              <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:14}}>
-                <div style={{fontSize:32}}>🔗</div>
-                <div>
-                  <div style={{fontSize:17,fontWeight:800,color:'#085041'}}>
-                    {lang==='ar'?'ربط حسابات الأولياء':'Lier des comptes parents'}
-                  </div>
-                  <div style={{fontSize:12,color:'#666',marginTop:2}}>
-                    {lang==='ar'?'دمج عدة حسابات في حساب عائلي واحد':'Fusionner plusieurs comptes en un compte famille'}
-                  </div>
-                </div>
-              </div>
-
-              {/* Etape 1 - Selection des parents */}
-              <div style={{marginBottom:14}}>
-                <div style={{fontSize:12,fontWeight:700,color:'#666',marginBottom:6,textTransform:'uppercase',letterSpacing:0.3}}>
-                  1. {lang==='ar'?'اختر الحسابات للربط (2 على الأقل)':'Sélectionner les comptes à lier (2 minimum)'}
-                </div>
-                <div style={{maxHeight:200,overflowY:'auto',background:'#f5f5f0',borderRadius:8,padding:6}}>
-                  {candidatsParents.length === 0 ? (
-                    <div style={{padding:12,textAlign:'center',color:'#888',fontSize:12,fontStyle:'italic'}}>
-                      {lang==='ar'?'لا يوجد حسابات':'Aucun compte disponible'}
-                    </div>
-                  ) : candidatsParents.map(p => {
-                    const enfantsP = eleves.filter(e => (p.eleve_ids||[]).includes(e.id));
-                    const checked = linkSelectedParents.includes(p.id);
-                    return (
-                      <label key={p.id} style={{
-                        display:'flex',alignItems:'flex-start',gap:8,padding:'8px 10px',
-                        background:checked?'#fff':'transparent',borderRadius:6,cursor:'pointer',
-                        marginBottom:3,border:checked?'1px solid #1D9E75':'1px solid transparent',
-                      }}>
-                        <input type="checkbox" checked={checked}
-                          onChange={e=>{
-                            if (e.target.checked) setLinkSelectedParents(prev=>[...prev,p.id]);
-                            else setLinkSelectedParents(prev=>prev.filter(x=>x!==p.id));
-                          }}
-                          style={{marginTop:3}}/>
-                        <div style={{flex:1,minWidth:0}}>
-                          <div style={{fontSize:13,fontWeight:600,color:'#1a1a1a'}}>
-                            {p.prenom} {p.nom}
-                            <span style={{fontSize:11,fontWeight:400,color:'#888',marginInlineStart:6,fontFamily:'monospace'}}>
-                              ({p.identifiant})
-                            </span>
-                          </div>
-                          {enfantsP.length > 0 && (
-                            <div style={{fontSize:11,color:'#666',marginTop:2}}>
-                              👶 {enfantsP.map(e=>`${e.prenom} ${e.nom}`).join(', ')}
-                            </div>
-                          )}
-                        </div>
-                      </label>
-                    );
-                  })}
-                </div>
-                <div style={{fontSize:11,color:'#888',marginTop:4}}>
-                  ✓ {linkSelectedParents.length} {lang==='ar'?'محدد':'sélectionné(s)'}
-                </div>
-              </div>
-
-              {/* Etape 2 - Choix du login */}
-              {linkSelectedParents.length >= 2 && (
-                <div style={{marginBottom:14}}>
-                  <div style={{fontSize:12,fontWeight:700,color:'#666',marginBottom:6,textTransform:'uppercase',letterSpacing:0.3}}>
-                    2. {lang==='ar'?'معرف الحساب الجديد':'Login du compte fusionné'}
-                  </div>
-                  <div style={{display:'flex',flexDirection:'column',gap:8}}>
-                    <label style={{display:'flex',alignItems:'flex-start',gap:8,padding:8,borderRadius:8,background:linkLoginMode==='manuel'?'#fff':'transparent',border:linkLoginMode==='manuel'?'1px solid #1D9E75':'1px solid transparent',cursor:'pointer'}}>
-                      <input type="radio" name="lk-mode" checked={linkLoginMode==='manuel'}
-                        onChange={()=>setLinkLoginMode('manuel')} style={{marginTop:3}}/>
-                      <div style={{flex:1}}>
-                        <div style={{fontSize:13,fontWeight:600,color:'#1a1a1a'}}>
-                          {lang==='ar'?'إنشاء معرف جديد':'Créer un nouveau login'}
-                        </div>
-                        {linkLoginMode==='manuel' && (
-                          <input type="text" value={linkLoginManuel}
-                            onChange={e=>setLinkLoginManuel(e.target.value)}
-                            placeholder={lang==='ar'?'مثلاً: famille.benali':'Ex: famille.benali'}
-                            style={{width:'100%',padding:'8px 10px',marginTop:6,borderRadius:8,border:'1px solid #d0d8e8',fontSize:12,fontFamily:'inherit'}}/>
-                        )}
-                      </div>
-                    </label>
-
-                    <label style={{display:'flex',alignItems:'flex-start',gap:8,padding:8,borderRadius:8,background:linkLoginMode==='existant'?'#fff':'transparent',border:linkLoginMode==='existant'?'1px solid #1D9E75':'1px solid transparent',cursor:'pointer'}}>
-                      <input type="radio" name="lk-mode" checked={linkLoginMode==='existant'}
-                        onChange={()=>setLinkLoginMode('existant')} style={{marginTop:3}}/>
-                      <div style={{flex:1}}>
-                        <div style={{fontSize:13,fontWeight:600,color:'#1a1a1a'}}>
-                          {lang==='ar'?'الإبقاء على معرف موجود':'Garder un login existant'}
-                        </div>
-                        {linkLoginMode==='existant' && (
-                          <select value={linkLoginExistant} onChange={e=>setLinkLoginExistant(e.target.value)}
-                            style={{width:'100%',padding:'8px 10px',marginTop:6,borderRadius:8,border:'1px solid #d0d8e8',fontSize:12,fontFamily:'inherit'}}>
-                            <option value="">— {lang==='ar'?'اختر':'Choisir'}</option>
-                            {parents.filter(p=>linkSelectedParents.includes(p.id)).map(p=>(
-                              <option key={p.id} value={p.identifiant}>{p.identifiant} ({p.prenom} {p.nom})</option>
-                            ))}
-                          </select>
-                        )}
-                      </div>
-                    </label>
-                  </div>
-                </div>
-              )}
-
-              {/* Etape 3 - Avertissement */}
-              {linkSelectedParents.length >= 2 && (
-                <div style={{
-                  background:'#FFF8EC',border:'1px solid #EF9F2740',borderRadius:8,
-                  padding:'10px 12px',fontSize:11,color:'#7B5800',marginBottom:14,lineHeight:1.5,
-                }}>
-                  ⚠️ {lang==='ar'
-                    ? `سيتم حذف ${linkSelectedParents.length - (linkLoginMode==='existant'?1:0)} حسابات قديمة وكلمة المرور الافتراضية ستكون: `
-                    : `${linkSelectedParents.length - (linkLoginMode==='existant'?1:0)} ancien(s) compte(s) seront supprimé(s). Le mot de passe sera réinitialisé à : `}
-                  <b>{ecoleConfig?.mdp_defaut_parents || 'parent2024'}</b>
-                </div>
-              )}
-
-              <div style={{display:'flex',gap:8}}>
-                <button onClick={()=>setShowLinkParents(false)} disabled={linkLoading}
-                  style={{flex:1,padding:'11px',background:'#f5f5f0',color:'#666',border:'none',borderRadius:10,fontSize:13,fontWeight:600,cursor:linkLoading?'not-allowed':'pointer',fontFamily:'inherit'}}>
-                  {lang==='ar'?'إلغاء':'Annuler'}
-                </button>
-                <button onClick={confirmerLiaisonParents} disabled={linkLoading || linkSelectedParents.length < 2}
-                  style={{flex:2,padding:'11px',
-                    background:(linkLoading || linkSelectedParents.length < 2)?'#ccc':'linear-gradient(135deg,#1D9E75,#085041)',
-                    color:'#fff',border:'none',borderRadius:10,fontSize:13,fontWeight:700,
-                    cursor:(linkLoading || linkSelectedParents.length < 2)?'not-allowed':'pointer',
-                    fontFamily:'inherit',boxShadow:'0 2px 8px rgba(8,80,65,0.3)'}}>
-                  {linkLoading ? '⏳ '+(lang==='ar'?'جاري...':'En cours...') : '🔗 '+(lang==='ar'?'ربط':'Lier')}
-                </button>
-              </div>
-            </div>
-          </div>
-        );
-      })()}
-
-      {/* ─── Modale Délier un enfant (Etape 11b) ─── */}
-      {showUnlinkParent && (() => {
-        const { parent: pUn, enfants: enfantsUn } = showUnlinkParent;
-        return (
-          <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.55)',zIndex:9999,
-            display:'flex',alignItems:'center',justifyContent:'center',padding:20,
-            animation:'modalFadeIn 0.15s ease-out'}}
-            onClick={()=>{ if(!unlinkLoading) setShowUnlinkParent(null); }}>
-            <div onClick={e=>e.stopPropagation()}
-              style={{background:'#fff',borderRadius:16,maxWidth:480,width:'100%',padding:24,
-                boxShadow:'0 20px 60px rgba(0,0,0,0.3)',maxHeight:'90vh',overflowY:'auto',
-                animation:'modalSlideIn 0.18s ease-out'}}>
-              <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:14}}>
-                <div style={{fontSize:32}}>🔓</div>
-                <div>
-                  <div style={{fontSize:17,fontWeight:800,color:'#7B5800'}}>
-                    {lang==='ar'?'فصل طفل':'Détacher un enfant'}
-                  </div>
-                  <div style={{fontSize:12,color:'#666',marginTop:2}}>
-                    {pUn.prenom} {pUn.nom} · {pUn.identifiant}
-                  </div>
-                </div>
-              </div>
-
-              <div style={{fontSize:12,fontWeight:700,color:'#666',marginBottom:8,textTransform:'uppercase',letterSpacing:0.3}}>
-                {lang==='ar'?'أي طفل تريد فصله؟':'Quel enfant détacher ?'}
-              </div>
-
-              <div style={{marginBottom:14}}>
-                {enfantsUn.map(e => (
-                  <label key={e.id} style={{
-                    display:'flex',alignItems:'flex-start',gap:8,padding:10,borderRadius:8,
-                    background:unlinkChildId===e.id?'#FFF8EC':'#f5f5f0',
-                    border:unlinkChildId===e.id?'1px solid #EF9F27':'1px solid transparent',
-                    cursor:'pointer',marginBottom:6,
-                  }}>
-                    <input type="radio" name="unlk-child" checked={unlinkChildId===e.id}
-                      onChange={()=>setUnlinkChildId(e.id)} style={{marginTop:3}}/>
-                    <div style={{flex:1}}>
-                      <div style={{fontSize:13,fontWeight:600,color:'#1a1a1a'}}>{e.prenom} {e.nom}</div>
-                      <div style={{fontSize:11,color:'#666',marginTop:2}}>
-                        🆔 {e.eleve_id_ecole} · 🎓 {e.code_niveau || '-'}
-                      </div>
-                    </div>
-                  </label>
-                ))}
-              </div>
-
-              {unlinkChildId && (() => {
-                const enf = enfantsUn.find(e => e.id === unlinkChildId);
-                return (
-                  <div style={{
-                    background:'#E1F5EE',border:'1px solid #1D9E7530',borderRadius:8,
-                    padding:'10px 12px',fontSize:11,color:'#085041',marginBottom:14,lineHeight:1.5,
-                  }}>
-                    ℹ️ {lang==='ar'?'سيتم إنشاء حساب جديد:':'Un nouveau compte sera créé :'}<br/>
-                    <span style={{fontFamily:'monospace',fontWeight:700}}>
-                      {lang==='ar'?'المعرف':'Login'}: {enf.eleve_id_ecole}<br/>
-                      {lang==='ar'?'كلمة المرور':'MDP'}: {ecoleConfig?.mdp_defaut_parents || 'parent2024'}
-                    </span>
-                  </div>
-                );
-              })()}
-
-              <div style={{display:'flex',gap:8}}>
-                <button onClick={()=>setShowUnlinkParent(null)} disabled={unlinkLoading}
-                  style={{flex:1,padding:'11px',background:'#f5f5f0',color:'#666',border:'none',borderRadius:10,fontSize:13,fontWeight:600,cursor:unlinkLoading?'not-allowed':'pointer',fontFamily:'inherit'}}>
-                  {lang==='ar'?'إلغاء':'Annuler'}
-                </button>
-                <button onClick={confirmerDeliaison} disabled={unlinkLoading || !unlinkChildId}
-                  style={{flex:2,padding:'11px',
-                    background:(unlinkLoading || !unlinkChildId)?'#ccc':'#EF9F27',
-                    color:'#fff',border:'none',borderRadius:10,fontSize:13,fontWeight:700,
-                    cursor:(unlinkLoading || !unlinkChildId)?'not-allowed':'pointer',fontFamily:'inherit'}}>
-                  {unlinkLoading ? '⏳ '+(lang==='ar'?'جاري...':'En cours...') : '🔓 '+(lang==='ar'?'فصل':'Détacher')}
-                </button>
-              </div>
-            </div>
-          </div>
-        );
-      })()}
-
-      {/* ─── Modale recap création élève + compte parent (Etape 11a) ─── */}
-      {/* UX (mai 2026) : animation fadeIn pour douceur visuelle.
-          Les keyframes sont declarees une seule fois ici, valides pour
-          toutes les modales du composant Gestion. */}
-      <style>{`
-        @keyframes modalFadeIn {
-          from { opacity: 0; }
-          to { opacity: 1; }
-        }
-        @keyframes modalSlideIn {
-          from { opacity: 0; transform: translateY(-8px) scale(0.98); }
-          to   { opacity: 1; transform: translateY(0) scale(1); }
-        }
-      `}</style>
-      {showEleveCree && (
-        <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.55)',zIndex:9999,
-          display:'flex',alignItems:'center',justifyContent:'center',padding:20,
-          animation:'modalFadeIn 0.15s ease-out'}}
-          onClick={()=>setShowEleveCree(null)}>
-          <div onClick={e=>e.stopPropagation()}
-            style={{background:'#fff',borderRadius:16,maxWidth:520,width:'100%',padding:24,
-              boxShadow:'0 20px 60px rgba(0,0,0,0.3)',maxHeight:'90vh',overflowY:'auto',
-              animation:'modalSlideIn 0.18s ease-out'}}>
-            <div style={{textAlign:'center',marginBottom:18}}>
-              <div style={{fontSize:48,marginBottom:8}}>🎉</div>
-              <div style={{fontSize:18,fontWeight:800,color:'#085041',marginBottom:4}}>
-                {lang==='ar'?'تم إضافة الطالب بنجاح!':'Élève créé avec succès !'}
-              </div>
-            </div>
-
-            {/* Récap élève */}
-            <div style={{
-              background:'#E1F5EE',border:'1px solid #1D9E7530',borderRadius:10,
-              padding:'12px 14px',marginBottom:12,
-            }}>
-              <div style={{fontSize:11,fontWeight:700,color:'#085041',marginBottom:6,textTransform:'uppercase',letterSpacing:0.3}}>
-                👤 {lang==='ar'?'الطالب':'Élève'}
-              </div>
-              <div style={{fontSize:15,fontWeight:700,color:'#1a1a1a'}}>
-                {showEleveCree.eleve.prenom} {showEleveCree.eleve.nom}
-              </div>
-              <div style={{fontSize:12,color:'#666',marginTop:3,display:'flex',gap:10,flexWrap:'wrap'}}>
-                <span>🆔 {showEleveCree.eleve.eleve_id_ecole}</span>
-                <span>🎓 {showEleveCree.eleve.code_niveau}</span>
-              </div>
-            </div>
-
-            {/* Récap compte parent */}
-            <div style={{
-              background:'#FFF8EC',border:'1px solid #EF9F2740',borderRadius:10,
-              padding:'12px 14px',marginBottom:14,
-            }}>
-              <div style={{fontSize:11,fontWeight:700,color:'#7B5800',marginBottom:8,textTransform:'uppercase',letterSpacing:0.3}}>
-                👨‍👩‍👧 {lang==='ar'?'حساب ولي الأمر (تم إنشاؤه تلقائياً)':'Compte parent (créé automatiquement)'}
-              </div>
-              <div style={{display:'grid',gridTemplateColumns:'auto 1fr',gap:'6px 10px',fontSize:13}}>
-                <div style={{color:'#666',fontWeight:600}}>{lang==='ar'?'المعرف:':'Login :'}</div>
-                <div style={{fontWeight:700,color:'#1a1a1a',fontFamily:'monospace'}}>{showEleveCree.parent.login}</div>
-                <div style={{color:'#666',fontWeight:600}}>{lang==='ar'?'كلمة المرور:':'Mot de passe :'}</div>
-                <div style={{fontWeight:700,color:'#1a1a1a',fontFamily:'monospace'}}>{showEleveCree.parent.mdp}</div>
-              </div>
-              <div style={{fontSize:11,color:'#8a5a00',marginTop:10,lineHeight:1.5,fontStyle:'italic'}}>
-                ℹ️ {lang==='ar'
-                  ? 'يمكن لولي الأمر تغيير كلمة المرور بعد أول اتصال. سلّم هذه المعلومات إليه.'
-                  : 'Le parent peut changer son mot de passe à la première connexion. Communiquez-lui ces informations.'}
-              </div>
-            </div>
-
-            {/* Boutons */}
-            <div style={{display:'flex',gap:8}}>
-              <button onClick={()=>{
-                const txt = lang==='ar'
-                  ? `حساب ولي الأمر:\nالمعرف: ${showEleveCree.parent.login}\nكلمة المرور: ${showEleveCree.parent.mdp}`
-                  : `Compte parent :\nLogin : ${showEleveCree.parent.login}\nMot de passe : ${showEleveCree.parent.mdp}`;
-                navigator.clipboard?.writeText(txt).then(() => {
-                  showMsg('success', lang==='ar'?'✅ تم النسخ':'✅ Copié dans le presse-papier');
-                }).catch(()=>{});
-              }}
-                style={{flex:1,padding:'12px',background:'#fff',color:'#085041',border:'1.5px solid #085041',
-                  borderRadius:10,fontSize:13,fontWeight:600,cursor:'pointer',fontFamily:'inherit'}}>
-                📋 {lang==='ar'?'نسخ المعلومات':'Copier les identifiants'}
-              </button>
-              <button onClick={()=>setShowEleveCree(null)}
-                style={{flex:1,padding:'12px',background:'linear-gradient(135deg,#1D9E75,#085041)',color:'#fff',
-                  border:'none',borderRadius:10,fontSize:13,fontWeight:700,cursor:'pointer',fontFamily:'inherit',
-                  boxShadow:'0 2px 8px rgba(8,80,65,0.3)'}}>
-                ✓ {lang==='ar'?'حسناً':'OK'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ─── Modale recap création instituteur (mai 2026) ─── */}
-      {/* UX : equivalent de ModaleEleveCree pour donner le temps au surveillant
-          de noter le login/mdp sans pression de disparition. */}
-      {showInstCree && (
-        <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.55)',zIndex:9999,
-          display:'flex',alignItems:'center',justifyContent:'center',padding:20,
-          animation:'modalFadeIn 0.15s ease-out'}}
-          onClick={()=>setShowInstCree(null)}>
-          <div onClick={e=>e.stopPropagation()}
-            style={{background:'#fff',borderRadius:16,maxWidth:520,width:'100%',padding:24,
-              boxShadow:'0 20px 60px rgba(0,0,0,0.3)',maxHeight:'90vh',overflowY:'auto',
-              animation:'modalSlideIn 0.18s ease-out'}}>
-            <div style={{textAlign:'center',marginBottom:18}}>
-              <div style={{fontSize:48,marginBottom:8}}>🎉</div>
-              <div style={{fontSize:18,fontWeight:800,color:'#085041',marginBottom:4}}>
-                {lang==='ar'?'تم إضافة الأستاذ بنجاح!':'Instituteur créé avec succès !'}
-              </div>
-            </div>
-
-            {/* Récap instituteur */}
-            <div style={{
-              background:'#E1F5EE',border:'1px solid #1D9E7530',borderRadius:10,
-              padding:'12px 14px',marginBottom:12,
-            }}>
-              <div style={{fontSize:11,fontWeight:700,color:'#085041',marginBottom:6,textTransform:'uppercase',letterSpacing:0.3}}>
-                👨‍🏫 {lang==='ar'?'الأستاذ':'Instituteur'}
-              </div>
-              <div style={{fontSize:15,fontWeight:700,color:'#1a1a1a'}}>
-                {showInstCree.instituteur.prenom} {showInstCree.instituteur.nom}
-              </div>
-              {showInstCree.instituteur.instituteur_id_ecole && (
-                <div style={{fontSize:12,color:'#666',marginTop:3}}>
-                  🆔 {showInstCree.instituteur.instituteur_id_ecole}
-                </div>
-              )}
-            </div>
-
-            {/* Récap compte instituteur (login/mdp) */}
-            <div style={{
-              background:'#FFF8EC',border:'1px solid #EF9F2740',borderRadius:10,
-              padding:'12px 14px',marginBottom:14,
-            }}>
-              <div style={{fontSize:11,fontWeight:700,color:'#7B5800',marginBottom:8,textTransform:'uppercase',letterSpacing:0.3}}>
-                🔑 {lang==='ar'?'بيانات الاتصال':'Identifiants de connexion'}
-              </div>
-              <div style={{display:'grid',gridTemplateColumns:'auto 1fr',gap:'6px 10px',fontSize:13}}>
-                <div style={{color:'#666',fontWeight:600}}>{lang==='ar'?'المعرف:':'Login :'}</div>
-                <div style={{fontWeight:700,color:'#1a1a1a',fontFamily:'monospace'}}>{showInstCree.login}</div>
-                <div style={{color:'#666',fontWeight:600}}>{lang==='ar'?'كلمة المرور:':'Mot de passe :'}</div>
-                <div style={{fontWeight:700,color:'#1a1a1a',fontFamily:'monospace'}}>{showInstCree.mdp}</div>
-              </div>
-              <div style={{fontSize:11,color:'#8a5a00',marginTop:10,lineHeight:1.5,fontStyle:'italic'}}>
-                ℹ️ {lang==='ar'
-                  ? 'يمكن للأستاذ تغيير كلمة المرور بعد أول اتصال. سلّم هذه المعلومات إليه.'
-                  : 'L\'instituteur peut changer son mot de passe à la première connexion. Communiquez-lui ces informations.'}
-              </div>
-            </div>
-
-            {/* Boutons */}
-            <div style={{display:'flex',gap:8}}>
-              <button onClick={()=>{
-                const txt = lang==='ar'
-                  ? `بيانات الأستاذ:\nالمعرف: ${showInstCree.login}\nكلمة المرور: ${showInstCree.mdp}`
-                  : `Identifiants instituteur :\nLogin : ${showInstCree.login}\nMot de passe : ${showInstCree.mdp}`;
-                navigator.clipboard?.writeText(txt).then(() => {
-                  showMsg('success', lang==='ar'?'✅ تم النسخ':'✅ Copié dans le presse-papier');
-                }).catch(()=>{});
-              }}
-                style={{flex:1,padding:'12px',background:'#fff',color:'#085041',border:'1.5px solid #085041',
-                  borderRadius:10,fontSize:13,fontWeight:600,cursor:'pointer',fontFamily:'inherit'}}>
-                📋 {lang==='ar'?'نسخ المعلومات':'Copier les identifiants'}
-              </button>
-              <button onClick={()=>setShowInstCree(null)}
-                style={{flex:1,padding:'12px',background:'linear-gradient(135deg,#1D9E75,#085041)',color:'#fff',
-                  border:'none',borderRadius:10,fontSize:13,fontWeight:700,cursor:'pointer',fontFamily:'inherit',
-                  boxShadow:'0 2px 8px rgba(8,80,65,0.3)'}}>
-                ✓ {lang==='ar'?'حسناً':'OK'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ─── Modale Suspendre instituteur (Etape 7) ─── */}
-      {showSuspendreInst && (() => {
-        const { inst, elevesRattaches } = showSuspendreInst;
-        const instituteursDispo = (instituteurs||[]).filter(i =>
-          i.id !== inst.id && !i.suspendu_at && !i.deleted_at);
-        return (
-          <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.55)',zIndex:9999,
-            display:'flex',alignItems:'center',justifyContent:'center',padding:20,
-            animation:'modalFadeIn 0.15s ease-out'}}
-            onClick={()=>{ if(!savingSuspensionInst) setShowSuspendreInst(null); }}>
-            <div onClick={e=>e.stopPropagation()}
-              style={{background:'#fff',borderRadius:14,maxWidth:540,width:'100%',padding:24,boxShadow:'0 10px 40px rgba(0,0,0,0.2)',maxHeight:'90vh',overflowY:'auto',
-                animation:'modalSlideIn 0.18s ease-out'}}>
-              <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:14}}>
-                <div style={{fontSize:28}}>⏸️</div>
-                <div>
-                  <div style={{fontSize:17,fontWeight:800,color:'#D85A30'}}>
-                    {lang==='ar'?'تعليق المدرس':'Suspendre l\'instituteur'}
-                  </div>
-                  <div style={{fontSize:13,color:'#666',marginTop:2}}>
-                    {inst.prenom} {inst.nom} · {inst.identifiant}
-                  </div>
-                </div>
-              </div>
-              <div style={{background:'#FFF8EC',border:'0.5px solid #FFE0B5',borderRadius:10,padding:'10px 12px',fontSize:12,color:'#8a5a00',marginBottom:14,lineHeight:1.5}}>
-                {lang==='ar'
-                  ? 'المدرس المعلق لن يستطيع تسجيل الدخول إلى التطبيق. السجل السابق لتصحيحاته يبقى محفوظًا تحت اسمه. يمكنك إعادة تفعيله في أي وقت.'
-                  : 'L\'instituteur suspendu ne pourra plus se connecter à l\'application. Son historique de validations reste figé sous son nom. Réactivable à tout moment.'}
-              </div>
-
-              {/* Section transfert eleves */}
-              {elevesRattaches.length > 0 && (
-                <div style={{background:'#F0F4FA',border:'0.5px solid #d0d8e8',borderRadius:10,padding:'12px 14px',marginBottom:14}}>
-                  <div style={{fontSize:13,fontWeight:700,color:'#374151',marginBottom:8}}>
-                    👥 {elevesRattaches.length} {lang==='ar'?'طالب مرتبط':elevesRattaches.length===1?'élève rattaché':'élèves rattachés'}
-                  </div>
-                  <div style={{fontSize:12,color:'#6b7280',marginBottom:10,lineHeight:1.5}}>
-                    {lang==='ar'
-                      ? 'اختر ماذا تفعل بطلابه. السجل السابق يبقى تحت اسمه.'
-                      : 'Choisissez ce que vous voulez faire de ses élèves. L\'historique passé reste sous son nom.'}
-                  </div>
-
-                  <label style={{display:'flex',alignItems:'flex-start',gap:8,padding:8,borderRadius:8,background:transfertOption==='transferer'?'#fff':'transparent',border:transfertOption==='transferer'?'0.5px solid #1D9E75':'0.5px solid transparent',marginBottom:6,cursor:'pointer'}}>
-                    <input type="radio" name="transfert-opt" checked={transfertOption==='transferer'}
-                      onChange={()=>setTransfertOption('transferer')} style={{marginTop:3}}/>
-                    <div style={{flex:1}}>
-                      <div style={{fontSize:13,fontWeight:600,color:'#085041'}}>
-                        {lang==='ar'?'➡️ نقل إلى مدرس آخر (موصى به)':'➡️ Transférer vers un autre instituteur (recommandé)'}
-                      </div>
-                      {transfertOption==='transferer' && (
-                        <select value={transfertVers} onChange={e=>setTransfertVers(e.target.value)}
-                          style={{width:'100%',padding:'8px 10px',marginTop:6,borderRadius:8,border:'0.5px solid #d0d8e8',fontSize:12,fontFamily:'inherit'}}>
-                          <option value="">— {lang==='ar'?'اختر مدرسًا...':'Choisir...'}</option>
-                          {instituteursDispo.map(i=>(
-                            <option key={i.id} value={i.id}>{i.prenom} {i.nom} ({i.identifiant})</option>
-                          ))}
-                        </select>
-                      )}
-                    </div>
-                  </label>
-
-                  <label style={{display:'flex',alignItems:'flex-start',gap:8,padding:8,borderRadius:8,background:transfertOption==='detacher'?'#fff':'transparent',border:transfertOption==='detacher'?'0.5px solid #EF9F27':'0.5px solid transparent',marginBottom:6,cursor:'pointer'}}>
-                    <input type="radio" name="transfert-opt" checked={transfertOption==='detacher'}
-                      onChange={()=>setTransfertOption('detacher')} style={{marginTop:3}}/>
-                    <div style={{fontSize:13,color:'#374151'}}>
-                      {lang==='ar'?'🔓 فصل الطلاب (بدون مدرس مرجعي)':'🔓 Détacher les élèves (sans référent)'}
-                    </div>
-                  </label>
-
-                  <label style={{display:'flex',alignItems:'flex-start',gap:8,padding:8,borderRadius:8,background:transfertOption==='garder'?'#fff':'transparent',border:transfertOption==='garder'?'0.5px solid #888':'0.5px solid transparent',cursor:'pointer'}}>
-                    <input type="radio" name="transfert-opt" checked={transfertOption==='garder'}
-                      onChange={()=>setTransfertOption('garder')} style={{marginTop:3}}/>
-                    <div style={{fontSize:13,color:'#374151'}}>
-                      {lang==='ar'?'⏸️ الإبقاء كما هو (الطلاب يبقون مرتبطين بالمدرس المعلق)':'⏸️ Garder en l\'état (élèves restent rattachés)'}
-                    </div>
-                  </label>
-                </div>
-              )}
-
-              <label style={{display:'block',fontSize:12,fontWeight:600,color:'#666',marginBottom:6}}>
-                {lang==='ar'?'سبب التعليق (اختياري)':'Motif de suspension (optionnel)'}
-              </label>
-              <input type="text" list="motif-inst-suggestions" value={motifSuspensionInst}
-                onChange={e=>setMotifSuspensionInst(e.target.value)}
-                placeholder={lang==='ar'?'مثلاً: عطلة، مرض، انتهاء العقد...':'Ex: vacances, maladie, fin de contrat...'}
-                style={{width:'100%',padding:'10px 12px',borderRadius:10,border:'0.5px solid #e0e0d8',
-                  fontSize:13,fontFamily:'inherit',boxSizing:'border-box'}}/>
-              <datalist id="motif-inst-suggestions">
-                <option value={lang==='ar'?'عطلة':'Vacances'}/>
-                <option value={lang==='ar'?'مرض':'Maladie'}/>
-                <option value={lang==='ar'?'انتهاء العقد':'Fin de contrat'}/>
-                <option value={lang==='ar'?'استقالة':'Démission'}/>
-                <option value={lang==='ar'?'أخرى':'Autre'}/>
-              </datalist>
-
-              <div style={{display:'flex',gap:8,marginTop:14}}>
-                <button onClick={()=>setShowSuspendreInst(null)} disabled={savingSuspensionInst}
-                  style={{flex:1,padding:'11px',background:'#f5f5f0',color:'#666',border:'none',borderRadius:10,fontSize:13,fontWeight:600,cursor:savingSuspensionInst?'not-allowed':'pointer',fontFamily:'inherit'}}>
-                  {lang==='ar'?'إلغاء':'Annuler'}
-                </button>
-                <button onClick={confirmerSuspensionInst} disabled={savingSuspensionInst}
-                  style={{flex:2,padding:'11px',background:savingSuspensionInst?'#ccc':'#D85A30',color:'#fff',border:'none',borderRadius:10,fontSize:13,fontWeight:700,cursor:savingSuspensionInst?'not-allowed':'pointer',fontFamily:'inherit'}}>
-                  {savingSuspensionInst
-                    ? '⏳ '+(lang==='ar'?'جاري الحفظ...':'En cours...')
-                    : '⏸️ '+(lang==='ar'?'تعليق':'Suspendre')}
-                </button>
-              </div>
-            </div>
-          </div>
-        );
-      })()}
-
-      {/* ─── Modale Suspendre élève (Etape 6) ─── */}
-      {showSuspendreEleve && (
-        <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.55)',zIndex:9999,
-          display:'flex',alignItems:'center',justifyContent:'center',padding:20,
-          animation:'modalFadeIn 0.15s ease-out'}}
-          onClick={()=>{ if(!savingSuspension) setShowSuspendreEleve(null); }}>
-          <div onClick={e=>e.stopPropagation()}
-            style={{background:'#fff',borderRadius:14,maxWidth:480,width:'100%',padding:24,boxShadow:'0 10px 40px rgba(0,0,0,0.2)',
-              animation:'modalSlideIn 0.18s ease-out'}}>
-            <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:14}}>
-              <div style={{fontSize:28}}>⏸️</div>
-              <div>
-                <div style={{fontSize:17,fontWeight:800,color:'#D85A30'}}>
-                  {lang==='ar'?'تعليق الطالب':'Suspendre l\'élève'}
-                </div>
-                <div style={{fontSize:13,color:'#666',marginTop:2}}>
-                  {showSuspendreEleve.prenom} {showSuspendreEleve.nom}
-                </div>
-              </div>
-            </div>
-            <div style={{background:'#FFF8EC',border:'0.5px solid #FFE0B5',borderRadius:10,padding:'10px 12px',fontSize:12,color:'#8a5a00',marginBottom:14,lineHeight:1.5}}>
-              {lang==='ar'
-                ? 'الطالب المعلق لن يظهر في قوائم التسجيل والتقارير، لكن بياناته السابقة (الاستظهارات، الشهادات، إلخ) تبقى محفوظة. يمكنك إعادة تفعيله في أي وقت.'
-                : 'L\'élève suspendu n\'apparaîtra plus dans les listes de validation et les rapports, mais toutes ses données (récitations, certificats, etc.) restent conservées. Réactivable à tout moment.'}
-            </div>
-            <label style={{display:'block',fontSize:12,fontWeight:600,color:'#666',marginBottom:6}}>
-              {lang==='ar'?'سبب التعليق (اختياري)':'Motif de suspension (optionnel)'}
-            </label>
-            <input type="text" list="motif-suggestions" value={motifSuspension}
-              onChange={e=>setMotifSuspension(e.target.value)}
-              placeholder={lang==='ar'?'مثلاً: عطلة، مرض، انتقال...':'Ex: vacances, maladie, déménagement...'}
-              style={{width:'100%',padding:'10px 12px',borderRadius:10,border:'0.5px solid #e0e0d8',
-                fontSize:13,fontFamily:'inherit',boxSizing:'border-box',marginBottom:6}}/>
-            <datalist id="motif-suggestions">
-              <option value={lang==='ar'?'عطلة':'Vacances'}/>
-              <option value={lang==='ar'?'مرض':'Maladie'}/>
-              <option value={lang==='ar'?'انتقال':'Déménagement'}/>
-              <option value={lang==='ar'?'تغيير مدرسة':'Changement d\'école'}/>
-              <option value={lang==='ar'?'أخرى':'Autre'}/>
-            </datalist>
-            <div style={{display:'flex',gap:8,marginTop:14}}>
-              <button onClick={()=>setShowSuspendreEleve(null)} disabled={savingSuspension}
-                style={{flex:1,padding:'11px',background:'#f5f5f0',color:'#666',border:'none',borderRadius:10,fontSize:13,fontWeight:600,cursor:savingSuspension?'not-allowed':'pointer',fontFamily:'inherit'}}>
-                {lang==='ar'?'إلغاء':'Annuler'}
-              </button>
-              <button onClick={confirmerSuspension} disabled={savingSuspension}
-                style={{flex:2,padding:'11px',background:savingSuspension?'#ccc':'#D85A30',color:'#fff',border:'none',borderRadius:10,fontSize:13,fontWeight:700,cursor:savingSuspension?'not-allowed':'pointer',fontFamily:'inherit'}}>
-                {savingSuspension
-                  ? '⏳ '+(lang==='ar'?'جاري الحفظ...':'En cours...')
-                  : '⏸️ '+(lang==='ar'?'تعليق':'Suspendre')}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ─── Modale de confirmation (utilisée par showConfirm) ─── */}
-      {/* Sans ce rendu, tous les boutons 🗑 Supprimer sont silencieux */}
-      {/* car le state passe bien à isOpen:true mais rien ne l'affiche. */}
-      <ConfirmModal
-        isOpen={confirmModal.isOpen}
-        title={confirmModal.title}
-        message={confirmModal.message}
-        onConfirm={confirmModal.onConfirm}
-        onCancel={hideConfirm}
-        confirmLabel={confirmModal.confirmLabel}
-        confirmColor={confirmModal.confirmColor}
-        loading={confirmLoading}
-        lang={lang}
-      />
+      {modalesPartagees}
     </div>
   );
 }
