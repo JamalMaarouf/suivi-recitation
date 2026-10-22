@@ -519,6 +519,11 @@ function App() {
   const navigateRoot = (p) => {
     setNavHistory([]);
     setPageWithRef(p);
+    // Reset des donnees contextuelles de deep-link : la navbar est un "fresh start",
+    // donc on ne doit pas pre-selectionner un eleve/examen residuel d'un deep-link
+    // precedent (ex: apres validation d'un examen on revient sur l'onglet "Resultats
+    // examens" via la navbar => on doit avoir l'ecran vide, pas l'ancien eleve).
+    setResultatsExamensData(null);
     window.scrollTo(0, 0);
   };
 

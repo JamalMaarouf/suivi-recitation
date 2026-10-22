@@ -38,12 +38,15 @@ export default function Seance({ user, navigate, goBack, lang, isMobile=false })
   useEffect(() => { loadData(); }, []);
 
   const loadData = async () => {
-    loadBareme(supabase, user.ecole_id).then(b=>setBareme({...BAREME_DEFAUT,...b.unites}));
     setLoading(true);
     const debutJour = new Date(); debutJour.setHours(0,0,0,0);
     const debutSemaine = new Date(); debutSemaine.setDate(debutSemaine.getDate()-7);
 
-    const [{ data: ed }, { data: instData }, vd, rd, { data: sdb }, { data: nvData }, { data: ecData }] = await Promise.all([
+    // BUG-FIX POINTS (oct 2026) : on await loadBareme en parallele des autres
+    // chargements pour pouvoir utiliser le bareme LOCAL dans le calcul de
+    // ptsAujourdhui. Avant : fire-and-forget -> bareme reste BAREME_DEFAUT au
+    // moment du map() -> ptsAujourdhui = 0 partout dans le classement de la seance.
+    const [{ data: ed }, { data: instData }, vd, rd, { data: sdb }, { data: nvData }, { data: ecData }, brData] = await Promise.all([
       supabase.from('eleves').select('id,prenom,nom,code_niveau,hizb_depart,tomon_depart,sourates_acquises,instituteur_referent_id,ecole_id')
         .eq('ecole_id', user.ecole_id).order('nom'),
       supabase.from('utilisateurs').select('id,prenom,nom').eq('role','instituteur').eq('ecole_id', user.ecole_id),
@@ -54,7 +57,10 @@ export default function Seance({ user, navigate, goBack, lang, isMobile=false })
       supabase.from('sourates').select('*'),
       supabase.from('niveaux').select('id,code,nom,sens_recitation').eq('ecole_id', user.ecole_id),
       supabase.from('ecoles').select('sens_recitation_defaut').eq('id', user.ecole_id).maybeSingle(),
+      loadBareme(supabase, user.ecole_id).catch(() => null),
     ]);
+    const baremeLocal = brData ? {...BAREME_DEFAUT, ...brData.unites} : {...BAREME_DEFAUT};
+    setBareme(baremeLocal);
 
     const vAujourdhui = (vd||[]).filter(v => new Date(v.date_validation) >= debutJour);
     const rAujourdhui = (rd||[]).filter(r => new Date(r.date_validation) >= debutJour);
@@ -101,7 +107,9 @@ export default function Seance({ user, navigate, goBack, lang, isMobile=false })
         const valsSemaine = (vd||[]).filter(v => v.eleve_id === e.id && new Date(v.date_validation) >= debutSemaine);
         const tomonAujourdhui = valsAujourdhui.filter(v=>v.type_validation==='tomon').reduce((s,v)=>s+v.nombre_tomon,0);
         const hizbAujourdhui = valsAujourdhui.filter(v=>v.type_validation==='hizb_complet').length;
-        const ptsAujourdhui = tomonAujourdhui*(bareme.tomon || 0)+hizbAujourdhui*(bareme.hizb_complet || 0);
+        // BUG-FIX POINTS (oct 2026) : utilise `baremeLocal` (frais) et non `bareme` (state
+        // potentiellement encore vide au moment du map()).
+        const ptsAujourdhui = tomonAujourdhui*(baremeLocal.tomon || 0)+hizbAujourdhui*(baremeLocal.hizb_complet || 0);
         const tomonSemaine = valsSemaine.filter(v=>v.type_validation==='tomon').reduce((s,v)=>s+v.nombre_tomon,0);
         const derniere = vals[0]?.date_validation || null;
         return {
