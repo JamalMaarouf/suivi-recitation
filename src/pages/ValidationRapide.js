@@ -11,6 +11,8 @@ import { getSouratesForNiveau } from '../lib/sourates';
 import { t } from '../lib/i18n';
 import { fetchAll } from '../lib/fetchAll';
 import PageHeader from '../components/PageHeader';
+import { MobileHeader } from '../components/ui';
+import { Zap } from 'lucide-react';
 
 export default function ValidationRapide({ user, navigate, goBack, lang='fr', isMobile }) {
   const { toast } = useToast();
@@ -747,16 +749,13 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
 
       {/* Header */}
       {isMobile ? (
-        <div style={{background:'linear-gradient(135deg,#085041,#1D9E75)',padding:'48px 16px 16px',position:'sticky',top:0,zIndex:100}}>
-          <div style={{display:'flex',alignItems:'center',gap:12,marginBottom:4}}>
-            <button onClick={()=>goBack?goBack():navigate('dashboard')}
-              style={{background:'rgba(255,255,255,0.22)',border:'1px solid rgba(255,255,255,0.25)',borderRadius:10,padding:'0',color:'#fff',fontSize:20,cursor:'pointer',flexShrink:0,width:44,height:44,display:'flex',alignItems:'center',justifyContent:'center'}}>←</button>
-            <div>
-              <div style={{fontSize:18,fontWeight:800,color:'#fff'}}>⚡ {lang==='ar'?'استظهار سريع':'Validation express'}</div>
-              <div style={{fontSize:11,color:'rgba(255,255,255,0.75)'}}>{lang==='ar'?'ابحث وسجّل بنقرتين':'Trouvez et validez en 2 clics'}</div>
-            </div>
-          </div>
-        </div>
+        <MobileHeader
+          title={lang==='ar'?'استظهار سريع':'Validation express'}
+          subtitle={lang==='ar'?'ابحث وسجّل بنقرتين':'Trouvez et validez en 2 clics'}
+          icon={Zap}
+          onBack={()=>goBack?goBack():navigate('dashboard')}
+          lang={lang}
+        />
       ) : (
         <div style={{ padding:'1rem 0 0' }}>
           <PageHeader

@@ -5,6 +5,8 @@ import { getInitiales, scoreLabel, formatDate, formatDateCourt } from '../lib/he
 import { t } from '../lib/i18n';
 import { getSouratesForNiveau, isSourateNiveau } from '../lib/sourates';
 import MobileSkeletonList from '../components/MobileSkeletonList';
+import { MobileHeader, HeaderIconButton } from '../components/ui';
+import { BookOpen, Plus } from 'lucide-react';
 
 function Avatar({ prenom, nom, size=44, bg='#E1F5EE', color='#085041' }) {
   return <div style={{width:size,height:size,borderRadius:'50%',background:bg,color,display:'flex',alignItems:'center',justifyContent:'center',fontWeight:600,fontSize:size*0.33,flexShrink:0}}>{getInitiales(prenom,nom)}</div>;
@@ -214,32 +216,19 @@ export default function FicheSourate({ eleve, user, navigate, goBack, lang='fr',
     return (
       <div style={{paddingBottom:80, background:'#f5f5f0', minHeight:'100vh'}}>
         {/* Sticky header */}
-        <div style={{background:`linear-gradient(135deg,#085041,#1D9E75)`, padding:'48px 0 0', position:'sticky', top:0, zIndex:100}}>
-          <div style={{display:'flex', alignItems:'center', gap:12, padding:'12px 16px'}}>
-            <button onClick={()=>goBack?goBack():navigate('dashboard')}
-              aria-label={lang==='ar'?'رجوع':'Retour'}
-              style={{background:'rgba(255,255,255,0.22)', border:'1px solid rgba(255,255,255,0.25)',
-                cursor:'pointer', flexShrink:0, borderRadius:10, padding:'0',
-                color:'#fff', fontSize:20, width:44, height:44,
-                display:'flex', alignItems:'center', justifyContent:'center'}}>
-              ←
-            </button>
-            <div style={{flex:1}}>
-              <div style={{fontSize:17,fontWeight:800}}>{eleve.prenom} {eleve.nom}</div>
-              <div style={{display:'flex',gap:6,alignItems:'center',marginTop:2}}>
-                <NiveauBadge code={codeNiveau}/>
-                <span style={{fontSize:12,color:'#888'}}>{instituteurNom}</span>
-              </div>
-            </div>
-            <button onClick={()=>navigate('enregistrer',eleve)}
-              style={{background:'#1D9E75',color:'#fff',border:'none',borderRadius:10,
-                padding:'0 14px', height:44, fontSize:13,fontWeight:700,cursor:'pointer',
-                fontFamily:'inherit', display:'flex', alignItems:'center'}}>
-              + {lang==='ar'?'استظهار':'Récit.'}
-            </button>
-          </div>
+        <MobileHeader
+          title={`${eleve.prenom} ${eleve.nom}`}
+          subtitle={`${codeNiveau||''} · ${instituteurNom}`}
+          icon={BookOpen}
+          onBack={()=>goBack?goBack():navigate('dashboard')}
+          lang={lang}
+          actions={
+            <HeaderIconButton icon={Plus} label={lang==='ar'?'استظهار':'Récitation'}
+              onClick={()=>navigate('enregistrer',eleve)} />
+          }
+        >
           {/* Onglets */}
-          <div style={{display:'flex',overflowX:'auto',scrollbarWidth:'none',borderTop:'0.5px solid #f0f0ec'}}>
+          <div style={{display:'flex',overflowX:'auto',scrollbarWidth:'none'}}>
             {[
               {k:'progression',label:lang==='ar'?'التقدم':'Progression'},
               {k:'historique', label:lang==='ar'?'التاريخ':'Historique'},
@@ -249,13 +238,13 @@ export default function FicheSourate({ eleve, user, navigate, goBack, lang='fr',
             ].map(tab=>(
               <div key={tab.k} onClick={()=>setOnglet(tab.k)}
                 style={{padding:'10px 16px',fontSize:13,fontWeight:600,whiteSpace:'nowrap',cursor:'pointer',flexShrink:0,
-                  color:onglet===tab.k?'#085041':'#888',
-                  borderBottom:onglet===tab.k?'2px solid #1D9E75':'2px solid transparent'}}>
+                  color:onglet===tab.k?'#fff':'rgba(255,255,255,0.75)',
+                  borderBottom:onglet===tab.k?'2px solid #fff':'2px solid transparent'}}>
                 {tab.label}
               </div>
             ))}
           </div>
-        </div>
+        </MobileHeader>
 
         {loading ? <div style={{textAlign:'center',padding:'2rem',color:'#888'}}>...</div> : (
           <div style={{padding:'12px'}}>

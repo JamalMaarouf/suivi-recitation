@@ -3,6 +3,8 @@ import { supabase } from '../lib/supabase';
 import { t } from '../lib/i18n';
 import { loadBareme } from '../lib/helpers';
 import { getSouratesForNiveau } from '../lib/sourates';
+import { MobileHeader, HeaderIconButton } from '../components/ui';
+import { UsersRound, BarChart3 } from 'lucide-react';
 
 const NIVEAU_COLORS = { '5B':'#534AB7','5A':'#378ADD','2M':'#1D9E75','2':'#EF9F27','1':'#E24B4A' };
 const getNiveauColor = (code, niveaux=[]) => niveaux.find(n=>n.code===code)?.couleur || NIVEAU_COLORS[code] || '#888';
@@ -506,19 +508,16 @@ export default function ValidationCollective({ user, navigate, goBack, lang='fr'
   if (isMobile) {
     return (
       <div style={{paddingBottom:80, background:'#f5f5f0', minHeight:'100vh'}}>
-        <div style={{background:'linear-gradient(135deg,#085041,#1D9E75)',padding:'48px 16px 14px',position:'sticky',top:0,zIndex:100}}>
-          <div style={{display:'flex', alignItems:'center', gap:10}}>
-            <button onClick={()=>goBack?goBack():navigate('dashboard')} style={{background:'rgba(255,255,255,0.22)',border:'1px solid rgba(255,255,255,0.25)',borderRadius:10,padding:'0',color:'#fff',fontSize:20,cursor:'pointer',flexShrink:0,width:44,height:44,display:'flex',alignItems:'center',justifyContent:'center'}}>←</button>
-            <div style={{flex:1, fontSize:17, fontWeight:800, color:'#fff'}}>
-              📖 {lang==='ar'?'مراجعة جماعية':"Murajaʼa collective"}
-            </div>
-            <button onClick={()=>navigate('muraja_dashboard')}
-              style={{background:'rgba(255,255,255,0.22)',color:'#fff',border:'1px solid rgba(255,255,255,0.25)',borderRadius:8,
-                padding:'6px 10px',fontSize:12,cursor:'pointer',fontWeight:600}}>
-              📊
-            </button>
-          </div>
-        </div>
+        <MobileHeader
+          title={lang==='ar'?'مراجعة جماعية':"Murajaʼa collective"}
+          icon={UsersRound}
+          onBack={()=>goBack?goBack():navigate('dashboard')}
+          lang={lang}
+          actions={
+            <HeaderIconButton icon={BarChart3} label={lang==='ar'?'لوحة المراجعات':'Tableau de bord'}
+              onClick={()=>navigate('muraja_dashboard')} />
+          }
+        />
         {/* BUG-FIX (oct 2026) : la branche mobile etait une ancienne implementation divergente
             (selection d'eleves sans niveau ni hizb/sourate) dont le bouton final appelait
             soumettre(), fonction inexistante -> la muraja collective plantait sur mobile.

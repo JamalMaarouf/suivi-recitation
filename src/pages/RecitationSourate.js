@@ -6,6 +6,8 @@ import { getSouratesForNiveau, isSourateNiveau } from '../lib/sourates';
 import { numerosSouratesAcquises, ordonnerSouratesProgramme, depuisDebutNiveau } from '../lib/helpers';
 import { useToast } from '../lib/toast';
 import MobileSkeletonList from '../components/MobileSkeletonList';
+import { MobileHeader, HeaderIconButton } from '../components/ui';
+import { BookOpen, LockOpen } from 'lucide-react';
 
 function Avatar({ prenom, nom, size=36, bg='#E1F5EE', color='#085041' }) {
   return <div style={{width:size,height:size,borderRadius:'50%',background:bg,color,display:'flex',alignItems:'center',justifyContent:'center',fontWeight:600,fontSize:size*0.33,flexShrink:0}}>{getInitiales(prenom,nom)}</div>;
@@ -391,32 +393,19 @@ export default function RecitationSourate({ user, eleve, navigate, goBack, lang=
           </div>
         )}
         {/* Header sticky */}
-        <div style={{background:`linear-gradient(135deg,#085041,#1D9E75)`, padding:'48px 0 0', position:'sticky', top:0, zIndex:100}}>
-          <div style={{display:'flex', alignItems:'center', gap:12, padding:'12px 16px'}}>
-            <button onClick={()=>goBack?goBack():navigate('dashboard')}
-              aria-label={lang==='ar'?'رجوع':'Retour'}
-              style={{background:'rgba(255,255,255,0.22)', border:'1px solid rgba(255,255,255,0.25)',
-                cursor:'pointer', flexShrink:0, borderRadius:10, padding:'0',
-                color:'#fff', fontSize:20, width:44, height:44,
-                display:'flex', alignItems:'center', justifyContent:'center'}}>
-              ←
-            </button>
-            <div style={{flex:1}}>
-              <div style={{fontSize:17,fontWeight:800,color:'#fff'}}>{eleve.prenom} {eleve.nom}</div>
-              <div style={{fontSize:12,color:'rgba(255,255,255,0.85)'}}>{codeNiveau} · {lang==='ar'?'استظهار السور':'Récitation des sourates'}</div>
-            </div>
-            {isPrivilegied && (
-              <button onClick={()=>setShowExceptionModal(true)}
-                aria-label={lang==='ar'?'استثناء':'Exception'}
-                style={{background:'rgba(255,255,255,0.25)',color:'#fff',border:'1px solid rgba(255,255,255,0.3)',
-                  borderRadius:10,padding:'0',width:44,height:44,fontSize:18,cursor:'pointer',
-                  display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
-                🔓
-              </button>
-            )}
-          </div>
+        <MobileHeader
+          title={`${eleve.prenom} ${eleve.nom}`}
+          subtitle={`${codeNiveau} · ${lang==='ar'?'استظهار السور':'Récitation des sourates'}`}
+          icon={BookOpen}
+          onBack={()=>goBack?goBack():navigate('dashboard')}
+          lang={lang}
+          actions={isPrivilegied ? (
+            <HeaderIconButton icon={LockOpen} label={lang==='ar'?'استثناء':'Exception'}
+              onClick={()=>setShowExceptionModal(true)} />
+          ) : null}
+        >
           {/* Onglets */}
-          <div style={{display:'flex',gap:0,background:'#f0f0ec',borderRadius:10,padding:3,margin:'0 16px 12px'}}>
+          <div style={{display:'flex',gap:0,background:'#f0f0ec',borderRadius:10,padding:3}}>
             {[['liste',lang==='ar'?'السور':'Sourates'],['recap',lang==='ar'?'ملخص':'Résumé']].map(([k,l])=>(
               <div key={k} onClick={()=>setStep(k)}
                 style={{flex:1,padding:'7px 8px',borderRadius:8,textAlign:'center',fontSize:12,fontWeight:600,
@@ -425,7 +414,7 @@ export default function RecitationSourate({ user, eleve, navigate, goBack, lang=
               </div>
             ))}
           </div>
-        </div>
+        </MobileHeader>
 
         {/* Exception banner */}
         {exceptions.length > 0 && (

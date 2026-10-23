@@ -17,6 +17,8 @@
 
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
+import { MobileHeader } from '../components/ui';
+import { LayoutGrid } from 'lucide-react';
 
 export default function ModulesMobile({ user, navigate, lang='ar' }) {
   const [showPlusModules, setShowPlusModules] = useState(false);
@@ -101,15 +103,11 @@ export default function ModulesMobile({ user, navigate, lang='ar' }) {
   return (
     <div style={{paddingBottom:80, background:'#f5f5f0', minHeight:'100vh'}}>
       {/* Header */}
-      <div style={{background:'linear-gradient(135deg,#085041,#1D9E75)',
-        padding:'48px 16px 20px', position:'sticky', top:0, zIndex:100}}>
-        <div style={{fontSize:18, fontWeight:800, color:'#fff'}}>
-          ⚙️ {lang==='ar'?'كل الوحدات':'Tous les modules'}
-        </div>
-        <div style={{fontSize:11, color:'rgba(255,255,255,0.8)', marginTop:4}}>
-          {lang==='ar'?'تصفح كل الميزات':'Parcourir toutes les fonctionnalités'}
-        </div>
-      </div>
+      <MobileHeader
+        title={lang==='ar'?'كل الوحدات':'Tous les modules'}
+        subtitle={lang==='ar'?'تصفح كل الميزات':'Parcourir toutes les fonctionnalités'}
+        icon={LayoutGrid}
+        lang={lang} />
 
       {/* Sections */}
       {sectionsFiltered.map((section, idx) => (

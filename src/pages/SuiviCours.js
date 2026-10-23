@@ -8,6 +8,8 @@ import StatsCard from '../components/StatsCard';
 import { useToast } from '../lib/toast';
 import MobileSkeletonList from '../components/MobileSkeletonList';
 import { usePullToRefresh, PullToRefreshIndicator } from '../lib/usePullToRefresh';
+import { MobileHeader, HeaderIconButton } from '../components/ui';
+import { BookOpen, Settings } from 'lucide-react';
 
 // ══════════════════════════════════════════════════════════════════════
 // PAGE SUIVI COURS — hub principal
@@ -240,37 +242,17 @@ export default function SuiviCours({ user, navigate, goBack, lang, isMobile }) {
 
       {/* Header */}
       {isMobile ? (
-        <div style={{
-          background: 'linear-gradient(135deg,#085041,#1D9E75)', // charte mobile lot 1 : vert de marque (avant bleu)
-          color: '#fff', padding: '48px 16px 14px',
-          position: 'sticky', top: 0, zIndex: 100,
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <button onClick={() => goBack ? goBack() : navigate('dashboard')}
-              style={{
-                width: 44, height: 44,
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                background: 'rgba(255,255,255,0.2)', border: 'none', borderRadius: 10,
-                padding: 0, flexShrink: 0, color: '#fff', fontSize: 18, cursor: 'pointer',
-              }}>←</button>
-            <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 17, fontWeight: 800 }}>
-                📚 {lang === 'ar' ? 'الدروس' : 'Cours'}
-              </div>
-              <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.75)' }}>
-                {lang === 'ar' ? 'متابعة تقدم الدروس حسب المستوى' : 'Suivi de la progression des cours par niveau'}
-              </div>
-            </div>
-            {/* Bloc 3 (oct 2026) : acces a la creation des cours (instituteur : ses propres cours) */}
-            <button onClick={() => navigate('gestion_cours')}
-              title={lang === 'ar' ? 'إعداد الدروس' : 'Configurer les cours'}
-              style={{
-                width: 44, height: 44, display: 'flex', alignItems: 'center', justifyContent: 'center',
-                background: 'rgba(255,255,255,0.2)', border: 'none', borderRadius: 10,
-                padding: 0, flexShrink: 0, color: '#fff', fontSize: 18, cursor: 'pointer',
-              }}>⚙️</button>
-          </div>
-        </div>
+        <MobileHeader
+          title={lang === 'ar' ? 'الدروس' : 'Cours'}
+          subtitle={lang === 'ar' ? 'متابعة تقدم الدروس حسب المستوى' : 'Suivi de la progression des cours par niveau'}
+          icon={BookOpen}
+          onBack={() => goBack ? goBack() : navigate('dashboard')}
+          lang={lang}
+          actions={
+            /* Bloc 3 (oct 2026) : acces a la creation des cours (instituteur : ses propres cours) */
+            <HeaderIconButton icon={Settings} label={lang === 'ar' ? 'إعداد الدروس' : 'Configurer les cours'}
+              onClick={() => navigate('gestion_cours')} />
+          } />
       ) : (
         <div style={{ padding: '1.5rem 1.5rem 0' }}>
           <PageHeader

@@ -8,6 +8,8 @@ import { fetchAll } from '../lib/fetchAll';
 import ExportButtons from '../components/ExportButtons';
 import PageHeader from '../components/PageHeader';
 import MobileSkeletonList from '../components/MobileSkeletonList';
+import { MobileHeader, HeaderMenu, actionsExport } from '../components/ui';
+import { ClipboardList } from 'lucide-react';
 
 // FIX (oct 2026) : IS_SOURATE code en dur remplace par isSourateNiveauDyn(code, niveaux de l'ecole)
 const NIVEAU_COLORS = { '5B':'#534AB7','5A':'#378ADD','2M':'#1D9E75','2':'#EF9F27','1':'#E24B4A' };
@@ -230,19 +232,19 @@ export default function Seance({ user, navigate, goBack, lang, isMobile=false })
   if (isMobile) {
     return (
       <div style={{paddingBottom:80,background:'#f5f5f0',minHeight:'100vh'}}>
-        <div style={{background:'linear-gradient(135deg,#085041,#1D9E75)',padding:'48px 16px 14px',position:'sticky',top:0,zIndex:100}}>
-          <div style={{display:'flex',alignItems:'center',gap:12,marginBottom:8}}>
-            <button onClick={()=>goBack?goBack():navigate('dashboard')}
-              style={{background:'rgba(255,255,255,0.22)',border:'1px solid rgba(255,255,255,0.25)',borderRadius:10,padding:'0',color:'#fff',fontSize:20,cursor:'pointer',flexShrink:0,width:44,height:44,display:'flex',alignItems:'center',justifyContent:'center'}}>←</button>
-            <div style={{flex:1,fontSize:16,fontWeight:800,color:'#fff'}}>📋 {lang==='ar'?'الحصة':'Séance'}</div>
-            {/* F6 (oct 2026) : exports aussi sur mobile (avant : PC seulement) */}
-            <ExportButtons onPDF={exportSeancePDF} onExcel={exportSeanceExcel} lang={lang} variant="inline" compact isMobile />
-          </div>
-          <div style={{fontSize:18,fontWeight:800,color:'#fff',marginBottom:10}}>
-            {new Date().toLocaleDateString(lang==='ar'?'ar-MA':'fr-FR',{weekday:'long',day:'numeric',month:'long'})}
-          </div>
+        <MobileHeader
+          title={lang==='ar'?'الحصة':'Séance'}
+          subtitle={new Date().toLocaleDateString(lang==='ar'?'ar-MA':'fr-FR',{weekday:'long',day:'numeric',month:'long'})}
+          icon={ClipboardList}
+          onBack={()=>goBack?goBack():navigate('dashboard')}
+          lang={lang}
+          actions={
+            /* F6 (oct 2026) : exports aussi sur mobile (avant : PC seulement) */
+            <HeaderMenu actions={actionsExport({onPDF:exportSeancePDF, onExcel:exportSeanceExcel, lang})} lang={lang} />
+          }
+        >
           {/* Vue switch: séance / semaine / historique */}
-          <div style={{display:'flex',gap:0,background:'#f0f0ec',borderRadius:10,padding:3,marginBottom:10}}>
+          <div style={{display:'flex',gap:0,background:'#f0f0ec',borderRadius:10,padding:3}}>
             {[['seance',lang==='ar'?'اليوم':"Aujourd'hui"],['semaine',lang==='ar'?'الأسبوع':'Cette semaine'],['historique',lang==='ar'?'السجل':'Historique']].map(([k,l])=>(
               <div key={k} onClick={()=>{ if(k==='historique') navigate('historique_seances'); else setVue(k); }}
                 style={{flex:1,padding:'7px 4px',borderRadius:8,textAlign:'center',fontSize:11,fontWeight:600,
@@ -262,7 +264,7 @@ export default function Seance({ user, navigate, goBack, lang, isMobile=false })
               </div>
             ))}
           </div>
-        </div>
+        </MobileHeader>
 
         {loading ? <MobileSkeletonList type="card-simple" count={4} /> : (
           <>

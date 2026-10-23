@@ -8,6 +8,8 @@ import ExportButtons from '../components/ExportButtons';
 import PeriodeSelectorHybride from '../components/PeriodeSelectorHybride';
 import PageHeader from '../components/PageHeader';
 import StatsCard from '../components/StatsCard';
+import { MobileHeader, HeaderMenu, actionsExport } from '../components/ui';
+import { Award } from 'lucide-react';
 import { usePullToRefresh, PullToRefreshIndicator } from '../lib/usePullToRefresh';
 
 export default function ResultatsExamens({ user, navigate, goBack, lang='fr', isMobile, data }) {
@@ -1101,10 +1103,18 @@ export default function ResultatsExamens({ user, navigate, goBack, lang='fr', is
           isThreshold={isThreshold}
           lang={lang}
         />
-        <div style={{background:'linear-gradient(135deg,#085041,#1D9E75)',padding:'48px 16px 14px',position:'sticky',top:0,zIndex:100}}>
-          <Header/>
+        <MobileHeader
+          title={lang==='ar'?'نتائج الامتحانات':'Résultats'}
+          icon={Award}
+          onBack={()=>goBack?goBack():navigate('dashboard')}
+          lang={lang}
+          actions={
+            /* F6 (oct 2026) : exports aussi sur mobile (avant : PC seulement) */
+            <HeaderMenu actions={actionsExport({onPDF:exportResultatsPDF, onExcel:exportResultatsExcel, lang})} lang={lang} />
+          }
+        >
           <Tabs/>
-        </div>
+        </MobileHeader>
         <div style={{padding:'12px'}}>
           {loading
             ? <div style={{textAlign:'center',padding:'2rem',color:'rgba(255,255,255,0.75)'}}>...</div>

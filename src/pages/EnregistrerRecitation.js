@@ -4,6 +4,8 @@ import { t } from '../lib/i18n';
 import { supabase } from '../lib/supabase';
 import { withRetryToast } from '../lib/retry';
 import MobileSkeletonList from '../components/MobileSkeletonList';
+import { MobileHeader } from '../components/ui';
+import { Mic } from 'lucide-react';
 import { hapticSuccess } from '../lib/haptic';
 import { invalidateMany } from '../lib/cache';
 import { enqueueOrRun } from '../lib/offlineQueue';
@@ -433,17 +435,12 @@ export default function EnregistrerRecitation({  user, eleve: eleveInitial, navi
   if (isMobile) {
     return (
       <div style={{paddingBottom:80, background:'#f5f5f0', minHeight:'100vh'}}>
-        <div style={{background:'linear-gradient(135deg,#085041,#1D9E75)',padding:'48px 16px 14px',position:'sticky',top:0,zIndex:100}}>
-          <div style={{display:'flex',alignItems:'center',gap:12}}>
-            <button onClick={()=>goBack?goBack():navigate('dashboard')}
-              style={{background:'none',border:'none',cursor:'pointer',fontSize:22,color:'#fff',padding:0}}>
-              ←
-            </button>
-            <div style={{fontSize:16,fontWeight:800,color:'#fff'}}>
-              {lang==='ar'?'استظهار':lang==='en'?'Recitation':'Récitation'}
-            </div>
-          </div>
-        </div>
+        <MobileHeader
+          title={lang==='ar'?'استظهار':lang==='en'?'Recitation':'Récitation'}
+          icon={Mic}
+          onBack={()=>goBack?goBack():navigate('dashboard')}
+          lang={lang}
+        />
         <div style={{padding:'16px'}}>
           {/* Eleve info */}
           {eleveInitial && (

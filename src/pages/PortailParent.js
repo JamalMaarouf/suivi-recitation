@@ -6,6 +6,8 @@ import { swr } from '../lib/offlineCache';
 import { getSouratesForNiveau } from '../lib/sourates';
 import { t } from '../lib/i18n';
 import OngletCoursEleve from '../components/OngletCoursEleve';
+import { MobileHeader, HeaderIconButton, HeaderMenu } from '../components/ui';
+import { UserRound, Bell, KeyRound, Database, LogOut } from 'lucide-react';
 import { trackParentVisite, getDerniereVisiteParent } from '../lib/parentTracking';
 import { generateRgpdExport, downloadRgpdExport } from '../lib/rgpdExport';
 import { fetchNotificationsParent, marquerToutesLues, marquerLue, fetchPreferences, updatePreferences } from '../lib/notificationsParents';
@@ -647,47 +649,33 @@ export default function PortailParent({ parent, navigate, goBack, lang='fr', onL
   if (isMobile) {
     return (
       <div style={{paddingBottom:80, background:'#f5f5f0', minHeight:'100vh'}}>
-        {/* Mobile header */}
-        <div style={{background:'linear-gradient(135deg,#085041,#1D9E75)', padding:'48px 16px 20px', position:'sticky', top:0, zIndex:100}}>
-          {/* Barre d'actions mobile : notifs + MDP + RGPD + logout */}
-          <div style={{display:'flex',gap:6,justifyContent:'flex-end',marginBottom:10,flexWrap:'wrap'}}>
-            <button onClick={handleOpenNotifsPanel}
-              title={lang==='ar'?'الإشعارات':'Notifications'}
-              style={{position:'relative',padding:'6px 10px',background:'rgba(255,255,255,0.2)',color:'#fff',border:'1px solid rgba(255,255,255,0.3)',borderRadius:8,fontSize:13,cursor:'pointer'}}>
-              🔔
+        {/* Mobile header — charte mobile lot 2 */}
+        <MobileHeader
+          title={`${lang==='ar'?'مرحباً':'Bonjour'}, ${parent.prenom} ${parent.nom}`}
+          icon={UserRound}
+          lang={lang}
+          actions={<>
+            <div style={{position:'relative', flexShrink:0}}>
+              <HeaderIconButton icon={Bell} label={lang==='ar'?'الإشعارات':'Notifications'} onClick={handleOpenNotifsPanel} />
               {notifsNonLues > 0 && (
-                <span style={{position:'absolute',top:-5,right:-5,minWidth:18,height:18,padding:'0 5px',background:'#E24B4A',color:'#fff',borderRadius:9,fontSize:10,fontWeight:800,display:'flex',alignItems:'center',justifyContent:'center',border:'2px solid #085041'}}>
+                <span style={{position:'absolute',top:-5,right:-5,minWidth:18,height:18,padding:'0 5px',background:'#E24B4A',color:'#fff',borderRadius:9,fontSize:10,fontWeight:800,display:'flex',alignItems:'center',justifyContent:'center',border:'2px solid #085041',pointerEvents:'none'}}>
                   {notifsNonLues > 9 ? '9+' : notifsNonLues}
                 </span>
               )}
-            </button>
-            <button onClick={()=>setShowChangeMdp(v=>!v)}
-              title={lang==='ar'?'كلمة المرور':'Mot de passe'}
-              style={{padding:'6px 10px',background:'rgba(255,255,255,0.2)',color:'#fff',border:'1px solid rgba(255,255,255,0.3)',borderRadius:8,fontSize:13,cursor:'pointer'}}>
-              🔑
-            </button>
-            <button onClick={()=>setShowRgpdModal(true)}
-              title={lang==='ar'?'بياناتي':'Mes données'}
-              style={{padding:'6px 10px',background:'rgba(255,255,255,0.2)',color:'#fff',border:'1px solid rgba(255,255,255,0.3)',borderRadius:8,fontSize:13,cursor:'pointer'}}>
-              📦
-            </button>
-            <button onClick={onLogout}
-              title={lang==='ar'?'تسجيل الخروج':'Déconnexion'}
-              style={{padding:'6px 10px',background:'rgba(255,255,255,0.2)',color:'#fff',border:'1px solid rgba(255,255,255,0.3)',borderRadius:8,fontSize:13,cursor:'pointer'}}>
-              🚪
-            </button>
-          </div>
-
-          <div style={{fontSize:13, color:'rgba(255,255,255,0.8)', marginBottom:4}}>
-            {lang==='ar'?'مرحباً':'Bonjour'}, <strong>{parent.prenom} {parent.nom}</strong>
-          </div>
+            </div>
+            <HeaderMenu lang={lang} actions={[
+              { label: lang==='ar'?'كلمة المرور':'Mot de passe', icon: KeyRound, onClick: ()=>setShowChangeMdp(v=>!v) },
+              { label: lang==='ar'?'بياناتي':'Mes données', icon: Database, onClick: ()=>setShowRgpdModal(true) },
+              { label: lang==='ar'?'تسجيل الخروج':'Déconnexion', icon: LogOut, onClick: onLogout },
+            ]} />
+          </>}>
           {/* Bandeau discret : dernière visite + message inspirant */}
           {derniereVisite !== null && (
             <BannerDerniereVisite derniereVisite={derniereVisite} lang={lang} mobile />
           )}
           {/* Child selector */}
           {enfants.length > 1 && (
-            <div style={{display:'flex', gap:8, overflowX:'auto', marginTop:10, scrollbarWidth:'none'}}>
+            <div style={{display:'flex', gap:8, overflowX:'auto', scrollbarWidth:'none'}}>
               {enfants.map(e=>(
                 <div key={e.id} onClick={()=>{setSelectedEnfant(e);setOnglet('progression');}}
                   style={{display:'flex', alignItems:'center', gap:8, padding:'8px 12px', borderRadius:20,
@@ -702,7 +690,7 @@ export default function PortailParent({ parent, navigate, goBack, lang='fr', onL
           )}
           {/* Enfant sélectionné */}
           {eleve && (
-            <div style={{marginTop:12, display:'flex', justifyContent:'space-between', alignItems:'center'}}>
+            <div style={{marginTop:4, display:'flex', justifyContent:'space-between', alignItems:'center'}}>
               <div>
                 <div style={{fontSize:20, fontWeight:800, color:'#fff'}}>{eleve.prenom} {eleve.nom}</div>
                 <div style={{fontSize:13, color:'rgba(255,255,255,0.8)', marginTop:2}}>
@@ -728,7 +716,7 @@ export default function PortailParent({ parent, navigate, goBack, lang='fr', onL
             </div>
           )}
           {/* Onglets */}
-          <div style={{display:'flex', gap:0, marginTop:14, background:'rgba(0,0,0,0.2)', borderRadius:10, padding:3}}>
+          <div style={{display:'flex', gap:0, marginTop:6, background:'rgba(0,0,0,0.2)', borderRadius:10, padding:3}}>
             {onglets.map(o=>(
               <div key={o.key} onClick={()=>setOnglet(o.key)}
                 style={{flex:1, padding:'8px 4px', borderRadius:8, textAlign:'center', fontSize:11, fontWeight:600,
@@ -739,7 +727,7 @@ export default function PortailParent({ parent, navigate, goBack, lang='fr', onL
               </div>
             ))}
           </div>
-        </div>
+        </MobileHeader>
 
         {(
           <div style={{padding:'12px'}}>
