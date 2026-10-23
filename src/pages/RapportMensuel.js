@@ -70,12 +70,15 @@ export default function RapportMensuel({ user, navigate, goBack, lang='fr', isMo
       // (state reste BAREME_DEFAUT, tomon=0) -> points faux. On charge aussi
       // examens et certificats pour calculer comme la liste des notes.
       loadBareme(supabase, user.ecole_id).catch(() => null),
-      supabase.from('points_eleves').select('eleve_id,type_event,points,date_event').eq('ecole_id',user.ecole_id),
-      supabase.from('certificats_eleves').select('eleve_id,jalon_id,date_obtention,created_at').eq('ecole_id',user.ecole_id),
+      // FIX (oct 2026) : pagination points_eleves (id ajoute pour le tri stable de fetchAll)
+      fetchAll(supabase.from('points_eleves').select('id,eleve_id,type_event,points,date_event').eq('ecole_id',user.ecole_id)).then(data=>({data})),
+      // FIX (oct 2026) : colonne date_emission (date_obtention n'existe pas -> select en erreur -> 0 pt certificat)
+      supabase.from('certificats_eleves').select('eleve_id,jalon_id,date_emission,created_at').eq('ecole_id',user.ecole_id),
     ]);
     if (br) setBareme(br);
     setPointsEvts(pe||[]);
-    setCertificats(ce||[]);
+    // FIX (oct 2026) : mapper date_emission -> date_obtention attendu par calcPointsPeriode
+    setCertificats((ce||[]).map(c => ({ ...c, date_obtention: c.date_emission })));
     setEleves(el||[]);
     setNiveaux(nv||[]);
     setInstituteurs(inst||[]);
@@ -108,8 +111,10 @@ export default function RapportMensuel({ user, navigate, goBack, lang='fr', isMo
 
     const tomonMois   = vMois.filter(v=>v.type_validation==='tomon').reduce((s,v)=>s+(v.nombre_tomon||0),0);
     const hizbMois    = vMois.filter(v=>v.type_validation==='hizb_complet').length;
-    const souratesMois= rMois.filter(r=>r.type_recitation==='complete').length;
-    const seqMois     = rMois.filter(r=>r.type_recitation==='sequence').length;
+    // FIX (oct 2026) : les recitations muraja (is_muraja) ne sont pas des sourates memorisees
+    // (leurs points restent comptes dans ptsMois via calcPointsPeriode)
+    const souratesMois= rMois.filter(r=>r.type_recitation==='complete'&&!r.is_muraja).length;
+    const seqMois     = rMois.filter(r=>r.type_recitation==='sequence'&&!r.is_muraja).length;
     const seances     = new Set(vMois.map(v=>new Date(v.date_validation).toDateString())).size +
                         new Set(rMois.map(r=>new Date(r.date_validation).toDateString())).size;
     // BUG-FIX RAPPORT MENSUEL (oct 2026) : avant, formule de mai obsolete
@@ -224,8 +229,12 @@ export default function RapportMensuel({ user, navigate, goBack, lang='fr', isMo
         eleves: elevesData,
         stats: {
           totalPts: elevesData.reduce((s,e)=>s+e.pts,0),
+          // FIX (oct 2026) : Tomon et sourates separes (la colonne eleve mixe Tomon/Sourates),
+          // + nb d'eleves actifs reel (avant : le PDF affichait eleves.length)
           totalTomon: totalTomon,
+          totalSourates: totalSourates,
           totalHizb: totalHizb,
+          nbActifs: nbActifs,
         },
       }, lang);
     } catch(err) {

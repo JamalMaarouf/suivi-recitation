@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { supabase } from '../lib/supabase';
 import { useToast } from '../lib/toast';
 import { t } from '../lib/i18n';
-import { BAREME_DEFAUT, loadBareme, loadAnneeActiveAvecPeriodes, formatPeriodeCourte, detecterPeriodeEnCours } from '../lib/helpers';
+import { BAREME_DEFAUT, loadBareme, calcPointsPeriode, loadAnneeActiveAvecPeriodes, formatPeriodeCourte, detecterPeriodeEnCours } from '../lib/helpers';
 import { fetchAll } from '../lib/fetchAll';
 import { openPDF } from '../lib/pdf';
 import { exportExcel } from '../lib/excel';
@@ -109,7 +109,9 @@ export default function DashboardDirection({ user, navigate, goBack, lang='fr', 
   const [recitations, setRecitations] = useState([]);
   const [passages, setPassages] = useState([]);
   const [ecole, setEcole] = useState(null);
-  const [bareme, setBareme] = useState(BAREME_DEFAUT);
+  // FIX (oct 2026) : bareme complet {unites, ensembles, examens, jalons} (avant : aplati sur unites)
+  const [bareme, setBareme] = useState({ unites:{...BAREME_DEFAUT}, examens:{}, ensembles:{}, jalons:{} });
+  const [pointsEvts, setPointsEvts] = useState([]); // FIX (oct 2026) : points_eleves (examens) pour le Top
   const [periode, setPeriode] = useState('mois'); // 'mois' | 'bdd_<id>' | 'annee_scolaire' | 'custom'
   const [periodesBDD, setPeriodesBDD] = useState([]);
   const [anneeActive, setAnneeActive] = useState(null);
@@ -177,25 +179,31 @@ export default function DashboardDirection({ user, navigate, goBack, lang='fr', 
   const loadData = async () => {
     setLoading(true);
     try {
-      loadBareme(supabase, user.ecole_id).then(b => setBareme({...BAREME_DEFAUT,...(b?.unites||{})}));
+      // FIX (oct 2026) : bareme complet (calcPointsPeriode a besoin de ensembles/jalons)
+      loadBareme(supabase, user.ecole_id).then(b => { if (b) setBareme(b); });
       const [
         { data: ev }, { data: iv }, { data: vv }, { data: nv },
-        { data: cv }, { data: rv }, { data: pv }, { data: ecv }
+        { data: cv }, { data: rv }, { data: pv }, { data: ecv }, { data: pev }
       ] = await Promise.all([
         supabase.from('eleves').select('*').eq('ecole_id', user.ecole_id).is('suspendu_at', null).order('nom'),
         supabase.from('utilisateurs').select('id,prenom,nom,role').eq('ecole_id', user.ecole_id).eq('role','instituteur'),
-        fetchAll(supabase.from('validations').select('id,eleve_id,type_validation,nombre_tomon,hizb_valide,date_validation,valide_par,ecole_id').eq('ecole_id', user.ecole_id).order('date_validation',{ascending:false})).then(data=>({data})),
+        fetchAll(supabase.from('validations').select('id,eleve_id,type_validation,nombre_tomon,hizb_valide,date_validation,valide_par,ecole_id,ensemble_id').eq('ecole_id', user.ecole_id).order('date_validation',{ascending:false})).then(data=>({data})), // FIX (oct 2026) : ensemble_id pour calcPointsPeriode
         supabase.from('niveaux').select('*').eq('ecole_id', user.ecole_id).order('ordre'),
         supabase.from('certificats_eleves').select('id,eleve_id,jalon_id,date_emission').eq('ecole_id', user.ecole_id).limit(500),
-        fetchAll(supabase.from('recitations_sourates').select('eleve_id,date_validation,type_recitation').eq('ecole_id', user.ecole_id).order('date_validation',{ascending:false})).then(data=>({data})),
+        // FIX (oct 2026) : points + is_muraja pour le Top (calcPointsPeriode)
+        fetchAll(supabase.from('recitations_sourates').select('id,eleve_id,date_validation,type_recitation,is_muraja,points').eq('ecole_id', user.ecole_id).order('date_validation',{ascending:false})).then(data=>({data})),
         supabase.from('passages_niveau').select('eleve_id,niveau_avant,niveau_apres,created_at').eq('ecole_id', user.ecole_id).limit(500),
         supabase.from('ecoles').select('*').eq('id', user.ecole_id).single(),
+        // FIX (oct 2026) : points_eleves (examens) pour un Top coherent avec la liste des notes
+        fetchAll(supabase.from('points_eleves').select('id,eleve_id,type_event,points,date_event').eq('ecole_id', user.ecole_id)).then(data=>({data})),
       ]);
       setEleves(ev||[]);
       setInstituteurs(iv||[]);
       setValidations(vv||[]);
       setNiveaux(nv||[]);
-      setCertificats(cv||[]);
+      // FIX (oct 2026) : mapper date_emission -> date_obtention attendu par calcPointsPeriode
+      setCertificats((cv||[]).map(c => ({ ...c, date_obtention: c.date_emission })));
+      setPointsEvts(pev||[]);
       setRecitations(rv||[]);
       setPassages(pv||[]);
       setEcole(ecv);
@@ -220,7 +228,8 @@ export default function DashboardDirection({ user, navigate, goBack, lang='fr', 
     if (periode === 'annee_scolaire' && anneeActive) {
       return {
         periodeDebut: new Date(anneeActive.date_debut),
-        periodeFin: new Date(anneeActive.date_fin),
+        // FIX (oct 2026) : inclure toute la derniere journee (avant : minuit UTC -> dernier jour exclu)
+        periodeFin: new Date(anneeActive.date_fin + 'T23:59:59'),
       };
     }
     // 'custom' = dates saisies par l'utilisateur (Etape 14 v2)
@@ -236,7 +245,8 @@ export default function DashboardDirection({ user, navigate, goBack, lang='fr', 
       if (p) {
         return {
           periodeDebut: new Date(p.date_debut),
-          periodeFin: new Date(p.date_fin),
+          // FIX (oct 2026) : inclure toute la derniere journee
+          periodeFin: new Date(p.date_fin + 'T23:59:59'),
         };
       }
     }
@@ -254,9 +264,20 @@ export default function DashboardDirection({ user, navigate, goBack, lang='fr', 
     }),
   [validations, periodeDebut, periodeFin]);
 
+  // FIX (oct 2026) : recitations de sourates de la periode (comptent dans l'activite)
+  const recsFiltered = useMemo(() =>
+    (recitations||[]).filter(r => {
+      const d = new Date(r.date_validation);
+      return d >= periodeDebut && d <= periodeFin;
+    }),
+  [recitations, periodeDebut, periodeFin]);
+
   // ─── KPIs globaux ────────────────────────────────────────────────────────
   const kpis = useMemo(() => {
-    const elevesActifs = new Set(valsFiltered.map(v=>v.eleve_id));
+    // FIX (oct 2026) : actifs = validations OU recitations de sourates, restreint aux eleves
+    // non suspendus (eleves deja filtre) pour que le taux ne depasse pas la population.
+    const idsEleves = new Set((eleves||[]).map(e=>e.id));
+    const elevesActifs = new Set([...valsFiltered.map(v=>v.eleve_id), ...recsFiltered.map(r=>r.eleve_id)].filter(id=>idsEleves.has(id)));
     const totalTomon = valsFiltered.filter(v=>v.type_validation==='tomon').reduce((s,v)=>s+(v.nombre_tomon||0),0);
     const totalHizb = valsFiltered.filter(v=>v.type_validation==='hizb_complet').length;
     const tauxActivite = eleves.length > 0 ? Math.round(elevesActifs.size/eleves.length*100) : 0;
@@ -270,7 +291,7 @@ export default function DashboardDirection({ user, navigate, goBack, lang='fr', 
     }).length;
     return { elevesActifs:elevesActifs.size, totalEleves:eleves.length, totalTomon, totalHizb,
       tauxActivite, totalCerts, totalPassages, totalSeances: valsFiltered.length };
-  }, [valsFiltered, eleves, certificats, passages, periodeDebut, periodeFin]);
+  }, [valsFiltered, recsFiltered, eleves, certificats, passages, periodeDebut, periodeFin]);
 
   // ─── Stats par niveau ────────────────────────────────────────────────────
   const statsByNiveau = useMemo(() => {
@@ -327,30 +348,46 @@ export default function DashboardDirection({ user, navigate, goBack, lang='fr', 
   }, [validations, isAr]);
 
   // ─── Top élèves ──────────────────────────────────────────────────────────
-  const topEleves = useMemo(() => {
-    const pts = {};
-    valsFiltered.forEach(v => {
-      if (!pts[v.eleve_id]) pts[v.eleve_id] = 0;
-      // NETTOYAGE (oct 2026) : avant replis codes en dur (||1 par tomon, ||8 par hizb).
-      if (v.type_validation==='tomon') pts[v.eleve_id] += (v.nombre_tomon||0) * (bareme?.tomon||0);
-      if (v.type_validation==='hizb_complet') pts[v.eleve_id] += bareme?.hizb_complet||0;
-    });
-    return Object.entries(pts)
-      .map(([id, p]) => {
-        const e = (eleves||[]).find(el=>el.id===id);
-        return { id, prenom:e?.prenom||'?', nom:e?.nom||'?', code_niveau:e?.code_niveau, pts:p };
+  // FIX (oct 2026) : classement calcule avec calcPointsPeriode (validations + recitations
+  // de sourates + certificats + examens, bareme complet) sur la meme periode, et
+  // uniquement sur les eleves actifs (eleves est deja filtre suspendu_at null).
+  // Avant : formule locale tomon/hizb sur toutes les validations (suspendus inclus,
+  // eleves sourates a 0). On garde 10 lignes pour le PDF, l'ecran affiche le Top 5.
+  const classementPeriode = useMemo(() => {
+    const group = (arr) => {
+      const m = new Map();
+      (arr||[]).forEach(x => { if (!m.has(x.eleve_id)) m.set(x.eleve_id, []); m.get(x.eleve_id).push(x); });
+      return m;
+    };
+    const valsBy = group(validations), recsBy = group(recitations), certsBy = group(certificats), evtsBy = group(pointsEvts);
+    return (eleves||[])
+      .map(e => {
+        const r = calcPointsPeriode(valsBy.get(e.id)||[], periodeDebut, periodeFin, bareme,
+          evtsBy.get(e.id)||[], recsBy.get(e.id)||[], certsBy.get(e.id)||[]);
+        return { id:e.id, prenom:e.prenom||'?', nom:e.nom||'?', code_niveau:e.code_niveau,
+          pts:r.total, tomon:r.tomonPeriode||0, hizb:r.hizbsPeriode||0 };
       })
+      .filter(x => x.pts > 0)
       .sort((a,b)=>b.pts-a.pts)
-      .slice(0,5);
-  }, [valsFiltered, eleves, bareme]);
+      .slice(0,10);
+  }, [validations, recitations, certificats, pointsEvts, eleves, bareme, periodeDebut, periodeFin]);
+  const topEleves = useMemo(() => classementPeriode.slice(0,5), [classementPeriode]);
 
   // ─── Alertes ────────────────────────────────────────────────────────────
   const alertes = useMemo(() => {
     const alerts = [];
     const cutoff = new Date(); cutoff.setDate(cutoff.getDate()-21);
+    // FIX (oct 2026) : derniere activite = max(validations, recitations de sourates)
+    // (avant : les eleves en sourates apparaissaient toujours inactifs)
+    const derniere = new Map();
+    [...(validations||[]), ...(recitations||[])].forEach(x => {
+      const d = new Date(x.date_validation);
+      const cur = derniere.get(x.eleve_id);
+      if (!cur || d > cur) derniere.set(x.eleve_id, d);
+    });
     const inactifs = (eleves||[]).filter(e => {
-      const lastVal = (validations||[]).find(v=>v.eleve_id===e.id);
-      return !lastVal || new Date(lastVal.date_validation) < cutoff;
+      const last = derniere.get(e.id);
+      return !last || last < cutoff;
     });
     if (inactifs.length > 0)
       alerts.push({ type:'warning', icon:'⚠️', msg: `${inactifs.length} élève(s) sans validation depuis 3+ semaines` });
@@ -361,7 +398,7 @@ export default function DashboardDirection({ user, navigate, goBack, lang='fr', 
     if (kpis.totalPassages > 0)
       alerts.push({ type:'info', icon:'🎓', msg: `${kpis.totalPassages} passage(s) de niveau réalisé(s)` });
     return alerts;
-  }, [eleves, validations, kpis]);
+  }, [eleves, validations, recitations, kpis]);
 
   // Etape 14 v2 - PERIODES dynamiques pour Dashboard Direction
   // Pattern hybride : [Ce mois] [T en cours] [Année active] + dropdown "Plus"
@@ -406,7 +443,8 @@ export default function DashboardDirection({ user, navigate, goBack, lang='fr', 
 
   // ── Préparation des données Top 10 avec points ──
   const top10AvecPoints = useMemo(() => {
-    return topEleves.slice(0, 10).map((el, i) => {
+    // FIX (oct 2026) : vrai Top 10 (avant : topEleves deja coupe a 5) + champs reels
+    return classementPeriode.slice(0, 10).map((el, i) => {
       const niveau = niveaux.find(n => n.code === el.code_niveau);
       return {
         rang: i + 1,
@@ -414,12 +452,12 @@ export default function DashboardDirection({ user, navigate, goBack, lang='fr', 
         nom: el.nom || '',
         code_niveau: el.code_niveau || '',
         niveau_couleur: niveau?.couleur || getNc(niveaux, el.code_niveau),
-        points: el.points || 0,
+        points: el.pts || 0, // FIX (oct 2026) : le champ s'appelle pts (el.points n'existait pas -> 0)
         tomon: el.tomon || 0,
         hizb: el.hizb || 0,
       };
     });
-  }, [topEleves, niveaux]);
+  }, [classementPeriode, niveaux]);
 
   // ── Export PDF (3 pages: KPIs/évol, niveaux/insts, top 10) ──
   const handleExportPDF = async () => {

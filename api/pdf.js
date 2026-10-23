@@ -133,9 +133,10 @@ function generateRapportMensuel(data, lang) {
       </div>
     </div>
     <div class="kpi-grid">
-      <div class="kpi"><div class="kpi-val">${eleves.length}</div><div class="kpi-lbl">${isAr ? 'طالب نشط' : 'Élèves actifs'}</div></div>
+      <!-- FIX (oct 2026) : nb d'eleves actifs reel (comme a l'ecran) au lieu de eleves.length ; KPI Tomon/Sourates aligne sur la colonne -->
+      <div class="kpi"><div class="kpi-val">${stats.nbActifs != null ? stats.nbActifs : eleves.length}</div><div class="kpi-lbl">${isAr ? 'طالب نشط' : 'Élèves actifs'}</div></div>
       <div class="kpi"><div class="kpi-val">${stats.totalPts || 0}</div><div class="kpi-lbl">${isAr ? 'مجموع النقاط' : 'Total points'}</div></div>
-      <div class="kpi"><div class="kpi-val">${stats.totalTomon || 0}</div><div class="kpi-lbl">${isAr ? 'الثُّمنات' : 'Tomon'}</div></div>
+      <div class="kpi"><div class="kpi-val">${stats.totalSourates != null ? `${stats.totalTomon || 0} / ${stats.totalSourates || 0}` : (stats.totalTomon || 0)}</div><div class="kpi-lbl">${stats.totalSourates != null ? (isAr ? 'الأثمان / السور' : 'Tomon / Sourates') : (isAr ? 'الثُّمنات' : 'Tomon')}</div></div>
       <div class="kpi"><div class="kpi-val">${stats.totalHizb || 0}</div><div class="kpi-lbl">${isAr ? 'الأحزاب' : 'Hizb'}</div></div>
     </div>
     <div class="section-title">${isAr ? 'أداء الطلاب' : 'Performance des élèves'}</div>

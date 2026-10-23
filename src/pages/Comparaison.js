@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
-import { calcEtatEleve, getInitiales, scoreLabel, formatDateCourt, niveauTraduit, getSensForEleve, loadBareme, BAREME_DEFAUT, ptsValidation} from '../lib/helpers';
+import { calcEtatEleve, getInitiales, scoreLabel, formatDateCourt, niveauTraduit, getSensForEleve, loadBareme, BAREME_DEFAUT, ptsValidation, calcPointsPeriode} from '../lib/helpers';
 import { t } from '../lib/i18n';
 import { fetchAll } from '../lib/fetchAll';
 import MobileSkeletonList from '../components/MobileSkeletonList';
@@ -12,29 +12,44 @@ export default function Comparaison({ navigate, goBack, lang='fr', isMobile, use
   const [selected, setSelected] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
-  const [bareme, setBareme] = useState(BAREME_DEFAUT);
+  // FIX (oct 2026) : bareme complet (ensembles/jalons) pour calcPointsPeriode
+  const [bareme, setBareme] = useState({ unites:{...BAREME_DEFAUT}, examens:{}, ensembles:{}, jalons:{} });
 
   useEffect(() => { loadData(); }, []);
 
   const loadData = async () => {
     setLoading(true);
     try {
-    const [{data:ed}, vd, {data:nv}, {data:ec}, br] = await Promise.all([
-      supabase.from('eleves').select('*').eq('ecole_id', user.ecole_id).order('nom'),
+    // FIX (oct 2026) : eleves suspendus exclus ; recitations de sourates, certificats (date_emission)
+    // et points_eleves charges pour que les eleves en sourates ne soient plus a 0.
+    const [{data:ed}, vd, {data:nv}, {data:ec}, br, rs, {data:cert}, pe] = await Promise.all([
+      supabase.from('eleves').select('*').eq('ecole_id', user.ecole_id).is('suspendu_at', null).order('nom'),
       fetchAll(supabase.from('validations').select('*').eq('ecole_id', user.ecole_id).order('date_validation')),
       supabase.from('niveaux').select('id,code,nom,sens_recitation').eq('ecole_id', user.ecole_id),
       supabase.from('ecoles').select('sens_recitation_defaut').eq('id', user.ecole_id).maybeSingle(),
       loadBareme(supabase, user.ecole_id),
+      fetchAll(supabase.from('recitations_sourates').select('id,eleve_id,type_recitation,is_muraja,points,date_validation').eq('ecole_id', user.ecole_id)),
+      supabase.from('certificats_eleves').select('id,eleve_id,jalon_id,date_emission,created_at').eq('ecole_id', user.ecole_id),
+      fetchAll(supabase.from('points_eleves').select('id,eleve_id,type_event,points,date_event').eq('ecole_id', user.ecole_id)),
     ]);
-    setBareme(br?.unites || br || BAREME_DEFAUT);
+    const baremeComplet = (br && br.unites) ? br : { unites:{...BAREME_DEFAUT}, examens:{}, ensembles:{}, jalons:{} };
+    setBareme(baremeComplet);
+    const maintenant = new Date();
     setAllEleves((ed||[]).map(e => {
       const vals=(vd||[]).filter(v=>v.eleve_id===e.id);
       const sensE = getSensForEleve(e, nv, ec);
       // BUG-FIX POINTS (oct 2026) : passer `bareme` (deja plat .unites) en 7eme
       // position pour avoir les vrais points dans etat.points.
       // calcPoints accepte barème plat ou avec .unites (voir helpers.js L533).
-      const etat=calcEtatEleve(vals,e.hizb_depart,e.tomon_depart, sensE, null, null, br?.unites || br);
-      return {...e,etat,validations:vals};
+      const etatBrut=calcEtatEleve(vals,e.hizb_depart,e.tomon_depart, sensE, null, null, baremeComplet);
+      // FIX (oct 2026) : score = calcPointsPeriode sur tout l'historique (validations, sourates
+      // y compris muraja via r.points, certificats, examens), meme regle que la courbe ci-dessous.
+      const recs=(rs||[]).filter(r=>r.eleve_id===e.id);
+      const certs=(cert||[]).filter(c=>c.eleve_id===e.id).map(c=>({...c, date_obtention:c.date_emission}));
+      const evts=(pe||[]).filter(p=>p.eleve_id===e.id);
+      const total=calcPointsPeriode(vals, new Date('2000-01-01'), maintenant, baremeComplet, evts, recs, certs).total;
+      const etat={...etatBrut, points:{...etatBrut.points, total}};
+      return {...e,etat,validations:vals,recitations:recs,certificats:certs,pointsEvenements:evts};
     }));
     } catch (e) {
       console.error("Erreur:", e);
@@ -48,18 +63,26 @@ export default function Comparaison({ navigate, goBack, lang='fr', isMobile, use
   };
 
   const calcEvolution = (eleve) => {
-    const vals=[...eleve.validations].sort((a,b)=>new Date(a.date_validation)-new Date(b.date_validation));
+    // FIX (oct 2026) : courbe = memes elements que le score (calcPointsPeriode) :
+    // validations (ptsValidation), recitations de sourates (r.points, muraja comprise),
+    // certificats (jalons) et examens (points_eleves). Le dernier point = score affiche.
+    const jalons = (bareme && bareme.jalons) || {};
+    const items=[
+      ...(eleve.validations||[]).map(v=>({date:v.date_validation, v})),
+      ...(eleve.recitations||[]).map(r=>({date:r.date_validation, p:Number(r.points)||0})),
+      ...(eleve.certificats||[]).map(c=>({date:c.date_obtention||c.created_at, p:jalons[c.jalon_id]||0})),
+      ...(eleve.pointsEvenements||[]).filter(x=>x.type_event==='examen').map(x=>({date:x.date_event, p:Number(x.points)||0})),
+    ].filter(x=>x.date).sort((a,b)=>new Date(a.date)-new Date(b.date));
     let hc=new Set(); let score=0;
     const pts=[{score:0}];
-    // NETTOYAGE (oct 2026) : suppression des bonus codes en dur (+25 / +60) de
-    // l'ancien modele Roba/Nisf. Points = bareme seul via ptsValidation.
-    vals.forEach(v=>{
-      if (v.type_validation==='hizb_complet') {
+    items.forEach(it=>{
+      const v = it.v;
+      if (v && v.type_validation==='hizb_complet') {
         if (hc.has(v.hizb_valide)) return; // deja compte
         hc.add(v.hizb_valide);
       }
-      score += ptsValidation(v, bareme);
-      pts.push({date:v.date_validation,score,label:formatDateCourt(v.date_validation)});
+      score += v ? ptsValidation(v, bareme) : it.p;
+      pts.push({date:it.date,score,label:formatDateCourt(it.date)});
     });
     return pts;
   };

@@ -40,7 +40,9 @@ export default function TableauHonneur({ user, navigate, goBack, lang='fr', isMo
   useEffect(() => { loadData(); }, []);
 
   const loadData = async () => {
-    loadBareme(supabase, user.ecole_id).then(b => setBareme(b));
+    // FIX (oct 2026) : bareme attendu (await) avant le calcul du classement (+ dep useMemo)
+    const b = await loadBareme(supabase, user.ecole_id);
+    setBareme(b);
     // Etape 14 - Charger l'annee active pour filtrer les periodes
     const { data: anneeActive } = await supabase.from('annees_scolaires')
       .select('id').eq('ecole_id', user.ecole_id).eq('statut', 'active').maybeSingle();
@@ -48,15 +50,18 @@ export default function TableauHonneur({ user, navigate, goBack, lang='fr', isMo
       ? supabase.from('periodes_notes').select('*').eq('annee_scolaire_id', anneeActive.id).eq('actif', true).order('date_debut')
       : supabase.from('periodes_notes').select('*').eq('ecole_id', user.ecole_id).eq('actif', true).order('date_debut'); // fallback
     const [{ data: ed }, { data: vd }, { data: pd }, { data: nv }, { data: pe }, { data: ec }, { data: rs }, { data: cert }] = await Promise.all([
-      supabase.from('eleves').select('id,prenom,nom,code_niveau,niveau,hizb_depart,tomon_depart,ecole_id').eq('ecole_id', user.ecole_id).order('nom'),
+      // FIX (oct 2026) : exclure les eleves suspendus du tableau d'honneur
+      supabase.from('eleves').select('id,prenom,nom,code_niveau,niveau,hizb_depart,tomon_depart,ecole_id').eq('ecole_id', user.ecole_id).is('suspendu_at', null).order('nom'),
       fetchAll(supabase.from('validations').select('id,eleve_id,type_validation,nombre_tomon,hizb_valide,date_validation,ensemble_id,is_muraja').eq('ecole_id', user.ecole_id)).then(data=>({data})),
       periodesQuery,
       supabase.from('niveaux').select('id,code,nom,couleur,sens_recitation').eq('ecole_id', user.ecole_id).order('ordre'),
-      supabase.from('points_eleves').select('*').eq('ecole_id', user.ecole_id).order('created_at', {ascending:false}),
+      // FIX (oct 2026) : pagination (>1000 lignes tronquees sinon)
+      fetchAll(supabase.from('points_eleves').select('*').eq('ecole_id', user.ecole_id).order('created_at', {ascending:false})).then(data=>({data})),
       supabase.from('ecoles').select('sens_recitation_defaut').eq('id', user.ecole_id).maybeSingle(),
       // FIX-BAREME (sep 2026) : ajout recitations_sourates + certificats
       fetchAll(supabase.from('recitations_sourates').select('id,eleve_id,type_recitation,is_muraja,points,date_validation').eq('ecole_id', user.ecole_id)).then(data=>({data})),
-      supabase.from('certificats_eleves').select('id,eleve_id,jalon_id,date_obtention,created_at').eq('ecole_id', user.ecole_id),
+      // FIX (oct 2026) : colonne date_emission (date_obtention n'existe pas -> select en erreur -> 0 pt certificat)
+      supabase.from('certificats_eleves').select('id,eleve_id,jalon_id,date_emission,created_at').eq('ecole_id', user.ecole_id),
     ]);
     const elevesData = (ed||[]).map(e => {
       const vals = (vd||[]).filter(v => v.eleve_id === e.id);
@@ -65,7 +70,8 @@ export default function TableauHonneur({ user, navigate, goBack, lang='fr', isMo
       const evts = (pe||[]).filter(p=>p.eleve_id===e.id);
       // FIX-BAREME (sep 2026) : ajout des sourates et certificats par eleve
       const recs = (rs||[]).filter(r => r.eleve_id === e.id);
-      const certs = (cert||[]).filter(c => c.eleve_id === e.id);
+      // FIX (oct 2026) : mapper date_emission -> date_obtention attendu par calcPointsPeriode
+      const certs = (cert||[]).filter(c => c.eleve_id === e.id).map(c => ({ ...c, date_obtention: c.date_emission }));
       return { ...e, etat, validations: vals, pointsEvenements: evts, recitations: recs, certificats: certs };
     });
     setEleves(elevesData);
@@ -144,7 +150,7 @@ export default function TableauHonneur({ user, navigate, goBack, lang='fr', isMo
       .map(e => ({ ...e, ptsPeriode: getPointsPeriode(e) }))
       .sort((a, b) => b.ptsPeriode.total - a.ptsPeriode.total)
       .filter(e => e.ptsPeriode.total > 0 || periodeId === 'global');
-  }, [eleves, vue, periodeId, periodes]);
+  }, [eleves, vue, periodeId, periodes, bareme]); // FIX (oct 2026) : bareme ajoute aux deps
 
   const medals = ['🥇','🥈','🥉'];
   const podiumColors = ['#EF9F27','#B0B0B0','#CD7F32'];
@@ -183,7 +189,7 @@ export default function TableauHonneur({ user, navigate, goBack, lang='fr', isMo
       code_niveau: el.code_niveau || '',
       niveau_couleur: niveauxVues.find(n => n.code === el.code_niveau)?.color || '#888',
       points: el.ptsPeriode?.total || 0,
-      tomon: el.ptsPeriode?.details?.nbTomon || 0,
+      tomon: el.ptsPeriode?.tomonPeriode || 0, // FIX (oct 2026) : details.nbTomon n'existe pas
       hizb: el.ptsPeriode?.details?.nbHizb || 0,
     }));
     try {
@@ -216,7 +222,7 @@ export default function TableauHonneur({ user, navigate, goBack, lang='fr', isMo
       el.nom || '',
       el.code_niveau || '',
       el.ptsPeriode?.total || 0,
-      el.ptsPeriode?.details?.nbTomon || 0,
+      el.ptsPeriode?.tomonPeriode || 0, // FIX (oct 2026) : details.nbTomon n'existe pas
       el.ptsPeriode?.details?.nbHizb || 0,
     ]);
     const dateStr = new Date().toISOString().slice(0, 10);

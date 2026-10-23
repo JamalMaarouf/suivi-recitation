@@ -51,13 +51,16 @@ export default function ListeNotes({ user, navigate, goBack, lang='fr', isMobile
     // FIX-BAREME (sep 2026) : charger AUSSI recitations_sourates et certificats
     // pour que les eleves recitant en sourates aient enfin leurs points comptes.
     const [{ data: el }, { data: vd }, { data: pe }, { data: inst }, { data: niv }, { data: rs }, { data: cert }] = await Promise.all([
-      supabase.from('eleves').select('id,prenom,nom,code_niveau,eleve_id_ecole,hizb_depart,tomon_depart,instituteur_referent_id').eq('ecole_id', user.ecole_id).order('nom'),
+      // FIX (oct 2026) : exclure les eleves suspendus du classement
+      supabase.from('eleves').select('id,prenom,nom,code_niveau,eleve_id_ecole,hizb_depart,tomon_depart,instituteur_referent_id').eq('ecole_id', user.ecole_id).is('suspendu_at', null).order('nom'),
       fetchAll(supabase.from('validations').select('id,eleve_id,type_validation,nombre_tomon,hizb_valide,date_validation,ensemble_id,is_muraja').eq('ecole_id', user.ecole_id)).then(data=>({data})),
-      supabase.from('points_eleves').select('*').eq('ecole_id', user.ecole_id).order('created_at', {ascending:false}),
+      // FIX (oct 2026) : pagination (>1000 lignes tronquees sinon)
+      fetchAll(supabase.from('points_eleves').select('*').eq('ecole_id', user.ecole_id).order('created_at', {ascending:false})).then(data=>({data})),
       supabase.from('utilisateurs').select('id,prenom,nom').eq('role','instituteur').eq('ecole_id', user.ecole_id),
       supabase.from('niveaux').select('id,code,nom,couleur').eq('ecole_id', user.ecole_id).order('ordre'),
       fetchAll(supabase.from('recitations_sourates').select('id,eleve_id,type_recitation,is_muraja,points,date_validation').eq('ecole_id', user.ecole_id)).then(data=>({data})),
-      supabase.from('certificats_eleves').select('id,eleve_id,jalon_id,date_obtention,created_at').eq('ecole_id', user.ecole_id),
+      // FIX (oct 2026) : la colonne s'appelle date_emission (date_obtention n'existe pas -> select en erreur -> 0 pt certificat)
+      supabase.from('certificats_eleves').select('id,eleve_id,jalon_id,date_emission,created_at').eq('ecole_id', user.ecole_id),
     ]);
     setEleves(el || []);
     setAllValidations(vd || []);
@@ -65,7 +68,8 @@ export default function ListeNotes({ user, navigate, goBack, lang='fr', isMobile
     setInstituteurs(inst || []);
     setNiveaux(niv || []);
     setAllRecitations(rs || []);
-    setAllCertificats(cert || []);
+    // FIX (oct 2026) : mapper date_emission -> date_obtention attendu par calcPointsPeriode
+    setAllCertificats((cert || []).map(c => ({ ...c, date_obtention: c.date_emission })));
     const b = await loadBareme(supabase, user.ecole_id);
     setBareme(b);
     } catch (e) {
@@ -142,7 +146,8 @@ export default function ListeNotes({ user, navigate, goBack, lang='fr', isMobile
   // Colonnes communes ecran / PDF / Excel (oct 2026). Avant : les exports lisaient
   // details.nbTomon (champ inexistant -> toujours 0) et ignoraient sourates/ensembles.
   const colonnesNotes = (pts) => ({
-    tomonSourates: (pts?.tomonPeriode||0) + (pts?.nbSouratesCompletes||0) + (pts?.nbSouratesMuraja||0),
+    // FIX (oct 2026) : les sourates en muraja ne sont pas des sourates memorisees (leurs points restent dans le total)
+    tomonSourates: (pts?.tomonPeriode||0) + (pts?.nbSouratesCompletes||0),
     hizb: pts?.hizbsPeriode || 0,
     ensembles: pts?.nbEnsemblesComplets || 0,
     ptsExamens: pts?.ptsExamens || 0,
@@ -475,7 +480,7 @@ export default function ListeNotes({ user, navigate, goBack, lang='fr', isMobile
                   <div style={{display:'flex', gap:8, flexWrap:'wrap', fontSize:10}}>
                     {/* Idem bureau : on somme tomons + sourates pour couvrir hizb/sourate */}
                     <span style={{color:'#378ADD', fontWeight:600}}>
-                      ⭐ {(el.pts.tomonPeriode||0) + (el.pts.nbSouratesCompletes||0) + (el.pts.nbSouratesMuraja||0)}
+                      ⭐ {(el.pts.tomonPeriode||0) + (el.pts.nbSouratesCompletes||0)}
                     </span>
                     <span style={{color:'#085041', fontWeight:600}}>
                       📖 {el.pts.hizbsPeriode||0}
@@ -550,7 +555,7 @@ export default function ListeNotes({ user, navigate, goBack, lang='fr', isMobile
                           tomons + sourates (completes + muraja) pour couvrir les deux cas.
                           Pour un eleve hizb : nbSouratesCompletes=0, donc comportement inchange.
                           Pour un eleve sourate : tomonPeriode=0, donc on affiche les sourates. */}
-                      <span style={{fontWeight:700,color:'#378ADD'}}>{(el.pts.tomonPeriode||0) + (el.pts.nbSouratesCompletes||0) + (el.pts.nbSouratesMuraja||0)}</span>
+                      <span style={{fontWeight:700,color:'#378ADD'}}>{(el.pts.tomonPeriode||0) + (el.pts.nbSouratesCompletes||0)}</span>
                       {((el.pts.ptsTomon||0) + (el.pts.ptsSourates||0)) > 0 && (
                         <div style={{fontSize:9,color:'#aaa'}}>+{(el.pts.ptsTomon||0) + (el.pts.ptsSourates||0)} {lang==='ar'?'ن':'pts'}</div>
                       )}

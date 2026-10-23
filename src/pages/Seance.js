@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useToast } from '../lib/toast';
 import { supabase } from '../lib/supabase';
-import { calcEtatEleve, getInitiales, joursDepuis, isInactif, scoreLabel , loadBareme, BAREME_DEFAUT, getSensForEleve} from '../lib/helpers';
+import { calcEtatEleve, getInitiales, joursDepuis, isInactif, scoreLabel , loadBareme, BAREME_DEFAUT, getSensForEleve, calcPointsPeriode, ptsValidation, isSourateNiveauDyn} from '../lib/helpers';
 import { t } from '../lib/i18n';
 import { getSouratesForNiveau } from '../lib/sourates';
 import { fetchAll } from '../lib/fetchAll';
@@ -9,7 +9,7 @@ import ExportButtons from '../components/ExportButtons';
 import PageHeader from '../components/PageHeader';
 import MobileSkeletonList from '../components/MobileSkeletonList';
 
-const IS_SOURATE = (code) => ['5B','5A','2M'].includes(code||'');
+// FIX (oct 2026) : IS_SOURATE code en dur remplace par isSourateNiveauDyn(code, niveaux de l'ecole)
 const NIVEAU_COLORS = { '5B':'#534AB7','5A':'#378ADD','2M':'#1D9E75','2':'#EF9F27','1':'#E24B4A' };
 
 function Avatar({ prenom, nom, size=36, bg='#E1F5EE', color='#085041' }) {
@@ -30,7 +30,9 @@ export default function Seance({ user, navigate, goBack, lang, isMobile=false })
   const [allRecitations, setAllRecitations] = useState([]);
   const [souratesDB, setSouratesDB] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [bareme, setBareme] = React.useState({...BAREME_DEFAUT});
+  // FIX (oct 2026) : bareme complet {unites, ensembles, ...} (ptsValidation / calcPointsPeriode)
+  const [bareme, setBareme] = React.useState({ unites:{...BAREME_DEFAUT}, examens:{}, ensembles:{}, jalons:{} });
+  const [niveauxDyn, setNiveauxDyn] = useState([]); // FIX (oct 2026) : niveaux de l'ecole (filtre + type)
   const [elevesDataState, setElevesDataState] = useState([]);
   const [vue, setVue] = useState('seance');
   const [filterNiveau, setFilterNiveau] = useState('tous');
@@ -47,26 +49,30 @@ export default function Seance({ user, navigate, goBack, lang, isMobile=false })
     // ptsAujourdhui. Avant : fire-and-forget -> bareme reste BAREME_DEFAUT au
     // moment du map() -> ptsAujourdhui = 0 partout dans le classement de la seance.
     const [{ data: ed }, { data: instData }, vd, rd, { data: sdb }, { data: nvData }, { data: ecData }, brData] = await Promise.all([
+      // FIX (oct 2026) : exclure les eleves suspendus
       supabase.from('eleves').select('id,prenom,nom,code_niveau,hizb_depart,tomon_depart,sourates_acquises,instituteur_referent_id,ecole_id')
-        .eq('ecole_id', user.ecole_id).order('nom'),
+        .eq('ecole_id', user.ecole_id).is('suspendu_at', null).order('nom'),
       supabase.from('utilisateurs').select('id,prenom,nom').eq('role','instituteur').eq('ecole_id', user.ecole_id),
       fetchAll(supabase.from('validations').select('*, valideur:valide_par(prenom,nom)')
         .eq('ecole_id', user.ecole_id).order('date_validation',{ascending:false})),
       fetchAll(supabase.from('recitations_sourates').select('*, valideur:valide_par(prenom,nom)')
         .eq('ecole_id', user.ecole_id).order('date_validation',{ascending:false})),
       supabase.from('sourates').select('*'),
-      supabase.from('niveaux').select('id,code,nom,sens_recitation').eq('ecole_id', user.ecole_id),
+      supabase.from('niveaux').select('id,code,nom,sens_recitation,type,ordre').eq('ecole_id', user.ecole_id).order('ordre'), // FIX (oct 2026) : type
       supabase.from('ecoles').select('sens_recitation_defaut').eq('id', user.ecole_id).maybeSingle(),
       loadBareme(supabase, user.ecole_id).catch(() => null),
     ]);
-    const baremeLocal = brData ? {...BAREME_DEFAUT, ...brData.unites} : {...BAREME_DEFAUT};
+    // FIX (oct 2026) : bareme complet conserve (avant : aplati sur unites -> ensembles ignores)
+    const baremeLocal = brData || { unites:{...BAREME_DEFAUT}, examens:{}, ensembles:{}, jalons:{} };
     setBareme(baremeLocal);
+    setNiveauxDyn(nvData||[]);
+    const maintenant = new Date();
 
     const vAujourdhui = (vd||[]).filter(v => new Date(v.date_validation) >= debutJour);
     const rAujourdhui = (rd||[]).filter(r => new Date(r.date_validation) >= debutJour);
 
     const elevesData = (ed||[]).map(e => {
-      const isSourate = IS_SOURATE(e.code_niveau);
+      const isSourate = isSourateNiveauDyn(e.code_niveau, nvData||[]);
       const inst = (instData||[]).find(i => i.id === e.instituteur_referent_id);
       const sensE = getSensForEleve(e, nvData, ecData);
 
@@ -74,17 +80,19 @@ export default function Seance({ user, navigate, goBack, lang, isMobile=false })
         const recs = (rd||[]).filter(r => r.eleve_id === e.id);
         const recsAujourdhui = rAujourdhui.filter(r => r.eleve_id === e.id);
         const recsSemaine = (rd||[]).filter(r => r.eleve_id === e.id && new Date(r.date_validation) >= debutSemaine);
-        const souratesCompletesAujourdhui = recsAujourdhui.filter(r=>r.type_recitation==='complete').length;
-        const sequencesAujourdhui = recsAujourdhui.filter(r=>r.type_recitation==='sequence').length;
-        const ptsAujourdhui = recsAujourdhui.reduce((s,r)=>s+(r.points||0),0);
-        const souratesSemaine = recsSemaine.filter(r=>r.type_recitation==='complete').length;
+        // FIX (oct 2026) : les recitations muraja ne sont pas des sourates memorisees
+        const souratesCompletesAujourdhui = recsAujourdhui.filter(r=>r.type_recitation==='complete'&&!r.is_muraja).length;
+        const sequencesAujourdhui = recsAujourdhui.filter(r=>r.type_recitation==='sequence'&&!r.is_muraja).length;
+        // FIX (oct 2026) : points du jour via calcPointsPeriode (recitations + ensembles valides)
+        const ptsAujourdhui = calcPointsPeriode(vAujourdhui.filter(v=>v.eleve_id===e.id), debutJour, maintenant, baremeLocal, [], recsAujourdhui, []).total;
+        const souratesSemaine = recsSemaine.filter(r=>r.type_recitation==='complete'&&!r.is_muraja).length;
         const dernierRec = recsAujourdhui[0]?.date_validation || recs[0]?.date_validation || null;
 
         // Find current sourate
         const souratesNiveau = getSouratesForNiveau(e.code_niveau);
         const souratesOrdonnees = [...souratesNiveau].sort((a,b)=>b.numero-a.numero);
         const souratesAcq = parseInt(e.sourates_acquises)||0;
-        const souratesCompletes = new Set(recs.filter(r=>r.type_recitation==='complete').map(r=>r.sourate_id));
+        const souratesCompletes = new Set(recs.filter(r=>r.type_recitation==='complete'&&!r.is_muraja).map(r=>r.sourate_id)); // FIX (oct 2026) : hors muraja
         const currentIdx = souratesOrdonnees.findIndex((s,i) => {
           if (i < souratesAcq) return false;
           const dbS = (sdb||[]).find(x=>x.numero===s.numero);
@@ -109,7 +117,8 @@ export default function Seance({ user, navigate, goBack, lang, isMobile=false })
         const hizbAujourdhui = valsAujourdhui.filter(v=>v.type_validation==='hizb_complet').length;
         // BUG-FIX POINTS (oct 2026) : utilise `baremeLocal` (frais) et non `bareme` (state
         // potentiellement encore vide au moment du map()).
-        const ptsAujourdhui = tomonAujourdhui*(baremeLocal.tomon || 0)+hizbAujourdhui*(baremeLocal.hizb_complet || 0);
+        // FIX (oct 2026) : calcPointsPeriode (muraja + recitations eventuelles incluses)
+        const ptsAujourdhui = calcPointsPeriode(valsAujourdhui, debutJour, maintenant, baremeLocal, [], rAujourdhui.filter(r=>r.eleve_id===e.id), []).total;
         const tomonSemaine = valsSemaine.filter(v=>v.type_validation==='tomon').reduce((s,v)=>s+v.nombre_tomon,0);
         const derniere = vals[0]?.date_validation || null;
         return {
@@ -138,8 +147,9 @@ export default function Seance({ user, navigate, goBack, lang, isMobile=false })
 
   const tomonTotal = validationsAujourdhui.filter(v=>v.type_validation==='tomon').reduce((s,v)=>s+v.nombre_tomon,0);
   const hizbTotal = validationsAujourdhui.filter(v=>v.type_validation==='hizb_complet').length;
-  const souratesTotal = recitationsAujourdhui.filter(r=>r.type_recitation==='complete').length;
-  const sequencesTotal = recitationsAujourdhui.filter(r=>r.type_recitation==='sequence').length;
+  // FIX (oct 2026) : muraja exclue des sourates/sequences memorisees
+  const souratesTotal = recitationsAujourdhui.filter(r=>r.type_recitation==='complete'&&!r.is_muraja).length;
+  const sequencesTotal = recitationsAujourdhui.filter(r=>r.type_recitation==='sequence'&&!r.is_muraja).length;
   const ptsTotal = elevesVus.reduce((s,e)=>s+e.ptsAujourdhui,0);
 
   const debutSemaine = new Date(); debutSemaine.setDate(debutSemaine.getDate()-6); debutSemaine.setHours(0,0,0,0);
@@ -151,22 +161,25 @@ export default function Seance({ user, navigate, goBack, lang, isMobile=false })
     if (!joursActifs[key]) joursActifs[key]={tomon:0,hizb:0,sourate:0,seq:0};
     if (item.type_validation==='tomon') joursActifs[key].tomon+=item.nombre_tomon;
     else if (item.type_validation==='hizb_complet') joursActifs[key].hizb++;
-    else if (item.type_recitation==='complete') joursActifs[key].sourate++;
-    else if (item.type_recitation==='sequence') joursActifs[key].seq++;
+    else if (item.type_recitation==='complete' && !item.is_muraja) joursActifs[key].sourate++; // FIX (oct 2026) : hors muraja
+    else if (item.type_recitation==='sequence' && !item.is_muraja) joursActifs[key].seq++;
   });
 
   const medals = ['🥇','🥈','🥉'];
-  const niveaux = ['tous','5B','5A','2M','2','1'];
+  // FIX (oct 2026) : niveaux de l'ecole (avant : liste codee en dur)
+  const niveaux = ['tous', ...(niveauxDyn.length>0 ? niveauxDyn.map(n=>n.code) : ['5B','5A','2M','2','1'])];
+  // FIX (oct 2026) : les exports reprennent la liste filtree + classee de l'ecran
+  // (eleves vus classes par points, puis non vus sans medaille)
+  const listeExport = [...elevesVus.map((e,i)=>({ e, rang: i })), ...elevesNonVus.map(e=>({ e, rang: null }))];
 
   const exportSeanceExcel = async () => {
     if (!window.XLSX) await new Promise((res,rej)=>{ const s=document.createElement('script'); s.src='https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js'; s.onload=res; s.onerror=rej; document.head.appendChild(s); });
     const XLSX = window.XLSX;
     const wb = XLSX.utils.book_new();
     // Classement du jour
-    const data = elevesDataState.length > 0 ? elevesDataState : [];
-    const rows = data.map((e,i)=>{
-      const pts = e.isSourate ? e.ptsAujourdhui : (e.valsAujourdhui||[]).reduce((s,v)=>s+(v.type_validation==='hizb_complet'?(bareme.hizb_complet || 0):v.nombre_tomon*(bareme.tomon || 0)),0);
-      return [i+1, e.prenom+' '+e.nom, e.code_niveau||'?', e.isSourate?(e.souratesCompletesAujourdhui+'S / '+e.sequencesAujourdhui+'seq'):(e.tomonAujourdhui||0)+'T / '+((e.valsAujourdhui||[]).filter(v=>v.type_validation==='hizb_complet').length)+'H', pts, e.jours!=null?e.jours+' j':'—'];
+    const rows = listeExport.map(({e, rang})=>{
+      const pts = e.ptsAujourdhui || 0; // FIX (oct 2026) : meme valeur que l'ecran
+      return [rang!==null?rang+1:'—', e.prenom+' '+e.nom, e.code_niveau||'?', e.isSourate?(e.souratesCompletesAujourdhui+'S / '+e.sequencesAujourdhui+'seq'):(e.tomonAujourdhui||0)+'T / '+((e.valsAujourdhui||[]).filter(v=>v.type_validation==='hizb_complet').length)+'H', pts, e.jours!=null?e.jours+' j':'—'];
     });
     const ws = XLSX.utils.aoa_to_sheet([
       [lang==='ar'?'#':'#',lang==='ar'?'الطالب':'Élève',lang==='ar'?'المستوى':'Niveau',lang==='ar'?'الإنجاز':'Réalisé',lang==='ar'?'النقاط':(lang==='ar'?'النقاط':'Points'),lang==='ar'?'آخر نشاط':'Dernière activité'],
@@ -181,14 +194,13 @@ export default function Seance({ user, navigate, goBack, lang, isMobile=false })
     const w = window.open('','_blank','width=1000,height=800');
     if (!w) { toast.warning(lang==='ar'?'يرجى السماح بالنوافذ المنبثقة':'Autorisez les popups pour exporter'); return; }
     const dateStr = new Date().toLocaleDateString(lang==='ar'?'ar-MA':'fr-FR',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
-    const data2 = elevesDataState.length > 0 ? elevesDataState : [];
-    const rows = data2.slice(0,30).map((e,i)=>{
-      const pts = e.isSourate ? e.ptsAujourdhui : (e.valsAujourdhui||[]).reduce((s,v)=>s+(v.type_validation==='hizb_complet'?(bareme.hizb_complet || 0):v.nombre_tomon*(bareme.tomon || 0)),0);
+    const rows = listeExport.slice(0,30).map(({e, rang},i)=>{
+      const pts = e.ptsAujourdhui || 0; // FIX (oct 2026) : meme valeur que l'ecran
       const nc={'5B':'#534AB7','5A':'#378ADD','2M':'#1D9E75','2':'#EF9F27','1':'#E24B4A'}[e.code_niveau||'1']||'#888';
       const bg = i%2===0?'#fff':'#f9f9f6';
       const realise = e.isSourate?(e.souratesCompletesAujourdhui+'S / '+e.sequencesAujourdhui+' seq'):(e.tomonAujourdhui||0)+'T / '+((e.valsAujourdhui||[]).filter(v=>v.type_validation==='hizb_complet').length)+'H';
       const medals = ['🥇','🥈','🥉'];
-      return '<tr style="background:'+bg+'"><td>'+(medals[i]||i+1)+'</td>'
+      return '<tr style="background:'+bg+'"><td>'+(rang!==null?(medals[rang]||rang+1):'—')+'</td>'
         +'<td><strong>'+e.prenom+' '+e.nom+'</strong></td>'
         +'<td><span style="padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;background:'+nc+'18;color:'+nc+'">'+(e.code_niveau||'?')+'</span></td>'
         +'<td>'+realise+'</td>'
@@ -422,7 +434,7 @@ export default function Seance({ user, navigate, goBack, lang, isMobile=false })
               {/* Mini tendance par niveau */}
               {elevesDataState.length>0&&(
                 <div style={{display:'flex',gap:6,flexWrap:'wrap',marginBottom:'1rem'}}>
-                  {['5B','5A','2M','2','1'].map(n=>{
+                  {niveaux.filter(n=>n!=='tous').map(n=>{ /* FIX (oct 2026) : niveaux de l'ecole */
                     const nc=NIVEAU_COLORS[n]||'#888';
                     const elevesN=elevesDataState.filter(e=>e.code_niveau===n);
                     if(elevesN.length===0)return null;
@@ -515,7 +527,7 @@ export default function Seance({ user, navigate, goBack, lang, isMobile=false })
                             <td><NiveauBadge code={eleve?.code_niveau}/></td>
                             <td>{v.type_validation==='hizb_complet'?<span className="badge badge-green">Hizb {v.hizb_valide}</span>:<span className="badge badge-blue">{v.nombre_tomon} {t(lang,'tomon_abrev')}{v.tomon_debut?` (T.${v.tomon_debut}→T.${v.tomon_debut+v.nombre_tomon-1})`:''}</span>}</td>
                             <td style={{fontSize:12,color:'#888'}}>{v.valideur?`${v.valideur.prenom} ${v.valideur.nom}`:'—'}</td>
-                            <td><span style={{fontSize:12,fontWeight:600,color:'#1D9E75'}}>+{v.type_validation==='hizb_complet'?(bareme.hizb_complet || 0):v.nombre_tomon*(bareme.tomon || 0)}</span></td>
+                            <td><span style={{fontSize:12,fontWeight:600,color:'#1D9E75'}}>+{ptsValidation(v, bareme)/* FIX (oct 2026) */}</span></td>
                           </tr>
                         );
                       })}
@@ -548,7 +560,7 @@ export default function Seance({ user, navigate, goBack, lang, isMobile=false })
                             <td><NiveauBadge code={eleve?.code_niveau}/></td>
                             <td style={{fontFamily:"'Tajawal',Arial",direction:'rtl',fontSize:14}}>{sourate?.nom_ar||'—'}</td>
                             <td>{r.type_recitation==='complete'?<span className="badge badge-green">{lang==='ar'?'كاملة':lang==='en'?'Complete':'Complète'}</span>:<span className="badge badge-blue">V.{r.verset_debut}→V.{r.verset_fin}</span>}</td>
-                            <td><span style={{fontSize:12,fontWeight:600,color:'#1D9E75'}}>+{r.points||10}</span></td>
+                            <td><span style={{fontSize:12,fontWeight:600,color:'#1D9E75'}}>+{r.points||0/* FIX (oct 2026) : pas de 10 par defaut */}</span></td>
                           </tr>
                         );
                       })}

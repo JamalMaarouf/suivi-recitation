@@ -47,25 +47,28 @@ export default function MurajaDashboard({ user, navigate, goBack, lang='fr', isM
   const loadData = async () => {
     setLoading(true);
     try {
-    const [{ data: recs }, { data: vals }, { data: elevs }, { data: nivs }] = await Promise.all([
-      supabase.from('recitations_sourates')
-        .select('id,date_validation,type_recitation,verset_debut,verset_fin,points,is_muraja, eleve:eleve_id(id,prenom,nom,code_niveau), sourate:sourate_id(numero,nom_ar), valideur:valide_par(prenom,nom)')
+    // FIX (oct 2026) : fetchAll au lieu de .limit(500) (historique tronque) ; suspendu_at
+    // dans la jointure eleve pour exclure les eleves suspendus des listes.
+    const [recsAll, valsAll, { data: elevs }, { data: nivs }] = await Promise.all([
+      fetchAll(supabase.from('recitations_sourates')
+        .select('id,date_validation,type_recitation,verset_debut,verset_fin,points,is_muraja, eleve:eleve_id(id,prenom,nom,code_niveau,suspendu_at), sourate:sourate_id(numero,nom_ar), valideur:valide_par(prenom,nom)')
         .eq('ecole_id', user.ecole_id)
         .eq('is_muraja', true)
-        .order('date_validation', { ascending: false })
-        .limit(500),
-      supabase.from('validations')
-        .select('id,date_validation,type_validation,nombre_tomon,tomon_debut,hizb_validation,is_muraja, eleve:eleve_id(id,prenom,nom,code_niveau), valideur:valide_par(prenom,nom)')
+        .order('date_validation', { ascending: false })),
+      fetchAll(supabase.from('validations')
+        .select('id,date_validation,type_validation,nombre_tomon,tomon_debut,hizb_validation,is_muraja, eleve:eleve_id(id,prenom,nom,code_niveau,suspendu_at), valideur:valide_par(prenom,nom)')
         .eq('ecole_id', user.ecole_id)
         .in('type_validation', ['tomon_muraja','hizb_muraja'])
-        .order('date_validation', { ascending: false })
-        .limit(500),
+        .order('date_validation', { ascending: false })),
+      // FIX (oct 2026) : exclure les eleves suspendus
       supabase.from('eleves').select('id,prenom,nom,code_niveau')
-        .eq('ecole_id', user.ecole_id).order('nom'),
+        .eq('ecole_id', user.ecole_id).is('suspendu_at', null).order('nom'),
       supabase.from('niveaux').select('id,code,nom,type,couleur').eq('ecole_id', user.ecole_id).order('ordre'),
     ]);
-    setRecitations(recs || []);
-    setValidations(vals || []);
+    const recs = (recsAll || []).filter(r => !r.eleve?.suspendu_at);
+    const vals = (valsAll || []).filter(v => !v.eleve?.suspendu_at);
+    setRecitations(recs);
+    setValidations(vals);
     setEleves(elevs || []);
     setNiveaux(nivs || []);
     } catch (e) {
@@ -82,7 +85,7 @@ export default function MurajaDashboard({ user, navigate, goBack, lang='fr', isM
     const p = periodesBDD.find(x => x.id === id);
     if (p) {
       cutoff = new Date(p.date_debut);
-      cutoffEnd = new Date(p.date_fin);
+      cutoffEnd = new Date(p.date_fin); cutoffEnd.setHours(23,59,59,999); // FIX (oct 2026) : inclure toute la derniere journee
     } else {
       cutoff = new Date();
       cutoff.setDate(cutoff.getDate() - 30); // fallback

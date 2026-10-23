@@ -41,6 +41,8 @@ export default function ElevesInactifs({ navigate, goBack, lang='fr', user, isMo
         // Parents liés (pour le contact dans les exports)
         supabase.from('parent_eleve').select('parent_id,eleve_id'),
         supabase.from('utilisateurs').select('id,prenom,nom,telephone').eq('role','parent').eq('ecole_id', user.ecole_id),
+        // FIX (oct 2026) : recitations de sourates (derniere activite des eleves en sourates)
+        fetchAll(supabase.from('recitations_sourates').select('eleve_id,date_validation').eq('ecole_id', user.ecole_id).order('date_validation',{ascending:false})).then(data=>({data})),
       ]);
       const ed = results[0]?.data;
       const id = results[1]?.data;
@@ -49,6 +51,9 @@ export default function ElevesInactifs({ navigate, goBack, lang='fr', user, isMo
       const ec = results[4]?.data;
       const liaisons = results[5]?.data || [];
       const parentsList = results[6]?.data || [];
+      // FIX (oct 2026) : index derniere recitation par eleve (donnees triees desc -> 1re occurrence)
+      const derniereRecByEleve = {};
+      (results[7]?.data || []).forEach(r => { if (!derniereRecByEleve[r.eleve_id]) derniereRecByEleve[r.eleve_id] = r.date_validation; });
 
       // Index liaison parent → élève
       const parentByEleve = {};
@@ -58,7 +63,12 @@ export default function ElevesInactifs({ navigate, goBack, lang='fr', user, isMo
         const vals = (vd||[]).filter(v=>v.eleve_id===eleve.id);
         const sensE = getSensForEleve(eleve, nv, ec);
         const etat = calcEtatEleve(vals, eleve.hizb_depart, eleve.tomon_depart, sensE);
-        const derniere = vals[0]?.date_validation || null;
+        // FIX (oct 2026) : derniere activite = max(derniere validation, derniere recitation de sourate)
+        const derniereVal = vals[0]?.date_validation || null;
+        const derniereRec = derniereRecByEleve[eleve.id] || null;
+        const derniere = (derniereVal && derniereRec)
+          ? (new Date(derniereVal) >= new Date(derniereRec) ? derniereVal : derniereRec)
+          : (derniereVal || derniereRec);
         const inst = (id||[]).find(i=>i.id===eleve.instituteur_referent_id);
         const jours = joursDepuis(derniere);
         const inactif = isInactif(derniere);
