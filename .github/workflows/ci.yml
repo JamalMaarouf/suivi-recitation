@@ -52,6 +52,10 @@ jobs:
         # car il utilise strictement package-lock.json
         run: npm ci
 
+      - name: Tests notation et blocage (Bloc 6, oct 2026)
+        # calcPointsPeriode, ptsValidation, calcEtatEleve, verifierBlocageExamen
+        run: CI=true npx react-scripts test --watchAll=false
+
       - name: Build production
         # Memes variables que le build Vercel pour coherence parfaite :
         # CI=false : ne pas traiter les warnings ESLint comme des erreurs
