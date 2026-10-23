@@ -189,7 +189,9 @@ export default function ResultatsExamens({ user, navigate, goBack, lang='fr', is
         // Cas A : auto-validation des ensembles lies a cet examen
         // (uniquement pour niveaux sourates ou si l'examen contient des ensembles)
         try {
-          const contenuIds = selectedExamen.contenu_ids || [];
+          // Seuls des UUID peuvent etre des ensembles : un examen Hizb a des numeros (60, 59…)
+          // qui faisaient une requete en erreur 400 (sans effet, mais visible dans la console).
+          const contenuIds = (selectedExamen.contenu_ids || []).filter(x => /^[0-9a-f]{8}-[0-9a-f]{4}-/i.test(String(x)));
           if (contenuIds.length > 0) {
             // Verifier si ce sont des ensembles (vs des hizb)
             const { data: ensConcernes } = await supabase
