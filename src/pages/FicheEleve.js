@@ -1050,6 +1050,7 @@ ${(passages||[]).length > 0 ? `
 
       // 2. Calculer la position de départ dans le nouveau niveau
       let resetData = { code_niveau: nouveauNiveau };
+      let continuer = false;
 
       if (regleData) {
         // Règle configurée par l'école — s'applique en priorité
@@ -1062,14 +1063,14 @@ ${(passages||[]).length > 0 ? `
           resetData.tomon_depart = 1;
           resetData.sourates_acquises = 0;
         } else { // 'continuer' — comportement intelligent
+          // FIX (oct 2026) : continuer = garder le point de depart d'origine. Les validations
+          // deja faites restent comptees, donc l'eleve reste exactement a sa position.
+          // Avant : depart = position actuelle + anciennes validations recomptees -> l'eleve
+          // avancait une 2e fois (ex. Hizb 58 -> 56) et ses points etaient doubles.
           if (estSourateActuel && estSourateCible) {
-            resetData.sourates_acquises = nbSouratesActuelles;
-            resetData.hizb_depart = 0;
-            resetData.tomon_depart = 1;
+            continuer = true;
           } else if (!estSourateActuel && !estSourateCible) {
-            resetData.hizb_depart = hizbActuel;
-            resetData.tomon_depart = tomonActuel;
-            resetData.sourates_acquises = 0;
+            continuer = true;
           } else {
             resetData.hizb_depart = 0;
             resetData.tomon_depart = 1;
@@ -1078,14 +1079,11 @@ ${(passages||[]).length > 0 ? `
         }
       } else {
         // Pas de règle → comportement par défaut : continuer depuis position actuelle
+        // FIX (oct 2026) : meme correction que 'continuer' ci-dessus
         if (estSourateActuel && estSourateCible) {
-          resetData.sourates_acquises = nbSouratesActuelles;
-          resetData.hizb_depart = 0;
-          resetData.tomon_depart = 1;
+          continuer = true;
         } else if (!estSourateActuel && !estSourateCible) {
-          resetData.hizb_depart = hizbActuel;
-          resetData.tomon_depart = tomonActuel;
-          resetData.sourates_acquises = 0;
+          continuer = true;
         } else {
           resetData.hizb_depart = 0;
           resetData.tomon_depart = 1;
@@ -1093,7 +1091,17 @@ ${(passages||[]).length > 0 ? `
         }
       }
 
-      const { error: errEleve } = await supabase.from('eleves').update(resetData).eq('id', eleve.id);
+      // FIX (oct 2026) : quand le point de depart change (repartir / depart personnalise /
+      // changement hizb<->sourate), la progression repart de la date du passage : les
+      // validations anterieures restent dans l'historique et les points, mais ne font plus
+      // avancer l'eleve dans son nouveau niveau.
+      if (!continuer) resetData.debut_niveau_at = new Date().toISOString();
+      let { error: errEleve } = await supabase.from('eleves').update(resetData).eq('id', eleve.id);
+      if (errEleve && /debut_niveau_at/.test(errEleve.message || '')) {
+        // colonne pas encore creee en base (script SQL E) : on n'applique pas le filtre
+        const { debut_niveau_at, ...sansDate } = resetData;
+        ({ error: errEleve } = await supabase.from('eleves').update(sansDate).eq('id', eleve.id));
+      }
       if (errEleve) throw errEleve;
 
       // 3. Archiver les validations du niveau actuel (optionnel — on les garde pour historique)

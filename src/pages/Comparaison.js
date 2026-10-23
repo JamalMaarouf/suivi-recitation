@@ -41,7 +41,7 @@ export default function Comparaison({ navigate, goBack, lang='fr', isMobile, use
       // BUG-FIX POINTS (oct 2026) : passer `bareme` (deja plat .unites) en 7eme
       // position pour avoir les vrais points dans etat.points.
       // calcPoints accepte barème plat ou avec .unites (voir helpers.js L533).
-      const etatBrut=calcEtatEleve(vals,e.hizb_depart,e.tomon_depart, sensE, null, null, baremeComplet);
+      const etatBrut=calcEtatEleve(vals,e.hizb_depart,e.tomon_depart, sensE, e, null, baremeComplet);
       // FIX (oct 2026) : score = calcPointsPeriode sur tout l'historique (validations, sourates
       // y compris muraja via r.points, certificats, examens), meme regle que la courbe ci-dessous.
       const recs=(rs||[]).filter(r=>r.eleve_id===e.id);

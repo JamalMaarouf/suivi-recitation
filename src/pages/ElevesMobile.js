@@ -404,11 +404,13 @@ export default function ElevesMobile({ user, navigate, goBack, lang='ar' }) {
               <div style={{marginBottom:12}}>
                 <label style={{fontSize:12,fontWeight:600,color:'#666',display:'block',marginBottom:8}}>{lang==='ar'?'المستوى الدراسي *':'Niveau scolaire *'}</label>
                 <div style={{display:'flex', gap:6, flexWrap:'wrap'}}>
-                  {niveaux.map(n => {
+                  {/* FIX (oct 2026) : en modification, le niveau ne change que par le passage de niveau
+                      (fiche eleve) pour archiver l'historique et appliquer les regles de passage */}
+                  {niveaux.filter(n => !editEleve || form.code_niveau === n.code).map(n => {
                     const nc = n.couleur || getNiveauColor(n.code);
                     const sel = form.code_niveau === n.code;
                     return (
-                      <div key={n.code} onClick={()=>{setForm(x=>({...x,code_niveau:n.code,hizbs_acquis:[],hizb_depart:0,tomon_depart:1,sourates_acquises:0}));setShowAcquis(false);}}
+                      <div key={n.code} onClick={()=>{ if (editEleve) return; setForm(x=>({...x,code_niveau:n.code,hizbs_acquis:[],hizb_depart:0,tomon_depart:1,sourates_acquises:0}));setShowAcquis(false);}}
                         style={{padding:'7px 13px', borderRadius:20, cursor:'pointer', fontSize:12, fontWeight:sel?700:400,
                           background:sel?nc:'#f5f5f0', color:sel?'#fff':'#666',
                           border:`1.5px solid ${sel?nc:'#e0e0d8'}`}}>
@@ -417,6 +419,12 @@ export default function ElevesMobile({ user, navigate, goBack, lang='ar' }) {
                     );
                   })}
                 </div>
+                {editEleve && (
+                  <div style={{fontSize:11,color:'#888',marginTop:6}}>
+                    {lang==='ar'?'لتغيير المستوى استعمل «الانتقال إلى مستوى» من بطاقة الطالب':'Pour changer de niveau, utilisez « Passer de niveau » sur la fiche de l\'élève (historique et règles de passage appliqués).'}
+                    {' '}<span onClick={()=>navigate('fiche', eleves.find(x=>x.id===editEleve.id) || editEleve)} style={{color:'#1D9E75',fontWeight:700,cursor:'pointer'}}>{lang==='ar'?'← البطاقة':'Fiche →'}</span>
+                  </div>
+                )}
               </div>
 
               {/* ID + Référent */}

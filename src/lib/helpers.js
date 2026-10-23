@@ -632,7 +632,20 @@ export function calcPoints(tomonCumul, hizbsCompletsCount, validations, tomonAcq
  *                          du niveau de l'eleve. Si fourni avec eleve, active
  *                          la logique multi-blocs corrigee.
  */
-export function calcEtatEleve(validations, hizbDepart, tomonDepart, sens = 'desc', eleve = null, programmeNiveau = null, bareme = null) {
+/**
+ * FIX (oct 2026) : passage de niveau "repartir" -> la progression (position, hizbs/sourates
+ * faits, blocages, certificats) ne compte que ce qui a ete fait DEPUIS le debut du niveau
+ * (eleves.debut_niveau_at). Les points deja gagnes restent comptes dans les totaux.
+ * Sans debut_niveau_at (cas general), rien n'est filtre.
+ */
+export function depuisDebutNiveau(rows, eleve, champ = 'date_validation') {
+  const debut = eleve && eleve.debut_niveau_at ? new Date(eleve.debut_niveau_at) : null;
+  if (!debut || isNaN(debut)) return rows || [];
+  return (rows || []).filter(r => !r[champ] || new Date(r[champ]) >= debut);
+}
+
+export function calcEtatEleve(validationsToutes, hizbDepart, tomonDepart, sens = 'desc', eleve = null, programmeNiveau = null, bareme = null) {
+  const validations = depuisDebutNiveau(validationsToutes, eleve);
   // BUG-FIX POINTS FICHE ELEVE (oct 2026) : nouveau param `bareme` optionnel.
   // Avant : calcPoints etait appele sans bareme -> toujours 0 pts sur la
   //         fiche eleve (BAREME_DEFAUT a tomon=0, hizb_complet=0).
@@ -782,6 +795,7 @@ export function calcEtatEleveAvecBlocs(validations, eleve, programmeNiveau, sens
   // BUG-FIX MULTI-BLOCS : on passe eleve + programmeNiveau pour que le calcul
   // des tomons/hizbs acquis utilise la logique multi-blocs corrigee
   // (au lieu de la boucle lineaire 1->hizbDep / 60->hizbDep).
+  validations = depuisDebutNiveau(validations, eleve); // FIX (oct 2026) : passage de niveau
   const etatBrut = calcEtatEleve(
     validations || [],
     eleve?.hizb_depart || 0,
@@ -1010,6 +1024,9 @@ export async function verifierBlocageExamen(supabase, {
   validations,    // validations existantes (hizb)
   recitations,    // recitations_sourates existantes
 }) {
+  // FIX (oct 2026) : seulement ce qui a ete fait depuis le debut du niveau actuel
+  validations = depuisDebutNiveau(validations, eleve);
+  recitations = depuisDebutNiveau(recitations, eleve);
   try {
     // Trouver le niveau_id depuis la table niveaux via code_niveau
     const { data: niveauData } = await supabase
@@ -1194,11 +1211,17 @@ export async function verifierBlocageEnsemble(supabase, { eleve_id, ecole_id, ni
     // 2. Charger les sourates recitees completement par l'eleve
     const { data: recitations } = await supabase
       .from('recitations_sourates')
-      .select('sourate_id, type_recitation, is_muraja')
+      .select('sourate_id, type_recitation, is_muraja, date_validation')
       .eq('eleve_id', eleve_id)
       .eq('type_recitation', 'complete');
-    // FIX (oct 2026) : la muraja (revision) ne valide pas un ensemble
-    const recitationsMemo = (recitations || []).filter(r => !r.is_muraja);
+    // FIX (oct 2026) : la muraja (revision) ne valide pas un ensemble ; et seulement ce qui a ete
+    // fait depuis le debut du niveau actuel (passage de niveau "repartir")
+    let eleveDebut = null;
+    try {
+      const { data: elD } = await supabase.from('eleves').select('*').eq('id', eleve_id).maybeSingle();
+      eleveDebut = elD;
+    } catch (e) { /* sans filtre */ }
+    const recitationsMemo = depuisDebutNiveau((recitations || []).filter(r => !r.is_muraja), eleveDebut);
 
     const souratesRecitees = new Set(recitationsMemo.map(r => r.sourate_id));
 

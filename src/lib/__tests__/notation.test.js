@@ -7,6 +7,7 @@ import {
   verifierBlocageExamen,
   numerosSouratesAcquises,
   ordonnerSouratesProgramme,
+  depuisDebutNiveau,
 } from '../helpers';
 
 const BAREME = {
@@ -235,5 +236,34 @@ describe('sourates : programme et acquis (oct 2026)', () => {
     const ordre = ordonnerSouratesProgramme(toutes, new Set([77, 76, 75]), 'desc');
     const acquis = numerosSouratesAcquises(0, 'desc');
     expect(ordre.find(s => !acquis.has(s.numero)).numero).toBe(77);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────
+describe('passage de niveau (oct 2026)', () => {
+  const vals = [
+    { type_validation: 'tomon', nombre_tomon: 8, date_validation: '2026-09-01T10:00:00Z' },
+    { type_validation: 'hizb_complet', hizb_valide: 60, date_validation: '2026-09-01T11:00:00Z' },
+    { type_validation: 'tomon', nombre_tomon: 2, date_validation: '2026-10-20T10:00:00Z' },
+  ];
+
+  test('sans date de debut de niveau : rien n\'est filtre', () => {
+    expect(depuisDebutNiveau(vals, { id: 'e' })).toHaveLength(3);
+  });
+
+  test('"continuer" : depart d\'origine garde -> la position ne bouge pas', () => {
+    const avant = calcEtatEleve(vals, 0, 0, 'desc', { id: 'e' }, null, BAREME);
+    // continuer = meme hizb_depart/tomon_depart, pas de debut_niveau_at
+    const apres = calcEtatEleve(vals, 0, 0, 'desc', { id: 'e', code_niveau: 'X' }, null, BAREME);
+    expect(apres.hizbEnCours).toBe(avant.hizbEnCours);
+    expect(apres.prochainTomon).toBe(avant.prochainTomon);
+  });
+
+  test('"repartir" : seules les validations apres le passage font avancer', () => {
+    const eleve = { id: 'e', debut_niveau_at: '2026-10-01T00:00:00Z' };
+    const etat = calcEtatEleve(vals, 0, 0, 'desc', eleve, null, BAREME);
+    expect(etat.tomonCumul).toBe(2);
+    expect(etat.hizbEnCours).toBe(60);
+    expect(etat.prochainTomon).toBe(3);
   });
 });

@@ -48,7 +48,7 @@ export default function ProfilInstituteur({ instituteur, user, navigate, goBack,
       const vals=(allVd||[]).filter(v=>v.eleve_id===e.id);
       const sensE = getSensForEleve(e, nv, ec);
       // BUG-FIX POINTS (oct 2026) : passer baremeLocal (deja plat .tomon/.hizb_complet).
-      const etat=calcEtatEleve(vals,e.hizb_depart,e.tomon_depart, sensE, null, null, baremeLocal);
+      const etat=calcEtatEleve(vals,e.hizb_depart,e.tomon_depart, sensE, e, null, baremeLocal);
       // FIX (oct 2026) : total = calcPointsPeriode sur tout l'historique (validations + sourates
       // + certificats + examens), comme la liste des notes. Avant : sourates jamais comptees.
       const recs=(rsAll||[]).filter(r=>r.eleve_id===e.id);

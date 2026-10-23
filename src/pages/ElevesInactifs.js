@@ -62,7 +62,7 @@ export default function ElevesInactifs({ navigate, goBack, lang='fr', user, isMo
       const elevesData = (ed||[]).map(eleve => {
         const vals = (vd||[]).filter(v=>v.eleve_id===eleve.id);
         const sensE = getSensForEleve(eleve, nv, ec);
-        const etat = calcEtatEleve(vals, eleve.hizb_depart, eleve.tomon_depart, sensE);
+        const etat = calcEtatEleve(vals, eleve.hizb_depart, eleve.tomon_depart, sensE, eleve);
         // FIX (oct 2026) : derniere activite = max(derniere validation, derniere recitation de sourate)
         const derniereVal = vals[0]?.date_validation || null;
         const derniereRec = derniereRecByEleve[eleve.id] || null;

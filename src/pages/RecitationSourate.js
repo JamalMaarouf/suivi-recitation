@@ -3,7 +3,7 @@ import { supabase } from '../lib/supabase';
 import { getInitiales, scoreLabel, loadBareme, verifierEtCreerCertificats, verifierBlocageEnsemble, calculerPointsSourate, verifierBlocageExamen } from '../lib/helpers';
 import { t } from '../lib/i18n';
 import { getSouratesForNiveau, isSourateNiveau } from '../lib/sourates';
-import { numerosSouratesAcquises, ordonnerSouratesProgramme } from '../lib/helpers';
+import { numerosSouratesAcquises, ordonnerSouratesProgramme, depuisDebutNiveau } from '../lib/helpers';
 import { useToast } from '../lib/toast';
 import MobileSkeletonList from '../components/MobileSkeletonList';
 
@@ -153,7 +153,7 @@ export default function RecitationSourate({ user, eleve, navigate, goBack, lang=
     } catch(e) { /* table not yet created */ }
     const sdbData = sdb || [];
     // FIX (oct 2026) : la muraja (revision) ne compte pas dans la progression de memorisation
-    const rdData = (rd || []).filter(r => !r.is_muraja);
+    const rdData = depuisDebutNiveau((rd || []).filter(r => !r.is_muraja), eleve); // + depuis le debut du niveau
     const exData = ex || [];
     setSouratesDB(sdbData);
     setRecitations(rdData);

@@ -101,7 +101,7 @@ export default function RapportMensuel({ user, navigate, goBack, lang='fr', isMo
   const statsEleves = useMemo(() => (eleves||[]).map(e => {
     const vals  = validations.filter(v=>v.eleve_id===e.id);
     const sensE = getSensForEleve(e, niveaux, ecole);
-    const etat  = calcEtatEleve(vals, e.hizb_depart, e.tomon_depart, sensE);
+    const etat  = calcEtatEleve(vals, e.hizb_depart, e.tomon_depart, sensE, e);
     const inst  = instituteurs.find(i=>i.id===e.instituteur_referent_id);
     const niv   = niveaux.find(n=>n.code===e.code_niveau);
     const isSourate = niv?.type==='sourate';

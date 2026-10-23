@@ -381,7 +381,7 @@ export default function EnregistrerRecitation({  user, eleve: eleveInitial, navi
           if (progData && progData.length > 0) {
             // Recalculer la progression après cette validation
             const sens = getSensForEleve(selectedEleve, niveaux, ecoleConfig);
-            const eNouv = calcEtatEleve(valsNouv, selectedEleve.hizb_depart, selectedEleve.tomon_depart, sens);
+            const eNouv = calcEtatEleve(valsNouv, selectedEleve.hizb_depart, selectedEleve.tomon_depart, sens, selectedEleve);
             const hizbsFaits = new Set(eNouv.hizbsComplets || []);
             const hizbDep = selectedEleve.hizb_depart;
             if (hizbDep && hizbDep > 0) {

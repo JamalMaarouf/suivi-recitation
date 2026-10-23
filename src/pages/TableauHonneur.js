@@ -66,7 +66,7 @@ export default function TableauHonneur({ user, navigate, goBack, lang='fr', isMo
     const elevesData = (ed||[]).map(e => {
       const vals = (vd||[]).filter(v => v.eleve_id === e.id);
       const sensE = getSensForEleve(e, nv, ec);
-      const etat = calcEtatEleve(vals, e.hizb_depart, e.tomon_depart, sensE);
+      const etat = calcEtatEleve(vals, e.hizb_depart, e.tomon_depart, sensE, e);
       const evts = (pe||[]).filter(p=>p.eleve_id===e.id);
       // FIX-BAREME (sep 2026) : ajout des sourates et certificats par eleve
       const recs = (rs||[]).filter(r => r.eleve_id === e.id);

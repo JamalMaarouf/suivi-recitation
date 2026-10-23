@@ -2140,7 +2140,8 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
                 <div style={{marginBottom:12}}>
                   <label style={{fontSize:12,fontWeight:600,color:'#666',display:'block',marginBottom:8}}>{lang==='ar'?'المستوى الدراسي':'Niveau scolaire'} <span style={{color:'#E24B4A'}}>*</span></label>
                   <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>
-                    {(niveauxActifs||[]).map(n=>{
+                    {/* FIX (oct 2026) : en modification, seul le niveau actuel (passage via la fiche) */}
+                    {(niveauxActifs||[]).filter(n=>!editEleve||editEleve.code_niveau===n.code).map(n=>{
                       const nc=n.couleur||getNC(n.code);
                       const cur=editEleve?editEleve.code_niveau:newEleve.code_niveau;
                       return(
@@ -3173,19 +3174,17 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
                   </div>
                   <div className="field-group">
                     <label className="field-lbl">{lang==='ar'?'المستوى الدراسي':'Niveau scolaire'} <span style={{color:'#E24B4A'}}>*</span></label>
-                    <select className="field-select" value={editEleve.code_niveau||'1'} onChange={e=>{
-                      const oldNiv=editEleve.code_niveau||'1'; const newNiv=e.target.value;
-                      const wasSourate=['5B','5A','2M'].includes(oldNiv);
-                      const isNowHizb=!['5B','5A'].includes(newNiv)&&niveauxActifs.find(n=>n.code===newNiv)?.type!=='sourate';
-                      if(wasSourate&&isNowHizb){
-                        showConfirm(lang==='ar'?'⚠️ تغيير نظام الطالب':'⚠️ Changement de système',
-                          lang==='ar'?'هذا الطالب ينتقل من نظام السور إلى نظام الحزب والثُّمن.':'Cet élève passe du système Sourates au système Hizb/Tomon.',
-                          ()=>{setEditEleve({...editEleve,code_niveau:newNiv,hizb_depart:0,tomon_depart:1,sourates_acquises:0});setEditShowAcquisSelector(true);hideConfirm();},
-                          lang==='ar'?'متابعة':'Continuer','#EF9F27');
-                      } else { setEditEleve({...editEleve,code_niveau:newNiv}); }
-                    }}>
-                      {niveauxActifs.map(n=><option key={n.code} value={n.code}>{n.code} — {n.nom}</option>)}
-                    </select>
+                    {/* FIX (oct 2026) : niveau verrouille en modification -> passage de niveau depuis la fiche
+                        (archive de l'historique + regles de passage ; avant : simple changement de code) */}
+                    <div style={{display:'flex',alignItems:'center',gap:10,flexWrap:'wrap'}}>
+                      <span className="field-input" style={{display:'inline-block',width:'auto',background:'#f5f5f0'}}>
+                        {editEleve.code_niveau||'—'} — {(niveauxActifs.find(n=>n.code===editEleve.code_niveau)||{}).nom||''}
+                      </span>
+                      <button type="button" onClick={()=>navigate('fiche', eleves.find(x=>x.id===editEleve.id) || editEleve)}
+                        style={{padding:'7px 12px',background:'#E1F5EE',color:'#085041',border:'1px solid #1D9E7540',borderRadius:8,fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
+                        📈 {lang==='ar'?'الانتقال إلى مستوى':'Passer de niveau'}
+                      </button>
+                    </div>
                   </div>
                   <div className="field-group">
                     <label className="field-lbl">{lang==='ar'?'رقم تعريف الطالب':'ID Élève'} <span style={{color:'#E24B4A'}}>*</span></label>

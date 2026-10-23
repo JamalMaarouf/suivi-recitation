@@ -128,7 +128,7 @@ export default function Dashboard({ user, navigate, goBack, lang, isMobile=false
     return (ed||[]).map(eleve => {
       const vals = valsByEleve.get(eleve.id) || [];
       const sensE = getSensForEleve(eleve, nv, ec);
-      const etat = calcEtatEleve(vals, eleve.hizb_depart, eleve.tomon_depart, sensE, null, null, bar);
+      const etat = calcEtatEleve(vals, eleve.hizb_depart, eleve.tomon_depart, sensE, eleve, null, bar);
       // FIX (oct 2026) : total Dashboard = acquis anterieurs + calcul de reference depuis
       // le suivi (calcPointsPeriode : tomon, hizb, muraja, ensembles, sourates, examens,
       // certificats), pour TOUS les eleves. Avant, un eleve hizb n'avait ni muraja, ni

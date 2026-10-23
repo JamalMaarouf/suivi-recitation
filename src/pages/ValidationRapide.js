@@ -5,7 +5,7 @@ import { withRetryToast } from '../lib/retry';
 import { invalidateMany } from '../lib/cache';
 import { enqueueOrRun } from '../lib/offlineQueue';
 import { swr } from '../lib/offlineCache';
-import { calcEtatEleve, calcEtatEleveAvecBlocs, getInitiales, scoreLabel, motivationMsg, verifierEtCreerCertificats, isSourateNiveauDyn, loadBareme, BAREME_DEFAUT, getSensForEleve, verifierBlocageExamen, verifierBlocageEnsemble, validerEnsemble, calculerPointsSourate, ptsValidation, numerosSouratesAcquises, ordonnerSouratesProgramme} from '../lib/helpers';
+import { calcEtatEleve, calcEtatEleveAvecBlocs, getInitiales, scoreLabel, motivationMsg, verifierEtCreerCertificats, isSourateNiveauDyn, loadBareme, BAREME_DEFAUT, getSensForEleve, verifierBlocageExamen, verifierBlocageEnsemble, validerEnsemble, calculerPointsSourate, ptsValidation, numerosSouratesAcquises, ordonnerSouratesProgramme, depuisDebutNiveau} from '../lib/helpers';
 import { notifierParents } from '../lib/notificationsParents';
 import { getSouratesForNiveau } from '../lib/sourates';
 import { t } from '../lib/i18n';
@@ -166,7 +166,7 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
   };
   const calcSourateCourante = (eleveObj, progData, souratesList, recs) => {
     const { ordre, acquis } = listeSouratesEleve(eleveObj, progData, souratesList);
-    const faites = new Set((recs || []).filter(r => r.type_recitation === 'complete' && !r.is_muraja).map(r => r.sourate_id));
+    const faites = new Set(depuisDebutNiveau(recs || [], eleveObj).filter(r => r.type_recitation === 'complete' && !r.is_muraja).map(r => r.sourate_id));
     return ordre.find(sr => !acquis.has(sr.numero) && !faites.has(sr.id)) || null;
   };
 
@@ -212,7 +212,7 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
 
     const souratesLocal = sourFresh || [];
     // FIX (oct 2026) : la muraja (revision) ne compte pas dans la progression
-    const recitationsLocal = (recs || []).filter(r => !r.is_muraja);
+    const recitationsLocal = depuisDebutNiveau((recs || []).filter(r => !r.is_muraja), freshEleve); // + depuis le debut du niveau
     setSouratesDB(souratesLocal);
     setRecitationsSourates(recitationsLocal);
 
@@ -788,7 +788,7 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
               // programmeNiveau=null : programmeNiveau en state ici correspond
               // a l'eleve selectionne precedent, pas forcement a `e`. L'ancienne
               // logique mono-bloc reste donc utilisee pour le dropdown.
-              const et = calcEtatEleve(vals, e.hizb_depart, e.tomon_depart, sensEl, null, null, bareme);
+              const et = calcEtatEleve(vals, e.hizb_depart, e.tomon_depart, sensEl, e, null, bareme);
               const isSour = isSourateNiveauDyn(e.code_niveau, niveaux);
               const nivColor = ({ '5B': '#534AB7', '5A': '#378ADD', '2M': '#1D9E75', '2': '#EF9F27', '1': '#E24B4A' }[e.code_niveau] || '#888');
               return (
