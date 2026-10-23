@@ -4,8 +4,8 @@ import { useToast } from '../lib/toast';
 import ConfirmModal from '../components/ConfirmModal';
 import PageHeader from '../components/PageHeader';
 import MobileSkeletonList from '../components/MobileSkeletonList';
-import { MobileHeader } from '../components/ui';
-import { BookOpen } from 'lucide-react';
+import { MobileHeader, ListRow, ActionSheet, LevelBadge, EmptyState, SearchField, C } from '../components/ui';
+import { BookOpen, Plus, ListTree, Pencil, Trash2 } from 'lucide-react';
 
 // ══════════════════════════════════════════════════════════════════════
 // PAGE GESTION COURS DE FOND
@@ -49,6 +49,8 @@ export default function GestionCours({ user, navigate, goBack, lang, isMobile })
   const [searchCours, setSearchCours] = useState('');
   // Confirm modal
   const [confirmModal, setConfirmModal] = useState({ isOpen: false, title: '', message: '', onConfirm: null });
+  // Charte mobile : cours dont le panneau d'actions est ouvert
+  const [menuCours, setMenuCours] = useState(null);
 
   // Bloc 3 (oct 2026) : l'instituteur cree des cours ; il ne modifie/supprime
   // que ceux qu'il a crees (les autres restent consultables en lecture seule).
@@ -240,7 +242,7 @@ export default function GestionCours({ user, navigate, goBack, lang, isMobile })
   }, [niveaux]);
 
   return (
-    <div style={{ background: isMobile ? '#f5f5f0' : 'transparent', minHeight: isMobile ? '100vh' : 'auto', paddingBottom: 80 }}>
+    <div style={{ background: isMobile ? C.bg : 'transparent', minHeight: isMobile ? '100vh' : 'auto', paddingBottom: 80 }}>
 
       {/* Header */}
       {isMobile ? (
@@ -285,16 +287,21 @@ export default function GestionCours({ user, navigate, goBack, lang, isMobile })
               <button onClick={openCreate}
                 style={{
                   width: '100%', padding: '12px',
-                  background: '#1D9E75', color: '#fff',
-                  border: 'none', borderRadius: 10, marginBottom: 14,
+                  background: C.brand, color: C.onBrand,
+                  border: 'none', borderRadius: 12, marginBottom: 14,
                   fontSize: 14, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
                 }}>
-                ➕ {lang === 'ar' ? 'إضافة درس' : 'Ajouter un cours'}
+                <Plus size={18} /> {lang === 'ar' ? 'إضافة درس' : 'Ajouter un cours'}
               </button>
             )}
 
             {/* Liste */}
-            {cours.length === 0 ? (
+            {cours.length === 0 ? (isMobile ? (
+              <EmptyState icon={BookOpen}
+                title={lang === 'ar' ? 'لا توجد دروس' : 'Aucun cours créé'}
+                text={lang === 'ar' ? 'ابدأ بإضافة درس' : 'Commence par ajouter un cours'} />
+            ) : (
               <div style={{
                 padding: 40, textAlign: 'center', color: '#888',
                 background: '#fff', borderRadius: 12, border: '1px dashed #ccc',
@@ -307,9 +314,15 @@ export default function GestionCours({ user, navigate, goBack, lang, isMobile })
                   {lang === 'ar' ? 'ابدأ بإضافة درس' : 'Commence par ajouter un cours'}
                 </div>
               </div>
-            ) : (
+            )) : (
               <>
                 {/* M3a — Bandeau filtres + compteur dynamique (visible mobile aussi) */}
+                {isMobile ? (
+                <div style={{ marginBottom: 12 }}>
+                  <SearchField value={searchCours} onChange={setSearchCours} lang={lang} id="recherche-cours"
+                    placeholder={lang === 'ar' ? 'بحث عن درس...' : 'Rechercher un cours'} />
+                </div>
+                ) : (
                 <div style={{
                   display:'flex', gap:10, marginBottom:12, flexWrap:'wrap',
                   padding: isMobile ? '8px 10px' : '10px 12px', background:'#fff',
@@ -327,6 +340,7 @@ export default function GestionCours({ user, navigate, goBack, lang, isMobile })
                       fontFamily:'inherit', outline:'none', background:'#f9f9f6',
                     }}/>
                 </div>
+                )}
                 <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:8,flexWrap:'wrap',gap:8}}>
                   <div style={{fontSize:13,fontWeight:600,color:'#085041'}}>
                     {lang === 'ar' ? 'الدروس' : 'Cours'}
@@ -360,6 +374,30 @@ export default function GestionCours({ user, navigate, goBack, lang, isMobile })
                   if (lang !== 'ar' && c.nom_ar && c.nom_ar !== nomAff) autresLangues.push(c.nom_ar);
                   if (lang !== 'fr' && c.nom_fr && c.nom_fr !== nomAff) autresLangues.push(c.nom_fr);
                   if (lang !== 'en' && c.nom_en && c.nom_en !== nomAff) autresLangues.push(c.nom_en);
+                  if (isMobile) return (
+                    <ListRow key={c.id} lang={lang}
+                      leading={
+                        <div style={{ width: 40, height: 40, borderRadius: 12, flexShrink: 0, background: C.bg, border: `1px solid ${C.line}`,
+                          display: 'flex', alignItems: 'center', justifyContent: 'center', color: C.brand }}>
+                          <BookOpen size={18} />
+                        </div>
+                      }
+                      title={nomAff}
+                      subtitle={autresLangues.length > 0 ? autresLangues.join(' · ') : null}
+                      meta={
+                        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center', fontSize: 11, color: C.muted }}>
+                          {c.categorie && <span style={{ fontWeight: 600 }}>{c.categorie}</span>}
+                          {c.annee_estimee && <span>{c.annee_estimee} {lang === 'ar' ? 'سنة' : 'an(s)'}</span>}
+                          <span>{coursAxesCount[c.id] || 0} {lang === 'ar' ? 'محور' : 'axe(s)'}</span>
+                          {c.niveauCodes && c.niveauCodes.map(code => {
+                            const n = niveauByCode[code];
+                            return <LevelBadge key={code} code={n?.code || code} color={n?.couleur || '#888'} />;
+                          })}
+                        </div>
+                      }
+                      onClick={() => navigate('cours_axes', c.id)}
+                      onMore={peutModifier(c) ? () => setMenuCours(c) : undefined} />
+                  );
                   return (
                   <div key={c.id} style={{
                     background: '#fff', borderRadius: 12, padding: '12px 14px',
@@ -458,6 +496,16 @@ export default function GestionCours({ user, navigate, goBack, lang, isMobile })
           </>
         )}
       </div>
+
+      {isMobile && (
+        <ActionSheet open={!!menuCours} onClose={() => setMenuCours(null)} lang={lang}
+          title={menuCours ? nomAffiche(menuCours) : ''}
+          actions={menuCours ? [
+            { label: lang === 'ar' ? 'المحاور' : 'Axes', icon: ListTree, onClick: () => navigate('cours_axes', menuCours.id) },
+            { label: lang === 'ar' ? 'تعديل' : 'Modifier', icon: Pencil, onClick: () => openEdit(menuCours) },
+            { label: lang === 'ar' ? 'حذف' : 'Supprimer', icon: Trash2, danger: true, onClick: () => handleDelete(menuCours) },
+          ] : []} />
+      )}
 
       {/* ═══ MODALE FORMULAIRE AJOUT/ÉDITION ═══ */}
       {formOpen && (

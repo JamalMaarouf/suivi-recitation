@@ -6,8 +6,8 @@ import { t } from '../lib/i18n';
 import PageHeader from '../components/PageHeader';
 import ExportButtons from '../components/ExportButtons';
 import MobileSkeletonList from '../components/MobileSkeletonList';
-import { MobileHeader, HeaderIconButton } from '../components/ui';
-import { Layers, Plus, X } from 'lucide-react';
+import { MobileHeader, HeaderIconButton, ListRow, ActionSheet, LevelBadge, EmptyState, C } from '../components/ui';
+import { Layers, Plus, X, ListChecks, Pencil, Trash2, ArrowUp, ArrowDown } from 'lucide-react';
 
 // Liste des Hizb selon un sens donne (desc = 60->1, asc = 1->60)
 const makeHizbList = (sens) => sens === 'asc'
@@ -54,6 +54,8 @@ export default function GestionNiveaux({ user, navigate, goBack, lang='fr', isMo
   const [editing, setEditing]       = useState(null);
   const [saving, setSaving]         = useState(false);
   const [confirmModal, setConfirmModal] = useState({isOpen:false});
+  // Charte mobile : niveau ({n, idx}) dont le panneau d'actions est ouvert
+  const [menuNiv, setMenuNiv] = useState(null);
 
   const emptyForm = { code:'', nom:'', type:'hizb', couleur:'#1D9E75', ordre:1, nb_sequences:3 };
   const [form, setForm] = useState(emptyForm);
@@ -1052,7 +1054,7 @@ export default function GestionNiveaux({ user, navigate, goBack, lang='fr', isMo
   // ── MOBILE ──────────────────────────────────────────────────────────────
   if (isMobile) {
     return (
-      <div style={{paddingBottom:80, background:'#f5f5f0', minHeight:'100vh'}}>
+      <div style={{paddingBottom:80, background:C.bg, minHeight:'100vh'}}>
         {/* Header */}
         <MobileHeader
           title={lang==='ar'?'المستويات':'Niveaux'}
@@ -1086,10 +1088,10 @@ export default function GestionNiveaux({ user, navigate, goBack, lang='fr', isMo
           )}
           {/* Formulaire */}
           {showForm && (
-            <div style={{background:'#fff',borderRadius:16,padding:'18px',marginBottom:14,
-              border:`1.5px solid ${editing?'#378ADD':'#1D9E75'}`}}>
-              <div style={{fontSize:15,fontWeight:700,color:'#fff',marginBottom:14}}>
-                {editing?(lang==='ar'?'تعديل المستوى':'✏️ Modifier niveau'):(lang==='ar'?'إضافة مستوى':'📚 Nouveau niveau')}
+            <div style={{background:C.surface,borderRadius:12,padding:'18px',marginBottom:14,
+              border:`1px solid ${C.line}`}}>
+              <div style={{fontSize:15,fontWeight:700,color:C.text,marginBottom:14}}>
+                {editing?(lang==='ar'?'تعديل المستوى':'Modifier niveau'):(lang==='ar'?'إضافة مستوى':'Nouveau niveau')}
               </div>
 
               {/* Code */}
@@ -1127,7 +1129,6 @@ export default function GestionNiveaux({ user, navigate, goBack, lang='fr', isMo
                         background:form.type===t.val?'#E1F5EE':'#f5f5f0',
                         border:`1.5px solid ${form.type===t.val?'#1D9E75':'#e0e0d8'}`,
                         color:form.type===t.val?'#085041':'#666'}}>
-                      <div style={{fontSize:22,marginBottom:4}}>{t.icon}</div>
                       <div style={{fontSize:12,fontWeight:form.type===t.val?700:400}}>{lang==='ar'?t.ar:t.fr}</div>
                     </div>
                   ))}
@@ -1167,7 +1168,7 @@ export default function GestionNiveaux({ user, navigate, goBack, lang='fr', isMo
               <div style={{marginBottom:14}}>
                 <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:8}}>
                   <label style={{fontSize:12,fontWeight:600,color:'#666'}}>
-                    📚 {lang==='ar'?'برنامج المستوى':'Programme du niveau'}
+                    {lang==='ar'?'برنامج المستوى':'Programme du niveau'}
                   </label>
                   <span style={{fontSize:12,fontWeight:700,color:formProgramme.length>0?form.couleur:'#aaa'}}>
                     {formProgramme.length>0?`${formProgramme.length} ${lang==='ar'?'محدد':'sélectionné(s)'}`:lang==='ar'?'لم يُحدد':'Non défini'}
@@ -1248,7 +1249,7 @@ export default function GestionNiveaux({ user, navigate, goBack, lang='fr', isMo
                   style={{flex:2,padding:'13px',background:saving?'#ccc':editing?'#378ADD':'#1D9E75',
                     color:'#fff',border:'none',borderRadius:12,fontSize:14,fontWeight:700,
                     cursor:saving?'not-allowed':'pointer',fontFamily:'inherit'}}>
-                  {saving?'...':(editing?(lang==='ar'?'تحديث':'Mettre à jour ✓'):(lang==='ar'?'حفظ':'Enregistrer'))}
+                  {saving?'...':(editing?(lang==='ar'?'تحديث':'Mettre à jour'):(lang==='ar'?'حفظ':'Enregistrer'))}
                 </button>
               </div>
             </div>
@@ -1259,70 +1260,38 @@ export default function GestionNiveaux({ user, navigate, goBack, lang='fr', isMo
 
           {/* Liste niveaux */}
           {!loading && niveaux.length === 0 && (
-            <div style={{textAlign:'center',color:'#aaa',padding:'3rem',background:'#fff',borderRadius:12}}>
-              <div style={{fontSize:40,marginBottom:10}}>📚</div>
-              <div style={{fontSize:14,marginBottom:16}}>{lang==='ar'?'لا توجد مستويات بعد':'Aucun niveau configuré'}</div>
-              <div style={{fontSize:12,color:'#bbb'}}>{lang==='ar'?'أضف مستوى للبدء':'Ajoutez votre premier niveau pour commencer'}</div>
-            </div>
+            <EmptyState icon={Layers}
+              title={lang==='ar'?'لا توجد مستويات بعد':'Aucun niveau configuré'}
+              text={lang==='ar'?'أضف مستوى للبدء':'Ajoutez votre premier niveau pour commencer'} />
           )}
 
+          <div style={{display:'grid',gap:8}}>
           {!loading && niveaux.map((n, idx) => (
-            <div key={n.id} style={{background:'#fff',borderRadius:14,padding:'14px',marginBottom:10,
-              border:`0.5px solid ${n.actif?n.couleur+'30':'#e0e0d8'}`,
-              opacity: n.actif ? 1 : 0.6}}>
-              <div style={{display:'flex',alignItems:'center',gap:12}}>
-                {/* Badge niveau */}
-                <div style={{width:48,height:48,borderRadius:12,background:`${n.couleur}20`,
-                  display:'flex',alignItems:'center',justifyContent:'center',
-                  border:`1.5px solid ${n.couleur}40`,flexShrink:0}}>
-                  <span style={{fontSize:14,fontWeight:800,color:n.couleur}}>{n.code}</span>
-                </div>
-                {/* Infos */}
-                <div style={{flex:1,minWidth:0}}>
-                  <div style={{fontWeight:700,fontSize:15,color:'#1a1a1a'}}>{n.nom}</div>
-                  <div style={{display:'flex',gap:6,marginTop:4,alignItems:'center',flexWrap:'wrap'}}>
-                    <span style={{fontSize:11,padding:'2px 8px',borderRadius:20,
-                      background:n.type==='sourate'?'#EEEDFE':'#E6F1FB',
-                      color:n.type==='sourate'?'#534AB7':'#0C447C',fontWeight:600}}>
-                      {n.type==='sourate'?'📖 Sourates':'📿 Hizb'}
-                    </span>
-                    <span style={{fontSize:11,color:'#aaa'}}>Ordre {n.ordre}</span>
-                    {!n.actif && <span style={{fontSize:11,padding:'2px 8px',borderRadius:20,background:'#f0f0ec',color:'#888'}}>
-                      {lang==='ar'?'غير نشط':'Inactif'}
-                    </span>}
-                  </div>
-                </div>
-                {/* Actions réorder */}
-                <div style={{display:'flex',flexDirection:'column',gap:2,flexShrink:0}}>
-                  <button onClick={()=>moveUp(n,idx)} disabled={idx===0}
-                    style={{background:'#f5f5f0',border:'none',borderRadius:6,padding:'4px 8px',
-                      cursor:idx===0?'not-allowed':'pointer',opacity:idx===0?0.3:1,fontSize:12}}>▲</button>
-                  <button onClick={()=>moveDown(n,idx)} disabled={idx===niveaux.length-1}
-                    style={{background:'#f5f5f0',border:'none',borderRadius:6,padding:'4px 8px',
-                      cursor:idx===niveaux.length-1?'not-allowed':'pointer',
-                      opacity:idx===niveaux.length-1?0.3:1,fontSize:12}}>▼</button>
-                </div>
-              </div>
-              {/* Boutons actions */}
-              <div style={{display:'flex',gap:8,marginTop:12}}>
-                <button onClick={()=>ouvrirProgramme(n)}
-                  style={{flex:2,padding:'9px',background:`${n.couleur}20`,color:n.couleur,
-                    border:`1.5px solid ${n.couleur}40`,borderRadius:10,fontSize:13,
-                    fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
-                  📚 {lang==='ar'?'البرنامج':'Programme'}
-                </button>
-                <button onClick={()=>startEdit(n)}
-                  style={{flex:1,padding:'9px',background:'#E6F1FB',color:'#0C447C',border:'none',
-                    borderRadius:10,fontSize:13,fontWeight:600,cursor:'pointer',fontFamily:'inherit'}}>
-                  ✏️
-                </button>
-                <button onClick={()=>supprimer(n)}
-                  style={{padding:'9px 12px',background:'#FCEBEB',color:'#E24B4A',border:'none',
-                    borderRadius:10,fontSize:13,cursor:'pointer'}}>🗑</button>
-              </div>
+            <div key={n.id} style={{opacity: n.actif ? 1 : 0.6}}>
+              <ListRow lang={lang}
+                leading={<div style={{width:48,flexShrink:0,display:'flex',justifyContent:'center'}}><LevelBadge code={n.code} color={n.couleur} /></div>}
+                title={n.nom}
+                subtitle={[
+                  n.type==='sourate'?(lang==='ar'?'سور':'Sourates'):(lang==='ar'?'حزب':'Hizb'),
+                  `${lang==='ar'?'الترتيب':'Ordre'} ${n.ordre}`,
+                  !n.actif ? (lang==='ar'?'غير نشط':'Inactif') : null,
+                ].filter(Boolean).join(' · ')}
+                onClick={()=>ouvrirProgramme(n)}
+                onMore={()=>setMenuNiv({n, idx})} />
             </div>
           ))}
+          </div>
         </div>
+
+        <ActionSheet open={!!menuNiv} onClose={()=>setMenuNiv(null)} lang={lang}
+          title={menuNiv ? `${menuNiv.n.code} — ${menuNiv.n.nom}` : ''}
+          actions={menuNiv ? [
+            {label:lang==='ar'?'البرنامج':'Programme', icon:ListChecks, onClick:()=>ouvrirProgramme(menuNiv.n)},
+            {label:lang==='ar'?'تعديل':'Modifier', icon:Pencil, onClick:()=>startEdit(menuNiv.n)},
+            {label:lang==='ar'?'تقديم':'Monter', icon:ArrowUp, disabled:menuNiv.idx===0, onClick:()=>moveUp(menuNiv.n,menuNiv.idx)},
+            {label:lang==='ar'?'تأخير':'Descendre', icon:ArrowDown, disabled:menuNiv.idx===niveaux.length-1, onClick:()=>moveDown(menuNiv.n,menuNiv.idx)},
+            {label:lang==='ar'?'حذف':'Supprimer', icon:Trash2, danger:true, onClick:()=>supprimer(menuNiv.n)},
+          ] : []} />
 
         <PanneauProgramme/>
         {/* Confirm Modal */}

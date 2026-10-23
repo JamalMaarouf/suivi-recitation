@@ -4,8 +4,8 @@ import { useToast } from '../lib/toast';
 import { t } from '../lib/i18n';
 import PageHeader from '../components/PageHeader';
 import MobileSkeletonList from '../components/MobileSkeletonList';
-import { MobileHeader, HeaderIconButton, SearchField } from '../components/ui';
-import { Package, Plus } from 'lucide-react';
+import { MobileHeader, HeaderIconButton, SearchField, ListRow, ActionSheet, LevelBadge, EmptyState, C } from '../components/ui';
+import { Package, Plus, Pencil, Trash2 } from 'lucide-react';
 
 export default function GestionEnsembles({ user, navigate, goBack, lang='fr', isMobile }) {
   const { toast } = useToast();
@@ -22,6 +22,8 @@ export default function GestionEnsembles({ user, navigate, goBack, lang='fr', is
   const [filtreNiveau, setFiltreNiveau] = useState('all');
   // E2d — Recherche par nom ensemble
   const [searchEns, setSearchEns] = useState('');
+  // Charte mobile : ensemble dont le panneau d'actions est ouvert
+  const [menuEns, setMenuEns] = useState(null);
   const scrollRef = useRef(null);
 
   const emptyForm = { niveau_id: '', nom: '', ordre: 1, sourates_ids: [] };
@@ -413,7 +415,7 @@ export default function GestionEnsembles({ user, navigate, goBack, lang='fr', is
 
   if (isMobile) {
     return (
-      <div style={{ paddingBottom: 80, background: '#f5f5f0', minHeight: '100vh' }}>
+      <div style={{ paddingBottom: 80, background: C.bg, minHeight: '100vh' }}>
         <MobileHeader
           title={lang === 'ar' ? 'مجموعات السور' : 'Ensembles'}
           icon={Package}
@@ -428,27 +430,48 @@ export default function GestionEnsembles({ user, navigate, goBack, lang='fr', is
         </MobileHeader>
         <div style={{ padding: '12px' }}>
           {!loading && ensembles.length > 0 && (
-            <div style={{fontSize:12,color:'#888',marginBottom:10,paddingLeft:4}}>
+            <div style={{fontSize:12,color:C.muted,marginBottom:10,paddingInlineStart:4}}>
               {totalFiltre} / {ensembles.length} {lang === 'ar' ? 'مجموعة' : 'ensemble(s)'}
             </div>
           )}
           {loading && <MobileSkeletonList type="card-simple" count={4} />}
           {!loading && ensembles.length === 0 && (
-            <div style={{ textAlign: 'center', color: '#aaa', padding: '3rem', background: '#fff', borderRadius: 12 }}>
-              <div style={{ fontSize: 40, marginBottom: 10 }}>📦</div>
-              <div>{lang === 'ar' ? 'لا توجد مجموعات بعد' : 'Aucun ensemble configuré'}</div>
-            </div>
+            <EmptyState icon={Package} title={lang === 'ar' ? 'لا توجد مجموعات بعد' : 'Aucun ensemble configuré'} />
           )}
           {/* M3b — Utiliser groupesFiltres (avec recherche) au lieu de groupes */}
           {!loading && groupesFiltres.map(({ niv, items }) => (
             <div key={niv.id} style={{ marginBottom: 16 }}>
-              <div style={{ fontSize: 11, fontWeight: 700, color: niv.couleur, marginBottom: 8, padding: '3px 12px', borderRadius: 20, background: `${niv.couleur}15`, display: 'inline-block', border: `1px solid ${niv.couleur}30` }}>
-                {niv.code} — {niv.nom}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                <LevelBadge code={niv.code} color={niv.couleur || '#1D9E75'} />
+                <span style={{ fontSize: 12, fontWeight: 600, color: C.muted }}>{niv.nom}</span>
               </div>
-              {(items||[]).map(e => <CarteEnsemble key={e.id} e={e} cniv={niv.couleur || '#1D9E75'} />)}
+              <div style={{ display: 'grid', gap: 8 }}>
+                {(items||[]).map(e => {
+                  const nbS = souratesDB.filter(s => (e.sourates_ids || []).includes(s.id)).length;
+                  return (
+                    <ListRow key={e.id} lang={lang}
+                      leading={
+                        <div style={{ width: 40, height: 40, borderRadius: 12, flexShrink: 0, background: C.bg, border: `1px solid ${C.line}`,
+                          display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, fontWeight: 700, color: C.text }}>
+                          {e.ordre}
+                        </div>
+                      }
+                      title={e.nom}
+                      subtitle={`${nbS} ${lang==='ar'?'سورة':'sourate(s)'}`}
+                      onClick={() => openEdit(e)}
+                      onMore={() => setMenuEns(e)} />
+                  );
+                })}
+              </div>
             </div>
           ))}
         </div>
+        <ActionSheet open={!!menuEns} onClose={() => setMenuEns(null)} lang={lang}
+          title={menuEns?.nom}
+          actions={menuEns ? [
+            { label: lang === 'ar' ? 'تعديل' : 'Modifier', icon: Pencil, onClick: () => openEdit(menuEns) },
+            { label: lang === 'ar' ? 'حذف' : 'Supprimer', icon: Trash2, danger: true, onClick: () => supprimer(menuEns) },
+          ] : []} />
         <PanneauForm />
         <ConfirmModal />
       </div>

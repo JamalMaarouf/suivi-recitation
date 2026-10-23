@@ -16,8 +16,8 @@ import { SensRecitationTab } from './gestion/SensRecitationTab';
 import { IdentiteEcoleTab } from './gestion/IdentiteEcoleTab';
 import { PassageNiveauTab, MobilePassageNiveauTab } from './gestion/PassageNiveauTab';
 import { JalonsTab } from './gestion/JalonsTab';
-import { MobileHeader, HeaderIconButton } from '../components/ui';
-import { Settings, Plus, X, Link2 } from 'lucide-react';
+import { MobileHeader, HeaderIconButton, ListRow, ActionSheet, Avatar as UiAvatar, LevelBadge, EmptyState, SearchField, C } from '../components/ui';
+import { Settings, Plus, X, Link2, Pencil, Trash2, Pause, Play, KeyRound, Unlink, Users, GraduationCap, Award, ClipboardCheck, Power } from 'lucide-react';
 
 
 export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile, initialTab, setGestionTab }) {
@@ -89,6 +89,11 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile,
     eleves:0, parents:0, cours:0, regles_passage:0, tarifs:0,
   });
   const [editEleve, setEditEleve] = useState(null);
+  // Charte mobile : element dont le panneau d'actions est ouvert (eleve / instituteur / parent / jalon)
+  const [menuEleveM, setMenuEleveM] = useState(null);
+  const [menuInstM, setMenuInstM] = useState(null);
+  const [menuParentM, setMenuParentM] = useState(null);
+  const [menuJalonM, setMenuJalonM] = useState(null);
   const [showAcquisSelector, setShowAcquisSelector] = useState(false);
   const [editShowAcquisSelector, setEditShowAcquisSelector] = useState(false);
 
@@ -1996,7 +2001,7 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
     );
 
     return (
-      <div style={{paddingBottom:80,background:'#f5f5f0',minHeight:'100vh'}}>
+      <div style={{paddingBottom:80,background:C.bg,minHeight:'100vh'}}>
 
         {/* ─── HEADER ─── */}
         <MobileHeader
@@ -2071,7 +2076,6 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
                     color:plusActif?'#4AE4A8':'rgba(255,255,255,0.65)',
                     borderBottom:plusActif?'2.5px solid #4AE4A8':'2.5px solid transparent',
                     background:'transparent',transition:'all 0.15s'}}>
-                  {plusActif && <span>{tabDansPlus.icon}</span>}
                   {plusActif ? tabDansPlus.l : (lang==='ar'?'المزيد':'Plus')}
                   <span style={{fontSize:9,opacity:0.7}}>{showGestionPlusMenu ? '▲' : '▼'}</span>
                 </div>
@@ -2097,7 +2101,6 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
                             color:sel?'#085041':'#333',
                             fontWeight:sel?700:500,fontSize:13,
                             transition:'all 0.15s'}}>
-                          <span style={{fontSize:16}}>{t.icon}</span>
                           {t.l}
                         </div>
                       );
@@ -2116,7 +2119,7 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
               <div style={{background:'#fff',borderRadius:16,padding:'18px',marginBottom:14,
                 border:`1.5px solid ${mobileEditEleve?'#378ADD':'#1D9E75'}`}}>
                 <div style={{fontSize:15,fontWeight:700,color:'#085041',marginBottom:14}}>
-                  {mobileEditEleve?(lang==='ar'?'تعديل الطالب':'✏️ Modifier'):(lang==='ar'?'إضافة طالب':'👤 Nouvel élève')}
+                  {mobileEditEleve?(lang==='ar'?'تعديل الطالب':'Modifier'):(lang==='ar'?'إضافة طالب':'Nouvel élève')}
                 </div>
 
                 {/* Prénom + Nom côte à côte */}
@@ -2222,16 +2225,17 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
                   </button>
                   <button onClick={handleSaveEleve} disabled={!mobileEditEleve && savingEleve} /* FIX (oct 2026) : anti double-clic */
                     style={{flex:2,padding:'13px',background:mobileEditEleve?'#378ADD':'#1D9E75',color:'#fff',border:'none',borderRadius:12,fontSize:14,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
-                    {mobileEditEleve?(lang==='ar'?'تحديث ✓':'Mettre à jour ✓'):(lang==='ar'?'حفظ':'Enregistrer')}
+                    {mobileEditEleve?(lang==='ar'?'تحديث':'Mettre à jour'):(lang==='ar'?'حفظ':'Enregistrer')}
                   </button>
                 </div>
               </div>
             )}
 
             {/* Recherche */}
-            <input style={{width:'100%',padding:'12px 16px',borderRadius:12,border:'0.5px solid #e0e0d8',fontSize:15,fontFamily:'inherit',boxSizing:'border-box',background:'#fff',marginBottom:8}}
-              placeholder={lang==='ar'?'بحث عن طالب...':'Rechercher un élève...'}
-              value={searchEleve||''} onChange={e=>setSearchEleve(e.target.value)}/>
+            <div style={{marginBottom:8}}>
+              <SearchField value={searchEleve||''} onChange={setSearchEleve} lang={lang} id="recherche-eleves-gestion"
+                placeholder={lang==='ar'?'بحث عن طالب...':'Rechercher un élève...'} />
+            </div>
             {/* Toggle Afficher uniquement actifs */}
             <label style={{display:'flex',alignItems:'center',gap:8,fontSize:12,color:'#666',marginBottom:8,paddingLeft:4,cursor:'pointer'}}>
               <input type="checkbox" checked={afficherUniquementActifs}
@@ -2251,52 +2255,38 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
               const parentLie = (parents||[]).find(p => (p.eleve_ids||[]).includes(e.id));
               const emailParent = parentLie?.email || null;
               return(
-                <div key={e.id} style={{background:'#fff',borderRadius:12,padding:'12px 14px',marginBottom:8,border:'0.5px solid #e0e0d8',display:'flex',alignItems:'center',gap:10,boxShadow:'0 1px 3px rgba(0,0,0,0.04)',opacity:e.suspendu_at?0.65:1}}>
-                  <div onClick={()=>navigate('fiche',e,{tab})} style={{cursor:'pointer',width:40,height:40,borderRadius:'50%',background:`${nc}20`,color:nc,display:'flex',alignItems:'center',justifyContent:'center',fontWeight:800,fontSize:13,flexShrink:0}}>
-                    {((e.prenom||'?')[0])+((e.nom||'?')[0])}
-                  </div>
-                  <div onClick={()=>navigate('fiche',e,{tab})} style={{flex:1,minWidth:0,cursor:'pointer'}}>
-                    <div style={{fontWeight:700,fontSize:13,display:'flex',alignItems:'center',gap:6,flexWrap:'wrap'}}>
-                      <span>{e.prenom} {e.nom}</span>
+                <div key={e.id} style={{marginBottom:8,opacity:e.suspendu_at?0.65:1}}>
+                  <ListRow lang={lang}
+                    leading={<UiAvatar prenom={e.prenom} nom={e.nom} color={nc} />}
+                    title={<>
+                      {e.prenom} {e.nom}
                       {e.suspendu_at && (
-                        <span style={{display:'inline-block',padding:'1px 6px',borderRadius:8,fontSize:9,fontWeight:700,background:'#FFF3E0',color:'#D85A30',border:'0.5px solid #D85A30'}}
+                        <span style={{display:'inline-block',marginInlineStart:6,padding:'1px 6px',borderRadius:8,fontSize:10,fontWeight:700,background:C.warnSoft,color:C.warn,verticalAlign:'middle'}}
                           title={e.suspendu_motif||''}>
-                          ⏸️ {lang==='ar'?'معلق':'Susp.'}
+                          {lang==='ar'?'معلق':'Susp.'}
                         </span>
                       )}
-                    </div>
-                    <div style={{display:'flex',gap:5,marginTop:2,alignItems:'center',flexWrap:'wrap'}}>
-                      <span style={{padding:'1px 6px',borderRadius:10,background:`${nc}20`,color:nc,fontSize:10,fontWeight:700}}>{e.code_niveau||'?'}</span>
-                      {e.eleve_id_ecole&&<span style={{fontSize:10,color:'#bbb'}}>#{e.eleve_id_ecole}</span>}
-                      {isSour&&e.sourates_acquises>0&&<span style={{fontSize:10,color:'#1D9E75',fontWeight:600}}>📖 {e.sourates_acquises}</span>}
-                      {!isSour&&<span style={{fontSize:10,color:'#888'}}>{lang==='ar'?'ح':'H'}.{e.hizb_depart} {lang==='ar'?'ث':'T'}.{e.tomon_depart}</span>}
-                    </div>
-                    {/* M2b — Coordonnees : tel eleve + email parent + date inscription */}
-                    {(e.telephone||emailParent||e.date_inscription)&&(
-                      <div style={{display:'flex',gap:8,marginTop:3,fontSize:10,color:'#aaa',flexWrap:'wrap',alignItems:'center'}}>
-                        {e.telephone&&<span style={{whiteSpace:'nowrap'}}>📞 {e.telephone}</span>}
+                    </>}
+                    subtitle={[
+                      e.eleve_id_ecole ? `#${e.eleve_id_ecole}` : null,
+                      isSour&&e.sourates_acquises>0 ? `${e.sourates_acquises} ${lang==='ar'?'سورة':'sourate(s)'}` : null,
+                      !isSour ? `${lang==='ar'?'ح':'H'}.${e.hizb_depart} ${lang==='ar'?'ث':'T'}.${e.tomon_depart}` : null,
+                    ].filter(Boolean).join(' · ') || null}
+                    meta={
+                      <div style={{display:'flex',gap:8,fontSize:11,color:C.muted,flexWrap:'wrap',alignItems:'center'}}>
+                        <LevelBadge code={e.code_niveau||'?'} color={nc} />
+                        {/* M2b — Coordonnees : tel eleve + email parent + date inscription */}
+                        {e.telephone&&<span style={{whiteSpace:'nowrap'}} dir="ltr">{e.telephone}</span>}
                         {emailParent && (
                           <span title={emailParent} style={{whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis',maxWidth:160,display:'inline-block'}}>
-                            ✉️ {emailParent}
+                            {emailParent}
                           </span>
                         )}
-                        {e.date_inscription&&<span style={{whiteSpace:'nowrap'}}>📅 {new Date(e.date_inscription).toLocaleDateString(lang==='ar'?'ar-MA':'fr-FR',{day:'2-digit',month:'short'})}</span>}
+                        {e.date_inscription&&<span style={{whiteSpace:'nowrap'}}>{new Date(e.date_inscription).toLocaleDateString(lang==='ar'?'ar-MA':'fr-FR',{day:'2-digit',month:'short'})}</span>}
                       </div>
-                    )}
-                  </div>
-                  {user.role==='surveillant'&&(
-                    <div style={{display:'flex',gap:5,flexShrink:0}}>
-                      <button onClick={()=>startEditEleve(e)} style={{background:'#E6F1FB',color:'#378ADD',border:'none',borderRadius:8,padding:'7px 9px',fontSize:12,cursor:'pointer'}}>✏️</button>
-                      {e.suspendu_at ? (
-                        <button onClick={()=>reactiverEleve(e)} title={lang==='ar'?'تفعيل':'Réactiver'}
-                          style={{background:'#E1F5EE',color:'#085041',border:'none',borderRadius:8,padding:'7px 9px',fontSize:12,cursor:'pointer'}}>▶️</button>
-                      ) : (
-                        <button onClick={()=>ouvrirModaleSuspendre(e)} title={lang==='ar'?'تعليق':'Suspendre'}
-                          style={{background:'#FFF3E0',color:'#D85A30',border:'none',borderRadius:8,padding:'7px 9px',fontSize:12,cursor:'pointer'}}>⏸️</button>
-                      )}
-                      <button onClick={()=>supprimerEleve(e.id)} style={{background:'#FCEBEB',color:'#E24B4A',border:'none',borderRadius:8,padding:'7px 9px',fontSize:12,cursor:'pointer'}}>🗑</button>
-                    </div>
-                  )}
+                    }
+                    onClick={()=>navigate('fiche',e,{tab})}
+                    onMore={user.role==='surveillant' ? ()=>setMenuEleveM(e) : undefined} />
                 </div>
               );
             })}
@@ -2308,7 +2298,7 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
           <div style={{padding:'12px'}}>
             {showFormInst&&user.role==='surveillant'&&(
               <div style={{background:'#fff',borderRadius:16,padding:'18px',marginBottom:14,border:'1.5px solid #378ADD'}}>
-                <div style={{fontSize:15,fontWeight:700,color:'#085041',marginBottom:14}}>👨‍🏫 {lang==='ar'?'إضافة أستاذ':'Nouvel instituteur'}</div>
+                <div style={{fontSize:15,fontWeight:700,color:'#085041',marginBottom:14}}>{lang==='ar'?'إضافة أستاذ':'Nouvel instituteur'}</div>
                 {/* FIX (oct 2026) : champ "Identifiant" retire (ignore : le login est genere automatiquement prenom_nom) */}
                 {[{label:lang==='ar'?'الاسم':'Prénom',key:'prenom'},{label:lang==='ar'?'اللقب':'Nom',key:'nom'}].map(f=>(
                   <FI key={f.key} label={f.label+' *'} val={newInst[f.key]} ph={f.ph||f.label}
@@ -2330,7 +2320,7 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
                       style={{padding:'0 14px',background:'#E1F5EE',color:'#085041',
                         border:'1px solid #1D9E7540',borderRadius:10,fontSize:12,
                         fontWeight:700,cursor:'pointer',fontFamily:'inherit',whiteSpace:'nowrap'}}>
-                      ✨ {lang==='ar'?'اقتراح':'Auto'}
+                      {lang==='ar'?'اقتراح':'Auto'}
                     </button>
                   </div>
                 </div>
@@ -2354,61 +2344,42 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
               {lang==='ar'?'عرض المدرسين النشطين فقط':'Afficher uniquement les instituteurs actifs'}
             </label>
             {instituteurs.length===0?(
-              <div style={{textAlign:'center',color:'#aaa',padding:'3rem',background:'#fff',borderRadius:12}}>
-                <div style={{fontSize:36,marginBottom:10}}>👨‍🏫</div>
-                <div style={{fontSize:14}}>{lang==='ar'?'لا يوجد أساتذة':'Aucun instituteur'}</div>
-              </div>
+              <EmptyState icon={GraduationCap} title={lang==='ar'?'لا يوجد أساتذة':'Aucun instituteur'} />
             ):instituteurs.filter(inst => !afficherUniquementActifsInst || !inst.suspendu_at).map(inst=>{
               const nb=eleves.filter(e=>e.instituteur_referent_id===inst.id).length;
               return(
-                <div key={inst.id} style={{background:'#fff',borderRadius:12,padding:'14px',marginBottom:8,border:'0.5px solid #e0e0d8',display:'flex',alignItems:'center',gap:12,opacity:inst.suspendu_at?0.65:1}}>
+                <div key={inst.id} style={{marginBottom:8,opacity:inst.suspendu_at?0.65:1}}>
                   {/* F10 (oct 2026) : avatar + nom ouvrent le profil instituteur (avant : PC seulement, via Dashboard) */}
-                  <div onClick={()=>navigate('profil_instituteur', inst)}
-                    style={{width:42,height:42,borderRadius:'50%',background:'#E6F1FB',color:'#0C447C',display:'flex',alignItems:'center',justifyContent:'center',fontWeight:800,fontSize:14,flexShrink:0,cursor:'pointer'}}>
-                    {((inst.prenom||'?')[0])+((inst.nom||'?')[0])}
-                  </div>
-                  <div style={{flex:1,minWidth:0}}>
-                    <div style={{display:'flex',alignItems:'center',gap:6,flexWrap:'wrap'}}>
-                      <div onClick={()=>navigate('profil_instituteur', inst)}
-                        style={{fontWeight:700,fontSize:14,cursor:'pointer',color:'#0C447C'}}>{inst.prenom} {inst.nom} ›</div>
+                  <ListRow lang={lang}
+                    leading={<UiAvatar prenom={inst.prenom} nom={inst.nom} color={C.info} />}
+                    title={<>
+                      {inst.prenom} {inst.nom}
                       {inst.instituteur_id_ecole && (
-                        <div style={{
-                          padding:'2px 8px',background:'#E1F5EE',color:'#085041',
-                          borderRadius:6,fontSize:10,fontWeight:700,
-                        }}>{inst.instituteur_id_ecole}</div>
-                      )}
-                      {inst.suspendu_at && (
-                        <span style={{display:'inline-block',padding:'1px 6px',borderRadius:8,fontSize:9,fontWeight:700,background:'#FFF3E0',color:'#D85A30',border:'0.5px solid #D85A30'}}
-                          title={inst.suspendu_motif||''}>
-                          ⏸️ {lang==='ar'?'معلق':'Susp.'}
+                        <span style={{display:'inline-block',marginInlineStart:6,padding:'1px 6px',borderRadius:6,fontSize:10,fontWeight:700,background:C.bg,color:C.muted,border:`1px solid ${C.line}`,verticalAlign:'middle'}}>
+                          {inst.instituteur_id_ecole}
                         </span>
                       )}
-                    </div>
-                    <div style={{fontSize:11,color:'#888',marginTop:2}}>{inst.identifiant} · {nb} {lang==='ar'?'طالب':'élève(s)'}</div>
-                    {/* M2a — Coordonnees Tel + Email (alignement avec PC) */}
-                    {(inst.telephone||inst.email)&&(
-                      <div style={{display:'flex',gap:10,marginTop:3,fontSize:10,color:'#aaa',flexWrap:'wrap',alignItems:'center'}}>
-                        {inst.telephone && <span style={{whiteSpace:'nowrap'}}>📞 {inst.telephone}</span>}
+                      {inst.suspendu_at && (
+                        <span style={{display:'inline-block',marginInlineStart:6,padding:'1px 6px',borderRadius:8,fontSize:10,fontWeight:700,background:C.warnSoft,color:C.warn,verticalAlign:'middle'}}
+                          title={inst.suspendu_motif||''}>
+                          {lang==='ar'?'معلق':'Susp.'}
+                        </span>
+                      )}
+                    </>}
+                    subtitle={`${inst.identifiant} · ${nb} ${lang==='ar'?'طالب':'élève(s)'}`}
+                    meta={(inst.telephone||inst.email) ? (
+                      /* M2a — Coordonnees Tel + Email (alignement avec PC) */
+                      <div style={{display:'flex',gap:10,fontSize:11,color:C.muted,flexWrap:'wrap',alignItems:'center'}}>
+                        {inst.telephone && <span style={{whiteSpace:'nowrap'}} dir="ltr">{inst.telephone}</span>}
                         {inst.email && (
                           <span title={inst.email} style={{whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis',maxWidth:180,display:'inline-block'}}>
-                            ✉️ {inst.email}
+                            {inst.email}
                           </span>
                         )}
                       </div>
-                    )}
-                  </div>
-                  {user.role==='surveillant'&&(
-                    <div style={{display:'flex',gap:5,flexShrink:0}}>
-                      {inst.suspendu_at ? (
-                        <button onClick={()=>reactiverInst(inst)} title={lang==='ar'?'تفعيل':'Réactiver'}
-                          style={{background:'#E1F5EE',color:'#085041',border:'none',borderRadius:8,padding:'7px 9px',fontSize:12,cursor:'pointer'}}>▶️</button>
-                      ) : (
-                        <button onClick={()=>ouvrirModaleSuspendreInst(inst)} title={lang==='ar'?'تعليق':'Suspendre'}
-                          style={{background:'#FFF3E0',color:'#D85A30',border:'none',borderRadius:8,padding:'7px 9px',fontSize:12,cursor:'pointer'}}>⏸️</button>
-                      )}
-                      <button onClick={()=>supprimerInstituteur(inst)} style={{background:'#FCEBEB',color:'#E24B4A',border:'none',borderRadius:8,padding:'7px 9px',fontSize:12,cursor:'pointer'}}>🗑</button>
-                    </div>
-                  )}
+                    ) : null}
+                    onClick={()=>navigate('profil_instituteur', inst)}
+                    onMore={user.role==='surveillant' ? ()=>setMenuInstM(inst) : undefined} />
                 </div>
               );
             })}
@@ -2421,7 +2392,7 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
             {showFormParent&&editingParentId&&user.role==='surveillant'&&(
               <div style={{background:'#fff',borderRadius:16,padding:'18px',marginBottom:14,border:`1.5px solid ${editingParentId?'#378ADD':'#EF9F27'}`}}>
                 <div style={{fontSize:15,fontWeight:700,color:'#085041',marginBottom:14}}>
-                  {editingParentId?(lang==='ar'?'تعديل ولي الأمر':'✏️ Modifier parent'):(lang==='ar'?'إضافة ولي أمر':'👨‍👩‍👦 Nouveau parent')}
+                  {editingParentId?(lang==='ar'?'تعديل ولي الأمر':'Modifier parent'):(lang==='ar'?'إضافة ولي أمر':'Nouveau parent')}
                 </div>
                 {[{label:lang==='ar'?'الاسم':'Prénom',key:'prenom'},{label:lang==='ar'?'اللقب':'Nom',key:'nom'},{label:'Identifiant',key:'identifiant',ph:'parent.nom'},{label:lang==='ar'?'الهاتف':'Téléphone',key:'telephone',ph:'06xxxxxxxx',type:'tel'},{label:lang==='ar'?'البريد (اختياري)':'Email (optionnel)',key:'email',ph:'parent@email.com',type:'email'}].map(f=>(
                   <FI key={f.key} label={(f.key==='telephone'||f.key==='email')?f.label:f.label+' *'} val={formParent[f.key]||''} ph={f.ph||f.label} type={f.type||'text'}
@@ -2460,71 +2431,36 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
               </div>
             )}
             {parents.length===0?(
-              <div style={{textAlign:'center',color:'#aaa',padding:'3rem',background:'#fff',borderRadius:12}}>
-                <div style={{fontSize:36,marginBottom:10}}>👨‍👩‍👦</div>
-                <div style={{fontSize:14}}>{lang==='ar'?'لا يوجد آباء':'Aucun parent'}</div>
-              </div>
+              <EmptyState icon={Users} title={lang==='ar'?'لا يوجد آباء':'Aucun parent'} />
             ):parents.map(p=>{
               const enfants=eleves.filter(e=>(p.eleve_ids||[]).includes(e.id));
               return(
-                <div key={p.id} style={{background:'#fff',borderRadius:12,padding:'13px 14px',marginBottom:8,border:'0.5px solid #e0e0d8'}}>
-                  <div style={{display:'flex',alignItems:'center',gap:10}}>
-                    <div style={{width:40,height:40,borderRadius:'50%',background:'#FAEEDA',color:'#EF9F27',display:'flex',alignItems:'center',justifyContent:'center',fontWeight:800,fontSize:13,flexShrink:0}}>
-                      {((p.prenom||'?')[0])+((p.nom||'?')[0])}
-                    </div>
-                    <div style={{flex:1}}>
-                      <div style={{display:'flex',alignItems:'center',gap:6,flexWrap:'wrap'}}>
-                        <div style={{fontWeight:700,fontSize:13}}>{p.prenom} {p.nom}</div>
-                        {enfants.length >= 2 && (
-                          <span style={{display:'inline-block',padding:'1px 7px',borderRadius:8,fontSize:9,fontWeight:700,background:'#E6F1FB',color:'#0C447C',border:'0.5px solid #378ADD30'}}
-                            title={lang==='ar'?`عائلة (${enfants.length} أطفال)`:`Famille (${enfants.length} enfants)`}>
-                            🔗 {lang==='ar'?'عائلة':'Famille'}
-                          </span>
-                        )}
-                      </div>
-                      {/* M2c — Coordonnees claires : ID + Tel + Email */}
-                      <div style={{fontSize:10,color:'#aaa',marginTop:2,display:'flex',gap:8,flexWrap:'wrap',alignItems:'center'}}>
-                        <span style={{whiteSpace:'nowrap'}}>🆔 {p.identifiant}</span>
-                        {p.telephone && <span style={{whiteSpace:'nowrap'}}>📞 {p.telephone}</span>}
-                        {p.email && (
-                          <span title={p.email} style={{whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis',maxWidth:160,display:'inline-block'}}>
-                            ✉️ {p.email}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                    {user.role==='surveillant'&&(
+                <div key={p.id} style={{marginBottom:8}}>
+                  <ListRow lang={lang}
+                    leading={<UiAvatar prenom={p.prenom} nom={p.nom} color={C.warn} />}
+                    title={<>
+                      {p.prenom} {p.nom}
+                      {enfants.length >= 2 && (
+                        <span style={{display:'inline-block',marginInlineStart:6,padding:'1px 7px',borderRadius:8,fontSize:10,fontWeight:700,background:C.infoSoft,color:C.info,verticalAlign:'middle'}}
+                          title={lang==='ar'?`عائلة (${enfants.length} أطفال)`:`Famille (${enfants.length} enfants)`}>
+                          {lang==='ar'?'عائلة':'Famille'}
+                        </span>
+                      )}
+                    </>}
+                    /* M2c — Coordonnees claires : ID + Tel + Email */
+                    subtitle={[p.identifiant, p.telephone || null, p.email || null].filter(Boolean).join(' · ')}
+                    meta={enfants.length>0 ? (
+                      /* M2c — Badges enfants : eviter redondance noms si meme nom de famille */
                       <div style={{display:'flex',gap:5,flexWrap:'wrap'}}>
-                        <button onClick={()=>{setEditingParentId(p.id);setFormParent({prenom:p.prenom,nom:p.nom,identifiant:p.identifiant,mot_de_passe:'',telephone:p.telephone||'',email:p.email||'',eleve_ids:eleves.filter(e=>(p.eleve_ids||[]).includes(e.id)).map(e=>e.id)});setShowFormParent(true);window.scrollTo(0,0);}}
-                          style={{background:'#E6F1FB',color:'#378ADD',border:'none',borderRadius:8,padding:'6px 9px',fontSize:12,cursor:'pointer'}}>✏️</button>
-                        <button onClick={()=>reinitialiserMDPParent(p)}
-                          title={lang==='ar'?'إعادة تعيين كلمة المرور':'Réinitialiser MDP'}
-                          style={{background:'#E1F5EE',color:'#085041',border:'none',borderRadius:8,padding:'6px 9px',fontSize:12,cursor:'pointer'}}>🔑</button>
-                        {enfants.length >= 2 && (
-                          <button onClick={()=>ouvrirModaleDelier(p)}
-                            title={lang==='ar'?'فصل طفل':'Délier un enfant'}
-                            style={{background:'#FFF8EC',color:'#7B5800',border:'none',borderRadius:8,padding:'6px 9px',fontSize:12,cursor:'pointer'}}>🔓</button>
-                        )}
-                        <button onClick={()=>supprimerParent(p.id)}
-                          style={{background:'#FCEBEB',color:'#E24B4A',border:'none',borderRadius:8,padding:'6px 9px',fontSize:12,cursor:'pointer'}}>🗑</button>
+                        {enfants.map(e=>{
+                          const nc=getNC(e.code_niveau);
+                          // Si meme nom de famille que parent : afficher juste le prenom
+                          const labelEnfant = (p.nom && e.nom === p.nom) ? e.prenom : `${e.prenom} ${e.nom}`;
+                          return <LevelBadge key={e.id} code={labelEnfant} color={nc} />;
+                        })}
                       </div>
-                    )}
-                  </div>
-                  {/* M2c — Badges enfants : eviter redondance noms si meme nom de famille */}
-                  {enfants.length>0&&(
-                    <div style={{marginTop:8,display:'flex',gap:5,flexWrap:'wrap'}}>
-                      {enfants.map(e=>{
-                        const nc=getNC(e.code_niveau);
-                        // Si meme nom de famille que parent : afficher juste le prenom
-                        const labelEnfant = (p.nom && e.nom === p.nom) ? e.prenom : `${e.prenom} ${e.nom}`;
-                        return(
-                          <span key={e.id} style={{padding:'2px 8px',borderRadius:20,fontSize:10,fontWeight:600,background:`${nc}15`,color:nc}}>
-                            {labelEnfant}
-                          </span>
-                        );
-                      })}
-                    </div>
-                  )}
+                    ) : null}
+                    onMore={user.role==='surveillant' ? ()=>setMenuParentM({p, nbEnfants: enfants.length}) : undefined} />
                 </div>
               );
             })}
@@ -2539,7 +2475,7 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
             </div>
             {user.role==='surveillant'&&(
               <div style={{background:'#fff',borderRadius:14,padding:'16px',marginBottom:14,border:'0.5px solid #e0e0d8'}}>
-                <div style={{fontSize:14,fontWeight:700,color:'#534AB7',marginBottom:12}}>🏅 {lang==='ar'?'إضافة مرحلة':'Ajouter un jalon'}</div>
+                <div style={{fontSize:14,fontWeight:700,color:C.text,marginBottom:12}}>{lang==='ar'?'إضافة مرحلة':'Ajouter un jalon'}</div>
                 <FI label={lang==='ar'?'اسم الشهادة *':'Nom certificat *'} val={newJalon.nom_ar}
                   ph={lang==='ar'?'مثال: شهادة إتمام الأحزاب':'Ex: Certificat Hizb 1-10'}
                   onChange={e=>setNewJalon({...newJalon,nom_ar:e.target.value})}/>
@@ -2547,7 +2483,7 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
                 <div style={{marginBottom:12}}>
                   <label style={{fontSize:12,fontWeight:600,color:'#666',display:'block',marginBottom:8}}>{lang==='ar'?'نوع المرحلة':'Type'} *</label>
                   <div style={{display:'flex',gap:6}}>
-                    {[{v:'hizb',l:'🕌 Hizb'},{v:'ensemble_sourates',l:'📖 '+( lang==='ar'?'سور':'Sourates')},{v:'examen',l:'📝 '+(lang==='ar'?'امتحان':'Examen')}].map(opt=>(
+                    {[{v:'hizb',l:'Hizb'},{v:'ensemble_sourates',l:( lang==='ar'?'سور':'Sourates')},{v:'examen',l:(lang==='ar'?'امتحان':'Examen')}].map(opt=>(
                       <div key={opt.v} onClick={()=>setNewJalon({...newJalon,type_jalon:opt.v,hizb_ids:[],ensemble_id:'',examen_id:''})}
                         style={{flex:1,padding:'8px 4px',borderRadius:10,textAlign:'center',cursor:'pointer',fontSize:11,fontWeight:600,
                           border:`2px solid ${newJalon.type_jalon===opt.v?'#534AB7':'#e0e0d8'}`,
@@ -2567,7 +2503,6 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
                         style={{flex:1,padding:'10px 8px',borderRadius:10,textAlign:'center',cursor:'pointer',
                           border:`2px solid ${newJalon.condition_obtention===opt.v?'#534AB7':'#e0e0d8'}`,
                           background:newJalon.condition_obtention===opt.v?'#EEEDFE':'#fff'}}>
-                        <div style={{fontSize:18,marginBottom:3}}>{opt.icon}</div>
                         <div style={{fontSize:10,fontWeight:600,color:newJalon.condition_obtention===opt.v?'#534AB7':'#666'}}>{opt.l}</div>
                       </div>
                     ))}
@@ -2656,37 +2591,31 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
             )}
             {/* Liste jalons */}
             {jalons.length===0?(
-              <div style={{textAlign:'center',color:'#aaa',padding:'2rem',background:'#fff',borderRadius:12}}>
-                <div style={{fontSize:32,marginBottom:8}}>🏅</div>
-                <div style={{fontSize:13}}>{lang==='ar'?'لا توجد مراحل بعد':'Aucun jalon'}</div>
-              </div>
+              <EmptyState icon={Award} title={lang==='ar'?'لا توجد مراحل بعد':'Aucun jalon'} />
             ):jalons.map(j=>(
-              <div key={j.id} style={{background:'#fff',borderRadius:12,padding:'13px 14px',marginBottom:8,border:'0.5px solid #e0e0d8',opacity:j.actif?1:0.5}}>
-                <div style={{display:'flex',alignItems:'center',gap:10}}>
-                  <span style={{fontSize:22}}>{j.type_jalon==='examen'?'📝':'🏅'}</span>
-                  <div style={{flex:1}}>
-                    <div style={{fontWeight:700,fontSize:13,direction:'rtl',fontFamily:"'Tajawal',Arial,sans-serif"}}>{j.nom_ar||j.nom}</div>
-                    <div style={{fontSize:10,color:'#EF9F27',marginTop:2,fontWeight:600}}>
-                      {j.type_jalon==='hizb'?`Hizb: ${(j.hizb_ids||[]).sort((a,b)=>a-b).join(', ')}`
-                        :j.type_jalon==='ensemble_sourates'?`📖 ${(ensemblesDisp||[]).find(e=>e.id===j.ensemble_id)?.nom||'—'}`
-                        :`📝 ${(examensDisp||[]).find(e=>e.id===j.examen_id)?.nom||'—'}`}
+              <div key={j.id} style={{marginBottom:8,opacity:j.actif?1:0.5}}>
+                <ListRow lang={lang}
+                  leading={
+                    <div style={{width:40,height:40,borderRadius:12,flexShrink:0,background:C.bg,border:`1px solid ${C.line}`,
+                      display:'flex',alignItems:'center',justifyContent:'center',color:C.gold}}>
+                      {j.type_jalon==='examen'?<ClipboardCheck size={18}/>:<Award size={18}/>}
                     </div>
-                    <span style={{display:'inline-block',marginTop:3,padding:'1px 7px',borderRadius:10,fontSize:9,fontWeight:600,
-                      background:j.condition_obtention==='cumul_puis_examen'?'#EEEDFE':'#E1F5EE',
-                      color:j.condition_obtention==='cumul_puis_examen'?'#534AB7':'#085041'}}>
-                      {j.condition_obtention==='cumul_puis_examen'?(lang==='ar'?'🎯 تراكمي+امتحان':'🎯 Cumul+examen'):(lang==='ar'?'📚 تراكمي':'📚 Cumulatif')}
-                    </span>
-                  </div>
-                  <div style={{display:'flex',gap:5}}>
-                    <button onClick={async()=>{await supabase.from('jalons').update({actif:!j.actif}).eq('id',j.id);setJalons(prev=>prev.map(x=>x.id===j.id?{...x,actif:!x.actif}:x));}}
-                      style={{padding:'5px 8px',borderRadius:6,fontSize:10,fontWeight:600,cursor:'pointer',border:'none',
-                        background:j.actif?'#E1F5EE':'#f0f0ec',color:j.actif?'#085041':'#888'}}>
-                      {j.actif?(lang==='ar'?'نشط':'Actif'):(lang==='ar'?'غير نشط':'Inactif')}
-                    </button>
-                    <button onClick={async()=>{await supabase.from('jalons').delete().eq('id',j.id);setJalons(prev=>prev.filter(x=>x.id!==j.id));}}
-                      style={{padding:'5px 7px',borderRadius:6,background:'#FCEBEB',color:'#E24B4A',border:'none',cursor:'pointer',fontSize:11}}>🗑</button>
-                  </div>
-                </div>
+                  }
+                  title={<span style={{direction:'rtl',fontFamily:"'Tajawal',Arial,sans-serif"}}>{j.nom_ar||j.nom}</span>}
+                  subtitle={j.type_jalon==='hizb'?`Hizb: ${(j.hizb_ids||[]).sort((a,b)=>a-b).join(', ')}`
+                    :j.type_jalon==='ensemble_sourates'?`${(ensemblesDisp||[]).find(e=>e.id===j.ensemble_id)?.nom||'—'}`
+                    :`${(examensDisp||[]).find(e=>e.id===j.examen_id)?.nom||'—'}`}
+                  meta={
+                    <div style={{display:'flex',gap:6,fontSize:11,fontWeight:600,flexWrap:'wrap',alignItems:'center'}}>
+                      <span style={{color:j.condition_obtention==='cumul_puis_examen'?C.info:C.muted}}>
+                        {j.condition_obtention==='cumul_puis_examen'?(lang==='ar'?'تراكمي+امتحان':'Cumul+examen'):(lang==='ar'?'تراكمي':'Cumulatif')}
+                      </span>
+                      <span style={{color:j.actif?C.good:C.muted}}>
+                        · {j.actif?(lang==='ar'?'نشط':'Actif'):(lang==='ar'?'غير نشط':'Inactif')}
+                      </span>
+                    </div>
+                  }
+                  onMore={()=>setMenuJalonM(j)} />
               </div>
             ))}
           </div>
@@ -2696,7 +2625,7 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
         {tab==='passage_niveau'&&(
           <div style={{padding:'12px'}}>
             <div style={{background:'#E1F5EE',borderRadius:12,padding:'12px',marginBottom:12,fontSize:12,color:'#085041'}}>
-              ℹ️ {lang==='ar'
+              {lang==='ar'
                 ?'عند تغيير مستوى طالب، يبحث النظام عن قاعدة مطابقة ويطبق موقع الانطلاق المحدد تلقائياً.'
                 :"Lors du changement de niveau, le système applique automatiquement la règle configurée."}
             </div>
@@ -2732,6 +2661,38 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
           </div>
         )}
 
+        {/* Charte mobile : panneaux d'actions (memes handlers que les anciens boutons) */}
+        <ActionSheet open={!!menuEleveM} onClose={()=>setMenuEleveM(null)} lang={lang}
+          title={menuEleveM ? `${menuEleveM.prenom} ${menuEleveM.nom}` : ''}
+          actions={menuEleveM ? [
+            {label:lang==='ar'?'تعديل':'Modifier', icon:Pencil, onClick:()=>startEditEleve(menuEleveM)},
+            menuEleveM.suspendu_at
+              ? {label:lang==='ar'?'تفعيل':'Réactiver', icon:Play, onClick:()=>reactiverEleve(menuEleveM)}
+              : {label:lang==='ar'?'تعليق':'Suspendre', icon:Pause, onClick:()=>ouvrirModaleSuspendre(menuEleveM)},
+            {label:lang==='ar'?'حذف':'Supprimer', icon:Trash2, danger:true, onClick:()=>supprimerEleve(menuEleveM.id)},
+          ] : []} />
+        <ActionSheet open={!!menuInstM} onClose={()=>setMenuInstM(null)} lang={lang}
+          title={menuInstM ? `${menuInstM.prenom} ${menuInstM.nom}` : ''}
+          actions={menuInstM ? [
+            menuInstM.suspendu_at
+              ? {label:lang==='ar'?'تفعيل':'Réactiver', icon:Play, onClick:()=>reactiverInst(menuInstM)}
+              : {label:lang==='ar'?'تعليق':'Suspendre', icon:Pause, onClick:()=>ouvrirModaleSuspendreInst(menuInstM)},
+            {label:lang==='ar'?'حذف':'Supprimer', icon:Trash2, danger:true, onClick:()=>supprimerInstituteur(menuInstM)},
+          ] : []} />
+        <ActionSheet open={!!menuParentM} onClose={()=>setMenuParentM(null)} lang={lang}
+          title={menuParentM ? `${menuParentM.p.prenom} ${menuParentM.p.nom}` : ''}
+          actions={menuParentM ? (() => { const p = menuParentM.p; return [
+            {label:lang==='ar'?'تعديل':'Modifier', icon:Pencil, onClick:()=>{setEditingParentId(p.id);setFormParent({prenom:p.prenom,nom:p.nom,identifiant:p.identifiant,mot_de_passe:'',telephone:p.telephone||'',email:p.email||'',eleve_ids:eleves.filter(e=>(p.eleve_ids||[]).includes(e.id)).map(e=>e.id)});setShowFormParent(true);window.scrollTo(0,0);}},
+            {label:lang==='ar'?'إعادة تعيين كلمة المرور':'Réinitialiser MDP', icon:KeyRound, onClick:()=>reinitialiserMDPParent(p)},
+            menuParentM.nbEnfants >= 2 ? {label:lang==='ar'?'فصل طفل':'Délier un enfant', icon:Unlink, onClick:()=>ouvrirModaleDelier(p)} : null,
+            {label:lang==='ar'?'حذف':'Supprimer', icon:Trash2, danger:true, onClick:()=>supprimerParent(p.id)},
+          ]; })() : []} />
+        <ActionSheet open={!!menuJalonM} onClose={()=>setMenuJalonM(null)} lang={lang}
+          title={menuJalonM ? (menuJalonM.nom_ar||menuJalonM.nom) : ''}
+          actions={menuJalonM ? (() => { const j = menuJalonM; return [
+            {label:j.actif?(lang==='ar'?'تعطيل':'Désactiver'):(lang==='ar'?'تفعيل':'Activer'), icon:Power, onClick:async()=>{await supabase.from('jalons').update({actif:!j.actif}).eq('id',j.id);setJalons(prev=>prev.map(x=>x.id===j.id?{...x,actif:!x.actif}:x));}},
+            {label:lang==='ar'?'حذف':'Supprimer', icon:Trash2, danger:true, onClick:async()=>{await supabase.from('jalons').delete().eq('id',j.id);setJalons(prev=>prev.filter(x=>x.id!==j.id));}},
+          ]; })() : []} />
         {modalesPartagees}
       </div>
     );
