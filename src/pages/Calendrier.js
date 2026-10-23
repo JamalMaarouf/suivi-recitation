@@ -7,7 +7,7 @@ import PageHeader from '../components/PageHeader';
 import StatsCard from '../components/StatsCard';
 import MobileSkeletonList from '../components/MobileSkeletonList';
 import { usePullToRefresh, PullToRefreshIndicator } from '../lib/usePullToRefresh';
-import { MobileHeader } from '../components/ui';
+import { MobileHeader, KpiTile, KpiGrid, ListRow, Avatar, C } from '../components/ui';
 import { CalendarDays } from 'lucide-react';
 
 const MOIS_FR=['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
@@ -100,11 +100,21 @@ export default function Calendrier({ user, navigate, goBack, lang='fr', isMobile
       )}
       {/* M4 — Container avec padding mobile (avant : contenu touchait les bords) */}
       <div style={{padding:isMobile?'0 12px':0}}>
+      {isMobile ? (
+      <div style={{marginBottom:'1.25rem'}}>
+        <KpiGrid cols={3}>
+          <KpiTile label={t(lang,'tomon_recites')}      value={tomonMois}       tone="brand" />
+          <KpiTile label={t(lang,'hizb_complets_label')} value={hizbMois} />
+          <KpiTile label={t(lang,'jours_actifs')}       value={joursActifsMois} />
+        </KpiGrid>
+      </div>
+      ) : (
       <div style={{display:'grid',gridTemplateColumns:'repeat(3,minmax(0,1fr))',gap:8,marginBottom:'1.25rem'}}>
         <StatsCard label={t(lang,'tomon_recites')}      value={tomonMois}       color="green" />
         <StatsCard label={t(lang,'hizb_complets_label')} value={hizbMois}        color="blue"  />
         <StatsCard label={t(lang,'jours_actifs')}       value={joursActifsMois} color="amber" />
       </div>
+      )}
 
       <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'1rem'}}>
         <button onClick={prevMois}
@@ -159,6 +169,19 @@ export default function Calendrier({ user, navigate, goBack, lang='fr', isMobile
               <div style={{display:'flex',flexDirection:'column',gap:8}}>
                 {valsSelected.map(v=>{
                   const eleve=eleves.find(e=>e.id===v.eleve_id);
+                  if (isMobile) return (
+                    <ListRow key={v.id} lang={lang}
+                      leading={eleve?<Avatar prenom={eleve.prenom} nom={eleve.nom} size={36} />:<div style={{width:36,height:36,borderRadius:'50%',background:C.bg,flexShrink:0}}/>}
+                      title={eleve?`${eleve.prenom} ${eleve.nom}`:'—'}
+                      subtitle={v.type_validation==='hizb_complet'
+                        ? `${lang==='ar'?'الحزب':'Hizb'} ${v.hizb_valide} ${t(lang,'hizb_complets_label')}`
+                        : `${v.nombre_tomon} ${t(lang,'tomon_abrev')}${v.tomon_debut?` (${lang==='ar'?'ث':'T'}.${v.tomon_debut}→${lang==='ar'?'ث':'T'}.${v.tomon_debut+v.nombre_tomon-1})`:''} · ${lang==='ar'?'الحزب':'Hizb'} ${v.hizb_validation||'—'}`}
+                      meta={<span style={{fontSize:11,color:C.muted}}>{new Date(v.date_validation).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'})}{v.valideur?` · ${v.valideur.prenom} ${v.valideur.nom}`:''}</span>}
+                      value={`+${v.type_validation==='hizb_complet'?(bareme.hizb_complet || 0):v.nombre_tomon*(bareme.tomon || 0)}`}
+                      valueLabel={`${v.type_validation==='hizb_complet'?(lang==='ar' ? 'حزب' : 'Hizb'):`${v.nombre_tomon}${t(lang,'tomon_abrev')}`} · ${t(lang,'pts_abrev')}`}
+                      onClick={eleve?()=>navigate('fiche',eleve):undefined}
+                    />
+                  );
                   return(
                     <div key={v.id} onClick={()=>eleve&&navigate('fiche',eleve)}
                       style={{display:'flex',alignItems:'center',gap:12,padding:'12px 14px',background:'#fff',border:'0.5px solid #e0e0d8',borderRadius:12,cursor:eleve?'pointer':'default'}}>

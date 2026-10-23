@@ -11,8 +11,8 @@ import PeriodeSelectorHybride from '../components/PeriodeSelectorHybride';
 import PageHeader from '../components/PageHeader';
 import StatsCard from '../components/StatsCard';
 import { usePullToRefresh, PullToRefreshIndicator } from '../lib/usePullToRefresh';
-import { MobileHeader, HeaderMenu, actionsExport } from '../components/ui';
-import { LayoutDashboard } from 'lucide-react';
+import { MobileHeader, HeaderMenu, actionsExport, KpiGrid, KpiTile, LevelBadge, C } from '../components/ui';
+import { LayoutDashboard, Users, Activity, BookOpen, BookOpenCheck, Award, GraduationCap, CircleAlert, TriangleAlert } from 'lucide-react';
 
 // ─── Couleurs par niveau ───────────────────────────────────────────────────
 const NC = { '5B':'#534AB7','5A':'#378ADD','2M':'#1D9E75','2':'#EF9F27','1':'#E24B4A' };
@@ -20,22 +20,7 @@ const getNc = (niveaux, code) =>
   (niveaux||[]).find(n=>n.code===code)?.couleur || NC[code] || '#888';
 
 // ─── Composants UI ────────────────────────────────────────────────────────
-// KpiCard local : encore utilisé par la branche mobile (ligne ~590).
-// Migration mobile vers <StatsCard> reportée à la Phase E (mobile).
-function KpiCard({ icon, val, label, sub, color='#085041', bg='#E1F5EE', onClick }) {
-  return (
-    <div onClick={onClick}
-      style={{background:bg,borderRadius:14,padding:'16px 14px',cursor:onClick?'pointer':'default',
-        border:`0.5px solid ${color}20`,transition:'transform 0.1s'}}
-      onMouseEnter={e=>{if(onClick)e.currentTarget.style.transform='scale(1.02)'}}
-      onMouseLeave={e=>e.currentTarget.style.transform='scale(1)'}>
-      <div style={{fontSize:24,marginBottom:4}}>{icon}</div>
-      <div style={{fontSize:26,fontWeight:800,color,lineHeight:1}}>{val}</div>
-      <div style={{fontSize:12,color,opacity:0.8,marginTop:4,fontWeight:600}}>{label}</div>
-      {sub&&<div style={{fontSize:11,color:'#888',marginTop:3}}>{sub}</div>}
-    </div>
-  );
-}
+// KpiCard local supprime (charte mobile oct 2026) : la branche mobile utilise KpiTile (components/ui).
 
 function SectionTitle({ icon, title, sub }) {
   return (
@@ -721,92 +706,92 @@ export default function DashboardDirection({ user, navigate, goBack, lang='fr', 
         </MobileHeader>
 
         <div style={{padding:'12px'}}>
-          {/* Alertes */}
+          {/* Alertes — charte mobile : icone lucide selon le type (meme message) */}
           {alertes.length>0&&(
             <div style={{marginBottom:14}}>
-              {alertes.map((a,i)=>(
-                <div key={i} style={{background:'#fff',borderRadius:10,padding:'10px 12px',marginBottom:6,
-                  display:'flex',gap:8,alignItems:'flex-start',
-                  borderLeft:`3px solid ${a.type==='danger'?'#E24B4A':a.type==='warning'?'#EF9F27':a.type==='success'?'#1D9E75':'#378ADD'}`}}>
-                  <span>{a.icon}</span>
-                  <span style={{fontSize:12,color:'#444'}}>{a.msg}</span>
-                </div>
-              ))}
+              {alertes.map((a,i)=>{
+                const col = a.type==='danger'?C.crit:a.type==='warning'?C.warn:a.type==='success'?C.good:C.info;
+                const Ic = a.type==='danger'?CircleAlert:a.type==='warning'?TriangleAlert:a.type==='success'?Award:GraduationCap;
+                return (
+                  <div key={i} style={{background:C.surface,borderRadius:10,padding:'10px 12px',marginBottom:6,
+                    display:'flex',gap:8,alignItems:'flex-start',border:`1px solid ${C.line}`,
+                    borderInlineStart:`3px solid ${col}`}}>
+                    <Ic size={16} color={col} style={{flexShrink:0,marginTop:1}} />
+                    <span style={{fontSize:12,color:C.text}}>{a.msg}</span>
+                  </div>
+                );
+              })}
             </div>
           )}
 
-          {/* KPIs */}
-          <div style={{display:'grid',gridTemplateColumns:'repeat(2,1fr)',gap:10,marginBottom:16}}>
-            <KpiCard icon="👥" val={kpis.elevesActifs} label={isAr?'طالب نشط':'Élèves actifs'}
-              sub={`/ ${kpis.totalEleves} total`} color="#085041" bg="#E1F5EE"/>
-            <KpiCard icon="📈" val={`${kpis.tauxActivite}%`} label={isAr?'نسبة النشاط':'Taux activité'}
-              color={kpis.tauxActivite>=70?'#085041':kpis.tauxActivite>=50?'#EF9F27':'#E24B4A'}
-              bg={kpis.tauxActivite>=70?'#E1F5EE':kpis.tauxActivite>=50?'#FEF3DA':'#FCEAEA'}/>
-            <KpiCard icon="📖" val={kpis.totalTomon} label={isAr?'ثُمن مُستظهَر':'Tomon validés'}
-              color="#378ADD" bg="#E6F1FB"/>
-            <KpiCard icon="⭐" val={kpis.totalHizb} label={isAr?'حزب مكتمل':'Hizb complets'}
-              color="#534AB7" bg="#EEEDFE"/>
-            <KpiCard icon="🏅" val={kpis.totalCerts} label={isAr?'شهادة':'Certificats'}
-              color="#EF9F27" bg="#FEF3DA"/>
-            <KpiCard icon="🎓" val={kpis.totalPassages} label={isAr?'انتقال مستوى':'Passages niveau'}
-              color="#085041" bg="#E1F5EE"/>
+          {/* KPIs — charte mobile : tuiles communes */}
+          <div style={{marginBottom:16}}>
+            <KpiGrid cols={2}>
+              <KpiTile icon={Users} tone="brand" value={kpis.elevesActifs} label={isAr?'طالب نشط':'Élèves actifs'}
+                hint={`/ ${kpis.totalEleves} total`} />
+              <KpiTile icon={Activity} value={`${kpis.tauxActivite}%`} label={isAr?'نسبة النشاط':'Taux activité'}
+                tone={kpis.tauxActivite>=70?'good':kpis.tauxActivite>=50?'warn':'crit'} />
+              <KpiTile icon={BookOpen} tone="neutral" value={kpis.totalTomon} label={isAr?'ثُمن مُستظهَر':'Tomon validés'} />
+              <KpiTile icon={BookOpenCheck} tone="neutral" value={kpis.totalHizb} label={isAr?'حزب مكتمل':'Hizb complets'} />
+              <KpiTile icon={Award} tone="neutral" value={kpis.totalCerts} label={isAr?'شهادة':'Certificats'} />
+              <KpiTile icon={GraduationCap} tone="neutral" value={kpis.totalPassages} label={isAr?'انتقال مستوى':'Passages niveau'} />
+            </KpiGrid>
           </div>
 
           {/* Évolution mensuelle */}
-          <div style={{background:'#fff',borderRadius:12,padding:'14px',marginBottom:14}}>
-            <div style={{fontSize:13,fontWeight:700,color:'#085041',marginBottom:12}}>
-              📅 {isAr?'التطور الشهري (الثُّمنات)':'Évolution mensuelle (tomon)'}
+          <div style={{background:C.surface,border:`1px solid ${C.line}`,borderRadius:12,padding:'14px',marginBottom:14}}>
+            <div style={{fontSize:13,fontWeight:700,color:C.text,marginBottom:12}}>
+              {isAr?'التطور الشهري (الثُّمنات)':'Évolution mensuelle (tomon)'}
             </div>
             <BarChart data={evolutionMensuelle.map(m=>({label:m.label,val:m.tomon,color:'#1D9E75'}))}/>
           </div>
 
           {/* Par niveau */}
-          <div style={{background:'#fff',borderRadius:12,padding:'14px',marginBottom:14}}>
-            <div style={{fontSize:13,fontWeight:700,color:'#085041',marginBottom:12}}>
-              🎯 {isAr?'الأداء حسب المستوى':'Performance par niveau'}
+          <div style={{background:C.surface,border:`1px solid ${C.line}`,borderRadius:12,padding:'14px',marginBottom:14}}>
+            <div style={{fontSize:13,fontWeight:700,color:C.text,marginBottom:12}}>
+              {isAr?'الأداء حسب المستوى':'Performance par niveau'}
             </div>
             {statsByNiveau.map(s=>(
-              <div key={s.code} style={{marginBottom:12,paddingBottom:12,borderBottom:'0.5px solid #f0f0ec'}}>
+              <div key={s.code} style={{marginBottom:12,paddingBottom:12,borderBottom:`1px solid ${C.line}`}}>
                 <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:6}}>
-                  <span style={{background:`${s.color}20`,color:s.color,padding:'2px 8px',borderRadius:8,fontSize:12,fontWeight:700}}>
-                    {s.code}
-                  </span>
-                  <span style={{fontSize:11,color:'#888'}}>{s.actifs}/{s.total} actifs</span>
+                  <LevelBadge code={s.code} color={s.color} />
+                  <span style={{fontSize:11,color:C.muted}}>{s.actifs}/{s.total} actifs</span>
                 </div>
-                <div style={{background:'#f5f5f0',borderRadius:6,height:8,overflow:'hidden'}}>
+                <div style={{background:C.bg,borderRadius:6,height:8,overflow:'hidden'}}>
                   <div style={{width:`${s.taux}%`,background:s.color,height:'100%',borderRadius:6}}/>
                 </div>
                 <div style={{display:'flex',gap:12,marginTop:6}}>
-                  <span style={{fontSize:11,color:'#555'}}>📖 {s.tomon} tomon</span>
-                  <span style={{fontSize:11,color:'#555'}}>⭐ {s.hizb} hizb</span>
-                  <span style={{fontSize:11,color:'#555',marginLeft:'auto',fontWeight:700,color:s.color}}>{s.taux}%</span>
+                  <span style={{fontSize:11,color:C.muted}}>{s.tomon} tomon</span>
+                  <span style={{fontSize:11,color:C.muted}}>{s.hizb} hizb</span>
+                  <span style={{fontSize:11,marginInlineStart:'auto',fontWeight:700,color:C.text}}>{s.taux}%</span>
                 </div>
               </div>
             ))}
           </div>
 
           {/* Top élèves */}
-          <div style={{background:'#fff',borderRadius:12,padding:'14px',marginBottom:14}}>
-            <div style={{fontSize:13,fontWeight:700,color:'#085041',marginBottom:12}}>
-              🏆 {isAr?'أفضل الطلاب':'Top 5 élèves'}
+          <div style={{background:C.surface,border:`1px solid ${C.line}`,borderRadius:12,padding:'14px',marginBottom:14}}>
+            <div style={{fontSize:13,fontWeight:700,color:C.text,marginBottom:12}}>
+              {isAr?'أفضل الطلاب':'Top 5 élèves'}
             </div>
             {topEleves.map((e,i)=>{
               const nc = getNc(niveaux, e.code_niveau);
               return (
                 <div key={e.id} onClick={()=>navigate('fiche',eleves.find(el=>el.id===e.id))}
-                  style={{display:'flex',alignItems:'center',gap:10,padding:'8px 0',
-                    borderBottom:'0.5px solid #f5f5f0',cursor:'pointer'}}>
+                  style={{display:'flex',alignItems:'center',gap:10,padding:'8px 0',minHeight:44,
+                    borderBottom:`1px solid ${C.line}`,cursor:'pointer'}}>
+                  {/* Medailles de classement conservees */}
                   <div style={{width:28,height:28,borderRadius:'50%',
-                    background:i<3?['#EF9F27','#888','#C4763B'][i]:`${nc}20`,
-                    color:i<3?'#fff':nc,display:'flex',alignItems:'center',justifyContent:'center',
-                    fontWeight:800,fontSize:13,flexShrink:0}}>
+                    background:i<3?'transparent':C.bg,border:i<3?'none':`1px solid ${C.line}`,
+                    color:C.muted,display:'flex',alignItems:'center',justifyContent:'center',
+                    fontWeight:700,fontSize:i<3?18:12,flexShrink:0}}>
                     {i<3?['🥇','🥈','🥉'][i]:i+1}
                   </div>
-                  <div style={{flex:1}}>
-                    <div style={{fontSize:13,fontWeight:700}}>{e.prenom} {e.nom}</div>
-                    <div style={{fontSize:11,color:'#888'}}>{e.code_niveau}</div>
+                  <div style={{flex:1,minWidth:0}}>
+                    <div style={{fontSize:14,fontWeight:600,color:C.text}}>{e.prenom} {e.nom}</div>
+                    <div style={{marginTop:2}}><LevelBadge code={e.code_niveau} color={nc} /></div>
                   </div>
-                  <div style={{fontSize:16,fontWeight:800,color:'#1D9E75'}}>{e.pts}<span style={{fontSize:10,color:'#888'}}> pts</span></div>
+                  <div style={{fontSize:16,fontWeight:700,color:C.brand}}>{e.pts}<span style={{fontSize:10,color:C.muted}}> pts</span></div>
                 </div>
               );
             })}
@@ -814,20 +799,20 @@ export default function DashboardDirection({ user, navigate, goBack, lang='fr', 
 
           {/* Par instituteur */}
           {statsByInst.length>0&&(
-            <div style={{background:'#fff',borderRadius:12,padding:'14px',marginBottom:14}}>
-              <div style={{fontSize:13,fontWeight:700,color:'#085041',marginBottom:12}}>
-                👨‍🏫 {isAr?'الأداء حسب الأستاذ':'Performance par instituteur'}
+            <div style={{background:C.surface,border:`1px solid ${C.line}`,borderRadius:12,padding:'14px',marginBottom:14}}>
+              <div style={{fontSize:13,fontWeight:700,color:C.text,marginBottom:12}}>
+                {isAr?'الأداء حسب الأستاذ':'Performance par instituteur'}
               </div>
               {statsByInst.map(s=>(
-                <div key={s.id} style={{marginBottom:10,paddingBottom:10,borderBottom:'0.5px solid #f5f5f0'}}>
+                <div key={s.id} style={{marginBottom:10,paddingBottom:10,borderBottom:`1px solid ${C.line}`}}>
                   <div style={{display:'flex',justifyContent:'space-between',marginBottom:4}}>
-                    <span style={{fontSize:13,fontWeight:600}}>{s.nom}</span>
-                    <span style={{fontSize:12,color:'#085041',fontWeight:700}}>{s.seances} séances</span>
+                    <span style={{fontSize:13,fontWeight:600,color:C.text}}>{s.nom}</span>
+                    <span style={{fontSize:12,color:C.brand,fontWeight:700}}>{s.seances} séances</span>
                   </div>
-                  <div style={{display:'flex',gap:10}}>
-                    <span style={{fontSize:11,color:'#888'}}>👥 {s.nbEleves} élèves</span>
-                    <span style={{fontSize:11,color:'#888'}}>📖 {s.tomon} tomon</span>
-                    <span style={{fontSize:11,color:'#888'}}>⚡ moy {s.moy}/élève</span>
+                  <div style={{display:'flex',gap:10,flexWrap:'wrap'}}>
+                    <span style={{fontSize:11,color:C.muted}}>{s.nbEleves} élèves</span>
+                    <span style={{fontSize:11,color:C.muted}}>{s.tomon} tomon</span>
+                    <span style={{fontSize:11,color:C.muted}}>moy {s.moy}/élève</span>
                   </div>
                 </div>
               ))}

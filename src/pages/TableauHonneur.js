@@ -10,6 +10,8 @@ import PageHeader from '../components/PageHeader';
 import PeriodeSelectorHybride from '../components/PeriodeSelectorHybride';
 import MobileSkeletonList from '../components/MobileSkeletonList';
 import { usePullToRefresh, PullToRefreshIndicator } from '../lib/usePullToRefresh';
+import { Trophy, MonitorPlay } from 'lucide-react';
+import { MobileHeader, HeaderIconButton, HeaderMenu, actionsExport } from '../components/ui';
 
 export default function TableauHonneur({ user, navigate, goBack, lang='fr', isMobile }) {
   const { toast } = useToast();
@@ -305,8 +307,13 @@ export default function TableauHonneur({ user, navigate, goBack, lang='fr', isMo
     </button>
   );
 
+  // Charte mobile (oct 2026) : en mobile hors mode presentation, en-tete commun MobileHeader.
+  // Le mode TV/presentation et le PC restent inchanges.
+  const mobileCharte = isMobile && !isTV;
+  const Wrap = mobileCharte ? 'div' : React.Fragment;
+
   return (
-    <div style={{minHeight:'100vh',background:T.bg,padding:'1.5rem 1rem',paddingBottom:80,
+    <div style={{minHeight:'100vh',background:T.bg,padding:mobileCharte?0:'1.5rem 1rem',paddingBottom:80,
       transition:'background 0.3s ease'}}
       {...(isMobile ? { onTouchStart, onTouchMove, onTouchEnd } : {})}>
       {isMobile && (
@@ -318,6 +325,23 @@ export default function TableauHonneur({ user, navigate, goBack, lang='fr', isMo
         />
       )}
       {/* Sticky header — variant adapte au mode */}
+      {mobileCharte ? (
+        <MobileHeader
+          title={t(lang, 'tableau_honneur')}
+          subtitle={periodeLabel()}
+          icon={Trophy}
+          onBack={() => goBack ? goBack() : navigate('dashboard')}
+          lang={lang}
+          actions={
+            <>
+              <HeaderIconButton icon={MonitorPlay}
+                label={lang==='ar'?'وضع العرض':'Mode présentation'}
+                onClick={()=>setMode(isTV ? 'light' : 'tv')} />
+              <HeaderMenu lang={lang} actions={actionsExport({ onPDF: handleExportPDF, onExcel: handleExportExcel, lang, disabled: elevesClasses.length === 0 })} />
+            </>
+          }
+        />
+      ) : (
       <PageHeader
         title={t(lang, 'tableau_honneur')}
         icon="🏆"
@@ -358,7 +382,9 @@ export default function TableauHonneur({ user, navigate, goBack, lang='fr', isMo
           </>
         }
       />
+      )}
 
+      <Wrap {...(mobileCharte ? { style: { padding: '1rem 1rem 0' } } : {})}>
       {/* Sélecteur période — pattern hybride aligne avec ResultatsExamens */}
       <div style={{marginBottom:'1rem',maxWidth:720,margin:'0 auto 1rem'}}>
         <div style={{fontSize:11,color:T.fgMuted,marginBottom:6,textAlign:'center',fontWeight:600,letterSpacing:0.5}}>
@@ -405,7 +431,7 @@ export default function TableauHonneur({ user, navigate, goBack, lang='fr', isMo
             color:vue==='global'?'#fff':T.chipFg,
             border:'1px solid '+(vue==='global'?'#1D9E75':T.chipBorder),
             flexShrink:0,whiteSpace:'nowrap'}}>
-          🌍 {lang==='ar'?'الكل':'Global'}
+          {mobileCharte ? null : '🌍 '}{lang==='ar'?'الكل':'Global'}
         </div>
         {niveauxVues.map(n => (
           <div key={n.code} onClick={()=>setVue(n.code)}
@@ -528,6 +554,7 @@ export default function TableauHonneur({ user, navigate, goBack, lang='fr', isMo
           )}
         </>
       )}
+      </Wrap>
     </div>
   );
 }

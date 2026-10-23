@@ -10,8 +10,8 @@ import PageHeader from '../components/PageHeader';
 import StatsCard from '../components/StatsCard';
 import MobileSkeletonList from '../components/MobileSkeletonList';
 import { usePullToRefresh, PullToRefreshIndicator } from '../lib/usePullToRefresh';
-import { MobileHeader, HeaderMenu, actionsExport } from '../components/ui';
-import { History } from 'lucide-react';
+import { MobileHeader, HeaderMenu, actionsExport, KpiGrid, KpiTile, ListRow, LevelBadge, SectionTitle, C } from '../components/ui';
+import { History, TrendingUp, TrendingDown } from 'lucide-react';
 
 // FIX (oct 2026) : IS_SOURATE code en dur remplace par isSourateNiveauDyn(code, niveaux) (niveaux de l'ecole)
 const NIVEAU_COLORS = { '5B':'#534AB7','5A':'#378ADD','2M':'#1D9E75','2':'#EF9F27','1':'#E24B4A' };
@@ -581,7 +581,7 @@ export default function HistoriqueSeances({ user, navigate, goBack, lang='fr', i
             ((eleves.find(e=>e.id===filterEleve)?.eleve_id_ecole?'#'+eleves.find(e=>e.id===filterEleve)?.eleve_id_ecole+' — ':'')+
             (eleves.find(e=>e.id===filterEleve)?.prenom||'')+' '+(eleves.find(e=>e.id===filterEleve)?.nom||''))}
             onChange={e=>{setSearchFiltreEleve(e.target.value);setFilterEleve('tous');}}
-            placeholder={lang==='ar'?'🔍 ابحث بالاسم أو رقم التعريف...':'🔍 Nom ou N° élève...'}
+            placeholder={lang==='ar'?'ابحث بالاسم أو رقم التعريف...':'Nom ou N° élève...'}
             style={{width:'100%',padding:'10px 14px',borderRadius:12,border:'0.5px solid #e0e0d8',
               fontSize:14,fontFamily:'inherit',boxSizing:'border-box',background:'#f9f9f6'}}/>
           {/* Liste résultats — plus de position:absolute, liste inline */}
@@ -633,22 +633,21 @@ export default function HistoriqueSeances({ user, navigate, goBack, lang='fr', i
 
         {loading ? <MobileSkeletonList type="card-simple" count={4} /> : (
           <div style={{padding:'12px'}}>
-            {/* KPIs 2x2 */}
-            <div style={{display:'grid',gridTemplateColumns:'repeat(2,1fr)',gap:10,marginBottom:14}}>
-              {[
-                {label:lang==='ar'?'أيام نشطة':'Jours actifs',val:timelineArr.length,color:'#1D9E75',bg:'#E1F5EE'},
-                {label:lang==='ar'?'إجمالي النقاط':'Total points',val:(actifs||[]).reduce((s,e)=>s+(e.pts||0),0).toLocaleString(),color:'#534AB7',bg:'#F0EEFF'},
-                {label:lang==='ar'?'الثُّمنات':'Tomon',val:(actifs||[]).reduce((s,e)=>s+(e.tomon||0),0),color:'#378ADD',bg:'#E6F1FB'},
-                {label:lang==='ar'?'الأحزاب':'Hizb',val:(actifs||[]).reduce((s,e)=>s+(e.hizb||0),0),color:'#EF9F27',bg:'#FAEEDA'},
-                // F8 : sourates + sequences (un eleve sourate apparaissait "vide")
-                {label:lang==='ar'?'السور':'Sourates',val:(actifs||[]).reduce((s,e)=>s+(e.sourates||0),0),color:'#085041',bg:'#E1F5EE'},
-                {label:lang==='ar'?'المقاطع':'Séquences',val:(actifs||[]).reduce((s,e)=>s+(e.seqs||0),0),color:'#D85A30',bg:'#FAECE7'},
-              ].map((k,i)=>(
-                <div key={i} style={{background:k.bg,borderRadius:12,padding:'14px',textAlign:'center',border:`0.5px solid ${k.color}20`}}>
-                  <div style={{fontSize:24,fontWeight:800,color:k.color}}>{k.val}</div>
-                  <div style={{fontSize:11,color:k.color,marginTop:4,opacity:0.8}}>{k.label}</div>
-                </div>
-              ))}
+            {/* KPIs 2x2 — charte mobile : tuiles communes, couleur sur le chiffre principal seulement */}
+            <div style={{marginBottom:14}}>
+              <KpiGrid cols={2}>
+                {[
+                  {label:lang==='ar'?'أيام نشطة':'Jours actifs',val:timelineArr.length,tone:'neutral'},
+                  {label:lang==='ar'?'إجمالي النقاط':'Total points',val:(actifs||[]).reduce((s,e)=>s+(e.pts||0),0).toLocaleString(),tone:'brand'},
+                  {label:lang==='ar'?'الثُّمنات':'Tomon',val:(actifs||[]).reduce((s,e)=>s+(e.tomon||0),0),tone:'neutral'},
+                  {label:lang==='ar'?'الأحزاب':'Hizb',val:(actifs||[]).reduce((s,e)=>s+(e.hizb||0),0),tone:'neutral'},
+                  // F8 : sourates + sequences (un eleve sourate apparaissait "vide")
+                  {label:lang==='ar'?'السور':'Sourates',val:(actifs||[]).reduce((s,e)=>s+(e.sourates||0),0),tone:'neutral'},
+                  {label:lang==='ar'?'المقاطع':'Séquences',val:(actifs||[]).reduce((s,e)=>s+(e.seqs||0),0),tone:'neutral'},
+                ].map((k,i)=>(
+                  <KpiTile key={i} value={k.val} label={k.label} tone={k.tone} />
+                ))}
+              </KpiGrid>
             </div>
 
             {/* F8 (oct 2026) : activite quotidienne (points par jour), comme sur PC */}
@@ -673,40 +672,43 @@ export default function HistoriqueSeances({ user, navigate, goBack, lang='fr', i
             {/* Liste eleves - F8 (oct 2026) : iterait sur elevesVisibles (eleves bruts) au lieu des
                 statistiques calculees -> 0 pt / 0 tomon pour tous, ni tri ni tendance. Utilise
                 maintenant 'actifs' (comme le PC) ; un appui deplie le detail de la periode. */}
-            <div style={{fontSize:12,fontWeight:700,color:'#888',marginBottom:8}}>
+            <SectionTitle>
               {lang==='ar'?'أداء الطلاب':'Performance des élèves'} ({actifs.length}/{elevesVisibles?.length||0})
-            </div>
+            </SectionTitle>
             {actifs.map((st,idx)=>{
               const e=st.eleve;
               const nc={'5B':'#534AB7','5A':'#378ADD','2M':'#1D9E75','2':'#EF9F27','1':'#E24B4A'}[e.code_niveau||'1']||'#888';
               const ouvert = selectedEleve===e.id;
               return(
                 <div key={e.id} style={{marginBottom:8}}>
-                  <div onClick={()=>setSelectedEleve(ouvert?null:e.id)}
-                    style={{background:'#fff',borderRadius:ouvert?'12px 12px 0 0':12,padding:'13px 14px',
-                      border:`0.5px solid ${ouvert?'#1D9E75':'#e0e0d8'}`,display:'flex',alignItems:'center',gap:12,cursor:'pointer'}}>
-                    <div style={{width:32,height:32,borderRadius:'50%',background:`${nc}20`,color:nc,
-                      display:'flex',alignItems:'center',justifyContent:'center',fontWeight:800,fontSize:12,flexShrink:0}}>
-                      {idx+1}
-                    </div>
-                    <div style={{flex:1,minWidth:0}}>
-                      <div style={{fontWeight:700,fontSize:14}}>{e.prenom} {e.nom}</div>
-                      <div style={{display:'flex',gap:6,alignItems:'center',marginTop:2,flexWrap:'wrap'}}>
-                        <span style={{padding:'1px 7px',borderRadius:8,background:`${nc}20`,color:nc,fontSize:11,fontWeight:700}}>{e.code_niveau||'?'}</span>
-                        <span style={{fontSize:11,color:'#888'}}>
+                  {/* Charte mobile (oct 2026) : ligne de liste ; un appui deplie le detail (inchange) */}
+                  <div style={{borderRadius:12, boxShadow: ouvert ? `0 0 0 1.5px ${C.brand2}` : 'none'}}>
+                  <ListRow lang={lang}
+                    leading={
+                      <div style={{width:32,height:32,borderRadius:'50%',background:C.bg,color:C.muted,border:`1px solid ${C.line}`,
+                        display:'flex',alignItems:'center',justifyContent:'center',fontWeight:700,fontSize:12,flexShrink:0}}>
+                        {idx+1}
+                      </div>
+                    }
+                    title={`${e.prenom} ${e.nom}`}
+                    meta={
+                      <div style={{display:'flex',gap:6,alignItems:'center',flexWrap:'wrap'}}>
+                        <LevelBadge code={e.code_niveau||'?'} color={nc} />
+                        <span style={{fontSize:11,color:C.muted}}>
                           {st.nbSeances||0} {lang==='ar'?'حصة':'séance(s)'} · {st.isSourate ? `${st.sourates||0} ${lang==='ar'?'سورة':'sour.'}` : `${st.tomon||0} T · ${st.hizb||0} H`}
                         </span>
+                        {st.trend==='up'&&<TrendingUp size={14} color={C.good} aria-label={lang==='ar'?'في تحسن':'En hausse'} />}
+                        {st.trend==='down'&&<TrendingDown size={14} color={C.crit} aria-label={lang==='ar'?'في تراجع':'En baisse'} />}
                       </div>
-                    </div>
-                    <div style={{textAlign:'right',flexShrink:0}}>
-                      <div style={{fontSize:18,fontWeight:800,color:'#1D9E75'}}>{(st.pts||0).toLocaleString()}</div>
-                      <div style={{fontSize:10,color:'#888'}}>pts</div>
-                    </div>
-                    {st.trend==='up'&&<span style={{fontSize:14}}>📈</span>}
-                    {st.trend==='down'&&<span style={{fontSize:14}}>📉</span>}
+                    }
+                    value={(st.pts||0).toLocaleString()}
+                    valueLabel="pts"
+                    valueTone="brand"
+                    onClick={()=>setSelectedEleve(ouvert?null:e.id)}
+                  />
                   </div>
                   {ouvert && (
-                    <div style={{background:'#fff',border:'0.5px solid #1D9E75',borderTop:'none',borderRadius:'0 0 12px 12px',padding:'8px 12px 12px'}}>
+                    <div style={{background:C.surface,border:`1px solid ${C.line}`,borderRadius:12,marginTop:4,padding:'8px 12px 12px'}}>
                       {allDrill.length===0 ? (
                         <div style={{fontSize:12,color:'#aaa',padding:'6px 0'}}>{lang==='ar'?'لا نشاط في هذه الفترة':'Aucune activité sur la période'}</div>
                       ) : allDrill.slice(0,30).map((item,i)=>{

@@ -6,8 +6,9 @@ import { swr } from '../lib/offlineCache';
 import { getSouratesForNiveau } from '../lib/sourates';
 import { t } from '../lib/i18n';
 import OngletCoursEleve from '../components/OngletCoursEleve';
-import { MobileHeader, HeaderIconButton, HeaderMenu } from '../components/ui';
-import { UserRound, Bell, KeyRound, Database, LogOut } from 'lucide-react';
+import { MobileHeader, HeaderIconButton, HeaderMenu, KpiTile, KpiGrid, ListRow, C } from '../components/ui';
+import { UserRound, Bell, KeyRound, Database, LogOut, TrendingUp, BookOpen, Library, Target, Wallet, AlertCircle,
+  CheckCircle2, AlertTriangle, XCircle, Gift, Settings, X, Check, Mail, Save, Lock, Download, History } from 'lucide-react';
 import { trackParentVisite, getDerniereVisiteParent } from '../lib/parentTracking';
 import { generateRgpdExport, downloadRgpdExport } from '../lib/rgpdExport';
 import { fetchNotificationsParent, marquerToutesLues, marquerLue, fetchPreferences, updatePreferences } from '../lib/notificationsParents';
@@ -15,6 +16,9 @@ import { fetchNotificationsParent, marquerToutesLues, marquerLue, fetchPreferenc
 const IS_SOURATE = (code) => ['5B','5A','2M'].includes(code||'');
 const NIVEAU_COLORS = {'5B':'#534AB7','5A':'#378ADD','2M':'#1D9E75','2':'#EF9F27','1':'#E24B4A'};
 const NIVEAUX_LABELS = {'5B':'Préscolaire','5A':'Primaire 1-2','2M':'Primaire 3-4','2':'Primaire 5-6','1':'Collège/Lycée'};
+// Charte mobile (oct 2026) : icones lucide des onglets et des statuts de cotisation (mobile uniquement)
+const ICONES_ONGLETS_MOBILE = { progression: TrendingUp, recitations: BookOpen, cours: Library, objectifs: Target, cotisations: Wallet };
+const ICONES_STATUT_COT_MOBILE = { paye: CheckCircle2, partiel: AlertTriangle, non_paye: XCircle, exonere: Gift };
 
 function Avatar({ prenom, nom, size=40, bg='#E1F5EE', color='#085041' }) {
   return <div style={{width:size,height:size,borderRadius:'50%',background:bg,color,display:'flex',alignItems:'center',justifyContent:'center',fontWeight:700,fontSize:size*0.35,flexShrink:0}}>{getInitiales(prenom,nom)}</div>;
@@ -722,7 +726,7 @@ export default function PortailParent({ parent, navigate, goBack, lang='fr', onL
                 style={{flex:1, padding:'8px 4px', borderRadius:8, textAlign:'center', fontSize:11, fontWeight:600,
                   cursor:'pointer', background:onglet===o.key?'rgba(255,255,255,0.25)':'transparent',
                   color:'#fff'}}>
-                <div style={{fontSize:15}}>{o.icon}</div>
+                <div style={{display:'flex',justifyContent:'center'}}>{(() => { const Ic = ICONES_ONGLETS_MOBILE[o.key]; return Ic ? <Ic size={16} /> : o.icon; })()}</div>
                 <div style={{fontSize:9, marginTop:2, opacity:0.9, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis'}}>{lang==='ar'?o.labelAr:o.label}</div>
               </div>
             ))}
@@ -737,7 +741,7 @@ export default function PortailParent({ parent, navigate, goBack, lang='fr', onL
             {/* Bandeau alerte mobile */}
             {cotEAvecManquants.filter(x=>x.statut==='non_paye'||x.statut==='partiel').length > 0 && (
               <div onClick={()=>setOnglet('cotisations')} style={{background:'#FCEBEB',border:'2px solid #E24B4A',borderRadius:12,padding:'12px',marginBottom:8,cursor:'pointer',display:'flex',alignItems:'center',gap:10}}>
-                <span style={{fontSize:22}}>🔴</span>
+                <AlertCircle size={22} color={C.crit} style={{flexShrink:0}} />
                 <div style={{flex:1}}>
                   <div style={{fontWeight:700,fontSize:13,color:'#E24B4A'}}>{lang==='ar'?'اشتراكات غير مدفوعة':'Cotisations impayées'}</div>
                   <div style={{fontSize:11,color:'#E24B4A',opacity:0.8}}>{cotEAvecManquants.filter(x=>x.statut==='non_paye'||x.statut==='partiel').length} {lang==='ar'?'شهر — انقر للتفاصيل':'mois — Voir détail'}</div>
@@ -747,13 +751,13 @@ export default function PortailParent({ parent, navigate, goBack, lang='fr', onL
             )}
             {onglet==='progression' && (
               <div>
-                <div style={{display:'grid',gridTemplateColumns:'repeat(2,1fr)',gap:10,marginBottom:12}}>
-                  {kpisEleve.map((k,i)=>(
-                    <div key={i} style={{background:k.bg,borderRadius:12,padding:'14px',textAlign:'center',border:`0.5px solid ${k.color}20`}}>
-                      <div style={{fontSize:24,fontWeight:800,color:k.color}}>{typeof k.val==='number'?k.val.toLocaleString():k.val}</div>
-                      <div style={{fontSize:11,color:k.color,marginTop:4,opacity:0.8}}>{k.lbl}</div>
-                    </div>
-                  ))}
+                <div style={{marginBottom:12}}>
+                  <KpiGrid cols={2}>
+                    {kpisEleve.map((k,i)=>(
+                      <KpiTile key={i} value={typeof k.val==='number'?k.val.toLocaleString():k.val} label={k.lbl}
+                        tone={i===kpisEleve.length-1?'brand':'neutral'} />
+                    ))}
+                  </KpiGrid>
                 </div>
                 {blocProgression}
               </div>
@@ -776,19 +780,19 @@ export default function PortailParent({ parent, navigate, goBack, lang='fr', onL
                     ? (sourate?sourate.nom_ar:('V.'+item.verset_debut+'→'+item.verset_fin))
                     : (item.type_validation==='hizb_complet'?'Hizb '+item.hizb_valide:item.nombre_tomon+' T.');
                   return (
-                    <div key={item.id||i} style={{background:'#fff',borderRadius:12,padding:'12px 14px',marginBottom:8,
-                      border:'0.5px solid #e0e0d8',display:'flex',alignItems:'center',gap:12}}>
-                      <div style={{width:8,height:8,borderRadius:'50%',background:isSR?'#1D9E75':'#378ADD',flexShrink:0}}/>
-                      <div style={{flex:1,minWidth:0}}>
-                        <div style={{fontWeight:600,fontSize:13,fontFamily:isSR?"'Tajawal',Arial":'inherit'}}>
-                          {detail} <span style={{fontSize:10,color:'#888',fontWeight:500}}>· {typeLbl}</span>
-                        </div>
-                        <div style={{fontSize:11,color:'#888'}}>
+                    <div key={item.id||i} style={{marginBottom:8}}>
+                      <ListRow lang={lang}
+                        leading={<div style={{width:8,height:8,borderRadius:'50%',background:isSR?C.good:C.info,flexShrink:0}}/>}
+                        title={<span style={{fontFamily:isSR?"'Tajawal',Arial":'inherit'}}>
+                          {detail} <span style={{fontSize:10,color:C.muted,fontWeight:500}}>· {typeLbl}</span>
+                        </span>}
+                        subtitle={<>
                           {new Date(item.date_validation).toLocaleDateString(lang==='ar'?'ar-MA':'fr-FR')}
                           {item.valideur ? ' · '+item.valideur.prenom+' '+item.valideur.nom : ''}
-                        </div>
-                      </div>
-                      <span style={{fontSize:13,fontWeight:700,color:'#1D9E75'}}>+{pts2} pts</span>
+                        </>}
+                        value={`+${pts2}`}
+                        valueLabel="pts"
+                      />
                     </div>
                   );
                 })}
@@ -799,19 +803,20 @@ export default function PortailParent({ parent, navigate, goBack, lang='fr', onL
             {onglet==='cotisations' && (
               <div>
                 {cotEAvecManquants.length>0 && (
-                  <div style={{fontSize:13,fontWeight:700,color:'#1D9E75',marginBottom:8}}>
-                    💰 {lang==='ar'?'المجموع:':'Total : '}{cotEAvecManquants.filter(c=>c.statut!=='exonere'&&!c._virtuel).reduce((s,c)=>s+parseFloat(c.montant||0),0).toLocaleString()} MAD
+                  <div style={{fontSize:13,fontWeight:700,color:C.brand,marginBottom:8,display:'flex',alignItems:'center',gap:6}}>
+                    <Wallet size={16} /> {lang==='ar'?'المجموع:':'Total : '}{cotEAvecManquants.filter(c=>c.statut!=='exonere'&&!c._virtuel).reduce((s,c)=>s+parseFloat(c.montant||0),0).toLocaleString()} MAD
                   </div>
                 )}
                 {cotEAvecManquants.map(cot=>{
                   const STATUTS={paye:{ic:'✅',color:'#1D9E75',bg:'#E1F5EE',lbl:'Payé',lblAr:'مدفوع'},partiel:{ic:'⚠️',color:'#EF9F27',bg:'#FAEEDA',lbl:'Partiel',lblAr:'جزئي'},non_paye:{ic:'❌',color:'#E24B4A',bg:'#FCEBEB',lbl:'Non payé',lblAr:'غير مدفوع'},exonere:{ic:'🎁',color:'#888',bg:'#f5f5f0',lbl:'Exonéré',lblAr:'معفى'}};
                   const st=STATUTS[cot.statut]||STATUTS.non_paye;
+                  const IcStatut=ICONES_STATUT_COT_MOBILE[cot.statut]||ICONES_STATUT_COT_MOBILE.non_paye;
                   return(
-                  <div key={cot.id} style={{background:st.bg,borderRadius:12,padding:'12px 14px',marginBottom:8,border:`1.5px solid ${st.color}30`,display:'flex',alignItems:'center',gap:12}}>
-                    <span style={{fontSize:20}}>{st.ic}</span>
+                  <div key={cot.id} style={{background:C.surface,borderRadius:12,padding:'12px 14px',marginBottom:8,border:`1px solid ${C.line}`,display:'flex',alignItems:'center',gap:12}}>
+                    <IcStatut size={20} color={st.color} style={{flexShrink:0}} />
                     <div style={{flex:1}}>
-                      <div style={{fontWeight:700,fontSize:13,color:st.color}}>{cot.periode||cot.mois_concerne||'—'}</div>
-                      <div style={{fontSize:11,color:'#888',marginTop:2}}>{cot.date_paiement?new Date(cot.date_paiement).toLocaleDateString(lang==='ar'?'ar-MA':'fr-FR'):'—'}{cot.note?' · '+cot.note:''}</div>
+                      <div style={{fontWeight:700,fontSize:13,color:C.text}}>{cot.periode||cot.mois_concerne||'—'}</div>
+                      <div style={{fontSize:11,color:C.muted,marginTop:2}}>{cot.date_paiement?new Date(cot.date_paiement).toLocaleDateString(lang==='ar'?'ar-MA':'fr-FR'):'—'}{cot.note?' · '+cot.note:''}</div>
                     </div>
                     <div style={{textAlign:'left'}}>
                       {!cot._virtuel && <div style={{fontSize:15,fontWeight:800,color:st.color}}>{parseFloat(cot.montant||0).toLocaleString()} MAD</div>}
@@ -842,10 +847,10 @@ export default function PortailParent({ parent, navigate, goBack, lang='fr', onL
             <div onClick={e=>e.stopPropagation()}
               style={{width:'100%',maxHeight:'85vh',background:'#fff',borderRadius:'18px 18px 0 0',padding:'16px',overflow:'auto'}}>
               <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:14}}>
-                <div style={{fontSize:16,fontWeight:700,color:'#173404'}}>
-                  🔔 {lang==='ar'?'الإشعارات':'Notifications'}
+                <div style={{fontSize:16,fontWeight:700,color:C.text,display:'flex',alignItems:'center',gap:6}}>
+                  <Bell size={18} color={C.brand} /> {lang==='ar'?'الإشعارات':'Notifications'}
                   {notifsNonLues > 0 && (
-                    <span style={{marginLeft:8,fontSize:11,background:'#E24B4A',color:'#fff',padding:'2px 8px',borderRadius:10}}>
+                    <span style={{marginInlineStart:2,fontSize:11,background:'#E24B4A',color:'#fff',padding:'2px 8px',borderRadius:10}}>
                       {notifsNonLues}
                     </span>
                   )}
@@ -853,23 +858,25 @@ export default function PortailParent({ parent, navigate, goBack, lang='fr', onL
                 <div style={{display:'flex',gap:6}}>
                   {notifsNonLues > 0 && (
                     <button onClick={handleMarkAllRead}
-                      style={{padding:'6px 12px',background:'#E1F5EE',color:'#1D9E75',border:'none',borderRadius:6,fontSize:11,fontWeight:600,cursor:'pointer'}}>
-                      ✓ {lang==='ar'?'الكل':'Tout lire'}
+                      style={{padding:'6px 12px',background:C.brandSoft,color:C.brand,border:'none',borderRadius:6,fontSize:11,fontWeight:600,cursor:'pointer',display:'flex',alignItems:'center',gap:4}}>
+                      <Check size={14} /> {lang==='ar'?'الكل':'Tout lire'}
                     </button>
                   )}
                   <button onClick={()=>setShowPrefsNotifs(true)}
-                    style={{padding:'6px 10px',background:'#f5f5f0',border:'none',borderRadius:6,cursor:'pointer',fontSize:13}}>
-                    ⚙️
+                    aria-label={lang==='ar'?'تفضيلات الإشعارات':'Préférences notifications'}
+                    style={{width:36,height:36,background:C.bg,color:C.text,border:'none',borderRadius:6,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center'}}>
+                    <Settings size={18} />
                   </button>
                   <button onClick={()=>setShowNotifsPanel(false)}
-                    style={{padding:'6px 10px',background:'#f5f5f0',border:'none',borderRadius:6,cursor:'pointer',fontSize:13}}>
-                    ✕
+                    aria-label={lang==='ar'?'إغلاق':'Fermer'}
+                    style={{width:36,height:36,background:C.bg,color:C.text,border:'none',borderRadius:6,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center'}}>
+                    <X size={18} />
                   </button>
                 </div>
               </div>
               {notifs.length === 0 ? (
                 <div style={{padding:'30px 20px',textAlign:'center',fontSize:13,color:'#888'}}>
-                  {lang==='ar'?'✨ لا توجد إشعارات':'✨ Aucune notification pour le moment'}
+                  {lang==='ar'?'لا توجد إشعارات':'Aucune notification pour le moment'}
                 </div>
               ) : (
                 <div>
@@ -884,8 +891,8 @@ export default function PortailParent({ parent, navigate, goBack, lang='fr', onL
                     return (
                       <div key={n.id} onClick={()=>handleClickNotif(n)}
                         style={{padding:'12px',borderRadius:10,marginBottom:8,
-                          background: n.lue ? '#f9f9f6' : '#FEF9E7',
-                          border: n.lue ? '0.5px solid #e0e0d8' : '1px solid #FBBF24',
+                          background: n.lue ? C.surface : C.goldSoft,
+                          border: n.lue ? `1px solid ${C.line}` : `1px solid ${C.gold}`,
                           cursor:'pointer'}}>
                         <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:3}}>
                           <div style={{fontSize:13,fontWeight: n.lue ? 500 : 700,color:'#173404',flex:1}}>{titre}</div>
@@ -907,8 +914,8 @@ export default function PortailParent({ parent, navigate, goBack, lang='fr', onL
             onClick={()=>setShowPrefsNotifs(false)}>
             <div onClick={e=>e.stopPropagation()}
               style={{width:'100%',maxHeight:'85vh',background:'#fff',borderRadius:'18px 18px 0 0',padding:'16px',overflow:'auto'}}>
-              <div style={{fontSize:15,fontWeight:700,marginBottom:10,color:'#173404'}}>
-                ⚙️ {lang==='ar'?'تفضيلات الإشعارات':'Préférences notifications'}
+              <div style={{fontSize:15,fontWeight:700,marginBottom:10,color:C.text,display:'flex',alignItems:'center',gap:6}}>
+                <Settings size={17} color={C.brand} /> {lang==='ar'?'تفضيلات الإشعارات':'Préférences notifications'}
               </div>
               <div style={{fontSize:11.5,color:'#666',marginBottom:14,lineHeight:1.5}}>
                 {lang==='ar'
@@ -925,14 +932,14 @@ export default function PortailParent({ parent, navigate, goBack, lang='fr', onL
                     checked={prefsNotifs[t.key] !== false}
                     onChange={e => setPrefsNotifs({...prefsNotifs, [t.key]: e.target.checked})}
                     style={{width:18,height:18,cursor:'pointer',accentColor:'#1D9E75'}} />
-                  <span style={{fontSize:13,flex:1,color:'#173404'}}>
-                    {t.icon} {lang==='ar' ? t.labelAr : t.labelFr}
+                  <span style={{fontSize:13,flex:1,color:C.text}}>
+                    {lang==='ar' ? t.labelAr : t.labelFr}
                   </span>
                 </label>
               ))}
               <div style={{marginTop:14,padding:12,background:'#f9f9f6',borderRadius:10}}>
-                <div style={{fontSize:12,fontWeight:700,marginBottom:6,color:'#173404'}}>
-                  📧 {lang==='ar'?'البريد (اختياري)':'Email (optionnel)'}
+                <div style={{fontSize:12,fontWeight:700,marginBottom:6,color:C.text,display:'flex',alignItems:'center',gap:6}}>
+                  <Mail size={14} color={C.brand} /> {lang==='ar'?'البريد (اختياري)':'Email (optionnel)'}
                 </div>
                 <div style={{fontSize:11,color:'#666',marginBottom:8,lineHeight:1.5}}>
                   {lang==='ar'?'بدون بريد، ستستمر في رؤية الإشعارات هنا.':'Sans email, les notifications restent visibles ici.'}
@@ -961,12 +968,13 @@ export default function PortailParent({ parent, navigate, goBack, lang='fr', onL
               </div>
               <div style={{display:'flex',gap:6,marginTop:14}}>
                 <button onClick={handleSavePrefs} disabled={savingPrefs}
-                  style={{flex:1,padding:'12px',background:savingPrefs?'#999':'#1D9E75',color:'#fff',border:'none',borderRadius:8,fontWeight:700,cursor:savingPrefs?'default':'pointer',fontSize:13}}>
-                  {savingPrefs ? '⏳' : (lang==='ar'?'💾 حفظ':'💾 Enregistrer')}
+                  style={{flex:1,padding:'12px',background:savingPrefs?'#999':C.brand,color:'#fff',border:'none',borderRadius:8,fontWeight:700,cursor:savingPrefs?'default':'pointer',fontSize:13,display:'flex',alignItems:'center',justifyContent:'center',gap:6}}>
+                  {savingPrefs ? '...' : <><Save size={16} /> {lang==='ar'?'حفظ':'Enregistrer'}</>}
                 </button>
                 <button onClick={()=>setShowPrefsNotifs(false)} disabled={savingPrefs}
-                  style={{padding:'12px 16px',background:'#f5f5f0',color:'#666',border:'none',borderRadius:8,cursor:savingPrefs?'default':'pointer',fontSize:13}}>
-                  ✕
+                  aria-label={lang==='ar'?'إغلاق':'Fermer'}
+                  style={{padding:'12px 16px',background:C.bg,color:C.muted,border:'none',borderRadius:8,cursor:savingPrefs?'default':'pointer',fontSize:13,display:'flex',alignItems:'center'}}>
+                  <X size={18} />
                 </button>
               </div>
             </div>
@@ -979,8 +987,8 @@ export default function PortailParent({ parent, navigate, goBack, lang='fr', onL
             onClick={()=>setShowChangeMdp(false)}>
             <div onClick={e=>e.stopPropagation()}
               style={{width:'100%',background:'#fff',borderRadius:'18px 18px 0 0',padding:'16px'}}>
-              <div style={{fontSize:15,fontWeight:700,marginBottom:12,color:'#173404'}}>
-                🔑 {lang==='ar'?'تغيير كلمة المرور':'Changer le mot de passe'}
+              <div style={{fontSize:15,fontWeight:700,marginBottom:12,color:C.text,display:'flex',alignItems:'center',gap:6}}>
+                <KeyRound size={17} color={C.brand} /> {lang==='ar'?'تغيير كلمة المرور':'Changer le mot de passe'}
               </div>
               <input type="password" placeholder={lang==='ar'?'كلمة المرور الحالية':'Mot de passe actuel'}
                 value={oldPwd} onChange={e=>setOldPwd(e.target.value)}
@@ -997,8 +1005,9 @@ export default function PortailParent({ parent, navigate, goBack, lang='fr', onL
                   {lang==='ar'?'تحديث':'Mettre à jour'}
                 </button>
                 <button onClick={()=>{setShowChangeMdp(false);setOldPwd('');setNewPwd('');setConfirmPwd('');}}
-                  style={{padding:'12px 16px',background:'#f5f5f0',color:'#666',border:'none',borderRadius:8,cursor:'pointer',fontSize:13}}>
-                  ✕
+                  aria-label={lang==='ar'?'إلغاء':'Annuler'}
+                  style={{padding:'12px 16px',background:C.bg,color:C.muted,border:'none',borderRadius:8,cursor:'pointer',fontSize:13,display:'flex',alignItems:'center'}}>
+                  <X size={18} />
                 </button>
               </div>
             </div>
@@ -1011,8 +1020,8 @@ export default function PortailParent({ parent, navigate, goBack, lang='fr', onL
             onClick={()=>!rgpdLoading && setShowRgpdModal(false)}>
             <div onClick={e=>e.stopPropagation()}
               style={{width:'100%',maxHeight:'85vh',background:'#fff',borderRadius:'18px 18px 0 0',padding:'16px',overflow:'auto'}}>
-              <div style={{fontSize:15,fontWeight:700,marginBottom:6,color:'#173404'}}>
-                📦 {lang==='ar'?'تصدير بياناتي':'Exporter mes données'}
+              <div style={{fontSize:15,fontWeight:700,marginBottom:6,color:C.text,display:'flex',alignItems:'center',gap:6}}>
+                <Database size={17} color={C.brand} /> {lang==='ar'?'تصدير بياناتي':'Exporter mes données'}
               </div>
               {/* oct 2026 : meme information legale que le PC */}
               <div style={{fontSize:12,color:'#555',marginBottom:10,lineHeight:1.55}}>
@@ -1028,27 +1037,28 @@ export default function PortailParent({ parent, navigate, goBack, lang='fr', onL
                 • {lang==='ar'?'الشهادات المحصل عليها':'Certificats obtenus'}<br/>
                 • {lang==='ar'?'سجل زياراتك للبوابة':'Historique de vos consultations'}
               </div>
-              <div style={{fontSize:11,color:'#888',marginBottom:14,fontStyle:'italic'}}>
-                🔒 {lang==='ar'
+              <div style={{fontSize:11,color:C.muted,marginBottom:14,fontStyle:'italic',display:'flex',alignItems:'flex-start',gap:6}}>
+                <Lock size={13} style={{flexShrink:0,marginTop:1}} /> {lang==='ar'
                   ? 'سيتم تسجيل هذا التصدير في سجل المراجعة (قانون إلزامي).'
                   : 'Ce téléchargement sera journalisé dans le registre d\'audit (obligation légale).'}
               </div>
               <div style={{display:'flex',gap:6}}>
                 <button onClick={handleRgpdExport} disabled={rgpdLoading}
-                  style={{flex:1,padding:'12px',background:rgpdLoading?'#999':'#1D9E75',color:'#fff',border:'none',borderRadius:8,fontWeight:700,cursor:rgpdLoading?'default':'pointer',fontSize:13}}>
+                  style={{flex:1,padding:'12px',background:rgpdLoading?'#999':C.brand,color:'#fff',border:'none',borderRadius:8,fontWeight:700,cursor:rgpdLoading?'default':'pointer',fontSize:13,display:'flex',alignItems:'center',justifyContent:'center',gap:6}}>
                   {rgpdLoading
-                    ? (lang==='ar'?'⏳ ...':'⏳ Génération...')
-                    : (lang==='ar'?'📥 تحميل':'📥 Télécharger')}
+                    ? (lang==='ar'?'...':'Génération...')
+                    : <><Download size={16} /> {lang==='ar'?'تحميل':'Télécharger'}</>}
                 </button>
                 <button onClick={()=>setShowRgpdModal(false)} disabled={rgpdLoading}
-                  style={{padding:'12px 16px',background:'#f5f5f0',color:'#666',border:'none',borderRadius:8,cursor:rgpdLoading?'default':'pointer',fontSize:13}}>
-                  ✕
+                  aria-label={lang==='ar'?'إغلاق':'Fermer'}
+                  style={{padding:'12px 16px',background:C.bg,color:C.muted,border:'none',borderRadius:8,cursor:rgpdLoading?'default':'pointer',fontSize:13,display:'flex',alignItems:'center'}}>
+                  <X size={18} />
                 </button>
               </div>
               {rgpdHistorique.length > 0 && (
                 <div style={{marginTop:14,padding:12,background:'#f9f9f6',borderRadius:10}}>
-                  <div style={{fontSize:12,fontWeight:700,marginBottom:6,color:'#173404'}}>
-                    📋 {lang==='ar'?'تاريخ التصديرات':'Historique des exports'}
+                  <div style={{fontSize:12,fontWeight:700,marginBottom:6,color:C.text,display:'flex',alignItems:'center',gap:6}}>
+                    <History size={14} color={C.brand} /> {lang==='ar'?'تاريخ التصديرات':'Historique des exports'}
                   </div>
                   {rgpdHistorique.slice(0,10).map(h => (
                     <div key={h.id} style={{fontSize:11,color:'#666',padding:'4px 0',borderBottom:'0.5px solid #e0e0d8'}}>

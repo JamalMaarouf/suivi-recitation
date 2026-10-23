@@ -11,7 +11,7 @@ import PageHeader from '../components/PageHeader';
 import StatsBreakdown from '../components/StatsBreakdown';
 import MobileSkeletonList from '../components/MobileSkeletonList';
 import { usePullToRefresh, PullToRefreshIndicator } from '../lib/usePullToRefresh';
-import { MobileHeader, HeaderMenu, actionsExport } from '../components/ui';
+import { MobileHeader, HeaderMenu, actionsExport, ListRow, Avatar, LevelBadge, C } from '../components/ui';
 import { UserX } from 'lucide-react';
 
 // Couleurs niveaux — fallback sur des valeurs par défaut si niveaux pas encore chargés
@@ -247,27 +247,27 @@ export default function ElevesInactifs({ navigate, goBack, lang='fr', user, isMo
         total={{
           value: inactifs.length,
           label: lang === 'ar' ? 'الإجمالي' : 'Total inactifs',
-          emoji: '🚨',
+          emoji: isMobile ? undefined : '🚨', // charte mobile : pas d'emoji decoratif
           key: 'tous',
           onClick: () => setFiltreSeverite('tous'),
         }}
         segments={[
           { key: 'plus30', value: plus30, color: 'red',
             label: '+30 ' + (lang === 'ar' ? 'يوم' : 'jours'),
-            emoji: '🔴',
+            emoji: isMobile ? undefined : '🔴',
             onClick: () => setFiltreSeverite('plus30') },
           { key: 'entre14', value: entre14, color: 'amber',
             label: '14-30 ' + (lang === 'ar' ? 'يوم' : 'jours'),
-            emoji: '🟡',
+            emoji: isMobile ? undefined : '🟡',
             onClick: () => setFiltreSeverite('entre14') },
           { key: 'jamais', value: jamais, color: 'purple',
             label: lang === 'ar' ? 'لم يستظهر' : 'Sans récitation',
-            emoji: '⚪',
+            emoji: isMobile ? undefined : '⚪',
             onClick: () => setFiltreSeverite('jamais') },
         ]}
         activeKey={filtreSeverite}
         progress={inactifs.length > 0 ? {
-          label: `📊 ${lang === 'ar' ? 'توزيع غير النشطين' : 'Répartition par sévérité'}`,
+          label: `${isMobile ? '' : '📊 '}${lang === 'ar' ? 'توزيع غير النشطين' : 'Répartition par sévérité'}`,
           caption: `${plus30 + entre14} / ${inactifs.length} ${lang === 'ar' ? 'بدون استظهار' : 'sans récitation récente'}`,
         } : null}
         lang={lang}
@@ -299,6 +299,29 @@ export default function ElevesInactifs({ navigate, goBack, lang='fr', user, isMo
             const borderCol = estJamais ? '#534AB7' : urgent ? '#E24B4A' : '#EF9F27';
             const textCol = estJamais ? '#534AB7' : urgent ? '#E24B4A' : '#856404';
             const init = ((e.prenom||'?')[0]+(e.nom||'?')[0]).toUpperCase();
+
+            // Charte mobile (oct 2026) : ligne de liste ; le chiffre porte la severite (crit / warn / info)
+            if (isMobile) return (
+              <ListRow key={e.id} lang={lang}
+                leading={<Avatar prenom={e.prenom} nom={e.nom} color={nc} />}
+                title={`${e.prenom} ${e.nom}`}
+                subtitle={e.instituteurNom || undefined}
+                meta={
+                  <div style={{display:'flex',gap:6,alignItems:'center',flexWrap:'wrap'}}>
+                    <LevelBadge code={e.code_niveau} color={nc} />
+                    {estJamais ? (
+                      <span style={{fontSize:11,color:C.info,fontWeight:600}}>
+                        {lang==='ar'?'لم يستظهر بعد':'Jamais récité'}
+                      </span>
+                    ) : null}
+                  </div>
+                }
+                value={estJamais ? '∞' : jours}
+                valueLabel={lang==='ar'?'يوم':'jours'}
+                valueTone={estJamais ? 'info' : urgent ? 'crit' : 'warn'}
+                onClick={() => navigate('fiche', e)}
+              />
+            );
 
             return (
               <div key={e.id}

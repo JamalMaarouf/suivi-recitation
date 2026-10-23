@@ -10,7 +10,7 @@ import { fetchAll } from '../lib/fetchAll';
 import ExportButtons from '../components/ExportButtons';
 import PageHeader from '../components/PageHeader';
 import { usePullToRefresh, PullToRefreshIndicator } from '../lib/usePullToRefresh';
-import { MobileHeader, HeaderMenu, actionsExport } from '../components/ui';
+import { MobileHeader, HeaderMenu, actionsExport, ListRow, Avatar, LevelBadge, EmptyState, C } from '../components/ui';
 import { Star } from 'lucide-react';
 
 export default function ListeNotes({ user, navigate, goBack, lang='fr', isMobile }) {
@@ -364,7 +364,7 @@ export default function ListeNotes({ user, navigate, goBack, lang='fr', isMobile
       {/* Filtres */}
       <div className="card" style={{ marginBottom:'1.25rem', margin: isMobile?'0 12px 12px':'', borderRadius: isMobile?12:undefined }}>
         <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(180px,1fr))', gap:8 }}>
-          <input className="field-input" placeholder={'🔍 '+(lang==='ar'?'رقم أو اسم الطالب':'N° ou nom élève')}
+          <input className="field-input" placeholder={(isMobile?'':'🔍 ')+(lang==='ar'?'رقم أو اسم الطالب':'N° ou nom élève')}
             value={searchNum} onChange={e=>setSearchNum(e.target.value)} />
           <select className="field-select" value={filtreNiveau} onChange={e=>setFiltreNiveau(e.target.value)}>
             <option value="">{lang==='ar'?'كل المستويات':'Tous les niveaux'}</option>
@@ -419,94 +419,53 @@ export default function ListeNotes({ user, navigate, goBack, lang='fr', isMobile
         // ─────────────────────────────────────────────────────────
         <div>
           {filtered.length === 0 && (
-            <div style={{textAlign:'center', padding:'3rem', color:'#aaa', background:'#fff', borderRadius:14, border:'0.5px solid #e0e0d8'}}>
-              <div style={{fontSize:36, marginBottom:8}}>⭐</div>
-              <div style={{fontSize:13}}>{lang==='ar'?'لا توجد بيانات':'Aucune donnée'}</div>
+            <div style={{background:C.surface, borderRadius:12, border:`1px solid ${C.line}`}}>
+              <EmptyState icon={Star} title={lang==='ar'?'لا توجد بيانات':'Aucune donnée'} />
             </div>
           )}
           {(filtered||[]).map((el, idx) => {
             const nc = getNivColor(el.code_niveau);
-            const initials = ((el.prenom||'?')[0]||'?') + ((el.nom||'?')[0]||'?');
             const rank = idx + 1;
             const isPodium = rank <= 3;
             const podiumIcon = rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : null;
+            // Charte mobile (oct 2026) : ligne de liste ; medaille de classement conservee sur l'avatar
+            const details = [
+              el.eleve_id_ecole ? `#${el.eleve_id_ecole}` : null,
+              el.instNom,
+            ].filter(Boolean).join(' · ');
+            // Idem bureau : on somme tomons + sourates pour couvrir hizb/sourate
+            const decomposition = [
+              `${lang==='ar'?'الأثمان/السور':'Tomon/Sour.'} ${(el.pts.tomonPeriode||0) + (el.pts.nbSouratesCompletes||0)}`,
+              `${lang==='ar'?'الأحزاب':'Hizb'} ${el.pts.hizbsPeriode||0}`,
+              // Ajout : ensembles pour les eleves sourate (0 si non applicable)
+              (el.pts.nbEnsemblesComplets||0) > 0 ? `${lang==='ar'?'المجموعات':'Ens.'} ${el.pts.nbEnsemblesComplets}` : null,
+              `${lang==='ar'?'الامتحانات':'Exam.'} ${el.pts.ptsExamens||0}`,
+              `${lang==='ar'?'الشهادات':'Cert.'} ${el.pts.ptsCertificats||0}`,
+            ].filter(Boolean).join(' · ');
             return (
-              <div key={el.id} onClick={()=>navigate('fiche',el)}
-                style={{
-                  background:'#fff', borderRadius:14,
-                  padding:'14px',
-                  marginBottom:8,
-                  border:'0.5px solid #e0e0d8',
-                  display:'flex', alignItems:'center', gap:12,
-                  cursor:'pointer',
-                  boxShadow:'0 1px 4px rgba(0,0,0,0.04)',
-                  position:'relative'
-                }}>
-                {/* Avatar + rank */}
-                <div style={{flexShrink:0, position:'relative'}}>
-                  <div style={{
-                    width:46, height:46, borderRadius:'50%',
-                    background:`${nc}20`, color:nc,
-                    display:'flex', alignItems:'center', justifyContent:'center',
-                    fontWeight:800, fontSize:14
-                  }}>
-                    {initials}
-                  </div>
-                  {isPodium && (
-                    <div style={{
-                      position:'absolute', top:-4, right:-4,
-                      fontSize:16, lineHeight:1
-                    }}>{podiumIcon}</div>
-                  )}
-                </div>
-
-                {/* Infos */}
-                <div style={{flex:1, minWidth:0}}>
-                  <div style={{fontWeight:700, fontSize:14, marginBottom:3, lineHeight:1.2}}>
-                    {el.prenom} {el.nom}
-                  </div>
-                  <div style={{display:'flex', gap:5, alignItems:'center', flexWrap:'wrap', marginBottom:5}}>
-                    <span style={{padding:'2px 7px', borderRadius:10, fontSize:10, fontWeight:700, background:`${nc}20`, color:nc}}>
-                      {el.code_niveau||'?'}
-                    </span>
-                    {el.eleve_id_ecole && (
-                      <span style={{fontSize:10, color:'#bbb'}}>#{el.eleve_id_ecole}</span>
-                    )}
-                    <span style={{fontSize:10, color:'#888'}}>👨‍🏫 {el.instNom}</span>
-                  </div>
-                  {/* Décomposition compacte */}
-                  <div style={{display:'flex', gap:8, flexWrap:'wrap', fontSize:10}}>
-                    {/* Idem bureau : on somme tomons + sourates pour couvrir hizb/sourate */}
-                    <span style={{color:'#378ADD', fontWeight:600}}>
-                      ⭐ {(el.pts.tomonPeriode||0) + (el.pts.nbSouratesCompletes||0)}
-                    </span>
-                    <span style={{color:'#085041', fontWeight:600}}>
-                      📖 {el.pts.hizbsPeriode||0}
-                    </span>
-                    {/* Ajout : ensembles pour les eleves sourate (0 si non applicable) */}
-                    {(el.pts.nbEnsemblesComplets||0) > 0 && (
-                      <span style={{color:'#D85A30', fontWeight:600}}>
-                        📦 {el.pts.nbEnsemblesComplets}
-                      </span>
-                    )}
-                    <span style={{color:'#EF9F27', fontWeight:600}}>
-                      📝 {el.pts.ptsExamens||0}
-                    </span>
-                    <span style={{color:'#D85A30', fontWeight:600}}>
-                      🏅 {el.pts.ptsCertificats||0}
-                    </span>
-                  </div>
-                </div>
-
-                {/* Total points */}
-                <div style={{flexShrink:0, textAlign:'center'}}>
-                  <div style={{fontSize:22, fontWeight:800, color:'#378ADD', lineHeight:1}}>
-                    {el.pts.total.toLocaleString()}
-                  </div>
-                  <div style={{fontSize:9, color:'#aaa', marginTop:2, fontWeight:600, textTransform:'uppercase', letterSpacing:0.5}}>
-                    {lang==='ar'?'نقطة':'pts'}
-                  </div>
-                </div>
+              <div key={el.id} style={{marginBottom:8}}>
+                <ListRow lang={lang}
+                  leading={
+                    <div style={{flexShrink:0, position:'relative'}}>
+                      <Avatar prenom={el.prenom} nom={el.nom} color={nc} />
+                      {isPodium && (
+                        <div style={{position:'absolute', top:-4, insetInlineEnd:-4, fontSize:16, lineHeight:1}}>{podiumIcon}</div>
+                      )}
+                    </div>
+                  }
+                  title={`${el.prenom} ${el.nom}`}
+                  subtitle={details}
+                  meta={
+                    <div style={{display:'flex', gap:6, alignItems:'center', flexWrap:'wrap'}}>
+                      <LevelBadge code={el.code_niveau} color={nc} />
+                      <span style={{fontSize:11, color:C.muted}}>{decomposition}</span>
+                    </div>
+                  }
+                  value={el.pts.total.toLocaleString()}
+                  valueLabel={lang==='ar'?'نقطة':'pts'}
+                  valueTone="brand"
+                  onClick={()=>navigate('fiche',el)}
+                />
               </div>
             );
           })}
