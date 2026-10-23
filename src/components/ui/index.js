@@ -36,6 +36,8 @@ export function MobileHeader({ title, subtitle, icon: Icon, onBack, actions, chi
       background: HEADER_BG, color: C.onBrand,
       padding: `calc(44px + env(safe-area-inset-top, 0px)) ${S.lg}px ${S.md}px`,
       position: sticky ? 'sticky' : 'relative', top: 0, zIndex: 100,
+      // Pleine largeur : annule le padding 1rem de <main className="main-content-mobile">
+      margin: '-16px -16px 0',
     }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: S.sm + 2, minHeight: TOUCH }}>
         {onBack && <HeaderIconButton icon={Back} label={isAr(lang) ? 'رجوع' : 'Retour'} onClick={onBack} />}

@@ -1,4 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { HeaderIconButton, HEADER_BG } from '../components/ui';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { useToast } from '../lib/toast';
 import { supabase } from '../lib/supabase';
 import { calcEtatEleve, calcEtatEleveAvecBlocs, isSourateNiveauDyn, calcPositionAtteinte, calcUnite, calcPoints, formatDate, formatDateCourt, getInitiales, scoreLabel, calcBadges, calcVitesse, niveauTraduit, calcPointsPeriode, loadBareme, BAREME_DEFAUT, getSensForEleve, calcBlocProgression, calcHizbsAcquisAvantArrivee, ptsValidation} from '../lib/helpers';
@@ -927,10 +929,9 @@ ${(passages||[]).length > 0 ? `
         {isMobile ? (
           <>
             {/* Header sticky avec infos élève (pas de skeleton ici, on a déjà les infos) */}
-            <div style={{background:'linear-gradient(135deg,#085041,#1D9E75)', position:'sticky', top:0, zIndex:100, padding:'48px 16px 14px'}}>
+            <div style={{background:HEADER_BG, position:'sticky', top:0, zIndex:100, padding:'calc(44px + env(safe-area-inset-top, 0px)) 16px 14px', margin:'-16px -16px 0'}}>
               <div style={{display:'flex', alignItems:'center', gap:12}}>
-                <button onClick={()=>goBack?goBack():navigate('dashboard')}
-                  style={{background:'rgba(255,255,255,0.2)', border:'none', cursor:'pointer',flexShrink:0, borderRadius:10, width:38, height:38, color:'#fff', fontSize:20, display:'flex', alignItems:'center', justifyContent:'center'}}>←</button>
+                <HeaderIconButton icon={lang==='ar'?ChevronRight:ChevronLeft} label={lang==='ar'?'رجوع':'Retour'} onClick={()=>goBack?goBack():navigate('dashboard')} />
                 <div style={{flex:1}}>
                   <div style={{fontSize:17, fontWeight:800, color:'#fff'}}>{eleve?.prenom} {eleve?.nom}</div>
                   <div style={{fontSize:11, color:'rgba(255,255,255,0.75)', marginTop:2}}>{lang==='ar'?'جاري التحميل...':'Chargement...'}</div>
@@ -1418,13 +1419,10 @@ ${(passages||[]).length > 0 ? `
     return (
       <div style={{paddingBottom:80, background:'#f5f5f0', minHeight:'100vh'}}>
         {/* Sticky header */}
-        <div style={{background:`linear-gradient(135deg,#085041,#1D9E75)`, position:'sticky', top:0, zIndex:100}}>
-          <div style={{display:'flex', alignItems:'center', gap:12, padding:'48px 16px 12px'}}>
+        <div style={{background:HEADER_BG, position:'sticky', top:0, zIndex:100, margin:'-16px -16px 0'}}>
+          <div style={{display:'flex', alignItems:'center', gap:12, padding:'calc(44px + env(safe-area-inset-top, 0px)) 16px 12px'}}>
             {/* Charte mobile lot 1 (oct 2026) : bouton retour visible (il etait vide) */}
-            <button onClick={()=>goBack?goBack():navigate('dashboard')} aria-label={lang==='ar'?'رجوع':'Retour'}
-              style={{background:'rgba(255,255,255,0.2)', border:'1px solid rgba(255,255,255,0.25)', cursor:'pointer',flexShrink:0, borderRadius:10, width:44, height:44, padding:0, color:'#fff', fontSize:20, display:'flex', alignItems:'center', justifyContent:'center'}}>
-              {lang==='ar'?'→':'←'}
-            </button>
+            <HeaderIconButton icon={lang==='ar'?ChevronRight:ChevronLeft} label={lang==='ar'?'رجوع':'Retour'} onClick={()=>goBack?goBack():navigate('dashboard')} />
             <div style={{flex:1, minWidth:0}}>
               {/* Charte mobile lot 1 : nom en blanc (il etait vert fonce sur vert) */}
               <div style={{fontSize:17, fontWeight:800, color:'#fff', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap'}}>{eleve.prenom} {eleve.nom}</div>
