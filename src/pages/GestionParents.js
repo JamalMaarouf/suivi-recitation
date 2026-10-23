@@ -3,6 +3,8 @@ import { supabase } from '../lib/supabase';
 import { useToast } from '../lib/toast';
 import PageHeader from '../components/PageHeader';
 import MobileSkeletonList from '../components/MobileSkeletonList';
+import { MobileHeader } from '../components/ui';
+import { Users } from 'lucide-react';
 
 // ══════════════════════════════════════════════════════════════════════
 // PAGE GESTION PARAMÈTRES PARENTS
@@ -83,29 +85,13 @@ export default function GestionParents({ user, navigate, goBack, lang, isMobile 
 
       {/* Header */}
       {isMobile ? (
-        <div style={{
-          background: 'linear-gradient(135deg, #085041, #1D9E75)',
-          color: '#fff', padding: '48px 16px 14px',
-          position: 'sticky', top: 0, zIndex: 100,
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <button onClick={() => goBack ? goBack() : navigate('gestion')}
-              style={{
-                width: 44, height: 44,
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                background: 'rgba(255,255,255,0.2)', border: 'none', borderRadius: 10,
-                padding: 0, flexShrink: 0, color: '#fff', fontSize: 18, cursor: 'pointer',
-              }}>←</button>
-            <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 17, fontWeight: 800 }}>
-                👨‍👩‍👧 {lang === 'ar' ? 'متابعة الأولياء' : 'Suivi parents'}
-              </div>
-              <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.75)' }}>
-                {lang === 'ar' ? 'عتبات نشاط الأولياء' : 'Seuils d\'activité des parents'}
-              </div>
-            </div>
-          </div>
-        </div>
+        <MobileHeader
+          title={lang === 'ar' ? 'متابعة الأولياء' : 'Suivi parents'}
+          subtitle={lang === 'ar' ? 'عتبات نشاط الأولياء' : 'Seuils d\'activité des parents'}
+          icon={Users}
+          onBack={() => goBack ? goBack() : navigate('gestion')}
+          lang={lang}
+        />
       ) : (
         <div style={{ padding: '1.5rem 1.5rem 0' }}>
           <PageHeader

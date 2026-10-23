@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
-import { calcEtatEleve, getInitiales, scoreLabel, formatDateCourt, niveauTraduit, getSensForEleve, loadBareme, BAREME_DEFAUT} from '../lib/helpers';
+import { calcEtatEleve, getInitiales, scoreLabel, formatDateCourt, niveauTraduit, getSensForEleve, loadBareme, BAREME_DEFAUT, ptsValidation, calcPointsPeriode} from '../lib/helpers';
 import { t } from '../lib/i18n';
 import { fetchAll } from '../lib/fetchAll';
 import MobileSkeletonList from '../components/MobileSkeletonList';
+import { MobileHeader } from '../components/ui';
+import { GitCompare } from 'lucide-react';
 
 const PALETTE = ['#1D9E75','#378ADD','#EF9F27','#E24B4A','#534AB7','#D85A30'];
 
@@ -12,26 +14,44 @@ export default function Comparaison({ navigate, goBack, lang='fr', isMobile, use
   const [selected, setSelected] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
-  const [bareme, setBareme] = useState(BAREME_DEFAUT);
+  // FIX (oct 2026) : bareme complet (ensembles/jalons) pour calcPointsPeriode
+  const [bareme, setBareme] = useState({ unites:{...BAREME_DEFAUT}, examens:{}, ensembles:{}, jalons:{} });
 
   useEffect(() => { loadData(); }, []);
 
   const loadData = async () => {
     setLoading(true);
     try {
-    const [{data:ed}, vd, {data:nv}, {data:ec}, br] = await Promise.all([
-      supabase.from('eleves').select('*').eq('ecole_id', user.ecole_id).order('nom'),
+    // FIX (oct 2026) : eleves suspendus exclus ; recitations de sourates, certificats (date_emission)
+    // et points_eleves charges pour que les eleves en sourates ne soient plus a 0.
+    const [{data:ed}, vd, {data:nv}, {data:ec}, br, rs, {data:cert}, pe] = await Promise.all([
+      supabase.from('eleves').select('*').eq('ecole_id', user.ecole_id).is('suspendu_at', null).order('nom'),
       fetchAll(supabase.from('validations').select('*').eq('ecole_id', user.ecole_id).order('date_validation')),
       supabase.from('niveaux').select('id,code,nom,sens_recitation').eq('ecole_id', user.ecole_id),
       supabase.from('ecoles').select('sens_recitation_defaut').eq('id', user.ecole_id).maybeSingle(),
       loadBareme(supabase, user.ecole_id),
+      fetchAll(supabase.from('recitations_sourates').select('id,eleve_id,type_recitation,is_muraja,points,date_validation').eq('ecole_id', user.ecole_id)),
+      supabase.from('certificats_eleves').select('id,eleve_id,jalon_id,date_emission,created_at').eq('ecole_id', user.ecole_id),
+      fetchAll(supabase.from('points_eleves').select('id,eleve_id,type_event,points,date_event').eq('ecole_id', user.ecole_id)),
     ]);
-    setBareme(br?.unites || br || BAREME_DEFAUT);
+    const baremeComplet = (br && br.unites) ? br : { unites:{...BAREME_DEFAUT}, examens:{}, ensembles:{}, jalons:{} };
+    setBareme(baremeComplet);
+    const maintenant = new Date();
     setAllEleves((ed||[]).map(e => {
       const vals=(vd||[]).filter(v=>v.eleve_id===e.id);
       const sensE = getSensForEleve(e, nv, ec);
-      const etat=calcEtatEleve(vals,e.hizb_depart,e.tomon_depart, sensE);
-      return {...e,etat,validations:vals};
+      // BUG-FIX POINTS (oct 2026) : passer `bareme` (deja plat .unites) en 7eme
+      // position pour avoir les vrais points dans etat.points.
+      // calcPoints accepte barème plat ou avec .unites (voir helpers.js L533).
+      const etatBrut=calcEtatEleve(vals,e.hizb_depart,e.tomon_depart, sensE, e, null, baremeComplet);
+      // FIX (oct 2026) : score = calcPointsPeriode sur tout l'historique (validations, sourates
+      // y compris muraja via r.points, certificats, examens), meme regle que la courbe ci-dessous.
+      const recs=(rs||[]).filter(r=>r.eleve_id===e.id);
+      const certs=(cert||[]).filter(c=>c.eleve_id===e.id).map(c=>({...c, date_obtention:c.date_emission}));
+      const evts=(pe||[]).filter(p=>p.eleve_id===e.id);
+      const total=calcPointsPeriode(vals, new Date('2000-01-01'), maintenant, baremeComplet, evts, recs, certs).total;
+      const etat={...etatBrut, points:{...etatBrut.points, total}};
+      return {...e,etat,validations:vals,recitations:recs,certificats:certs,pointsEvenements:evts};
     }));
     } catch (e) {
       console.error("Erreur:", e);
@@ -45,18 +65,26 @@ export default function Comparaison({ navigate, goBack, lang='fr', isMobile, use
   };
 
   const calcEvolution = (eleve) => {
-    const vals=[...eleve.validations].sort((a,b)=>new Date(a.date_validation)-new Date(b.date_validation));
-    let cumul=0; let hc=new Set();
+    // FIX (oct 2026) : courbe = memes elements que le score (calcPointsPeriode) :
+    // validations (ptsValidation), recitations de sourates (r.points, muraja comprise),
+    // certificats (jalons) et examens (points_eleves). Le dernier point = score affiche.
+    const jalons = (bareme && bareme.jalons) || {};
+    const items=[
+      ...(eleve.validations||[]).map(v=>({date:v.date_validation, v})),
+      ...(eleve.recitations||[]).map(r=>({date:r.date_validation, p:Number(r.points)||0})),
+      ...(eleve.certificats||[]).map(c=>({date:c.date_obtention||c.created_at, p:jalons[c.jalon_id]||0})),
+      ...(eleve.pointsEvenements||[]).filter(x=>x.type_event==='examen').map(x=>({date:x.date_event, p:Number(x.points)||0})),
+    ].filter(x=>x.date).sort((a,b)=>new Date(a.date)-new Date(b.date));
+    let hc=new Set(); let score=0;
     const pts=[{score:0}];
-    // Bareme parametrable depuis Gestion (avec fallbacks anciens : tomon=10, hizb=100)
-    const ptsTomon = bareme.tomon || 0;
-    const ptsHizb  = bareme.hizb_complet || 0;
-    vals.forEach(v=>{
-      if(v.type_validation==='hizb_complet') hc.add(v.hizb_valide); else cumul+=v.nombre_tomon;
-      // Note : les bonus tomon/2 et tomon/4 (25 et 60) restaient hardcodes car
-      // ils ne correspondent pas a une unite parametrable du bareme actuel.
-      // Si le bareme s'enrichit dans le futur, on ajoutera bareme.bonus_demi_hizb etc.
-      pts.push({date:v.date_validation,score:cumul*ptsTomon+Math.floor(cumul/2)*25+Math.floor(cumul/4)*60+hc.size*ptsHizb,label:formatDateCourt(v.date_validation)});
+    items.forEach(it=>{
+      const v = it.v;
+      if (v && v.type_validation==='hizb_complet') {
+        if (hc.has(v.hizb_valide)) return; // deja compte
+        hc.add(v.hizb_valide);
+      }
+      score += v ? ptsValidation(v, bareme) : it.p;
+      pts.push({date:it.date,score,label:formatDateCourt(it.date)});
     });
     return pts;
   };
@@ -68,16 +96,16 @@ export default function Comparaison({ navigate, goBack, lang='fr', isMobile, use
   return (
     <div style={{paddingBottom:isMobile?80:0, background:isMobile?'#f5f5f0':'transparent', minHeight:isMobile?'100vh':'auto'}}>
       {isMobile ? (
-        <div style={{background:'linear-gradient(135deg,#085041,#1D9E75)',padding:'48px 16px 16px',marginBottom:12,position:'sticky',top:0,zIndex:100}}>
-          <div style={{display:'flex',alignItems:'center',gap:12}}>
-            <button onClick={()=>goBack?goBack():navigate('dashboard')}
-              style={{background:'rgba(255,255,255,0.22)',border:'1px solid rgba(255,255,255,0.25)',borderRadius:10,padding:'0',color:'#fff',fontSize:20,cursor:'pointer',flexShrink:0,width:44,height:44,display:'flex',alignItems:'center',justifyContent:'center'}}>←</button>
-            <div style={{flex:1}}>
-              <div style={{fontSize:17,fontWeight:800,color:'#fff'}}>📊 {lang==='ar'?'مقارنة الطلاب':'Comparer'}</div>
-              <div style={{fontSize:11,color:'rgba(255,255,255,0.75)'}}>{lang==='ar'?'اختر حتى 6 طلاب':"Sélectionnez jusqu'à 6 élèves"}</div>
-            </div>
-          </div>
-        </div>
+        <>
+        <MobileHeader
+          title={lang==='ar'?'مقارنة الطلاب':'Comparer'}
+          subtitle={lang==='ar'?'اختر حتى 6 طلاب':"Sélectionnez jusqu'à 6 élèves"}
+          icon={GitCompare}
+          onBack={()=>goBack?goBack():navigate('dashboard')}
+          lang={lang}
+        />
+        <div style={{height:12}}/>
+        </>
       ) : (
         <div>
           <button onClick={()=>goBack?goBack():navigate('dashboard')}

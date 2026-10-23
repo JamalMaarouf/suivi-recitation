@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
-import { calcEtatEleve, getInitiales, scoreLabel, formatDateCourt, isInactif, joursDepuis, niveauTraduit , loadBareme, BAREME_DEFAUT, getSensForEleve} from '../lib/helpers';
+import { calcEtatEleve, getInitiales, scoreLabel, formatDateCourt, isInactif, joursDepuis, niveauTraduit , loadBareme, BAREME_DEFAUT, getSensForEleve, calcPointsPeriode} from '../lib/helpers';
 import { t } from '../lib/i18n';
 import { fetchAll } from '../lib/fetchAll';
 import PageHeader from '../components/PageHeader';
 import MobileSkeletonList from '../components/MobileSkeletonList';
+import { MobileHeader } from '../components/ui';
+import { GraduationCap } from 'lucide-react';
 
 function Avatar({ prenom, nom, size=44, bg='#E1F5EE', color='#085041' }) {
   return <div style={{width:size,height:size,borderRadius:'50%',background:bg,color,display:'flex',alignItems:'center',justifyContent:'center',fontWeight:600,fontSize:size*0.33,flexShrink:0}}>{getInitiales(prenom,nom)}</div>;
@@ -19,30 +21,52 @@ export default function ProfilInstituteur({ instituteur, user, navigate, goBack,
   useEffect(() => { loadData(); }, [instituteur.id]);
 
   const loadData = async () => {
-    loadBareme(supabase, user.ecole_id).then(b=>setBareme({...BAREME_DEFAUT,...b.unites}));
     setLoading(true);
+    // BUG-FIX POINTS (oct 2026) : on await le bareme pour pouvoir le passer
+    // a calcEtatEleve des le premier rendu (avant : fire-and-forget -> 0 pts).
+    const brRes = await loadBareme(supabase, user.ecole_id).catch(() => null);
+    const baremeLocal = brRes ? {...BAREME_DEFAUT, ...brRes.unites} : {...BAREME_DEFAUT};
+    setBareme(baremeLocal);
     const {data:ed}=await supabase.from('eleves').select('*')
-        .eq('ecole_id', user.ecole_id).eq('instituteur_referent_id',instituteur.id);
+        .eq('ecole_id', user.ecole_id).eq('instituteur_referent_id',instituteur.id)
+        .is('suspendu_at', null); // F13 (oct 2026) : exclure les suspendus (comme Dashboard / ValidationRapide)
     const vd = await fetchAll(supabase.from('validations').select('*, valideur:valide_par(prenom,nom)')
         .eq('ecole_id', user.ecole_id).eq('valide_par',instituteur.id).order('date_validation',{ascending:false}));
     const allVd = await fetchAll(supabase.from('validations').select('*')
         .eq('ecole_id', user.ecole_id));
-    const [{data:nv}, {data:ec}] = await Promise.all([
+    // FIX (oct 2026) : recitations de sourates, certificats (date_emission) et points_eleves
+    // pour que le total des eleves en sourates soit complet (calcPointsPeriode, tout l'historique)
+    const idsEleves = (ed||[]).map(e=>e.id);
+    const [{data:nv}, {data:ec}, rsAll, {data:certAll}, peAll] = await Promise.all([
       supabase.from('niveaux').select('id,code,nom,sens_recitation').eq('ecole_id', user.ecole_id),
       supabase.from('ecoles').select('sens_recitation_defaut').eq('id', user.ecole_id).maybeSingle(),
+      idsEleves.length ? fetchAll(supabase.from('recitations_sourates').select('id,eleve_id,type_recitation,is_muraja,points,date_validation').eq('ecole_id', user.ecole_id).in('eleve_id', idsEleves)) : Promise.resolve([]),
+      idsEleves.length ? supabase.from('certificats_eleves').select('id,eleve_id,jalon_id,date_emission,created_at').eq('ecole_id', user.ecole_id).in('eleve_id', idsEleves) : Promise.resolve({data:[]}),
+      idsEleves.length ? fetchAll(supabase.from('points_eleves').select('id,eleve_id,type_event,points,date_event').eq('ecole_id', user.ecole_id).in('eleve_id', idsEleves)) : Promise.resolve([]),
     ]);
+    const baremeComplet = brRes || { unites:{...BAREME_DEFAUT}, examens:{}, ensembles:{}, jalons:{} };
+    const maintenant = new Date();
     const elevesData=(ed||[]).map(e=>{
       const vals=(allVd||[]).filter(v=>v.eleve_id===e.id);
       const sensE = getSensForEleve(e, nv, ec);
-      const etat=calcEtatEleve(vals,e.hizb_depart,e.tomon_depart, sensE);
-      const derniere=vals[0]?.date_validation||null;
-      return {...e,etat,derniere,jours:joursDepuis(derniere),inactif:isInactif(derniere)};
+      // BUG-FIX POINTS (oct 2026) : passer baremeLocal (deja plat .tomon/.hizb_complet).
+      const etat=calcEtatEleve(vals,e.hizb_depart,e.tomon_depart, sensE, e, null, baremeLocal);
+      // FIX (oct 2026) : total = calcPointsPeriode sur tout l'historique (validations + sourates
+      // + certificats + examens), comme la liste des notes. Avant : sourates jamais comptees.
+      const recs=(rsAll||[]).filter(r=>r.eleve_id===e.id);
+      const certs=(certAll||[]).filter(c=>c.eleve_id===e.id).map(c=>({...c, date_obtention:c.date_emission}));
+      const evts=(peAll||[]).filter(p=>p.eleve_id===e.id);
+      const ptsHist=calcPointsPeriode(vals, new Date('2000-01-01'), maintenant, baremeComplet, evts, recs, certs).total;
+      const etatPts={...etat, points:{...etat.points, total:ptsHist}};
+      // FIX (oct 2026) : derniere activite = date max (vals n'est pas trie) incluant les recitations
+      const derniere=[...vals, ...recs].reduce((m,x)=>(!m||new Date(x.date_validation)>new Date(m))?x.date_validation:m, null);
+      return {...e,etat:etatPts,derniere,jours:joursDepuis(derniere),inactif:isInactif(derniere)};
     });
     setEleves(elevesData); setValidations(vd||[]); setLoading(false);
   };
 
   const totalPoints=eleves.reduce((s,e)=>s+e.etat.points.total,0);
-  const totalTomon=eleves.reduce((s,e)=>s+(e.etat.tomonTotal||e.etat.tomonCumul),0);
+  const totalTomon=eleves.reduce((s,e)=>s+(e.etat.tomonCumul||0),0); // FIX (oct 2026) : tomonCumul (depuis le suivi) comme le Dashboard
   const totalHizb=eleves.reduce((s,e)=>s+e.etat.hizbsComplets.size,0);
   const nbInactifs=eleves.filter(e=>e.inactif).length;
   const nbAttente=eleves.filter(e=>e.etat.enAttenteHizbComplet).length;
@@ -51,13 +75,14 @@ export default function ProfilInstituteur({ instituteur, user, navigate, goBack,
   return (
     <div style={{paddingBottom:isMobile?80:0,background:isMobile?'#f5f5f0':'transparent',minHeight:isMobile?'100vh':'auto'}}>
       {isMobile ? (
-        <div style={{background:'linear-gradient(135deg,#085041,#1D9E75)',padding:'48px 16px 16px',position:'sticky',top:0,zIndex:100,marginBottom:12}}>
-          <div style={{display:'flex',alignItems:'center',gap:12}}>
-            <button onClick={()=>goBack?goBack():navigate('dashboard')}
-              style={{background:'rgba(255,255,255,0.22)',border:'1px solid rgba(255,255,255,0.25)',borderRadius:10,padding:'0',color:'#fff',fontSize:20,cursor:'pointer',flexShrink:0,width:44,height:44,display:'flex',alignItems:'center',justifyContent:'center'}}>←</button>
-            <div style={{flex:1,fontSize:17,fontWeight:800,color:'#fff'}}>👨‍🏫 {lang==='ar'?'ملف الأستاذ':'Profil'}</div>
-          </div>
-        </div>
+        <>
+          <MobileHeader
+            title={lang==='ar'?'ملف الأستاذ':'Profil'}
+            icon={GraduationCap}
+            onBack={()=>goBack?goBack():navigate('dashboard')}
+            lang={lang} />
+          <div style={{height:12}}/>
+        </>
       ) : (
         <PageHeader
           title="Profil"
@@ -95,7 +120,7 @@ export default function ProfilInstituteur({ instituteur, user, navigate, goBack,
                 <Avatar prenom={meilleur.prenom} nom={meilleur.nom} size={44} bg="#FAC775" color="#412402"/>
                 <div style={{flex:1}}>
                   <div style={{fontSize:15,fontWeight:600,color:'#412402'}}>{meilleur.prenom} {meilleur.nom}</div>
-                  <div style={{fontSize:12,color:'#854F0B'}}>Hizb {meilleur.etat.hizbEnCours} · {meilleur.etat.tomonTotal||meilleur.etat.tomonCumul} {t(lang,'tomon_abrev')} · {meilleur.etat.hizbsComplets.size} Hizb</div>
+                  <div style={{fontSize:12,color:'#854F0B'}}>Hizb {meilleur.etat.hizbEnCours} · {meilleur.etat.tomonCumul||0} {t(lang,'tomon_abrev')} · {meilleur.etat.hizbsComplets.size} Hizb</div>
                 </div>
                 <div style={{fontSize:22,fontWeight:800,color:'#EF9F27'}}>{meilleur.etat.points.total.toLocaleString()} {t(lang,'pts_abrev')}</div>
               </div>

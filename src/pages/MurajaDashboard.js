@@ -10,6 +10,8 @@ import { loadAnneeActiveAvecPeriodes, formatPeriodeCourte } from '../lib/helpers
 import ExportButtons from '../components/ExportButtons';
 import MobileSkeletonList from '../components/MobileSkeletonList';
 import { usePullToRefresh, PullToRefreshIndicator } from '../lib/usePullToRefresh';
+import { MobileHeader, HeaderIconButton, HeaderMenu, actionsExport, ActionSheet, LevelBadge, SectionTitle, C } from '../components/ui';
+import { BookOpen, Plus, RefreshCw, Pencil, Trash2, MoreVertical, AlertTriangle, CalendarDays, User, Users } from 'lucide-react';
 
 const getNiveauColor = (code, niveaux=[]) => niveaux.find(n=>n.code===code)?.couleur || {'5B':'#534AB7','5A':'#378ADD','2M':'#1D9E75','2':'#EF9F27','1':'#E24B4A'}[code] || '#888';
 
@@ -28,6 +30,7 @@ export default function MurajaDashboard({ user, navigate, goBack, lang='fr', isM
   const [editingSession, setEditingSession]   = useState(null); // session object
   const [editExclus, setEditExclus]           = useState({});   // id→true if removed
   const [editSaving, setEditSaving]           = useState(false);
+  const [menuSession, setMenuSession]         = useState(null); // charte mobile : panneau d'actions d'une seance
 
   // Confirm modal
   const [confirmModal, setConfirmModal] = useState({ isOpen:false, title:'', message:'', onConfirm:null });
@@ -47,25 +50,28 @@ export default function MurajaDashboard({ user, navigate, goBack, lang='fr', isM
   const loadData = async () => {
     setLoading(true);
     try {
-    const [{ data: recs }, { data: vals }, { data: elevs }, { data: nivs }] = await Promise.all([
-      supabase.from('recitations_sourates')
-        .select('id,date_validation,type_recitation,verset_debut,verset_fin,points,is_muraja, eleve:eleve_id(id,prenom,nom,code_niveau), sourate:sourate_id(numero,nom_ar), valideur:valide_par(prenom,nom)')
+    // FIX (oct 2026) : fetchAll au lieu de .limit(500) (historique tronque) ; suspendu_at
+    // dans la jointure eleve pour exclure les eleves suspendus des listes.
+    const [recsAll, valsAll, { data: elevs }, { data: nivs }] = await Promise.all([
+      fetchAll(supabase.from('recitations_sourates')
+        .select('id,date_validation,type_recitation,verset_debut,verset_fin,points,is_muraja, eleve:eleve_id(id,prenom,nom,code_niveau,suspendu_at), sourate:sourate_id(numero,nom_ar), valideur:valide_par(prenom,nom)')
         .eq('ecole_id', user.ecole_id)
         .eq('is_muraja', true)
-        .order('date_validation', { ascending: false })
-        .limit(500),
-      supabase.from('validations')
-        .select('id,date_validation,type_validation,nombre_tomon,tomon_debut,hizb_validation,is_muraja, eleve:eleve_id(id,prenom,nom,code_niveau), valideur:valide_par(prenom,nom)')
+        .order('date_validation', { ascending: false })),
+      fetchAll(supabase.from('validations')
+        .select('id,date_validation,type_validation,nombre_tomon,tomon_debut,hizb_validation,is_muraja, eleve:eleve_id(id,prenom,nom,code_niveau,suspendu_at), valideur:valide_par(prenom,nom)')
         .eq('ecole_id', user.ecole_id)
         .in('type_validation', ['tomon_muraja','hizb_muraja'])
-        .order('date_validation', { ascending: false })
-        .limit(500),
+        .order('date_validation', { ascending: false })),
+      // FIX (oct 2026) : exclure les eleves suspendus
       supabase.from('eleves').select('id,prenom,nom,code_niveau')
-        .eq('ecole_id', user.ecole_id).order('nom'),
+        .eq('ecole_id', user.ecole_id).is('suspendu_at', null).order('nom'),
       supabase.from('niveaux').select('id,code,nom,type,couleur').eq('ecole_id', user.ecole_id).order('ordre'),
     ]);
-    setRecitations(recs || []);
-    setValidations(vals || []);
+    const recs = (recsAll || []).filter(r => !r.eleve?.suspendu_at);
+    const vals = (valsAll || []).filter(v => !v.eleve?.suspendu_at);
+    setRecitations(recs);
+    setValidations(vals);
     setEleves(elevs || []);
     setNiveaux(nivs || []);
     } catch (e) {
@@ -82,7 +88,7 @@ export default function MurajaDashboard({ user, navigate, goBack, lang='fr', isM
     const p = periodesBDD.find(x => x.id === id);
     if (p) {
       cutoff = new Date(p.date_debut);
-      cutoffEnd = new Date(p.date_fin);
+      cutoffEnd = new Date(p.date_fin); cutoffEnd.setHours(23,59,59,999); // FIX (oct 2026) : inclure toute la derniere journee
     } else {
       cutoff = new Date();
       cutoff.setDate(cutoff.getDate() - 30); // fallback
@@ -307,28 +313,28 @@ export default function MurajaDashboard({ user, navigate, goBack, lang='fr', isM
         />
       )}
       {isMobile ? (
-        <div style={{background:'linear-gradient(135deg,#085041,#1D9E75)',padding:'48px 16px 16px',position:'sticky',top:0,zIndex:100}}>
-          <div style={{display:'flex',alignItems:'center',gap:12,marginBottom:12}}>
-            <button onClick={()=>goBack?goBack():navigate('dashboard')}
-              style={{background:'rgba(255,255,255,0.22)',border:'1px solid rgba(255,255,255,0.25)',borderRadius:10,padding:'0',color:'#fff',fontSize:20,cursor:'pointer',flexShrink:0,width:44,height:44,display:'flex',alignItems:'center',justifyContent:'center'}}></button>
-            <div style={{flex:1}}>
-              <div style={{fontSize:17,fontWeight:800,color:'#fff'}}>📖 {lang==='ar'?'المراجعة الجماعية':"Muraja'a"}</div>
-              <div style={{fontSize:11,color:'rgba(255,255,255,0.75)'}}>{lang==='ar'?'تتبع المراجعات الجماعية':'Suivi des révisions collectives'}</div>
-            </div>
-            <button onClick={()=>navigate('muraja')}
-              style={{background:'rgba(255,255,255,0.25)',border:'1px solid rgba(255,255,255,0.3)',borderRadius:10,padding:'8px 14px',color:'#fff',fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'inherit',flexShrink:0,whiteSpace:'nowrap'}}>
-              + {lang==='ar'?'جديد':'Nouveau'}
-            </button>
-          </div>
+        <MobileHeader
+          title={lang==='ar'?'المراجعة الجماعية':"Muraja'a"}
+          subtitle={lang==='ar'?'تتبع المراجعات الجماعية':'Suivi des révisions collectives'}
+          icon={BookOpen}
+          onBack={()=>goBack?goBack():navigate('dashboard')}
+          lang={lang}
+          actions={<>
+            <HeaderIconButton icon={Plus} onClick={()=>navigate('muraja')} label={lang==='ar'?'جديد':'Nouveau'} />
+            {/* Export mobile */}
+            {sessionList.length > 0 && (
+              <HeaderMenu lang={lang} actions={actionsExport({ onPDF: handleExportPDF, onExcel: handleExportExcel, lang })} />
+            )}
+          </>}>
           {/* Filtres mobiles */}
           <div style={{display:'flex',gap:6}}>
             <select value={filterNiveau} onChange={e=>setFilterNiveau(e.target.value)}
-              style={{flex:1,padding:'8px 10px',borderRadius:10,border:'none',fontSize:12,fontFamily:'inherit',background:'rgba(255,255,255,0.2)',color:'#fff',outline:'none'}}>
+              style={{flex:1,padding:'8px 10px',borderRadius:10,border:'none',fontSize:12,fontFamily:'inherit',background:'#fff',color:'#16241E',outline:'none'}}>
               <option value="tous" style={{color:'#333'}}>{lang==='ar'?'كل المستويات':'Tous niveaux'}</option>
               {niveaux.map(n=><option key={n.code} value={n.code} style={{color:'#333'}}>{n.code} — {n.nom}</option>)}
             </select>
             <select value={filterPeriode} onChange={e=>setFilterPeriode(e.target.value)}
-              style={{flex:1,padding:'8px 10px',borderRadius:10,border:'none',fontSize:12,fontFamily:'inherit',background:'rgba(255,255,255,0.2)',color:'#fff',outline:'none'}}>
+              style={{flex:1,padding:'8px 10px',borderRadius:10,border:'none',fontSize:12,fontFamily:'inherit',background:'#fff',color:'#16241E',outline:'none'}}>
               <option value="7" style={{color:'#333'}}>7j</option>
               <option value="30" style={{color:'#333'}}>30j</option>
               <option value="90" style={{color:'#333'}}>3 {lang==='ar'?'أشهر':'mois'}</option>
@@ -343,22 +349,9 @@ export default function MurajaDashboard({ user, navigate, goBack, lang='fr', isM
                 </optgroup>
               )}
             </select>
-            <button onClick={loadData} style={{padding:'8px 12px',background:'rgba(255,255,255,0.2)',color:'#fff',border:'none',borderRadius:10,cursor:'pointer',flexShrink:0,fontSize:14}}>🔄</button>
+            <HeaderIconButton icon={RefreshCw} onClick={loadData} label={lang==='ar'?'تحديث':'Actualiser'} />
           </div>
-          {/* Export mobile */}
-          {sessionList.length > 0 && (
-            <div style={{display:'flex',gap:6,marginTop:8}}>
-              <button onClick={handleExportPDF}
-                style={{flex:1,background:'rgba(255,255,255,0.25)',border:'1px solid rgba(255,255,255,0.3)',borderRadius:10,padding:'7px 11px',color:'#fff',fontSize:12,fontWeight:600,cursor:'pointer',whiteSpace:'nowrap',fontFamily:'inherit'}}>
-                📄 PDF
-              </button>
-              <button onClick={handleExportExcel}
-                style={{flex:1,background:'rgba(255,255,255,0.25)',border:'1px solid rgba(255,255,255,0.3)',borderRadius:10,padding:'7px 11px',color:'#fff',fontSize:12,fontWeight:600,cursor:'pointer',whiteSpace:'nowrap',fontFamily:'inherit'}}>
-                📊 Excel
-              </button>
-            </div>
-          )}
-        </div>
+        </MobileHeader>
       ) : (
       <>
       {/* Header PC */}
@@ -416,7 +409,17 @@ export default function MurajaDashboard({ user, navigate, goBack, lang='fr', isM
 
       {/* Stats */}
       <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(130px,1fr))',gap:10,marginBottom:20}}>
-        {statsByNiveau.map(s=>(
+        {statsByNiveau.map(s=>isMobile ? (
+          <div key={s.niveau} style={{background:C.surface,border:`1px solid ${C.line}`,borderRadius:12,padding:'12px',textAlign:'center'}}>
+            <div style={{marginBottom:4}}><LevelBadge code={s.niveau} color={s.color} /></div>
+            <div style={{fontSize:22,fontWeight:700,color:C.text}}>{s.nb}</div>
+            <div style={{fontSize:11,color:C.muted,marginBottom:6}}>{lang==='ar'?'استظهار':'entrées'}</div>
+            <div style={{height:6,borderRadius:3,background:C.line,overflow:'hidden',marginBottom:4}}>
+              <div style={{height:'100%',width:`${s.taux}%`,background:C.brand2,borderRadius:3}}/>
+            </div>
+            <div style={{fontSize:11,color:C.muted,fontWeight:600}}>{s.uniqueEleves}/{s.totalEleves} ({s.taux}%)</div>
+          </div>
+        ) : (
           <div key={s.niveau} style={{background:`${s.color}10`,border:`1.5px solid ${s.color}30`,borderRadius:12,padding:'12px',textAlign:'center'}}>
             <div style={{fontSize:16,fontWeight:800,color:s.color,marginBottom:4}}>{s.niveau}</div>
             <div style={{fontSize:22,fontWeight:800,color:'#1a1a1a'}}>{s.nb}</div>
@@ -431,25 +434,35 @@ export default function MurajaDashboard({ user, navigate, goBack, lang='fr', isM
 
       {/* Absentees */}
       {absenteesParNiveau.length>0&&(
-        <div style={{background:'#FFF3CD',border:'1.5px solid #FFECB5',borderRadius:12,padding:'12px',marginBottom:16}}>
+        <div style={isMobile?{background:C.surface,border:`1px solid ${C.line}`,borderRadius:12,padding:'12px',marginBottom:16}:{background:'#FFF3CD',border:'1.5px solid #FFECB5',borderRadius:12,padding:'12px',marginBottom:16}}>
+          {isMobile ? (
+            <div style={{fontSize:13,fontWeight:700,color:C.warn,marginBottom:8,display:'flex',alignItems:'center',gap:6}}>
+              <AlertTriangle size={16} /> {lang==='ar'?'لم يشاركوا في أي مراجعة:':'Sans muraja\u02bca sur cette période :'}
+            </div>
+          ) : (
           <div style={{fontSize:13,fontWeight:700,color:'#856404',marginBottom:8}}>
             ⚠️ {lang==='ar'?'لم يشاركوا في أي مراجعة:':'Sans muraja\u02bca sur cette période :'}
           </div>
+          )}
           <div style={{display:'flex',flexWrap:'wrap',gap:6}}>
             {absenteesParNiveau.map(e=>(
-              <span key={e.id} style={{padding:'3px 8px',background:'#fff',borderRadius:10,fontSize:12,color:'#856404',border:'1px solid #FFECB5'}}>{e.prenom} {e.nom}</span>
+              <span key={e.id} style={isMobile?{padding:'3px 8px',background:C.warnSoft,borderRadius:10,fontSize:12,color:C.text}:{padding:'3px 8px',background:'#fff',borderRadius:10,fontSize:12,color:'#856404',border:'1px solid #FFECB5'}}>{e.prenom} {e.nom}</span>
             ))}
           </div>
         </div>
       )}
 
       {/* Session list */}
+      {isMobile ? (
+        <SectionTitle>{lang==='ar'?'سجل المراجعات':'Historique des muraja\u02bca'} ({sessionList.length})</SectionTitle>
+      ) : (
       <div style={{fontSize:14,fontWeight:600,marginBottom:10,color:'#333'}}>
         📋 {lang==='ar'?'سجل المراجعات':'Historique des muraja\u02bca'} ({sessionList.length})
       </div>
+      )}
 
       {sessionList.length===0?(
-        <div style={{textAlign:'center',color:'#aaa',padding:'2rem',background:'#fafaf8',borderRadius:12}}>
+        <div style={isMobile?{textAlign:'center',color:C.muted,padding:'2rem',background:C.surface,border:`1px solid ${C.line}`,borderRadius:12}:{textAlign:'center',color:'#aaa',padding:'2rem',background:'#fafaf8',borderRadius:12}}>
           {lang==='ar'?'لا توجد مراجعات في هذه الفترة':'Aucune muraja\u02bca enregistrée sur cette période'}
         </div>
       ):(
@@ -458,8 +471,21 @@ export default function MurajaDashboard({ user, navigate, goBack, lang='fr', isM
             const nc = s.color;
             const isEditing = editingSession?.key === s.key;
             return (
-              <div key={i} style={{background:'#fff',border:`1.5px solid ${isEditing?nc:nc+'20'}`,borderRadius:12,padding:'12px 14px',transition:'border 0.2s'}}>
+              <div key={i} style={isMobile?{background:C.surface,border:`${isEditing?1.5:1}px solid ${isEditing?C.brand2:C.line}`,borderRadius:12,padding:'12px 14px',transition:'border 0.2s'}:{background:'#fff',border:`1.5px solid ${isEditing?nc:nc+'20'}`,borderRadius:12,padding:'12px 14px',transition:'border 0.2s'}}>
                 {/* Header row */}
+                {isMobile ? (
+                <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:8}}>
+                  <LevelBadge code={s.niveau} color={nc} />
+                  <span style={{fontWeight:600,fontSize:15,flex:1,minWidth:0,color:C.text}}>{s.contenu}</span>
+                  <span style={{padding:'2px 8px',borderRadius:8,background:C.bg,color:C.muted,fontSize:11,fontWeight:600,flexShrink:0}}>{s.type}</span>
+                  {user.role==='surveillant'&&!isEditing&&(
+                    <button type="button" onClick={()=>setMenuSession(s)}
+                      aria-label={lang==='ar'?'خيارات':'Options'}
+                      style={{width:44,height:44,marginInlineEnd:-8,border:'none',background:'transparent',borderRadius:12,cursor:'pointer',color:C.muted,
+                        display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}><MoreVertical size={20} /></button>
+                  )}
+                </div>
+                ) : (
                 <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:8}}>
                   <span style={{padding:'2px 8px',borderRadius:8,background:`${nc}20`,color:nc,fontWeight:700,fontSize:12}}>{s.niveau}</span>
                   <span style={{fontWeight:700,fontSize:14,flex:1}}>{s.contenu}</span>
@@ -478,19 +504,28 @@ export default function MurajaDashboard({ user, navigate, goBack, lang='fr', isM
                     </div>
                   )}
                 </div>
+                )}
 
                 {/* Meta */}
+                {isMobile ? (
+                <div style={{display:'flex',gap:12,flexWrap:'wrap',fontSize:12,color:C.muted,marginBottom:8}}>
+                  <span style={{display:'inline-flex',alignItems:'center',gap:4}}><CalendarDays size={13} /> {new Date(s.date).toLocaleDateString(lang==='ar'?'ar-MA':'fr-FR',{weekday:'long',day:'numeric',month:'long'})}</span>
+                  <span style={{display:'inline-flex',alignItems:'center',gap:4}}><User size={13} /> {s.valideur}</span>
+                  <span style={{display:'inline-flex',alignItems:'center',gap:4,color:C.text,fontWeight:600}}><Users size={13} /> {s.eleves.length} {lang==='ar'?'طالب':'élève(s)'}</span>
+                </div>
+                ) : (
                 <div style={{display:'flex',gap:16,fontSize:11,color:'#888',marginBottom:8}}>
                   <span>📅 {new Date(s.date).toLocaleDateString(lang==='ar'?'ar-MA':'fr-FR',{weekday:'long',day:'numeric',month:'long'})}</span>
                   <span>👤 {s.valideur}</span>
                   <span style={{color:nc,fontWeight:600}}>👥 {s.eleves.length} {lang==='ar'?'طالب':'élève(s)'}</span>
                 </div>
+                )}
 
                 {/* Normal view: eleve badges */}
                 {!isEditing&&(
                   <div style={{display:'flex',flexWrap:'wrap',gap:4}}>
                     {s.eleves.map((e,j)=>(
-                      <span key={j} style={{padding:'2px 8px',background:`${nc}10`,borderRadius:10,fontSize:11,color:'#444',border:`1px solid ${nc}20`}}>
+                      <span key={j} style={isMobile?{padding:'2px 8px',background:C.bg,borderRadius:10,fontSize:12,color:C.text,border:`1px solid ${C.line}`}:{padding:'2px 8px',background:`${nc}10`,borderRadius:10,fontSize:11,color:'#444',border:`1px solid ${nc}20`}}>
                         {e.prenom} {e.nom}
                       </span>
                     ))}
@@ -542,6 +577,16 @@ export default function MurajaDashboard({ user, navigate, goBack, lang='fr', isM
             );
           })}
         </div>
+      )}
+
+      {/* Charte mobile (oct 2026) : actions d'une seance dans un panneau */}
+      {isMobile && (
+        <ActionSheet open={!!menuSession} onClose={()=>setMenuSession(null)} lang={lang}
+          title={menuSession ? `${menuSession.niveau} · ${menuSession.contenu}` : ''}
+          actions={menuSession ? [
+            { label: lang==='ar'?'تعديل':'Modifier', icon: Pencil, onClick: ()=>startEdit(menuSession) },
+            { label: lang==='ar'?'حذف':'Supprimer', icon: Trash2, danger: true, onClick: ()=>handleDelete(menuSession) },
+          ] : []} />
       )}
 
       <ConfirmModal isOpen={confirmModal.isOpen} title={confirmModal.title} message={confirmModal.message}

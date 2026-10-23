@@ -8,6 +8,8 @@ import StatsCard from '../components/StatsCard';
 import { useToast } from '../lib/toast';
 import MobileSkeletonList from '../components/MobileSkeletonList';
 import { usePullToRefresh, PullToRefreshIndicator } from '../lib/usePullToRefresh';
+import { MobileHeader, HeaderIconButton, KpiTile, KpiGrid, LevelBadge, EmptyState, C } from '../components/ui';
+import { BookOpen, Settings } from 'lucide-react';
 
 // ══════════════════════════════════════════════════════════════════════
 // PAGE SUIVI COURS — hub principal
@@ -227,7 +229,7 @@ export default function SuiviCours({ user, navigate, goBack, lang, isMobile }) {
     onTouchStart, onTouchMove, onTouchEnd,
   } = usePullToRefresh(loadData);
   return (
-    <div style={{ background: isMobile ? '#f5f5f0' : 'transparent', minHeight: isMobile ? '100vh' : 'auto', paddingBottom: 80 }}
+    <div style={{ background: isMobile ? C.bg : 'transparent', minHeight: isMobile ? '100vh' : 'auto', paddingBottom: 80 }}
       {...(isMobile ? { onTouchStart, onTouchMove, onTouchEnd } : {})}>
       {isMobile && (
         <PullToRefreshIndicator
@@ -240,29 +242,17 @@ export default function SuiviCours({ user, navigate, goBack, lang, isMobile }) {
 
       {/* Header */}
       {isMobile ? (
-        <div style={{
-          background: 'linear-gradient(135deg, #0C447C, #378ADD)',
-          color: '#fff', padding: '48px 16px 14px',
-          position: 'sticky', top: 0, zIndex: 100,
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <button onClick={() => goBack ? goBack() : navigate('dashboard')}
-              style={{
-                width: 44, height: 44,
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                background: 'rgba(255,255,255,0.2)', border: 'none', borderRadius: 10,
-                padding: 0, flexShrink: 0, color: '#fff', fontSize: 18, cursor: 'pointer',
-              }}>←</button>
-            <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 17, fontWeight: 800 }}>
-                📚 {lang === 'ar' ? 'الدروس' : 'Cours'}
-              </div>
-              <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.75)' }}>
-                {lang === 'ar' ? 'متابعة تقدم الدروس حسب المستوى' : 'Suivi de la progression des cours par niveau'}
-              </div>
-            </div>
-          </div>
-        </div>
+        <MobileHeader
+          title={lang === 'ar' ? 'الدروس' : 'Cours'}
+          subtitle={lang === 'ar' ? 'متابعة تقدم الدروس حسب المستوى' : 'Suivi de la progression des cours par niveau'}
+          icon={BookOpen}
+          onBack={() => goBack ? goBack() : navigate('dashboard')}
+          lang={lang}
+          actions={
+            /* Bloc 3 (oct 2026) : acces a la creation des cours (instituteur : ses propres cours) */
+            <HeaderIconButton icon={Settings} label={lang === 'ar' ? 'إعداد الدروس' : 'Configurer les cours'}
+              onClick={() => navigate('gestion_cours')} />
+          } />
       ) : (
         <div style={{ padding: '1.5rem 1.5rem 0' }}>
           <PageHeader
@@ -272,15 +262,26 @@ export default function SuiviCours({ user, navigate, goBack, lang, isMobile }) {
             subtitle={lang === 'ar' ? 'متابعة تقدم الدروس حسب المستوى' : 'Suivi de la progression des cours par niveau'}
             onBack={() => goBack ? goBack() : navigate('dashboard')}
             lang={lang}
-            actions={!loading && cours.length > 0 && statsGlobales.nbLiaisons > 0 && (
-              <ExportButtons
-                onPDF={exportCoursPDF}
-                onExcel={exportCoursExcel}
-                lang={lang}
-                variant="inline"
-                compact
-              />
-            )}
+            actions={<div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              {!loading && cours.length > 0 && statsGlobales.nbLiaisons > 0 && (
+                <ExportButtons
+                  onPDF={exportCoursPDF}
+                  onExcel={exportCoursExcel}
+                  lang={lang}
+                  variant="inline"
+                  compact
+                />
+              )}
+              {/* Bloc 3 (oct 2026) : acces a la creation des cours */}
+              <button onClick={() => navigate('gestion_cours')}
+                style={{
+                  padding: '8px 12px', background: '#E6F1FB', color: '#0C447C',
+                  border: '1px solid #378ADD40', borderRadius: 10,
+                  fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit',
+                }}>
+                ⚙️ {lang === 'ar' ? 'إعداد الدروس' : 'Configurer les cours'}
+              </button>
+            </div>}
           />
         </div>
       )}
@@ -289,7 +290,24 @@ export default function SuiviCours({ user, navigate, goBack, lang, isMobile }) {
       <div style={{ padding: isMobile ? '14px' : '0 1.5rem' }}>
         {loading ? (
           <MobileSkeletonList type="card-simple" count={4} padding="12px" />
-        ) : cours.length === 0 ? (
+        ) : cours.length === 0 ? (isMobile ? (
+          <EmptyState icon={BookOpen}
+            title={lang === 'ar' ? 'لا توجد دروس بعد' : 'Aucun cours configuré'}
+            text={lang === 'ar'
+              ? 'ابدأ بإضافة دروس من قسم الإدارة'
+              : 'Commence par créer des cours depuis la page Gestion'}
+            action={
+              <button onClick={() => navigate('gestion_cours')}
+                style={{
+                  padding: '10px 18px', background: C.brand, color: C.onBrand,
+                  border: 'none', borderRadius: 12,
+                  fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit',
+                  display: 'inline-flex', alignItems: 'center', gap: 6,
+                }}>
+                <Settings size={16} /> {lang === 'ar' ? 'إعداد الدروس' : 'Configurer les cours'}
+              </button>
+            } />
+        ) : (
           <div style={{
             padding: 40, textAlign: 'center', color: '#888',
             background: '#fff', borderRadius: 12, border: '1px dashed #ccc',
@@ -303,7 +321,7 @@ export default function SuiviCours({ user, navigate, goBack, lang, isMobile }) {
                 ? 'ابدأ بإضافة دروس من قسم الإدارة'
                 : 'Commence par créer des cours depuis la page Gestion'}
             </div>
-            {user.role === 'surveillant' && (
+            {(
               <button onClick={() => navigate('gestion_cours')}
                 style={{
                   padding: '10px 18px', background: '#0C447C', color: '#fff',
@@ -314,9 +332,19 @@ export default function SuiviCours({ user, navigate, goBack, lang, isMobile }) {
               </button>
             )}
           </div>
-        ) : (
+        )) : (
           <>
             {/* KPIs globaux */}
+            {isMobile ? (
+              <div style={{ marginBottom: 14 }}>
+                <KpiGrid cols={2}>
+                  <KpiTile label={lang === 'ar' ? 'الدروس' : 'Cours'}                           value={statsGlobales.nbCours}                                       tone="brand" />
+                  <KpiTile label={lang === 'ar' ? 'أزواج درس/مستوى' : 'Couples cours × niveau'} value={statsGlobales.nbLiaisons}                                    />
+                  <KpiTile label={lang === 'ar' ? 'محاور مُتحقق منها' : 'Axes validés'}          value={`${statsGlobales.totalValides}/${statsGlobales.totalAxes}`} />
+                  <KpiTile label={lang === 'ar' ? 'التقدم الإجمالي' : 'Progression moyenne'}    value={`${statsGlobales.pctMoyen}%`}                                />
+                </KpiGrid>
+              </div>
+            ) : (
             <div style={{
               display: 'grid',
               gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(4, 1fr)',
@@ -327,6 +355,7 @@ export default function SuiviCours({ user, navigate, goBack, lang, isMobile }) {
               <StatsCard label={lang === 'ar' ? 'محاور مُتحقق منها' : 'Axes validés'}          value={`${statsGlobales.totalValides}/${statsGlobales.totalAxes}`}        color="green"  />
               <StatsCard label={lang === 'ar' ? 'التقدم الإجمالي' : 'Progression moyenne'}    value={`${statsGlobales.pctMoyen}%`}                                       color="amber"  />
             </div>
+            )}
 
             {/* Liste des cours */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
@@ -343,6 +372,7 @@ export default function SuiviCours({ user, navigate, goBack, lang, isMobile }) {
                     background: '#fff', borderRadius: 14, padding: 16,
                     border: '1px solid #e0e0d8',
                     boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+                    ...(isMobile ? { background: C.surface, border: `1px solid ${C.line}`, borderRadius: 12, boxShadow: 'none' } : {}),
                   }}>
                     {/* Entête cours */}
                     <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, marginBottom: 14, flexWrap: 'wrap' }}>
@@ -351,11 +381,21 @@ export default function SuiviCours({ user, navigate, goBack, lang, isMobile }) {
                         background: '#E6F1FB', color: '#0C447C',
                         display: 'flex', alignItems: 'center', justifyContent: 'center',
                         fontSize: 24, flexShrink: 0,
-                      }}>📚</div>
+                        ...(isMobile ? { width: 40, height: 40, borderRadius: 12, background: C.bg, color: C.brand, border: `1px solid ${C.line}` } : {}),
+                      }}>{isMobile ? <BookOpen size={18} /> : '📚'}</div>
                       <div style={{ flex: 1, minWidth: 180 }}>
-                        <div style={{ fontSize: 15, fontWeight: 700, color: '#1a1a1a' }}>
+                        <div style={{ fontSize: 15, fontWeight: 700, color: isMobile ? C.text : '#1a1a1a' }}>
                           {nomAffiche(c)}
                         </div>
+                        {isMobile ? (
+                        <div style={{ fontSize: 12, color: C.muted, marginTop: 2, display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                          {[
+                            c.categorie || null,
+                            `${axes.filter(a => a.cours_id === c.id).length} ${lang === 'ar' ? 'محور' : 'axe(s)'}`,
+                            c.annee_estimee ? `${c.annee_estimee} ${lang === 'ar' ? 'سنة' : 'an(s)'}` : null,
+                          ].filter(Boolean).join(' · ')}
+                        </div>
+                        ) : (
                         <div style={{ fontSize: 11, color: '#888', marginTop: 2, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                           {c.categorie && <span>📂 {c.categorie}</span>}
                           <span>📝 {axes.filter(a => a.cours_id === c.id).length} {lang === 'ar' ? 'محور' : 'axe(s)'}</span>
@@ -363,6 +403,7 @@ export default function SuiviCours({ user, navigate, goBack, lang, isMobile }) {
                             <span>⏱ {c.annee_estimee} {lang === 'ar' ? 'سنة' : 'an(s)'}</span>
                           )}
                         </div>
+                        )}
                       </div>
                     </div>
 
@@ -409,6 +450,11 @@ export default function SuiviCours({ user, navigate, goBack, lang, isMobile }) {
                                 e.currentTarget.style.borderColor = '#e0e0d8';
                               }}>
                               {/* Pastille niveau */}
+                              {isMobile ? (
+                                <div style={{ flexShrink: 0, minWidth: 60 }}>
+                                  <LevelBadge code={n.nom} color={couleur} />
+                                </div>
+                              ) : (
                               <div style={{
                                 padding: '4px 10px',
                                 background: `${couleur}20`, color: couleur,
@@ -416,6 +462,7 @@ export default function SuiviCours({ user, navigate, goBack, lang, isMobile }) {
                                 border: `1px solid ${couleur}40`,
                                 flexShrink: 0, minWidth: 60, textAlign: 'center',
                               }}>{n.nom}</div>
+                              )}
 
                               {/* Barre de progression */}
                               <div style={{ flex: 1, minWidth: 100 }}>
@@ -425,10 +472,12 @@ export default function SuiviCours({ user, navigate, goBack, lang, isMobile }) {
                                 }}>
                                   <div style={{
                                     width: `${s.pct}%`, height: '100%',
-                                    background: s.pct === 100 ? '#1D9E75'
+                                    background: isMobile
+                                      ? (s.pct === 100 ? C.good : s.pct >= 50 ? C.info : s.pct > 0 ? C.warn : C.line)
+                                      : (s.pct === 100 ? '#1D9E75'
                                       : s.pct >= 50 ? '#378ADD'
                                       : s.pct > 0 ? '#EF9F27'
-                                      : '#ccc',
+                                      : '#ccc'),
                                     transition: 'width 0.3s',
                                   }} />
                                 </div>

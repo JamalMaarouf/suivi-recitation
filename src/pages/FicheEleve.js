@@ -1,7 +1,9 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { HeaderIconButton, HEADER_BG } from '../components/ui';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { useToast } from '../lib/toast';
 import { supabase } from '../lib/supabase';
-import { calcEtatEleve, calcEtatEleveAvecBlocs, isSourateNiveauDyn, calcPositionAtteinte, calcUnite, calcPoints, formatDate, formatDateCourt, getInitiales, scoreLabel, calcBadges, calcVitesse, niveauTraduit, calcPointsPeriode, loadBareme, BAREME_DEFAUT, getSensForEleve, calcBlocProgression, calcHizbsAcquisAvantArrivee} from '../lib/helpers';
+import { calcEtatEleve, calcEtatEleveAvecBlocs, isSourateNiveauDyn, calcPositionAtteinte, calcUnite, calcPoints, formatDate, formatDateCourt, getInitiales, scoreLabel, calcBadges, calcVitesse, niveauTraduit, calcPointsPeriode, loadBareme, BAREME_DEFAUT, getSensForEleve, calcBlocProgression, calcHizbsAcquisAvantArrivee, ptsValidation} from '../lib/helpers';
 import { t } from '../lib/i18n';
 import { openPDF } from '../lib/pdf';
 import { getCachedSWR } from '../lib/cache';
@@ -45,15 +47,20 @@ function calcHeatmap(validations) {
 
 function calcEvolution(validations, bareme) {
   const vals = [...validations].sort((a,b)=>new Date(a.date_validation)-new Date(b.date_validation));
-  let cumul=0; let hc=new Set();
+  let hc=new Set();
   const pts = [{score:0,label:'Départ'}];
-  // Bareme parametrable depuis Gestion. Fallbacks aux valeurs historiques (10/100)
-  // si bareme non fourni (ex : appel sans bareme charge).
-  const ptsTomon = bareme?.tomon || 0;
-  const ptsHizb  = bareme?.hizb_complet || 0;
+  // NETTOYAGE (oct 2026) : suppression des bonus codes en dur (+25 tous les 2
+  // tomons, +60 tous les 4) de l'ancien modele Roba/Nisf. Points = bareme seul,
+  // via ptsValidation (memes regles que calcPointsPeriode). Les hizbs complets
+  // restent dedoublonnes par numero de hizb, comme dans calcPointsPeriode.
+  let score = 0;
   vals.forEach(v => {
-    if(v.type_validation==='hizb_complet') hc.add(v.hizb_valide); else cumul+=v.nombre_tomon;
-    pts.push({score:cumul*ptsTomon+Math.floor(cumul/2)*25+Math.floor(cumul/4)*60+hc.size*ptsHizb,label:formatDateCourt(v.date_validation)});
+    if (v.type_validation==='hizb_complet') {
+      if (hc.has(v.hizb_valide)) return; // deja compte
+      hc.add(v.hizb_valide);
+    }
+    score += ptsValidation(v, bareme);
+    pts.push({score, label:formatDateCourt(v.date_validation)});
   });
   return pts;
 }
@@ -153,7 +160,7 @@ function PassageNiveauModal({ show, onClose, eleve, etat, user, lang, niveauxDis
           </div>
           <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:6,fontSize:12}}>
             <div style={{color:'#555'}}>{lang==='ar'?'المستوى:':'Niveau :'} <strong>{eleve.code_niveau}</strong></div>
-            <div style={{color:'#555'}}>Pts: <strong>{estSourateActuel ? totalPtsSourates : (etat?.points?.total||0)}</strong></div>
+            <div style={{color:'#555'}}>Pts: <strong>{totalPtsSourates}</strong></div>
             {estSourateActuel
               ? <div style={{color:'#1D9E75',fontWeight:600}}>📖 {nbSouratesCompletes} {lang==='ar'?'سورة مكتملة':'sourates complètes'}</div>
               : <>
@@ -303,11 +310,51 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang, isMobi
     // programmeNiveau car React met le state a jour asynchrone.
     let progDataLoaded = [];
 
+    // PERF (oct 2026) : les requetes independantes partent EN PARALLELE (avant : ~11 allers-retours
+    // successifs vers la base, ~2 s sur mobile). Memes requetes, memes resultats, memes gardes
+    // d'erreur (chaque bloc garde sa valeur par defaut s'il echoue). Ordre :
+    //   vague 1 : eleve frais + tout ce qui ne depend que de eleve.id / ecole
+    //   vague 2 : ce qui depend de la vague 1 (programme du niveau, sourates, instituteur, examens)
+    const sur = (p, defaut) => Promise.resolve().then(() => p()).catch(() => defaut);
+    // Audit final : certains ecrans (Notes, recherche, certificats) passent un eleve SANS ecole_id ;
+    // avant, ces requetes partaient apres le rechargement de l'eleve. On prend donc l'ecole de
+    // l'utilisateur en secours (c'est toujours la meme ecole).
+    const ecoleId = eleve.ecole_id || user.ecole_id;
+    const cacheKey = (name) => `${name}_${eleve.id}`;
+    const pEleveFrais = sur(() => supabase.from('eleves').select('*').eq('id', eleve.id).maybeSingle(), { data: null });
+    const pLot = Promise.allSettled([
+      getCachedSWR(cacheKey('validations'), user.ecole_id,
+        () => fetchAll(supabase.from('validations').select('*, valideur:valide_par(prenom,nom)').eq('ecole_id', user.ecole_id).eq('eleve_id',eleve.id).order('date_validation',{ascending:false}))),
+      supabase.from('apprentissages').select('*')
+        .eq('ecole_id', user.ecole_id).eq('eleve_id',eleve.id).order('date_debut',{ascending:false}),
+      supabase.from('exceptions_hizb').select('*')
+        .eq('ecole_id', user.ecole_id).eq('eleve_id',eleve.id).eq('active',true),
+      supabase.from('validations').select('*, valideur:valide_par(prenom,nom)').eq('ecole_id', user.ecole_id).eq('eleve_id',eleve.id).in('type_validation',['tomon_muraja','hizb_muraja']).order('date_validation',{ascending:false}),
+      supabase.from('recitations_sourates').select('*, sourate:sourate_id(nom_ar,numero), valideur:valide_par(prenom,nom)').eq('ecole_id', user.ecole_id).eq('eleve_id',eleve.id).eq('is_muraja',true).order('date_validation',{ascending:false}),
+      getCachedSWR(cacheKey('recitations_eleve'), user.ecole_id,
+        () => fetchAll(supabase.from('recitations_sourates').select('id,type_recitation,sourate_id,verset_debut,verset_fin,date_validation,valide_par,points,is_muraja,sourate:sourate_id(nom_ar,numero),valideur:valide_par(prenom,nom)').eq('ecole_id', user.ecole_id).eq('eleve_id',eleve.id))),
+      supabase.from('passages_niveau').select('*, valide_par_u:valide_par(prenom,nom)').eq('ecole_id', user.ecole_id).eq('eleve_id',eleve.id).order('date_passage',{ascending:false}),
+      supabase.from('objectifs').select('*').eq('ecole_id', user.ecole_id).eq('eleve_id',eleve.id).order('created_at',{ascending:false}),
+    ]);
+    const pNivEcole = sur(() => Promise.all([
+      supabase.from('niveaux').select('id,code,nom,type,sens_recitation').eq('ecole_id', ecoleId),
+      supabase.from('ecoles').select('sens_recitation_defaut').eq('id', ecoleId).maybeSingle(),
+    ]), null);
+    const pExRes = sur(() => supabase.from('resultats_examens')
+      .select('*').eq('eleve_id',eleve.id).order('created_at',{ascending:false}), null);
+    const pCertRes = sur(() => supabase.from('certificats_eleves')
+      .select('*').eq('eleve_id',eleve.id).order('created_at',{ascending:false}), null);
+    const pJalRes = sur(() => supabase.from('jalons').select('id,nom,nom_ar').eq('ecole_id',ecoleId).eq('actif',true).order('created_at'), null);
+    const pBareme = sur(() => loadBareme(supabase, ecoleId), null);
+    // Charger points événements (avec .catch pour ne pas casser) — non bloquant, comme avant
+    supabase.from('points_eleves').select('*').eq('eleve_id', eleve.id).order('date_event')
+      .then(({data}) => setPointsEvenements(data||[]))
+      .catch(()=> setPointsEvenements([]));
+
     // Recharger l'eleve frais depuis la DB (ses hizb_depart/tomon_depart peuvent avoir
     // change depuis le render parent). Sinon on calcule etat a partir de donnees periees.
     try {
-      const { data: freshEleve } = await supabase.from('eleves').select('*')
-        .eq('id', eleve.id).maybeSingle();
+      const { data: freshEleve } = (await pEleveFrais) || {};
       if (freshEleve) {
         // On mute les proprietes critiques de l'objet eleve en place pour que le reste
         // de la fonction (qui utilise eleve.hizb_depart etc.) voie les valeurs fraiches.
@@ -316,22 +363,7 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang, isMobi
     } catch (e) { /* continue avec l'objet reçu */ }
 
     try {
-      // Cache par élève — clé distincte pour chaque élève
-      const cacheKey = (name) => `${name}_${eleve.id}`;
-      const results = await Promise.allSettled([
-        getCachedSWR(cacheKey('validations'), user.ecole_id,
-          () => fetchAll(supabase.from('validations').select('*, valideur:valide_par(prenom,nom)').eq('ecole_id', user.ecole_id).eq('eleve_id',eleve.id).order('date_validation',{ascending:false}))),
-        supabase.from('apprentissages').select('*')
-          .eq('ecole_id', user.ecole_id).eq('eleve_id',eleve.id).order('date_debut',{ascending:false}),
-        supabase.from('exceptions_hizb').select('*')
-          .eq('ecole_id', user.ecole_id).eq('eleve_id',eleve.id).eq('active',true),
-        supabase.from('validations').select('*, valideur:valide_par(prenom,nom)').eq('ecole_id', user.ecole_id).eq('eleve_id',eleve.id).in('type_validation',['tomon_muraja','hizb_muraja']).order('date_validation',{ascending:false}),
-        supabase.from('recitations_sourates').select('*, sourate:sourate_id(nom_ar,numero), valideur:valide_par(prenom,nom)').eq('ecole_id', user.ecole_id).eq('eleve_id',eleve.id).eq('is_muraja',true).order('date_validation',{ascending:false}),
-        getCachedSWR(cacheKey('recitations_eleve'), user.ecole_id,
-          () => fetchAll(supabase.from('recitations_sourates').select('id,type_recitation,sourate_id,verset_debut,verset_fin,date_validation,valide_par,points,sourate:sourate_id(nom_ar,numero),valideur:valide_par(prenom,nom)').eq('ecole_id', user.ecole_id).eq('eleve_id',eleve.id))),
-        supabase.from('passages_niveau').select('*, valide_par_u:valide_par(prenom,nom)').eq('ecole_id', user.ecole_id).eq('eleve_id',eleve.id).order('date_passage',{ascending:false}),
-        supabase.from('objectifs').select('*').eq('ecole_id', user.ecole_id).eq('eleve_id',eleve.id).order('created_at',{ascending:false}),
-      ]);
+      const results = await pLot;
       // getCachedSWR retourne directement les données (pas {data,error}),
       // tandis que les appels Supabase directs retournent {data,error}.
       // On normalise :
@@ -344,67 +376,70 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang, isMobi
 
       setRecitationsSouratesEleve(recSourates);
 
+      // ─── Vague 2 : requetes dependant de la vague 1, lancees ensemble ──
+      const nivEcole = await pNivEcole;
+      const nivData = nivEcole ? (nivEcole[0]?.data || null) : null;
+      const ecData = nivEcole ? (nivEcole[1]?.data || null) : null;
+      // Niveau de l'eleve (code_niveau frais) -> programme (progression par blocs) + sourates
+      const niveauEleve = nivEcole ? (nivData || []).find(n => n.code === eleve.code_niveau) : null;
+      const estNiveauSourate = !!niveauEleve && (niveauEleve.type === 'sourate' || ['5B','5A','2M'].includes(eleve.code_niveau));
+      const pProg = niveauEleve
+        ? sur(() => supabase.from('programmes')
+            .select('reference_id, ordre, bloc_numero, bloc_nom, bloc_sens, type_contenu')
+            .eq('niveau_id', niveauEleve.id)
+            .eq('ecole_id', ecoleId)
+            .order('ordre'), 'ERREUR')
+        : Promise.resolve(null);
+      const pSour = estNiveauSourate
+        ? sur(() => supabase.from('sourates').select('id, numero, nom_ar').order('numero'), 'ERREUR')
+        : Promise.resolve(null);
+      // .single() plante dur si réseau instable → on utilise .maybeSingle() + try
+      const pInst = eleve.instituteur_referent_id
+        ? sur(() => supabase.from('utilisateurs').select('prenom,nom').eq('id',eleve.instituteur_referent_id).maybeSingle(), { data: null })
+        : Promise.resolve({ data: null });
+      const pExamens = pExRes.then(exRes => {
+        if (exRes && exRes.data && exRes.data.length > 0) {
+          const examIds = [...new Set(exRes.data.map(r=>r.examen_id).filter(Boolean))];
+          return supabase.from('examens').select('id,nom,description,score_minimum,bloquant').in('id',examIds)
+            .then(({data:examData}) => {
+              const examMap = Object.fromEntries((examData||[]).map(e=>[e.id,e]));
+              return exRes.data.map(r=>({...r, examen:examMap[r.examen_id]||null}));
+            });
+        }
+        return [];
+      }).catch(() => []);
+
       // ─── Chargement niveaux + programme (TOUJOURS, hors du if instituteur) ──
       // Important : on charge toujours pour que la progression par blocs
       // s'affiche même si l'élève n'a pas encore d'instituteur assigné.
-      try {
-        const [{ data: nivData }, { data: ecData }] = await Promise.all([
-          supabase.from('niveaux').select('id,code,nom,type,sens_recitation').eq('ecole_id', eleve.ecole_id),
-          supabase.from('ecoles').select('sens_recitation_defaut').eq('id', eleve.ecole_id).maybeSingle(),
-        ]);
+      if (nivEcole) {
         setNiveaux(nivData || []);
         setEcoleConfig(ecData || null);
-
-        // Charger le programme du niveau de l'élève (pour progression par blocs)
-        const niveauEleve = (nivData || []).find(n => n.code === eleve.code_niveau);
         if (niveauEleve) {
-          try {
-            const { data: progData } = await supabase.from('programmes')
-              .select('reference_id, ordre, bloc_numero, bloc_nom, bloc_sens, type_contenu')
-              .eq('niveau_id', niveauEleve.id)
-              .eq('ecole_id', eleve.ecole_id)
-              .order('ordre');
-            progDataLoaded = progData || [];
-            setProgrammeNiveau(progDataLoaded);
-          } catch(e) {
+          const progRes = await pProg;
+          if (progRes === 'ERREUR') {
             setProgrammeNiveau([]);
+          } else {
+            progDataLoaded = (progRes && progRes.data) || [];
+            setProgrammeNiveau(progDataLoaded);
           }
-          // Charger les sourates (id <-> numero <-> nom_ar) pour l'affichage fiche sourate
-          if (niveauEleve.type === 'sourate' || ['5B','5A','2M'].includes(eleve.code_niveau)) {
-            try {
-              const { data: sourData } = await supabase.from('sourates').select('id, numero, nom_ar').order('numero');
-              setSouratesDB(sourData || []);
-            } catch(e) {
-              setSouratesDB([]);
-            }
+          if (estNiveauSourate) {
+            const sourRes = await pSour;
+            setSouratesDB(sourRes === 'ERREUR' ? [] : ((sourRes && sourRes.data) || []));
           }
         }
-      } catch(e) { /* gardé par défaut */ }
+      }
 
-      if (eleve.instituteur_referent_id) {
-        // .single() plante dur si réseau instable → on utilise .maybeSingle() + try
-        let inst = null;
-        try {
-          const { data } = await supabase.from('utilisateurs').select('prenom,nom').eq('id',eleve.instituteur_referent_id).maybeSingle();
-          inst = data;
-        } catch(e) { inst = null; }
+      // FIX (oct 2026) : examens, certificats, points et jalons sont charges pour TOUS les
+      // eleves (avant : seulement s'ils avaient un instituteur referent -> 0 pt d'examen
+      // et aucun certificat sur la fiche d'un eleve sans referent).
+      const inst = ((await pInst) || {}).data || null;
+      {
         // Charger examens et certificats (tables optionnelles)
-        try {
-          const exRes = await supabase.from('resultats_examens')
-            .select('*').eq('eleve_id',eleve.id).order('created_at',{ascending:false});
-          if (exRes.data && exRes.data.length > 0) {
-            const examIds = [...new Set(exRes.data.map(r=>r.examen_id).filter(Boolean))];
-            const {data:examData} = await supabase.from('examens').select('id,nom,description,score_minimum,bloquant').in('id',examIds);
-            const examMap = Object.fromEntries((examData||[]).map(e=>[e.id,e]));
-            setExamens(exRes.data.map(r=>({...r, examen:examMap[r.examen_id]||null})));
-          } else {
-            setExamens([]);
-          }
-        } catch(e) { setExamens([]); }
+        setExamens(await pExamens);
         // Charger les vrais certificats depuis certificats_eleves
-        try {
-          const certRes = await supabase.from('certificats_eleves')
-            .select('*').eq('eleve_id',eleve.id).order('created_at',{ascending:false});
+        const certRes = await pCertRes;
+        if (certRes) {
           // Mapping BDD -> aliases utilises dans le rendu
           const certsMapped = (certRes.data || []).map(c => ({
             ...c,
@@ -413,25 +448,21 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang, isMobi
             date_obtention: c.date_emission,
           }));
           setCertificats(certsMapped);
-        } catch(e) { setCertificats([]); }
-        // Charger barème et points événements (avec .catch pour ne pas casser)
-        loadBareme(supabase, eleve.ecole_id).then(b => setBaremeEleve(b)).catch(()=>{});
-        supabase.from('points_eleves').select('*').eq('eleve_id', eleve.id).order('date_event')
-          .then(({data}) => setPointsEvenements(data||[]))
-          .catch(()=> setPointsEvenements([]));
+        } else { setCertificats([]); }
         // Charger jalons
-        try {
-          const jalRes = await supabase.from('jalons').select('id,nom,nom_ar').eq('ecole_id',eleve.ecole_id).eq('actif',true).order('created_at');
-          setJalonsDisp(jalRes.data || []);
-        } catch(e) { setJalonsDisp([]); }
-
-        // Charger niveaux + config école : deja fait plus haut (hors du if instituteur)
-        // pour que la vue par blocs s'affiche même sans instituteur assigne.
+        const jalRes = await pJalRes;
+        setJalonsDisp((jalRes && jalRes.data) || []);
 
         if(inst) setInstituteurNom(inst.prenom+' '+inst.nom);
       }
       const sensE = getSensForEleve(eleve, niveaux, ecoleConfig);
-      const e = calcEtatEleveAvecBlocs(vals||[], eleve, progDataLoaded, sensE);
+      // BUG-FIX POINTS (oct 2026) : charger le bareme AVANT calcEtatEleveAvecBlocs
+      // pour que les points soient calcules avec le vrai bareme (au lieu de 0).
+      // Le state baremeEleve est aussi mis a jour pour les autres usages du
+      // composant (notamment calcPointsPeriode ligne 1752).
+      const baremeLocal = await pBareme;
+      if (baremeLocal) setBaremeEleve(baremeLocal);
+      const e = calcEtatEleveAvecBlocs(vals||[], eleve, progDataLoaded, sensE, baremeLocal);
 
       // PROTECTION CRITIQUE : si on avait déjà un état avec des validations
       // et que le reload ne retourne rien, c'est un signal d'erreur transitoire.
@@ -463,8 +494,10 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang, isMobi
         // Premier chargement raté : afficher un état minimal pour que la page ne crash pas
         // BUG-FIX MULTI-BLOCS : on passe eleve + progDataLoaded pour benefier de
         // la logique corrigee meme en cas d'erreur de chargement.
+        // BUG-FIX POINTS (oct 2026) : passer baremeEleve (state actuel) pour
+        // avoir les points corrects si le barème a deja ete charge dans un render precedent.
         const sensE = getSensForEleve(eleve, niveaux, ecoleConfig);
-        setEtat(calcEtatEleve([],eleve.hizb_depart,eleve.tomon_depart, sensE, eleve, progDataLoaded));
+        setEtat(calcEtatEleve([],eleve.hizb_depart,eleve.tomon_depart, sensE, eleve, progDataLoaded, baremeEleve));
       }
       // Si etat existe deja, on le laisse tel quel et on retry plus tard
       if (typeof navigator !== 'undefined' && navigator.onLine) {
@@ -501,8 +534,10 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang, isMobi
       // ── Calculs synthese ──
       const tomonTotal = etat.tomonTotal || etat.tomonCumul || 0;
       const hizbComplets = etat.hizbsComplets?.size || 0;
-      const ptsExamens = (examens||[]).reduce((s,e)=>s+(e.score||0),0);
-      const ptsCertificats = (certificats||[]).length * 50;
+      // oct 2026 : points examens/certificats issus du bareme (avant : somme des notes / 50 en dur)
+      const _ptsGlob = calcPointsPeriode(validations||[], new Date('2000-01-01'), new Date(), baremeEleve, pointsEvenements, recitationsSouratesEleve||[], certificats||[]);
+      const ptsExamens = _ptsGlob.ptsExamens || 0;
+      const ptsCertificats = _ptsGlob.ptsCertificats || 0;
 
       // Acces securise aux variables derivees (definies plus bas dans le composant)
       // Au moment du clic, elles sont initialisees, mais on protege au cas ou
@@ -905,10 +940,9 @@ ${(passages||[]).length > 0 ? `
         {isMobile ? (
           <>
             {/* Header sticky avec infos élève (pas de skeleton ici, on a déjà les infos) */}
-            <div style={{background:'linear-gradient(135deg,#085041,#1D9E75)', position:'sticky', top:0, zIndex:100, padding:'48px 16px 14px'}}>
+            <div style={{background:HEADER_BG, position:'sticky', top:-16, zIndex:100, padding:'calc(44px + env(safe-area-inset-top, 0px)) 16px 14px', margin:'-16px -16px 0'}}>
               <div style={{display:'flex', alignItems:'center', gap:12}}>
-                <button onClick={()=>goBack?goBack():navigate('dashboard')}
-                  style={{background:'rgba(255,255,255,0.2)', border:'none', cursor:'pointer',flexShrink:0, borderRadius:10, width:38, height:38, color:'#fff', fontSize:20, display:'flex', alignItems:'center', justifyContent:'center'}}>←</button>
+                <HeaderIconButton icon={lang==='ar'?ChevronRight:ChevronLeft} label={lang==='ar'?'رجوع':'Retour'} onClick={()=>goBack?goBack():navigate('dashboard')} />
                 <div style={{flex:1}}>
                   <div style={{fontSize:17, fontWeight:800, color:'#fff'}}>{eleve?.prenom} {eleve?.nom}</div>
                   <div style={{fontSize:11, color:'rgba(255,255,255,0.75)', marginTop:2}}>{lang==='ar'?'جاري التحميل...':'Chargement...'}</div>
@@ -941,7 +975,7 @@ ${(passages||[]).length > 0 ? `
         ) : (
           <div style={{padding:'1.5rem'}}>
             <button onClick={()=>goBack?goBack():navigate('dashboard')} className="back-link" style={{marginBottom:16}}>
-              ← {lang==='ar'?'رجوع':'Retour'}
+              {lang==='ar'?'رجوع':'Retour'}
             </button>
             <div style={{background:'#fff', borderRadius:12, padding:20, marginBottom:14}}>
               <div style={{fontSize:22, fontWeight:800}}>{eleve?.prenom} {eleve?.nom}</div>
@@ -1019,7 +1053,7 @@ ${(passages||[]).length > 0 ? `
         acquis_tomon: etat?.tomonCumul||0,
         acquis_hizb: etat?.hizbsComplets?.size||0,
         acquis_sourates: estSourateActuel ? nbSouratesActuelles : parseInt(eleve.sourates_acquises)||0,
-        acquis_points: estSourateActuel ? totalPtsSourates : (etat?.points?.total||0),
+        acquis_points: totalPtsSourates,
         note: notePassage||null,
         date_passage: new Date().toISOString(),
       };
@@ -1028,6 +1062,7 @@ ${(passages||[]).length > 0 ? `
 
       // 2. Calculer la position de départ dans le nouveau niveau
       let resetData = { code_niveau: nouveauNiveau };
+      let continuer = false;
 
       if (regleData) {
         // Règle configurée par l'école — s'applique en priorité
@@ -1040,14 +1075,14 @@ ${(passages||[]).length > 0 ? `
           resetData.tomon_depart = 1;
           resetData.sourates_acquises = 0;
         } else { // 'continuer' — comportement intelligent
+          // FIX (oct 2026) : continuer = garder le point de depart d'origine. Les validations
+          // deja faites restent comptees, donc l'eleve reste exactement a sa position.
+          // Avant : depart = position actuelle + anciennes validations recomptees -> l'eleve
+          // avancait une 2e fois (ex. Hizb 58 -> 56) et ses points etaient doubles.
           if (estSourateActuel && estSourateCible) {
-            resetData.sourates_acquises = nbSouratesActuelles;
-            resetData.hizb_depart = 0;
-            resetData.tomon_depart = 1;
+            continuer = true;
           } else if (!estSourateActuel && !estSourateCible) {
-            resetData.hizb_depart = hizbActuel;
-            resetData.tomon_depart = tomonActuel;
-            resetData.sourates_acquises = 0;
+            continuer = true;
           } else {
             resetData.hizb_depart = 0;
             resetData.tomon_depart = 1;
@@ -1056,14 +1091,11 @@ ${(passages||[]).length > 0 ? `
         }
       } else {
         // Pas de règle → comportement par défaut : continuer depuis position actuelle
+        // FIX (oct 2026) : meme correction que 'continuer' ci-dessus
         if (estSourateActuel && estSourateCible) {
-          resetData.sourates_acquises = nbSouratesActuelles;
-          resetData.hizb_depart = 0;
-          resetData.tomon_depart = 1;
+          continuer = true;
         } else if (!estSourateActuel && !estSourateCible) {
-          resetData.hizb_depart = hizbActuel;
-          resetData.tomon_depart = tomonActuel;
-          resetData.sourates_acquises = 0;
+          continuer = true;
         } else {
           resetData.hizb_depart = 0;
           resetData.tomon_depart = 1;
@@ -1071,7 +1103,17 @@ ${(passages||[]).length > 0 ? `
         }
       }
 
-      const { error: errEleve } = await supabase.from('eleves').update(resetData).eq('id', eleve.id);
+      // FIX (oct 2026) : quand le point de depart change (repartir / depart personnalise /
+      // changement hizb<->sourate), la progression repart de la date du passage : les
+      // validations anterieures restent dans l'historique et les points, mais ne font plus
+      // avancer l'eleve dans son nouveau niveau.
+      if (!continuer) resetData.debut_niveau_at = new Date().toISOString();
+      let { error: errEleve } = await supabase.from('eleves').update(resetData).eq('id', eleve.id);
+      if (errEleve && /debut_niveau_at/.test(errEleve.message || '')) {
+        // colonne pas encore creee en base (script SQL E) : on n'applique pas le filtre
+        const { debut_niveau_at, ...sansDate } = resetData;
+        ({ error: errEleve } = await supabase.from('eleves').update(sansDate).eq('id', eleve.id));
+      }
       if (errEleve) throw errEleve;
 
       // 3. Archiver les validations du niveau actuel (optionnel — on les garde pour historique)
@@ -1165,11 +1207,16 @@ ${(passages||[]).length > 0 ? `
     } catch(e) { /* silent fallback */ }
   }
 
-  const totalPtsSourates = recitationsSouratesEleve.reduce((s,r)=>s+(r.points||0),0);
-  const nbSouratesCompletes = recitationsSouratesEleve.filter(r=>r.type_recitation==='complete').length;
+  // FIX (oct 2026) : un seul total de reference sur toute la fiche = acquis anterieurs +
+  // calcPointsPeriode depuis le suivi (meme regle que le Dashboard). Avant : un eleve
+  // sourate n'avait que la somme de ses recitations (sans ensembles/examens/certificats)
+  // et la muraja etait comptee comme sourate complete.
+  const ptsSuiviFiche = calcPointsPeriode(validations||[], new Date('2000-01-01'), new Date(), baremeEleve, pointsEvenements, recitationsSouratesEleve||[], certificats||[]);
+  const totalPtsSourates = (etat?.points?.ptsAcquisTotal || 0) + (ptsSuiviFiche.total || 0);
+  const nbSouratesCompletes = recitationsSouratesEleve.filter(r=>r.type_recitation==='complete' && !r.is_muraja).length;
   const sl = estSourateEleve
-    ? scoreLabel(nbSouratesCompletes * 30) // simulate score for label color
-    : (etat ? scoreLabel(etat.points.total) : {color:'#888',bg:'#f0f0ec',label:'—'});
+    ? scoreLabel(totalPtsSourates) // oct 2026 : vrais points (avant : nb sourates x 30 en dur)
+    : (etat ? scoreLabel(totalPtsSourates) : {color:'#888',bg:'#f0f0ec',label:'—'});
   const badges = etat ? calcBadges(validations,etat,lang) : [];
 
   const validationsOuRecitations = estSourateEleve ? [] : validations;
@@ -1245,34 +1292,172 @@ ${(passages||[]).length > 0 ? `
     (niveauxList||[]).find(n=>n.code===code)?.couleur ||
     {'5B':'#534AB7','5A':'#378ADD','2M':'#1D9E75','2':'#EF9F27','1':'#E24B4A'}[code] || '#888';
 
+  // F2 (oct 2026) : contenu de l'onglet الحفظ partage PC + mobile (avant : PC seulement).
+  const contenuHifz = (
+    <>
+      <div className="section-label">{estSourateEleve?(lang==='ar'?'سجل التلاوات':'Historique des récitations'):t(lang,'suivi_apprentissage')}</div>
+      {estSourateEleve ? (
+        recitationsSouratesEleve.length===0 ? <div className="empty">{t(lang,'aucune_recitation_label')}</div> : (
+          <div className="table-wrap">
+            <table><thead><tr>
+              <th>{lang==='ar'?'التاريخ':'Date'}</th>
+              <th>{lang==='ar'?'السورة':'Sourate'}</th>
+              <th>{lang==='ar'?'النوع':'Type'}</th>
+              <th>{lang==='ar'?'الآيات':'Versets'}</th>
+              <th>{lang==='ar'?'النقاط':'Pts'}</th>
+              <th>{lang==='ar'?'صحَّح بواسطة':'Validé par'}</th>
+            </tr></thead>
+            <tbody>
+              {[...recitationsSouratesEleve].sort((a,b)=>new Date(b.date_validation||0)-new Date(a.date_validation||0)).map(r=>(
+                <tr key={r.id}>
+                  <td style={{fontSize:12,color:'#888'}}>{r.date_validation?new Date(r.date_validation).toLocaleDateString(lang==='ar'?'ar-MA':'fr-FR'):'—'}</td>
+                  <td style={{fontWeight:600,direction:'rtl',fontFamily:"'Tajawal',Arial"}}>{r.sourate?.nom_ar||'—'}</td>
+                  <td><span className={r.type_recitation==='complete'?'badge badge-green':'badge'}>{r.type_recitation==='complete'?(lang==='ar'?'كاملة':'Complète'):(lang==='ar'?'مقطع':'Séquence')}</span></td>
+                  <td style={{fontSize:12,color:'#888'}}>{r.type_recitation==='sequence'&&r.verset_debut?`V.${r.verset_debut}→${r.verset_fin}`:'—'}</td>
+                  <td style={{fontSize:12,fontWeight:600,color:'#1D9E75'}}>{r.points>0?`+${r.points}`:'—'}</td>
+                  <td style={{fontSize:11,color:'#888'}}>{r.valideur?`${r.valideur.prenom} ${r.valideur.nom}`:(r.valide_par?'✓':'—')}</td>
+                </tr>
+              ))}
+            </tbody></table>
+          </div>
+        )
+      ) : (
+        (() => {
+          // ENRICHISSEMENT (oct 2026) : afficher aussi les validations tomon qui
+          // n'ont PAS d'apprentissage formel enregistre (ligne table apprentissages).
+          // Avant : si l'instituteur validait des tomons sans passer par "+ Istizhar",
+          // la table restait vide alors que l'eleve avait bien recite.
+          // Apres : chaque tomon valide genere une ligne (reelle ou virtuelle) avec
+          // "—" dans la colonne "debut apprentissage" si pas de debut enregistre.
+          const tomonsValides = validations.filter(v=>v.type_validation==='tomon');
+          const virtuels = [];
+          tomonsValides.forEach(v => {
+            for (let t=v.tomon_debut; t<v.tomon_debut+(v.nombre_tomon||1); t++) {
+              const existe = apprentissages.find(a => a.hizb === v.hizb_validation && a.tomon === t);
+              if (!existe) {
+                virtuels.push({ id:`v-${v.id}-${t}`, hizb:v.hizb_validation, tomon:t, date_debut:null, _virtual:true, _validation:v });
+              }
+            }
+          });
+          const all = [...apprentissages, ...virtuels].sort((a,b)=>{
+            // Tri par hizb desc, tomon asc
+            if (a.hizb !== b.hizb) return b.hizb - a.hizb;
+            return a.tomon - b.tomon;
+          });
+          if (all.length === 0) return <div className="empty">{t(lang,'aucun_suivi')}</div>;
+          return (
+            <div className="table-wrap">
+              <table><thead><tr>
+                <th style={{width:'22%'}}>{t(lang,'tomon_abrev')}</th>
+                <th style={{width:'26%'}}>{t(lang,'debut_apprentissage')}</th>
+                <th style={{width:'26%'}}>{t(lang,'validation_label')}</th>
+                <th style={{width:'14%'}}>{t(lang,'duree')}</th>
+                <th style={{width:'12%'}}>{t(lang,'statut')}</th>
+              </tr></thead>
+              <tbody>
+                {all.map(appr=>{
+                  const validation = appr._validation || validations.find(v=>v.type_validation==='tomon'&&v.hizb_validation===appr.hizb&&v.tomon_debut<=appr.tomon&&(v.tomon_debut+v.nombre_tomon-1)>=appr.tomon);
+                  const jours = (validation && appr.date_debut) ? Math.round((new Date(validation.date_validation)-new Date(appr.date_debut))/(1000*60*60*24)) : null;
+                  return(
+                    <tr key={appr.id}>
+                      <td style={{fontWeight:500}}>{lang==='ar' ? `الحزب ${appr.hizb} — ث.${appr.tomon}` : `Hizb ${appr.hizb} — T.${appr.tomon}`}</td>
+                      <td style={{fontSize:12,color:'#888'}}>{appr.date_debut?formatDateCourt(appr.date_debut):'—'}</td>
+                      <td style={{fontSize:12,color:'#888'}}>{validation?formatDateCourt(validation.date_validation):'—'}</td>
+                      <td>{jours!==null?<span style={{fontSize:12,fontWeight:600,color:jours<=7?'#1D9E75':jours<=14?'#EF9F27':'#E24B4A'}}>{jours}{lang==='ar' ? 'ي' : 'j'}</span>:'—'}</td>
+                      <td>{validation?<span className="badge badge-green" style={{fontSize:9}}>✓</span>:<span className="badge" style={{fontSize:9}}>⏳</span>}</td>
+                    </tr>
+                  );
+                })}
+              </tbody></table>
+            </div>
+          );
+        })()
+      )}
+    </>
+  );
+
+  // F2 (oct 2026) : deblocage exceptionnel Hizb/Tomon partage PC + mobile (avant : PC seulement).
+  const blocExceptionHizb = (
+    <>
+  {/* Exception Hizb/Tomon — Hizb uniquement */}
+  {user.role==='surveillant'&&!estSourateEleve&&(
+    <div style={{marginBottom:8}}>
+      <button onClick={()=>setShowExceptionModal(true)}
+        style={{padding:'6px 12px',border:'1px solid #E24B4A',borderRadius:8,background:'#fff',color:'#E24B4A',fontSize:11,cursor:'pointer',fontWeight:500}}>
+        🔓 {lang==='ar'?'فتح استثنائي (Hizb/Tomon)':lang==='en'?'Unlock Hizb/Tomon (exception)':'Exception Hizb/Tomon'}
+      </button>
+      {exceptionsHizb.length>0&&(
+        <div style={{marginTop:6,padding:'8px 12px',background:'#FCEBEB',border:'1px solid #E24B4A',borderRadius:8}}>
+          <div style={{fontSize:11,fontWeight:600,color:'#A32D2D',marginBottom:4}}>
+            🔓 {lang==='ar'?'استثناءات نشطة':lang==='en'?'Active exceptions':'Exceptions actives'}
+          </div>
+          <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>
+            {exceptionsHizb.map(ex=>(
+              <div key={ex.id} style={{display:'flex',alignItems:'center',gap:4,padding:'2px 8px',background:'#fff',borderRadius:20,border:'1px solid #E24B4A',fontSize:12}}>
+                Hizb {ex.hizb_numero}
+                <span onClick={async()=>{await supabase.from('exceptions_hizb').update({active:false}).eq('id',ex.id);await loadData();}} style={{cursor:'pointer',color:'#E24B4A',fontSize:14,fontWeight:700,marginLeft:2}}>×</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  )}
+
+  {/* Exception modal */}
+  {showExceptionModal&&user.role==='surveillant'&&(
+    <ExceptionHizbModal
+      etat={etat} eleve={eleve} user={user}
+      onConfirm={async(hizbs)=>{
+        await supabase.from('exceptions_hizb').insert(hizbs.map(h=>({eleve_id:eleve.id,ecole_id:user.ecole_id,hizb_numero:h,active:true,cree_par:user.id,date_creation:new Date().toISOString()})));
+        setShowExceptionModal(false);
+        await loadData();
+      }}
+      onCancel={()=>setShowExceptionModal(false)}
+      lang={lang}
+    />
+  )}
+    </>
+  );
+
+  // oct 2026 : points examens/certificats du recap = bareme (meme calcul que les cartes de points)
+  const ptsRecapGlob = calcPointsPeriode(validations||[], new Date('2000-01-01'), new Date(), baremeEleve, pointsEvenements, recitationsSouratesEleve||[], certificats||[]);
+
   if (isMobile) {
-    const sl2 = estSourateEleve ? scoreLabel(totalPtsSourates) : (etat ? scoreLabel(etat.points.total) : {color:'#888',bg:'#f0f0ec',label:'—'});
+    const sl2 = etat || estSourateEleve ? scoreLabel(totalPtsSourates) : {color:'#888',bg:'#f0f0ec',label:'—'};
     const _niveauxFe = typeof niveaux !== 'undefined' ? niveaux : [];
     const nc = getNiveauColor(eleve.code_niveau||'1', _niveauxFe);
     return (
       <div style={{paddingBottom:80, background:'#f5f5f0', minHeight:'100vh'}}>
         {/* Sticky header */}
-        <div style={{background:`linear-gradient(135deg,#085041,#1D9E75)`, position:'sticky', top:0, zIndex:100}}>
-          <div style={{display:'flex', alignItems:'center', gap:12, padding:'48px 16px 12px'}}>
-            <button onClick={()=>goBack?goBack():navigate('dashboard')}
-              style={{background:'rgba(255,255,255,0.2)', border:'none', cursor:'pointer',flexShrink:0, borderRadius:10, padding:'8px 12px', color:'#fff', fontSize:16}}>
-              
-            </button>
-            <div style={{flex:1}}>
-              <div style={{fontSize:17, fontWeight:800}}>{eleve.prenom} {eleve.nom}</div>
+        <div style={{background:HEADER_BG, position:'sticky', top:-16, zIndex:100, margin:'-16px -16px 0'}}>
+          <div style={{display:'flex', alignItems:'center', gap:12, padding:'calc(44px + env(safe-area-inset-top, 0px)) 16px 12px'}}>
+            {/* Charte mobile lot 1 (oct 2026) : bouton retour visible (il etait vide) */}
+            <HeaderIconButton icon={lang==='ar'?ChevronRight:ChevronLeft} label={lang==='ar'?'رجوع':'Retour'} onClick={()=>goBack?goBack():navigate('dashboard')} />
+            <div style={{flex:1, minWidth:0}}>
+              {/* Charte mobile lot 1 : nom en blanc (il etait vert fonce sur vert) */}
+              <div style={{fontSize:17, fontWeight:800, color:'#fff', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap'}}>{eleve.prenom} {eleve.nom}</div>
               <div style={{display:'flex', gap:6, alignItems:'center', marginTop:2, flexWrap:'wrap'}}>
-                <span style={{padding:'1px 8px', borderRadius:10, fontSize:11, fontWeight:700, background:`${nc}20`, color:nc}}>
+                <span style={{padding:'1px 8px', borderRadius:10, fontSize:11, fontWeight:700, background:'#fff', color:nc}}>
                   {eleve.code_niveau||'?'}
                 </span>
-                <span style={{fontSize:12, color:'#888'}}>{instituteurNom}</span>
+                <span style={{fontSize:12, color:'rgba(255,255,255,0.85)'}}>{instituteurNom}</span>
                 {user.role === 'surveillant' && (
                   <BadgeStatutParent eleve={eleve} lang={lang} compact />
                 )}
               </div>
             </div>
+            {user.role==='surveillant' && (
+              <button onClick={()=>{setNouveauNiveau('');setNotePassage('');setShowPassageModal(true);}}
+                aria-label={lang==='ar'?'الانتقال إلى مستوى':'Passer de niveau'} title={lang==='ar'?'الانتقال إلى مستوى':'Passer de niveau'}
+                style={{background:'rgba(255,255,255,0.2)', border:'1px solid rgba(255,255,255,0.25)', color:'#fff', borderRadius:10,
+                  width:44, height:44, padding:0, fontSize:18, cursor:'pointer', flexShrink:0, display:'flex', alignItems:'center', justifyContent:'center'}}>
+                🎓
+              </button>
+            )}
             <button onClick={()=>navigate('enregistrer', eleve)}
-              style={{background:'#1D9E75', color:'#fff', border:'none', borderRadius:10,
-                padding:'8px 14px', fontSize:13, fontWeight:700, cursor:'pointer', fontFamily:'inherit'}}>
+              style={{background:'#fff', color:'#085041', border:'none', borderRadius:10, height:44,
+                padding:'0 14px', fontSize:13, fontWeight:700, cursor:'pointer', fontFamily:'inherit', flexShrink:0}}>
               + {lang==='ar'?'استظهار':'Récit.'}
             </button>
           </div>
@@ -1286,12 +1471,12 @@ ${(passages||[]).length > 0 ? `
               //  3. Sinon -> points total comme avant
               if (estSourateEleve) {
                 return (
-                  <div style={{fontSize:26, fontWeight:800, color:sl2.color}}>
-                    {totalPtsSourates.toLocaleString()} pts
+                  <div style={{fontSize:26, fontWeight:800, color:'#085041'}}>
+                    {(totalPtsSourates||0).toLocaleString()} pts
                   </div>
                 );
               }
-              const points = etat?.points?.total || 0;
+              const points = etat ? totalPtsSourates : 0;
               const hizbComplets = etat?.hizbsComplets?.size || 0;
               if (points === 0 && hizbComplets > 0) {
                 return (
@@ -1301,7 +1486,7 @@ ${(passages||[]).length > 0 ? `
                 );
               }
               return (
-                <div style={{fontSize:26, fontWeight:800, color:sl2.color}}>
+                <div style={{fontSize:26, fontWeight:800, color:'#085041'}}>{/* charte lot 1 : points lisibles */}
                   {points.toLocaleString()} pts
                 </div>
               );
@@ -1322,11 +1507,13 @@ ${(passages||[]).length > 0 ? `
               {k:'objectifs',  label: lang==='ar'?'الأهداف':'Objectifs',   icon:'🎯'},
               {k:'assiduite',  label: lang==='ar'?'الحضور':'Assiduité',    icon:'📅'},
               {k:'cours',      label: lang==='ar'?'الدروس':'Cours',        icon:'📚'},
+              {k:'apprentissage', label: lang==='ar'?'الحفظ':'Mémorisation', icon:'🧠'}, // F2 (oct 2026)
             ];
             const ongletDansPlus = tabsPlus.find(t => t.k === onglet);
             const plusActif = !!ongletDansPlus;
             return (
-              <div style={{position:'relative', borderTop:'0.5px solid #f0f0ec'}}>
+              <div style={{position:'relative', borderTop:'0.5px solid #f0f0ec', background:'#fff', borderBottom:'1px solid #e8ebe7'}}>
+                {/* Charte mobile lot 1 : onglets sur fond blanc (ils etaient gris sur vert, illisibles) */}
                 <div style={{display:'flex', overflowX:'auto', scrollbarWidth:'none'}}>
                   {tabsPrincipaux.map(tab => (
                     <div key={tab.k} onClick={()=>{setOnglet(tab.k); setShowPlusMenu(false);}}
@@ -1394,6 +1581,8 @@ ${(passages||[]).length > 0 ? `
           <div style={{padding:'12px 12px'}}>
             {onglet==='progression' && (
               <div>
+                {/* F2 (oct 2026) : deblocage exceptionnel Hizb/Tomon (surveillant, eleve hizb) */}
+                <div style={{padding:'12px 0 0'}}>{blocExceptionHizb}</div>
                 {/* ─── Barre de progression GLOBALE (sourates uniquement) ─── */}
                 {/* Historique : montre % sourates completees + repartition acquis/suivi */}
                 {estSourateEleve && souratesDB.length > 0 && (() => {
@@ -1605,7 +1794,7 @@ ${(passages||[]).length > 0 ? `
                           <div style={{fontSize:11,color:'#888'}}>{new Date(v.date_validation).toLocaleDateString(lang==='ar'?'ar-MA':'fr-FR')}</div>
                         </div>
                         <span style={{fontSize:13,fontWeight:700,color:'#1D9E75'}}>
-                          +{v.type_validation==='hizb_complet'?100:v.nombre_tomon*30} pts
+                          +{ptsValidation(v, baremeEleve)} pts
                         </span>
                       </div>
                     ))}
@@ -1621,30 +1810,50 @@ ${(passages||[]).length > 0 ? `
                 <div style={{fontSize:12,fontWeight:700,color:'#888',marginBottom:8}}>
                   {lang==='ar'?'آخر النشاطات':'Activité récente'}
                 </div>
-                {[...validations].sort((a,b)=>new Date(b.date_validation)-new Date(a.date_validation)).slice(0,15).map((v,i)=>{
-                  const isSourate = v.sourate_id !== undefined;
-                  const pts = isSourate?(v.type_recitation==='complete'?30:10):(v.type_validation==='hizb_complet'?100:(v.nombre_tomon||1)*30);
-                  return(
-                    <div key={i} style={{background:'#fff',borderRadius:10,padding:'10px 12px',marginBottom:6,
-                      border:'0.5px solid #e0e0d8',display:'flex',alignItems:'center',gap:10}}>
-                      <span style={{fontSize:16}}>{isSourate?'📖':'✅'}</span>
-                      <div style={{flex:1}}>
-                        <div style={{fontWeight:600,fontSize:13}}>
-                          {isSourate
-                            ? (v.sourate?.nom_ar||'Sourate')
-                            : (v.type_validation==='hizb_complet'
-                              ? (lang==='ar'?'حزب كامل':'Hizb complet')
-                              : `${lang==='ar'?'ث':'T'}.${v.tomon_debut} ×${v.nombre_tomon}`)}
-                        </div>
-                        <div style={{fontSize:11,color:'#888'}}>{new Date(v.date_validation).toLocaleDateString(lang==='ar'?'ar-MA':'fr-FR')}</div>
-                      </div>
-                      <span style={{fontSize:13,fontWeight:700,color:'#1D9E75'}}>+{pts}</span>
-                    </div>
+                {/* Charte mobile lot 1 (oct 2026) : activite = validations + recitations de sourates
+                    (avant : un eleve en sourates voyait « Aucune activite »), libelles lisibles
+                    (muraja, ensemble ; plus de « T.undefined ») et nom du validateur. */}
+                {(() => {
+                  const activite = [...(validations||[]), ...(recitationsSouratesEleve||[])]
+                    .sort((a,b)=>new Date(b.date_validation)-new Date(a.date_validation)).slice(0,15);
+                  if (activite.length === 0) return (
+                    <div style={{textAlign:'center',color:'#aaa',padding:'2rem'}}>{lang==='ar'?'لا توجد نشاطات':'Aucune activité'}</div>
                   );
-                })}
-                {validations.length===0&&(
-                  <div style={{textAlign:'center',color:'#aaa',padding:'2rem'}}>{lang==='ar'?'لا توجد نشاطات':'Aucune activité'}</div>
-                )}
+                  return activite.map((v,i)=>{
+                    const isSourate = !!v.type_recitation;
+                    const pts = isSourate ? (v.points||0) : ptsValidation(v, baremeEleve);
+                    const hz = v.hizb_validation || v.hizb_valide;
+                    let titre, icone;
+                    if (isSourate) {
+                      icone = v.is_muraja ? '🔁' : '📖';
+                      titre = (v.sourate?.nom_ar || (lang==='ar'?'سورة':'Sourate'))
+                        + (v.type_recitation==='sequence' && v.verset_debut ? ` · ${lang==='ar'?'الآيات':'v.'} ${v.verset_debut}→${v.verset_fin}` : '')
+                        + (v.is_muraja ? (lang==='ar'?' · مراجعة':' · muraja') : '');
+                    } else if (v.type_validation==='hizb_complet') {
+                      icone = '🏅'; titre = lang==='ar' ? `الحزب ${v.hizb_valide||''} كامل` : `Hizb ${v.hizb_valide||''} complet`;
+                    } else if (v.type_validation==='tomon_muraja') {
+                      icone = '🔁'; titre = lang==='ar' ? `مراجعة · ${v.nombre_tomon||0} ثمن${hz?` · الحزب ${hz}`:''}` : `Muraja · ${v.nombre_tomon||0} tomon${hz?` · Hizb ${hz}`:''}`;
+                    } else if (v.type_validation==='hizb_muraja') {
+                      icone = '🔁'; titre = lang==='ar' ? `مراجعة الحزب ${hz||''}` : `Muraja · Hizb ${hz||''}`;
+                    } else if (v.type_validation==='ensemble_valide') {
+                      icone = '📦'; titre = lang==='ar' ? 'مجموعة سور معتمدة' : 'Ensemble validé';
+                    } else {
+                      icone = '✅'; titre = lang==='ar' ? `${v.nombre_tomon||0} ثمن${hz?` · الحزب ${hz}`:''}` : `${v.nombre_tomon||0} tomon${hz?` · Hizb ${hz}`:''}`;
+                    }
+                    const qui = v.valideur ? ` · ${v.valideur.prenom||''} ${(v.valideur.nom||'').charAt(0)}.` : '';
+                    return(
+                      <div key={v.id||i} style={{background:'#fff',borderRadius:10,padding:'10px 12px',marginBottom:6,
+                        border:'0.5px solid #e0e0d8',display:'flex',alignItems:'center',gap:10}}>
+                        <span style={{fontSize:16}}>{icone}</span>
+                        <div style={{flex:1,minWidth:0}}>
+                          <div style={{fontWeight:600,fontSize:13,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{titre}</div>
+                          <div style={{fontSize:11,color:'#888'}}>{new Date(v.date_validation).toLocaleDateString(lang==='ar'?'ar-MA':'fr-FR',{day:'numeric',month:'short',year:'numeric'})}{qui}</div>
+                        </div>
+                        <span style={{fontSize:13,fontWeight:700,color:'#1D9E75'}}>+{pts}</span>
+                      </div>
+                    );
+                  });
+                })()}
               </div>
             )}
             {onglet==='objectifs' && (
@@ -1737,6 +1946,11 @@ ${(passages||[]).length > 0 ? `
               <OngletCoursEleve eleve={eleve} lang={lang} isMobile={true} />
             )}
 
+            {/* F2 (oct 2026) : onglet الحفظ sur mobile, meme contenu que le PC */}
+            {onglet==='apprentissage' && (
+              <div style={{padding:'12px 0'}}>{contenuHifz}</div>
+            )}
+
 
             {onglet==='notes' && (() => {
               const niveauxCtx = typeof niveaux !== 'undefined' ? niveaux : [];
@@ -1746,9 +1960,10 @@ ${(passages||[]).length > 0 ? `
               const ptsSourCompl = recitationsSouratesEleve.filter(r=>r.type_recitation==='complete').reduce((s,r)=>s+(r.points||0),0);
               const nbSourCompl = recitationsSouratesEleve.filter(r=>r.type_recitation==='complete').length;
               const nbSourSeq = recitationsSouratesEleve.filter(r=>r.type_recitation==='sequence').length;
-              const pts = estSourate
-                ? { total: ptsSourTot, tomonPeriode: nbSourCompl, ptsTomon: ptsSourCompl, ptsEnsembles:0, ptsExamens: examens.reduce((s,e)=>s+(e.score||0),0), ptsCertificats: certificats.length*50, hizbsPeriode:0, ptsHizb:0, ptsRoboe:0, ptsNisf:0, details:{nbRoboe:0,nbNisf:0,nbHizb:0} }
-                : calcPointsPeriode(validations||[], new Date('2000-01-01'), new Date(), baremeEleve, pointsEvenements);
+              // FIX-BAREME (sep 2026) : plus besoin de branche 'estSourate' custom.
+              // calcPointsPeriode gere maintenant nativement les recitations sourates
+              // et les certificats via ses parametres 5 et 6.
+              const pts = calcPointsPeriode(validations||[], new Date('2000-01-01'), new Date(), baremeEleve, pointsEvenements, recitationsSouratesEleve||[], certificats||[]);
               return (
                 <div style={{padding:'1rem 0'}}>
                   {/* Total depuis le début */}
@@ -1762,11 +1977,16 @@ ${(passages||[]).length > 0 ? `
                   {/* Détail selon type élève */}
                   {estSourate ? (
                     // ── Élève Sourates ──
+                    // BUG-FIX AFFICHAGE SOURATES (oct 2026) : ajout de la carte "المجموعات"
+                    // pour que les points d'ensembles completes (ptsEnsembles alias de
+                    // ptsBonusEnsembles) soient visibles - sans elle, un eleve pouvait avoir
+                    // Total=191 mais Sourates=75 + autres=0, soit un ecart inexplique de 116.
                     <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:12}}>
                       {[
                         {label:lang==='ar'?'السور المستظهرة':'Sourates récitées', val:nbSourCompl, pts:ptsSourCompl, color:'#534AB7', bg:'#EEEDFE', icon:'📜'},
+                        {label:lang==='ar'?'المجموعات':'Ensembles', val:pts.nbEnsemblesComplets||0, pts:pts.ptsEnsembles||0, color:'#D85A30', bg:'#FAECE7', icon:'📦'},
                         {label:lang==='ar'?'المقاطع':'Séquences', val:nbSourSeq, pts:recitationsSouratesEleve.filter(r=>r.type_recitation==='sequence').reduce((s,r)=>s+(r.points||0),0), color:'#1D9E75', bg:'#E1F5EE', icon:'📌'},
-                        {label:lang==='ar'?'الامتحانات':'Examens', val:'', pts:pts.ptsExamens||0, color:'#EF9F27', bg:'#FAEEDA', icon:'📝'},
+                        {label:lang==='ar'?'الامتحانات':'Examens', val:(examens||[]).filter(r=>r.statut==='reussi').length, pts:pts.ptsExamens||0, color:'#EF9F27', bg:'#FAEEDA', icon:'📝'}, /* oct 2026 : nb d'examens reussis (etait vide) */
                         {label:lang==='ar'?'الشهادات':'Certificats', val:certificats.length, pts:pts.ptsCertificats||0, color:'#085041', bg:'#E1F5EE', icon:'🏅'},
                       ].map((row,i)=>(
                         <div key={i} style={{background:row.bg,borderRadius:12,padding:'12px',border:`0.5px solid ${row.color}20`}}>
@@ -1783,8 +2003,8 @@ ${(passages||[]).length > 0 ? `
                       {[
                         {label:lang==='ar'?'الأثمان':'Tomon validés', val:pts.tomonPeriode, pts:pts.ptsTomon, color:'#378ADD', bg:'#E6F1FB', icon:'📖'},
                         {label:lang==='ar'?'أحزاب كاملة':'Hizb complets', val:pts.hizbsPeriode, pts:pts.ptsHizb, color:'#085041', bg:'#E1F5EE', icon:'🎯'},
-                        {label:lang==='ar'?'الامتحانات':'Examens', val:'', pts:pts.ptsExamens||0, color:'#EF9F27', bg:'#FAEEDA', icon:'📝'},
-                        {label:lang==='ar'?'الشهادات':'Certificats', val:'', pts:pts.ptsCertificats||0, color:'#D85A30', bg:'#FAECE7', icon:'🏅'},
+                        {label:lang==='ar'?'الامتحانات':'Examens', val:(examens||[]).filter(r=>r.statut==='reussi').length, pts:pts.ptsExamens||0, color:'#EF9F27', bg:'#FAEEDA', icon:'📝'}, /* oct 2026 : nb d'examens reussis (etait vide) */
+                        {label:lang==='ar'?'الشهادات':'Certificats', val:(certificats||[]).length, pts:pts.ptsCertificats||0, color:'#D85A30', bg:'#FAECE7', icon:'🏅'},
                       ].map((row,i)=>(
                         <div key={i} style={{background:row.bg,borderRadius:12,padding:'12px',border:`0.5px solid ${row.color}20`}}>
                           <div style={{fontSize:18,marginBottom:4}}>{row.icon}</div>
@@ -1828,7 +2048,7 @@ ${(passages||[]).length > 0 ? `
                       <div style={{fontSize:11,color:'#888'}}>{new Date(v.date_validation).toLocaleDateString(lang==='ar'?'ar-MA':'fr-FR')}</div>
                     </div>
                     <span style={{fontSize:13,fontWeight:700,color:'#EF9F27'}}>
-                      +{v.type_validation==='hizb_muraja'?100:30} pts
+                      +{ptsValidation(v, baremeEleve)} pts
                     </span>
                   </div>
                 ))}
@@ -1837,15 +2057,8 @@ ${(passages||[]).length > 0 ? `
           </div>
         )}
 
-        {/* Passage niveau FAB - surveillant only */}
-        {user.role==='surveillant' && (
-          <button onClick={()=>{setNouveauNiveau('');setNotePassage('');setShowPassageModal(true);}}
-            style={{position:'fixed',bottom:80,right:16,background:'#085041',color:'#fff',
-              border:'none',borderRadius:14,padding:'10px 16px',fontSize:14,fontWeight:700,
-              cursor:'pointer',zIndex:150,boxShadow:'0 4px 16px rgba(83,74,183,0.4)',fontFamily:'inherit'}}>
-            🎓 Niveau
-          </button>
-        )}
+        {/* Charte mobile lot 1 (oct 2026) : le bouton flottant « Niveau » (qui couvrait la liste)
+            est deplace dans l'en-tete de la fiche. */}
 
         {/* Modal passage niveau - kept as is */}
         {showPassageModal&&(
@@ -1861,7 +2074,7 @@ ${(passages||[]).length > 0 ? `
                 <div style={{fontWeight:600,color:'#534AB7',marginBottom:6}}>{lang==='ar'?'المكتسبات الحالية:':'Acquis actuels :'}</div>
                 {estSourateEleve
                   ? <div style={{color:'#1D9E75',fontWeight:600}}>📖 {nbSouratesCompletes} {lang==='ar'?'سورة مكتملة':'sourates'} · {totalPtsSourates} pts</div>
-                  : <div style={{color:'#555'}}>{lang==='ar' ? `الحزب ${etat?.hizbEnCours} · ث.${etat?.prochainTomon} · ${etat?.points?.total||0} ن` : `Hizb ${etat?.hizbEnCours} · T.${etat?.prochainTomon} · ${etat?.points?.total||0} pts`}</div>
+                  : <div style={{color:'#555'}}>{lang==='ar' ? `الحزب ${etat?.hizbEnCours} · ث.${etat?.prochainTomon} · ${totalPtsSourates} ن` : `Hizb ${etat?.hizbEnCours} · T.${etat?.prochainTomon} · ${totalPtsSourates} pts`}</div>
                 }
               </div>
               <div style={{marginBottom:'1rem'}}>
@@ -1871,7 +2084,8 @@ ${(passages||[]).length > 0 ? `
                 <select style={{width:'100%',padding:'13px 16px',borderRadius:12,border:'0.5px solid #e0e0d8',fontSize:16,fontFamily:'inherit',boxSizing:'border-box'}}
                   value={nouveauNiveau} onChange={e=>setNouveauNiveau(e.target.value)}>
                   <option value="">{lang==='ar'?'-- اختر --':'-- Choisir --'}</option>
-                  {NIVEAUX_DISPONIBLES.map(n=>(
+                  {/* BUG-FIX oct 2026 : NIVEAUX_DISPONIBLES n'existait pas -> la fiche mobile plantait a l'ouverture du passage de niveau */}
+                  {niveauxDisponibles.map(n=>(
                     <option key={n} value={n}>{NIVEAUX_LABELS[n]||n}</option>
                   ))}
                 </select>
@@ -1961,7 +2175,7 @@ ${(passages||[]).length > 0 ? `
                       <div style={{fontSize:11,color:'#888'}}>{lang==='ar'?'سورة مكتملة':'sourates'}</div>
                     </>);
                   }
-                  const points = etat?.points.total || 0;
+                  const points = etat ? totalPtsSourates : 0;
                   const hizbComplets = etat?.hizbsComplets?.size || 0;
                   if (points === 0 && hizbComplets > 0) {
                     return (<>
@@ -1997,8 +2211,8 @@ ${(passages||[]).length > 0 ? `
                 // Ajout Examens et Certificats (KPIs metier parlants)
                 [lang==='ar'?'الأثمان':'Tomon', etat?.points.ptsTomon, `${etat?.tomonTotal||etat?.tomonCumul}×${baremeEleve?.tomon||0}`, '#378ADD', '#E6F1FB'],
                 [lang==='ar'?'الأحزاب':'Hizb', etat?.points.ptsHizb, `${etat?.points.details?.nbHizb}×${baremeEleve?.hizb_complet||0}`, '#085041', '#E1F5EE'],
-                [lang==='ar'?'الامتحانات':'Examens', examens.length, examens.length>0 ? `+${examens.reduce((s,e)=>s+(e.score||0),0)} pts` : '—', '#EF9F27', '#FAEEDA'],
-                [lang==='ar'?'الشهادات':'Certificats', certificats.length, certificats.length>0 ? `+${certificats.length*50} pts` : '—', '#D85A30', '#FAECE7'],
+                [lang==='ar'?'الامتحانات':'Examens', examens.length, ptsRecapGlob.ptsExamens>0 ? `+${ptsRecapGlob.ptsExamens} pts` : '—', '#EF9F27', '#FAEEDA'],
+                [lang==='ar'?'الشهادات':'Certificats', certificats.length, ptsRecapGlob.ptsCertificats>0 ? `+${ptsRecapGlob.ptsCertificats} pts` : '—', '#D85A30', '#FAECE7'],
               ].map(([l,v,s,color,bg])=>(
                 <div key={l} style={{background:bg,borderRadius:8,padding:'10px',textAlign:'center',border:`0.5px solid ${color}20`}}>
                   <div style={{fontSize:18,fontWeight:700,color}}>{v}</div>
@@ -2214,44 +2428,7 @@ ${(passages||[]).length > 0 ? `
               </div>
             )}
 
-            {/* Exception Hizb/Tomon — Hizb uniquement */}
-            {user.role==='surveillant'&&!estSourateEleve&&(
-              <div style={{marginBottom:8}}>
-                <button onClick={()=>setShowExceptionModal(true)}
-                  style={{padding:'6px 12px',border:'1px solid #E24B4A',borderRadius:8,background:'#fff',color:'#E24B4A',fontSize:11,cursor:'pointer',fontWeight:500}}>
-                  🔓 {lang==='ar'?'فتح استثنائي (Hizb/Tomon)':lang==='en'?'Unlock Hizb/Tomon (exception)':'Exception Hizb/Tomon'}
-                </button>
-                {exceptionsHizb.length>0&&(
-                  <div style={{marginTop:6,padding:'8px 12px',background:'#FCEBEB',border:'1px solid #E24B4A',borderRadius:8}}>
-                    <div style={{fontSize:11,fontWeight:600,color:'#A32D2D',marginBottom:4}}>
-                      🔓 {lang==='ar'?'استثناءات نشطة':lang==='en'?'Active exceptions':'Exceptions actives'}
-                    </div>
-                    <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>
-                      {exceptionsHizb.map(ex=>(
-                        <div key={ex.id} style={{display:'flex',alignItems:'center',gap:4,padding:'2px 8px',background:'#fff',borderRadius:20,border:'1px solid #E24B4A',fontSize:12}}>
-                          Hizb {ex.hizb_numero}
-                          <span onClick={async()=>{await supabase.from('exceptions_hizb').update({active:false}).eq('id',ex.id);await loadData();}} style={{cursor:'pointer',color:'#E24B4A',fontSize:14,fontWeight:700,marginLeft:2}}>×</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Exception modal */}
-            {showExceptionModal&&user.role==='surveillant'&&(
-              <ExceptionHizbModal
-                etat={etat} eleve={eleve} user={user}
-                onConfirm={async(hizbs)=>{
-                  await supabase.from('exceptions_hizb').insert(hizbs.map(h=>({eleve_id:eleve.id,ecole_id:user.ecole_id,hizb_numero:h,active:true,cree_par:user.id,date_creation:new Date().toISOString()})));
-                  setShowExceptionModal(false);
-                  await loadData();
-                }}
-                onCancel={()=>setShowExceptionModal(false)}
-                lang={lang}
-              />
-            )}
+            {blocExceptionHizb}
 
 
 
@@ -2443,66 +2620,7 @@ ${(passages||[]).length > 0 ? `
           )}
 
           {/* APPRENTISSAGE */}
-          {onglet==='apprentissage'&&(
-            <>
-              <div className="section-label">{estSourateEleve?(lang==='ar'?'سجل التلاوات':'Historique des récitations'):t(lang,'suivi_apprentissage')}</div>
-              {estSourateEleve ? (
-                recitationsSouratesEleve.length===0 ? <div className="empty">{t(lang,'aucune_recitation_label')}</div> : (
-                  <div className="table-wrap">
-                    <table><thead><tr>
-                      <th>{lang==='ar'?'التاريخ':'Date'}</th>
-                      <th>{lang==='ar'?'السورة':'Sourate'}</th>
-                      <th>{lang==='ar'?'النوع':'Type'}</th>
-                      <th>{lang==='ar'?'الآيات':'Versets'}</th>
-                      <th>{lang==='ar'?'النقاط':'Pts'}</th>
-                      <th>{lang==='ar'?'صحَّح بواسطة':'Validé par'}</th>
-                    </tr></thead>
-                    <tbody>
-                      {[...recitationsSouratesEleve].sort((a,b)=>new Date(b.date_validation||0)-new Date(a.date_validation||0)).map(r=>(
-                        <tr key={r.id}>
-                          <td style={{fontSize:12,color:'#888'}}>{r.date_validation?new Date(r.date_validation).toLocaleDateString(lang==='ar'?'ar-MA':'fr-FR'):'—'}</td>
-                          <td style={{fontWeight:600,direction:'rtl',fontFamily:"'Tajawal',Arial"}}>{r.sourate?.nom_ar||'—'}</td>
-                          <td><span className={r.type_recitation==='complete'?'badge badge-green':'badge'}>{r.type_recitation==='complete'?(lang==='ar'?'كاملة':'Complète'):(lang==='ar'?'مقطع':'Séquence')}</span></td>
-                          <td style={{fontSize:12,color:'#888'}}>{r.type_recitation==='sequence'&&r.verset_debut?`V.${r.verset_debut}→${r.verset_fin}`:'—'}</td>
-                          <td style={{fontSize:12,fontWeight:600,color:'#1D9E75'}}>{r.points>0?`+${r.points}`:'—'}</td>
-                          <td style={{fontSize:11,color:'#888'}}>{r.valideur?`${r.valideur.prenom} ${r.valideur.nom}`:(r.valide_par?'✓':'—')}</td>
-                        </tr>
-                      ))}
-                    </tbody></table>
-                  </div>
-                )
-              ) : (
-                apprentissages.length===0?<div className="empty">{t(lang,'aucun_suivi')}</div>:(
-                  <>
-                    <div className="table-wrap">
-                      <table><thead><tr>
-                        <th style={{width:'22%'}}>{t(lang,'tomon_abrev')}</th>
-                        <th style={{width:'26%'}}>{t(lang,'debut_apprentissage')}</th>
-                        <th style={{width:'26%'}}>{t(lang,'validation_label')}</th>
-                        <th style={{width:'14%'}}>{t(lang,'duree')}</th>
-                        <th style={{width:'12%'}}>{t(lang,'statut')}</th>
-                      </tr></thead>
-                      <tbody>
-                        {apprentissages.map(appr=>{
-                          const validation=validations.find(v=>v.type_validation==='tomon'&&v.hizb_validation===appr.hizb&&v.tomon_debut<=appr.tomon&&(v.tomon_debut+v.nombre_tomon-1)>=appr.tomon);
-                          const jours=validation?Math.round((new Date(validation.date_validation)-new Date(appr.date_debut))/(1000*60*60*24)):null;
-                          return(
-                            <tr key={appr.id}>
-                              <td style={{fontWeight:500}}>{lang==='ar' ? `الحزب ${appr.hizb} — ث.${appr.tomon}` : `Hizb ${appr.hizb} — T.${appr.tomon}`}</td>
-                              <td style={{fontSize:12,color:'#888'}}>{formatDateCourt(appr.date_debut)}</td>
-                              <td style={{fontSize:12,color:'#888'}}>{validation?formatDateCourt(validation.date_validation):'—'}</td>
-                              <td>{jours!==null?<span style={{fontSize:12,fontWeight:600,color:jours<=7?'#1D9E75':jours<=14?'#EF9F27':'#E24B4A'}}>{jours}{lang==='ar' ? 'ي' : 'j'}</span>:'—'}</td>
-                              <td>{validation?<span className="badge badge-green" style={{fontSize:9}}>✓</span>:<span className="badge" style={{fontSize:9}}>⏳</span>}</td>
-                            </tr>
-                          );
-                        })}
-                      </tbody></table>
-                    </div>
-                  </>
-                )
-              )}
-            </>
-          )}
+          {onglet==='apprentissage'&&contenuHifz}
 
           {/* GRAPHIQUE */}
           {onglet==='graphique'&&(
@@ -2522,7 +2640,7 @@ ${(passages||[]).length > 0 ? `
                 </div>
               )}
               <div style={{marginTop:12,display:'flex',gap:16,fontSize:12,color:'#888',flexWrap:'wrap'}}>
-                <span>{t(lang,'score_total')}: <strong style={{color:'#1D9E75'}}>{estSourateEleve?totalPtsSourates.toLocaleString():(etat?.points.total.toLocaleString()||0)} {t(lang,'pts_abrev')}</strong></span>
+                <span>{t(lang,'score_total')}: <strong style={{color:'#1D9E75'}}>{totalPtsSourates.toLocaleString()} {t(lang,'pts_abrev')}</strong></span>
                 <span>{lang==='ar'?'السرعة':lang==='en'?'Speed':(lang==='ar'?'الوتيرة':'Vitesse')}: <strong style={{color:vitesse.tendance==='hausse'?'#1D9E75':vitesse.tendance==='baisse'?'#E24B4A':'#888'}}>{vitesse.moyenne} T/{t(lang,+(lang==='ar'?' أسابيع':' semaines'))} {vitesse.tendance==='hausse'?'📈':vitesse.tendance==='baisse'?'📉':'➡️'}</strong></span>
               </div>
               {/* Avertissement bareme non configure - uniquement pour sourate */}
@@ -2604,7 +2722,7 @@ ${(passages||[]).length > 0 ? `
                         <td style={{fontSize:12,color:'#888'}}>{new Date(v.date_validation).toLocaleDateString(lang==='ar'?'ar-MA':'fr-FR')}</td>
                         <td><span className="badge" style={{background:'#FFF3CD',color:'#856404',fontSize:10}}>{v.type_validation==='hizb_muraja'?(lang==='ar'?'حزب كامل':(lang==='ar'?'حزب كامل':'Hizb complet')):(lang==='ar'?'ثُمن':'Tomon')}</span></td>
                         <td style={{fontSize:12}}>{v.type_validation==='hizb_muraja'?`Hizb ${v.hizb_validation}`:`Hizb ${v.hizb_validation} — T${v.tomon_debut} ×${v.nombre_tomon}`}</td>
-                        <td><span style={{fontSize:12,fontWeight:600,color:'#EF9F27'}}>+{v.type_validation==='hizb_muraja'?100:v.nombre_tomon*10}</span></td>
+                        <td><span style={{fontSize:12,fontWeight:600,color:'#EF9F27'}}>+{ptsValidation(v, baremeEleve)}</span></td>
                         <td style={{fontSize:11,color:'#888'}}>{v.valideur?`${v.valideur.prenom} ${v.valideur.nom}`:'—'}</td>
                       </tr>
                     ))}
@@ -2681,9 +2799,8 @@ ${(passages||[]).length > 0 ? `
             const ptsSourateTotal = recitationsSouratesEleve.reduce((s,r)=>s+(r.points||0),0);
             const ptsSourateCompletes = recitationsSouratesEleve.filter(r=>r.type_recitation==='complete').reduce((s,r)=>s+(r.points||0),0);
             const ptsSourateSequences = recitationsSouratesEleve.filter(r=>r.type_recitation==='sequence').reduce((s,r)=>s+(r.points||0),0);
-            const pts = estSourate2
-              ? { total: ptsSourateTotal, tomonPeriode: recitationsSouratesEleve.filter(r=>r.type_recitation==='complete').length, ptsTomon: ptsSourateCompletes, ptsEnsembles: 0, ptsExamens: examens.reduce((s,e)=>s+(e.score||0),0), ptsCertificats: certificats.length*50, hizbsPeriode:0, ptsHizb:0, ptsRoboe:0, ptsNisf:0, details:{nbRoboe:0,nbNisf:0,nbHizb:0} }
-              : calcPointsPeriode(validations||[], new Date('2000-01-01'), new Date(), baremeEleve, pointsEvenements);
+            // FIX-BAREME (sep 2026) : idem, appel unifie
+            const pts = calcPointsPeriode(validations||[], new Date('2000-01-01'), new Date(), baremeEleve, pointsEvenements, recitationsSouratesEleve||[], certificats||[]);
             return (
               <div style={{padding:'0.5rem 0'}}>
                 {/* Total depuis le début */}
@@ -2695,15 +2812,19 @@ ${(passages||[]).length > 0 ? `
                 {/* Détail */}
                 <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
                   {(estSourate2 ? [
-                    {label:lang==='ar'?'السور':'Sourates', val:pts.tomonPeriode, pts:pts.ptsTomon, color:'#534AB7', bg:'#EEEDFE', icon:'📜'},
-                    {label:lang==='ar'?'المجموعات':'Ensembles', val:'', pts:pts.ptsEnsembles||0, color:'#D85A30', bg:'#FAECE7', icon:'📦'},
-                    {label:lang==='ar'?'الامتحانات':'Examens', val:'', pts:pts.ptsExamens||0, color:'#EF9F27', bg:'#FAEEDA', icon:'📝'},
-                    {label:lang==='ar'?'الشهادات':'Certs', val:'', pts:pts.ptsCertificats||0, color:'#085041', bg:'#E1F5EE', icon:'🏅'},
+                    // BUG-FIX AFFICHAGE SOURATES (oct 2026) : la carte "السور" affichait
+                    // pts.tomonPeriode (toujours 0 pour un eleve sourate) + pts.ptsTomon (0).
+                    // Elle doit utiliser nbSouratesCompletes et ptsSourates (voir calcPointsPeriode
+                    // helpers.js L1783-1784).
+                    {label:lang==='ar'?'السور':'Sourates', val:pts.nbSouratesCompletes||0, pts:pts.ptsSourates||0, color:'#534AB7', bg:'#EEEDFE', icon:'📜'},
+                    {label:lang==='ar'?'المجموعات':'Ensembles', val:pts.nbEnsemblesComplets||0, pts:pts.ptsEnsembles||0, color:'#D85A30', bg:'#FAECE7', icon:'📦'},
+                    {label:lang==='ar'?'الامتحانات':'Examens', val:(examens||[]).filter(r=>r.statut==='reussi').length, pts:pts.ptsExamens||0, color:'#EF9F27', bg:'#FAEEDA', icon:'📝'}, /* oct 2026 : nb d'examens reussis (etait vide) */
+                    {label:lang==='ar'?'الشهادات':'Certs', val:certificats.length||'', pts:pts.ptsCertificats||0, color:'#085041', bg:'#E1F5EE', icon:'🏅'},
                   ] : [
                     {label:lang==='ar'?'الأثمان':'Tomon', val:pts.tomonPeriode, pts:pts.ptsTomon, color:'#378ADD', bg:'#E6F1FB', icon:'📖'},
                     {label:lang==='ar'?'أحزاب كاملة':'Hizb ✓', val:pts.hizbsPeriode, pts:pts.ptsHizb, color:'#085041', bg:'#E1F5EE', icon:'🎯'},
-                    ...(pts.ptsExamens>0?[{label:lang==='ar'?'الامتحانات':'Examens', val:'', pts:pts.ptsExamens, color:'#EF9F27', bg:'#FAEEDA', icon:'📝'}]:[]),
-                    ...(pts.ptsCertificats>0?[{label:lang==='ar'?'الشهادات':'Certs', val:'', pts:pts.ptsCertificats, color:'#D85A30', bg:'#FAECE7', icon:'🏅'}]:[]),
+                    ...((pts.ptsExamens>0||(examens||[]).filter(r=>r.statut==='reussi').length>0)?[{label:lang==='ar'?'الامتحانات':'Examens', val:(examens||[]).filter(r=>r.statut==='reussi').length, pts:pts.ptsExamens||0, color:'#EF9F27', bg:'#FAEEDA', icon:'📝'}]:[]),
+                    ...((pts.ptsCertificats>0||(certificats||[]).length>0)?[{label:lang==='ar'?'الشهادات':'Certs', val:(certificats||[]).length, pts:pts.ptsCertificats||0, color:'#D85A30', bg:'#FAECE7', icon:'🏅'}]:[]),
                   ]).map((row,i)=>(
                     <div key={i} style={{background:row.bg,borderRadius:12,padding:'10px',border:`0.5px solid ${row.color}20`}}>
                       <div style={{fontSize:16,marginBottom:2}}>{row.icon}</div>
@@ -2797,7 +2918,7 @@ ${(passages||[]).length > 0 ? `
                             <td>{v.type_validation==='hizb_complet'?<span className="badge badge-green">{t(lang,'hizb_complet')}</span>:<span className="badge">{t(lang,'tomon_abrev')} ×{v.nombre_tomon}</span>}</td>
                             <td style={{fontSize:12,color:'#888'}}>{v.type_validation==='hizb_complet'?(lang==='ar' ? `الحزب ${v.hizb_valide}` : 'Hizb '+v.hizb_valide):(lang==='ar' ? `ث.${v.tomon_debut} الحزب ${v.hizb_validation}` : 'T'+v.tomon_debut+' Hizb '+v.hizb_validation)}</td>
                             <td>{joursAppr!==null?<span style={{fontSize:12,fontWeight:600,color:joursAppr<=7?'#1D9E75':joursAppr<=14?'#EF9F27':'#E24B4A'}}>{joursAppr}{lang==='ar' ? 'ي' : 'j'}</span>:'—'}</td>
-                            <td><span style={{fontSize:12,fontWeight:600,color:'#1D9E75'}}>+{v.type_validation==='hizb_complet'?100:v.nombre_tomon*10}</span></td>
+                            <td><span style={{fontSize:12,fontWeight:600,color:'#1D9E75'}}>+{ptsValidation(v, baremeEleve)}</span></td>
                             <td style={{fontSize:12,color:'#888'}}>{v.valideur?(v.valideur.prenom+' '+v.valideur.nom):'—'}</td>
                           </tr>
                         );

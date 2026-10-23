@@ -1,10 +1,13 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from '../lib/supabase';
-import { getInitiales, scoreLabel, loadBareme, verifierEtCreerCertificats, verifierBlocageEnsemble, calculerPointsSourate } from '../lib/helpers';
+import { getInitiales, scoreLabel, loadBareme, verifierEtCreerCertificats, verifierBlocageEnsemble, calculerPointsSourate, verifierBlocageExamen } from '../lib/helpers';
 import { t } from '../lib/i18n';
 import { getSouratesForNiveau, isSourateNiveau } from '../lib/sourates';
+import { numerosSouratesAcquises, ordonnerSouratesProgramme, depuisDebutNiveau } from '../lib/helpers';
 import { useToast } from '../lib/toast';
 import MobileSkeletonList from '../components/MobileSkeletonList';
+import { MobileHeader, HeaderIconButton } from '../components/ui';
+import { BookOpen, LockOpen } from 'lucide-react';
 
 function Avatar({ prenom, nom, size=36, bg='#E1F5EE', color='#085041' }) {
   return <div style={{width:size,height:size,borderRadius:'50%',background:bg,color,display:'flex',alignItems:'center',justifyContent:'center',fontWeight:600,fontSize:size*0.33,flexShrink:0}}>{getInitiales(prenom,nom)}</div>;
@@ -73,6 +76,7 @@ export default function RecitationSourate({ user, eleve, navigate, goBack, lang=
   const [souratesDB, setSouratesDB] = useState([]);
   const [recitations, setRecitations] = useState([]);
   const [exceptions, setExceptions] = useState([]); // unlocked sourates
+  const [seqMobile, setSeqMobile] = useState(null); // FIX (oct 2026) : saisie versets sur mobile
   const [loading, setLoading] = useState(true);
   const [step, setStep] = useState('liste');
   const [selectedSourate, setSelectedSourate] = useState(null);
@@ -86,21 +90,19 @@ export default function RecitationSourate({ user, eleve, navigate, goBack, lang=
   const [showExceptionModal, setShowExceptionModal] = useState(false);
   const [sensRecitation, setSensRecitation] = useState('desc');
   const [niveauData, setNiveauData] = useState(null); // pour blocage ensemble
+  const [programmeNumeros, setProgrammeNumeros] = useState(null); // FIX (oct 2026) : numeros du programme du niveau
 
   const codeNiveau = eleve.code_niveau || '5B';
   const souratesNiveau = getSouratesForNiveau(codeNiveau);
-  // Ordre selon le sens : desc = 114→1 (plus courtes d'abord), asc = 1→114
-  const souratesOrdonnees = [...souratesNiveau].sort((a,b) =>
-    sensRecitation === 'asc' ? a.numero - b.numero : b.numero - a.numero);
+  // FIX (oct 2026) : la liste suit le PROGRAMME du niveau (comme Validation rapide), dans le
+  // sens du niveau. Avant : les 114 sourates -> un eleve de 5A (programme 77->49) voyait
+  // An-Nas comme sourate en cours et tout son programme verrouille.
+  const souratesOrdonnees = ordonnerSouratesProgramme(souratesNiveau, programmeNumeros, sensRecitation);
+  const acquisNumeros = numerosSouratesAcquises(eleve.sourates_acquises, sensRecitation);
   const isPrivilegied = user.role === 'surveillant';
 
   useEffect(() => {
     loadData();
-    loadBareme(supabase, user.ecole_id).then(b => setBareme(b));
-    // Charger les ensembles avec sourates_ids pour le calcul de priorite mode 3
-    supabase.from('ensembles_sourates').select('id,nom,niveau_id,sourates_ids')
-      .eq('ecole_id', user.ecole_id)
-      .then(({data}) => setEnsemblesData(data || []));
   }, [eleve.id]);
 
   // Auto-select current sourate when arriving from outside (e.g. from FicheSourate)
@@ -114,17 +116,36 @@ export default function RecitationSourate({ user, eleve, navigate, goBack, lang=
   const loadData = async () => {
     setLoading(true);
     try {
-    const [{ data: sdb }, { data: rd }, { data: nv }, { data: ec }] = await Promise.all([
+    // BUG-FIX POINTS SOURATES (oct 2026) : bareme et ensemblesData sont charges
+    // ICI (await) et non en fire-and-forget. Avant : si l'instituteur cliquait
+    // "Valider" avant que loadBareme ne resolve, calculerPointsSourate retournait
+    // points=0 -> INSERT en BDD avec points=0 -> classement Seance a 0 et
+    // ptsSourates=0 dans ListeNotes. Maintenant : garanti charges avant tout clic.
+    const [{ data: sdb }, { data: rd }, { data: nv }, { data: ec }, brData, { data: ensData }] = await Promise.all([
       supabase.from('sourates').select('*'),
       supabase.from('recitations_sourates').select('*, valideur:valide_par(prenom,nom)')
         .eq('ecole_id', user.ecole_id).eq('eleve_id', eleve.id).order('date_validation', { ascending: false }),
       supabase.from('niveaux').select('id,code,type,sens_recitation').eq('ecole_id', user.ecole_id).eq('code', codeNiveau).maybeSingle(),
       supabase.from('ecoles').select('sens_recitation_defaut').eq('id', user.ecole_id).maybeSingle(),
+      loadBareme(supabase, user.ecole_id).catch(() => null),
+      supabase.from('ensembles_sourates').select('id,nom,niveau_id,sourates_ids').eq('ecole_id', user.ecole_id),
     ]);
+    if (brData) setBareme(brData);
+    setEnsemblesData(ensData || []);
     // Résolution du sens : niveau > école > desc
     const resolvedSens = nv?.sens_recitation || ec?.sens_recitation_defaut || 'desc';
     setSensRecitation(resolvedSens);
     setNiveauData(nv); // {id, code, type, sens_recitation}
+    // FIX (oct 2026) : programme du niveau (references = ids de la table sourates)
+    if (nv && nv.id) {
+      try {
+        const { data: prog } = await supabase.from('programmes').select('reference_id, type_contenu')
+          .eq('niveau_id', nv.id).eq('ecole_id', user.ecole_id);
+        const numById = new Map((sdb || []).map(x => [String(x.id), x.numero]));
+        const nums = new Set((prog || []).map(p => numById.get(String(p.reference_id))).filter(Boolean));
+        setProgrammeNumeros(nums.size > 0 ? nums : null);
+      } catch (e) { setProgrammeNumeros(null); }
+    }
     // Safe load for exceptions (table may not exist)
     let ex = [];
     try {
@@ -133,7 +154,8 @@ export default function RecitationSourate({ user, eleve, navigate, goBack, lang=
       if (!exErr) ex = exData || [];
     } catch(e) { /* table not yet created */ }
     const sdbData = sdb || [];
-    const rdData = rd || [];
+    // FIX (oct 2026) : la muraja (revision) ne compte pas dans la progression de memorisation
+    const rdData = depuisDebutNiveau((rd || []).filter(r => !r.is_muraja), eleve); // + depuis le debut du niveau
     const exData = ex || [];
     setSouratesDB(sdbData);
     setRecitations(rdData);
@@ -144,29 +166,13 @@ export default function RecitationSourate({ user, eleve, navigate, goBack, lang=
       setLoading(false);
     }
     
-    // Auto-navigate to current sourate after loading
-    // Only if we're still on liste (not already on a specific sourate)
-    // Find the current sourate based on acquis and completions
-    const souratesAcq = eleve.sourates_acquises || 0;
-    const souratesNiv = getSouratesForNiveau(eleve.code_niveau || '5B');
-    const souratesOrd = [...souratesNiv].sort((a,b) =>
-      resolvedSens === 'asc' ? a.numero - b.numero : b.numero - a.numero);
-    
-    const getDbIdLocal = (numero) => sdbData.find(s => s.numero === numero)?.id;
-    const isCompleteLocal = (numero) => {
-      const dbId = getDbIdLocal(numero);
-      return dbId ? rdData.some(r => r.sourate_id === dbId && r.type_recitation === 'complete') : false;
-    };
-    
-    const currentIdxLocal = souratesOrd.findIndex((sr, i) => {
-      if (i < souratesAcq) return false;
-      return !isCompleteLocal(sr.numero);
-    });
-    
-    if (currentIdxLocal >= 0) {
-      setSelectedSourate(souratesOrd[currentIdxLocal]);
-      setStep('valider');
-    }
+    // BUG-FIX (oct 2026) : ici se trouvait une "navigation automatique vers la sourate
+    // en cours" qui utilisait resolvedSens / sdbData / rdData HORS du try ou ils sont
+    // declares -> ReferenceError a chaque loadData. Consequence : apres chaque
+    // recitation (confirmer -> await loadData()), la suite etait sautee : verification
+    // des certificats, retour a la liste, remise a zero des versets. Le bloc n'avait
+    // donc jamais fonctionne ; il est retire pour garder le comportement actuel
+    // (ouverture sur la liste) tout en laissant enfin s'executer la suite.
   };
 
   const getDbId = (numero) => souratesDB.find(s => s.numero === numero)?.id;
@@ -184,13 +190,13 @@ export default function RecitationSourate({ user, eleve, navigate, goBack, lang=
     // Acquis antérieurs = FIRST N sourates (114→111 if N=4)
     // List is sorted descending: [114,113,112,111,110,109,...]
     // So acquis = indices 0 to N-1
-    if (idx < souratesAcquises) return 'acquis';
+    if (acquisNumeros.has(s.numero)) return 'acquis'; // FIX (oct 2026) : par numero, plus par position
     // If exception unlocked by surveillant
     if (isUnlocked(s.numero)) return 'unlocked';
     // Current sourate = first non-complete after acquis block
     // Find the first sourate at index >= souratesAcquises that is not complete
-    const firstNonComplete = souratesOrdonnees.findIndex((sr, i) => {
-      if (i < souratesAcquises) return false; // skip acquis
+    const firstNonComplete = souratesOrdonnees.findIndex((sr) => {
+      if (acquisNumeros.has(sr.numero)) return false; // skip acquis
       return !isComplete(sr.numero);
     });
     if (firstNonComplete === -1) return 'complete'; // all done!
@@ -209,17 +215,63 @@ export default function RecitationSourate({ user, eleve, navigate, goBack, lang=
     return ['current', 'complete', 'unlocked'].includes(status);
   };
 
+  const selectedSourateEtat = selectedSourate;
+  const typeRecitationEtat = typeRecitation;
+  const versetDebutEtat = versetDebut;
+  const versetFinEtat = versetFin;
   const ptsParSourate = bareme?.unites?.sourate||0;
-  const totalPoints = recitations.reduce((s,r) => s + (r.points||0), 0) + (souratesAcquises * ptsParSourate);
-  const souratesCompletes = souratesOrdonnees.filter(s => isComplete(s.numero)).length + souratesAcquises;
+  // FIX (oct 2026) : les sourates acquises avant le suivi ne rapportent pas de points (regle commune)
+  const totalPoints = recitations.reduce((s,r) => s + (r.points||0), 0);
+  const souratesCompletes = souratesOrdonnees.filter(s => isComplete(s.numero) || acquisNumeros.has(s.numero)).length;
   // The current sourate index
-  const currentIdx = souratesOrdonnees.findIndex((sr, i) => i >= souratesAcquises && !isComplete(sr.numero));
+  const currentIdx = souratesOrdonnees.findIndex((sr) => !acquisNumeros.has(sr.numero) && !isComplete(sr.numero));
   const currentSourate = currentIdx >= 0 ? souratesOrdonnees[currentIdx] : null;
   const sl = scoreLabel(totalPoints);
 
-  const confirmer = async () => {
+  // F12 (oct 2026) : blocage examen, comme Validation Rapide. Avant, cette page ne
+  // verifiait que les ensembles (et les 2 boutons rapides de la liste ne verifiaient
+  // rien) : on pouvait continuer a reciter alors qu'un examen etait requis.
+  // Page reservee aux eleves sourate : leurs recitations (deja chargees) suffisent.
+  // Retourne true (et previent l'utilisateur) si l'enregistrement doit etre bloque.
+  // Verrou anti double-appui (revue oct 2026) : la verification fait plusieurs requetes ;
+  // sans verrou, un 2e appui pendant ce delai inserait la recitation deux fois.
+  // Pris ici, libere si blocage, sinon a la fin de l'enregistrement (saving -> false).
+  const verrouRef = useRef(false);
+  useEffect(() => { if (!saving) verrouRef.current = false; }, [saving]);
+
+  const examenBloque = async () => {
+    if (verrouRef.current) return true; // enregistrement deja en cours : ignorer
+    verrouRef.current = true;
+    try {
+      const blocageExamen = await verifierBlocageExamen(supabase, {
+        eleve, ecole_id: user.ecole_id, validations: [], recitations: recitations || [],
+      });
+      if (blocageExamen) {
+        const nomExamen = blocageExamen.examen?.nom || blocageExamen.nom || '';
+        toast.error(lang==='ar'
+          ? `⛔ امتحان مطلوب: "${nomExamen}" قبل المتابعة`
+          : `⛔ Examen requis : "${nomExamen}" avant de continuer`, { duration: 5000 });
+        verrouRef.current = false;
+        return true;
+      }
+    } catch (e) { console.warn('blocage examen check', e); }
+    return false; // verrou garde jusqu'a la fin de l'enregistrement (voir useEffect sur saving)
+  };
+
+  // FIX (oct 2026) : confirmer accepte des valeurs explicites pour etre partage avec le
+  // mobile (avant, le mobile inserait sans verifier les ensembles, avec des versets 1->1
+  // et sans message en cas d'erreur).
+  const confirmer = async (opts = {}) => {
+    const selectedSourate = opts.sourate || selectedSourateEtat;
+    const typeRecitation = opts.type || typeRecitationEtat;
+    const versetDebut = opts.versetDebut !== undefined ? opts.versetDebut : versetDebutEtat;
+    const versetFin = opts.versetFin !== undefined ? opts.versetFin : versetFinEtat;
     if (!selectedSourate || saving) return;
     if (typeRecitation === 'sequence') {
+      // FIX (oct 2026) : limite de 3 sequences appliquee aussi au mobile
+      const dbIdSeq = getDbId(selectedSourate.numero);
+      const nbSeq = (recitations||[]).filter(r => r.sourate_id === dbIdSeq && r.type_recitation === 'sequence' && !r.is_muraja).length;
+      if (nbSeq >= 3) { toast.warning(lang==='ar'?'تم تسجيل 3 مقاطع — يجب استظهار السورة كاملة':'3 séquences déjà enregistrées — récitation complète requise'); return; }
       if (!versetDebut || !versetFin) { toast.warning(lang==='ar'?'يجب تحديد الآيات':'Veuillez saisir les versets'); return; }
       if (parseInt(versetFin) < parseInt(versetDebut)) { toast.warning(lang==='ar'?'الآية الأخيرة يجب أن تكون أكبر':'Le verset de fin doit être supérieur'); return; }
     }
@@ -252,6 +304,9 @@ export default function RecitationSourate({ user, eleve, navigate, goBack, lang=
       } catch (e) { console.warn('blocage ensemble check', e); }
     }
 
+    // F12 (oct 2026) : blocage examen, comme Validation Rapide (voir examenBloque).
+    if (await examenBloque()) return;
+
     setSaving(true);
     // Calcul des points avec priorite Mode 3 > Mode 1
     const sourateDbId = getDbId(selectedSourate.numero);
@@ -269,6 +324,11 @@ export default function RecitationSourate({ user, eleve, navigate, goBack, lang=
       points: pts
     });
     setSaving(false);
+    if (error) {
+      // FIX (oct 2026) : avant, une erreur (reseau instable) perdait la recitation sans message
+      toast.error((lang==='ar'?'لم يتم الحفظ، أعد المحاولة: ':'Non enregistré, réessayez : ') + (error.message || ''));
+      return;
+    }
     if (!error) {
       setFlash({ msg: typeRecitation === 'complete'
         ? `🎉 ${selectedSourate.nom_ar} — ${lang==='ar'?'تمت التلاوة كاملة':lang==='en'?'Complete!':'Complète !'}`
@@ -333,32 +393,19 @@ export default function RecitationSourate({ user, eleve, navigate, goBack, lang=
           </div>
         )}
         {/* Header sticky */}
-        <div style={{background:`linear-gradient(135deg,#085041,#1D9E75)`, padding:'48px 0 0', position:'sticky', top:0, zIndex:100}}>
-          <div style={{display:'flex', alignItems:'center', gap:12, padding:'12px 16px'}}>
-            <button onClick={()=>goBack?goBack():navigate('dashboard')}
-              aria-label={lang==='ar'?'رجوع':'Retour'}
-              style={{background:'rgba(255,255,255,0.22)', border:'1px solid rgba(255,255,255,0.25)',
-                cursor:'pointer', flexShrink:0, borderRadius:10, padding:'0',
-                color:'#fff', fontSize:20, width:44, height:44,
-                display:'flex', alignItems:'center', justifyContent:'center'}}>
-              ←
-            </button>
-            <div style={{flex:1}}>
-              <div style={{fontSize:17,fontWeight:800,color:'#fff'}}>{eleve.prenom} {eleve.nom}</div>
-              <div style={{fontSize:12,color:'rgba(255,255,255,0.85)'}}>{codeNiveau} · {lang==='ar'?'استظهار السور':'Récitation des sourates'}</div>
-            </div>
-            {isPrivilegied && (
-              <button onClick={()=>setShowExceptionModal(true)}
-                aria-label={lang==='ar'?'استثناء':'Exception'}
-                style={{background:'rgba(255,255,255,0.25)',color:'#fff',border:'1px solid rgba(255,255,255,0.3)',
-                  borderRadius:10,padding:'0',width:44,height:44,fontSize:18,cursor:'pointer',
-                  display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
-                🔓
-              </button>
-            )}
-          </div>
+        <MobileHeader
+          title={`${eleve.prenom} ${eleve.nom}`}
+          subtitle={`${codeNiveau} · ${lang==='ar'?'استظهار السور':'Récitation des sourates'}`}
+          icon={BookOpen}
+          onBack={()=>goBack?goBack():navigate('dashboard')}
+          lang={lang}
+          actions={isPrivilegied ? (
+            <HeaderIconButton icon={LockOpen} label={lang==='ar'?'استثناء':'Exception'}
+              onClick={()=>setShowExceptionModal(true)} />
+          ) : null}
+        >
           {/* Onglets */}
-          <div style={{display:'flex',gap:0,background:'#f0f0ec',borderRadius:10,padding:3,margin:'0 16px 12px'}}>
+          <div style={{display:'flex',gap:0,background:'#f0f0ec',borderRadius:10,padding:3}}>
             {[['liste',lang==='ar'?'السور':'Sourates'],['recap',lang==='ar'?'ملخص':'Résumé']].map(([k,l])=>(
               <div key={k} onClick={()=>setStep(k)}
                 style={{flex:1,padding:'7px 8px',borderRadius:8,textAlign:'center',fontSize:12,fontWeight:600,
@@ -367,7 +414,7 @@ export default function RecitationSourate({ user, eleve, navigate, goBack, lang=
               </div>
             ))}
           </div>
-        </div>
+        </MobileHeader>
 
         {/* Exception banner */}
         {exceptions.length > 0 && (
@@ -413,44 +460,42 @@ export default function RecitationSourate({ user, eleve, navigate, goBack, lang=
                           <div style={{marginTop:10,display:'flex',flexDirection:'column',gap:8}}>
                             <div style={{width:'100%',height:1,background:'#e0e0d8'}}/>
                             {!complete&&(
-                              <button onClick={async e=>{
+                              <button disabled={saving} onClick={e=>{
                                   e.stopPropagation();
-                                  setSelectedSourate(s);
-                                  setTypeRecitation('complete');
-                                  setSaving(true);
-                                  const dbId = getDbId(s.numero);
-                                  if (dbId) {
-                                    const calcPts = calculerPointsSourate(dbId, bareme, ensemblesData, 'complete');
-                                    const {error} = await supabase.from('recitations_sourates')
-                                      .insert({eleve_id:eleve.id,ecole_id:user.ecole_id,sourate_id:dbId,
-                                        type_recitation:'complete',points:calcPts.points,valide_par:user.id,
-                                        date_validation:new Date().toISOString()});
-                                    if (!error) { setFlash({msg:`✅ +${calcPts.points} pts`,color:'#1D9E75'}); setTimeout(()=>setFlash(null),2000); loadData(); }
-                                  }
-                                  setSaving(false); setSelectedSourate(null);
+                                  // FIX (oct 2026) : meme enregistrement que le PC (ensembles, examen, erreurs)
+                                  confirmer({ sourate: s, type: 'complete' });
                                 }}
                                 style={{padding:'10px',background:nc,color:'#fff',border:'none',borderRadius:10,
                                   fontSize:13,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
-                                `✅ ${lang==='ar'?'استظهار كامل':'Complète'} (+${bareme?.unites?.sourate||0} pts)`
+                                {`✅ ${lang==='ar'?'استظهار كامل':'Complète'} (+${calculerPointsSourate(getDbId(s.numero), bareme, ensemblesData, 'complete').points||0} pts)`}
                               </button>
                             )}
-                            <button onClick={async e=>{
-                                e.stopPropagation();
-                                setSaving(true);
-                                const dbId = getDbId(s.numero);
-                                if (dbId) {
-                                  const {error} = await supabase.from('recitations_sourates')
-                                    .insert({eleve_id:eleve.id,ecole_id:user.ecole_id,sourate_id:dbId,
-                                      type_recitation:'sequence',points:bareme?.unites?.sequence_sourate||0,valide_par:user.id,
-                                      date_validation:new Date().toISOString(),verset_debut:1,verset_fin:1});
-                                  if (!error) { setFlash({msg:'📝 +10 pts',color:'#378ADD'}); setTimeout(()=>setFlash(null),2000); loadData(); }
-                                }
-                                setSaving(false);
-                              }}
+                            {/* FIX (oct 2026) : saisie des versets (avant : toujours V.1 -> V.1, +10 pts affiches en dur) */}
+                            {seqMobile?.numero === s.numero ? (
+                              <div onClick={e=>e.stopPropagation()} style={{display:'flex',gap:6,alignItems:'center'}}>
+                                <input type="number" inputMode="numeric" min="1" value={seqMobile.debut}
+                                  onChange={e=>setSeqMobile({...seqMobile, debut:e.target.value})}
+                                  placeholder={lang==='ar'?'من':'De'}
+                                  style={{flex:1,minWidth:0,padding:'9px',borderRadius:8,border:'1px solid #e0e0d8',fontSize:14}}/>
+                                <input type="number" inputMode="numeric" min="1" value={seqMobile.fin}
+                                  onChange={e=>setSeqMobile({...seqMobile, fin:e.target.value})}
+                                  placeholder={lang==='ar'?'إلى':'À'}
+                                  style={{flex:1,minWidth:0,padding:'9px',borderRadius:8,border:'1px solid #e0e0d8',fontSize:14}}/>
+                                <button disabled={saving} onClick={async ()=>{
+                                    await confirmer({ sourate: s, type: 'sequence', versetDebut: seqMobile.debut, versetFin: seqMobile.fin });
+                                    setSeqMobile(null);
+                                  }}
+                                  style={{padding:'9px 12px',background:nc,color:'#fff',border:'none',borderRadius:8,fontSize:13,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
+                                  ✓
+                                </button>
+                              </div>
+                            ) : (
+                            <button onClick={e=>{ e.stopPropagation(); setSeqMobile({ numero: s.numero, debut: '', fin: '' }); }}
                               style={{padding:'10px',background:`${nc}20`,color:nc,border:`1px solid ${nc}30`,borderRadius:10,
                                 fontSize:13,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
-                              📝 {lang==='ar'?'مقطع':'Séquence (+10pts)'}
+                              📝 {lang==='ar'?'مقطع':'Séquence'} (+{calculerPointsSourate(getDbId(s.numero), bareme, ensemblesData, 'sequence').points||0} pts)
                             </button>
+                            )}
                           </div>
                         )}
                       </div>
@@ -466,7 +511,7 @@ export default function RecitationSourate({ user, eleve, navigate, goBack, lang=
                   {[
                     {label:lang==='ar'?'مكتملة':'Complètes',val:recitations.filter(r=>r.type_recitation==='complete').length,color:nc,bg:`${nc}15`},
                     {label:lang==='ar'?'مقاطع':'Séquences',val:recitations.filter(r=>r.type_recitation==='sequence').length,color:'#378ADD',bg:'#E6F1FB'},
-                    {label:lang==='ar'?'النقاط':'Points',val:recitations.reduce((s,r)=>s+(r.type_recitation==='complete'?30:10),0),color:'#EF9F27',bg:'#FAEEDA'},
+                    {label:lang==='ar'?'النقاط':'Points',val:recitations.reduce((s,r)=>s+(r.points||0),0),color:'#EF9F27',bg:'#FAEEDA'},
                   ].map((k,i)=>(
                     <div key={i} style={{background:k.bg,borderRadius:12,padding:'12px 8px',textAlign:'center',border:`0.5px solid ${k.color}20`}}>
                       <div style={{fontSize:22,fontWeight:800,color:k.color}}>{k.val}</div>
@@ -486,7 +531,7 @@ export default function RecitationSourate({ user, eleve, navigate, goBack, lang=
                         <div style={{fontWeight:600,fontSize:13,fontFamily:"'Tajawal',Arial",direction:'rtl'}}>{s?.nom_ar||'—'}</div>
                         <div style={{fontSize:11,color:'#888'}}>{new Date(r.date_validation).toLocaleDateString(lang==='ar'?'ar-MA':'fr-FR')}</div>
                       </div>
-                      <span style={{fontSize:13,fontWeight:700,color:nc}}>+{r.type_recitation==='complete'?30:10}</span>
+                      <span style={{fontSize:13,fontWeight:700,color:nc}}>+{r.points||0}</span>
                     </div>
                   );
                 })}
@@ -714,7 +759,7 @@ export default function RecitationSourate({ user, eleve, navigate, goBack, lang=
                         <div style={{fontSize:24,marginBottom:6}}>📍</div>
                         <div style={{fontSize:13,fontWeight:600}}>{lang==='ar'?'مقطع':lang==='en'?'Sequence':'Séquence'}</div>
                         <div style={{fontSize:11,color:'#888',marginTop:2}}>{lang==='ar'?`المقطع ${nbSeqActuel+1} من 3`:lang==='en'?`Seq. ${nbSeqActuel+1}/3`:`Séq. ${nbSeqActuel+1}/3`}</div>
-                        <div style={{fontSize:11,fontWeight:600,color:'#1D9E75',marginTop:4}}>+10 {t(lang,'pts_abrev')}</div>
+                        <div style={{fontSize:11,fontWeight:600,color:'#1D9E75',marginTop:4}}>+{selectedSourate ? (calculerPointsSourate(getDbId(selectedSourate.numero), bareme, ensemblesData, 'sequence').points||0) : 0} {t(lang,'pts_abrev')}</div>
                       </div>
                       <div onClick={()=>setTypeRecitation('complete')}
                         style={{padding:'16px',border:`2px solid ${typeRecitation==='complete'?'#EF9F27':'#e0e0d8'}`,borderRadius:12,textAlign:'center',cursor:'pointer',background:typeRecitation==='complete'?'#FAEEDA':'#fff',transition:'all 0.15s'}}>
@@ -745,7 +790,7 @@ export default function RecitationSourate({ user, eleve, navigate, goBack, lang=
 
                     <button className="btn-primary"
                       disabled={saving||(typeRecitation==='sequence'&&(maxSeqAtteint||!versetDebut||!versetFin))}
-                      onClick={confirmer}>
+                      onClick={()=>confirmer()}>
                       {saving?'...':`✓ ${lang==='ar'?'تأكيد الاستظهار':lang==='en'?'Confirm':'Confirmer'}`}
                     </button>
                   </>

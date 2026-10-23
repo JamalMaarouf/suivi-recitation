@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { supabase } from '../lib/supabase';
 import { useToast } from '../lib/toast';
 import { t } from '../lib/i18n';
-import { BAREME_DEFAUT, loadBareme, loadAnneeActiveAvecPeriodes, formatPeriodeCourte, detecterPeriodeEnCours } from '../lib/helpers';
+import { BAREME_DEFAUT, loadBareme, calcPointsPeriode, loadAnneeActiveAvecPeriodes, formatPeriodeCourte, detecterPeriodeEnCours } from '../lib/helpers';
 import { fetchAll } from '../lib/fetchAll';
 import { openPDF } from '../lib/pdf';
 import { exportExcel } from '../lib/excel';
@@ -11,6 +11,8 @@ import PeriodeSelectorHybride from '../components/PeriodeSelectorHybride';
 import PageHeader from '../components/PageHeader';
 import StatsCard from '../components/StatsCard';
 import { usePullToRefresh, PullToRefreshIndicator } from '../lib/usePullToRefresh';
+import { MobileHeader, HeaderMenu, actionsExport, KpiGrid, KpiTile, LevelBadge, C } from '../components/ui';
+import { LayoutDashboard, Users, Activity, BookOpen, BookOpenCheck, Award, GraduationCap, CircleAlert, TriangleAlert } from 'lucide-react';
 
 // ─── Couleurs par niveau ───────────────────────────────────────────────────
 const NC = { '5B':'#534AB7','5A':'#378ADD','2M':'#1D9E75','2':'#EF9F27','1':'#E24B4A' };
@@ -18,22 +20,7 @@ const getNc = (niveaux, code) =>
   (niveaux||[]).find(n=>n.code===code)?.couleur || NC[code] || '#888';
 
 // ─── Composants UI ────────────────────────────────────────────────────────
-// KpiCard local : encore utilisé par la branche mobile (ligne ~590).
-// Migration mobile vers <StatsCard> reportée à la Phase E (mobile).
-function KpiCard({ icon, val, label, sub, color='#085041', bg='#E1F5EE', onClick }) {
-  return (
-    <div onClick={onClick}
-      style={{background:bg,borderRadius:14,padding:'16px 14px',cursor:onClick?'pointer':'default',
-        border:`0.5px solid ${color}20`,transition:'transform 0.1s'}}
-      onMouseEnter={e=>{if(onClick)e.currentTarget.style.transform='scale(1.02)'}}
-      onMouseLeave={e=>e.currentTarget.style.transform='scale(1)'}>
-      <div style={{fontSize:24,marginBottom:4}}>{icon}</div>
-      <div style={{fontSize:26,fontWeight:800,color,lineHeight:1}}>{val}</div>
-      <div style={{fontSize:12,color,opacity:0.8,marginTop:4,fontWeight:600}}>{label}</div>
-      {sub&&<div style={{fontSize:11,color:'#888',marginTop:3}}>{sub}</div>}
-    </div>
-  );
-}
+// KpiCard local supprime (charte mobile oct 2026) : la branche mobile utilise KpiTile (components/ui).
 
 function SectionTitle({ icon, title, sub }) {
   return (
@@ -109,7 +96,9 @@ export default function DashboardDirection({ user, navigate, goBack, lang='fr', 
   const [recitations, setRecitations] = useState([]);
   const [passages, setPassages] = useState([]);
   const [ecole, setEcole] = useState(null);
-  const [bareme, setBareme] = useState(BAREME_DEFAUT);
+  // FIX (oct 2026) : bareme complet {unites, ensembles, examens, jalons} (avant : aplati sur unites)
+  const [bareme, setBareme] = useState({ unites:{...BAREME_DEFAUT}, examens:{}, ensembles:{}, jalons:{} });
+  const [pointsEvts, setPointsEvts] = useState([]); // FIX (oct 2026) : points_eleves (examens) pour le Top
   const [periode, setPeriode] = useState('mois'); // 'mois' | 'bdd_<id>' | 'annee_scolaire' | 'custom'
   const [periodesBDD, setPeriodesBDD] = useState([]);
   const [anneeActive, setAnneeActive] = useState(null);
@@ -177,25 +166,32 @@ export default function DashboardDirection({ user, navigate, goBack, lang='fr', 
   const loadData = async () => {
     setLoading(true);
     try {
-      loadBareme(supabase, user.ecole_id).then(b => setBareme({...BAREME_DEFAUT,...(b?.unites||{})}));
+      // FIX (oct 2026) : bareme complet (calcPointsPeriode a besoin de ensembles/jalons)
+      loadBareme(supabase, user.ecole_id).then(b => { if (b) setBareme(b); });
       const [
         { data: ev }, { data: iv }, { data: vv }, { data: nv },
-        { data: cv }, { data: rv }, { data: pv }, { data: ecv }
+        { data: cv }, { data: rv }, { data: pv }, { data: ecv }, { data: pev }
       ] = await Promise.all([
         supabase.from('eleves').select('*').eq('ecole_id', user.ecole_id).is('suspendu_at', null).order('nom'),
         supabase.from('utilisateurs').select('id,prenom,nom,role').eq('ecole_id', user.ecole_id).eq('role','instituteur'),
-        fetchAll(supabase.from('validations').select('id,eleve_id,type_validation,nombre_tomon,hizb_valide,date_validation,valide_par,ecole_id').eq('ecole_id', user.ecole_id).order('date_validation',{ascending:false})).then(data=>({data})),
+        fetchAll(supabase.from('validations').select('id,eleve_id,type_validation,nombre_tomon,hizb_valide,date_validation,valide_par,ecole_id,ensemble_id').eq('ecole_id', user.ecole_id).order('date_validation',{ascending:false})).then(data=>({data})), // FIX (oct 2026) : ensemble_id pour calcPointsPeriode
         supabase.from('niveaux').select('*').eq('ecole_id', user.ecole_id).order('ordre'),
         supabase.from('certificats_eleves').select('id,eleve_id,jalon_id,date_emission').eq('ecole_id', user.ecole_id).limit(500),
-        fetchAll(supabase.from('recitations_sourates').select('eleve_id,date_validation,type_recitation').eq('ecole_id', user.ecole_id).order('date_validation',{ascending:false})).then(data=>({data})),
-        supabase.from('passages_niveau').select('eleve_id,niveau_avant,niveau_apres,created_at').eq('ecole_id', user.ecole_id).limit(500),
+        // FIX (oct 2026) : points + is_muraja pour le Top (calcPointsPeriode)
+        fetchAll(supabase.from('recitations_sourates').select('id,eleve_id,date_validation,type_recitation,is_muraja,points').eq('ecole_id', user.ecole_id).order('date_validation',{ascending:false})).then(data=>({data})),
+        // FIX (oct 2026) : colonnes niveau_avant/niveau_apres inexistantes -> requete en erreur, 0 passage affiche
+        supabase.from('passages_niveau').select('*').eq('ecole_id', user.ecole_id).limit(500),
         supabase.from('ecoles').select('*').eq('id', user.ecole_id).single(),
+        // FIX (oct 2026) : points_eleves (examens) pour un Top coherent avec la liste des notes
+        fetchAll(supabase.from('points_eleves').select('id,eleve_id,type_event,points,date_event').eq('ecole_id', user.ecole_id)).then(data=>({data})),
       ]);
       setEleves(ev||[]);
       setInstituteurs(iv||[]);
       setValidations(vv||[]);
       setNiveaux(nv||[]);
-      setCertificats(cv||[]);
+      // FIX (oct 2026) : mapper date_emission -> date_obtention attendu par calcPointsPeriode
+      setCertificats((cv||[]).map(c => ({ ...c, date_obtention: c.date_emission })));
+      setPointsEvts(pev||[]);
       setRecitations(rv||[]);
       setPassages(pv||[]);
       setEcole(ecv);
@@ -220,7 +216,8 @@ export default function DashboardDirection({ user, navigate, goBack, lang='fr', 
     if (periode === 'annee_scolaire' && anneeActive) {
       return {
         periodeDebut: new Date(anneeActive.date_debut),
-        periodeFin: new Date(anneeActive.date_fin),
+        // FIX (oct 2026) : inclure toute la derniere journee (avant : minuit UTC -> dernier jour exclu)
+        periodeFin: new Date(anneeActive.date_fin + 'T23:59:59'),
       };
     }
     // 'custom' = dates saisies par l'utilisateur (Etape 14 v2)
@@ -236,7 +233,8 @@ export default function DashboardDirection({ user, navigate, goBack, lang='fr', 
       if (p) {
         return {
           periodeDebut: new Date(p.date_debut),
-          periodeFin: new Date(p.date_fin),
+          // FIX (oct 2026) : inclure toute la derniere journee
+          periodeFin: new Date(p.date_fin + 'T23:59:59'),
         };
       }
     }
@@ -254,9 +252,20 @@ export default function DashboardDirection({ user, navigate, goBack, lang='fr', 
     }),
   [validations, periodeDebut, periodeFin]);
 
+  // FIX (oct 2026) : recitations de sourates de la periode (comptent dans l'activite)
+  const recsFiltered = useMemo(() =>
+    (recitations||[]).filter(r => {
+      const d = new Date(r.date_validation);
+      return d >= periodeDebut && d <= periodeFin;
+    }),
+  [recitations, periodeDebut, periodeFin]);
+
   // ─── KPIs globaux ────────────────────────────────────────────────────────
   const kpis = useMemo(() => {
-    const elevesActifs = new Set(valsFiltered.map(v=>v.eleve_id));
+    // FIX (oct 2026) : actifs = validations OU recitations de sourates, restreint aux eleves
+    // non suspendus (eleves deja filtre) pour que le taux ne depasse pas la population.
+    const idsEleves = new Set((eleves||[]).map(e=>e.id));
+    const elevesActifs = new Set([...valsFiltered.map(v=>v.eleve_id), ...recsFiltered.map(r=>r.eleve_id)].filter(id=>idsEleves.has(id)));
     const totalTomon = valsFiltered.filter(v=>v.type_validation==='tomon').reduce((s,v)=>s+(v.nombre_tomon||0),0);
     const totalHizb = valsFiltered.filter(v=>v.type_validation==='hizb_complet').length;
     const tauxActivite = eleves.length > 0 ? Math.round(elevesActifs.size/eleves.length*100) : 0;
@@ -265,12 +274,12 @@ export default function DashboardDirection({ user, navigate, goBack, lang='fr', 
       return d >= periodeDebut && d <= periodeFin;
     }).length;
     const totalPassages = (passages||[]).filter(p=>{
-      const d = new Date(p.created_at);
+      const d = new Date(p.date_passage || p.created_at);
       return d >= periodeDebut && d <= periodeFin;
     }).length;
     return { elevesActifs:elevesActifs.size, totalEleves:eleves.length, totalTomon, totalHizb,
       tauxActivite, totalCerts, totalPassages, totalSeances: valsFiltered.length };
-  }, [valsFiltered, eleves, certificats, passages, periodeDebut, periodeFin]);
+  }, [valsFiltered, recsFiltered, eleves, certificats, passages, periodeDebut, periodeFin]);
 
   // ─── Stats par niveau ────────────────────────────────────────────────────
   const statsByNiveau = useMemo(() => {
@@ -327,29 +336,46 @@ export default function DashboardDirection({ user, navigate, goBack, lang='fr', 
   }, [validations, isAr]);
 
   // ─── Top élèves ──────────────────────────────────────────────────────────
-  const topEleves = useMemo(() => {
-    const pts = {};
-    valsFiltered.forEach(v => {
-      if (!pts[v.eleve_id]) pts[v.eleve_id] = 0;
-      if (v.type_validation==='tomon') pts[v.eleve_id] += (v.nombre_tomon||0) * (bareme?.tomon||1);
-      if (v.type_validation==='hizb_complet') pts[v.eleve_id] += bareme?.hizb_complet||8;
-    });
-    return Object.entries(pts)
-      .map(([id, p]) => {
-        const e = (eleves||[]).find(el=>el.id===id);
-        return { id, prenom:e?.prenom||'?', nom:e?.nom||'?', code_niveau:e?.code_niveau, pts:p };
+  // FIX (oct 2026) : classement calcule avec calcPointsPeriode (validations + recitations
+  // de sourates + certificats + examens, bareme complet) sur la meme periode, et
+  // uniquement sur les eleves actifs (eleves est deja filtre suspendu_at null).
+  // Avant : formule locale tomon/hizb sur toutes les validations (suspendus inclus,
+  // eleves sourates a 0). On garde 10 lignes pour le PDF, l'ecran affiche le Top 5.
+  const classementPeriode = useMemo(() => {
+    const group = (arr) => {
+      const m = new Map();
+      (arr||[]).forEach(x => { if (!m.has(x.eleve_id)) m.set(x.eleve_id, []); m.get(x.eleve_id).push(x); });
+      return m;
+    };
+    const valsBy = group(validations), recsBy = group(recitations), certsBy = group(certificats), evtsBy = group(pointsEvts);
+    return (eleves||[])
+      .map(e => {
+        const r = calcPointsPeriode(valsBy.get(e.id)||[], periodeDebut, periodeFin, bareme,
+          evtsBy.get(e.id)||[], recsBy.get(e.id)||[], certsBy.get(e.id)||[]);
+        return { id:e.id, prenom:e.prenom||'?', nom:e.nom||'?', code_niveau:e.code_niveau,
+          pts:r.total, tomon:r.tomonPeriode||0, hizb:r.hizbsPeriode||0 };
       })
+      .filter(x => x.pts > 0)
       .sort((a,b)=>b.pts-a.pts)
-      .slice(0,5);
-  }, [valsFiltered, eleves, bareme]);
+      .slice(0,10);
+  }, [validations, recitations, certificats, pointsEvts, eleves, bareme, periodeDebut, periodeFin]);
+  const topEleves = useMemo(() => classementPeriode.slice(0,5), [classementPeriode]);
 
   // ─── Alertes ────────────────────────────────────────────────────────────
   const alertes = useMemo(() => {
     const alerts = [];
     const cutoff = new Date(); cutoff.setDate(cutoff.getDate()-21);
+    // FIX (oct 2026) : derniere activite = max(validations, recitations de sourates)
+    // (avant : les eleves en sourates apparaissaient toujours inactifs)
+    const derniere = new Map();
+    [...(validations||[]), ...(recitations||[])].forEach(x => {
+      const d = new Date(x.date_validation);
+      const cur = derniere.get(x.eleve_id);
+      if (!cur || d > cur) derniere.set(x.eleve_id, d);
+    });
     const inactifs = (eleves||[]).filter(e => {
-      const lastVal = (validations||[]).find(v=>v.eleve_id===e.id);
-      return !lastVal || new Date(lastVal.date_validation) < cutoff;
+      const last = derniere.get(e.id);
+      return !last || last < cutoff;
     });
     if (inactifs.length > 0)
       alerts.push({ type:'warning', icon:'⚠️', msg: `${inactifs.length} élève(s) sans validation depuis 3+ semaines` });
@@ -360,7 +386,7 @@ export default function DashboardDirection({ user, navigate, goBack, lang='fr', 
     if (kpis.totalPassages > 0)
       alerts.push({ type:'info', icon:'🎓', msg: `${kpis.totalPassages} passage(s) de niveau réalisé(s)` });
     return alerts;
-  }, [eleves, validations, kpis]);
+  }, [eleves, validations, recitations, kpis]);
 
   // Etape 14 v2 - PERIODES dynamiques pour Dashboard Direction
   // Pattern hybride : [Ce mois] [T en cours] [Année active] + dropdown "Plus"
@@ -405,7 +431,8 @@ export default function DashboardDirection({ user, navigate, goBack, lang='fr', 
 
   // ── Préparation des données Top 10 avec points ──
   const top10AvecPoints = useMemo(() => {
-    return topEleves.slice(0, 10).map((el, i) => {
+    // FIX (oct 2026) : vrai Top 10 (avant : topEleves deja coupe a 5) + champs reels
+    return classementPeriode.slice(0, 10).map((el, i) => {
       const niveau = niveaux.find(n => n.code === el.code_niveau);
       return {
         rang: i + 1,
@@ -413,12 +440,12 @@ export default function DashboardDirection({ user, navigate, goBack, lang='fr', 
         nom: el.nom || '',
         code_niveau: el.code_niveau || '',
         niveau_couleur: niveau?.couleur || getNc(niveaux, el.code_niveau),
-        points: el.points || 0,
+        points: el.pts || 0, // FIX (oct 2026) : le champ s'appelle pts (el.points n'existait pas -> 0)
         tomon: el.tomon || 0,
         hizb: el.hizb || 0,
       };
     });
-  }, [topEleves, niveaux]);
+  }, [classementPeriode, niveaux]);
 
   // ── Export PDF (3 pages: KPIs/évol, niveaux/insts, top 10) ──
   const handleExportPDF = async () => {
@@ -536,6 +563,102 @@ export default function DashboardDirection({ user, navigate, goBack, lang='fr', 
   // ──────────────────────────────────────────────────────────────────────────
   // MOBILE
   // ──────────────────────────────────────────────────────────────────────────
+  // F11 (oct 2026) : section Audit RGPD partagee PC + mobile (avant : PC seulement).
+  const sectionRgpd = (
+    <div style={{marginTop:24,background:'#fff',border:'0.5px solid #e0e0d8',borderRadius:14,overflow:'hidden'}}>
+      <div onClick={()=>setShowRgpdSection(!showRgpdSection)}
+        style={{padding:'14px 18px',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'space-between',
+          background:showRgpdSection?'#F0EEFF':'#fff',borderBottom:showRgpdSection?'0.5px solid #e0e0d8':'none'}}>
+        <div>
+          <div style={{fontSize:13,fontWeight:700,color:'#534AB7',display:'flex',alignItems:'center',gap:8}}>
+            🔐 {isAr?'سجل تصدير البيانات (RGPD)':'Registre des exports RGPD'}
+          </div>
+          <div style={{fontSize:11,color:'#888',marginTop:3}}>
+            {isAr?'من طلب تحميل بياناته الشخصية ومتى':'Qui a téléchargé ses données personnelles et quand'}
+          </div>
+        </div>
+        <span style={{fontSize:14,color:'#888',transform:showRgpdSection?'rotate(90deg)':'none',transition:'transform 0.2s'}}>▸</span>
+      </div>
+
+      {showRgpdSection && (
+        <div style={{padding:'14px 18px'}}>
+          <div style={{background:'#F0EEFF',border:'0.5px solid #534AB720',borderRadius:8,padding:'8px 12px',marginBottom:12,fontSize:11,color:'#4A3F9E',lineHeight:1.5}}>
+            📋 {isAr
+              ? 'قائمة تصديرات البيانات الشخصية لمدرستك. الأولياء يمكنهم الحصول على ملف ببياناتهم وبيانات أبنائهم وفقاً للمادة 20 من RGPD.'
+              : 'Liste des exports de données personnelles effectués dans votre école. Les parents peuvent récupérer un fichier avec leurs données et celles de leurs enfants (art. 20 RGPD).'}
+          </div>
+
+          {rgpdLogs.length === 0 ? (
+            <div style={{textAlign:'center',padding:'30px 20px',color:'#888',fontSize:13,background:'#fafaf7',borderRadius:10,border:'0.5px dashed #e0e0d8'}}>
+              ✨ {isAr?'لم يطلب أحد تصدير بياناته بعد':'Aucun export effectué pour le moment'}
+            </div>
+          ) : (
+            <>
+              <div style={{fontSize:11,color:'#888',marginBottom:8}}>
+                {rgpdLogs.length} {isAr?'تصدير على آخر 100':'export(s) sur les 100 derniers'}
+              </div>
+              <div style={{maxHeight:400,overflowY:'auto',overflowX:'auto',border:'0.5px solid #e0e0d8',borderRadius:8}}>
+                <table style={{width:'100%',borderCollapse:'collapse',fontSize:12}}>
+                  <thead style={{position:'sticky',top:0,background:'#f5f5f0',zIndex:1}}>
+                    <tr style={{borderBottom:'0.5px solid #e0e0d8'}}>
+                      <th style={{padding:'8px 10px',textAlign:'left',fontWeight:700,color:'#888',fontSize:10}}>{isAr?'التاريخ':'Date'}</th>
+                      <th style={{padding:'8px 10px',textAlign:'left',fontWeight:700,color:'#888',fontSize:10}}>{isAr?'المستخدم':'Utilisateur'}</th>
+                      <th style={{padding:'8px 10px',textAlign:'left',fontWeight:700,color:'#888',fontSize:10}}>{isAr?'الدور':'Rôle'}</th>
+                      <th style={{padding:'8px 10px',textAlign:'center',fontWeight:700,color:'#888',fontSize:10}}>{isAr?'النطاق':'Scope'}</th>
+                      <th style={{padding:'8px 10px',textAlign:'center',fontWeight:700,color:'#888',fontSize:10}}>{isAr?'الحجم':'Volumes'}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {rgpdLogs.map(log => {
+                      const d = new Date(log.exported_at);
+                      const dateStr = d.toLocaleDateString(isAr?'ar-MA':'fr-FR') + ' ' + d.toLocaleTimeString(isAr?'ar-MA':'fr-FR',{hour:'2-digit',minute:'2-digit'});
+                      const scopeLabel = log.export_scope === 'self_plus_children'
+                        ? (isAr?'ذاتي + أبناء':'Soi + enfants')
+                        : (isAr?'ذاتي':'Soi');
+                      const scopeColor = log.export_scope === 'self_plus_children' ? '#378ADD' : '#888';
+                      const roleBg = {
+                        parent:'#FAEEDA', instituteur:'#E6F1FB',
+                        surveillant:'#E1F5EE', super_admin:'#F0EEFF'
+                      }[log.export_role] || '#f5f5f0';
+                      const roleColor = {
+                        parent:'#EF9F27', instituteur:'#378ADD',
+                        surveillant:'#1D9E75', super_admin:'#534AB7'
+                      }[log.export_role] || '#666';
+                      const roleLabelAr = {
+                        parent:'ولي', instituteur:'مؤطر',
+                        surveillant:'مراقب', super_admin:'مشرف'
+                      }[log.export_role] || log.export_role;
+                      return (
+                        <tr key={log.id} style={{borderBottom:'0.5px solid #f0f0ec'}}>
+                          <td style={{padding:'8px 10px',whiteSpace:'nowrap',fontSize:11}}>{dateStr}</td>
+                          <td style={{padding:'8px 10px',fontWeight:600,fontSize:12}}>{log._user_nom}</td>
+                          <td style={{padding:'8px 10px'}}>
+                            <span style={{padding:'2px 7px',borderRadius:7,background:roleBg,color:roleColor,fontWeight:700,fontSize:10}}>
+                              {isAr ? roleLabelAr : log.export_role}
+                            </span>
+                          </td>
+                          <td style={{padding:'8px 10px',textAlign:'center'}}>
+                            <span style={{fontSize:10,color:scopeColor,fontWeight:600}}>{scopeLabel}</span>
+                          </td>
+                          <td style={{padding:'8px 10px',textAlign:'center',fontSize:11,color:'#666'}}>
+                            {log.nb_enfants > 0 && <span>{log.nb_enfants}👤 </span>}
+                            {log.nb_validations > 0 && <span>{log.nb_validations}⭐ </span>}
+                            {log.nb_certificats > 0 && <span>{log.nb_certificats}🏅</span>}
+                            {!log.nb_enfants && !log.nb_validations && !log.nb_certificats && '—'}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  );
+
   if (isMobile) {
     return (
       <div style={{paddingBottom:80,background:'#f5f5f0',minHeight:'100vh'}}
@@ -549,17 +672,18 @@ export default function DashboardDirection({ user, navigate, goBack, lang='fr', 
           lang={lang}
         />
         {/* Header */}
-        <div style={{background:'linear-gradient(135deg,#085041,#1D9E75)',padding:'48px 16px 16px',position:'sticky',top:0,zIndex:100}}>
-          <div style={{display:'flex',alignItems:'center',gap:12}}>
-            <button onClick={()=>goBack?goBack():navigate('dashboard')}
-              style={{background:'rgba(255,255,255,0.22)',border:'1px solid rgba(255,255,255,0.25)',borderRadius:10,padding:'0',color:'#fff',fontSize:20,cursor:'pointer',flexShrink:0,width:44,height:44,display:'flex',alignItems:'center',justifyContent:'center'}}>←</button>
-            <div style={{flex:1}}>
-              <div style={{fontSize:17,fontWeight:800,color:'#fff'}}>📊 {isAr?'لوحة القيادة':'Tableau de bord direction'}</div>
-              <div style={{fontSize:11,color:'rgba(255,255,255,0.75)'}}>{ecole?.nom||''}</div>
-            </div>
-          </div>
+        <MobileHeader
+          title={isAr?'لوحة القيادة':'Tableau de bord direction'}
+          subtitle={ecole?.nom||''}
+          icon={LayoutDashboard}
+          onBack={()=>goBack?goBack():navigate('dashboard')}
+          lang={lang}
+          actions={
+            /* Export mobile */
+            <HeaderMenu lang={lang} actions={actionsExport({ onPDF: handleExportPDF, onExcel: handleExportExcel, lang })} />
+          }>
           {/* Sélecteur période - Etape 14 v2 - Composant hybride */}
-          <div style={{marginTop:12}}>
+          <div>
             <PeriodeSelectorHybride
               boutonsRapides={boutonsRapides}
               dropdownItems={dropdownItems}
@@ -575,110 +699,99 @@ export default function DashboardDirection({ user, navigate, goBack, lang='fr', 
             />
           </div>
           {periodesBDD.length === 0 && !anneeActive && (
-            <div style={{marginTop:8,padding:'6px 10px',background:'rgba(255,180,80,0.15)',border:'1px solid rgba(255,180,80,0.3)',borderRadius:8,fontSize:10,color:'rgba(255,255,255,0.9)'}}>
+            <div style={{padding:'6px 10px',background:'rgba(255,180,80,0.15)',border:'1px solid rgba(255,180,80,0.3)',borderRadius:8,fontSize:10,color:'rgba(255,255,255,0.9)'}}>
               💡 {isAr?'لم تقم بإعداد سنة دراسية. الفترات (T1، S1...) في الإدارة > الفترات':'Pas d\'année scolaire active. Configurez vos périodes dans Gestion → Périodes'}
             </div>
           )}
-          {/* Export mobile */}
-          <div style={{display:'flex',gap:6,marginTop:10}}>
-            <button onClick={handleExportPDF}
-              style={{flex:1,background:'rgba(255,255,255,0.25)',border:'1px solid rgba(255,255,255,0.3)',borderRadius:10,padding:'7px 11px',color:'#fff',fontSize:12,fontWeight:600,cursor:'pointer',whiteSpace:'nowrap',fontFamily:'inherit'}}>
-              📄 PDF
-            </button>
-            <button onClick={handleExportExcel}
-              style={{flex:1,background:'rgba(255,255,255,0.25)',border:'1px solid rgba(255,255,255,0.3)',borderRadius:10,padding:'7px 11px',color:'#fff',fontSize:12,fontWeight:600,cursor:'pointer',whiteSpace:'nowrap',fontFamily:'inherit'}}>
-              📊 Excel
-            </button>
-          </div>
-        </div>
+        </MobileHeader>
 
         <div style={{padding:'12px'}}>
-          {/* Alertes */}
+          {/* Alertes — charte mobile : icone lucide selon le type (meme message) */}
           {alertes.length>0&&(
             <div style={{marginBottom:14}}>
-              {alertes.map((a,i)=>(
-                <div key={i} style={{background:'#fff',borderRadius:10,padding:'10px 12px',marginBottom:6,
-                  display:'flex',gap:8,alignItems:'flex-start',
-                  borderLeft:`3px solid ${a.type==='danger'?'#E24B4A':a.type==='warning'?'#EF9F27':a.type==='success'?'#1D9E75':'#378ADD'}`}}>
-                  <span>{a.icon}</span>
-                  <span style={{fontSize:12,color:'#444'}}>{a.msg}</span>
-                </div>
-              ))}
+              {alertes.map((a,i)=>{
+                const col = a.type==='danger'?C.crit:a.type==='warning'?C.warn:a.type==='success'?C.good:C.info;
+                const Ic = a.type==='danger'?CircleAlert:a.type==='warning'?TriangleAlert:a.type==='success'?Award:GraduationCap;
+                return (
+                  <div key={i} style={{background:C.surface,borderRadius:10,padding:'10px 12px',marginBottom:6,
+                    display:'flex',gap:8,alignItems:'flex-start',border:`1px solid ${C.line}`,
+                    borderInlineStart:`3px solid ${col}`}}>
+                    <Ic size={16} color={col} style={{flexShrink:0,marginTop:1}} />
+                    <span style={{fontSize:12,color:C.text}}>{a.msg}</span>
+                  </div>
+                );
+              })}
             </div>
           )}
 
-          {/* KPIs */}
-          <div style={{display:'grid',gridTemplateColumns:'repeat(2,1fr)',gap:10,marginBottom:16}}>
-            <KpiCard icon="👥" val={kpis.elevesActifs} label={isAr?'طالب نشط':'Élèves actifs'}
-              sub={`/ ${kpis.totalEleves} total`} color="#085041" bg="#E1F5EE"/>
-            <KpiCard icon="📈" val={`${kpis.tauxActivite}%`} label={isAr?'نسبة النشاط':'Taux activité'}
-              color={kpis.tauxActivite>=70?'#085041':kpis.tauxActivite>=50?'#EF9F27':'#E24B4A'}
-              bg={kpis.tauxActivite>=70?'#E1F5EE':kpis.tauxActivite>=50?'#FEF3DA':'#FCEAEA'}/>
-            <KpiCard icon="📖" val={kpis.totalTomon} label={isAr?'ثُمن مُستظهَر':'Tomon validés'}
-              color="#378ADD" bg="#E6F1FB"/>
-            <KpiCard icon="⭐" val={kpis.totalHizb} label={isAr?'حزب مكتمل':'Hizb complets'}
-              color="#534AB7" bg="#EEEDFE"/>
-            <KpiCard icon="🏅" val={kpis.totalCerts} label={isAr?'شهادة':'Certificats'}
-              color="#EF9F27" bg="#FEF3DA"/>
-            <KpiCard icon="🎓" val={kpis.totalPassages} label={isAr?'انتقال مستوى':'Passages niveau'}
-              color="#085041" bg="#E1F5EE"/>
+          {/* KPIs — charte mobile : tuiles communes */}
+          <div style={{marginBottom:16}}>
+            <KpiGrid cols={2}>
+              <KpiTile icon={Users} tone="brand" value={kpis.elevesActifs} label={isAr?'طالب نشط':'Élèves actifs'}
+                hint={`/ ${kpis.totalEleves} total`} />
+              <KpiTile icon={Activity} value={`${kpis.tauxActivite}%`} label={isAr?'نسبة النشاط':'Taux activité'}
+                tone={kpis.tauxActivite>=70?'good':kpis.tauxActivite>=50?'warn':'crit'} />
+              <KpiTile icon={BookOpen} tone="neutral" value={kpis.totalTomon} label={isAr?'ثُمن مُستظهَر':'Tomon validés'} />
+              <KpiTile icon={BookOpenCheck} tone="neutral" value={kpis.totalHizb} label={isAr?'حزب مكتمل':'Hizb complets'} />
+              <KpiTile icon={Award} tone="neutral" value={kpis.totalCerts} label={isAr?'شهادة':'Certificats'} />
+              <KpiTile icon={GraduationCap} tone="neutral" value={kpis.totalPassages} label={isAr?'انتقال مستوى':'Passages niveau'} />
+            </KpiGrid>
           </div>
 
           {/* Évolution mensuelle */}
-          <div style={{background:'#fff',borderRadius:12,padding:'14px',marginBottom:14}}>
-            <div style={{fontSize:13,fontWeight:700,color:'#085041',marginBottom:12}}>
-              📅 {isAr?'التطور الشهري (الثُّمنات)':'Évolution mensuelle (tomon)'}
+          <div style={{background:C.surface,border:`1px solid ${C.line}`,borderRadius:12,padding:'14px',marginBottom:14}}>
+            <div style={{fontSize:13,fontWeight:700,color:C.text,marginBottom:12}}>
+              {isAr?'التطور الشهري (الثُّمنات)':'Évolution mensuelle (tomon)'}
             </div>
             <BarChart data={evolutionMensuelle.map(m=>({label:m.label,val:m.tomon,color:'#1D9E75'}))}/>
           </div>
 
           {/* Par niveau */}
-          <div style={{background:'#fff',borderRadius:12,padding:'14px',marginBottom:14}}>
-            <div style={{fontSize:13,fontWeight:700,color:'#085041',marginBottom:12}}>
-              🎯 {isAr?'الأداء حسب المستوى':'Performance par niveau'}
+          <div style={{background:C.surface,border:`1px solid ${C.line}`,borderRadius:12,padding:'14px',marginBottom:14}}>
+            <div style={{fontSize:13,fontWeight:700,color:C.text,marginBottom:12}}>
+              {isAr?'الأداء حسب المستوى':'Performance par niveau'}
             </div>
             {statsByNiveau.map(s=>(
-              <div key={s.code} style={{marginBottom:12,paddingBottom:12,borderBottom:'0.5px solid #f0f0ec'}}>
+              <div key={s.code} style={{marginBottom:12,paddingBottom:12,borderBottom:`1px solid ${C.line}`}}>
                 <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:6}}>
-                  <span style={{background:`${s.color}20`,color:s.color,padding:'2px 8px',borderRadius:8,fontSize:12,fontWeight:700}}>
-                    {s.code}
-                  </span>
-                  <span style={{fontSize:11,color:'#888'}}>{s.actifs}/{s.total} actifs</span>
+                  <LevelBadge code={s.code} color={s.color} />
+                  <span style={{fontSize:11,color:C.muted}}>{s.actifs}/{s.total} actifs</span>
                 </div>
-                <div style={{background:'#f5f5f0',borderRadius:6,height:8,overflow:'hidden'}}>
+                <div style={{background:C.bg,borderRadius:6,height:8,overflow:'hidden'}}>
                   <div style={{width:`${s.taux}%`,background:s.color,height:'100%',borderRadius:6}}/>
                 </div>
                 <div style={{display:'flex',gap:12,marginTop:6}}>
-                  <span style={{fontSize:11,color:'#555'}}>📖 {s.tomon} tomon</span>
-                  <span style={{fontSize:11,color:'#555'}}>⭐ {s.hizb} hizb</span>
-                  <span style={{fontSize:11,color:'#555',marginLeft:'auto',fontWeight:700,color:s.color}}>{s.taux}%</span>
+                  <span style={{fontSize:11,color:C.muted}}>{s.tomon} tomon</span>
+                  <span style={{fontSize:11,color:C.muted}}>{s.hizb} hizb</span>
+                  <span style={{fontSize:11,marginInlineStart:'auto',fontWeight:700,color:C.text}}>{s.taux}%</span>
                 </div>
               </div>
             ))}
           </div>
 
           {/* Top élèves */}
-          <div style={{background:'#fff',borderRadius:12,padding:'14px',marginBottom:14}}>
-            <div style={{fontSize:13,fontWeight:700,color:'#085041',marginBottom:12}}>
-              🏆 {isAr?'أفضل الطلاب':'Top 5 élèves'}
+          <div style={{background:C.surface,border:`1px solid ${C.line}`,borderRadius:12,padding:'14px',marginBottom:14}}>
+            <div style={{fontSize:13,fontWeight:700,color:C.text,marginBottom:12}}>
+              {isAr?'أفضل الطلاب':'Top 5 élèves'}
             </div>
             {topEleves.map((e,i)=>{
               const nc = getNc(niveaux, e.code_niveau);
               return (
                 <div key={e.id} onClick={()=>navigate('fiche',eleves.find(el=>el.id===e.id))}
-                  style={{display:'flex',alignItems:'center',gap:10,padding:'8px 0',
-                    borderBottom:'0.5px solid #f5f5f0',cursor:'pointer'}}>
+                  style={{display:'flex',alignItems:'center',gap:10,padding:'8px 0',minHeight:44,
+                    borderBottom:`1px solid ${C.line}`,cursor:'pointer'}}>
+                  {/* Medailles de classement conservees */}
                   <div style={{width:28,height:28,borderRadius:'50%',
-                    background:i<3?['#EF9F27','#888','#C4763B'][i]:`${nc}20`,
-                    color:i<3?'#fff':nc,display:'flex',alignItems:'center',justifyContent:'center',
-                    fontWeight:800,fontSize:13,flexShrink:0}}>
+                    background:i<3?'transparent':C.bg,border:i<3?'none':`1px solid ${C.line}`,
+                    color:C.muted,display:'flex',alignItems:'center',justifyContent:'center',
+                    fontWeight:700,fontSize:i<3?18:12,flexShrink:0}}>
                     {i<3?['🥇','🥈','🥉'][i]:i+1}
                   </div>
-                  <div style={{flex:1}}>
-                    <div style={{fontSize:13,fontWeight:700}}>{e.prenom} {e.nom}</div>
-                    <div style={{fontSize:11,color:'#888'}}>{e.code_niveau}</div>
+                  <div style={{flex:1,minWidth:0}}>
+                    <div style={{fontSize:14,fontWeight:600,color:C.text}}>{e.prenom} {e.nom}</div>
+                    <div style={{marginTop:2}}><LevelBadge code={e.code_niveau} color={nc} /></div>
                   </div>
-                  <div style={{fontSize:16,fontWeight:800,color:'#1D9E75'}}>{e.pts}<span style={{fontSize:10,color:'#888'}}> pts</span></div>
+                  <div style={{fontSize:16,fontWeight:700,color:C.brand}}>{e.pts}<span style={{fontSize:10,color:C.muted}}> pts</span></div>
                 </div>
               );
             })}
@@ -686,26 +799,27 @@ export default function DashboardDirection({ user, navigate, goBack, lang='fr', 
 
           {/* Par instituteur */}
           {statsByInst.length>0&&(
-            <div style={{background:'#fff',borderRadius:12,padding:'14px',marginBottom:14}}>
-              <div style={{fontSize:13,fontWeight:700,color:'#085041',marginBottom:12}}>
-                👨‍🏫 {isAr?'الأداء حسب الأستاذ':'Performance par instituteur'}
+            <div style={{background:C.surface,border:`1px solid ${C.line}`,borderRadius:12,padding:'14px',marginBottom:14}}>
+              <div style={{fontSize:13,fontWeight:700,color:C.text,marginBottom:12}}>
+                {isAr?'الأداء حسب الأستاذ':'Performance par instituteur'}
               </div>
               {statsByInst.map(s=>(
-                <div key={s.id} style={{marginBottom:10,paddingBottom:10,borderBottom:'0.5px solid #f5f5f0'}}>
+                <div key={s.id} style={{marginBottom:10,paddingBottom:10,borderBottom:`1px solid ${C.line}`}}>
                   <div style={{display:'flex',justifyContent:'space-between',marginBottom:4}}>
-                    <span style={{fontSize:13,fontWeight:600}}>{s.nom}</span>
-                    <span style={{fontSize:12,color:'#085041',fontWeight:700}}>{s.seances} séances</span>
+                    <span style={{fontSize:13,fontWeight:600,color:C.text}}>{s.nom}</span>
+                    <span style={{fontSize:12,color:C.brand,fontWeight:700}}>{s.seances} séances</span>
                   </div>
-                  <div style={{display:'flex',gap:10}}>
-                    <span style={{fontSize:11,color:'#888'}}>👥 {s.nbEleves} élèves</span>
-                    <span style={{fontSize:11,color:'#888'}}>📖 {s.tomon} tomon</span>
-                    <span style={{fontSize:11,color:'#888'}}>⚡ moy {s.moy}/élève</span>
+                  <div style={{display:'flex',gap:10,flexWrap:'wrap'}}>
+                    <span style={{fontSize:11,color:C.muted}}>{s.nbEleves} élèves</span>
+                    <span style={{fontSize:11,color:C.muted}}>{s.tomon} tomon</span>
+                    <span style={{fontSize:11,color:C.muted}}>moy {s.moy}/élève</span>
                   </div>
                 </div>
               ))}
             </div>
           )}
         </div>
+        <div style={{padding:'0 12px'}}>{sectionRgpd}</div>
       </div>
     );
   }
@@ -923,98 +1037,7 @@ export default function DashboardDirection({ user, navigate, goBack, lang='fr', 
         </div>
 
         {/* ═══ P2.1 : Section Audit RGPD (scope école) ═══ */}
-        <div style={{marginTop:24,background:'#fff',border:'0.5px solid #e0e0d8',borderRadius:14,overflow:'hidden'}}>
-          <div onClick={()=>setShowRgpdSection(!showRgpdSection)}
-            style={{padding:'14px 18px',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'space-between',
-              background:showRgpdSection?'#F0EEFF':'#fff',borderBottom:showRgpdSection?'0.5px solid #e0e0d8':'none'}}>
-            <div>
-              <div style={{fontSize:13,fontWeight:700,color:'#534AB7',display:'flex',alignItems:'center',gap:8}}>
-                🔐 {isAr?'سجل تصدير البيانات (RGPD)':'Registre des exports RGPD'}
-              </div>
-              <div style={{fontSize:11,color:'#888',marginTop:3}}>
-                {isAr?'من طلب تحميل بياناته الشخصية ومتى':'Qui a téléchargé ses données personnelles et quand'}
-              </div>
-            </div>
-            <span style={{fontSize:14,color:'#888',transform:showRgpdSection?'rotate(90deg)':'none',transition:'transform 0.2s'}}>▸</span>
-          </div>
-
-          {showRgpdSection && (
-            <div style={{padding:'14px 18px'}}>
-              <div style={{background:'#F0EEFF',border:'0.5px solid #534AB720',borderRadius:8,padding:'8px 12px',marginBottom:12,fontSize:11,color:'#4A3F9E',lineHeight:1.5}}>
-                📋 {isAr
-                  ? 'قائمة تصديرات البيانات الشخصية لمدرستك. الأولياء يمكنهم الحصول على ملف ببياناتهم وبيانات أبنائهم وفقاً للمادة 20 من RGPD.'
-                  : 'Liste des exports de données personnelles effectués dans votre école. Les parents peuvent récupérer un fichier avec leurs données et celles de leurs enfants (art. 20 RGPD).'}
-              </div>
-
-              {rgpdLogs.length === 0 ? (
-                <div style={{textAlign:'center',padding:'30px 20px',color:'#888',fontSize:13,background:'#fafaf7',borderRadius:10,border:'0.5px dashed #e0e0d8'}}>
-                  ✨ {isAr?'لم يطلب أحد تصدير بياناته بعد':'Aucun export effectué pour le moment'}
-                </div>
-              ) : (
-                <>
-                  <div style={{fontSize:11,color:'#888',marginBottom:8}}>
-                    {rgpdLogs.length} {isAr?'تصدير على آخر 100':'export(s) sur les 100 derniers'}
-                  </div>
-                  <div style={{maxHeight:400,overflowY:'auto',border:'0.5px solid #e0e0d8',borderRadius:8}}>
-                    <table style={{width:'100%',borderCollapse:'collapse',fontSize:12}}>
-                      <thead style={{position:'sticky',top:0,background:'#f5f5f0',zIndex:1}}>
-                        <tr style={{borderBottom:'0.5px solid #e0e0d8'}}>
-                          <th style={{padding:'8px 10px',textAlign:'left',fontWeight:700,color:'#888',fontSize:10}}>{isAr?'التاريخ':'Date'}</th>
-                          <th style={{padding:'8px 10px',textAlign:'left',fontWeight:700,color:'#888',fontSize:10}}>{isAr?'المستخدم':'Utilisateur'}</th>
-                          <th style={{padding:'8px 10px',textAlign:'left',fontWeight:700,color:'#888',fontSize:10}}>{isAr?'الدور':'Rôle'}</th>
-                          <th style={{padding:'8px 10px',textAlign:'center',fontWeight:700,color:'#888',fontSize:10}}>{isAr?'النطاق':'Scope'}</th>
-                          <th style={{padding:'8px 10px',textAlign:'center',fontWeight:700,color:'#888',fontSize:10}}>{isAr?'الحجم':'Volumes'}</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {rgpdLogs.map(log => {
-                          const d = new Date(log.exported_at);
-                          const dateStr = d.toLocaleDateString(isAr?'ar-MA':'fr-FR') + ' ' + d.toLocaleTimeString(isAr?'ar-MA':'fr-FR',{hour:'2-digit',minute:'2-digit'});
-                          const scopeLabel = log.export_scope === 'self_plus_children'
-                            ? (isAr?'ذاتي + أبناء':'Soi + enfants')
-                            : (isAr?'ذاتي':'Soi');
-                          const scopeColor = log.export_scope === 'self_plus_children' ? '#378ADD' : '#888';
-                          const roleBg = {
-                            parent:'#FAEEDA', instituteur:'#E6F1FB',
-                            surveillant:'#E1F5EE', super_admin:'#F0EEFF'
-                          }[log.export_role] || '#f5f5f0';
-                          const roleColor = {
-                            parent:'#EF9F27', instituteur:'#378ADD',
-                            surveillant:'#1D9E75', super_admin:'#534AB7'
-                          }[log.export_role] || '#666';
-                          const roleLabelAr = {
-                            parent:'ولي', instituteur:'مؤطر',
-                            surveillant:'مراقب', super_admin:'مشرف'
-                          }[log.export_role] || log.export_role;
-                          return (
-                            <tr key={log.id} style={{borderBottom:'0.5px solid #f0f0ec'}}>
-                              <td style={{padding:'8px 10px',whiteSpace:'nowrap',fontSize:11}}>{dateStr}</td>
-                              <td style={{padding:'8px 10px',fontWeight:600,fontSize:12}}>{log._user_nom}</td>
-                              <td style={{padding:'8px 10px'}}>
-                                <span style={{padding:'2px 7px',borderRadius:7,background:roleBg,color:roleColor,fontWeight:700,fontSize:10}}>
-                                  {isAr ? roleLabelAr : log.export_role}
-                                </span>
-                              </td>
-                              <td style={{padding:'8px 10px',textAlign:'center'}}>
-                                <span style={{fontSize:10,color:scopeColor,fontWeight:600}}>{scopeLabel}</span>
-                              </td>
-                              <td style={{padding:'8px 10px',textAlign:'center',fontSize:11,color:'#666'}}>
-                                {log.nb_enfants > 0 && <span>{log.nb_enfants}👤 </span>}
-                                {log.nb_validations > 0 && <span>{log.nb_validations}⭐ </span>}
-                                {log.nb_certificats > 0 && <span>{log.nb_certificats}🏅</span>}
-                                {!log.nb_enfants && !log.nb_validations && !log.nb_certificats && '—'}
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
-                </>
-              )}
-            </div>
-          )}
-        </div>
+        {sectionRgpd}
       </div>
     </div>
   );

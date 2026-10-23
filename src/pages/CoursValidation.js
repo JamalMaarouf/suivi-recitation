@@ -4,6 +4,8 @@ import { useToast } from '../lib/toast';
 import ConfirmModal from '../components/ConfirmModal';
 import PageHeader from '../components/PageHeader';
 import MobileSkeletonList from '../components/MobileSkeletonList';
+import { MobileHeader } from '../components/ui';
+import { GraduationCap } from 'lucide-react';
 
 // ══════════════════════════════════════════════════════════════════════
 // PAGE VALIDATION AXES D'UN COURS POUR UN NIVEAU
@@ -45,7 +47,7 @@ export default function CoursValidation({ user, navigate, goBack, lang, isMobile
 
   // ─── Chargement initial ────────────────────────────────────
   const loadData = async () => {
-    if (!coursId || !codeNiveau) return;
+    if (!coursId || !codeNiveau) { setLoading(false); return; } // FIX (oct 2026) : plus de squelette infini
     setLoading(true);
     const [coursRes, niveauRes, axesRes, valRes, elevesRes] = await Promise.all([
       supabase.from('cours')
@@ -322,31 +324,13 @@ export default function CoursValidation({ user, navigate, goBack, lang, isMobile
 
       {/* Header */}
       {isMobile ? (
-        <div style={{
-          background: `linear-gradient(135deg, ${couleurNiveau}, ${couleurNiveau}dd)`,
-          color: '#fff', padding: '48px 16px 14px',
-          position: 'sticky', top: 0, zIndex: 100,
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <button onClick={() => goBack ? goBack() : navigate('cours')}
-              style={{
-                width: 44, height: 44,
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                background: 'rgba(255,255,255,0.2)', border: 'none', borderRadius: 10,
-                padding: 0, flexShrink: 0, color: '#fff', fontSize: 18, cursor: 'pointer',
-              }}>←</button>
-            <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 16, fontWeight: 800 }}>
-                📚 {nomCours}
-              </div>
-              <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.85)', marginTop: 2 }}>
-                {lang === 'ar' ? 'المستوى:' : 'Niveau :'} {niveau?.nom || codeNiveau}
-                {' · '}
-                {stats.valides}/{stats.total} {lang === 'ar' ? 'محور' : 'axes'} ({stats.pct}%)
-              </div>
-            </div>
-          </div>
-        </div>
+        <MobileHeader
+          title={nomCours}
+          subtitle={`${lang === 'ar' ? 'المستوى:' : 'Niveau :'} ${niveau?.nom || codeNiveau || ''} · ${stats.valides}/${stats.total} ${lang === 'ar' ? 'محور' : 'axes'} (${stats.pct}%)`}
+          icon={GraduationCap}
+          onBack={() => goBack ? goBack() : navigate('cours')}
+          lang={lang}
+        />
       ) : (
         <div style={{ padding: '1.5rem 1.5rem 0' }}>
           <PageHeader
@@ -486,6 +470,7 @@ export default function CoursValidation({ user, navigate, goBack, lang, isMobile
           niveau={niveau}
           eleves={eleves}
           existante={validationExistante}
+          exceptionsExistantes={validationExistante ? exceptions.filter(e => e.validation_id === validationExistante.id) : []}
           onClose={() => setAxeActif(null)}
           onConfirm={enregistrerValidation}
           lang={lang}
@@ -545,15 +530,19 @@ function Kpi({ label, value, color, bg }) {
 // 2. Tous les élèves OU exceptions
 // 3. Si exceptions : recherche + liste à cocher
 // ══════════════════════════════════════════════════════════════════════
-function ModaleValidation({ axe, axeLabel, niveau, eleves, existante, onClose, onConfirm, lang, isMobile }) {
+function ModaleValidation({ axe, axeLabel, niveau, eleves, existante, exceptionsExistantes = [], onClose, onConfirm, lang, isMobile }) {
+  const { toast } = useToast();
   // Étapes : 1 = qualité, 2 = mode élèves, 3 = exceptions
   const [etape, setEtape] = useState(1);
   const [qualite, setQualite] = useState(existante?.qualite || 'acquis');
   const [commentaire, setCommentaire] = useState(existante?.commentaire || '');
   // Mode : 'tous' ou 'exceptions'
-  const [mode, setMode] = useState('tous');
+  // FIX (oct 2026) : en modification, on repart des exceptions existantes (avant : elles
+  // etaient toutes effacees des qu'on changeait seulement la qualite).
+  const [mode, setMode] = useState(exceptionsExistantes.length > 0 ? 'exceptions' : 'tous');
   // Exceptions : Map eleve_id → { statut, commentaire }
-  const [exceptionsMap, setExceptionsMap] = useState({});
+  const [exceptionsMap, setExceptionsMap] = useState(() =>
+    Object.fromEntries(exceptionsExistantes.map(e => [e.eleve_id, { statut: e.statut, commentaire: e.commentaire || '' }])));
   const [recherche, setRecherche] = useState('');
   const [saving, setSaving] = useState(false);
 

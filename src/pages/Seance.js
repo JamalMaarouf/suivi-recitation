@@ -1,15 +1,17 @@
 import React, { useState, useEffect } from 'react';
 import { useToast } from '../lib/toast';
 import { supabase } from '../lib/supabase';
-import { calcEtatEleve, getInitiales, joursDepuis, isInactif, scoreLabel , loadBareme, BAREME_DEFAUT, getSensForEleve} from '../lib/helpers';
+import { calcEtatEleve, getInitiales, joursDepuis, isInactif, scoreLabel , loadBareme, BAREME_DEFAUT, getSensForEleve, calcPointsPeriode, ptsValidation, isSourateNiveauDyn} from '../lib/helpers';
 import { t } from '../lib/i18n';
 import { getSouratesForNiveau } from '../lib/sourates';
 import { fetchAll } from '../lib/fetchAll';
 import ExportButtons from '../components/ExportButtons';
 import PageHeader from '../components/PageHeader';
 import MobileSkeletonList from '../components/MobileSkeletonList';
+import { MobileHeader, HeaderMenu, actionsExport, ListRow, LevelBadge, KpiTile, KpiGrid, SectionTitle, C } from '../components/ui';
+import { ClipboardList, Zap } from 'lucide-react';
 
-const IS_SOURATE = (code) => ['5B','5A','2M'].includes(code||'');
+// FIX (oct 2026) : IS_SOURATE code en dur remplace par isSourateNiveauDyn(code, niveaux de l'ecole)
 const NIVEAU_COLORS = { '5B':'#534AB7','5A':'#378ADD','2M':'#1D9E75','2':'#EF9F27','1':'#E24B4A' };
 
 function Avatar({ prenom, nom, size=36, bg='#E1F5EE', color='#085041' }) {
@@ -30,7 +32,9 @@ export default function Seance({ user, navigate, goBack, lang, isMobile=false })
   const [allRecitations, setAllRecitations] = useState([]);
   const [souratesDB, setSouratesDB] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [bareme, setBareme] = React.useState({...BAREME_DEFAUT});
+  // FIX (oct 2026) : bareme complet {unites, ensembles, ...} (ptsValidation / calcPointsPeriode)
+  const [bareme, setBareme] = React.useState({ unites:{...BAREME_DEFAUT}, examens:{}, ensembles:{}, jalons:{} });
+  const [niveauxDyn, setNiveauxDyn] = useState([]); // FIX (oct 2026) : niveaux de l'ecole (filtre + type)
   const [elevesDataState, setElevesDataState] = useState([]);
   const [vue, setVue] = useState('seance');
   const [filterNiveau, setFilterNiveau] = useState('tous');
@@ -38,29 +42,39 @@ export default function Seance({ user, navigate, goBack, lang, isMobile=false })
   useEffect(() => { loadData(); }, []);
 
   const loadData = async () => {
-    loadBareme(supabase, user.ecole_id).then(b=>setBareme({...BAREME_DEFAUT,...b.unites}));
     setLoading(true);
     const debutJour = new Date(); debutJour.setHours(0,0,0,0);
     const debutSemaine = new Date(); debutSemaine.setDate(debutSemaine.getDate()-7);
 
-    const [{ data: ed }, { data: instData }, vd, rd, { data: sdb }, { data: nvData }, { data: ecData }] = await Promise.all([
+    // BUG-FIX POINTS (oct 2026) : on await loadBareme en parallele des autres
+    // chargements pour pouvoir utiliser le bareme LOCAL dans le calcul de
+    // ptsAujourdhui. Avant : fire-and-forget -> bareme reste BAREME_DEFAUT au
+    // moment du map() -> ptsAujourdhui = 0 partout dans le classement de la seance.
+    const [{ data: ed }, { data: instData }, vd, rd, { data: sdb }, { data: nvData }, { data: ecData }, brData] = await Promise.all([
+      // FIX (oct 2026) : exclure les eleves suspendus
       supabase.from('eleves').select('id,prenom,nom,code_niveau,hizb_depart,tomon_depart,sourates_acquises,instituteur_referent_id,ecole_id')
-        .eq('ecole_id', user.ecole_id).order('nom'),
+        .eq('ecole_id', user.ecole_id).is('suspendu_at', null).order('nom'),
       supabase.from('utilisateurs').select('id,prenom,nom').eq('role','instituteur').eq('ecole_id', user.ecole_id),
       fetchAll(supabase.from('validations').select('*, valideur:valide_par(prenom,nom)')
         .eq('ecole_id', user.ecole_id).order('date_validation',{ascending:false})),
       fetchAll(supabase.from('recitations_sourates').select('*, valideur:valide_par(prenom,nom)')
         .eq('ecole_id', user.ecole_id).order('date_validation',{ascending:false})),
       supabase.from('sourates').select('*'),
-      supabase.from('niveaux').select('id,code,nom,sens_recitation').eq('ecole_id', user.ecole_id),
+      supabase.from('niveaux').select('id,code,nom,sens_recitation,type,ordre').eq('ecole_id', user.ecole_id).order('ordre'), // FIX (oct 2026) : type
       supabase.from('ecoles').select('sens_recitation_defaut').eq('id', user.ecole_id).maybeSingle(),
+      loadBareme(supabase, user.ecole_id).catch(() => null),
     ]);
+    // FIX (oct 2026) : bareme complet conserve (avant : aplati sur unites -> ensembles ignores)
+    const baremeLocal = brData || { unites:{...BAREME_DEFAUT}, examens:{}, ensembles:{}, jalons:{} };
+    setBareme(baremeLocal);
+    setNiveauxDyn(nvData||[]);
+    const maintenant = new Date();
 
     const vAujourdhui = (vd||[]).filter(v => new Date(v.date_validation) >= debutJour);
     const rAujourdhui = (rd||[]).filter(r => new Date(r.date_validation) >= debutJour);
 
     const elevesData = (ed||[]).map(e => {
-      const isSourate = IS_SOURATE(e.code_niveau);
+      const isSourate = isSourateNiveauDyn(e.code_niveau, nvData||[]);
       const inst = (instData||[]).find(i => i.id === e.instituteur_referent_id);
       const sensE = getSensForEleve(e, nvData, ecData);
 
@@ -68,17 +82,19 @@ export default function Seance({ user, navigate, goBack, lang, isMobile=false })
         const recs = (rd||[]).filter(r => r.eleve_id === e.id);
         const recsAujourdhui = rAujourdhui.filter(r => r.eleve_id === e.id);
         const recsSemaine = (rd||[]).filter(r => r.eleve_id === e.id && new Date(r.date_validation) >= debutSemaine);
-        const souratesCompletesAujourdhui = recsAujourdhui.filter(r=>r.type_recitation==='complete').length;
-        const sequencesAujourdhui = recsAujourdhui.filter(r=>r.type_recitation==='sequence').length;
-        const ptsAujourdhui = recsAujourdhui.reduce((s,r)=>s+(r.points||0),0);
-        const souratesSemaine = recsSemaine.filter(r=>r.type_recitation==='complete').length;
+        // FIX (oct 2026) : les recitations muraja ne sont pas des sourates memorisees
+        const souratesCompletesAujourdhui = recsAujourdhui.filter(r=>r.type_recitation==='complete'&&!r.is_muraja).length;
+        const sequencesAujourdhui = recsAujourdhui.filter(r=>r.type_recitation==='sequence'&&!r.is_muraja).length;
+        // FIX (oct 2026) : points du jour via calcPointsPeriode (recitations + ensembles valides)
+        const ptsAujourdhui = calcPointsPeriode(vAujourdhui.filter(v=>v.eleve_id===e.id), debutJour, maintenant, baremeLocal, [], recsAujourdhui, []).total;
+        const souratesSemaine = recsSemaine.filter(r=>r.type_recitation==='complete'&&!r.is_muraja).length;
         const dernierRec = recsAujourdhui[0]?.date_validation || recs[0]?.date_validation || null;
 
         // Find current sourate
         const souratesNiveau = getSouratesForNiveau(e.code_niveau);
         const souratesOrdonnees = [...souratesNiveau].sort((a,b)=>b.numero-a.numero);
         const souratesAcq = parseInt(e.sourates_acquises)||0;
-        const souratesCompletes = new Set(recs.filter(r=>r.type_recitation==='complete').map(r=>r.sourate_id));
+        const souratesCompletes = new Set(recs.filter(r=>r.type_recitation==='complete'&&!r.is_muraja).map(r=>r.sourate_id)); // FIX (oct 2026) : hors muraja
         const currentIdx = souratesOrdonnees.findIndex((s,i) => {
           if (i < souratesAcq) return false;
           const dbS = (sdb||[]).find(x=>x.numero===s.numero);
@@ -92,16 +108,19 @@ export default function Seance({ user, navigate, goBack, lang, isMobile=false })
           souratesSemaine, actifAujourdhui: recsAujourdhui.length > 0,
           derniere: dernierRec, jours: joursDepuis(dernierRec), inactif: isInactif(dernierRec),
           currentSourate, instituteurNom: inst?`${inst.prenom} ${inst.nom}`:'—',
-          etat: calcEtatEleve([], e.hizb_depart, e.tomon_depart, sensE),
+          etat: calcEtatEleve([], e.hizb_depart, e.tomon_depart, sensE, e),
         };
       } else {
         const vals = (vd||[]).filter(v => v.eleve_id === e.id);
-        const etat = calcEtatEleve(vals, e.hizb_depart, e.tomon_depart, sensE);
+        const etat = calcEtatEleve(vals, e.hizb_depart, e.tomon_depart, sensE, e);
         const valsAujourdhui = vAujourdhui.filter(v => v.eleve_id === e.id);
         const valsSemaine = (vd||[]).filter(v => v.eleve_id === e.id && new Date(v.date_validation) >= debutSemaine);
         const tomonAujourdhui = valsAujourdhui.filter(v=>v.type_validation==='tomon').reduce((s,v)=>s+v.nombre_tomon,0);
         const hizbAujourdhui = valsAujourdhui.filter(v=>v.type_validation==='hizb_complet').length;
-        const ptsAujourdhui = tomonAujourdhui*(bareme.tomon || 0)+hizbAujourdhui*(bareme.hizb_complet || 0);
+        // BUG-FIX POINTS (oct 2026) : utilise `baremeLocal` (frais) et non `bareme` (state
+        // potentiellement encore vide au moment du map()).
+        // FIX (oct 2026) : calcPointsPeriode (muraja + recitations eventuelles incluses)
+        const ptsAujourdhui = calcPointsPeriode(valsAujourdhui, debutJour, maintenant, baremeLocal, [], rAujourdhui.filter(r=>r.eleve_id===e.id), []).total;
         const tomonSemaine = valsSemaine.filter(v=>v.type_validation==='tomon').reduce((s,v)=>s+v.nombre_tomon,0);
         const derniere = vals[0]?.date_validation || null;
         return {
@@ -130,8 +149,9 @@ export default function Seance({ user, navigate, goBack, lang, isMobile=false })
 
   const tomonTotal = validationsAujourdhui.filter(v=>v.type_validation==='tomon').reduce((s,v)=>s+v.nombre_tomon,0);
   const hizbTotal = validationsAujourdhui.filter(v=>v.type_validation==='hizb_complet').length;
-  const souratesTotal = recitationsAujourdhui.filter(r=>r.type_recitation==='complete').length;
-  const sequencesTotal = recitationsAujourdhui.filter(r=>r.type_recitation==='sequence').length;
+  // FIX (oct 2026) : muraja exclue des sourates/sequences memorisees
+  const souratesTotal = recitationsAujourdhui.filter(r=>r.type_recitation==='complete'&&!r.is_muraja).length;
+  const sequencesTotal = recitationsAujourdhui.filter(r=>r.type_recitation==='sequence'&&!r.is_muraja).length;
   const ptsTotal = elevesVus.reduce((s,e)=>s+e.ptsAujourdhui,0);
 
   const debutSemaine = new Date(); debutSemaine.setDate(debutSemaine.getDate()-6); debutSemaine.setHours(0,0,0,0);
@@ -143,22 +163,25 @@ export default function Seance({ user, navigate, goBack, lang, isMobile=false })
     if (!joursActifs[key]) joursActifs[key]={tomon:0,hizb:0,sourate:0,seq:0};
     if (item.type_validation==='tomon') joursActifs[key].tomon+=item.nombre_tomon;
     else if (item.type_validation==='hizb_complet') joursActifs[key].hizb++;
-    else if (item.type_recitation==='complete') joursActifs[key].sourate++;
-    else if (item.type_recitation==='sequence') joursActifs[key].seq++;
+    else if (item.type_recitation==='complete' && !item.is_muraja) joursActifs[key].sourate++; // FIX (oct 2026) : hors muraja
+    else if (item.type_recitation==='sequence' && !item.is_muraja) joursActifs[key].seq++;
   });
 
   const medals = ['🥇','🥈','🥉'];
-  const niveaux = ['tous','5B','5A','2M','2','1'];
+  // FIX (oct 2026) : niveaux de l'ecole (avant : liste codee en dur)
+  const niveaux = ['tous', ...(niveauxDyn.length>0 ? niveauxDyn.map(n=>n.code) : ['5B','5A','2M','2','1'])];
+  // FIX (oct 2026) : les exports reprennent la liste filtree + classee de l'ecran
+  // (eleves vus classes par points, puis non vus sans medaille)
+  const listeExport = [...elevesVus.map((e,i)=>({ e, rang: i })), ...elevesNonVus.map(e=>({ e, rang: null }))];
 
   const exportSeanceExcel = async () => {
     if (!window.XLSX) await new Promise((res,rej)=>{ const s=document.createElement('script'); s.src='https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js'; s.onload=res; s.onerror=rej; document.head.appendChild(s); });
     const XLSX = window.XLSX;
     const wb = XLSX.utils.book_new();
     // Classement du jour
-    const data = elevesDataState.length > 0 ? elevesDataState : [];
-    const rows = data.map((e,i)=>{
-      const pts = e.isSourate ? e.ptsAujourdhui : (e.valsAujourdhui||[]).reduce((s,v)=>s+(v.type_validation==='hizb_complet'?(bareme.hizb_complet || 0):v.nombre_tomon*(bareme.tomon || 0)),0);
-      return [i+1, e.prenom+' '+e.nom, e.code_niveau||'?', e.isSourate?(e.souratesCompletesAujourdhui+'S / '+e.sequencesAujourdhui+'seq'):(e.tomonAujourdhui||0)+'T / '+((e.valsAujourdhui||[]).filter(v=>v.type_validation==='hizb_complet').length)+'H', pts, e.jours!=null?e.jours+' j':'—'];
+    const rows = listeExport.map(({e, rang})=>{
+      const pts = e.ptsAujourdhui || 0; // FIX (oct 2026) : meme valeur que l'ecran
+      return [rang!==null?rang+1:'—', e.prenom+' '+e.nom, e.code_niveau||'?', e.isSourate?(e.souratesCompletesAujourdhui+'S / '+e.sequencesAujourdhui+'seq'):(e.tomonAujourdhui||0)+'T / '+((e.valsAujourdhui||[]).filter(v=>v.type_validation==='hizb_complet').length)+'H', pts, e.jours!=null?e.jours+' j':'—'];
     });
     const ws = XLSX.utils.aoa_to_sheet([
       [lang==='ar'?'#':'#',lang==='ar'?'الطالب':'Élève',lang==='ar'?'المستوى':'Niveau',lang==='ar'?'الإنجاز':'Réalisé',lang==='ar'?'النقاط':(lang==='ar'?'النقاط':'Points'),lang==='ar'?'آخر نشاط':'Dernière activité'],
@@ -173,14 +196,13 @@ export default function Seance({ user, navigate, goBack, lang, isMobile=false })
     const w = window.open('','_blank','width=1000,height=800');
     if (!w) { toast.warning(lang==='ar'?'يرجى السماح بالنوافذ المنبثقة':'Autorisez les popups pour exporter'); return; }
     const dateStr = new Date().toLocaleDateString(lang==='ar'?'ar-MA':'fr-FR',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
-    const data2 = elevesDataState.length > 0 ? elevesDataState : [];
-    const rows = data2.slice(0,30).map((e,i)=>{
-      const pts = e.isSourate ? e.ptsAujourdhui : (e.valsAujourdhui||[]).reduce((s,v)=>s+(v.type_validation==='hizb_complet'?(bareme.hizb_complet || 0):v.nombre_tomon*(bareme.tomon || 0)),0);
+    const rows = listeExport.slice(0,30).map(({e, rang},i)=>{
+      const pts = e.ptsAujourdhui || 0; // FIX (oct 2026) : meme valeur que l'ecran
       const nc={'5B':'#534AB7','5A':'#378ADD','2M':'#1D9E75','2':'#EF9F27','1':'#E24B4A'}[e.code_niveau||'1']||'#888';
       const bg = i%2===0?'#fff':'#f9f9f6';
       const realise = e.isSourate?(e.souratesCompletesAujourdhui+'S / '+e.sequencesAujourdhui+' seq'):(e.tomonAujourdhui||0)+'T / '+((e.valsAujourdhui||[]).filter(v=>v.type_validation==='hizb_complet').length)+'H';
       const medals = ['🥇','🥈','🥉'];
-      return '<tr style="background:'+bg+'"><td>'+(medals[i]||i+1)+'</td>'
+      return '<tr style="background:'+bg+'"><td>'+(rang!==null?(medals[rang]||rang+1):'—')+'</td>'
         +'<td><strong>'+e.prenom+' '+e.nom+'</strong></td>'
         +'<td><span style="padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;background:'+nc+'18;color:'+nc+'">'+(e.code_niveau||'?')+'</span></td>'
         +'<td>'+realise+'</td>'
@@ -210,17 +232,19 @@ export default function Seance({ user, navigate, goBack, lang, isMobile=false })
   if (isMobile) {
     return (
       <div style={{paddingBottom:80,background:'#f5f5f0',minHeight:'100vh'}}>
-        <div style={{background:'linear-gradient(135deg,#085041,#1D9E75)',padding:'48px 16px 14px',position:'sticky',top:0,zIndex:100}}>
-          <div style={{display:'flex',alignItems:'center',gap:12,marginBottom:8}}>
-            <button onClick={()=>goBack?goBack():navigate('dashboard')}
-              style={{background:'rgba(255,255,255,0.22)',border:'1px solid rgba(255,255,255,0.25)',borderRadius:10,padding:'0',color:'#fff',fontSize:20,cursor:'pointer',flexShrink:0,width:44,height:44,display:'flex',alignItems:'center',justifyContent:'center'}}>←</button>
-            <div style={{flex:1,fontSize:16,fontWeight:800,color:'#fff'}}>📋 {lang==='ar'?'الحصة':'Séance'}</div>
-          </div>
-          <div style={{fontSize:18,fontWeight:800,color:'#fff',marginBottom:10}}>
-            {new Date().toLocaleDateString(lang==='ar'?'ar-MA':'fr-FR',{weekday:'long',day:'numeric',month:'long'})}
-          </div>
+        <MobileHeader
+          title={lang==='ar'?'الحصة':'Séance'}
+          subtitle={new Date().toLocaleDateString(lang==='ar'?'ar-MA':'fr-FR',{weekday:'long',day:'numeric',month:'long'})}
+          icon={ClipboardList}
+          onBack={()=>goBack?goBack():navigate('dashboard')}
+          lang={lang}
+          actions={
+            /* F6 (oct 2026) : exports aussi sur mobile (avant : PC seulement) */
+            <HeaderMenu actions={actionsExport({onPDF:exportSeancePDF, onExcel:exportSeanceExcel, lang})} lang={lang} />
+          }
+        >
           {/* Vue switch: séance / semaine / historique */}
-          <div style={{display:'flex',gap:0,background:'#f0f0ec',borderRadius:10,padding:3,marginBottom:10}}>
+          <div style={{display:'flex',gap:0,background:'#f0f0ec',borderRadius:10,padding:3}}>
             {[['seance',lang==='ar'?'اليوم':"Aujourd'hui"],['semaine',lang==='ar'?'الأسبوع':'Cette semaine'],['historique',lang==='ar'?'السجل':'Historique']].map(([k,l])=>(
               <div key={k} onClick={()=>{ if(k==='historique') navigate('historique_seances'); else setVue(k); }}
                 style={{flex:1,padding:'7px 4px',borderRadius:8,textAlign:'center',fontSize:11,fontWeight:600,
@@ -240,38 +264,35 @@ export default function Seance({ user, navigate, goBack, lang, isMobile=false })
               </div>
             ))}
           </div>
-        </div>
+        </MobileHeader>
 
         {loading ? <MobileSkeletonList type="card-simple" count={4} /> : (
           <>
             {/* Semaine view */}
             {vue==='semaine' && (
-              <div style={{padding:'12px'}}>
-                <div style={{fontSize:12,fontWeight:700,color:'#888',marginBottom:8}}>
-                  {lang==='ar'?'هذا الأسبوع':'Cette semaine'}
-                </div>
+              <div style={{padding:'0 12px 12px'}}>
+                <SectionTitle>{lang==='ar'?'هذا الأسبوع':'Cette semaine'}</SectionTitle>
+                {/* F7 (oct 2026) : la vue "Cette semaine" filtrait et calculait sur les donnees DU JOUR.
+                    Alignement PC : volume de la semaine (sourates pour un eleve sourate, tomons sinon). */}
                 {elevesDataState.filter(e=>filterNiveau==='tous'||e.code_niveau===filterNiveau)
-                  .filter(e=>e.valsAujourdhui?.length>0||e.souratesCompletesAujourdhui>0)
+                  .filter(e=>(e.isSourate?(e.souratesSemaine||0):(e.tomonSemaine||0))>0)
+                  .sort((a,b)=>(b.isSourate?(b.souratesSemaine||0):(b.tomonSemaine||0))-(a.isSourate?(a.souratesSemaine||0):(a.tomonSemaine||0)))
                   .map((e,idx)=>{
                     const nc=NIVEAU_COLORS[e.code_niveau||'1']||'#888';
-                    const pts=e.isSourate?(e.souratesCompletesAujourdhui*(bareme.sourate||30)+e.sequencesAujourdhui*(bareme.sequence_sourate||10)):(e.valsAujourdhui?.reduce((s,v)=>s+(v.type_validation==='hizb_complet'?(bareme.hizb_complet || 0):(bareme.tomon || 0)),0)||0);
+                    const volSemaine = e.isSourate ? (e.souratesSemaine||0) : (e.tomonSemaine||0);
                     return(
-                      <div key={e.id} onTouchEnd={()=>navigate('fiche',e)} onClick={()=>navigate('fiche',e)}
-                        style={{background:'#fff',borderRadius:12,padding:'13px 14px',marginBottom:8,
-                          border:`0.5px solid ${nc}20`,display:'flex',alignItems:'center',gap:12,cursor:'pointer'}}>
-                        <div style={{width:36,height:36,borderRadius:'50%',background:`${nc}20`,color:nc,
-                          display:'flex',alignItems:'center',justifyContent:'center',fontWeight:800,fontSize:13,flexShrink:0}}>
-                          {medals[idx]||`${idx+1}`}
-                        </div>
-                        <div style={{flex:1,minWidth:0}}>
-                          <div style={{fontWeight:700,fontSize:14}}>{e.prenom} {e.nom}</div>
-                          <span style={{padding:'1px 7px',borderRadius:8,background:`${nc}20`,color:nc,fontSize:11,fontWeight:700}}>{e.code_niveau||'?'}</span>
-                        </div>
-                        <div style={{textAlign:'right',flexShrink:0}}>
-                          <div style={{fontSize:18,fontWeight:800,color:'#1D9E75'}}>+{pts}</div>
-                          <div style={{fontSize:10,color:'#888'}}>pts</div>
-                        </div>
-                        <span style={{color:'#ccc',fontSize:16}}>{'›'}</span>
+                      <div key={e.id} onTouchEnd={()=>navigate('fiche',e)} style={{marginBottom:8}}>
+                        <ListRow lang={lang}
+                          leading={<div style={{width:36,height:36,borderRadius:'50%',background:C.brandSoft,color:C.brand,
+                            display:'flex',alignItems:'center',justifyContent:'center',fontWeight:700,fontSize:13,flexShrink:0}}>
+                            {medals[idx]||`${idx+1}`}
+                          </div>}
+                          title={`${e.prenom} ${e.nom}`}
+                          meta={<LevelBadge code={e.code_niveau||'?'} color={nc} />}
+                          value={volSemaine}
+                          valueLabel={e.isSourate?(lang==='ar'?'سورة':'sourates'):(lang==='ar'?'ثُمن':'tomon')}
+                          onClick={()=>navigate('fiche',e)}
+                        />
                       </div>
                     );
                   })}
@@ -281,46 +302,35 @@ export default function Seance({ user, navigate, goBack, lang, isMobile=false })
             {vue==='seance' && (
             <>
             <div>
-            <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:8,padding:'12px 16px'}}>
-              {[
-                {val:elevesVus.length,lbl:t(lang,'eleves_vus'),color:'#1D9E75',bg:'#E1F5EE'},
-                {val:ptsTotal.toLocaleString(),lbl:'Points',color:'#534AB7',bg:'#EEEDFE'},
-                {val:tomonTotal+hizbTotal+souratesTotal,lbl:'Validations',color:'#378ADD',bg:'#E6F1FB'},
-              ].map((k,i)=>(
-                <div key={i} style={{background:k.bg,borderRadius:12,padding:'12px 8px',textAlign:'center'}}>
-                  <div style={{fontSize:22,fontWeight:800,color:k.color}}>{k.val}</div>
-                  <div style={{fontSize:10,color:k.color,marginTop:2}}>{k.lbl}</div>
-                </div>
-              ))}
+            <div style={{padding:'12px 12px 0'}}>
+              <KpiGrid cols={3}>
+                <KpiTile value={elevesVus.length} label={t(lang,'eleves_vus')} tone="brand" />
+                <KpiTile value={ptsTotal.toLocaleString()} label="Points" />
+                <KpiTile value={tomonTotal+hizbTotal+souratesTotal} label="Validations" />
+              </KpiGrid>
             </div>
             <div style={{padding:'0 12px'}}>
-              <div style={{fontSize:12,fontWeight:700,color:'#888',marginBottom:8,paddingLeft:4}}>
-                {lang==='ar'?'الطلاب اليوم':"Élèves aujourd'hui"} ({elevesVus.length})
-              </div>
+              <SectionTitle>{lang==='ar'?'الطلاب اليوم':"Élèves aujourd'hui"} ({elevesVus.length})</SectionTitle>
               {elevesVus.length===0 ? (
-                <div style={{textAlign:'center',color:'#aaa',padding:'2rem',background:'#fff',borderRadius:12}}>
+                <div style={{textAlign:'center',color:C.muted,padding:'2rem',background:C.surface,border:`1px solid ${C.line}`,borderRadius:12}}>
                   {lang==='ar'?'لا يوجد طلاب اليوم':"Aucun élève aujourd'hui"}
                 </div>
               ) : elevesVus.map((e,idx)=>{
                 const nc=NIVEAU_COLORS[e.code_niveau||'1']||'#888';
-                const pts=e.isSourate?(e.souratesCompletesAujourdhui*(bareme.sourate||30)+e.sequencesAujourdhui*(bareme.sequence_sourate||10)):(e.valsAujourdhui?.reduce((s,v)=>s+(v.type_validation==='hizb_complet'?(bareme.hizb_complet || 0):(bareme.tomon || 0)),0)||0);
+                const pts=e.ptsAujourdhui||0; // NETTOYAGE oct 2026 : avant replis ||30/||10 codes en dur + nombre de tomons ignore
                 return(
-                  <div key={e.id} onTouchEnd={()=>navigate('fiche',e)} onClick={()=>navigate('fiche',e)}
-                    style={{background:'#fff',borderRadius:12,padding:'13px 14px',marginBottom:8,
-                      border:`0.5px solid ${nc}20`,display:'flex',alignItems:'center',gap:12,cursor:'pointer'}}>
-                    <div style={{width:36,height:36,borderRadius:'50%',background:`${nc}20`,color:nc,
-                      display:'flex',alignItems:'center',justifyContent:'center',fontWeight:800,fontSize:13,flexShrink:0}}>
-                      {medals[idx]||`${idx+1}`}
-                    </div>
-                    <div style={{flex:1,minWidth:0}}>
-                      <div style={{fontWeight:700,fontSize:14,marginBottom:2}}>{e.prenom} {e.nom}</div>
-                      <span style={{padding:'1px 7px',borderRadius:8,background:`${nc}20`,color:nc,fontSize:11,fontWeight:700}}>{e.code_niveau||'?'}</span>
-                    </div>
-                    <div style={{textAlign:'right',flexShrink:0}}>
-                      <div style={{fontSize:18,fontWeight:800,color:'#1D9E75'}}>+{pts}</div>
-                      <div style={{fontSize:10,color:'#888'}}>pts</div>
-                    </div>
-                    <span style={{color:'#ccc',fontSize:16}}>{'›'}</span>
+                  <div key={e.id} onTouchEnd={()=>navigate('fiche',e)} style={{marginBottom:8}}>
+                    <ListRow lang={lang}
+                      leading={<div style={{width:36,height:36,borderRadius:'50%',background:C.brandSoft,color:C.brand,
+                        display:'flex',alignItems:'center',justifyContent:'center',fontWeight:700,fontSize:13,flexShrink:0}}>
+                        {medals[idx]||`${idx+1}`}
+                      </div>}
+                      title={`${e.prenom} ${e.nom}`}
+                      meta={<LevelBadge code={e.code_niveau||'?'} color={nc} />}
+                      value={`+${pts}`}
+                      valueLabel="pts"
+                      onClick={()=>navigate('fiche',e)}
+                    />
                   </div>
                 );
               })}
@@ -328,10 +338,10 @@ export default function Seance({ user, navigate, goBack, lang, isMobile=false })
             </div>
             <div onClick={()=>navigate('validation_rapide')}
               style={{position:'fixed',bottom:80,right:16,width:56,height:56,borderRadius:'50%',
-                background:'#1D9E75',color:'#fff',border:'none',fontSize:28,display:'flex',
+                background:C.brand,color:C.onBrand,border:'none',fontSize:28,display:'flex',
                 alignItems:'center',justifyContent:'center',cursor:'pointer',zIndex:150,
-                boxShadow:'0 4px 16px rgba(29,158,117,0.4)'}}>
-              ⚡
+                boxShadow:'0 4px 16px rgba(11,90,69,0.35)'}}>
+              <Zap size={26} />
             </div>
             </>
             )}
@@ -409,7 +419,7 @@ export default function Seance({ user, navigate, goBack, lang, isMobile=false })
               {/* Mini tendance par niveau */}
               {elevesDataState.length>0&&(
                 <div style={{display:'flex',gap:6,flexWrap:'wrap',marginBottom:'1rem'}}>
-                  {['5B','5A','2M','2','1'].map(n=>{
+                  {niveaux.filter(n=>n!=='tous').map(n=>{ /* FIX (oct 2026) : niveaux de l'ecole */
                     const nc=NIVEAU_COLORS[n]||'#888';
                     const elevesN=elevesDataState.filter(e=>e.code_niveau===n);
                     if(elevesN.length===0)return null;
@@ -502,7 +512,7 @@ export default function Seance({ user, navigate, goBack, lang, isMobile=false })
                             <td><NiveauBadge code={eleve?.code_niveau}/></td>
                             <td>{v.type_validation==='hizb_complet'?<span className="badge badge-green">Hizb {v.hizb_valide}</span>:<span className="badge badge-blue">{v.nombre_tomon} {t(lang,'tomon_abrev')}{v.tomon_debut?` (T.${v.tomon_debut}→T.${v.tomon_debut+v.nombre_tomon-1})`:''}</span>}</td>
                             <td style={{fontSize:12,color:'#888'}}>{v.valideur?`${v.valideur.prenom} ${v.valideur.nom}`:'—'}</td>
-                            <td><span style={{fontSize:12,fontWeight:600,color:'#1D9E75'}}>+{v.type_validation==='hizb_complet'?(bareme.hizb_complet || 0):v.nombre_tomon*(bareme.tomon || 0)}</span></td>
+                            <td><span style={{fontSize:12,fontWeight:600,color:'#1D9E75'}}>+{ptsValidation(v, bareme)/* FIX (oct 2026) */}</span></td>
                           </tr>
                         );
                       })}
@@ -535,7 +545,7 @@ export default function Seance({ user, navigate, goBack, lang, isMobile=false })
                             <td><NiveauBadge code={eleve?.code_niveau}/></td>
                             <td style={{fontFamily:"'Tajawal',Arial",direction:'rtl',fontSize:14}}>{sourate?.nom_ar||'—'}</td>
                             <td>{r.type_recitation==='complete'?<span className="badge badge-green">{lang==='ar'?'كاملة':lang==='en'?'Complete':'Complète'}</span>:<span className="badge badge-blue">V.{r.verset_debut}→V.{r.verset_fin}</span>}</td>
-                            <td><span style={{fontSize:12,fontWeight:600,color:'#1D9E75'}}>+{r.points||10}</span></td>
+                            <td><span style={{fontSize:12,fontWeight:600,color:'#1D9E75'}}>+{r.points||0/* FIX (oct 2026) : pas de 10 par defaut */}</span></td>
                           </tr>
                         );
                       })}

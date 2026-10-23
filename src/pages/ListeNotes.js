@@ -10,12 +10,16 @@ import { fetchAll } from '../lib/fetchAll';
 import ExportButtons from '../components/ExportButtons';
 import PageHeader from '../components/PageHeader';
 import { usePullToRefresh, PullToRefreshIndicator } from '../lib/usePullToRefresh';
+import { MobileHeader, HeaderMenu, actionsExport, ListRow, Avatar, LevelBadge, EmptyState, C } from '../components/ui';
+import { Star } from 'lucide-react';
 
 export default function ListeNotes({ user, navigate, goBack, lang='fr', isMobile }) {
   const { toast } = useToast();
   const [eleves, setEleves] = useState([]);
   const [allValidations, setAllValidations] = useState([]);
   const [pointsEvts, setPointsEvts] = useState([]);
+  const [allRecitations, setAllRecitations] = useState([]);
+  const [allCertificats, setAllCertificats] = useState([]);
   const [instituteurs, setInstituteurs] = useState([]);
   const [niveaux, setNiveaux] = useState([]);
   const [bareme, setBareme] = useState({ unites:{...BAREME_DEFAUT}, examens:{}, ensembles:{}, jalons:{} });
@@ -46,18 +50,28 @@ export default function ListeNotes({ user, navigate, goBack, lang='fr', isMobile
   const loadData = async () => {
     setLoading(true);
     try {
-    const [{ data: el }, { data: vd }, { data: pe }, { data: inst }, { data: niv }] = await Promise.all([
-      supabase.from('eleves').select('id,prenom,nom,code_niveau,eleve_id_ecole,hizb_depart,tomon_depart,instituteur_referent_id').eq('ecole_id', user.ecole_id).order('nom'),
-      fetchAll(supabase.from('validations').select('id,eleve_id,type_validation,nombre_tomon,hizb_valide,date_validation').eq('ecole_id', user.ecole_id)).then(data=>({data})),
-      supabase.from('points_eleves').select('*').eq('ecole_id', user.ecole_id).order('created_at', {ascending:false}),
+    // FIX-BAREME (sep 2026) : charger AUSSI recitations_sourates et certificats
+    // pour que les eleves recitant en sourates aient enfin leurs points comptes.
+    const [{ data: el }, { data: vd }, { data: pe }, { data: inst }, { data: niv }, { data: rs }, { data: cert }] = await Promise.all([
+      // FIX (oct 2026) : exclure les eleves suspendus du classement
+      supabase.from('eleves').select('id,prenom,nom,code_niveau,eleve_id_ecole,hizb_depart,tomon_depart,instituteur_referent_id').eq('ecole_id', user.ecole_id).is('suspendu_at', null).order('nom'),
+      fetchAll(supabase.from('validations').select('id,eleve_id,type_validation,nombre_tomon,hizb_valide,date_validation,ensemble_id,is_muraja').eq('ecole_id', user.ecole_id)).then(data=>({data})),
+      // FIX (oct 2026) : pagination (>1000 lignes tronquees sinon)
+      fetchAll(supabase.from('points_eleves').select('*').eq('ecole_id', user.ecole_id).order('created_at', {ascending:false})).then(data=>({data})),
       supabase.from('utilisateurs').select('id,prenom,nom').eq('role','instituteur').eq('ecole_id', user.ecole_id),
       supabase.from('niveaux').select('id,code,nom,couleur').eq('ecole_id', user.ecole_id).order('ordre'),
+      fetchAll(supabase.from('recitations_sourates').select('id,eleve_id,type_recitation,is_muraja,points,date_validation').eq('ecole_id', user.ecole_id)).then(data=>({data})),
+      // FIX (oct 2026) : la colonne s'appelle date_emission (date_obtention n'existe pas -> select en erreur -> 0 pt certificat)
+      supabase.from('certificats_eleves').select('id,eleve_id,jalon_id,date_emission,created_at').eq('ecole_id', user.ecole_id),
     ]);
     setEleves(el || []);
     setAllValidations(vd || []);
     setPointsEvts(pe || []);
     setInstituteurs(inst || []);
     setNiveaux(niv || []);
+    setAllRecitations(rs || []);
+    // FIX (oct 2026) : mapper date_emission -> date_obtention attendu par calcPointsPeriode
+    setAllCertificats((cert || []).map(c => ({ ...c, date_obtention: c.date_emission })));
     const b = await loadBareme(supabase, user.ecole_id);
     setBareme(b);
     } catch (e) {
@@ -98,16 +112,29 @@ export default function ListeNotes({ user, navigate, goBack, lang='fr', isMobile
       if (!evtsByEleve.has(p.eleve_id)) evtsByEleve.set(p.eleve_id, []);
       evtsByEleve.get(p.eleve_id).push(p);
     });
+    // FIX-BAREME (sep 2026) : idem pour recitations + certificats
+    const recsByEleve = new Map();
+    allRecitations.forEach(r => {
+      if (!recsByEleve.has(r.eleve_id)) recsByEleve.set(r.eleve_id, []);
+      recsByEleve.get(r.eleve_id).push(r);
+    });
+    const certsByEleve = new Map();
+    allCertificats.forEach(c => {
+      if (!certsByEleve.has(c.eleve_id)) certsByEleve.set(c.eleve_id, []);
+      certsByEleve.get(c.eleve_id).push(c);
+    });
     const instById = new Map(instituteurs.map(i => [i.id, i]));
 
     return eleves.map(el => {
       const vals = valsByEleve.get(el.id) || [];
       const evts = evtsByEleve.get(el.id) || [];
-      const pts = calcPointsPeriode(vals, debut, fin, bareme, evts);
+      const recs = recsByEleve.get(el.id) || [];
+      const certs = certsByEleve.get(el.id) || [];
+      const pts = calcPointsPeriode(vals, debut, fin, bareme, evts, recs, certs);
       const inst = instById.get(el.instituteur_referent_id);
       return { ...el, pts, instNom: inst ? `${inst.prenom} ${inst.nom}` : '—' };
     }).sort((a, b) => b.pts.total - a.pts.total);
-  }, [eleves, allValidations, pointsEvts, bareme, periode, dateDebut, dateFin, periodesBDD, anneeActive]);
+  }, [eleves, allValidations, pointsEvts, allRecitations, allCertificats, bareme, periode, dateDebut, dateFin, periodesBDD, anneeActive]);
 
   const filtered = elevesAvecPts.filter(el => {
     if (searchNum && !el.eleve_id_ecole?.includes(searchNum) && !(el.prenom+' '+el.nom).toLowerCase().includes(searchNum.toLowerCase())) return false;
@@ -117,6 +144,17 @@ export default function ListeNotes({ user, navigate, goBack, lang='fr', isMobile
   });
 
   const getNivColor = (code) => niveaux.find(n=>n.code===code)?.couleur || '#888';
+
+  // Colonnes communes ecran / PDF / Excel (oct 2026). Avant : les exports lisaient
+  // details.nbTomon (champ inexistant -> toujours 0) et ignoraient sourates/ensembles.
+  const colonnesNotes = (pts) => ({
+    // FIX (oct 2026) : les sourates en muraja ne sont pas des sourates memorisees (leurs points restent dans le total)
+    tomonSourates: (pts?.tomonPeriode||0) + (pts?.nbSouratesCompletes||0),
+    hizb: pts?.hizbsPeriode || 0,
+    ensembles: pts?.nbEnsemblesComplets || 0,
+    ptsExamens: pts?.ptsExamens || 0,
+    ptsCertificats: pts?.ptsCertificats || 0,
+  });
 
   // ── PDF export ─────────────────────────────────────────────
   const handlePdfExport = async () => {
@@ -132,8 +170,7 @@ export default function ListeNotes({ user, navigate, goBack, lang='fr', isMobile
         couleur: getNivColor(el.code_niveau),
         instituteur: el.instNom || '—',
         points: el.pts?.total || 0,
-        tomon: el.pts?.details?.nbTomon || 0,
-        hizb: el.pts?.details?.nbHizb || 0,
+        ...colonnesNotes(el.pts),
       }));
       await openPDF('liste_notes', {
         ecole: { nom: user?.ecole?.nom || '' },
@@ -160,20 +197,25 @@ export default function ListeNotes({ user, navigate, goBack, lang='fr', isMobile
       lang === 'ar' ? 'المستوى' : 'Niveau',
       lang === 'ar' ? 'الأستاذ' : 'Instituteur',
       lang === 'ar' ? 'النقاط' : 'Points',
-      lang === 'ar' ? 'الثُّمنات' : 'Tomon',
+      lang === 'ar' ? 'الأثمان/السور' : 'Tomon/Sourates',
       lang === 'ar' ? 'الأحزاب' : 'Hizb',
+      lang === 'ar' ? 'المجموعات' : 'Ensembles',
+      lang === 'ar' ? 'الامتحانات' : 'Examens (pts)',
+      lang === 'ar' ? 'الشهادات' : 'Certificats (pts)',
     ];
-    const rows = filtered.map((el, i) => [
-      i + 1,
-      el.prenom || '',
-      el.nom || '',
-      el.eleve_id_ecole || '',
-      niveaux.find(n => n.code === el.code_niveau)?.nom || el.code_niveau || '',
-      el.instNom || '',
-      el.pts?.total || 0,
-      el.pts?.details?.nbTomon || 0,
-      el.pts?.details?.nbHizb || 0,
-    ]);
+    const rows = filtered.map((el, i) => {
+      const c = colonnesNotes(el.pts);
+      return [
+        i + 1,
+        el.prenom || '',
+        el.nom || '',
+        el.eleve_id_ecole || '',
+        niveaux.find(n => n.code === el.code_niveau)?.nom || el.code_niveau || '',
+        el.instNom || '',
+        el.pts?.total || 0,
+        c.tomonSourates, c.hizb, c.ensembles, c.ptsExamens, c.ptsCertificats,
+      ];
+    });
     const dateStr = new Date().toISOString().slice(0, 10);
     const filename = `notes_${periode}_${dateStr}.xlsx`;
     try {
@@ -222,26 +264,22 @@ export default function ListeNotes({ user, navigate, goBack, lang='fr', isMobile
         />
       )}
       {isMobile ? (
-        <div style={{background:'linear-gradient(135deg,#085041,#1D9E75)',padding:'48px 16px 16px',marginBottom:12,position:'sticky',top:0,zIndex:100}}>
-          <div style={{display:'flex',alignItems:'center',gap:12,marginBottom:4}}>
-            <button onClick={()=>goBack?goBack():navigate('dashboard')}
-              style={{background:'rgba(255,255,255,0.22)',border:'1px solid rgba(255,255,255,0.25)',borderRadius:10,padding:'0',color:'#fff',fontSize:20,cursor:'pointer',flexShrink:0,width:44,height:44,display:'flex',alignItems:'center',justifyContent:'center'}}>←</button>
-            <div style={{flex:1}}>
-              <div style={{fontSize:17,fontWeight:800,color:'#fff'}}>⭐ {lang==='ar'?'قائمة النقاط':'Notes & Points'}</div>
-              <div style={{fontSize:11,color:'rgba(255,255,255,0.75)'}}>{filtered.length} {lang==='ar'?'طالب':'élève(s)'}</div>
-            </div>
-            <div style={{display:'flex',gap:6,flexShrink:0}}>
-              <button onClick={handlePdfExport} disabled={genPdf||filtered.length===0}
-                style={{background:'rgba(255,255,255,0.25)',border:'1px solid rgba(255,255,255,0.3)',borderRadius:10,padding:'7px 11px',color:'#fff',fontSize:12,fontWeight:600,cursor:(genPdf||filtered.length===0)?'default':'pointer',opacity:(genPdf||filtered.length===0)?0.5:1,whiteSpace:'nowrap',fontFamily:'inherit'}}>
-                {genPdf ? '⏳' : '📄 PDF'}
-              </button>
-              <button onClick={handleExcelExport} disabled={filtered.length===0}
-                style={{background:'rgba(255,255,255,0.25)',border:'1px solid rgba(255,255,255,0.3)',borderRadius:10,padding:'7px 11px',color:'#fff',fontSize:12,fontWeight:600,cursor:filtered.length===0?'default':'pointer',opacity:filtered.length===0?0.5:1,whiteSpace:'nowrap',fontFamily:'inherit'}}>
-                📊 Excel
-              </button>
-            </div>
-          </div>
-        </div>
+        <>
+        <MobileHeader
+          title={lang==='ar'?'قائمة النقاط':'Notes & Points'}
+          subtitle={`${filtered.length} ${lang==='ar'?'طالب':'élève(s)'}`}
+          icon={Star}
+          onBack={()=>goBack?goBack():navigate('dashboard')}
+          lang={lang}
+          actions={
+            <HeaderMenu lang={lang} actions={[
+              ...actionsExport({ onPDF: handlePdfExport, lang, disabled: genPdf||filtered.length===0 }),
+              ...actionsExport({ onExcel: handleExcelExport, lang, disabled: filtered.length===0 }),
+            ]} />
+          }
+        />
+        <div style={{height:12}}/>
+        </>
       ) : (
       <PageHeader
         title="Liste des notes"
@@ -326,7 +364,7 @@ export default function ListeNotes({ user, navigate, goBack, lang='fr', isMobile
       {/* Filtres */}
       <div className="card" style={{ marginBottom:'1.25rem', margin: isMobile?'0 12px 12px':'', borderRadius: isMobile?12:undefined }}>
         <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(180px,1fr))', gap:8 }}>
-          <input className="field-input" placeholder={'🔍 '+(lang==='ar'?'رقم أو اسم الطالب':'N° ou nom élève')}
+          <input className="field-input" placeholder={(isMobile?'':'🔍 ')+(lang==='ar'?'رقم أو اسم الطالب':'N° ou nom élève')}
             value={searchNum} onChange={e=>setSearchNum(e.target.value)} />
           <select className="field-select" value={filtreNiveau} onChange={e=>setFiltreNiveau(e.target.value)}>
             <option value="">{lang==='ar'?'كل المستويات':'Tous les niveaux'}</option>
@@ -381,87 +419,53 @@ export default function ListeNotes({ user, navigate, goBack, lang='fr', isMobile
         // ─────────────────────────────────────────────────────────
         <div>
           {filtered.length === 0 && (
-            <div style={{textAlign:'center', padding:'3rem', color:'#aaa', background:'#fff', borderRadius:14, border:'0.5px solid #e0e0d8'}}>
-              <div style={{fontSize:36, marginBottom:8}}>⭐</div>
-              <div style={{fontSize:13}}>{lang==='ar'?'لا توجد بيانات':'Aucune donnée'}</div>
+            <div style={{background:C.surface, borderRadius:12, border:`1px solid ${C.line}`}}>
+              <EmptyState icon={Star} title={lang==='ar'?'لا توجد بيانات':'Aucune donnée'} />
             </div>
           )}
           {(filtered||[]).map((el, idx) => {
             const nc = getNivColor(el.code_niveau);
-            const initials = ((el.prenom||'?')[0]||'?') + ((el.nom||'?')[0]||'?');
             const rank = idx + 1;
             const isPodium = rank <= 3;
             const podiumIcon = rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : null;
+            // Charte mobile (oct 2026) : ligne de liste ; medaille de classement conservee sur l'avatar
+            const details = [
+              el.eleve_id_ecole ? `#${el.eleve_id_ecole}` : null,
+              el.instNom,
+            ].filter(Boolean).join(' · ');
+            // Idem bureau : on somme tomons + sourates pour couvrir hizb/sourate
+            const decomposition = [
+              `${lang==='ar'?'الأثمان/السور':'Tomon/Sour.'} ${(el.pts.tomonPeriode||0) + (el.pts.nbSouratesCompletes||0)}`,
+              `${lang==='ar'?'الأحزاب':'Hizb'} ${el.pts.hizbsPeriode||0}`,
+              // Ajout : ensembles pour les eleves sourate (0 si non applicable)
+              (el.pts.nbEnsemblesComplets||0) > 0 ? `${lang==='ar'?'المجموعات':'Ens.'} ${el.pts.nbEnsemblesComplets}` : null,
+              `${lang==='ar'?'الامتحانات':'Exam.'} ${el.pts.ptsExamens||0}`,
+              `${lang==='ar'?'الشهادات':'Cert.'} ${el.pts.ptsCertificats||0}`,
+            ].filter(Boolean).join(' · ');
             return (
-              <div key={el.id} onClick={()=>navigate('fiche',el)}
-                style={{
-                  background:'#fff', borderRadius:14,
-                  padding:'14px',
-                  marginBottom:8,
-                  border:'0.5px solid #e0e0d8',
-                  display:'flex', alignItems:'center', gap:12,
-                  cursor:'pointer',
-                  boxShadow:'0 1px 4px rgba(0,0,0,0.04)',
-                  position:'relative'
-                }}>
-                {/* Avatar + rank */}
-                <div style={{flexShrink:0, position:'relative'}}>
-                  <div style={{
-                    width:46, height:46, borderRadius:'50%',
-                    background:`${nc}20`, color:nc,
-                    display:'flex', alignItems:'center', justifyContent:'center',
-                    fontWeight:800, fontSize:14
-                  }}>
-                    {initials}
-                  </div>
-                  {isPodium && (
-                    <div style={{
-                      position:'absolute', top:-4, right:-4,
-                      fontSize:16, lineHeight:1
-                    }}>{podiumIcon}</div>
-                  )}
-                </div>
-
-                {/* Infos */}
-                <div style={{flex:1, minWidth:0}}>
-                  <div style={{fontWeight:700, fontSize:14, marginBottom:3, lineHeight:1.2}}>
-                    {el.prenom} {el.nom}
-                  </div>
-                  <div style={{display:'flex', gap:5, alignItems:'center', flexWrap:'wrap', marginBottom:5}}>
-                    <span style={{padding:'2px 7px', borderRadius:10, fontSize:10, fontWeight:700, background:`${nc}20`, color:nc}}>
-                      {el.code_niveau||'?'}
-                    </span>
-                    {el.eleve_id_ecole && (
-                      <span style={{fontSize:10, color:'#bbb'}}>#{el.eleve_id_ecole}</span>
-                    )}
-                    <span style={{fontSize:10, color:'#888'}}>👨‍🏫 {el.instNom}</span>
-                  </div>
-                  {/* Décomposition compacte */}
-                  <div style={{display:'flex', gap:8, flexWrap:'wrap', fontSize:10}}>
-                    <span style={{color:'#378ADD', fontWeight:600}}>
-                      ⭐ {el.pts.tomonPeriode||0}
-                    </span>
-                    <span style={{color:'#085041', fontWeight:600}}>
-                      📖 {el.pts.hizbsPeriode||0}
-                    </span>
-                    <span style={{color:'#EF9F27', fontWeight:600}}>
-                      📝 {el.pts.ptsExamens||0}
-                    </span>
-                    <span style={{color:'#D85A30', fontWeight:600}}>
-                      🏅 {el.pts.ptsCertificats||0}
-                    </span>
-                  </div>
-                </div>
-
-                {/* Total points */}
-                <div style={{flexShrink:0, textAlign:'center'}}>
-                  <div style={{fontSize:22, fontWeight:800, color:'#378ADD', lineHeight:1}}>
-                    {el.pts.total.toLocaleString()}
-                  </div>
-                  <div style={{fontSize:9, color:'#aaa', marginTop:2, fontWeight:600, textTransform:'uppercase', letterSpacing:0.5}}>
-                    {lang==='ar'?'نقطة':'pts'}
-                  </div>
-                </div>
+              <div key={el.id} style={{marginBottom:8}}>
+                <ListRow lang={lang}
+                  leading={
+                    <div style={{flexShrink:0, position:'relative'}}>
+                      <Avatar prenom={el.prenom} nom={el.nom} color={nc} />
+                      {isPodium && (
+                        <div style={{position:'absolute', top:-4, insetInlineEnd:-4, fontSize:16, lineHeight:1}}>{podiumIcon}</div>
+                      )}
+                    </div>
+                  }
+                  title={`${el.prenom} ${el.nom}`}
+                  subtitle={details}
+                  meta={
+                    <div style={{display:'flex', gap:6, alignItems:'center', flexWrap:'wrap'}}>
+                      <LevelBadge code={el.code_niveau} color={nc} />
+                      <span style={{fontSize:11, color:C.muted}}>{decomposition}</span>
+                    </div>
+                  }
+                  value={el.pts.total.toLocaleString()}
+                  valueLabel={lang==='ar'?'نقطة':'pts'}
+                  valueTone="brand"
+                  onClick={()=>navigate('fiche',el)}
+                />
               </div>
             );
           })}
@@ -477,6 +481,10 @@ export default function ListeNotes({ user, navigate, goBack, lang='fr', isMobile
                 <th>{lang==='ar'?'الأستاذ':'Instituteur'}</th>
                 <th>{lang==='ar'?'الأثمان/السور':'Tomon/Sourates'}</th>
                 <th>{lang==='ar'?'الأحزاب':'Hizb'}</th>
+                {/* AJOUT (oct 2026) : colonne Ensembles pour que les points d'ensembles
+                    completes (ptsBonusEnsembles) soient visibles. Masquee si personne
+                    n'en a (eleves purement hizbs), affichee des qu'un eleve en a. */}
+                <th>{lang==='ar'?'المجموعات':'Ensembles'}</th>
                 <th>{lang==='ar'?'الامتحانات':'Examens'}</th>
                 <th>{lang==='ar'?'الشهادات':'Certs'}</th>
                 <th style={{color:'#378ADD'}}>{lang==='ar'?'المجموع':'Total'}</th>
@@ -484,7 +492,7 @@ export default function ListeNotes({ user, navigate, goBack, lang='fr', isMobile
             </thead>
             <tbody>
               {filtered.length === 0 && (
-                <tr><td colSpan={9} className="empty">{lang==='ar'?'لا توجد بيانات':'Aucune donnée'}</td></tr>
+                <tr><td colSpan={10} className="empty">{lang==='ar'?'لا توجد بيانات':'Aucune donnée'}</td></tr>
               )}
               {(filtered||[]).map((el, idx) => {
                 const nc = getNivColor(el.code_niveau);
@@ -498,12 +506,26 @@ export default function ListeNotes({ user, navigate, goBack, lang='fr', isMobile
                     <td><span style={{padding:'2px 6px',borderRadius:8,fontSize:10,fontWeight:700,background:nc+'18',color:nc}}>{el.code_niveau}</span></td>
                     <td style={{fontSize:11,color:'#888'}}>{el.instNom}</td>
                     <td style={{textAlign:'center'}}>
-                      <span style={{fontWeight:700,color:'#378ADD'}}>{el.pts.tomonPeriode}</span>
-                      {el.pts.ptsTomon>0 && <div style={{fontSize:9,color:'#aaa'}}>+{el.pts.ptsTomon} {lang==='ar'?'ن':'pts'}</div>}
+                      {/* BUG-FIX AFFICHAGE SOURATES (oct 2026) : la colonne "Thamanes/Sourates"
+                          affichait tomonPeriode seul -> 0 pour les eleves recitant en sourates
+                          alors que leurs ptsSourates etaient bien dans le total. On somme ici
+                          tomons + sourates (completes + muraja) pour couvrir les deux cas.
+                          Pour un eleve hizb : nbSouratesCompletes=0, donc comportement inchange.
+                          Pour un eleve sourate : tomonPeriode=0, donc on affiche les sourates. */}
+                      <span style={{fontWeight:700,color:'#378ADD'}}>{(el.pts.tomonPeriode||0) + (el.pts.nbSouratesCompletes||0)}</span>
+                      {((el.pts.ptsTomon||0) + (el.pts.ptsSourates||0)) > 0 && (
+                        <div style={{fontSize:9,color:'#aaa'}}>+{(el.pts.ptsTomon||0) + (el.pts.ptsSourates||0)} {lang==='ar'?'ن':'pts'}</div>
+                      )}
                     </td>
                     <td style={{textAlign:'center'}}>
                       <span style={{fontWeight:700,color:'#085041'}}>{el.pts.hizbsPeriode}</span>
                       {el.pts.ptsHizb>0 && <div style={{fontSize:9,color:'#aaa'}}>+{el.pts.ptsHizb} {lang==='ar'?'ن':'pts'}</div>}
+                    </td>
+                    <td style={{textAlign:'center'}}>
+                      <span style={{fontWeight:700,color:'#D85A30'}}>{el.pts.nbEnsemblesComplets||0}</span>
+                      {(el.pts.ptsEnsembles||el.pts.ptsBonusEnsembles||0)>0 && (
+                        <div style={{fontSize:9,color:'#aaa'}}>+{el.pts.ptsEnsembles||el.pts.ptsBonusEnsembles||0} {lang==='ar'?'ن':'pts'}</div>
+                      )}
                     </td>
                     <td style={{textAlign:'center'}}>
                       <span style={{fontWeight:700,color:'#EF9F27'}}>{el.pts.ptsExamens||0}</span>

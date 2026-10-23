@@ -122,7 +122,7 @@ export default function ExportButtons({
 
   // Variant 'inline' : plus compact, pour intégration dans un header
   const wrapperStyle = variant === 'inline'
-    ? { display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }
+    ? { display: 'flex', gap: 6, alignItems: 'center', flexWrap: isMobile ? 'nowrap' : 'wrap', flexShrink: 0 } // charte mobile lot 1 : pas d'empilement dans les en-tetes
     : { display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 12 };
 
   return (

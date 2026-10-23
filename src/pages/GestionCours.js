@@ -4,6 +4,8 @@ import { useToast } from '../lib/toast';
 import ConfirmModal from '../components/ConfirmModal';
 import PageHeader from '../components/PageHeader';
 import MobileSkeletonList from '../components/MobileSkeletonList';
+import { MobileHeader, ListRow, ActionSheet, LevelBadge, EmptyState, SearchField, C } from '../components/ui';
+import { BookOpen, Plus, ListTree, Pencil, Trash2 } from 'lucide-react';
 
 // ══════════════════════════════════════════════════════════════════════
 // PAGE GESTION COURS DE FOND
@@ -47,13 +49,19 @@ export default function GestionCours({ user, navigate, goBack, lang, isMobile })
   const [searchCours, setSearchCours] = useState('');
   // Confirm modal
   const [confirmModal, setConfirmModal] = useState({ isOpen: false, title: '', message: '', onConfirm: null });
+  // Charte mobile : cours dont le panneau d'actions est ouvert
+  const [menuCours, setMenuCours] = useState(null);
+
+  // Bloc 3 (oct 2026) : l'instituteur cree des cours ; il ne modifie/supprime
+  // que ceux qu'il a crees (les autres restent consultables en lecture seule).
+  const peutModifier = (c) => user.role === 'surveillant' || (!!c && c.created_by === user.id);
 
   // ─── Chargement initial ────────────────────────────────────
   const loadData = async () => {
     setLoading(true);
     const [coursRes, niveauxRes] = await Promise.all([
       supabase.from('cours')
-        .select('id, nom_ar, nom_fr, nom_en, categorie, description, annee_estimee, ordre, actif, created_at')
+        .select('id, nom_ar, nom_fr, nom_en, categorie, description, annee_estimee, ordre, actif, created_at, created_by')
         .eq('ecole_id', user.ecole_id)
         .eq('actif', true)
         .order('ordre', { ascending: true }),
@@ -108,6 +116,7 @@ export default function GestionCours({ user, navigate, goBack, lang, isMobile })
     setFormOpen(true);
   };
   const openEdit = (c) => {
+    if (!peutModifier(c)) return;
     setEditing(c);
     setForm({
       nom_ar: c.nom_ar || '',
@@ -143,6 +152,7 @@ export default function GestionCours({ user, navigate, goBack, lang, isMobile })
       ecole_id: user.ecole_id,
     };
     let coursId;
+    if (editing && !peutModifier(editing)) { setSaving(false); return; }
     if (editing) {
       // UPDATE
       const { error } = await supabase.from('cours').update(payload).eq('id', editing.id);
@@ -186,6 +196,7 @@ export default function GestionCours({ user, navigate, goBack, lang, isMobile })
 
   // ─── Suppression (soft delete : actif=false) ───────────────
   const handleDelete = (c) => {
+    if (!peutModifier(c)) return;
     const nom = c.nom_ar || c.nom_fr || 'ce cours';
     setConfirmModal({
       isOpen: true,
@@ -231,33 +242,17 @@ export default function GestionCours({ user, navigate, goBack, lang, isMobile })
   }, [niveaux]);
 
   return (
-    <div style={{ background: isMobile ? '#f5f5f0' : 'transparent', minHeight: isMobile ? '100vh' : 'auto', paddingBottom: 80 }}>
+    <div style={{ background: isMobile ? C.bg : 'transparent', minHeight: isMobile ? '100vh' : 'auto', paddingBottom: 80 }}>
 
       {/* Header */}
       {isMobile ? (
-        <div style={{
-          background: 'linear-gradient(135deg, #085041, #1D9E75)',
-          color: '#fff', padding: '48px 16px 14px',
-          position: 'sticky', top: 0, zIndex: 100,
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <button onClick={() => goBack ? goBack() : navigate('gestion')}
-              style={{
-                width: 44, height: 44,
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                background: 'rgba(255,255,255,0.2)', border: 'none', borderRadius: 10,
-                padding: 0, flexShrink: 0, color: '#fff', fontSize: 18, cursor: 'pointer',
-              }}>←</button>
-            <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 17, fontWeight: 800 }}>
-                📚 {lang === 'ar' ? 'الدروس' : 'Cours'}
-              </div>
-              <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.75)' }}>
-                {lang === 'ar' ? 'إدارة الدروس و المحاور' : 'Gestion des cours et axes'}
-              </div>
-            </div>
-          </div>
-        </div>
+        <MobileHeader
+          title={lang === 'ar' ? 'الدروس' : 'Cours'}
+          subtitle={lang === 'ar' ? 'إدارة الدروس و المحاور' : 'Gestion des cours et axes'}
+          icon={BookOpen}
+          onBack={() => goBack ? goBack() : navigate('gestion')}
+          lang={lang}
+        />
       ) : (
         <div style={{ padding: '1.5rem 1.5rem 0' }}>
           <PageHeader
@@ -292,16 +287,21 @@ export default function GestionCours({ user, navigate, goBack, lang, isMobile })
               <button onClick={openCreate}
                 style={{
                   width: '100%', padding: '12px',
-                  background: '#1D9E75', color: '#fff',
-                  border: 'none', borderRadius: 10, marginBottom: 14,
+                  background: C.brand, color: C.onBrand,
+                  border: 'none', borderRadius: 12, marginBottom: 14,
                   fontSize: 14, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
                 }}>
-                ➕ {lang === 'ar' ? 'إضافة درس' : 'Ajouter un cours'}
+                <Plus size={18} /> {lang === 'ar' ? 'إضافة درس' : 'Ajouter un cours'}
               </button>
             )}
 
             {/* Liste */}
-            {cours.length === 0 ? (
+            {cours.length === 0 ? (isMobile ? (
+              <EmptyState icon={BookOpen}
+                title={lang === 'ar' ? 'لا توجد دروس' : 'Aucun cours créé'}
+                text={lang === 'ar' ? 'ابدأ بإضافة درس' : 'Commence par ajouter un cours'} />
+            ) : (
               <div style={{
                 padding: 40, textAlign: 'center', color: '#888',
                 background: '#fff', borderRadius: 12, border: '1px dashed #ccc',
@@ -314,9 +314,15 @@ export default function GestionCours({ user, navigate, goBack, lang, isMobile })
                   {lang === 'ar' ? 'ابدأ بإضافة درس' : 'Commence par ajouter un cours'}
                 </div>
               </div>
-            ) : (
+            )) : (
               <>
                 {/* M3a — Bandeau filtres + compteur dynamique (visible mobile aussi) */}
+                {isMobile ? (
+                <div style={{ marginBottom: 12 }}>
+                  <SearchField value={searchCours} onChange={setSearchCours} lang={lang} id="recherche-cours"
+                    placeholder={lang === 'ar' ? 'بحث عن درس...' : 'Rechercher un cours'} />
+                </div>
+                ) : (
                 <div style={{
                   display:'flex', gap:10, marginBottom:12, flexWrap:'wrap',
                   padding: isMobile ? '8px 10px' : '10px 12px', background:'#fff',
@@ -334,6 +340,7 @@ export default function GestionCours({ user, navigate, goBack, lang, isMobile })
                       fontFamily:'inherit', outline:'none', background:'#f9f9f6',
                     }}/>
                 </div>
+                )}
                 <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:8,flexWrap:'wrap',gap:8}}>
                   <div style={{fontSize:13,fontWeight:600,color:'#085041'}}>
                     {lang === 'ar' ? 'الدروس' : 'Cours'}
@@ -367,6 +374,30 @@ export default function GestionCours({ user, navigate, goBack, lang, isMobile })
                   if (lang !== 'ar' && c.nom_ar && c.nom_ar !== nomAff) autresLangues.push(c.nom_ar);
                   if (lang !== 'fr' && c.nom_fr && c.nom_fr !== nomAff) autresLangues.push(c.nom_fr);
                   if (lang !== 'en' && c.nom_en && c.nom_en !== nomAff) autresLangues.push(c.nom_en);
+                  if (isMobile) return (
+                    <ListRow key={c.id} lang={lang}
+                      leading={
+                        <div style={{ width: 40, height: 40, borderRadius: 12, flexShrink: 0, background: C.bg, border: `1px solid ${C.line}`,
+                          display: 'flex', alignItems: 'center', justifyContent: 'center', color: C.brand }}>
+                          <BookOpen size={18} />
+                        </div>
+                      }
+                      title={nomAff}
+                      subtitle={autresLangues.length > 0 ? autresLangues.join(' · ') : null}
+                      meta={
+                        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center', fontSize: 11, color: C.muted }}>
+                          {c.categorie && <span style={{ fontWeight: 600 }}>{c.categorie}</span>}
+                          {c.annee_estimee && <span>{c.annee_estimee} {lang === 'ar' ? 'سنة' : 'an(s)'}</span>}
+                          <span>{coursAxesCount[c.id] || 0} {lang === 'ar' ? 'محور' : 'axe(s)'}</span>
+                          {c.niveauCodes && c.niveauCodes.map(code => {
+                            const n = niveauByCode[code];
+                            return <LevelBadge key={code} code={n?.code || code} color={n?.couleur || '#888'} />;
+                          })}
+                        </div>
+                      }
+                      onClick={() => navigate('cours_axes', c.id)}
+                      onMore={peutModifier(c) ? () => setMenuCours(c) : undefined} />
+                  );
                   return (
                   <div key={c.id} style={{
                     background: '#fff', borderRadius: 12, padding: '12px 14px',
@@ -436,8 +467,9 @@ export default function GestionCours({ user, navigate, goBack, lang, isMobile })
                             fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit',
                             whiteSpace: 'nowrap',
                           }}>
-                          📝 {lang === 'ar' ? 'المحاور' : 'Axes'}
+                          {peutModifier(c) ? '📝' : '👁'} {lang === 'ar' ? 'المحاور' : 'Axes'}
                         </button>
+                        {peutModifier(c) && <>
                         <button onClick={() => openEdit(c)}
                           title={lang === 'ar' ? 'تعديل' : 'Modifier'}
                           style={{
@@ -452,6 +484,7 @@ export default function GestionCours({ user, navigate, goBack, lang, isMobile })
                             border: '1px solid #E24B4A30', borderRadius: 8,
                             fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
                           }}>🗑</button>
+                        </>}
                       </div>
                     </div>
                   </div>
@@ -463,6 +496,16 @@ export default function GestionCours({ user, navigate, goBack, lang, isMobile })
           </>
         )}
       </div>
+
+      {isMobile && (
+        <ActionSheet open={!!menuCours} onClose={() => setMenuCours(null)} lang={lang}
+          title={menuCours ? nomAffiche(menuCours) : ''}
+          actions={menuCours ? [
+            { label: lang === 'ar' ? 'المحاور' : 'Axes', icon: ListTree, onClick: () => navigate('cours_axes', menuCours.id) },
+            { label: lang === 'ar' ? 'تعديل' : 'Modifier', icon: Pencil, onClick: () => openEdit(menuCours) },
+            { label: lang === 'ar' ? 'حذف' : 'Supprimer', icon: Trash2, danger: true, onClick: () => handleDelete(menuCours) },
+          ] : []} />
+      )}
 
       {/* ═══ MODALE FORMULAIRE AJOUT/ÉDITION ═══ */}
       {formOpen && (

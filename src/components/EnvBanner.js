@@ -26,7 +26,7 @@ export default function EnvBanner() {
       fontSize: 12,
       fontWeight: 700,
       textAlign: 'center',
-      fontFamily: "'Tajawal', Arial, sans-serif",
+      fontFamily: 'inherit',
       boxShadow: '0 2px 8px rgba(0,0,0,0.2)',
       letterSpacing: 0.3,
     }}>

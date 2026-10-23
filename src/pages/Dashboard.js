@@ -2,9 +2,13 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { supabase } from '../lib/supabase';
 import { getCachedSWR } from '../lib/cache';
 import { fetchAll } from '../lib/fetchAll';
-import { calcEtatEleve, isSourateNiveauDyn, niveauTraduit, calcStats, formatDate, formatDateCourt, isInactif, joursDepuis, getInitiales, scoreLabel, loadBareme, BAREME_DEFAUT, getSensForEleve} from '../lib/helpers';
+import { calcEtatEleve, isSourateNiveauDyn, niveauTraduit, calcStats, formatDate, formatDateCourt, isInactif, joursDepuis, getInitiales, scoreLabel, loadBareme, BAREME_DEFAUT, getSensForEleve, calcPointsPeriode} from '../lib/helpers';
 import { t } from '../lib/i18n';
 import ExportButtons from '../components/ExportButtons';
+import { HeaderMenu, actionsExport, KpiTile, KpiGrid } from '../components/ui';
+import { AlertOctagon, AlertTriangle, Hourglass, TrendingDown, Rocket, Award, Bell, Sparkles, BookCheck, Activity, CalendarDays } from 'lucide-react';
+// Charte mobile (oct 2026) : icones des alertes intelligentes
+const ICONE_ALERTE = { stagnation: TrendingDown, rapide: Rocket, hizb_bloque: Hourglass };
 import { usePullToRefresh, PullToRefreshIndicator } from '../lib/usePullToRefresh';
 
 const C = { green:'#1D9E75',greenBg:'#E1F5EE',blue:'#378ADD',blueBg:'#E6F1FB',amber:'#EF9F27',amberBg:'#FAEEDA',red:'#E24B4A',redBg:'#FCEBEB',border:'#e0e0d8',muted:'#888',dark:'#1a1a1a' };
@@ -81,7 +85,10 @@ export default function Dashboard({ user, navigate, goBack, lang, isMobile=false
 
   // Transforme les données brutes en format d'affichage
   // Optimisé O(n+m) au lieu de O(n*m) via Map
-  const buildElevesData = (ed, id, vd, rd, nv, ec) => {
+  // BUG-FIX POINTS (oct 2026) : parametre `bar` ajoute pour passer le bareme a calcEtatEleve.
+  // Ajout (oct 2026) : pe (points_eleves) et certs (certificats_eleves) pour que le
+  // total des eleves sourate inclue examens + certificats, comme ListeNotes.
+  const buildElevesData = (ed, id, vd, rd, nv, ec, bar, pe, certs) => {
     // Index des validations par eleve_id pour un lookup O(1) au lieu de filtrer n fois
     const valsByEleve = new Map();
     (vd||[]).forEach(v => {
@@ -94,15 +101,50 @@ export default function Dashboard({ user, navigate, goBack, lang, isMobile=false
     const recSouratesCountMap = {};
     (rd||[]).forEach(r => {
       if (!recSouratesMap[r.eleve_id]) recSouratesMap[r.eleve_id] = r.date_validation;
-      if (r.type_recitation === 'complete') {
+      if (r.type_recitation === 'complete' && !r.is_muraja) { // FIX (oct 2026) : muraja exclue
         recSouratesCountMap[r.eleve_id] = (recSouratesCountMap[r.eleve_id]||0)+1;
       }
+    });
+
+    // BUG-FIX POINTS SOURATES DASHBOARD (oct 2026) : calcEtatEleve.points.total ne
+    // compte que les tomons/hizbs. Pour un eleve sourate, cela donne toujours 0,
+    // alors que son score reel = sourates + ensembles valides + (certificats/examens
+    // non charges ici). On enrichit donc etat.points.total pour les eleves sourate
+    // avec les points des recitations_sourates et des ensembles valides.
+    const recsByEleve = new Map();
+    (rd||[]).forEach(r => {
+      if (!recsByEleve.has(r.eleve_id)) recsByEleve.set(r.eleve_id, []);
+      recsByEleve.get(r.eleve_id).push(r);
+    });
+    // FIX (oct 2026) : lignes par eleve pour calcPointsPeriode (dates par defaut si absentes)
+    const DEBUT_TOUT = new Date('1990-01-01'), FIN_TOUT = new Date('2100-01-01');
+    const peByEleve = new Map();
+    (pe||[]).forEach(e => {
+      if (!peByEleve.has(e.eleve_id)) peByEleve.set(e.eleve_id, []);
+      peByEleve.get(e.eleve_id).push({ ...e, date_event: e.date_event || '2000-01-01T12:00:00' });
+    });
+    const certsByEleve = new Map();
+    (certs||[]).forEach(c => {
+      if (!certsByEleve.has(c.eleve_id)) certsByEleve.set(c.eleve_id, []);
+      certsByEleve.get(c.eleve_id).push({ ...c, date_obtention: c.date_emission || c.created_at || '2000-01-01T12:00:00' });
     });
 
     return (ed||[]).map(eleve => {
       const vals = valsByEleve.get(eleve.id) || [];
       const sensE = getSensForEleve(eleve, nv, ec);
-      const etat = calcEtatEleve(vals, eleve.hizb_depart, eleve.tomon_depart, sensE);
+      const etat = calcEtatEleve(vals, eleve.hizb_depart, eleve.tomon_depart, sensE, eleve, null, bar);
+      // FIX (oct 2026) : total Dashboard = acquis anterieurs + calcul de reference depuis
+      // le suivi (calcPointsPeriode : tomon, hizb, muraja, ensembles, sourates, examens,
+      // certificats), pour TOUS les eleves. Avant, un eleve hizb n'avait ni muraja, ni
+      // examens, ni certificats -> l'ecart avec Notes n'etait pas seulement les acquis.
+      if (etat && etat.points) {
+        const recsEleve = recsByEleve.get(eleve.id) || [];
+        const peEleve = (peByEleve.get(eleve.id) || []);
+        const certsEleve = (certsByEleve.get(eleve.id) || []);
+        const suivi = calcPointsPeriode(vals, DEBUT_TOUT, FIN_TOUT, bar, peEleve, recsEleve, certsEleve);
+        etat.points.ptsDepuisSuivi = suivi.total;
+        etat.points.total = (etat.points.ptsAcquisTotal || 0) + suivi.total;
+      }
       const derniereHizb = vals[0]?.date_validation||null;
       const derniereSourate = recSouratesMap[eleve.id]||null;
       const derniere = derniereHizb && derniereSourate
@@ -114,8 +156,9 @@ export default function Dashboard({ user, navigate, goBack, lang, isMobile=false
   };
 
   // Applique les données chargées au state
-  const applyData = (ed, id, vd, rd, nv, ec) => {
-    const elevesData = buildElevesData(ed, id, vd, rd, nv, ec);
+  // BUG-FIX POINTS (oct 2026) : parametre `bar` ajoute pour passer le bareme.
+  const applyData = (ed, id, vd, rd, nv, ec, bar, pe, certs) => {
+    const elevesData = buildElevesData(ed, id, vd, rd, nv, ec, bar, pe, certs);
     setNiveaux(nv||[]);
     if (ec !== undefined) setEcoleConfig(ec);
     setEleves(elevesData);
@@ -127,7 +170,9 @@ export default function Dashboard({ user, navigate, goBack, lang, isMobile=false
   const loadData = async () => {
     setLoading(true);
     try {
-      loadBareme(supabase, user.ecole_id).then(b => setBareme(b));
+      // BUG-FIX POINTS (oct 2026) : on await loadBareme en parallele des autres chargements
+      // pour pouvoir passer le bareme a calcEtatEleve des le premier rendu.
+      // Avant : loadBareme etait fire-and-forget -> calcEtatEleve toujours sans bareme -> 0 pts.
 
       // OPTIM Phase 2 : rendu progressif
       // Étape 1 : RPC pré-calculée (~200ms) → affichage rapide des stats de base
@@ -137,13 +182,19 @@ export default function Dashboard({ user, navigate, goBack, lang, isMobile=false
         .then(res => (!res.error && Array.isArray(res.data)) ? res.data : null)
         .catch(() => null);
 
-      const [rpcEleves, id, nv] = await Promise.all([
+      const baremePromise = loadBareme(supabase, user.ecole_id).catch(() => null);
+
+      const [rpcEleves, id, nv, baremeData] = await Promise.all([
         rpcPromise,
         getCachedSWR('instituteurs', user.ecole_id,
           () => supabase.from('utilisateurs').select('id,prenom,nom,role').eq('role','instituteur').eq('ecole_id', user.ecole_id)),
         getCachedSWR('niveaux', user.ecole_id,
           () => supabase.from('niveaux').select('id,code,nom,type,couleur').eq('ecole_id', user.ecole_id).order('ordre')),
+        baremePromise,
       ]);
+      // Memoriser le bareme pour le state ET pour un usage immediat ci-dessous
+      const baremeLocal = baremeData || {...BAREME_DEFAUT};
+      if (baremeData) setBareme(baremeData);
 
       // Affichage rapide avec données RPC si disponibles
       if (rpcEleves) {
@@ -157,9 +208,13 @@ export default function Dashboard({ user, navigate, goBack, lang, isMobile=false
             ? [{ type_validation: 'tomon', nombre_tomon: r.tomon_cumul, date_validation: r.derniere_validation || new Date().toISOString() }]
             : [];
           const sensE = getSensForEleve({ code_niveau: r.code_niveau }, nv, ecoleConfig);
-          const etat = calcEtatEleve(fakeVals, r.hizb_depart, r.tomon_depart, sensE);
+          const etat = calcEtatEleve(fakeVals, r.hizb_depart, r.tomon_depart, sensE, null, null, baremeLocal);
           etat.hizbsComplets = new Set();
           for (let i = 0; i < (r.hizb_complets_count || 0); i++) etat.hizbsComplets.add(i);
+          // Eleves sourate : la RPC ne fournit ni points de recitations ni ensembles.
+          // On marque les points "en cours" pour afficher "…" au lieu d'un faux 0,
+          // jusqu'a ce que buildElevesData (donnees completes) remplace l'etat.
+          if (isSourateNiveauDyn(r.code_niveau, nv||[])) etat._ptsPending = true;
           return {
             id: r.eleve_id,
             prenom: r.prenom, nom: r.nom,
@@ -184,22 +239,35 @@ export default function Dashboard({ user, navigate, goBack, lang, isMobile=false
       }
 
       // Charger les validations détaillées en arrière-plan
-      const [edRes, vd, rd, ecRes] = await Promise.all([
+      const [edRes, vd, rd, ecRes, peData, certsData] = await Promise.all([
         // FIX (mai 2026) : select('*') au lieu d'une liste explicite tronquee.
         // ValidationRapide utilise select('*') et la recherche par eleve_id_ecole
         // fonctionne. La liste explicite oubliait colonnes -> bug filtre Dashboard.
         // select('*') garantit que tout est present (eleve_id_ecole, etc.)
         supabase.from('eleves').select('*').eq('ecole_id', user.ecole_id).is('suspendu_at', null).order('nom'),
         getCachedSWR('validations', user.ecole_id,
-          () => fetchAll(supabase.from('validations').select('id,eleve_id,type_validation,nombre_tomon,hizb_valide,tomon_debut,date_validation,valide_par,ecole_id,valideur:valide_par(prenom,nom)').eq('ecole_id', user.ecole_id).order('date_validation',{ascending:false}))),
+          // BUG-FIX POINTS ENSEMBLES (oct 2026) : ajout de `ensemble_id` pour que
+          // buildElevesData puisse sommer les points d'ensembles valides (type_validation
+          // = 'ensemble_valide') via bareme.ensembles[ensemble_id].
+          () => fetchAll(supabase.from('validations').select('id,eleve_id,type_validation,nombre_tomon,hizb_valide,tomon_debut,date_validation,valide_par,ecole_id,ensemble_id,valideur:valide_par(prenom,nom)').eq('ecole_id', user.ecole_id).order('date_validation',{ascending:false}))),
         getCachedSWR('recitations_sourates_min', user.ecole_id,
-          () => fetchAll(supabase.from('recitations_sourates').select('eleve_id,date_validation,type_recitation').eq('ecole_id', user.ecole_id).order('date_validation',{ascending:false}))),
+          // BUG-FIX POINTS DASHBOARD (oct 2026) : ajout de `points` au select pour que
+          // buildElevesData puisse sommer ptsSourates. Sans ca, r.points etait undefined
+          // -> ptsSourates=0 -> eleves sourate affichaient 0ن meme avec recitations faites.
+          () => fetchAll(supabase.from('recitations_sourates').select('eleve_id,date_validation,type_recitation,points,is_muraja').eq('ecole_id', user.ecole_id).order('date_validation',{ascending:false}))),
         supabase.from('ecoles').select('sens_recitation_defaut').eq('id', user.ecole_id).maybeSingle(),
+        // Ajout (oct 2026) : examens + certificats pour le total des eleves sourate.
+        // En cas d'echec : [] -> total identique a avant (pas de blocage du Dashboard).
+        supabase.from('points_eleves').select('eleve_id,type_event,points,date_event').eq('ecole_id', user.ecole_id)
+          .then(r => r.data || []).catch(() => []),
+        supabase.from('certificats_eleves').select('eleve_id,jalon_id,date_emission').eq('ecole_id', user.ecole_id)
+          .then(r => r.data || []).catch(() => []),
       ]);
 
 
       // Recalcul précis avec toutes les données (remplace l'affichage RPC)
-      applyData(edRes.data || [], id, vd, rd, nv, ecRes?.data || null);
+      // BUG-FIX POINTS (oct 2026) : passer baremeLocal pour avoir les vrais points.
+      applyData(edRes.data || [], id, vd, rd, nv, ecRes?.data || null, baremeLocal, peData, certsData);
 
       if (!rpcEleves) setLoading(false);
     } catch (e) {
@@ -210,16 +278,28 @@ export default function Dashboard({ user, navigate, goBack, lang, isMobile=false
 
   const alertes = useMemo(() => calcAlertes(eleves, allValidations, lang), [eleves, allValidations, lang]);
   const [certifNotifs, setCertifNotifs] = useState([]);
+  const [showAttenteMobile, setShowAttenteMobile] = useState(false); // F3 (oct 2026)
 
   useEffect(() => {
     if (!user || !eleves.length) return;
     // Charger jalons actifs + certificats déjà émis pour détecter ceux en attente
     const checkCertifs = async () => {
+      // PERF (oct 2026) : avant, une requete PAR eleve et PAR jalon (ensemble / examen), en serie
+      // (des centaines d'allers-retours avec une vraie ecole). Maintenant quelques requetes
+      // groupees, lancees en parallele ; le resultat (liste des certificats a delivrer) est identique.
       const { data: jalons } = await supabase.from('jalons').select('*').eq('ecole_id', user.ecole_id).eq('actif', true);
       if (!jalons || jalons.length === 0) return;
-      const { data: certsEmis } = await supabase.from('certificats_eleves').select('eleve_id,jalon_id').eq('ecole_id', user.ecole_id);
+      const idsEnsembles = [...new Set(jalons.filter(j => j.type_jalon === 'ensemble_sourates' && j.ensemble_id).map(j => j.ensemble_id))];
+      const idsExamens = [...new Set(jalons.filter(j => j.type_jalon === 'examen' && j.examen_id).map(j => j.examen_id))];
+      const [{ data: certsEmis }, recitations, ensRes, reussis] = await Promise.all([
+        supabase.from('certificats_eleves').select('eleve_id,jalon_id').eq('ecole_id', user.ecole_id),
+        fetchAll(supabase.from('recitations_sourates').select('eleve_id,sourate_id,type_recitation,complete,is_muraja').eq('ecole_id', user.ecole_id)),
+        idsEnsembles.length ? supabase.from('ensembles_sourates').select('id,sourates_ids').in('id', idsEnsembles) : Promise.resolve({ data: [] }),
+        idsExamens.length ? fetchAll(supabase.from('resultats_examens').select('eleve_id,examen_id').in('examen_id', idsExamens).eq('statut','reussi')) : Promise.resolve([]),
+      ]);
       const emis = new Set((certsEmis||[]).map(c => c.eleve_id+'_'+c.jalon_id));
-      const recitations = await fetchAll(supabase.from('recitations_sourates').select('eleve_id,sourate_id,type_recitation,complete').eq('ecole_id', user.ecole_id));
+      const ensParId = Object.fromEntries(((ensRes && ensRes.data) || []).map(e => [e.id, e]));
+      const examReussi = new Set((reussis || []).map(r => r.eleve_id+'_'+r.examen_id));
       const notifs = [];
       for (const eleve of eleves) {
         for (const jalon of jalons) {
@@ -229,22 +309,27 @@ export default function Dashboard({ user, navigate, goBack, lang, isMobile=false
             const required = jalon.hizb_ids || [];
             atteint = required.length > 0 && required.every(h => eleve.etat.hizbsComplets.has(Number(h)));
           } else if (jalon.type_jalon === 'ensemble_sourates' && jalon.ensemble_id) {
-            const { data: ens } = await supabase.from('ensembles_sourates').select('sourates_ids').eq('id', jalon.ensemble_id).maybeSingle();
+            const ens = ensParId[jalon.ensemble_id];
             if (ens && ens.sourates_ids && ens.sourates_ids.length > 0) {
-              const srecs = (recitations||[]).filter(r=>r.eleve_id===eleve.id && (r.type_recitation==='complete'||r.complete));
+              const srecs = (recitations||[]).filter(r=>r.eleve_id===eleve.id && (r.type_recitation==='complete'||r.complete) && !r.is_muraja);
               const sComplets = new Set(srecs.map(r=>r.sourate_id));
               atteint = ens.sourates_ids.every(sid => sComplets.has(sid));
             }
           } else if (jalon.type_jalon === 'examen' && jalon.examen_id) {
-            const { data: res } = await supabase.from('resultats_examens').select('id').eq('eleve_id',eleve.id).eq('examen_id',jalon.examen_id).eq('statut','reussi').maybeSingle();
-            atteint = !!res;
+            atteint = examReussi.has(eleve.id+'_'+jalon.examen_id);
           }
           if (atteint) notifs.push({ eleve, jalon });
         }
       }
-      setCertifNotifs(notifs);
+      if (!annule) setCertifNotifs(notifs);
     };
-    checkCertifs();
+    // PERF (oct 2026) : lance 1,2 s apres l'affichage et annule si on quitte l'accueil avant
+    // (ex. clic sur un eleve) : ces requetes (dont toutes les recitations de l'ecole) ne
+    // concurrencent plus le chargement de la fiche eleve. La carte « Certificats a delivrer »
+    // apparait simplement un instant apres le reste de l'accueil.
+    let annule = false;
+    const minuteur = setTimeout(() => { if (!annule) checkCertifs().catch(() => {}); }, 1200);
+    return () => { annule = true; clearTimeout(minuteur); };
   }, [eleves, user]);
   const totalPoints = eleves.reduce((s,e)=>s+e.etat.points.total,0);
   const totalTomon = eleves.reduce((s,e)=>s+e.etat.tomonCumul,0);
@@ -265,7 +350,7 @@ export default function Dashboard({ user, navigate, goBack, lang, isMobile=false
       () => fetchAll(supabase.from('validations').select('*, valideur:valide_par(prenom,nom)').eq('ecole_id', user.ecole_id).eq('eleve_id', eleveId).order('date_validation',{ascending:false}))
     ).catch(()=>{});
     getCachedSWR(`recitations_eleve_${eleveId}`, user.ecole_id,
-      () => fetchAll(supabase.from('recitations_sourates').select('id,type_recitation,sourate_id,verset_debut,verset_fin,date_validation,valide_par,points,sourate:sourate_id(nom_ar,numero),valideur:valide_par(prenom,nom)').eq('ecole_id', user.ecole_id).eq('eleve_id', eleveId))
+      () => fetchAll(supabase.from('recitations_sourates').select('id,type_recitation,sourate_id,verset_debut,verset_fin,date_validation,valide_par,points,is_muraja,sourate:sourate_id(nom_ar,numero),valideur:valide_par(prenom,nom)').eq('ecole_id', user.ecole_id).eq('eleve_id', eleveId))
     ).catch(()=>{});
   };
   const tauxSemaine = eleves.length>0 ? Math.round(nbActifsSemaine/eleves.length*100) : 0;
@@ -316,6 +401,13 @@ export default function Dashboard({ user, navigate, goBack, lang, isMobile=false
   // donnees). Remplacee par l'export RGPD individuel dans les profils.
   const tabs = [{key:'general',icon:'🏠',labelKey:'vue_generale'},{key:'eleves',icon:'👥',labelKey:'eleves'},{key:'instituteurs',icon:'👨‍🏫',labelKey:'instituteurs'},...(user.role==='surveillant'?[{key:'rapport',icon:'📊',labelKey:'rapport_tab'}]:[])];
 
+  // BUG-FIX (oct 2026) : hook appele avant le return mobile (il l'etait apres ->
+  // violation des regles des hooks, crash au passage du seuil 768 px).
+  const {
+    pullDistance, isRefreshing, isThreshold,
+    onTouchStart, onTouchMove, onTouchEnd,
+  } = usePullToRefresh(loadData);
+
   if (isMobile) {
     const podium = [...eleves].sort((a,b)=>b.etat.points.total-a.etat.points.total).slice(0,3);
     const inactifs30 = eleves.filter(e=>e.jours!=null&&e.jours>30);
@@ -332,11 +424,14 @@ export default function Dashboard({ user, navigate, goBack, lang, isMobile=false
     const podiumOrder  = [1,0,2];
 
     return (
-      <div style={{paddingBottom:80, background:'#f5f5f0', minHeight:'100vh'}}>
+      <div style={{paddingBottom:80, background:'#f5f5f0', minHeight:'100vh'}}
+        onTouchStart={onTouchStart} onTouchMove={onTouchMove} onTouchEnd={onTouchEnd}>
+        <PullToRefreshIndicator pullDistance={pullDistance} isRefreshing={isRefreshing} isThreshold={isThreshold} lang={lang} />
 
         {/* ── HEADER GRADIENT ── */}
         <div style={{background:'linear-gradient(135deg,#064e3b 0%,#085041 40%,#1D9E75 100%)',
-          padding:'48px 18px 20px', position:'sticky', top:0, zIndex:100, overflow:'hidden'}}>
+          padding:'calc(44px + env(safe-area-inset-top, 0px)) 18px 20px', position:'sticky', top:-16, zIndex:100, overflow:'hidden',
+          margin:'-16px -16px 0' /* pleine largeur (annule le padding de main) */}}>
           {/* cercles décoratifs */}
           <div style={{position:'absolute',top:-30,right:-30,width:120,height:120,
             borderRadius:'50%',background:'rgba(255,255,255,0.06)'}}/>
@@ -344,10 +439,15 @@ export default function Dashboard({ user, navigate, goBack, lang, isMobile=false
             borderRadius:'50%',background:'rgba(255,255,255,0.04)'}}/>
 
           <div style={{fontSize:13,color:'rgba(255,255,255,0.75)',marginBottom:2,position:'relative'}}>
-            {lang==='ar'?'مرحباً':'Bonjour'} {user.prenom} 👋
+            {lang==='ar'?'مرحباً':'Bonjour'} {user.prenom}
           </div>
-          <div style={{fontSize:21,fontWeight:800,color:'#fff',marginBottom:16,position:'relative'}}>
-            {lang==='ar'?'لوحة التحكم':'Tableau de bord'}
+          <div style={{fontSize:21,fontWeight:800,color:'#fff',marginBottom:16,position:'relative',
+            display:'flex',alignItems:'center',justifyContent:'space-between',gap:8}}>
+            <span>{lang==='ar'?'لوحة التحكم':'Tableau de bord'}</span>
+            {/* F6 (oct 2026) : export Excel aussi sur mobile (surveillant, comme le PC) */}
+            {user.role==='surveillant' && (
+              <HeaderMenu lang={lang} actions={actionsExport({ onExcel: exportExcel, lang })} />
+            )}
           </div>
 
           {/* KPIs row */}
@@ -400,31 +500,44 @@ export default function Dashboard({ user, navigate, goBack, lang, isMobile=false
                 style={{display:'flex',alignItems:'center',gap:10,padding:'12px 14px',
                   background:'#FCEBEB',borderRadius:12,marginBottom:8,cursor:'pointer',
                   border:'0.5px solid #E24B4A30'}}>
-                <span style={{fontSize:18}}>🚨</span>
+                <AlertOctagon size={20} color="#A32D2D" style={{flexShrink:0}} />
                 <div style={{flex:1,fontSize:13,fontWeight:700,color:'#A32D2D'}}>
                   {inactifs30.length} {lang==='ar'?'طالب غائب +30 يوم':'inactif(s) depuis +30 jours'}
                 </div>
                 <span style={{color:'#E24B4A',fontSize:16}}>›</span>
               </div>
             )}
-            {nbAttente>0&&(
-              <div onClick={()=>navigate('inactifs')}
+            {nbAttente>0&&(<>
+              {/* F3 (oct 2026) : renvoyait vers 'inactifs' (qui ne liste pas ces eleves).
+                  Deplie la liste ; chaque eleve ouvre l'enregistrement, comme sur PC. */}
+              <div onClick={()=>setShowAttenteMobile(v=>!v)}
                 style={{display:'flex',alignItems:'center',gap:10,padding:'12px 14px',
                   background:'#FAEEDA',borderRadius:12,marginBottom:8,cursor:'pointer',
                   border:'0.5px solid #EF9F2730'}}>
-                <span style={{fontSize:18}}>⏳</span>
+                <Hourglass size={20} color="#B26A00" style={{flexShrink:0}} />
                 <div style={{flex:1,fontSize:13,fontWeight:700,color:'#633806'}}>
                   {nbAttente} {lang==='ar'?'في انتظار تصحيح الحزب':'en attente validation Hizb'}
                 </div>
-                <span style={{color:'#EF9F27',fontSize:16}}>›</span>
+                <span style={{color:'#EF9F27',fontSize:16}}>{showAttenteMobile?'▾':'›'}</span>
               </div>
-            )}
+              {showAttenteMobile && eleves.filter(e=>e.etat.enAttenteHizbComplet).map(e=>(
+                <div key={e.id} onClick={()=>navigate('enregistrer',e)}
+                  style={{display:'flex',alignItems:'center',gap:10,padding:'10px 12px',margin:'0 0 6px 12px',
+                    background:'#fff',border:'0.5px solid #EF9F2740',borderRadius:10,cursor:'pointer'}}>
+                  <div style={{flex:1}}>
+                    <div style={{fontSize:13,fontWeight:600,color:'#412402'}}>{e.prenom} {e.nom}</div>
+                    <div style={{fontSize:11,color:'#854F0B'}}>Hizb {e.etat.hizbEnCours} · {e.instituteurNom}</div>
+                  </div>
+                  <span style={{fontSize:10,background:'#EF9F27',color:'#fff',borderRadius:20,padding:'2px 8px',fontWeight:600}}>{t(lang,'valider')}</span>
+                </div>
+              ))}
+            </>)}
             {inactifs14.length>0&&!inactifs30.length&&(
               <div onClick={()=>navigate('inactifs')}
                 style={{display:'flex',alignItems:'center',gap:10,padding:'12px 14px',
                   background:'#FFF3CD',borderRadius:12,marginBottom:8,cursor:'pointer',
                   border:'0.5px solid #EF9F2730'}}>
-                <span style={{fontSize:18}}>⚠️</span>
+                <AlertTriangle size={20} color="#856404" style={{flexShrink:0}} />
                 <div style={{flex:1,fontSize:13,fontWeight:700,color:'#856404'}}>
                   {inactifs14.length} {lang==='ar'?'طالب غائب 14-30 يوم':'inactif(s) depuis 14-30 jours'}
                 </div>
@@ -432,6 +545,42 @@ export default function Dashboard({ user, navigate, goBack, lang, isMobile=false
               </div>
             )}
           </div>
+
+          {/* F3 (oct 2026) : certificats a delivrer + alertes intelligentes, comme sur PC */}
+          {certifNotifs.length>0&&(
+            <div style={{padding:'12px 12px 4px'}}>
+              <div style={{fontSize:11,fontWeight:700,color:'#888',textTransform:'uppercase',letterSpacing:'1px',marginBottom:10}}>
+                <Award size={14} style={{verticalAlign:'-2px',marginInlineEnd:6}} />{lang==='ar'?'شهادات في انتظار التسليم':'Certificats à délivrer'} ({certifNotifs.length})
+              </div>
+              {certifNotifs.map((n,i)=>(
+                <div key={i} onClick={()=>navigate('fiche',n.eleve)}
+                  style={{display:'flex',alignItems:'center',gap:10,padding:'11px 12px',marginBottom:6,
+                    background:'#FAEEDA',borderLeft:'4px solid #EF9F27',borderRadius:'0 12px 12px 0',cursor:'pointer'}}>
+                  <div style={{flex:1,minWidth:0}}>
+                    <div style={{fontSize:13,fontWeight:700,color:'#085041'}}>{n.eleve.prenom} {n.eleve.nom}</div>
+                    <div style={{fontSize:11,color:'#B26A00',marginTop:1}}>{lang==='ar'?'مستحق:':'Certificat :'} {n.jalon.nom}</div>
+                  </div>
+                  <span style={{fontSize:11,color:'#EF9F27',fontWeight:600}}>{lang==='ar'?'تسليم ←':'Délivrer →'}</span>
+                </div>
+              ))}
+            </div>
+          )}
+          {alertes.length>0&&(
+            <div style={{padding:'12px 12px 4px'}}>
+              <div style={{fontSize:11,fontWeight:700,color:'#888',textTransform:'uppercase',letterSpacing:'1px',marginBottom:10}}>
+                <Bell size={14} style={{verticalAlign:'-2px',marginInlineEnd:6}} />{t(lang,'alertes')} ({alertes.length})
+              </div>
+              {alertes.slice(0,5).map((a,i)=>(
+                <div key={i} onClick={()=>navigate('fiche',a.eleve)}
+                  style={{display:'flex',alignItems:'center',gap:10,padding:'10px 12px',marginBottom:6,
+                    background:a.bg,borderLeft:`4px solid ${a.color}`,borderRadius:'0 10px 10px 0',cursor:'pointer'}}>
+                  {(() => { const Ic = ICONE_ALERTE[a.type]; return Ic ? <Ic size={18} color={a.color} style={{flexShrink:0}} /> : <span style={{fontSize:16}}>{a.icon}</span>; })()}
+                  <span style={{fontSize:12.5,color:a.color,flex:1}}>{a.msg}</span>
+                  <span style={{fontSize:11,color:a.color,opacity:0.6}}>›</span>
+                </div>
+              ))}
+            </div>
+          )}
 
           {/* ── NAVIGATION DEPLACEE VERS LA PAGE ModulesMobile (Phase 2 - Dashboard pure synthese) ──
               Les modules sont desormais accessibles via le tab 'Plus' de la bottom tab bar.
@@ -443,19 +592,13 @@ export default function Dashboard({ user, navigate, goBack, lang, isMobile=false
               letterSpacing:'1px',marginBottom:10}}>
               {lang==='ar'?'إحصائيات الأسبوع':'Cette semaine'}
             </div>
-            <div style={{display:'grid',gridTemplateColumns:'repeat(2,1fr)',gap:8}}>
-              {[
-                {val:stats.tomonSemaine||0,  lbl:t(lang,'tomon_semaine'),       color:'#1D9E75',bg:'#E1F5EE'},
-                {val:stats.hizbsCompletsMois||0,lbl:t(lang,'hizb_ce_mois'),     color:'#378ADD',bg:'#E6F1FB'},
-                {val:tauxSemaine+'%',         lbl:lang==='ar'?'نسبة النشاط':'Taux activité',color:'#534AB7',bg:'#EEEDFE'},
-                {val:recapMois.nbRecit,       lbl:lang==='ar'?'استظهارات الشهر':'Récit. ce mois',color:'#EF9F27',bg:'#FAEEDA'},
-              ].map((k,i)=>(
-                <div key={i} style={{background:k.bg,borderRadius:12,padding:'14px',textAlign:'center'}}>
-                  <div style={{fontSize:28,fontWeight:800,color:k.color}}>{k.val}</div>
-                  <div style={{fontSize:11,color:k.color,opacity:0.85,marginTop:4}}>{k.lbl}</div>
-                </div>
-              ))}
-            </div>
+            {/* Charte : tuiles neutres, la couleur ne porte que sur le chiffre */}
+            <KpiGrid>
+              <KpiTile value={stats.tomonSemaine||0} label={t(lang,'tomon_semaine')} tone="brand" icon={Sparkles} />
+              <KpiTile value={stats.hizbsCompletsMois||0} label={t(lang,'hizb_ce_mois')} tone="info" icon={BookCheck} />
+              <KpiTile value={tauxSemaine+'%'} label={lang==='ar'?'نسبة النشاط':'Taux activité'} tone="neutral" icon={Activity} />
+              <KpiTile value={recapMois.nbRecit} label={lang==='ar'?'استظهارات الشهر':'Récit. ce mois'} tone="gold" icon={CalendarDays} />
+            </KpiGrid>
           </div>
 
           {/* ── PODIUM TOP 3 ── */}
@@ -611,11 +754,6 @@ export default function Dashboard({ user, navigate, goBack, lang, isMobile=false
 
 
 
-  // Pull-to-refresh (Phase 2 Sprint 4)
-  const {
-    pullDistance, isRefreshing, isThreshold,
-    onTouchStart, onTouchMove, onTouchEnd,
-  } = usePullToRefresh(loadData);
   return (
     <div
       {...(isMobile ? { onTouchStart, onTouchMove, onTouchEnd } : {})}>
@@ -807,12 +945,29 @@ export default function Dashboard({ user, navigate, goBack, lang, isMobile=false
                       </div>
                       <div style={{display:'flex',alignItems:'baseline',gap:4,marginBottom:10}}>
                         {(() => {
-                          // J7 polish : si niveau Sourate -> nb sourates
-                          //              sinon si points total = 0 -> nb Hizb complets (donnee alternative qui parle)
-                          //              sinon points total
+                          // HOMOGENEISATION (oct 2026) : afficher les POINTS en grand pour
+                          // tous les eleves (hizb comme sourate), tant qu'il y en a.
+                          // Avant : les eleves sourate affichaient le nb de sourates, les
+                          // hizb affichaient les points -> incoherent.
+                          // Fallback (points==0) : nb sourates OU nb hizbs complets.
                           const isSourate = isSourateNiveauDyn(eleve.code_niveau, niveaux);
                           const points = eleve.etat.points.total || 0;
                           const hizbComplets = eleve.etat.hizbsComplets?.size || 0;
+                          if (eleve.etat._ptsPending) {
+                            return (<>
+                              <span style={{fontSize:28,fontWeight:800,color:'#ccc',letterSpacing:'-1px'}}>…</span>
+                              <span style={{fontSize:12,color:C.muted}}>{t(lang,'pts_abrev')}</span>
+                            </>);
+                          }
+                          if (points > 0) {
+                            return (<>
+                              <span style={{fontSize:28,fontWeight:800,color:sl.color,letterSpacing:'-1px'}}>
+                                {points.toLocaleString()}
+                              </span>
+                              <span style={{fontSize:12,color:C.muted}}>{t(lang,'pts_abrev')}</span>
+                            </>);
+                          }
+                          // Fallback si pas de points : compteur alternatif
                           if (isSourate) {
                             return (<>
                               <span style={{fontSize:28,fontWeight:800,color:sl.color,letterSpacing:'-1px'}}>
@@ -823,7 +978,7 @@ export default function Dashboard({ user, navigate, goBack, lang, isMobile=false
                               </span>
                             </>);
                           }
-                          if (points === 0 && hizbComplets > 0) {
+                          if (hizbComplets > 0) {
                             return (<>
                               <span style={{fontSize:28,fontWeight:800,color:sl.color,letterSpacing:'-1px'}}>
                                 {hizbComplets}
@@ -843,7 +998,7 @@ export default function Dashboard({ user, navigate, goBack, lang, isMobile=false
                       </div>
                       {isSourateNiveauDyn(eleve.code_niveau,niveaux)?(
                         <div style={{fontSize:11,color:C.muted,marginBottom:6}}>
-                          {eleve.recSouratesCount} {lang==='ar'?'سورة مكتملة':'sourates'} · {eleve.etat.points.total||0} {t(lang,'pts_abrev')}
+                          {eleve.recSouratesCount} {lang==='ar'?'سورة مكتملة':'sourates'} · {eleve.etat._ptsPending ? '…' : (eleve.etat.points.total||0)} {t(lang,'pts_abrev')}
                         </div>
                       ):(
                         <div style={{fontSize:11,color:C.muted,marginBottom:6}}>Hizb {eleve.etat.hizbEnCours} · {eleve.etat.tomonCumul} {t(lang,'tomon_abrev')} · {eleve.etat.hizbsComplets.size} {t(lang,'hizb_abrev')}</div>

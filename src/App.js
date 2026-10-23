@@ -60,7 +60,6 @@ const ElevesInactifs      = lazy(() => import('./pages/ElevesInactifs'));
 const GestionNiveaux      = lazy(() => import('./pages/GestionNiveaux'));
 const GestionExamens      = lazy(() => import('./pages/GestionExamens'));
 const GestionEnsembles    = lazy(() => import('./pages/GestionEnsembles'));
-const GestionBlocs        = lazy(() => import('./pages/GestionBlocs'));
 const ImportMasse         = lazy(() => import('./pages/ImportMasse'));
 const ResultatsExamens    = lazy(() => import('./pages/ResultatsExamens'));
 const ListeCertificats    = lazy(() => import('./pages/ListeCertificats'));
@@ -82,10 +81,11 @@ import EnvBanner from './components/EnvBanner';
 import ImpersonationBanner from './components/ImpersonationBanner';
 import ImpersonationToastListener from './components/ImpersonationToastListener';
 import GlobalSearch from './components/GlobalSearch';
+import { Home as NavHome, Users as NavUsers, CheckCircle2 as NavCheck, LayoutGrid as NavGrid, Search as NavSearch } from 'lucide-react';
 import { invalidateAll } from './lib/cache';
 import { cacheClearAll } from './lib/offlineCache';
 import { installAutoSync } from './lib/offlineQueue';
-import { supabase } from './lib/supabase';
+import { supabase, lireJetonSession, expirationJetonSession, CLE_JETON } from './lib/supabase';
 import './App.css';
 
 // PWA Install prompt
@@ -104,7 +104,7 @@ class ErrorBoundary extends React.Component {
       const isChunkError = this.state.error.toString().includes('ChunkLoadError') ||
                            this.state.error.toString().includes('Loading chunk');
       return (
-        <div style={{padding:24,background:'#fff',fontFamily:'Tajawal,Arial,sans-serif',
+        <div style={{padding:24,background:'#fff',fontFamily:'inherit',
           maxWidth:500,margin:'40px auto',borderRadius:16,boxShadow:'0 4px 20px rgba(0,0,0,0.08)',
           border:'0.5px solid #e0e0d8',textAlign:'center'}}>
           <div style={{fontSize:48,marginBottom:12}}>{isChunkError?'🔄':'🚨'}</div>
@@ -176,7 +176,7 @@ function PageVerificationRoute() {
   const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
   return (
     <ToastProvider isMobile={isMobile}>
-      <Suspense fallback={<div style={{padding:60,textAlign:'center',color:'#888',fontFamily:"'Tajawal',Arial,sans-serif"}}>⏳ Chargement…</div>}>
+      <Suspense fallback={<div style={{padding:60,textAlign:'center',color:'#888',fontFamily:'inherit'}}>⏳ Chargement…</div>}>
         <PageVerification
           numero={VERIFY_NUMERO}
           lang={verifyLang}
@@ -196,7 +196,7 @@ function PageTermsRoute() {
     else window.location.href = '/';
   };
   return (
-    <Suspense fallback={<div style={{padding:60,textAlign:'center',color:'#888',fontFamily:"'Tajawal',Arial,sans-serif"}}>⏳ Chargement…</div>}>
+    <Suspense fallback={<div style={{padding:60,textAlign:'center',color:'#888',fontFamily:'inherit'}}>⏳ Chargement…</div>}>
       <PageTerms onBack={onBack} />
     </Suspense>
   );
@@ -207,7 +207,7 @@ function PagePrivacyRoute() {
     else window.location.href = '/';
   };
   return (
-    <Suspense fallback={<div style={{padding:60,textAlign:'center',color:'#888',fontFamily:"'Tajawal',Arial,sans-serif"}}>⏳ Chargement…</div>}>
+    <Suspense fallback={<div style={{padding:60,textAlign:'center',color:'#888',fontFamily:'inherit'}}>⏳ Chargement…</div>}>
       <PagePrivacy onBack={onBack} />
     </Suspense>
   );
@@ -241,13 +241,16 @@ function App() {
   // Cours × niveau sélectionné pour la page de validation (objet {coursId, codeNiveau})
   const [selectedCoursValidation, setSelectedCoursValidation] = useState(null);
   const [selectedInstituteur, setSelectedInstituteur] = useState(null);
+  // Deep-link vers resultats_examens : {eleve, blocage:{examen}} pour pre-selection
+  // (depuis ValidationRapide ou EnregistrerRecitation apres clic "Vers les examens")
+  const [resultatsExamensData, setResultatsExamensData] = useState(null);
   const [compareEleves, setCompareEleves] = useState([]);
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
   const [lang, setLangRaw] = useState(() => localStorage.getItem('suivi_lang') || 'fr');
   // Recherche transversale (Ctrl+K)
   const [searchOpen, setSearchOpen] = useState(false);
   const [navHistory, setNavHistory] = useState([]);
-  const [gestionTab, setGestionTab] = useState(isMobile ? 'eleves' : 'parametres');
+  const [gestionTab, setGestionTab] = useState(isMobile ? 'instituteurs' : 'parametres'); // F1 : 'eleves' mobile = lien vers ElevesMobile
 
   // ─── MODE KIOSQUE ────────────────────────────────────────────
   // Quand activé : la navbar est masquée, la page est verrouillée sur
@@ -290,11 +293,18 @@ function App() {
     if (outcome === 'accepted') { deferredPrompt = null; setShowInstallBtn(false); }
   };
   const pageRef = React.useRef('dashboard');
+  // F9 (oct 2026) : origine memorisee pour le Retour mobile : {page, vers}
+  // - page ouverte depuis le menu "Plus" (modules) -> Retour revient a "Plus"
+  // - liste eleves (eleves_mobile) ouverte depuis Gestion -> Retour revient a Gestion
+  // Effacee des qu'on revient a l'accueil / au menu Plus (revue oct 2026).
+  const retourMobileRef = React.useRef(null);
   const setPageWithRef = (p) => { pageRef.current = p; setPage(p); };
 
   useEffect(() => {
     const saved = localStorage.getItem('suivi_user');
     if (saved) setUser(JSON.parse(saved));
+    // Securite (oct 2026) : verifier / renouveler la session signee (voir api/auth.js)
+    if (saved) verifierSessionSignee();
 
     // Resize handler debounce a 250ms.
     // CONTEXTE : sans debounce, Chrome 'Capture full size screenshot' fait
@@ -362,7 +372,30 @@ function App() {
       import('./pages/ListeNotes').catch(()=>{});
       import('./pages/ListeCertificats').catch(()=>{});
     }, 2500); // 2.5s apres login, l'utilisateur est sur Dashboard
-    return () => clearTimeout(t);
+    // PERF (oct 2026) : precharger ensuite, un par un et quand le navigateur est libre, le code
+    // des autres menus -> plus d'attente « Chargement… » a la premiere ouverture d'un menu.
+    // Ne charge que du code (aucune requete a la base) ; ignore pour les parents.
+    let annule = false;
+    const t2 = setTimeout(() => {
+      if (user.role === 'parent') return;
+      const suite = [
+        () => import('./pages/ModulesMobile'), () => import('./pages/Seance'), () => import('./pages/TableauHonneur'),
+        () => import('./pages/HistoriqueSeances'), () => import('./pages/ResultatsExamens'), () => import('./pages/RecitationSourate'),
+        () => import('./pages/ValidationCollective'), () => import('./pages/MurajaDashboard'), () => import('./pages/ElevesInactifs'),
+        () => import('./pages/Gestion'), () => import('./pages/Finance'), () => import('./pages/Assiduite'),
+        () => import('./pages/SuiviCours'), () => import('./pages/CoursValidation'), () => import('./pages/Calendrier'),
+        () => import('./pages/RapportMensuel'), () => import('./pages/DashboardDirection'), () => import('./pages/ProfilMobile'),
+        () => import('./pages/GestionEnsembles'), () => import('./pages/GestionExamens'), () => import('./pages/GestionNiveaux'),
+        () => import('./pages/GestionCours'), () => import('./pages/SuiviParents'), () => import('./pages/GestionObjectifs'),
+      ];
+      const libre = (cb) => (window.requestIdleCallback ? window.requestIdleCallback(cb, { timeout: 3000 }) : setTimeout(cb, 300));
+      const suivant = (k) => {
+        if (annule || k >= suite.length) return;
+        libre(() => { if (annule) return; suite[k]().catch(() => {}).finally(() => suivant(k + 1)); });
+      };
+      suivant(0);
+    }, 6000);
+    return () => { annule = true; clearTimeout(t); clearTimeout(t2); };
   }, [user?.id]);
 
   const setLang = (newLang) => {
@@ -383,8 +416,46 @@ function App() {
     cacheClearAll().catch(() => {}); // vider aussi le cache persistant IndexedDB
     setUser(null);
     localStorage.removeItem('suivi_user');
+    try { localStorage.removeItem(CLE_JETON); } catch (e) { /* */ }
     setPageWithRef('dashboard');
   };
+
+  // Securite (oct 2026) : session signee par le serveur.
+  // - renouvelee automatiquement a moins de 7 jours de son expiration ;
+  // - si l'utilisateur n'en a pas (connecte avant la mise a jour) ou si elle a expire,
+  //   et que le serveur en delivre : retour a l'ecran de connexion (une seule fois).
+  async function verifierSessionSignee() {
+    try {
+      const jeton = lireJetonSession();
+      if (jeton) {
+        if (expirationJetonSession() - Date.now() < 7 * 24 * 3600 * 1000) {
+          const r = await fetch('/api/auth', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'refresh', token: jeton }) });
+          if (r.ok) { const d = await r.json(); if (d.token) localStorage.setItem(CLE_JETON, d.token); }
+          else if (r.status === 401) { sessionStorage.setItem('suivi_session_expiree', '1'); handleLogout(); }
+        }
+        return;
+      }
+      const r = await fetch('/api/auth', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'capabilities' }) });
+      if (!r.ok) return; // hors ligne ou API indisponible : on ne deconnecte pas
+      const d = await r.json();
+      // Audit final : si la base a deja refuse le jeton (secret mal configure), ne pas renvoyer
+      // l'utilisateur a la connexion a chaque ouverture (boucle). Il garde le mode precedent.
+      let jwtKo = false;
+      try { jwtKo = localStorage.getItem('suivi_jwt_ko') === '1'; } catch (e) { /* */ }
+      if (d && d.jwt && !jwtKo) { sessionStorage.setItem('suivi_session_expiree', '1'); handleLogout(); }
+    } catch (e) { /* hors ligne : on garde la session locale */ }
+  }
+
+  // Audit final (oct 2026) : verifier / renouveler la session toutes les heures (appli laissee
+  // ouverte, tablette en kiosque) pour qu'un jeton expire ne laisse pas des ecrans vides.
+  useEffect(() => {
+    if (!user?.id) return undefined;
+    const minuteur = setInterval(() => { verifierSessionSignee(); }, 3600 * 1000);
+    return () => clearInterval(minuteur);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id]);
 
   // ─── Impersonification super admin → surveillant d'une école ─────
   // Permet au super admin de "voir comme" un surveillant pour l'aider
@@ -424,12 +495,19 @@ function App() {
   };
 
   const navigate = (p, data = null, extraData = null) => {
+    if (pageRef.current === 'modules') retourMobileRef.current = { page: p, vers: 'modules' }; // F9
+    else if (pageRef.current === 'gestion' && p === 'eleves_mobile') retourMobileRef.current = { page: p, vers: 'gestion' };
+    else if (p === 'dashboard' || p === 'modules') retourMobileRef.current = null;
     setPageWithRef(p);
     if (p === 'fiche' || p === 'enregistrer') setSelectedEleve(data);
     if (p === 'profil_instituteur') setSelectedInstituteur(data);
     if (p === 'comparaison') setCompareEleves(data || []);
     if (p === 'cours_axes') setSelectedCoursId(data);
     if (p === 'cours_validation') setSelectedCoursValidation(data);
+    // Deep-link vers resultats_examens : stocke {eleve, blocage:{examen}}
+    // pour que ResultatsExamens pre-selectionne l'eleve ET l'examen bloquant.
+    // data=null (navbar) => reset, les champs restent vides.
+    if (p === 'resultats_examens') setResultatsExamensData(data);
     if (extraData?.tab) setGestionTab(extraData.tab);
     window.scrollTo(0, 0);
   };
@@ -469,7 +547,6 @@ function App() {
     'niveaux': 'gestion',
     'ensembles': 'gestion',
     'examens': 'gestion',
-    'blocs': 'gestion',
     'import_masse': 'gestion',
     'gestion_assiduite': 'gestion',
     'gestion_tarifs': 'gestion',
@@ -493,9 +570,28 @@ function App() {
     'certificats': 'gestion',
   };
 
+  // Pages dont la route est reservee au surveillant (gardes de role plus bas).
+  // BUG-FIX (oct 2026) : un instituteur qui faisait Retour depuis la fiche eleve,
+  // Comparaison, un profil instituteur ou Resultats examens etait renvoye vers
+  // 'gestion' ou 'examens' (surveillant seul) -> page blanche. On retombe alors
+  // sur le dashboard. A tenir a jour si une garde de role est ajoutee/retiree.
+  const PAGES_SURVEILLANT = new Set([
+    'dashboard_direction','finance','assiduite','gestion_assiduite','gestion_tarifs',
+    'gestion_parents','parents','rapport_mensuel',
+    'gestion','niveaux','ensembles','examens','import_masse',
+  ]);
+
   const goBack = () => {
     const currentPage = pageRef.current;
-    const parent = PARENT_PAGE[currentPage] || 'dashboard';
+    let parent = PARENT_PAGE[currentPage] || 'dashboard';
+    // Bloc 3 (oct 2026) : l'instituteur arrive sur gestion_cours depuis 'cours' (pas depuis Gestion)
+    if (user?.role !== 'surveillant' && currentPage === 'gestion_cours') parent = 'cours';
+    if (user?.role !== 'surveillant' && PAGES_SURVEILLANT.has(parent)) parent = 'dashboard';
+    // F9 : sur mobile, une page ouverte depuis "Plus" revient au menu Plus (et non a l'accueil)
+    if (isMobile && retourMobileRef.current && retourMobileRef.current.page === currentPage) {
+      parent = retourMobileRef.current.vers;
+      retourMobileRef.current = null;
+    }
     setPageWithRef(parent);
     // Reset des selections specifiques quand on remonte
     if (currentPage === 'fiche' || currentPage === 'enregistrer') setSelectedEleve(null);
@@ -511,7 +607,13 @@ function App() {
   // a une page anciennement visitee dans une autre branche).
   const navigateRoot = (p) => {
     setNavHistory([]);
+    retourMobileRef.current = null; // F9 : la navbar repart de zero
     setPageWithRef(p);
+    // Reset des donnees contextuelles de deep-link : la navbar est un "fresh start",
+    // donc on ne doit pas pre-selectionner un eleve/examen residuel d'un deep-link
+    // precedent (ex: apres validation d'un examen on revient sur l'onglet "Resultats
+    // examens" via la navbar => on doit avoir l'ecran vide, pas l'ancien eleve).
+    setResultatsExamensData(null);
     window.scrollTo(0, 0);
   };
 
@@ -557,7 +659,7 @@ function App() {
   // J9 Landing : si pas connecte ET showLanding=true -> page landing publique
   if (!user && showLanding) {
     return (
-      <Suspense fallback={<div style={{padding:60,textAlign:'center',color:'#888',fontFamily:"'Tajawal',Arial,sans-serif"}}>⏳ Chargement…</div>}>
+      <Suspense fallback={<div style={{padding:60,textAlign:'center',color:'#888',fontFamily:'inherit'}}>⏳ Chargement…</div>}>
         <PageLanding onGoToLogin={goToLoginFromLanding} />
       </Suspense>
     );
@@ -770,10 +872,10 @@ function App() {
                   {p:'validation_rapide', icon:'⚡', text:t(lang,'express'),                                          roles:['surveillant','instituteur']},
                   {p:'muraja',            icon:'📖', text:lang==='ar'?'مراجعة جماعية':"Muraja'a",                     roles:['surveillant','instituteur']},
                   {p:'cours',             icon:'📚', text:lang==='ar'?'الدروس':'Cours',                              roles:['surveillant','instituteur']},
-                  {p:'rapport_mensuel',   icon:'📊', text:t(lang,'rapport'),                                          roles:['surveillant','instituteur']},
-                  {p:'liste_certificats', icon:'🏅', text:lang==='ar'?'الشهادات':'Certificats',                       roles:['surveillant']},
+                  {p:'rapport_mensuel',   icon:'📊', text:t(lang,'rapport'),                                          roles:['surveillant']},
+                  {p:'liste_certificats', icon:'🏅', text:lang==='ar'?'الشهادات':'Certificats',                       roles:['surveillant','instituteur']},
                   {p:'historique_seances',icon:'📈', text:lang==='ar'?'السجل':t(lang,'historique')||'Registre',       roles:['surveillant','instituteur']},
-                  {p:'liste_notes',       icon:'⭐', text:lang==='ar'?'النقاط':'Notes',                               roles:['surveillant']},
+                  {p:'liste_notes',       icon:'⭐', text:lang==='ar'?'النقاط':'Notes',                               roles:['surveillant','instituteur']},
                   {p:'resultats_examens', icon:'🏅', text:lang==='ar'?'نتائج الامتحانات':'Résultats',                 roles:['surveillant','instituteur']},
                   {p:'seance',            icon:'📋', text:t(lang,'seance'),                                           roles:['surveillant','instituteur']},
                   {p:'objectifs',         icon:'🎯', text:lang==='ar'?'الأهداف':lang==='en'?'Objectives':'Objectifs', roles:['surveillant']},
@@ -824,8 +926,10 @@ function App() {
             CACHE SUR DASHBOARD : sur Dashboard mobile, l'avatar est integre
             DANS le header gradient (a cote de la salutation "مرحباً jamal").
             Voir Dashboard.js pour cette integration. */}
-        {isMobile && user.role !== 'parent' && !kioskMode && (
-          <div style={{position:'fixed', top:12, right:12, zIndex:1000}}>
+        {/* Charte mobile lot 1 (oct 2026) : pastille profil seulement sur l'accueil et le menu
+            Plus. Ailleurs elle chevauchait les boutons des en-tetes (+ Recit., PDF, Excel). */}
+        {isMobile && user.role !== 'parent' && !kioskMode && (page === 'dashboard' || page === 'modules') && (
+          <div style={{position:'fixed', top:'calc(12px + env(safe-area-inset-top, 0px))', right:12, zIndex:1000}}>
             <button onClick={e=>{e.stopPropagation();setShowUserMenu(v=>!v);setShowLangMenu(false);}}
               aria-label={lang==='ar'?'الملف الشخصي':'Mon profil'}
               style={{
@@ -906,7 +1010,7 @@ function App() {
         <main className={isMobile ? 'main-content-mobile' : 'main-content'}>
           {user.role === 'parent' && (
             <Suspense fallback={<div style={{display:'flex',alignItems:'center',justifyContent:'center',padding:'3rem',color:'#888',fontSize:13}}><span style={{marginRight:8}}>⏳</span>{lang==='ar'?'جاري التحميل...':'Chargement...'}</div>}>
-              <ErrorBoundary><PortailParent parent={user} navigate={navigate} goBack={goBack} lang={lang} onLogout={handleLogout} /></ErrorBoundary>
+              <ErrorBoundary><PortailParent parent={user} navigate={navigate} goBack={goBack} lang={lang} onLogout={handleLogout} isMobile={isMobile} /></ErrorBoundary>
             </Suspense>
           )}
           {user.role !== 'parent' && <>
@@ -920,14 +1024,14 @@ function App() {
                 <button onClick={()=>goBack?goBack():setPageWithRef('dashboard')} className="back-link" style={{marginTop:'1rem'}}>← Retour</button>
               </div>
           )}
-          {page === 'objectifs'          && <ErrorBoundary><GestionObjectifs user={user} navigate={navigate} goBack={goBack} lang={lang} isMobile={isMobile} /></ErrorBoundary>}
+          {page === 'objectifs'          && user.role==='surveillant' && <ErrorBoundary><GestionObjectifs user={user} navigate={navigate} goBack={goBack} lang={lang} isMobile={isMobile} /></ErrorBoundary>}
           {page === 'historique_seances'   && <ErrorBoundary><HistoriqueSeances user={user} navigate={navigate} goBack={goBack} lang={lang} isMobile={isMobile} /></ErrorBoundary>}
           {page === 'finance'             && user.role==='surveillant' && <ErrorBoundary><Finance user={user} navigate={navigate} goBack={goBack} lang={lang} isMobile={isMobile} /></ErrorBoundary>}
           {page === 'assiduite'           && user.role==='surveillant' && <ErrorBoundary><Assiduite user={user} navigate={navigate} goBack={goBack} lang={lang} isMobile={isMobile} kioskMode={kioskMode} enterKiosk={enterKiosk} exitKiosk={exitKiosk} /></ErrorBoundary>}
           {page === 'gestion_assiduite'   && user.role==='surveillant' && <ErrorBoundary><GestionAssiduite user={user} navigate={navigate} goBack={goBack} lang={lang} isMobile={isMobile} /></ErrorBoundary>}
           {page === 'gestion_tarifs'      && user.role==='surveillant' && <ErrorBoundary><GestionTarifs user={user} navigate={navigate} goBack={goBack} lang={lang} isMobile={isMobile} /></ErrorBoundary>}
-          {page === 'gestion_cours'       && user.role==='surveillant' && <ErrorBoundary><GestionCours user={user} navigate={navigate} goBack={goBack} lang={lang} isMobile={isMobile} /></ErrorBoundary>}
-          {page === 'cours_axes'          && user.role==='surveillant' && <ErrorBoundary><GestionCoursAxes user={user} navigate={navigate} goBack={goBack} lang={lang} isMobile={isMobile} coursId={selectedCoursId} /></ErrorBoundary>}
+          {page === 'gestion_cours'       && (user.role==='surveillant' || user.role==='instituteur') && <ErrorBoundary><GestionCours user={user} navigate={navigate} goBack={goBack} lang={lang} isMobile={isMobile} /></ErrorBoundary>}
+          {page === 'cours_axes'          && (user.role==='surveillant' || user.role==='instituteur') && <ErrorBoundary><GestionCoursAxes user={user} navigate={navigate} goBack={goBack} lang={lang} isMobile={isMobile} coursId={selectedCoursId} /></ErrorBoundary>}
           {page === 'cours'               && (user.role==='surveillant' || user.role==='instituteur') && <ErrorBoundary><SuiviCours user={user} navigate={navigate} goBack={goBack} lang={lang} isMobile={isMobile} /></ErrorBoundary>}
           {page === 'cours_validation'    && (user.role==='surveillant' || user.role==='instituteur') && <ErrorBoundary><CoursValidation user={user} navigate={navigate} goBack={goBack} lang={lang} isMobile={isMobile} coursValidation={selectedCoursValidation} /></ErrorBoundary>}
           {page === 'gestion_parents'     && user.role==='surveillant' && <ErrorBoundary><GestionParents user={user} navigate={navigate} goBack={goBack} lang={lang} isMobile={isMobile} /></ErrorBoundary>}
@@ -949,14 +1053,14 @@ function App() {
           {page === 'calendrier'        && <Calendrier {...pageProps} />}
           {page === 'profil_instituteur'&& selectedInstituteur && <ProfilInstituteur instituteur={selectedInstituteur} {...pageProps} />}
           {page === 'comparaison'       && <Comparaison eleves={compareEleves} {...pageProps} />}
-          {page === 'rapport_mensuel'   && <RapportMensuel {...pageProps} />}
+          {/* Droits (decision Jamal oct 2026) : rapport mensuel = surveillant uniquement, PC et mobile */}
+          {page === 'rapport_mensuel'   && user.role === 'surveillant' && <RapportMensuel {...pageProps} />}
           {page === 'gestion'           && user.role === 'surveillant' && <Gestion {...pageProps} initialTab={gestionTab} setGestionTab={setGestionTabWithHistory} />}
           {page === 'niveaux'           && user.role === 'surveillant' && <GestionNiveaux {...pageProps} />}
           {page === 'ensembles'         && user.role === 'surveillant' && <GestionEnsembles {...pageProps} />}
           {page === 'examens'           && user.role === 'surveillant' && <GestionExamens {...pageProps} />}
-          {page === 'blocs'             && user.role === 'surveillant' && <GestionBlocs {...pageProps} />}
           {page === 'import_masse'      && user.role === 'surveillant' && <ImportMasse {...pageProps} />}
-          {page === 'resultats_examens' && <ResultatsExamens {...pageProps} data={selectedEleve} />}
+          {page === 'resultats_examens' && <ResultatsExamens {...pageProps} data={resultatsExamensData} />}
           {page === 'liste_certificats' && <ErrorBoundary><Suspense fallback={<div className="loading">...</div>}><ListeCertificats {...pageProps} /></Suspense></ErrorBoundary>}
           {page === 'liste_notes'       && <ErrorBoundary><Suspense fallback={<div className="loading">...</div>}><ListeNotes       {...pageProps} /></Suspense></ErrorBoundary>}
           </Suspense>
@@ -966,21 +1070,12 @@ function App() {
 
         {isMobile && user.role !== 'parent' && !kioskMode && (
           <nav className="bottom-nav" dir={getDir(lang)}>
-            {(user.role === 'surveillant' ? [
-              { key: 'dashboard',         icon: '🏠', label: lang==='ar'?'الرئيسية':'Accueil' },
-              { key: 'eleves_mobile',     icon: '👥', label: lang==='ar'?'الطلاب':'Élèves' },
-              { key: 'validation_rapide', icon: '⚡', label: lang==='ar'?'استظهار':'Express' },
-              { key: 'dashboard_plus',    icon: '⚙️', label: lang==='ar'?'المزيد':'Plus' },
-            ] : user.role === 'instituteur' ? [
-              { key: 'dashboard',         icon: '🏠', label: lang==='ar'?'الرئيسية':'Accueil' },
-              { key: 'eleves_mobile',     icon: '👥', label: lang==='ar'?'الطلاب':'Élèves' },
-              { key: 'validation_rapide', icon: '⚡', label: lang==='ar'?'استظهار':'Valider' },
-              { key: 'dashboard_plus',    icon: '⚙️', label: lang==='ar'?'المزيد':'Plus' },
-            ] : [
-              { key: 'dashboard',         icon: '🏠', label: lang==='ar'?'الرئيسية':'Accueil' },
-              { key: 'eleves_mobile',     icon: '👥', label: lang==='ar'?'الطلاب':'Élèves' },
-              { key: 'validation_rapide', icon: '⚡', label: lang==='ar'?'استظهار':'Express' },
-              { key: 'dashboard_plus',    icon: '⚙️', label: lang==='ar'?'المزيد':'Plus' },
+            {/* Charte mobile (oct 2026) : memes 4 entrees pour tous les roles, icones au trait */}
+            {([
+              { key: 'dashboard',         icon: NavHome,  label: lang==='ar'?'الرئيسية':'Accueil' },
+              { key: 'eleves_mobile',     icon: NavUsers, label: lang==='ar'?'الطلاب':'Élèves' },
+              { key: 'validation_rapide', icon: NavCheck, label: lang==='ar'?'استظهار':'Valider' },
+              { key: 'dashboard_plus',    icon: NavGrid,  label: lang==='ar'?'المزيد':'Plus' },
             ]).map(tab => {
               // 'dashboard_plus' = raccourci vers la page Modules (page de navigation dediee)
               // (Phase 2 : Dashboard pure synthese, navigation des modules dans une page separee)
@@ -992,7 +1087,7 @@ function App() {
                 <div key={tab.key}
                   className={`bottom-nav-item ${isActive ? 'active' : ''}`}
                   onClick={() => navigateRoot(targetKey)}>
-                  <span className="bottom-nav-icon">{tab.icon}</span>
+                  <span className="bottom-nav-icon"><tab.icon size={22} strokeWidth={isActive ? 2.4 : 1.9} /></span>
                   <span className="bottom-nav-label">{tab.label}</span>
                 </div>
               );
@@ -1003,18 +1098,21 @@ function App() {
         {/* FAB Recherche — mobile uniquement, non-parent, non-kiosk
             E1 mobile M1b — deplace de top:60 (chevauchait le bandeau alerte)
             vers bas-droite (pattern mobile standard, accessible au pouce) */}
-        {isMobile && user.role !== 'parent' && !kioskMode && (
+        {/* Charte mobile lot 1 (oct 2026) : recherche globale flottante seulement sur l'accueil
+            et le menu Plus ; ailleurs elle couvrait des chiffres et des noms (les listes ont
+            deja leur propre champ de recherche). */}
+        {isMobile && user.role !== 'parent' && !kioskMode && (page === 'dashboard' || page === 'modules') && (
           <button onClick={()=>setSearchOpen(true)}
             aria-label={lang==='ar'?'بحث':'Rechercher'}
             style={{
               position:'fixed', bottom:80, right:14, zIndex:90,
               width:52, height:52, borderRadius:26,
-              background:'linear-gradient(135deg,#085041,#1D9E75)',
+              background:'#0B5A45',
               border:'none', color:'#fff', fontSize:22,
               cursor:'pointer', boxShadow:'0 6px 16px rgba(8,80,65,0.40)',
               display:'flex', alignItems:'center', justifyContent:'center',
             }}>
-            🔍
+            <NavSearch size={22} strokeWidth={2.2} />
           </button>
         )}
       </div>

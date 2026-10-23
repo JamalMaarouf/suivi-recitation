@@ -65,6 +65,8 @@ export default function PageHeader({
 }) {
   // Choix du titre selon la langue (fallback FR)
   const displayTitle = (lang === 'ar' && titleAr) ? titleAr : title;
+  // Charte mobile lot 1 : la fleche est ajoutee par le style .back-link -> pas de double fleche
+  const libelleRetour = String(t(lang, 'retour')).replace(/[←→]/g, '').trim();
 
   // ─────────────────────────────────────────────────────────────────────────
   // VARIANT 'dark' — Sticky blur, fond noir, gamification (Tableau Honneur)
@@ -202,6 +204,38 @@ export default function PageHeader({
   }
 
   // ─────────────────────────────────────────────────────────────────────────
+  // Charte mobile lot 1 (oct 2026) : sur mobile, l'en-tete standard de l'application
+  // (bandeau vert, retour 44 px, titre blanc) au lieu de l'en-tete PC sur fond clair.
+  // ─────────────────────────────────────────────────────────────────────────
+  if (isMobile) {
+    return (
+      <div style={{
+        background: 'linear-gradient(135deg,#085041,#1D9E75)',
+        padding: 'calc(48px + env(safe-area-inset-top, 0px)) 16px 14px',
+        position: 'sticky', top: 0, zIndex: 100, marginBottom: 12,
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          {onBack && (
+            <button onClick={onBack} aria-label={libelleRetour}
+              style={{ background: 'rgba(255,255,255,0.22)', border: '1px solid rgba(255,255,255,0.25)', borderRadius: 10,
+                width: 44, height: 44, padding: 0, color: '#fff', fontSize: 20, cursor: 'pointer', flexShrink: 0,
+                display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              {lang === 'ar' ? '→' : '←'}
+            </button>
+          )}
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 17, fontWeight: 800, color: '#fff', lineHeight: 1.2, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+              {icon && <span style={{ marginInlineEnd: 6 }}>{icon}</span>}{displayTitle}{titleSuffix}
+            </div>
+            {subtitle && <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.8)', marginTop: 2 }}>{subtitle}</div>}
+          </div>
+          {actions && <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>{actions}</div>}
+        </div>
+      </div>
+    );
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
   // VARIANT 'default' — Header desktop classique (la majorité des pages)
   // ─────────────────────────────────────────────────────────────────────────
   return (
@@ -216,10 +250,10 @@ export default function PageHeader({
         <button
           onClick={onBack}
           className="back-link"
-          aria-label={t(lang, 'retour')}
+          aria-label={libelleRetour}
           style={{ marginBottom: 0, flexShrink: 0 }}
         >
-          {t(lang, 'retour')}
+          {libelleRetour}
         </button>
       )}
 

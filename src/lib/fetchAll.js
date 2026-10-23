@@ -12,6 +12,14 @@
 // + log le problème (pas d'exception pour ne pas casser l'UI).
 
 const DEFAULT_PAGE_SIZE = 1000;
+
+// Bloc 5 (oct 2026) : mesure opt-in des requetes paginees. Activer dans la console du
+// navigateur : localStorage.setItem('perf_debug','1') puis recharger la page.
+// Affiche pour chaque fetchAll : table, nb de lignes, nb de pages, duree.
+function perfActif() {
+  try { return typeof window !== 'undefined' && window.localStorage.getItem('perf_debug') === '1'; }
+  catch { return false; }
+}
 // Hard cap pour éviter une boucle infinie si Supabase renvoie 1000 en permanence
 // à cause d'un bug/filtre cassé. 50 × 1000 = 50 000 lignes max par appel.
 const MAX_PAGES = 50;
@@ -31,12 +39,32 @@ export async function fetchAll(queryBuilder, options = {}) {
   const all = [];
   let offset = 0;
 
+  // FIX (oct 2026) : sans ORDER BY stable, Postgres ne garantit pas le meme ordre d'une
+  // page a l'autre -> au-dela de 1000 lignes, des lignes pouvaient etre sautees ou
+  // dupliquees (points faux). On ajoute 'id' comme critere de tri final (apres l'eventuel
+  // tri existant, qui reste prioritaire). Les 2 tables paginees (validations,
+  // recitations_sourates) ont bien une colonne id.
+  if (queryBuilder && typeof queryBuilder.order === 'function' && options.ordreStable !== false) {
+    queryBuilder = queryBuilder.order('id', { ascending: true });
+  }
+
+  const t0 = perfActif() ? performance.now() : 0;
+  let nbPages = 0;
+  const logPerf = () => {
+    if (!t0) return;
+    let table = '?';
+    try { table = (queryBuilder.url && queryBuilder.url.pathname.split('/').pop()) || '?'; } catch {}
+    console.info(`[perf] fetchAll ${table} : ${all.length} lignes, ${nbPages} page(s), ${Math.round(performance.now() - t0)} ms`);
+  };
+
   for (let page = 0; page < MAX_PAGES; page++) {
+    nbPages = page + 1;
     const { data, error } = await queryBuilder.range(offset, offset + pageSize - 1);
 
     if (error) {
       console.warn('[fetchAll] error at page', page, error.message);
       // On retourne ce qu'on a eu, sans casser l'UI
+      logPerf();
       return all;
     }
 
@@ -55,6 +83,7 @@ export async function fetchAll(queryBuilder, options = {}) {
     }
   }
 
+  logPerf();
   return all;
 }
 

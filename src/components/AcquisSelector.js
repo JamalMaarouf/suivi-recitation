@@ -30,8 +30,9 @@
 //
 // ═══════════════════════════════════════════════════════════════════════════
 
-import React from 'react';
-import { calcPoints } from '../lib/helpers';
+import React, { useState, useEffect } from 'react';
+import { calcPoints, loadBareme, calcHizbsAcquisAvantArrivee } from '../lib/helpers';
+import { supabase } from '../lib/supabase';
 import { SOURATES_CORAN } from '../lib/sourates';
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -100,6 +101,17 @@ export default function AcquisSelector({
   sens = 'desc',
   programmeNiveau = [],
 }) {
+  // Oct 2026 : apercu des points des acquis avec le VRAI bareme de l'ecole.
+  // Avant : calcPoints sans bareme -> BAREME_DEFAUT (tout a 0) -> toujours « 0 pts ».
+  const [baremeEcole, setBaremeEcole] = useState(null);
+  useEffect(() => {
+    let annule = false;
+    let ecoleId = null;
+    try { ecoleId = JSON.parse(localStorage.getItem('suivi_user') || 'null')?.ecole_id || null; } catch (e) { ecoleId = null; }
+    if (!ecoleId) return undefined;
+    loadBareme(supabase, ecoleId).then(b => { if (!annule) setBaremeEcole(b); }).catch(() => {});
+    return () => { annule = true; };
+  }, []);
   const _niv = niveauxDyn.find(n => n.code === codeNiveau);
   const isSourate = _niv ? _niv.type === 'sourate' : ['5B', '5A', '2M'].includes(codeNiveau);
   // Mode blocs : actif si on a un programme avec au moins 1 bloc
@@ -116,7 +128,6 @@ export default function AcquisSelector({
     const souratesOrdonnees = [...SOURATES_CORAN].sort((a, b) =>
       sens === 'asc' ? a.numero - b.numero : b.numero - a.numero);
     const nbAcquis = souratesAcquises || 0;
-    const ptsAcquis = nbAcquis * 30; // 30 pts par sourate complete
 
     return (
       <div style={{ background: '#f9f9f6', borderRadius: 12, padding: '1rem', border: '0.5px solid #e0e0d8' }}>
@@ -173,10 +184,7 @@ export default function AcquisSelector({
             <div style={{ fontSize: 11, color: '#085041', fontWeight: 600, marginBottom: 2 }}>
               🎓 {nbAcquis} {lang === 'ar' ? 'سورة محفوظة' : lang === 'en' ? 'surahs memorized' : 'sourates mémorisées'}
             </div>
-            <div style={{ fontSize: 22, fontWeight: 800, color: '#085041' }}>{ptsAcquis.toLocaleString()} {lang === 'ar' ? 'ن' : 'pts'}</div>
-            <div style={{ fontSize: 10, color: '#0F6E56', marginTop: 2 }}>
-              {lang === 'ar' ? 'ستُحسب تلقائياً' : lang === 'en' ? 'Auto-calculated' : 'Calculés automatiquement'}
-            </div>
+            {/* oct 2026 : affichage '30 pts x N' retire - les sourates acquises ne rapportent pas de points dans le calcul reel */}
             {nbAcquis > 0 && (
               <div style={{ fontSize: 11, color: '#085041', marginTop: 4, direction: 'rtl' }}>
                 {lang === 'ar' ? 'آخر سورة:' : lang === 'en' ? 'Last surah:' : 'Dernière sourate :'} {souratesOrdonnees[nbAcquis - 1]?.nom_ar}
@@ -449,10 +457,16 @@ export default function AcquisSelector({
       </div>}
 
       {/* Points correspondants aux acquis */}
-      {(hizb > 1 || tomon > 1) && (() => {
-        const ta = (hizb - 1) * 8 + (tomon - 1);
-        const hc = hizb - 1;
-        const pts = calcPoints(ta, hc, [], ta, hc);
+      {(() => {
+        // Meme calcul que calcEtatEleve (helpers) pour que l'apercu = les points reels :
+        // Hizb acquis = ceux AVANT le Hizb de depart (selon le sens et les blocs),
+        // Tomon acquis = 8 par Hizb acquis + (Tomon de depart - 1).
+        const depart = hasBlocs ? calculerHizbDepartDepuisBlocs(programmeNiveau, hizbsAcquis, sens) : hizb;
+        if (!depart) return null; // aucun acquis : rien a afficher (calcEtatEleve compte 0)
+        const hc = calcHizbsAcquisAvantArrivee({ hizb_depart: depart }, programmeNiveau, sens).size;
+        const ta = hc * 8 + ((tomon || 1) - 1);
+        if (ta === 0) return null;
+        const pts = calcPoints(ta, hc, [], ta, hc, baremeEcole);
         return (
           <div style={{ marginTop: 10, background: '#E1F5EE', borderRadius: 10, padding: '12px', textAlign: 'center', border: '0.5px solid #9FE1CB' }}>
             <div style={{ fontSize: 11, color: '#0F6E56', marginBottom: 4, fontWeight: 600 }}>

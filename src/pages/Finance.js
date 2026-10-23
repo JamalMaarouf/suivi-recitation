@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
+import { fetchAll } from '../lib/fetchAll'; // FIX (oct 2026) : pagination cotisations >1000 lignes
 import ConfirmModal from '../components/ConfirmModal';
 import { getInitiales } from '../lib/helpers';
 import { t } from '../lib/i18n';
@@ -8,6 +9,8 @@ import PageHeader from '../components/PageHeader';
 import StatsCard from '../components/StatsCard';
 import MobileSkeletonList from '../components/MobileSkeletonList';
 import { usePullToRefresh, PullToRefreshIndicator } from '../lib/usePullToRefresh';
+import { MobileHeader, HeaderMenu, FilterChips, actionsExport, KpiGrid, KpiTile, ListRow, Avatar as UiAvatar, LevelBadge, ActionSheet, C } from '../components/ui';
+import { Wallet, HandCoins, Receipt, Scale, CircleAlert, Pencil, Trash2, Search } from 'lucide-react';
 
 const CATEGORIES = [
   { val: 'salaire',     label: 'Salaires / Honoraires', labelAr: 'الرواتب',       icon: '👨‍🏫', color: '#534AB7' },
@@ -56,6 +59,14 @@ const getAnnees = () => {
   const years = [];
   for (let y = current - 10; y <= current + 10; y++) years.push(y);
   return years.map(y=>({ val:String(y), fr:String(y), ar:String(y) }));
+};
+
+// FIX (oct 2026) : normalise une periode mensuelle "M-YYYY" en "MM-YYYY" (format dominant en base).
+// Les anciennes saisies express etaient stockees sans zero ("1-2027") : on les tolere a la lecture.
+const normPeriodeFin = (p) => {
+  const str = String(p || '').trim();
+  const m = str.match(/^(\d{1,2})-(\d{4})$/);
+  return m ? m[1].padStart(2, '0') + '-' + m[2] : str;
 };
 
 const buildPeriodeStr = (typePeriode, valPeriode, annee) => {
@@ -113,6 +124,7 @@ export default function Finance({ user, navigate, goBack, lang='fr', isMobile })
   const [expressDep, setExpressDep] = useState({ description: '', montant: '', categorie: 'salaire' });
   const [expressSearchEleve, setExpressSearchEleve] = useState('');
   const [expressSaving, setExpressSaving] = useState(false);
+  const [menuFinance, setMenuFinance] = useState(null); // charte mobile : panneau d'actions {type:'cot'|'dep', item}
 
   // Filters
   const [filterEleve, setFilterEleve] = useState('tous');
@@ -134,9 +146,10 @@ export default function Finance({ user, navigate, goBack, lang='fr', isMobile })
       const [r1, r2, r3, r4] = await Promise.all([
         supabase.from('eleves').select('*, instituteur:instituteur_referent_id(prenom,nom)')
         .eq('ecole_id', user.ecole_id).order('nom'),
-        supabase.from('utilisateurs').select('*').eq('role','instituteur').eq('ecole_id', user.ecole_id),
-        supabase.from('cotisations').select('*, eleve:eleve_id(id,prenom,nom,code_niveau,eleve_id_ecole), createur:created_by(prenom,nom)')
-        .eq('ecole_id', user.ecole_id).order('date_paiement',{ascending:false}),
+        supabase.from('utilisateurs').select('id,prenom,nom,identifiant,role,ecole_id,instituteur_id_ecole,tarif_seance,telephone,email,statut_compte,suspendu_at').eq('role','instituteur').eq('ecole_id', user.ecole_id),
+        // FIX (oct 2026) : fetchAll (avant : tronque a 1000 lignes -> totaux/suivi faux)
+        fetchAll(supabase.from('cotisations').select('*, eleve:eleve_id(id,prenom,nom,code_niveau,eleve_id_ecole), createur:created_by(prenom,nom)')
+        .eq('ecole_id', user.ecole_id).order('date_paiement',{ascending:false})).then(data => ({ data })),
         supabase.from('depenses').select('*, beneficiaire:beneficiaire_id(prenom,nom), createur:created_by(prenom,nom)')
         .eq('ecole_id', user.ecole_id).order('date_depense',{ascending:false}),
       ]);
@@ -228,7 +241,7 @@ export default function Finance({ user, navigate, goBack, lang='fr', isMobile })
       ecole_id: user.ecole_id,
       montant: parseFloat(expressCot.montant),
       date_paiement: now.toISOString().split('T')[0],
-      periode: buildPeriodeStr('mois', String(mois), String(annee)),
+      periode: buildPeriodeStr('mois', String(mois).padStart(2, '0'), String(annee)), // FIX (oct 2026) : "01-2027" et non "1-2027" (meme format que le formulaire)
       statut: 'paye',
       note: null,
       created_by: user.id,
@@ -350,7 +363,8 @@ export default function Finance({ user, navigate, goBack, lang='fr', isMobile })
   const cotFiltrees = (cotisations||[]).filter(c => {
     if (filterEleve!=='tous' && c.eleve_id!==filterEleve) return false;
     if (filterStatut!=='tous' && c.statut!==filterStatut) return false;
-    if (filterPeriode && c.periode && !c.periode.toLowerCase().includes(filterPeriode.toLowerCase())) return false;
+    // FIX (oct 2026) : comparaison sur periodes normalisees ("1-2027" == "01-2027")
+    if (filterPeriode && c.periode && !normPeriodeFin(c.periode).toLowerCase().includes(normPeriodeFin(filterPeriode).toLowerCase())) return false;
     if (filterIdEleve && c.eleve && !String(c.eleve.eleve_id_ecole||'').includes(filterIdEleve) && !(c.eleve.prenom+' '+c.eleve.nom).toLowerCase().includes(filterIdEleve.toLowerCase())) return false;
     return true;
   });
@@ -643,51 +657,63 @@ export default function Finance({ user, navigate, goBack, lang='fr', isMobile })
   // Variable manquante pour le bloc mobile
   const elevesNonPayes = parEleve.filter(p => p.statutDernier === 'non_paye');
 
+  // BUG-FIX (oct 2026) : hook appele avant le return mobile (il l'etait apres ->
+  // violation des regles des hooks, crash au passage du seuil 768 px).
+  const {
+    pullDistance, isRefreshing, isThreshold,
+    onTouchStart, onTouchMove, onTouchEnd,
+  } = usePullToRefresh(loadData);
+
   if (isMobile) {
     return (
-      <div style={{paddingBottom:80,background:'#f5f5f0',minHeight:'100vh'}}>
+      <div style={{paddingBottom:80,background:'#f5f5f0',minHeight:'100vh'}}
+        onTouchStart={onTouchStart} onTouchMove={onTouchMove} onTouchEnd={onTouchEnd}>
+        <PullToRefreshIndicator pullDistance={pullDistance} isRefreshing={isRefreshing} isThreshold={isThreshold} lang={lang} />
         {/* Sticky header */}
-        <div style={{background:'linear-gradient(135deg,#1e3a5f,#3b5a82)',padding:'48px 16px 14px',position:'sticky',top:0,zIndex:100}}>
-          <div style={{display:'flex',alignItems:'center',gap:12,marginBottom:8}}>
-            <button onClick={()=>goBack?goBack():navigate('dashboard')}
-              style={{background:'rgba(255,255,255,0.22)',border:'1px solid rgba(255,255,255,0.25)',borderRadius:10,padding:'0',color:'#fff',fontSize:20,cursor:'pointer',flexShrink:0,width:44,height:44,display:'flex',alignItems:'center',justifyContent:'center'}}>←</button>
-            <div style={{flex:1,fontSize:16,fontWeight:800,color:'#fff'}}>💰 {lang==='ar'?'المالية':'Finance'}</div>
-          </div>
-          <div style={{fontSize:18,fontWeight:800,color:'#fff',marginBottom:10}}>
-            💰 {lang==='ar'?'المالية':lang==='en'?'Finance':'Finance'}
-          </div>
+        {/* Charte mobile lot 2 (oct 2026) : MobileHeader commun ; onglets + periode dans l'en-tete, exports dans le menu */}
+        <MobileHeader
+          title={lang==='ar'?'المالية':'Finance'}
+          icon={Wallet}
+          onBack={()=>goBack?goBack():navigate('dashboard')}
+          lang={lang}
+          actions={
+            <HeaderMenu lang={lang} actions={actionsExport({
+              onPDF: exportPDF,
+              onExcel:
+                onglet === 'cotisations' ? exportCotisationsExcel
+                : onglet === 'depenses'  ? exportDepensesExcel
+                : onglet === 'suivi'     ? exportSuiviExcel
+                : exportExcel,
+              lang,
+            })} />
+          }>
           {/* Onglets scrollables */}
-          <div style={{display:'flex',gap:6,overflowX:'auto',scrollbarWidth:'none',paddingBottom:2}}>
-            {onglets.map(o=>(
-              <div key={o.key} onClick={()=>setOnglet(o.key)}
-                style={{padding:'7px 14px',borderRadius:20,fontSize:12,fontWeight:600,flexShrink:0,cursor:'pointer',
-                  background:onglet===o.key?'#1D9E75':'#f0f0ec',color:onglet===o.key?'#fff':'#666'}}>
-                {o.icon} {lang==='ar'?o.labelAr:o.label}
-              </div>
-            ))}
+          <FilterChips onBrand value={onglet} onChange={setOnglet}
+            options={onglets.map(o=>({ value:o.key, label:(lang==='ar'?o.labelAr:o.label) }))} />
+          {/* F4 (oct 2026) : periode, comme sur PC. Avant : les totaux mobiles etaient
+              bornes a une periode (3 derniers mois par defaut) invisible et non modifiable. */}
+          <div style={{display:'flex',gap:6,alignItems:'center'}}>
+            <input type="date" value={dateDebut} onChange={e=>setDateDebut(e.target.value)}
+              style={{flex:1,minWidth:0,height:40,padding:'0 8px',borderRadius:8,border:'none',background:'#fff',color:'#16241E',fontSize:13,fontFamily:'inherit'}}/>
+            <span style={{color:'#fff',fontSize:12}}>→</span>
+            <input type="date" value={dateFin} onChange={e=>setDateFin(e.target.value)}
+              style={{flex:1,minWidth:0,height:40,padding:'0 8px',borderRadius:8,border:'none',background:'#fff',color:'#16241E',fontSize:13,fontFamily:'inherit'}}/>
           </div>
-        </div>
+        </MobileHeader>
 
         {loading ? <MobileSkeletonList type="card-stat" count={4} padding="12px" /> : (
           <div style={{padding:'12px'}}>
             {/* Dashboard KPIs */}
             {onglet==='dashboard' && (
               <div>
-                <div style={{display:'grid',gridTemplateColumns:'repeat(2,1fr)',gap:10,marginBottom:12}}>
-                  {[
-                    {icon:'📥',label:lang==='ar'?'إجمالي الاشتراكات':'Cotisations',val:fmtMAD(totalCotisations),color:'#1D9E75',bg:'#E1F5EE'},
-                    {icon:'📤',label:lang==='ar'?'إجمالي المصاريف':'Dépenses',val:fmtMAD(totalDepenses),color:'#1e3a5f',bg:'#E8EDF5'},
-                    {icon:'💵',label:lang==='ar'?'الرصيد':'Solde',val:fmtMAD(totalCotisations-totalDepenses),
-                      color:(totalCotisations-totalDepenses)>=0?'#085041':'#E24B4A',
-                      bg:(totalCotisations-totalDepenses)>=0?'#E1F5EE':'#FCEBEB'},
-                    {icon:'⏳',label:lang==='ar'?'اشتراكات معلقة':'Non payés',val:elevesNonPayes.length+' élèves',color:'#EF9F27',bg:'#FAEEDA'},
-                  ].map((k,i)=>(
-                    <div key={i} style={{background:k.bg,borderRadius:12,padding:'14px',border:`0.5px solid ${k.color}20`}}>
-                      <div style={{fontSize:20,marginBottom:4}}>{k.icon}</div>
-                      <div style={{fontSize:20,fontWeight:800,color:k.color}}>{k.val}</div>
-                      <div style={{fontSize:11,color:k.color,marginTop:2,opacity:0.8}}>{k.label}</div>
-                    </div>
-                  ))}
+                {/* Charte mobile : tuiles communes ; couleur seulement si le chiffre a un sens */}
+                <div style={{marginBottom:12}}>
+                  <KpiGrid cols={2}>
+                    <KpiTile icon={HandCoins} tone="brand" label={lang==='ar'?'إجمالي الاشتراكات':'Cotisations'} value={fmtMAD(totalCotisations)} />
+                    <KpiTile icon={Receipt} tone="neutral" label={lang==='ar'?'إجمالي المصاريف':'Dépenses'} value={fmtMAD(totalDepenses)} />
+                    <KpiTile icon={Scale} tone={(totalCotisations-totalDepenses)>=0?'good':'crit'} label={lang==='ar'?'الرصيد':'Solde'} value={fmtMAD(totalCotisations-totalDepenses)} />
+                    <KpiTile icon={CircleAlert} tone={elevesNonPayes.length>0?'crit':'neutral'} label={lang==='ar'?'اشتراكات معلقة':'Non payés'} value={elevesNonPayes.length+' élèves'} />
+                  </KpiGrid>
                 </div>
               </div>
             )}
@@ -696,29 +722,25 @@ export default function Finance({ user, navigate, goBack, lang='fr', isMobile })
             {onglet==='cotisations' && (
               <div>
                 <button onClick={()=>setShowFormCot(true)}
-                  style={{width:'100%',padding:'14px',background:'#1D9E75',color:'#fff',border:'none',
+                  style={{width:'100%',padding:'14px',background:C.brand,color:'#fff',border:'none',
                     borderRadius:12,fontSize:15,fontWeight:700,cursor:'pointer',fontFamily:'inherit',marginBottom:12}}>
                   + {lang==='ar'?'إضافة اشتراك':'Ajouter cotisation'}
                 </button>
-                {cotisations.slice(0,50).map(c=>{
+                {/* F4 : liste bornee a la periode (comme les totaux et le PC) */}
+                {[...cotPeriode].sort((x,y)=>new Date(y.date_paiement)-new Date(x.date_paiement)).slice(0,100).map(c=>{
                   const el=eleves.find(e=>e.id===c.eleve_id);
+                  // Charte mobile : ligne de liste ; modifier / supprimer (surveillant) dans « ⋮ »
                   return(
-                    <div key={c.id} style={{background:'#fff',borderRadius:12,padding:'13px 14px',marginBottom:8,
-                      border:'0.5px solid #e0e0d8',display:'flex',alignItems:'center',gap:12}}>
-                      <div style={{width:40,height:40,borderRadius:'50%',background:'#E1F5EE',color:'#085041',
-                        display:'flex',alignItems:'center',justifyContent:'center',fontWeight:800,fontSize:12,flexShrink:0}}>
-                        {el ? getInitiales(el.prenom, el.nom) : '?'}
-                      </div>
-                      <div style={{flex:1,minWidth:0}}>
-                        <div style={{fontWeight:700,fontSize:14}}>{el?`${el.prenom} ${el.nom}`:'—'}</div>
-                        <div style={{fontSize:12,color:'#888'}}>
-                          {new Date(c.date_paiement).toLocaleDateString(lang==='ar'?'ar-MA':'fr-FR')}
-                        </div>
-                      </div>
-                      <div style={{textAlign:'right',flexShrink:0}}>
-                        <div style={{fontSize:16,fontWeight:800,color:'#1D9E75'}}>{fmtMAD(c.montant)}</div>
-                        {c.mois_concerne&&<div style={{fontSize:11,color:'#888'}}>{c.mois_concerne}</div>}
-                      </div>
+                    <div key={c.id} style={{marginBottom:8}}>
+                      <ListRow lang={lang}
+                        leading={el ? <UiAvatar prenom={el.prenom} nom={el.nom} /> : <UiAvatar prenom="?" nom="" />}
+                        title={el?`${el.prenom} ${el.nom}`:'—'}
+                        subtitle={new Date(c.date_paiement).toLocaleDateString(lang==='ar'?'ar-MA':'fr-FR')}
+                        value={fmtMAD(c.montant)}
+                        valueLabel={c.mois_concerne||undefined}
+                        valueTone="brand"
+                        onMore={user.role==='surveillant' ? ()=>setMenuFinance({type:'cot', item:c}) : undefined}
+                      />
                     </div>
                   );
                 })}
@@ -729,26 +751,26 @@ export default function Finance({ user, navigate, goBack, lang='fr', isMobile })
             {onglet==='depenses' && (
               <div>
                 <button onClick={()=>setShowFormDep(true)}
-                  style={{width:'100%',padding:'14px',background:'#1e3a5f',color:'#fff',border:'none',
+                  style={{width:'100%',padding:'14px',background:C.brand,color:'#fff',border:'none',
                     borderRadius:12,fontSize:15,fontWeight:700,cursor:'pointer',fontFamily:'inherit',marginBottom:12}}>
                   + {lang==='ar'?'إضافة مصروف':'Ajouter dépense'}
                 </button>
-                {depenses.slice(0,50).map(d=>(
-                  <div key={d.id} style={{background:'#fff',borderRadius:12,padding:'13px 14px',marginBottom:8,
-                    border:'0.5px solid #FCEBEB',display:'flex',alignItems:'center',gap:12}}>
-                    <span style={{fontSize:20,flexShrink:0}}>📤</span>
-                    <div style={{flex:1,minWidth:0}}>
-                      <div style={{fontWeight:700,fontSize:14,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>
-                        {d.description||d.categorie||'Dépense'}
-                      </div>
-                      <div style={{fontSize:12,color:'#888'}}>
-                        {new Date(d.date_depense).toLocaleDateString(lang==='ar'?'ar-MA':'fr-FR')}
-                        {d.categorie&&` · ${d.categorie}`}
-                      </div>
-                    </div>
-                    <div style={{textAlign:'right',flexShrink:0}}>
-                      <div style={{fontSize:16,fontWeight:800,color:'#1e3a5f'}}>{fmtMAD(d.montant)}</div>
-                    </div>
+                {/* F4 : liste bornee a la periode (comme les totaux et le PC) */}
+                {[...depPeriode].sort((x,y)=>new Date(y.date_depense)-new Date(x.date_depense)).slice(0,100).map(d=>(
+                  <div key={d.id} style={{marginBottom:8}}>
+                    <ListRow lang={lang}
+                      leading={
+                        <div style={{width:40,height:40,borderRadius:'50%',background:C.bg,color:C.muted,flexShrink:0,
+                          display:'flex',alignItems:'center',justifyContent:'center'}}>
+                          <Receipt size={18} />
+                        </div>
+                      }
+                      title={d.description||d.categorie||'Dépense'}
+                      subtitle={<>{new Date(d.date_depense).toLocaleDateString(lang==='ar'?'ar-MA':'fr-FR')}{d.categorie&&` · ${d.categorie}`}</>}
+                      value={fmtMAD(d.montant)}
+                      valueTone="neutral"
+                      onMore={user.role==='surveillant' ? ()=>setMenuFinance({type:'dep', item:d}) : undefined}
+                    />
                   </div>
                 ))}
               </div>
@@ -761,7 +783,7 @@ export default function Finance({ user, navigate, goBack, lang='fr', isMobile })
                 <div style={{display:'flex',gap:8,marginBottom:10}}>
                   <input type="text" value={searchEleve}
                     onChange={e=>setSearchEleve(e.target.value)}
-                    placeholder={'🔍 '+(lang==='ar'?'اسم أو رقم':'Nom ou #ID...')}
+                    placeholder={lang==='ar'?'اسم أو رقم':'Nom ou #ID...'}
                     style={{flex:2,padding:'9px 12px',borderRadius:10,border:'1px solid #e0e0d8',fontSize:13,fontFamily:'inherit',boxSizing:'border-box'}}/>
                   <select value={filterSuiviStatut} onChange={e=>setFilterSuiviStatut(e.target.value)}
                     className="field-select" style={{flex:1}}>
@@ -770,27 +792,28 @@ export default function Finance({ user, navigate, goBack, lang='fr', isMobile })
                   </select>
                 </div>
                 <button onClick={()=>setFilterSuiviApplied({search:searchEleve,statut:filterSuiviStatut})}
-                  style={{width:'100%',padding:'10px',background:'#1e3a5f',color:'#fff',border:'none',borderRadius:10,fontSize:13,fontWeight:700,cursor:'pointer',marginBottom:12,fontFamily:'inherit'}}>
-                  🔍 {lang==='ar'?'بحث':'Rechercher'}
+                  style={{width:'100%',padding:'10px',background:C.brand,color:'#fff',border:'none',borderRadius:10,fontSize:13,fontWeight:700,cursor:'pointer',marginBottom:12,fontFamily:'inherit',display:'flex',alignItems:'center',justifyContent:'center',gap:6}}>
+                  <Search size={16} /> {lang==='ar'?'بحث':'Rechercher'}
                 </button>
 
                 {/* Filtre actif */}
                 {(filterSuiviApplied.search||filterSuiviApplied.statut!=='tous')&&(
                   <div style={{fontSize:11,color:'#888',marginBottom:10,display:'flex',alignItems:'center',gap:6,flexWrap:'wrap'}}>
-                    {filterSuiviApplied.search&&<span style={{padding:'2px 8px',borderRadius:10,background:'#E8EDF5',color:'#1e3a5f'}}>🔍 {filterSuiviApplied.search}</span>}
+                    {filterSuiviApplied.search&&<span style={{padding:'2px 8px',borderRadius:10,background:C.brandSoft,color:C.brand}}>{filterSuiviApplied.search}</span>}
                     {filterSuiviApplied.statut!=='tous'&&<span style={{padding:'2px 8px',borderRadius:10,background:'#FAEEDA',color:'#EF9F27'}}>{STATUTS.find(s=>s.val===filterSuiviApplied.statut)?.label}</span>}
                     <button onClick={()=>{setSearchEleve('');setFilterSuiviStatut('tous');setFilterSuiviApplied({search:'',statut:'tous'});}} style={{fontSize:10,color:'#E24B4A',background:'none',border:'none',cursor:'pointer'}}>✕ {lang==='ar'?'مسح':'Effacer'}</button>
                   </div>
                 )}
 
-                {/* 3 KPI par statut (comme PC) */}
-                <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:6,marginBottom:12}}>
-                  {STATUTS.map(st=>(
-                    <div key={st.val} style={{background:st.bg,borderRadius:10,padding:'10px 8px',textAlign:'center'}}>
-                      <div style={{fontSize:18,fontWeight:800,color:st.color}}>{parEleve.filter(p=>p.statutDernier===st.val).length}</div>
-                      <div style={{fontSize:10,color:st.color,opacity:0.85,fontWeight:600}}>{lang==='ar'?st.labelAr:st.label}</div>
-                    </div>
-                  ))}
+                {/* KPI par statut (comme PC) — charte : tuiles communes */}
+                <div style={{marginBottom:12}}>
+                  <KpiGrid cols={2}>
+                    {STATUTS.map(st=>{
+                      const nb = parEleve.filter(p=>p.statutDernier===st.val).length;
+                      const tone = st.val==='paye' ? 'good' : st.val==='partiel' ? 'warn' : st.val==='non_paye' ? (nb>0?'crit':'neutral') : 'neutral';
+                      return <KpiTile key={st.val} value={nb} label={lang==='ar'?st.labelAr:st.label} tone={tone} />;
+                    })}
+                  </KpiGrid>
                 </div>
 
                 {/* Liste : tous les élèves (comme PC, plus seulement non-payés) */}
@@ -800,21 +823,19 @@ export default function Finance({ user, navigate, goBack, lang='fr', isMobile })
                     if (!e) return null;
                     const st = STATUTS.find(s=>s.val===p.statutDernier)||STATUTS[2];
                     return (
-                      <div key={e.id} style={{background:'#fff',border:'0.5px solid #e0e0d8',borderRadius:12,padding:'11px 12px',display:'flex',alignItems:'center',gap:10}}>
-                        <Avatar prenom={e.prenom} nom={e.nom} bg={st.bg} color={st.color}/>
-                        <div style={{flex:1,minWidth:0}}>
-                          <div style={{display:'flex',alignItems:'center',gap:5,flexWrap:'wrap'}}>
-                            <span style={{fontSize:13,fontWeight:700,whiteSpace:'nowrap'}}>{e.prenom} {e.nom}</span>
-                            {e.eleve_id_ecole&&<span style={{fontSize:10,color:'#bbb'}}>#{e.eleve_id_ecole}</span>}
-                            <span style={{padding:'1px 6px',borderRadius:10,fontSize:9,fontWeight:700,background:'#E8EDF5',color:'#1e3a5f'}}>{e.code_niveau||'?'}</span>
+                      <ListRow key={e.id} lang={lang}
+                        leading={<UiAvatar prenom={e.prenom} nom={e.nom} size={36} />}
+                        title={`${e.prenom} ${e.nom}`}
+                        subtitle={`${e.eleve_id_ecole ? '#'+e.eleve_id_ecole+' · ' : ''}${p.cotisations.length} ${lang==='ar'?'دفعة':'versement(s)'}`}
+                        meta={
+                          <div style={{display:'flex',alignItems:'center',gap:6,flexWrap:'wrap'}}>
+                            <LevelBadge code={e.code_niveau||'?'} />
+                            <span style={{padding:'1px 6px',borderRadius:8,fontSize:10,fontWeight:700,background:st.bg,color:st.color}}>{lang==='ar'?st.labelAr:st.label}</span>
                           </div>
-                          <div style={{fontSize:10,color:'#888',marginTop:2,display:'flex',alignItems:'center',gap:6}}>
-                            <span>{p.cotisations.length} {lang==='ar'?'دفعة':'versement(s)'}</span>
-                            <span style={{padding:'1px 6px',borderRadius:8,fontSize:9,fontWeight:700,background:st.bg,color:st.color}}>{lang==='ar'?st.labelAr:st.label}</span>
-                          </div>
-                        </div>
-                        <div style={{fontSize:13,fontWeight:800,color:'#085041',textAlign:'right',flexShrink:0}}>{fmtMAD(p.totalVerse)}</div>
-                      </div>
+                        }
+                        value={fmtMAD(p.totalVerse)}
+                        valueTone="neutral"
+                      />
                     );
                   })}
                   {parEleve.length===0&&(
@@ -837,7 +858,7 @@ export default function Finance({ user, navigate, goBack, lang='fr', isMobile })
             <style>{`@keyframes slideUp{from{transform:translateY(100%)}to{transform:translateY(0)}}`}</style>
             <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:14,paddingBottom:10,borderBottom:'1px solid #f0f0ec'}}>
               <div style={{fontSize:16,fontWeight:800,color:'#085041'}}>
-                {editingCotId?'✏️ ':'📥 '}{editingCotId?(lang==='ar'?'تعديل اشتراك':'Modifier cotisation'):(lang==='ar'?'اشتراك جديد':'Nouvelle cotisation')}
+                {editingCotId?(lang==='ar'?'تعديل اشتراك':'Modifier cotisation'):(lang==='ar'?'اشتراك جديد':'Nouvelle cotisation')}
               </div>
               <button onClick={()=>{setShowFormCot(false);setEditingCotId(null);}}
                 style={{background:'#f5f5f0',border:'1px solid #d0d0c8',borderRadius:20,width:32,height:32,cursor:'pointer',fontSize:16,fontWeight:600,color:'#374151',display:'flex',alignItems:'center',justifyContent:'center'}}>✕</button>
@@ -854,7 +875,7 @@ export default function Finance({ user, navigate, goBack, lang='fr', isMobile })
                   if(found) setFormCot(f=>({...f,eleve_id:found.id}));
                   else if(val==='') setFormCot(f=>({...f,eleve_id:''}));
                 }}
-                placeholder={'🔍 '+(lang==='ar'?'بحث بالاسم أو الرقم':'Nom ou #ID...')}
+                placeholder={lang==='ar'?'بحث بالاسم أو الرقم':'Nom ou #ID...'}
                 style={{width:'100%',padding:'10px 12px',borderRadius:10,border:'1px solid #e0e0d8',fontSize:14,fontFamily:'inherit',boxSizing:'border-box'}}/>
               {searchEleveForm && !eleves.find(x=>String(x.eleve_id_ecole||'')===searchEleveForm.trim()) && (
                 <div style={{border:'1px solid #e0e0d8',borderRadius:8,background:'#fff',maxHeight:180,overflowY:'auto',marginTop:6}}>
@@ -921,7 +942,7 @@ export default function Finance({ user, navigate, goBack, lang='fr', isMobile })
               </div>
               {buildPeriodeStr(formCot.typePeriode,formCot.valPeriode,formCot.annee)&&(
                 <div style={{marginTop:6,fontSize:11,color:'#085041',fontWeight:600}}>
-                  📅 {buildPeriodeStr(formCot.typePeriode,formCot.valPeriode,formCot.annee)}
+                  {buildPeriodeStr(formCot.typePeriode,formCot.valPeriode,formCot.annee)}
                 </div>
               )}
             </div>
@@ -975,7 +996,7 @@ export default function Finance({ user, navigate, goBack, lang='fr', isMobile })
                onClick={e=>e.stopPropagation()}>
             <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:14,paddingBottom:10,borderBottom:'1px solid #f0f0ec'}}>
               <div style={{fontSize:16,fontWeight:800,color:'#1e3a5f'}}>
-                {editingDepId?'✏️ ':'📤 '}{editingDepId?(lang==='ar'?'تعديل مصروف':'Modifier dépense'):(lang==='ar'?'مصروف جديد':'Nouvelle dépense')}
+                {editingDepId?(lang==='ar'?'تعديل مصروف':'Modifier dépense'):(lang==='ar'?'مصروف جديد':'Nouvelle dépense')}
               </div>
               <button onClick={()=>{setShowFormDep(false);setEditingDepId(null);}}
                 style={{background:'#f5f5f0',border:'1px solid #d0d0c8',borderRadius:20,width:32,height:32,cursor:'pointer',fontSize:16,fontWeight:600,color:'#374151',display:'flex',alignItems:'center',justifyContent:'center'}}>✕</button>
@@ -1060,16 +1081,29 @@ export default function Finance({ user, navigate, goBack, lang='fr', isMobile })
           </div>
         </div>
       )}
+      {/* Charte mobile (oct 2026) : actions d'une cotisation / depense (memes handlers qu'avant) */}
+      <ActionSheet open={!!menuFinance} onClose={()=>setMenuFinance(null)} lang={lang}
+        title={menuFinance
+          ? (menuFinance.type==='cot'
+              ? (()=>{ const el=eleves.find(e=>e.id===menuFinance.item.eleve_id); return el?`${el.prenom} ${el.nom}`:'—'; })()
+              : (menuFinance.item.description||menuFinance.item.categorie||'Dépense'))
+          : ''}
+        actions={menuFinance ? (menuFinance.type==='cot' ? [
+          { label: lang==='ar'?'تعديل':'Modifier', icon: Pencil, onClick: ()=>startEditCotisation(menuFinance.item) },
+          { label: lang==='ar'?'حذف':'Supprimer', icon: Trash2, danger: true, onClick: ()=>deleteCotisation(menuFinance.item.id) },
+        ] : [
+          { label: lang==='ar'?'تعديل':'Modifier', icon: Pencil, onClick: ()=>startEditDepense(menuFinance.item) },
+          { label: lang==='ar'?'حذف':'Supprimer', icon: Trash2, danger: true, onClick: ()=>deleteDepense(menuFinance.item.id) },
+        ]) : []} />
+      {/* F4 (oct 2026) : sans ce rendu, les suppressions mobiles restaient silencieuses */}
+      <ConfirmModal isOpen={confirmModal.isOpen} title={confirmModal.title} message={confirmModal.message}
+        onConfirm={confirmModal.onConfirm} onCancel={hideConfirm}
+        confirmLabel={confirmModal.confirmLabel} confirmColor={confirmModal.confirmColor} lang={lang}/>
       </div>
     );
   }
 
 
-  // Pull-to-refresh (Phase 2 Sprint 4)
-  const {
-    pullDistance, isRefreshing, isThreshold,
-    onTouchStart, onTouchMove, onTouchEnd,
-  } = usePullToRefresh(loadData);
   return (
     <div
       {...(isMobile ? { onTouchStart, onTouchMove, onTouchEnd } : {})}>

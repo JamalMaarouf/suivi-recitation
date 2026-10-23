@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from '../lib/supabase';
+import { fetchAll } from '../lib/fetchAll'; // FIX (oct 2026) : pagination presences >1000 lignes
 import { useToast } from '../lib/toast';
 import { t } from '../lib/i18n';
 import KioskExitModal from '../components/KioskExitModal';
@@ -11,6 +12,8 @@ import { exportExcelSimple } from '../lib/excel';
 import { loadAnneeActiveAvecPeriodes, formatPeriodeCourte, detecterPeriodeEnCours } from '../lib/helpers';
 import PeriodeSelectorHybride from '../components/PeriodeSelectorHybride';
 import MobileSkeletonList from '../components/MobileSkeletonList';
+import { MobileHeader, HeaderIconButton, KpiTile, KpiGrid, Avatar, C } from '../components/ui';
+import { CalendarCheck, Lock, LockOpen, GraduationCap, Users, CalendarDays, AlertTriangle, Hash, List, Lightbulb, Filter, Banknote, Settings } from 'lucide-react';
 
 // ══════════════════════════════════════════════════════════════════════
 // PAGE ASSIDUITÉ — الحضور
@@ -30,6 +33,8 @@ import MobileSkeletonList from '../components/MobileSkeletonList';
 
 export default function Assiduite({ user, navigate, goBack, lang, isMobile, kioskMode, enterKiosk, exitKiosk }) {
   const [onglet, setOnglet] = useState('saisie');  // 'saisie' | 'suivi'
+  // F5 (oct 2026) : sur mobile hors kiosque, choix pave numerique / liste nominative (SaisieDesktop)
+  const [modeSaisieMobile, setModeSaisieMobile] = useState('pave'); // 'pave' | 'liste'
   // Cible de la saisie : 'eleves' (par defaut) ou 'instituteurs'
   // Permet d'enregistrer les presences des 2 populations sur le meme kiosque.
   const [cible, setCible] = useState('eleves');
@@ -102,66 +107,48 @@ export default function Assiduite({ user, navigate, goBack, lang, isMobile, kios
   if (isMobile) {
     return (
       <div style={{ background: '#f5f5f0', minHeight: '100vh', paddingBottom: 80 }}>
-        <div style={{
-          background: 'linear-gradient(135deg, #085041, #1D9E75)',
-          color: '#fff',
-          padding: '48px 16px 14px',
-          position: 'sticky', top: 0, zIndex: 100,
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 10 }}>
-            {!kioskMode && (
-              <button onClick={() => goBack ? goBack() : navigate('dashboard')}
-                style={{
-                  width: 44, height: 44,
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  background: 'rgba(255,255,255,0.2)',
-                  border: 'none', borderRadius: 10, padding: 0, flexShrink: 0,
-                  color: '#fff', fontSize: 18, cursor: 'pointer',
-                }}>←</button>
+        <MobileHeader
+          title={<>
+            {lang === 'ar' ? 'الحضور' : 'Assiduité'}
+            {kioskMode && (
+              <span style={{
+                marginInlineStart: 8, fontSize: 10, fontWeight: 700,
+                background: 'rgba(255,255,255,0.25)', padding: '2px 8px',
+                borderRadius: 10, verticalAlign: 'middle',
+              }}>🔒 {lang === 'ar' ? 'كشك' : 'KIOSQUE'}</span>
             )}
-            <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 18, fontWeight: 700, lineHeight: 1.2 }}>
-                {lang === 'ar' ? '📅 الحضور' : '📅 Assiduité'}
-                {kioskMode && (
-                  <span style={{
-                    marginLeft: 8, fontSize: 10, fontWeight: 700,
-                    background: 'rgba(255,255,255,0.25)', padding: '2px 8px',
-                    borderRadius: 10, verticalAlign: 'middle',
-                  }}>🔒 {lang === 'ar' ? 'كشك' : 'KIOSQUE'}</span>
-                )}
-              </div>
-              <div style={{ fontSize: 12, opacity: 0.85, marginTop: 2 }}>
-                {lang === 'ar' ? 'تسجيل و متابعة حضور الطلاب' : 'Saisie et suivi des présences'}
-              </div>
-            </div>
-            {/* Bouton kiosque */}
-            {kioskMode ? (
-              <button onClick={() => setShowExitModal(true)}
+          </>}
+          subtitle={lang === 'ar' ? 'تسجيل و متابعة حضور الطلاب' : 'Saisie et suivi des présences'}
+          icon={CalendarCheck}
+          onBack={!kioskMode ? (() => goBack ? goBack() : navigate('dashboard')) : undefined}
+          lang={lang}
+          actions={
+            /* Bouton kiosque */
+            kioskMode ? (
+              /* Charte mobile (oct 2026) : bouton de sortie bien visible (orange, texte blanc) */
+              <button type="button" onClick={() => setShowExitModal(true)}
+                aria-label={lang === 'ar' ? 'الخروج من وضع الكشك' : 'Quitter le mode kiosque'}
+                title={lang === 'ar' ? 'الخروج من وضع الكشك' : 'Quitter le mode kiosque'}
                 style={{
-                  padding: '8px 12px',
-                  background: '#EF9F27', color: '#fff',
-                  border: 'none', borderRadius: 10,
-                  fontSize: 12, fontWeight: 700, cursor: 'pointer',
-                  flexShrink: 0, fontFamily: 'inherit',
-                }}>🔓</button>
+                  height: 44, padding: '0 14px', borderRadius: 12, flexShrink: 0,
+                  background: '#EF9F27', color: '#fff', border: 'none',
+                  display: 'flex', alignItems: 'center', gap: 6,
+                  fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit',
+                  whiteSpace: 'nowrap', boxShadow: '0 2px 8px rgba(0,0,0,0.18)',
+                }}>
+                <LockOpen size={18} strokeWidth={2.2} />
+                {lang === 'ar' ? 'خروج' : 'Quitter'}
+              </button>
             ) : (
-              <button onClick={() => askActivateKiosk()}
-                title={lang === 'ar' ? 'تفعيل وضع الكشك' : 'Activer mode kiosque'}
-                style={{
-                  padding: '8px 12px',
-                  background: 'rgba(255,255,255,0.2)', color: '#fff',
-                  border: '1px solid rgba(255,255,255,0.3)', borderRadius: 10,
-                  fontSize: 12, fontWeight: 700, cursor: 'pointer',
-                  flexShrink: 0, fontFamily: 'inherit',
-                }}>🔒</button>
-            )}
-          </div>
-
+              <HeaderIconButton icon={Lock} onClick={() => askActivateKiosk()}
+                label={lang === 'ar' ? 'تفعيل وضع الكشك' : 'Activer mode kiosque'} />
+            )
+          }>
           {/* Onglets */}
-          <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
+          <div style={{ display: 'flex', gap: 6 }}>
             {[
-              { k: 'saisie', label: lang === 'ar' ? '✍️ تسجيل' : '✍️ Saisie' },
-              { k: 'suivi',  label: lang === 'ar' ? '📊 متابعة' : '📊 Suivi' },
+              { k: 'saisie', label: lang === 'ar' ? 'تسجيل' : 'Saisie' },
+              { k: 'suivi',  label: lang === 'ar' ? 'متابعة' : 'Suivi' },
             ].map(tab => {
               const active = onglet === tab.k;
               return (
@@ -183,7 +170,7 @@ export default function Assiduite({ user, navigate, goBack, lang, isMobile, kios
               );
             })}
           </div>
-        </div>
+        </MobileHeader>
 
         {onglet === 'saisie' && (
           <>
@@ -192,23 +179,25 @@ export default function Assiduite({ user, navigate, goBack, lang, isMobile, kios
               display: 'flex', gap: 6, padding: '10px 14px 0',
             }}>
               {[
-                { k: 'eleves',       label: lang === 'ar' ? '👨‍🎓 الطلاب'   : '👨‍🎓 Élèves',       color: '#085041' },
-                { k: 'instituteurs', label: lang === 'ar' ? '👨‍🏫 الأساتذة' : '👨‍🏫 Instituteurs', color: '#534AB7' },
+                { k: 'eleves',       label: lang === 'ar' ? 'الطلاب'   : 'Élèves',       icon: GraduationCap },
+                { k: 'instituteurs', label: lang === 'ar' ? 'الأساتذة' : 'Instituteurs', icon: Users },
               ].map(c => {
                 const active = cible === c.k;
+                const Icon = c.icon;
                 return (
                   <button key={c.k} onClick={() => setCible(c.k)}
                     style={{
                       flex: 1, padding: '10px 12px',
                       borderRadius: 10,
-                      background: active ? c.color : '#fff',
-                      color: active ? '#fff' : c.color,
+                      background: active ? C.brand : C.surface,
+                      color: active ? C.onBrand : C.text,
                       fontSize: 13, fontWeight: 700,
                       cursor: 'pointer', fontFamily: 'inherit',
-                      border: `1.5px solid ${c.color}${active ? '' : '30'}`,
-                      boxShadow: active ? `0 2px 8px ${c.color}40` : 'none',
+                      border: `1px solid ${active ? C.brand : C.line}`,
+                      display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
                       transition: 'all 0.15s',
                     }}>
+                    <Icon size={16} />
                     {c.label}
                   </button>
                 );
@@ -226,8 +215,8 @@ export default function Assiduite({ user, navigate, goBack, lang, isMobile, kios
                   border: `1px solid ${isRattrapage ? '#EF9F2740' : '#e0e0d8'}`,
                   borderRadius: 10, padding: '10px 12px',
                 }}>
-                  <div style={{ fontSize: 11, color: isRattrapage ? '#633806' : '#666', fontWeight: 600, marginBottom: 6 }}>
-                    📅 {lang === 'ar' ? 'تاريخ التسجيل' : 'Date de saisie'}
+                  <div style={{ fontSize: 12, color: isRattrapage ? C.warn : C.muted, fontWeight: 600, marginBottom: 6, display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <CalendarDays size={14} /> {lang === 'ar' ? 'تاريخ التسجيل' : 'Date de saisie'}
                   </div>
                   <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
                     <input type="date"
@@ -251,8 +240,8 @@ export default function Assiduite({ user, navigate, goBack, lang, isMobile, kios
                     )}
                   </div>
                   {isRattrapage && (
-                    <div style={{ fontSize: 10, color: '#633806', marginTop: 6, fontWeight: 700 }}>
-                      ⚠️ {lang === 'ar'
+                    <div style={{ fontSize: 11, color: C.warn, marginTop: 6, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 4 }}>
+                      <AlertTriangle size={13} /> {lang === 'ar'
                         ? 'وضع التعويض: التسجيل لتاريخ سابق'
                         : 'Mode rattrapage : saisie pour une date passée'}
                     </div>
@@ -261,7 +250,23 @@ export default function Assiduite({ user, navigate, goBack, lang, isMobile, kios
               </div>
             )}
 
-            <SaisieKiosque user={user} lang={lang} cible={cible} dateSaisie={dateSaisie} isRattrapage={isRattrapage} />
+            {/* F5 (oct 2026) : hors kiosque, le surveillant peut basculer sur la liste nominative
+                (recherche, filtre presents/absents) - meme composant que le PC. */}
+            {!kioskMode && (
+              <div style={{display:'flex',gap:0,background:'#f0f0ec',borderRadius:10,padding:3,margin:'10px 12px 0'}}>
+                {[['pave', lang==='ar'?'لوحة الأرقام':'Pavé', Hash], ['liste', lang==='ar'?'القائمة':'Liste', List]].map(([k,l,Icon])=>(
+                  <div key={k} onClick={()=>setModeSaisieMobile(k)}
+                    style={{flex:1,padding:'8px 4px',borderRadius:8,textAlign:'center',fontSize:12,fontWeight:600,cursor:'pointer',
+                      display:'flex',alignItems:'center',justifyContent:'center',gap:5,
+                      background:modeSaisieMobile===k?C.surface:'transparent',color:modeSaisieMobile===k?C.brand:C.muted}}>
+                    <Icon size={14} />{l}
+                  </div>
+                ))}
+              </div>
+            )}
+            {(!kioskMode && modeSaisieMobile==='liste')
+              ? <div style={{padding:'12px'}}><SaisieDesktop user={user} lang={lang} cible={cible} dateSaisie={dateSaisie} isRattrapage={isRattrapage} /></div>
+              : <SaisieKiosque user={user} lang={lang} cible={cible} dateSaisie={dateSaisie} isRattrapage={isRattrapage} />}
           </>
         )}
         {onglet === 'suivi'  && <SuiviPlaceholder lang={lang} user={user} isMobile={true} cible={cible} setCible={setCible} />}
@@ -492,6 +497,7 @@ function useAssiduiteData(user, cible = 'eleves', dateSaisie = null) {
           .select('id, prenom, nom, instituteur_id_ecole')
           .eq('ecole_id', user.ecole_id)
           .eq('role', 'instituteur')
+          .is('suspendu_at', null) // F13 (oct 2026) : exclure les suspendus (comme Dashboard / ValidationRapide)
           .order('instituteur_id_ecole', { ascending: true })
           .limit(500),
         supabase.from('seances_instituteurs')
@@ -517,6 +523,7 @@ function useAssiduiteData(user, cible = 'eleves', dateSaisie = null) {
         supabase.from('eleves')
           .select('id, prenom, nom, eleve_id_ecole, code_niveau')
           .eq('ecole_id', user.ecole_id)
+          .is('suspendu_at', null) // F13 (oct 2026) : exclure les suspendus (comme Dashboard / ValidationRapide)
           .order('eleve_id_ecole', { ascending: true })
           .limit(500),
         supabase.from('presences')
@@ -1122,6 +1129,23 @@ function SuiviPlaceholder({ lang, user, isMobile, cible, setCible }) {
           { k: 'instituteurs', label: lang === 'ar' ? '👨‍🏫 الأساتذة' : '👨‍🏫 Instituteurs', color: '#534AB7', bg: '#EDE9FE' },
         ].map(c => {
           const active = cible === c.k;
+          // Charte mobile (oct 2026) : icone lucide, couleurs de marque
+          if (isMobile) {
+            const Icon = c.k === 'eleves' ? GraduationCap : Users;
+            return (
+              <button key={c.k} onClick={() => setCible(c.k)}
+                style={{
+                  flex: 1, padding: '10px 12px', borderRadius: 10,
+                  border: `1px solid ${active ? C.brand : C.line}`,
+                  background: active ? C.brand : C.surface,
+                  color: active ? C.onBrand : C.text,
+                  fontSize: 13, fontWeight: active ? 700 : 500,
+                  cursor: 'pointer', fontFamily: 'inherit',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                  transition: 'all 0.15s',
+                }}><Icon size={16} />{lang === 'ar' ? (c.k === 'eleves' ? 'الطلاب' : 'الأساتذة') : (c.k === 'eleves' ? 'Élèves' : 'Instituteurs')}</button>
+            );
+          }
           return (
             <button key={c.k} onClick={() => setCible(c.k)}
               style={{
@@ -1146,7 +1170,15 @@ function SuiviPlaceholder({ lang, user, isMobile, cible, setCible }) {
   );
 }
 
+// Libelle de periode pour les exports PDF du suivi (oct 2026). Remplace l'ancienne
+// table PERIODES, supprimee lors du passage a PeriodeSelectorHybride.
+function libellePeriode(debut, fin, lang) {
+  const fmt = (d) => { try { return new Date(d).toLocaleDateString(lang === 'ar' ? 'ar-MA' : 'fr-FR'); } catch (e) { return ''; } };
+  return debut && fin ? `${fmt(debut)} → ${fmt(fin)}` : '';
+}
+
 function OngletSuivi({ lang, user, isMobile }) {
+  const { toast } = useToast(); // BUG-FIX oct 2026 : toast utilise dans les exports mais jamais declare
   const [loading, setLoading] = useState(true);
   const [eleves, setEleves] = useState([]);
   const [presences, setPresences] = useState([]);         // toutes les presences sur la periode
@@ -1177,8 +1209,9 @@ function OngletSuivi({ lang, user, isMobile }) {
       setLoading(true);
       const [elevesRes, niveauxRes, jntRes, ecoleRes] = await Promise.all([
         supabase.from('eleves')
-          .select('id, prenom, nom, eleve_id_ecole, code_niveau, jours_souhaites')
+          .select('id, prenom, nom, eleve_id_ecole, code_niveau, jours_souhaites, date_inscription, created_at') // FIX (oct 2026) : dates d'inscription pour ne pas compter d'absences avant l'arrivee
           .eq('ecole_id', user.ecole_id)
+          .is('suspendu_at', null) // F13 (oct 2026) : exclure les suspendus (comme Dashboard / ValidationRapide) : sinon absents en permanence
           .order('nom'),
         supabase.from('niveaux')
           .select('code, nom')
@@ -1217,11 +1250,14 @@ function OngletSuivi({ lang, user, isMobile }) {
   useEffect(() => {
     if (!debut || !fin) return;
     const loadPres = async () => {
-      const { data } = await supabase.from('presences')
+      // FIX (oct 2026) : fetchAll (avant : tronque a 1000 lignes -> fausses absences sur annee/trimestre)
+      // Tri stable sur (date_presence, eleve_id) (couple unique) : pas de dependance a une colonne id.
+      const data = await fetchAll(supabase.from('presences')
         .select('eleve_id, date_presence')
         .eq('ecole_id', user.ecole_id)
         .gte('date_presence', debut)
-        .lte('date_presence', fin);
+        .lte('date_presence', fin)
+        .order('date_presence').order('eleve_id'), { ordreStable: false });
       setPresences(data || []);
     };
     loadPres();
@@ -1255,9 +1291,26 @@ function OngletSuivi({ lang, user, isMobile }) {
       presParEleve[p.eleve_id].add(p.date_presence);
     });
     // Pour chaque eleve, iterer sur chaque jour de la periode
-    const d1 = new Date(debut);
-    const d2 = new Date(fin);
+    // FIX (oct 2026) : bornes en dates LOCALES (new Date('YYYY-MM-DD') = minuit UTC) et
+    // fin plafonnee a aujourd'hui (avant : jours futurs d'une annee/trimestre comptes absents).
+    const parseLocal = (str) => {
+      const m = String(str || '').match(/^(\d{4})-(\d{2})-(\d{2})/);
+      return m ? new Date(+m[1], +m[2] - 1, +m[3]) : null;
+    };
+    const d1 = parseLocal(debut) || new Date(debut);
+    const finPeriode = parseLocal(fin) || new Date(fin);
+    const aujourdhui = new Date(); aujourdhui.setHours(0, 0, 0, 0);
+    const d2 = finPeriode < aujourdhui ? finPeriode : aujourdhui;
     eleves.forEach(e => {
+      // FIX (oct 2026) : debut = max(debut periode, date d'inscription de l'eleve) (sinon absences
+      // comptees avant son arrivee). date_inscription prioritaire, sinon created_at (date locale).
+      let debutEleve = d1;
+      let dInscr = parseLocal(e.date_inscription);
+      if (!dInscr && e.created_at) {
+        const c = new Date(e.created_at);
+        if (!isNaN(c)) dInscr = new Date(c.getFullYear(), c.getMonth(), c.getDate());
+      }
+      if (dInscr && dInscr > debutEleve) debutEleve = dInscr;
       const jours = Array.isArray(e.jours_souhaites) ? e.jours_souhaites : [false, false, false, false, false, false, false];
       const aDesJours = jours.some(j => j === true);
       const presEleve = presParEleve[e.id] || new Set();
@@ -1271,7 +1324,7 @@ function OngletSuivi({ lang, user, isMobile }) {
         return `${y}-${m}-${dd}`;
       };
       if (aDesJours) {
-        for (let d = new Date(d1); d <= d2; d.setDate(d.getDate() + 1)) {
+        for (let d = new Date(debutEleve); d <= d2; d.setDate(d.getDate() + 1)) { // FIX (oct 2026) : debutEleve
           const iso = isoLocal(d);
           if (datesNonTravailles.has(iso)) continue;  // jour ferie
           // getDay() : 0=Dim, 1=Lun, 2=Mar, 3=Mer, 4=Jeu, 5=Ven, 6=Sam
@@ -1388,7 +1441,7 @@ function OngletSuivi({ lang, user, isMobile }) {
 
   const exportAssiduitePDF = async () => {
     const rows = prepareExportRows();
-    const periodeLabel = PERIODES.find(p => p.id === periode)?.label || '';
+    const periodeLabel = libellePeriode(debut, fin, lang); // BUG-FIX oct 2026 : PERIODES n'existait plus -> export PDF en erreur
     const niveauLabel = filtreNiveau ? (niveaux.find(n => n.code === filtreNiveau)?.nom || filtreNiveau) : '';
     try {
       await openPDF('rapport_assiduite', {
@@ -1510,7 +1563,7 @@ function OngletSuivi({ lang, user, isMobile }) {
                 padding:'8px 12px',fontSize:11,color:'#7B5800',marginTop:8,
                 display:'flex',alignItems:'center',gap:8,
               }}>
-                <span style={{fontSize:14}}>💡</span>
+                {isMobile ? <Lightbulb size={14} style={{flexShrink:0}} /> : <span style={{fontSize:14}}>💡</span>}
                 <span>{isAr
                   ? 'لم تقم بإعداد سنة دراسية بعد. الإدارة > الفترات.'
                   : 'Aucune année scolaire active. Gestion → Périodes.'}</span>
@@ -1546,6 +1599,32 @@ function OngletSuivi({ lang, user, isMobile }) {
       {/* ─── KPIs globaux (cliquables) ─── */}
       {/* Mobile : grille fixe 2x2 (meilleure visibilité sur petit écran).
           Desktop : auto-fit avec minmax pour s'adapter à la largeur. */}
+      {isMobile ? (
+        <div style={{ marginBottom: 14 }}>
+          <KpiGrid cols={2}>
+            <KpiTile
+              label={lang === 'ar' ? 'نسبة الحضور' : 'Taux de présence'}
+              value={`${globalStats.taux}%`}
+              hint={lang === 'ar'
+                ? `${globalStats.presentes}/${globalStats.attendues} حصة`
+                : `${globalStats.presentes}/${globalStats.attendues} séances`}
+              tone="brand" />
+            {[
+              { k: 'risque', label: lang === 'ar' ? `طلاب في خطر (<${SEUIL_RISQUE}%)` : `À risque (<${SEUIL_RISQUE}%)`,
+                value: globalStats.nbRisque, hint: lang === 'ar' ? 'يحتاجون متابعة' : 'À suivre de près', tone: 'crit' },
+              { k: 'absences', label: lang === 'ar' ? 'الغيابات' : 'Absences', value: globalStats.absences,
+                hint: lang === 'ar' ? `من ${globalStats.attendues} حصة متوقعة` : `sur ${globalStats.attendues} séances attendues`, tone: 'warn' },
+              { k: 'parfait', label: lang === 'ar' ? 'المواظبة التامة' : 'Assiduité parfaite', value: globalStats.nbParfaits,
+                hint: lang === 'ar' ? '100% حضور' : '100% de présence', tone: 'good' },
+            ].map(kp => (
+              <div key={kp.k} style={{ borderRadius: 12, outline: filtreKpi === kp.k ? `2px solid ${C.brand}` : 'none', outlineOffset: -1 }}>
+                <KpiTile label={kp.label} value={kp.value} hint={kp.hint} tone={kp.tone}
+                  onClick={() => setFiltreKpi(filtreKpi === kp.k ? null : kp.k)} />
+              </div>
+            ))}
+          </KpiGrid>
+        </div>
+      ) : (
       <div style={{
         display: 'grid',
         gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(auto-fit, minmax(150px, 1fr))',
@@ -1596,12 +1675,13 @@ function OngletSuivi({ lang, user, isMobile }) {
           onClick={() => setFiltreKpi(filtreKpi === 'parfait' ? null : 'parfait')}
         />
       </div>
+      )}
 
       {/* Filtres (recherche + niveau) — placés AVANT la bannière filtre KPI
           pour que la bannière soit collée à la liste qui en découle */}
       <div style={{ display: 'flex', gap: 8, marginBottom: 14, flexWrap: 'wrap' }}>
         <input type="text" value={recherche} onChange={e => setRecherche(e.target.value)}
-          placeholder={lang === 'ar' ? '🔍 ابحث طالب' : '🔍 Chercher un élève'}
+          placeholder={isMobile ? (lang === 'ar' ? 'ابحث طالب' : 'Chercher un élève') : (lang === 'ar' ? '🔍 ابحث طالب' : '🔍 Chercher un élève')}
           style={{ flex: '1 1 240px', padding: '9px 13px', fontSize: 13, borderRadius: 8, border: '1px solid #e0e0d8', fontFamily: 'inherit', outline: 'none' }} />
         <select value={filtreNiveau} onChange={e => setFiltreNiveau(e.target.value)}
           style={{ padding: '9px 13px', fontSize: 13, borderRadius: 8, border: '1px solid #e0e0d8', fontFamily: 'inherit', background: '#fff' }}>
@@ -1620,7 +1700,7 @@ function OngletSuivi({ lang, user, isMobile }) {
           borderRadius: '10px 10px 0 0', borderBottom: 'none',
           fontSize: 13, color: '#0C447C',
         }}>
-          <span style={{ fontSize: 16 }}>🔎</span>
+          {isMobile ? <Filter size={16} style={{ flexShrink: 0 }} /> : <span style={{ fontSize: 16 }}>🔎</span>}
           <div style={{ flex: 1 }}>
             <strong>
               {filtreKpi === 'risque'   && (lang === 'ar' ? `عرض الطلاب في خطر (<${SEUIL_RISQUE}%)`  : `Filtré : élèves à risque (<${SEUIL_RISQUE}%)`)}
@@ -1652,7 +1732,7 @@ function OngletSuivi({ lang, user, isMobile }) {
         }}>
           {filtreKpi === 'parfait' ? (
             <>
-              <div style={{ fontSize: 32, marginBottom: 8 }}>💪</div>
+              {!isMobile && <div style={{ fontSize: 32, marginBottom: 8 }}>💪</div>}
               <div style={{ fontSize: 14, fontWeight: 600, color: '#666' }}>
                 {lang === 'ar'
                   ? 'لا يوجد طلاب بمواظبة تامة بعد'
@@ -1666,7 +1746,7 @@ function OngletSuivi({ lang, user, isMobile }) {
             </>
           ) : filtreKpi === 'risque' ? (
             <>
-              <div style={{ fontSize: 32, marginBottom: 8 }}>🎉</div>
+              {!isMobile && <div style={{ fontSize: 32, marginBottom: 8 }}>🎉</div>}
               <div style={{ fontSize: 14, fontWeight: 600, color: '#666' }}>
                 {lang === 'ar'
                   ? 'لا يوجد طلاب في خطر'
@@ -1678,7 +1758,7 @@ function OngletSuivi({ lang, user, isMobile }) {
             </>
           ) : filtreKpi === 'absences' ? (
             <>
-              <div style={{ fontSize: 32, marginBottom: 8 }}>👌</div>
+              {!isMobile && <div style={{ fontSize: 32, marginBottom: 8 }}>👌</div>}
               <div style={{ fontSize: 14, fontWeight: 600, color: '#666' }}>
                 {lang === 'ar'
                   ? 'لا يوجد طلاب غائبون'
@@ -2117,7 +2197,7 @@ function OngletSuiviInstituteurs({ lang, user, isMobile }) {
           background: '#FAEEDA', border: '1px solid #EF9F2740',
           borderRadius: 12, padding: 20, textAlign: 'center',
         }}>
-          <div style={{ fontSize: 32, marginBottom: 8 }}>⚙️</div>
+          {isMobile ? <div style={{ marginBottom: 8, display: 'flex', justifyContent: 'center' }}><Settings size={30} color={C.warn} /></div> : <div style={{ fontSize: 32, marginBottom: 8 }}>⚙️</div>}
           <div style={{ fontSize: 14, fontWeight: 700, color: '#633806', marginBottom: 6 }}>
             {lang === 'ar' ? 'التعرفات غير محددة' : 'Tarifs non configurés'}
           </div>
@@ -2168,7 +2248,7 @@ function OngletSuiviInstituteurs({ lang, user, isMobile }) {
 
   const exportInstPDF = async () => {
     const rows = prepareInstExportRows();
-    const periodeLabel = PERIODES.find(p => p.id === periode)?.label || '';
+    const periodeLabel = libellePeriode(debut, fin, lang); // BUG-FIX oct 2026 : PERIODES n'existait plus -> export PDF en erreur
     const tauxGlobal = totalSeances > 0 ? Math.round((totalValides / totalSeances) * 100) : 0;
     try {
       await openPDF('rapport_assiduite', {
@@ -2280,7 +2360,7 @@ function OngletSuiviInstituteurs({ lang, user, isMobile }) {
                 padding:'8px 12px',fontSize:11,color:'#7B5800',marginTop:8,
                 display:'flex',alignItems:'center',gap:8,
               }}>
-                <span style={{fontSize:14}}>💡</span>
+                {isMobile ? <Lightbulb size={14} style={{flexShrink:0}} /> : <span style={{fontSize:14}}>💡</span>}
                 <span>{isAr
                   ? 'لم تقم بإعداد سنة دراسية بعد. الإدارة > الفترات.'
                   : 'Aucune année scolaire active. Gestion → Périodes.'}</span>
@@ -2312,6 +2392,16 @@ function OngletSuiviInstituteurs({ lang, user, isMobile }) {
       )}
 
       {/* KPIs globaux */}
+      {isMobile ? (
+        <div style={{ marginBottom: 14 }}>
+          <KpiGrid cols={2}>
+            <KpiTile label={lang === 'ar' ? 'الحصص المسجلة' : 'Séances enregistrées'} value={totalSeances} tone="brand" />
+            <KpiTile label={lang === 'ar' ? 'تم التحقق منها' : 'Validées'} value={totalValides} tone="good" />
+            <KpiTile label={lang === 'ar' ? 'في انتظار التحقق' : 'En attente'} value={totalEnAttente} tone="warn" />
+            <KpiTile label={lang === 'ar' ? 'المبلغ المستحق' : 'À payer'} value={`${totalMontantDu.toFixed(0)} ${lang === 'ar' ? 'د.' : 'DH'}`} tone="crit" />
+          </KpiGrid>
+        </div>
+      ) : (
       <div style={{
         display: 'grid',
         gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(auto-fit, minmax(150px, 1fr))',
@@ -2322,6 +2412,7 @@ function OngletSuiviInstituteurs({ lang, user, isMobile }) {
         <StatCard label={lang === 'ar' ? 'في انتظار التحقق' : 'En attente'} value={totalEnAttente} color="#EF9F27" bg="#FAEEDA" />
         <StatCard label={lang === 'ar' ? 'المبلغ المستحق' : 'À payer'} value={`${totalMontantDu.toFixed(0)} ${lang === 'ar' ? 'د.' : 'DH'}`} color="#E24B4A" bg="#FCEBEB" />
       </div>
+      )}
 
       {/* Bouton "Tout valider" */}
       {totalEnAttente > 0 && (
@@ -2343,7 +2434,7 @@ function OngletSuiviInstituteurs({ lang, user, isMobile }) {
             (mois+ = trop de colonnes pour un tableau lisible) */}
       {instituteurs.length === 0 ? (
         <div style={{ padding: 30, textAlign: 'center', color: '#888', background: '#fff', borderRadius: 12, border: '1px dashed #ccc' }}>
-          <div style={{ fontSize: 32, marginBottom: 8 }}>👨‍🏫</div>
+          {isMobile ? <div style={{ marginBottom: 8, display: 'flex', justifyContent: 'center' }}><Users size={30} color={C.brand2} /></div> : <div style={{ fontSize: 32, marginBottom: 8 }}>👨‍🏫</div>}
           <div style={{ fontSize: 13, fontWeight: 600 }}>
             {lang === 'ar' ? 'لا يوجد أساتذة' : 'Aucun instituteur'}
           </div>
@@ -2577,12 +2668,12 @@ function InstituteurCard({ inst, stats, lang, isMobile, onValidateRow, onShowDet
     }}>
       {/* Ligne 1 : identité + numéro */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12, flexWrap: 'wrap' }}>
-        <div style={{
+        {isMobile ? <Avatar prenom={inst.prenom} nom={inst.nom} color={C.brand} size={44} /> : <div style={{
           width: 44, height: 44, borderRadius: 12,
           background: '#EDE9FE', color: '#534AB7',
           display: 'flex', alignItems: 'center', justifyContent: 'center',
           fontSize: 20, flexShrink: 0,
-        }}>👨‍🏫</div>
+        }}>👨‍🏫</div>}
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontSize: 15, fontWeight: 700, color: '#1a1a1a' }}>
             {inst.prenom} {inst.nom}
@@ -2590,14 +2681,14 @@ function InstituteurCard({ inst, stats, lang, isMobile, onValidateRow, onShowDet
           {inst.instituteur_id_ecole && (
             <div style={{
               display: 'inline-block', marginTop: 2,
-              padding: '2px 8px', background: '#EDE9FE', color: '#534AB7',
+              padding: '2px 8px', background: isMobile ? C.bg : '#EDE9FE', color: isMobile ? C.muted : '#534AB7',
               borderRadius: 6, fontSize: 10, fontWeight: 700,
             }}>{inst.instituteur_id_ecole}</div>
           )}
         </div>
         {stats.tarif > 0 && (
           <div style={{ fontSize: 11, color: '#888', textAlign: 'right' }}>
-            <div style={{ fontWeight: 600, color: '#534AB7', fontSize: 13 }}>
+            <div style={{ fontWeight: 600, color: isMobile ? C.text : '#534AB7', fontSize: 13 }}>
               {stats.tarif.toFixed(0)} {lang === 'ar' ? 'د.' : 'DH'}
             </div>
             <div>{lang === 'ar' ? 'للحصة' : '/ séance'}</div>
@@ -2647,13 +2738,13 @@ function InstituteurCard({ inst, stats, lang, isMobile, onValidateRow, onShowDet
         gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(4, 1fr)',
         gap: 8, marginBottom: 12,
       }}>
-        <MiniStatCard icon="📋" label={lang === 'ar' ? 'الإجمالي' : 'Total'}
+        <MiniStatCard icon={isMobile ? null : "📋"} label={lang === 'ar' ? 'الإجمالي' : 'Total'}
           value={stats.total} color="#534AB7" />
-        <MiniStatCard icon="✅" label={lang === 'ar' ? 'مُتحقق' : 'Validées'}
+        <MiniStatCard icon={isMobile ? null : "✅"} label={lang === 'ar' ? 'مُتحقق' : 'Validées'}
           value={stats.valides} color="#1D9E75" />
-        <MiniStatCard icon="⏳" label={lang === 'ar' ? 'منتظر' : 'En attente'}
+        <MiniStatCard icon={isMobile ? null : "⏳"} label={lang === 'ar' ? 'منتظر' : 'En attente'}
           value={stats.enAttente} color="#EF9F27" highlight={stats.enAttente > 0} />
-        <MiniStatCard icon="💰" label={lang === 'ar' ? 'مستحق' : 'À payer'}
+        <MiniStatCard icon={isMobile ? null : "💰"} label={lang === 'ar' ? 'مستحق' : 'À payer'}
           value={stats.montantDu > 0 ? `${stats.montantDu.toFixed(0)}` : '—'}
           color="#E24B4A" highlight={stats.montantDu > 0}
           suffix={stats.montantDu > 0 ? (lang === 'ar' ? 'د.' : 'DH') : null} />
@@ -2686,7 +2777,7 @@ function InstituteurCard({ inst, stats, lang, isMobile, onValidateRow, onShowDet
               fontFamily: 'inherit',
               boxShadow: '0 2px 8px rgba(226,75,74,0.25)',
             }}>
-            💸 {lang === 'ar'
+            {isMobile ? <Banknote size={15} style={{ verticalAlign: 'middle', marginInlineEnd: 6 }} /> : '💸 '}{lang === 'ar'
               ? `دفع ${stats.montantDu.toFixed(0)} د.`
               : `Payer ${stats.montantDu.toFixed(0)} DH`}
           </button>
@@ -2694,12 +2785,12 @@ function InstituteurCard({ inst, stats, lang, isMobile, onValidateRow, onShowDet
         <button onClick={onShowDetails}
           style={{
             flex: '0 1 auto', padding: '10px 14px',
-            background: '#fff', color: '#534AB7',
-            border: '1px solid #534AB740', borderRadius: 10,
+            background: '#fff', color: isMobile ? C.brand : '#534AB7',
+            border: isMobile ? `1px solid ${C.line}` : '1px solid #534AB740', borderRadius: 10,
             fontSize: 12, fontWeight: 700, cursor: 'pointer',
             fontFamily: 'inherit',
           }}>
-          📋 {lang === 'ar' ? 'التفاصيل' : 'Détails'}
+          {isMobile ? null : '📋 '}{lang === 'ar' ? 'التفاصيل' : 'Détails'}
         </button>
       </div>
     </div>
@@ -2717,7 +2808,7 @@ function MiniStatCard({ icon, label, value, color, highlight, suffix }) {
       textAlign: 'center',
     }}>
       <div style={{ fontSize: 11, color: '#888', marginBottom: 2 }}>
-        {icon} {label}
+        {icon ? <>{icon} {label}</> : label}
       </div>
       <div style={{ fontSize: 16, fontWeight: 800, color: highlight ? color : '#1a1a1a' }}>
         {value}{suffix && <span style={{ fontSize: 10, fontWeight: 600, marginLeft: 3 }}>{suffix}</span>}

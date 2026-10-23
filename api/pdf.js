@@ -9,7 +9,11 @@ module.exports = async function handler(req, res) {
   if (req.method === 'OPTIONS') return res.status(200).end();
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
-  const { type, data, lang = 'fr' } = req.body || {};
+  const { type, lang = 'fr' } = req.body || {};
+  // securite (oct 2026) : neutralise les balises dans toutes les donnees recues
+  // (nom d'eleve '<img onerror=...>' executait du script lors de l'impression).
+  // Seuls < et > sont remplaces : pas de double echappement avec escapeHtml().
+  const data = neutraliserBalises((req.body || {}).data);
 
   try {
     let html = '';
@@ -129,9 +133,10 @@ function generateRapportMensuel(data, lang) {
       </div>
     </div>
     <div class="kpi-grid">
-      <div class="kpi"><div class="kpi-val">${eleves.length}</div><div class="kpi-lbl">${isAr ? 'طالب نشط' : 'Élèves actifs'}</div></div>
+      <!-- FIX (oct 2026) : nb d'eleves actifs reel (comme a l'ecran) au lieu de eleves.length ; KPI Tomon/Sourates aligne sur la colonne -->
+      <div class="kpi"><div class="kpi-val">${stats.nbActifs != null ? stats.nbActifs : eleves.length}</div><div class="kpi-lbl">${isAr ? 'طالب نشط' : 'Élèves actifs'}</div></div>
       <div class="kpi"><div class="kpi-val">${stats.totalPts || 0}</div><div class="kpi-lbl">${isAr ? 'مجموع النقاط' : 'Total points'}</div></div>
-      <div class="kpi"><div class="kpi-val">${stats.totalTomon || 0}</div><div class="kpi-lbl">${isAr ? 'الثُّمنات' : 'Tomon'}</div></div>
+      <div class="kpi"><div class="kpi-val">${stats.totalSourates != null ? `${stats.totalTomon || 0} / ${stats.totalSourates || 0}` : (stats.totalTomon || 0)}</div><div class="kpi-lbl">${stats.totalSourates != null ? (isAr ? 'الأثمان / السور' : 'Tomon / Sourates') : (isAr ? 'الثُّمنات' : 'Tomon')}</div></div>
       <div class="kpi"><div class="kpi-val">${stats.totalHizb || 0}</div><div class="kpi-lbl">${isAr ? 'الأحزاب' : 'Hizb'}</div></div>
     </div>
     <div class="section-title">${isAr ? 'أداء الطلاب' : 'Performance des élèves'}</div>
@@ -140,7 +145,7 @@ function generateRapportMensuel(data, lang) {
         <th>${isAr ? 'الطالب' : 'Élève'}</th>
         <th>${isAr ? 'المستوى' : 'Niveau'}</th>
         <th>${isAr ? 'النقاط' : 'Points'}</th>
-        <th>${isAr ? 'الثُّمنات' : 'Tomon'}</th>
+        <th>${isAr ? 'الأثمان/السور' : 'Tomon/Sourates'}</th>
         <th>${isAr ? 'الأحزاب' : 'Hizb'}</th>
         <th>${isAr ? 'أيام نشطة' : 'Jours actifs'}</th>
       </tr></thead>
@@ -843,8 +848,11 @@ function generateListeNotes(data, lang) {
         <td><span class="badge" style="background:${e.couleur || '#085041'}20;color:${e.couleur || '#085041'}">${e.code_niveau || '—'}</span></td>
         <td>${e.instituteur || '—'}</td>
         <td style="text-align:center;color:#085041;font-weight:700;font-size:14px">${(e.points || 0).toLocaleString()}</td>
-        <td style="text-align:center;color:#888">${e.tomon || 0}</td>
+        <td style="text-align:center;color:#888">${e.tomonSourates ?? e.tomon ?? 0}</td>
         <td style="text-align:center;color:#888">${e.hizb || 0}</td>
+        <td style="text-align:center;color:#888">${e.ensembles || 0}</td>
+        <td style="text-align:center;color:#888">${e.ptsExamens || 0}</td>
+        <td style="text-align:center;color:#888">${e.ptsCertificats || 0}</td>
       </tr>
     `;
   }).join('');
@@ -879,8 +887,11 @@ function generateListeNotes(data, lang) {
         <th>${isAr ? 'المستوى' : 'Niveau'}</th>
         <th>${isAr ? 'الأستاذ' : 'Instituteur'}</th>
         <th style="text-align:center">${isAr ? 'النقاط' : 'Points'}</th>
-        <th style="text-align:center">${isAr ? 'الثُّمنات' : 'Tomon'}</th>
+        <th style="text-align:center">${isAr ? 'الأثمان/السور' : 'Tomon/Sourates'}</th>
         <th style="text-align:center">${isAr ? 'الأحزاب' : 'Hizb'}</th>
+        <th style="text-align:center">${isAr ? 'المجموعات' : 'Ensembles'}</th>
+        <th style="text-align:center">${isAr ? 'الامتحانات' : 'Examens'}</th>
+        <th style="text-align:center">${isAr ? 'الشهادات' : 'Certs'}</th>
       </tr></thead>
       <tbody>${rows}</tbody>
     </table>
@@ -2118,4 +2129,16 @@ function generateRapportDirection(data, lang) {
     </div>
   </div>
   </body></html>`;
+}
+
+
+function neutraliserBalises(v) {
+  if (typeof v === 'string') return v.replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  if (Array.isArray(v)) return v.map(neutraliserBalises);
+  if (v && typeof v === 'object') {
+    const o = {};
+    for (const k of Object.keys(v)) o[k] = neutraliserBalises(v[k]);
+    return o;
+  }
+  return v;
 }

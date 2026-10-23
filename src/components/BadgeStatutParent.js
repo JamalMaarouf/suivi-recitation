@@ -146,6 +146,7 @@ export default function BadgeStatutParent({ eleve, lang, compact }) {
       >
         <span style={{ fontSize: compact ? 11 : 13 }}>{statutInfo.emoji}</span>
         {!compact && <span>{lang === 'ar' ? 'ولي:' : 'Parent :'} {statutInfo.label}</span>}
+        {compact && <span>{lang === 'ar' ? 'الولي' : 'Parent'}</span>}{/* charte mobile lot 1 : badge compact explicite (avant : ovale vide) */}
       </button>
 
       {/* Popup détail */}

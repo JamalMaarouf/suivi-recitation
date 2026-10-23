@@ -8,6 +8,8 @@ import { exportExcelSimple } from '../lib/excel';
 import ExportButtons from '../components/ExportButtons';
 import PageHeader from '../components/PageHeader';
 import MobileSkeletonList from '../components/MobileSkeletonList';
+import { MobileHeader, HeaderIconButton, HeaderMenu, actionsExport, SearchField, FilterChips, ListRow, ActionSheet, LevelBadge, EmptyState, C } from '../components/ui';
+import { ClipboardCheck, Plus, X, Lock, Megaphone, Pencil, Trash2, Power } from 'lucide-react';
 
 export default function GestionExamens({ user, navigate, goBack, lang='fr', isMobile }) {
   const { toast } = useToast();
@@ -23,6 +25,8 @@ export default function GestionExamens({ user, navigate, goBack, lang='fr', isMo
   // E2b — Recherche par nom
   const [searchExam, setSearchExam] = useState('');
   const [confirmModal, setConfirmModal] = useState({isOpen:false});
+  // Charte mobile : examen dont le panneau d'actions est ouvert
+  const [menuExam, setMenuExam] = useState(null);
 
   const emptyForm = {
     niveau_id:'', nom:'', description:'',
@@ -38,13 +42,16 @@ export default function GestionExamens({ user, navigate, goBack, lang='fr', isMo
 
   const loadData = async () => {
     setLoading(true);
+    // fix (oct 2026) : 'nd' etait declare dans le try puis utilise apres -> ReferenceError
+    let nd = null;
     try {
-    const [{data:nd},{data:ed},{data:sd},{data:ec}] = await Promise.all([
+    const [{data:_nd},{data:ed},{data:sd},{data:ec}] = await Promise.all([
       supabase.from('niveaux').select('id,code,nom,type,couleur,sens_recitation').eq('ecole_id',user.ecole_id).order('ordre'),
       supabase.from('examens').select('*').eq('ecole_id',user.ecole_id).order('ordre'),
       supabase.from('sourates').select('*').order('numero'),
       supabase.from('ecoles').select('sens_recitation_defaut').eq('id',user.ecole_id).maybeSingle(),
     ]);
+    nd = _nd;
     setNiveaux(nd||[]);
     setEcoleConfig(ec||null);
     // Enrichir chaque examen avec les données de son niveau
@@ -567,77 +574,40 @@ export default function GestionExamens({ user, navigate, goBack, lang='fr', isMo
   // ── MOBILE ────────────────────────────────────────────────────────
   if (isMobile) {
     return (
-      <div style={{paddingBottom:80,background:'#f5f5f0',minHeight:'100vh'}}>
-        <div style={{background:'linear-gradient(135deg,#085041,#1D9E75)',padding:'48px 16px 14px',position:'sticky',top:0,zIndex:100}}>
-          <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:12}}>
-            <button onClick={()=>goBack?goBack():navigate('gestion')} style={{background:'rgba(255,255,255,0.22)',border:'1px solid rgba(255,255,255,0.25)',borderRadius:10,padding:'0',color:'#fff',fontSize:20,cursor:'pointer',flexShrink:0,width:44,height:44,display:'flex',alignItems:'center',justifyContent:'center'}}>←</button>
-            <div style={{flex:1,fontSize:17,fontWeight:800,color:'#fff'}}>
-              📝 {lang==='ar'?'الامتحانات':'Examens'}
-            </div>
-            <button onClick={()=>{if(showForm&&!editing)resetForm();else startCreate();}}
-              style={{background:showForm&&!editing?'rgba(255,255,255,0.15)':'rgba(255,255,255,0.25)',border:'1px solid rgba(255,255,255,0.3)',borderRadius:10,padding:'8px 14px',color:'#fff',fontSize:13,fontWeight:700,cursor:'pointer',fontFamily:'inherit',flexShrink:0}}>
-              {showForm&&!editing?'✕':(lang==='ar'?'+ إضافة':'+ Ajouter')}
-            </button>
-          </div>
+      <div style={{paddingBottom:80,background:C.bg,minHeight:'100vh'}}>
+        <MobileHeader
+          title={lang==='ar'?'الامتحانات':'Examens'}
+          icon={ClipboardCheck}
+          onBack={()=>goBack?goBack():navigate('gestion')}
+          lang={lang}
+          actions={<>
+            {/* Export mobile */}
+            {examsFiltres.length > 0 && (
+              <HeaderMenu actions={actionsExport({onPDF:handleExportPDF, onExcel:handleExportExcel, lang})} lang={lang} />
+            )}
+            <HeaderIconButton icon={showForm&&!editing?X:Plus}
+              label={showForm&&!editing?(lang==='ar'?'إغلاق':'Fermer'):(lang==='ar'?'إضافة':'Ajouter')}
+              onClick={()=>{if(showForm&&!editing)resetForm();else startCreate();}} />
+          </>}>
           {/* Filtre niveau */}
-          <div style={{display:'flex',gap:6,overflowX:'auto',
-            scrollbarWidth:'none',paddingBottom:10}}>
-            <div onClick={()=>setFiltreNiveau('tous')}
-              style={{padding:'6px 14px',borderRadius:20,fontSize:12,fontWeight:600,
-                flexShrink:0,cursor:'pointer',
-                background:filtreNiveau==='tous'?'#1D9E75':'#f0f0ec',
-                color:filtreNiveau==='tous'?'#fff':'#666'}}>
-              {lang==='ar'?'الكل':'Tous'}
-            </div>
-            {niveaux.map(n=>(
-              <div key={n.id} onClick={()=>setFiltreNiveau(n.id)}
-                style={{padding:'6px 14px',borderRadius:20,fontSize:12,fontWeight:600,
-                  flexShrink:0,cursor:'pointer',
-                  background:filtreNiveau===n.id?n.couleur:'#f0f0ec',
-                  color:filtreNiveau===n.id?'#fff':'#666'}}>
-                {n.code}
-              </div>
-            ))}
-          </div>
+          <FilterChips onBrand
+            options={[{value:'tous', label:lang==='ar'?'الكل':'Tous'}, ...niveaux.map(n=>({value:n.id, label:n.code}))]}
+            value={filtreNiveau} onChange={setFiltreNiveau} />
           {/* M3b — Recherche par nom (alignement avec PC E2b) */}
           {examens.length > 0 && (
-            <div style={{marginTop:8}}>
-              <input type="text"
-                value={searchExam}
-                onChange={e => setSearchExam(e.target.value)}
-                placeholder={'🔍 ' + (lang === 'ar' ? 'بحث عن امتحان...' : 'Rechercher un examen')}
-                style={{
-                  width:'100%', padding:'8px 12px', fontSize:13,
-                  borderRadius:10, border:'1px solid rgba(255,255,255,0.3)',
-                  fontFamily:'inherit', outline:'none',
-                  background:'rgba(255,255,255,0.15)', color:'#fff',
-                  boxSizing:'border-box',
-                }}/>
-            </div>
+            <SearchField value={searchExam} onChange={setSearchExam} lang={lang} id="recherche-examens"
+              placeholder={lang === 'ar' ? 'بحث عن امتحان...' : 'Rechercher un examen'} />
           )}
-          {/* Export mobile */}
-          {examsFiltres.length > 0 && (
-            <div style={{display:'flex',gap:6,marginTop:8}}>
-              <button onClick={handleExportPDF}
-                style={{flex:1,background:'rgba(255,255,255,0.25)',border:'1px solid rgba(255,255,255,0.3)',borderRadius:10,padding:'7px 11px',color:'#fff',fontSize:12,fontWeight:600,cursor:'pointer',whiteSpace:'nowrap',fontFamily:'inherit'}}>
-                📄 PDF
-              </button>
-              <button onClick={handleExportExcel}
-                style={{flex:1,background:'rgba(255,255,255,0.25)',border:'1px solid rgba(255,255,255,0.3)',borderRadius:10,padding:'7px 11px',color:'#fff',fontSize:12,fontWeight:600,cursor:'pointer',whiteSpace:'nowrap',fontFamily:'inherit'}}>
-                📊 Excel
-              </button>
-            </div>
-          )}
-        </div>
+        </MobileHeader>
 
         <div style={{padding:'12px'}}>
           {showForm&&(
-            <div style={{background:'#fff',borderRadius:16,padding:'18px',
-              marginBottom:14,border:`1.5px solid ${editing?'#378ADD':'#1D9E75'}`}}>
-              <div style={{fontSize:15,fontWeight:700,color:'#fff',marginBottom:14}}>
+            <div style={{background:C.surface,borderRadius:12,padding:'18px',
+              marginBottom:14,border:`1px solid ${C.line}`}}>
+              <div style={{fontSize:15,fontWeight:700,color:C.text,marginBottom:14}}>
                 {editing
-                  ?(lang==='ar'?'تعديل الامتحان':'✏️ Modifier l\'examen')
-                  :(lang==='ar'?'إضافة امتحان':'📝 Nouvel examen')}
+                  ?(lang==='ar'?'تعديل الامتحان':'Modifier l\'examen')
+                  :(lang==='ar'?'إضافة امتحان':'Nouvel examen')}
               </div>
               {renderFormContent()}
             </div>
@@ -646,81 +616,58 @@ export default function GestionExamens({ user, navigate, goBack, lang='fr', isMo
           {loading&&<MobileSkeletonList type="card-simple" count={4} padding="0" />}
 
           {!loading&&examsFiltres.length===0&&!showForm&&(
-            <div style={{textAlign:'center',color:'#aaa',padding:'3rem',
-              background:'#fff',borderRadius:12,border:'0.5px solid #e0e0d8'}}>
-              <div style={{fontSize:40,marginBottom:10}}>📝</div>
-              <div style={{fontSize:14}}>
-                {lang==='ar'?'لا توجد امتحانات':'Aucun examen configuré'}
-              </div>
-            </div>
+            <EmptyState icon={ClipboardCheck} title={lang==='ar'?'لا توجد امتحانات':'Aucun examen configuré'} />
           )}
 
+          <div style={{display:'grid',gap:8}}>
           {!loading&&(examsFiltres||[]).map(e=>{
             const nc=e.niveau?.couleur||'#888';
+            const estSourate=(e.type_contenu||'hizb')==='sourate';
             return(
-              <div key={e.id} style={{background:'#fff',borderRadius:14,
-                padding:'14px',marginBottom:10,
-                border:`0.5px solid ${nc}20`,opacity:e.actif?1:0.6}}>
-                <div style={{display:'flex',alignItems:'flex-start',gap:12}}>
-                  <div style={{fontSize:24,flexShrink:0}}>
-                    {e.bloquant?'🔒':'📢'}
-                  </div>
-                  <div style={{flex:1,minWidth:0}}>
-                    <div style={{fontWeight:700,fontSize:15}}>{e.nom}</div>
-                    {/* Contenu */}
-                    <div style={{fontSize:12,color:'#666',marginTop:4,
-                      fontFamily:(e.type_contenu||'hizb')==='sourate'?"'Tajawal',Arial":'inherit',
-                      direction:(e.type_contenu||'hizb')==='sourate'?'rtl':'ltr'}}>
-                      {resumeContenu(e)}
+              <div key={e.id} style={{opacity:e.actif?1:0.6}}>
+                <ListRow lang={lang}
+                  leading={
+                    <div style={{width:40,height:40,borderRadius:12,flexShrink:0,background:C.bg,border:`1px solid ${C.line}`,
+                      display:'flex',alignItems:'center',justifyContent:'center',color:e.bloquant?C.crit:C.warn}}>
+                      {e.bloquant?<Lock size={18}/>:<Megaphone size={18}/>}
                     </div>
-                    <div style={{display:'flex',gap:5,marginTop:6,flexWrap:'wrap'}}>
-                      {e.niveau&&(
-                        <span style={{fontSize:11,padding:'2px 8px',borderRadius:20,
-                          background:`${nc}20`,color:nc,fontWeight:600}}>
-                          {e.niveau.code}
-                        </span>
-                      )}
-                      <span style={{fontSize:11,padding:'2px 8px',borderRadius:20,
-                        background:'#E1F5EE',color:'#085041',fontWeight:600}}>
-                        ✓ min {e.score_minimum}%
+                  }
+                  title={e.nom}
+                  subtitle={
+                    <span style={{fontFamily:estSourate?"'Tajawal',Arial":'inherit'}} dir={estSourate?'rtl':'ltr'}>
+                      {resumeContenu(e)}
+                    </span>
+                  }
+                  meta={
+                    <div style={{display:'flex',gap:5,flexWrap:'wrap',alignItems:'center'}}>
+                      {e.niveau&&<LevelBadge code={e.niveau.code} color={nc} />}
+                      <span style={{fontSize:11,color:C.muted,fontWeight:600}}>
+                        min {e.score_minimum}%
                       </span>
-                      <span style={{fontSize:11,padding:'2px 8px',borderRadius:20,
-                        background:e.bloquant?'#FCEBEB':'#FAEEDA',
-                        color:e.bloquant?'#A32D2D':'#633806',fontWeight:600}}>
-                        {e.bloquant?'🔒':'📢'} {e.bloquant
+                      <span style={{fontSize:11,fontWeight:600,color:e.bloquant?C.crit:C.warn}}>
+                        · {e.bloquant
                           ?(lang==='ar'?'موقف':'Bloquant')
                           :(lang==='ar'?'تنبيه':'Alerte')}
                       </span>
                     </div>
-                  </div>
-                </div>
-                <div style={{display:'flex',gap:8,marginTop:12}}>
-                  <button onClick={()=>startEdit(e)}
-                    style={{flex:1,padding:'9px',background:'#E6F1FB',color:'#0C447C',
-                      border:'none',borderRadius:10,fontSize:13,fontWeight:600,
-                      cursor:'pointer',fontFamily:'inherit'}}>
-                    ✏️ {lang==='ar'?'تعديل':'Modifier'}
-                  </button>
-                  <button onClick={()=>toggleActif(e)}
-                    style={{flex:1,padding:'9px',
-                      background:e.actif?'#FAEEDA':'#E1F5EE',
-                      color:e.actif?'#633806':'#085041',border:'none',
-                      borderRadius:10,fontSize:13,fontWeight:600,
-                      cursor:'pointer',fontFamily:'inherit'}}>
-                    {e.actif
-                      ?(lang==='ar'?'تعطيل':'Désactiver')
-                      :(lang==='ar'?'تفعيل':'Activer')}
-                  </button>
-                  <button onClick={()=>supprimer(e)}
-                    style={{padding:'9px 14px',background:'#FCEBEB',color:'#E24B4A',
-                      border:'none',borderRadius:10,fontSize:13,cursor:'pointer'}}>
-                    🗑
-                  </button>
-                </div>
+                  }
+                  onClick={()=>startEdit(e)}
+                  onMore={()=>setMenuExam(e)} />
               </div>
             );
           })}
+          </div>
         </div>
+
+        <ActionSheet open={!!menuExam} onClose={()=>setMenuExam(null)} lang={lang}
+          title={menuExam?.nom}
+          actions={menuExam?[
+            {label:lang==='ar'?'تعديل':'Modifier', icon:Pencil, onClick:()=>startEdit(menuExam)},
+            {label:menuExam.actif
+              ?(lang==='ar'?'تعطيل':'Désactiver')
+              :(lang==='ar'?'تفعيل':'Activer'), icon:Power, onClick:()=>toggleActif(menuExam)},
+            {label:lang==='ar'?'حذف':'Supprimer', icon:Trash2, danger:true, onClick:()=>supprimer(menuExam)},
+          ]:[]} />
 
         {confirmModal.isOpen&&(
           <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.5)',

@@ -1,4 +1,6 @@
 import React, { useState } from 'react';
+import { BookOpen } from 'lucide-react';
+import { C, HEADER_BG } from '../components/ui/theme';
 import { supabase } from '../lib/supabase';
 import { t } from '../lib/i18n';
 import { getCachedSWR } from '../lib/cache';
@@ -7,7 +9,16 @@ import { fetchAll } from '../lib/fetchAll';
 export default function Login({ onLogin, lang, LangSelector, onShowInscription }) {
   const [identifiant, setIdentifiant] = useState('');
   const [motDePasse, setMotDePasse] = useState('');
-  const [error, setError] = useState('');
+  // Securite (oct 2026) : message apres une deconnexion pour session expiree / mise a jour
+  const [error, setError] = useState(() => {
+    try {
+      if (sessionStorage.getItem('suivi_session_expiree')) {
+        sessionStorage.removeItem('suivi_session_expiree');
+        return lang === 'ar' ? 'انتهت الجلسة، يرجى تسجيل الدخول من جديد' : 'Session expirée, merci de vous reconnecter.';
+      }
+    } catch (e) { /* */ }
+    return '';
+  });
   const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e) => {
@@ -66,6 +77,11 @@ export default function Login({ onLogin, lang, LangSelector, onShowInscription }
       }
 
       setLoading(false);
+      // Securite (oct 2026) : session signee par le serveur, envoyee a chaque requete
+      try {
+        if (data.token) localStorage.setItem('suivi_token', data.token);
+        else localStorage.removeItem('suivi_token');
+      } catch (e) { /* stockage indisponible */ }
 
       // Précharger en arrière-plan les données du Dashboard
       // Quand Dashboard s'affichera, les données seront déjà dans le cache SWR
@@ -78,9 +94,11 @@ export default function Login({ onLogin, lang, LangSelector, onShowInscription }
           getCachedSWR('niveaux', ecoleId,
             () => supabase.from('niveaux').select('id,code,nom,type,couleur').eq('ecole_id', ecoleId).order('ordre')),
           getCachedSWR('validations', ecoleId,
-            () => fetchAll(supabase.from('validations').select('id,eleve_id,type_validation,nombre_tomon,hizb_valide,tomon_debut,date_validation,valide_par,ecole_id,valideur:valide_par(prenom,nom)').eq('ecole_id', ecoleId).order('date_validation',{ascending:false}))),
+            // Alignement avec Dashboard.js : inclure `ensemble_id` pour le prechargement.
+            () => fetchAll(supabase.from('validations').select('id,eleve_id,type_validation,nombre_tomon,hizb_valide,tomon_debut,date_validation,valide_par,ecole_id,ensemble_id,valideur:valide_par(prenom,nom)').eq('ecole_id', ecoleId).order('date_validation',{ascending:false}))),
           getCachedSWR('recitations_sourates_min', ecoleId,
-            () => fetchAll(supabase.from('recitations_sourates').select('eleve_id,date_validation,type_recitation').eq('ecole_id', ecoleId).order('date_validation',{ascending:false}))),
+            // Alignement avec Dashboard.js : inclure `points` pour le prechargement du cache.
+            () => fetchAll(supabase.from('recitations_sourates').select('eleve_id,date_validation,type_recitation,points,is_muraja').eq('ecole_id', ecoleId).order('date_validation',{ascending:false}))),
         ]).catch(() => { /* silencieux — Dashboard fera le retry normal si échec */ });
       }
 
@@ -95,17 +113,18 @@ export default function Login({ onLogin, lang, LangSelector, onShowInscription }
   };
 
   return (
-    <div style={{minHeight:'100vh',display:'flex',alignItems:'center',justifyContent:'center',background:'#f5f5f0',padding:'1rem',position:'relative'}}>
+    <div style={{minHeight:'100vh',display:'flex',alignItems:'center',justifyContent:'center',background:C.bg,padding:'1rem',position:'relative'}}>
       <div style={{position:'absolute',top:16,right:16}}>
         <LangSelector />
       </div>
-      <div style={{width:'100%',maxWidth:380,background:'#fff',border:'0.5px solid #e0e0d8',borderRadius:16,padding:'2rem 1.75rem'}}>
+      <div style={{width:'100%',maxWidth:380,background:C.surface,border:`1px solid ${C.line}`,borderRadius:16,padding:'2rem 1.75rem',boxShadow:'0 8px 30px rgba(11,90,69,0.08)'}}>
         <div style={{textAlign:'center',marginBottom:'1.75rem'}}>
-          <div style={{width:60,height:60,borderRadius:'50%',background:'#1D9E75',margin:'0 auto 0.75rem',display:'flex',alignItems:'center',justifyContent:'center'}}>
-            <span style={{fontSize:28}}>📖</span>
+          {/* Charte (oct 2026) : meme marque que l'en-tete de l'app */}
+          <div style={{width:60,height:60,borderRadius:16,background:HEADER_BG,margin:'0 auto 0.75rem',display:'flex',alignItems:'center',justifyContent:'center',color:'#fff'}}>
+            <BookOpen size={28} strokeWidth={2} />
           </div>
-          <div style={{fontSize:18,fontWeight:700}}>{t(lang,'login_title')}</div>
-          <div style={{fontSize:12,color:'#888',marginTop:4}}>{t(lang,'login_subtitle')}</div>
+          <div style={{fontSize:20,fontWeight:700,color:C.text}}>{t(lang,'login_title')}</div>
+          <div style={{fontSize:13,color:C.muted,marginTop:4}}>{t(lang,'login_subtitle')}</div>
         </div>
 
         {error && <div className="error-box">{error}</div>}
@@ -145,8 +164,8 @@ export default function Login({ onLogin, lang, LangSelector, onShowInscription }
             {lang==='ar' ? 'مدرسة جديدة ؟' : lang==='en' ? 'New school?' : 'Nouvelle école ?'}
           </div>
           <button onClick={onShowInscription}
-            style={{padding:'8px 20px',background:'#085041',color:'#fff',border:'none',borderRadius:8,fontSize:12,fontWeight:600,cursor:'pointer'}}>
-            {lang==='ar' ? '📝 طلب تسجيل مدرسة' : lang==='en' ? '📝 Register your school' : '📝 Inscrire mon école'}
+            style={{padding:'10px 20px',minHeight:44,background:C.surface,color:C.brand,border:`1px solid ${C.brand}`,borderRadius:12,fontSize:13,fontWeight:600,cursor:'pointer',fontFamily:'inherit'}}>
+            {lang==='ar' ? 'طلب تسجيل مدرسة' : lang==='en' ? 'Register your school' : 'Inscrire mon école'}
           </button>
         </div>
       </div>

@@ -5,6 +5,8 @@ import { getInitiales, scoreLabel, formatDate, formatDateCourt } from '../lib/he
 import { t } from '../lib/i18n';
 import { getSouratesForNiveau, isSourateNiveau } from '../lib/sourates';
 import MobileSkeletonList from '../components/MobileSkeletonList';
+import { MobileHeader, HeaderIconButton, ListRow, SectionTitle, EmptyState, C } from '../components/ui';
+import { BookOpen, Plus, CheckCircle2, Calendar, BarChart3, Lock, Award, GraduationCap, RotateCcw } from 'lucide-react';
 
 function Avatar({ prenom, nom, size=44, bg='#E1F5EE', color='#085041' }) {
   return <div style={{width:size,height:size,borderRadius:'50%',background:bg,color,display:'flex',alignItems:'center',justifyContent:'center',fontWeight:600,fontSize:size*0.33,flexShrink:0}}>{getInitiales(prenom,nom)}</div>;
@@ -97,7 +99,7 @@ export default function FicheSourate({ eleve, user, navigate, goBack, lang='fr',
 
   // Acquis antérieurs points
   const souratesAcquises = parseInt(eleve.sourates_acquises)||0;
-  const ptsAcquis = souratesAcquises * 30;
+  const ptsAcquis = 0; // oct 2026 : avant 30 pts/sourate en dur ; aligne sur le calcul reel (acquis sourates sans points);
   const ptsSuivi = totalPoints;
   const ptsTotal = ptsAcquis + ptsSuivi;
 
@@ -169,7 +171,7 @@ export default function FicheSourate({ eleve, user, navigate, goBack, lang='fr',
       <MobileSkeletonList type="card-with-tabs" count={4} />
       <div style={{marginTop:'1rem',fontSize:13,color:'#888'}}>{eleve?.prenom} {eleve?.nom}</div>
       <button onClick={()=>goBack?goBack():navigate('dashboard')} className="back-link" style={{marginTop:'1rem'}}>
-        ← {lang==='ar'?'رجوع':'Retour'}
+        {lang==='ar'?'رجوع':'Retour'}
       </button>
     </div>
   );
@@ -209,37 +211,22 @@ export default function FicheSourate({ eleve, user, navigate, goBack, lang='fr',
   };
 
   if (isMobile) {
-    const NIVEAU_COLORS_FS = {'5B':'#534AB7','5A':'#378ADD','2M':'#1D9E75'};
-    const nc = NIVEAU_COLORS_FS[codeNiveau] || '#1D9E75';
     return (
       <div style={{paddingBottom:80, background:'#f5f5f0', minHeight:'100vh'}}>
         {/* Sticky header */}
-        <div style={{background:`linear-gradient(135deg,#085041,#1D9E75)`, padding:'48px 0 0', position:'sticky', top:0, zIndex:100}}>
-          <div style={{display:'flex', alignItems:'center', gap:12, padding:'12px 16px'}}>
-            <button onClick={()=>goBack?goBack():navigate('dashboard')}
-              aria-label={lang==='ar'?'رجوع':'Retour'}
-              style={{background:'rgba(255,255,255,0.22)', border:'1px solid rgba(255,255,255,0.25)',
-                cursor:'pointer', flexShrink:0, borderRadius:10, padding:'0',
-                color:'#fff', fontSize:20, width:44, height:44,
-                display:'flex', alignItems:'center', justifyContent:'center'}}>
-              ←
-            </button>
-            <div style={{flex:1}}>
-              <div style={{fontSize:17,fontWeight:800}}>{eleve.prenom} {eleve.nom}</div>
-              <div style={{display:'flex',gap:6,alignItems:'center',marginTop:2}}>
-                <NiveauBadge code={codeNiveau}/>
-                <span style={{fontSize:12,color:'#888'}}>{instituteurNom}</span>
-              </div>
-            </div>
-            <button onClick={()=>navigate('enregistrer',eleve)}
-              style={{background:'#1D9E75',color:'#fff',border:'none',borderRadius:10,
-                padding:'0 14px', height:44, fontSize:13,fontWeight:700,cursor:'pointer',
-                fontFamily:'inherit', display:'flex', alignItems:'center'}}>
-              + {lang==='ar'?'استظهار':'Récit.'}
-            </button>
-          </div>
+        <MobileHeader
+          title={`${eleve.prenom} ${eleve.nom}`}
+          subtitle={`${codeNiveau||''} · ${instituteurNom}`}
+          icon={BookOpen}
+          onBack={()=>goBack?goBack():navigate('dashboard')}
+          lang={lang}
+          actions={
+            <HeaderIconButton icon={Plus} label={lang==='ar'?'استظهار':'Récitation'}
+              onClick={()=>navigate('enregistrer',eleve)} />
+          }
+        >
           {/* Onglets */}
-          <div style={{display:'flex',overflowX:'auto',scrollbarWidth:'none',borderTop:'0.5px solid #f0f0ec'}}>
+          <div style={{display:'flex',overflowX:'auto',scrollbarWidth:'none'}}>
             {[
               {k:'progression',label:lang==='ar'?'التقدم':'Progression'},
               {k:'historique', label:lang==='ar'?'التاريخ':'Historique'},
@@ -249,22 +236,22 @@ export default function FicheSourate({ eleve, user, navigate, goBack, lang='fr',
             ].map(tab=>(
               <div key={tab.k} onClick={()=>setOnglet(tab.k)}
                 style={{padding:'10px 16px',fontSize:13,fontWeight:600,whiteSpace:'nowrap',cursor:'pointer',flexShrink:0,
-                  color:onglet===tab.k?'#085041':'#888',
-                  borderBottom:onglet===tab.k?'2px solid #1D9E75':'2px solid transparent'}}>
+                  color:onglet===tab.k?'#fff':'rgba(255,255,255,0.75)',
+                  borderBottom:onglet===tab.k?'2px solid #fff':'2px solid transparent'}}>
                 {tab.label}
               </div>
             ))}
           </div>
-        </div>
+        </MobileHeader>
 
         {loading ? <div style={{textAlign:'center',padding:'2rem',color:'#888'}}>...</div> : (
           <div style={{padding:'12px'}}>
             {onglet==='progression' && (
               <div>
                 {/* Sourates grid */}
-                <div style={{fontSize:12,fontWeight:700,color:'#888',marginBottom:8}}>
+                <SectionTitle>
                   {lang==='ar'?'السور':lang==='en'?'Surahs':'Sourates'} ({souratesOrdonnees.length})
-                </div>
+                </SectionTitle>
                 <div style={{display:'grid',gridTemplateColumns:'repeat(2,1fr)',gap:8}}>
                   {souratesOrdonnees.map(s=>{
                     const recs=getRecsSourate(s.numero);
@@ -273,18 +260,18 @@ export default function FicheSourate({ eleve, user, navigate, goBack, lang='fr',
                     const dbId=getDbId(s.numero);
                     return(
                       <div key={s.numero} onClick={()=>setSelectedSourate(selectedSourate?.numero===s.numero?null:s)}
-                        style={{background:'#fff',borderRadius:12,padding:'12px',cursor:'pointer',
-                          border:complete?`2px solid ${nc}`:`0.5px solid ${selectedSourate?.numero===s.numero?nc:'#e0e0d8'}`,
-                          background:complete?`${nc}08`:selectedSourate?.numero===s.numero?`${nc}05`:'#fff'}}>
+                        style={{borderRadius:12,padding:'12px',cursor:'pointer',
+                          border:complete?`2px solid ${C.good}`:`1px solid ${selectedSourate?.numero===s.numero?C.brand:C.line}`,
+                          background:complete?C.goodSoft:selectedSourate?.numero===s.numero?C.brandSoft:C.surface}}>
                         <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:4}}>
-                          <span style={{fontSize:11,fontWeight:700,color:'#888'}}>#{s.numero}</span>
-                          {complete && <span style={{fontSize:14}}>✅</span>}
-                          {!complete && sequences>0 && <span style={{fontSize:11,color:nc,fontWeight:600}}>{sequences} séq.</span>}
+                          <span style={{fontSize:11,fontWeight:700,color:C.muted}}>#{s.numero}</span>
+                          {complete && <CheckCircle2 size={16} color={C.good} aria-label={lang==='ar'?'مكتملة':'Complète'} />}
+                          {!complete && sequences>0 && <span style={{fontSize:11,color:C.brand,fontWeight:600}}>{sequences} séq.</span>}
                         </div>
-                        <div style={{fontSize:14,fontWeight:700,color:complete?nc:'#1a1a1a',fontFamily:"'Tajawal',Arial",direction:'rtl',textAlign:'right'}}>
+                        <div style={{fontSize:14,fontWeight:700,color:complete?C.good:C.text,fontFamily:"'Tajawal',Arial",direction:'rtl',textAlign:'right'}}>
                           {s.nom_ar}
                         </div>
-                        <div style={{fontSize:11,color:'#888',marginTop:2}}>{s.nom_fr||s.nom}</div>
+                        <div style={{fontSize:11,color:C.muted,marginTop:2}}>{s.nom_fr||s.nom}</div>
                       </div>
                     );
                   })}
@@ -296,20 +283,18 @@ export default function FicheSourate({ eleve, user, navigate, goBack, lang='fr',
                 {recitations.slice(0,30).map(r=>{
                   const s=souratesDB.find(x=>x.id===r.sourate_id);
                   return(
-                    <div key={r.id} style={{background:'#fff',borderRadius:12,padding:'12px 14px',marginBottom:8,
-                      border:'0.5px solid #e0e0d8',display:'flex',alignItems:'center',gap:12}}>
-                      <span style={{fontSize:20}}>📖</span>
-                      <div style={{flex:1}}>
-                        <div style={{fontWeight:600,fontSize:14,fontFamily:"'Tajawal',Arial",direction:'rtl'}}>{s?.nom_ar||'—'}</div>
-                        <div style={{fontSize:12,color:'#888'}}>
-                          {r.type_recitation==='complete'?'Sourate complète':'Séquence'} · {new Date(r.date_validation).toLocaleDateString(lang==='ar'?'ar-MA':'fr-FR')}
-                        </div>
-                      </div>
-                      <span style={{fontSize:13,fontWeight:700,color:nc}}>+{r.type_recitation==='complete'?30:10} pts</span>
+                    <div key={r.id} style={{marginBottom:8}}>
+                      <ListRow lang={lang}
+                        leading={<div style={{width:36,height:36,borderRadius:'50%',background:C.brandSoft,color:C.brand,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}><BookOpen size={18} /></div>}
+                        title={<span style={{fontFamily:"'Tajawal',Arial",direction:'rtl'}}>{s?.nom_ar||'—'}</span>}
+                        subtitle={<>{r.type_recitation==='complete'?'Sourate complète':'Séquence'} · {new Date(r.date_validation).toLocaleDateString(lang==='ar'?'ar-MA':'fr-FR')}</>}
+                        value={`+${r.type_recitation==='complete'?30:10}`}
+                        valueLabel="pts"
+                      />
                     </div>
                   );
                 })}
-                {recitations.length===0&&<div style={{textAlign:'center',color:'#aaa',padding:'2rem'}}>Aucune récitation</div>}
+                {recitations.length===0&&<EmptyState icon={BookOpen} text="Aucune récitation" />}
               </div>
             )}
 
@@ -319,15 +304,15 @@ export default function FicheSourate({ eleve, user, navigate, goBack, lang='fr',
                   :examens.map(r=>{
                     const MENTION={excellent:{c:'#1D9E75',bg:'#E1F5EE'},bien:{c:'#378ADD',bg:'#EBF4FD'},passable:{c:'#EF9F27',bg:'#FAEEDA'},insuffisant:{c:'#E24B4A',bg:'#FCEBEB'},ajourne:{c:'#888',bg:'#f5f5f0'}};
                     const m=MENTION[r.mention]||MENTION.passable;
-                    return(<div key={r.id} style={{background:'#fff',border:'0.5px solid #e0e0d8',borderRadius:12,padding:'12px',marginBottom:8}}>
+                    return(<div key={r.id} style={{background:C.surface,border:`1px solid ${C.line}`,borderRadius:12,padding:'12px',marginBottom:8}}>
                       <div style={{display:'flex',justifyContent:'space-between',marginBottom:4}}>
-                        <span style={{fontSize:13,fontWeight:700}}>{r.examen?.nom||'—'}</span>
+                        <span style={{fontSize:13,fontWeight:700,color:C.text}}>{r.examen?.nom||'—'}</span>
                         <span style={{padding:'2px 8px',borderRadius:12,fontSize:11,fontWeight:600,background:m.bg,color:m.c}}>{r.mention}</span>
                       </div>
-                      <div style={{fontSize:11,color:'#888',display:'flex',gap:12}}>
-                        <span>📅 {r.date_examen||'—'}</span>
-                        <span>📊 {r.note_obtenue||0}/{r.note_max||20}</span>
-                        {r.bloque&&<span style={{color:'#E24B4A'}}>🔒 {lang==='ar'?'موقوف':'Bloqué'}</span>}
+                      <div style={{fontSize:11,color:C.muted,display:'flex',gap:12,flexWrap:'wrap'}}>
+                        <span style={{display:'inline-flex',alignItems:'center',gap:4}}><Calendar size={12} /> {r.date_examen||'—'}</span>
+                        <span style={{display:'inline-flex',alignItems:'center',gap:4}}><BarChart3 size={12} /> {r.note_obtenue||0}/{r.note_max||20}</span>
+                        {r.bloque&&<span style={{color:C.crit,display:'inline-flex',alignItems:'center',gap:4}}><Lock size={12} /> {lang==='ar'?'موقوف':'Bloqué'}</span>}
                       </div>
                     </div>);
                   })}
@@ -337,11 +322,11 @@ export default function FicheSourate({ eleve, user, navigate, goBack, lang='fr',
                 <div>
                   {certificats.length===0?<div style={{textAlign:'center',color:'#aaa',padding:'2rem',fontSize:13}}>{lang==='ar'?'لا توجد شهادات':'Aucun certificat'}</div>
                   :certificats.map(cert=>(
-                    <div key={cert.id} style={{background:'linear-gradient(135deg,#085041,#1D9E75)',border:'1px solid #1D9E7530',borderRadius:12,padding:'14px',marginBottom:8,display:'flex',gap:12,alignItems:'center'}}>
-                      <span style={{fontSize:28}}>🏅</span>
+                    <div key={cert.id} style={{background:C.surface,border:`1px solid ${C.line}`,borderRadius:12,padding:'14px',marginBottom:8,display:'flex',gap:12,alignItems:'center'}}>
+                      <div style={{width:40,height:40,borderRadius:'50%',background:C.goldSoft,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}><Award size={22} color={C.gold} /></div>
                       <div>
-                        <div style={{fontSize:13,fontWeight:700,color:'#085041'}}>{cert.titre||lang==='ar'?'شهادة إتمام':'Certificat'}</div>
-                        <div style={{fontSize:11,color:'#888'}}>{cert.date_emission?new Date(cert.date_emission).toLocaleDateString(lang==='ar'?'ar-MA':'fr-FR'):'—'}</div>
+                        <div style={{fontSize:13,fontWeight:700,color:C.text}}>{cert.titre||lang==='ar'?'شهادة إتمام':'Certificat'}</div>
+                        <div style={{fontSize:11,color:C.muted}}>{cert.date_emission?new Date(cert.date_emission).toLocaleDateString(lang==='ar'?'ar-MA':'fr-FR'):'—'}</div>
                       </div>
                     </div>
                   ))}
@@ -350,16 +335,17 @@ export default function FicheSourate({ eleve, user, navigate, goBack, lang='fr',
             {onglet==='muraja' && (
               <div>
                 {[...murajaaS,...murajaa].length===0 ? (
-                  <div style={{textAlign:'center',color:'#aaa',padding:'2rem'}}>Aucune murajaʼa</div>
+                  <EmptyState icon={RotateCcw} text="Aucune murajaʼa" />
                 ) : [...murajaaS,...murajaa].slice(0,20).map((v,i)=>(
-                  <div key={i} style={{background:'#fff',borderRadius:12,padding:'12px 14px',marginBottom:8,
-                    border:'0.5px solid #EF9F2730',display:'flex',alignItems:'center',gap:12}}>
-                    <span style={{fontSize:20}}>📖</span>
-                    <div style={{flex:1}}>
-                      <div style={{fontWeight:600,fontSize:13}}>{v.sourate?.nom_ar||"Murajaʼa"}</div>
-                      <div style={{fontSize:11,color:'#888'}}>{new Date(v.date_validation).toLocaleDateString(lang==='ar'?'ar-MA':'fr-FR')}</div>
-                    </div>
-                    <span style={{fontSize:13,fontWeight:700,color:'#EF9F27'}}>+{v.points||10} pts</span>
+                  <div key={i} style={{marginBottom:8}}>
+                    <ListRow lang={lang}
+                      leading={<div style={{width:36,height:36,borderRadius:'50%',background:C.goldSoft,color:C.gold,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}><RotateCcw size={18} /></div>}
+                      title={v.sourate?.nom_ar||"Murajaʼa"}
+                      subtitle={new Date(v.date_validation).toLocaleDateString(lang==='ar'?'ar-MA':'fr-FR')}
+                      value={`+${v.points||10}`}
+                      valueLabel="pts"
+                      valueTone="gold"
+                    />
                   </div>
                 ))}
               </div>
@@ -370,10 +356,11 @@ export default function FicheSourate({ eleve, user, navigate, goBack, lang='fr',
         {/* FAB passage niveau */}
         {user.role==='surveillant' && (
           <button onClick={()=>{setNouveauNiveau('');setNotePassage('');setShowPassageModal(true);}}
-            style={{position:'fixed',bottom:80,right:16,background:'#085041',color:'#fff',
+            style={{position:'fixed',bottom:80,right:16,background:C.brand,color:C.onBrand,
               border:'none',borderRadius:14,padding:'10px 16px',fontSize:14,fontWeight:700,
-              cursor:'pointer',zIndex:150,boxShadow:'0 4px 16px rgba(83,74,183,0.4)',fontFamily:'inherit'}}>
-            🎓 Niveau
+              cursor:'pointer',zIndex:150,boxShadow:'0 4px 16px rgba(11,90,69,0.35)',fontFamily:'inherit',
+              display:'flex',alignItems:'center',gap:6}}>
+            <GraduationCap size={18} /> Niveau
           </button>
         )}
       </div>

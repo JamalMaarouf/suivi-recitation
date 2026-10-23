@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { t } from '../lib/i18n';
 import { generateRgpdExport, downloadRgpdExport } from '../lib/rgpdExport';
+import { MobileHeader } from '../components/ui';
+import { UserRound } from 'lucide-react';
 
 const NIVEAU_COLORS = { '5B':'#534AB7','5A':'#378ADD','2M':'#1D9E75','2':'#EF9F27','1':'#E24B4A' };
 const ROLE_LABELS = {
@@ -70,16 +72,9 @@ export default function ProfilMobile({ user, lang, onLogout, navigate, goBack })
       setOldPwd(''); setNewPwd(''); setConfirmPwd('');
       setSaving(false);
       return;
-    } catch(e) {}
-    // Fallback
-    const { error } = await supabase.from('utilisateurs')
-      .update({ mot_de_passe: newPwd }).eq('id', user.id);
-    if (error) {
-      setPwdMsg({ ok: false, text: error.message });
-    } else {
-      setPwdMsg({ ok: true, text: lang==='ar'?'✅ تم تغيير كلمة المرور':'✅ Mot de passe modifié !' });
-      setOldPwd(''); setNewPwd(''); setConfirmPwd('');
-      setTimeout(() => { setChangingPwd(false); setPwdMsg(null); }, 2000);
+    } catch(e) {
+      // securite (oct 2026) : plus d'ecriture du mot de passe en clair en cas d'erreur reseau
+      setPwdMsg({ ok: false, text: lang==='ar'?'خطأ في الشبكة، حاول مرة أخرى':'Erreur réseau, réessayez' });
     }
     setSaving(false);
   };
@@ -95,27 +90,25 @@ export default function ProfilMobile({ user, lang, onLogout, navigate, goBack })
   return (
     <div style={{paddingBottom:88, minHeight:'100vh', background:'#f5f5f0'}}>
 
-      {/* Header */}
-      <div style={{background:'linear-gradient(135deg,#085041,#1D9E75)', padding:'48px 20px 24px', textAlign:'center', position:'sticky', top:0, zIndex:100}}>
-        {/* Avatar */}
-        <div style={{width:72, height:72, borderRadius:'50%', background:'rgba(255,255,255,0.2)',
-          border:'2px solid rgba(255,255,255,0.4)', display:'flex', alignItems:'center',
-          justifyContent:'center', fontSize:26, fontWeight:800, color:'#fff', margin:'0 auto 12px'}}>
-          {initials}
-        </div>
-        <div style={{fontSize:20, fontWeight:800, color:'#fff', marginBottom:4}}>
-          {user.prenom} {user.nom}
-        </div>
-        <span style={{padding:'4px 14px', borderRadius:20, fontSize:12, fontWeight:600,
-          background:role.bg, color:role.color}}>
-          {lang==='ar' ? role.ar : role.fr}
-        </span>
-        {user.ecole && (
-          <div style={{fontSize:12, color:'rgba(255,255,255,0.75)', marginTop:8}}>
-            🏫 {user.ecole?.nom}
+      {/* Header — charte mobile lot 2 */}
+      <MobileHeader
+        title={`${user.prenom} ${user.nom}`}
+        subtitle={user.ecole ? user.ecole?.nom : undefined}
+        icon={UserRound}
+        lang={lang}>
+        <div style={{display:'flex', alignItems:'center', gap:12}}>
+          {/* Avatar */}
+          <div style={{width:56, height:56, borderRadius:'50%', background:'rgba(255,255,255,0.2)',
+            border:'2px solid rgba(255,255,255,0.4)', display:'flex', alignItems:'center',
+            justifyContent:'center', fontSize:21, fontWeight:800, color:'#fff', flexShrink:0}}>
+            {initials}
           </div>
-        )}
-      </div>
+          <span style={{padding:'4px 14px', borderRadius:20, fontSize:12, fontWeight:600,
+            background:role.bg, color:role.color}}>
+            {lang==='ar' ? role.ar : role.fr}
+          </span>
+        </div>
+      </MobileHeader>
 
       <div style={{padding:'16px'}}>
 

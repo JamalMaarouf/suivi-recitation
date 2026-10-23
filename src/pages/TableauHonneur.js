@@ -10,6 +10,8 @@ import PageHeader from '../components/PageHeader';
 import PeriodeSelectorHybride from '../components/PeriodeSelectorHybride';
 import MobileSkeletonList from '../components/MobileSkeletonList';
 import { usePullToRefresh, PullToRefreshIndicator } from '../lib/usePullToRefresh';
+import { Trophy, MonitorPlay } from 'lucide-react';
+import { MobileHeader, HeaderIconButton, HeaderMenu, actionsExport } from '../components/ui';
 
 export default function TableauHonneur({ user, navigate, goBack, lang='fr', isMobile }) {
   const { toast } = useToast();
@@ -40,27 +42,39 @@ export default function TableauHonneur({ user, navigate, goBack, lang='fr', isMo
   useEffect(() => { loadData(); }, []);
 
   const loadData = async () => {
-    loadBareme(supabase, user.ecole_id).then(b => setBareme(b));
+    // FIX (oct 2026) : bareme attendu (await) avant le calcul du classement (+ dep useMemo)
+    const b = await loadBareme(supabase, user.ecole_id);
+    setBareme(b);
     // Etape 14 - Charger l'annee active pour filtrer les periodes
     const { data: anneeActive } = await supabase.from('annees_scolaires')
       .select('id').eq('ecole_id', user.ecole_id).eq('statut', 'active').maybeSingle();
     const periodesQuery = anneeActive
       ? supabase.from('periodes_notes').select('*').eq('annee_scolaire_id', anneeActive.id).eq('actif', true).order('date_debut')
       : supabase.from('periodes_notes').select('*').eq('ecole_id', user.ecole_id).eq('actif', true).order('date_debut'); // fallback
-    const [{ data: ed }, { data: vd }, { data: pd }, { data: nv }, { data: pe }, { data: ec }] = await Promise.all([
-      supabase.from('eleves').select('id,prenom,nom,code_niveau,niveau,hizb_depart,tomon_depart,ecole_id').eq('ecole_id', user.ecole_id).order('nom'),
-      fetchAll(supabase.from('validations').select('id,eleve_id,type_validation,nombre_tomon,hizb_valide,date_validation').eq('ecole_id', user.ecole_id)).then(data=>({data})),
+    const [{ data: ed }, { data: vd }, { data: pd }, { data: nv }, { data: pe }, { data: ec }, { data: rs }, { data: cert }] = await Promise.all([
+      // FIX (oct 2026) : exclure les eleves suspendus du tableau d'honneur
+      supabase.from('eleves').select('id,prenom,nom,code_niveau,niveau,hizb_depart,tomon_depart,ecole_id').eq('ecole_id', user.ecole_id).is('suspendu_at', null).order('nom'),
+      fetchAll(supabase.from('validations').select('id,eleve_id,type_validation,nombre_tomon,hizb_valide,date_validation,ensemble_id,is_muraja').eq('ecole_id', user.ecole_id)).then(data=>({data})),
       periodesQuery,
       supabase.from('niveaux').select('id,code,nom,couleur,sens_recitation').eq('ecole_id', user.ecole_id).order('ordre'),
-      supabase.from('points_eleves').select('*').eq('ecole_id', user.ecole_id).order('created_at', {ascending:false}),
+      // FIX (oct 2026) : pagination (>1000 lignes tronquees sinon)
+      fetchAll(supabase.from('points_eleves').select('*').eq('ecole_id', user.ecole_id).order('created_at', {ascending:false})).then(data=>({data})),
       supabase.from('ecoles').select('sens_recitation_defaut').eq('id', user.ecole_id).maybeSingle(),
+      // FIX-BAREME (sep 2026) : ajout recitations_sourates + certificats
+      fetchAll(supabase.from('recitations_sourates').select('id,eleve_id,type_recitation,is_muraja,points,date_validation').eq('ecole_id', user.ecole_id)).then(data=>({data})),
+      // FIX (oct 2026) : colonne date_emission (date_obtention n'existe pas -> select en erreur -> 0 pt certificat)
+      supabase.from('certificats_eleves').select('id,eleve_id,jalon_id,date_emission,created_at').eq('ecole_id', user.ecole_id),
     ]);
     const elevesData = (ed||[]).map(e => {
       const vals = (vd||[]).filter(v => v.eleve_id === e.id);
       const sensE = getSensForEleve(e, nv, ec);
-      const etat = calcEtatEleve(vals, e.hizb_depart, e.tomon_depart, sensE);
+      const etat = calcEtatEleve(vals, e.hizb_depart, e.tomon_depart, sensE, e);
       const evts = (pe||[]).filter(p=>p.eleve_id===e.id);
-      return { ...e, etat, validations: vals, pointsEvenements: evts };
+      // FIX-BAREME (sep 2026) : ajout des sourates et certificats par eleve
+      const recs = (rs||[]).filter(r => r.eleve_id === e.id);
+      // FIX (oct 2026) : mapper date_emission -> date_obtention attendu par calcPointsPeriode
+      const certs = (cert||[]).filter(c => c.eleve_id === e.id).map(c => ({ ...c, date_obtention: c.date_emission }));
+      return { ...e, etat, validations: vals, pointsEvenements: evts, recitations: recs, certificats: certs };
     });
     setEleves(elevesData);
     setAllValidations(vd||[]);
@@ -75,23 +89,24 @@ export default function TableauHonneur({ user, navigate, goBack, lang='fr', isMo
   // Pas de 'global' pour TableauHonneur — toujours dans une période.
   const getPointsPeriode = (eleve) => {
     const now = new Date();
+    // FIX-BAREME (sep 2026) : passer aussi eleve.recitations et eleve.certificats
     if (periodeId === 'semaine') {
       const d = new Date(now); d.setDate(now.getDate() - 7);
-      return calcPointsPeriode(eleve.validations, d, now, bareme, eleve.pointsEvenements);
+      return calcPointsPeriode(eleve.validations, d, now, bareme, eleve.pointsEvenements, eleve.recitations, eleve.certificats);
     }
     if (periodeId === 'mois') {
       const d = new Date(now.getFullYear(), now.getMonth(), 1);
-      return calcPointsPeriode(eleve.validations, d, now, bareme, eleve.pointsEvenements);
+      return calcPointsPeriode(eleve.validations, d, now, bareme, eleve.pointsEvenements, eleve.recitations, eleve.certificats);
     }
     if (periodeId === 'trimestre') {
       const d = new Date(now); d.setMonth(now.getMonth() - 3); d.setDate(1);
-      return calcPointsPeriode(eleve.validations, d, now, bareme, eleve.pointsEvenements);
+      return calcPointsPeriode(eleve.validations, d, now, bareme, eleve.pointsEvenements, eleve.recitations, eleve.certificats);
     }
     // Periode BDD : clé prefixée "bdd_<id>" pour eviter collision avec rapides
     const bddId = periodeId.startsWith('bdd_') ? periodeId.substring(4) : periodeId;
     const p = periodes.find(x => x.id === bddId);
-    if (p) return calcPointsPeriode(eleve.validations, p.date_debut, p.date_fin, bareme, eleve.pointsEvenements);
-    return calcPointsPeriode(eleve.validations, new Date(0), now, bareme, eleve.pointsEvenements);
+    if (p) return calcPointsPeriode(eleve.validations, p.date_debut, p.date_fin, bareme, eleve.pointsEvenements, eleve.recitations, eleve.certificats);
+    return calcPointsPeriode(eleve.validations, new Date(0), now, bareme, eleve.pointsEvenements, eleve.recitations, eleve.certificats);
   };
 
   // ─── Pattern hybride : 3 boutons rapides + dropdown "Plus" ────────────────
@@ -137,7 +152,7 @@ export default function TableauHonneur({ user, navigate, goBack, lang='fr', isMo
       .map(e => ({ ...e, ptsPeriode: getPointsPeriode(e) }))
       .sort((a, b) => b.ptsPeriode.total - a.ptsPeriode.total)
       .filter(e => e.ptsPeriode.total > 0 || periodeId === 'global');
-  }, [eleves, vue, periodeId, periodes]);
+  }, [eleves, vue, periodeId, periodes, bareme]); // FIX (oct 2026) : bareme ajoute aux deps
 
   const medals = ['🥇','🥈','🥉'];
   const podiumColors = ['#EF9F27','#B0B0B0','#CD7F32'];
@@ -176,7 +191,7 @@ export default function TableauHonneur({ user, navigate, goBack, lang='fr', isMo
       code_niveau: el.code_niveau || '',
       niveau_couleur: niveauxVues.find(n => n.code === el.code_niveau)?.color || '#888',
       points: el.ptsPeriode?.total || 0,
-      tomon: el.ptsPeriode?.details?.nbTomon || 0,
+      tomon: el.ptsPeriode?.tomonPeriode || 0, // FIX (oct 2026) : details.nbTomon n'existe pas
       hizb: el.ptsPeriode?.details?.nbHizb || 0,
     }));
     try {
@@ -209,7 +224,7 @@ export default function TableauHonneur({ user, navigate, goBack, lang='fr', isMo
       el.nom || '',
       el.code_niveau || '',
       el.ptsPeriode?.total || 0,
-      el.ptsPeriode?.details?.nbTomon || 0,
+      el.ptsPeriode?.tomonPeriode || 0, // FIX (oct 2026) : details.nbTomon n'existe pas
       el.ptsPeriode?.details?.nbHizb || 0,
     ]);
     const dateStr = new Date().toISOString().slice(0, 10);
@@ -292,8 +307,13 @@ export default function TableauHonneur({ user, navigate, goBack, lang='fr', isMo
     </button>
   );
 
+  // Charte mobile (oct 2026) : en mobile hors mode presentation, en-tete commun MobileHeader.
+  // Le mode TV/presentation et le PC restent inchanges.
+  const mobileCharte = isMobile && !isTV;
+  const Wrap = mobileCharte ? 'div' : React.Fragment;
+
   return (
-    <div style={{minHeight:'100vh',background:T.bg,padding:'1.5rem 1rem',paddingBottom:80,
+    <div style={{minHeight:'100vh',background:T.bg,padding:mobileCharte?0:'1.5rem 1rem',paddingBottom:80,
       transition:'background 0.3s ease'}}
       {...(isMobile ? { onTouchStart, onTouchMove, onTouchEnd } : {})}>
       {isMobile && (
@@ -305,6 +325,23 @@ export default function TableauHonneur({ user, navigate, goBack, lang='fr', isMo
         />
       )}
       {/* Sticky header — variant adapte au mode */}
+      {mobileCharte ? (
+        <MobileHeader
+          title={t(lang, 'tableau_honneur')}
+          subtitle={periodeLabel()}
+          icon={Trophy}
+          onBack={() => goBack ? goBack() : navigate('dashboard')}
+          lang={lang}
+          actions={
+            <>
+              <HeaderIconButton icon={MonitorPlay}
+                label={lang==='ar'?'وضع العرض':'Mode présentation'}
+                onClick={()=>setMode(isTV ? 'light' : 'tv')} />
+              <HeaderMenu lang={lang} actions={actionsExport({ onPDF: handleExportPDF, onExcel: handleExportExcel, lang, disabled: elevesClasses.length === 0 })} />
+            </>
+          }
+        />
+      ) : (
       <PageHeader
         title={t(lang, 'tableau_honneur')}
         icon="🏆"
@@ -345,7 +382,9 @@ export default function TableauHonneur({ user, navigate, goBack, lang='fr', isMo
           </>
         }
       />
+      )}
 
+      <Wrap {...(mobileCharte ? { style: { padding: '1rem 1rem 0' } } : {})}>
       {/* Sélecteur période — pattern hybride aligne avec ResultatsExamens */}
       <div style={{marginBottom:'1rem',maxWidth:720,margin:'0 auto 1rem'}}>
         <div style={{fontSize:11,color:T.fgMuted,marginBottom:6,textAlign:'center',fontWeight:600,letterSpacing:0.5}}>
@@ -392,7 +431,7 @@ export default function TableauHonneur({ user, navigate, goBack, lang='fr', isMo
             color:vue==='global'?'#fff':T.chipFg,
             border:'1px solid '+(vue==='global'?'#1D9E75':T.chipBorder),
             flexShrink:0,whiteSpace:'nowrap'}}>
-          🌍 {lang==='ar'?'الكل':'Global'}
+          {mobileCharte ? null : '🌍 '}{lang==='ar'?'الكل':'Global'}
         </div>
         {niveauxVues.map(n => (
           <div key={n.code} onClick={()=>setVue(n.code)}
@@ -515,6 +554,7 @@ export default function TableauHonneur({ user, navigate, goBack, lang='fr', isMo
           )}
         </>
       )}
+      </Wrap>
     </div>
   );
 }

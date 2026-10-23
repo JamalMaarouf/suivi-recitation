@@ -1,2868 +1,24 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useRef } from 'react'; // FIX (oct 2026) : useRef pour les verrous anti double-clic
 import { useToast } from '../lib/toast';
-import { supabase } from '../lib/supabase';
+import { supabase, supabaseRaw } from '../lib/supabase'; // FIX (oct 2026) : supabaseRaw pour l'unicite globale des logins
+import { fetchAll } from '../lib/fetchAll'; // FIX (oct 2026) : pagination parent_eleve
+import { supprimerEleveDefinitivement } from '../lib/suppressionEleve';
 import ConfirmModal from '../components/ConfirmModal';
-import { getInitiales, calcEtatEleve, calcPoints, BAREME_DEFAUT, loadBareme, saveBaremeItem, saveBaremeItemsBulk, isSourateNiveauDyn, getSensForEleve, genererLoginParentUnique} from '../lib/helpers';
+import { BAREME_DEFAUT, loadBareme, isSourateNiveauDyn, genererLoginParentUnique } from '../lib/helpers';
 import AcquisSelector from '../components/AcquisSelector';
 import { t } from '../lib/i18n';
 import ExportButtons from '../components/ExportButtons';
-import MobileSkeletonList from '../components/MobileSkeletonList';
+import JoursSouhaitesField from '../components/JoursSouhaitesField';
+import { Avatar, SubTabs } from './gestion/GestionCommun';
+import { BaremeTab } from './gestion/BaremeTab';
+import { PeriodesTab } from './gestion/PeriodesTab';
+import { SensRecitationTab } from './gestion/SensRecitationTab';
+import { IdentiteEcoleTab } from './gestion/IdentiteEcoleTab';
+import { PassageNiveauTab, MobilePassageNiveauTab } from './gestion/PassageNiveauTab';
+import { JalonsTab } from './gestion/JalonsTab';
+import { MobileHeader, HeaderIconButton, ListRow, ActionSheet, Avatar as UiAvatar, LevelBadge, EmptyState, SearchField, C } from '../components/ui';
+import { Settings, Plus, X, Link2, Pencil, Trash2, Pause, Play, KeyRound, Unlink, Users, GraduationCap, Award, ClipboardCheck, Power } from 'lucide-react';
 
-function Avatar({ prenom, nom, size = 28 }) {
-  return (
-    <div style={{ width: size, height: size, borderRadius: '50%', background: '#E1F5EE', color: '#085041', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 600, fontSize: size * 0.33, flexShrink: 0 }}>
-      {getInitiales(prenom, nom)}
-    </div>
-  );
-}
-
-// ─── Composant : zone "Jours souhaités" (feature Assiduité) ───
-// Utilisé dans les 3 variantes du formulaire élève (mobile, desktop création, desktop modification).
-// Ordre des jours : Sam → Ven (semaine scolaire marocaine).
-function JoursSouhaitesField({ value, onChange, lang }) {
-  const joursLabels = lang === 'ar'
-    ? ['السبت', 'الأحد', 'الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة']
-    : ['Sam', 'Dim', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven'];
-  const jours = Array.isArray(value) ? value : [false, false, false, false, false, false, false];
-  const toggleJour = (idx) => {
-    const next = [...jours];
-    next[idx] = !next[idx];
-    onChange(next);
-  };
-  return (
-    <div style={{ marginBottom: 12, padding: '12px', background: '#E1F5EE', borderRadius: 10, border: '1px solid #1D9E7540' }}>
-      <label style={{ fontSize: 12, fontWeight: 700, color: '#085041', display: 'block', marginBottom: 8 }}>
-        {lang === 'ar' ? '📅 أيام الحضور المرغوبة' : '📅 Jours de présence souhaités'}
-      </label>
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-        {joursLabels.map((label, idx) => {
-          const actif = !!jours[idx];
-          return (
-            <button key={idx} type="button"
-              onClick={() => toggleJour(idx)}
-              style={{
-                padding: '8px 12px',
-                borderRadius: 8,
-                border: actif ? '2px solid #1D9E75' : '1px solid #c0c0b8',
-                background: actif ? '#1D9E75' : '#fff',
-                color: actif ? '#fff' : '#666',
-                fontSize: 12,
-                fontWeight: 600,
-                cursor: 'pointer',
-                fontFamily: 'inherit',
-                flex: '1 1 auto',
-                minWidth: 56,
-              }}>
-              {label}
-            </button>
-          );
-        })}
-      </div>
-      <div style={{ fontSize: 11, color: '#666', marginTop: 8 }}>
-        {lang === 'ar'
-          ? 'اختر الأيام التي يحضر فيها الطالب. تُستعمل لحساب الغياب.'
-          : 'Sélectionne les jours où l\'élève vient. Utilisé pour calculer les absences.'}
-      </div>
-    </div>
-  );
-}
-
-// Sélecteur acquis antérieurs — adapté selon le niveau et le sens de récitation
-// Prop programmeNiveau (optionnel) : si fourni et contient plusieurs blocs, affiche une
-// aide contextuelle indiquant dans quel bloc pédagogique le Hizb choisi se situe.
-// ───────────────────────────────────────────────────────────────────────
-// AcquisSelector : composant extrait dans src/components/AcquisSelector.js
-// pour partage PC + mobile. Voir l'import en haut du fichier.
-// Fix Retours surveillant (jamais 2026) : semantique Hizb cliqué = acquis,
-// tomon par défaut = 0, sourates depuis BDD (114).
-// ───────────────────────────────────────────────────────────────────────
-
-
-
-
-
-
-// ══════════════════════════════════════════════════════
-// COMPOSANT BaremeTab — Paramétrage centralisé des points
-// ══════════════════════════════════════════════════════
-function BaremeTab({ user, lang, bareme, setBareme, saving, setSaving, showMsg }) {
-  const [examens,    setExamens]    = useState([]);
-  const [ensembles,  setEnsembles]  = useState([]);  // avec niveau_id et sourates_ids
-  const [niveaux,    setNiveaux]    = useState([]);  // pour optgroup et pilule
-  const [souratesDB, setSouratesDB] = useState([]);  // pour afficher noms sourates
-  const [jalons,     setJalons]     = useState([]);
-  // Critères en cours de construction
-  const [criteres,   setCriteres]   = useState([]); // [{type, objet_id, sourate_id, label, points, icon, color, groupe}]
-  const [critereType, setCritereType] = useState('');
-  const [critereObjetId, setCritereObjetId] = useState('');
-  const [criterePoints, setCriterePoints] = useState(0);
-  // Multi-sélection libre des ensembles (Mode 2 factorisation et Mode 3)
-  const [ensemblesSelectionnes, setEnsemblesSelectionnes] = useState([]); // [ensemble_id, ...]
-  // Configurations enregistrées (lignes)
-  const [configs, setConfigs] = useState([]);
-  // Etats de chargement pour skeleton et affichage progressif
-  const [configsLoading, setConfigsLoading] = useState(true);
-
-  const UNITES = [
-    { key:'tomon',        icon:'📖', label_ar:'ثمن واحد مُستظهر',       color:'#378ADD' },
-    { key:'hizb_complet', icon:'🎯', label_ar:'حزب كامل مُصحَّح',        color:'#085041' },
-    { key:'sourate',      icon:'📜', label_ar:'سورة كاملة',              color:'#534AB7' },
-    { key:'muraja_tomon', icon:'🔄', label_ar:'ثمن مراجعة',              color:'#1D9E75' },
-    { key:'muraja_hizb',  icon:'🔁', label_ar:'حزب مراجعة كامل',         color:'#1D9E75' },
-  ];
-
-  useEffect(() => {
-    // PRIORITE 1 : charger configs en premier (c'est ce que l'utilisateur veut voir)
-    supabase.from('bareme_notes').select('*').eq('ecole_id', user.ecole_id).eq('actif', true).order('created_at')
-      .then(({data}) => {
-        if (data) setConfigs(data);
-        setConfigsLoading(false);
-      });
-    // PRIORITE 2 : charger les autres en parallele (servent a enrichir l'affichage)
-    supabase.from('examens').select('id,nom').eq('ecole_id', user.ecole_id).eq('actif', true).order('nom')
-      .then(({data}) => setExamens(data||[]));
-    supabase.from('ensembles_sourates').select('id,nom,niveau_id,sourates_ids,ordre').eq('ecole_id', user.ecole_id).order('niveau_id,ordre,nom')
-      .then(({data}) => setEnsembles(data||[]));
-    supabase.from('niveaux').select('id,code,nom,couleur,ordre,type').eq('ecole_id', user.ecole_id).order('ordre')
-      .then(({data}) => setNiveaux(data||[]));
-    supabase.from('sourates').select('id,nom_ar,nom_fr,numero').order('numero')
-      .then(({data}) => setSouratesDB(data||[]));
-    supabase.from('jalons').select('id,nom,nom_ar,type_jalon').eq('ecole_id', user.ecole_id).eq('actif', true).order('created_at')
-      .then(({data}) => setJalons(data||[]));
-  }, []);
-
-  // Helpers
-  const niveauObj = (niveau_id) => niveaux.find(n => n.id === niveau_id);
-  const sourateNom = (sourate_id) => {
-    const s = souratesDB.find(x => x.id === sourate_id);
-    return lang === 'ar' ? (s?.nom_ar || `#${sourate_id}`) : (s?.nom_fr || s?.nom_ar || `#${sourate_id}`);
-  };
-
-  // PERF (mai 2026) : memoize un index 'niveau_id -> ensembles' pour
-  // eviter de faire ensembles.filter() dans des boucles imbriquees a
-  // chaque re-render. Acces O(1) au lieu de O(N) par niveau.
-  // Utilise par le selecteur d'ensembles (mode classique) et le panneau
-  // de multi-selection (mode 2/3).
-  const ensemblesByNiveauId = useMemo(() => {
-    const map = new Map();
-    for (const e of ensembles) {
-      const key = e.niveau_id || '__sans_niveau__';
-      if (!map.has(key)) map.set(key, []);
-      map.get(key).push(e);
-    }
-    return map;
-  }, [ensembles]);
-
-  // PERF (mai 2026) : memoize les options du selecteur de criteres pour
-  // eviter le .map() a chaque re-render. Recalcul uniquement si le type
-  // de critere ou les listes sources changent.
-  const optionsCritere = useMemo(() => {
-    if (critereType === 'examen') return examens.map(e => ({ id: e.id, label: e.nom }));
-    if (critereType === 'ensemble_sourates') return ensembles.map(e => ({ id: e.id, label: e.nom }));
-    if (critereType === 'jalon') return jalons.map(j => ({ id: j.id, label: j.nom_ar || j.nom }));
-    return [];
-  }, [critereType, examens, ensembles, jalons]);
-
-  // Wrapper conserve pour compatibilite avec le code existant
-  const getOptions = () => optionsCritere;
-
-  const getCritereLabel = () => {
-    const u = UNITES.find(u => u.key === critereType);
-    if (u) return { label: u.label_ar, icon: u.icon, color: u.color, objet_id: null };
-    if (critereType === 'examen') {
-      const e = examens.find(x => x.id === critereObjetId);
-      return { label: e?.nom || '', icon: '📝', color: '#EF9F27', objet_id: critereObjetId };
-    }
-    if (critereType === 'ensemble_sourates') {
-      const e = ensembles.find(x => x.id === critereObjetId);
-      return { label: e?.nom || '', icon: '📦', color: '#D85A30', objet_id: critereObjetId };
-    }
-    if (critereType === 'jalon') {
-      const j = jalons.find(x => x.id === critereObjetId);
-      return { label: j?.nom_ar || j?.nom || '', icon: '🏅', color: '#EF9F27', objet_id: critereObjetId };
-    }
-    return null;
-  };
-
-  const ajouterCritere = () => {
-    if (!critereType) return;
-    const isUnite = UNITES.find(u => u.key === critereType);
-    if (criterePoints <= 0) { showMsg('error', lang==='ar'?'أدخل عدد النقاط':'Saisissez les points'); return; }
-
-    // Mode 2 multi-selection (ensemble_sourates) ET Mode 3 (sourate_dans_ensemble)
-    // utilisent la multi-selection libre des ensembles
-    if (critereType === 'ensemble_sourates_multi' || critereType === 'sourate_dans_ensemble') {
-      if (ensemblesSelectionnes.length === 0) {
-        showMsg('error', lang==='ar'?'اختر مجموعة واحدة على الأقل':'Sélectionnez au moins un ensemble');
-        return;
-      }
-
-      const groupeId = `grp_${Date.now()}`;
-      const nouveaux = [];
-
-      for (const ensId of ensemblesSelectionnes) {
-        const ens = ensembles.find(e => e.id === ensId);
-        if (!ens) continue;
-        const niv = niveauObj(ens.niveau_id);
-        const niveauLabel = niv ? `[${niv.code}] ${niv.nom}` : '';
-
-        if (critereType === 'ensemble_sourates_multi') {
-          // Mode 2 factorise : 1 critere par ensemble (note pour ensemble entier)
-          const exists = criteres.find(c => c.type === 'ensemble_sourates' && c.objet_id === ensId);
-          if (exists) continue;
-          nouveaux.push({
-            type: 'ensemble_sourates',
-            objet_id: ensId,
-            label: niveauLabel ? `${niveauLabel} — ${ens.nom}` : ens.nom,
-            icon: '📦',
-            color: '#D85A30',
-            points: criterePoints,
-            groupe: groupeId,
-            niveau_id: ens.niveau_id,
-            ensemble_nom: ens.nom,
-          });
-        } else {
-          // Mode 3 : 1 critere par sourate de chaque ensemble (note par sourate)
-          for (const sId of (ens.sourates_ids || [])) {
-            const exists = criteres.find(c => c.type === 'sourate_dans_ensemble' && c.objet_id === ensId && c.sourate_id === sId);
-            if (exists) continue;
-            nouveaux.push({
-              type: 'sourate_dans_ensemble',
-              objet_id: ensId,
-              sourate_id: sId,
-              label: niveauLabel ? `${niveauLabel} — ${ens.nom} → ${sourateNom(sId)}` : `${ens.nom} → ${sourateNom(sId)}`,
-              icon: '🎯',
-              color: '#085041',
-              points: criterePoints,
-              groupe: groupeId,
-              niveau_id: ens.niveau_id,
-              ensemble_nom: ens.nom,
-            });
-          }
-        }
-      }
-
-      if (nouveaux.length === 0) {
-        showMsg('error', lang==='ar'?'كل المعايير المحددة موجودة بالفعل':'Tous ces critères sont déjà ajoutés');
-        return;
-      }
-      setCriteres(prev => [...prev, ...nouveaux]);
-      setCritereType(''); setCritereObjetId(''); setCriterePoints(0);
-      setEnsemblesSelectionnes([]);
-      return;
-    }
-
-    // Mode classique : un seul critere
-    if (!isUnite && !critereObjetId) {
-      showMsg('error', lang==='ar'?'اختر العنصر':"Choisissez l'élément");
-      return;
-    }
-    const info = getCritereLabel();
-    if (!info || !info.label) return;
-    const exists = criteres.find(c => c.type === critereType && c.objet_id === info.objet_id);
-    if (exists) { showMsg('error', lang==='ar'?'هذا المعيار موجود بالفعل':'Ce critère est déjà ajouté'); return; }
-    setCriteres(prev => [...prev, { type: critereType, objet_id: info.objet_id, label: info.label, icon: info.icon, color: info.color, points: criterePoints }]);
-    setCritereType(''); setCritereObjetId(''); setCriterePoints(0);
-  };
-
-  const retirerCritere = (idx) => setCriteres(prev => prev.filter((_,i) => i !== idx));
-
-  const enregistrerConfig = async () => {
-    if (criteres.length === 0) { showMsg('error', lang==='ar'?'أضف معياراً واحداً على الأقل':'Ajoutez au moins un critère'); return; }
-
-    // P3 - Alerte prevention double comptage
-    // Si on a un critere 'sourate' generique ET des criteres 'sourate_dans_ensemble',
-    // prevenir le surveillant que le mode 3 prime sur le mode 1
-    const aSourateGenerique = criteres.some(c => c.type === 'sourate') || (bareme?.unites?.sourate || 0) > 0;
-    const aSourateDansEns = criteres.some(c => c.type === 'sourate_dans_ensemble');
-    if (aSourateGenerique && aSourateDansEns) {
-      const confirme = window.confirm(lang==='ar'
-        ? '⚠️ تنبيه : لقد قمت بإعداد "سورة كاملة" (نقطة عامة) و "سورة في مجموعة" (نقطة محددة). النقطة المحددة (في مجموعة) ستُطبَّق وليس النقطة العامة لسور هذه المجموعات. هل تريد المتابعة ؟'
-        : '⚠️ Attention : vous avez configuré "Sourate complète" (note générique) et "Sourate dans ensemble" (note spécifique). La note spécifique (dans ensemble) primera sur la générique pour les sourates de ces ensembles. Continuer ?');
-      if (!confirme) return;
-    }
-
-    setSaving(true);
-    const errors = [];
-    let saved = 0;
-
-    // BULK SAVE : groupe les criteres par (type + objet_id) pour faire un
-    // DELETE bulk puis un INSERT bulk. Beaucoup plus rapide que critère par
-    // critère sequentiellement (gain x10+ pour 100+ criteres).
-    try {
-      // Etape 1 : DELETE par batchs - regroupe par (type, objet_id)
-      // pour les types simples (1 row par cle), et type='sourate_dans_ensemble'
-      // est traite specifiquement (1 DELETE par ensemble)
-      const deletesParEns = {}; // ensemble_id -> Set<sourate_id> pour mode 3
-      const deletesClassiques = []; // {type, objet_id} pour autres types
-
-      criteres.forEach(c => {
-        if (c.type === 'sourate_dans_ensemble') {
-          if (!deletesParEns[c.objet_id]) deletesParEns[c.objet_id] = new Set();
-          deletesParEns[c.objet_id].add(c.sourate_id);
-        } else {
-          deletesClassiques.push({ type: c.type, objet_id: c.objet_id });
-        }
-      });
-
-      // DELETE classiques en bulk
-      for (const { type, objet_id } of deletesClassiques) {
-        let q = supabase.from('bareme_notes').delete()
-          .eq('ecole_id', user.ecole_id).eq('type_action', type).eq('actif', true);
-        q = objet_id ? q.eq('objet_id', objet_id) : q.is('objet_id', null);
-        await q;
-      }
-
-      // DELETE mode 3 par ensemble (avec sourate_id IN (...))
-      for (const [ensId, sourateIdsSet] of Object.entries(deletesParEns)) {
-        const sIds = Array.from(sourateIdsSet);
-        await supabase.from('bareme_notes').delete()
-          .eq('ecole_id', user.ecole_id)
-          .eq('type_action', 'sourate_dans_ensemble')
-          .eq('actif', true)
-          .eq('objet_id', ensId)
-          .in('sourate_id', sIds);
-      }
-
-      // Etape 2 : INSERT BULK (1 seule requete pour tous les criteres)
-      const rows = criteres.map(c => {
-        const row = {
-          ecole_id: user.ecole_id,
-          type_action: c.type,
-          points: parseInt(c.points) || 0,
-          actif: true,
-        };
-        if (c.objet_id) row.objet_id = c.objet_id;
-        if (c.sourate_id) row.sourate_id = c.sourate_id;
-        if (c.groupe) row.groupe_factorisation = c.groupe;
-        return row;
-      });
-
-      const { error: insertError } = await supabase.from('bareme_notes').insert(rows);
-      if (insertError) {
-        errors.push(insertError.message || 'Erreur INSERT bulk');
-      } else {
-        saved = rows.length;
-      }
-    } catch (err) {
-      errors.push(err.message || 'Erreur globale');
-      console.error('Erreur bulk save:', err);
-    }
-
-    if (errors.length > 0) {
-      // En cas d'erreur, on recharge toujours pour synchroniser
-      const { data } = await supabase.from('bareme_notes').select('*').eq('ecole_id', user.ecole_id).eq('actif', true).order('created_at');
-      if (data) setConfigs(data);
-      const newB = await loadBareme(supabase, user.ecole_id);
-      setBareme(newB);
-      setSaving(false);
-      showMsg('error', lang==='ar'
-        ? `تم حفظ ${saved}/${criteres.length}. خطأ: ${errors[0]}`
-        : `${saved}/${criteres.length} enregistrés. Erreur: ${errors[0]}`);
-    } else {
-      // SUCCES : feedback immediat + rechargement en arriere-plan
-      // 1. Vider la liste de criteres en cours (UX optimiste)
-      setCriteres([]);
-      setSaving(false);
-      showMsg('success', lang==='ar'
-        ? `تم حفظ ${saved} معيار بنجاح`
-        : `${saved} critère${saved > 1 ? 's' : ''} enregistré${saved > 1 ? 's' : ''}`);
-      // 2. Rechargement BDD en arriere-plan (sans bloquer l'UI)
-      (async () => {
-        const { data } = await supabase.from('bareme_notes').select('*').eq('ecole_id', user.ecole_id).eq('actif', true).order('created_at');
-        if (data) setConfigs(data);
-        const newB = await loadBareme(supabase, user.ecole_id);
-        setBareme(newB);
-      })();
-    }
-  };
-
-  const supprimerConfig = async (id) => {
-    await supabase.from('bareme_notes').delete().eq('id', id);
-    setConfigs(prev => prev.filter(c => c.id !== id));
-    const newB = await loadBareme(supabase, user.ecole_id);
-    setBareme(newB);
-  };
-
-  // Supprime un groupe entier de criteres (factorisation)
-  const supprimerGroupe = async (ids) => {
-    if (!ids || ids.length === 0) return;
-    if (!window.confirm(lang==='ar'
-      ? `حذف ${ids.length} معيار من هذه المجموعة ؟`
-      : `Supprimer ${ids.length} critère(s) de ce groupe ?`)) return;
-    await supabase.from('bareme_notes').delete().in('id', ids);
-    setConfigs(prev => prev.filter(c => !ids.includes(c.id)));
-    const newB = await loadBareme(supabase, user.ecole_id);
-    setBareme(newB);
-  };
-
-  const getConfigLabel = (c) => {
-    // Support BDD (type_action) ET memoire (type) car les criteres en cours
-    // d'ajout utilisent 'type' alors que les configs en BDD utilisent 'type_action'
-    const t = c.type || c.type_action;
-    if (!c.objet_id) return UNITES.find(u => u.key === t)?.label_ar || t;
-    if (t === 'examen') return examens.find(e => e.id === c.objet_id)?.nom || '—';
-    if (t === 'ensemble_sourates') {
-      const e = ensembles.find(x => x.id === c.objet_id);
-      const niv = niveauObj(e?.niveau_id);
-      return niv ? `[${niv.code}] ${e?.nom||'—'}` : (e?.nom || '—');
-    }
-    if (t === 'sourate_dans_ensemble') {
-      const e = ensembles.find(x => x.id === c.objet_id);
-      const niv = niveauObj(e?.niveau_id);
-      const ensLabel = niv ? `[${niv.code}] ${e?.nom||'—'}` : (e?.nom || '—');
-      return `${ensLabel} → ${sourateNom(c.sourate_id)}`;
-    }
-    if (t === 'jalon') { const j = jalons.find(x => x.id === c.objet_id); return j?.nom_ar || j?.nom || '—'; }
-    return t;
-  };
-
-  const getConfigIcon = (c) => {
-    const t = c.type || c.type_action;
-    if (!c.objet_id) return UNITES.find(u => u.key === t)?.icon || '⭐';
-    if (t === 'examen') return '📝';
-    if (t === 'ensemble_sourates') return '📦';
-    if (t === 'sourate_dans_ensemble') return '🎯';
-    if (t === 'jalon') return '🏅';
-    return '⭐';
-  };
-
-  // needsObjet : pour quels types on affiche le select 'choisir element'
-  // On EXCLUT 'ensemble_sourates_multi' et 'sourate_dans_ensemble' qui utilisent
-  // un panneau dedie de multi-selection
-  const needsObjet = critereType
-    && !UNITES.find(u => u.key === critereType)
-    && critereType !== 'ensemble_sourates_multi'
-    && critereType !== 'sourate_dans_ensemble';
-
-  // needsMultiSelect : pour quels types on affiche le panneau de multi-selection
-  const needsMultiSelect = critereType === 'ensemble_sourates_multi' || critereType === 'sourate_dans_ensemble';
-
-  return (
-    <div>
-      <div style={{fontSize:13,color:'#888',marginBottom:'1.25rem'}}>
-        {lang==='ar'
-          ? 'أضف معايير التنقيط واحفظها — تُطبَّق تلقائياً على جميع الطلاب'
-          : 'Ajoutez des critères de notation et enregistrez — appliqués automatiquement à tous'}
-      </div>
-
-      {/* Formulaire ajout critère */}
-      <div className="card" style={{marginBottom:'1.5rem'}}>
-        <div className="section-label">{lang==='ar'?'إضافة معيار':'Ajouter un critère'}</div>
-
-        {/* Ligne sélection */}
-        <div style={{display:'flex',gap:8,flexWrap:'wrap',alignItems:'flex-end',marginBottom:12}}>
-
-          {/* Sélecteur type */}
-          <div style={{flex:2,minWidth:160}}>
-            <label className="field-lbl">{lang==='ar'?'نوع المعيار':'Type de critère'}</label>
-            <select className="field-select" value={critereType}
-              onChange={e => { setCritereType(e.target.value); setCritereObjetId(''); setEnsemblesSelectionnes([]); }}>
-              <option value="">{lang==='ar'?'— اختر —':'— Choisir —'}</option>
-              <optgroup label={lang==='ar'?'وحدات أساسية':'Unités de base'}>
-                {UNITES.map(u => <option key={u.key} value={u.key}>{u.icon} {u.label_ar}</option>)}
-              </optgroup>
-              <optgroup label={lang==='ar'?'امتحانات':'Examens'}>
-                <option value="examen">{lang==='ar'?'امتحان محدد...':'Examen spécifique...'}</option>
-              </optgroup>
-              <optgroup label={lang==='ar'?'مجموعات سور':'Ensembles'}>
-                <option value="ensemble_sourates">{lang==='ar'?'مجموعة سور (واحدة)...':'Ensemble de sourates (un seul)...'}</option>
-                <option value="ensemble_sourates_multi">{lang==='ar'?'📦 مجموعات متعددة (نقطة للمجموعة)...':'📦 Plusieurs ensembles (note pour ensemble entier)...'}</option>
-                <option value="sourate_dans_ensemble">{lang==='ar'?'🎯 سورة في مجموعات (نقطة لكل سورة)...':'🎯 Sourate dans ensembles (note par sourate)...'}</option>
-              </optgroup>
-              <optgroup label={lang==='ar'?'شهادات':'Jalons'}>
-                <option value="jalon">{lang==='ar'?'شهادة محددة...':'Jalon spécifique...'}</option>
-              </optgroup>
-            </select>
-          </div>
-
-          {/* Sélecteur objet (mode classique : un seul) */}
-          {needsObjet && (
-            <div style={{flex:2,minWidth:160}}>
-              <label className="field-lbl">{lang==='ar'?'اختر العنصر':"Choisir l'élément"}</label>
-              <select className="field-select" value={critereObjetId} onChange={e => setCritereObjetId(e.target.value)}>
-                <option value="">{lang==='ar'?'— اختر —':'— Choisir —'}</option>
-                {critereType === 'ensemble_sourates' ? (
-                  // Optgroup par niveau pour distinguer ensembles homonymes
-                  niveaux.map(niv => {
-                    const ensDuNiveau = ensemblesByNiveauId.get(niv.id) || [];
-                    if (ensDuNiveau.length === 0) return null;
-                    return (
-                      <optgroup key={niv.id} label={`[${niv.code}] ${niv.nom}`}>
-                        {ensDuNiveau.map(e => <option key={e.id} value={e.id}>{e.nom}</option>)}
-                      </optgroup>
-                    );
-                  }).filter(Boolean)
-                ) : (
-                  getOptions().map(o => <option key={o.id} value={o.id}>{o.label}</option>)
-                )}
-              </select>
-            </div>
-          )}
-
-          {/* Points avec +/- */}
-          <div style={{minWidth:130}}>
-            <label className="field-lbl">{lang==='ar'?'النقاط':'Points'}</label>
-            <div style={{display:'flex',alignItems:'center',gap:4}}>
-              <button onClick={() => setCriterePoints(p => Math.max(0, p-1))}
-                style={{width:32,height:38,borderRadius:6,border:'0.5px solid #e0e0d8',background:'#f9f9f6',cursor:'pointer',fontSize:18,fontWeight:700,color:'#888'}}>−</button>
-              <input type="number" min="0" max="9999" value={criterePoints}
-                onChange={e => setCriterePoints(parseInt(e.target.value)||0)}
-                style={{width:68,padding:'8px',borderRadius:6,border:'1.5px solid #378ADD50',fontSize:16,fontWeight:700,textAlign:'center',color:'#378ADD'}} />
-              <button onClick={() => setCriterePoints(p => p+1)}
-                style={{width:32,height:38,borderRadius:6,border:'0.5px solid #e0e0d8',background:'#f9f9f6',cursor:'pointer',fontSize:18,fontWeight:700,color:'#888'}}>+</button>
-            </div>
-          </div>
-
-          {/* Bouton ajouter critère - feedback visuel */}
-          {(() => {
-            const isUnite = UNITES.find(u => u.key === critereType);
-            const aPoints = criterePoints > 0;
-            let pret = false;
-            let raison = '';
-            if (!critereType) { pret = false; raison = lang==='ar' ? 'اختر النوع' : 'Choisissez le type'; }
-            else if (isUnite) { pret = aPoints; if (!aPoints) raison = lang==='ar' ? 'أدخل النقاط' : 'Saisissez les points'; }
-            else if (needsMultiSelect) {
-              if (ensemblesSelectionnes.length === 0) { pret = false; raison = lang==='ar' ? 'اختر مجموعة' : 'Sélectionnez un ensemble'; }
-              else if (!aPoints) { pret = false; raison = lang==='ar' ? 'أدخل النقاط' : 'Saisissez les points'; }
-              else pret = true;
-            }
-            else { pret = aPoints && !!critereObjetId; if (!critereObjetId) raison = lang==='ar' ? 'اختر العنصر' : "Choisissez l'élément"; else if (!aPoints) raison = lang==='ar' ? 'أدخل النقاط' : 'Saisissez les points'; }
-
-            return (
-              <button onClick={() => { if (pret) ajouterCritere(); else if (raison) showMsg('error', raison); }}
-                title={pret ? '' : raison}
-                style={{
-                  padding:'8px 16px',
-                  background: pret ? '#1D9E75' : '#E6F1FB',
-                  color: pret ? '#fff' : '#378ADD',
-                  border: pret ? '1px solid #1D9E75' : '1px solid #378ADD40',
-                  borderRadius:8, fontWeight:700, fontSize:13,
-                  cursor: pret ? 'pointer' : 'not-allowed',
-                  opacity: pret ? 1 : 0.7,
-                  alignSelf:'flex-end', height:38,
-                  transition:'all 0.15s', fontFamily:'inherit',
-                }}>
-                + {lang==='ar'?'أضف':'Ajouter'}
-              </button>
-            );
-          })()}
-        </div>
-
-        {/* Panneau multi-selection libre des ensembles (Mode 2 multi et Mode 3) */}
-        {needsMultiSelect && (() => {
-          const nbS = ensemblesSelectionnes.length;
-          const toggleEns = (eId) => {
-            setEnsemblesSelectionnes(prev => prev.includes(eId) ? prev.filter(x => x !== eId) : [...prev, eId]);
-          };
-          const ensParNiveau = niveaux.map(niv => ({
-            niv,
-            ensembles: ensemblesByNiveauId.get(niv.id) || [],
-          })).filter(g => g.ensembles.length > 0);
-          const ensSansNiveau = ensemblesByNiveauId.get('__sans_niveau__') || [];
-
-          if (ensembles.length === 0) {
-            return (
-              <div style={{padding:'12px 14px',background:'#FFF3CD',border:'0.5px solid #EF9F2740',borderRadius:8,fontSize:12,color:'#856404',marginBottom:12}}>
-                ⚠️ {lang==='ar' ? 'لا توجد مجموعات. أضفها أولاً في إدارة المجموعات.' : "Aucun ensemble. Créez-en d'abord dans Gestion → Ensembles."}
-              </div>
-            );
-          }
-
-          // Couleur distincte selon mode
-          const isMode3 = critereType === 'sourate_dans_ensemble';
-          const colorMain = isMode3 ? '#085041' : '#534AB7';
-          const bgPanneau = isMode3 ? '#E8F5EE' : '#EEEDFE';
-          const borderColor = isMode3 ? '#085041' : '#534AB7';
-          const titre = isMode3
-            ? (lang==='ar' ? '🎯 اختر المجموعات (نقطة لكل سورة)' : '🎯 Sélectionner les ensembles (note par sourate)')
-            : (lang==='ar' ? '📦 اختر المجموعات (نقطة للمجموعة)' : '📦 Sélectionner les ensembles (note pour ensemble entier)');
-
-          // Aperçu pour mode 3 : nombre total de sourates
-          const totalSourates = isMode3 ? ensemblesSelectionnes.reduce((sum, eId) => {
-            const ens = ensembles.find(e => e.id === eId);
-            return sum + (ens?.sourates_ids?.length || 0);
-          }, 0) : 0;
-
-          return (
-            <div style={{padding:'12px 14px',background:bgPanneau,border:`1px solid ${borderColor}30`,borderRadius:8,marginBottom:12}}>
-              <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:10,flexWrap:'wrap',gap:6}}>
-                <div style={{fontSize:13,fontWeight:600,color:colorMain}}>{titre}</div>
-                <div style={{display:'flex',gap:6,fontSize:11,alignItems:'center'}}>
-                  <button onClick={() => setEnsemblesSelectionnes(ensembles.map(e => e.id))}
-                    disabled={nbS === ensembles.length}
-                    style={{padding:'4px 10px',background: nbS === ensembles.length ? '#f0f0ec' : colorMain,
-                      border:'none',color: nbS === ensembles.length ? '#aaa' : '#fff',borderRadius:6,
-                      cursor: nbS === ensembles.length ? 'not-allowed' : 'pointer',fontWeight:600,fontFamily:'inherit'}}>
-                    ✓ {lang==='ar' ? 'الكل' : 'Tout cocher'}
-                  </button>
-                  <button onClick={() => setEnsemblesSelectionnes([])}
-                    disabled={nbS === 0}
-                    style={{padding:'4px 10px',background:'#fff',border:'0.5px solid #E24B4A60',
-                      color: nbS === 0 ? '#ccc' : '#E24B4A',borderRadius:6,
-                      cursor: nbS === 0 ? 'not-allowed' : 'pointer',fontWeight:600,fontFamily:'inherit'}}>
-                    ✕ {lang==='ar' ? 'إلغاء الكل' : 'Tout décocher'}
-                  </button>
-                  <span style={{fontSize:11,color:'#666',marginInlineStart:4,fontWeight:600}}>{nbS} / {ensembles.length}</span>
-                </div>
-              </div>
-
-              <div style={{maxHeight:340, overflowY:'auto', display:'flex', flexDirection:'column', gap:10}}>
-                {ensParNiveau.map(({niv, ensembles: ensNiv}) => {
-                  const couleur = niv.couleur || colorMain;
-                  return (
-                    <div key={niv.id}>
-                      <div style={{fontSize:11,fontWeight:700,marginBottom:5,display:'flex',alignItems:'center',gap:6}}>
-                        <span style={{padding:'2px 8px',borderRadius:10,background:`${couleur}18`,color:couleur,
-                          fontWeight:700,letterSpacing:0.3,border:`0.5px solid ${couleur}40`}}>{niv.code}</span>
-                        <span style={{color:'#666'}}>{niv.nom}</span>
-                      </div>
-                      <div style={{display:'flex',flexWrap:'wrap',gap:5,paddingInlineStart:6}}>
-                        {ensNiv.map(ens => {
-                          const sel = ensemblesSelectionnes.includes(ens.id);
-                          const nbSourates = ens.sourates_ids?.length || 0;
-                          return (
-                            <div key={ens.id} onClick={() => toggleEns(ens.id)}
-                              style={{padding:'6px 10px',borderRadius:6,cursor:'pointer',fontSize:11,
-                                background: sel ? colorMain : '#fff',
-                                color: sel ? '#fff' : '#1a1a1a',
-                                border: `0.5px solid ${sel ? colorMain : '#e0e0d8'}`,
-                                fontWeight: sel ? 600 : 400,
-                                display:'flex',alignItems:'center',gap:5,transition:'all 0.15s'}}>
-                              <span style={{fontSize:10,opacity:0.7}}>{sel ? '✓' : ''}</span>
-                              <span>📦 {ens.nom}</span>
-                              {isMode3 && <span style={{fontSize:9,opacity:0.7}}>({nbSourates} {lang==='ar'?'سور':'sour.'})</span>}
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  );
-                })}
-                {ensSansNiveau.length > 0 && (
-                  <div>
-                    <div style={{fontSize:11,fontWeight:700,marginBottom:5,color:'#888'}}>{lang==='ar' ? 'بدون مستوى' : 'Sans niveau'}</div>
-                    <div style={{display:'flex',flexWrap:'wrap',gap:5,paddingInlineStart:6}}>
-                      {ensSansNiveau.map(ens => {
-                        const sel = ensemblesSelectionnes.includes(ens.id);
-                        return (
-                          <div key={ens.id} onClick={() => toggleEns(ens.id)}
-                            style={{padding:'6px 10px',borderRadius:6,cursor:'pointer',fontSize:11,
-                              background: sel ? colorMain : '#fff',color: sel ? '#fff' : '#1a1a1a',
-                              border: `0.5px solid ${sel ? colorMain : '#e0e0d8'}`,
-                              fontWeight: sel ? 600 : 400,display:'flex',alignItems:'center',gap:5}}>
-                            <span style={{fontSize:10,opacity:0.7}}>{sel ? '✓' : ''}</span>
-                            <span>📦 {ens.nom}</span>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              <div style={{marginTop:8,fontSize:10,color:'#666',fontStyle:'italic'}}>
-                {isMode3 ? (
-                  lang==='ar'
-                    ? `سيتم إنشاء ${totalSourates} معيار (${nbS} مجموعة × ${totalSourates > 0 ? Math.round(totalSourates/Math.max(nbS,1)) : 0} سورة في المتوسط) بنفس عدد النقاط (${criterePoints})`
-                    : `${totalSourates} critère(s) sera(nt) créé(s) (${nbS} ensemble(s)) avec la même note (${criterePoints} pts/sourate)`
-                ) : (
-                  lang==='ar'
-                    ? `سيتم إنشاء ${nbS} معيار بنفس عدد النقاط (${criterePoints})`
-                    : `${nbS} critère(s) sera(nt) créé(s) avec la même note (${criterePoints} pts)`
-                )}
-              </div>
-            </div>
-          );
-        })()}
-
-        {/* Liste critères en cours */}
-        {criteres.length > 0 && (
-          <div style={{marginBottom:14}}>
-            <div style={{fontSize:11,color:'#888',marginBottom:6,fontWeight:600}}>
-              {lang==='ar'?'المعايير المضافة:':'Critères ajoutés :'}
-            </div>
-            <div style={{display:'flex',flexDirection:'column',gap:6}}>
-              {criteres.map((c,i) => (
-                <div key={i} style={{display:'flex',alignItems:'center',gap:10,padding:'8px 12px',background:'#f9f9f6',borderRadius:8,border:'0.5px solid #e0e0d8'}}>
-                  <span style={{fontSize:16}}>{c.icon}</span>
-                  <span style={{flex:1,fontSize:13,fontWeight:600,direction:'rtl',fontFamily:"'Tajawal',Arial,sans-serif"}}>{c.label}</span>
-                  <span style={{fontWeight:800,fontSize:15,color:c.color}}>{c.points}</span>
-                  <span style={{fontSize:10,color:'#aaa'}}>{lang==='ar'?'ن':'pts'}</span>
-                  <button onClick={() => retirerCritere(i)}
-                    style={{padding:'2px 8px',background:'#FCEBEB',color:'#E24B4A',border:'none',borderRadius:6,cursor:'pointer',fontSize:12}}>✕</button>
-                </div>
-              ))}
-            </div>
-            <div style={{marginTop:8,fontSize:12,color:'#085041',fontWeight:600}}>
-              {lang==='ar'?'المجموع:':'Total :'} {criteres.reduce((s,c)=>s+c.points,0)} {lang==='ar'?'نقطة':'pts'}
-            </div>
-          </div>
-        )}
-
-        <button className="btn-primary" onClick={enregistrerConfig} disabled={saving||criteres.length===0}>
-          {saving ? '...' : (lang==='ar'?'حفظ هذه التنقيطات':'Enregistrer ces notations')}
-        </button>
-      </div>
-
-      {/* Liste des configurations enregistrées */}
-      <div className="section-label">
-        {lang==='ar'?'التنقيطات المُسجَّلة':'Notations enregistrées'}
-        {!configsLoading && ` (${configs.length})`}
-      </div>
-      {configsLoading ? (
-        // Skeleton de chargement (3 lignes grises animees)
-        <div style={{display:'flex',flexDirection:'column',gap:6}}>
-          {[1,2,3].map(i => (
-            <div key={i} style={{
-              display:'flex',alignItems:'center',gap:12,padding:'10px 14px',
-              background:'#fff',border:'0.5px solid #e0e0d8',borderRadius:10,
-              animation: 'pulse 1.5s ease-in-out infinite',
-              opacity: 0.5,
-            }}>
-              <div style={{width:24,height:24,borderRadius:6,background:'#e8e8e0'}}></div>
-              <div style={{flex:1, display:'flex', flexDirection:'column', gap:6}}>
-                <div style={{width:'60%',height:13,background:'#e8e8e0',borderRadius:4}}></div>
-                <div style={{width:'40%',height:10,background:'#f0f0eb',borderRadius:4}}></div>
-              </div>
-              <div style={{width:30,height:20,background:'#e8e8e0',borderRadius:4}}></div>
-            </div>
-          ))}
-          <style>{`@keyframes pulse { 0%, 100% { opacity: 0.5; } 50% { opacity: 0.3; } }`}</style>
-        </div>
-      ) : configs.length === 0 ? (
-        <div className="empty">{lang==='ar'?'لا توجد تنقيطات بعد — أضف معايير وسجّلها أعلاه':'Aucune notation enregistrée'}</div>
-      ) : (() => {
-        // GROUPAGE des configs :
-        // - Si groupe_factorisation existe : grouper par cette cle (factorisation Mode 2 multi ou Mode 3)
-        // - Sinon : ligne individuelle
-        const groupes = {};   // groupe_id -> [configs]
-        const isoles = [];    // configs sans groupe
-        configs.forEach(c => {
-          if (c.groupe_factorisation) {
-            if (!groupes[c.groupe_factorisation]) groupes[c.groupe_factorisation] = [];
-            groupes[c.groupe_factorisation].push(c);
-          } else {
-            isoles.push(c);
-          }
-        });
-
-        // Tri : groupes triés par created_at (plus récents en premier),
-        // puis isolés ensuite
-        const groupesTriés = Object.entries(groupes)
-          .map(([gId, items]) => ({
-            groupe_id: gId,
-            items,
-            firstCreated: items[0].created_at,
-            type: items[0].type_action,
-            points: items[0].points,
-            count: items.length,
-          }))
-          .sort((a, b) => new Date(b.firstCreated) - new Date(a.firstCreated));
-
-        return (
-          <div style={{display:'flex',flexDirection:'column',gap:6}}>
-            {/* GROUPES (pliables) */}
-            {groupesTriés.map(g => (
-              <GroupeCard key={g.groupe_id}
-                groupe={g}
-                lang={lang}
-                ensembles={ensembles}
-                niveaux={niveaux}
-                souratesDB={souratesDB}
-                getConfigLabel={getConfigLabel}
-                getConfigIcon={getConfigIcon}
-                onDeleteGroupe={async () => {
-                  if (!window.confirm(lang==='ar'
-                    ? `هل أنت متأكد من حذف هذه المجموعة (${g.count} معيار) ؟`
-                    : `Confirmer la suppression de ce groupe (${g.count} critères) ?`)) return;
-                  const ids = g.items.map(it => it.id);
-                  await supabase.from('bareme_notes').delete().in('id', ids);
-                  setConfigs(prev => prev.filter(c => !ids.includes(c.id)));
-                  const newB = await loadBareme(supabase, user.ecole_id);
-                  setBareme(newB);
-                }}
-                onUpdatePoints={async (newPts) => {
-                  // Mettre a jour TOUS les items du groupe avec les nouveaux points
-                  const ids = g.items.map(it => it.id);
-                  await supabase.from('bareme_notes')
-                    .update({ points: parseInt(newPts) || 0 })
-                    .in('id', ids);
-                  // Recharger configs
-                  setConfigs(prev => prev.map(c =>
-                    ids.includes(c.id) ? { ...c, points: parseInt(newPts) || 0 } : c
-                  ));
-                  const newB = await loadBareme(supabase, user.ecole_id);
-                  setBareme(newB);
-                }}
-              />
-            ))}
-
-            {/* ISOLES (non groupés) - lignes simples avec edit inline */}
-            {isoles.map(c => (
-              <ConfigSimpleLine key={c.id}
-                config={c}
-                lang={lang}
-                getConfigLabel={getConfigLabel}
-                getConfigIcon={getConfigIcon}
-                onUpdatePoints={async (newPts) => {
-                  await supabase.from('bareme_notes')
-                    .update({ points: parseInt(newPts) || 0 })
-                    .eq('id', c.id);
-                  setConfigs(prev => prev.map(x =>
-                    x.id === c.id ? { ...x, points: parseInt(newPts) || 0 } : x
-                  ));
-                  const newB = await loadBareme(supabase, user.ecole_id);
-                  setBareme(newB);
-                }}
-                onDelete={() => supprimerConfig(c.id)}
-              />
-            ))}
-          </div>
-        );
-      })()}
-    </div>
-  );
-}
-
-// ══════════════════════════════════════════════════════
-// COMPOSANT GroupeCard — affichage compact d'un groupe factorisé
-// (Mode 2 multi ou Mode 3 - sourate dans ensemble)
-// ══════════════════════════════════════════════════════
-function GroupeCard({ groupe, lang, ensembles, niveaux, souratesDB, getConfigLabel, getConfigIcon, onDeleteGroupe, onUpdatePoints }) {
-  const [editing, setEditing] = useState(false);
-  const [newPoints, setNewPoints] = useState(groupe.points);
-  const [savingEdit, setSavingEdit] = useState(false);
-
-  const niveauObj = (niveau_id) => niveaux.find(n => n.id === niveau_id);
-
-  const isMode3 = groupe.type === 'sourate_dans_ensemble';
-  const colorMain = isMode3 ? '#085041' : '#534AB7';
-  const bgPanneau = isMode3 ? '#E8F5EE' : '#EEEDFE';
-  const totalPts = groupe.items.reduce((s, it) => s + (it.points || 0), 0);
-
-  // Construire la liste des ensembles concernés (uniques)
-  const ensemblesConcernes = [...new Set(groupe.items.map(it => it.objet_id))]
-    .map(eId => ensembles.find(e => e.id === eId))
-    .filter(Boolean);
-
-  const titreType = isMode3
-    ? (lang==='ar' ? '🎯 سورة في مجموعات' : '🎯 Sourate dans ensembles')
-    : (lang==='ar' ? '📦 مجموعات متعددة' : '📦 Plusieurs ensembles');
-
-  // Stats compactes
-  // Mode 3 : count = nombre de sourates total, ensembles = nombre d'ensembles distincts
-  // Mode 2 : count = nombre d'ensembles
-  const nbEnsembles = ensemblesConcernes.length;
-  const nbSourates = isMode3 ? groupe.count : 0;
-
-  const statLabel = isMode3
-    ? (lang==='ar'
-        ? `${nbSourates} سورة في ${nbEnsembles} ${nbEnsembles > 1 ? 'مجموعات' : 'مجموعة'} × ${groupe.points} = ${totalPts}`
-        : `${nbSourates} sourates dans ${nbEnsembles} ensemble${nbEnsembles > 1 ? 's' : ''} × ${groupe.points} = ${totalPts}`)
-    : (lang==='ar'
-        ? `${nbEnsembles} ${nbEnsembles > 1 ? 'مجموعات' : 'مجموعة'} × ${groupe.points} = ${totalPts}`
-        : `${nbEnsembles} ensemble${nbEnsembles > 1 ? 's' : ''} × ${groupe.points} = ${totalPts}`);
-
-  const validerEdit = async () => {
-    const valeur = parseInt(newPoints) || 0;
-    if (valeur === groupe.points) { setEditing(false); return; }
-    if (valeur <= 0) { setEditing(false); setNewPoints(groupe.points); return; }
-    setSavingEdit(true);
-    await onUpdatePoints(valeur);
-    setSavingEdit(false);
-    setEditing(false);
-  };
-
-  const annulerEdit = () => {
-    setNewPoints(groupe.points);
-    setEditing(false);
-  };
-
-  return (
-    <div style={{
-      background: bgPanneau,
-      border: `1px solid ${colorMain}30`,
-      borderRadius: 10,
-      padding:'10px 14px',
-      display:'flex', alignItems:'center', gap:12,
-    }}>
-      <span style={{fontSize:18}}>{isMode3 ? '🎯' : '📦'}</span>
-      <div style={{flex:1, minWidth:0}}>
-        <div style={{fontWeight:700, fontSize:13, color:colorMain, direction:'rtl', fontFamily:"'Tajawal',Arial,sans-serif"}}>
-          {titreType}
-        </div>
-        <div style={{fontSize:11, color:'#666', marginTop:2}}>
-          {ensemblesConcernes.map(ens => {
-            const niv = niveauObj(ens.niveau_id);
-            return niv ? `[${niv.code}] ${ens.nom}` : ens.nom;
-          }).join(' · ')}
-        </div>
-        <div style={{fontSize:10, color:'#888', marginTop:3, fontStyle:'italic'}}>
-          {statLabel}
-        </div>
-      </div>
-
-      {/* Points (editable inline) */}
-      {editing ? (
-        <div style={{display:'flex', alignItems:'center', gap:4}}>
-          <input type="number" min="0" max="9999" value={newPoints} autoFocus
-            onChange={e => setNewPoints(e.target.value)}
-            onKeyDown={e => {
-              if (e.key === 'Enter') validerEdit();
-              if (e.key === 'Escape') annulerEdit();
-            }}
-            disabled={savingEdit}
-            style={{width:60, padding:'6px', borderRadius:6, border:`1.5px solid ${colorMain}`, fontSize:14, fontWeight:700, textAlign:'center', color:colorMain}} />
-          <button onClick={validerEdit} disabled={savingEdit}
-            title={lang==='ar' ? 'حفظ' : 'Enregistrer'}
-            style={{padding:'4px 8px', background:'#1D9E75', color:'#fff', border:'none', borderRadius:6, cursor: savingEdit ? 'wait' : 'pointer', fontSize:11, fontWeight:700}}>
-            {savingEdit ? '...' : '✓'}
-          </button>
-          <button onClick={annulerEdit} disabled={savingEdit}
-            title={lang==='ar' ? 'إلغاء' : 'Annuler'}
-            style={{padding:'4px 8px', background:'#fff', color:'#888', border:'0.5px solid #ddd', borderRadius:6, cursor:'pointer', fontSize:11}}>
-            ✕
-          </button>
-        </div>
-      ) : (
-        <>
-          <div style={{textAlign:'center'}}>
-            <div style={{fontWeight:800, fontSize:16, color:colorMain}}>{groupe.points}</div>
-            <div style={{fontSize:9, color:'#888'}}>{lang==='ar' ? 'لكل واحد' : '/ unité'}</div>
-          </div>
-          <button onClick={() => { setNewPoints(groupe.points); setEditing(true); }}
-            title={lang==='ar' ? 'تعديل النقاط' : 'Modifier les points'}
-            style={{padding:'4px 8px', background:'#fff', color:colorMain, border:`0.5px solid ${colorMain}40`, borderRadius:6, cursor:'pointer', fontSize:11, fontWeight:600, whiteSpace:'nowrap'}}>
-            ✏️ {lang==='ar' ? 'تعديل' : 'Modifier'}
-          </button>
-          <button onClick={onDeleteGroupe}
-            title={lang==='ar' ? 'حذف المجموعة' : 'Supprimer le groupe'}
-            style={{padding:'4px 8px', background:'#FCEBEB', color:'#E24B4A', border:'0.5px solid #E24B4A30', borderRadius:6, cursor:'pointer', fontSize:11, whiteSpace:'nowrap'}}>
-            🗑 {lang==='ar' ? 'حذف' : 'Supprimer'}
-          </button>
-        </>
-      )}
-    </div>
-  );
-}
-
-// ══════════════════════════════════════════════════════
-// COMPOSANT ConfigSimpleLine — ligne simple pour critere isolé
-// (Mode 1 generique : Tomon, Hizb complet, Sourate, Examen, Jalon)
-// Avec edit inline des points + bouton supprimer
-// ══════════════════════════════════════════════════════
-function ConfigSimpleLine({ config, lang, getConfigLabel, getConfigIcon, onUpdatePoints, onDelete }) {
-  const [editing, setEditing] = useState(false);
-  const [newPoints, setNewPoints] = useState(config.points);
-  const [savingEdit, setSavingEdit] = useState(false);
-
-  const validerEdit = async () => {
-    const valeur = parseInt(newPoints) || 0;
-    if (valeur === config.points) { setEditing(false); return; }
-    if (valeur <= 0) { setEditing(false); setNewPoints(config.points); return; }
-    setSavingEdit(true);
-    await onUpdatePoints(valeur);
-    setSavingEdit(false);
-    setEditing(false);
-  };
-
-  const annulerEdit = () => {
-    setNewPoints(config.points);
-    setEditing(false);
-  };
-
-  const label = getConfigLabel(config) || '—';
-  const icon = getConfigIcon(config) || '⭐';
-
-  return (
-    <div style={{display:'flex',alignItems:'center',gap:12,padding:'10px 14px',background:'#fff',border:'0.5px solid #e0e0d8',borderRadius:10}}>
-      <span style={{fontSize:18}}>{icon}</span>
-      <div style={{flex:1, minWidth:0}}>
-        <div style={{fontWeight:600,fontSize:13,direction:'rtl',fontFamily:"'Tajawal',Arial,sans-serif"}}>{label}</div>
-      </div>
-
-      {/* Points editable inline */}
-      {editing ? (
-        <div style={{display:'flex', alignItems:'center', gap:4}}>
-          <input type="number" min="0" max="9999" value={newPoints} autoFocus
-            onChange={e => setNewPoints(e.target.value)}
-            onKeyDown={e => {
-              if (e.key === 'Enter') validerEdit();
-              if (e.key === 'Escape') annulerEdit();
-            }}
-            disabled={savingEdit}
-            style={{width:60, padding:'6px', borderRadius:6, border:'1.5px solid #378ADD', fontSize:14, fontWeight:700, textAlign:'center', color:'#378ADD'}} />
-          <button onClick={validerEdit} disabled={savingEdit}
-            title={lang==='ar' ? 'حفظ' : 'Enregistrer'}
-            style={{padding:'4px 8px', background:'#1D9E75', color:'#fff', border:'none', borderRadius:6, cursor: savingEdit ? 'wait' : 'pointer', fontSize:11, fontWeight:700}}>
-            {savingEdit ? '...' : '✓'}
-          </button>
-          <button onClick={annulerEdit} disabled={savingEdit}
-            title={lang==='ar' ? 'إلغاء' : 'Annuler'}
-            style={{padding:'4px 8px', background:'#fff', color:'#888', border:'0.5px solid #ddd', borderRadius:6, cursor:'pointer', fontSize:11}}>
-            ✕
-          </button>
-        </div>
-      ) : (
-        <>
-          <div style={{textAlign:'center'}}>
-            <div style={{fontWeight:800,fontSize:16,color:'#378ADD'}}>{config.points}</div>
-            <div style={{fontSize:9, color:'#888'}}>{lang==='ar' ? 'نقطة' : 'pts'}</div>
-          </div>
-          <button onClick={() => { setNewPoints(config.points); setEditing(true); }}
-            title={lang==='ar' ? 'تعديل النقاط' : 'Modifier les points'}
-            style={{padding:'4px 8px', background:'#fff', color:'#378ADD', border:'0.5px solid #378ADD40', borderRadius:6, cursor:'pointer', fontSize:11, fontWeight:600, whiteSpace:'nowrap'}}>
-            ✏️ {lang==='ar' ? 'تعديل' : 'Modifier'}
-          </button>
-          <button onClick={onDelete}
-            title={lang==='ar' ? 'حذف' : 'Supprimer'}
-            style={{padding:'4px 8px',background:'#FCEBEB',color:'#E24B4A',border:'0.5px solid #E24B4A30',borderRadius:6,cursor:'pointer',fontSize:11,whiteSpace:'nowrap'}}>
-            🗑 {lang==='ar' ? 'حذف' : 'Supprimer'}
-          </button>
-        </>
-      )}
-    </div>
-  );
-}
-// Modele : Annee scolaire = container, periodes attachees a une annee
-// Q1=A : 1 seule annee active a la fois
-// Q3=B : Cloture manuelle puis activation manuelle
-// Q5=C : Bandeau si pas d'annee active + Semaine/Mois/Personnalisee dispo
-// ══════════════════════════════════════════════════════
-function PeriodesTab({ user, lang, showMsg }) {
-  // States locaux (le state global periodes/newPeriode n'est plus utilise)
-  const [annees, setAnnees] = useState([]);
-  const [periodes, setPeriodes] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  // UI : annee selectionnee (par defaut active, sinon premiere)
-  const [selectedAnneeId, setSelectedAnneeId] = useState(null);
-  // Modale creation/edition annee
-  const [showAnneeForm, setShowAnneeForm] = useState(false);
-  const [editingAnneeId, setEditingAnneeId] = useState(null);
-  const [formAnnee, setFormAnnee] = useState({ nom: '', date_debut: '', date_fin: '' });
-  // Modale creation periode
-  const [showPeriodeForm, setShowPeriodeForm] = useState(false);
-  const [editingPeriodeId, setEditingPeriodeId] = useState(null);
-  const [formPeriode, setFormPeriode] = useState({ nom_ar: '', date_debut: '', date_fin: '', type: 'trimestre' });
-  // Modale generique de confirmation (Etape 14 v2)
-  const [confirmModale, setConfirmModale] = useState(null); // {titre, message, onConfirm, danger}
-
-  // Etape 14 v2 - L'annee scolaire (annees_scolaires) sert directement comme
-  // periode 'Annee' dans les selecteurs. Le type 'annee' n'est plus propose
-  // a la creation pour eviter la redondance, mais reste affichable pour
-  // les anciennes periodes (retrocompatibilite).
-  const TYPE_OPTIONS_AFFICHAGE = [
-    { val: 'trimestre', icon: '🗓️', label_fr: 'Trimestre',  label_ar: 'فصل دراسي',   color: '#378ADD' },
-    { val: 'semestre',  icon: '📆', label_fr: 'Semestre',   label_ar: 'نصف سنة',     color: '#085041' },
-    { val: 'annee',     icon: '📚', label_fr: 'Année',      label_ar: 'سنة كاملة',  color: '#EF9F27' },
-    { val: 'libre',     icon: '📅', label_fr: 'Libre',      label_ar: 'حر',          color: '#888'    },
-  ];
-  // Options proposees a la creation : sans 'annee' (Q3=A)
-  const TYPE_OPTIONS = TYPE_OPTIONS_AFFICHAGE.filter(o => o.val !== 'annee');
-  const getTypeMeta = (t) => TYPE_OPTIONS_AFFICHAGE.find(o => o.val === (t || 'libre')) || TYPE_OPTIONS_AFFICHAGE[3];
-
-  const fmt = (d) => d ? new Date(d).toLocaleDateString(lang==='ar'?'ar-MA':'fr-FR', {day:'2-digit', month:'short', year:'numeric'}) : '—';
-
-  // ──────────────────────────────────────────────
-  // Chargement initial
-  // ──────────────────────────────────────────────
-  const loadData = async () => {
-    setLoading(true);
-    const [aRes, pRes] = await Promise.all([
-      supabase.from('annees_scolaires').select('*').eq('ecole_id', user.ecole_id).order('date_debut', { ascending: false }),
-      supabase.from('periodes_notes').select('*').eq('ecole_id', user.ecole_id).order('date_debut', { ascending: true }),
-    ]);
-    const anneesArr = aRes.data || [];
-    setAnnees(anneesArr);
-    setPeriodes(pRes.data || []);
-    // Selection : annee active si existe, sinon premiere disponible
-    if (!selectedAnneeId) {
-      const active = anneesArr.find(a => a.statut === 'active');
-      setSelectedAnneeId(active ? active.id : (anneesArr[0]?.id || null));
-    }
-    setLoading(false);
-  };
-
-  React.useEffect(() => { loadData(); }, [user.ecole_id]);
-
-  const anneeActive = annees.find(a => a.statut === 'active');
-  const anneeSelectionnee = annees.find(a => a.id === selectedAnneeId) || null;
-  const periodesAnneeSelectionnee = periodes.filter(p => p.annee_scolaire_id === selectedAnneeId);
-  const anneesArchivees = annees.filter(a => a.statut === 'archivee');
-  const anneesAVenir = annees.filter(a => a.statut === 'a_venir');
-
-  // ──────────────────────────────────────────────
-  // CRUD Annee
-  // ──────────────────────────────────────────────
-  const ouvrirCreationAnnee = () => {
-    setEditingAnneeId(null);
-    // Suggestion nom : 2026-2027 base sur today
-    const today = new Date();
-    const yearBase = today.getMonth() >= 8 ? today.getFullYear() : today.getFullYear() - 1;
-    setFormAnnee({
-      nom: `${yearBase}-${yearBase+1}`,
-      date_debut: `${yearBase}-09-01`,
-      date_fin: `${yearBase+1}-06-30`,
-    });
-    setShowAnneeForm(true);
-  };
-
-  const ouvrirEditionAnnee = (annee) => {
-    setEditingAnneeId(annee.id);
-    setFormAnnee({
-      nom: annee.nom,
-      date_debut: annee.date_debut,
-      date_fin: annee.date_fin,
-    });
-    setShowAnneeForm(true);
-  };
-
-  const sauvegarderAnnee = async () => {
-    if (!formAnnee.nom.trim()) return showMsg('error', lang==='ar'?'الاسم مطلوب':'Nom requis');
-    if (!formAnnee.date_debut || !formAnnee.date_fin) return showMsg('error', lang==='ar'?'التواريخ مطلوبة':'Dates requises');
-    if (new Date(formAnnee.date_debut) >= new Date(formAnnee.date_fin)) return showMsg('error', lang==='ar'?'التواريخ غير صحيحة':'Dates invalides');
-    setSaving(true);
-    try {
-      let savedId;
-      if (editingAnneeId) {
-        const { error } = await supabase.from('annees_scolaires').update({
-          nom: formAnnee.nom.trim(),
-          date_debut: formAnnee.date_debut,
-          date_fin: formAnnee.date_fin,
-        }).eq('id', editingAnneeId);
-        if (error) throw error;
-        savedId = editingAnneeId;
-      } else {
-        const { data, error } = await supabase.from('annees_scolaires').insert({
-          ecole_id: user.ecole_id,
-          nom: formAnnee.nom.trim(),
-          date_debut: formAnnee.date_debut,
-          date_fin: formAnnee.date_fin,
-          statut: 'a_venir',
-        }).select().single();
-        if (error) throw error;
-        savedId = data.id;
-      }
-      setShowAnneeForm(false);
-      setSelectedAnneeId(savedId);
-      await loadData();
-      showMsg('success', lang==='ar'?'✅ تم الحفظ':'✅ Enregistré');
-    } catch (err) {
-      console.error('[sauvegarderAnnee]', err);
-      showMsg('error', (lang==='ar'?'فشل: ':'Erreur : ') + err.message);
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const activerAnnee = (annee) => {
-    setConfirmModale({
-      titre: lang==='ar'?'تفعيل السنة':'Activer l\'année',
-      message: lang==='ar'
-        ? `تفعيل '${annee.nom}'؟ سيتم أرشفة السنة الحالية تلقائياً.`
-        : `Activer '${annee.nom}' ? L'année active actuelle sera archivée.`,
-      action: lang==='ar'?'تفعيل':'Activer',
-      danger: false,
-      onConfirm: async () => {
-        setSaving(true);
-        try {
-          if (anneeActive) {
-            await supabase.from('annees_scolaires').update({ statut: 'archivee' }).eq('id', anneeActive.id);
-          }
-          const { error } = await supabase.from('annees_scolaires').update({ statut: 'active' }).eq('id', annee.id);
-          if (error) throw error;
-          try {
-            await supabase.from('audit_log').insert({
-              actor_user_id: user.id, actor_role: user.role || 'surveillant',
-              action: 'annee_scolaire.activee', target_type: 'annees_scolaires',
-              target_id: annee.id, target_label: annee.nom,
-              metadata: { ecole_id: user.ecole_id, archived: anneeActive?.id || null },
-            });
-          } catch(e) { console.warn('[activerAnnee] audit:', e); }
-          await loadData();
-          showMsg('success', lang==='ar'?`✅ السنة ${annee.nom} نشطة الآن`:`✅ Année ${annee.nom} activée`);
-          setConfirmModale(null);
-        } catch (err) {
-          console.error('[activerAnnee]', err);
-          showMsg('error', (lang==='ar'?'فشل: ':'Erreur : ') + err.message);
-        } finally {
-          setSaving(false);
-        }
-      },
-    });
-  };
-
-  const cloturerAnnee = () => {
-    if (!anneeActive) return;
-    setConfirmModale({
-      titre: lang==='ar'?'إغلاق السنة':'Clôturer l\'année',
-      message: lang==='ar'
-        ? `إغلاق السنة '${anneeActive.nom}'؟ ستصبح للقراءة فقط.`
-        : `Clôturer l'année '${anneeActive.nom}' ? Elle deviendra lecture seule.`,
-      action: lang==='ar'?'إغلاق':'Clôturer',
-      danger: false,
-      onConfirm: async () => {
-        setSaving(true);
-        try {
-          const { error } = await supabase.from('annees_scolaires').update({ statut: 'archivee' }).eq('id', anneeActive.id);
-          if (error) throw error;
-          try {
-            await supabase.from('audit_log').insert({
-              actor_user_id: user.id, actor_role: user.role || 'surveillant',
-              action: 'annee_scolaire.archivee', target_type: 'annees_scolaires',
-              target_id: anneeActive.id, target_label: anneeActive.nom,
-              metadata: { ecole_id: user.ecole_id },
-            });
-          } catch(e) { console.warn('[cloturerAnnee] audit:', e); }
-          await loadData();
-          showMsg('success', lang==='ar'?'✅ تم الإغلاق':'✅ Année clôturée');
-          setConfirmModale(null);
-        } catch (err) {
-          console.error('[cloturerAnnee]', err);
-          showMsg('error', (lang==='ar'?'فشل: ':'Erreur : ') + err.message);
-        } finally {
-          setSaving(false);
-        }
-      },
-    });
-  };
-
-  const supprimerAnnee = (annee) => {
-    if (annee.statut === 'active') {
-      return showMsg('error', lang==='ar'?'لا يمكن حذف السنة النشطة':'Impossible de supprimer l\'année active');
-    }
-    const nbPeriodes = periodes.filter(p => p.annee_scolaire_id === annee.id).length;
-    setConfirmModale({
-      titre: lang==='ar'?'حذف السنة':'Supprimer l\'année',
-      message: lang==='ar'
-        ? `حذف '${annee.nom}' و ${nbPeriodes} فترات؟ لا يمكن التراجع.`
-        : `Supprimer '${annee.nom}' et ses ${nbPeriodes} périodes ? Action irréversible.`,
-      action: lang==='ar'?'حذف':'Supprimer',
-      danger: true,
-      onConfirm: async () => {
-        setSaving(true);
-        try {
-          const { error } = await supabase.from('annees_scolaires').delete().eq('id', annee.id);
-          if (error) throw error;
-          if (selectedAnneeId === annee.id) setSelectedAnneeId(null);
-          await loadData();
-          showMsg('success', lang==='ar'?'✅ تم الحذف':'✅ Supprimé');
-          setConfirmModale(null);
-        } catch (err) {
-          console.error('[supprimerAnnee]', err);
-          showMsg('error', (lang==='ar'?'فشل: ':'Erreur : ') + err.message);
-        } finally {
-          setSaving(false);
-        }
-      },
-    });
-  };
-
-  const preparerAnneeSuivante = () => {
-    if (!anneeActive) {
-      return showMsg('error', lang==='ar'?'لا توجد سنة نشطة لنسخها':'Aucune année active à recopier');
-    }
-    const periodesActives = periodes.filter(p => p.annee_scolaire_id === anneeActive.id);
-    if (periodesActives.length === 0) {
-      return showMsg('error', lang==='ar'?'السنة النشطة بدون فترات':'L\'année active n\'a aucune période');
-    }
-    const ajouterUnAn = (iso) => {
-      const d = new Date(iso); d.setFullYear(d.getFullYear()+1);
-      const y=d.getFullYear(), m=String(d.getMonth()+1).padStart(2,'0'), dd=String(d.getDate()).padStart(2,'0');
-      return `${y}-${m}-${dd}`;
-    };
-    const remplacerAnnee = (nom) => (nom||'').replace(/(\d{4})-(\d{4})/, (m,a,b)=>`${parseInt(a)+1}-${parseInt(b)+1}`).replace(/(\d{4})/, (m,a)=>`${parseInt(a)+1}`);
-    const nouveauNom = remplacerAnnee(anneeActive.nom);
-    setConfirmModale({
-      titre: lang==='ar'?'تحضير السنة المقبلة':'Préparer l\'année suivante',
-      message: lang==='ar'
-        ? `إنشاء '${nouveauNom}' مع ${periodesActives.length} فترات منسوخة (+1 سنة)؟`
-        : `Créer '${nouveauNom}' avec ${periodesActives.length} périodes recopiées (+1 an) ?`,
-      action: lang==='ar'?'تحضير':'Préparer',
-      danger: false,
-      onConfirm: async () => {
-        setSaving(true);
-        try {
-          const { data: newAnnee, error: errA } = await supabase.from('annees_scolaires').insert({
-            ecole_id: user.ecole_id,
-            nom: nouveauNom,
-            date_debut: ajouterUnAn(anneeActive.date_debut),
-            date_fin: ajouterUnAn(anneeActive.date_fin),
-            statut: 'a_venir',
-          }).select().single();
-          if (errA) throw errA;
-          const nouvellesPeriodes = periodesActives.map(p => ({
-            ecole_id: user.ecole_id,
-            annee_scolaire_id: newAnnee.id,
-            nom: remplacerAnnee(p.nom),
-            nom_ar: remplacerAnnee(p.nom_ar || p.nom),
-            date_debut: ajouterUnAn(p.date_debut),
-            date_fin: ajouterUnAn(p.date_fin),
-            type: p.type,
-            actif: true,
-          }));
-          const { error: errP } = await supabase.from('periodes_notes').insert(nouvellesPeriodes);
-          if (errP) throw errP;
-          try {
-            await supabase.from('audit_log').insert({
-              actor_user_id: user.id, actor_role: user.role || 'surveillant',
-              action: 'annee_scolaire.preparee', target_type: 'annees_scolaires',
-              target_id: newAnnee.id, target_label: nouveauNom,
-              metadata: { ecole_id: user.ecole_id, periodes_recopiees: nouvellesPeriodes.length },
-            });
-          } catch(e) { console.warn('[preparerAnnee] audit:', e); }
-          setSelectedAnneeId(newAnnee.id);
-          await loadData();
-          showMsg('success', lang==='ar'
-            ? `🎉 ${nouveauNom} مع ${nouvellesPeriodes.length} فترات`
-            : `🎉 ${nouveauNom} créée avec ${nouvellesPeriodes.length} périodes`);
-          setConfirmModale(null);
-        } catch (err) {
-          console.error('[preparerAnnee]', err);
-          showMsg('error', (lang==='ar'?'فشل: ':'Erreur : ') + err.message);
-        } finally {
-          setSaving(false);
-        }
-      },
-    });
-  };
-
-  // ──────────────────────────────────────────────
-  // CRUD Periode
-  // ──────────────────────────────────────────────
-  const ouvrirCreationPeriode = () => {
-    if (!anneeSelectionnee) return showMsg('error', lang==='ar'?'اختر سنة أولاً':'Sélectionnez une année');
-    setEditingPeriodeId(null);
-    // Pre-rempli dates avec celles de l'annee
-    setFormPeriode({
-      nom_ar: '',
-      date_debut: anneeSelectionnee.date_debut,
-      date_fin: anneeSelectionnee.date_fin,
-      type: 'trimestre',
-    });
-    setShowPeriodeForm(true);
-  };
-
-  const ouvrirEditionPeriode = (p) => {
-    setEditingPeriodeId(p.id);
-    setFormPeriode({
-      nom_ar: p.nom_ar || p.nom || '',
-      date_debut: p.date_debut,
-      date_fin: p.date_fin,
-      type: p.type || 'libre',
-    });
-    setShowPeriodeForm(true);
-  };
-
-  const sauvegarderPeriode = async () => {
-    if (!formPeriode.nom_ar.trim()) return showMsg('error', lang==='ar'?'الاسم مطلوب':'Nom requis');
-    if (!formPeriode.date_debut || !formPeriode.date_fin) return showMsg('error', lang==='ar'?'التواريخ مطلوبة':'Dates requises');
-    if (new Date(formPeriode.date_debut) >= new Date(formPeriode.date_fin)) return showMsg('error', lang==='ar'?'التواريخ غير صحيحة':'Dates invalides');
-    // Detection doublon par DATES dans la meme annee
-    const doublons = periodes.filter(p =>
-      p.annee_scolaire_id === selectedAnneeId &&
-      p.id !== editingPeriodeId &&
-      p.date_debut === formPeriode.date_debut &&
-      p.date_fin === formPeriode.date_fin
-    );
-    if (doublons.length > 0) {
-      return showMsg('error', lang==='ar'
-        ? `⚠️ توجد فترة بنفس التواريخ: ${doublons[0].nom_ar||doublons[0].nom}`
-        : `⚠️ Période existante avec ces dates : ${doublons[0].nom_ar||doublons[0].nom}`);
-    }
-    setSaving(true);
-    try {
-      const payload = {
-        ecole_id: user.ecole_id,
-        annee_scolaire_id: selectedAnneeId,
-        nom: formPeriode.nom_ar.trim(),
-        nom_ar: formPeriode.nom_ar.trim(),
-        date_debut: formPeriode.date_debut,
-        date_fin: formPeriode.date_fin,
-        type: formPeriode.type,
-        actif: true,
-      };
-      if (editingPeriodeId) {
-        const { error } = await supabase.from('periodes_notes').update(payload).eq('id', editingPeriodeId);
-        if (error) throw error;
-      } else {
-        const { error } = await supabase.from('periodes_notes').insert(payload);
-        if (error) throw error;
-      }
-      setShowPeriodeForm(false);
-      await loadData();
-      showMsg('success', lang==='ar'?'✅ تم الحفظ':'✅ Enregistré');
-    } catch (err) {
-      console.error('[sauvegarderPeriode]', err);
-      showMsg('error', (lang==='ar'?'فشل: ':'Erreur : ') + err.message);
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const supprimerPeriode = (p) => {
-    setConfirmModale({
-      titre: lang==='ar'?'حذف الفترة':'Supprimer la période',
-      message: lang==='ar'?`حذف '${p.nom_ar||p.nom}'؟`:`Supprimer '${p.nom_ar||p.nom}' ?`,
-      action: lang==='ar'?'حذف':'Supprimer',
-      danger: true,
-      onConfirm: async () => {
-        setSaving(true);
-        try {
-          await supabase.from('periodes_notes').delete().eq('id', p.id);
-          await loadData();
-          showMsg('success', lang==='ar'?'✅ تم الحذف':'✅ Supprimé');
-          setConfirmModale(null);
-        } catch (err) {
-          console.error('[supprimerPeriode]', err);
-          showMsg('error', (lang==='ar'?'فشل: ':'Erreur : ') + err.message);
-        } finally {
-          setSaving(false);
-        }
-      },
-    });
-  };
-
-  // ──────────────────────────────────────────────
-  // RENDU
-  // ──────────────────────────────────────────────
-  if (loading) return <div style={{padding:40,textAlign:'center',color:'#888'}}>{lang==='ar'?'جاري التحميل...':'Chargement...'}</div>;
-
-  const anneeEstArchivee = anneeSelectionnee?.statut === 'archivee';
-  const peutEditer = anneeSelectionnee?.statut !== 'archivee';
-
-  return (
-    <div>
-      {/* Cas : aucune annee configuree */}
-      {annees.length === 0 && (
-        <div style={{
-          background:'linear-gradient(135deg,#FFF8EC,#FAEEDA)',
-          border:'1px solid #EF9F2740',borderRadius:12,padding:'24px',marginBottom:14,textAlign:'center',
-        }}>
-          <div style={{fontSize:42,marginBottom:10}}>📅</div>
-          <div style={{fontSize:16,fontWeight:800,color:'#7B5800',marginBottom:6}}>
-            {lang==='ar'?'لم تقم بإعداد أي سنة دراسية':'Aucune année scolaire configurée'}
-          </div>
-          <div style={{fontSize:13,color:'#8a5a00',marginBottom:14,lineHeight:1.5}}>
-            {lang==='ar'?'ابدأ بإنشاء أول سنة دراسية لتنظيم فتراتك':'Commencez par créer votre première année scolaire'}
-          </div>
-          <button onClick={ouvrirCreationAnnee}
-            style={{padding:'10px 20px',background:'linear-gradient(135deg,#1D9E75,#085041)',color:'#fff',border:'none',borderRadius:10,fontSize:14,fontWeight:700,cursor:'pointer',fontFamily:'inherit',boxShadow:'0 2px 8px rgba(8,80,65,0.3)'}}>
-            ➕ {lang==='ar'?'إنشاء سنة دراسية':'Créer une année scolaire'}
-          </button>
-        </div>
-      )}
-
-      {/* Cas : annees existent */}
-      {annees.length > 0 && (
-        <>
-          {/* Selecteur annee */}
-          <div style={{
-            background:'#fff',border:'0.5px solid #e0e0d8',borderRadius:12,
-            padding:'14px 16px',marginBottom:14,
-          }}>
-            <div style={{display:'flex',alignItems:'center',gap:10,flexWrap:'wrap',marginBottom:10}}>
-              <div style={{fontSize:11,fontWeight:700,color:'#666',textTransform:'uppercase',letterSpacing:0.3}}>
-                {lang==='ar'?'السنة الدراسية':'Année scolaire'}
-              </div>
-              <select value={selectedAnneeId || ''} onChange={e=>setSelectedAnneeId(e.target.value)}
-                style={{padding:'7px 10px',borderRadius:8,border:'1px solid #d0d8e8',fontSize:13,fontWeight:600,fontFamily:'inherit',cursor:'pointer',flex:1,minWidth:150}}>
-                {annees.map(a => {
-                  const meta = a.statut==='active' ? '✅ ' : a.statut==='archivee' ? '📂 ' : '📅 ';
-                  return <option key={a.id} value={a.id}>{meta}{a.nom}</option>;
-                })}
-              </select>
-            </div>
-            {anneeSelectionnee && (
-              <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}>
-                {/* Badge statut */}
-                {anneeSelectionnee.statut === 'active' && (
-                  <span style={{padding:'3px 10px',borderRadius:8,fontSize:10,fontWeight:700,background:'#E1F5EE',color:'#085041',border:'0.5px solid #1D9E7530'}}>
-                    ✅ {lang==='ar'?'نشطة':'Active'}
-                  </span>
-                )}
-                {anneeSelectionnee.statut === 'archivee' && (
-                  <span style={{padding:'3px 10px',borderRadius:8,fontSize:10,fontWeight:700,background:'#f0f0ec',color:'#888',border:'0.5px solid #e0e0d8'}}>
-                    📂 {lang==='ar'?'مؤرشفة':'Archivée'}
-                  </span>
-                )}
-                {anneeSelectionnee.statut === 'a_venir' && (
-                  <span style={{padding:'3px 10px',borderRadius:8,fontSize:10,fontWeight:700,background:'#FFF8EC',color:'#7B5800',border:'0.5px solid #EF9F2730'}}>
-                    📅 {lang==='ar'?'قادمة':'À venir'}
-                  </span>
-                )}
-                {/* Dates */}
-                <span style={{fontSize:12,color:'#666',fontWeight:600}}>
-                  📅 {fmt(anneeSelectionnee.date_debut)} → {fmt(anneeSelectionnee.date_fin)}
-                </span>
-                <div style={{flex:1}}/>
-                {/* Actions selon statut */}
-                {anneeSelectionnee.statut === 'a_venir' && (
-                  <button onClick={()=>activerAnnee(anneeSelectionnee)} disabled={saving}
-                    style={{padding:'5px 12px',borderRadius:8,fontSize:11,fontWeight:700,cursor:saving?'not-allowed':'pointer',
-                      background:'linear-gradient(135deg,#1D9E75,#085041)',color:'#fff',border:'none',fontFamily:'inherit'}}>
-                    ▶ {lang==='ar'?'تفعيل':'Activer'}
-                  </button>
-                )}
-                {anneeSelectionnee.statut === 'active' && (
-                  <button onClick={cloturerAnnee} disabled={saving}
-                    style={{padding:'5px 12px',borderRadius:8,fontSize:11,fontWeight:700,cursor:saving?'not-allowed':'pointer',
-                      background:'#FFF8EC',color:'#7B5800',border:'1px solid #EF9F2730',fontFamily:'inherit'}}>
-                    ⏸ {lang==='ar'?'إغلاق':'Clôturer'}
-                  </button>
-                )}
-                <button onClick={()=>ouvrirEditionAnnee(anneeSelectionnee)} disabled={saving || anneeEstArchivee}
-                  style={{padding:'5px 10px',borderRadius:8,fontSize:11,fontWeight:600,cursor:(saving||anneeEstArchivee)?'not-allowed':'pointer',
-                    background:'#E6F1FB',color:'#378ADD',border:'0.5px solid #378ADD30',opacity:anneeEstArchivee?0.5:1,fontFamily:'inherit'}}>
-                  ✏️
-                </button>
-                {anneeSelectionnee.statut !== 'active' && (
-                  <button onClick={()=>supprimerAnnee(anneeSelectionnee)} disabled={saving}
-                    style={{padding:'5px 10px',borderRadius:8,fontSize:11,fontWeight:600,cursor:saving?'not-allowed':'pointer',
-                      background:'#FCEBEB',color:'#E24B4A',border:'0.5px solid #E24B4A30',fontFamily:'inherit'}}>
-                    🗑
-                  </button>
-                )}
-              </div>
-            )}
-          </div>
-
-          {/* Boutons globaux */}
-          <div style={{display:'flex',gap:8,flexWrap:'wrap',marginBottom:14}}>
-            <button onClick={ouvrirCreationAnnee} disabled={saving}
-              style={{padding:'8px 14px',borderRadius:8,fontSize:12,fontWeight:700,cursor:saving?'not-allowed':'pointer',
-                background:'#fff',color:'#085041',border:'1px solid #1D9E7540',fontFamily:'inherit'}}>
-              ➕ {lang==='ar'?'سنة جديدة':'Nouvelle année'}
-            </button>
-            {anneeActive && (
-              <button onClick={preparerAnneeSuivante} disabled={saving}
-                style={{padding:'8px 14px',borderRadius:8,fontSize:12,fontWeight:700,cursor:saving?'not-allowed':'pointer',
-                  background:'linear-gradient(135deg,#1D9E75,#085041)',color:'#fff',border:'none',fontFamily:'inherit',boxShadow:'0 2px 8px rgba(8,80,65,0.25)'}}>
-                🔄 {lang==='ar'?'تحضير السنة المقبلة':'Préparer l\'année suivante'}
-              </button>
-            )}
-          </div>
-
-          {/* Liste des periodes de l'annee selectionnee */}
-          {anneeSelectionnee && (
-            <div>
-              <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:10,gap:8,flexWrap:'wrap'}}>
-                <div className="section-label" style={{margin:0}}>
-                  {lang==='ar'?'الفترات':'Périodes'} ({periodesAnneeSelectionnee.length})
-                </div>
-                {peutEditer && (
-                  <button onClick={ouvrirCreationPeriode} disabled={saving}
-                    style={{padding:'6px 12px',borderRadius:8,fontSize:11,fontWeight:700,cursor:saving?'not-allowed':'pointer',
-                      background:'#085041',color:'#fff',border:'none',fontFamily:'inherit'}}>
-                    ➕ {lang==='ar'?'إضافة فترة':'Ajouter une période'}
-                  </button>
-                )}
-              </div>
-              {periodesAnneeSelectionnee.length === 0 ? (
-                <div className="empty">{lang==='ar'?'لا توجد فترات في هذه السنة':'Aucune période dans cette année'}</div>
-              ) : (
-                <div style={{display:'flex',flexDirection:'column',gap:8}}>
-                  {periodesAnneeSelectionnee.map(p => {
-                    const meta = getTypeMeta(p.type);
-                    return (
-                      <div key={p.id} style={{background:'#fff',border:'0.5px solid #e0e0d8',borderRadius:12,padding:'12px 14px',display:'flex',alignItems:'center',gap:12}}>
-                        <div style={{width:44,height:44,borderRadius:12,background:`${meta.color}15`,display:'flex',alignItems:'center',justifyContent:'center',fontSize:22,flexShrink:0}}>{meta.icon}</div>
-                        <div style={{flex:1,minWidth:0}}>
-                          <div style={{display:'flex',alignItems:'center',gap:6,flexWrap:'wrap'}}>
-                            <div style={{fontWeight:700,fontSize:14,color:'#1a1a1a'}}>{p.nom_ar||p.nom}</div>
-                            <span style={{padding:'1px 7px',borderRadius:8,fontSize:9,fontWeight:700,
-                              background:`${meta.color}15`,color:meta.color,border:`0.5px solid ${meta.color}40`}}>
-                              {lang==='ar'?meta.label_ar:meta.label_fr}
-                            </span>
-                          </div>
-                          <div style={{fontSize:11,color:'#888',marginTop:2,fontWeight:600}}>
-                            📅 {fmt(p.date_debut)} → {fmt(p.date_fin)}
-                          </div>
-                        </div>
-                        {peutEditer && (
-                          <div style={{display:'flex',gap:5}}>
-                            <button onClick={()=>ouvrirEditionPeriode(p)} disabled={saving}
-                              style={{padding:'4px 8px',borderRadius:6,fontSize:11,fontWeight:600,cursor:saving?'not-allowed':'pointer',
-                                background:'#E6F1FB',color:'#378ADD',border:'0.5px solid #378ADD30'}}>✏️</button>
-                            <button onClick={()=>supprimerPeriode(p)} disabled={saving}
-                              style={{padding:'4px 8px',borderRadius:6,fontSize:11,fontWeight:600,cursor:saving?'not-allowed':'pointer',
-                                background:'#FCEBEB',color:'#E24B4A',border:'0.5px solid #E24B4A30'}}>🗑</button>
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          )}
-        </>
-      )}
-
-      {/* MODALE de confirmation generique (Etape 14 v2 - remplace window.confirm) */}
-      {confirmModale && (
-        <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.55)',zIndex:10000,display:'flex',alignItems:'center',justifyContent:'center',padding:20,
-          animation:'modalFadeIn 0.15s ease-out'}}
-          onClick={()=>{ if(!saving) setConfirmModale(null); }}>
-          <div onClick={e=>e.stopPropagation()}
-            style={{background:'#fff',borderRadius:16,maxWidth:440,width:'100%',padding:24,boxShadow:'0 20px 60px rgba(0,0,0,0.3)',
-              animation:'modalSlideIn 0.18s ease-out'}}>
-            <div style={{display:'flex',alignItems:'center',gap:12,marginBottom:14}}>
-              <div style={{
-                width:48,height:48,borderRadius:14,
-                background:confirmModale.danger?'#FCEBEB':'#E1F5EE',
-                display:'flex',alignItems:'center',justifyContent:'center',fontSize:24,flexShrink:0,
-              }}>
-                {confirmModale.danger?'⚠️':'❓'}
-              </div>
-              <div style={{flex:1}}>
-                <div style={{fontSize:16,fontWeight:800,color:'#1a1a1a'}}>
-                  {confirmModale.titre}
-                </div>
-              </div>
-            </div>
-            <div style={{fontSize:13,color:'#444',lineHeight:1.6,marginBottom:18}}>
-              {confirmModale.message}
-            </div>
-            <div style={{display:'flex',gap:8}}>
-              <button onClick={()=>setConfirmModale(null)} disabled={saving}
-                style={{flex:1,padding:11,background:'#f5f5f0',color:'#666',border:'none',borderRadius:10,fontSize:13,fontWeight:600,cursor:saving?'not-allowed':'pointer',fontFamily:'inherit'}}>
-                {lang==='ar'?'إلغاء':'Annuler'}
-              </button>
-              <button onClick={confirmModale.onConfirm} disabled={saving}
-                style={{flex:2,padding:11,
-                  background:saving?'#ccc':(confirmModale.danger?'#E24B4A':'linear-gradient(135deg,#1D9E75,#085041)'),
-                  color:'#fff',border:'none',borderRadius:10,fontSize:13,fontWeight:700,cursor:saving?'not-allowed':'pointer',fontFamily:'inherit'}}>
-                {saving?(lang==='ar'?'جاري...':'En cours...'):confirmModale.action}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* MODALE creation/edition annee */}
-      {showAnneeForm && (
-        <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.55)',zIndex:9999,display:'flex',alignItems:'center',justifyContent:'center',padding:20,
-          animation:'modalFadeIn 0.15s ease-out'}}
-          onClick={()=>{ if(!saving) setShowAnneeForm(false); }}>
-          <div onClick={e=>e.stopPropagation()}
-            style={{background:'#fff',borderRadius:16,maxWidth:480,width:'100%',padding:24,boxShadow:'0 20px 60px rgba(0,0,0,0.3)',
-              animation:'modalSlideIn 0.18s ease-out'}}>
-            <div style={{fontSize:17,fontWeight:800,color:'#085041',marginBottom:14}}>
-              {editingAnneeId ? (lang==='ar'?'تعديل السنة':'Modifier l\'année') : (lang==='ar'?'سنة دراسية جديدة':'Nouvelle année scolaire')}
-            </div>
-            <div style={{display:'flex',flexDirection:'column',gap:12,marginBottom:14}}>
-              <div className="field-group">
-                <label className="field-lbl">{lang==='ar'?'الاسم':'Nom'} <span style={{color:'#E24B4A'}}>*</span></label>
-                <input className="field-input" value={formAnnee.nom}
-                  onChange={e=>setFormAnnee({...formAnnee, nom:e.target.value})}
-                  placeholder="2026-2027"/>
-              </div>
-              <div className="field-group">
-                <label className="field-lbl">{lang==='ar'?'تاريخ البداية':'Date de début'} <span style={{color:'#E24B4A'}}>*</span></label>
-                <input className="field-input" type="date" value={formAnnee.date_debut}
-                  onChange={e=>setFormAnnee({...formAnnee, date_debut:e.target.value})}/>
-              </div>
-              <div className="field-group">
-                <label className="field-lbl">{lang==='ar'?'تاريخ النهاية':'Date de fin'} <span style={{color:'#E24B4A'}}>*</span></label>
-                <input className="field-input" type="date" value={formAnnee.date_fin}
-                  onChange={e=>setFormAnnee({...formAnnee, date_fin:e.target.value})}/>
-              </div>
-            </div>
-            <div style={{display:'flex',gap:8}}>
-              <button onClick={()=>setShowAnneeForm(false)} disabled={saving}
-                style={{flex:1,padding:11,background:'#f5f5f0',color:'#666',border:'none',borderRadius:10,fontSize:13,fontWeight:600,cursor:saving?'not-allowed':'pointer',fontFamily:'inherit'}}>
-                {lang==='ar'?'إلغاء':'Annuler'}
-              </button>
-              <button onClick={sauvegarderAnnee} disabled={saving}
-                style={{flex:2,padding:11,background:saving?'#ccc':'linear-gradient(135deg,#1D9E75,#085041)',color:'#fff',border:'none',borderRadius:10,fontSize:13,fontWeight:700,cursor:saving?'not-allowed':'pointer',fontFamily:'inherit'}}>
-                {saving?(lang==='ar'?'جاري...':'En cours...'):(lang==='ar'?'حفظ':'Enregistrer')}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* MODALE creation/edition periode */}
-      {showPeriodeForm && (
-        <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.55)',zIndex:9999,display:'flex',alignItems:'center',justifyContent:'center',padding:20,
-          animation:'modalFadeIn 0.15s ease-out'}}
-          onClick={()=>{ if(!saving) setShowPeriodeForm(false); }}>
-          <div onClick={e=>e.stopPropagation()}
-            style={{background:'#fff',borderRadius:16,maxWidth:520,width:'100%',padding:24,boxShadow:'0 20px 60px rgba(0,0,0,0.3)',maxHeight:'90vh',overflowY:'auto',
-              animation:'modalSlideIn 0.18s ease-out'}}>
-            <div style={{fontSize:17,fontWeight:800,color:'#085041',marginBottom:14}}>
-              {editingPeriodeId ? (lang==='ar'?'تعديل الفترة':'Modifier la période') : (lang==='ar'?'فترة جديدة':'Nouvelle période')}
-            </div>
-            <div style={{display:'flex',flexDirection:'column',gap:12,marginBottom:14}}>
-              <div className="field-group">
-                <label className="field-lbl">{lang==='ar'?'النوع':'Type'}</label>
-                <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>
-                  {TYPE_OPTIONS.map(opt => (
-                    <button key={opt.val} type="button"
-                      onClick={()=>setFormPeriode({...formPeriode, type:opt.val})}
-                      style={{padding:'7px 14px',borderRadius:8,
-                        background:formPeriode.type===opt.val?opt.color:'#fff',
-                        color:formPeriode.type===opt.val?'#fff':opt.color,
-                        border:`1px solid ${opt.color}50`,cursor:'pointer',fontSize:12,fontWeight:600,fontFamily:'inherit'}}>
-                      {opt.icon} {lang==='ar'?opt.label_ar:opt.label_fr}
-                    </button>
-                  ))}
-                </div>
-              </div>
-              <div className="field-group">
-                <label className="field-lbl">{lang==='ar'?'الاسم':'Nom'} <span style={{color:'#E24B4A'}}>*</span></label>
-                <input className="field-input" value={formPeriode.nom_ar}
-                  onChange={e=>setFormPeriode({...formPeriode, nom_ar:e.target.value})}
-                  placeholder={lang==='ar'?'مثال: الفصل الأول':'Ex: Trimestre 1'}/>
-              </div>
-              <div className="field-group">
-                <label className="field-lbl">{lang==='ar'?'تاريخ البداية':'Date de début'} <span style={{color:'#E24B4A'}}>*</span></label>
-                <input className="field-input" type="date" value={formPeriode.date_debut}
-                  onChange={e=>setFormPeriode({...formPeriode, date_debut:e.target.value})}/>
-              </div>
-              <div className="field-group">
-                <label className="field-lbl">{lang==='ar'?'تاريخ النهاية':'Date de fin'} <span style={{color:'#E24B4A'}}>*</span></label>
-                <input className="field-input" type="date" value={formPeriode.date_fin}
-                  onChange={e=>setFormPeriode({...formPeriode, date_fin:e.target.value})}/>
-              </div>
-            </div>
-            <div style={{display:'flex',gap:8}}>
-              <button onClick={()=>setShowPeriodeForm(false)} disabled={saving}
-                style={{flex:1,padding:11,background:'#f5f5f0',color:'#666',border:'none',borderRadius:10,fontSize:13,fontWeight:600,cursor:saving?'not-allowed':'pointer',fontFamily:'inherit'}}>
-                {lang==='ar'?'إلغاء':'Annuler'}
-              </button>
-              <button onClick={sauvegarderPeriode} disabled={saving}
-                style={{flex:2,padding:11,background:saving?'#ccc':'linear-gradient(135deg,#1D9E75,#085041)',color:'#fff',border:'none',borderRadius:10,fontSize:13,fontWeight:700,cursor:saving?'not-allowed':'pointer',fontFamily:'inherit'}}>
-                {saving?(lang==='ar'?'جاري...':'En cours...'):(lang==='ar'?'حفظ':'Enregistrer')}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-
-// ══════════════════════════════════════════════════════
-// COMPOSANT SensRecitationTab — Sens de récitation (desc/asc)
-// par école et par niveau
-// ══════════════════════════════════════════════════════
-function SensRecitationTab({ user, lang, ecoleConfig, setEcoleConfig, niveaux, setNiveaux, showMsg }) {
-  const [saving, setSaving] = React.useState(false);
-  const [validationsCount, setValidationsCount] = React.useState({}); // { niveau_id: nbValidations }
-  const [loading, setLoading] = React.useState(true);
-
-  React.useEffect(() => {
-    (async () => {
-      setLoading(true);
-      // Pour chaque niveau, compter les validations existantes pour ses élèves
-      // On fait une seule requête qui compte par code_niveau
-      try {
-        const { data: eleves } = await supabase.from('eleves')
-          .select('id, code_niveau').eq('ecole_id', user.ecole_id);
-        const byNiveau = {};
-        (eleves || []).forEach(e => {
-          if (!byNiveau[e.code_niveau]) byNiveau[e.code_niveau] = [];
-          byNiveau[e.code_niveau].push(e.id);
-        });
-        const counts = {};
-        for (const code of Object.keys(byNiveau)) {
-          const ids = byNiveau[code];
-          if (ids.length === 0) { counts[code] = 0; continue; }
-          const { count } = await supabase.from('validations')
-            .select('id', { count: 'exact', head: true })
-            .eq('ecole_id', user.ecole_id)
-            .in('eleve_id', ids);
-          counts[code] = count || 0;
-        }
-        setValidationsCount(counts);
-      } catch (e) {
-        console.error('[SensRecitationTab] loadCounts', e);
-      } finally {
-        setLoading(false);
-      }
-    })();
-  }, [user.ecole_id, niveaux.length]);
-
-  const sensDefaut = ecoleConfig?.sens_recitation_defaut || 'desc';
-
-  const libelle = (s) => {
-    if (s === 'asc') return lang === 'ar'
-      ? 'تصاعدي (من الحزب 1 إلى 60 · من السورة 1 إلى 114)'
-      : 'Croissant (Hizb 1 → 60 · Sourate 1 → 114)';
-    return lang === 'ar'
-      ? 'تنازلي (من الحزب 60 إلى 1 · من السورة 114 إلى 1)'
-      : 'Décroissant (Hizb 60 → 1 · Sourate 114 → 1)';
-  };
-  const libelleShort = (s) => s === 'asc'
-    ? (lang === 'ar' ? 'تصاعدي' : 'Croissant')
-    : (lang === 'ar' ? 'تنازلي' : 'Décroissant');
-
-  const saveEcoleDefaut = async (newSens) => {
-    setSaving(true);
-    const { error } = await supabase.from('ecoles')
-      .update({ sens_recitation_defaut: newSens })
-      .eq('id', user.ecole_id);
-    setSaving(false);
-    if (error) {
-      showMsg('error', lang === 'ar' ? 'خطأ في الحفظ' : 'Erreur de sauvegarde');
-      return;
-    }
-    setEcoleConfig(prev => ({ ...prev, sens_recitation_defaut: newSens }));
-    showMsg('success', lang === 'ar' ? 'تم الحفظ' : 'Réglage enregistré');
-  };
-
-  const saveNiveauSens = async (niveauId, niveauCode, newSens) => {
-    // Si le niveau a des validations et qu'on change de sens, bloquer
-    const currentEffectif = (niveaux.find(n => n.id === niveauId)?.sens_recitation) || sensDefaut;
-    const nouveauEffectif = newSens === null ? sensDefaut : newSens;
-    const nbVal = validationsCount[niveauCode] || 0;
-    if (nbVal > 0 && currentEffectif !== nouveauEffectif) {
-      showMsg('error', lang === 'ar'
-        ? `لا يمكن تغيير الاتجاه: يوجد ${nbVal} استظهار مسجل في هذا المستوى`
-        : `Impossible de changer le sens : ${nbVal} validation(s) déjà enregistrée(s) pour ce niveau`);
-      return;
-    }
-    setSaving(true);
-    const { error } = await supabase.from('niveaux')
-      .update({ sens_recitation: newSens })
-      .eq('id', niveauId)
-      .eq('ecole_id', user.ecole_id);
-    setSaving(false);
-    if (error) {
-      showMsg('error', lang === 'ar' ? 'خطأ في الحفظ' : 'Erreur de sauvegarde');
-      return;
-    }
-    // Mise à jour IMMÉDIATE du state local (le parent reflète le changement)
-    if (typeof setNiveaux === 'function') {
-      setNiveaux(prev => (prev || []).map(n =>
-        n.id === niveauId ? { ...n, sens_recitation: newSens } : n
-      ));
-    }
-    showMsg('success', lang === 'ar' ? 'تم الحفظ' : 'Enregistré');
-  };
-
-  return (
-    <div>
-      {/* ─── Défaut école ─── */}
-      <div style={{background:'#fff',border:'0.5px solid #e0e0d8',borderRadius:14,padding:'1.25rem',marginBottom:'1.25rem'}}>
-        <div style={{fontSize:14,fontWeight:800,color:'#085041',marginBottom:8}}>
-          🏫 {lang === 'ar' ? 'الإعداد الافتراضي للمدرسة' : 'Réglage par défaut pour toute l\'école'}
-        </div>
-        <div style={{fontSize:12,color:'#666',marginBottom:12,lineHeight:1.5}}>
-          {lang === 'ar'
-            ? 'هذا الإعداد يحدد الاتجاه الافتراضي لجميع مستويات المدرسة. المستويات التي تستخدم "افتراضي" ستتغير تلقائيًا عند تغيير هذا الإعداد.'
-            : 'Ce réglage définit le sens par défaut pour tous les niveaux de l\'école. Les niveaux réglés sur "Défaut" suivront automatiquement tout changement de cette valeur.'}
-        </div>
-        <div style={{display:'flex',gap:10,flexWrap:'wrap'}}>
-          {['desc','asc'].map(s => (
-            <button key={s} onClick={() => saveEcoleDefaut(s)} disabled={saving || sensDefaut === s}
-              style={{
-                flex:'1 1 200px',padding:'14px 18px',borderRadius:12,
-                border:`2px solid ${sensDefaut === s ? '#085041' : '#e0e0d8'}`,
-                background: sensDefaut === s ? '#E1F5EE' : '#fff',
-                color: sensDefaut === s ? '#085041' : '#555',
-                fontSize:13,fontWeight:700,cursor: saving ? 'wait' : 'pointer',
-                fontFamily:'inherit',transition:'all 0.15s',textAlign:'start'
-              }}>
-              <div style={{display:'flex',alignItems:'center',gap:8}}>
-                <span style={{fontSize:20}}>{s === 'asc' ? '📈' : '📉'}</span>
-                <span>{libelle(s)}</span>
-                {sensDefaut === s && <span style={{marginInlineStart:'auto',color:'#1D9E75'}}>✓</span>}
-              </div>
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* ─── Surcharge par niveau ─── */}
-      <div style={{background:'#fff',border:'0.5px solid #e0e0d8',borderRadius:14,padding:'1.25rem'}}>
-        <div style={{fontSize:14,fontWeight:800,color:'#085041',marginBottom:8}}>
-          📚 {lang === 'ar' ? 'حسب المستوى' : 'Par niveau'}
-        </div>
-        <div style={{fontSize:12,color:'#666',marginBottom:14,lineHeight:1.5}}>
-          {lang === 'ar'
-            ? '🏫 "افتراضي": يتبع إعداد المدرسة (يتغير إذا غيرت الإعداد العام). 🔒 "تنازلي" أو "تصاعدي": يثبت هذا المستوى على اتجاه محدد. المستويات التي تحتوي على استظهارات مسجلة لا يمكن تغيير اتجاهها.'
-            : '🏫 "Défaut" : suit le réglage école (change si vous modifiez le réglage global). 🔒 "Décroissant" ou "Croissant" : verrouille ce niveau sur un sens spécifique. Les niveaux avec validations enregistrées ne peuvent plus changer.'}
-        </div>
-        {loading ? (
-          <div style={{padding:'1rem',color:'#888',fontSize:12}}>
-            {lang === 'ar' ? 'جاري التحميل...' : 'Chargement...'}
-          </div>
-        ) : niveaux.length === 0 ? (
-          <div style={{padding:'1rem',color:'#888',fontSize:12}}>
-            {lang === 'ar' ? 'لا توجد مستويات' : 'Aucun niveau'}
-          </div>
-        ) : (
-          <div style={{display:'flex',flexDirection:'column',gap:8}}>
-            {niveaux.map(n => {
-              const sensSurcharge = n.sens_recitation; // null = hérite de l'école
-              const sensEffectif = sensSurcharge || sensDefaut;
-              const nbVal = validationsCount[n.code] || 0;
-              const bloque = nbVal > 0;
-              return (
-                <div key={n.id} style={{
-                  display:'flex',alignItems:'center',gap:12,flexWrap:'wrap',
-                  padding:'12px 14px',borderRadius:10,
-                  background: bloque ? '#f5f5f0' : '#fff',
-                  border: `0.5px solid ${n.couleur || '#e0e0d8'}40`
-                }}>
-                  <div style={{
-                    width:36,height:36,borderRadius:'50%',
-                    background:(n.couleur||'#888')+'22',color:n.couleur||'#555',
-                    display:'flex',alignItems:'center',justifyContent:'center',
-                    fontSize:13,fontWeight:800,flexShrink:0
-                  }}>
-                    {n.code}
-                  </div>
-                  <div style={{flex:'1 1 200px',minWidth:0}}>
-                    <div style={{fontSize:13,fontWeight:700,color:'#1a1a1a'}}>
-                      {n.nom || n.code}
-                    </div>
-                    <div style={{fontSize:11,color:'#888',marginTop:2}}>
-                      {sensSurcharge ? (
-                        <span style={{color:'#085041',fontWeight:600}}>
-                          🔒 {libelleShort(sensSurcharge)}
-                          <span style={{color:'#888',fontWeight:400}}>
-                            {lang === 'ar' ? ' (مثبت)' : ' (verrouillé)'}
-                          </span>
-                        </span>
-                      ) : (
-                        <span style={{color:'#555'}}>
-                          🏫 {libelleShort(sensDefaut)}
-                          <span style={{color:'#888'}}>
-                            {lang === 'ar' ? ' (يتبع المدرسة)' : ' (suit l\'école)'}
-                          </span>
-                        </span>
-                      )}
-                      {bloque && (
-                        <span style={{marginInlineStart:6,color:'#EF9F27',fontWeight:600}}>
-                          · 🔒 {nbVal} {lang === 'ar' ? 'استظهار' : 'validation(s)'}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                  <div style={{display:'flex',gap:4,flexWrap:'wrap'}}>
-                    {[
-                      {
-                        val: null,
-                        label: lang === 'ar' ? 'افتراضي' : 'Défaut',
-                        icon: '🏫',
-                        tooltip: lang === 'ar'
-                          ? `يتبع هذا المستوى الإعداد العام للمدرسة تلقائيًا (حاليا: ${libelleShort(sensDefaut)}). إذا قمت بتغيير الإعداد العام، سيتغير هذا المستوى تلقائيًا.`
-                          : `Ce niveau suit automatiquement le réglage de l'école (actuellement : ${libelleShort(sensDefaut)}). Si vous changez le réglage école, ce niveau changera aussi.`
-                      },
-                      {
-                        val: 'desc',
-                        label: lang === 'ar' ? 'تنازلي' : 'Décroissant',
-                        icon: '📉',
-                        tooltip: lang === 'ar'
-                          ? 'تثبيت الاتجاه على تنازلي لهذا المستوى بغض النظر عن إعداد المدرسة العام.'
-                          : 'Verrouille ce niveau en décroissant, indépendamment du réglage école.'
-                      },
-                      {
-                        val: 'asc',
-                        label: lang === 'ar' ? 'تصاعدي' : 'Croissant',
-                        icon: '📈',
-                        tooltip: lang === 'ar'
-                          ? 'تثبيت الاتجاه على تصاعدي لهذا المستوى بغض النظر عن إعداد المدرسة العام.'
-                          : 'Verrouille ce niveau en croissant, indépendamment du réglage école.'
-                      },
-                    ].map(opt => {
-                      const isCurrent = sensSurcharge === opt.val;
-                      // bloqué si le niveau a des validations ET que ce choix changerait le sens effectif
-                      const nouveauEffectif = opt.val === null ? sensDefaut : opt.val;
-                      const changeSens = sensEffectif !== nouveauEffectif;
-                      const disabled = saving || isCurrent || (bloque && changeSens);
-                      const tooltipBloque = lang === 'ar' ? 'لا يمكن التغيير: يوجد استظهارات' : 'Bloqué : validations existantes';
-                      return (
-                        <button key={String(opt.val)}
-                          onClick={() => saveNiveauSens(n.id, n.code, opt.val)}
-                          disabled={disabled}
-                          title={disabled && bloque && changeSens ? tooltipBloque : opt.tooltip}
-                          style={{
-                            padding:'6px 10px',borderRadius:8,fontSize:11,fontWeight:700,
-                            border: `1px solid ${isCurrent ? '#085041' : '#e0e0d8'}`,
-                            background: isCurrent ? '#E1F5EE' : '#fff',
-                            color: isCurrent ? '#085041' : (disabled ? '#bbb' : '#555'),
-                            cursor: disabled ? 'not-allowed' : 'pointer',
-                            opacity: disabled && !isCurrent ? 0.5 : 1,
-                            fontFamily:'inherit',whiteSpace:'nowrap'
-                          }}>
-                          {opt.icon} {opt.label}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-// ══════════════════════════════════════════════════════
-// COMPOSANT IdentiteEcoleTab — Identité école (J3 sprint 12j)
-// Phase 1 : Directeur uniquement. Pourra accueillir + tard logo, nom AR/FR
-// ══════════════════════════════════════════════════════
-function IdentiteEcoleTab({ user, lang, ecoleConfig, setEcoleConfig, showMsg }) {
-  const [nomAr, setNomAr] = React.useState(ecoleConfig?.nom_ar || '');
-  const [nomDirecteur, setNomDirecteur] = React.useState(ecoleConfig?.nom_directeur || '');
-  const [nomDirecteurAr, setNomDirecteurAr] = React.useState(ecoleConfig?.nom_directeur_ar || '');
-  const [saving, setSaving] = React.useState(false);
-
-  // Resync si ecoleConfig change apres montage (rare mais propre)
-  React.useEffect(() => {
-    setNomAr(ecoleConfig?.nom_ar || '');
-    setNomDirecteur(ecoleConfig?.nom_directeur || '');
-    setNomDirecteurAr(ecoleConfig?.nom_directeur_ar || '');
-  }, [ecoleConfig?.nom_ar, ecoleConfig?.nom_directeur, ecoleConfig?.nom_directeur_ar]);
-
-  const handleSave = async () => {
-    setSaving(true);
-    const payload = {
-      nom_ar: nomAr.trim() || null,
-      nom_directeur: nomDirecteur.trim() || null,
-      nom_directeur_ar: nomDirecteurAr.trim() || null,
-    };
-    const { error } = await supabase.from('ecoles')
-      .update(payload)
-      .eq('id', user.ecole_id);
-    setSaving(false);
-    if (error) {
-      showMsg('error', lang === 'ar' ? 'خطأ في الحفظ' : 'Erreur de sauvegarde');
-      return;
-    }
-    setEcoleConfig(prev => ({ ...prev, ...payload }));
-    showMsg('success', lang === 'ar' ? 'تم الحفظ' : 'Identité enregistrée');
-  };
-
-  // Apercu du header certificat (meme logique que api/pdf.js certificatHeader)
-  // pour que le surveillant voie en direct ce qui apparaitra sur le diplome.
-  const nomFrEcole = ecoleConfig?.nom || '';
-  const PREFIXE_AR = 'المدرسة القرآنية';
-  const rawNomAr = (nomAr.trim() || nomFrEcole || '');
-  let apercu;
-  if (!rawNomAr) apercu = 'مدرسة قرآنية';
-  else if (rawNomAr.includes('مدرسة') || rawNomAr.includes('المدرسة')) apercu = rawNomAr;
-  else apercu = `${PREFIXE_AR} ${rawNomAr}`;
-
-  const labelStyle = { fontSize: 12, fontWeight: 600, color: '#666', display: 'block', marginBottom: 6 };
-  const inputStyle = {
-    width: '100%', padding: '11px 14px', borderRadius: 10,
-    border: '0.5px solid #e0e0d8', fontSize: 14, fontFamily: 'inherit',
-    boxSizing: 'border-box', background: '#fff',
-  };
-  const sectionTitleStyle = { fontSize: 14, fontWeight: 700, color: '#085041', marginBottom: 14,
-    paddingBottom: 8, borderBottom: '1.5px solid #EF9F27' };
-
-  return (
-    <div style={{ padding: '1.5rem', maxWidth: 720 }}>
-      <h2 style={{ fontSize: 18, fontWeight: 700, color: '#085041', marginBottom: 8 }}>
-        👔 {lang === 'ar' ? 'هوية المدرسة' : "Identité de l'école"}
-      </h2>
-      <p style={{ fontSize: 13, color: '#666', marginBottom: 22, lineHeight: 1.5 }}>
-        {lang === 'ar'
-          ? 'هذه المعلومات تظهر على شهادات الامتحانات و الجلائز.'
-          : "Ces informations apparaissent sur les certificats d'examens et les diplômes."}
-      </p>
-
-      {/* ─── SECTION 1 : NOM DE L'ÉCOLE ─── */}
-      <div style={{ background: '#fff', borderRadius: 14, padding: 24, border: '0.5px solid #e0e0d8', marginBottom: 16 }}>
-        <div style={sectionTitleStyle}>
-          🕌 {lang === 'ar' ? 'اسم المدرسة' : "Nom de l'école"}
-        </div>
-
-        <div style={{ marginBottom: 18 }}>
-          <label style={labelStyle}>
-            {lang === 'ar' ? 'الاسم (بالفرنسية)' : 'Nom (français)'}
-          </label>
-          <input
-            type="text"
-            value={nomFrEcole}
-            disabled
-            style={{ ...inputStyle, background: '#f9f9f6', color: '#666', cursor: 'not-allowed' }}
-          />
-          <div style={{ fontSize: 11, color: '#aaa', marginTop: 6 }}>
-            {lang === 'ar'
-              ? 'لا يمكن تعديل هذا الحقل من هنا. تواصل مع المسؤول لتغييره.'
-              : "Non modifiable depuis cet écran. Contacte l'administrateur pour le changer."}
-          </div>
-        </div>
-
-        <div style={{ marginBottom: 4 }}>
-          <label style={labelStyle}>
-            {lang === 'ar' ? 'الاسم (بالعربية)' : 'Nom (arabe)'}
-          </label>
-          <input
-            type="text"
-            value={nomAr}
-            onChange={e => setNomAr(e.target.value)}
-            placeholder={lang === 'ar' ? 'مثال: التوحيد' : 'مثال: التوحيد'}
-            style={{ ...inputStyle, direction: 'rtl', textAlign: 'right' }}
-            maxLength={150}
-          />
-          <div style={{ fontSize: 11, color: '#aaa', marginTop: 6, lineHeight: 1.5 }}>
-            {lang === 'ar'
-              ? 'اختياري. سيُسبق هذا الاسم على الشهادة بـ "المدرسة القرآنية" تلقائيًا (إلا إذا احتوى الاسم على "مدرسة" مسبقًا).'
-              : 'Optionnel. Sur le certificat, ce nom sera précédé automatiquement par "المدرسة القرآنية" (sauf s\'il contient déjà "مدرسة").'}
-          </div>
-        </div>
-      </div>
-
-      {/* ─── SECTION 2 : DIRECTEUR ─── */}
-      <div style={{ background: '#fff', borderRadius: 14, padding: 24, border: '0.5px solid #e0e0d8', marginBottom: 16 }}>
-        <div style={sectionTitleStyle}>
-          🎩 {lang === 'ar' ? 'مدير المدرسة (اختياري)' : 'Directeur (optionnel)'}
-        </div>
-        <p style={{ fontSize: 12, color: '#888', marginBottom: 16, lineHeight: 1.5 }}>
-          {lang === 'ar'
-            ? 'اترك الحقلين فارغين إذا لم يكن لمدرستك مدير منفصل عن المشرف. ستظهر فقط توقيع المشرف على الشهادات.'
-            : "Laisse les deux champs vides si ton école n'a pas de Directeur distinct du Surveillant. Seule la signature du Surveillant apparaîtra alors sur les certificats."}
-        </p>
-
-        <div style={{ marginBottom: 18 }}>
-          <label style={labelStyle}>
-            {lang === 'ar' ? 'اسم المدير (بالفرنسية)' : 'Nom du Directeur (français)'}
-          </label>
-          <input
-            type="text"
-            value={nomDirecteur}
-            onChange={e => setNomDirecteur(e.target.value)}
-            placeholder={lang === 'ar' ? 'مثال: محمد الأمين' : 'Ex: Mohammed El Amine'}
-            style={inputStyle}
-            maxLength={100}
-          />
-        </div>
-
-        <div>
-          <label style={labelStyle}>
-            {lang === 'ar' ? 'اسم المدير (بالعربية)' : 'Nom du Directeur (arabe)'}
-          </label>
-          <input
-            type="text"
-            value={nomDirecteurAr}
-            onChange={e => setNomDirecteurAr(e.target.value)}
-            placeholder={lang === 'ar' ? 'مثال: محمد الأمين' : 'مثال: محمد الأمين'}
-            style={{ ...inputStyle, direction: 'rtl', textAlign: 'right' }}
-            maxLength={100}
-          />
-          <div style={{ fontSize: 11, color: '#aaa', marginTop: 6 }}>
-            {lang === 'ar'
-              ? 'إذا تركته فارغًا، سيُستخدم الاسم الفرنسي على الشهادات بالعربية أيضًا.'
-              : 'Si vide, le nom français sera utilisé aussi sur les certificats en arabe.'}
-          </div>
-        </div>
-      </div>
-
-      {/* ─── BOUTON ENREGISTRER ─── */}
-      <button
-        onClick={handleSave}
-        disabled={saving}
-        style={{
-          padding: '12px 28px', background: '#1D9E75', color: '#fff',
-          border: 'none', borderRadius: 12, fontSize: 14, fontWeight: 700,
-          cursor: saving ? 'wait' : 'pointer', fontFamily: 'inherit',
-          opacity: saving ? 0.6 : 1, marginBottom: 24,
-        }}>
-        {saving ? '⏳' : '✓'} {lang === 'ar' ? 'حفظ' : 'Enregistrer'}
-      </button>
-
-      {/* ─── APERÇU CERTIFICAT ─── */}
-      <div style={{ padding: 20, background: '#f9f9f6', borderRadius: 12, border: '0.5px solid #e0e0d8' }}>
-        <div style={{ fontSize: 11, fontWeight: 700, color: '#aaa', letterSpacing: 1.5, marginBottom: 16, textAlign: 'center' }}>
-          {lang === 'ar' ? 'معاينة على الشهادة' : 'APERÇU SUR LE CERTIFICAT'}
-        </div>
-
-        {/* Aperçu header */}
-        <div style={{ background: '#fff', padding: '16px 24px', borderBottom: '1.5px solid #EF9F27', textAlign: 'center', borderRadius: '8px 8px 0 0' }}>
-          <div style={{ fontSize: 22, fontWeight: 700, color: '#085041', direction: 'rtl' }}>
-            {apercu}
-          </div>
-          {(ecoleConfig?.ville || ecoleConfig?.pays) && (
-            <div style={{ fontSize: 12, color: '#888', marginTop: 4 }}>
-              {[ecoleConfig?.ville, ecoleConfig?.pays].filter(Boolean).join(', ')}
-            </div>
-          )}
-        </div>
-
-        {/* Aperçu signatures (si directeur) */}
-        {(nomDirecteur || nomDirecteurAr) ? (
-          <div style={{ background: '#fff', padding: '20px 24px 16px', borderRadius: '0 0 8px 8px',
-            display: 'flex', justifyContent: 'space-around', gap: 24 }}>
-            <div style={{ textAlign: 'center', minWidth: 160 }}>
-              <div style={{ borderBottom: '1.5px solid #333', marginBottom: 6, paddingTop: 14 }}></div>
-              <div style={{ fontSize: 12, color: '#1a1a1a', fontWeight: 700, direction: 'rtl' }}>
-                {nomDirecteurAr || nomDirecteur}
-              </div>
-              <div style={{ fontSize: 11, color: '#666', direction: 'rtl', marginTop: 2 }}>المُدير</div>
-              <div style={{ fontSize: 9.5, color: '#aaa', marginTop: 2 }}>Directeur</div>
-            </div>
-            <div style={{ textAlign: 'center', minWidth: 160 }}>
-              <div style={{ borderBottom: '1.5px solid #333', marginBottom: 6, paddingTop: 14 }}></div>
-              <div style={{ fontSize: 11, color: '#666', direction: 'rtl' }}>المُشرف</div>
-              <div style={{ fontSize: 9.5, color: '#aaa', marginTop: 2 }}>Surveillant</div>
-            </div>
-          </div>
-        ) : (
-          <div style={{ background: '#fff', padding: '20px 24px 16px', borderRadius: '0 0 8px 8px',
-            display: 'flex', justifyContent: 'flex-end' }}>
-            <div style={{ textAlign: 'center', minWidth: 160 }}>
-              <div style={{ borderBottom: '1.5px solid #333', marginBottom: 6, paddingTop: 14 }}></div>
-              <div style={{ fontSize: 11, color: '#666', direction: 'rtl' }}>المُشرف</div>
-              <div style={{ fontSize: 9.5, color: '#aaa', marginTop: 2 }}>Surveillant</div>
-            </div>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-// ══════════════════════════════════════════════════════
-// COMPOSANT PassageNiveauTab — Règles de passage de niveau
-// ══════════════════════════════════════════════════════
-function PassageNiveauTab({ user, lang, niveaux, showMsg }) {
-  const [regles, setRegles] = React.useState([]);
-  const [loading, setLoading] = React.useState(true);
-  const [saving, setSaving] = React.useState(false);
-  const [newRegle, setNewRegle] = React.useState({
-    niveau_from: '', niveau_to: '', type_depart: 'continuer',
-    hizb_depart_fixe: 0, tomon_depart_fixe: 1, sourates_acquises_fixe: 0, note: ''
-  });
-
-  React.useEffect(() => { loadRegles(); }, []);
-
-  const loadRegles = async () => {
-    setLoading(true);
-    try {
-      const { data } = await supabase.from('regles_passage_niveau')
-        .select('*').eq('ecole_id', user.ecole_id).order('created_at');
-      setRegles(data || []);
-    } catch (e) {
-      console.error('[Gestion] Erreur loadRegles:', e);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const ajouterRegle = async () => {
-    if (!newRegle.niveau_from || !newRegle.niveau_to)
-      return showMsg('error', lang==='ar'?'اختر المستوى المصدر والهدف':'Choisissez les niveaux source et cible');
-    if (newRegle.niveau_from === newRegle.niveau_to)
-      return showMsg('error', lang==='ar'?'لا يمكن أن يكون المستويان متطابقين':'Les niveaux ne peuvent pas être identiques');
-    setSaving(true);
-    const payload = {
-      ecole_id: user.ecole_id,
-      niveau_from: newRegle.niveau_from,
-      niveau_to: newRegle.niveau_to,
-      type_depart: newRegle.type_depart,
-      hizb_depart_fixe: parseInt(newRegle.hizb_depart_fixe)||0,
-      tomon_depart_fixe: parseInt(newRegle.tomon_depart_fixe)||1,
-      sourates_acquises_fixe: parseInt(newRegle.sourates_acquises_fixe)||0,
-      note: newRegle.note||null,
-      actif: true,
-    };
-    await supabase.from('regles_passage_niveau').insert(payload);
-    await loadRegles();
-    setNewRegle({ niveau_from:'', niveau_to:'', type_depart:'continuer', hizb_depart_fixe:0, tomon_depart_fixe:1, sourates_acquises_fixe:0, note:'' });
-    setSaving(false);
-    showMsg('success', lang==='ar'?'تمت إضافة قاعدة الانتقال':'Règle de passage ajoutée');
-  };
-
-  const supprimerRegle = async (id) => {
-    await supabase.from('regles_passage_niveau').delete().eq('id', id);
-    setRegles(prev => prev.filter(r => r.id !== id));
-  };
-
-  const toggleActif = async (regle) => {
-    await supabase.from('regles_passage_niveau').update({ actif: !regle.actif }).eq('id', regle.id);
-    setRegles(prev => prev.map(r => r.id===regle.id ? {...r, actif: !r.actif} : r));
-  };
-
-  const getNiveauNom = (code) => niveaux.find(n=>n.code===code)?.nom || code;
-  const getNiveauColor = (code) => niveaux.find(n=>n.code===code)?.couleur || '#888';
-
-  const typeDepartLabel = (type) => ({
-    'continuer': lang==='ar'?'يستمر من موقعه الحالي':'Continue depuis sa position actuelle',
-    'debut': lang==='ar'?'يبدأ من بداية البرنامج':'Repart du début du programme',
-    'personnalise': lang==='ar'?'موقع مخصص':'Position personnalisée',
-  })[type] || type;
-
-  const typeDepartColor = (type) => ({'continuer':'#1D9E75','debut':'#EF9F27','personnalise':'#534AB7'})[type]||'#888';
-
-  return (
-    <div>
-      <div style={{fontSize:13,color:'#888',marginBottom:'1.25rem'}}>
-        {lang==='ar'?'حدد قواعد انتقال الطلاب من مستوى إلى آخر وموقع انطلاقهم في البرنامج الجديد':'Définissez les règles de passage entre niveaux et la position de départ dans le nouveau programme'}
-      </div>
-
-      {/* Info box */}
-      <div style={{background:'#E1F5EE',borderRadius:10,padding:'12px 14px',marginBottom:'1.5rem',fontSize:12,color:'#085041',border:'0.5px solid #1D9E7530'}}>
-        <div style={{fontWeight:700,marginBottom:6}}>ℹ️ {lang==='ar'?'كيف يعمل هذا؟':'Comment ça fonctionne ?'}</div>
-        <div style={{lineHeight:1.6}}>
-          {lang==='ar'
-            ?'عند تغيير مستوى طالب، يبحث النظام عن قاعدة مطابقة. إذا وُجدت، يطبق موقع الانطلاق المحدد. إذا لم توجد قاعدة، يستمر الطالب من موقعه الحالي تلقائياً.'
-            :"Lors du changement de niveau d'un élève, le système cherche une règle correspondante. Si trouvée, applique le départ configuré. Sinon, l'élève continue depuis sa position actuelle."}
-        </div>
-      </div>
-
-      {/* Formulaire */}
-      <div className="card" style={{marginBottom:'1.5rem'}}>
-        <div className="section-label">{lang==='ar'?'إضافة قاعدة انتقال':'Ajouter une règle de passage'}</div>
-        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'10px 20px',marginBottom:14}}>
-          <div className="field-group">
-            <label className="field-lbl">{lang==='ar'?'المستوى المصدر (من)':'Niveau source (de)'} <span style={{color:'#E24B4A'}}>*</span></label>
-            <select className="field-select" value={newRegle.niveau_from} onChange={e=>setNewRegle({...newRegle,niveau_from:e.target.value})}>
-              <option value="">{lang==='ar'?'— اختر —':'— Choisir —'}</option>
-              {niveaux.map(n=><option key={n.code} value={n.code}>{n.code} — {n.nom}</option>)}
-            </select>
-          </div>
-          <div className="field-group">
-            <label className="field-lbl">{lang==='ar'?'المستوى الهدف (إلى)':'Niveau cible (vers)'} <span style={{color:'#E24B4A'}}>*</span></label>
-            <select className="field-select" value={newRegle.niveau_to} onChange={e=>setNewRegle({...newRegle,niveau_to:e.target.value})}>
-              <option value="">{lang==='ar'?'— اختر —':'— Choisir —'}</option>
-              {niveaux.filter(n=>n.code!==newRegle.niveau_from).map(n=><option key={n.code} value={n.code}>{n.code} — {n.nom}</option>)}
-            </select>
-          </div>
-        </div>
-
-        {/* Type de départ */}
-        <div className="field-group" style={{marginBottom:14}}>
-          <label className="field-lbl">{lang==='ar'?'موقع الانطلاق في البرنامج الجديد':'Position de départ dans le nouveau programme'} <span style={{color:'#E24B4A'}}>*</span></label>
-          <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:8,marginTop:4}}>
-            {[
-              {val:'continuer', icon:'▶️', label:lang==='ar'?'يستمر من موقعه':'Continue', desc:lang==='ar'?'يبدأ من الحزب/السورة التي وصل إليها':'Repart du Hizb/Sourate où il en était'},
-              {val:'debut', icon:'🔄', label:lang==='ar'?'من البداية':'Début', desc:lang==='ar'?'يبدأ من أول الثُّمن أو أول سورة في البرنامج':'Repart du premier Tomon/Sourate du programme'},
-              {val:'personnalise', icon:'🎯', label:lang==='ar'?'موقع محدد':'Personnalisé', desc:lang==='ar'?'تحديد موقع البداية يدوياً':'Définir manuellement la position de départ'},
-            ].map(opt=>(
-              <div key={opt.val} onClick={()=>setNewRegle({...newRegle,type_depart:opt.val})}
-                style={{padding:'10px',borderRadius:10,cursor:'pointer',textAlign:'center',
-                  border:`2px solid ${newRegle.type_depart===opt.val?typeDepartColor(opt.val):'#e0e0d8'}`,
-                  background:newRegle.type_depart===opt.val?typeDepartColor(opt.val)+'15':'#fff'}}>
-                <div style={{fontSize:20,marginBottom:4}}>{opt.icon}</div>
-                <div style={{fontWeight:700,fontSize:12,color:newRegle.type_depart===opt.val?typeDepartColor(opt.val):'#333'}}>{opt.label}</div>
-                <div style={{fontSize:10,color:'#888',marginTop:2}}>{opt.desc}</div>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Position personnalisée */}
-        {newRegle.type_depart==='personnalise' && (() => {
-          const cibleType = niveaux.find(n=>n.code===newRegle.niveau_to)?.type;
-          return cibleType==='sourate' ? (
-            <div className="field-group" style={{marginBottom:14}}>
-              <label className="field-lbl">{lang==='ar'?'عدد السور المحفوظة كمكتسبات':'Nb sourates acquises au départ'}</label>
-              <input className="field-input" type="number" min="0" value={newRegle.sourates_acquises_fixe}
-                onChange={e=>setNewRegle({...newRegle,sourates_acquises_fixe:e.target.value})}/>
-            </div>
-          ) : (
-            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'10px 20px',marginBottom:14}}>
-              <div className="field-group">
-                <label className="field-lbl">{lang==='ar'?'حزب الانطلاق':'Hizb de départ'}</label>
-                <input className="field-input" type="number" min="0" max="60" value={newRegle.hizb_depart_fixe}
-                  onChange={e=>setNewRegle({...newRegle,hizb_depart_fixe:e.target.value})}/>
-              </div>
-              <div className="field-group">
-                <label className="field-lbl">{lang==='ar'?'الثُّمن':'Tomon'}</label>
-                <select className="field-select" value={newRegle.tomon_depart_fixe} onChange={e=>setNewRegle({...newRegle,tomon_depart_fixe:e.target.value})}>
-                  {[1,2,3,4,5,6,7,8].map(n=><option key={n} value={n}>{lang==='ar'?'ث':'T'}.{n}</option>)}
-                </select>
-              </div>
-            </div>
-          );
-        })()}
-
-        <div className="field-group" style={{marginBottom:14}}>
-          <label className="field-lbl">{lang==='ar'?'ملاحظة (اختياري)':'Note (optionnelle)'}</label>
-          <input className="field-input" value={newRegle.note} onChange={e=>setNewRegle({...newRegle,note:e.target.value})}
-            placeholder={lang==='ar'?'مثال: انتقال من الابتدائي إلى الإعدادي':'Ex: Passage du primaire au collège'}/>
-        </div>
-        <button className="btn-primary" onClick={ajouterRegle} disabled={saving}>
-          {saving?'...':(lang==='ar'?'إضافة القاعدة':'Ajouter la règle')}
-        </button>
-      </div>
-
-      {/* Liste des règles */}
-      <div className="section-label">{lang==='ar'?'القواعد المُعرَّفة':'Règles configurées'} ({regles.length})</div>
-      {loading ? <MobileSkeletonList type="card-simple" count={4} /> : regles.length===0 ? (
-        <div className="empty">{lang==='ar'?'لا توجد قواعد — الانتقال الافتراضي: الطالب يستمر من موقعه':"Aucune règle — comportement par défaut : l'élève continue depuis sa position"}</div>
-      ) : (
-        <div style={{display:'flex',flexDirection:'column',gap:8}}>
-          {regles.map(r => {
-            const fromColor = getNiveauColor(r.niveau_from);
-            const toColor = getNiveauColor(r.niveau_to);
-            const dColor = typeDepartColor(r.type_depart);
-            return (
-              <div key={r.id} style={{background:'#fff',border:'0.5px solid #e0e0d8',borderRadius:12,padding:'12px 14px',opacity:r.actif?1:0.5}}>
-                <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:8}}>
-                  <span style={{padding:'2px 8px',borderRadius:20,fontSize:12,fontWeight:700,background:fromColor+'20',color:fromColor}}>{r.niveau_from}</span>
-                  <span style={{fontSize:16,color:'#888'}}>→</span>
-                  <span style={{padding:'2px 8px',borderRadius:20,fontSize:12,fontWeight:700,background:toColor+'20',color:toColor}}>{r.niveau_to}</span>
-                  <span style={{flex:1}}/>
-                  <span style={{padding:'2px 8px',borderRadius:20,fontSize:10,fontWeight:600,background:dColor+'15',color:dColor}}>
-                    {r.type_depart==='continuer'?'▶️':r.type_depart==='debut'?'🔄':'🎯'} {typeDepartLabel(r.type_depart)}
-                  </span>
-                </div>
-                {r.type_depart==='personnalise'&&(
-                  <div style={{fontSize:11,color:'#888',marginBottom:6}}>
-                    {niveaux.find(n=>n.code===r.niveau_to)?.type==='sourate'
-                      ? `📖 ${lang==='ar'?'السور المحفوظة:':'Sourates acquises:'} ${r.sourates_acquises_fixe}`
-                      : `📍 ${lang==='ar'?'الحزب':'Hizb'} ${r.hizb_depart_fixe} · ${lang==='ar'?'ث':'T'}.${r.tomon_depart_fixe}`
-                    }
-                  </div>
-                )}
-                {r.note&&<div style={{fontSize:11,color:'#aaa',fontStyle:'italic',marginBottom:6}}>{r.note}</div>}
-                <div style={{display:'flex',gap:6}}>
-                  <button onClick={()=>toggleActif(r)}
-                    style={{padding:'3px 8px',borderRadius:6,fontSize:10,fontWeight:600,cursor:'pointer',
-                      background:r.actif?'#E1F5EE':'#f0f0ec',color:r.actif?'#085041':'#888',border:'none'}}>
-                    {r.actif?(lang==='ar'?'نشط':'Actif'):(lang==='ar'?'غير نشط':'Inactif')}
-                  </button>
-                  <button onClick={()=>supprimerRegle(r.id)}
-                    style={{padding:'3px 8px',borderRadius:6,background:'#FCEBEB',color:'#E24B4A',border:'none',cursor:'pointer',fontSize:10,fontWeight:600}}>
-                    🗑 {lang==='ar'?'حذف':'Supprimer'}
-                  </button>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      )}
-    </div>
-  );
-}
-
-// COMPOSANT JalonsTab — Gestion des jalons/certificats
-// ══════════════════════════════════════════════════════
-function JalonsTab({ user, lang, jalons, setJalons, ensembles, examens, newJalon, setNewJalon, savingJalon, setSavingJalon, showMsg, ecoleConfig }) {
-  // Defensive defaults : si une prop est undefined (timing useEffect, etc.) on evite le crash
-  const ensembesSafe = ensembles || [];
-  const examensSafe = examens || [];
-  const jalonsSafe = jalons || [];
-  const newJalonSafe = newJalon || { nom_ar: '', type_jalon: 'hizb', hizb_ids: [], ensemble_id: '', examen_id: '', condition_obtention: 'cumul' };
-  const hizbIdsSafe = newJalonSafe.hizb_ids || [];
-
-  const ajouterJalon = async () => {
-    if (!newJalonSafe.nom_ar.trim()) return showMsg('error', lang==='ar'?'اسم الشهادة مطلوب':'Le nom du certificat est obligatoire');
-    if (newJalonSafe.type_jalon === 'hizb' && hizbIdsSafe.length === 0) return showMsg('error', lang==='ar'?'اختر الأحزاب المطلوبة':'Sélectionnez au moins un Hizb');
-    if (newJalonSafe.type_jalon === 'ensemble_sourates' && !newJalonSafe.ensemble_id) return showMsg('error', lang==='ar'?'اختر مجموعة السور':'Choisissez un ensemble de sourates');
-    if (newJalonSafe.type_jalon === 'examen' && !newJalonSafe.examen_id) return showMsg('error', lang==='ar'?'اختر الامتحان':'Choisissez un examen');
-    setSavingJalon(true);
-    const payload = {
-      ecole_id: user.ecole_id,
-      nom: newJalonSafe.nom_ar.trim(),
-      nom_ar: newJalonSafe.nom_ar.trim(),
-      type_jalon: newJalonSafe.type_jalon,
-      hizb_ids: newJalonSafe.type_jalon === 'hizb' ? hizbIdsSafe : null,
-      ensemble_id: newJalonSafe.type_jalon === 'ensemble_sourates' ? newJalonSafe.ensemble_id : null,
-      examen_id: newJalonSafe.type_jalon === 'examen' ? newJalonSafe.examen_id : null,
-      condition_obtention: newJalonSafe.condition_obtention || 'cumul',
-      examen_final_id: newJalonSafe.condition_obtention === 'cumul_puis_examen' ? (newJalonSafe.examen_final_id||null) : null,
-      description_condition: newJalonSafe.description_condition || null,
-      actif: true,
-    };
-    await supabase.from('jalons').insert(payload);
-    const { data } = await supabase.from('jalons').select('*').eq('ecole_id', user.ecole_id).order('created_at');
-    if (data) setJalons(data);
-    setNewJalon({ nom_ar: '', type_jalon: 'hizb', hizb_ids: [], ensemble_id: '', examen_id: '', condition_obtention: 'cumul', examen_final_id: '', description_condition: '' });
-    setSavingJalon(false);
-    showMsg('success', lang==='ar'?'تمت إضافة المرحلة بنجاح':'Jalon ajouté avec succès');
-  };
-
-  const supprimerJalon = async (id) => {
-    await supabase.from('jalons').delete().eq('id', id);
-    setJalons(prev => prev.filter(j => j.id !== id));
-    showMsg('success', lang==='ar'?'تم حذف المرحلة':'Jalon supprimé');
-  };
-
-  const toggleActif = async (jalon) => {
-    await supabase.from('jalons').update({ actif: !jalon.actif }).eq('id', jalon.id);
-    setJalons(prev => prev.map(j => j.id === jalon.id ? {...j, actif: !j.actif} : j));
-  };
-
-  const getEnsembleNom = (id) => ensembesSafe.find(e => e.id === id)?.nom || '—';
-  const getExamenNom = (id) => examensSafe.find(e => e.id === id)?.nom || '—';
-  const typeLabel = (j) => {
-    if (j.type_jalon === 'hizb') {
-      const ids = j.hizb_ids || [];
-      const label = ids.length > 0 ? ids.sort((a,b)=>a-b).join(', ') : '—';
-      return lang==='ar' ? `أحزاب محددة: ${label}` : `Hizb spécifiques: ${label}`;
-    }
-    if (j.type_jalon === 'ensemble_sourates') return lang==='ar' ? `مجموعة: ${getEnsembleNom(j.ensemble_id)}` : `Ensemble: ${getEnsembleNom(j.ensemble_id)}`;
-    if (j.type_jalon === 'examen') return lang==='ar' ? `امتحان ناجح: ${getExamenNom(j.examen_id)}` : `Examen réussi: ${getExamenNom(j.examen_id)}`;
-    return j.type_jalon;
-  };
-  const toggleHizb = (n) => {
-    const updated = hizbIdsSafe.includes(n) ? hizbIdsSafe.filter(h=>h!==n) : [...hizbIdsSafe, n];
-    setNewJalon({...newJalonSafe, hizb_ids: updated});
-  };
-
-  return (
-    <div>
-      <div style={{fontSize:13,color:'#888',marginBottom:'1.25rem'}}>
-        {lang==='ar'?'تكوين المراحل التي تُمنح عندها شهادة للطالب تلقائياً':'Configurez les jalons qui déclenchent automatiquement un certificat'}
-      </div>
-
-      {/* Formulaire ajout jalon */}
-      <div className="card" style={{marginBottom:'1.5rem'}}>
-        <div className="section-label">{lang==='ar'?'إضافة مرحلة جديدة':'Ajouter un jalon'}</div>
-        <div className="form-grid">
-          <div className="field-group" style={{gridColumn:'1/-1'}}>
-            <label className="field-lbl">
-              {lang==='ar'?'اسم الشهادة':'Nom du certificat'} <span style={{color:'#E24B4A'}}>*</span>
-            </label>
-            <input className="field-input" value={newJalon.nom_ar} onChange={e=>setNewJalon({...newJalon,nom_ar:e.target.value})}
-              placeholder={lang==='ar'?'مثال: شهادة إتمام الأحزاب المقررة':'Ex: شهادة إتمام الأحزاب المقررة'}
-              style={{direction:'rtl',fontFamily:"'Tajawal',Arial,sans-serif",fontSize:14}} />
-          </div>
-          <div className="field-group">
-            <label className="field-lbl">{lang==='ar'?'نوع المرحلة':'Type de jalon'} <span style={{color:'#E24B4A'}}>*</span></label>
-            <select className="field-select" value={newJalon.type_jalon} onChange={e=>setNewJalon({...newJalon,type_jalon:e.target.value,hizb_ids:[],ensemble_id:'',examen_id:''})}>
-              <option value="hizb">{lang==='ar'?'أحزاب محددة':'Hizb spécifiques'}</option>
-              <option value="ensemble_sourates">{lang==='ar'?'مجموعة سور مكتملة':'Ensemble de sourates terminé'}</option>
-              <option value="examen">{lang==='ar'?'اجتياز امتحان':'Examen réussi'}</option>
-            </select>
-          </div>
-          {/* Condition d'obtention */}
-          <div className="field-group" style={{gridColumn:'1/-1'}}>
-            <label className="field-lbl">{lang==='ar'?'شرط الحصول على الشهادة':"Condition d'obtention"} <span style={{color:'#E24B4A'}}>*</span></label>
-            <div style={{display:'flex',gap:8,marginTop:4}}>
-              {[
-                {val:'cumul', icon:'📚', label:lang==='ar'?'تراكمي فقط':'Cumulatif seul', desc:lang==='ar'?'يستظهر الطالب حزباً بحزب أو سورة بسورة تلقائياً — الشهادة تُمنح عند اكتمال العدد المطلوب':"L'élève valide progressivement — le certificat est décerné automatiquement au seuil"},
-                {val:'cumul_puis_examen', icon:'🎯', label:lang==='ar'?'تراكمي + امتحان ختامي':'Cumulatif + examen final', desc:lang==='ar'?'يستظهر تدريجياً أولاً، ثم يجب اجتياز امتحان رسمي بتلاوة كاملة أمام لجنة للحصول على الشهادة':"Valide progressivement d'abord, puis doit réussir un examen formel en une seule récitation devant jury"},
-              ].map(opt=>(
-                <div key={opt.val} onClick={()=>setNewJalon({...newJalon,condition_obtention:opt.val})}
-                  style={{flex:1,padding:'10px 12px',borderRadius:10,cursor:'pointer',
-                    border:`2px solid ${newJalon.condition_obtention===opt.val?'#534AB7':'#e0e0d8'}`,
-                    background:newJalon.condition_obtention===opt.val?'#EEEDFE':'#fff'}}>
-                  <div style={{fontSize:16,marginBottom:4}}>{opt.icon}</div>
-                  <div style={{fontWeight:700,fontSize:12,color:newJalon.condition_obtention===opt.val?'#534AB7':'#333'}}>{opt.label}</div>
-                  <div style={{fontSize:10,color:'#888',marginTop:3}}>{opt.desc}</div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Si cumul_puis_examen : sélectionner l'examen final */}
-          {newJalon.condition_obtention === 'cumul_puis_examen' && (
-            <div className="field-group" style={{gridColumn:'1/-1'}}>
-              <label className="field-lbl">
-                {lang==='ar'?'الامتحان الختامي المطلوب':'Examen final requis'} <span style={{color:'#E24B4A'}}>*</span>
-              </label>
-              <select className="field-select" value={newJalon.examen_final_id||''} onChange={e=>setNewJalon({...newJalon,examen_final_id:e.target.value})}>
-                <option value="">{lang==='ar'?'— اختر الامتحان —':"— Choisir l'examen —"}</option>
-                {(examens||[]).map(e=><option key={e.id} value={e.id}>{e.nom}</option>)}
-              </select>
-              <div style={{fontSize:11,color:'#888',marginTop:4}}>
-                {lang==='ar'?'سيُمنح الشهادة فقط عند اجتياز هذا الامتحان بعد اكتمال الاستظهار التراكمي':'Le certificat sera décerné seulement après réussite de cet examen, une fois le cumul complété'}
-              </div>
-            </div>
-          )}
-
-          {newJalon.type_jalon === 'hizb' && (
-            <div className="field-group" style={{gridColumn:'1/-1'}}>
-              <label className="field-lbl">
-                {lang==='ar'?'اختر الأحزاب المطلوبة':'Sélectionnez les Hizb requis'} <span style={{color:'#E24B4A'}}>*</span>
-                {hizbIdsSafe.length > 0 && (
-                  <span style={{marginRight:8,marginLeft:8,color:'#1D9E75',fontWeight:700}}>
-                    ({hizbIdsSafe.length} {lang==='ar'?'محدد':'sélectionné(s)'})
-                  </span>
-                )}
-              </label>
-              <div style={{display:'grid',gridTemplateColumns:'repeat(10,1fr)',gap:3,marginTop:6}}>
-                {(() => {
-                  const sensEcole = ecoleConfig?.sens_recitation_defaut || 'desc';
-                  const hizbList = sensEcole === 'asc'
-                    ? Array.from({length:60},(_,i)=>i+1)
-                    : Array.from({length:60},(_,i)=>60-i);
-                  return hizbList.map(n=>{
-                  const sel = hizbIdsSafe.includes(n);
-                  return (
-                    <div key={n} onClick={()=>toggleHizb(n)}
-                      style={{borderRadius:6,padding:'5px 2px',textAlign:'center',cursor:'pointer',fontSize:11,fontWeight:700,
-                        background: sel ? '#085041' : '#f0f0ec',
-                        color: sel ? '#fff' : '#888',
-                        border: `0.5px solid ${sel ? '#085041' : '#e0e0d8'}`,
-                        transition:'all 0.1s'}}>
-                      {n}
-                    </div>
-                  );
-                });
-                })()}
-              </div>
-              {hizbIdsSafe.length > 0 && (
-                <div style={{marginTop:6,fontSize:11,color:'#085041',fontWeight:600}}>
-                  {lang==='ar'?'الأحزاب المختارة:':'Hizb sélectionnés:'} {[...hizbIdsSafe].sort((a,b)=>a-b).join(', ')}
-                </div>
-              )}
-            </div>
-          )}
-          {newJalon.type_jalon === 'ensemble_sourates' && (
-            <div className="field-group">
-              <label className="field-lbl">{lang==='ar'?'مجموعة السور':'Ensemble de sourates'} <span style={{color:'#E24B4A'}}>*</span></label>
-              <select className="field-select" value={newJalon.ensemble_id} onChange={e=>setNewJalon({...newJalon,ensemble_id:e.target.value})}>
-                <option value="">{lang==='ar'?'اختر مجموعة':'Choisir un ensemble'}</option>
-                {ensembesSafe.map(e=><option key={e.id} value={e.id}>{e.nom}</option>)}
-              </select>
-            </div>
-          )}
-          {newJalon.type_jalon === 'examen' && (
-            <div className="field-group">
-              <label className="field-lbl">{lang==='ar'?'الامتحان':'Examen'} <span style={{color:'#E24B4A'}}>*</span></label>
-              <select className="field-select" value={newJalon.examen_id} onChange={e=>setNewJalon({...newJalon,examen_id:e.target.value})}>
-                <option value="">{lang==='ar'?'اختر امتحاناً':'Choisir un examen'}</option>
-                {(examens||[]).map(e=><option key={e.id} value={e.id}>{e.nom}</option>)}
-              </select>
-            </div>
-          )}
-        </div>
-        <button className="btn-primary" onClick={ajouterJalon} disabled={savingJalon}>
-          {savingJalon ? '...' : (lang==='ar'?'إضافة المرحلة':'Ajouter le jalon')}
-        </button>
-      </div>
-
-      {/* Liste des jalons */}
-      <div className="section-label">{lang==='ar'?'المراحل المُعرَّفة':'Jalons configurés'} ({jalons.length})</div>
-      {jalons.length === 0 ? (
-        <div className="empty">{lang==='ar'?'لا توجد مراحل بعد — أضف أول مرحلة أعلاه':'Aucun jalon — ajoutez-en un ci-dessus'}</div>
-      ) : (
-        <div style={{display:'flex',flexDirection:'column',gap:8}}>
-          {jalons.map(j => (
-            <div key={j.id} style={{background:'#fff',border:'0.5px solid #e0e0d8',borderRadius:12,padding:'12px 14px',display:'flex',alignItems:'center',gap:12,opacity:j.actif?1:0.5}}>
-              <div style={{width:44,height:44,borderRadius:12,background:j.actif?'#FAEEDA':'#f0f0ec',display:'flex',alignItems:'center',justifyContent:'center',fontSize:22,flexShrink:0}}>
-                {j.type_jalon==='examen'?'📝':'🏅'}
-              </div>
-              <div style={{flex:1}}>
-                <div style={{fontWeight:700,fontSize:14,color:'#1a1a1a',direction:'rtl',fontFamily:"'Tajawal',Arial,sans-serif"}}>{j.nom_ar||j.nom}</div>
-                <div style={{fontSize:11,color:'#EF9F27',marginTop:2,fontWeight:600}}>{typeLabel(j)}</div>
-                {j.condition_obtention==='cumul_puis_examen'&&j.examen_final_id&&(
-                  <div style={{fontSize:10,color:'#534AB7',marginTop:2}}>
-                    🎯 {lang==='ar'?'الامتحان الختامي:':'Examen final:'} {(examens||[]).find(e=>e.id===j.examen_final_id)?.nom||'—'}
-                  </div>
-                )}
-                <div style={{fontSize:10,marginTop:2,display:'flex',alignItems:'center',gap:4}}>
-                  <span style={{padding:'1px 6px',borderRadius:10,fontSize:9,fontWeight:600,
-                    background:j.condition_obtention==='seance_unique'?'#EEEDFE':'#E1F5EE',
-                    color:j.condition_obtention==='seance_unique'?'#534AB7':'#085041'}}>
-                    {j.condition_obtention==='cumul_puis_examen'?(lang==='ar'?'🎯 تراكمي + امتحان':'🎯 Cumul + examen'):(lang==='ar'?'📚 تراكمي فقط':'📚 Cumulatif seul')}
-                  </span>
-                </div>
-                <div style={{fontSize:10,color:'#bbb',marginTop:2}}>
-                  {lang==='ar'?'تاريخ الإنشاء:':'Créé le:'} {j.created_at ? new Date(j.created_at).toLocaleDateString(lang==='ar'?'ar-MA':'fr-FR',{day:'2-digit',month:'short',year:'numeric'}) : '—'}
-                </div>
-              </div>
-              <div style={{display:'flex',gap:6}}>
-                <button onClick={()=>toggleActif(j)}
-                  style={{padding:'4px 8px',borderRadius:6,fontSize:11,fontWeight:600,cursor:'pointer',
-                    background:j.actif?'#E1F5EE':'#f0f0ec',color:j.actif?'#085041':'#888',
-                    border:`0.5px solid ${j.actif?'#1D9E7530':'#e0e0d8'}`}}>
-                  {j.actif ? (lang==='ar'?'نشط':'Actif') : (lang==='ar'?'غير نشط':'Inactif')}
-                </button>
-                <button onClick={()=>supprimerJalon(j.id)}
-                  style={{padding:'4px 8px',borderRadius:6,background:'#FCEBEB',color:'#E24B4A',border:'0.5px solid #E24B4A30',cursor:'pointer',fontSize:11,fontWeight:600}}>
-                  🗑
-                </button>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-
-// ── Passage niveau mobile (composant léger) ──
-function MobilePassageNiveauTab({ user, lang, niveaux, showMsg }) {
-  const [regles, setRegles] = React.useState([]);
-  const [loading, setLoading] = React.useState(true);
-  const [showForm, setShowForm] = React.useState(false);
-  const [saving, setSaving] = React.useState(false);
-  const [newR, setNewR] = React.useState({niveau_from:'',niveau_to:'',type_depart:'continuer',hizb_depart_fixe:0,tomon_depart_fixe:1,sourates_acquises_fixe:0,note:''});
-
-  React.useEffect(()=>{ loadRegles(); },[]);
-  const loadRegles = async()=>{
-    setLoading(true);
-    const {data}=await supabase.from('regles_passage_niveau').select('*').eq('ecole_id',user.ecole_id).order('created_at');
-    setRegles(data||[]); setLoading(false);
-  };
-  const getNC=(code)=>niveaux.find(n=>n.code===code)?.couleur||{'5B':'#534AB7','5A':'#378ADD','2M':'#1D9E75','2':'#EF9F27','1':'#E24B4A'}[code]||'#888';
-  const typLabel=(t)=>({'continuer':lang==='ar'?'▶️ يستمر من موقعه':'▶️ Continue','debut':lang==='ar'?'🔄 من البداية':'🔄 Début','personnalise':lang==='ar'?'🎯 موقع محدد':'🎯 Personnalisé'})[t]||t;
-  const typColor=(t)=>({'continuer':'#1D9E75','debut':'#EF9F27','personnalise':'#534AB7'})[t]||'#888';
-
-  return (
-    <div>
-      {user.role==='surveillant'&&(
-        <button onClick={()=>setShowForm(v=>!v)}
-          style={{width:'100%',padding:'13px',background:showForm?'#f5f5f0':'#1D9E75',color:showForm?'#666':'#fff',border:'none',borderRadius:12,fontSize:14,fontWeight:700,cursor:'pointer',fontFamily:'inherit',marginBottom:12}}>
-          {showForm?'✕ '+(lang==='ar'?'إلغاء':'Annuler'):'+ '+(lang==='ar'?'إضافة قاعدة':'Ajouter une règle')}
-        </button>
-      )}
-      {showForm&&user.role==='surveillant'&&(
-        <div style={{background:'#fff',borderRadius:14,padding:'16px',marginBottom:14,border:'1.5px solid #1D9E75'}}>
-          <div style={{marginBottom:12}}>
-            <label style={{fontSize:12,fontWeight:600,color:'#666',display:'block',marginBottom:6}}>{lang==='ar'?'من مستوى':'De niveau'} *</label>
-            <select className="field-select"
-              value={newR.niveau_from} onChange={e=>setNewR({...newR,niveau_from:e.target.value})}>
-              <option value="">—</option>
-              {niveaux.map(n=><option key={n.code} value={n.code}>{n.code} — {n.nom}</option>)}
-            </select>
-          </div>
-          <div style={{marginBottom:12}}>
-            <label style={{fontSize:12,fontWeight:600,color:'#666',display:'block',marginBottom:6}}>{lang==='ar'?'إلى مستوى':'Vers niveau'} *</label>
-            <select className="field-select"
-              value={newR.niveau_to} onChange={e=>setNewR({...newR,niveau_to:e.target.value})}>
-              <option value="">—</option>
-              {niveaux.filter(n=>n.code!==newR.niveau_from).map(n=><option key={n.code} value={n.code}>{n.code} — {n.nom}</option>)}
-            </select>
-          </div>
-          <div style={{marginBottom:14}}>
-            <label style={{fontSize:12,fontWeight:600,color:'#666',display:'block',marginBottom:8}}>{lang==='ar'?'موقع الانطلاق':'Départ'} *</label>
-            <div style={{display:'flex',gap:6}}>
-              {[{v:'continuer',icon:'▶️',l:lang==='ar'?'يستمر':'Continue'},{v:'debut',icon:'🔄',l:lang==='ar'?'البداية':'Début'},{v:'personnalise',icon:'🎯',l:lang==='ar'?'محدد':'Perso.'}].map(opt=>(
-                <div key={opt.v} onClick={()=>setNewR({...newR,type_depart:opt.v})}
-                  style={{flex:1,padding:'10px 4px',borderRadius:10,textAlign:'center',cursor:'pointer',
-                    border:`2px solid ${newR.type_depart===opt.v?typColor(opt.v):'#e0e0d8'}`,
-                    background:newR.type_depart===opt.v?typColor(opt.v)+'15':'#fff'}}>
-                  <div style={{fontSize:16}}>{opt.icon}</div>
-                  <div style={{fontSize:10,fontWeight:600,color:newR.type_depart===opt.v?typColor(opt.v):'#666',marginTop:2}}>{opt.l}</div>
-                </div>
-              ))}
-            </div>
-          </div>
-          {newR.type_depart==='personnalise'&&(
-            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:12}}>
-              <div><label style={{fontSize:12,fontWeight:600,color:'#666',display:'block',marginBottom:5}}>Hizb</label>
-                <input type="number" min="0" max="60" style={{width:'100%',padding:'11px',borderRadius:10,border:'0.5px solid #e0e0d8',fontSize:14,fontFamily:'inherit',boxSizing:'border-box'}}
-                  value={newR.hizb_depart_fixe} onChange={e=>setNewR({...newR,hizb_depart_fixe:e.target.value})}/></div>
-              <div><label style={{fontSize:12,fontWeight:600,color:'#666',display:'block',marginBottom:5}}>Tomon</label>
-                <select className="field-select"
-                  value={newR.tomon_depart_fixe} onChange={e=>setNewR({...newR,tomon_depart_fixe:e.target.value})}>
-                  {[1,2,3,4,5,6,7,8].map(n=><option key={n} value={n}>{lang==='ar'?'ث':'T'}.{n}</option>)}
-                </select></div>
-            </div>
-          )}
-          <div style={{marginBottom:12}}>
-            <label style={{fontSize:12,fontWeight:600,color:'#666',display:'block',marginBottom:5}}>{lang==='ar'?'ملاحظة':'Note'}</label>
-            <input style={{width:'100%',padding:'11px 12px',borderRadius:10,border:'0.5px solid #e0e0d8',fontSize:14,fontFamily:'inherit',boxSizing:'border-box'}}
-              value={newR.note} onChange={e=>setNewR({...newR,note:e.target.value})} placeholder={lang==='ar'?'سبب القاعدة...':'Ex: Primaire → Collège'}/>
-          </div>
-          <button onClick={async()=>{
-            if(!newR.niveau_from||!newR.niveau_to) return showMsg('error',lang==='ar'?'اختر المستويين':'Choisissez les niveaux');
-            setSaving(true);
-            await supabase.from('regles_passage_niveau').insert({ecole_id:user.ecole_id,...newR,hizb_depart_fixe:parseInt(newR.hizb_depart_fixe)||0,tomon_depart_fixe:parseInt(newR.tomon_depart_fixe)||1,sourates_acquises_fixe:parseInt(newR.sourates_acquises_fixe)||0,actif:true});
-            await loadRegles();
-            setNewR({niveau_from:'',niveau_to:'',type_depart:'continuer',hizb_depart_fixe:0,tomon_depart_fixe:1,sourates_acquises_fixe:0,note:''});
-            setShowForm(false); setSaving(false);
-            showMsg('success',lang==='ar'?'تمت إضافة القاعدة':'Règle ajoutée !');
-          }} disabled={saving}
-            style={{width:'100%',padding:'13px',background:'#1D9E75',color:'#fff',border:'none',borderRadius:12,fontSize:14,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
-            {saving?'...':(lang==='ar'?'حفظ القاعدة':'Enregistrer la règle')}
-          </button>
-        </div>
-      )}
-      {loading?<MobileSkeletonList type="card-simple" count={4} />
-        :regles.length===0?(
-          <div style={{textAlign:'center',padding:'2rem',background:'#fff',borderRadius:12,color:'#aaa'}}>
-            <div style={{fontSize:32,marginBottom:8}}>🎓</div>
-            <div style={{fontSize:13}}>{lang==='ar'?'لا توجد قواعد بعد':'Aucune règle configurée'}</div>
-            <div style={{fontSize:11,marginTop:4,color:'#ccc'}}>{lang==='ar'?'الطالب يستمر من موقعه افتراضياً':'Par défaut : continue depuis sa position'}</div>
-          </div>
-        ):regles.map(r=>{
-          const fc=getNC(r.niveau_from); const tc=getNC(r.niveau_to); const dc=typColor(r.type_depart);
-          return(
-            <div key={r.id} style={{background:'#fff',borderRadius:12,padding:'12px 14px',marginBottom:8,border:'0.5px solid #e0e0d8',opacity:r.actif?1:0.5}}>
-              <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:6}}>
-                <span style={{padding:'2px 8px',borderRadius:20,fontSize:11,fontWeight:700,background:fc+'20',color:fc}}>{r.niveau_from}</span>
-                <span style={{color:'#aaa'}}>→</span>
-                <span style={{padding:'2px 8px',borderRadius:20,fontSize:11,fontWeight:700,background:tc+'20',color:tc}}>{r.niveau_to}</span>
-                <span style={{flex:1}}/>
-                <span style={{padding:'2px 8px',borderRadius:20,fontSize:10,fontWeight:600,background:dc+'15',color:dc}}>{typLabel(r.type_depart)}</span>
-              </div>
-              {r.note&&<div style={{fontSize:11,color:'#aaa',fontStyle:'italic',marginBottom:6}}>{r.note}</div>}
-              <div style={{display:'flex',gap:6}}>
-                <button onClick={async()=>{await supabase.from('regles_passage_niveau').update({actif:!r.actif}).eq('id',r.id);setRegles(prev=>prev.map(x=>x.id===r.id?{...x,actif:!x.actif}:x));}}
-                  style={{padding:'4px 10px',borderRadius:6,fontSize:10,fontWeight:600,cursor:'pointer',border:'none',background:r.actif?'#E1F5EE':'#f0f0ec',color:r.actif?'#085041':'#888'}}>
-                  {r.actif?(lang==='ar'?'نشط':'Actif'):(lang==='ar'?'غير نشط':'Inactif')}
-                </button>
-                <button onClick={async()=>{await supabase.from('regles_passage_niveau').delete().eq('id',r.id);setRegles(prev=>prev.filter(x=>x.id!==r.id));}}
-                  style={{padding:'4px 8px',borderRadius:6,background:'#FCEBEB',color:'#E24B4A',border:'none',cursor:'pointer',fontSize:11}}>🗑</button>
-              </div>
-            </div>
-          );
-        })}
-    </div>
-  );
-}
-
-// ─── SubTabs helper (E1a) ──────────────────────────────────────────
-// Mini-tabs réutilisables pour découper un onglet en sous-vues
-// (ex: Élèves → 📋 Liste / ➕ Ajouter).
-// Charte : pilule arrondie, vert école si active, gris sinon, sobre.
-function SubTabs({ value, onChange, items, lang = 'fr' }) {
-  return (
-    <div style={{
-      display: 'flex',
-      gap: 4,
-      marginBottom: '1.25rem',
-      background: '#f5f5f0',
-      borderRadius: 12,
-      padding: 4,
-      width: 'fit-content',
-    }}>
-      {items.map(item => {
-        const active = value === item.key;
-        return (
-          <button
-            key={item.key}
-            onClick={() => onChange(item.key)}
-            style={{
-              padding: '8px 18px',
-              borderRadius: 10,
-              border: 'none',
-              background: active ? '#fff' : 'transparent',
-              color: active ? '#085041' : '#666',
-              fontSize: 13,
-              fontWeight: active ? 700 : 500,
-              cursor: 'pointer',
-              fontFamily: 'inherit',
-              boxShadow: active ? '0 1px 3px rgba(0,0,0,0.06)' : 'none',
-              transition: 'background 0.15s ease',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 8,
-              whiteSpace: 'nowrap',
-            }}
-          >
-            <span>{item.icon}</span>
-            <span>{item.label}</span>
-            {item.count !== undefined && (
-              <span style={{
-                background: active ? '#E1F5EE' : '#e8e8e0',
-                color: active ? '#085041' : '#888',
-                padding: '1px 8px',
-                borderRadius: 10,
-                fontSize: 11,
-                fontWeight: 700,
-              }}>
-                {item.count}
-              </span>
-            )}
-          </button>
-        );
-      })}
-    </div>
-  );
-}
 
 export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile, initialTab, setGestionTab }) {
   // ─── Garde-fou rôle : Gestion est réservée au surveillant ───
@@ -2877,7 +33,9 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile,
   if (!user || user.role !== 'surveillant') return null;
 
   const { toast } = useToast();
-  const [tab, setTabLocal] = useState(isMobile ? (initialTab && initialTab !== 'parametres' ? initialTab : 'eleves') : (initialTab || 'parametres'));
+  // F1 (oct 2026) : sur mobile, l'onglet par defaut devient 'instituteurs' ; 'eleves' est un lien vers
+  // la liste unique ElevesMobile (voir useEffect des onglets liens).
+  const [tab, setTabLocal] = useState(isMobile ? (initialTab && initialTab !== 'parametres' ? initialTab : 'instituteurs') : (initialTab || 'parametres'));
   const setTab = (t) => { setTabLocal(t); if(setGestionTab) setGestionTab(t); };
   const [searchEleve, setSearchEleve] = useState('');
   // E1a — Sub-tab 'Liste' / 'Ajouter' pour l'onglet Élèves (charte UX)
@@ -2931,6 +89,11 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile,
     eleves:0, parents:0, cours:0, regles_passage:0, tarifs:0,
   });
   const [editEleve, setEditEleve] = useState(null);
+  // Charte mobile : element dont le panneau d'actions est ouvert (eleve / instituteur / parent / jalon)
+  const [menuEleveM, setMenuEleveM] = useState(null);
+  const [menuInstM, setMenuInstM] = useState(null);
+  const [menuParentM, setMenuParentM] = useState(null);
+  const [menuJalonM, setMenuJalonM] = useState(null);
   const [showAcquisSelector, setShowAcquisSelector] = useState(false);
   const [editShowAcquisSelector, setEditShowAcquisSelector] = useState(false);
 
@@ -2949,6 +112,11 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile,
   const [editInstituteur, setEditInstituteur] = useState(null);
   const [showGestionPlusMenu, setShowGestionPlusMenu] = useState(false);
   const [formEditInst, setFormEditInst] = useState({prenom:'',nom:'',identifiant:'',mot_de_passe:'',instituteur_id_ecole:'',telephone:'',email:''});
+  // FIX (oct 2026) : verrous anti double-clic (ref = synchrone, state = desactiver le bouton)
+  const savingEleveRef = useRef(false);
+  const [savingEleve, setSavingEleve] = useState(false);
+  const savingInstRef = useRef(false);
+  const [savingInst, setSavingInst] = useState(false);
 
   // Helper : suggère le prochain numéro instituteur (INST001, INST002...).
   // Regarde les IDs existants de la forme "INST" + nombre, trouve le max et incrémente.
@@ -3046,20 +214,34 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile,
   }, []);
 
   const loadData = async () => {
-    const { data: ecData } = await supabase.from('ecoles').select('mdp_defaut_instituteurs,mdp_defaut_parents,sens_recitation_defaut,nom,nom_ar,nom_directeur,nom_directeur_ar').eq('id', user.ecole_id).maybeSingle();
+    // PERF (oct 2026) : ecole, eleves, instituteurs, parents et compteurs partent EN PARALLELE
+    // (avant : 5 allers-retours successifs). Memes requetes, memes resultats.
+    const tablesCompteurs = ['niveaux','ensembles_sourates','examens','jalons','cours','regles_passage_niveau'];
+    const pEcole = Promise.resolve(supabase.from('ecoles').select('mdp_defaut_instituteurs,mdp_defaut_parents,sens_recitation_defaut,nom,nom_ar,nom_directeur,nom_directeur_ar').eq('id', user.ecole_id).maybeSingle());
+    const pEleves = Promise.resolve(supabase.from('eleves').select('id,prenom,nom,code_niveau,eleve_id_ecole,hizb_depart,tomon_depart,sourates_acquises,hizbs_acquis,instituteur_referent_id,ecole_id,telephone,date_inscription,jours_souhaites,suspendu_at,suspendu_par,suspendu_motif')
+        .eq('ecole_id', user.ecole_id).order('nom'));
+    const pInst = Promise.resolve(supabase.from('utilisateurs').select('id,prenom,nom,identifiant,role,instituteur_id_ecole,tarif_seance,telephone,email,suspendu_at,suspendu_par,suspendu_motif').eq('role', 'instituteur').eq('ecole_id', user.ecole_id));
+    const pParents = Promise.resolve(supabase.from('utilisateurs')
+        .select('id,prenom,nom,identifiant,telephone,email')
+        .eq('role','parent').eq('ecole_id', user.ecole_id));
+    const pCompteurs = Promise.all(
+      tablesCompteurs.map(tbl =>
+        supabase.from(tbl).select('id', { count: 'exact', head: true }).eq('ecole_id', user.ecole_id)
+      )
+    );
+    // Promise.resolve(...) : une seule execution par requete (un builder Supabase relance
+    // la requete a chaque .then). Les .then vides evitent un rejet non gere avant l'attente.
+    pEleves.then(() => {}, () => {}); pInst.then(() => {}, () => {}); pParents.then(() => {}, () => {}); pCompteurs.then(() => {}, () => {});
+    const { data: ecData } = await pEcole;
     if (ecData) setEcoleConfig(prev => ({...prev, ...ecData}));
     setLoading(true);
     try {
-    const { data: e } = await supabase.from('eleves').select('id,prenom,nom,code_niveau,eleve_id_ecole,hizb_depart,tomon_depart,sourates_acquises,hizbs_acquis,instituteur_referent_id,ecole_id,telephone,date_inscription,jours_souhaites,suspendu_at,suspendu_par,suspendu_motif')
-        .eq('ecole_id', user.ecole_id).order('nom');
-    const { data: i } = await supabase.from('utilisateurs').select('id,prenom,nom,identifiant,role,instituteur_id_ecole,tarif_seance,suspendu_at,suspendu_par,suspendu_motif').eq('role', 'instituteur').eq('ecole_id', user.ecole_id);
+    const [{ data: e }, { data: i }, { data: pd }] = await Promise.all([pEleves, pInst, pParents]);
     setEleves(e || []);
     setInstituteurs(i || []);
-    const { data: pd, error: pdErr } = await supabase.from('utilisateurs')
-        .select('id,prenom,nom,identifiant,telephone,email')
-        .eq('role','parent').eq('ecole_id', user.ecole_id);
-    const { data: pliens } = await supabase.from('parent_eleve')
-        .select('parent_id,eleve_id');
+    // FIX (oct 2026) : liens limites aux parents de CETTE ecole (avant : table entiere, toutes
+    // ecoles, tronquee a 1000 lignes -> liens perdus). Voir chargerLiensParents.
+    const pliens = await chargerLiensParents((pd||[]).map(p => p.id));
     const liensMap = {};
     (pliens||[]).forEach(l => { if(!liensMap[l.parent_id]) liensMap[l.parent_id]=[]; liensMap[l.parent_id].push(l.eleve_id); });
     setParents((pd||[]).map(p=>({...p, eleve_ids:liensMap[p.id]||[]})));
@@ -3069,12 +251,8 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile,
     // Avant : 6 requetes sequentielles (~600ms-1s sur reseau lent)
     // Apres : 6 requetes en parallele (~150-200ms)
     try {
-      const tables = ['niveaux','ensembles_sourates','examens','jalons','cours','regles_passage_niveau'];
-      const countResults = await Promise.all(
-        tables.map(tbl =>
-          supabase.from(tbl).select('id', { count: 'exact', head: true }).eq('ecole_id', user.ecole_id)
-        )
-      );
+      const tables = tablesCompteurs;
+      const countResults = await pCompteurs;
       const counts = {};
       tables.forEach((tbl, i) => {
         const key = tbl === 'ensembles_sourates' ? 'ensembles' : tbl === 'regles_passage_niveau' ? 'regles_passage' : tbl;
@@ -3097,7 +275,27 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile,
 
   const showMsg = (type, text) => { setMsg({ type, text }); setTimeout(() => setMsg({ type: '', text: '' }), 3000); };
 
+  // FIX (oct 2026) : charge les liens parent_eleve des parents donnes (ceux de l'ecole), par
+  // paquets de 100 ids (longueur d'URL) et avec pagination fetchAll (>1000 lignes).
+  async function chargerLiensParents(parentIds) {
+    // PERF (oct 2026) : paquets charges en parallele (meme ordre de resultat qu'avant)
+    const lots = [];
+    for (let k = 0; k < parentIds.length; k += 100) lots.push(parentIds.slice(k, k + 100));
+    const parLot = await Promise.all(lots.map(lot =>
+      fetchAll(supabase.from('parent_eleve').select('parent_id,eleve_id').in('parent_id', lot))));
+    const res = [];
+    parLot.forEach(rows => res.push(...rows));
+    return res;
+  }
+
+  // FIX (oct 2026) : verrou anti double-clic (avant : 2 clics rapides = eleve cree 2 fois)
   const ajouterEleve = async () => {
+    if (savingEleveRef.current) return false;
+    savingEleveRef.current = true; setSavingEleve(true);
+    try { return await ajouterEleveImpl(); }
+    finally { savingEleveRef.current = false; setSavingEleve(false); }
+  };
+  const ajouterEleveImpl = async () => {
     if (!newEleve.prenom?.trim()) return showMsg('error', t(lang, 'prenom_nom_obligatoires'));
     if (!newEleve.nom?.trim()) return showMsg('error', t(lang, 'prenom_nom_obligatoires'));
     if (!newEleve.code_niveau) return showMsg('error', t(lang, 'tous_champs_obligatoires'));
@@ -3159,7 +357,7 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile,
       identifiant: loginParent, mot_de_passe: mdpParent,
       role: 'parent', ecole_id: user.ecole_id, statut_compte: 'actif',
       email: (newEleve.email_parent || '').trim() || null,
-    }).select().single();
+    }).select('id,prenom,nom,identifiant,role,ecole_id,telephone,email,statut_compte').single();
     if (parentErr) showMsg('error', 'Erreur création parent: '+parentErr.message);
     if (parentData?.id && eleveData?.id) {
       const { error: lienErr } = await supabase.from('parent_eleve').insert({
@@ -3188,6 +386,7 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile,
     // de lenteur). Apres : modale apparait IMMEDIATEMENT, loadData se fait
     // pendant que l'utilisateur lit la modale.
     setTimeout(() => loadData(), 0);
+    return true; // FIX (oct 2026) : succes -> le formulaire mobile peut se fermer
   };
 
   const modifierEleve = async () => {
@@ -3196,6 +395,11 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile,
     if (!editEleve.code_niveau) return showMsg('error', t(lang, 'tous_champs_obligatoires'));
     if (!editEleve.eleve_id_ecole?.trim()) return showMsg('error', lang==='ar'?'رقم تعريف الطالب إلزامي':lang==='en'?'Student ID is required':"L'ID élève est obligatoire");
     if (!editEleve.instituteur_referent_id) return showMsg('error', lang==='ar'?'يجب اختيار الأستاذ المرجع':lang==='en'?'Please select a teacher':'Veuillez sélectionner un instituteur référent');
+    // FIX (oct 2026) : unicite du numero eleve aussi en modification (hors eleve courant)
+    const { data: existingEdit } = await supabase.from('eleves')
+      .select('id').eq('eleve_id_ecole', editEleve.eleve_id_ecole.trim()).eq('ecole_id', user.ecole_id)
+      .neq('id', editEleve.id).limit(1).maybeSingle();
+    if (existingEdit) return showMsg('error', lang==='ar'?'رقم التعريف مستخدم مسبقاً، اختر رقماً آخر':'Ce numéro élève existe déjà, choisissez-en un autre');
     const { error } = await supabase.from('eleves').update({
       prenom: editEleve.prenom, nom: editEleve.nom, niveau: editEleve.niveau,
       code_niveau: editEleve.code_niveau || '1',
@@ -3214,6 +418,7 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile,
     setEditEleve(null);
     setEditShowAcquisSelector(false);
     loadData();
+    return true; // FIX (oct 2026) : succes -> le formulaire mobile peut se fermer
   };
 
   // ────── ETAPE 6 - SUSPENSION D'ELEVES ──────────────────────────────
@@ -3318,43 +523,13 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile,
           lang==='ar'?'هل أنت متأكد تماماً؟ لا يمكن التراجع عن هذا الإجراء.':'Êtes-vous absolument sûr ? Cette action est définitive et irréversible.',
           async () => {
             setConfirmLoading(true);
-            // Supprimer toutes les données liées (ordre important pour contourner les FK)
-            const tablesLiees = [
-              'exceptions_recitation',
-              'exceptions_hizb',
-              'recitations_sourates',
-              'validations',
-              'apprentissages',
-              'cotisations',
-              'parent_eleve',
-              'certificats_eleves',  // Étape D - les certificats doivent être supprimés
-              'points_eleves',       // points/bonus/malus liés
-              'passages_niveaux',    // historique passages
-              'resultats_examens',   // résultats examens
-            ];
-            const erreurs = [];
-            for (const table of tablesLiees) {
-              try {
-                const { error } = await supabase.from(table).delete().eq('eleve_id', id);
-                if (error) erreurs.push(`${table}: ${error.message}`);
-              } catch(e) {
-                // Table n'existe peut-être pas - on ignore silencieusement
-                console.warn(`[supprimerEleve] ${table} ignorée:`, e.message);
-              }
-            }
-            // Détacher des objectifs (ne pas supprimer, juste null)
-            // try/catch car .catch() sur une requete Supabase plante (voir note supprimerInstituteur)
-            try { await supabase.from('objectifs_globaux').update({eleve_id:null}).eq('eleve_id', id); } catch(e) { console.warn('[supprimerEleve] objectifs_globaux ignoré:', e); }
-            // Enfin supprimer l'élève lui-même
-            const { error: errFinal } = await supabase.from('eleves').delete().eq('id', id);
+            // Logique partagee avec le mobile (src/lib/suppressionEleve.js)
+            const { error: errFinal } = await supprimerEleveDefinitivement(id);
             if (errFinal) {
               console.error('[supprimerEleve] Echec suppression:', errFinal);
               showMsg('error', (lang==='ar' ? 'خطأ في الحذف: ' : 'Erreur suppression: ') + (errFinal.message || 'inconnue'));
               hideConfirm();
               return;
-            }
-            if (erreurs.length > 0) {
-              console.warn('[supprimerEleve] Erreurs liées (élève supprimé malgré tout):', erreurs);
             }
             showMsg('success', t(lang, 'eleve_retire'));
             hideConfirm();
@@ -3369,7 +544,14 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile,
     );
   };
 
+  // FIX (oct 2026) : verrou anti double-clic (avant : 2 clics rapides = 2 comptes instituteur)
   const ajouterInstituteur = async () => {
+    if (savingInstRef.current) return false;
+    savingInstRef.current = true; setSavingInst(true);
+    try { return await ajouterInstituteurImpl(); }
+    finally { savingInstRef.current = false; setSavingInst(false); }
+  };
+  const ajouterInstituteurImpl = async () => {
     if (!newInst.prenom || !newInst.nom)
       return showMsg('error', lang==='ar'?'الاسم واللقب إلزاميان':'Prénom et nom obligatoires');
 
@@ -3398,13 +580,24 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile,
     };
     const baseLogin = normalize(newInst.prenom)+'_'+normalize(newInst.nom);
     // Trouver un login unique
-    let login = baseLogin; let suffix = 2;
-    while (true) {
-      const {data:ex} = await supabase.from('utilisateurs')
-        .select('id').eq('identifiant',login).eq('ecole_id',user.ecole_id).maybeSingle();
-      if (!ex) break;
-      login = baseLogin + suffix; suffix++;
+    // FIX (oct 2026) : l'index unique utilisateurs_identifiant_key est GLOBAL (toutes ecoles,
+    // comptes supprimes inclus). Avant : recherche limitee a l'ecole + filtre soft-delete ->
+    // INSERT en "duplicate key". On cherche donc via supabaseRaw sans filtre ecole (meme
+    // principe que genererLoginParentUnique), en 1 requete. Memes candidats qu'avant : base, base2, base3...
+    const candidatsLogin = [baseLogin];
+    for (let k = 2; k <= 200; k++) candidatsLogin.push(baseLogin + k);
+    // Audit final : verification par paquets de 25 (un nom arabe encode chaque lettre sur
+    // 6 caracteres : 200 candidats d'un coup donnaient une adresse de 12 a 22 Ko -> refus).
+    let login = null;
+    for (let k = 0; k < candidatsLogin.length && !login; k += 25) {
+      const paquet = candidatsLogin.slice(k, k + 25);
+      const { data: loginsPris, error: errLogins } = await supabaseRaw.from('utilisateurs')
+        .select('identifiant').in('identifiant', paquet);
+      if (errLogins) return showMsg('error', (lang==='ar'?'خطأ: ':'Erreur : ') + errLogins.message);
+      const setLoginsPris = new Set((loginsPris || []).map(r => r.identifiant));
+      login = paquet.find(c => !setLoginsPris.has(c)) || null;
     }
+    if (!login) return showMsg('error', lang==='ar'?'تعذر إنشاء معرف فريد':'Impossible de générer un identifiant unique');
     const mdp = (newInst.mot_de_passe && newInst.mot_de_passe.trim()) ? newInst.mot_de_passe.trim() : (ecoleConfig?.mdp_defaut_instituteurs || 'ecole2024');
     const { error } = await supabase.from('utilisateurs').insert({
       prenom: newInst.prenom, nom: newInst.nom,
@@ -3429,6 +622,7 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile,
     });
     setNewInst({ prenom: '', nom: '', identifiant: '', mot_de_passe: '', instituteur_id_ecole: '', telephone: '', email: '' });
     setTimeout(() => loadData(), 0);
+    return true; // FIX (oct 2026) : succes -> le formulaire mobile peut se fermer
   };
 
   // ────── ETAPE 7 - SUSPENSION D'INSTITUTEURS ────────────────────────
@@ -3598,7 +792,7 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile,
           role: 'parent',
           ecole_id: user.ecole_id,
           statut_compte: 'actif',
-        }).select().single();
+        }).select('id,prenom,nom,identifiant,role,ecole_id,telephone,email,statut_compte').single();
         if (errNew) throw errNew;
         comptePrincipalId = nouveau.id;
       }
@@ -3733,7 +927,7 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile,
         role: 'parent',
         ecole_id: user.ecole_id,
         statut_compte: 'actif',
-      }).select().single();
+      }).select('id,prenom,nom,identifiant,role,ecole_id,telephone,email,statut_compte').single();
       if (errNew) throw errNew;
 
       // Etape 2 : Supprimer le lien parent_id->enfant_id du compte famille
@@ -4117,10 +1311,649 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
   useEffect(() => {
     if (!isMobile) return;
     // Naviguer vers la page dédiée en sauvegardant tab:'eleves' pour que goBack revienne correctement
-    if (tab==='niveaux_link')   { navigate('niveaux',  null, {tab:'eleves'}); setTab('eleves'); }
-    if (tab==='ensembles_link') { navigate('ensembles',null, {tab:'eleves'}); setTab('eleves'); }
-    if (tab==='examens_link')   { navigate('examens',  null, {tab:'eleves'}); setTab('eleves'); }
+    // F1 (oct 2026) : liste eleves unique sur mobile = ElevesMobile (AcquisSelector multi-blocs,
+    // creation parent, suspension, jours souhaites). L'onglet eleves de Gestion y renvoie.
+    // extraData tab:'instituteurs' evite de revenir sur 'eleves' (sinon redirection en boucle).
+    if (tab==='eleves')         { navigate('eleves_mobile', null, {tab:'instituteurs'}); setTab('instituteurs'); }
+    if (tab==='niveaux_link')   { navigate('niveaux',  null, {tab:'instituteurs'}); setTab('instituteurs'); }
+    if (tab==='ensembles_link') { navigate('ensembles',null, {tab:'instituteurs'}); setTab('instituteurs'); }
+    if (tab==='examens_link')   { navigate('examens',  null, {tab:'instituteurs'}); setTab('instituteurs'); }
+    // B2 (oct 2026) : pages de parametrage jusque-la inaccessibles sur mobile
+    if (tab==='tarifs_link')    { navigate('gestion_tarifs',    null, {tab:'instituteurs'}); setTab('instituteurs'); }
+    if (tab==='import_link')    { navigate('import_masse',      null, {tab:'instituteurs'}); setTab('instituteurs'); }
+    if (tab==='seuils_link')    { navigate('gestion_parents',   null, {tab:'instituteurs'}); setTab('instituteurs'); }
+    if (tab==='presences_link') { navigate('gestion_assiduite', null, {tab:'instituteurs'}); setTab('instituteurs'); }
+    if (tab==='cours_link')     { navigate('gestion_cours',     null, {tab:'instituteurs'}); setTab('instituteurs'); }
   }, [tab, isMobile]); // eslint-disable-line
+
+  // Enregistrement parent (creation / modification) partage PC + mobile (oct 2026).
+  // Avant : le bouton mobile appelait modifierParent() / ajouterParent(), fonctions
+  // inexistantes -> ReferenceError, impossible d'enregistrer un parent sur mobile.
+  // Corps repris tel quel du bouton PC.
+  const sauvegarderParent = async () => {
+    if(!formParent.prenom||!formParent.nom||!formParent.identifiant) { toast.warning(lang==='ar'?'يرجى ملء الحقول المطلوبة':'Remplissez les champs obligatoires'); return; }
+    if(!editingParentId && !formParent.mot_de_passe) { toast.warning(lang==='ar'?'كلمة المرور مطلوبة':'Mot de passe requis'); return; }
+    let pid = editingParentId;
+    if(editingParentId) {
+      const upd={prenom:formParent.prenom,nom:formParent.nom,identifiant:formParent.identifiant,telephone:formParent.telephone||null,email:(formParent.email||'').trim()||null};
+      if(formParent.mot_de_passe) upd.mot_de_passe=formParent.mot_de_passe;
+      const {error:ue}=await supabase.from('utilisateurs').update(upd).eq('id',editingParentId);
+      if(ue){ toast.error(ue.message||'Erreur utilisateur'); return; }
+      await supabase.from('parent_eleve').delete().eq('parent_id',editingParentId);
+    } else {
+      const {data:pd,error:pe}=await supabase.from('utilisateurs').insert({prenom:formParent.prenom,nom:formParent.nom,identifiant:formParent.identifiant,mot_de_passe:formParent.mot_de_passe,telephone:formParent.telephone||null,email:(formParent.email||'').trim()||null,role:'parent',ecole_id:user.ecole_id,statut_compte:'actif'}).select('id,prenom,nom,identifiant,role,ecole_id,telephone,email,statut_compte').single();
+      if(pe){ toast.error(pe.message||'Erreur parent'); return; }
+      toast.success(lang==='ar'?'✅ تم حفظ ولي الأمر':'✅ Parent enregistré avec succès');
+      pid=pd.id;
+    }
+    if(formParent.eleve_ids.length>0){
+      await supabase.from('parent_eleve').insert(formParent.eleve_ids.map(eid=>({parent_id:pid,eleve_id:eid})));
+    }
+    setShowFormParent(false);
+    setEditingParentId(null);
+    setFormParent({prenom:'',nom:'',identifiant:'',mot_de_passe:'',telephone:'',email:'',eleve_ids:[],searchEleve:''});
+    const {data:pd2}=await supabase.from('utilisateurs').select('id,prenom,nom,identifiant,telephone,email').eq('role','parent').eq('ecole_id',user.ecole_id);
+    const pl2=await chargerLiensParents((pd2||[]).map(p=>p.id)); // FIX (oct 2026) : liens de cette ecole uniquement, pagines
+    const lm2={}; (pl2||[]).forEach(l=>{if(!lm2[l.parent_id])lm2[l.parent_id]=[];lm2[l.parent_id].push(l.eleve_id);});
+    setParents((pd2||[]).map(p=>({...p,eleve_ids:lm2[p.id]||[]})));
+  };
+
+  // MODALES PARTAGEES PC + MOBILE (bloquant B1, oct 2026).
+  // Avant : rendues uniquement dans le return desktop -> sur mobile, suspendre /
+  // reactiver / supprimer / reinit MDP / lier parents ne faisaient rien de visible
+  // (le state changeait mais aucune modale ne s'affichait). Contenu deplace tel quel.
+  const modalesPartagees = (
+    <>
+        {/* ─── Modale Lier comptes parents (Etape 11b) ─── */}
+        {showLinkParents && (() => {
+          const candidatsParents = (parents || []).filter(p => p.role !== 'instituteur');
+          return (
+            <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.55)',zIndex:9999,
+              display:'flex',alignItems:'center',justifyContent:'center',padding:20,
+              animation:'modalFadeIn 0.15s ease-out'}}
+              onClick={()=>{ if(!linkLoading) setShowLinkParents(false); }}>
+              <div onClick={e=>e.stopPropagation()}
+                style={{background:'#fff',borderRadius:16,maxWidth:600,width:'100%',padding:24,
+                  boxShadow:'0 20px 60px rgba(0,0,0,0.3)',maxHeight:'90vh',overflowY:'auto',
+                  animation:'modalSlideIn 0.18s ease-out'}}>
+                <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:14}}>
+                  <div style={{fontSize:32}}>🔗</div>
+                  <div>
+                    <div style={{fontSize:17,fontWeight:800,color:'#085041'}}>
+                      {lang==='ar'?'ربط حسابات الأولياء':'Lier des comptes parents'}
+                    </div>
+                    <div style={{fontSize:12,color:'#666',marginTop:2}}>
+                      {lang==='ar'?'دمج عدة حسابات في حساب عائلي واحد':'Fusionner plusieurs comptes en un compte famille'}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Etape 1 - Selection des parents */}
+                <div style={{marginBottom:14}}>
+                  <div style={{fontSize:12,fontWeight:700,color:'#666',marginBottom:6,textTransform:'uppercase',letterSpacing:0.3}}>
+                    1. {lang==='ar'?'اختر الحسابات للربط (2 على الأقل)':'Sélectionner les comptes à lier (2 minimum)'}
+                  </div>
+                  <div style={{maxHeight:200,overflowY:'auto',background:'#f5f5f0',borderRadius:8,padding:6}}>
+                    {candidatsParents.length === 0 ? (
+                      <div style={{padding:12,textAlign:'center',color:'#888',fontSize:12,fontStyle:'italic'}}>
+                        {lang==='ar'?'لا يوجد حسابات':'Aucun compte disponible'}
+                      </div>
+                    ) : candidatsParents.map(p => {
+                      const enfantsP = eleves.filter(e => (p.eleve_ids||[]).includes(e.id));
+                      const checked = linkSelectedParents.includes(p.id);
+                      return (
+                        <label key={p.id} style={{
+                          display:'flex',alignItems:'flex-start',gap:8,padding:'8px 10px',
+                          background:checked?'#fff':'transparent',borderRadius:6,cursor:'pointer',
+                          marginBottom:3,border:checked?'1px solid #1D9E75':'1px solid transparent',
+                        }}>
+                          <input type="checkbox" checked={checked}
+                            onChange={e=>{
+                              if (e.target.checked) setLinkSelectedParents(prev=>[...prev,p.id]);
+                              else setLinkSelectedParents(prev=>prev.filter(x=>x!==p.id));
+                            }}
+                            style={{marginTop:3}}/>
+                          <div style={{flex:1,minWidth:0}}>
+                            <div style={{fontSize:13,fontWeight:600,color:'#1a1a1a'}}>
+                              {p.prenom} {p.nom}
+                              <span style={{fontSize:11,fontWeight:400,color:'#888',marginInlineStart:6,fontFamily:'monospace'}}>
+                                ({p.identifiant})
+                              </span>
+                            </div>
+                            {enfantsP.length > 0 && (
+                              <div style={{fontSize:11,color:'#666',marginTop:2}}>
+                                👶 {enfantsP.map(e=>`${e.prenom} ${e.nom}`).join(', ')}
+                              </div>
+                            )}
+                          </div>
+                        </label>
+                      );
+                    })}
+                  </div>
+                  <div style={{fontSize:11,color:'#888',marginTop:4}}>
+                    ✓ {linkSelectedParents.length} {lang==='ar'?'محدد':'sélectionné(s)'}
+                  </div>
+                </div>
+
+                {/* Etape 2 - Choix du login */}
+                {linkSelectedParents.length >= 2 && (
+                  <div style={{marginBottom:14}}>
+                    <div style={{fontSize:12,fontWeight:700,color:'#666',marginBottom:6,textTransform:'uppercase',letterSpacing:0.3}}>
+                      2. {lang==='ar'?'معرف الحساب الجديد':'Login du compte fusionné'}
+                    </div>
+                    <div style={{display:'flex',flexDirection:'column',gap:8}}>
+                      <label style={{display:'flex',alignItems:'flex-start',gap:8,padding:8,borderRadius:8,background:linkLoginMode==='manuel'?'#fff':'transparent',border:linkLoginMode==='manuel'?'1px solid #1D9E75':'1px solid transparent',cursor:'pointer'}}>
+                        <input type="radio" name="lk-mode" checked={linkLoginMode==='manuel'}
+                          onChange={()=>setLinkLoginMode('manuel')} style={{marginTop:3}}/>
+                        <div style={{flex:1}}>
+                          <div style={{fontSize:13,fontWeight:600,color:'#1a1a1a'}}>
+                            {lang==='ar'?'إنشاء معرف جديد':'Créer un nouveau login'}
+                          </div>
+                          {linkLoginMode==='manuel' && (
+                            <input type="text" value={linkLoginManuel}
+                              onChange={e=>setLinkLoginManuel(e.target.value)}
+                              placeholder={lang==='ar'?'مثلاً: famille.benali':'Ex: famille.benali'}
+                              style={{width:'100%',padding:'8px 10px',marginTop:6,borderRadius:8,border:'1px solid #d0d8e8',fontSize:12,fontFamily:'inherit'}}/>
+                          )}
+                        </div>
+                      </label>
+
+                      <label style={{display:'flex',alignItems:'flex-start',gap:8,padding:8,borderRadius:8,background:linkLoginMode==='existant'?'#fff':'transparent',border:linkLoginMode==='existant'?'1px solid #1D9E75':'1px solid transparent',cursor:'pointer'}}>
+                        <input type="radio" name="lk-mode" checked={linkLoginMode==='existant'}
+                          onChange={()=>setLinkLoginMode('existant')} style={{marginTop:3}}/>
+                        <div style={{flex:1}}>
+                          <div style={{fontSize:13,fontWeight:600,color:'#1a1a1a'}}>
+                            {lang==='ar'?'الإبقاء على معرف موجود':'Garder un login existant'}
+                          </div>
+                          {linkLoginMode==='existant' && (
+                            <select value={linkLoginExistant} onChange={e=>setLinkLoginExistant(e.target.value)}
+                              style={{width:'100%',padding:'8px 10px',marginTop:6,borderRadius:8,border:'1px solid #d0d8e8',fontSize:12,fontFamily:'inherit'}}>
+                              <option value="">— {lang==='ar'?'اختر':'Choisir'}</option>
+                              {parents.filter(p=>linkSelectedParents.includes(p.id)).map(p=>(
+                                <option key={p.id} value={p.identifiant}>{p.identifiant} ({p.prenom} {p.nom})</option>
+                              ))}
+                            </select>
+                          )}
+                        </div>
+                      </label>
+                    </div>
+                  </div>
+                )}
+
+                {/* Etape 3 - Avertissement */}
+                {linkSelectedParents.length >= 2 && (
+                  <div style={{
+                    background:'#FFF8EC',border:'1px solid #EF9F2740',borderRadius:8,
+                    padding:'10px 12px',fontSize:11,color:'#7B5800',marginBottom:14,lineHeight:1.5,
+                  }}>
+                    ⚠️ {lang==='ar'
+                      ? `سيتم حذف ${linkSelectedParents.length - (linkLoginMode==='existant'?1:0)} حسابات قديمة وكلمة المرور الافتراضية ستكون: `
+                      : `${linkSelectedParents.length - (linkLoginMode==='existant'?1:0)} ancien(s) compte(s) seront supprimé(s). Le mot de passe sera réinitialisé à : `}
+                    <b>{ecoleConfig?.mdp_defaut_parents || 'parent2024'}</b>
+                  </div>
+                )}
+
+                <div style={{display:'flex',gap:8}}>
+                  <button onClick={()=>setShowLinkParents(false)} disabled={linkLoading}
+                    style={{flex:1,padding:'11px',background:'#f5f5f0',color:'#666',border:'none',borderRadius:10,fontSize:13,fontWeight:600,cursor:linkLoading?'not-allowed':'pointer',fontFamily:'inherit'}}>
+                    {lang==='ar'?'إلغاء':'Annuler'}
+                  </button>
+                  <button onClick={confirmerLiaisonParents} disabled={linkLoading || linkSelectedParents.length < 2}
+                    style={{flex:2,padding:'11px',
+                      background:(linkLoading || linkSelectedParents.length < 2)?'#ccc':'linear-gradient(135deg,#1D9E75,#085041)',
+                      color:'#fff',border:'none',borderRadius:10,fontSize:13,fontWeight:700,
+                      cursor:(linkLoading || linkSelectedParents.length < 2)?'not-allowed':'pointer',
+                      fontFamily:'inherit',boxShadow:'0 2px 8px rgba(8,80,65,0.3)'}}>
+                    {linkLoading ? '⏳ '+(lang==='ar'?'جاري...':'En cours...') : '🔗 '+(lang==='ar'?'ربط':'Lier')}
+                  </button>
+                </div>
+              </div>
+            </div>
+          );
+        })()}
+
+        {/* ─── Modale Délier un enfant (Etape 11b) ─── */}
+        {showUnlinkParent && (() => {
+          const { parent: pUn, enfants: enfantsUn } = showUnlinkParent;
+          return (
+            <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.55)',zIndex:9999,
+              display:'flex',alignItems:'center',justifyContent:'center',padding:20,
+              animation:'modalFadeIn 0.15s ease-out'}}
+              onClick={()=>{ if(!unlinkLoading) setShowUnlinkParent(null); }}>
+              <div onClick={e=>e.stopPropagation()}
+                style={{background:'#fff',borderRadius:16,maxWidth:480,width:'100%',padding:24,
+                  boxShadow:'0 20px 60px rgba(0,0,0,0.3)',maxHeight:'90vh',overflowY:'auto',
+                  animation:'modalSlideIn 0.18s ease-out'}}>
+                <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:14}}>
+                  <div style={{fontSize:32}}>🔓</div>
+                  <div>
+                    <div style={{fontSize:17,fontWeight:800,color:'#7B5800'}}>
+                      {lang==='ar'?'فصل طفل':'Détacher un enfant'}
+                    </div>
+                    <div style={{fontSize:12,color:'#666',marginTop:2}}>
+                      {pUn.prenom} {pUn.nom} · {pUn.identifiant}
+                    </div>
+                  </div>
+                </div>
+
+                <div style={{fontSize:12,fontWeight:700,color:'#666',marginBottom:8,textTransform:'uppercase',letterSpacing:0.3}}>
+                  {lang==='ar'?'أي طفل تريد فصله؟':'Quel enfant détacher ?'}
+                </div>
+
+                <div style={{marginBottom:14}}>
+                  {enfantsUn.map(e => (
+                    <label key={e.id} style={{
+                      display:'flex',alignItems:'flex-start',gap:8,padding:10,borderRadius:8,
+                      background:unlinkChildId===e.id?'#FFF8EC':'#f5f5f0',
+                      border:unlinkChildId===e.id?'1px solid #EF9F27':'1px solid transparent',
+                      cursor:'pointer',marginBottom:6,
+                    }}>
+                      <input type="radio" name="unlk-child" checked={unlinkChildId===e.id}
+                        onChange={()=>setUnlinkChildId(e.id)} style={{marginTop:3}}/>
+                      <div style={{flex:1}}>
+                        <div style={{fontSize:13,fontWeight:600,color:'#1a1a1a'}}>{e.prenom} {e.nom}</div>
+                        <div style={{fontSize:11,color:'#666',marginTop:2}}>
+                          🆔 {e.eleve_id_ecole} · 🎓 {e.code_niveau || '-'}
+                        </div>
+                      </div>
+                    </label>
+                  ))}
+                </div>
+
+                {unlinkChildId && (() => {
+                  const enf = enfantsUn.find(e => e.id === unlinkChildId);
+                  return (
+                    <div style={{
+                      background:'#E1F5EE',border:'1px solid #1D9E7530',borderRadius:8,
+                      padding:'10px 12px',fontSize:11,color:'#085041',marginBottom:14,lineHeight:1.5,
+                    }}>
+                      ℹ️ {lang==='ar'?'سيتم إنشاء حساب جديد:':'Un nouveau compte sera créé :'}<br/>
+                      <span style={{fontFamily:'monospace',fontWeight:700}}>
+                        {lang==='ar'?'المعرف':'Login'}: {enf.eleve_id_ecole}<br/>
+                        {lang==='ar'?'كلمة المرور':'MDP'}: {ecoleConfig?.mdp_defaut_parents || 'parent2024'}
+                      </span>
+                    </div>
+                  );
+                })()}
+
+                <div style={{display:'flex',gap:8}}>
+                  <button onClick={()=>setShowUnlinkParent(null)} disabled={unlinkLoading}
+                    style={{flex:1,padding:'11px',background:'#f5f5f0',color:'#666',border:'none',borderRadius:10,fontSize:13,fontWeight:600,cursor:unlinkLoading?'not-allowed':'pointer',fontFamily:'inherit'}}>
+                    {lang==='ar'?'إلغاء':'Annuler'}
+                  </button>
+                  <button onClick={confirmerDeliaison} disabled={unlinkLoading || !unlinkChildId}
+                    style={{flex:2,padding:'11px',
+                      background:(unlinkLoading || !unlinkChildId)?'#ccc':'#EF9F27',
+                      color:'#fff',border:'none',borderRadius:10,fontSize:13,fontWeight:700,
+                      cursor:(unlinkLoading || !unlinkChildId)?'not-allowed':'pointer',fontFamily:'inherit'}}>
+                    {unlinkLoading ? '⏳ '+(lang==='ar'?'جاري...':'En cours...') : '🔓 '+(lang==='ar'?'فصل':'Détacher')}
+                  </button>
+                </div>
+              </div>
+            </div>
+          );
+        })()}
+
+        {/* ─── Modale recap création élève + compte parent (Etape 11a) ─── */}
+        {/* UX (mai 2026) : animation fadeIn pour douceur visuelle.
+            Les keyframes sont declarees une seule fois ici, valides pour
+            toutes les modales du composant Gestion. */}
+        <style>{`
+          @keyframes modalFadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+          }
+          @keyframes modalSlideIn {
+            from { opacity: 0; transform: translateY(-8px) scale(0.98); }
+            to   { opacity: 1; transform: translateY(0) scale(1); }
+          }
+        `}</style>
+        {showEleveCree && (
+          <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.55)',zIndex:9999,
+            display:'flex',alignItems:'center',justifyContent:'center',padding:20,
+            animation:'modalFadeIn 0.15s ease-out'}}
+            onClick={()=>setShowEleveCree(null)}>
+            <div onClick={e=>e.stopPropagation()}
+              style={{background:'#fff',borderRadius:16,maxWidth:520,width:'100%',padding:24,
+                boxShadow:'0 20px 60px rgba(0,0,0,0.3)',maxHeight:'90vh',overflowY:'auto',
+                animation:'modalSlideIn 0.18s ease-out'}}>
+              <div style={{textAlign:'center',marginBottom:18}}>
+                <div style={{fontSize:48,marginBottom:8}}>🎉</div>
+                <div style={{fontSize:18,fontWeight:800,color:'#085041',marginBottom:4}}>
+                  {lang==='ar'?'تم إضافة الطالب بنجاح!':'Élève créé avec succès !'}
+                </div>
+              </div>
+
+              {/* Récap élève */}
+              <div style={{
+                background:'#E1F5EE',border:'1px solid #1D9E7530',borderRadius:10,
+                padding:'12px 14px',marginBottom:12,
+              }}>
+                <div style={{fontSize:11,fontWeight:700,color:'#085041',marginBottom:6,textTransform:'uppercase',letterSpacing:0.3}}>
+                  👤 {lang==='ar'?'الطالب':'Élève'}
+                </div>
+                <div style={{fontSize:15,fontWeight:700,color:'#1a1a1a'}}>
+                  {showEleveCree.eleve.prenom} {showEleveCree.eleve.nom}
+                </div>
+                <div style={{fontSize:12,color:'#666',marginTop:3,display:'flex',gap:10,flexWrap:'wrap'}}>
+                  <span>🆔 {showEleveCree.eleve.eleve_id_ecole}</span>
+                  <span>🎓 {showEleveCree.eleve.code_niveau}</span>
+                </div>
+              </div>
+
+              {/* Récap compte parent */}
+              <div style={{
+                background:'#FFF8EC',border:'1px solid #EF9F2740',borderRadius:10,
+                padding:'12px 14px',marginBottom:14,
+              }}>
+                <div style={{fontSize:11,fontWeight:700,color:'#7B5800',marginBottom:8,textTransform:'uppercase',letterSpacing:0.3}}>
+                  👨‍👩‍👧 {lang==='ar'?'حساب ولي الأمر (تم إنشاؤه تلقائياً)':'Compte parent (créé automatiquement)'}
+                </div>
+                <div style={{display:'grid',gridTemplateColumns:'auto 1fr',gap:'6px 10px',fontSize:13}}>
+                  <div style={{color:'#666',fontWeight:600}}>{lang==='ar'?'المعرف:':'Login :'}</div>
+                  <div style={{fontWeight:700,color:'#1a1a1a',fontFamily:'monospace'}}>{showEleveCree.parent.login}</div>
+                  <div style={{color:'#666',fontWeight:600}}>{lang==='ar'?'كلمة المرور:':'Mot de passe :'}</div>
+                  <div style={{fontWeight:700,color:'#1a1a1a',fontFamily:'monospace'}}>{showEleveCree.parent.mdp}</div>
+                </div>
+                <div style={{fontSize:11,color:'#8a5a00',marginTop:10,lineHeight:1.5,fontStyle:'italic'}}>
+                  ℹ️ {lang==='ar'
+                    ? 'يمكن لولي الأمر تغيير كلمة المرور بعد أول اتصال. سلّم هذه المعلومات إليه.'
+                    : 'Le parent peut changer son mot de passe à la première connexion. Communiquez-lui ces informations.'}
+                </div>
+              </div>
+
+              {/* Boutons */}
+              <div style={{display:'flex',gap:8}}>
+                <button onClick={()=>{
+                  const txt = lang==='ar'
+                    ? `حساب ولي الأمر:\nالمعرف: ${showEleveCree.parent.login}\nكلمة المرور: ${showEleveCree.parent.mdp}`
+                    : `Compte parent :\nLogin : ${showEleveCree.parent.login}\nMot de passe : ${showEleveCree.parent.mdp}`;
+                  navigator.clipboard?.writeText(txt).then(() => {
+                    showMsg('success', lang==='ar'?'✅ تم النسخ':'✅ Copié dans le presse-papier');
+                  }).catch(()=>{});
+                }}
+                  style={{flex:1,padding:'12px',background:'#fff',color:'#085041',border:'1.5px solid #085041',
+                    borderRadius:10,fontSize:13,fontWeight:600,cursor:'pointer',fontFamily:'inherit'}}>
+                  📋 {lang==='ar'?'نسخ المعلومات':'Copier les identifiants'}
+                </button>
+                <button onClick={()=>setShowEleveCree(null)}
+                  style={{flex:1,padding:'12px',background:'linear-gradient(135deg,#1D9E75,#085041)',color:'#fff',
+                    border:'none',borderRadius:10,fontSize:13,fontWeight:700,cursor:'pointer',fontFamily:'inherit',
+                    boxShadow:'0 2px 8px rgba(8,80,65,0.3)'}}>
+                  ✓ {lang==='ar'?'حسناً':'OK'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ─── Modale recap création instituteur (mai 2026) ─── */}
+        {/* UX : equivalent de ModaleEleveCree pour donner le temps au surveillant
+            de noter le login/mdp sans pression de disparition. */}
+        {showInstCree && (
+          <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.55)',zIndex:9999,
+            display:'flex',alignItems:'center',justifyContent:'center',padding:20,
+            animation:'modalFadeIn 0.15s ease-out'}}
+            onClick={()=>setShowInstCree(null)}>
+            <div onClick={e=>e.stopPropagation()}
+              style={{background:'#fff',borderRadius:16,maxWidth:520,width:'100%',padding:24,
+                boxShadow:'0 20px 60px rgba(0,0,0,0.3)',maxHeight:'90vh',overflowY:'auto',
+                animation:'modalSlideIn 0.18s ease-out'}}>
+              <div style={{textAlign:'center',marginBottom:18}}>
+                <div style={{fontSize:48,marginBottom:8}}>🎉</div>
+                <div style={{fontSize:18,fontWeight:800,color:'#085041',marginBottom:4}}>
+                  {lang==='ar'?'تم إضافة الأستاذ بنجاح!':'Instituteur créé avec succès !'}
+                </div>
+              </div>
+
+              {/* Récap instituteur */}
+              <div style={{
+                background:'#E1F5EE',border:'1px solid #1D9E7530',borderRadius:10,
+                padding:'12px 14px',marginBottom:12,
+              }}>
+                <div style={{fontSize:11,fontWeight:700,color:'#085041',marginBottom:6,textTransform:'uppercase',letterSpacing:0.3}}>
+                  👨‍🏫 {lang==='ar'?'الأستاذ':'Instituteur'}
+                </div>
+                <div style={{fontSize:15,fontWeight:700,color:'#1a1a1a'}}>
+                  {showInstCree.instituteur.prenom} {showInstCree.instituteur.nom}
+                </div>
+                {showInstCree.instituteur.instituteur_id_ecole && (
+                  <div style={{fontSize:12,color:'#666',marginTop:3}}>
+                    🆔 {showInstCree.instituteur.instituteur_id_ecole}
+                  </div>
+                )}
+              </div>
+
+              {/* Récap compte instituteur (login/mdp) */}
+              <div style={{
+                background:'#FFF8EC',border:'1px solid #EF9F2740',borderRadius:10,
+                padding:'12px 14px',marginBottom:14,
+              }}>
+                <div style={{fontSize:11,fontWeight:700,color:'#7B5800',marginBottom:8,textTransform:'uppercase',letterSpacing:0.3}}>
+                  🔑 {lang==='ar'?'بيانات الاتصال':'Identifiants de connexion'}
+                </div>
+                <div style={{display:'grid',gridTemplateColumns:'auto 1fr',gap:'6px 10px',fontSize:13}}>
+                  <div style={{color:'#666',fontWeight:600}}>{lang==='ar'?'المعرف:':'Login :'}</div>
+                  <div style={{fontWeight:700,color:'#1a1a1a',fontFamily:'monospace'}}>{showInstCree.login}</div>
+                  <div style={{color:'#666',fontWeight:600}}>{lang==='ar'?'كلمة المرور:':'Mot de passe :'}</div>
+                  <div style={{fontWeight:700,color:'#1a1a1a',fontFamily:'monospace'}}>{showInstCree.mdp}</div>
+                </div>
+                <div style={{fontSize:11,color:'#8a5a00',marginTop:10,lineHeight:1.5,fontStyle:'italic'}}>
+                  ℹ️ {lang==='ar'
+                    ? 'يمكن للأستاذ تغيير كلمة المرور بعد أول اتصال. سلّم هذه المعلومات إليه.'
+                    : 'L\'instituteur peut changer son mot de passe à la première connexion. Communiquez-lui ces informations.'}
+                </div>
+              </div>
+
+              {/* Boutons */}
+              <div style={{display:'flex',gap:8}}>
+                <button onClick={()=>{
+                  const txt = lang==='ar'
+                    ? `بيانات الأستاذ:\nالمعرف: ${showInstCree.login}\nكلمة المرور: ${showInstCree.mdp}`
+                    : `Identifiants instituteur :\nLogin : ${showInstCree.login}\nMot de passe : ${showInstCree.mdp}`;
+                  navigator.clipboard?.writeText(txt).then(() => {
+                    showMsg('success', lang==='ar'?'✅ تم النسخ':'✅ Copié dans le presse-papier');
+                  }).catch(()=>{});
+                }}
+                  style={{flex:1,padding:'12px',background:'#fff',color:'#085041',border:'1.5px solid #085041',
+                    borderRadius:10,fontSize:13,fontWeight:600,cursor:'pointer',fontFamily:'inherit'}}>
+                  📋 {lang==='ar'?'نسخ المعلومات':'Copier les identifiants'}
+                </button>
+                <button onClick={()=>setShowInstCree(null)}
+                  style={{flex:1,padding:'12px',background:'linear-gradient(135deg,#1D9E75,#085041)',color:'#fff',
+                    border:'none',borderRadius:10,fontSize:13,fontWeight:700,cursor:'pointer',fontFamily:'inherit',
+                    boxShadow:'0 2px 8px rgba(8,80,65,0.3)'}}>
+                  ✓ {lang==='ar'?'حسناً':'OK'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ─── Modale Suspendre instituteur (Etape 7) ─── */}
+        {showSuspendreInst && (() => {
+          const { inst, elevesRattaches } = showSuspendreInst;
+          const instituteursDispo = (instituteurs||[]).filter(i =>
+            i.id !== inst.id && !i.suspendu_at && !i.deleted_at);
+          return (
+            <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.55)',zIndex:9999,
+              display:'flex',alignItems:'center',justifyContent:'center',padding:20,
+              animation:'modalFadeIn 0.15s ease-out'}}
+              onClick={()=>{ if(!savingSuspensionInst) setShowSuspendreInst(null); }}>
+              <div onClick={e=>e.stopPropagation()}
+                style={{background:'#fff',borderRadius:14,maxWidth:540,width:'100%',padding:24,boxShadow:'0 10px 40px rgba(0,0,0,0.2)',maxHeight:'90vh',overflowY:'auto',
+                  animation:'modalSlideIn 0.18s ease-out'}}>
+                <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:14}}>
+                  <div style={{fontSize:28}}>⏸️</div>
+                  <div>
+                    <div style={{fontSize:17,fontWeight:800,color:'#D85A30'}}>
+                      {lang==='ar'?'تعليق المدرس':'Suspendre l\'instituteur'}
+                    </div>
+                    <div style={{fontSize:13,color:'#666',marginTop:2}}>
+                      {inst.prenom} {inst.nom} · {inst.identifiant}
+                    </div>
+                  </div>
+                </div>
+                <div style={{background:'#FFF8EC',border:'0.5px solid #FFE0B5',borderRadius:10,padding:'10px 12px',fontSize:12,color:'#8a5a00',marginBottom:14,lineHeight:1.5}}>
+                  {lang==='ar'
+                    ? 'المدرس المعلق لن يستطيع تسجيل الدخول إلى التطبيق. السجل السابق لتصحيحاته يبقى محفوظًا تحت اسمه. يمكنك إعادة تفعيله في أي وقت.'
+                    : 'L\'instituteur suspendu ne pourra plus se connecter à l\'application. Son historique de validations reste figé sous son nom. Réactivable à tout moment.'}
+                </div>
+
+                {/* Section transfert eleves */}
+                {elevesRattaches.length > 0 && (
+                  <div style={{background:'#F0F4FA',border:'0.5px solid #d0d8e8',borderRadius:10,padding:'12px 14px',marginBottom:14}}>
+                    <div style={{fontSize:13,fontWeight:700,color:'#374151',marginBottom:8}}>
+                      👥 {elevesRattaches.length} {lang==='ar'?'طالب مرتبط':elevesRattaches.length===1?'élève rattaché':'élèves rattachés'}
+                    </div>
+                    <div style={{fontSize:12,color:'#6b7280',marginBottom:10,lineHeight:1.5}}>
+                      {lang==='ar'
+                        ? 'اختر ماذا تفعل بطلابه. السجل السابق يبقى تحت اسمه.'
+                        : 'Choisissez ce que vous voulez faire de ses élèves. L\'historique passé reste sous son nom.'}
+                    </div>
+
+                    <label style={{display:'flex',alignItems:'flex-start',gap:8,padding:8,borderRadius:8,background:transfertOption==='transferer'?'#fff':'transparent',border:transfertOption==='transferer'?'0.5px solid #1D9E75':'0.5px solid transparent',marginBottom:6,cursor:'pointer'}}>
+                      <input type="radio" name="transfert-opt" checked={transfertOption==='transferer'}
+                        onChange={()=>setTransfertOption('transferer')} style={{marginTop:3}}/>
+                      <div style={{flex:1}}>
+                        <div style={{fontSize:13,fontWeight:600,color:'#085041'}}>
+                          {lang==='ar'?'➡️ نقل إلى مدرس آخر (موصى به)':'➡️ Transférer vers un autre instituteur (recommandé)'}
+                        </div>
+                        {transfertOption==='transferer' && (
+                          <select value={transfertVers} onChange={e=>setTransfertVers(e.target.value)}
+                            style={{width:'100%',padding:'8px 10px',marginTop:6,borderRadius:8,border:'0.5px solid #d0d8e8',fontSize:12,fontFamily:'inherit'}}>
+                            <option value="">— {lang==='ar'?'اختر مدرسًا...':'Choisir...'}</option>
+                            {instituteursDispo.map(i=>(
+                              <option key={i.id} value={i.id}>{i.prenom} {i.nom} ({i.identifiant})</option>
+                            ))}
+                          </select>
+                        )}
+                      </div>
+                    </label>
+
+                    <label style={{display:'flex',alignItems:'flex-start',gap:8,padding:8,borderRadius:8,background:transfertOption==='detacher'?'#fff':'transparent',border:transfertOption==='detacher'?'0.5px solid #EF9F27':'0.5px solid transparent',marginBottom:6,cursor:'pointer'}}>
+                      <input type="radio" name="transfert-opt" checked={transfertOption==='detacher'}
+                        onChange={()=>setTransfertOption('detacher')} style={{marginTop:3}}/>
+                      <div style={{fontSize:13,color:'#374151'}}>
+                        {lang==='ar'?'🔓 فصل الطلاب (بدون مدرس مرجعي)':'🔓 Détacher les élèves (sans référent)'}
+                      </div>
+                    </label>
+
+                    <label style={{display:'flex',alignItems:'flex-start',gap:8,padding:8,borderRadius:8,background:transfertOption==='garder'?'#fff':'transparent',border:transfertOption==='garder'?'0.5px solid #888':'0.5px solid transparent',cursor:'pointer'}}>
+                      <input type="radio" name="transfert-opt" checked={transfertOption==='garder'}
+                        onChange={()=>setTransfertOption('garder')} style={{marginTop:3}}/>
+                      <div style={{fontSize:13,color:'#374151'}}>
+                        {lang==='ar'?'⏸️ الإبقاء كما هو (الطلاب يبقون مرتبطين بالمدرس المعلق)':'⏸️ Garder en l\'état (élèves restent rattachés)'}
+                      </div>
+                    </label>
+                  </div>
+                )}
+
+                <label style={{display:'block',fontSize:12,fontWeight:600,color:'#666',marginBottom:6}}>
+                  {lang==='ar'?'سبب التعليق (اختياري)':'Motif de suspension (optionnel)'}
+                </label>
+                <input type="text" list="motif-inst-suggestions" value={motifSuspensionInst}
+                  onChange={e=>setMotifSuspensionInst(e.target.value)}
+                  placeholder={lang==='ar'?'مثلاً: عطلة، مرض، انتهاء العقد...':'Ex: vacances, maladie, fin de contrat...'}
+                  style={{width:'100%',padding:'10px 12px',borderRadius:10,border:'0.5px solid #e0e0d8',
+                    fontSize:13,fontFamily:'inherit',boxSizing:'border-box'}}/>
+                <datalist id="motif-inst-suggestions">
+                  <option value={lang==='ar'?'عطلة':'Vacances'}/>
+                  <option value={lang==='ar'?'مرض':'Maladie'}/>
+                  <option value={lang==='ar'?'انتهاء العقد':'Fin de contrat'}/>
+                  <option value={lang==='ar'?'استقالة':'Démission'}/>
+                  <option value={lang==='ar'?'أخرى':'Autre'}/>
+                </datalist>
+
+                <div style={{display:'flex',gap:8,marginTop:14}}>
+                  <button onClick={()=>setShowSuspendreInst(null)} disabled={savingSuspensionInst}
+                    style={{flex:1,padding:'11px',background:'#f5f5f0',color:'#666',border:'none',borderRadius:10,fontSize:13,fontWeight:600,cursor:savingSuspensionInst?'not-allowed':'pointer',fontFamily:'inherit'}}>
+                    {lang==='ar'?'إلغاء':'Annuler'}
+                  </button>
+                  <button onClick={confirmerSuspensionInst} disabled={savingSuspensionInst}
+                    style={{flex:2,padding:'11px',background:savingSuspensionInst?'#ccc':'#D85A30',color:'#fff',border:'none',borderRadius:10,fontSize:13,fontWeight:700,cursor:savingSuspensionInst?'not-allowed':'pointer',fontFamily:'inherit'}}>
+                    {savingSuspensionInst
+                      ? '⏳ '+(lang==='ar'?'جاري الحفظ...':'En cours...')
+                      : '⏸️ '+(lang==='ar'?'تعليق':'Suspendre')}
+                  </button>
+                </div>
+              </div>
+            </div>
+          );
+        })()}
+
+        {/* ─── Modale Suspendre élève (Etape 6) ─── */}
+        {showSuspendreEleve && (
+          <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.55)',zIndex:9999,
+            display:'flex',alignItems:'center',justifyContent:'center',padding:20,
+            animation:'modalFadeIn 0.15s ease-out'}}
+            onClick={()=>{ if(!savingSuspension) setShowSuspendreEleve(null); }}>
+            <div onClick={e=>e.stopPropagation()}
+              style={{background:'#fff',borderRadius:14,maxWidth:480,width:'100%',padding:24,boxShadow:'0 10px 40px rgba(0,0,0,0.2)',
+                animation:'modalSlideIn 0.18s ease-out'}}>
+              <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:14}}>
+                <div style={{fontSize:28}}>⏸️</div>
+                <div>
+                  <div style={{fontSize:17,fontWeight:800,color:'#D85A30'}}>
+                    {lang==='ar'?'تعليق الطالب':'Suspendre l\'élève'}
+                  </div>
+                  <div style={{fontSize:13,color:'#666',marginTop:2}}>
+                    {showSuspendreEleve.prenom} {showSuspendreEleve.nom}
+                  </div>
+                </div>
+              </div>
+              <div style={{background:'#FFF8EC',border:'0.5px solid #FFE0B5',borderRadius:10,padding:'10px 12px',fontSize:12,color:'#8a5a00',marginBottom:14,lineHeight:1.5}}>
+                {lang==='ar'
+                  ? 'الطالب المعلق لن يظهر في قوائم التسجيل والتقارير، لكن بياناته السابقة (الاستظهارات، الشهادات، إلخ) تبقى محفوظة. يمكنك إعادة تفعيله في أي وقت.'
+                  : 'L\'élève suspendu n\'apparaîtra plus dans les listes de validation et les rapports, mais toutes ses données (récitations, certificats, etc.) restent conservées. Réactivable à tout moment.'}
+              </div>
+              <label style={{display:'block',fontSize:12,fontWeight:600,color:'#666',marginBottom:6}}>
+                {lang==='ar'?'سبب التعليق (اختياري)':'Motif de suspension (optionnel)'}
+              </label>
+              <input type="text" list="motif-suggestions" value={motifSuspension}
+                onChange={e=>setMotifSuspension(e.target.value)}
+                placeholder={lang==='ar'?'مثلاً: عطلة، مرض، انتقال...':'Ex: vacances, maladie, déménagement...'}
+                style={{width:'100%',padding:'10px 12px',borderRadius:10,border:'0.5px solid #e0e0d8',
+                  fontSize:13,fontFamily:'inherit',boxSizing:'border-box',marginBottom:6}}/>
+              <datalist id="motif-suggestions">
+                <option value={lang==='ar'?'عطلة':'Vacances'}/>
+                <option value={lang==='ar'?'مرض':'Maladie'}/>
+                <option value={lang==='ar'?'انتقال':'Déménagement'}/>
+                <option value={lang==='ar'?'تغيير مدرسة':'Changement d\'école'}/>
+                <option value={lang==='ar'?'أخرى':'Autre'}/>
+              </datalist>
+              <div style={{display:'flex',gap:8,marginTop:14}}>
+                <button onClick={()=>setShowSuspendreEleve(null)} disabled={savingSuspension}
+                  style={{flex:1,padding:'11px',background:'#f5f5f0',color:'#666',border:'none',borderRadius:10,fontSize:13,fontWeight:600,cursor:savingSuspension?'not-allowed':'pointer',fontFamily:'inherit'}}>
+                  {lang==='ar'?'إلغاء':'Annuler'}
+                </button>
+                <button onClick={confirmerSuspension} disabled={savingSuspension}
+                  style={{flex:2,padding:'11px',background:savingSuspension?'#ccc':'#D85A30',color:'#fff',border:'none',borderRadius:10,fontSize:13,fontWeight:700,cursor:savingSuspension?'not-allowed':'pointer',fontFamily:'inherit'}}>
+                  {savingSuspension
+                    ? '⏳ '+(lang==='ar'?'جاري الحفظ...':'En cours...')
+                    : '⏸️ '+(lang==='ar'?'تعليق':'Suspendre')}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ─── Modale de confirmation (utilisée par showConfirm) ─── */}
+        {/* Sans ce rendu, tous les boutons 🗑 Supprimer sont silencieux */}
+        {/* car le state passe bien à isOpen:true mais rien ne l'affiche. */}
+        <ConfirmModal
+          isOpen={confirmModal.isOpen}
+          title={confirmModal.title}
+          message={confirmModal.message}
+          onConfirm={confirmModal.onConfirm}
+          onCancel={hideConfirm}
+          confirmLabel={confirmModal.confirmLabel}
+          confirmColor={confirmModal.confirmColor}
+          loading={confirmLoading}
+          lang={lang}
+        />
+    </>
+  );
 
   if (isMobile) {
     // Couleurs dynamiques depuis niveauxActifs, fallback hardcoded
@@ -4134,8 +1967,9 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
       setEditEleve(null); setMobileEditEleve(null);
     };
     const handleSaveEleve = async () => {
-      if (editEleve) { await modifierEleve(); setShowFormEleve(false); resetFormEleve(); }
-      else           { await ajouterEleve();  setShowFormEleve(false); resetFormEleve(); }
+      // FIX (oct 2026) : ne fermer le formulaire qu'en cas de succes (sinon saisie perdue sur erreur / doublon)
+      if (editEleve) { if (await modifierEleve()) { setShowFormEleve(false); resetFormEleve(); } }
+      else           { if (await ajouterEleve())  { setShowFormEleve(false); resetFormEleve(); } }
     };
     const startEditEleve = (e) => {
       setEditEleve({...e}); setMobileEditEleve(e);
@@ -4156,6 +1990,15 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
       {k:'niveaux_link',  l:lang==='ar'?'المستويات':'Niveaux',   icon:'📚'},
       {k:'ensembles_link',l:lang==='ar'?'مجموعات السور':'Ensembles', icon:'📦'},
       {k:'bareme',        l:lang==='ar'?'النقاط':'Barème',       icon:'⭐'},
+      // B2 (oct 2026) : parametrage accessible sur mobile (avant : seulement via le hub PC)
+      {k:'sens_recitation',l:lang==='ar'?'اتجاه التحفيظ':'Sens récitation', icon:'🔄'},
+      {k:'periodes',      l:lang==='ar'?'الفترات':'Périodes',      icon:'🗓️'},
+      {k:'identite_ecole',l:lang==='ar'?'هوية المدرسة':'Identité école', icon:'👔'},
+      {k:'cours_link',    l:lang==='ar'?'الدروس':'Cours',          icon:'📚'},
+      {k:'presences_link',l:lang==='ar'?'الحضور':'Présences',      icon:'📅'},
+      {k:'tarifs_link',   l:lang==='ar'?'تعرفات الأساتذة':'Tarifs profs', icon:'💰'},
+      {k:'seuils_link',   l:lang==='ar'?'عتبات الأولياء':'Seuils parents', icon:'👨‍👩‍👧'},
+      {k:'import_link',   l:lang==='ar'?'استيراد جماعي':'Import en masse', icon:'📥'},
     ];
 
     if (loading) return <div style={{padding:'3rem',textAlign:'center',color:'#888'}}>...</div>;
@@ -4174,68 +2017,64 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
     );
 
     return (
-      <div style={{paddingBottom:80,background:'#f5f5f0',minHeight:'100vh'}}>
+      <div style={{paddingBottom:80,background:C.bg,minHeight:'100vh'}}>
 
         {/* ─── HEADER ─── */}
-        <div style={{background:'linear-gradient(135deg,#085041,#1D9E75)',padding:'48px 16px 14px',position:'sticky',top:0,zIndex:100}}>
-          <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:12}}>
-            <button onClick={()=>goBack?goBack():navigate('dashboard')}
-              style={{background:'rgba(255,255,255,0.22)',border:'1px solid rgba(255,255,255,0.25)',borderRadius:10,padding:'0',color:'#fff',fontSize:20,cursor:'pointer',flexShrink:0,width:44,height:44,display:'flex',alignItems:'center',justifyContent:'center'}}>←</button>
-            <div style={{flex:1,fontSize:17,fontWeight:800,color:'#fff'}}>
-              {(() => {
-                // Breadcrumb : 'Administration › Tab actuel' avec icone par tab
-                const TAB_INFO = {
-                  eleves:        { icon:'👥', ar:'الطلاب',         fr:'Élèves' },
-                  instituteurs:  { icon:'👨‍🏫', ar:'الأساتذة',        fr:'Profs' },
-                  parents:       { icon:'👨‍👩‍👦', ar:'الآباء',          fr:'Parents' },
-                  jalons:        { icon:'🏅', ar:'الشهادات',        fr:'Jalons' },
-                  passage_niveau:{ icon:'📈', ar:'قواعد الانتقال',   fr:'Règles de passage' },
-                  bareme:        { icon:'⭐', ar:'النقاط',           fr:'Notes' },
-                  parametres:    { icon:'⚙️', ar:'الإعدادات',        fr:'Paramètres' },
-                  sens_recitation:{ icon:'🧭', ar:'اتجاه التلاوة',    fr:'Sens récitation' },
-                  periodes:      { icon:'📅', ar:'الفترات',          fr:'Périodes' },
-                };
-                const info = TAB_INFO[tab];
-                const adminLabel = lang==='ar' ? 'الإدارة' : 'Administration';
-                if (!info) return <>⚙️ {adminLabel}</>;
-                return <>⚙️ {adminLabel} <span style={{opacity:0.6,margin:'0 6px'}}>›</span> {info.icon} {lang==='ar' ? info.ar : info.fr}</>;
-              })()}
-            </div>
+        <MobileHeader
+          title={(() => {
+            // Breadcrumb : 'Administration › Tab actuel'
+            const TAB_INFO = {
+              eleves:        { ar:'الطلاب',         fr:'Élèves' },
+              instituteurs:  { ar:'الأساتذة',        fr:'Profs' },
+              parents:       { ar:'الآباء',          fr:'Parents' },
+              jalons:        { ar:'الشهادات',        fr:'Jalons' },
+              passage_niveau:{ ar:'قواعد الانتقال',   fr:'Règles de passage' },
+              bareme:        { ar:'النقاط',           fr:'Notes' },
+              parametres:    { ar:'الإعدادات',        fr:'Paramètres' },
+              sens_recitation:{ ar:'اتجاه التلاوة',    fr:'Sens récitation' },
+              periodes:      { ar:'الفترات',          fr:'Périodes' },
+              identite_ecole:{ ar:'هوية المدرسة',     fr:'Identité école' },
+            };
+            const info = TAB_INFO[tab];
+            const adminLabel = lang==='ar' ? 'الإدارة' : 'Administration';
+            if (!info) return adminLabel;
+            return `${adminLabel} › ${lang==='ar' ? info.ar : info.fr}`;
+          })()}
+          icon={Settings}
+          onBack={()=>goBack?goBack():navigate('dashboard')}
+          lang={lang}
+          actions={(tab==='eleves'||tab==='instituteurs'||tab==='parents')&&user.role==='surveillant' ? <>
             {tab==='eleves'&&user.role==='surveillant'&&(
-              <button onClick={()=>{resetFormEleve();setShowFormEleve(v=>!v);}}
-                style={{background:showFormEleve?'rgba(255,255,255,0.15)':'rgba(255,255,255,0.25)',color:'#fff',
-                  border:'1px solid rgba(255,255,255,0.3)',borderRadius:10,padding:'7px 14px',fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
-                {showFormEleve?'✕':(lang==='ar'?'+ إضافة':'+ Ajouter')}
-              </button>
+              <HeaderIconButton icon={showFormEleve?X:Plus}
+                label={showFormEleve?(lang==='ar'?'إغلاق':'Fermer'):(lang==='ar'?'إضافة':'Ajouter')}
+                onClick={()=>{resetFormEleve();setShowFormEleve(v=>!v);}} />
             )}
             {tab==='instituteurs'&&user.role==='surveillant'&&(
-              <button onClick={()=>setShowFormInst(v=>!v)}
-                style={{background:'rgba(255,255,255,0.25)',color:'#fff',border:'1px solid rgba(255,255,255,0.3)',borderRadius:10,padding:'7px 14px',fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
-                {showFormInst?'✕':(lang==='ar'?'+ إضافة':'+ Ajouter')}
-              </button>
+              <HeaderIconButton icon={showFormInst?X:Plus}
+                label={showFormInst?(lang==='ar'?'إغلاق':'Fermer'):(lang==='ar'?'إضافة':'Ajouter')}
+                onClick={()=>setShowFormInst(v=>!v)} />
             )}
             {tab==='parents'&&user.role==='surveillant'&&(
-              <button onClick={ouvrirModaleLier}
-                title={lang==='ar'?'ربط حسابات الأولياء':'Lier des comptes parents'}
-                style={{background:'rgba(255,255,255,0.25)',color:'#fff',border:'1px solid rgba(255,255,255,0.3)',borderRadius:10,padding:'7px 14px',fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'inherit',display:'flex',alignItems:'center',gap:5}}>
-                🔗 {lang==='ar'?'ربط':'Lier'}
-              </button>
+              <HeaderIconButton icon={Link2}
+                label={lang==='ar'?'ربط حسابات الأولياء':'Lier des comptes parents'}
+                onClick={ouvrirModaleLier} />
             )}
-          </div>
+          </> : null}>
           {msg.text&&(
-            <div style={{margin:'0 0 10px',padding:'10px 14px',borderRadius:10,fontSize:13,
+            <div style={{padding:'10px 14px',borderRadius:10,fontSize:13,
               background:msg.type==='error'?'rgba(226,75,74,0.9)':'rgba(29,158,117,0.9)',color:'#fff'}}>
               {msg.text}
             </div>
           )}
-        </div>
+        </MobileHeader>
         {/* Tabs Phase 2 — 5 visibles + Plus (pattern FicheEleve) */}
         {(() => {
           const tabDansPlus = TABS_PLUS.find(t => t.k === tab);
           const plusActif = !!tabDansPlus;
           return (
-            <div style={{position:'relative',background:'#064e3b',zIndex:99,
-              position:'sticky',top:72,borderBottom:'1px solid rgba(255,255,255,0.1)'}}>
+            <div style={{background:'#064e3b',zIndex:99,margin:'0 -16px',
+              // Charte : colle sous l'en-tete commun (100 px de haut, moins les 16 px de padding de <main>)
+              position:'sticky',top:'calc(84px + env(safe-area-inset-top, 0px))',borderBottom:'1px solid rgba(255,255,255,0.1)'}}>
               <div style={{display:'flex',gap:0,overflowX:'auto',scrollbarWidth:'none'}}>
                 {TABS_PRINCIPAUX.map(({k,l})=>(
                   <div key={k} onClick={()=>{setTab(k); setShowGestionPlusMenu(false);}}
@@ -4254,7 +2093,6 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
                     color:plusActif?'#4AE4A8':'rgba(255,255,255,0.65)',
                     borderBottom:plusActif?'2.5px solid #4AE4A8':'2.5px solid transparent',
                     background:'transparent',transition:'all 0.15s'}}>
-                  {plusActif && <span>{tabDansPlus.icon}</span>}
                   {plusActif ? tabDansPlus.l : (lang==='ar'?'المزيد':'Plus')}
                   <span style={{fontSize:9,opacity:0.7}}>{showGestionPlusMenu ? '▲' : '▼'}</span>
                 </div>
@@ -4280,7 +2118,6 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
                             color:sel?'#085041':'#333',
                             fontWeight:sel?700:500,fontSize:13,
                             transition:'all 0.15s'}}>
-                          <span style={{fontSize:16}}>{t.icon}</span>
                           {t.l}
                         </div>
                       );
@@ -4299,7 +2136,7 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
               <div style={{background:'#fff',borderRadius:16,padding:'18px',marginBottom:14,
                 border:`1.5px solid ${mobileEditEleve?'#378ADD':'#1D9E75'}`}}>
                 <div style={{fontSize:15,fontWeight:700,color:'#085041',marginBottom:14}}>
-                  {mobileEditEleve?(lang==='ar'?'تعديل الطالب':'✏️ Modifier'):(lang==='ar'?'إضافة طالب':'👤 Nouvel élève')}
+                  {mobileEditEleve?(lang==='ar'?'تعديل الطالب':'Modifier'):(lang==='ar'?'إضافة طالب':'Nouvel élève')}
                 </div>
 
                 {/* Prénom + Nom côte à côte */}
@@ -4319,7 +2156,8 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
                 <div style={{marginBottom:12}}>
                   <label style={{fontSize:12,fontWeight:600,color:'#666',display:'block',marginBottom:8}}>{lang==='ar'?'المستوى الدراسي':'Niveau scolaire'} <span style={{color:'#E24B4A'}}>*</span></label>
                   <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>
-                    {(niveauxActifs||[]).map(n=>{
+                    {/* FIX (oct 2026) : en modification, seul le niveau actuel (passage via la fiche) */}
+                    {(niveauxActifs||[]).filter(n=>!editEleve||editEleve.code_niveau===n.code).map(n=>{
                       const nc=n.couleur||getNC(n.code);
                       const cur=editEleve?editEleve.code_niveau:newEleve.code_niveau;
                       return(
@@ -4402,18 +2240,19 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
                     style={{flex:1,padding:'13px',background:'#f5f5f0',color:'#666',border:'none',borderRadius:12,fontSize:14,fontWeight:600,cursor:'pointer',fontFamily:'inherit'}}>
                     {lang==='ar'?'إلغاء':'Annuler'}
                   </button>
-                  <button onClick={handleSaveEleve}
+                  <button onClick={handleSaveEleve} disabled={!mobileEditEleve && savingEleve} /* FIX (oct 2026) : anti double-clic */
                     style={{flex:2,padding:'13px',background:mobileEditEleve?'#378ADD':'#1D9E75',color:'#fff',border:'none',borderRadius:12,fontSize:14,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
-                    {mobileEditEleve?(lang==='ar'?'تحديث ✓':'Mettre à jour ✓'):(lang==='ar'?'حفظ':'Enregistrer')}
+                    {mobileEditEleve?(lang==='ar'?'تحديث':'Mettre à jour'):(lang==='ar'?'حفظ':'Enregistrer')}
                   </button>
                 </div>
               </div>
             )}
 
             {/* Recherche */}
-            <input style={{width:'100%',padding:'12px 16px',borderRadius:12,border:'0.5px solid #e0e0d8',fontSize:15,fontFamily:'inherit',boxSizing:'border-box',background:'#fff',marginBottom:8}}
-              placeholder={lang==='ar'?'بحث عن طالب...':'Rechercher un élève...'}
-              value={searchEleve||''} onChange={e=>setSearchEleve(e.target.value)}/>
+            <div style={{marginBottom:8}}>
+              <SearchField value={searchEleve||''} onChange={setSearchEleve} lang={lang} id="recherche-eleves-gestion"
+                placeholder={lang==='ar'?'بحث عن طالب...':'Rechercher un élève...'} />
+            </div>
             {/* Toggle Afficher uniquement actifs */}
             <label style={{display:'flex',alignItems:'center',gap:8,fontSize:12,color:'#666',marginBottom:8,paddingLeft:4,cursor:'pointer'}}>
               <input type="checkbox" checked={afficherUniquementActifs}
@@ -4433,52 +2272,38 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
               const parentLie = (parents||[]).find(p => (p.eleve_ids||[]).includes(e.id));
               const emailParent = parentLie?.email || null;
               return(
-                <div key={e.id} style={{background:'#fff',borderRadius:12,padding:'12px 14px',marginBottom:8,border:'0.5px solid #e0e0d8',display:'flex',alignItems:'center',gap:10,boxShadow:'0 1px 3px rgba(0,0,0,0.04)',opacity:e.suspendu_at?0.65:1}}>
-                  <div onClick={()=>navigate('fiche',e,{tab})} style={{cursor:'pointer',width:40,height:40,borderRadius:'50%',background:`${nc}20`,color:nc,display:'flex',alignItems:'center',justifyContent:'center',fontWeight:800,fontSize:13,flexShrink:0}}>
-                    {((e.prenom||'?')[0])+((e.nom||'?')[0])}
-                  </div>
-                  <div onClick={()=>navigate('fiche',e,{tab})} style={{flex:1,minWidth:0,cursor:'pointer'}}>
-                    <div style={{fontWeight:700,fontSize:13,display:'flex',alignItems:'center',gap:6,flexWrap:'wrap'}}>
-                      <span>{e.prenom} {e.nom}</span>
+                <div key={e.id} style={{marginBottom:8,opacity:e.suspendu_at?0.65:1}}>
+                  <ListRow lang={lang}
+                    leading={<UiAvatar prenom={e.prenom} nom={e.nom} color={nc} />}
+                    title={<>
+                      {e.prenom} {e.nom}
                       {e.suspendu_at && (
-                        <span style={{display:'inline-block',padding:'1px 6px',borderRadius:8,fontSize:9,fontWeight:700,background:'#FFF3E0',color:'#D85A30',border:'0.5px solid #D85A30'}}
+                        <span style={{display:'inline-block',marginInlineStart:6,padding:'1px 6px',borderRadius:8,fontSize:10,fontWeight:700,background:C.warnSoft,color:C.warn,verticalAlign:'middle'}}
                           title={e.suspendu_motif||''}>
-                          ⏸️ {lang==='ar'?'معلق':'Susp.'}
+                          {lang==='ar'?'معلق':'Susp.'}
                         </span>
                       )}
-                    </div>
-                    <div style={{display:'flex',gap:5,marginTop:2,alignItems:'center',flexWrap:'wrap'}}>
-                      <span style={{padding:'1px 6px',borderRadius:10,background:`${nc}20`,color:nc,fontSize:10,fontWeight:700}}>{e.code_niveau||'?'}</span>
-                      {e.eleve_id_ecole&&<span style={{fontSize:10,color:'#bbb'}}>#{e.eleve_id_ecole}</span>}
-                      {isSour&&e.sourates_acquises>0&&<span style={{fontSize:10,color:'#1D9E75',fontWeight:600}}>📖 {e.sourates_acquises}</span>}
-                      {!isSour&&<span style={{fontSize:10,color:'#888'}}>{lang==='ar'?'ح':'H'}.{e.hizb_depart} {lang==='ar'?'ث':'T'}.{e.tomon_depart}</span>}
-                    </div>
-                    {/* M2b — Coordonnees : tel eleve + email parent + date inscription */}
-                    {(e.telephone||emailParent||e.date_inscription)&&(
-                      <div style={{display:'flex',gap:8,marginTop:3,fontSize:10,color:'#aaa',flexWrap:'wrap',alignItems:'center'}}>
-                        {e.telephone&&<span style={{whiteSpace:'nowrap'}}>📞 {e.telephone}</span>}
+                    </>}
+                    subtitle={[
+                      e.eleve_id_ecole ? `#${e.eleve_id_ecole}` : null,
+                      isSour&&e.sourates_acquises>0 ? `${e.sourates_acquises} ${lang==='ar'?'سورة':'sourate(s)'}` : null,
+                      !isSour ? `${lang==='ar'?'ح':'H'}.${e.hizb_depart} ${lang==='ar'?'ث':'T'}.${e.tomon_depart}` : null,
+                    ].filter(Boolean).join(' · ') || null}
+                    meta={
+                      <div style={{display:'flex',gap:8,fontSize:11,color:C.muted,flexWrap:'wrap',alignItems:'center'}}>
+                        <LevelBadge code={e.code_niveau||'?'} color={nc} />
+                        {/* M2b — Coordonnees : tel eleve + email parent + date inscription */}
+                        {e.telephone&&<span style={{whiteSpace:'nowrap'}} dir="ltr">{e.telephone}</span>}
                         {emailParent && (
                           <span title={emailParent} style={{whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis',maxWidth:160,display:'inline-block'}}>
-                            ✉️ {emailParent}
+                            {emailParent}
                           </span>
                         )}
-                        {e.date_inscription&&<span style={{whiteSpace:'nowrap'}}>📅 {new Date(e.date_inscription).toLocaleDateString(lang==='ar'?'ar-MA':'fr-FR',{day:'2-digit',month:'short'})}</span>}
+                        {e.date_inscription&&<span style={{whiteSpace:'nowrap'}}>{new Date(e.date_inscription).toLocaleDateString(lang==='ar'?'ar-MA':'fr-FR',{day:'2-digit',month:'short'})}</span>}
                       </div>
-                    )}
-                  </div>
-                  {user.role==='surveillant'&&(
-                    <div style={{display:'flex',gap:5,flexShrink:0}}>
-                      <button onClick={()=>startEditEleve(e)} style={{background:'#E6F1FB',color:'#378ADD',border:'none',borderRadius:8,padding:'7px 9px',fontSize:12,cursor:'pointer'}}>✏️</button>
-                      {e.suspendu_at ? (
-                        <button onClick={()=>reactiverEleve(e)} title={lang==='ar'?'تفعيل':'Réactiver'}
-                          style={{background:'#E1F5EE',color:'#085041',border:'none',borderRadius:8,padding:'7px 9px',fontSize:12,cursor:'pointer'}}>▶️</button>
-                      ) : (
-                        <button onClick={()=>ouvrirModaleSuspendre(e)} title={lang==='ar'?'تعليق':'Suspendre'}
-                          style={{background:'#FFF3E0',color:'#D85A30',border:'none',borderRadius:8,padding:'7px 9px',fontSize:12,cursor:'pointer'}}>⏸️</button>
-                      )}
-                      <button onClick={()=>supprimerEleve(e.id)} style={{background:'#FCEBEB',color:'#E24B4A',border:'none',borderRadius:8,padding:'7px 9px',fontSize:12,cursor:'pointer'}}>🗑</button>
-                    </div>
-                  )}
+                    }
+                    onClick={()=>navigate('fiche',e,{tab})}
+                    onMore={user.role==='surveillant' ? ()=>setMenuEleveM(e) : undefined} />
                 </div>
               );
             })}
@@ -4490,8 +2315,9 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
           <div style={{padding:'12px'}}>
             {showFormInst&&user.role==='surveillant'&&(
               <div style={{background:'#fff',borderRadius:16,padding:'18px',marginBottom:14,border:'1.5px solid #378ADD'}}>
-                <div style={{fontSize:15,fontWeight:700,color:'#085041',marginBottom:14}}>👨‍🏫 {lang==='ar'?'إضافة أستاذ':'Nouvel instituteur'}</div>
-                {[{label:lang==='ar'?'الاسم':'Prénom',key:'prenom'},{label:lang==='ar'?'اللقب':'Nom',key:'nom'},{label:'Identifiant',key:'identifiant',ph:'ex: m.karim'}].map(f=>(
+                <div style={{fontSize:15,fontWeight:700,color:'#085041',marginBottom:14}}>{lang==='ar'?'إضافة أستاذ':'Nouvel instituteur'}</div>
+                {/* FIX (oct 2026) : champ "Identifiant" retire (ignore : le login est genere automatiquement prenom_nom) */}
+                {[{label:lang==='ar'?'الاسم':'Prénom',key:'prenom'},{label:lang==='ar'?'اللقب':'Nom',key:'nom'}].map(f=>(
                   <FI key={f.key} label={f.label+' *'} val={newInst[f.key]} ph={f.ph||f.label}
                     onChange={e=>setNewInst(x=>({...x,[f.key]:e.target.value}))} required/>
                 ))}
@@ -4511,7 +2337,7 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
                       style={{padding:'0 14px',background:'#E1F5EE',color:'#085041',
                         border:'1px solid #1D9E7540',borderRadius:10,fontSize:12,
                         fontWeight:700,cursor:'pointer',fontFamily:'inherit',whiteSpace:'nowrap'}}>
-                      ✨ {lang==='ar'?'اقتراح':'Auto'}
+                      {lang==='ar'?'اقتراح':'Auto'}
                     </button>
                   </div>
                 </div>
@@ -4524,7 +2350,7 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
                   onChange={e=>setNewInst(x=>({...x,email:e.target.value}))}/>
                 <div style={{display:'flex',gap:8}}>
                   <button onClick={()=>setShowFormInst(false)} style={{flex:1,padding:'13px',background:'#f5f5f0',color:'#666',border:'none',borderRadius:12,fontSize:14,fontWeight:600,cursor:'pointer',fontFamily:'inherit'}}>{lang==='ar'?'إلغاء':'Annuler'}</button>
-                  <button onClick={async()=>{await ajouterInstituteur();setShowFormInst(false);}} style={{flex:2,padding:'13px',background:'#085041',color:'#fff',border:'none',borderRadius:12,fontSize:14,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>{lang==='ar'?'حفظ':'Enregistrer'}</button>
+                  <button disabled={savingInst} onClick={async()=>{if(await ajouterInstituteur())setShowFormInst(false);/* FIX (oct 2026) : reste ouvert en cas d'erreur */}} style={{flex:2,padding:'13px',background:'#085041',color:'#fff',border:'none',borderRadius:12,fontSize:14,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>{lang==='ar'?'حفظ':'Enregistrer'}</button>
                 </div>
               </div>
             )}
@@ -4535,58 +2361,42 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
               {lang==='ar'?'عرض المدرسين النشطين فقط':'Afficher uniquement les instituteurs actifs'}
             </label>
             {instituteurs.length===0?(
-              <div style={{textAlign:'center',color:'#aaa',padding:'3rem',background:'#fff',borderRadius:12}}>
-                <div style={{fontSize:36,marginBottom:10}}>👨‍🏫</div>
-                <div style={{fontSize:14}}>{lang==='ar'?'لا يوجد أساتذة':'Aucun instituteur'}</div>
-              </div>
+              <EmptyState icon={GraduationCap} title={lang==='ar'?'لا يوجد أساتذة':'Aucun instituteur'} />
             ):instituteurs.filter(inst => !afficherUniquementActifsInst || !inst.suspendu_at).map(inst=>{
               const nb=eleves.filter(e=>e.instituteur_referent_id===inst.id).length;
               return(
-                <div key={inst.id} style={{background:'#fff',borderRadius:12,padding:'14px',marginBottom:8,border:'0.5px solid #e0e0d8',display:'flex',alignItems:'center',gap:12,opacity:inst.suspendu_at?0.65:1}}>
-                  <div style={{width:42,height:42,borderRadius:'50%',background:'#E6F1FB',color:'#0C447C',display:'flex',alignItems:'center',justifyContent:'center',fontWeight:800,fontSize:14,flexShrink:0}}>
-                    {((inst.prenom||'?')[0])+((inst.nom||'?')[0])}
-                  </div>
-                  <div style={{flex:1,minWidth:0}}>
-                    <div style={{display:'flex',alignItems:'center',gap:6,flexWrap:'wrap'}}>
-                      <div style={{fontWeight:700,fontSize:14}}>{inst.prenom} {inst.nom}</div>
+                <div key={inst.id} style={{marginBottom:8,opacity:inst.suspendu_at?0.65:1}}>
+                  {/* F10 (oct 2026) : avatar + nom ouvrent le profil instituteur (avant : PC seulement, via Dashboard) */}
+                  <ListRow lang={lang}
+                    leading={<UiAvatar prenom={inst.prenom} nom={inst.nom} color={C.info} />}
+                    title={<>
+                      {inst.prenom} {inst.nom}
                       {inst.instituteur_id_ecole && (
-                        <div style={{
-                          padding:'2px 8px',background:'#E1F5EE',color:'#085041',
-                          borderRadius:6,fontSize:10,fontWeight:700,
-                        }}>{inst.instituteur_id_ecole}</div>
-                      )}
-                      {inst.suspendu_at && (
-                        <span style={{display:'inline-block',padding:'1px 6px',borderRadius:8,fontSize:9,fontWeight:700,background:'#FFF3E0',color:'#D85A30',border:'0.5px solid #D85A30'}}
-                          title={inst.suspendu_motif||''}>
-                          ⏸️ {lang==='ar'?'معلق':'Susp.'}
+                        <span style={{display:'inline-block',marginInlineStart:6,padding:'1px 6px',borderRadius:6,fontSize:10,fontWeight:700,background:C.bg,color:C.muted,border:`1px solid ${C.line}`,verticalAlign:'middle'}}>
+                          {inst.instituteur_id_ecole}
                         </span>
                       )}
-                    </div>
-                    <div style={{fontSize:11,color:'#888',marginTop:2}}>{inst.identifiant} · {nb} {lang==='ar'?'طالب':'élève(s)'}</div>
-                    {/* M2a — Coordonnees Tel + Email (alignement avec PC) */}
-                    {(inst.telephone||inst.email)&&(
-                      <div style={{display:'flex',gap:10,marginTop:3,fontSize:10,color:'#aaa',flexWrap:'wrap',alignItems:'center'}}>
-                        {inst.telephone && <span style={{whiteSpace:'nowrap'}}>📞 {inst.telephone}</span>}
+                      {inst.suspendu_at && (
+                        <span style={{display:'inline-block',marginInlineStart:6,padding:'1px 6px',borderRadius:8,fontSize:10,fontWeight:700,background:C.warnSoft,color:C.warn,verticalAlign:'middle'}}
+                          title={inst.suspendu_motif||''}>
+                          {lang==='ar'?'معلق':'Susp.'}
+                        </span>
+                      )}
+                    </>}
+                    subtitle={`${inst.identifiant} · ${nb} ${lang==='ar'?'طالب':'élève(s)'}`}
+                    meta={(inst.telephone||inst.email) ? (
+                      /* M2a — Coordonnees Tel + Email (alignement avec PC) */
+                      <div style={{display:'flex',gap:10,fontSize:11,color:C.muted,flexWrap:'wrap',alignItems:'center'}}>
+                        {inst.telephone && <span style={{whiteSpace:'nowrap'}} dir="ltr">{inst.telephone}</span>}
                         {inst.email && (
                           <span title={inst.email} style={{whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis',maxWidth:180,display:'inline-block'}}>
-                            ✉️ {inst.email}
+                            {inst.email}
                           </span>
                         )}
                       </div>
-                    )}
-                  </div>
-                  {user.role==='surveillant'&&(
-                    <div style={{display:'flex',gap:5,flexShrink:0}}>
-                      {inst.suspendu_at ? (
-                        <button onClick={()=>reactiverInst(inst)} title={lang==='ar'?'تفعيل':'Réactiver'}
-                          style={{background:'#E1F5EE',color:'#085041',border:'none',borderRadius:8,padding:'7px 9px',fontSize:12,cursor:'pointer'}}>▶️</button>
-                      ) : (
-                        <button onClick={()=>ouvrirModaleSuspendreInst(inst)} title={lang==='ar'?'تعليق':'Suspendre'}
-                          style={{background:'#FFF3E0',color:'#D85A30',border:'none',borderRadius:8,padding:'7px 9px',fontSize:12,cursor:'pointer'}}>⏸️</button>
-                      )}
-                      <button onClick={()=>supprimerInstituteur(inst)} style={{background:'#FCEBEB',color:'#E24B4A',border:'none',borderRadius:8,padding:'7px 9px',fontSize:12,cursor:'pointer'}}>🗑</button>
-                    </div>
-                  )}
+                    ) : null}
+                    onClick={()=>navigate('profil_instituteur', inst)}
+                    onMore={user.role==='surveillant' ? ()=>setMenuInstM(inst) : undefined} />
                 </div>
               );
             })}
@@ -4599,7 +2409,7 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
             {showFormParent&&editingParentId&&user.role==='surveillant'&&(
               <div style={{background:'#fff',borderRadius:16,padding:'18px',marginBottom:14,border:`1.5px solid ${editingParentId?'#378ADD':'#EF9F27'}`}}>
                 <div style={{fontSize:15,fontWeight:700,color:'#085041',marginBottom:14}}>
-                  {editingParentId?(lang==='ar'?'تعديل ولي الأمر':'✏️ Modifier parent'):(lang==='ar'?'إضافة ولي أمر':'👨‍👩‍👦 Nouveau parent')}
+                  {editingParentId?(lang==='ar'?'تعديل ولي الأمر':'Modifier parent'):(lang==='ar'?'إضافة ولي أمر':'Nouveau parent')}
                 </div>
                 {[{label:lang==='ar'?'الاسم':'Prénom',key:'prenom'},{label:lang==='ar'?'اللقب':'Nom',key:'nom'},{label:'Identifiant',key:'identifiant',ph:'parent.nom'},{label:lang==='ar'?'الهاتف':'Téléphone',key:'telephone',ph:'06xxxxxxxx',type:'tel'},{label:lang==='ar'?'البريد (اختياري)':'Email (optionnel)',key:'email',ph:'parent@email.com',type:'email'}].map(f=>(
                   <FI key={f.key} label={(f.key==='telephone'||f.key==='email')?f.label:f.label+' *'} val={formParent[f.key]||''} ph={f.ph||f.label} type={f.type||'text'}
@@ -4631,82 +2441,43 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
                 <div style={{display:'flex',gap:8}}>
                   <button onClick={()=>{setShowFormParent(false);setEditingParentId(null);setFormParent({prenom:'',nom:'',identifiant:'',mot_de_passe:'',telephone:'',email:'',eleve_ids:[]});}}
                     style={{flex:1,padding:'13px',background:'#f5f5f0',color:'#666',border:'none',borderRadius:12,fontSize:14,fontWeight:600,cursor:'pointer',fontFamily:'inherit'}}>{lang==='ar'?'إلغاء':'Annuler'}</button>
-                  <button onClick={async()=>{
-                    if(editingParentId) await modifierParent();
-                    else await ajouterParent();
-                    setShowFormParent(false);setEditingParentId(null);setFormParent({prenom:'',nom:'',identifiant:'',mot_de_passe:'',telephone:'',email:'',eleve_ids:[]});loadData();
-                  }} style={{flex:2,padding:'13px',background:editingParentId?'#378ADD':'#EF9F27',color:'#fff',border:'none',borderRadius:12,fontSize:14,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
+                  <button onClick={sauvegarderParent} style={{flex:2,padding:'13px',background:editingParentId?'#378ADD':'#EF9F27',color:'#fff',border:'none',borderRadius:12,fontSize:14,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
                     {lang==='ar'?'حفظ':'Enregistrer'}
                   </button>
                 </div>
               </div>
             )}
             {parents.length===0?(
-              <div style={{textAlign:'center',color:'#aaa',padding:'3rem',background:'#fff',borderRadius:12}}>
-                <div style={{fontSize:36,marginBottom:10}}>👨‍👩‍👦</div>
-                <div style={{fontSize:14}}>{lang==='ar'?'لا يوجد آباء':'Aucun parent'}</div>
-              </div>
+              <EmptyState icon={Users} title={lang==='ar'?'لا يوجد آباء':'Aucun parent'} />
             ):parents.map(p=>{
               const enfants=eleves.filter(e=>(p.eleve_ids||[]).includes(e.id));
               return(
-                <div key={p.id} style={{background:'#fff',borderRadius:12,padding:'13px 14px',marginBottom:8,border:'0.5px solid #e0e0d8'}}>
-                  <div style={{display:'flex',alignItems:'center',gap:10}}>
-                    <div style={{width:40,height:40,borderRadius:'50%',background:'#FAEEDA',color:'#EF9F27',display:'flex',alignItems:'center',justifyContent:'center',fontWeight:800,fontSize:13,flexShrink:0}}>
-                      {((p.prenom||'?')[0])+((p.nom||'?')[0])}
-                    </div>
-                    <div style={{flex:1}}>
-                      <div style={{display:'flex',alignItems:'center',gap:6,flexWrap:'wrap'}}>
-                        <div style={{fontWeight:700,fontSize:13}}>{p.prenom} {p.nom}</div>
-                        {enfants.length >= 2 && (
-                          <span style={{display:'inline-block',padding:'1px 7px',borderRadius:8,fontSize:9,fontWeight:700,background:'#E6F1FB',color:'#0C447C',border:'0.5px solid #378ADD30'}}
-                            title={lang==='ar'?`عائلة (${enfants.length} أطفال)`:`Famille (${enfants.length} enfants)`}>
-                            🔗 {lang==='ar'?'عائلة':'Famille'}
-                          </span>
-                        )}
-                      </div>
-                      {/* M2c — Coordonnees claires : ID + Tel + Email */}
-                      <div style={{fontSize:10,color:'#aaa',marginTop:2,display:'flex',gap:8,flexWrap:'wrap',alignItems:'center'}}>
-                        <span style={{whiteSpace:'nowrap'}}>🆔 {p.identifiant}</span>
-                        {p.telephone && <span style={{whiteSpace:'nowrap'}}>📞 {p.telephone}</span>}
-                        {p.email && (
-                          <span title={p.email} style={{whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis',maxWidth:160,display:'inline-block'}}>
-                            ✉️ {p.email}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                    {user.role==='surveillant'&&(
+                <div key={p.id} style={{marginBottom:8}}>
+                  <ListRow lang={lang}
+                    leading={<UiAvatar prenom={p.prenom} nom={p.nom} color={C.warn} />}
+                    title={<>
+                      {p.prenom} {p.nom}
+                      {enfants.length >= 2 && (
+                        <span style={{display:'inline-block',marginInlineStart:6,padding:'1px 7px',borderRadius:8,fontSize:10,fontWeight:700,background:C.infoSoft,color:C.info,verticalAlign:'middle'}}
+                          title={lang==='ar'?`عائلة (${enfants.length} أطفال)`:`Famille (${enfants.length} enfants)`}>
+                          {lang==='ar'?'عائلة':'Famille'}
+                        </span>
+                      )}
+                    </>}
+                    /* M2c — Coordonnees claires : ID + Tel + Email */
+                    subtitle={[p.identifiant, p.telephone || null, p.email || null].filter(Boolean).join(' · ')}
+                    meta={enfants.length>0 ? (
+                      /* M2c — Badges enfants : eviter redondance noms si meme nom de famille */
                       <div style={{display:'flex',gap:5,flexWrap:'wrap'}}>
-                        <button onClick={()=>{setEditingParentId(p.id);setFormParent({prenom:p.prenom,nom:p.nom,identifiant:p.identifiant,mot_de_passe:'',telephone:p.telephone||'',email:p.email||'',eleve_ids:eleves.filter(e=>(p.eleve_ids||[]).includes(e.id)).map(e=>e.id)});setShowFormParent(true);window.scrollTo(0,0);}}
-                          style={{background:'#E6F1FB',color:'#378ADD',border:'none',borderRadius:8,padding:'6px 9px',fontSize:12,cursor:'pointer'}}>✏️</button>
-                        <button onClick={()=>reinitialiserMDPParent(p)}
-                          title={lang==='ar'?'إعادة تعيين كلمة المرور':'Réinitialiser MDP'}
-                          style={{background:'#E1F5EE',color:'#085041',border:'none',borderRadius:8,padding:'6px 9px',fontSize:12,cursor:'pointer'}}>🔑</button>
-                        {enfants.length >= 2 && (
-                          <button onClick={()=>ouvrirModaleDelier(p)}
-                            title={lang==='ar'?'فصل طفل':'Délier un enfant'}
-                            style={{background:'#FFF8EC',color:'#7B5800',border:'none',borderRadius:8,padding:'6px 9px',fontSize:12,cursor:'pointer'}}>🔓</button>
-                        )}
-                        <button onClick={()=>supprimerParent(p.id)}
-                          style={{background:'#FCEBEB',color:'#E24B4A',border:'none',borderRadius:8,padding:'6px 9px',fontSize:12,cursor:'pointer'}}>🗑</button>
+                        {enfants.map(e=>{
+                          const nc=getNC(e.code_niveau);
+                          // Si meme nom de famille que parent : afficher juste le prenom
+                          const labelEnfant = (p.nom && e.nom === p.nom) ? e.prenom : `${e.prenom} ${e.nom}`;
+                          return <LevelBadge key={e.id} code={labelEnfant} color={nc} />;
+                        })}
                       </div>
-                    )}
-                  </div>
-                  {/* M2c — Badges enfants : eviter redondance noms si meme nom de famille */}
-                  {enfants.length>0&&(
-                    <div style={{marginTop:8,display:'flex',gap:5,flexWrap:'wrap'}}>
-                      {enfants.map(e=>{
-                        const nc=getNC(e.code_niveau);
-                        // Si meme nom de famille que parent : afficher juste le prenom
-                        const labelEnfant = (p.nom && e.nom === p.nom) ? e.prenom : `${e.prenom} ${e.nom}`;
-                        return(
-                          <span key={e.id} style={{padding:'2px 8px',borderRadius:20,fontSize:10,fontWeight:600,background:`${nc}15`,color:nc}}>
-                            {labelEnfant}
-                          </span>
-                        );
-                      })}
-                    </div>
-                  )}
+                    ) : null}
+                    onMore={user.role==='surveillant' ? ()=>setMenuParentM({p, nbEnfants: enfants.length}) : undefined} />
                 </div>
               );
             })}
@@ -4721,7 +2492,7 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
             </div>
             {user.role==='surveillant'&&(
               <div style={{background:'#fff',borderRadius:14,padding:'16px',marginBottom:14,border:'0.5px solid #e0e0d8'}}>
-                <div style={{fontSize:14,fontWeight:700,color:'#534AB7',marginBottom:12}}>🏅 {lang==='ar'?'إضافة مرحلة':'Ajouter un jalon'}</div>
+                <div style={{fontSize:14,fontWeight:700,color:C.text,marginBottom:12}}>{lang==='ar'?'إضافة مرحلة':'Ajouter un jalon'}</div>
                 <FI label={lang==='ar'?'اسم الشهادة *':'Nom certificat *'} val={newJalon.nom_ar}
                   ph={lang==='ar'?'مثال: شهادة إتمام الأحزاب':'Ex: Certificat Hizb 1-10'}
                   onChange={e=>setNewJalon({...newJalon,nom_ar:e.target.value})}/>
@@ -4729,7 +2500,7 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
                 <div style={{marginBottom:12}}>
                   <label style={{fontSize:12,fontWeight:600,color:'#666',display:'block',marginBottom:8}}>{lang==='ar'?'نوع المرحلة':'Type'} *</label>
                   <div style={{display:'flex',gap:6}}>
-                    {[{v:'hizb',l:'🕌 Hizb'},{v:'ensemble_sourates',l:'📖 '+( lang==='ar'?'سور':'Sourates')},{v:'examen',l:'📝 '+(lang==='ar'?'امتحان':'Examen')}].map(opt=>(
+                    {[{v:'hizb',l:'Hizb'},{v:'ensemble_sourates',l:( lang==='ar'?'سور':'Sourates')},{v:'examen',l:(lang==='ar'?'امتحان':'Examen')}].map(opt=>(
                       <div key={opt.v} onClick={()=>setNewJalon({...newJalon,type_jalon:opt.v,hizb_ids:[],ensemble_id:'',examen_id:''})}
                         style={{flex:1,padding:'8px 4px',borderRadius:10,textAlign:'center',cursor:'pointer',fontSize:11,fontWeight:600,
                           border:`2px solid ${newJalon.type_jalon===opt.v?'#534AB7':'#e0e0d8'}`,
@@ -4749,7 +2520,6 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
                         style={{flex:1,padding:'10px 8px',borderRadius:10,textAlign:'center',cursor:'pointer',
                           border:`2px solid ${newJalon.condition_obtention===opt.v?'#534AB7':'#e0e0d8'}`,
                           background:newJalon.condition_obtention===opt.v?'#EEEDFE':'#fff'}}>
-                        <div style={{fontSize:18,marginBottom:3}}>{opt.icon}</div>
                         <div style={{fontSize:10,fontWeight:600,color:newJalon.condition_obtention===opt.v?'#534AB7':'#666'}}>{opt.l}</div>
                       </div>
                     ))}
@@ -4838,37 +2608,31 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
             )}
             {/* Liste jalons */}
             {jalons.length===0?(
-              <div style={{textAlign:'center',color:'#aaa',padding:'2rem',background:'#fff',borderRadius:12}}>
-                <div style={{fontSize:32,marginBottom:8}}>🏅</div>
-                <div style={{fontSize:13}}>{lang==='ar'?'لا توجد مراحل بعد':'Aucun jalon'}</div>
-              </div>
+              <EmptyState icon={Award} title={lang==='ar'?'لا توجد مراحل بعد':'Aucun jalon'} />
             ):jalons.map(j=>(
-              <div key={j.id} style={{background:'#fff',borderRadius:12,padding:'13px 14px',marginBottom:8,border:'0.5px solid #e0e0d8',opacity:j.actif?1:0.5}}>
-                <div style={{display:'flex',alignItems:'center',gap:10}}>
-                  <span style={{fontSize:22}}>{j.type_jalon==='examen'?'📝':'🏅'}</span>
-                  <div style={{flex:1}}>
-                    <div style={{fontWeight:700,fontSize:13,direction:'rtl',fontFamily:"'Tajawal',Arial,sans-serif"}}>{j.nom_ar||j.nom}</div>
-                    <div style={{fontSize:10,color:'#EF9F27',marginTop:2,fontWeight:600}}>
-                      {j.type_jalon==='hizb'?`Hizb: ${(j.hizb_ids||[]).sort((a,b)=>a-b).join(', ')}`
-                        :j.type_jalon==='ensemble_sourates'?`📖 ${(ensemblesDisp||[]).find(e=>e.id===j.ensemble_id)?.nom||'—'}`
-                        :`📝 ${(examensDisp||[]).find(e=>e.id===j.examen_id)?.nom||'—'}`}
+              <div key={j.id} style={{marginBottom:8,opacity:j.actif?1:0.5}}>
+                <ListRow lang={lang}
+                  leading={
+                    <div style={{width:40,height:40,borderRadius:12,flexShrink:0,background:C.bg,border:`1px solid ${C.line}`,
+                      display:'flex',alignItems:'center',justifyContent:'center',color:C.gold}}>
+                      {j.type_jalon==='examen'?<ClipboardCheck size={18}/>:<Award size={18}/>}
                     </div>
-                    <span style={{display:'inline-block',marginTop:3,padding:'1px 7px',borderRadius:10,fontSize:9,fontWeight:600,
-                      background:j.condition_obtention==='cumul_puis_examen'?'#EEEDFE':'#E1F5EE',
-                      color:j.condition_obtention==='cumul_puis_examen'?'#534AB7':'#085041'}}>
-                      {j.condition_obtention==='cumul_puis_examen'?(lang==='ar'?'🎯 تراكمي+امتحان':'🎯 Cumul+examen'):(lang==='ar'?'📚 تراكمي':'📚 Cumulatif')}
-                    </span>
-                  </div>
-                  <div style={{display:'flex',gap:5}}>
-                    <button onClick={async()=>{await supabase.from('jalons').update({actif:!j.actif}).eq('id',j.id);setJalons(prev=>prev.map(x=>x.id===j.id?{...x,actif:!x.actif}:x));}}
-                      style={{padding:'5px 8px',borderRadius:6,fontSize:10,fontWeight:600,cursor:'pointer',border:'none',
-                        background:j.actif?'#E1F5EE':'#f0f0ec',color:j.actif?'#085041':'#888'}}>
-                      {j.actif?(lang==='ar'?'نشط':'Actif'):(lang==='ar'?'غير نشط':'Inactif')}
-                    </button>
-                    <button onClick={async()=>{await supabase.from('jalons').delete().eq('id',j.id);setJalons(prev=>prev.filter(x=>x.id!==j.id));}}
-                      style={{padding:'5px 7px',borderRadius:6,background:'#FCEBEB',color:'#E24B4A',border:'none',cursor:'pointer',fontSize:11}}>🗑</button>
-                  </div>
-                </div>
+                  }
+                  title={<span style={{direction:'rtl',fontFamily:"'Tajawal',Arial,sans-serif"}}>{j.nom_ar||j.nom}</span>}
+                  subtitle={j.type_jalon==='hizb'?`Hizb: ${(j.hizb_ids||[]).sort((a,b)=>a-b).join(', ')}`
+                    :j.type_jalon==='ensemble_sourates'?`${(ensemblesDisp||[]).find(e=>e.id===j.ensemble_id)?.nom||'—'}`
+                    :`${(examensDisp||[]).find(e=>e.id===j.examen_id)?.nom||'—'}`}
+                  meta={
+                    <div style={{display:'flex',gap:6,fontSize:11,fontWeight:600,flexWrap:'wrap',alignItems:'center'}}>
+                      <span style={{color:j.condition_obtention==='cumul_puis_examen'?C.info:C.muted}}>
+                        {j.condition_obtention==='cumul_puis_examen'?(lang==='ar'?'تراكمي+امتحان':'Cumul+examen'):(lang==='ar'?'تراكمي':'Cumulatif')}
+                      </span>
+                      <span style={{color:j.actif?C.good:C.muted}}>
+                        · {j.actif?(lang==='ar'?'نشط':'Actif'):(lang==='ar'?'غير نشط':'Inactif')}
+                      </span>
+                    </div>
+                  }
+                  onMore={()=>setMenuJalonM(j)} />
               </div>
             ))}
           </div>
@@ -4878,7 +2642,7 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
         {tab==='passage_niveau'&&(
           <div style={{padding:'12px'}}>
             <div style={{background:'#E1F5EE',borderRadius:12,padding:'12px',marginBottom:12,fontSize:12,color:'#085041'}}>
-              ℹ️ {lang==='ar'
+              {lang==='ar'
                 ?'عند تغيير مستوى طالب، يبحث النظام عن قاعدة مطابقة ويطبق موقع الانطلاق المحدد تلقائياً.'
                 :"Lors du changement de niveau, le système applique automatiquement la règle configurée."}
             </div>
@@ -4894,6 +2658,59 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
         )}
 
 
+        {/* B2 (oct 2026) : onglets de parametrage rendus aussi sur mobile (memes composants que le PC) */}
+        {tab==='sens_recitation'&&(
+          <div style={{padding:'12px'}}>
+            <SensRecitationTab user={user} lang={lang}
+              ecoleConfig={ecoleConfig} setEcoleConfig={setEcoleConfig}
+              niveaux={niveauxActifs||[]} setNiveaux={setNiveauxDyn} showMsg={showMsg}/>
+          </div>
+        )}
+        {tab==='identite_ecole'&&(
+          <div style={{padding:'12px'}}>
+            <IdentiteEcoleTab user={user} lang={lang}
+              ecoleConfig={ecoleConfig} setEcoleConfig={setEcoleConfig} showMsg={showMsg}/>
+          </div>
+        )}
+        {tab==='periodes'&&(
+          <div style={{padding:'12px'}}>
+            <PeriodesTab user={user} lang={lang} showMsg={showMsg}/>
+          </div>
+        )}
+
+        {/* Charte mobile : panneaux d'actions (memes handlers que les anciens boutons) */}
+        <ActionSheet open={!!menuEleveM} onClose={()=>setMenuEleveM(null)} lang={lang}
+          title={menuEleveM ? `${menuEleveM.prenom} ${menuEleveM.nom}` : ''}
+          actions={menuEleveM ? [
+            {label:lang==='ar'?'تعديل':'Modifier', icon:Pencil, onClick:()=>startEditEleve(menuEleveM)},
+            menuEleveM.suspendu_at
+              ? {label:lang==='ar'?'تفعيل':'Réactiver', icon:Play, onClick:()=>reactiverEleve(menuEleveM)}
+              : {label:lang==='ar'?'تعليق':'Suspendre', icon:Pause, onClick:()=>ouvrirModaleSuspendre(menuEleveM)},
+            {label:lang==='ar'?'حذف':'Supprimer', icon:Trash2, danger:true, onClick:()=>supprimerEleve(menuEleveM.id)},
+          ] : []} />
+        <ActionSheet open={!!menuInstM} onClose={()=>setMenuInstM(null)} lang={lang}
+          title={menuInstM ? `${menuInstM.prenom} ${menuInstM.nom}` : ''}
+          actions={menuInstM ? [
+            menuInstM.suspendu_at
+              ? {label:lang==='ar'?'تفعيل':'Réactiver', icon:Play, onClick:()=>reactiverInst(menuInstM)}
+              : {label:lang==='ar'?'تعليق':'Suspendre', icon:Pause, onClick:()=>ouvrirModaleSuspendreInst(menuInstM)},
+            {label:lang==='ar'?'حذف':'Supprimer', icon:Trash2, danger:true, onClick:()=>supprimerInstituteur(menuInstM)},
+          ] : []} />
+        <ActionSheet open={!!menuParentM} onClose={()=>setMenuParentM(null)} lang={lang}
+          title={menuParentM ? `${menuParentM.p.prenom} ${menuParentM.p.nom}` : ''}
+          actions={menuParentM ? (() => { const p = menuParentM.p; return [
+            {label:lang==='ar'?'تعديل':'Modifier', icon:Pencil, onClick:()=>{setEditingParentId(p.id);setFormParent({prenom:p.prenom,nom:p.nom,identifiant:p.identifiant,mot_de_passe:'',telephone:p.telephone||'',email:p.email||'',eleve_ids:eleves.filter(e=>(p.eleve_ids||[]).includes(e.id)).map(e=>e.id)});setShowFormParent(true);window.scrollTo(0,0);}},
+            {label:lang==='ar'?'إعادة تعيين كلمة المرور':'Réinitialiser MDP', icon:KeyRound, onClick:()=>reinitialiserMDPParent(p)},
+            menuParentM.nbEnfants >= 2 ? {label:lang==='ar'?'فصل طفل':'Délier un enfant', icon:Unlink, onClick:()=>ouvrirModaleDelier(p)} : null,
+            {label:lang==='ar'?'حذف':'Supprimer', icon:Trash2, danger:true, onClick:()=>supprimerParent(p.id)},
+          ]; })() : []} />
+        <ActionSheet open={!!menuJalonM} onClose={()=>setMenuJalonM(null)} lang={lang}
+          title={menuJalonM ? (menuJalonM.nom_ar||menuJalonM.nom) : ''}
+          actions={menuJalonM ? (() => { const j = menuJalonM; return [
+            {label:j.actif?(lang==='ar'?'تعطيل':'Désactiver'):(lang==='ar'?'تفعيل':'Activer'), icon:Power, onClick:async()=>{await supabase.from('jalons').update({actif:!j.actif}).eq('id',j.id);setJalons(prev=>prev.map(x=>x.id===j.id?{...x,actif:!x.actif}:x));}},
+            {label:lang==='ar'?'حذف':'Supprimer', icon:Trash2, danger:true, onClick:async()=>{await supabase.from('jalons').delete().eq('id',j.id);setJalons(prev=>prev.filter(x=>x.id!==j.id));}},
+          ]; })() : []} />
+        {modalesPartagees}
       </div>
     );
   }
@@ -5180,7 +2997,7 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
 
       {tab !== 'parametres' && tab !== '' && (
         <button onClick={()=>setTab('parametres')} className="back-link" style={{marginBottom:'0.75rem'}}>
-          {lang==='ar'?'← الرئيسية':'← Accueil الإدارة'}
+          {lang==='ar'?'الرئيسية':'Accueil administration'}
         </button>
       )}
       {tab === 'eleves' && (
@@ -5304,7 +3121,7 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
                       : <>Un compte parent sera automatiquement créé avec le login <b>= numéro élève</b> et le mot de passe par défaut <b>{ecoleConfig?.mdp_defaut_parents || 'parent2024'}</b></>}
                   </span>
                 </div>
-                <button className="btn-primary" onClick={ajouterEleve}>{t(lang, 'ajouter_eleve_btn')}</button>
+                <button className="btn-primary" onClick={ajouterEleve} disabled={savingEleve}>{savingEleve?'...':t(lang, 'ajouter_eleve_btn')}</button>{/* FIX (oct 2026) : anti double-clic */}
               </div>
             </>
             ) : null
@@ -5331,19 +3148,17 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
                   </div>
                   <div className="field-group">
                     <label className="field-lbl">{lang==='ar'?'المستوى الدراسي':'Niveau scolaire'} <span style={{color:'#E24B4A'}}>*</span></label>
-                    <select className="field-select" value={editEleve.code_niveau||'1'} onChange={e=>{
-                      const oldNiv=editEleve.code_niveau||'1'; const newNiv=e.target.value;
-                      const wasSourate=['5B','5A','2M'].includes(oldNiv);
-                      const isNowHizb=!['5B','5A'].includes(newNiv)&&niveauxActifs.find(n=>n.code===newNiv)?.type!=='sourate';
-                      if(wasSourate&&isNowHizb){
-                        showConfirm(lang==='ar'?'⚠️ تغيير نظام الطالب':'⚠️ Changement de système',
-                          lang==='ar'?'هذا الطالب ينتقل من نظام السور إلى نظام الحزب والثُّمن.':'Cet élève passe du système Sourates au système Hizb/Tomon.',
-                          ()=>{setEditEleve({...editEleve,code_niveau:newNiv,hizb_depart:0,tomon_depart:1,sourates_acquises:0});setEditShowAcquisSelector(true);hideConfirm();},
-                          lang==='ar'?'متابعة':'Continuer','#EF9F27');
-                      } else { setEditEleve({...editEleve,code_niveau:newNiv}); }
-                    }}>
-                      {niveauxActifs.map(n=><option key={n.code} value={n.code}>{n.code} — {n.nom}</option>)}
-                    </select>
+                    {/* FIX (oct 2026) : niveau verrouille en modification -> passage de niveau depuis la fiche
+                        (archive de l'historique + regles de passage ; avant : simple changement de code) */}
+                    <div style={{display:'flex',alignItems:'center',gap:10,flexWrap:'wrap'}}>
+                      <span className="field-input" style={{display:'inline-block',width:'auto',background:'#f5f5f0'}}>
+                        {editEleve.code_niveau||'—'} — {(niveauxActifs.find(n=>n.code===editEleve.code_niveau)||{}).nom||''}
+                      </span>
+                      <button type="button" onClick={()=>navigate('fiche', eleves.find(x=>x.id===editEleve.id) || editEleve)}
+                        style={{padding:'7px 12px',background:'#E1F5EE',color:'#085041',border:'1px solid #1D9E7540',borderRadius:8,fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
+                        📈 {lang==='ar'?'الانتقال إلى مستوى':'Passer de niveau'}
+                      </button>
+                    </div>
                   </div>
                   <div className="field-group">
                     <label className="field-lbl">{lang==='ar'?'رقم تعريف الطالب':'ID Élève'} <span style={{color:'#E24B4A'}}>*</span></label>
@@ -5719,7 +3534,7 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
                 <input className="field-input" type="email" value={newInst.email||''} onChange={e => setNewInst({...newInst,email:e.target.value})} placeholder="instituteur@example.com"/>
               </div>
             </div>
-            <button className="btn-primary" onClick={ajouterInstituteur}>{t(lang, 'ajouter_instituteur_btn')}</button>
+            <button className="btn-primary" onClick={ajouterInstituteur} disabled={savingInst}>{savingInst?'...':t(lang, 'ajouter_instituteur_btn')}</button>{/* FIX (oct 2026) : anti double-clic */}
           </div>
           </>)}
 
@@ -5810,7 +3625,9 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
                           : `Le numéro "${upd.instituteur_id_ecole}" est déjà utilisé`);
                       }
                     }
-                    await supabase.from('utilisateurs').update(upd).eq('id',editInstituteur);
+                    // FIX (oct 2026) : verifier l'erreur avant d'afficher le succes
+                    const {error: errUpdInst} = await supabase.from('utilisateurs').update(upd).eq('id',editInstituteur);
+                    if (errUpdInst) return showMsg('error', (lang==='ar'?'خطأ: ':'Erreur : ') + (errUpdInst.message || ''));
                     setEditInstituteur(null);
                     showMsg('success',lang==='ar'?'تم تحديث بيانات الأستاذ':'Instituteur mis à jour');
                     loadData();
@@ -6041,33 +3858,7 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
                 </div>
                 {eleves.length===0&&<div style={{fontSize:11,color:'#E24B4A',marginTop:4}}>⚠️ {lang==='ar'?'لا يوجد طلاب مسجلون بعد':'Aucun élève enregistré'}</div>}
               </div>
-              <button className="btn-primary" onClick={async()=>{
-                if(!formParent.prenom||!formParent.nom||!formParent.identifiant) { toast.warning(lang==='ar'?'يرجى ملء الحقول المطلوبة':'Remplissez les champs obligatoires'); return; }
-                if(!editingParentId && !formParent.mot_de_passe) { toast.warning(lang==='ar'?'كلمة المرور مطلوبة':'Mot de passe requis'); return; }
-                let pid = editingParentId;
-                if(editingParentId) {
-                  const upd={prenom:formParent.prenom,nom:formParent.nom,identifiant:formParent.identifiant,telephone:formParent.telephone||null,email:(formParent.email||'').trim()||null};
-                  if(formParent.mot_de_passe) upd.mot_de_passe=formParent.mot_de_passe;
-                  const {error:ue}=await supabase.from('utilisateurs').update(upd).eq('id',editingParentId);
-                  if(ue){ toast.error(ue.message||'Erreur utilisateur'); return; }
-                  await supabase.from('parent_eleve').delete().eq('parent_id',editingParentId);
-                } else {
-                  const {data:pd,error:pe}=await supabase.from('utilisateurs').insert({prenom:formParent.prenom,nom:formParent.nom,identifiant:formParent.identifiant,mot_de_passe:formParent.mot_de_passe,telephone:formParent.telephone||null,email:(formParent.email||'').trim()||null,role:'parent',ecole_id:user.ecole_id,statut_compte:'actif'}).select().single();
-                  if(pe){ toast.error(pe.message||'Erreur parent'); return; }
-                  toast.success(lang==='ar'?'✅ تم حفظ ولي الأمر':'✅ Parent enregistré avec succès');
-                  pid=pd.id;
-                }
-                if(formParent.eleve_ids.length>0){
-                  await supabase.from('parent_eleve').insert(formParent.eleve_ids.map(eid=>({parent_id:pid,eleve_id:eid})));
-                }
-                setShowFormParent(false);
-                setEditingParentId(null);
-                setFormParent({prenom:'',nom:'',identifiant:'',mot_de_passe:'',telephone:'',email:'',eleve_ids:[],searchEleve:''});
-                const {data:pd2}=await supabase.from('utilisateurs').select('id,prenom,nom,identifiant,telephone,email').eq('role','parent').eq('ecole_id',user.ecole_id);
-                const {data:pl2}=await supabase.from('parent_eleve').select('parent_id,eleve_id');
-                const lm2={}; (pl2||[]).forEach(l=>{if(!lm2[l.parent_id])lm2[l.parent_id]=[];lm2[l.parent_id].push(l.eleve_id);});
-                setParents((pd2||[]).map(p=>({...p,eleve_ids:lm2[p.id]||[]})));
-              }}>
+              <button className="btn-primary" onClick={sauvegarderParent}>
                 {editingParentId?('✓ '+(lang==='ar'?'تحديث':'Mettre à jour')):('✓ '+(lang==='ar'?'إضافة':'Ajouter'))}
               </button>
             </div>
@@ -6260,594 +4051,7 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
         <PeriodesTab user={user} lang={lang} showMsg={showMsg} />
       )}
 
-      {/* ─── Modale Lier comptes parents (Etape 11b) ─── */}
-      {showLinkParents && (() => {
-        const candidatsParents = (parents || []).filter(p => p.role !== 'instituteur');
-        return (
-          <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.55)',zIndex:9999,
-            display:'flex',alignItems:'center',justifyContent:'center',padding:20,
-            animation:'modalFadeIn 0.15s ease-out'}}
-            onClick={()=>{ if(!linkLoading) setShowLinkParents(false); }}>
-            <div onClick={e=>e.stopPropagation()}
-              style={{background:'#fff',borderRadius:16,maxWidth:600,width:'100%',padding:24,
-                boxShadow:'0 20px 60px rgba(0,0,0,0.3)',maxHeight:'90vh',overflowY:'auto',
-                animation:'modalSlideIn 0.18s ease-out'}}>
-              <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:14}}>
-                <div style={{fontSize:32}}>🔗</div>
-                <div>
-                  <div style={{fontSize:17,fontWeight:800,color:'#085041'}}>
-                    {lang==='ar'?'ربط حسابات الأولياء':'Lier des comptes parents'}
-                  </div>
-                  <div style={{fontSize:12,color:'#666',marginTop:2}}>
-                    {lang==='ar'?'دمج عدة حسابات في حساب عائلي واحد':'Fusionner plusieurs comptes en un compte famille'}
-                  </div>
-                </div>
-              </div>
-
-              {/* Etape 1 - Selection des parents */}
-              <div style={{marginBottom:14}}>
-                <div style={{fontSize:12,fontWeight:700,color:'#666',marginBottom:6,textTransform:'uppercase',letterSpacing:0.3}}>
-                  1. {lang==='ar'?'اختر الحسابات للربط (2 على الأقل)':'Sélectionner les comptes à lier (2 minimum)'}
-                </div>
-                <div style={{maxHeight:200,overflowY:'auto',background:'#f5f5f0',borderRadius:8,padding:6}}>
-                  {candidatsParents.length === 0 ? (
-                    <div style={{padding:12,textAlign:'center',color:'#888',fontSize:12,fontStyle:'italic'}}>
-                      {lang==='ar'?'لا يوجد حسابات':'Aucun compte disponible'}
-                    </div>
-                  ) : candidatsParents.map(p => {
-                    const enfantsP = eleves.filter(e => (p.eleve_ids||[]).includes(e.id));
-                    const checked = linkSelectedParents.includes(p.id);
-                    return (
-                      <label key={p.id} style={{
-                        display:'flex',alignItems:'flex-start',gap:8,padding:'8px 10px',
-                        background:checked?'#fff':'transparent',borderRadius:6,cursor:'pointer',
-                        marginBottom:3,border:checked?'1px solid #1D9E75':'1px solid transparent',
-                      }}>
-                        <input type="checkbox" checked={checked}
-                          onChange={e=>{
-                            if (e.target.checked) setLinkSelectedParents(prev=>[...prev,p.id]);
-                            else setLinkSelectedParents(prev=>prev.filter(x=>x!==p.id));
-                          }}
-                          style={{marginTop:3}}/>
-                        <div style={{flex:1,minWidth:0}}>
-                          <div style={{fontSize:13,fontWeight:600,color:'#1a1a1a'}}>
-                            {p.prenom} {p.nom}
-                            <span style={{fontSize:11,fontWeight:400,color:'#888',marginInlineStart:6,fontFamily:'monospace'}}>
-                              ({p.identifiant})
-                            </span>
-                          </div>
-                          {enfantsP.length > 0 && (
-                            <div style={{fontSize:11,color:'#666',marginTop:2}}>
-                              👶 {enfantsP.map(e=>`${e.prenom} ${e.nom}`).join(', ')}
-                            </div>
-                          )}
-                        </div>
-                      </label>
-                    );
-                  })}
-                </div>
-                <div style={{fontSize:11,color:'#888',marginTop:4}}>
-                  ✓ {linkSelectedParents.length} {lang==='ar'?'محدد':'sélectionné(s)'}
-                </div>
-              </div>
-
-              {/* Etape 2 - Choix du login */}
-              {linkSelectedParents.length >= 2 && (
-                <div style={{marginBottom:14}}>
-                  <div style={{fontSize:12,fontWeight:700,color:'#666',marginBottom:6,textTransform:'uppercase',letterSpacing:0.3}}>
-                    2. {lang==='ar'?'معرف الحساب الجديد':'Login du compte fusionné'}
-                  </div>
-                  <div style={{display:'flex',flexDirection:'column',gap:8}}>
-                    <label style={{display:'flex',alignItems:'flex-start',gap:8,padding:8,borderRadius:8,background:linkLoginMode==='manuel'?'#fff':'transparent',border:linkLoginMode==='manuel'?'1px solid #1D9E75':'1px solid transparent',cursor:'pointer'}}>
-                      <input type="radio" name="lk-mode" checked={linkLoginMode==='manuel'}
-                        onChange={()=>setLinkLoginMode('manuel')} style={{marginTop:3}}/>
-                      <div style={{flex:1}}>
-                        <div style={{fontSize:13,fontWeight:600,color:'#1a1a1a'}}>
-                          {lang==='ar'?'إنشاء معرف جديد':'Créer un nouveau login'}
-                        </div>
-                        {linkLoginMode==='manuel' && (
-                          <input type="text" value={linkLoginManuel}
-                            onChange={e=>setLinkLoginManuel(e.target.value)}
-                            placeholder={lang==='ar'?'مثلاً: famille.benali':'Ex: famille.benali'}
-                            style={{width:'100%',padding:'8px 10px',marginTop:6,borderRadius:8,border:'1px solid #d0d8e8',fontSize:12,fontFamily:'inherit'}}/>
-                        )}
-                      </div>
-                    </label>
-
-                    <label style={{display:'flex',alignItems:'flex-start',gap:8,padding:8,borderRadius:8,background:linkLoginMode==='existant'?'#fff':'transparent',border:linkLoginMode==='existant'?'1px solid #1D9E75':'1px solid transparent',cursor:'pointer'}}>
-                      <input type="radio" name="lk-mode" checked={linkLoginMode==='existant'}
-                        onChange={()=>setLinkLoginMode('existant')} style={{marginTop:3}}/>
-                      <div style={{flex:1}}>
-                        <div style={{fontSize:13,fontWeight:600,color:'#1a1a1a'}}>
-                          {lang==='ar'?'الإبقاء على معرف موجود':'Garder un login existant'}
-                        </div>
-                        {linkLoginMode==='existant' && (
-                          <select value={linkLoginExistant} onChange={e=>setLinkLoginExistant(e.target.value)}
-                            style={{width:'100%',padding:'8px 10px',marginTop:6,borderRadius:8,border:'1px solid #d0d8e8',fontSize:12,fontFamily:'inherit'}}>
-                            <option value="">— {lang==='ar'?'اختر':'Choisir'}</option>
-                            {parents.filter(p=>linkSelectedParents.includes(p.id)).map(p=>(
-                              <option key={p.id} value={p.identifiant}>{p.identifiant} ({p.prenom} {p.nom})</option>
-                            ))}
-                          </select>
-                        )}
-                      </div>
-                    </label>
-                  </div>
-                </div>
-              )}
-
-              {/* Etape 3 - Avertissement */}
-              {linkSelectedParents.length >= 2 && (
-                <div style={{
-                  background:'#FFF8EC',border:'1px solid #EF9F2740',borderRadius:8,
-                  padding:'10px 12px',fontSize:11,color:'#7B5800',marginBottom:14,lineHeight:1.5,
-                }}>
-                  ⚠️ {lang==='ar'
-                    ? `سيتم حذف ${linkSelectedParents.length - (linkLoginMode==='existant'?1:0)} حسابات قديمة وكلمة المرور الافتراضية ستكون: `
-                    : `${linkSelectedParents.length - (linkLoginMode==='existant'?1:0)} ancien(s) compte(s) seront supprimé(s). Le mot de passe sera réinitialisé à : `}
-                  <b>{ecoleConfig?.mdp_defaut_parents || 'parent2024'}</b>
-                </div>
-              )}
-
-              <div style={{display:'flex',gap:8}}>
-                <button onClick={()=>setShowLinkParents(false)} disabled={linkLoading}
-                  style={{flex:1,padding:'11px',background:'#f5f5f0',color:'#666',border:'none',borderRadius:10,fontSize:13,fontWeight:600,cursor:linkLoading?'not-allowed':'pointer',fontFamily:'inherit'}}>
-                  {lang==='ar'?'إلغاء':'Annuler'}
-                </button>
-                <button onClick={confirmerLiaisonParents} disabled={linkLoading || linkSelectedParents.length < 2}
-                  style={{flex:2,padding:'11px',
-                    background:(linkLoading || linkSelectedParents.length < 2)?'#ccc':'linear-gradient(135deg,#1D9E75,#085041)',
-                    color:'#fff',border:'none',borderRadius:10,fontSize:13,fontWeight:700,
-                    cursor:(linkLoading || linkSelectedParents.length < 2)?'not-allowed':'pointer',
-                    fontFamily:'inherit',boxShadow:'0 2px 8px rgba(8,80,65,0.3)'}}>
-                  {linkLoading ? '⏳ '+(lang==='ar'?'جاري...':'En cours...') : '🔗 '+(lang==='ar'?'ربط':'Lier')}
-                </button>
-              </div>
-            </div>
-          </div>
-        );
-      })()}
-
-      {/* ─── Modale Délier un enfant (Etape 11b) ─── */}
-      {showUnlinkParent && (() => {
-        const { parent: pUn, enfants: enfantsUn } = showUnlinkParent;
-        return (
-          <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.55)',zIndex:9999,
-            display:'flex',alignItems:'center',justifyContent:'center',padding:20,
-            animation:'modalFadeIn 0.15s ease-out'}}
-            onClick={()=>{ if(!unlinkLoading) setShowUnlinkParent(null); }}>
-            <div onClick={e=>e.stopPropagation()}
-              style={{background:'#fff',borderRadius:16,maxWidth:480,width:'100%',padding:24,
-                boxShadow:'0 20px 60px rgba(0,0,0,0.3)',maxHeight:'90vh',overflowY:'auto',
-                animation:'modalSlideIn 0.18s ease-out'}}>
-              <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:14}}>
-                <div style={{fontSize:32}}>🔓</div>
-                <div>
-                  <div style={{fontSize:17,fontWeight:800,color:'#7B5800'}}>
-                    {lang==='ar'?'فصل طفل':'Détacher un enfant'}
-                  </div>
-                  <div style={{fontSize:12,color:'#666',marginTop:2}}>
-                    {pUn.prenom} {pUn.nom} · {pUn.identifiant}
-                  </div>
-                </div>
-              </div>
-
-              <div style={{fontSize:12,fontWeight:700,color:'#666',marginBottom:8,textTransform:'uppercase',letterSpacing:0.3}}>
-                {lang==='ar'?'أي طفل تريد فصله؟':'Quel enfant détacher ?'}
-              </div>
-
-              <div style={{marginBottom:14}}>
-                {enfantsUn.map(e => (
-                  <label key={e.id} style={{
-                    display:'flex',alignItems:'flex-start',gap:8,padding:10,borderRadius:8,
-                    background:unlinkChildId===e.id?'#FFF8EC':'#f5f5f0',
-                    border:unlinkChildId===e.id?'1px solid #EF9F27':'1px solid transparent',
-                    cursor:'pointer',marginBottom:6,
-                  }}>
-                    <input type="radio" name="unlk-child" checked={unlinkChildId===e.id}
-                      onChange={()=>setUnlinkChildId(e.id)} style={{marginTop:3}}/>
-                    <div style={{flex:1}}>
-                      <div style={{fontSize:13,fontWeight:600,color:'#1a1a1a'}}>{e.prenom} {e.nom}</div>
-                      <div style={{fontSize:11,color:'#666',marginTop:2}}>
-                        🆔 {e.eleve_id_ecole} · 🎓 {e.code_niveau || '-'}
-                      </div>
-                    </div>
-                  </label>
-                ))}
-              </div>
-
-              {unlinkChildId && (() => {
-                const enf = enfantsUn.find(e => e.id === unlinkChildId);
-                return (
-                  <div style={{
-                    background:'#E1F5EE',border:'1px solid #1D9E7530',borderRadius:8,
-                    padding:'10px 12px',fontSize:11,color:'#085041',marginBottom:14,lineHeight:1.5,
-                  }}>
-                    ℹ️ {lang==='ar'?'سيتم إنشاء حساب جديد:':'Un nouveau compte sera créé :'}<br/>
-                    <span style={{fontFamily:'monospace',fontWeight:700}}>
-                      {lang==='ar'?'المعرف':'Login'}: {enf.eleve_id_ecole}<br/>
-                      {lang==='ar'?'كلمة المرور':'MDP'}: {ecoleConfig?.mdp_defaut_parents || 'parent2024'}
-                    </span>
-                  </div>
-                );
-              })()}
-
-              <div style={{display:'flex',gap:8}}>
-                <button onClick={()=>setShowUnlinkParent(null)} disabled={unlinkLoading}
-                  style={{flex:1,padding:'11px',background:'#f5f5f0',color:'#666',border:'none',borderRadius:10,fontSize:13,fontWeight:600,cursor:unlinkLoading?'not-allowed':'pointer',fontFamily:'inherit'}}>
-                  {lang==='ar'?'إلغاء':'Annuler'}
-                </button>
-                <button onClick={confirmerDeliaison} disabled={unlinkLoading || !unlinkChildId}
-                  style={{flex:2,padding:'11px',
-                    background:(unlinkLoading || !unlinkChildId)?'#ccc':'#EF9F27',
-                    color:'#fff',border:'none',borderRadius:10,fontSize:13,fontWeight:700,
-                    cursor:(unlinkLoading || !unlinkChildId)?'not-allowed':'pointer',fontFamily:'inherit'}}>
-                  {unlinkLoading ? '⏳ '+(lang==='ar'?'جاري...':'En cours...') : '🔓 '+(lang==='ar'?'فصل':'Détacher')}
-                </button>
-              </div>
-            </div>
-          </div>
-        );
-      })()}
-
-      {/* ─── Modale recap création élève + compte parent (Etape 11a) ─── */}
-      {/* UX (mai 2026) : animation fadeIn pour douceur visuelle.
-          Les keyframes sont declarees une seule fois ici, valides pour
-          toutes les modales du composant Gestion. */}
-      <style>{`
-        @keyframes modalFadeIn {
-          from { opacity: 0; }
-          to { opacity: 1; }
-        }
-        @keyframes modalSlideIn {
-          from { opacity: 0; transform: translateY(-8px) scale(0.98); }
-          to   { opacity: 1; transform: translateY(0) scale(1); }
-        }
-      `}</style>
-      {showEleveCree && (
-        <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.55)',zIndex:9999,
-          display:'flex',alignItems:'center',justifyContent:'center',padding:20,
-          animation:'modalFadeIn 0.15s ease-out'}}
-          onClick={()=>setShowEleveCree(null)}>
-          <div onClick={e=>e.stopPropagation()}
-            style={{background:'#fff',borderRadius:16,maxWidth:520,width:'100%',padding:24,
-              boxShadow:'0 20px 60px rgba(0,0,0,0.3)',maxHeight:'90vh',overflowY:'auto',
-              animation:'modalSlideIn 0.18s ease-out'}}>
-            <div style={{textAlign:'center',marginBottom:18}}>
-              <div style={{fontSize:48,marginBottom:8}}>🎉</div>
-              <div style={{fontSize:18,fontWeight:800,color:'#085041',marginBottom:4}}>
-                {lang==='ar'?'تم إضافة الطالب بنجاح!':'Élève créé avec succès !'}
-              </div>
-            </div>
-
-            {/* Récap élève */}
-            <div style={{
-              background:'#E1F5EE',border:'1px solid #1D9E7530',borderRadius:10,
-              padding:'12px 14px',marginBottom:12,
-            }}>
-              <div style={{fontSize:11,fontWeight:700,color:'#085041',marginBottom:6,textTransform:'uppercase',letterSpacing:0.3}}>
-                👤 {lang==='ar'?'الطالب':'Élève'}
-              </div>
-              <div style={{fontSize:15,fontWeight:700,color:'#1a1a1a'}}>
-                {showEleveCree.eleve.prenom} {showEleveCree.eleve.nom}
-              </div>
-              <div style={{fontSize:12,color:'#666',marginTop:3,display:'flex',gap:10,flexWrap:'wrap'}}>
-                <span>🆔 {showEleveCree.eleve.eleve_id_ecole}</span>
-                <span>🎓 {showEleveCree.eleve.code_niveau}</span>
-              </div>
-            </div>
-
-            {/* Récap compte parent */}
-            <div style={{
-              background:'#FFF8EC',border:'1px solid #EF9F2740',borderRadius:10,
-              padding:'12px 14px',marginBottom:14,
-            }}>
-              <div style={{fontSize:11,fontWeight:700,color:'#7B5800',marginBottom:8,textTransform:'uppercase',letterSpacing:0.3}}>
-                👨‍👩‍👧 {lang==='ar'?'حساب ولي الأمر (تم إنشاؤه تلقائياً)':'Compte parent (créé automatiquement)'}
-              </div>
-              <div style={{display:'grid',gridTemplateColumns:'auto 1fr',gap:'6px 10px',fontSize:13}}>
-                <div style={{color:'#666',fontWeight:600}}>{lang==='ar'?'المعرف:':'Login :'}</div>
-                <div style={{fontWeight:700,color:'#1a1a1a',fontFamily:'monospace'}}>{showEleveCree.parent.login}</div>
-                <div style={{color:'#666',fontWeight:600}}>{lang==='ar'?'كلمة المرور:':'Mot de passe :'}</div>
-                <div style={{fontWeight:700,color:'#1a1a1a',fontFamily:'monospace'}}>{showEleveCree.parent.mdp}</div>
-              </div>
-              <div style={{fontSize:11,color:'#8a5a00',marginTop:10,lineHeight:1.5,fontStyle:'italic'}}>
-                ℹ️ {lang==='ar'
-                  ? 'يمكن لولي الأمر تغيير كلمة المرور بعد أول اتصال. سلّم هذه المعلومات إليه.'
-                  : 'Le parent peut changer son mot de passe à la première connexion. Communiquez-lui ces informations.'}
-              </div>
-            </div>
-
-            {/* Boutons */}
-            <div style={{display:'flex',gap:8}}>
-              <button onClick={()=>{
-                const txt = lang==='ar'
-                  ? `حساب ولي الأمر:\nالمعرف: ${showEleveCree.parent.login}\nكلمة المرور: ${showEleveCree.parent.mdp}`
-                  : `Compte parent :\nLogin : ${showEleveCree.parent.login}\nMot de passe : ${showEleveCree.parent.mdp}`;
-                navigator.clipboard?.writeText(txt).then(() => {
-                  showMsg('success', lang==='ar'?'✅ تم النسخ':'✅ Copié dans le presse-papier');
-                }).catch(()=>{});
-              }}
-                style={{flex:1,padding:'12px',background:'#fff',color:'#085041',border:'1.5px solid #085041',
-                  borderRadius:10,fontSize:13,fontWeight:600,cursor:'pointer',fontFamily:'inherit'}}>
-                📋 {lang==='ar'?'نسخ المعلومات':'Copier les identifiants'}
-              </button>
-              <button onClick={()=>setShowEleveCree(null)}
-                style={{flex:1,padding:'12px',background:'linear-gradient(135deg,#1D9E75,#085041)',color:'#fff',
-                  border:'none',borderRadius:10,fontSize:13,fontWeight:700,cursor:'pointer',fontFamily:'inherit',
-                  boxShadow:'0 2px 8px rgba(8,80,65,0.3)'}}>
-                ✓ {lang==='ar'?'حسناً':'OK'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ─── Modale recap création instituteur (mai 2026) ─── */}
-      {/* UX : equivalent de ModaleEleveCree pour donner le temps au surveillant
-          de noter le login/mdp sans pression de disparition. */}
-      {showInstCree && (
-        <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.55)',zIndex:9999,
-          display:'flex',alignItems:'center',justifyContent:'center',padding:20,
-          animation:'modalFadeIn 0.15s ease-out'}}
-          onClick={()=>setShowInstCree(null)}>
-          <div onClick={e=>e.stopPropagation()}
-            style={{background:'#fff',borderRadius:16,maxWidth:520,width:'100%',padding:24,
-              boxShadow:'0 20px 60px rgba(0,0,0,0.3)',maxHeight:'90vh',overflowY:'auto',
-              animation:'modalSlideIn 0.18s ease-out'}}>
-            <div style={{textAlign:'center',marginBottom:18}}>
-              <div style={{fontSize:48,marginBottom:8}}>🎉</div>
-              <div style={{fontSize:18,fontWeight:800,color:'#085041',marginBottom:4}}>
-                {lang==='ar'?'تم إضافة الأستاذ بنجاح!':'Instituteur créé avec succès !'}
-              </div>
-            </div>
-
-            {/* Récap instituteur */}
-            <div style={{
-              background:'#E1F5EE',border:'1px solid #1D9E7530',borderRadius:10,
-              padding:'12px 14px',marginBottom:12,
-            }}>
-              <div style={{fontSize:11,fontWeight:700,color:'#085041',marginBottom:6,textTransform:'uppercase',letterSpacing:0.3}}>
-                👨‍🏫 {lang==='ar'?'الأستاذ':'Instituteur'}
-              </div>
-              <div style={{fontSize:15,fontWeight:700,color:'#1a1a1a'}}>
-                {showInstCree.instituteur.prenom} {showInstCree.instituteur.nom}
-              </div>
-              {showInstCree.instituteur.instituteur_id_ecole && (
-                <div style={{fontSize:12,color:'#666',marginTop:3}}>
-                  🆔 {showInstCree.instituteur.instituteur_id_ecole}
-                </div>
-              )}
-            </div>
-
-            {/* Récap compte instituteur (login/mdp) */}
-            <div style={{
-              background:'#FFF8EC',border:'1px solid #EF9F2740',borderRadius:10,
-              padding:'12px 14px',marginBottom:14,
-            }}>
-              <div style={{fontSize:11,fontWeight:700,color:'#7B5800',marginBottom:8,textTransform:'uppercase',letterSpacing:0.3}}>
-                🔑 {lang==='ar'?'بيانات الاتصال':'Identifiants de connexion'}
-              </div>
-              <div style={{display:'grid',gridTemplateColumns:'auto 1fr',gap:'6px 10px',fontSize:13}}>
-                <div style={{color:'#666',fontWeight:600}}>{lang==='ar'?'المعرف:':'Login :'}</div>
-                <div style={{fontWeight:700,color:'#1a1a1a',fontFamily:'monospace'}}>{showInstCree.login}</div>
-                <div style={{color:'#666',fontWeight:600}}>{lang==='ar'?'كلمة المرور:':'Mot de passe :'}</div>
-                <div style={{fontWeight:700,color:'#1a1a1a',fontFamily:'monospace'}}>{showInstCree.mdp}</div>
-              </div>
-              <div style={{fontSize:11,color:'#8a5a00',marginTop:10,lineHeight:1.5,fontStyle:'italic'}}>
-                ℹ️ {lang==='ar'
-                  ? 'يمكن للأستاذ تغيير كلمة المرور بعد أول اتصال. سلّم هذه المعلومات إليه.'
-                  : 'L\'instituteur peut changer son mot de passe à la première connexion. Communiquez-lui ces informations.'}
-              </div>
-            </div>
-
-            {/* Boutons */}
-            <div style={{display:'flex',gap:8}}>
-              <button onClick={()=>{
-                const txt = lang==='ar'
-                  ? `بيانات الأستاذ:\nالمعرف: ${showInstCree.login}\nكلمة المرور: ${showInstCree.mdp}`
-                  : `Identifiants instituteur :\nLogin : ${showInstCree.login}\nMot de passe : ${showInstCree.mdp}`;
-                navigator.clipboard?.writeText(txt).then(() => {
-                  showMsg('success', lang==='ar'?'✅ تم النسخ':'✅ Copié dans le presse-papier');
-                }).catch(()=>{});
-              }}
-                style={{flex:1,padding:'12px',background:'#fff',color:'#085041',border:'1.5px solid #085041',
-                  borderRadius:10,fontSize:13,fontWeight:600,cursor:'pointer',fontFamily:'inherit'}}>
-                📋 {lang==='ar'?'نسخ المعلومات':'Copier les identifiants'}
-              </button>
-              <button onClick={()=>setShowInstCree(null)}
-                style={{flex:1,padding:'12px',background:'linear-gradient(135deg,#1D9E75,#085041)',color:'#fff',
-                  border:'none',borderRadius:10,fontSize:13,fontWeight:700,cursor:'pointer',fontFamily:'inherit',
-                  boxShadow:'0 2px 8px rgba(8,80,65,0.3)'}}>
-                ✓ {lang==='ar'?'حسناً':'OK'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ─── Modale Suspendre instituteur (Etape 7) ─── */}
-      {showSuspendreInst && (() => {
-        const { inst, elevesRattaches } = showSuspendreInst;
-        const instituteursDispo = (instituteurs||[]).filter(i =>
-          i.id !== inst.id && !i.suspendu_at && !i.deleted_at);
-        return (
-          <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.55)',zIndex:9999,
-            display:'flex',alignItems:'center',justifyContent:'center',padding:20,
-            animation:'modalFadeIn 0.15s ease-out'}}
-            onClick={()=>{ if(!savingSuspensionInst) setShowSuspendreInst(null); }}>
-            <div onClick={e=>e.stopPropagation()}
-              style={{background:'#fff',borderRadius:14,maxWidth:540,width:'100%',padding:24,boxShadow:'0 10px 40px rgba(0,0,0,0.2)',maxHeight:'90vh',overflowY:'auto',
-                animation:'modalSlideIn 0.18s ease-out'}}>
-              <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:14}}>
-                <div style={{fontSize:28}}>⏸️</div>
-                <div>
-                  <div style={{fontSize:17,fontWeight:800,color:'#D85A30'}}>
-                    {lang==='ar'?'تعليق المدرس':'Suspendre l\'instituteur'}
-                  </div>
-                  <div style={{fontSize:13,color:'#666',marginTop:2}}>
-                    {inst.prenom} {inst.nom} · {inst.identifiant}
-                  </div>
-                </div>
-              </div>
-              <div style={{background:'#FFF8EC',border:'0.5px solid #FFE0B5',borderRadius:10,padding:'10px 12px',fontSize:12,color:'#8a5a00',marginBottom:14,lineHeight:1.5}}>
-                {lang==='ar'
-                  ? 'المدرس المعلق لن يستطيع تسجيل الدخول إلى التطبيق. السجل السابق لتصحيحاته يبقى محفوظًا تحت اسمه. يمكنك إعادة تفعيله في أي وقت.'
-                  : 'L\'instituteur suspendu ne pourra plus se connecter à l\'application. Son historique de validations reste figé sous son nom. Réactivable à tout moment.'}
-              </div>
-
-              {/* Section transfert eleves */}
-              {elevesRattaches.length > 0 && (
-                <div style={{background:'#F0F4FA',border:'0.5px solid #d0d8e8',borderRadius:10,padding:'12px 14px',marginBottom:14}}>
-                  <div style={{fontSize:13,fontWeight:700,color:'#374151',marginBottom:8}}>
-                    👥 {elevesRattaches.length} {lang==='ar'?'طالب مرتبط':elevesRattaches.length===1?'élève rattaché':'élèves rattachés'}
-                  </div>
-                  <div style={{fontSize:12,color:'#6b7280',marginBottom:10,lineHeight:1.5}}>
-                    {lang==='ar'
-                      ? 'اختر ماذا تفعل بطلابه. السجل السابق يبقى تحت اسمه.'
-                      : 'Choisissez ce que vous voulez faire de ses élèves. L\'historique passé reste sous son nom.'}
-                  </div>
-
-                  <label style={{display:'flex',alignItems:'flex-start',gap:8,padding:8,borderRadius:8,background:transfertOption==='transferer'?'#fff':'transparent',border:transfertOption==='transferer'?'0.5px solid #1D9E75':'0.5px solid transparent',marginBottom:6,cursor:'pointer'}}>
-                    <input type="radio" name="transfert-opt" checked={transfertOption==='transferer'}
-                      onChange={()=>setTransfertOption('transferer')} style={{marginTop:3}}/>
-                    <div style={{flex:1}}>
-                      <div style={{fontSize:13,fontWeight:600,color:'#085041'}}>
-                        {lang==='ar'?'➡️ نقل إلى مدرس آخر (موصى به)':'➡️ Transférer vers un autre instituteur (recommandé)'}
-                      </div>
-                      {transfertOption==='transferer' && (
-                        <select value={transfertVers} onChange={e=>setTransfertVers(e.target.value)}
-                          style={{width:'100%',padding:'8px 10px',marginTop:6,borderRadius:8,border:'0.5px solid #d0d8e8',fontSize:12,fontFamily:'inherit'}}>
-                          <option value="">— {lang==='ar'?'اختر مدرسًا...':'Choisir...'}</option>
-                          {instituteursDispo.map(i=>(
-                            <option key={i.id} value={i.id}>{i.prenom} {i.nom} ({i.identifiant})</option>
-                          ))}
-                        </select>
-                      )}
-                    </div>
-                  </label>
-
-                  <label style={{display:'flex',alignItems:'flex-start',gap:8,padding:8,borderRadius:8,background:transfertOption==='detacher'?'#fff':'transparent',border:transfertOption==='detacher'?'0.5px solid #EF9F27':'0.5px solid transparent',marginBottom:6,cursor:'pointer'}}>
-                    <input type="radio" name="transfert-opt" checked={transfertOption==='detacher'}
-                      onChange={()=>setTransfertOption('detacher')} style={{marginTop:3}}/>
-                    <div style={{fontSize:13,color:'#374151'}}>
-                      {lang==='ar'?'🔓 فصل الطلاب (بدون مدرس مرجعي)':'🔓 Détacher les élèves (sans référent)'}
-                    </div>
-                  </label>
-
-                  <label style={{display:'flex',alignItems:'flex-start',gap:8,padding:8,borderRadius:8,background:transfertOption==='garder'?'#fff':'transparent',border:transfertOption==='garder'?'0.5px solid #888':'0.5px solid transparent',cursor:'pointer'}}>
-                    <input type="radio" name="transfert-opt" checked={transfertOption==='garder'}
-                      onChange={()=>setTransfertOption('garder')} style={{marginTop:3}}/>
-                    <div style={{fontSize:13,color:'#374151'}}>
-                      {lang==='ar'?'⏸️ الإبقاء كما هو (الطلاب يبقون مرتبطين بالمدرس المعلق)':'⏸️ Garder en l\'état (élèves restent rattachés)'}
-                    </div>
-                  </label>
-                </div>
-              )}
-
-              <label style={{display:'block',fontSize:12,fontWeight:600,color:'#666',marginBottom:6}}>
-                {lang==='ar'?'سبب التعليق (اختياري)':'Motif de suspension (optionnel)'}
-              </label>
-              <input type="text" list="motif-inst-suggestions" value={motifSuspensionInst}
-                onChange={e=>setMotifSuspensionInst(e.target.value)}
-                placeholder={lang==='ar'?'مثلاً: عطلة، مرض، انتهاء العقد...':'Ex: vacances, maladie, fin de contrat...'}
-                style={{width:'100%',padding:'10px 12px',borderRadius:10,border:'0.5px solid #e0e0d8',
-                  fontSize:13,fontFamily:'inherit',boxSizing:'border-box'}}/>
-              <datalist id="motif-inst-suggestions">
-                <option value={lang==='ar'?'عطلة':'Vacances'}/>
-                <option value={lang==='ar'?'مرض':'Maladie'}/>
-                <option value={lang==='ar'?'انتهاء العقد':'Fin de contrat'}/>
-                <option value={lang==='ar'?'استقالة':'Démission'}/>
-                <option value={lang==='ar'?'أخرى':'Autre'}/>
-              </datalist>
-
-              <div style={{display:'flex',gap:8,marginTop:14}}>
-                <button onClick={()=>setShowSuspendreInst(null)} disabled={savingSuspensionInst}
-                  style={{flex:1,padding:'11px',background:'#f5f5f0',color:'#666',border:'none',borderRadius:10,fontSize:13,fontWeight:600,cursor:savingSuspensionInst?'not-allowed':'pointer',fontFamily:'inherit'}}>
-                  {lang==='ar'?'إلغاء':'Annuler'}
-                </button>
-                <button onClick={confirmerSuspensionInst} disabled={savingSuspensionInst}
-                  style={{flex:2,padding:'11px',background:savingSuspensionInst?'#ccc':'#D85A30',color:'#fff',border:'none',borderRadius:10,fontSize:13,fontWeight:700,cursor:savingSuspensionInst?'not-allowed':'pointer',fontFamily:'inherit'}}>
-                  {savingSuspensionInst
-                    ? '⏳ '+(lang==='ar'?'جاري الحفظ...':'En cours...')
-                    : '⏸️ '+(lang==='ar'?'تعليق':'Suspendre')}
-                </button>
-              </div>
-            </div>
-          </div>
-        );
-      })()}
-
-      {/* ─── Modale Suspendre élève (Etape 6) ─── */}
-      {showSuspendreEleve && (
-        <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.55)',zIndex:9999,
-          display:'flex',alignItems:'center',justifyContent:'center',padding:20,
-          animation:'modalFadeIn 0.15s ease-out'}}
-          onClick={()=>{ if(!savingSuspension) setShowSuspendreEleve(null); }}>
-          <div onClick={e=>e.stopPropagation()}
-            style={{background:'#fff',borderRadius:14,maxWidth:480,width:'100%',padding:24,boxShadow:'0 10px 40px rgba(0,0,0,0.2)',
-              animation:'modalSlideIn 0.18s ease-out'}}>
-            <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:14}}>
-              <div style={{fontSize:28}}>⏸️</div>
-              <div>
-                <div style={{fontSize:17,fontWeight:800,color:'#D85A30'}}>
-                  {lang==='ar'?'تعليق الطالب':'Suspendre l\'élève'}
-                </div>
-                <div style={{fontSize:13,color:'#666',marginTop:2}}>
-                  {showSuspendreEleve.prenom} {showSuspendreEleve.nom}
-                </div>
-              </div>
-            </div>
-            <div style={{background:'#FFF8EC',border:'0.5px solid #FFE0B5',borderRadius:10,padding:'10px 12px',fontSize:12,color:'#8a5a00',marginBottom:14,lineHeight:1.5}}>
-              {lang==='ar'
-                ? 'الطالب المعلق لن يظهر في قوائم التسجيل والتقارير، لكن بياناته السابقة (الاستظهارات، الشهادات، إلخ) تبقى محفوظة. يمكنك إعادة تفعيله في أي وقت.'
-                : 'L\'élève suspendu n\'apparaîtra plus dans les listes de validation et les rapports, mais toutes ses données (récitations, certificats, etc.) restent conservées. Réactivable à tout moment.'}
-            </div>
-            <label style={{display:'block',fontSize:12,fontWeight:600,color:'#666',marginBottom:6}}>
-              {lang==='ar'?'سبب التعليق (اختياري)':'Motif de suspension (optionnel)'}
-            </label>
-            <input type="text" list="motif-suggestions" value={motifSuspension}
-              onChange={e=>setMotifSuspension(e.target.value)}
-              placeholder={lang==='ar'?'مثلاً: عطلة، مرض، انتقال...':'Ex: vacances, maladie, déménagement...'}
-              style={{width:'100%',padding:'10px 12px',borderRadius:10,border:'0.5px solid #e0e0d8',
-                fontSize:13,fontFamily:'inherit',boxSizing:'border-box',marginBottom:6}}/>
-            <datalist id="motif-suggestions">
-              <option value={lang==='ar'?'عطلة':'Vacances'}/>
-              <option value={lang==='ar'?'مرض':'Maladie'}/>
-              <option value={lang==='ar'?'انتقال':'Déménagement'}/>
-              <option value={lang==='ar'?'تغيير مدرسة':'Changement d\'école'}/>
-              <option value={lang==='ar'?'أخرى':'Autre'}/>
-            </datalist>
-            <div style={{display:'flex',gap:8,marginTop:14}}>
-              <button onClick={()=>setShowSuspendreEleve(null)} disabled={savingSuspension}
-                style={{flex:1,padding:'11px',background:'#f5f5f0',color:'#666',border:'none',borderRadius:10,fontSize:13,fontWeight:600,cursor:savingSuspension?'not-allowed':'pointer',fontFamily:'inherit'}}>
-                {lang==='ar'?'إلغاء':'Annuler'}
-              </button>
-              <button onClick={confirmerSuspension} disabled={savingSuspension}
-                style={{flex:2,padding:'11px',background:savingSuspension?'#ccc':'#D85A30',color:'#fff',border:'none',borderRadius:10,fontSize:13,fontWeight:700,cursor:savingSuspension?'not-allowed':'pointer',fontFamily:'inherit'}}>
-                {savingSuspension
-                  ? '⏳ '+(lang==='ar'?'جاري الحفظ...':'En cours...')
-                  : '⏸️ '+(lang==='ar'?'تعليق':'Suspendre')}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ─── Modale de confirmation (utilisée par showConfirm) ─── */}
-      {/* Sans ce rendu, tous les boutons 🗑 Supprimer sont silencieux */}
-      {/* car le state passe bien à isOpen:true mais rien ne l'affiche. */}
-      <ConfirmModal
-        isOpen={confirmModal.isOpen}
-        title={confirmModal.title}
-        message={confirmModal.message}
-        onConfirm={confirmModal.onConfirm}
-        onCancel={hideConfirm}
-        confirmLabel={confirmModal.confirmLabel}
-        confirmColor={confirmModal.confirmColor}
-        loading={confirmLoading}
-        lang={lang}
-      />
+      {modalesPartagees}
     </div>
   );
 }

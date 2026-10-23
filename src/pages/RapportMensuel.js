@@ -1,13 +1,15 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { supabase } from '../lib/supabase';
 import { useToast } from '../lib/toast';
-import { calcEtatEleve, getInitiales , loadBareme, BAREME_DEFAUT, getSensForEleve} from '../lib/helpers';
+import { calcEtatEleve, getInitiales , loadBareme, BAREME_DEFAUT, getSensForEleve, calcPointsPeriode} from '../lib/helpers';
 import { fetchAll } from '../lib/fetchAll';
 import { openPDF } from '../lib/pdf';
 import ExportButtons from '../components/ExportButtons';
 import PageHeader from '../components/PageHeader';
 import StatsCard from '../components/StatsCard';
 import MobileSkeletonList from '../components/MobileSkeletonList';
+import { MobileHeader, HeaderMenu, actionsExport, KpiTile, KpiGrid, LevelBadge, C } from '../components/ui';
+import { FileBarChart } from 'lucide-react';
 
 const MOIS_FR = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
 const MOIS_AR = ['يناير','فبراير','مارس','أبريل','مايو','يونيو','يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر'];
@@ -43,6 +45,8 @@ export default function RapportMensuel({ user, navigate, goBack, lang='fr', isMo
   const [ecole,      setEcole]      = useState(null);
   const [loading,    setLoading]    = useState(true);
   const [bareme, setBareme] = React.useState({...BAREME_DEFAUT});
+  const [pointsEvts, setPointsEvts] = useState([]);   // points_eleves (examens)
+  const [certificats, setCertificats] = useState([]); // certificats_eleves
   const [generating, setGenerating] = useState(false);
 
   useEffect(() => { loadAll(); }, []);
@@ -52,18 +56,31 @@ export default function RapportMensuel({ user, navigate, goBack, lang='fr', isMo
     try {
     const [
       {data:el},{data:nv},{data:inst},{data:vd},{data:rd},
-      {data:ob},{data:ex},{data:re},{data:ec}
+      {data:ob},{data:ex},{data:re},{data:ec},
+      br, {data:pe}, {data:ce}
     ] = await Promise.all([
       supabase.from('eleves').select('*').eq('ecole_id',user.ecole_id).is('suspendu_at', null).order('nom'),
       supabase.from('niveaux').select('*').eq('ecole_id',user.ecole_id).order('ordre'),
-      supabase.from('utilisateurs').select('*').eq('role','instituteur').eq('ecole_id',user.ecole_id),
+      supabase.from('utilisateurs').select('id,prenom,nom,identifiant,role,ecole_id,instituteur_id_ecole,tarif_seance,telephone,email,statut_compte,suspendu_at').eq('role','instituteur').eq('ecole_id',user.ecole_id),
       fetchAll(supabase.from('validations').select('*').eq('ecole_id',user.ecole_id)).then(data=>({data})),
       fetchAll(supabase.from('recitations_sourates').select('*').eq('ecole_id',user.ecole_id)).then(data=>({data})),
       supabase.from('objectifs').select('*').eq('ecole_id',user.ecole_id).eq('actif',true),
       supabase.from('examens').select('*').eq('ecole_id',user.ecole_id),
       supabase.from('resultats_examens').select('*').eq('ecole_id',user.ecole_id),
       supabase.from('ecoles').select('*').eq('id',user.ecole_id).maybeSingle(),
+      // BUG-FIX RAPPORT MENSUEL (oct 2026) : le bareme n'etait JAMAIS charge
+      // (state reste BAREME_DEFAUT, tomon=0) -> points faux. On charge aussi
+      // examens et certificats pour calculer comme la liste des notes.
+      loadBareme(supabase, user.ecole_id).catch(() => null),
+      // FIX (oct 2026) : pagination points_eleves (id ajoute pour le tri stable de fetchAll)
+      fetchAll(supabase.from('points_eleves').select('id,eleve_id,type_event,points,date_event').eq('ecole_id',user.ecole_id)).then(data=>({data})),
+      // FIX (oct 2026) : colonne date_emission (date_obtention n'existe pas -> select en erreur -> 0 pt certificat)
+      supabase.from('certificats_eleves').select('eleve_id,jalon_id,date_emission,created_at').eq('ecole_id',user.ecole_id),
     ]);
+    if (br) setBareme(br);
+    setPointsEvts(pe||[]);
+    // FIX (oct 2026) : mapper date_emission -> date_obtention attendu par calcPointsPeriode
+    setCertificats((ce||[]).map(c => ({ ...c, date_obtention: c.date_emission })));
     setEleves(el||[]);
     setNiveaux(nv||[]);
     setInstituteurs(inst||[]);
@@ -86,7 +103,7 @@ export default function RapportMensuel({ user, navigate, goBack, lang='fr', isMo
   const statsEleves = useMemo(() => (eleves||[]).map(e => {
     const vals  = validations.filter(v=>v.eleve_id===e.id);
     const sensE = getSensForEleve(e, niveaux, ecole);
-    const etat  = calcEtatEleve(vals, e.hizb_depart, e.tomon_depart, sensE);
+    const etat  = calcEtatEleve(vals, e.hizb_depart, e.tomon_depart, sensE, e);
     const inst  = instituteurs.find(i=>i.id===e.instituteur_referent_id);
     const niv   = niveaux.find(n=>n.code===e.code_niveau);
     const isSourate = niv?.type==='sourate';
@@ -96,13 +113,22 @@ export default function RapportMensuel({ user, navigate, goBack, lang='fr', isMo
 
     const tomonMois   = vMois.filter(v=>v.type_validation==='tomon').reduce((s,v)=>s+(v.nombre_tomon||0),0);
     const hizbMois    = vMois.filter(v=>v.type_validation==='hizb_complet').length;
-    const souratesMois= rMois.filter(r=>r.type_recitation==='complete').length;
-    const seqMois     = rMois.filter(r=>r.type_recitation==='sequence').length;
+    // FIX (oct 2026) : les recitations muraja (is_muraja) ne sont pas des sourates memorisees
+    // (leurs points restent comptes dans ptsMois via calcPointsPeriode)
+    const souratesMois= rMois.filter(r=>r.type_recitation==='complete'&&!r.is_muraja).length;
+    const seqMois     = rMois.filter(r=>r.type_recitation==='sequence'&&!r.is_muraja).length;
     const seances     = new Set(vMois.map(v=>new Date(v.date_validation).toDateString())).size +
                         new Set(rMois.map(r=>new Date(r.date_validation).toDateString())).size;
-    const ptsMois     = isSourate
-      ? rMois.reduce((s,r)=>s+(r.points||0),0)
-      : tomonMois*(bareme.tomon || 0) + Math.floor(tomonMois/2)*25 + Math.floor(tomonMois/4)*60 + hizbMois*100;
+    // BUG-FIX RAPPORT MENSUEL (oct 2026) : avant, formule de mai obsolete
+    // (bonus Roba +25 / Nisf +60 codes en dur, 100 pts/hizb) + bareme jamais
+    // charge, et pour les sourates seuls les points de recitations (ensembles
+    // oublies). Maintenant : meme calcul que la liste des notes, borne au mois.
+    const ptsMois = calcPointsPeriode(
+      vals, debutMois, finMois, bareme,
+      pointsEvts.filter(p=>p.eleve_id===e.id),
+      recitations.filter(r=>r.eleve_id===e.id),
+      certificats.filter(c=>c.eleve_id===e.id),
+    ).total;
 
     // Objectifs
     const objNiveau = objectifs.find(o=>
@@ -133,7 +159,7 @@ export default function RapportMensuel({ user, navigate, goBack, lang='fr', isMo
       actif: tomonMois>0||hizbMois>0||souratesMois>0,
     };
   }).sort((a,b)=>b.ptsMois-a.ptsMois),
-  [eleves, validations, recitations, niveaux, instituteurs, objectifs, ecole, bareme, debutMois, finMois]);
+  [eleves, validations, recitations, niveaux, instituteurs, objectifs, ecole, bareme, pointsEvts, certificats, debutMois, finMois]);
 
   // ── KPIs globaux ───────────────────────────────────────────────
   const nbActifs     = statsEleves.filter(e=>e.actif).length;
@@ -190,10 +216,12 @@ export default function RapportMensuel({ user, navigate, goBack, lang='fr', isMo
       const elevesData = (statsEleves||[]).map(e => ({
         prenom: e.prenom, nom: e.nom,
         code_niveau: e.code_niveau,
-        pts: e.pts || 0,
-        tomon: e.tomon || 0,
-        hizb: e.hizb || 0,
-        jours: e.joursActifs || 0,
+        // BUG-FIX PDF (oct 2026) : lisait e.pts / e.tomon / e.hizb / e.joursActifs,
+        // champs inexistants -> PDF a 0 partout. Champs reels de statsEleves :
+        pts: e.ptsMois || 0,
+        tomon: e.isSourate ? (e.souratesMois || 0) : (e.tomonMois || 0),
+        hizb: e.hizbMois || 0,
+        jours: e.seances || 0,
       }));
 
       await openPDF('rapport_mensuel', {
@@ -203,8 +231,12 @@ export default function RapportMensuel({ user, navigate, goBack, lang='fr', isMo
         eleves: elevesData,
         stats: {
           totalPts: elevesData.reduce((s,e)=>s+e.pts,0),
+          // FIX (oct 2026) : Tomon et sourates separes (la colonne eleve mixe Tomon/Sourates),
+          // + nb d'eleves actifs reel (avant : le PDF affichait eleves.length)
           totalTomon: totalTomon,
+          totalSourates: totalSourates,
           totalHizb: totalHizb,
+          nbActifs: nbActifs,
         },
       }, lang);
     } catch(err) {
@@ -219,18 +251,13 @@ export default function RapportMensuel({ user, navigate, goBack, lang='fr', isMo
     <div style={{paddingBottom:isMobile?80:0, background:isMobile?'#f5f5f0':'transparent', minHeight:isMobile?'100vh':'auto'}}>
       {/* Header mobile */}
       {isMobile ? (
-        <div style={{background:'linear-gradient(135deg,#085041,#1D9E75)',padding:'48px 16px 14px',position:'sticky',top:0,zIndex:100,marginBottom:12}}>
-          <div style={{display:'flex',alignItems:'center',gap:12,marginBottom:10}}>
-            <button onClick={()=>goBack?goBack():navigate('dashboard')}
-              style={{background:'rgba(255,255,255,0.22)',border:'1px solid rgba(255,255,255,0.25)',borderRadius:10,padding:'8px 12px',color:'#fff',fontSize:16,cursor:'pointer'}}>←</button>
-            <div style={{flex:1}}>
-              <div style={{fontSize:17,fontWeight:800,color:'#fff'}}>📊 {lang==='ar'?'التقرير الشهري':'Rapport mensuel'}</div>
-            </div>
-            <button onClick={genererRapportPDF} disabled={generating||loading}
-              style={{background:'rgba(255,255,255,0.2)',border:'1px solid rgba(255,255,255,0.3)',borderRadius:10,padding:'7px 12px',color:'#fff',fontSize:11,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
-              {generating?'⏳':'📄 PDF'}
-            </button>
-          </div>
+        <>
+        <MobileHeader
+          title={lang==='ar'?'التقرير الشهري':'Rapport mensuel'}
+          icon={FileBarChart}
+          onBack={()=>goBack?goBack():navigate('dashboard')}
+          lang={lang}
+          actions={<HeaderMenu lang={lang} actions={actionsExport({ onPDF: genererRapportPDF, lang, disabled: generating||loading })} />}>
           {/* Navigation mois */}
           <div style={{display:'flex',alignItems:'center',justifyContent:'center',gap:12}}>
             <button onClick={prevMois}
@@ -245,7 +272,9 @@ export default function RapportMensuel({ user, navigate, goBack, lang='fr', isMo
               style={{width:44,height:44,background:'rgba(255,255,255,0.22)',border:'1px solid rgba(255,255,255,0.25)',borderRadius:8,color:'#fff',cursor:'pointer',fontSize:20,
                 display:'flex',alignItems:'center',justifyContent:'center'}}>›</button>
           </div>
-        </div>
+        </MobileHeader>
+        <div style={{height:12}}/>
+        </>
       ) : (
       <PageHeader
         title="Rapport mensuel"
@@ -278,6 +307,18 @@ export default function RapportMensuel({ user, navigate, goBack, lang='fr', isMo
       {loading ? <MobileSkeletonList type="card-stat" count={4} padding="12px" /> : (
         <>
           {/* KPIs */}
+          {isMobile ? (
+          <div style={{marginBottom:'1.25rem'}}>
+            <KpiGrid cols={2}>
+              <KpiTile value={nbActifs}                                  label={lang==='ar'?'طلاب نشطون':'Élèves actifs'}    tone="brand" />
+              <KpiTile value={`${tauxActivite}%`}                        label={lang==='ar'?'نسبة النشاط':"Taux d'activité"} />
+              <KpiTile value={totalTomon}                                label={lang==='ar'?'أثمان مُسمَّعة':'Tomon récités'} />
+              <KpiTile value={totalHizb}                                 label={lang==='ar'?'أحزاب مكتملة':'Hizb complets'} />
+              <KpiTile value={exTotal>0 ? `${exReussis}/${exTotal}` : '-'} label={lang==='ar'?'امتحانات':'Examens'} />
+              <KpiTile value={tauxAtteinte!=null ? `${tauxAtteinte}%` : '-'} label={lang==='ar'?'بلوغ الأهداف':'Taux objectifs'} />
+            </KpiGrid>
+          </div>
+          ) : (
           <div style={{display:'grid',gridTemplateColumns:isMobile?'repeat(2,1fr)':'repeat(6,1fr)',gap:8,marginBottom:'1.25rem'}}>
             <StatsCard value={nbActifs}                                  label={lang==='ar'?'طلاب نشطون':'Élèves actifs'}    color="green"  />
             <StatsCard value={`${tauxActivite}%`}                        label={lang==='ar'?'نسبة النشاط':"Taux d'activité"} color="green"  />
@@ -286,6 +327,7 @@ export default function RapportMensuel({ user, navigate, goBack, lang='fr', isMo
             <StatsCard value={exTotal>0 ? `${exReussis}/${exTotal}` : '-'} label={lang==='ar'?'امتحانات':'Examens'}            color="purple" />
             <StatsCard value={tauxAtteinte!=null ? `${tauxAtteinte}%` : '-'} label={lang==='ar'?'بلوغ الأهداف':'Taux objectifs'} color="#D85A30" bg="#FAECE7" />
           </div>
+          )}
 
           {/* Par niveau */}
           <div style={{fontSize:12,fontWeight:700,color:'#888',textTransform:'uppercase',
@@ -294,13 +336,22 @@ export default function RapportMensuel({ user, navigate, goBack, lang='fr', isMo
           </div>
           <div style={{display:'grid',gridTemplateColumns:isMobile?'1fr':'repeat(auto-fill,minmax(280px,1fr))',gap:10,marginBottom:'1.25rem'}}>
             {statsByNiveau.map(({niv,el,actifs,moy,objNiv,pctNiv,top3})=>(
-              <div key={niv.id} style={{background:'#fff',borderRadius:14,padding:'14px 16px',
+              <div key={niv.id} style={isMobile
+                ? {background:C.surface,borderRadius:12,padding:'14px 16px',border:`1px solid ${C.line}`}
+                : {background:'#fff',borderRadius:14,padding:'14px 16px',
                 border:`0.5px solid ${niv.couleur}30`,borderLeft:`4px solid ${niv.couleur}`}}>
                 <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:10}}>
+                  {isMobile ? (
+                  <div style={{display:'flex',alignItems:'center',gap:6,minWidth:0}}>
+                    <LevelBadge code={niv.code} color={niv.couleur} />
+                    <span style={{fontSize:13,fontWeight:600,color:C.text}}>{niv.nom}</span>
+                  </div>
+                  ) : (
                   <div>
                     <span style={{fontWeight:700,fontSize:15,color:niv.couleur}}>{niv.code}</span>
                     <span style={{fontSize:12,color:'#888',marginRight:6}}> — {niv.nom}</span>
                   </div>
+                  )}
                   <span style={{fontSize:11,padding:'2px 8px',borderRadius:20,
                     background:`${niv.couleur}20`,color:niv.couleur,fontWeight:700}}>
                     {actifs}/{el.length} {lang==='ar'?'نشط':'actifs'}
@@ -325,7 +376,7 @@ export default function RapportMensuel({ user, navigate, goBack, lang='fr', isMo
                 {objNiv&&pctNiv!==null&&(
                   <div style={{marginTop:8,paddingTop:8,borderTop:'0.5px solid #f0f0ec'}}>
                     <div style={{display:'flex',justifyContent:'space-between',fontSize:11,marginBottom:4}}>
-                      <span style={{color:'#666'}}>🎯 Objectif niveau : {objNiv.valeur_cible} {objNiv.metrique}</span>
+                      <span style={{color:'#666'}}>{isMobile?null:'🎯 '}Objectif niveau : {objNiv.valeur_cible} {objNiv.metrique}</span>
                       <span style={{fontWeight:700,color:pctColor(pctNiv)}}>{pctNiv}%</span>
                     </div>
                     <div style={{height:6,background:'#e8e8e0',borderRadius:3,overflow:'hidden'}}>
@@ -355,10 +406,12 @@ export default function RapportMensuel({ user, navigate, goBack, lang='fr', isMo
                       {e.eleve_id_ecole&&<span style={{fontSize:10,color:'#aaa',marginRight:6}}> #{e.eleve_id_ecole}</span>}
                     </div>
                     <div style={{fontSize:11,color:'#888'}}>
+                      {isMobile ? <LevelBadge code={e.code_niveau} color={e.niv?.couleur||C.muted} /> : (
                       <span style={{padding:'1px 6px',borderRadius:20,fontSize:10,fontWeight:700,
                         background:`${e.niv?.couleur||'#888'}20`,color:e.niv?.couleur||'#888',marginLeft:4}}>
                         {e.code_niveau}
                       </span>
+                      )}
                       {e.inst&&` · ${e.inst.prenom} ${e.inst.nom}`}
                     </div>
                   </div>
@@ -377,7 +430,7 @@ export default function RapportMensuel({ user, navigate, goBack, lang='fr', isMo
                     {e.attNiveau&&(
                       <div>
                         <div style={{display:'flex',justifyContent:'space-between',fontSize:10,color:'#888',marginBottom:2}}>
-                          <span>📊 {lang==='ar'?'هدف المستوى':'Obj. niveau'} — {e.attNiveau.obj.valeur_cible} {e.attNiveau.obj.metrique}</span>
+                          <span>{isMobile?null:'📊 '}{lang==='ar'?'هدف المستوى':'Obj. niveau'} — {e.attNiveau.obj.valeur_cible} {e.attNiveau.obj.metrique}</span>
                           <span style={{fontWeight:700,color:pctColor(e.attNiveau.pct)}}>{e.attNiveau.realise}/{e.attNiveau.obj.valeur_cible} · {e.attNiveau.pct}%</span>
                         </div>
                         <div style={{height:5,background:'#e8e8e0',borderRadius:3,overflow:'hidden'}}>
@@ -388,7 +441,7 @@ export default function RapportMensuel({ user, navigate, goBack, lang='fr', isMo
                     {e.attPerso&&(
                       <div>
                         <div style={{display:'flex',justifyContent:'space-between',fontSize:10,color:'#534AB7',marginBottom:2}}>
-                          <span>👤 {lang==='ar'?'هدف شخصي':'Obj. personnel'} — {e.attPerso.obj.valeur_cible} {e.attPerso.obj.metrique}</span>
+                          <span>{isMobile?null:'👤 '}{lang==='ar'?'هدف شخصي':'Obj. personnel'} — {e.attPerso.obj.valeur_cible} {e.attPerso.obj.metrique}</span>
                           <span style={{fontWeight:700,color:pctColor(e.attPerso.pct)}}>{e.attPerso.realise}/{e.attPerso.obj.valeur_cible} · {e.attPerso.pct}%</span>
                         </div>
                         <div style={{height:5,background:'#e8e8e0',borderRadius:3,overflow:'hidden'}}>
@@ -419,6 +472,13 @@ export default function RapportMensuel({ user, navigate, goBack, lang='fr', isMo
                         <div style={{fontSize:11,color:'#888'}}>{actifs}/{el.length} {lang==='ar'?'نشطون':'actifs'}</div>
                       </div>
                     </div>
+                    {isMobile ? (
+                    <KpiGrid cols={3}>
+                      <KpiTile value={tomon} label="Tomon" />
+                      <KpiTile value={hizb} label="Hizb" />
+                      <KpiTile value={pts} label="Pts" tone="brand" />
+                    </KpiGrid>
+                    ) : (
                     <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:4}}>
                       {[['Tomon',tomon,'#E6F1FB','#0C447C'],['Hizb',hizb,'#E1F5EE','#085041'],['Pts',pts,'#EEEDFE','#534AB7']].map(([l,v,bg,c])=>(
                         <div key={l} style={{background:bg,borderRadius:6,padding:'6px',textAlign:'center'}}>
@@ -427,6 +487,7 @@ export default function RapportMensuel({ user, navigate, goBack, lang='fr', isMo
                         </div>
                       ))}
                     </div>
+                    )}
                   </div>
                 ))}
               </div>
@@ -442,6 +503,15 @@ export default function RapportMensuel({ user, navigate, goBack, lang='fr', isMo
               </div>
               <div style={{background:'#fff',borderRadius:12,border:'0.5px solid #e0e0d8',
                 padding:'14px',marginBottom:'1.25rem'}}>
+                {isMobile ? (
+                <div style={{marginBottom:12}}>
+                  <KpiGrid cols={3}>
+                    <KpiTile value={exTotal} label={lang==='ar'?'مجموع':'Total'} />
+                    <KpiTile value={exReussis} label={lang==='ar'?'ناجح':'Réussis'} tone="good" />
+                    <KpiTile value={`${tauxExamens}%`} label={lang==='ar'?'نسبة':'Taux'} />
+                  </KpiGrid>
+                </div>
+                ) : (
                 <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:8,marginBottom:12}}>
                   {[
                     {l:lang==='ar'?'مجموع':'Total',   v:exTotal,   c:'#085041',bg:'#E1F5EE'},
@@ -454,6 +524,7 @@ export default function RapportMensuel({ user, navigate, goBack, lang='fr', isMo
                     </div>
                   ))}
                 </div>
+                )}
                 <div style={{display:'flex',flexDirection:'column',gap:6}}>
                   {reMois.slice(0,5).map(r=>{
                     const el=eleves.find(e=>e.id===r.eleve_id);

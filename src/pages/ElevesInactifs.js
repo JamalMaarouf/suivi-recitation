@@ -11,6 +11,8 @@ import PageHeader from '../components/PageHeader';
 import StatsBreakdown from '../components/StatsBreakdown';
 import MobileSkeletonList from '../components/MobileSkeletonList';
 import { usePullToRefresh, PullToRefreshIndicator } from '../lib/usePullToRefresh';
+import { MobileHeader, HeaderMenu, actionsExport, ListRow, Avatar, LevelBadge, C } from '../components/ui';
+import { UserX } from 'lucide-react';
 
 // Couleurs niveaux — fallback sur des valeurs par défaut si niveaux pas encore chargés
 const NIVEAU_COLORS_FALLBACK = { '5B':'#534AB7','5A':'#378ADD','2M':'#1D9E75','2':'#EF9F27','1':'#E24B4A' };
@@ -33,7 +35,7 @@ export default function ElevesInactifs({ navigate, goBack, lang='fr', user, isMo
     setLoading(true);
     try {
       const results = await Promise.all([
-        supabase.from('eleves').select('*').eq('ecole_id', user.ecole_id).order('nom'),
+        supabase.from('eleves').select('*').eq('ecole_id', user.ecole_id).is('suspendu_at', null).order('nom'), // F13 (oct 2026) : exclure les suspendus (comme Dashboard / ValidationRapide)
         supabase.from('utilisateurs').select('id,prenom,nom').eq('role','instituteur').eq('ecole_id', user.ecole_id),
         fetchAll(supabase.from('validations').select('eleve_id,date_validation,nombre_tomon,type_validation,hizb_valide').eq('ecole_id', user.ecole_id).order('date_validation',{ascending:false})).then(data=>({data})),
         supabase.from('niveaux').select('id,code,couleur,sens_recitation').eq('ecole_id', user.ecole_id),
@@ -41,6 +43,8 @@ export default function ElevesInactifs({ navigate, goBack, lang='fr', user, isMo
         // Parents liés (pour le contact dans les exports)
         supabase.from('parent_eleve').select('parent_id,eleve_id'),
         supabase.from('utilisateurs').select('id,prenom,nom,telephone').eq('role','parent').eq('ecole_id', user.ecole_id),
+        // FIX (oct 2026) : recitations de sourates (derniere activite des eleves en sourates)
+        fetchAll(supabase.from('recitations_sourates').select('eleve_id,date_validation').eq('ecole_id', user.ecole_id).order('date_validation',{ascending:false})).then(data=>({data})),
       ]);
       const ed = results[0]?.data;
       const id = results[1]?.data;
@@ -49,6 +53,9 @@ export default function ElevesInactifs({ navigate, goBack, lang='fr', user, isMo
       const ec = results[4]?.data;
       const liaisons = results[5]?.data || [];
       const parentsList = results[6]?.data || [];
+      // FIX (oct 2026) : index derniere recitation par eleve (donnees triees desc -> 1re occurrence)
+      const derniereRecByEleve = {};
+      (results[7]?.data || []).forEach(r => { if (!derniereRecByEleve[r.eleve_id]) derniereRecByEleve[r.eleve_id] = r.date_validation; });
 
       // Index liaison parent → élève
       const parentByEleve = {};
@@ -57,8 +64,13 @@ export default function ElevesInactifs({ navigate, goBack, lang='fr', user, isMo
       const elevesData = (ed||[]).map(eleve => {
         const vals = (vd||[]).filter(v=>v.eleve_id===eleve.id);
         const sensE = getSensForEleve(eleve, nv, ec);
-        const etat = calcEtatEleve(vals, eleve.hizb_depart, eleve.tomon_depart, sensE);
-        const derniere = vals[0]?.date_validation || null;
+        const etat = calcEtatEleve(vals, eleve.hizb_depart, eleve.tomon_depart, sensE, eleve);
+        // FIX (oct 2026) : derniere activite = max(derniere validation, derniere recitation de sourate)
+        const derniereVal = vals[0]?.date_validation || null;
+        const derniereRec = derniereRecByEleve[eleve.id] || null;
+        const derniere = (derniereVal && derniereRec)
+          ? (new Date(derniereVal) >= new Date(derniereRec) ? derniereVal : derniereRec)
+          : (derniereVal || derniereRec);
         const inst = (id||[]).find(i=>i.id===eleve.instituteur_referent_id);
         const jours = joursDepuis(derniere);
         const inactif = isInactif(derniere);
@@ -172,21 +184,22 @@ export default function ElevesInactifs({ navigate, goBack, lang='fr', user, isMo
     }
   };
 
-  if (loading) return (
-    <div style={{padding:'2rem',textAlign:'center'}}>
-      <MobileSkeletonList type="card-simple" count={4} />
-      <button onClick={()=>goBack?goBack():navigate('dashboard')} className="back-link" style={{marginTop:'1rem'}}>
-        ←
-      </button>
-    </div>
-  );
-
-
-  // Pull-to-refresh (Phase 2 Sprint 4)
+  // BUG-FIX (oct 2026) : ce hook etait appele APRES le "if (loading) return" -> au
+  // passage loading true -> false, React rendait plus de hooks qu'au rendu precedent
+  // et plantait ("Rendered more hooks than during the previous render").
   const {
     pullDistance, isRefreshing, isThreshold,
     onTouchStart, onTouchMove, onTouchEnd,
   } = usePullToRefresh(loadData);
+
+  if (loading) return (
+    <div style={{padding:'2rem',textAlign:'center'}}>
+      <MobileSkeletonList type="card-simple" count={4} />
+      <button onClick={()=>goBack?goBack():navigate('dashboard')} className="back-link" style={{marginTop:'1rem'}}></button>
+    </div>
+  );
+
+
   return (
     <div style={{paddingBottom: isMobile ? 80 : 0, padding: isMobile ? 0 : '1rem',maxWidth:700,margin:'0 auto',background: isMobile ? '#f5f5f0' : 'transparent',minHeight: isMobile ? '100vh' : 'auto'}}
       {...(isMobile ? { onTouchStart, onTouchMove, onTouchEnd } : {})}>
@@ -199,28 +212,17 @@ export default function ElevesInactifs({ navigate, goBack, lang='fr', user, isMo
         />
       )}
       {isMobile ? (
-        <div style={{background:'linear-gradient(135deg,#085041,#1D9E75)',padding:'48px 16px 14px',position:'sticky',top:0,zIndex:100,marginBottom:12}}>
-          <div style={{display:'flex',alignItems:'center',gap:8}}>
-            <button onClick={()=>goBack?goBack():navigate('dashboard')}
-              style={{background:'rgba(255,255,255,0.22)',border:'1px solid rgba(255,255,255,0.25)',borderRadius:10,padding:'0',color:'#fff',fontSize:20,cursor:'pointer',flexShrink:0,width:44,height:44,display:'flex',alignItems:'center',justifyContent:'center'}}></button>
-            <div style={{flex:1,minWidth:0}}>
-              <div style={{fontSize:16,fontWeight:800,color:'#fff'}}>🚨 {lang==='ar'?'الطلاب غير النشطين':'Élèves inactifs'}</div>
-              <div style={{fontSize:11,color:'rgba(255,255,255,0.8)'}}>{inactifs.length} {lang==='ar'?'طالب':'élève(s)'}</div>
-            </div>
-            <div style={{display:'flex',gap:6,flexShrink:0}}>
-              <button onClick={handleExportPDF} disabled={inactifs.length===0}
-                title={lang==='ar'?'تصدير PDF':'Exporter PDF'}
-                style={{background:'rgba(255,255,255,0.25)',border:'1px solid rgba(255,255,255,0.3)',borderRadius:10,padding:'7px 9px',color:'#fff',fontSize:12,fontWeight:700,cursor:inactifs.length===0?'default':'pointer',opacity:inactifs.length===0?0.4:1,whiteSpace:'nowrap',fontFamily:'inherit'}}>
-                📄
-              </button>
-              <button onClick={handleExportExcel} disabled={inactifs.length===0}
-                title={lang==='ar'?'تصدير Excel':'Exporter Excel'}
-                style={{background:'rgba(255,255,255,0.25)',border:'1px solid rgba(255,255,255,0.3)',borderRadius:10,padding:'7px 9px',color:'#fff',fontSize:12,fontWeight:700,cursor:inactifs.length===0?'default':'pointer',opacity:inactifs.length===0?0.4:1,whiteSpace:'nowrap',fontFamily:'inherit'}}>
-                📊
-              </button>
-            </div>
-          </div>
-        </div>
+        <>
+        <MobileHeader
+          title={lang==='ar'?'الطلاب غير النشطين':'Élèves inactifs'}
+          subtitle={`${inactifs.length} ${lang==='ar'?'طالب':'élève(s)'}`}
+          icon={UserX}
+          onBack={()=>goBack?goBack():navigate('dashboard')}
+          lang={lang}
+          actions={<HeaderMenu lang={lang} actions={actionsExport({ onPDF: handleExportPDF, onExcel: handleExportExcel, lang, disabled: inactifs.length===0 })} />}
+        />
+        <div style={{height:12}}/>
+        </>
       ) : (
         <PageHeader
           title="Élèves inactifs"
@@ -245,27 +247,27 @@ export default function ElevesInactifs({ navigate, goBack, lang='fr', user, isMo
         total={{
           value: inactifs.length,
           label: lang === 'ar' ? 'الإجمالي' : 'Total inactifs',
-          emoji: '🚨',
+          emoji: isMobile ? undefined : '🚨', // charte mobile : pas d'emoji decoratif
           key: 'tous',
           onClick: () => setFiltreSeverite('tous'),
         }}
         segments={[
           { key: 'plus30', value: plus30, color: 'red',
             label: '+30 ' + (lang === 'ar' ? 'يوم' : 'jours'),
-            emoji: '🔴',
+            emoji: isMobile ? undefined : '🔴',
             onClick: () => setFiltreSeverite('plus30') },
           { key: 'entre14', value: entre14, color: 'amber',
             label: '14-30 ' + (lang === 'ar' ? 'يوم' : 'jours'),
-            emoji: '🟡',
+            emoji: isMobile ? undefined : '🟡',
             onClick: () => setFiltreSeverite('entre14') },
           { key: 'jamais', value: jamais, color: 'purple',
             label: lang === 'ar' ? 'لم يستظهر' : 'Sans récitation',
-            emoji: '⚪',
+            emoji: isMobile ? undefined : '⚪',
             onClick: () => setFiltreSeverite('jamais') },
         ]}
         activeKey={filtreSeverite}
         progress={inactifs.length > 0 ? {
-          label: `📊 ${lang === 'ar' ? 'توزيع غير النشطين' : 'Répartition par sévérité'}`,
+          label: `${isMobile ? '' : '📊 '}${lang === 'ar' ? 'توزيع غير النشطين' : 'Répartition par sévérité'}`,
           caption: `${plus30 + entre14} / ${inactifs.length} ${lang === 'ar' ? 'بدون استظهار' : 'sans récitation récente'}`,
         } : null}
         lang={lang}
@@ -297,6 +299,29 @@ export default function ElevesInactifs({ navigate, goBack, lang='fr', user, isMo
             const borderCol = estJamais ? '#534AB7' : urgent ? '#E24B4A' : '#EF9F27';
             const textCol = estJamais ? '#534AB7' : urgent ? '#E24B4A' : '#856404';
             const init = ((e.prenom||'?')[0]+(e.nom||'?')[0]).toUpperCase();
+
+            // Charte mobile (oct 2026) : ligne de liste ; le chiffre porte la severite (crit / warn / info)
+            if (isMobile) return (
+              <ListRow key={e.id} lang={lang}
+                leading={<Avatar prenom={e.prenom} nom={e.nom} color={nc} />}
+                title={`${e.prenom} ${e.nom}`}
+                subtitle={e.instituteurNom || undefined}
+                meta={
+                  <div style={{display:'flex',gap:6,alignItems:'center',flexWrap:'wrap'}}>
+                    <LevelBadge code={e.code_niveau} color={nc} />
+                    {estJamais ? (
+                      <span style={{fontSize:11,color:C.info,fontWeight:600}}>
+                        {lang==='ar'?'لم يستظهر بعد':'Jamais récité'}
+                      </span>
+                    ) : null}
+                  </div>
+                }
+                value={estJamais ? '∞' : jours}
+                valueLabel={lang==='ar'?'يوم':'jours'}
+                valueTone={estJamais ? 'info' : urgent ? 'crit' : 'warn'}
+                onClick={() => navigate('fiche', e)}
+              />
+            );
 
             return (
               <div key={e.id}

@@ -318,6 +318,10 @@ export const BAREME_DEFAUT = {
   certificat: 0,
   muraja_tomon: 0,
   muraja_hizb: 0,
+  // oct 2026 : muraja collective des sourates (avant : 20 / 5 codes en dur)
+  muraja_sourate: 0,
+  muraja_sequence: 0,
+  sequence_sourate: 0, // oct 2026 : sequence de sourate (memorisation), parametrable dans le bareme
 };
 
 /**
@@ -503,6 +507,30 @@ export async function saveBaremeItemsBulk(supabase, ecole_id, items) {
  * @param typeRecitation : 'complete' ou 'sequence'
  * @returns { points, source }
  */
+/**
+ * FIX (oct 2026) : convention unique des sourates acquises avant le suivi.
+ * eleves.sourates_acquises = N = les N premieres sourates du Coran dans le sens du niveau
+ * (desc : 114, 113, ... ; asc : 1, 2, ...) — meme convention que AcquisSelector et les
+ * verifications de blocage. Retourne l'ensemble des NUMEROS acquis.
+ */
+export function numerosSouratesAcquises(nbAcquises, sens = 'desc') {
+  const n = Math.max(0, Math.min(114, parseInt(nbAcquises) || 0));
+  const set = new Set();
+  for (let i = 0; i < n; i++) set.add(sens === 'asc' ? i + 1 : 114 - i);
+  return set;
+}
+
+/**
+ * FIX (oct 2026) : liste ordonnee des sourates d'un eleve = programme du niveau s'il existe
+ * (sinon les 114), triee selon le sens. `toutes` = objets {numero, ...}.
+ */
+export function ordonnerSouratesProgramme(toutes, programmeNumeros, sens = 'desc') {
+  const prog = programmeNumeros && programmeNumeros.size > 0 ? programmeNumeros : null;
+  return [...(toutes || [])]
+    .filter(s => !prog || prog.has(s.numero))
+    .sort((a, b) => sens === 'asc' ? a.numero - b.numero : b.numero - a.numero);
+}
+
 export function calculerPointsSourate(sourate_id, bareme, ensembles, typeRecitation = 'complete') {
   // Pour les sequences, on garde la logique simple
   if (typeRecitation !== 'complete') {
@@ -527,6 +555,25 @@ export function calculerPointsSourate(sourate_id, bareme, ensembles, typeRecitat
     points: bareme?.unites?.sourate || 0,
     source: 'base',
   };
+}
+
+/**
+ * Points d'UNE validation selon le bareme (memes regles que calcPointsPeriode).
+ * Source unique pour les affichages ligne a ligne / courbes (oct 2026) : remplace
+ * les anciennes formules codees en dur (bonus Roba +25 / Nisf +60, 10/100/30 pts).
+ * Accepte un bareme complet (avec .unites) ou plat. Les ensembles valides ne
+ * rapportent rien ici (leur bonus depend de bareme.ensembles, voir calcPointsPeriode).
+ */
+export function ptsValidation(v, bareme) {
+  const B = (bareme && bareme.unites) ? bareme.unites : (bareme || BAREME_DEFAUT);
+  if (!v) return 0;
+  switch (v.type_validation) {
+    case 'hizb_complet': return B.hizb_complet || 0;
+    case 'tomon_muraja': return (v.nombre_tomon || 0) * (B.muraja_tomon || 0);
+    case 'hizb_muraja':  return B.muraja_hizb || 0;
+    case 'ensemble_valide': return (bareme && bareme.ensembles && v.ensemble_id) ? (bareme.ensembles[v.ensemble_id] || 0) : 0;
+    default: return (v.nombre_tomon || 0) * (B.tomon || 0);
+  }
 }
 
 export function calcPoints(tomonCumul, hizbsCompletsCount, validations, tomonAcquis=0, hizbAcquisComplets=0, bareme=null) {
@@ -585,7 +632,35 @@ export function calcPoints(tomonCumul, hizbsCompletsCount, validations, tomonAcq
  *                          du niveau de l'eleve. Si fourni avec eleve, active
  *                          la logique multi-blocs corrigee.
  */
-export function calcEtatEleve(validations, hizbDepart, tomonDepart, sens = 'desc', eleve = null, programmeNiveau = null) {
+/**
+ * FIX (oct 2026) : passage de niveau "repartir" -> la progression (position, hizbs/sourates
+ * faits, blocages, certificats) ne compte que ce qui a ete fait DEPUIS le debut du niveau
+ * (eleves.debut_niveau_at). Les points deja gagnes restent comptes dans les totaux.
+ * Sans debut_niveau_at (cas general), rien n'est filtre.
+ */
+export function depuisDebutNiveau(rows, eleve, champ = 'date_validation') {
+  const debut = eleve && eleve.debut_niveau_at ? new Date(eleve.debut_niveau_at) : null;
+  if (!debut || isNaN(debut)) return rows || [];
+  // Audit final (oct 2026) : date_validation est un TIMESTAMP sans fuseau (valeur UTC) ; relue
+  // sans « Z », JS la prenait en heure locale (Maroc UTC+1) -> les recitations de la 1re heure
+  // apres un passage « repartir » etaient ignorees. On la lit donc comme UTC.
+  const lireDate = (v) => (typeof v === 'string' && /^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}(:\d{2}(\.\d+)?)?$/.test(v))
+    ? new Date(v.replace(' ', 'T') + 'Z') : new Date(v);
+  return (rows || []).filter(r => !r[champ] || lireDate(r[champ]) >= debut);
+}
+
+export function calcEtatEleve(validationsToutes, hizbDepart, tomonDepart, sens = 'desc', eleve = null, programmeNiveau = null, bareme = null) {
+  const validations = depuisDebutNiveau(validationsToutes, eleve);
+  // BUG-FIX POINTS FICHE ELEVE (oct 2026) : nouveau param `bareme` optionnel.
+  // Avant : calcPoints etait appele sans bareme -> toujours 0 pts sur la
+  //         fiche eleve (BAREME_DEFAUT a tomon=0, hizb_complet=0).
+  //         Le menu Notes affichait correctement les points (via
+  //         calcPointsPeriode fixee en sep 2026) mais pas la fiche.
+  // Apres : si bareme passe, les points sont calcules correctement.
+  //         Si bareme non passe (appelants sans barème dispo = ElevesInactifs),
+  //         comportement identique a avant = 0 pts (retrocompat totale).
+  // Note : accepte barème complet (avec .unites) ou objet plat {tomon, hizb_complet, ...}
+  //        grace a la logique de calcPoints ligne 533.
   // Valeurs par défaut selon le sens
   const defaultHizb = sens === 'asc' ? 1 : 60;
   const hizbD = (hizbDepart === 0 || hizbDepart === null || hizbDepart === undefined) ? defaultHizb : hizbDepart;
@@ -641,7 +716,10 @@ export function calcEtatEleve(validations, hizbDepart, tomonDepart, sens = 'desc
   // Points totaux = acquis antérieurs + nouveaux validés depuis le suivi
   const tomonTotal = tomonAcquis + tomonCumul;
   const hizbCompletsTotal = hizbAcquisComplets + hizbsComplets.size;
-  const points = calcPoints(tomonTotal, hizbCompletsTotal, validations, tomonAcquis, hizbAcquisComplets);
+  // BUG-FIX POINTS (oct 2026) : passer `bareme` a calcPoints pour avoir
+  // les vrais points au lieu de 0. Si bareme est null, calcPoints utilise
+  // BAREME_DEFAUT (comportement identique a avant).
+  const points = calcPoints(tomonTotal, hizbCompletsTotal, validations, tomonAcquis, hizbAcquisComplets, bareme);
 
   if (tous8Faits && hizbCompletValide) {
     // Hizb complet validé → passer au hizb SUIVANT selon le sens
@@ -713,18 +791,24 @@ export function calcEtatEleve(validations, hizbDepart, tomonDepart, sens = 'desc
 //   La validation utilisera le hizbEnCours retourne par cette fonction,
 //   donc l'enregistrement BDD sera coherent avec l'affichage.
 // ═══════════════════════════════════════════════════════════════════════════
-export function calcEtatEleveAvecBlocs(validations, eleve, programmeNiveau, sens = 'desc') {
+export function calcEtatEleveAvecBlocs(validations, eleve, programmeNiveau, sens = 'desc', bareme = null) {
+  // BUG-FIX POINTS FICHE ELEVE (oct 2026) : nouveau param `bareme` optionnel.
+  // Transmis a calcEtatEleve pour avoir les vrais points.
+  // Si non passe, comportement identique a avant (points = 0 via BAREME_DEFAUT).
+
   // Etape 1 : calcEtatEleve standard (toujours fait pour tomonCumul, points, etc.)
   // BUG-FIX MULTI-BLOCS : on passe eleve + programmeNiveau pour que le calcul
   // des tomons/hizbs acquis utilise la logique multi-blocs corrigee
   // (au lieu de la boucle lineaire 1->hizbDep / 60->hizbDep).
+  validations = depuisDebutNiveau(validations, eleve); // FIX (oct 2026) : passage de niveau
   const etatBrut = calcEtatEleve(
     validations || [],
     eleve?.hizb_depart || 0,
     eleve?.tomon_depart || 0,
     sens,
     eleve,
-    programmeNiveau
+    programmeNiveau,
+    bareme   // NEW oct 2026
   );
 
   // Etape 2 : detecter si multi-blocs (sinon retour direct)
@@ -945,6 +1029,9 @@ export async function verifierBlocageExamen(supabase, {
   validations,    // validations existantes (hizb)
   recitations,    // recitations_sourates existantes
 }) {
+  // FIX (oct 2026) : seulement ce qui a ete fait depuis le debut du niveau actuel
+  validations = depuisDebutNiveau(validations, eleve);
+  recitations = depuisDebutNiveau(recitations, eleve);
   try {
     // Trouver le niveau_id depuis la table niveaux via code_niveau
     const { data: niveauData } = await supabase
@@ -978,20 +1065,57 @@ export async function verifierBlocageExamen(supabase, {
       if (niveauType === 'hizb') {
         // ── Niveau Hizb ──
         // ids = numéros de Hizb
-        // L'examen se déclenche quand tous ces Hizb sont validés (hizb_complet)
+        // L'examen se déclenche quand tous ces Hizb sont valides (hizb_complet)
         //
         // Note metier : l'application impose deja a l'utilisateur de cliquer
         // "Valider Hizb complet" apres avoir valide les 8 tomons d'un Hizb
         // (le bouton "Valider Tomon" du Hizb suivant n'est dispo qu'apres ce
         // clic explicite). Donc une ligne type='hizb_complet' existe forcement
-        // en BDD pour chaque Hizb termine. Pas besoin de detecter via cumul
-        // de tomons.
+        // en BDD pour chaque Hizb termine pendant le suivi.
         const hizbComplets = new Set(
           (validations||[])
             .filter(v => v.type_validation === 'hizb_complet')
             .map(v => Number(v.hizb_valide))
         );
+
+        // ─── BUG-FIX (oct 2026) : prendre en compte les hizbs acquis AVANT le suivi ─────
+        // Symetrique au traitement sourates ligne ~1019.
+        // Sans cela, un eleve avec hizb_depart au milieu (ex: Hizb 57) ne pourra
+        // jamais declencher les examens couvrant les hizbs au-dela de son depart
+        // (les hizbs 58-60 sont acquis d'office, pas en BDD).
+        //
+        // Convention metier (cf. calcEtatEleve ligne 635) :
+        //   - En desc : hizb_depart = N -> hizbs N+1 a 60 sont acquis d'office
+        //   - En asc  : hizb_depart = N -> hizbs 1 a N-1 sont acquis d'office
+        //   - hizbs_acquis = tableau explicite de hizbs acquis supplementaires
+        const sensNiveau = niveauData.sens_recitation || 'desc';
+        const hd = parseInt(eleve?.hizb_depart) || 0;
+        const acquisAvantSuivi = new Set(); // Hizb acquis avant le suivi (pour la regle « examen couvert »)
+        if (hd > 0) {
+          // Audit final (oct 2026) : tenir compte des BLOCS du programme (meme calcul que la fiche,
+          // calcHizbsAcquisAvantArrivee). Avant : tous les Hizb au-dela du depart en ligne droite ->
+          // dans un niveau a plusieurs blocs, un examen se declenchait apres un seul Hizb.
+          // Sans programme, la fonction applique exactement l'ancienne regle en ligne droite.
+          let progExam = [];
+          try {
+            const { data: pg } = await supabase.from('programmes')
+              .select('reference_id, ordre, bloc_numero, bloc_nom, bloc_sens, type_contenu')
+              .eq('niveau_id', niveauId).eq('ecole_id', ecole_id).order('ordre');
+            progExam = pg || [];
+          } catch (e) { progExam = []; }
+          for (const h of calcHizbsAcquisAvantArrivee({ ...eleve, hizb_depart: hd }, progExam, sensNiveau)) { hizbComplets.add(Number(h)); acquisAvantSuivi.add(Number(h)); }
+        }
+        if (Array.isArray(eleve?.hizbs_acquis)) {
+          for (const h of eleve.hizbs_acquis) {
+            const n = Number(h);
+            if (!isNaN(n)) { hizbComplets.add(n); acquisAvantSuivi.add(n); }
+          }
+        }
+
         examTermine = ids.every(h => hizbComplets.has(Number(h)));
+        // Regle validee par Jamal (23/10) : un examen ENTIEREMENT couvert par les acquis d'avant le
+        // suivi ne bloque pas ; l'eleve ne sera bloque qu'au prochain examen (Hizb recites pendant le suivi).
+        if (examTermine && ids.every(h => acquisAvantSuivi.has(Number(h)))) continue;
 
       } else {
         // ── Niveau Sourate ──
@@ -1012,7 +1136,7 @@ export async function verifierBlocageExamen(supabase, {
         // Sourates complètes de l'élève (depuis validations explicites)
         const souratesCompletes = new Set(
           (recitations||[])
-            .filter(r => r.type_recitation === 'complete' || r.complete === true)
+            .filter(r => (r.type_recitation === 'complete' || r.complete === true) && !r.is_muraja) // FIX (oct 2026) : muraja exclue
             .map(r => r.sourate_id)
         );
 
@@ -1022,6 +1146,7 @@ export async function verifierBlocageExamen(supabase, {
         // Sans cela, un eleve avec acquis prealables ne pourra jamais declencher
         // le blocage (le compteur de recitations en BDD n'atteindra jamais le total).
         const nbAcquises = eleve?.sourates_acquises || 0;
+        const souratesAcquisesAvant = new Set(); // pour la regle « examen couvert par les acquis »
         if (nbAcquises > 0) {
           try {
             // Charger les 114 sourates de la BDD triees selon le sens du niveau
@@ -1033,7 +1158,7 @@ export async function verifierBlocageExamen(supabase, {
             if (souratesData && souratesData.length > 0) {
               // Les N premieres dans cet ordre = acquises avant le suivi
               const idsAcquis = souratesData.slice(0, nbAcquises).map(s => s.id);
-              for (const sId of idsAcquis) souratesCompletes.add(sId);
+              for (const sId of idsAcquis) { souratesCompletes.add(sId); souratesAcquisesAvant.add(sId); }
             }
           } catch (e) {
             console.warn('[verifierBlocageExamen] echec ajout sourates_acquises:', e);
@@ -1042,6 +1167,8 @@ export async function verifierBlocageExamen(supabase, {
 
         examTermine = toutesLesSourates.length > 0 &&
           toutesLesSourates.every(sid => souratesCompletes.has(sid));
+        // Meme regle (23/10) : examen entierement couvert par les sourates acquises avant le suivi -> pas de blocage
+        if (examTermine && toutesLesSourates.every(sid => souratesAcquisesAvant.has(sid))) continue;
       }
 
       if (!examTermine) continue;
@@ -1053,9 +1180,10 @@ export async function verifierBlocageExamen(supabase, {
         .eq('examen_id', examen.id)
         .eq('eleve_id', eleve.id)
         .eq('statut', 'reussi')
-        .maybeSingle();
-
-      if (resultat) continue; // déjà réussi → pas de blocage
+        .limit(1);
+      // FIX (oct 2026) : .limit(1) au lieu de .maybeSingle() -> avec 2 lignes 'reussi'
+      // (double clic) maybeSingle renvoyait une erreur et l'eleve restait bloque a vie.
+      if (resultat && resultat.length > 0) continue; // déjà réussi → pas de blocage
 
       // 🔒 Blocage actif !
       return {
@@ -1102,11 +1230,19 @@ export async function verifierBlocageEnsemble(supabase, { eleve_id, ecole_id, ni
     // 2. Charger les sourates recitees completement par l'eleve
     const { data: recitations } = await supabase
       .from('recitations_sourates')
-      .select('sourate_id, type_recitation')
+      .select('sourate_id, type_recitation, is_muraja, date_validation')
       .eq('eleve_id', eleve_id)
       .eq('type_recitation', 'complete');
+    // FIX (oct 2026) : la muraja (revision) ne valide pas un ensemble ; et seulement ce qui a ete
+    // fait depuis le debut du niveau actuel (passage de niveau "repartir")
+    let eleveDebut = null;
+    try {
+      const { data: elD } = await supabase.from('eleves').select('*').eq('id', eleve_id).maybeSingle();
+      eleveDebut = elD;
+    } catch (e) { /* sans filtre */ }
+    const recitationsMemo = depuisDebutNiveau((recitations || []).filter(r => !r.is_muraja), eleveDebut);
 
-    const souratesRecitees = new Set((recitations || []).map(r => r.sourate_id));
+    const souratesRecitees = new Set(recitationsMemo.map(r => r.sourate_id));
 
     // 2bis. AJOUT : prendre en compte les sourates acquises ANTERIEUREMENT
     // (logique identique a verifierBlocageExamen pour coherence)
@@ -1149,7 +1285,7 @@ export async function verifierBlocageEnsemble(supabase, { eleve_id, ecole_id, ni
     // 4. Charger les examens du niveau (pour distinguer Cas A vs Cas B)
     const { data: examens } = await supabase
       .from('examens')
-      .select('id, nom, contenu_ids, bloquant, niveau_id')
+      .select('id, nom, contenu_ids, bloquant, niveau_id, score_minimum, type_contenu')
       .eq('ecole_id', ecole_id)
       .eq('niveau_id', niveau_id)
       .eq('actif', true);
@@ -1284,14 +1420,43 @@ export async function verifierEtCreerCertificats(supabase, {
         .map(v => v.hizb_valide)
     );
     // Inclure les hizb acquis antérieurs
-    const hizbDepart = eleve.hizb_depart || 1;
-    for (let h = 1; h < hizbDepart; h++) hizbsComplets.add(h);
+    // FIX (oct 2026) : avant, toujours Hizb 1..(hizb_depart-1) quel que soit le sens.
+    // En sens 'desc' (60 -> 1), un eleve demarrant au Hizb 58 recevait les Hizb 1 a 57
+    // -> certificats de hizb attribues a tort. Meme convention que verifierBlocageExamen.
+    let sensCert = 'desc';
+    let progCert = [];
+    try {
+      const { data: nvC } = await supabase.from('niveaux').select('id, sens_recitation')
+        .eq('ecole_id', ecole_id).eq('code', eleve.code_niveau || '').maybeSingle();
+      // Audit final (oct 2026) : programme du niveau pour compter les acquis par BLOCS (comme la fiche)
+      if (nvC && nvC.id) {
+        try {
+          const { data: pg } = await supabase.from('programmes')
+            .select('reference_id, ordre, bloc_numero, bloc_nom, bloc_sens, type_contenu')
+            .eq('niveau_id', nvC.id).eq('ecole_id', ecole_id).order('ordre');
+          progCert = pg || [];
+        } catch (e) { progCert = []; }
+      }
+      if (nvC && nvC.sens_recitation) sensCert = nvC.sens_recitation;
+      else {
+        const { data: ecC } = await supabase.from('ecoles').select('sens_recitation_defaut').eq('id', ecole_id).maybeSingle();
+        if (ecC && ecC.sens_recitation_defaut) sensCert = ecC.sens_recitation_defaut;
+      }
+    } catch (e) { /* on garde 'desc' */ }
+    const hizbDepart = parseInt(eleve.hizb_depart) || 0;
+    if (hizbDepart > 0) {
+      // Sans programme : meme regle en ligne droite qu'avant (calcHizbsAcquisAvantArrivee)
+      for (const h of calcHizbsAcquisAvantArrivee({ ...eleve, hizb_depart: hizbDepart }, progCert, sensCert)) hizbsComplets.add(Number(h));
+    }
+    if (Array.isArray(eleve.hizbs_acquis)) {
+      for (const h of eleve.hizbs_acquis) { const n = Number(h); if (!isNaN(n)) hizbsComplets.add(n); }
+    }
     const totalHizbComplets = hizbsComplets.size;
 
     // 4. Sourates complètes (depuis recitations)
     const souratesCompletes = new Set(
       (recitations || [])
-        .filter(r => r.type_recitation === 'complete' || r.complete === true)
+        .filter(r => (r.type_recitation === 'complete' || r.complete === true) && !r.is_muraja) // FIX (oct 2026) : muraja exclue
         .map(r => r.sourate_id)
     );
 
@@ -1318,8 +1483,8 @@ export async function verifierEtCreerCertificats(supabase, {
             .from('resultats_examens').select('id')
             .eq('eleve_id', eleve.id)
             .eq('examen_id', jalon.examen_final_id)
-            .eq('statut', 'reussi').maybeSingle();
-          jalonAtteint = !!resultatFinal;
+            .eq('statut', 'reussi').limit(1);
+          jalonAtteint = !!(resultatFinal && resultatFinal.length); // FIX (oct 2026) : robuste aux doublons
         } else {
           // condition='cumul' — le cumul suffit
           jalonAtteint = cumulOK;
@@ -1342,8 +1507,8 @@ export async function verifierEtCreerCertificats(supabase, {
               .from('resultats_examens').select('id')
               .eq('eleve_id', eleve.id)
               .eq('examen_id', jalon.examen_final_id)
-              .eq('statut', 'reussi').maybeSingle();
-            jalonAtteint = !!resultatFinal;
+              .eq('statut', 'reussi').limit(1);
+            jalonAtteint = !!(resultatFinal && resultatFinal.length); // FIX (oct 2026) : robuste aux doublons
           } else {
             jalonAtteint = cumulOK;
           }
@@ -1355,8 +1520,8 @@ export async function verifierEtCreerCertificats(supabase, {
           .from('resultats_examens').select('id')
           .eq('eleve_id', eleve.id)
           .eq('examen_id', jalon.examen_id)
-          .eq('statut', 'reussi').maybeSingle();
-        jalonAtteint = !!resultat;
+          .eq('statut', 'reussi').limit(1);
+        jalonAtteint = !!(resultat && resultat.length); // FIX (oct 2026) : robuste aux doublons
       }
 
       if (!jalonAtteint) continue;
@@ -1662,51 +1827,124 @@ export async function verifierEtCreerCertificatsExamens(supabase, {
  * Calcule les points gagnés par un élève sur une période donnée.
  * N'inclut PAS les acquis antérieurs — uniquement les validations dans la plage.
  */
-export function calcPointsPeriode(validations, dateDebut, dateFin, bareme=null, pointsEvenements=[]) {
+/**
+ * Calcule les points d'un eleve sur une periode donnee.
+ *
+ * MAJOR-FIX BAREME (sep 2026) : la fonction ne comptait que Tomon/Hizb
+ * de la table 'validations' et les points_eleves des examens.
+ * Elle IGNORAIT :
+ * - Recitations de sourates (table 'recitations_sourates')
+ * - Muraja Tomon/Hizb (types 'tomon_muraja' / 'hizb_muraja' dans validations)
+ * - Bonus ensembles complets (type 'ensemble_valide' dans validations)
+ * - Certificats obtenus (table 'certificats_eleves')
+ *
+ * Consequence : eleves recitant en sourates (niveaux 5A/5B/2M) affichaient
+ * 0 points partout (menu Notes, tableau d'honneur), alors qu'ils recitaient
+ * activement. Bug remonte par Jamal + surveillant general fin aout 2026.
+ *
+ * @param validations : lignes de la table 'validations' pour l'eleve
+ * @param dateDebut, dateFin : bornes temporelles inclusives
+ * @param bareme : objet du barème (unites, examens, ensembles, jalons)
+ * @param pointsEvenements : lignes de 'points_eleves' pour l'eleve
+ * @param recitationsSourates : lignes de 'recitations_sourates' (NEW sep 2026)
+ * @param certificats : lignes de 'certificats_eleves' (NEW sep 2026)
+ */
+export function calcPointsPeriode(validations, dateDebut, dateFin, bareme=null, pointsEvenements=[], recitationsSourates=[], certificats=[]) {
   const B = (bareme && bareme.unites) ? bareme.unites : (bareme || BAREME_DEFAUT);
   const debut = new Date(dateDebut);
   const fin = new Date(dateFin);
   fin.setHours(23, 59, 59, 999);
 
-  // ── Validations (Tomon / Hizb) ──
-  const vPeriode = validations.filter(v => {
-    const d = new Date(v.date_validation);
-    return d >= debut && d <= fin;
-  });
+  // ── Filtre commun par periode ──
+  const inPeriode = (d) => {
+    const dt = new Date(d);
+    return dt >= debut && dt <= fin;
+  };
+
+  // ── 1. Validations Tomon / Hizb / Muraja / Ensemble ──
+  const vPeriode = validations.filter(v => inPeriode(v.date_validation));
 
   let tomonPeriode = 0;
+  let muraTomonPeriode = 0;
+  let muraHizbPeriode = 0;
   const hizbsCompletsPeriode = new Set();
+  const ensemblesValidesPeriode = []; // ids
+
   for (const v of vPeriode) {
     if (v.type_validation === 'hizb_complet') {
       hizbsCompletsPeriode.add(v.hizb_valide);
+    } else if (v.type_validation === 'tomon_muraja') {
+      if (v.nombre_tomon > 0) muraTomonPeriode += v.nombre_tomon;
+    } else if (v.type_validation === 'hizb_muraja') {
+      muraHizbPeriode += 1;
+    } else if (v.type_validation === 'ensemble_valide') {
+      if (v.ensemble_id) ensemblesValidesPeriode.push(v.ensemble_id);
     } else if (v.nombre_tomon > 0) {
+      // Par defaut : type_validation='tomon' ou absent + nombre_tomon > 0
       tomonPeriode += v.nombre_tomon;
     }
   }
 
-  // BUG-FIX BAREME (mai 2026) : suppression Roba/Nisf, calcul Tomon+Hizb uniquement
-  const ptsTomon = tomonPeriode * B.tomon;
-  const ptsHizb = hizbsCompletsPeriode.size * B.hizb_complet;
+  const ptsTomon = tomonPeriode * (B.tomon || 0);
+  const ptsHizb = hizbsCompletsPeriode.size * (B.hizb_complet || 0);
+  const ptsMuraTomon = muraTomonPeriode * (B.muraja_tomon || 0);
+  const ptsMuraHizb = muraHizbPeriode * (B.muraja_hizb || 0);
 
-  // ── Événements ponctuels (examens réussis, certificats, ensembles) ──
-  const evtPeriode = (pointsEvenements || []).filter(e => {
-    const d = new Date(e.date_event);
-    return d >= debut && d <= fin;
-  });
-  const ptsExamens   = evtPeriode.filter(e=>e.type_event==='examen').reduce((s,e)=>s+e.points,0);
-  const ptsCertificats = evtPeriode.filter(e=>e.type_event==='jalon').reduce((s,e)=>s+e.points,0);
-  const ptsEnsembles = evtPeriode.filter(e=>e.type_event==='ensemble_sourates').reduce((s,e)=>s+e.points,0);
+  // Bonus ensemble complet : lookup dans bareme.ensembles[ensemble_id]
+  const baremeEnsembles = (bareme && bareme.ensembles) || {};
+  let ptsBonusEnsembles = 0;
+  for (const eid of ensemblesValidesPeriode) {
+    ptsBonusEnsembles += (baremeEnsembles[eid] || 0);
+  }
 
-  const total = ptsTomon + ptsHizb + ptsExamens + ptsCertificats + ptsEnsembles;
+  // ── 2. Recitations de sourates (points deja stockes en BDD) ──
+  // La colonne 'points' est pre-calculee par calculerPointsSourate au moment
+  // de la validation. Il suffit de sommer.
+  const recPeriode = (recitationsSourates || []).filter(r => inPeriode(r.date_validation));
+  const ptsSourates = recPeriode.reduce((s, r) => s + (Number(r.points) || 0), 0);
+  const nbSouratesCompletes = recPeriode.filter(r => r.type_recitation === 'complete' && !r.is_muraja).length;
+  const nbSouratesMuraja = recPeriode.filter(r => r.is_muraja).length;
+
+  // ── 3. Certificats obtenus dans la periode ──
+  const baremeJalons = (bareme && bareme.jalons) || {};
+  const certifPeriode = (certificats || []).filter(c => inPeriode(c.date_obtention || c.created_at));
+  let ptsCertificats = 0;
+  for (const c of certifPeriode) {
+    // Chaque certificat correspond a un jalon (colonne jalon_id)
+    ptsCertificats += (baremeJalons[c.jalon_id] || 0);
+  }
+
+  // ── 4. Evenements ponctuels historiques (compat retro) ──
+  // Certaines ecoles pourraient avoir des points_eleves historiques.
+  // On garde pour ne pas casser la retrocompat.
+  const evtPeriode = (pointsEvenements || []).filter(e => inPeriode(e.date_event));
+  const ptsExamens = evtPeriode.filter(e => e.type_event === 'examen').reduce((s, e) => s + (Number(e.points) || 0), 0);
+  // Note : on NE compte PAS ici les type_event='jalon' ou 'ensemble_sourates'
+  // pour eviter le double-comptage (deja compte en 3. et via ensemblesValides).
+  // Historiquement personne n'enregistrait ces types dans points_eleves donc
+  // aucun risque de regression.
+
+  const total = ptsTomon + ptsHizb + ptsMuraTomon + ptsMuraHizb + ptsBonusEnsembles
+              + ptsSourates + ptsCertificats + ptsExamens;
 
   return {
     total,
+    // Points par categorie (utile pour affichage detaille)
     ptsTomon, ptsHizb,
-    // Compat retrocompatible : Roboe/Nisf existent toujours mais valent 0
+    ptsMuraTomon, ptsMuraHizb,
+    ptsBonusEnsembles,
+    ptsSourates,
+    ptsCertificats, ptsExamens,
+    // Compat retro : anciens champs conserves
     ptsRoboe: 0, ptsNisf: 0,
-    ptsExamens, ptsCertificats, ptsEnsembles,
+    ptsEnsembles: ptsBonusEnsembles, // alias historique
+    // Compteurs bruts
     tomonPeriode,
     hizbsPeriode: hizbsCompletsPeriode.size,
+    muraTomonPeriode, muraHizbPeriode,
+    nbSouratesCompletes, nbSouratesMuraja,
+    nbCertificats: certifPeriode.length,
+    nbEnsemblesComplets: ensemblesValidesPeriode.length,
     nbValidations: vPeriode.length,
     details: { nbRoboe: 0, nbNisf: 0, nbHizb: hizbsCompletsPeriode.size },
   };
@@ -1719,6 +1957,13 @@ export function calcPointsPeriode(validations, dateDebut, dateFin, bareme=null, 
 export async function enregistrerPointsEvenement(supabase, { eleve_id, ecole_id, type_event, objet_id, points, valide_par }) {
   if (!points || points <= 0) return;
   try {
+    // FIX (oct 2026) : idempotent pour un meme evenement (ex. examen re-enregistre ou
+    // double clic) -> les points d'un examen ne sont credites qu'une fois.
+    if (objet_id) {
+      const { data: deja } = await supabase.from('points_eleves').select('id')
+        .eq('eleve_id', eleve_id).eq('type_event', type_event).eq('objet_id', objet_id).limit(1);
+      if (deja && deja.length > 0) return;
+    }
     await supabase.from('points_eleves').insert({
       eleve_id, ecole_id, type_event, objet_id,
       points, date_event: new Date().toISOString(),

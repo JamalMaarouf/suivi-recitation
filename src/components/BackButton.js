@@ -28,7 +28,7 @@ export default function BackButton({ onClick, lang = 'fr', variant = 'light', ic
     gap: iconOnly ? 0 : 8,
     cursor: 'pointer',
     border: 'none',
-    fontFamily: "'Tajawal', Arial, sans-serif",
+    fontFamily: 'inherit',
     fontWeight: 600,
     flexShrink: 0,
     transition: 'all 0.15s',
