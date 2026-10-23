@@ -261,6 +261,14 @@ export default function SuiviCours({ user, navigate, goBack, lang, isMobile }) {
                 {lang === 'ar' ? 'متابعة تقدم الدروس حسب المستوى' : 'Suivi de la progression des cours par niveau'}
               </div>
             </div>
+            {/* Bloc 3 (oct 2026) : acces a la creation des cours (instituteur : ses propres cours) */}
+            <button onClick={() => navigate('gestion_cours')}
+              title={lang === 'ar' ? 'إعداد الدروس' : 'Configurer les cours'}
+              style={{
+                width: 44, height: 44, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                background: 'rgba(255,255,255,0.2)', border: 'none', borderRadius: 10,
+                padding: 0, flexShrink: 0, color: '#fff', fontSize: 18, cursor: 'pointer',
+              }}>⚙️</button>
           </div>
         </div>
       ) : (
@@ -272,15 +280,26 @@ export default function SuiviCours({ user, navigate, goBack, lang, isMobile }) {
             subtitle={lang === 'ar' ? 'متابعة تقدم الدروس حسب المستوى' : 'Suivi de la progression des cours par niveau'}
             onBack={() => goBack ? goBack() : navigate('dashboard')}
             lang={lang}
-            actions={!loading && cours.length > 0 && statsGlobales.nbLiaisons > 0 && (
-              <ExportButtons
-                onPDF={exportCoursPDF}
-                onExcel={exportCoursExcel}
-                lang={lang}
-                variant="inline"
-                compact
-              />
-            )}
+            actions={<div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              {!loading && cours.length > 0 && statsGlobales.nbLiaisons > 0 && (
+                <ExportButtons
+                  onPDF={exportCoursPDF}
+                  onExcel={exportCoursExcel}
+                  lang={lang}
+                  variant="inline"
+                  compact
+                />
+              )}
+              {/* Bloc 3 (oct 2026) : acces a la creation des cours */}
+              <button onClick={() => navigate('gestion_cours')}
+                style={{
+                  padding: '8px 12px', background: '#E6F1FB', color: '#0C447C',
+                  border: '1px solid #378ADD40', borderRadius: 10,
+                  fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit',
+                }}>
+                ⚙️ {lang === 'ar' ? 'إعداد الدروس' : 'Configurer les cours'}
+              </button>
+            </div>}
           />
         </div>
       )}
@@ -303,7 +322,7 @@ export default function SuiviCours({ user, navigate, goBack, lang, isMobile }) {
                 ? 'ابدأ بإضافة دروس من قسم الإدارة'
                 : 'Commence par créer des cours depuis la page Gestion'}
             </div>
-            {user.role === 'surveillant' && (
+            {(
               <button onClick={() => navigate('gestion_cours')}
                 style={{
                   padding: '10px 18px', background: '#0C447C', color: '#fff',

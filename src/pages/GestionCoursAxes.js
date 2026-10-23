@@ -40,13 +40,16 @@ export default function GestionCoursAxes({ user, navigate, goBack, lang, isMobil
   });
   // Confirm modal
   const [confirmModal, setConfirmModal] = useState({ isOpen: false, title: '', message: '', onConfirm: null });
+  // Bloc 3 (oct 2026) : l'instituteur ne structure que les cours qu'il a crees ;
+  // les autres cours sont consultables en lecture seule.
+  const lectureSeule = user.role !== 'surveillant' && (!cours || cours.created_by !== user.id);
 
   // ─── Chargement ─────────────────────────────────────────────
   const loadData = async () => {
     setLoading(true);
     const [coursRes, axesRes] = await Promise.all([
       supabase.from('cours')
-        .select('id, nom_ar, nom_fr, nom_en, categorie')
+        .select('id, nom_ar, nom_fr, nom_en, categorie, created_by')
         .eq('id', coursId)
         .maybeSingle(),
       supabase.from('cours_axes')
@@ -95,12 +98,14 @@ export default function GestionCoursAxes({ user, navigate, goBack, lang, isMobil
 
   // ─── Ouvrir modale : ajout ou édition ──────────────────────
   const openCreate = (parentId = null) => {
+    if (lectureSeule) return;
     setEditing(null);
     setParentFor(parentId);
     setForm({ nom_ar: '', nom_fr: '', nom_en: '', description: '', duree_estimee_seances: '' });
     setFormOpen(true);
   };
   const openEdit = (axe) => {
+    if (lectureSeule) return;
     setEditing(axe);
     setParentFor(null);
     setForm({
@@ -115,6 +120,7 @@ export default function GestionCoursAxes({ user, navigate, goBack, lang, isMobil
 
   // ─── Sauvegarder ────────────────────────────────────────────
   const handleSave = async () => {
+    if (lectureSeule) return;
     if (!form.nom_ar.trim()) {
       toast.error(lang === 'ar' ? 'الاسم بالعربية إلزامي' : 'Le nom en arabe est obligatoire');
       return;
@@ -161,6 +167,7 @@ export default function GestionCoursAxes({ user, navigate, goBack, lang, isMobil
 
   // ─── Suppression (CASCADE automatique sur les sous-axes) ───
   const handleDelete = (node) => {
+    if (lectureSeule) return;
     const nom = node.nom_ar || node.nom_fr || 'cet axe';
     const nbDesc = countDescendants(node);
     const message = nbDesc > 0
@@ -189,6 +196,7 @@ export default function GestionCoursAxes({ user, navigate, goBack, lang, isMobil
 
   // ─── Déplacer un axe (monter/descendre dans les frères) ────
   const moveAxe = async (node, direction) => {
+    if (lectureSeule) return;
     // direction = -1 (monter) ou +1 (descendre)
     const freres = axes
       .filter(a => (a.parent_axe_id || null) === (node.parent_axe_id || null))
@@ -259,7 +267,7 @@ export default function GestionCoursAxes({ user, navigate, goBack, lang, isMobil
           </div>
 
           {/* Actions */}
-          <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
+          {!lectureSeule && <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
             {/* Monter / descendre */}
             <button onClick={() => moveAxe(node, -1)}
               title={lang === 'ar' ? 'رفع' : 'Monter'}
@@ -302,7 +310,7 @@ export default function GestionCoursAxes({ user, navigate, goBack, lang, isMobil
                 border: '1px solid #E24B4A30', borderRadius: 6,
                 fontSize: 11, cursor: 'pointer', fontFamily: 'inherit',
               }}>🗑</button>
-          </div>
+          </div>}
         </div>
         {/* Rendu récursif des enfants */}
         {node.enfants.map(enfant => renderNode(enfant, depth + 1))}
@@ -349,7 +357,7 @@ export default function GestionCoursAxes({ user, navigate, goBack, lang, isMobil
             subtitle={`${axes.length} ${lang === 'ar' ? 'محور إجمالا' : 'axe(s) au total'}${cours?.categorie ? ` · ${cours.categorie}` : ''}`}
             onBack={() => goBack ? goBack() : navigate('gestion_cours')}
             lang={lang}
-            actions={
+            actions={lectureSeule ? null :
               <button onClick={() => openCreate(null)}
                 style={{
                   padding: '9px 14px', background: '#1D9E75', color: '#fff',
@@ -370,7 +378,7 @@ export default function GestionCoursAxes({ user, navigate, goBack, lang, isMobil
         ) : (
           <>
             {/* Bouton ajouter mobile */}
-            {isMobile && (
+            {isMobile && !lectureSeule && (
               <button onClick={() => openCreate(null)}
                 style={{
                   width: '100%', padding: '12px',

@@ -48,12 +48,16 @@ export default function GestionCours({ user, navigate, goBack, lang, isMobile })
   // Confirm modal
   const [confirmModal, setConfirmModal] = useState({ isOpen: false, title: '', message: '', onConfirm: null });
 
+  // Bloc 3 (oct 2026) : l'instituteur cree des cours ; il ne modifie/supprime
+  // que ceux qu'il a crees (les autres restent consultables en lecture seule).
+  const peutModifier = (c) => user.role === 'surveillant' || (!!c && c.created_by === user.id);
+
   // ─── Chargement initial ────────────────────────────────────
   const loadData = async () => {
     setLoading(true);
     const [coursRes, niveauxRes] = await Promise.all([
       supabase.from('cours')
-        .select('id, nom_ar, nom_fr, nom_en, categorie, description, annee_estimee, ordre, actif, created_at')
+        .select('id, nom_ar, nom_fr, nom_en, categorie, description, annee_estimee, ordre, actif, created_at, created_by')
         .eq('ecole_id', user.ecole_id)
         .eq('actif', true)
         .order('ordre', { ascending: true }),
@@ -108,6 +112,7 @@ export default function GestionCours({ user, navigate, goBack, lang, isMobile })
     setFormOpen(true);
   };
   const openEdit = (c) => {
+    if (!peutModifier(c)) return;
     setEditing(c);
     setForm({
       nom_ar: c.nom_ar || '',
@@ -143,6 +148,7 @@ export default function GestionCours({ user, navigate, goBack, lang, isMobile })
       ecole_id: user.ecole_id,
     };
     let coursId;
+    if (editing && !peutModifier(editing)) { setSaving(false); return; }
     if (editing) {
       // UPDATE
       const { error } = await supabase.from('cours').update(payload).eq('id', editing.id);
@@ -186,6 +192,7 @@ export default function GestionCours({ user, navigate, goBack, lang, isMobile })
 
   // ─── Suppression (soft delete : actif=false) ───────────────
   const handleDelete = (c) => {
+    if (!peutModifier(c)) return;
     const nom = c.nom_ar || c.nom_fr || 'ce cours';
     setConfirmModal({
       isOpen: true,
@@ -436,8 +443,9 @@ export default function GestionCours({ user, navigate, goBack, lang, isMobile })
                             fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit',
                             whiteSpace: 'nowrap',
                           }}>
-                          📝 {lang === 'ar' ? 'المحاور' : 'Axes'}
+                          {peutModifier(c) ? '📝' : '👁'} {lang === 'ar' ? 'المحاور' : 'Axes'}
                         </button>
+                        {peutModifier(c) && <>
                         <button onClick={() => openEdit(c)}
                           title={lang === 'ar' ? 'تعديل' : 'Modifier'}
                           style={{
@@ -452,6 +460,7 @@ export default function GestionCours({ user, navigate, goBack, lang, isMobile })
                             border: '1px solid #E24B4A30', borderRadius: 8,
                             fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
                           }}>🗑</button>
+                        </>}
                       </div>
                     </div>
                   </div>

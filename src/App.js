@@ -513,13 +513,15 @@ function App() {
   // sur le dashboard. A tenir a jour si une garde de role est ajoutee/retiree.
   const PAGES_SURVEILLANT = new Set([
     'dashboard_direction','finance','assiduite','gestion_assiduite','gestion_tarifs',
-    'gestion_cours','cours_axes','gestion_parents','parents','rapport_mensuel',
+    'gestion_parents','parents','rapport_mensuel',
     'gestion','niveaux','ensembles','examens','import_masse',
   ]);
 
   const goBack = () => {
     const currentPage = pageRef.current;
     let parent = PARENT_PAGE[currentPage] || 'dashboard';
+    // Bloc 3 (oct 2026) : l'instituteur arrive sur gestion_cours depuis 'cours' (pas depuis Gestion)
+    if (user?.role !== 'surveillant' && currentPage === 'gestion_cours') parent = 'cours';
     if (user?.role !== 'surveillant' && PAGES_SURVEILLANT.has(parent)) parent = 'dashboard';
     // F9 : sur mobile, une page ouverte depuis "Plus" revient au menu Plus (et non a l'accueil)
     if (isMobile && retourMobileRef.current && retourMobileRef.current.page === currentPage) {
@@ -962,8 +964,8 @@ function App() {
           {page === 'assiduite'           && user.role==='surveillant' && <ErrorBoundary><Assiduite user={user} navigate={navigate} goBack={goBack} lang={lang} isMobile={isMobile} kioskMode={kioskMode} enterKiosk={enterKiosk} exitKiosk={exitKiosk} /></ErrorBoundary>}
           {page === 'gestion_assiduite'   && user.role==='surveillant' && <ErrorBoundary><GestionAssiduite user={user} navigate={navigate} goBack={goBack} lang={lang} isMobile={isMobile} /></ErrorBoundary>}
           {page === 'gestion_tarifs'      && user.role==='surveillant' && <ErrorBoundary><GestionTarifs user={user} navigate={navigate} goBack={goBack} lang={lang} isMobile={isMobile} /></ErrorBoundary>}
-          {page === 'gestion_cours'       && user.role==='surveillant' && <ErrorBoundary><GestionCours user={user} navigate={navigate} goBack={goBack} lang={lang} isMobile={isMobile} /></ErrorBoundary>}
-          {page === 'cours_axes'          && user.role==='surveillant' && <ErrorBoundary><GestionCoursAxes user={user} navigate={navigate} goBack={goBack} lang={lang} isMobile={isMobile} coursId={selectedCoursId} /></ErrorBoundary>}
+          {page === 'gestion_cours'       && (user.role==='surveillant' || user.role==='instituteur') && <ErrorBoundary><GestionCours user={user} navigate={navigate} goBack={goBack} lang={lang} isMobile={isMobile} /></ErrorBoundary>}
+          {page === 'cours_axes'          && (user.role==='surveillant' || user.role==='instituteur') && <ErrorBoundary><GestionCoursAxes user={user} navigate={navigate} goBack={goBack} lang={lang} isMobile={isMobile} coursId={selectedCoursId} /></ErrorBoundary>}
           {page === 'cours'               && (user.role==='surveillant' || user.role==='instituteur') && <ErrorBoundary><SuiviCours user={user} navigate={navigate} goBack={goBack} lang={lang} isMobile={isMobile} /></ErrorBoundary>}
           {page === 'cours_validation'    && (user.role==='surveillant' || user.role==='instituteur') && <ErrorBoundary><CoursValidation user={user} navigate={navigate} goBack={goBack} lang={lang} isMobile={isMobile} coursValidation={selectedCoursValidation} /></ErrorBoundary>}
           {page === 'gestion_parents'     && user.role==='surveillant' && <ErrorBoundary><GestionParents user={user} navigate={navigate} goBack={goBack} lang={lang} isMobile={isMobile} /></ErrorBoundary>}
