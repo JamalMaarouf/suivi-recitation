@@ -158,7 +158,7 @@ function PassageNiveauModal({ show, onClose, eleve, etat, user, lang, niveauxDis
           </div>
           <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:6,fontSize:12}}>
             <div style={{color:'#555'}}>{lang==='ar'?'المستوى:':'Niveau :'} <strong>{eleve.code_niveau}</strong></div>
-            <div style={{color:'#555'}}>Pts: <strong>{estSourateActuel ? totalPtsSourates : (etat?.points?.total||0)}</strong></div>
+            <div style={{color:'#555'}}>Pts: <strong>{totalPtsSourates}</strong></div>
             {estSourateActuel
               ? <div style={{color:'#1D9E75',fontWeight:600}}>📖 {nbSouratesCompletes} {lang==='ar'?'سورة مكتملة':'sourates complètes'}</div>
               : <>
@@ -333,7 +333,7 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang, isMobi
         supabase.from('validations').select('*, valideur:valide_par(prenom,nom)').eq('ecole_id', user.ecole_id).eq('eleve_id',eleve.id).in('type_validation',['tomon_muraja','hizb_muraja']).order('date_validation',{ascending:false}),
         supabase.from('recitations_sourates').select('*, sourate:sourate_id(nom_ar,numero), valideur:valide_par(prenom,nom)').eq('ecole_id', user.ecole_id).eq('eleve_id',eleve.id).eq('is_muraja',true).order('date_validation',{ascending:false}),
         getCachedSWR(cacheKey('recitations_eleve'), user.ecole_id,
-          () => fetchAll(supabase.from('recitations_sourates').select('id,type_recitation,sourate_id,verset_debut,verset_fin,date_validation,valide_par,points,sourate:sourate_id(nom_ar,numero),valideur:valide_par(prenom,nom)').eq('ecole_id', user.ecole_id).eq('eleve_id',eleve.id))),
+          () => fetchAll(supabase.from('recitations_sourates').select('id,type_recitation,sourate_id,verset_debut,verset_fin,date_validation,valide_par,points,is_muraja,sourate:sourate_id(nom_ar,numero),valideur:valide_par(prenom,nom)').eq('ecole_id', user.ecole_id).eq('eleve_id',eleve.id))),
         supabase.from('passages_niveau').select('*, valide_par_u:valide_par(prenom,nom)').eq('ecole_id', user.ecole_id).eq('eleve_id',eleve.id).order('date_passage',{ascending:false}),
         supabase.from('objectifs').select('*').eq('ecole_id', user.ecole_id).eq('eleve_id',eleve.id).order('created_at',{ascending:false}),
       ]);
@@ -386,13 +386,18 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang, isMobi
         }
       } catch(e) { /* gardé par défaut */ }
 
+      // FIX (oct 2026) : examens, certificats, points et jalons sont charges pour TOUS les
+      // eleves (avant : seulement s'ils avaient un instituteur referent -> 0 pt d'examen
+      // et aucun certificat sur la fiche d'un eleve sans referent).
+      let inst = null;
       if (eleve.instituteur_referent_id) {
         // .single() plante dur si réseau instable → on utilise .maybeSingle() + try
-        let inst = null;
         try {
           const { data } = await supabase.from('utilisateurs').select('prenom,nom').eq('id',eleve.instituteur_referent_id).maybeSingle();
           inst = data;
         } catch(e) { inst = null; }
+      }
+      {
         // Charger examens et certificats (tables optionnelles)
         try {
           const exRes = await supabase.from('resultats_examens')
@@ -1036,7 +1041,7 @@ ${(passages||[]).length > 0 ? `
         acquis_tomon: etat?.tomonCumul||0,
         acquis_hizb: etat?.hizbsComplets?.size||0,
         acquis_sourates: estSourateActuel ? nbSouratesActuelles : parseInt(eleve.sourates_acquises)||0,
-        acquis_points: estSourateActuel ? totalPtsSourates : (etat?.points?.total||0),
+        acquis_points: totalPtsSourates,
         note: notePassage||null,
         date_passage: new Date().toISOString(),
       };
@@ -1182,11 +1187,16 @@ ${(passages||[]).length > 0 ? `
     } catch(e) { /* silent fallback */ }
   }
 
-  const totalPtsSourates = recitationsSouratesEleve.reduce((s,r)=>s+(r.points||0),0);
-  const nbSouratesCompletes = recitationsSouratesEleve.filter(r=>r.type_recitation==='complete').length;
+  // FIX (oct 2026) : un seul total de reference sur toute la fiche = acquis anterieurs +
+  // calcPointsPeriode depuis le suivi (meme regle que le Dashboard). Avant : un eleve
+  // sourate n'avait que la somme de ses recitations (sans ensembles/examens/certificats)
+  // et la muraja etait comptee comme sourate complete.
+  const ptsSuiviFiche = calcPointsPeriode(validations||[], new Date('2000-01-01'), new Date(), baremeEleve, pointsEvenements, recitationsSouratesEleve||[], certificats||[]);
+  const totalPtsSourates = (etat?.points?.ptsAcquisTotal || 0) + (ptsSuiviFiche.total || 0);
+  const nbSouratesCompletes = recitationsSouratesEleve.filter(r=>r.type_recitation==='complete' && !r.is_muraja).length;
   const sl = estSourateEleve
     ? scoreLabel(totalPtsSourates) // oct 2026 : vrais points (avant : nb sourates x 30 en dur)
-    : (etat ? scoreLabel(etat.points.total) : {color:'#888',bg:'#f0f0ec',label:'—'});
+    : (etat ? scoreLabel(totalPtsSourates) : {color:'#888',bg:'#f0f0ec',label:'—'});
   const badges = etat ? calcBadges(validations,etat,lang) : [];
 
   const validationsOuRecitations = estSourateEleve ? [] : validations;
@@ -1394,7 +1404,7 @@ ${(passages||[]).length > 0 ? `
   const ptsRecapGlob = calcPointsPeriode(validations||[], new Date('2000-01-01'), new Date(), baremeEleve, pointsEvenements, recitationsSouratesEleve||[], certificats||[]);
 
   if (isMobile) {
-    const sl2 = estSourateEleve ? scoreLabel(totalPtsSourates) : (etat ? scoreLabel(etat.points.total) : {color:'#888',bg:'#f0f0ec',label:'—'});
+    const sl2 = etat || estSourateEleve ? scoreLabel(totalPtsSourates) : {color:'#888',bg:'#f0f0ec',label:'—'};
     const _niveauxFe = typeof niveaux !== 'undefined' ? niveaux : [];
     const nc = getNiveauColor(eleve.code_niveau||'1', _niveauxFe);
     return (
@@ -1435,11 +1445,11 @@ ${(passages||[]).length > 0 ? `
               if (estSourateEleve) {
                 return (
                   <div style={{fontSize:26, fontWeight:800, color:sl2.color}}>
-                    {(ptsRecapGlob.total||0).toLocaleString()} pts
+                    {(totalPtsSourates||0).toLocaleString()} pts
                   </div>
                 );
               }
-              const points = etat?.points?.total || 0;
+              const points = etat ? totalPtsSourates : 0;
               const hizbComplets = etat?.hizbsComplets?.size || 0;
               if (points === 0 && hizbComplets > 0) {
                 return (
@@ -2024,7 +2034,7 @@ ${(passages||[]).length > 0 ? `
                 <div style={{fontWeight:600,color:'#534AB7',marginBottom:6}}>{lang==='ar'?'المكتسبات الحالية:':'Acquis actuels :'}</div>
                 {estSourateEleve
                   ? <div style={{color:'#1D9E75',fontWeight:600}}>📖 {nbSouratesCompletes} {lang==='ar'?'سورة مكتملة':'sourates'} · {totalPtsSourates} pts</div>
-                  : <div style={{color:'#555'}}>{lang==='ar' ? `الحزب ${etat?.hizbEnCours} · ث.${etat?.prochainTomon} · ${etat?.points?.total||0} ن` : `Hizb ${etat?.hizbEnCours} · T.${etat?.prochainTomon} · ${etat?.points?.total||0} pts`}</div>
+                  : <div style={{color:'#555'}}>{lang==='ar' ? `الحزب ${etat?.hizbEnCours} · ث.${etat?.prochainTomon} · ${totalPtsSourates} ن` : `Hizb ${etat?.hizbEnCours} · T.${etat?.prochainTomon} · ${totalPtsSourates} pts`}</div>
                 }
               </div>
               <div style={{marginBottom:'1rem'}}>
@@ -2125,7 +2135,7 @@ ${(passages||[]).length > 0 ? `
                       <div style={{fontSize:11,color:'#888'}}>{lang==='ar'?'سورة مكتملة':'sourates'}</div>
                     </>);
                   }
-                  const points = etat?.points.total || 0;
+                  const points = etat ? totalPtsSourates : 0;
                   const hizbComplets = etat?.hizbsComplets?.size || 0;
                   if (points === 0 && hizbComplets > 0) {
                     return (<>
@@ -2590,7 +2600,7 @@ ${(passages||[]).length > 0 ? `
                 </div>
               )}
               <div style={{marginTop:12,display:'flex',gap:16,fontSize:12,color:'#888',flexWrap:'wrap'}}>
-                <span>{t(lang,'score_total')}: <strong style={{color:'#1D9E75'}}>{estSourateEleve?totalPtsSourates.toLocaleString():(etat?.points.total.toLocaleString()||0)} {t(lang,'pts_abrev')}</strong></span>
+                <span>{t(lang,'score_total')}: <strong style={{color:'#1D9E75'}}>{totalPtsSourates.toLocaleString()} {t(lang,'pts_abrev')}</strong></span>
                 <span>{lang==='ar'?'السرعة':lang==='en'?'Speed':(lang==='ar'?'الوتيرة':'Vitesse')}: <strong style={{color:vitesse.tendance==='hausse'?'#1D9E75':vitesse.tendance==='baisse'?'#E24B4A':'#888'}}>{vitesse.moyenne} T/{t(lang,+(lang==='ar'?' أسابيع':' semaines'))} {vitesse.tendance==='hausse'?'📈':vitesse.tendance==='baisse'?'📉':'➡️'}</strong></span>
               </div>
               {/* Avertissement bareme non configure - uniquement pour sourate */}

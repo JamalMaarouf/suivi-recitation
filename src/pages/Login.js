@@ -82,7 +82,7 @@ export default function Login({ onLogin, lang, LangSelector, onShowInscription }
             () => fetchAll(supabase.from('validations').select('id,eleve_id,type_validation,nombre_tomon,hizb_valide,tomon_debut,date_validation,valide_par,ecole_id,ensemble_id,valideur:valide_par(prenom,nom)').eq('ecole_id', ecoleId).order('date_validation',{ascending:false}))),
           getCachedSWR('recitations_sourates_min', ecoleId,
             // Alignement avec Dashboard.js : inclure `points` pour le prechargement du cache.
-            () => fetchAll(supabase.from('recitations_sourates').select('eleve_id,date_validation,type_recitation,points').eq('ecole_id', ecoleId).order('date_validation',{ascending:false}))),
+            () => fetchAll(supabase.from('recitations_sourates').select('eleve_id,date_validation,type_recitation,points,is_muraja').eq('ecole_id', ecoleId).order('date_validation',{ascending:false}))),
         ]).catch(() => { /* silencieux — Dashboard fera le retry normal si échec */ });
       }
 

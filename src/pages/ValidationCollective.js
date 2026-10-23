@@ -85,9 +85,15 @@ export default function ValidationCollective({ user, navigate, goBack, lang='fr'
   };
 
   const handleValider = async () => {
-    setSaving(true); setMsg(null);
+    if (saving) return;
     const now    = new Date().toISOString();
     const cibles = toutLeNiveau ? eleves : elevesRetenus;
+    // FIX (oct 2026) : rien a enregistrer -> message clair au lieu d'un faux succes
+    if (!cibles || cibles.length === 0) {
+      setMsg({ type:'error', text: lang==='ar'?'لا يوجد طلاب محددون':'Aucun élève sélectionné' });
+      return;
+    }
+    setSaving(true); setMsg(null);
     try {
       // oct 2026 : points de muraja sourate lus dans le bareme de l'ecole (plus de 20/5 en dur)
       const bar = isSourate ? await loadBareme(supabase, user.ecole_id) : null;
@@ -119,7 +125,8 @@ export default function ValidationCollective({ user, navigate, goBack, lang='fr'
             type_validation: typeRecitation === 'tomon' ? 'tomon_muraja' : 'hizb_muraja',
             date_validation: now,
             tomon_debut:    typeRecitation === 'tomon' ? parseInt(selectedTomon) : null,
-            hizb_validation: typeRecitation === 'hizb_complet' ? parseInt(selectedHizb) : null,
+            // FIX (oct 2026) : numero de hizb aussi pour la muraja tomon (avant : 'Hizb null')
+            hizb_validation: parseInt(selectedHizb) || null,
             is_muraja: true,
           });
         }

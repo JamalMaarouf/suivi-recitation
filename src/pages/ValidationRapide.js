@@ -33,6 +33,11 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
   const [ensemblesData, setEnsemblesData] = useState([]); // pour calcul priorité mode 3
   const [programmeNiveau, setProgrammeNiveau] = useState([]); // hizbs ou sourates du programme
   const [programmeCharge, setProgrammeCharge] = useState(false); // true quand chargement terminé
+  // FIX (oct 2026) : selection fiable -> on ignore les reponses d'un eleve deselectionne
+  // et on bloque la validation tant que programme + blocage examen ne sont pas verifies.
+  const selectIdRef = useRef(null);
+  const [selectionPrete, setSelectionPrete] = useState(false);
+  const tomonVerrouRef = useRef(false);
   const [currentSourateState, setCurrentSourateState] = useState(null); // calculé après chargement
   const [sourateSelectionnee, setSourateSelectionnee] = useState(null); // sourate choisie
   const [typeRec, setTypeRec] = useState('complete'); // 'complete' ou 'sequence'
@@ -111,12 +116,13 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
 
   // Helper reutilisable : verifie le blocage examen ET ensemble pour l'eleve courant
   // et met a jour les states. Retourne true si bloque examen, false sinon.
-  const checkBlocageExamenEleve = async (eleve, vals, recs) => {
+  const checkBlocageExamenEleve = async (eleve, vals, recs, estCourant) => {
     try {
       const blocage = await verifierBlocageExamen(supabase, {
         eleve, ecole_id: user.ecole_id,
         validations: vals || [], recitations: recs || [],
       });
+      if (estCourant && !estCourant()) return false; // FIX (oct 2026) : eleve change entre-temps
       setBlocageExamen(blocage); // null si pas de blocage, objet sinon
 
       // Detection blocage ensemble (niveaux sourates uniquement)
@@ -129,6 +135,7 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
             niveau_id: niveauEleve.id,
             niveau_type: niveauEleve.type,
           });
+          if (estCourant && !estCourant()) return !!blocage;
           setBlocagesEnsemble(blocagesEns || []);
         } else {
           setBlocagesEnsemble([]);
@@ -153,6 +160,9 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
     //         passage de niveau.
 
     // 1. Affichage IMMEDIAT avec les donnees locales (e)
+    selectIdRef.current = e.id;
+    const estCourant = () => selectIdRef.current === e.id;
+    setSelectionPrete(false);
     setSelectedEleve(e);
     setBlocageExamen(null); setBlocagesEnsemble([]);
     const vals = validationsByEleveId.get(e.id) || [];
@@ -171,6 +181,7 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
       supabase.from('recitations_sourates').select('*').eq('eleve_id', e.id).eq('ecole_id', user.ecole_id),
       supabase.from('sourates').select('*'),
     ]);
+    if (!estCourant()) return;
 
     // Si l'eleve a ete mis a jour depuis (passage de niveau), on rafraichit
     const freshEleve = fresh || e;
@@ -181,16 +192,19 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
     }
 
     const souratesLocal = sourFresh || [];
-    const recitationsLocal = recs || [];
+    // FIX (oct 2026) : la muraja (revision) ne compte pas dans la progression
+    const recitationsLocal = (recs || []).filter(r => !r.is_muraja);
     setSouratesDB(souratesLocal);
     setRecitationsSourates(recitationsLocal);
 
     // 3. Charger le programme du niveau
     let progData = [];
     const { data: niv } = await supabase.from('niveaux').select('id').eq('code', freshEleve.code_niveau).eq('ecole_id', user.ecole_id).maybeSingle();
+    if (!estCourant()) return;
     if (niv) {
       const { data: prog } = await supabase.from('programmes').select('reference_id,ordre,bloc_numero,bloc_nom,bloc_sens,type_contenu')
         .eq('niveau_id', niv.id).eq('ecole_id', user.ecole_id).order('ordre');
+      if (!estCourant()) return;
       progData = prog || [];
       setProgrammeNiveau(progData);
 
@@ -228,7 +242,8 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
     }
 
     // Verification du blocage examen au moment de la selection de l'eleve.
-    await checkBlocageExamenEleve(freshEleve, vals, recitationsLocal);
+    await checkBlocageExamenEleve(freshEleve, vals, recitationsLocal, estCourant);
+    if (estCourant()) setSelectionPrete(true);
   };
 
   const estSourate = selectedEleve ? isSourateNiveauDyn(selectedEleve.code_niveau, niveaux) : false;
@@ -302,6 +317,11 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
   // Valider N tomons
   const validerTomon = async () => {
     if (!selectedEleve || !etat || saving || etat.enAttenteHizbComplet) return;
+    if (!selectionPrete) { toast.info(lang==='ar'?'جاري التحميل…':'Chargement de l\'élève en cours…'); return; } // FIX (oct 2026)
+    // FIX (oct 2026) : anti double-tap (le bouton est libere des l'affichage optimiste)
+    if (tomonVerrouRef.current) return;
+    tomonVerrouRef.current = true;
+    setTimeout(() => { tomonVerrouRef.current = false; }, 900);
     // Verification blocage examen avant validation (s'applique aussi aux tomons)
     if (blocageExamen) {
       toast.error(
@@ -417,6 +437,7 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
   // Valider hizb complet
   const validerHizb = async () => {
     if (!selectedEleve || !etat || saving || !etat.enAttenteHizbComplet) return;
+    if (!selectionPrete) { toast.info(lang==='ar'?'جاري التحميل…':'Chargement de l\'élève en cours…'); return; } // FIX (oct 2026)
     // Verification blocage examen avant validation
     if (blocageExamen) {
       toast.error(
@@ -533,6 +554,9 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
   // Valider une sourate (complète ou séquence)
   const validerSourate = async () => {
     if (!selectedEleve || saving || !sourateSelectionnee) return;
+    if (!selectionPrete) { toast.info(lang==='ar'?'جاري التحميل…':'Chargement de l\'élève en cours…'); return; } // FIX (oct 2026)
+    // FIX (oct 2026) : sans bareme charge, la recitation serait enregistree a 0 pt definitivement
+    if (!bareme) { toast.info(lang==='ar'?'جاري تحميل سلم النقاط…':'Chargement du barème en cours, réessayez dans un instant'); return; }
     if (typeRec === 'sequence' && (!versetDebut || !versetFin)) return;
     // Verification blocage examen avant validation (s'applique aussi aux sourates)
     if (blocageExamen) {
@@ -578,7 +602,7 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
             { duration: 4000 });
           const { data: refreshRecs } = await supabase.from('recitations_sourates')
             .select('*').eq('eleve_id', selectedEleve.id).eq('ecole_id', user.ecole_id);
-          if (refreshRecs) setRecitationsSourates(refreshRecs);
+          if (refreshRecs) setRecitationsSourates(refreshRecs.filter(r => !r.is_muraja));
           setSourateSelectionnee(null);
           return;
         }
@@ -687,7 +711,7 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
       const { data: refreshRecs } = await supabase.from('recitations_sourates')
         .select('*').eq('eleve_id', selectedEleve.id).eq('ecole_id', user.ecole_id);
       if (refreshRecs) {
-        setRecitationsSourates(refreshRecs);
+        setRecitationsSourates((refreshRecs || []).filter(r => !r.is_muraja));
         // Recalculer sourate suivante avec donnees REELLES
         const isCompleteReal = (id) =>
           refreshRecs.some(r => r.sourate_id === id && r.type_recitation === 'complete');
@@ -709,7 +733,7 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
         supabase.from('recitations_sourates').select('*').eq('eleve_id', selectedEleve.id).eq('ecole_id', user.ecole_id),
         supabase.from('validations').select('*').eq('eleve_id', selectedEleve.id).eq('ecole_id', user.ecole_id),
       ]);
-      const newRecsData = recsResult.data || [];
+      const newRecsData = (recsResult.data || []).filter(r => !r.is_muraja); // FIX (oct 2026) : muraja exclue
       const valsData = valsResult.data || [];
       setRecitationsSourates(newRecsData);
 

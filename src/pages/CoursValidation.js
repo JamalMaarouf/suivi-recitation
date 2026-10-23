@@ -45,7 +45,7 @@ export default function CoursValidation({ user, navigate, goBack, lang, isMobile
 
   // ─── Chargement initial ────────────────────────────────────
   const loadData = async () => {
-    if (!coursId || !codeNiveau) return;
+    if (!coursId || !codeNiveau) { setLoading(false); return; } // FIX (oct 2026) : plus de squelette infini
     setLoading(true);
     const [coursRes, niveauRes, axesRes, valRes, elevesRes] = await Promise.all([
       supabase.from('cours')
@@ -486,6 +486,7 @@ export default function CoursValidation({ user, navigate, goBack, lang, isMobile
           niveau={niveau}
           eleves={eleves}
           existante={validationExistante}
+          exceptionsExistantes={validationExistante ? exceptions.filter(e => e.validation_id === validationExistante.id) : []}
           onClose={() => setAxeActif(null)}
           onConfirm={enregistrerValidation}
           lang={lang}
@@ -545,16 +546,19 @@ function Kpi({ label, value, color, bg }) {
 // 2. Tous les élèves OU exceptions
 // 3. Si exceptions : recherche + liste à cocher
 // ══════════════════════════════════════════════════════════════════════
-function ModaleValidation({ axe, axeLabel, niveau, eleves, existante, onClose, onConfirm, lang, isMobile }) {
+function ModaleValidation({ axe, axeLabel, niveau, eleves, existante, exceptionsExistantes = [], onClose, onConfirm, lang, isMobile }) {
   const { toast } = useToast();
   // Étapes : 1 = qualité, 2 = mode élèves, 3 = exceptions
   const [etape, setEtape] = useState(1);
   const [qualite, setQualite] = useState(existante?.qualite || 'acquis');
   const [commentaire, setCommentaire] = useState(existante?.commentaire || '');
   // Mode : 'tous' ou 'exceptions'
-  const [mode, setMode] = useState('tous');
+  // FIX (oct 2026) : en modification, on repart des exceptions existantes (avant : elles
+  // etaient toutes effacees des qu'on changeait seulement la qualite).
+  const [mode, setMode] = useState(exceptionsExistantes.length > 0 ? 'exceptions' : 'tous');
   // Exceptions : Map eleve_id → { statut, commentaire }
-  const [exceptionsMap, setExceptionsMap] = useState({});
+  const [exceptionsMap, setExceptionsMap] = useState(() =>
+    Object.fromEntries(exceptionsExistantes.map(e => [e.eleve_id, { statut: e.statut, commentaire: e.commentaire || '' }])));
   const [recherche, setRecherche] = useState('');
   const [saving, setSaving] = useState(false);
 

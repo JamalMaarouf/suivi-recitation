@@ -1078,7 +1078,7 @@ export async function verifierBlocageExamen(supabase, {
         // Sourates complètes de l'élève (depuis validations explicites)
         const souratesCompletes = new Set(
           (recitations||[])
-            .filter(r => r.type_recitation === 'complete' || r.complete === true)
+            .filter(r => (r.type_recitation === 'complete' || r.complete === true) && !r.is_muraja) // FIX (oct 2026) : muraja exclue
             .map(r => r.sourate_id)
         );
 
@@ -1169,11 +1169,13 @@ export async function verifierBlocageEnsemble(supabase, { eleve_id, ecole_id, ni
     // 2. Charger les sourates recitees completement par l'eleve
     const { data: recitations } = await supabase
       .from('recitations_sourates')
-      .select('sourate_id, type_recitation')
+      .select('sourate_id, type_recitation, is_muraja')
       .eq('eleve_id', eleve_id)
       .eq('type_recitation', 'complete');
+    // FIX (oct 2026) : la muraja (revision) ne valide pas un ensemble
+    const recitationsMemo = (recitations || []).filter(r => !r.is_muraja);
 
-    const souratesRecitees = new Set((recitations || []).map(r => r.sourate_id));
+    const souratesRecitees = new Set(recitationsMemo.map(r => r.sourate_id));
 
     // 2bis. AJOUT : prendre en compte les sourates acquises ANTERIEUREMENT
     // (logique identique a verifierBlocageExamen pour coherence)
@@ -1351,14 +1353,33 @@ export async function verifierEtCreerCertificats(supabase, {
         .map(v => v.hizb_valide)
     );
     // Inclure les hizb acquis antérieurs
-    const hizbDepart = eleve.hizb_depart || 1;
-    for (let h = 1; h < hizbDepart; h++) hizbsComplets.add(h);
+    // FIX (oct 2026) : avant, toujours Hizb 1..(hizb_depart-1) quel que soit le sens.
+    // En sens 'desc' (60 -> 1), un eleve demarrant au Hizb 58 recevait les Hizb 1 a 57
+    // -> certificats de hizb attribues a tort. Meme convention que verifierBlocageExamen.
+    let sensCert = 'desc';
+    try {
+      const { data: nvC } = await supabase.from('niveaux').select('sens_recitation')
+        .eq('ecole_id', ecole_id).eq('code', eleve.code_niveau || '').maybeSingle();
+      if (nvC && nvC.sens_recitation) sensCert = nvC.sens_recitation;
+      else {
+        const { data: ecC } = await supabase.from('ecoles').select('sens_recitation_defaut').eq('id', ecole_id).maybeSingle();
+        if (ecC && ecC.sens_recitation_defaut) sensCert = ecC.sens_recitation_defaut;
+      }
+    } catch (e) { /* on garde 'desc' */ }
+    const hizbDepart = parseInt(eleve.hizb_depart) || 0;
+    if (hizbDepart > 0) {
+      if (sensCert === 'asc') { for (let h = 1; h < hizbDepart; h++) hizbsComplets.add(h); }
+      else { for (let h = hizbDepart + 1; h <= 60; h++) hizbsComplets.add(h); }
+    }
+    if (Array.isArray(eleve.hizbs_acquis)) {
+      for (const h of eleve.hizbs_acquis) { const n = Number(h); if (!isNaN(n)) hizbsComplets.add(n); }
+    }
     const totalHizbComplets = hizbsComplets.size;
 
     // 4. Sourates complètes (depuis recitations)
     const souratesCompletes = new Set(
       (recitations || [])
-        .filter(r => r.type_recitation === 'complete' || r.complete === true)
+        .filter(r => (r.type_recitation === 'complete' || r.complete === true) && !r.is_muraja) // FIX (oct 2026) : muraja exclue
         .map(r => r.sourate_id)
     );
 
@@ -1385,8 +1406,8 @@ export async function verifierEtCreerCertificats(supabase, {
             .from('resultats_examens').select('id')
             .eq('eleve_id', eleve.id)
             .eq('examen_id', jalon.examen_final_id)
-            .eq('statut', 'reussi').maybeSingle();
-          jalonAtteint = !!resultatFinal;
+            .eq('statut', 'reussi').limit(1);
+          jalonAtteint = !!(resultatFinal && resultatFinal.length); // FIX (oct 2026) : robuste aux doublons
         } else {
           // condition='cumul' — le cumul suffit
           jalonAtteint = cumulOK;
@@ -1409,8 +1430,8 @@ export async function verifierEtCreerCertificats(supabase, {
               .from('resultats_examens').select('id')
               .eq('eleve_id', eleve.id)
               .eq('examen_id', jalon.examen_final_id)
-              .eq('statut', 'reussi').maybeSingle();
-            jalonAtteint = !!resultatFinal;
+              .eq('statut', 'reussi').limit(1);
+            jalonAtteint = !!(resultatFinal && resultatFinal.length); // FIX (oct 2026) : robuste aux doublons
           } else {
             jalonAtteint = cumulOK;
           }
@@ -1422,8 +1443,8 @@ export async function verifierEtCreerCertificats(supabase, {
           .from('resultats_examens').select('id')
           .eq('eleve_id', eleve.id)
           .eq('examen_id', jalon.examen_id)
-          .eq('statut', 'reussi').maybeSingle();
-        jalonAtteint = !!resultat;
+          .eq('statut', 'reussi').limit(1);
+        jalonAtteint = !!(resultat && resultat.length); // FIX (oct 2026) : robuste aux doublons
       }
 
       if (!jalonAtteint) continue;

@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { supabase } from '../lib/supabase';
 import { getCachedSWR } from '../lib/cache';
 import { fetchAll } from '../lib/fetchAll';
-import { calcEtatEleve, isSourateNiveauDyn, niveauTraduit, calcStats, formatDate, formatDateCourt, isInactif, joursDepuis, getInitiales, scoreLabel, loadBareme, BAREME_DEFAUT, getSensForEleve} from '../lib/helpers';
+import { calcEtatEleve, isSourateNiveauDyn, niveauTraduit, calcStats, formatDate, formatDateCourt, isInactif, joursDepuis, getInitiales, scoreLabel, loadBareme, BAREME_DEFAUT, getSensForEleve, calcPointsPeriode} from '../lib/helpers';
 import { t } from '../lib/i18n';
 import ExportButtons from '../components/ExportButtons';
 import { usePullToRefresh, PullToRefreshIndicator } from '../lib/usePullToRefresh';
@@ -97,7 +97,7 @@ export default function Dashboard({ user, navigate, goBack, lang, isMobile=false
     const recSouratesCountMap = {};
     (rd||[]).forEach(r => {
       if (!recSouratesMap[r.eleve_id]) recSouratesMap[r.eleve_id] = r.date_validation;
-      if (r.type_recitation === 'complete') {
+      if (r.type_recitation === 'complete' && !r.is_muraja) { // FIX (oct 2026) : muraja exclue
         recSouratesCountMap[r.eleve_id] = (recSouratesCountMap[r.eleve_id]||0)+1;
       }
     });
@@ -107,40 +107,39 @@ export default function Dashboard({ user, navigate, goBack, lang, isMobile=false
     // alors que son score reel = sourates + ensembles valides + (certificats/examens
     // non charges ici). On enrichit donc etat.points.total pour les eleves sourate
     // avec les points des recitations_sourates et des ensembles valides.
-    const baremeEnsembles = (bar && bar.ensembles) || {};
-    const baremeJalons = (bar && bar.jalons) || {};
     const recsByEleve = new Map();
     (rd||[]).forEach(r => {
       if (!recsByEleve.has(r.eleve_id)) recsByEleve.set(r.eleve_id, []);
       recsByEleve.get(r.eleve_id).push(r);
     });
-    // Memes regles que calcPointsPeriode (helpers.js) :
-    // examens = points_eleves type_event='examen' ; certificats = bareme.jalons[jalon_id]
-    const ptsExamensByEleve = new Map();
+    // FIX (oct 2026) : lignes par eleve pour calcPointsPeriode (dates par defaut si absentes)
+    const DEBUT_TOUT = new Date('1990-01-01'), FIN_TOUT = new Date('2100-01-01');
+    const peByEleve = new Map();
     (pe||[]).forEach(e => {
-      if (e.type_event !== 'examen') return;
-      ptsExamensByEleve.set(e.eleve_id, (ptsExamensByEleve.get(e.eleve_id)||0) + (Number(e.points)||0));
+      if (!peByEleve.has(e.eleve_id)) peByEleve.set(e.eleve_id, []);
+      peByEleve.get(e.eleve_id).push({ ...e, date_event: e.date_event || '2000-01-01T12:00:00' });
     });
-    const ptsCertifsByEleve = new Map();
+    const certsByEleve = new Map();
     (certs||[]).forEach(c => {
-      ptsCertifsByEleve.set(c.eleve_id, (ptsCertifsByEleve.get(c.eleve_id)||0) + (baremeJalons[c.jalon_id]||0));
+      if (!certsByEleve.has(c.eleve_id)) certsByEleve.set(c.eleve_id, []);
+      certsByEleve.get(c.eleve_id).push({ ...c, date_obtention: c.date_emission || c.created_at || '2000-01-01T12:00:00' });
     });
 
     return (ed||[]).map(eleve => {
       const vals = valsByEleve.get(eleve.id) || [];
       const sensE = getSensForEleve(eleve, nv, ec);
       const etat = calcEtatEleve(vals, eleve.hizb_depart, eleve.tomon_depart, sensE, null, null, bar);
-      // Enrichissement pour les eleves sourate
-      const isSourateE = isSourateNiveauDyn(eleve.code_niveau, nv||[]);
-      if (isSourateE && etat && etat.points) {
+      // FIX (oct 2026) : total Dashboard = acquis anterieurs + calcul de reference depuis
+      // le suivi (calcPointsPeriode : tomon, hizb, muraja, ensembles, sourates, examens,
+      // certificats), pour TOUS les eleves. Avant, un eleve hizb n'avait ni muraja, ni
+      // examens, ni certificats -> l'ecart avec Notes n'etait pas seulement les acquis.
+      if (etat && etat.points) {
         const recsEleve = recsByEleve.get(eleve.id) || [];
-        const ptsSourates = recsEleve.reduce((s, r) => s + (Number(r.points) || 0), 0);
-        const ptsEnsembles = vals
-          .filter(v => v.type_validation === 'ensemble_valide' && v.ensemble_id)
-          .reduce((s, v) => s + (baremeEnsembles[v.ensemble_id] || 0), 0);
-        const ptsExamens = ptsExamensByEleve.get(eleve.id) || 0;
-        const ptsCertifs = ptsCertifsByEleve.get(eleve.id) || 0;
-        etat.points.total = (etat.points.total || 0) + ptsSourates + ptsEnsembles + ptsExamens + ptsCertifs;
+        const peEleve = (peByEleve.get(eleve.id) || []);
+        const certsEleve = (certsByEleve.get(eleve.id) || []);
+        const suivi = calcPointsPeriode(vals, DEBUT_TOUT, FIN_TOUT, bar, peEleve, recsEleve, certsEleve);
+        etat.points.ptsDepuisSuivi = suivi.total;
+        etat.points.total = (etat.points.ptsAcquisTotal || 0) + suivi.total;
       }
       const derniereHizb = vals[0]?.date_validation||null;
       const derniereSourate = recSouratesMap[eleve.id]||null;
@@ -251,13 +250,13 @@ export default function Dashboard({ user, navigate, goBack, lang, isMobile=false
           // BUG-FIX POINTS DASHBOARD (oct 2026) : ajout de `points` au select pour que
           // buildElevesData puisse sommer ptsSourates. Sans ca, r.points etait undefined
           // -> ptsSourates=0 -> eleves sourate affichaient 0ن meme avec recitations faites.
-          () => fetchAll(supabase.from('recitations_sourates').select('eleve_id,date_validation,type_recitation,points').eq('ecole_id', user.ecole_id).order('date_validation',{ascending:false}))),
+          () => fetchAll(supabase.from('recitations_sourates').select('eleve_id,date_validation,type_recitation,points,is_muraja').eq('ecole_id', user.ecole_id).order('date_validation',{ascending:false}))),
         supabase.from('ecoles').select('sens_recitation_defaut').eq('id', user.ecole_id).maybeSingle(),
         // Ajout (oct 2026) : examens + certificats pour le total des eleves sourate.
         // En cas d'echec : [] -> total identique a avant (pas de blocage du Dashboard).
-        supabase.from('points_eleves').select('eleve_id,type_event,points').eq('ecole_id', user.ecole_id)
+        supabase.from('points_eleves').select('eleve_id,type_event,points,date_event').eq('ecole_id', user.ecole_id)
           .then(r => r.data || []).catch(() => []),
-        supabase.from('certificats_eleves').select('eleve_id,jalon_id').eq('ecole_id', user.ecole_id)
+        supabase.from('certificats_eleves').select('eleve_id,jalon_id,date_emission').eq('ecole_id', user.ecole_id)
           .then(r => r.data || []).catch(() => []),
       ]);
 
@@ -285,7 +284,7 @@ export default function Dashboard({ user, navigate, goBack, lang, isMobile=false
       if (!jalons || jalons.length === 0) return;
       const { data: certsEmis } = await supabase.from('certificats_eleves').select('eleve_id,jalon_id').eq('ecole_id', user.ecole_id);
       const emis = new Set((certsEmis||[]).map(c => c.eleve_id+'_'+c.jalon_id));
-      const recitations = await fetchAll(supabase.from('recitations_sourates').select('eleve_id,sourate_id,type_recitation,complete').eq('ecole_id', user.ecole_id));
+      const recitations = await fetchAll(supabase.from('recitations_sourates').select('eleve_id,sourate_id,type_recitation,complete,is_muraja').eq('ecole_id', user.ecole_id));
       const notifs = [];
       for (const eleve of eleves) {
         for (const jalon of jalons) {
@@ -297,13 +296,13 @@ export default function Dashboard({ user, navigate, goBack, lang, isMobile=false
           } else if (jalon.type_jalon === 'ensemble_sourates' && jalon.ensemble_id) {
             const { data: ens } = await supabase.from('ensembles_sourates').select('sourates_ids').eq('id', jalon.ensemble_id).maybeSingle();
             if (ens && ens.sourates_ids && ens.sourates_ids.length > 0) {
-              const srecs = (recitations||[]).filter(r=>r.eleve_id===eleve.id && (r.type_recitation==='complete'||r.complete));
+              const srecs = (recitations||[]).filter(r=>r.eleve_id===eleve.id && (r.type_recitation==='complete'||r.complete) && !r.is_muraja);
               const sComplets = new Set(srecs.map(r=>r.sourate_id));
               atteint = ens.sourates_ids.every(sid => sComplets.has(sid));
             }
           } else if (jalon.type_jalon === 'examen' && jalon.examen_id) {
-            const { data: res } = await supabase.from('resultats_examens').select('id').eq('eleve_id',eleve.id).eq('examen_id',jalon.examen_id).eq('statut','reussi').maybeSingle();
-            atteint = !!res;
+            const { data: res } = await supabase.from('resultats_examens').select('id').eq('eleve_id',eleve.id).eq('examen_id',jalon.examen_id).eq('statut','reussi').limit(1);
+            atteint = !!(res && res.length);
           }
           if (atteint) notifs.push({ eleve, jalon });
         }
@@ -331,7 +330,7 @@ export default function Dashboard({ user, navigate, goBack, lang, isMobile=false
       () => fetchAll(supabase.from('validations').select('*, valideur:valide_par(prenom,nom)').eq('ecole_id', user.ecole_id).eq('eleve_id', eleveId).order('date_validation',{ascending:false}))
     ).catch(()=>{});
     getCachedSWR(`recitations_eleve_${eleveId}`, user.ecole_id,
-      () => fetchAll(supabase.from('recitations_sourates').select('id,type_recitation,sourate_id,verset_debut,verset_fin,date_validation,valide_par,points,sourate:sourate_id(nom_ar,numero),valideur:valide_par(prenom,nom)').eq('ecole_id', user.ecole_id).eq('eleve_id', eleveId))
+      () => fetchAll(supabase.from('recitations_sourates').select('id,type_recitation,sourate_id,verset_debut,verset_fin,date_validation,valide_par,points,is_muraja,sourate:sourate_id(nom_ar,numero),valideur:valide_par(prenom,nom)').eq('ecole_id', user.ecole_id).eq('eleve_id', eleveId))
     ).catch(()=>{});
   };
   const tauxSemaine = eleves.length>0 ? Math.round(nbActifsSemaine/eleves.length*100) : 0;

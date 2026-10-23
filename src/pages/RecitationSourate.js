@@ -73,6 +73,7 @@ export default function RecitationSourate({ user, eleve, navigate, goBack, lang=
   const [souratesDB, setSouratesDB] = useState([]);
   const [recitations, setRecitations] = useState([]);
   const [exceptions, setExceptions] = useState([]); // unlocked sourates
+  const [seqMobile, setSeqMobile] = useState(null); // FIX (oct 2026) : saisie versets sur mobile
   const [loading, setLoading] = useState(true);
   const [step, setStep] = useState('liste');
   const [selectedSourate, setSelectedSourate] = useState(null);
@@ -137,7 +138,8 @@ export default function RecitationSourate({ user, eleve, navigate, goBack, lang=
       if (!exErr) ex = exData || [];
     } catch(e) { /* table not yet created */ }
     const sdbData = sdb || [];
-    const rdData = rd || [];
+    // FIX (oct 2026) : la muraja (revision) ne compte pas dans la progression de memorisation
+    const rdData = (rd || []).filter(r => !r.is_muraja);
     const exData = ex || [];
     setSouratesDB(sdbData);
     setRecitations(rdData);
@@ -197,6 +199,10 @@ export default function RecitationSourate({ user, eleve, navigate, goBack, lang=
     return ['current', 'complete', 'unlocked'].includes(status);
   };
 
+  const selectedSourateEtat = selectedSourate;
+  const typeRecitationEtat = typeRecitation;
+  const versetDebutEtat = versetDebut;
+  const versetFinEtat = versetFin;
   const ptsParSourate = bareme?.unites?.sourate||0;
   const totalPoints = recitations.reduce((s,r) => s + (r.points||0), 0) + (souratesAcquises * ptsParSourate);
   const souratesCompletes = souratesOrdonnees.filter(s => isComplete(s.numero)).length + souratesAcquises;
@@ -235,9 +241,20 @@ export default function RecitationSourate({ user, eleve, navigate, goBack, lang=
     return false; // verrou garde jusqu'a la fin de l'enregistrement (voir useEffect sur saving)
   };
 
-  const confirmer = async () => {
+  // FIX (oct 2026) : confirmer accepte des valeurs explicites pour etre partage avec le
+  // mobile (avant, le mobile inserait sans verifier les ensembles, avec des versets 1->1
+  // et sans message en cas d'erreur).
+  const confirmer = async (opts = {}) => {
+    const selectedSourate = opts.sourate || selectedSourateEtat;
+    const typeRecitation = opts.type || typeRecitationEtat;
+    const versetDebut = opts.versetDebut !== undefined ? opts.versetDebut : versetDebutEtat;
+    const versetFin = opts.versetFin !== undefined ? opts.versetFin : versetFinEtat;
     if (!selectedSourate || saving) return;
     if (typeRecitation === 'sequence') {
+      // FIX (oct 2026) : limite de 3 sequences appliquee aussi au mobile
+      const dbIdSeq = getDbId(selectedSourate.numero);
+      const nbSeq = (recitations||[]).filter(r => r.sourate_id === dbIdSeq && r.type_recitation === 'sequence' && !r.is_muraja).length;
+      if (nbSeq >= 3) { toast.warning(lang==='ar'?'تم تسجيل 3 مقاطع — يجب استظهار السورة كاملة':'3 séquences déjà enregistrées — récitation complète requise'); return; }
       if (!versetDebut || !versetFin) { toast.warning(lang==='ar'?'يجب تحديد الآيات':'Veuillez saisir les versets'); return; }
       if (parseInt(versetFin) < parseInt(versetDebut)) { toast.warning(lang==='ar'?'الآية الأخيرة يجب أن تكون أكبر':'Le verset de fin doit être supérieur'); return; }
     }
@@ -290,6 +307,11 @@ export default function RecitationSourate({ user, eleve, navigate, goBack, lang=
       points: pts
     });
     setSaving(false);
+    if (error) {
+      // FIX (oct 2026) : avant, une erreur (reseau instable) perdait la recitation sans message
+      toast.error((lang==='ar'?'لم يتم الحفظ، أعد المحاولة: ':'Non enregistré, réessayez : ') + (error.message || ''));
+      return;
+    }
     if (!error) {
       setFlash({ msg: typeRecitation === 'complete'
         ? `🎉 ${selectedSourate.nom_ar} — ${lang==='ar'?'تمت التلاوة كاملة':lang==='en'?'Complete!':'Complète !'}`
@@ -434,46 +456,42 @@ export default function RecitationSourate({ user, eleve, navigate, goBack, lang=
                           <div style={{marginTop:10,display:'flex',flexDirection:'column',gap:8}}>
                             <div style={{width:'100%',height:1,background:'#e0e0d8'}}/>
                             {!complete&&(
-                              <button onClick={async e=>{
+                              <button disabled={saving} onClick={e=>{
                                   e.stopPropagation();
-                                  setSelectedSourate(s);
-                                  setTypeRecitation('complete');
-                                  if (await examenBloque()) return; // F12
-                                  setSaving(true);
-                                  const dbId = getDbId(s.numero);
-                                  if (dbId) {
-                                    const calcPts = calculerPointsSourate(dbId, bareme, ensemblesData, 'complete');
-                                    const {error} = await supabase.from('recitations_sourates')
-                                      .insert({eleve_id:eleve.id,ecole_id:user.ecole_id,sourate_id:dbId,
-                                        type_recitation:'complete',points:calcPts.points,valide_par:user.id,
-                                        date_validation:new Date().toISOString()});
-                                    if (!error) { setFlash({msg:`✅ +${calcPts.points} pts`,color:'#1D9E75'}); setTimeout(()=>setFlash(null),2000); loadData(); }
-                                  }
-                                  setSaving(false); setSelectedSourate(null); verrouRef.current = false;
+                                  // FIX (oct 2026) : meme enregistrement que le PC (ensembles, examen, erreurs)
+                                  confirmer({ sourate: s, type: 'complete' });
                                 }}
                                 style={{padding:'10px',background:nc,color:'#fff',border:'none',borderRadius:10,
                                   fontSize:13,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
-                                `✅ ${lang==='ar'?'استظهار كامل':'Complète'} (+${bareme?.unites?.sourate||0} pts)`
+                                {`✅ ${lang==='ar'?'استظهار كامل':'Complète'} (+${calculerPointsSourate(getDbId(s.numero), bareme, ensemblesData, 'complete').points||0} pts)`}
                               </button>
                             )}
-                            <button onClick={async e=>{
-                                e.stopPropagation();
-                                if (await examenBloque()) return; // F12
-                                setSaving(true);
-                                const dbId = getDbId(s.numero);
-                                if (dbId) {
-                                  const {error} = await supabase.from('recitations_sourates')
-                                    .insert({eleve_id:eleve.id,ecole_id:user.ecole_id,sourate_id:dbId,
-                                      type_recitation:'sequence',points:bareme?.unites?.sequence_sourate||0,valide_par:user.id,
-                                      date_validation:new Date().toISOString(),verset_debut:1,verset_fin:1});
-                                  if (!error) { setFlash({msg:'📝 +10 pts',color:'#378ADD'}); setTimeout(()=>setFlash(null),2000); loadData(); }
-                                }
-                                setSaving(false); verrouRef.current = false;
-                              }}
+                            {/* FIX (oct 2026) : saisie des versets (avant : toujours V.1 -> V.1, +10 pts affiches en dur) */}
+                            {seqMobile?.numero === s.numero ? (
+                              <div onClick={e=>e.stopPropagation()} style={{display:'flex',gap:6,alignItems:'center'}}>
+                                <input type="number" inputMode="numeric" min="1" value={seqMobile.debut}
+                                  onChange={e=>setSeqMobile({...seqMobile, debut:e.target.value})}
+                                  placeholder={lang==='ar'?'من':'De'}
+                                  style={{flex:1,minWidth:0,padding:'9px',borderRadius:8,border:'1px solid #e0e0d8',fontSize:14}}/>
+                                <input type="number" inputMode="numeric" min="1" value={seqMobile.fin}
+                                  onChange={e=>setSeqMobile({...seqMobile, fin:e.target.value})}
+                                  placeholder={lang==='ar'?'إلى':'À'}
+                                  style={{flex:1,minWidth:0,padding:'9px',borderRadius:8,border:'1px solid #e0e0d8',fontSize:14}}/>
+                                <button disabled={saving} onClick={async ()=>{
+                                    await confirmer({ sourate: s, type: 'sequence', versetDebut: seqMobile.debut, versetFin: seqMobile.fin });
+                                    setSeqMobile(null);
+                                  }}
+                                  style={{padding:'9px 12px',background:nc,color:'#fff',border:'none',borderRadius:8,fontSize:13,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
+                                  ✓
+                                </button>
+                              </div>
+                            ) : (
+                            <button onClick={e=>{ e.stopPropagation(); setSeqMobile({ numero: s.numero, debut: '', fin: '' }); }}
                               style={{padding:'10px',background:`${nc}20`,color:nc,border:`1px solid ${nc}30`,borderRadius:10,
                                 fontSize:13,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
-                              📝 {lang==='ar'?'مقطع':'Séquence (+10pts)'}
+                              📝 {lang==='ar'?'مقطع':'Séquence'} (+{calculerPointsSourate(getDbId(s.numero), bareme, ensemblesData, 'sequence').points||0} pts)
                             </button>
+                            )}
                           </div>
                         )}
                       </div>
@@ -489,7 +507,7 @@ export default function RecitationSourate({ user, eleve, navigate, goBack, lang=
                   {[
                     {label:lang==='ar'?'مكتملة':'Complètes',val:recitations.filter(r=>r.type_recitation==='complete').length,color:nc,bg:`${nc}15`},
                     {label:lang==='ar'?'مقاطع':'Séquences',val:recitations.filter(r=>r.type_recitation==='sequence').length,color:'#378ADD',bg:'#E6F1FB'},
-                    {label:lang==='ar'?'النقاط':'Points',val:recitations.reduce((s,r)=>s+(r.type_recitation==='complete'?30:10),0),color:'#EF9F27',bg:'#FAEEDA'},
+                    {label:lang==='ar'?'النقاط':'Points',val:recitations.reduce((s,r)=>s+(r.points||0),0),color:'#EF9F27',bg:'#FAEEDA'},
                   ].map((k,i)=>(
                     <div key={i} style={{background:k.bg,borderRadius:12,padding:'12px 8px',textAlign:'center',border:`0.5px solid ${k.color}20`}}>
                       <div style={{fontSize:22,fontWeight:800,color:k.color}}>{k.val}</div>
@@ -509,7 +527,7 @@ export default function RecitationSourate({ user, eleve, navigate, goBack, lang=
                         <div style={{fontWeight:600,fontSize:13,fontFamily:"'Tajawal',Arial",direction:'rtl'}}>{s?.nom_ar||'—'}</div>
                         <div style={{fontSize:11,color:'#888'}}>{new Date(r.date_validation).toLocaleDateString(lang==='ar'?'ar-MA':'fr-FR')}</div>
                       </div>
-                      <span style={{fontSize:13,fontWeight:700,color:nc}}>+{r.type_recitation==='complete'?30:10}</span>
+                      <span style={{fontSize:13,fontWeight:700,color:nc}}>+{r.points||0}</span>
                     </div>
                   );
                 })}
@@ -737,7 +755,7 @@ export default function RecitationSourate({ user, eleve, navigate, goBack, lang=
                         <div style={{fontSize:24,marginBottom:6}}>📍</div>
                         <div style={{fontSize:13,fontWeight:600}}>{lang==='ar'?'مقطع':lang==='en'?'Sequence':'Séquence'}</div>
                         <div style={{fontSize:11,color:'#888',marginTop:2}}>{lang==='ar'?`المقطع ${nbSeqActuel+1} من 3`:lang==='en'?`Seq. ${nbSeqActuel+1}/3`:`Séq. ${nbSeqActuel+1}/3`}</div>
-                        <div style={{fontSize:11,fontWeight:600,color:'#1D9E75',marginTop:4}}>+10 {t(lang,'pts_abrev')}</div>
+                        <div style={{fontSize:11,fontWeight:600,color:'#1D9E75',marginTop:4}}>+{selectedSourate ? (calculerPointsSourate(getDbId(selectedSourate.numero), bareme, ensemblesData, 'sequence').points||0) : 0} {t(lang,'pts_abrev')}</div>
                       </div>
                       <div onClick={()=>setTypeRecitation('complete')}
                         style={{padding:'16px',border:`2px solid ${typeRecitation==='complete'?'#EF9F27':'#e0e0d8'}`,borderRadius:12,textAlign:'center',cursor:'pointer',background:typeRecitation==='complete'?'#FAEEDA':'#fff',transition:'all 0.15s'}}>
@@ -768,7 +786,7 @@ export default function RecitationSourate({ user, eleve, navigate, goBack, lang=
 
                     <button className="btn-primary"
                       disabled={saving||(typeRecitation==='sequence'&&(maxSeqAtteint||!versetDebut||!versetFin))}
-                      onClick={confirmer}>
+                      onClick={()=>confirmer()}>
                       {saving?'...':`✓ ${lang==='ar'?'تأكيد الاستظهار':lang==='en'?'Confirm':'Confirmer'}`}
                     </button>
                   </>
