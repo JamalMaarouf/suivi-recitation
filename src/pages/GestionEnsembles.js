@@ -397,6 +397,18 @@ export default function GestionEnsembles({ user, navigate, goBack, lang='fr', is
   ) : null;
 
   // ── MOBILE ─────────────────────────────────────────────────────
+  // FIX (oct 2026) : calcule AVANT la branche mobile, qui l'utilisait alors qu'il n'etait
+  // defini qu'apres -> 'Cannot access totalFiltre before initialization' : page Ensembles
+  // inaccessible sur mobile.
+  // E2d — Filtre niveau + recherche par nom
+  const groupesFiltres = (filtreNiveau === 'all' ? groupes : groupes.filter(g => g.niv.id === filtreNiveau))
+    .map(g => ({
+      ...g,
+      items: !searchEns ? g.items : g.items.filter(e => (e.nom||'').toLowerCase().includes(searchEns.toLowerCase()))
+    }))
+    .filter(g => g.items.length > 0 || !searchEns);
+  const totalFiltre = groupesFiltres.reduce((s, g) => s + g.items.length, 0);
+
   if (isMobile) {
     return (
       <div style={{ paddingBottom: 80, background: '#f5f5f0', minHeight: '100vh' }}>
@@ -453,14 +465,6 @@ export default function GestionEnsembles({ user, navigate, goBack, lang='fr', is
   }
 
   // ── PC ──────────────────────────────────────────────────────────
-  // E2d — Filtre niveau + recherche par nom
-  const groupesFiltres = (filtreNiveau === 'all' ? groupes : groupes.filter(g => g.niv.id === filtreNiveau))
-    .map(g => ({
-      ...g,
-      items: !searchEns ? g.items : g.items.filter(e => (e.nom||'').toLowerCase().includes(searchEns.toLowerCase()))
-    }))
-    .filter(g => g.items.length > 0 || !searchEns);
-  const totalFiltre = groupesFiltres.reduce((s, g) => s + g.items.length, 0);
 
   return (
     <div style={{padding:'0 0 2rem'}}>
