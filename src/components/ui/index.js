@@ -162,7 +162,7 @@ export function ListRow({ leading, title, subtitle, meta, value, valueLabel, val
 
 // ── Avatar initiales ───────────────────────────────────────────────────
 export function Avatar({ prenom, nom, color = C.brand, size = 40 }) {
-  const ini = ((prenom || '?')[0] + (nom || '')[0] || '').toUpperCase();
+  const ini = ((prenom || '?')[0] + ((nom || '')[0] || '')).toUpperCase(); // (avant : « ?UNDEFINED » si nom vide)
   return (
     <div style={{ width: size, height: size, borderRadius: '50%', background: color + '1A', color, flexShrink: 0,
       display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: size * 0.36 }}>{ini}</div>
@@ -183,7 +183,10 @@ export function ActionSheet({ open, onClose, title, actions = [], lang = 'fr' })
   if (!open) return null;
   // Rendu dans <body> : sinon, ouvert depuis l'en-tete (z-index 100), le panneau passait sous la barre du bas.
   const panneau = (
-    <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(10,20,16,0.45)', zIndex: 3000,
+    <div onClick={onClose}
+      // les gestes dans le panneau ne doivent pas declencher le « tirer pour actualiser » de la page
+      onTouchStart={e => e.stopPropagation()} onTouchMove={e => e.stopPropagation()} onTouchEnd={e => e.stopPropagation()}
+      style={{ position: 'fixed', inset: 0, background: 'rgba(10,20,16,0.45)', zIndex: 3000,
       display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
       <div onClick={e => e.stopPropagation()} role="dialog" aria-label={title}
         dir={isAr(lang) ? 'rtl' : 'ltr'}
