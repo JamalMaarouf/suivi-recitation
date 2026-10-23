@@ -23,6 +23,8 @@ export default function ResultatsExamens({ user, navigate, goBack, lang='fr', is
   const [souratesDB,setSouratesDB]= useState([]);
   const [loading,   setLoading]   = useState(true);
   const [saving,    setSaving]    = useState(false);
+  const sauvegardeVerrouRef = React.useRef(false);
+  const lienDirectRef = React.useRef(true);
   const [ecole, setEcole] = useState(null);
   const [activeTab, setActiveTab] = useState('saisir');
   // Etape 8 - Modale certificats post-examen
@@ -95,6 +97,18 @@ export default function ResultatsExamens({ user, navigate, goBack, lang='fr', is
     setEnsembles(en||[]);
     setSouratesDB(sd||[]);
     setCertificatsExistants(certs||[]);
+    // FIX (oct 2026) : arrivee par lien direct (blocage) -> examens disponibles de l'eleve
+    // + examen complet (avec son vrai score_minimum, pas 70 par defaut).
+    if (eleveInit && lienDirectRef.current) {
+      lienDirectRef.current = false;
+      const niveauId = niveauxData.find(n => n.code === eleveInit.code_niveau)?.id;
+      const dejaReussis = (re||[]).filter(r => r.eleve_id === eleveInit.id && r.statut === 'reussi').map(r => r.examen_id);
+      setExamensEleve(niveauId ? examenData.filter(e => e.niveau_id === niveauId && !dejaReussis.includes(e.id)) : []);
+      if (blocageInit?.examen?.id) {
+        const complet = examenData.find(e => e.id === blocageInit.examen.id);
+        if (complet) setSelectedExamen(complet);
+      }
+    }
     } catch (e) {
       console.error("Erreur:", e);
     }
@@ -125,14 +139,28 @@ export default function ResultatsExamens({ user, navigate, goBack, lang='fr', is
     setSearchEleve('');
   };
 
+  // FIX (oct 2026) : verrou synchrone + bouton desactive jusqu'a la fin du post-traitement
+  // (avant : setSaving(false) juste apres l'insert -> double clic = 2 lignes 'reussi').
   const sauvegarder = async () => {
-    if (saving) return;
+    if (saving || sauvegardeVerrouRef.current) return;
+    sauvegardeVerrouRef.current = true;
+    try { await sauvegarderInterne(); }
+    finally { sauvegardeVerrouRef.current = false; setSaving(false); }
+  };
+  const sauvegarderInterne = async () => {
     if (!selectedEleve)  return toast.warning(lang==='ar'?'اختر طالباً':'Sélectionnez un élève');
     if (!selectedExamen) return toast.warning(lang==='ar'?'اختر الامتحان':'Sélectionnez un examen');
     setSaving(true);
     const reussi = score >= (selectedExamen.score_minimum || 70);
-    // Vérifier si résultat existant → update, sinon insert
-    const existant = resultats.find(r=>r.eleve_id===selectedEleve.id&&r.examen_id===selectedExamen.id);
+    // Vérifier si résultat existant → update, sinon insert (lu en base, pas dans la liste en memoire)
+    let existant = null;
+    try {
+      const { data: ex } = await supabase.from('resultats_examens').select('id')
+        .eq('ecole_id', user.ecole_id).eq('eleve_id', selectedEleve.id).eq('examen_id', selectedExamen.id).limit(1);
+      existant = (ex && ex[0]) || null;
+    } catch (e) {
+      existant = resultats.find(r=>r.eleve_id===selectedEleve.id&&r.examen_id===selectedExamen.id) || null;
+    }
     const payload = {
       examen_id: selectedExamen.id, eleve_id: selectedEleve.id, ecole_id: user.ecole_id,
       date_examen: new Date().toISOString().split('T')[0],
@@ -142,7 +170,6 @@ export default function ResultatsExamens({ user, navigate, goBack, lang='fr', is
     const { error } = existant
       ? await supabase.from('resultats_examens').update(payload).eq('id',existant.id)
       : await supabase.from('resultats_examens').insert(payload);
-    setSaving(false);
     if (error) { toast.error(error.message||'Erreur'); return; }
     // Si réussi → créditer les points de l'examen + vérifier jalons
     if (reussi) {

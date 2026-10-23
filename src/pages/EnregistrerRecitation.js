@@ -39,32 +39,41 @@ export default function EnregistrerRecitation({  user, eleve: eleveInitial, navi
   const [motivMsg, setMotivMsg] = useState(null);
   const [niveaux, setNiveaux] = useState([]);
   const [ecoleConfig, setEcoleConfig] = useState(null);
+  const confirmerVerrouRef = React.useRef(false);
+  // refs a jour pour les appels asynchrones (evite les closures perimees)
+  const niveauxRef = React.useRef([]); niveauxRef.current = niveaux;
+  const ecoleConfigRef = React.useRef(null); ecoleConfigRef.current = ecoleConfig;
 
   useEffect(() => {
     loadEleves();
-    if (eleveInitial) refreshAndLoadValidations(eleveInitial);
     loadBareme(supabase, user.ecole_id).then(b => setBareme(b));
-    // Charger niveaux + config école pour le sens de récitation
-    supabase.from('niveaux').select('id,code,nom,sens_recitation').eq('ecole_id', user.ecole_id)
-      .then(({ data }) => setNiveaux(data || []));
-    supabase.from('ecoles').select('sens_recitation_defaut').eq('id', user.ecole_id).maybeSingle()
-      .then(({ data }) => setEcoleConfig(data || null));
+    // FIX (oct 2026) : charger niveaux + config ecole AVANT l'etat de l'eleve initial.
+    // Avant : l'eleve etait calcule avec niveaux=[] et config=null (closure du 1er rendu)
+    // -> sens toujours 'desc' et programme vide -> mauvais hizb pour les niveaux asc / multi-blocs.
+    Promise.all([
+      supabase.from('niveaux').select('id,code,nom,sens_recitation').eq('ecole_id', user.ecole_id),
+      supabase.from('ecoles').select('sens_recitation_defaut').eq('id', user.ecole_id).maybeSingle(),
+    ]).then(([{ data: niv }, { data: conf }]) => {
+      setNiveaux(niv || []);
+      setEcoleConfig(conf || null);
+      if (eleveInitial) refreshAndLoadValidations(eleveInitial, niv || [], conf || null);
+    });
   }, []);
 
   // Recharge l'élève frais depuis la DB (hizb_depart/tomon_depart peuvent avoir changé
   // suite à un passage de niveau), puis charge ses validations.
-  const refreshAndLoadValidations = async (el) => {
+  const refreshAndLoadValidations = async (el, niv, conf) => {
     try {
       const { data: fresh } = await supabase.from('eleves').select('*')
         .eq('id', el.id).maybeSingle();
       if (fresh) {
         setSelectedEleve(fresh);
-        await loadValidations(fresh);
+        await loadValidations(fresh, niv, conf);
         return;
       }
     } catch(e) { /* fallback ci-dessous */ }
     // Fallback : on utilise l'objet reçu si le refresh échoue
-    await loadValidations(el);
+    await loadValidations(el, niv, conf);
   };
 
   const loadEleves = async () => {
@@ -74,7 +83,10 @@ export default function EnregistrerRecitation({  user, eleve: eleveInitial, navi
     setEleves(data || []);
   };
 
-  const loadValidations = async (el) => {
+  const loadValidations = async (el, nivParam, confParam) => {
+    // niveaux / config passes explicitement au montage (sinon : etat courant)
+    const niveaux = nivParam || niveauxRef.current;
+    const ecoleConfig = confParam !== undefined ? confParam : ecoleConfigRef.current;
     const [{ data: vals }, { data: appr }] = await Promise.all([
       supabase.from('validations').select('*')
         .eq('ecole_id', user.ecole_id).eq('eleve_id', el.id),
@@ -127,6 +139,8 @@ export default function EnregistrerRecitation({  user, eleve: eleveInitial, navi
   };
 
   const nombreTomon = tomonSelectionnes.length;
+  const nombreTomonEtat = nombreTomon;
+  const typeValidationEtat = typeValidation;
   const sensEleve = selectedEleve ? getSensForEleve(selectedEleve, niveaux, ecoleConfig) : 'desc';
   const posNouvelle = selectedEleve && etat && nombreTomon > 0
     ? calcPositionAtteinte(selectedEleve.hizb_depart, selectedEleve.tomon_depart, etat.tomonCumul + nombreTomon, sensEleve)
@@ -145,8 +159,40 @@ export default function EnregistrerRecitation({  user, eleve: eleveInitial, navi
     return { tomon: n, jours };
   }).filter(Boolean);
 
-  const confirmer = async () => {
+  // FIX (oct 2026) : confirmer est partage PC / mobile (avant, le mobile avait ses propres
+  // boutons : hizb_valide manquant, pas de verrou anti double-tap, erreurs ignorees,
+  // pas de verification du blocage examen).
+  const verrouRef = confirmerVerrouRef;
+  const confirmer = async (typeForce, nbForce) => {
+    if (verrouRef.current) return;
+    verrouRef.current = true;
+    try { await confirmerInterne(typeForce, nbForce); } finally { verrouRef.current = false; }
+  };
+  const confirmerInterne = async (typeForce, nbForce) => {
+    const typeValidation = typeForce || typeValidationEtat;
+    const nombreTomon = (nbForce !== undefined && nbForce !== null) ? nbForce : nombreTomonEtat;
+    if (!selectedEleve || !etat) return;
     setLoading(true);
+    // Blocage examen AVANT d'enregistrer (avant : verifie seulement apres coup)
+    if (typeof navigator === 'undefined' || navigator.onLine !== false) {
+      try {
+        const [r1, r2] = await Promise.all([
+          supabase.from('validations').select('*').eq('eleve_id', selectedEleve.id).eq('ecole_id', user.ecole_id),
+          supabase.from('recitations_sourates').select('*').eq('eleve_id', selectedEleve.id).eq('ecole_id', user.ecole_id),
+        ]);
+        const bloc = await verifierBlocageExamen(supabase, {
+          eleve: selectedEleve, ecole_id: user.ecole_id,
+          validations: r1.data || [], recitations: r2.data || [],
+        }).catch(() => null);
+        if (bloc) {
+          setBlocage(bloc);
+          setDone(true);
+          setLoading(false);
+          toast.error(lang === 'ar' ? bloc.message_ar : bloc.message_fr);
+          return;
+        }
+      } catch (e) { /* reseau instable : on continue comme avant */ }
+    }
     const insertData = {
       eleve_id: selectedEleve.id,
       ecole_id: user.ecole_id,
@@ -442,27 +488,7 @@ export default function EnregistrerRecitation({  user, eleve: eleveInitial, navi
                     textAlign:'center',fontSize:14,color:'#633806',fontWeight:600}}>
                     🎉 {t(lang,'hizb_complet_en_attente')}
                   </div>
-                  <button onClick={async ()=>{
-                    const res = await enqueueOrRun(supabase, 'validations', 'insert', {
-                      eleve_id:eleveInitial.id, ecole_id:user.ecole_id,
-                      valide_par:user.id, nombre_tomon:0,
-                      type_validation:'hizb_complet',
-                      date_validation:new Date().toISOString(),
-                      tomon_debut:etat.prochainTomon,
-                      hizb_validation:etat.hizbEnCours
-                    }, user.ecole_id);
-                    const wasQueued = res.status === 'queued';
-                    if (!res.error) {
-                      setDone(true);
-                      setMotivMsg({msg:`🎉 Hizb complet ! +${bareme?.unites?.hizb_complet||0} pts`});
-                      if (wasQueued) {
-                        toast.success(lang==='ar'?'✓ تم الحفظ (مزامنة تلقائية)':'✓ Enregistré (sync auto)');
-                      } else {
-                        toast.success(lang==='ar'?'🎉 تم تسجيل الحزب الكامل':`🎉 Hizb complet enregistré ! +${bareme?.unites?.hizb_complet||0} pts`);
-                      }
-                      invalidateMany(['validations', 'recitations_sourates_min', `validations_${eleveInitial.id}`, `recitations_eleve_${eleveInitial.id}`], user.ecole_id);
-                    }
-                  }}
+                  <button disabled={loading} onClick={()=>confirmer('hizb_complet')}
                     style={{width:'100%',padding:'18px',background:'#EF9F27',color:'#fff',
                       border:'none',borderRadius:14,fontSize:17,fontWeight:800,cursor:'pointer',fontFamily:'inherit'}}>
                     ✓ Valider Hizb (+{ptsHizbB} pts)
@@ -475,27 +501,7 @@ export default function EnregistrerRecitation({  user, eleve: eleveInitial, navi
                   </div>
                   <div style={{display:'grid',gridTemplateColumns:'repeat(2,1fr)',gap:12}}>
                     {Array.from({length:Math.min(etat.tomonRestants||8,4)},(_,i)=>i+1).map(n=>(
-                      <button key={n} onClick={async ()=>{
-                        const res = await enqueueOrRun(supabase, 'validations', 'insert', {
-                          eleve_id:eleveInitial.id, ecole_id:user.ecole_id,
-                          valide_par:user.id, nombre_tomon:n,
-                          type_validation:'tomon',
-                          date_validation:new Date().toISOString(),
-                          tomon_debut:etat.prochainTomon,
-                          hizb_validation:etat.hizbEnCours
-                        }, user.ecole_id);
-                        const wasQueued = res.status === 'queued';
-                        if (!res.error) {
-                          setDone(true);
-                          setMotivMsg({msg:`✅ +${n*ptsTomonB} pts !`});
-                          if (wasQueued) {
-                            toast.success(lang==='ar'?'✓ تم الحفظ (مزامنة تلقائية)':'✓ Enregistré (sync auto)');
-                          } else {
-                            toast.success(`✅ +${n*ptsTomonB} pts enregistrés !`);
-                          }
-                          invalidateMany(['validations', 'recitations_sourates_min', `validations_${eleveInitial.id}`, `recitations_eleve_${eleveInitial.id}`], user.ecole_id);
-                        }
-                      }}
+                      <button key={n} disabled={loading} onClick={()=>confirmer('tomon', n)}
                         style={{padding:'20px 8px',background:'#1D9E75',color:'#fff',
                           border:'none',borderRadius:14,fontSize:16,fontWeight:800,
                           cursor:'pointer',fontFamily:'inherit',textAlign:'center'}}>
@@ -593,7 +599,7 @@ export default function EnregistrerRecitation({  user, eleve: eleveInitial, navi
           {done && motivMsg && (
             <div style={{background:'#E1F5EE',borderRadius:14,padding:'24px',textAlign:'center'}}>
               <div style={{fontSize:48,marginBottom:8}}>🎉</div>
-              <div style={{fontSize:20,fontWeight:800,color:'#fff',marginBottom:16}}>
+              <div style={{fontSize:20,fontWeight:800,color:'#085041',marginBottom:16}}>
                 {motivMsg.msg}
               </div>
               <button onClick={()=>goBack?goBack():navigate('dashboard')}
@@ -839,14 +845,14 @@ export default function EnregistrerRecitation({  user, eleve: eleveInitial, navi
             ) : (
               <>
                 <div className="recap-row"><span className="recap-lbl">{lang==='ar' ? 'الاعتماد' : 'Validation'}</span><span className="recap-val green">{lang==='ar' ? `الحزب ${etat.hizbEnCours} كامل` : `Hizb ${etat.hizbEnCours} complet`}</span></div>
-                <div className="recap-row"><span className="recap-lbl">{t(lang,'points_gagnes')}</span><span className="recap-val green">+100 {lang==='ar' ? 'ن' : 'pts'}</span></div>
-                <div className="recap-row"><span className="recap-lbl">{lang==='ar' ? 'الحزب التالي' : 'Hizb suivant'}</span><span className="recap-val">{lang==='ar' ? `يُفتح الحزب ${etat.hizbEnCours + 1}` : `Hizb ${etat.hizbEnCours + 1} s'ouvre`}</span></div>
+                <div className="recap-row"><span className="recap-lbl">{t(lang,'points_gagnes')}</span><span className="recap-val green">+{ptsHizbB} {lang==='ar' ? 'ن' : 'pts'}</span></div>
+                <div className="recap-row"><span className="recap-lbl">{lang==='ar' ? 'الحزب التالي' : 'Hizb suivant'}</span><span className="recap-val">{(() => { const hs = sensEleve === 'asc' ? Math.min(60, etat.hizbEnCours + 1) : Math.max(1, etat.hizbEnCours - 1); return lang==='ar' ? `يُفتح الحزب ${hs}` : `Hizb ${hs} s'ouvre`; })()}</span></div>
               </>
             )}
             <div className="recap-row"><span className="recap-lbl">{t(lang,'valide_par')}</span><span className="recap-val">{user.prenom} {user.nom}</span></div>
             <div className="recap-row"><span className="recap-lbl">{lang==='ar' ? 'التاريخ والساعة' : 'Date & heure'}</span><span className="recap-val">{new Date().toLocaleString(lang==='ar' ? 'ar-MA' : 'fr-FR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}</span></div>
           </div>
-          <button className="btn-primary" disabled={loading} onClick={confirmer}>
+          <button className="btn-primary" disabled={loading} onClick={()=>confirmer()}>
             {loading ? t(lang,'enregistrement') : t(lang,'confirmer')}
           </button>
           <div style={{ textAlign: 'center', marginTop: 12 }}>

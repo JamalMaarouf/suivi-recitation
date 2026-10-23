@@ -158,6 +158,7 @@ function fauxSupabase(tables) {
         eq(col, val) { filtres.push(r => r[col] === val); return b; },
         in(col, vals) { filtres.push(r => vals.includes(r[col])); return b; },
         order() { return b; },
+        limit() { return b; },
         _rows() { return (tables[table] || []).filter(r => filtres.every(f => f(r))); },
         maybeSingle() { return Promise.resolve({ data: b._rows()[0] || null, error: null }); },
         then(res, rej) { return Promise.resolve({ data: b._rows(), error: null }).then(res, rej); },

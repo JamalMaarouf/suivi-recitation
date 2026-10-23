@@ -1119,9 +1119,10 @@ export async function verifierBlocageExamen(supabase, {
         .eq('examen_id', examen.id)
         .eq('eleve_id', eleve.id)
         .eq('statut', 'reussi')
-        .maybeSingle();
-
-      if (resultat) continue; // déjà réussi → pas de blocage
+        .limit(1);
+      // FIX (oct 2026) : .limit(1) au lieu de .maybeSingle() -> avec 2 lignes 'reussi'
+      // (double clic) maybeSingle renvoyait une erreur et l'eleve restait bloque a vie.
+      if (resultat && resultat.length > 0) continue; // déjà réussi → pas de blocage
 
       // 🔒 Blocage actif !
       return {
@@ -1215,7 +1216,7 @@ export async function verifierBlocageEnsemble(supabase, { eleve_id, ecole_id, ni
     // 4. Charger les examens du niveau (pour distinguer Cas A vs Cas B)
     const { data: examens } = await supabase
       .from('examens')
-      .select('id, nom, contenu_ids, bloquant, niveau_id')
+      .select('id, nom, contenu_ids, bloquant, niveau_id, score_minimum, type_contenu')
       .eq('ecole_id', ecole_id)
       .eq('niveau_id', niveau_id)
       .eq('actif', true);
@@ -1858,6 +1859,13 @@ export function calcPointsPeriode(validations, dateDebut, dateFin, bareme=null, 
 export async function enregistrerPointsEvenement(supabase, { eleve_id, ecole_id, type_event, objet_id, points, valide_par }) {
   if (!points || points <= 0) return;
   try {
+    // FIX (oct 2026) : idempotent pour un meme evenement (ex. examen re-enregistre ou
+    // double clic) -> les points d'un examen ne sont credites qu'une fois.
+    if (objet_id) {
+      const { data: deja } = await supabase.from('points_eleves').select('id')
+        .eq('eleve_id', eleve_id).eq('type_event', type_event).eq('objet_id', objet_id).limit(1);
+      if (deja && deja.length > 0) return;
+    }
     await supabase.from('points_eleves').insert({
       eleve_id, ecole_id, type_event, objet_id,
       points, date_event: new Date().toISOString(),
