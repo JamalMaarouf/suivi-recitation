@@ -371,13 +371,37 @@ export default function PortailParent({ parent, navigate, goBack, lang='fr', onL
     const debut = new Date(eleve.created_at || '2024-09-01');
     debut.setDate(1); debut.setHours(0,0,0,0);
     const fin = new Date(); fin.setDate(1); fin.setHours(0,0,0,0);
-    const moisExistants = new Set(cotE.map(c => c.periode || c.mois_concerne || ''));
+    // FIX (oct 2026) : Finance stocke "MM-YYYY" (ou "M-YYYY" pour d'anciennes saisies express)
+    // alors qu'ici on compare en "YYYY-MM" -> chaque mois paye apparaissait aussi en impaye
+    // virtuel. On normalise toute periode stockee ("MM-YYYY", "M-YYYY", "YYYY-MM", libelle de
+    // mois FR/AR) en "YYYY-MM" avant comparaison. Aucune migration de donnees.
+    const libellesMois = {};
+    const normPeriodeCot = (p) => {
+      const str = String(p || '').trim();
+      if (!str) return '';
+      let m = str.match(/^(\d{1,2})[-/](\d{4})$/);
+      if (m && +m[1] >= 1 && +m[1] <= 12) return `${m[2]}-${m[1].padStart(2,'0')}`;
+      m = str.match(/^(\d{4})[-/](\d{1,2})$/);
+      if (m && +m[2] >= 1 && +m[2] <= 12) return `${m[1]}-${m[2].padStart(2,'0')}`;
+      const low = str.toLowerCase();
+      return libellesMois[low] || low;
+    };
+    // Table libelle de mois (fr + ar) -> "YYYY-MM" sur la plage affichee
+    for (const dl = new Date(debut); dl <= fin; dl.setMonth(dl.getMonth()+1)) {
+      const k = `${dl.getFullYear()}-${String(dl.getMonth()+1).padStart(2,'0')}`;
+      ['fr-FR','ar-MA'].forEach(loc => {
+        try { libellesMois[dl.toLocaleDateString(loc, {month:'long', year:'numeric'}).toLowerCase()] = k; } catch (e) {}
+      });
+    }
+    const moisExistants = new Set();
+    cotE.forEach(c => {
+      [c.periode, c.mois_concerne].forEach(v => { const n = normPeriodeCot(v); if (n) moisExistants.add(n); });
+    });
     const result = [...cotE];
     const d = new Date(debut);
     while (d <= fin) {
       const key = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
-      const label = d.toLocaleDateString(lang==='ar'?'ar-MA':'fr-FR', {month:'long', year:'numeric'});
-      if (!moisExistants.has(key) && !moisExistants.has(label)) {
+      if (!moisExistants.has(key)) {
         result.push({ id:'virtual_'+key, eleve_id: eleve.id, statut:'non_paye', montant:0, periode:key, mois_concerne:key, date_paiement:null, note:null, _virtuel:true });
       }
       d.setMonth(d.getMonth()+1);

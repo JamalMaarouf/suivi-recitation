@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react'; // FIX (oct 2026) : useRef pour les verrous anti double-clic
 import { useToast } from '../lib/toast';
-import { supabase } from '../lib/supabase';
+import { supabase, supabaseRaw } from '../lib/supabase'; // FIX (oct 2026) : supabaseRaw pour l'unicite globale des logins
+import { fetchAll } from '../lib/fetchAll'; // FIX (oct 2026) : pagination parent_eleve
 import { supprimerEleveDefinitivement } from '../lib/suppressionEleve';
 import ConfirmModal from '../components/ConfirmModal';
 import { BAREME_DEFAUT, loadBareme, isSourateNiveauDyn, genererLoginParentUnique } from '../lib/helpers';
@@ -104,6 +105,11 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile,
   const [editInstituteur, setEditInstituteur] = useState(null);
   const [showGestionPlusMenu, setShowGestionPlusMenu] = useState(false);
   const [formEditInst, setFormEditInst] = useState({prenom:'',nom:'',identifiant:'',mot_de_passe:'',instituteur_id_ecole:'',telephone:'',email:''});
+  // FIX (oct 2026) : verrous anti double-clic (ref = synchrone, state = desactiver le bouton)
+  const savingEleveRef = useRef(false);
+  const [savingEleve, setSavingEleve] = useState(false);
+  const savingInstRef = useRef(false);
+  const [savingInst, setSavingInst] = useState(false);
 
   // Helper : suggère le prochain numéro instituteur (INST001, INST002...).
   // Regarde les IDs existants de la forme "INST" + nombre, trouve le max et incrémente.
@@ -207,14 +213,15 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile,
     try {
     const { data: e } = await supabase.from('eleves').select('id,prenom,nom,code_niveau,eleve_id_ecole,hizb_depart,tomon_depart,sourates_acquises,hizbs_acquis,instituteur_referent_id,ecole_id,telephone,date_inscription,jours_souhaites,suspendu_at,suspendu_par,suspendu_motif')
         .eq('ecole_id', user.ecole_id).order('nom');
-    const { data: i } = await supabase.from('utilisateurs').select('id,prenom,nom,identifiant,role,instituteur_id_ecole,tarif_seance,suspendu_at,suspendu_par,suspendu_motif').eq('role', 'instituteur').eq('ecole_id', user.ecole_id);
+    const { data: i } = await supabase.from('utilisateurs').select('id,prenom,nom,identifiant,role,instituteur_id_ecole,tarif_seance,telephone,email,suspendu_at,suspendu_par,suspendu_motif').eq('role', 'instituteur').eq('ecole_id', user.ecole_id);
     setEleves(e || []);
     setInstituteurs(i || []);
     const { data: pd, error: pdErr } = await supabase.from('utilisateurs')
         .select('id,prenom,nom,identifiant,telephone,email')
         .eq('role','parent').eq('ecole_id', user.ecole_id);
-    const { data: pliens } = await supabase.from('parent_eleve')
-        .select('parent_id,eleve_id');
+    // FIX (oct 2026) : liens limites aux parents de CETTE ecole (avant : table entiere, toutes
+    // ecoles, tronquee a 1000 lignes -> liens perdus). Voir chargerLiensParents.
+    const pliens = await chargerLiensParents((pd||[]).map(p => p.id));
     const liensMap = {};
     (pliens||[]).forEach(l => { if(!liensMap[l.parent_id]) liensMap[l.parent_id]=[]; liensMap[l.parent_id].push(l.eleve_id); });
     setParents((pd||[]).map(p=>({...p, eleve_ids:liensMap[p.id]||[]})));
@@ -252,7 +259,26 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile,
 
   const showMsg = (type, text) => { setMsg({ type, text }); setTimeout(() => setMsg({ type: '', text: '' }), 3000); };
 
+  // FIX (oct 2026) : charge les liens parent_eleve des parents donnes (ceux de l'ecole), par
+  // paquets de 100 ids (longueur d'URL) et avec pagination fetchAll (>1000 lignes).
+  async function chargerLiensParents(parentIds) {
+    const res = [];
+    for (let k = 0; k < parentIds.length; k += 100) {
+      const lot = parentIds.slice(k, k + 100);
+      const rows = await fetchAll(supabase.from('parent_eleve').select('parent_id,eleve_id').in('parent_id', lot));
+      res.push(...rows);
+    }
+    return res;
+  }
+
+  // FIX (oct 2026) : verrou anti double-clic (avant : 2 clics rapides = eleve cree 2 fois)
   const ajouterEleve = async () => {
+    if (savingEleveRef.current) return false;
+    savingEleveRef.current = true; setSavingEleve(true);
+    try { return await ajouterEleveImpl(); }
+    finally { savingEleveRef.current = false; setSavingEleve(false); }
+  };
+  const ajouterEleveImpl = async () => {
     if (!newEleve.prenom?.trim()) return showMsg('error', t(lang, 'prenom_nom_obligatoires'));
     if (!newEleve.nom?.trim()) return showMsg('error', t(lang, 'prenom_nom_obligatoires'));
     if (!newEleve.code_niveau) return showMsg('error', t(lang, 'tous_champs_obligatoires'));
@@ -343,6 +369,7 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile,
     // de lenteur). Apres : modale apparait IMMEDIATEMENT, loadData se fait
     // pendant que l'utilisateur lit la modale.
     setTimeout(() => loadData(), 0);
+    return true; // FIX (oct 2026) : succes -> le formulaire mobile peut se fermer
   };
 
   const modifierEleve = async () => {
@@ -351,6 +378,11 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile,
     if (!editEleve.code_niveau) return showMsg('error', t(lang, 'tous_champs_obligatoires'));
     if (!editEleve.eleve_id_ecole?.trim()) return showMsg('error', lang==='ar'?'رقم تعريف الطالب إلزامي':lang==='en'?'Student ID is required':"L'ID élève est obligatoire");
     if (!editEleve.instituteur_referent_id) return showMsg('error', lang==='ar'?'يجب اختيار الأستاذ المرجع':lang==='en'?'Please select a teacher':'Veuillez sélectionner un instituteur référent');
+    // FIX (oct 2026) : unicite du numero eleve aussi en modification (hors eleve courant)
+    const { data: existingEdit } = await supabase.from('eleves')
+      .select('id').eq('eleve_id_ecole', editEleve.eleve_id_ecole.trim()).eq('ecole_id', user.ecole_id)
+      .neq('id', editEleve.id).limit(1).maybeSingle();
+    if (existingEdit) return showMsg('error', lang==='ar'?'رقم التعريف مستخدم مسبقاً، اختر رقماً آخر':'Ce numéro élève existe déjà, choisissez-en un autre');
     const { error } = await supabase.from('eleves').update({
       prenom: editEleve.prenom, nom: editEleve.nom, niveau: editEleve.niveau,
       code_niveau: editEleve.code_niveau || '1',
@@ -369,6 +401,7 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile,
     setEditEleve(null);
     setEditShowAcquisSelector(false);
     loadData();
+    return true; // FIX (oct 2026) : succes -> le formulaire mobile peut se fermer
   };
 
   // ────── ETAPE 6 - SUSPENSION D'ELEVES ──────────────────────────────
@@ -494,7 +527,14 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile,
     );
   };
 
+  // FIX (oct 2026) : verrou anti double-clic (avant : 2 clics rapides = 2 comptes instituteur)
   const ajouterInstituteur = async () => {
+    if (savingInstRef.current) return false;
+    savingInstRef.current = true; setSavingInst(true);
+    try { return await ajouterInstituteurImpl(); }
+    finally { savingInstRef.current = false; setSavingInst(false); }
+  };
+  const ajouterInstituteurImpl = async () => {
     if (!newInst.prenom || !newInst.nom)
       return showMsg('error', lang==='ar'?'الاسم واللقب إلزاميان':'Prénom et nom obligatoires');
 
@@ -523,13 +563,18 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile,
     };
     const baseLogin = normalize(newInst.prenom)+'_'+normalize(newInst.nom);
     // Trouver un login unique
-    let login = baseLogin; let suffix = 2;
-    while (true) {
-      const {data:ex} = await supabase.from('utilisateurs')
-        .select('id').eq('identifiant',login).eq('ecole_id',user.ecole_id).maybeSingle();
-      if (!ex) break;
-      login = baseLogin + suffix; suffix++;
-    }
+    // FIX (oct 2026) : l'index unique utilisateurs_identifiant_key est GLOBAL (toutes ecoles,
+    // comptes supprimes inclus). Avant : recherche limitee a l'ecole + filtre soft-delete ->
+    // INSERT en "duplicate key". On cherche donc via supabaseRaw sans filtre ecole (meme
+    // principe que genererLoginParentUnique), en 1 requete. Memes candidats qu'avant : base, base2, base3...
+    const candidatsLogin = [baseLogin];
+    for (let k = 2; k <= 200; k++) candidatsLogin.push(baseLogin + k);
+    const { data: loginsPris, error: errLogins } = await supabaseRaw.from('utilisateurs')
+      .select('identifiant').in('identifiant', candidatsLogin);
+    if (errLogins) return showMsg('error', (lang==='ar'?'خطأ: ':'Erreur : ') + errLogins.message);
+    const setLoginsPris = new Set((loginsPris || []).map(r => r.identifiant));
+    const login = candidatsLogin.find(c => !setLoginsPris.has(c));
+    if (!login) return showMsg('error', lang==='ar'?'تعذر إنشاء معرف فريد':'Impossible de générer un identifiant unique');
     const mdp = (newInst.mot_de_passe && newInst.mot_de_passe.trim()) ? newInst.mot_de_passe.trim() : (ecoleConfig?.mdp_defaut_instituteurs || 'ecole2024');
     const { error } = await supabase.from('utilisateurs').insert({
       prenom: newInst.prenom, nom: newInst.nom,
@@ -554,6 +599,7 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile,
     });
     setNewInst({ prenom: '', nom: '', identifiant: '', mot_de_passe: '', instituteur_id_ecole: '', telephone: '', email: '' });
     setTimeout(() => loadData(), 0);
+    return true; // FIX (oct 2026) : succes -> le formulaire mobile peut se fermer
   };
 
   // ────── ETAPE 7 - SUSPENSION D'INSTITUTEURS ────────────────────────
@@ -1284,7 +1330,7 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
     setEditingParentId(null);
     setFormParent({prenom:'',nom:'',identifiant:'',mot_de_passe:'',telephone:'',email:'',eleve_ids:[],searchEleve:''});
     const {data:pd2}=await supabase.from('utilisateurs').select('id,prenom,nom,identifiant,telephone,email').eq('role','parent').eq('ecole_id',user.ecole_id);
-    const {data:pl2}=await supabase.from('parent_eleve').select('parent_id,eleve_id');
+    const pl2=await chargerLiensParents((pd2||[]).map(p=>p.id)); // FIX (oct 2026) : liens de cette ecole uniquement, pagines
     const lm2={}; (pl2||[]).forEach(l=>{if(!lm2[l.parent_id])lm2[l.parent_id]=[];lm2[l.parent_id].push(l.eleve_id);});
     setParents((pd2||[]).map(p=>({...p,eleve_ids:lm2[p.id]||[]})));
   };
@@ -1898,8 +1944,9 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
       setEditEleve(null); setMobileEditEleve(null);
     };
     const handleSaveEleve = async () => {
-      if (editEleve) { await modifierEleve(); setShowFormEleve(false); resetFormEleve(); }
-      else           { await ajouterEleve();  setShowFormEleve(false); resetFormEleve(); }
+      // FIX (oct 2026) : ne fermer le formulaire qu'en cas de succes (sinon saisie perdue sur erreur / doublon)
+      if (editEleve) { if (await modifierEleve()) { setShowFormEleve(false); resetFormEleve(); } }
+      else           { if (await ajouterEleve())  { setShowFormEleve(false); resetFormEleve(); } }
     };
     const startEditEleve = (e) => {
       setEditEleve({...e}); setMobileEditEleve(e);
@@ -2176,7 +2223,7 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
                     style={{flex:1,padding:'13px',background:'#f5f5f0',color:'#666',border:'none',borderRadius:12,fontSize:14,fontWeight:600,cursor:'pointer',fontFamily:'inherit'}}>
                     {lang==='ar'?'إلغاء':'Annuler'}
                   </button>
-                  <button onClick={handleSaveEleve}
+                  <button onClick={handleSaveEleve} disabled={!mobileEditEleve && savingEleve} /* FIX (oct 2026) : anti double-clic */
                     style={{flex:2,padding:'13px',background:mobileEditEleve?'#378ADD':'#1D9E75',color:'#fff',border:'none',borderRadius:12,fontSize:14,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
                     {mobileEditEleve?(lang==='ar'?'تحديث ✓':'Mettre à jour ✓'):(lang==='ar'?'حفظ':'Enregistrer')}
                   </button>
@@ -2265,7 +2312,8 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
             {showFormInst&&user.role==='surveillant'&&(
               <div style={{background:'#fff',borderRadius:16,padding:'18px',marginBottom:14,border:'1.5px solid #378ADD'}}>
                 <div style={{fontSize:15,fontWeight:700,color:'#085041',marginBottom:14}}>👨‍🏫 {lang==='ar'?'إضافة أستاذ':'Nouvel instituteur'}</div>
-                {[{label:lang==='ar'?'الاسم':'Prénom',key:'prenom'},{label:lang==='ar'?'اللقب':'Nom',key:'nom'},{label:'Identifiant',key:'identifiant',ph:'ex: m.karim'}].map(f=>(
+                {/* FIX (oct 2026) : champ "Identifiant" retire (ignore : le login est genere automatiquement prenom_nom) */}
+                {[{label:lang==='ar'?'الاسم':'Prénom',key:'prenom'},{label:lang==='ar'?'اللقب':'Nom',key:'nom'}].map(f=>(
                   <FI key={f.key} label={f.label+' *'} val={newInst[f.key]} ph={f.ph||f.label}
                     onChange={e=>setNewInst(x=>({...x,[f.key]:e.target.value}))} required/>
                 ))}
@@ -2298,7 +2346,7 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
                   onChange={e=>setNewInst(x=>({...x,email:e.target.value}))}/>
                 <div style={{display:'flex',gap:8}}>
                   <button onClick={()=>setShowFormInst(false)} style={{flex:1,padding:'13px',background:'#f5f5f0',color:'#666',border:'none',borderRadius:12,fontSize:14,fontWeight:600,cursor:'pointer',fontFamily:'inherit'}}>{lang==='ar'?'إلغاء':'Annuler'}</button>
-                  <button onClick={async()=>{await ajouterInstituteur();setShowFormInst(false);}} style={{flex:2,padding:'13px',background:'#085041',color:'#fff',border:'none',borderRadius:12,fontSize:14,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>{lang==='ar'?'حفظ':'Enregistrer'}</button>
+                  <button disabled={savingInst} onClick={async()=>{if(await ajouterInstituteur())setShowFormInst(false);/* FIX (oct 2026) : reste ouvert en cas d'erreur */}} style={{flex:2,padding:'13px',background:'#085041',color:'#fff',border:'none',borderRadius:12,fontSize:14,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>{lang==='ar'?'حفظ':'Enregistrer'}</button>
                 </div>
               </div>
             )}
@@ -3098,7 +3146,7 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
                       : <>Un compte parent sera automatiquement créé avec le login <b>= numéro élève</b> et le mot de passe par défaut <b>{ecoleConfig?.mdp_defaut_parents || 'parent2024'}</b></>}
                   </span>
                 </div>
-                <button className="btn-primary" onClick={ajouterEleve}>{t(lang, 'ajouter_eleve_btn')}</button>
+                <button className="btn-primary" onClick={ajouterEleve} disabled={savingEleve}>{savingEleve?'...':t(lang, 'ajouter_eleve_btn')}</button>{/* FIX (oct 2026) : anti double-clic */}
               </div>
             </>
             ) : null
@@ -3513,7 +3561,7 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
                 <input className="field-input" type="email" value={newInst.email||''} onChange={e => setNewInst({...newInst,email:e.target.value})} placeholder="instituteur@example.com"/>
               </div>
             </div>
-            <button className="btn-primary" onClick={ajouterInstituteur}>{t(lang, 'ajouter_instituteur_btn')}</button>
+            <button className="btn-primary" onClick={ajouterInstituteur} disabled={savingInst}>{savingInst?'...':t(lang, 'ajouter_instituteur_btn')}</button>{/* FIX (oct 2026) : anti double-clic */}
           </div>
           </>)}
 
@@ -3604,7 +3652,9 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
                           : `Le numéro "${upd.instituteur_id_ecole}" est déjà utilisé`);
                       }
                     }
-                    await supabase.from('utilisateurs').update(upd).eq('id',editInstituteur);
+                    // FIX (oct 2026) : verifier l'erreur avant d'afficher le succes
+                    const {error: errUpdInst} = await supabase.from('utilisateurs').update(upd).eq('id',editInstituteur);
+                    if (errUpdInst) return showMsg('error', (lang==='ar'?'خطأ: ':'Erreur : ') + (errUpdInst.message || ''));
                     setEditInstituteur(null);
                     showMsg('success',lang==='ar'?'تم تحديث بيانات الأستاذ':'Instituteur mis à jour');
                     loadData();

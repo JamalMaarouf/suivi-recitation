@@ -59,7 +59,8 @@ export default function ElevesMobile({ user, navigate, goBack, lang='ar' }) {
       supabase.from('utilisateurs').select('id,prenom,nom').eq('role','instituteur').eq('ecole_id', user.ecole_id).is('suspendu_at', null),
       supabase.from('niveaux').select('id,code,nom,couleur,type,sens_recitation').eq('ecole_id', user.ecole_id).order('ordre'),
       supabase.from('programmes').select('niveau_id,reference_id,ordre,bloc_numero,bloc_nom,bloc_sens,type_contenu').eq('ecole_id', user.ecole_id),
-      supabase.from('ecoles').select('sens_recitation_defaut').eq('id', user.ecole_id).maybeSingle(),
+      // FIX (oct 2026) : charger aussi mdp_defaut_parents (avant : repli systematique sur 'parent2024')
+      supabase.from('ecoles').select('sens_recitation_defaut,mdp_defaut_parents').eq('id', user.ecole_id).maybeSingle(),
     ]);
     setEleves(ed || []);
     setInstituteurs(id || []);
@@ -139,6 +140,11 @@ export default function ElevesMobile({ user, navigate, goBack, lang='ar' }) {
       jours_souhaites: Array.isArray(form.jours_souhaites) ? form.jours_souhaites : [false,false,false,false,false,false,false],
     };
     if (editEleve) {
+      // FIX (oct 2026) : unicite du numero eleve aussi en modification (hors eleve courant)
+      const { data: exEdit } = await supabase.from('eleves').select('id')
+        .eq('eleve_id_ecole', form.eleve_id_ecole.trim()).eq('ecole_id', user.ecole_id)
+        .neq('id', editEleve.id).limit(1).maybeSingle();
+      if (exEdit) { showMsg('error', lang==='ar'?'رقم التعريف مستخدم مسبقاً':'ID élève déjà utilisé'); setSaving(false); return; }
       const { error } = await supabase.from('eleves').update(payload).eq('id', editEleve.id);
       if (error) { showMsg('error', error.message); setSaving(false); return; }
       showMsg('success', lang==='ar'?'✅ تم تحديث الطالب':'✅ Élève mis à jour');

@@ -47,7 +47,12 @@ export function PassageNiveauTab({ user, lang, niveaux, showMsg }) {
       note: newRegle.note||null,
       actif: true,
     };
-    await supabase.from('regles_passage_niveau').insert(payload);
+    // FIX (oct 2026) : ne plus ignorer l'erreur d'insertion (avant : succes affiche meme en cas d'echec)
+    const { error: errIns } = await supabase.from('regles_passage_niveau').insert(payload);
+    if (errIns) {
+      setSaving(false);
+      return showMsg('error', (lang==='ar'?'خطأ: ':'Erreur : ') + (errIns.message || ''));
+    }
     await loadRegles();
     setNewRegle({ niveau_from:'', niveau_to:'', type_depart:'continuer', hizb_depart_fixe:0, tomon_depart_fixe:1, sourates_acquises_fixe:0, note:'' });
     setSaving(false);
@@ -296,8 +301,12 @@ export function MobilePassageNiveauTab({ user, lang, niveaux, showMsg }) {
           </div>
           <button onClick={async()=>{
             if(!newR.niveau_from||!newR.niveau_to) return showMsg('error',lang==='ar'?'اختر المستويين':'Choisissez les niveaux');
+            // FIX (oct 2026) : refuser une regle dont la source et la cible sont identiques (deja controle sur PC)
+            if(newR.niveau_from===newR.niveau_to) return showMsg('error',lang==='ar'?'لا يمكن أن يكون المستويان متطابقين':'Les niveaux ne peuvent pas être identiques');
             setSaving(true);
-            await supabase.from('regles_passage_niveau').insert({ecole_id:user.ecole_id,...newR,hizb_depart_fixe:parseInt(newR.hizb_depart_fixe)||0,tomon_depart_fixe:parseInt(newR.tomon_depart_fixe)||1,sourates_acquises_fixe:parseInt(newR.sourates_acquises_fixe)||0,actif:true});
+            // FIX (oct 2026) : verifier l'erreur d'insertion avant d'afficher le succes
+            const {error:errIns}=await supabase.from('regles_passage_niveau').insert({ecole_id:user.ecole_id,...newR,hizb_depart_fixe:parseInt(newR.hizb_depart_fixe)||0,tomon_depart_fixe:parseInt(newR.tomon_depart_fixe)||1,sourates_acquises_fixe:parseInt(newR.sourates_acquises_fixe)||0,actif:true});
+            if(errIns){ setSaving(false); return showMsg('error',(lang==='ar'?'خطأ: ':'Erreur : ')+(errIns.message||'')); }
             await loadRegles();
             setNewR({niveau_from:'',niveau_to:'',type_depart:'continuer',hizb_depart_fixe:0,tomon_depart_fixe:1,sourates_acquises_fixe:0,note:''});
             setShowForm(false); setSaving(false);

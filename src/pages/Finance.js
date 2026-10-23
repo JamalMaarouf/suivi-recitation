@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
+import { fetchAll } from '../lib/fetchAll'; // FIX (oct 2026) : pagination cotisations >1000 lignes
 import ConfirmModal from '../components/ConfirmModal';
 import { getInitiales } from '../lib/helpers';
 import { t } from '../lib/i18n';
@@ -56,6 +57,14 @@ const getAnnees = () => {
   const years = [];
   for (let y = current - 10; y <= current + 10; y++) years.push(y);
   return years.map(y=>({ val:String(y), fr:String(y), ar:String(y) }));
+};
+
+// FIX (oct 2026) : normalise une periode mensuelle "M-YYYY" en "MM-YYYY" (format dominant en base).
+// Les anciennes saisies express etaient stockees sans zero ("1-2027") : on les tolere a la lecture.
+const normPeriodeFin = (p) => {
+  const str = String(p || '').trim();
+  const m = str.match(/^(\d{1,2})-(\d{4})$/);
+  return m ? m[1].padStart(2, '0') + '-' + m[2] : str;
 };
 
 const buildPeriodeStr = (typePeriode, valPeriode, annee) => {
@@ -135,8 +144,9 @@ export default function Finance({ user, navigate, goBack, lang='fr', isMobile })
         supabase.from('eleves').select('*, instituteur:instituteur_referent_id(prenom,nom)')
         .eq('ecole_id', user.ecole_id).order('nom'),
         supabase.from('utilisateurs').select('id,prenom,nom,identifiant,role,ecole_id,instituteur_id_ecole,tarif_seance,telephone,email,statut_compte,suspendu_at').eq('role','instituteur').eq('ecole_id', user.ecole_id),
-        supabase.from('cotisations').select('*, eleve:eleve_id(id,prenom,nom,code_niveau,eleve_id_ecole), createur:created_by(prenom,nom)')
-        .eq('ecole_id', user.ecole_id).order('date_paiement',{ascending:false}),
+        // FIX (oct 2026) : fetchAll (avant : tronque a 1000 lignes -> totaux/suivi faux)
+        fetchAll(supabase.from('cotisations').select('*, eleve:eleve_id(id,prenom,nom,code_niveau,eleve_id_ecole), createur:created_by(prenom,nom)')
+        .eq('ecole_id', user.ecole_id).order('date_paiement',{ascending:false})).then(data => ({ data })),
         supabase.from('depenses').select('*, beneficiaire:beneficiaire_id(prenom,nom), createur:created_by(prenom,nom)')
         .eq('ecole_id', user.ecole_id).order('date_depense',{ascending:false}),
       ]);
@@ -228,7 +238,7 @@ export default function Finance({ user, navigate, goBack, lang='fr', isMobile })
       ecole_id: user.ecole_id,
       montant: parseFloat(expressCot.montant),
       date_paiement: now.toISOString().split('T')[0],
-      periode: buildPeriodeStr('mois', String(mois), String(annee)),
+      periode: buildPeriodeStr('mois', String(mois).padStart(2, '0'), String(annee)), // FIX (oct 2026) : "01-2027" et non "1-2027" (meme format que le formulaire)
       statut: 'paye',
       note: null,
       created_by: user.id,
@@ -350,7 +360,8 @@ export default function Finance({ user, navigate, goBack, lang='fr', isMobile })
   const cotFiltrees = (cotisations||[]).filter(c => {
     if (filterEleve!=='tous' && c.eleve_id!==filterEleve) return false;
     if (filterStatut!=='tous' && c.statut!==filterStatut) return false;
-    if (filterPeriode && c.periode && !c.periode.toLowerCase().includes(filterPeriode.toLowerCase())) return false;
+    // FIX (oct 2026) : comparaison sur periodes normalisees ("1-2027" == "01-2027")
+    if (filterPeriode && c.periode && !normPeriodeFin(c.periode).toLowerCase().includes(normPeriodeFin(filterPeriode).toLowerCase())) return false;
     if (filterIdEleve && c.eleve && !String(c.eleve.eleve_id_ecole||'').includes(filterIdEleve) && !(c.eleve.prenom+' '+c.eleve.nom).toLowerCase().includes(filterIdEleve.toLowerCase())) return false;
     return true;
   });

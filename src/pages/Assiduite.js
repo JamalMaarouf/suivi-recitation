@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from '../lib/supabase';
+import { fetchAll } from '../lib/fetchAll'; // FIX (oct 2026) : pagination presences >1000 lignes
 import { useToast } from '../lib/toast';
 import { t } from '../lib/i18n';
 import KioskExitModal from '../components/KioskExitModal';
@@ -1204,7 +1205,7 @@ function OngletSuivi({ lang, user, isMobile }) {
       setLoading(true);
       const [elevesRes, niveauxRes, jntRes, ecoleRes] = await Promise.all([
         supabase.from('eleves')
-          .select('id, prenom, nom, eleve_id_ecole, code_niveau, jours_souhaites')
+          .select('id, prenom, nom, eleve_id_ecole, code_niveau, jours_souhaites, date_inscription, created_at') // FIX (oct 2026) : dates d'inscription pour ne pas compter d'absences avant l'arrivee
           .eq('ecole_id', user.ecole_id)
           .is('suspendu_at', null) // F13 (oct 2026) : exclure les suspendus (comme Dashboard / ValidationRapide) : sinon absents en permanence
           .order('nom'),
@@ -1245,11 +1246,14 @@ function OngletSuivi({ lang, user, isMobile }) {
   useEffect(() => {
     if (!debut || !fin) return;
     const loadPres = async () => {
-      const { data } = await supabase.from('presences')
+      // FIX (oct 2026) : fetchAll (avant : tronque a 1000 lignes -> fausses absences sur annee/trimestre)
+      // Tri stable sur (date_presence, eleve_id) (couple unique) : pas de dependance a une colonne id.
+      const data = await fetchAll(supabase.from('presences')
         .select('eleve_id, date_presence')
         .eq('ecole_id', user.ecole_id)
         .gte('date_presence', debut)
-        .lte('date_presence', fin);
+        .lte('date_presence', fin)
+        .order('date_presence').order('eleve_id'), { ordreStable: false });
       setPresences(data || []);
     };
     loadPres();
@@ -1283,9 +1287,26 @@ function OngletSuivi({ lang, user, isMobile }) {
       presParEleve[p.eleve_id].add(p.date_presence);
     });
     // Pour chaque eleve, iterer sur chaque jour de la periode
-    const d1 = new Date(debut);
-    const d2 = new Date(fin);
+    // FIX (oct 2026) : bornes en dates LOCALES (new Date('YYYY-MM-DD') = minuit UTC) et
+    // fin plafonnee a aujourd'hui (avant : jours futurs d'une annee/trimestre comptes absents).
+    const parseLocal = (str) => {
+      const m = String(str || '').match(/^(\d{4})-(\d{2})-(\d{2})/);
+      return m ? new Date(+m[1], +m[2] - 1, +m[3]) : null;
+    };
+    const d1 = parseLocal(debut) || new Date(debut);
+    const finPeriode = parseLocal(fin) || new Date(fin);
+    const aujourdhui = new Date(); aujourdhui.setHours(0, 0, 0, 0);
+    const d2 = finPeriode < aujourdhui ? finPeriode : aujourdhui;
     eleves.forEach(e => {
+      // FIX (oct 2026) : debut = max(debut periode, date d'inscription de l'eleve) (sinon absences
+      // comptees avant son arrivee). date_inscription prioritaire, sinon created_at (date locale).
+      let debutEleve = d1;
+      let dInscr = parseLocal(e.date_inscription);
+      if (!dInscr && e.created_at) {
+        const c = new Date(e.created_at);
+        if (!isNaN(c)) dInscr = new Date(c.getFullYear(), c.getMonth(), c.getDate());
+      }
+      if (dInscr && dInscr > debutEleve) debutEleve = dInscr;
       const jours = Array.isArray(e.jours_souhaites) ? e.jours_souhaites : [false, false, false, false, false, false, false];
       const aDesJours = jours.some(j => j === true);
       const presEleve = presParEleve[e.id] || new Set();
@@ -1299,7 +1320,7 @@ function OngletSuivi({ lang, user, isMobile }) {
         return `${y}-${m}-${dd}`;
       };
       if (aDesJours) {
-        for (let d = new Date(d1); d <= d2; d.setDate(d.getDate() + 1)) {
+        for (let d = new Date(debutEleve); d <= d2; d.setDate(d.getDate() + 1)) { // FIX (oct 2026) : debutEleve
           const iso = isoLocal(d);
           if (datesNonTravailles.has(iso)) continue;  // jour ferie
           // getDay() : 0=Dim, 1=Lun, 2=Mar, 3=Mer, 4=Jeu, 5=Ven, 6=Sam

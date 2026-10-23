@@ -31,7 +31,12 @@ export function JalonsTab({ user, lang, jalons, setJalons, ensembles, examens, n
       description_condition: newJalonSafe.description_condition || null,
       actif: true,
     };
-    await supabase.from('jalons').insert(payload);
+    // FIX (oct 2026) : ne plus ignorer l'erreur d'insertion (avant : succes affiche meme en cas d'echec)
+    const { error: errIns } = await supabase.from('jalons').insert(payload);
+    if (errIns) {
+      setSavingJalon(false);
+      return showMsg('error', (lang==='ar'?'خطأ: ':'Erreur : ') + (errIns.message || ''));
+    }
     const { data } = await supabase.from('jalons').select('*').eq('ecole_id', user.ecole_id).order('created_at');
     if (data) setJalons(data);
     setNewJalon({ nom_ar: '', type_jalon: 'hizb', hizb_ids: [], ensemble_id: '', examen_id: '', condition_obtention: 'cumul', examen_final_id: '', description_condition: '' });

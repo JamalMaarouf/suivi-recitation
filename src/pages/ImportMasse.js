@@ -1,6 +1,6 @@
 import React, { useState, useRef } from 'react';
 import * as XLSX from 'xlsx';
-import { supabase } from '../lib/supabase';
+import { supabase, supabaseRaw } from '../lib/supabase'; // FIX (oct 2026) : supabaseRaw pour l'unicite globale des identifiants
 import { useToast } from '../lib/toast';
 import { ALL_TEMPLATES, TEMPLATES_BY_SHEET_NAME, normalizeRow, detectDuplicates } from '../lib/importTemplates';
 import BackButton from '../components/BackButton';
@@ -108,6 +108,26 @@ export default function ImportMasse({ user, navigate, goBack, lang='fr', isMobil
         fileData[t.sheet_name] = rows.map(r => cleanKeys(normalizeRow(r)));
       });
 
+      // FIX (oct 2026) : l'index unique utilisateurs_identifiant_key est GLOBAL (toutes ecoles,
+      // comptes supprimes inclus). Avant : controle limite a l'ecole et aux comptes actifs ->
+      // l'import echouait en "duplicate key". On interroge donc supabaseRaw sans filtre ecole
+      // pour les identifiants du fichier (paquets de 100).
+      const identifiantsPrisGlobal = new Set();
+      try {
+        const idsFichier = new Set();
+        ['Instituteurs', 'Parents'].forEach(sn => (fileData[sn] || []).forEach(r => {
+          const v = (r.identifiant || '').toString().trim();
+          if (v) { idsFichier.add(v); idsFichier.add(v.toLowerCase()); }
+        }));
+        const listeIds = [...idsFichier];
+        for (let k = 0; k < listeIds.length; k += 100) {
+          const { data: pris, error: errPris } = await supabaseRaw.from('utilisateurs')
+            .select('identifiant').in('identifiant', listeIds.slice(k, k + 100));
+          if (errPris) { console.warn('[ImportMasse] controle identifiants:', errPris.message); break; }
+          (pris || []).forEach(u => identifiantsPrisGlobal.add((u.identifiant || '').toLowerCase()));
+        }
+      } catch (e) { console.warn('[ImportMasse] controle identifiants:', e); }
+
       // Deuxième passe : validation + transformation
       // Les "xxxFichier" du ctx contiennent les lignes avec clés propres (sans " *")
       const ctx = {
@@ -160,6 +180,9 @@ export default function ImportMasse({ user, navigate, goBack, lang='fr', isMobil
             } else if (t.sheet_name === 'Instituteurs' || t.sheet_name === 'Parents') {
               if ((utilisateursDB||[]).some(u => (u.identifiant||'').toLowerCase() === val)) {
                 errors.push(`Identifiant "${val}" déjà utilisé`);
+              } else if (identifiantsPrisGlobal.has(val)) {
+                // FIX (oct 2026) : deja pris dans une autre ecole ou par un compte supprime
+                errors.push(`Identifiant "${val}" déjà utilisé (autre école ou compte supprimé)`);
               }
             } else if (t.table === 'eleves') {
               if ((elevesDB||[]).some(e => (e.eleve_id_ecole||'').toLowerCase() === val)) {
