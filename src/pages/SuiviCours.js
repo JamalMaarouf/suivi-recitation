@@ -241,7 +241,7 @@ export default function SuiviCours({ user, navigate, goBack, lang, isMobile }) {
       {/* Header */}
       {isMobile ? (
         <div style={{
-          background: 'linear-gradient(135deg, #0C447C, #378ADD)',
+          background: 'linear-gradient(135deg,#085041,#1D9E75)', // charte mobile lot 1 : vert de marque (avant bleu)
           color: '#fff', padding: '48px 16px 14px',
           position: 'sticky', top: 0, zIndex: 100,
         }}>

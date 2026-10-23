@@ -667,21 +667,19 @@ export default function Finance({ user, navigate, goBack, lang='fr', isMobile })
         onTouchStart={onTouchStart} onTouchMove={onTouchMove} onTouchEnd={onTouchEnd}>
         <PullToRefreshIndicator pullDistance={pullDistance} isRefreshing={isRefreshing} isThreshold={isThreshold} lang={lang} />
         {/* Sticky header */}
-        <div style={{background:'linear-gradient(135deg,#1e3a5f,#3b5a82)',padding:'48px 16px 14px',position:'sticky',top:0,zIndex:100}}>
+        {/* Charte mobile lot 1 (oct 2026) : vert de marque (avant bleu marine), titre unique */}
+        <div style={{background:'linear-gradient(135deg,#085041,#1D9E75)',padding:'48px 16px 14px',position:'sticky',top:0,zIndex:100}}>
           <div style={{display:'flex',alignItems:'center',gap:12,marginBottom:8}}>
             <button onClick={()=>goBack?goBack():navigate('dashboard')}
               style={{background:'rgba(255,255,255,0.22)',border:'1px solid rgba(255,255,255,0.25)',borderRadius:10,padding:'0',color:'#fff',fontSize:20,cursor:'pointer',flexShrink:0,width:44,height:44,display:'flex',alignItems:'center',justifyContent:'center'}}>←</button>
             <div style={{flex:1,fontSize:16,fontWeight:800,color:'#fff'}}>💰 {lang==='ar'?'المالية':'Finance'}</div>
-          </div>
-          <div style={{fontSize:18,fontWeight:800,color:'#fff',marginBottom:10}}>
-            💰 {lang==='ar'?'المالية':lang==='en'?'Finance':'Finance'}
           </div>
           {/* Onglets scrollables */}
           <div style={{display:'flex',gap:6,overflowX:'auto',scrollbarWidth:'none',paddingBottom:2}}>
             {onglets.map(o=>(
               <div key={o.key} onClick={()=>setOnglet(o.key)}
                 style={{padding:'7px 14px',borderRadius:20,fontSize:12,fontWeight:600,flexShrink:0,cursor:'pointer',
-                  background:onglet===o.key?'#1D9E75':'#f0f0ec',color:onglet===o.key?'#fff':'#666'}}>
+                  background:onglet===o.key?'#fff':'rgba(255,255,255,0.18)',color:onglet===o.key?'#085041':'#fff'}}>
                 {o.icon} {lang==='ar'?o.labelAr:o.label}
               </div>
             ))}

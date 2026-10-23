@@ -889,8 +889,10 @@ function App() {
             CACHE SUR DASHBOARD : sur Dashboard mobile, l'avatar est integre
             DANS le header gradient (a cote de la salutation "مرحباً jamal").
             Voir Dashboard.js pour cette integration. */}
-        {isMobile && user.role !== 'parent' && !kioskMode && (
-          <div style={{position:'fixed', top:12, right:12, zIndex:1000}}>
+        {/* Charte mobile lot 1 (oct 2026) : pastille profil seulement sur l'accueil et le menu
+            Plus. Ailleurs elle chevauchait les boutons des en-tetes (+ Recit., PDF, Excel). */}
+        {isMobile && user.role !== 'parent' && !kioskMode && (page === 'dashboard' || page === 'modules') && (
+          <div style={{position:'fixed', top:'calc(12px + env(safe-area-inset-top, 0px))', right:12, zIndex:1000}}>
             <button onClick={e=>{e.stopPropagation();setShowUserMenu(v=>!v);setShowLangMenu(false);}}
               aria-label={lang==='ar'?'الملف الشخصي':'Mon profil'}
               style={{
@@ -1034,7 +1036,7 @@ function App() {
             {(user.role === 'surveillant' ? [
               { key: 'dashboard',         icon: '🏠', label: lang==='ar'?'الرئيسية':'Accueil' },
               { key: 'eleves_mobile',     icon: '👥', label: lang==='ar'?'الطلاب':'Élèves' },
-              { key: 'validation_rapide', icon: '⚡', label: lang==='ar'?'استظهار':'Express' },
+              { key: 'validation_rapide', icon: '⚡', label: lang==='ar'?'استظهار':'Valider' },
               { key: 'dashboard_plus',    icon: '⚙️', label: lang==='ar'?'المزيد':'Plus' },
             ] : user.role === 'instituteur' ? [
               { key: 'dashboard',         icon: '🏠', label: lang==='ar'?'الرئيسية':'Accueil' },
@@ -1044,7 +1046,7 @@ function App() {
             ] : [
               { key: 'dashboard',         icon: '🏠', label: lang==='ar'?'الرئيسية':'Accueil' },
               { key: 'eleves_mobile',     icon: '👥', label: lang==='ar'?'الطلاب':'Élèves' },
-              { key: 'validation_rapide', icon: '⚡', label: lang==='ar'?'استظهار':'Express' },
+              { key: 'validation_rapide', icon: '⚡', label: lang==='ar'?'استظهار':'Valider' },
               { key: 'dashboard_plus',    icon: '⚙️', label: lang==='ar'?'المزيد':'Plus' },
             ]).map(tab => {
               // 'dashboard_plus' = raccourci vers la page Modules (page de navigation dediee)
@@ -1068,7 +1070,10 @@ function App() {
         {/* FAB Recherche — mobile uniquement, non-parent, non-kiosk
             E1 mobile M1b — deplace de top:60 (chevauchait le bandeau alerte)
             vers bas-droite (pattern mobile standard, accessible au pouce) */}
-        {isMobile && user.role !== 'parent' && !kioskMode && (
+        {/* Charte mobile lot 1 (oct 2026) : recherche globale flottante seulement sur l'accueil
+            et le menu Plus ; ailleurs elle couvrait des chiffres et des noms (les listes ont
+            deja leur propre champ de recherche). */}
+        {isMobile && user.role !== 'parent' && !kioskMode && (page === 'dashboard' || page === 'modules') && (
           <button onClick={()=>setSearchOpen(true)}
             aria-label={lang==='ar'?'بحث':'Rechercher'}
             style={{

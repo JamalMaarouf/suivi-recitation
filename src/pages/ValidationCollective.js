@@ -176,7 +176,7 @@ export default function ValidationCollective({ user, navigate, goBack, lang='fr'
             📊 {lang==='ar' ? 'لوحة المراجعات' : 'Tableau de bord'}
           </button>
           <button onClick={()=>goBack?goBack():navigate('dashboard')} className="back-link">
-            {lang==='ar'?'رجوع':'← Retour'}
+            {lang==='ar'?'رجوع':'Retour'}
           </button>
         </div>
       </div>

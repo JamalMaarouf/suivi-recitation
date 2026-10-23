@@ -1004,17 +1004,19 @@ export default function ResultatsExamens({ user, navigate, goBack, lang='fr', is
         />
       );
     }
-    // Mobile : header existant inchangé (Phase E à venir)
+    // Charte mobile lot 1 (oct 2026) : meme ligne d'en-tete que les autres ecrans mobiles
+    // (retour 44 px, titre blanc). Avant : pilule « ← ← » et titre vert fonce sur vert.
     return (
-      <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:12,flexWrap:'wrap',justifyContent:'space-between'}}>
-        <button onClick={()=>goBack?goBack():navigate('dashboard')} className="back-link" style={{marginBottom:0}}>
-          ←
+      <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:12}}>
+        <button onClick={()=>goBack?goBack():navigate('dashboard')} aria-label={lang==='ar'?'رجوع':'Retour'}
+          style={{background:'rgba(255,255,255,0.22)',border:'1px solid rgba(255,255,255,0.25)',borderRadius:10,width:44,height:44,padding:0,color:'#fff',fontSize:20,cursor:'pointer',flexShrink:0,display:'flex',alignItems:'center',justifyContent:'center'}}>
+          {lang==='ar'?'→':'←'}
         </button>
-        <div style={{flex:1,fontSize:17,fontWeight:800,color:'#085041'}}>
+        <div style={{flex:1,minWidth:0,fontSize:17,fontWeight:800,color:'#fff',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>
           🏅 {lang==='ar'?'نتائج الامتحانات':'Résultats'}
         </div>
-            {/* F6 (oct 2026) : exports aussi sur mobile (avant : PC seulement) */}
-            <ExportButtons onPDF={exportResultatsPDF} onExcel={exportResultatsExcel} lang={lang} variant="inline" compact isMobile />
+        {/* F6 (oct 2026) : exports aussi sur mobile (avant : PC seulement) */}
+        <ExportButtons onPDF={exportResultatsPDF} onExcel={exportResultatsExcel} lang={lang} variant="inline" compact isMobile />
       </div>
     );
   };

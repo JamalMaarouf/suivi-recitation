@@ -326,12 +326,12 @@ export default function MurajaDashboard({ user, navigate, goBack, lang='fr', isM
           {/* Filtres mobiles */}
           <div style={{display:'flex',gap:6}}>
             <select value={filterNiveau} onChange={e=>setFilterNiveau(e.target.value)}
-              style={{flex:1,padding:'8px 10px',borderRadius:10,border:'none',fontSize:12,fontFamily:'inherit',background:'rgba(255,255,255,0.2)',color:'#fff',outline:'none'}}>
+              style={{flex:1,padding:'8px 10px',borderRadius:10,border:'none',fontSize:12,fontFamily:'inherit',background:'#fff',color:'#16241E',outline:'none'}}>
               <option value="tous" style={{color:'#333'}}>{lang==='ar'?'كل المستويات':'Tous niveaux'}</option>
               {niveaux.map(n=><option key={n.code} value={n.code} style={{color:'#333'}}>{n.code} — {n.nom}</option>)}
             </select>
             <select value={filterPeriode} onChange={e=>setFilterPeriode(e.target.value)}
-              style={{flex:1,padding:'8px 10px',borderRadius:10,border:'none',fontSize:12,fontFamily:'inherit',background:'rgba(255,255,255,0.2)',color:'#fff',outline:'none'}}>
+              style={{flex:1,padding:'8px 10px',borderRadius:10,border:'none',fontSize:12,fontFamily:'inherit',background:'#fff',color:'#16241E',outline:'none'}}>
               <option value="7" style={{color:'#333'}}>7j</option>
               <option value="30" style={{color:'#333'}}>30j</option>
               <option value="90" style={{color:'#333'}}>3 {lang==='ar'?'أشهر':'mois'}</option>

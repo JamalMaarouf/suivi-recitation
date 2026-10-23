@@ -318,8 +318,8 @@ export default function ElevesMobile({ user, navigate, goBack, lang='ar' }) {
           <input value={search} onChange={e=>setSearch(e.target.value)}
             placeholder={lang==='ar'?'🔍 بحث عن طالب...':'🔍 Rechercher...'}
             style={{width:'100%', padding:'10px 14px', borderRadius:12, border:'none', fontSize:14,
-              fontFamily:'inherit', boxSizing:'border-box', background:'rgba(255,255,255,0.15)',
-              color:'#fff', outline:'none'}}/>
+              fontFamily:'inherit', boxSizing:'border-box', background:'#fff',
+              color:'#16241E', outline:'none'}}/>
         )}
         {!showForm && eleves.some(e => e.suspendu_at) && (
           <label style={{display:'flex', alignItems:'center', gap:8, marginTop:8, fontSize:12, color:'rgba(255,255,255,0.9)', cursor:'pointer'}}>
@@ -711,7 +711,7 @@ export default function ElevesMobile({ user, navigate, goBack, lang='ar' }) {
         <button onClick={startAdd}
           aria-label={lang==='ar'?'إضافة طالب':'Ajouter un élève'}
           style={{
-            position:'fixed', bottom:144, right:14, zIndex:90,
+            position:'fixed', bottom:'calc(80px + env(safe-area-inset-bottom, 0px))', right:14, zIndex:90, // charte lot 1 : plus de loupe flottante au-dessous
             width:56, height:56, borderRadius:28,
             background:'linear-gradient(135deg,#1D9E75,#085041)',
             border:'none', color:'#fff', fontSize:28, fontWeight:300,

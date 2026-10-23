@@ -3023,7 +3023,7 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
 
       {tab !== 'parametres' && tab !== '' && (
         <button onClick={()=>setTab('parametres')} className="back-link" style={{marginBottom:'0.75rem'}}>
-          {lang==='ar'?'← الرئيسية':'← Accueil الإدارة'}
+          {lang==='ar'?'الرئيسية':'Accueil administration'}
         </button>
       )}
       {tab === 'eleves' && (

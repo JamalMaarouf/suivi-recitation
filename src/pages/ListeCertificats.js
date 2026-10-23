@@ -367,7 +367,7 @@ export default function ListeCertificats({ user, navigate, goBack, lang='fr', is
           <input value={searchNum} onChange={e=>setSearchNum(e.target.value)}
             placeholder={lang==='ar'?'🔍 بحث بالاسم أو الرقم...':'🔍 Nom ou numéro...'}
             style={{width:'100%',padding:'10px 14px',borderRadius:12,border:'none',fontSize:14,fontFamily:'inherit',
-              boxSizing:'border-box',background:'rgba(255,255,255,0.2)',color:'#fff',outline:'none'}}/>
+              boxSizing:'border-box',background:'#fff',color:'#16241E',outline:'none'}}/>
         </div>
 
         {/* Filtres chips */}

@@ -169,7 +169,7 @@ export default function FicheSourate({ eleve, user, navigate, goBack, lang='fr',
       <MobileSkeletonList type="card-with-tabs" count={4} />
       <div style={{marginTop:'1rem',fontSize:13,color:'#888'}}>{eleve?.prenom} {eleve?.nom}</div>
       <button onClick={()=>goBack?goBack():navigate('dashboard')} className="back-link" style={{marginTop:'1rem'}}>
-        ← {lang==='ar'?'رجوع':'Retour'}
+        {lang==='ar'?'رجوع':'Retour'}
       </button>
     </div>
   );

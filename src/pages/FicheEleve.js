@@ -963,7 +963,7 @@ ${(passages||[]).length > 0 ? `
         ) : (
           <div style={{padding:'1.5rem'}}>
             <button onClick={()=>goBack?goBack():navigate('dashboard')} className="back-link" style={{marginBottom:16}}>
-              ← {lang==='ar'?'رجوع':'Retour'}
+              {lang==='ar'?'رجوع':'Retour'}
             </button>
             <div style={{background:'#fff', borderRadius:12, padding:20, marginBottom:14}}>
               <div style={{fontSize:22, fontWeight:800}}>{eleve?.prenom} {eleve?.nom}</div>
@@ -1420,25 +1420,35 @@ ${(passages||[]).length > 0 ? `
         {/* Sticky header */}
         <div style={{background:`linear-gradient(135deg,#085041,#1D9E75)`, position:'sticky', top:0, zIndex:100}}>
           <div style={{display:'flex', alignItems:'center', gap:12, padding:'48px 16px 12px'}}>
-            <button onClick={()=>goBack?goBack():navigate('dashboard')}
-              style={{background:'rgba(255,255,255,0.2)', border:'none', cursor:'pointer',flexShrink:0, borderRadius:10, padding:'8px 12px', color:'#fff', fontSize:16}}>
-              
+            {/* Charte mobile lot 1 (oct 2026) : bouton retour visible (il etait vide) */}
+            <button onClick={()=>goBack?goBack():navigate('dashboard')} aria-label={lang==='ar'?'رجوع':'Retour'}
+              style={{background:'rgba(255,255,255,0.2)', border:'1px solid rgba(255,255,255,0.25)', cursor:'pointer',flexShrink:0, borderRadius:10, width:44, height:44, padding:0, color:'#fff', fontSize:20, display:'flex', alignItems:'center', justifyContent:'center'}}>
+              {lang==='ar'?'→':'←'}
             </button>
-            <div style={{flex:1}}>
-              <div style={{fontSize:17, fontWeight:800}}>{eleve.prenom} {eleve.nom}</div>
+            <div style={{flex:1, minWidth:0}}>
+              {/* Charte mobile lot 1 : nom en blanc (il etait vert fonce sur vert) */}
+              <div style={{fontSize:17, fontWeight:800, color:'#fff', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap'}}>{eleve.prenom} {eleve.nom}</div>
               <div style={{display:'flex', gap:6, alignItems:'center', marginTop:2, flexWrap:'wrap'}}>
-                <span style={{padding:'1px 8px', borderRadius:10, fontSize:11, fontWeight:700, background:`${nc}20`, color:nc}}>
+                <span style={{padding:'1px 8px', borderRadius:10, fontSize:11, fontWeight:700, background:'#fff', color:nc}}>
                   {eleve.code_niveau||'?'}
                 </span>
-                <span style={{fontSize:12, color:'#888'}}>{instituteurNom}</span>
+                <span style={{fontSize:12, color:'rgba(255,255,255,0.85)'}}>{instituteurNom}</span>
                 {user.role === 'surveillant' && (
                   <BadgeStatutParent eleve={eleve} lang={lang} compact />
                 )}
               </div>
             </div>
+            {user.role==='surveillant' && (
+              <button onClick={()=>{setNouveauNiveau('');setNotePassage('');setShowPassageModal(true);}}
+                aria-label={lang==='ar'?'الانتقال إلى مستوى':'Passer de niveau'} title={lang==='ar'?'الانتقال إلى مستوى':'Passer de niveau'}
+                style={{background:'rgba(255,255,255,0.2)', border:'1px solid rgba(255,255,255,0.25)', color:'#fff', borderRadius:10,
+                  width:44, height:44, padding:0, fontSize:18, cursor:'pointer', flexShrink:0, display:'flex', alignItems:'center', justifyContent:'center'}}>
+                🎓
+              </button>
+            )}
             <button onClick={()=>navigate('enregistrer', eleve)}
-              style={{background:'#1D9E75', color:'#fff', border:'none', borderRadius:10,
-                padding:'8px 14px', fontSize:13, fontWeight:700, cursor:'pointer', fontFamily:'inherit'}}>
+              style={{background:'#fff', color:'#085041', border:'none', borderRadius:10, height:44,
+                padding:'0 14px', fontSize:13, fontWeight:700, cursor:'pointer', fontFamily:'inherit', flexShrink:0}}>
               + {lang==='ar'?'استظهار':'Récit.'}
             </button>
           </div>
@@ -1452,7 +1462,7 @@ ${(passages||[]).length > 0 ? `
               //  3. Sinon -> points total comme avant
               if (estSourateEleve) {
                 return (
-                  <div style={{fontSize:26, fontWeight:800, color:sl2.color}}>
+                  <div style={{fontSize:26, fontWeight:800, color:'#085041'}}>
                     {(totalPtsSourates||0).toLocaleString()} pts
                   </div>
                 );
@@ -1467,7 +1477,7 @@ ${(passages||[]).length > 0 ? `
                 );
               }
               return (
-                <div style={{fontSize:26, fontWeight:800, color:sl2.color}}>
+                <div style={{fontSize:26, fontWeight:800, color:'#085041'}}>{/* charte lot 1 : points lisibles */}
                   {points.toLocaleString()} pts
                 </div>
               );
@@ -1493,7 +1503,8 @@ ${(passages||[]).length > 0 ? `
             const ongletDansPlus = tabsPlus.find(t => t.k === onglet);
             const plusActif = !!ongletDansPlus;
             return (
-              <div style={{position:'relative', borderTop:'0.5px solid #f0f0ec'}}>
+              <div style={{position:'relative', borderTop:'0.5px solid #f0f0ec', background:'#fff', borderBottom:'1px solid #e8ebe7'}}>
+                {/* Charte mobile lot 1 : onglets sur fond blanc (ils etaient gris sur vert, illisibles) */}
                 <div style={{display:'flex', overflowX:'auto', scrollbarWidth:'none'}}>
                   {tabsPrincipaux.map(tab => (
                     <div key={tab.k} onClick={()=>{setOnglet(tab.k); setShowPlusMenu(false);}}
@@ -1790,31 +1801,50 @@ ${(passages||[]).length > 0 ? `
                 <div style={{fontSize:12,fontWeight:700,color:'#888',marginBottom:8}}>
                   {lang==='ar'?'آخر النشاطات':'Activité récente'}
                 </div>
-                {[...validations].sort((a,b)=>new Date(b.date_validation)-new Date(a.date_validation)).slice(0,15).map((v,i)=>{
-                  const isSourate = v.sourate_id !== undefined;
-                  // NETTOYAGE (oct 2026) : avant 30/10/100/30 pts codes en dur. Maintenant barème.
-                  const pts = isSourate ? (v.points||0) : ptsValidation(v, baremeEleve);
-                  return(
-                    <div key={i} style={{background:'#fff',borderRadius:10,padding:'10px 12px',marginBottom:6,
-                      border:'0.5px solid #e0e0d8',display:'flex',alignItems:'center',gap:10}}>
-                      <span style={{fontSize:16}}>{isSourate?'📖':'✅'}</span>
-                      <div style={{flex:1}}>
-                        <div style={{fontWeight:600,fontSize:13}}>
-                          {isSourate
-                            ? (v.sourate?.nom_ar||'Sourate')
-                            : (v.type_validation==='hizb_complet'
-                              ? (lang==='ar'?'حزب كامل':'Hizb complet')
-                              : `${lang==='ar'?'ث':'T'}.${v.tomon_debut} ×${v.nombre_tomon}`)}
-                        </div>
-                        <div style={{fontSize:11,color:'#888'}}>{new Date(v.date_validation).toLocaleDateString(lang==='ar'?'ar-MA':'fr-FR')}</div>
-                      </div>
-                      <span style={{fontSize:13,fontWeight:700,color:'#1D9E75'}}>+{pts}</span>
-                    </div>
+                {/* Charte mobile lot 1 (oct 2026) : activite = validations + recitations de sourates
+                    (avant : un eleve en sourates voyait « Aucune activite »), libelles lisibles
+                    (muraja, ensemble ; plus de « T.undefined ») et nom du validateur. */}
+                {(() => {
+                  const activite = [...(validations||[]), ...(recitationsSouratesEleve||[])]
+                    .sort((a,b)=>new Date(b.date_validation)-new Date(a.date_validation)).slice(0,15);
+                  if (activite.length === 0) return (
+                    <div style={{textAlign:'center',color:'#aaa',padding:'2rem'}}>{lang==='ar'?'لا توجد نشاطات':'Aucune activité'}</div>
                   );
-                })}
-                {validations.length===0&&(
-                  <div style={{textAlign:'center',color:'#aaa',padding:'2rem'}}>{lang==='ar'?'لا توجد نشاطات':'Aucune activité'}</div>
-                )}
+                  return activite.map((v,i)=>{
+                    const isSourate = !!v.type_recitation;
+                    const pts = isSourate ? (v.points||0) : ptsValidation(v, baremeEleve);
+                    const hz = v.hizb_validation || v.hizb_valide;
+                    let titre, icone;
+                    if (isSourate) {
+                      icone = v.is_muraja ? '🔁' : '📖';
+                      titre = (v.sourate?.nom_ar || (lang==='ar'?'سورة':'Sourate'))
+                        + (v.type_recitation==='sequence' && v.verset_debut ? ` · ${lang==='ar'?'الآيات':'v.'} ${v.verset_debut}→${v.verset_fin}` : '')
+                        + (v.is_muraja ? (lang==='ar'?' · مراجعة':' · muraja') : '');
+                    } else if (v.type_validation==='hizb_complet') {
+                      icone = '🏅'; titre = lang==='ar' ? `الحزب ${v.hizb_valide||''} كامل` : `Hizb ${v.hizb_valide||''} complet`;
+                    } else if (v.type_validation==='tomon_muraja') {
+                      icone = '🔁'; titre = lang==='ar' ? `مراجعة · ${v.nombre_tomon||0} ثمن${hz?` · الحزب ${hz}`:''}` : `Muraja · ${v.nombre_tomon||0} tomon${hz?` · Hizb ${hz}`:''}`;
+                    } else if (v.type_validation==='hizb_muraja') {
+                      icone = '🔁'; titre = lang==='ar' ? `مراجعة الحزب ${hz||''}` : `Muraja · Hizb ${hz||''}`;
+                    } else if (v.type_validation==='ensemble_valide') {
+                      icone = '📦'; titre = lang==='ar' ? 'مجموعة سور معتمدة' : 'Ensemble validé';
+                    } else {
+                      icone = '✅'; titre = lang==='ar' ? `${v.nombre_tomon||0} ثمن${hz?` · الحزب ${hz}`:''}` : `${v.nombre_tomon||0} tomon${hz?` · Hizb ${hz}`:''}`;
+                    }
+                    const qui = v.valideur ? ` · ${v.valideur.prenom||''} ${(v.valideur.nom||'').charAt(0)}.` : '';
+                    return(
+                      <div key={v.id||i} style={{background:'#fff',borderRadius:10,padding:'10px 12px',marginBottom:6,
+                        border:'0.5px solid #e0e0d8',display:'flex',alignItems:'center',gap:10}}>
+                        <span style={{fontSize:16}}>{icone}</span>
+                        <div style={{flex:1,minWidth:0}}>
+                          <div style={{fontWeight:600,fontSize:13,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{titre}</div>
+                          <div style={{fontSize:11,color:'#888'}}>{new Date(v.date_validation).toLocaleDateString(lang==='ar'?'ar-MA':'fr-FR',{day:'numeric',month:'short',year:'numeric'})}{qui}</div>
+                        </div>
+                        <span style={{fontSize:13,fontWeight:700,color:'#1D9E75'}}>+{pts}</span>
+                      </div>
+                    );
+                  });
+                })()}
               </div>
             )}
             {onglet==='objectifs' && (
@@ -2018,15 +2048,8 @@ ${(passages||[]).length > 0 ? `
           </div>
         )}
 
-        {/* Passage niveau FAB - surveillant only */}
-        {user.role==='surveillant' && (
-          <button onClick={()=>{setNouveauNiveau('');setNotePassage('');setShowPassageModal(true);}}
-            style={{position:'fixed',bottom:80,right:16,background:'#085041',color:'#fff',
-              border:'none',borderRadius:14,padding:'10px 16px',fontSize:14,fontWeight:700,
-              cursor:'pointer',zIndex:150,boxShadow:'0 4px 16px rgba(83,74,183,0.4)',fontFamily:'inherit'}}>
-            🎓 Niveau
-          </button>
-        )}
+        {/* Charte mobile lot 1 (oct 2026) : le bouton flottant « Niveau » (qui couvrait la liste)
+            est deplace dans l'en-tete de la fiche. */}
 
         {/* Modal passage niveau - kept as is */}
         {showPassageModal&&(

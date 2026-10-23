@@ -427,9 +427,9 @@ export default function GestionEnsembles({ user, navigate, goBack, lang='fr', is
                 placeholder={'🔍 ' + (lang === 'ar' ? 'بحث عن مجموعة...' : 'Rechercher un ensemble')}
                 style={{
                   width:'100%', padding:'8px 12px', fontSize:13,
-                  borderRadius:10, border:'1px solid rgba(255,255,255,0.3)',
+                  borderRadius:10, border:'1px solid transparent',
                   fontFamily:'inherit', outline:'none',
-                  background:'rgba(255,255,255,0.15)', color:'#fff',
+                  background:'#fff', color:'#16241E',
                   boxSizing:'border-box',
                 }}/>
             </div>

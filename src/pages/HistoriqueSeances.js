@@ -491,9 +491,9 @@ export default function HistoriqueSeances({ user, navigate, goBack, lang='fr', i
         <PullToRefreshIndicator pullDistance={pullDistance} isRefreshing={isRefreshing} isThreshold={isThreshold} lang={lang} />
         {/* Header sticky */}
         <div style={{background:'linear-gradient(135deg,#085041,#1D9E75)',padding:'48px 16px 14px',position:'sticky',top:0,zIndex:100}}>
-          <div style={{display:'flex', alignItems:'center', gap:10, padding:'14px 16px 8px'}}>
+          <div style={{display:'flex', alignItems:'center', gap:10, paddingBottom:10}}>
             <button onClick={()=>goBack?goBack():navigate('dashboard')} style={{background:'rgba(255,255,255,0.22)',border:'1px solid rgba(255,255,255,0.25)',borderRadius:10,padding:'0',color:'#fff',fontSize:20,cursor:'pointer',flexShrink:0,width:44,height:44,display:'flex',alignItems:'center',justifyContent:'center'}}>←</button>
-            <div style={{flex:1,fontSize:17,fontWeight:800,color:'#fff'}}>
+            <div style={{flex:1,minWidth:0,fontSize:17,fontWeight:800,color:'#fff',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>
               📊 {lang==='ar'?'السجل':'Historique'}
             </div>
             {/* F6 (oct 2026) : exports aussi sur mobile (avant : PC seulement) */}
@@ -552,12 +552,12 @@ export default function HistoriqueSeances({ user, navigate, goBack, lang='fr', i
           {/* Filtres rapides dans le header */}
           <div style={{padding:'0 12px 12px',display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
             <select value={filterNiveau} onChange={e=>setFilterNiveau(e.target.value)}
-              style={{padding:'8px 10px',borderRadius:10,border:'none',fontSize:13,fontFamily:'inherit',background:'rgba(255,255,255,0.2)',color:'#fff'}}>
+              style={{padding:'8px 10px',borderRadius:10,border:'none',fontSize:13,fontFamily:'inherit',background:'#fff',color:'#16241E'}}>
               <option value="tous" style={{color:'#333'}}>{lang==='ar'?'كل المستويات':'Tous niveaux'}</option>
               {(niveaux||[]).map(n=><option key={n.code} value={n.code} style={{color:'#333'}}>{n.code}</option>)}
             </select>
             <select value={filterType} onChange={e=>setFilterType(e.target.value)}
-              style={{padding:'8px 10px',borderRadius:10,border:'none',fontSize:13,fontFamily:'inherit',background:'rgba(255,255,255,0.2)',color:'#fff'}}>
+              style={{padding:'8px 10px',borderRadius:10,border:'none',fontSize:13,fontFamily:'inherit',background:'#fff',color:'#16241E'}}>
               <option value="tous" style={{color:'#333'}}>{lang==='ar'?'كل الأنواع':'Tous types'}</option>
               <option value="sourate" style={{color:'#333'}}>{lang==='ar'?'سور':'Sourates'}</option>
               <option value="tomon" style={{color:'#333'}}>Tomon</option>
@@ -566,7 +566,7 @@ export default function HistoriqueSeances({ user, navigate, goBack, lang='fr', i
             {/* F8 (oct 2026) : filtre instituteur, comme sur PC (surveillant) */}
             {user.role==='surveillant' && (
               <select value={filterInstituteur} onChange={e=>setFilterInstituteur(e.target.value)}
-                style={{gridColumn:'1 / -1',padding:'8px 10px',borderRadius:10,border:'none',fontSize:13,fontFamily:'inherit',background:'rgba(255,255,255,0.2)',color:'#fff'}}>
+                style={{gridColumn:'1 / -1',padding:'8px 10px',borderRadius:10,border:'none',fontSize:13,fontFamily:'inherit',background:'#fff',color:'#16241E'}}>
                 <option value="tous" style={{color:'#333'}}>{lang==='ar'?'كل الأساتذة':'Tous les instituteurs'}</option>
                 {instituteurs.map(i=><option key={i.id} value={i.id} style={{color:'#333'}}>{i.prenom} {i.nom}</option>)}
               </select>
