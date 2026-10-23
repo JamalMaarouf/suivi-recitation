@@ -284,11 +284,22 @@ export default function Dashboard({ user, navigate, goBack, lang, isMobile=false
     if (!user || !eleves.length) return;
     // Charger jalons actifs + certificats déjà émis pour détecter ceux en attente
     const checkCertifs = async () => {
+      // PERF (oct 2026) : avant, une requete PAR eleve et PAR jalon (ensemble / examen), en serie
+      // (des centaines d'allers-retours avec une vraie ecole). Maintenant quelques requetes
+      // groupees, lancees en parallele ; le resultat (liste des certificats a delivrer) est identique.
       const { data: jalons } = await supabase.from('jalons').select('*').eq('ecole_id', user.ecole_id).eq('actif', true);
       if (!jalons || jalons.length === 0) return;
-      const { data: certsEmis } = await supabase.from('certificats_eleves').select('eleve_id,jalon_id').eq('ecole_id', user.ecole_id);
+      const idsEnsembles = [...new Set(jalons.filter(j => j.type_jalon === 'ensemble_sourates' && j.ensemble_id).map(j => j.ensemble_id))];
+      const idsExamens = [...new Set(jalons.filter(j => j.type_jalon === 'examen' && j.examen_id).map(j => j.examen_id))];
+      const [{ data: certsEmis }, recitations, ensRes, reussis] = await Promise.all([
+        supabase.from('certificats_eleves').select('eleve_id,jalon_id').eq('ecole_id', user.ecole_id),
+        fetchAll(supabase.from('recitations_sourates').select('eleve_id,sourate_id,type_recitation,complete,is_muraja').eq('ecole_id', user.ecole_id)),
+        idsEnsembles.length ? supabase.from('ensembles_sourates').select('id,sourates_ids').in('id', idsEnsembles) : Promise.resolve({ data: [] }),
+        idsExamens.length ? fetchAll(supabase.from('resultats_examens').select('eleve_id,examen_id').in('examen_id', idsExamens).eq('statut','reussi')) : Promise.resolve([]),
+      ]);
       const emis = new Set((certsEmis||[]).map(c => c.eleve_id+'_'+c.jalon_id));
-      const recitations = await fetchAll(supabase.from('recitations_sourates').select('eleve_id,sourate_id,type_recitation,complete,is_muraja').eq('ecole_id', user.ecole_id));
+      const ensParId = Object.fromEntries(((ensRes && ensRes.data) || []).map(e => [e.id, e]));
+      const examReussi = new Set((reussis || []).map(r => r.eleve_id+'_'+r.examen_id));
       const notifs = [];
       for (const eleve of eleves) {
         for (const jalon of jalons) {
@@ -298,15 +309,14 @@ export default function Dashboard({ user, navigate, goBack, lang, isMobile=false
             const required = jalon.hizb_ids || [];
             atteint = required.length > 0 && required.every(h => eleve.etat.hizbsComplets.has(Number(h)));
           } else if (jalon.type_jalon === 'ensemble_sourates' && jalon.ensemble_id) {
-            const { data: ens } = await supabase.from('ensembles_sourates').select('sourates_ids').eq('id', jalon.ensemble_id).maybeSingle();
+            const ens = ensParId[jalon.ensemble_id];
             if (ens && ens.sourates_ids && ens.sourates_ids.length > 0) {
               const srecs = (recitations||[]).filter(r=>r.eleve_id===eleve.id && (r.type_recitation==='complete'||r.complete) && !r.is_muraja);
               const sComplets = new Set(srecs.map(r=>r.sourate_id));
               atteint = ens.sourates_ids.every(sid => sComplets.has(sid));
             }
           } else if (jalon.type_jalon === 'examen' && jalon.examen_id) {
-            const { data: res } = await supabase.from('resultats_examens').select('id').eq('eleve_id',eleve.id).eq('examen_id',jalon.examen_id).eq('statut','reussi').limit(1);
-            atteint = !!(res && res.length);
+            atteint = examReussi.has(eleve.id+'_'+jalon.examen_id);
           }
           if (atteint) notifs.push({ eleve, jalon });
         }

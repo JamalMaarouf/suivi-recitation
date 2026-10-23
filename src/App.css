@@ -1,5 +1,5 @@
 /* Charte (oct 2026) : IBM Plex Sans (latin) + IBM Plex Sans Arabic ; Tajawal garde en secours */
-@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&family=Tajawal:wght@400;500;700&display=swap');
+/* Polices : chargees dans public/index.html (preconnect + link), plus rapide qu'un @import */
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
 

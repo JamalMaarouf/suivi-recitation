@@ -310,11 +310,47 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang, isMobi
     // programmeNiveau car React met le state a jour asynchrone.
     let progDataLoaded = [];
 
+    // PERF (oct 2026) : les requetes independantes partent EN PARALLELE (avant : ~11 allers-retours
+    // successifs vers la base, ~2 s sur mobile). Memes requetes, memes resultats, memes gardes
+    // d'erreur (chaque bloc garde sa valeur par defaut s'il echoue). Ordre :
+    //   vague 1 : eleve frais + tout ce qui ne depend que de eleve.id / ecole
+    //   vague 2 : ce qui depend de la vague 1 (programme du niveau, sourates, instituteur, examens)
+    const sur = (p, defaut) => Promise.resolve().then(() => p()).catch(() => defaut);
+    const cacheKey = (name) => `${name}_${eleve.id}`;
+    const pEleveFrais = sur(() => supabase.from('eleves').select('*').eq('id', eleve.id).maybeSingle(), { data: null });
+    const pLot = Promise.allSettled([
+      getCachedSWR(cacheKey('validations'), user.ecole_id,
+        () => fetchAll(supabase.from('validations').select('*, valideur:valide_par(prenom,nom)').eq('ecole_id', user.ecole_id).eq('eleve_id',eleve.id).order('date_validation',{ascending:false}))),
+      supabase.from('apprentissages').select('*')
+        .eq('ecole_id', user.ecole_id).eq('eleve_id',eleve.id).order('date_debut',{ascending:false}),
+      supabase.from('exceptions_hizb').select('*')
+        .eq('ecole_id', user.ecole_id).eq('eleve_id',eleve.id).eq('active',true),
+      supabase.from('validations').select('*, valideur:valide_par(prenom,nom)').eq('ecole_id', user.ecole_id).eq('eleve_id',eleve.id).in('type_validation',['tomon_muraja','hizb_muraja']).order('date_validation',{ascending:false}),
+      supabase.from('recitations_sourates').select('*, sourate:sourate_id(nom_ar,numero), valideur:valide_par(prenom,nom)').eq('ecole_id', user.ecole_id).eq('eleve_id',eleve.id).eq('is_muraja',true).order('date_validation',{ascending:false}),
+      getCachedSWR(cacheKey('recitations_eleve'), user.ecole_id,
+        () => fetchAll(supabase.from('recitations_sourates').select('id,type_recitation,sourate_id,verset_debut,verset_fin,date_validation,valide_par,points,is_muraja,sourate:sourate_id(nom_ar,numero),valideur:valide_par(prenom,nom)').eq('ecole_id', user.ecole_id).eq('eleve_id',eleve.id))),
+      supabase.from('passages_niveau').select('*, valide_par_u:valide_par(prenom,nom)').eq('ecole_id', user.ecole_id).eq('eleve_id',eleve.id).order('date_passage',{ascending:false}),
+      supabase.from('objectifs').select('*').eq('ecole_id', user.ecole_id).eq('eleve_id',eleve.id).order('created_at',{ascending:false}),
+    ]);
+    const pNivEcole = sur(() => Promise.all([
+      supabase.from('niveaux').select('id,code,nom,type,sens_recitation').eq('ecole_id', eleve.ecole_id),
+      supabase.from('ecoles').select('sens_recitation_defaut').eq('id', eleve.ecole_id).maybeSingle(),
+    ]), null);
+    const pExRes = sur(() => supabase.from('resultats_examens')
+      .select('*').eq('eleve_id',eleve.id).order('created_at',{ascending:false}), null);
+    const pCertRes = sur(() => supabase.from('certificats_eleves')
+      .select('*').eq('eleve_id',eleve.id).order('created_at',{ascending:false}), null);
+    const pJalRes = sur(() => supabase.from('jalons').select('id,nom,nom_ar').eq('ecole_id',eleve.ecole_id).eq('actif',true).order('created_at'), null);
+    const pBareme = sur(() => loadBareme(supabase, eleve.ecole_id), null);
+    // Charger points événements (avec .catch pour ne pas casser) — non bloquant, comme avant
+    supabase.from('points_eleves').select('*').eq('eleve_id', eleve.id).order('date_event')
+      .then(({data}) => setPointsEvenements(data||[]))
+      .catch(()=> setPointsEvenements([]));
+
     // Recharger l'eleve frais depuis la DB (ses hizb_depart/tomon_depart peuvent avoir
     // change depuis le render parent). Sinon on calcule etat a partir de donnees periees.
     try {
-      const { data: freshEleve } = await supabase.from('eleves').select('*')
-        .eq('id', eleve.id).maybeSingle();
+      const { data: freshEleve } = (await pEleveFrais) || {};
       if (freshEleve) {
         // On mute les proprietes critiques de l'objet eleve en place pour que le reste
         // de la fonction (qui utilise eleve.hizb_depart etc.) voie les valeurs fraiches.
@@ -323,22 +359,7 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang, isMobi
     } catch (e) { /* continue avec l'objet reçu */ }
 
     try {
-      // Cache par élève — clé distincte pour chaque élève
-      const cacheKey = (name) => `${name}_${eleve.id}`;
-      const results = await Promise.allSettled([
-        getCachedSWR(cacheKey('validations'), user.ecole_id,
-          () => fetchAll(supabase.from('validations').select('*, valideur:valide_par(prenom,nom)').eq('ecole_id', user.ecole_id).eq('eleve_id',eleve.id).order('date_validation',{ascending:false}))),
-        supabase.from('apprentissages').select('*')
-          .eq('ecole_id', user.ecole_id).eq('eleve_id',eleve.id).order('date_debut',{ascending:false}),
-        supabase.from('exceptions_hizb').select('*')
-          .eq('ecole_id', user.ecole_id).eq('eleve_id',eleve.id).eq('active',true),
-        supabase.from('validations').select('*, valideur:valide_par(prenom,nom)').eq('ecole_id', user.ecole_id).eq('eleve_id',eleve.id).in('type_validation',['tomon_muraja','hizb_muraja']).order('date_validation',{ascending:false}),
-        supabase.from('recitations_sourates').select('*, sourate:sourate_id(nom_ar,numero), valideur:valide_par(prenom,nom)').eq('ecole_id', user.ecole_id).eq('eleve_id',eleve.id).eq('is_muraja',true).order('date_validation',{ascending:false}),
-        getCachedSWR(cacheKey('recitations_eleve'), user.ecole_id,
-          () => fetchAll(supabase.from('recitations_sourates').select('id,type_recitation,sourate_id,verset_debut,verset_fin,date_validation,valide_par,points,is_muraja,sourate:sourate_id(nom_ar,numero),valideur:valide_par(prenom,nom)').eq('ecole_id', user.ecole_id).eq('eleve_id',eleve.id))),
-        supabase.from('passages_niveau').select('*, valide_par_u:valide_par(prenom,nom)').eq('ecole_id', user.ecole_id).eq('eleve_id',eleve.id).order('date_passage',{ascending:false}),
-        supabase.from('objectifs').select('*').eq('ecole_id', user.ecole_id).eq('eleve_id',eleve.id).order('created_at',{ascending:false}),
-      ]);
+      const results = await pLot;
       // getCachedSWR retourne directement les données (pas {data,error}),
       // tandis que les appels Supabase directs retournent {data,error}.
       // On normalise :
@@ -351,72 +372,70 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang, isMobi
 
       setRecitationsSouratesEleve(recSourates);
 
+      // ─── Vague 2 : requetes dependant de la vague 1, lancees ensemble ──
+      const nivEcole = await pNivEcole;
+      const nivData = nivEcole ? (nivEcole[0]?.data || null) : null;
+      const ecData = nivEcole ? (nivEcole[1]?.data || null) : null;
+      // Niveau de l'eleve (code_niveau frais) -> programme (progression par blocs) + sourates
+      const niveauEleve = nivEcole ? (nivData || []).find(n => n.code === eleve.code_niveau) : null;
+      const estNiveauSourate = !!niveauEleve && (niveauEleve.type === 'sourate' || ['5B','5A','2M'].includes(eleve.code_niveau));
+      const pProg = niveauEleve
+        ? sur(() => supabase.from('programmes')
+            .select('reference_id, ordre, bloc_numero, bloc_nom, bloc_sens, type_contenu')
+            .eq('niveau_id', niveauEleve.id)
+            .eq('ecole_id', eleve.ecole_id)
+            .order('ordre'), 'ERREUR')
+        : Promise.resolve(null);
+      const pSour = estNiveauSourate
+        ? sur(() => supabase.from('sourates').select('id, numero, nom_ar').order('numero'), 'ERREUR')
+        : Promise.resolve(null);
+      // .single() plante dur si réseau instable → on utilise .maybeSingle() + try
+      const pInst = eleve.instituteur_referent_id
+        ? sur(() => supabase.from('utilisateurs').select('prenom,nom').eq('id',eleve.instituteur_referent_id).maybeSingle(), { data: null })
+        : Promise.resolve({ data: null });
+      const pExamens = pExRes.then(exRes => {
+        if (exRes && exRes.data && exRes.data.length > 0) {
+          const examIds = [...new Set(exRes.data.map(r=>r.examen_id).filter(Boolean))];
+          return supabase.from('examens').select('id,nom,description,score_minimum,bloquant').in('id',examIds)
+            .then(({data:examData}) => {
+              const examMap = Object.fromEntries((examData||[]).map(e=>[e.id,e]));
+              return exRes.data.map(r=>({...r, examen:examMap[r.examen_id]||null}));
+            });
+        }
+        return [];
+      }).catch(() => []);
+
       // ─── Chargement niveaux + programme (TOUJOURS, hors du if instituteur) ──
       // Important : on charge toujours pour que la progression par blocs
       // s'affiche même si l'élève n'a pas encore d'instituteur assigné.
-      try {
-        const [{ data: nivData }, { data: ecData }] = await Promise.all([
-          supabase.from('niveaux').select('id,code,nom,type,sens_recitation').eq('ecole_id', eleve.ecole_id),
-          supabase.from('ecoles').select('sens_recitation_defaut').eq('id', eleve.ecole_id).maybeSingle(),
-        ]);
+      if (nivEcole) {
         setNiveaux(nivData || []);
         setEcoleConfig(ecData || null);
-
-        // Charger le programme du niveau de l'élève (pour progression par blocs)
-        const niveauEleve = (nivData || []).find(n => n.code === eleve.code_niveau);
         if (niveauEleve) {
-          try {
-            const { data: progData } = await supabase.from('programmes')
-              .select('reference_id, ordre, bloc_numero, bloc_nom, bloc_sens, type_contenu')
-              .eq('niveau_id', niveauEleve.id)
-              .eq('ecole_id', eleve.ecole_id)
-              .order('ordre');
-            progDataLoaded = progData || [];
-            setProgrammeNiveau(progDataLoaded);
-          } catch(e) {
+          const progRes = await pProg;
+          if (progRes === 'ERREUR') {
             setProgrammeNiveau([]);
+          } else {
+            progDataLoaded = (progRes && progRes.data) || [];
+            setProgrammeNiveau(progDataLoaded);
           }
-          // Charger les sourates (id <-> numero <-> nom_ar) pour l'affichage fiche sourate
-          if (niveauEleve.type === 'sourate' || ['5B','5A','2M'].includes(eleve.code_niveau)) {
-            try {
-              const { data: sourData } = await supabase.from('sourates').select('id, numero, nom_ar').order('numero');
-              setSouratesDB(sourData || []);
-            } catch(e) {
-              setSouratesDB([]);
-            }
+          if (estNiveauSourate) {
+            const sourRes = await pSour;
+            setSouratesDB(sourRes === 'ERREUR' ? [] : ((sourRes && sourRes.data) || []));
           }
         }
-      } catch(e) { /* gardé par défaut */ }
+      }
 
       // FIX (oct 2026) : examens, certificats, points et jalons sont charges pour TOUS les
       // eleves (avant : seulement s'ils avaient un instituteur referent -> 0 pt d'examen
       // et aucun certificat sur la fiche d'un eleve sans referent).
-      let inst = null;
-      if (eleve.instituteur_referent_id) {
-        // .single() plante dur si réseau instable → on utilise .maybeSingle() + try
-        try {
-          const { data } = await supabase.from('utilisateurs').select('prenom,nom').eq('id',eleve.instituteur_referent_id).maybeSingle();
-          inst = data;
-        } catch(e) { inst = null; }
-      }
+      const inst = ((await pInst) || {}).data || null;
       {
         // Charger examens et certificats (tables optionnelles)
-        try {
-          const exRes = await supabase.from('resultats_examens')
-            .select('*').eq('eleve_id',eleve.id).order('created_at',{ascending:false});
-          if (exRes.data && exRes.data.length > 0) {
-            const examIds = [...new Set(exRes.data.map(r=>r.examen_id).filter(Boolean))];
-            const {data:examData} = await supabase.from('examens').select('id,nom,description,score_minimum,bloquant').in('id',examIds);
-            const examMap = Object.fromEntries((examData||[]).map(e=>[e.id,e]));
-            setExamens(exRes.data.map(r=>({...r, examen:examMap[r.examen_id]||null})));
-          } else {
-            setExamens([]);
-          }
-        } catch(e) { setExamens([]); }
+        setExamens(await pExamens);
         // Charger les vrais certificats depuis certificats_eleves
-        try {
-          const certRes = await supabase.from('certificats_eleves')
-            .select('*').eq('eleve_id',eleve.id).order('created_at',{ascending:false});
+        const certRes = await pCertRes;
+        if (certRes) {
           // Mapping BDD -> aliases utilises dans le rendu
           const certsMapped = (certRes.data || []).map(c => ({
             ...c,
@@ -425,19 +444,10 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang, isMobi
             date_obtention: c.date_emission,
           }));
           setCertificats(certsMapped);
-        } catch(e) { setCertificats([]); }
-        // Charger points événements (avec .catch pour ne pas casser)
-        supabase.from('points_eleves').select('*').eq('eleve_id', eleve.id).order('date_event')
-          .then(({data}) => setPointsEvenements(data||[]))
-          .catch(()=> setPointsEvenements([]));
+        } else { setCertificats([]); }
         // Charger jalons
-        try {
-          const jalRes = await supabase.from('jalons').select('id,nom,nom_ar').eq('ecole_id',eleve.ecole_id).eq('actif',true).order('created_at');
-          setJalonsDisp(jalRes.data || []);
-        } catch(e) { setJalonsDisp([]); }
-
-        // Charger niveaux + config école : deja fait plus haut (hors du if instituteur)
-        // pour que la vue par blocs s'affiche même sans instituteur assigne.
+        const jalRes = await pJalRes;
+        setJalonsDisp((jalRes && jalRes.data) || []);
 
         if(inst) setInstituteurNom(inst.prenom+' '+inst.nom);
       }
@@ -446,11 +456,8 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang, isMobi
       // pour que les points soient calcules avec le vrai bareme (au lieu de 0).
       // Le state baremeEleve est aussi mis a jour pour les autres usages du
       // composant (notamment calcPointsPeriode ligne 1752).
-      let baremeLocal = null;
-      try {
-        baremeLocal = await loadBareme(supabase, eleve.ecole_id);
-        if (baremeLocal) setBaremeEleve(baremeLocal);
-      } catch (e) { /* bareme optionnel, continuer avec null */ }
+      const baremeLocal = await pBareme;
+      if (baremeLocal) setBaremeEleve(baremeLocal);
       const e = calcEtatEleveAvecBlocs(vals||[], eleve, progDataLoaded, sensE, baremeLocal);
 
       // PROTECTION CRITIQUE : si on avait déjà un état avec des validations

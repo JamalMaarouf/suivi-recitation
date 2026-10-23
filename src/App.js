@@ -372,7 +372,30 @@ function App() {
       import('./pages/ListeNotes').catch(()=>{});
       import('./pages/ListeCertificats').catch(()=>{});
     }, 2500); // 2.5s apres login, l'utilisateur est sur Dashboard
-    return () => clearTimeout(t);
+    // PERF (oct 2026) : precharger ensuite, un par un et quand le navigateur est libre, le code
+    // des autres menus -> plus d'attente « Chargement… » a la premiere ouverture d'un menu.
+    // Ne charge que du code (aucune requete a la base) ; ignore pour les parents.
+    let annule = false;
+    const t2 = setTimeout(() => {
+      if (user.role === 'parent') return;
+      const suite = [
+        () => import('./pages/ModulesMobile'), () => import('./pages/Seance'), () => import('./pages/TableauHonneur'),
+        () => import('./pages/HistoriqueSeances'), () => import('./pages/ResultatsExamens'), () => import('./pages/RecitationSourate'),
+        () => import('./pages/ValidationCollective'), () => import('./pages/MurajaDashboard'), () => import('./pages/ElevesInactifs'),
+        () => import('./pages/Gestion'), () => import('./pages/Finance'), () => import('./pages/Assiduite'),
+        () => import('./pages/SuiviCours'), () => import('./pages/CoursValidation'), () => import('./pages/Calendrier'),
+        () => import('./pages/RapportMensuel'), () => import('./pages/DashboardDirection'), () => import('./pages/ProfilMobile'),
+        () => import('./pages/GestionEnsembles'), () => import('./pages/GestionExamens'), () => import('./pages/GestionNiveaux'),
+        () => import('./pages/GestionCours'), () => import('./pages/SuiviParents'), () => import('./pages/GestionObjectifs'),
+      ];
+      const libre = (cb) => (window.requestIdleCallback ? window.requestIdleCallback(cb, { timeout: 3000 }) : setTimeout(cb, 300));
+      const suivant = (k) => {
+        if (annule || k >= suite.length) return;
+        libre(() => { if (annule) return; suite[k]().catch(() => {}).finally(() => suivant(k + 1)); });
+      };
+      suivant(0);
+    }, 6000);
+    return () => { annule = true; clearTimeout(t); clearTimeout(t2); };
   }, [user?.id]);
 
   const setLang = (newLang) => {

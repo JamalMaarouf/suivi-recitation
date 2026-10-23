@@ -214,18 +214,31 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile,
   }, []);
 
   const loadData = async () => {
-    const { data: ecData } = await supabase.from('ecoles').select('mdp_defaut_instituteurs,mdp_defaut_parents,sens_recitation_defaut,nom,nom_ar,nom_directeur,nom_directeur_ar').eq('id', user.ecole_id).maybeSingle();
+    // PERF (oct 2026) : ecole, eleves, instituteurs, parents et compteurs partent EN PARALLELE
+    // (avant : 5 allers-retours successifs). Memes requetes, memes resultats.
+    const tablesCompteurs = ['niveaux','ensembles_sourates','examens','jalons','cours','regles_passage_niveau'];
+    const pEcole = Promise.resolve(supabase.from('ecoles').select('mdp_defaut_instituteurs,mdp_defaut_parents,sens_recitation_defaut,nom,nom_ar,nom_directeur,nom_directeur_ar').eq('id', user.ecole_id).maybeSingle());
+    const pEleves = Promise.resolve(supabase.from('eleves').select('id,prenom,nom,code_niveau,eleve_id_ecole,hizb_depart,tomon_depart,sourates_acquises,hizbs_acquis,instituteur_referent_id,ecole_id,telephone,date_inscription,jours_souhaites,suspendu_at,suspendu_par,suspendu_motif')
+        .eq('ecole_id', user.ecole_id).order('nom'));
+    const pInst = Promise.resolve(supabase.from('utilisateurs').select('id,prenom,nom,identifiant,role,instituteur_id_ecole,tarif_seance,telephone,email,suspendu_at,suspendu_par,suspendu_motif').eq('role', 'instituteur').eq('ecole_id', user.ecole_id));
+    const pParents = Promise.resolve(supabase.from('utilisateurs')
+        .select('id,prenom,nom,identifiant,telephone,email')
+        .eq('role','parent').eq('ecole_id', user.ecole_id));
+    const pCompteurs = Promise.all(
+      tablesCompteurs.map(tbl =>
+        supabase.from(tbl).select('id', { count: 'exact', head: true }).eq('ecole_id', user.ecole_id)
+      )
+    );
+    // Promise.resolve(...) : une seule execution par requete (un builder Supabase relance
+    // la requete a chaque .then). Les .then vides evitent un rejet non gere avant l'attente.
+    pEleves.then(() => {}, () => {}); pInst.then(() => {}, () => {}); pParents.then(() => {}, () => {}); pCompteurs.then(() => {}, () => {});
+    const { data: ecData } = await pEcole;
     if (ecData) setEcoleConfig(prev => ({...prev, ...ecData}));
     setLoading(true);
     try {
-    const { data: e } = await supabase.from('eleves').select('id,prenom,nom,code_niveau,eleve_id_ecole,hizb_depart,tomon_depart,sourates_acquises,hizbs_acquis,instituteur_referent_id,ecole_id,telephone,date_inscription,jours_souhaites,suspendu_at,suspendu_par,suspendu_motif')
-        .eq('ecole_id', user.ecole_id).order('nom');
-    const { data: i } = await supabase.from('utilisateurs').select('id,prenom,nom,identifiant,role,instituteur_id_ecole,tarif_seance,telephone,email,suspendu_at,suspendu_par,suspendu_motif').eq('role', 'instituteur').eq('ecole_id', user.ecole_id);
+    const [{ data: e }, { data: i }, { data: pd }] = await Promise.all([pEleves, pInst, pParents]);
     setEleves(e || []);
     setInstituteurs(i || []);
-    const { data: pd, error: pdErr } = await supabase.from('utilisateurs')
-        .select('id,prenom,nom,identifiant,telephone,email')
-        .eq('role','parent').eq('ecole_id', user.ecole_id);
     // FIX (oct 2026) : liens limites aux parents de CETTE ecole (avant : table entiere, toutes
     // ecoles, tronquee a 1000 lignes -> liens perdus). Voir chargerLiensParents.
     const pliens = await chargerLiensParents((pd||[]).map(p => p.id));
@@ -238,12 +251,8 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile,
     // Avant : 6 requetes sequentielles (~600ms-1s sur reseau lent)
     // Apres : 6 requetes en parallele (~150-200ms)
     try {
-      const tables = ['niveaux','ensembles_sourates','examens','jalons','cours','regles_passage_niveau'];
-      const countResults = await Promise.all(
-        tables.map(tbl =>
-          supabase.from(tbl).select('id', { count: 'exact', head: true }).eq('ecole_id', user.ecole_id)
-        )
-      );
+      const tables = tablesCompteurs;
+      const countResults = await pCompteurs;
       const counts = {};
       tables.forEach((tbl, i) => {
         const key = tbl === 'ensembles_sourates' ? 'ensembles' : tbl === 'regles_passage_niveau' ? 'regles_passage' : tbl;
@@ -269,12 +278,13 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile,
   // FIX (oct 2026) : charge les liens parent_eleve des parents donnes (ceux de l'ecole), par
   // paquets de 100 ids (longueur d'URL) et avec pagination fetchAll (>1000 lignes).
   async function chargerLiensParents(parentIds) {
+    // PERF (oct 2026) : paquets charges en parallele (meme ordre de resultat qu'avant)
+    const lots = [];
+    for (let k = 0; k < parentIds.length; k += 100) lots.push(parentIds.slice(k, k + 100));
+    const parLot = await Promise.all(lots.map(lot =>
+      fetchAll(supabase.from('parent_eleve').select('parent_id,eleve_id').in('parent_id', lot))));
     const res = [];
-    for (let k = 0; k < parentIds.length; k += 100) {
-      const lot = parentIds.slice(k, k + 100);
-      const rows = await fetchAll(supabase.from('parent_eleve').select('parent_id,eleve_id').in('parent_id', lot));
-      res.push(...rows);
-    }
+    parLot.forEach(rows => res.push(...rows));
     return res;
   }
 
