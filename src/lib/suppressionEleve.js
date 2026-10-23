@@ -13,7 +13,7 @@ export const TABLES_LIEES_ELEVE = [
   'parent_eleve',
   'certificats_eleves',
   'points_eleves',
-  'passages_niveaux',
+  'passages_niveau',   // FIX (oct 2026) : nom reel de la table (avant 'passages_niveaux' -> ignoree)
   'resultats_examens',
 ];
 

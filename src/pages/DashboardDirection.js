@@ -192,7 +192,8 @@ export default function DashboardDirection({ user, navigate, goBack, lang='fr', 
         supabase.from('certificats_eleves').select('id,eleve_id,jalon_id,date_emission').eq('ecole_id', user.ecole_id).limit(500),
         // FIX (oct 2026) : points + is_muraja pour le Top (calcPointsPeriode)
         fetchAll(supabase.from('recitations_sourates').select('id,eleve_id,date_validation,type_recitation,is_muraja,points').eq('ecole_id', user.ecole_id).order('date_validation',{ascending:false})).then(data=>({data})),
-        supabase.from('passages_niveau').select('eleve_id,niveau_avant,niveau_apres,created_at').eq('ecole_id', user.ecole_id).limit(500),
+        // FIX (oct 2026) : colonnes niveau_avant/niveau_apres inexistantes -> requete en erreur, 0 passage affiche
+        supabase.from('passages_niveau').select('*').eq('ecole_id', user.ecole_id).limit(500),
         supabase.from('ecoles').select('*').eq('id', user.ecole_id).single(),
         // FIX (oct 2026) : points_eleves (examens) pour un Top coherent avec la liste des notes
         fetchAll(supabase.from('points_eleves').select('id,eleve_id,type_event,points,date_event').eq('ecole_id', user.ecole_id)).then(data=>({data})),
@@ -286,7 +287,7 @@ export default function DashboardDirection({ user, navigate, goBack, lang='fr', 
       return d >= periodeDebut && d <= periodeFin;
     }).length;
     const totalPassages = (passages||[]).filter(p=>{
-      const d = new Date(p.created_at);
+      const d = new Date(p.date_passage || p.created_at);
       return d >= periodeDebut && d <= periodeFin;
     }).length;
     return { elevesActifs:elevesActifs.size, totalEleves:eleves.length, totalTomon, totalHizb,
