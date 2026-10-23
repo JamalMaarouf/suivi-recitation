@@ -586,11 +586,17 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile,
     // principe que genererLoginParentUnique), en 1 requete. Memes candidats qu'avant : base, base2, base3...
     const candidatsLogin = [baseLogin];
     for (let k = 2; k <= 200; k++) candidatsLogin.push(baseLogin + k);
-    const { data: loginsPris, error: errLogins } = await supabaseRaw.from('utilisateurs')
-      .select('identifiant').in('identifiant', candidatsLogin);
-    if (errLogins) return showMsg('error', (lang==='ar'?'خطأ: ':'Erreur : ') + errLogins.message);
-    const setLoginsPris = new Set((loginsPris || []).map(r => r.identifiant));
-    const login = candidatsLogin.find(c => !setLoginsPris.has(c));
+    // Audit final : verification par paquets de 25 (un nom arabe encode chaque lettre sur
+    // 6 caracteres : 200 candidats d'un coup donnaient une adresse de 12 a 22 Ko -> refus).
+    let login = null;
+    for (let k = 0; k < candidatsLogin.length && !login; k += 25) {
+      const paquet = candidatsLogin.slice(k, k + 25);
+      const { data: loginsPris, error: errLogins } = await supabaseRaw.from('utilisateurs')
+        .select('identifiant').in('identifiant', paquet);
+      if (errLogins) return showMsg('error', (lang==='ar'?'خطأ: ':'Erreur : ') + errLogins.message);
+      const setLoginsPris = new Set((loginsPris || []).map(r => r.identifiant));
+      login = paquet.find(c => !setLoginsPris.has(c)) || null;
+    }
     if (!login) return showMsg('error', lang==='ar'?'تعذر إنشاء معرف فريد':'Impossible de générer un identifiant unique');
     const mdp = (newInst.mot_de_passe && newInst.mot_de_passe.trim()) ? newInst.mot_de_passe.trim() : (ecoleConfig?.mdp_defaut_instituteurs || 'ecole2024');
     const { error } = await supabase.from('utilisateurs').insert({

@@ -641,7 +641,12 @@ export function calcPoints(tomonCumul, hizbsCompletsCount, validations, tomonAcq
 export function depuisDebutNiveau(rows, eleve, champ = 'date_validation') {
   const debut = eleve && eleve.debut_niveau_at ? new Date(eleve.debut_niveau_at) : null;
   if (!debut || isNaN(debut)) return rows || [];
-  return (rows || []).filter(r => !r[champ] || new Date(r[champ]) >= debut);
+  // Audit final (oct 2026) : date_validation est un TIMESTAMP sans fuseau (valeur UTC) ; relue
+  // sans « Z », JS la prenait en heure locale (Maroc UTC+1) -> les recitations de la 1re heure
+  // apres un passage « repartir » etaient ignorees. On la lit donc comme UTC.
+  const lireDate = (v) => (typeof v === 'string' && /^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}(:\d{2}(\.\d+)?)?$/.test(v))
+    ? new Date(v.replace(' ', 'T') + 'Z') : new Date(v);
+  return (rows || []).filter(r => !r[champ] || lireDate(r[champ]) >= debut);
 }
 
 export function calcEtatEleve(validationsToutes, hizbDepart, tomonDepart, sens = 'desc', eleve = null, programmeNiveau = null, bareme = null) {
@@ -1086,11 +1091,18 @@ export async function verifierBlocageExamen(supabase, {
         const sensNiveau = niveauData.sens_recitation || 'desc';
         const hd = parseInt(eleve?.hizb_depart) || 0;
         if (hd > 0) {
-          if (sensNiveau === 'desc') {
-            for (let h = hd + 1; h <= 60; h++) hizbComplets.add(h);
-          } else {
-            for (let h = 1; h < hd; h++) hizbComplets.add(h);
-          }
+          // Audit final (oct 2026) : tenir compte des BLOCS du programme (meme calcul que la fiche,
+          // calcHizbsAcquisAvantArrivee). Avant : tous les Hizb au-dela du depart en ligne droite ->
+          // dans un niveau a plusieurs blocs, un examen se declenchait apres un seul Hizb.
+          // Sans programme, la fonction applique exactement l'ancienne regle en ligne droite.
+          let progExam = [];
+          try {
+            const { data: pg } = await supabase.from('programmes')
+              .select('reference_id, ordre, bloc_numero, bloc_nom, bloc_sens, type_contenu')
+              .eq('niveau_id', niveauId).eq('ecole_id', ecole_id).order('ordre');
+            progExam = pg || [];
+          } catch (e) { progExam = []; }
+          for (const h of calcHizbsAcquisAvantArrivee({ ...eleve, hizb_depart: hd }, progExam, sensNiveau)) hizbComplets.add(Number(h));
         }
         if (Array.isArray(eleve?.hizbs_acquis)) {
           for (const h of eleve.hizbs_acquis) {
@@ -1405,9 +1417,19 @@ export async function verifierEtCreerCertificats(supabase, {
     // En sens 'desc' (60 -> 1), un eleve demarrant au Hizb 58 recevait les Hizb 1 a 57
     // -> certificats de hizb attribues a tort. Meme convention que verifierBlocageExamen.
     let sensCert = 'desc';
+    let progCert = [];
     try {
-      const { data: nvC } = await supabase.from('niveaux').select('sens_recitation')
+      const { data: nvC } = await supabase.from('niveaux').select('id, sens_recitation')
         .eq('ecole_id', ecole_id).eq('code', eleve.code_niveau || '').maybeSingle();
+      // Audit final (oct 2026) : programme du niveau pour compter les acquis par BLOCS (comme la fiche)
+      if (nvC && nvC.id) {
+        try {
+          const { data: pg } = await supabase.from('programmes')
+            .select('reference_id, ordre, bloc_numero, bloc_nom, bloc_sens, type_contenu')
+            .eq('niveau_id', nvC.id).eq('ecole_id', ecole_id).order('ordre');
+          progCert = pg || [];
+        } catch (e) { progCert = []; }
+      }
       if (nvC && nvC.sens_recitation) sensCert = nvC.sens_recitation;
       else {
         const { data: ecC } = await supabase.from('ecoles').select('sens_recitation_defaut').eq('id', ecole_id).maybeSingle();
@@ -1416,8 +1438,8 @@ export async function verifierEtCreerCertificats(supabase, {
     } catch (e) { /* on garde 'desc' */ }
     const hizbDepart = parseInt(eleve.hizb_depart) || 0;
     if (hizbDepart > 0) {
-      if (sensCert === 'asc') { for (let h = 1; h < hizbDepart; h++) hizbsComplets.add(h); }
-      else { for (let h = hizbDepart + 1; h <= 60; h++) hizbsComplets.add(h); }
+      // Sans programme : meme regle en ligne droite qu'avant (calcHizbsAcquisAvantArrivee)
+      for (const h of calcHizbsAcquisAvantArrivee({ ...eleve, hizb_depart: hizbDepart }, progCert, sensCert)) hizbsComplets.add(Number(h));
     }
     if (Array.isArray(eleve.hizbs_acquis)) {
       for (const h of eleve.hizbs_acquis) { const n = Number(h); if (!isNaN(n)) hizbsComplets.add(n); }

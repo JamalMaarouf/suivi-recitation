@@ -136,7 +136,7 @@ const supabaseRaw = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
         let txt = '';
         try { txt = await r.clone().text(); } catch (e) { /* */ }
         if (!/JW[ST]|jwt|signature/i.test(txt)) return r;
-        try { localStorage.removeItem(CLE_JETON); } catch (e) { /* */ }
+        try { localStorage.removeItem(CLE_JETON); localStorage.setItem('suivi_jwt_ko', '1'); } catch (e) { /* */ }
         console.warn('[session] jeton refuse par la base, retour au mode precedent');
         return fetch(url, { ...options, headers: headersAnon });
       });

@@ -28,6 +28,7 @@ export default function EnregistrerRecitation({  user, eleve: eleveInitial, navi
   const ptsTomonB = ((bareme && bareme.unites) ? bareme.unites : (bareme || {})).tomon || 0;
   const ptsHizbB  = ((bareme && bareme.unites) ? bareme.unites : (bareme || {})).hizb_complet || 0;
   const [blocage, setBlocage] = useState(null); // examen requis avant de continuer
+  const [bloqueAvantSaisie, setBloqueAvantSaisie] = useState(false); // rien n'a ete enregistre (examen requis)
   const [blocagesEnsemble, setBlocagesEnsemble] = useState([]); // ensembles termines mais non valides
   const [eleves, setEleves] = useState([]);
   const [search, setSearch] = useState('');
@@ -188,6 +189,7 @@ export default function EnregistrerRecitation({  user, eleve: eleveInitial, navi
         }).catch(() => null);
         if (bloc) {
           setBlocage(bloc);
+          setBloqueAvantSaisie(true);
           setDone(true);
           setLoading(false);
           toast.error(lang === 'ar' ? bloc.message_ar : bloc.message_fr);
@@ -611,6 +613,29 @@ export default function EnregistrerRecitation({  user, eleve: eleveInitial, navi
     );
   }
 
+  // Audit final (oct 2026) : sur PC, un blocage detecte AVANT l'enregistrement affichait
+  // « Recitation enregistree (+X pts) » alors que rien n'etait enregistre.
+  if (done && bloqueAvantSaisie && blocage) {
+    return (
+      <div style={{ textAlign: 'center', padding: '2rem 1rem' }}>
+        <div style={{ width: 80, height: 80, borderRadius: '50%', background: '#FAEEDA', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 1rem', fontSize: 36 }}>🔒</div>
+        <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 8, color: '#633806' }}>
+          {lang==='ar' ? 'لم يتم التسجيل : امتحان مطلوب' : 'Non enregistré : examen requis'}
+        </div>
+        <div style={{ fontSize: 14, color: '#854F0B', margin: '0 auto 1.5rem', maxWidth: 420 }}>
+          {lang==='ar' ? blocage.message_ar : blocage.message_fr}
+        </div>
+        <div style={{ display: 'flex', gap: 10, justifyContent: 'center', flexWrap: 'wrap' }}>
+          <button className="btn-primary" style={{ maxWidth: 260, background: '#EF9F27' }}
+            onClick={() => navigate('resultats_examens', { eleve: selectedEleve, blocage })}>
+            {lang==='ar' ? 'تسجيل نتيجة الامتحان' : "Enregistrer le résultat d'examen"}
+          </button>
+          <button className="btn-secondary" onClick={() => navigate('fiche', selectedEleve)}>{lang==='ar' ? 'بطاقة الطالب' : 'Voir la fiche'}</button>
+        </div>
+      </div>
+    );
+  }
+
   if (done) {
     return (
       <div style={{ textAlign: 'center', padding: '2rem 1rem' }}>
@@ -641,7 +666,7 @@ export default function EnregistrerRecitation({  user, eleve: eleveInitial, navi
         </div>
         <div style={{ display: 'flex', gap: 10, justifyContent: 'center', flexWrap: 'wrap' }}>
           <button className="btn-primary" style={{ maxWidth: 220 }}
-            onClick={() => { setDone(false); setStep(1); setSelectedEleve(null); setTomonSelectionnes([]); setEtat(null); setTypeValidation('tomon'); setMotivMsg(null); }}>
+            onClick={() => { setDone(false); setBloqueAvantSaisie(false); setStep(1); setSelectedEleve(null); setTomonSelectionnes([]); setEtat(null); setTypeValidation('tomon'); setMotivMsg(null); }}>
             + Nouvelle récitation
           </button>
           <button className="btn-secondary" onClick={() => navigate('fiche', selectedEleve)}>Voir la fiche</button>

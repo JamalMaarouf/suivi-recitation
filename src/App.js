@@ -440,9 +440,22 @@ function App() {
         body: JSON.stringify({ action: 'capabilities' }) });
       if (!r.ok) return; // hors ligne ou API indisponible : on ne deconnecte pas
       const d = await r.json();
-      if (d && d.jwt) { sessionStorage.setItem('suivi_session_expiree', '1'); handleLogout(); }
+      // Audit final : si la base a deja refuse le jeton (secret mal configure), ne pas renvoyer
+      // l'utilisateur a la connexion a chaque ouverture (boucle). Il garde le mode precedent.
+      let jwtKo = false;
+      try { jwtKo = localStorage.getItem('suivi_jwt_ko') === '1'; } catch (e) { /* */ }
+      if (d && d.jwt && !jwtKo) { sessionStorage.setItem('suivi_session_expiree', '1'); handleLogout(); }
     } catch (e) { /* hors ligne : on garde la session locale */ }
   }
+
+  // Audit final (oct 2026) : verifier / renouveler la session toutes les heures (appli laissee
+  // ouverte, tablette en kiosque) pour qu'un jeton expire ne laisse pas des ecrans vides.
+  useEffect(() => {
+    if (!user?.id) return undefined;
+    const minuteur = setInterval(() => { verifierSessionSignee(); }, 3600 * 1000);
+    return () => clearInterval(minuteur);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id]);
 
   // ─── Impersonification super admin → surveillant d'une école ─────
   // Permet au super admin de "voir comme" un surveillant pour l'aider
