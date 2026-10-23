@@ -242,6 +242,53 @@ module.exports = async function handler(req, res) {
     return res.status(200).json({ success: true });
   }
 
+  // ── CHANGE EMAIL (oct 2026) ──────────────────────────────────────
+  // Avant : le portail parent ecrivait l'email directement depuis le navigateur.
+  // Maintenant : verifie le mot de passe actuel cote serveur (meme limite de tentatives que le login).
+  if (action === 'change_email') {
+    const { user_id, password } = req.body || {};
+    const email = (req.body?.email || '').trim() || null;
+    if (!user_id || !password) {
+      return res.status(400).json({ error: 'Champs manquants' });
+    }
+    if (email && (email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))) {
+      return res.status(400).json({ error: 'email_invalide' });
+    }
+
+    const ip = getClientIp(req);
+    const rlKey = rateLimitKey(ip, 'email:' + user_id);
+    const rlState = checkRateLimit(rlKey);
+    if (rlState.blocked) {
+      res.setHeader('Retry-After', String(rlState.retryAfter));
+      return res.status(429).json({ error: 'too_many_attempts', retryAfter: rlState.retryAfter });
+    }
+
+    const users = await query('utilisateurs', { id: user_id });
+    if (!users || users.length === 0 || users[0].deleted_at) {
+      return res.status(404).json({ error: 'Utilisateur non trouvé' });
+    }
+    const user = users[0];
+    if (user.suspendu_at) {
+      return res.status(403).json({ error: 'compte_suspendu' });
+    }
+
+    let pwdOk = false;
+    if (user.mot_de_passe && user.mot_de_passe.startsWith('$2')) {
+      pwdOk = await bcrypt.compare(password, user.mot_de_passe);
+    } else {
+      pwdOk = (user.mot_de_passe === password);
+    }
+    if (!pwdOk) {
+      recordFailedAttempt(rlKey);
+      return res.status(401).json({ error: 'mot_de_passe_incorrect' });
+    }
+    clearRateLimit(rlKey);
+
+    const ok = await update('utilisateurs', user.id, { email });
+    if (!ok) return res.status(500).json({ error: 'Erreur de sauvegarde' });
+    return res.status(200).json({ success: true, email });
+  }
+
   // ── HASH ADMIN (migration manuelle si besoin) ────────────────────
   if (action === 'hash_password') {
     const { password } = req.body || {};

@@ -944,7 +944,7 @@ function App() {
         <main className={isMobile ? 'main-content-mobile' : 'main-content'}>
           {user.role === 'parent' && (
             <Suspense fallback={<div style={{display:'flex',alignItems:'center',justifyContent:'center',padding:'3rem',color:'#888',fontSize:13}}><span style={{marginRight:8}}>⏳</span>{lang==='ar'?'جاري التحميل...':'Chargement...'}</div>}>
-              <ErrorBoundary><PortailParent parent={user} navigate={navigate} goBack={goBack} lang={lang} onLogout={handleLogout} /></ErrorBoundary>
+              <ErrorBoundary><PortailParent parent={user} navigate={navigate} goBack={goBack} lang={lang} onLogout={handleLogout} isMobile={isMobile} /></ErrorBoundary>
             </Suspense>
           )}
           {user.role !== 'parent' && <>

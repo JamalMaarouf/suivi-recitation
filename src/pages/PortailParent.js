@@ -65,6 +65,7 @@ export default function PortailParent({ parent, navigate, goBack, lang='fr', onL
   const [savingPrefs, setSavingPrefs] = useState(false);
   const [emailParent, setEmailParent] = useState(parent?.email || '');
   const [savingEmail, setSavingEmail] = useState(false);
+  const [pwdEmail, setPwdEmail] = useState(''); // oct 2026 : mot de passe pour confirmer le changement d'email
   const [oldPwd, setOldPwd] = useState('');
   const [newPwd, setNewPwd] = useState('');
   const [confirmPwd, setConfirmPwd] = useState('');
@@ -186,24 +187,40 @@ export default function PortailParent({ parent, navigate, goBack, lang='fr', onL
   };
 
   const handleSaveEmail = async () => {
-    setSavingEmail(true);
     const email = emailParent.trim() || null;
-    // Validation basique
     if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       toast.error(lang === 'ar' ? 'عنوان بريد غير صحيح' : 'Email invalide');
-      setSavingEmail(false);
       return;
     }
-    const { error } = await supabase
-      .from('utilisateurs')
-      .update({ email })
-      .eq('id', parent.id);
-    setSavingEmail(false);
-    if (error) {
-      toast.error(lang === 'ar' ? 'خطأ في الحفظ' : 'Erreur de sauvegarde');
-    } else {
-      toast.success(lang === 'ar' ? '✅ تم الحفظ' : '✅ Email enregistré');
+    if (!pwdEmail) {
+      toast.error(lang === 'ar' ? 'أدخل كلمة المرور الحالية للتأكيد' : 'Saisissez votre mot de passe actuel pour confirmer');
+      return;
     }
+    // oct 2026 : passe par le serveur (verification du mot de passe) au lieu d'ecrire directement en base
+    setSavingEmail(true);
+    try {
+      const res = await fetch('/api/auth', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'change_email', user_id: parent.id, password: pwdEmail, email }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) {
+        setPwdEmail('');
+        toast.success(lang === 'ar' ? '✅ تم الحفظ' : '✅ Email enregistré');
+      } else if (data.error === 'mot_de_passe_incorrect') {
+        toast.error(lang === 'ar' ? 'كلمة المرور غير صحيحة' : 'Mot de passe incorrect');
+      } else if (data.error === 'too_many_attempts') {
+        toast.error(lang === 'ar' ? 'محاولات كثيرة، أعد المحاولة لاحقاً' : 'Trop de tentatives, réessayez plus tard');
+      } else if (data.error === 'email_invalide') {
+        toast.error(lang === 'ar' ? 'عنوان بريد غير صحيح' : 'Email invalide');
+      } else {
+        toast.error(lang === 'ar' ? 'خطأ في الحفظ' : 'Erreur de sauvegarde');
+      }
+    } catch (e) {
+      toast.error(lang === 'ar' ? 'خطأ في الشبكة' : 'Erreur réseau');
+    }
+    setSavingEmail(false);
   };
 
   // Charger notifs au montage et toutes les 60s
@@ -420,6 +437,189 @@ export default function PortailParent({ parent, navigate, goBack, lang='fr', onL
     { key:'cotisations', label:'Cotisations',      labelAr:'الاشتراكات',    icon:'💰' },
   ];
 
+  // ═══ Blocs partages PC / mobile (oct 2026) : la version mobile reprend exactement
+  // les memes contenus que le PC, pour que les deux ne divergent plus.
+  const kpisEleve = (isSourate?[
+          {val:souratesCompletes,lbl:lang==='ar'?'سور مكتملة':'Sourates',color:'#1D9E75',bg:'#E1F5EE'},
+          {val:sequences,lbl:lang==='ar'?'مقاطع':'Séquences',color:'#378ADD',bg:'#E6F1FB'},
+          {val:actifSemaine,lbl:lang==='ar'?'نشاط 7 أيام':'7 derniers jours',color:'#EF9F27',bg:'#FAEEDA'},
+          {val:pts,lbl:lang==='ar'?'النقاط':'Points',color:'#534AB7',bg:'#EEEDFE'},
+        ]:[
+          {val:tomon,lbl:'Tomon',color:'#378ADD',bg:'#E6F1FB'},
+          {val:hizb,lbl:'Hizb',color:'#EF9F27',bg:'#FAEEDA'},
+          {val:actifSemaine,lbl:lang==='ar'?'نشاط 7 أيام':'7 derniers jours',color:'#1D9E75',bg:'#E1F5EE'},
+          {val:pts,lbl:lang==='ar'?'النقاط':'Points',color:'#534AB7',bg:'#EEEDFE'},
+        ]);
+  const banniereMdp = (<>
+      {/* Banniere invitation changement MDP (Etape 11b) - dismissible */}
+      {showMdpBanner && (
+        <div style={{
+          background:'linear-gradient(90deg,#FFF8EC,#FAEEDA)',
+          border:'1px solid #EF9F2740',borderRadius:12,
+          padding:'12px 16px',marginBottom:14,
+          display:'flex',alignItems:'center',gap:10,flexWrap:'wrap',
+        }}>
+          <div style={{fontSize:24,flexShrink:0}}>🔐</div>
+          <div style={{flex:1,minWidth:200}}>
+            <div style={{fontSize:13,fontWeight:700,color:'#7B5800',marginBottom:2}}>
+              {lang==='ar'?'لأمان حسابك':'Pour la sécurité de votre compte'}
+            </div>
+            <div style={{fontSize:12,color:'#8a5a00',lineHeight:1.4}}>
+              {lang==='ar'
+                ? 'ننصحك بتغيير كلمة المرور الافتراضية إلى كلمة شخصية أكثر أمانًا.'
+                : 'Nous vous invitons à changer le mot de passe par défaut par un mot de passe personnel plus sécurisé.'}
+            </div>
+          </div>
+          <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>
+            <button onClick={()=>{dismissMdpBanner();setShowChangeMdp(true);}}
+              style={{padding:'7px 14px',background:'#085041',color:'#fff',border:'none',borderRadius:8,fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
+              🔑 {lang==='ar'?'تغيير الآن':'Changer maintenant'}
+            </button>
+            <button onClick={dismissMdpBanner}
+              title={lang==='ar'?'لاحقًا':'Plus tard'}
+              style={{padding:'7px 10px',background:'transparent',color:'#8a5a00',border:'1px solid #EF9F2730',borderRadius:8,fontSize:12,fontWeight:600,cursor:'pointer',fontFamily:'inherit'}}>
+              ✕
+            </button>
+          </div>
+        </div>
+      )}
+  </>);
+  const indicateurHorsLigne = (<>
+      {/* Indicateur fraîcheur du cache (mode hors ligne) */}
+      {cacheAge !== null && cacheAge > 60000 && (() => {
+        // Formater l'âge en lisible
+        const mins = Math.floor(cacheAge / 60000);
+        const hrs = Math.floor(mins / 60);
+        const days = Math.floor(hrs / 24);
+        let ageLabel;
+        if (days >= 1) ageLabel = lang==='ar' ? `${days} يوم` : `${days} jour${days>1?'s':''}`;
+        else if (hrs >= 1) ageLabel = lang==='ar' ? `${hrs} ساعة` : `${hrs} heure${hrs>1?'s':''}`;
+        else ageLabel = lang==='ar' ? `${mins} دقيقة` : `${mins} min`;
+        return (
+          <div style={{background:'#FAEEDA',border:'0.5px solid #EF9F27',borderRadius:10,padding:'8px 12px',marginBottom:12,fontSize:12,color:'#633806',display:'flex',alignItems:'center',gap:8}}>
+            <span>📡</span>
+            <span>
+              {lang==='ar'
+                ? `وضع عدم الاتصال · آخر تحديث: منذ ${ageLabel}`
+                : `Mode hors ligne · Dernière mise à jour : il y a ${ageLabel}`}
+            </span>
+          </div>
+        );
+      })()}
+  </>);
+  const blocProgression = (<>
+          {/* Barre de progression globale */}
+          <div style={{background:'#fff',border:'0.5px solid #e0e0d8',borderRadius:14,padding:'1.25rem',marginBottom:'1rem'}}>
+            <div style={{fontSize:13,fontWeight:600,marginBottom:10}}>{lang==='ar'?'التقدم العام':'Progression générale'}</div>
+            {isSourate?(()=>{
+              const souratesNiveau = getSouratesForNiveau(eleve.code_niveau);
+              const total = souratesNiveau.length;
+              const acq = parseInt(eleve.sourates_acquises)||0;
+              const pct = total ? Math.min(100, Math.round((acq+souratesCompletes)/total*100)) : 0;
+              return(
+                <div>
+                  <div style={{display:'flex',justifyContent:'space-between',fontSize:12,color:'#888',marginBottom:6}}>
+                    <span>{acq+souratesCompletes}/{total} {lang==='ar'?'سورة':'sourates'}</span>
+                    <span style={{fontWeight:700,color:nc}}>{pct}%</span>
+                  </div>
+                  <div style={{height:14,background:'#e8e8e0',borderRadius:7,overflow:'hidden'}}>
+                    <div style={{height:'100%',width:pct+'%',background:'linear-gradient(90deg,#1D9E75,#5DCAA5)',borderRadius:7,transition:'width 0.5s'}}/>
+                  </div>
+                  <div style={{fontSize:11,color:'#888',marginTop:6}}>
+                    {lang==='ar'?'المكتسبات السابقة:':'Acquis antérieurs:'} <strong>{acq}</strong> · {lang==='ar'?'منذ المتابعة:':'Depuis le suivi:'} <strong>{souratesCompletes}</strong>
+                  </div>
+                </div>
+              );
+            })():(()=>{
+              // Le total à mémoriser dépend du sens :
+              // desc : de hizb_depart jusqu'à Hizb 1 = (hizb_depart*8) - (tomon_depart-1)
+              // asc  : de hizb_depart jusqu'à Hizb 60 = ((60-hizb_depart+1)*8) - (tomon_depart-1)
+              const sensE = getSensForEleve(eleve, niveauxEcole, ecoleConfig);
+              const hD = eleve.hizb_depart || (sensE === 'asc' ? 1 : 60);
+              const tD = eleve.tomon_depart || 1;
+              const totalTomon = sensE === 'asc'
+                ? (60 - hD + 1) * 8 - (tD - 1)
+                : hD * 8 - (tD - 1);
+              const pct = Math.min(100, Math.round(tomon/Math.max(totalTomon,1)*100));
+              return(
+                <div>
+                  <div style={{display:'flex',justifyContent:'space-between',fontSize:12,color:'#888',marginBottom:6}}>
+                    <span>{tomon} Tomon · {hizb} Hizb complets</span>
+                    <span style={{fontWeight:700,color:nc}}>{pct}%</span>
+                  </div>
+                  <div style={{height:14,background:'#e8e8e0',borderRadius:7,overflow:'hidden'}}>
+                    <div style={{height:'100%',width:pct+'%',background:'linear-gradient(90deg,#EF9F27,#F5C56E)',borderRadius:7}}/>
+                  </div>
+                </div>
+              );
+            })()}
+          </div>
+
+          {/* Activité récente */}
+          <div style={{background:'#fff',border:'0.5px solid #e0e0d8',borderRadius:14,padding:'1.25rem'}}>
+            <div style={{fontSize:13,fontWeight:600,marginBottom:10}}>{lang==='ar'?'النشاط الأخير':'Activité récente'}</div>
+            {allActivity.slice(0,6).map((item,i)=>{
+              const isSR = !!item.type_recitation;
+              const sourate = isSR ? souratesDB.find(s=>s.id===item.sourate_id) : null;
+              const pts2 = isSR?(item.points || 0):ptsValidation(item, bareme);
+              return(
+                <div key={i} style={{display:'flex',alignItems:'center',gap:10,padding:'8px 0',borderBottom:'0.5px solid #f0f0ec'}}>
+                  <div style={{width:36,height:36,borderRadius:8,background:isSR?'#E1F5EE':'#E6F1FB',display:'flex',alignItems:'center',justifyContent:'center',fontSize:18,flexShrink:0}}>
+                    {isSR?'📖':'🎯'}
+                  </div>
+                  <div style={{flex:1}}>
+                    <div style={{fontSize:12,fontWeight:500}}>
+                      {isSR?(item.type_recitation==='complete'?(sourate?sourate.nom_ar:'Sourate complète'):('V.'+item.verset_debut+'→'+item.verset_fin)):(item.type_validation==='hizb_complet'?'Hizb '+item.hizb_valide:item.nombre_tomon+' Tomon')}
+                    </div>
+                    <div style={{fontSize:11,color:'#888'}}>{new Date(item.date_validation).toLocaleDateString(lang==='ar'?'ar-MA':'fr-FR',{day:'numeric',month:'short'})}</div>
+                  </div>
+                  <span style={{fontSize:12,fontWeight:700,color:'#1D9E75'}}>+{pts2}</span>
+                </div>
+              );
+            })}
+            {allActivity.length===0&&<div className="empty">{lang==='ar'?'لا نشاط بعد':'Aucune activité'}</div>}
+          </div>
+  </>);
+  const blocObjectifs = (<>
+          {objActifs.length===0?<div className="empty">{lang==='ar'?'لا أهداف نشطة حالياً':'Aucun objectif actif'}</div>:(
+            objActifs.map(obj=>{
+              // Calculate achievement
+              let realise = 0;
+              if (obj.metrique==='tomon') realise=tomon;
+              else if (obj.metrique==='hizb') realise=hizb;
+              else if (obj.metrique==='sourate') realise=souratesCompletes;
+              else if (obj.metrique==='sequence') realise=sequences;
+              else if (obj.metrique==='points') realise=pts;
+              const pct = Math.min(100, Math.round(realise/Math.max(obj.valeur_cible||0,1)*100));
+              const color = pct>=100?'#1D9E75':pct>=60?'#EF9F27':'#E24B4A';
+              const daysLeft = Math.max(0,Math.ceil((new Date(obj.date_fin)-now)/(1000*60*60*24)));
+              return(
+                <div key={obj.id} style={{background:'#fff',border:'0.5px solid #e0e0d8',borderRadius:14,padding:'1.25rem',marginBottom:'1rem'}}>
+                  <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',marginBottom:10}}>
+                    <div>
+                      <div style={{fontSize:14,fontWeight:600}}>{obj.titre||(lang==='ar'?'هدف':'Objectif')}</div>
+                      <div style={{fontSize:11,color:'#888',marginTop:2}}>
+                        {new Date(obj.date_debut).toLocaleDateString('fr-FR',{day:'numeric',month:'short'})} → {new Date(obj.date_fin).toLocaleDateString('fr-FR',{day:'numeric',month:'short',year:'numeric'})}
+                      </div>
+                    </div>
+                    <div style={{textAlign:'center'}}>
+                      <div style={{fontSize:24,fontWeight:800,color}}>{pct}%</div>
+                      <div style={{fontSize:10,color:'#888'}}>{realise}/{obj.valeur_cible}</div>
+                    </div>
+                  </div>
+                  <div style={{height:12,background:'#e8e8e0',borderRadius:6,overflow:'hidden',marginBottom:6}}>
+                    <div style={{height:'100%',width:pct+'%',background:color,borderRadius:6,transition:'width 0.5s'}}/>
+                  </div>
+                  <div style={{display:'flex',justifyContent:'space-between',fontSize:11,color:'#888'}}>
+                    <span>{pct>=100?'🎉 '+(lang==='ar'?'تم تحقيق الهدف!':'Objectif atteint !'):daysLeft+' '+(lang==='ar'?'يوم متبقي':'jours restants')}</span>
+                    <span>{lang==='ar'?'المتبقي:':'Restant:'} {Math.max(0,obj.valeur_cible-realise)}</span>
+                  </div>
+                </div>
+              );
+            })
+          )}
+  </>);
+
   if (isMobile) {
     return (
       <div style={{paddingBottom:80, background:'#f5f5f0', minHeight:'100vh'}}>
@@ -471,6 +671,7 @@ export default function PortailParent({ parent, navigate, goBack, lang='fr', onL
                     background: selectedEnfant?.id===e.id ? 'rgba(255,255,255,0.3)' : 'rgba(255,255,255,0.15)',
                     border: `1.5px solid ${selectedEnfant?.id===e.id ? '#fff' : 'rgba(255,255,255,0.2)'}`}}>
                   <span style={{fontSize:14, color:'#fff', fontWeight:700}}>{e.prenom}</span>
+                  <NiveauBadge code={e.code_niveau}/>
                 </div>
               ))}
             </div>
@@ -482,6 +683,18 @@ export default function PortailParent({ parent, navigate, goBack, lang='fr', onL
                 <div style={{fontSize:20, fontWeight:800, color:'#fff'}}>{eleve.prenom} {eleve.nom}</div>
                 <div style={{fontSize:13, color:'rgba(255,255,255,0.8)', marginTop:2}}>
                   {NIVEAUX_LABELS[eleve.code_niveau] || eleve.code_niveau}
+                  {eleve.eleve_id_ecole && <span style={{opacity:0.7}}> · #{eleve.eleve_id_ecole}</span>}
+                </div>
+                {/* oct 2026 : position actuelle + derniere recitation, comme sur PC */}
+                <div style={{fontSize:12, color:'rgba(255,255,255,0.85)', marginTop:4}}>
+                  {isSourate
+                    ? (sourateActuelle?<span>{lang==='ar'?'السورة الحالية:':'En cours : '} <strong style={{fontFamily:"'Tajawal',Arial"}}>{sourateActuelle.nom_ar}</strong></span>:<span>{lang==='ar'?'أتم البرنامج 🎉':'Programme terminé 🎉'}</span>)
+                    : (lang==='ar'?`الحزب ${eleve.hizb_depart||1} · ث.${eleve.tomon_depart||1}`:`Hizb ${eleve.hizb_depart||1} · T.${eleve.tomon_depart||1}`)}
+                </div>
+                <div style={{fontSize:11, marginTop:2, color: joursInactif>14 ? '#FFD6D6' : 'rgba(255,255,255,0.7)', fontWeight: joursInactif>14 ? 700 : 400}}>
+                  {derniere
+                    ? (lang==='ar'?'آخر استظهار: ':'Dernière récitation : ')+new Date(derniere).toLocaleDateString(lang==='ar'?'ar-MA':'fr-FR',{day:'numeric',month:'long',year:'numeric'})
+                    : (lang==='ar'?'لم يبدأ بعد':'Pas encore commencé')}
                 </div>
               </div>
               <div style={{textAlign:'center'}}>
@@ -497,15 +710,18 @@ export default function PortailParent({ parent, navigate, goBack, lang='fr', onL
                 style={{flex:1, padding:'8px 4px', borderRadius:8, textAlign:'center', fontSize:11, fontWeight:600,
                   cursor:'pointer', background:onglet===o.key?'rgba(255,255,255,0.25)':'transparent',
                   color:'#fff'}}>
-                {o.icon}
+                <div style={{fontSize:15}}>{o.icon}</div>
+                <div style={{fontSize:9, marginTop:2, opacity:0.9, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis'}}>{lang==='ar'?o.labelAr:o.label}</div>
               </div>
             ))}
           </div>
         </div>
 
-        {loading ? <div style={{textAlign:'center',padding:'2rem',color:'#888'}}>...</div> : (
+        {(
           <div style={{padding:'12px'}}>
-            {/* Progression */}
+            {/* oct 2026 : memes bandeaux que le PC */}
+            {banniereMdp}
+            {indicateurHorsLigne}
             {/* Bandeau alerte mobile */}
             {cotEAvecManquants.filter(x=>x.statut==='non_paye'||x.statut==='partiel').length > 0 && (
               <div onClick={()=>setOnglet('cotisations')} style={{background:'#FCEBEB',border:'2px solid #E24B4A',borderRadius:12,padding:'12px',marginBottom:8,cursor:'pointer',display:'flex',alignItems:'center',gap:10}}>
@@ -520,49 +736,61 @@ export default function PortailParent({ parent, navigate, goBack, lang='fr', onL
             {onglet==='progression' && (
               <div>
                 <div style={{display:'grid',gridTemplateColumns:'repeat(2,1fr)',gap:10,marginBottom:12}}>
-                  {[
-                    {label:lang==='ar'?'الثُّمنات':'Tomon validés',val:tomon,color:'#1D9E75',bg:'#E1F5EE'},
-                    {label:lang==='ar'?'الأحزاب':'Hizb complets',val:hizb,color:'#534AB7',bg:'#F0EEFF'},
-                    {label:lang==='ar'?'السور':'Sourates',val:souratesCompletes,color:'#378ADD',bg:'#E6F1FB'},
-                    {label:lang==='ar'?'النقاط':'Points',val:pts.toLocaleString(),color:'#EF9F27',bg:'#FAEEDA'},
-                  ].map((k,i)=>(
+                  {kpisEleve.map((k,i)=>(
                     <div key={i} style={{background:k.bg,borderRadius:12,padding:'14px',textAlign:'center',border:`0.5px solid ${k.color}20`}}>
-                      <div style={{fontSize:24,fontWeight:800,color:k.color}}>{k.val}</div>
-                      <div style={{fontSize:11,color:k.color,marginTop:4,opacity:0.8}}>{k.label}</div>
+                      <div style={{fontSize:24,fontWeight:800,color:k.color}}>{typeof k.val==='number'?k.val.toLocaleString():k.val}</div>
+                      <div style={{fontSize:11,color:k.color,marginTop:4,opacity:0.8}}>{k.lbl}</div>
                     </div>
                   ))}
                 </div>
+                {blocProgression}
               </div>
             )}
             {/* Récitations */}
             {onglet==='recitations' && (
               <div>
                 <div style={{fontSize:13,fontWeight:700,color:'#888',marginBottom:8}}>
-                  {lang==='ar'?'آخر الاستظهارات':'Dernières récitations'}
+                  {lang==='ar'?'سجل الاستظهارات':'Historique des récitations'} ({allActivity.length})
                 </div>
-                {/* oct 2026 : uniquement l'enfant selectionne (avant : tous les enfants melanges) */}
-                {vE.slice(0,20).map(v=>(
-                  <div key={v.id} style={{background:'#fff',borderRadius:12,padding:'12px 14px',marginBottom:8,
-                    border:'0.5px solid #e0e0d8',display:'flex',alignItems:'center',gap:12}}>
-                    <div style={{width:8,height:8,borderRadius:'50%',background:'#1D9E75',flexShrink:0}}/>
-                    <div style={{flex:1}}>
-                      <div style={{fontWeight:600,fontSize:13}}>
-                        {v.type_validation==='hizb_complet'
-                          ? (lang==='ar'?'الحزب مكتمل':'Hizb complet')
-                          : `${lang==='ar'?'ث':'T'}.${v.tomon_debut} ×${v.nombre_tomon}`}
+                {/* oct 2026 : meme contenu que le PC (hizb + sourates, type, valideur), enfant selectionne uniquement */}
+                {allActivity.map((item,i)=>{
+                  const isSR = !!item.type_recitation;
+                  const sourate = isSR ? souratesDB.find(x=>x.id===item.sourate_id) : null;
+                  const pts2 = isSR?(item.points || 0):ptsValidation(item, bareme);
+                  const typeLbl = isSR
+                    ? (item.type_recitation==='complete'?(lang==='ar'?'سورة كاملة':'Complète'):(lang==='ar'?'مقطع':'Séquence'))
+                    : (item.type_validation==='hizb_complet'?'Hizb ✓':'Tomon');
+                  const detail = isSR
+                    ? (sourate?sourate.nom_ar:('V.'+item.verset_debut+'→'+item.verset_fin))
+                    : (item.type_validation==='hizb_complet'?'Hizb '+item.hizb_valide:item.nombre_tomon+' T.');
+                  return (
+                    <div key={item.id||i} style={{background:'#fff',borderRadius:12,padding:'12px 14px',marginBottom:8,
+                      border:'0.5px solid #e0e0d8',display:'flex',alignItems:'center',gap:12}}>
+                      <div style={{width:8,height:8,borderRadius:'50%',background:isSR?'#1D9E75':'#378ADD',flexShrink:0}}/>
+                      <div style={{flex:1,minWidth:0}}>
+                        <div style={{fontWeight:600,fontSize:13,fontFamily:isSR?"'Tajawal',Arial":'inherit'}}>
+                          {detail} <span style={{fontSize:10,color:'#888',fontWeight:500}}>· {typeLbl}</span>
+                        </div>
+                        <div style={{fontSize:11,color:'#888'}}>
+                          {new Date(item.date_validation).toLocaleDateString(lang==='ar'?'ar-MA':'fr-FR')}
+                          {item.valideur ? ' · '+item.valideur.prenom+' '+item.valideur.nom : ''}
+                        </div>
                       </div>
-                      <div style={{fontSize:11,color:'#888'}}>{new Date(v.date_validation).toLocaleDateString(lang==='ar'?'ar-MA':'fr-FR')}</div>
+                      <span style={{fontSize:13,fontWeight:700,color:'#1D9E75'}}>+{pts2} pts</span>
                     </div>
-                    <span style={{fontSize:13,fontWeight:700,color:'#1D9E75'}}>+{ptsValidation(v, bareme)} pts</span>
-                  </div>
-                ))}
-                {vE.length===0&&<div style={{textAlign:'center',color:'#aaa',padding:'2rem'}}>Aucune récitation</div>}
+                  );
+                })}
+                {allActivity.length===0&&<div style={{textAlign:'center',color:'#aaa',padding:'2rem'}}>{lang==='ar'?'لا استظهارات بعد':'Aucune récitation'}</div>}
               </div>
             )}
             {/* Cotisations */}
             {onglet==='cotisations' && (
               <div>
-
+                {cotEAvecManquants.length>0 && (
+                  <div style={{fontSize:13,fontWeight:700,color:'#1D9E75',marginBottom:8}}>
+                    💰 {lang==='ar'?'المجموع:':'Total : '}{cotEAvecManquants.filter(c=>c.statut!=='exonere'&&!c._virtuel).reduce((s,c)=>s+parseFloat(c.montant||0),0).toLocaleString()} MAD
+                  </div>
+                )}
                 {cotEAvecManquants.map(cot=>{
                   const STATUTS={paye:{ic:'✅',color:'#1D9E75',bg:'#E1F5EE',lbl:'Payé',lblAr:'مدفوع'},partiel:{ic:'⚠️',color:'#EF9F27',bg:'#FAEEDA',lbl:'Partiel',lblAr:'جزئي'},non_paye:{ic:'❌',color:'#E24B4A',bg:'#FCEBEB',lbl:'Non payé',lblAr:'غير مدفوع'},exonere:{ic:'🎁',color:'#888',bg:'#f5f5f0',lbl:'Exonéré',lblAr:'معفى'}};
                   const st=STATUTS[cot.statut]||STATUTS.non_paye;
@@ -584,9 +812,7 @@ export default function PortailParent({ parent, navigate, goBack, lang='fr', onL
             )}
             {/* Objectifs */}
             {onglet==='objectifs' && (
-              <div style={{textAlign:'center',color:'#aaa',padding:'2rem'}}>
-                {lang==='ar'?'الأهداف قريباً':'Objectifs bientôt disponibles'}
-              </div>
+              <div>{blocObjectifs}</div>
             )}
             {/* Cours */}
             {onglet==='cours' && selectedEnfant && (
@@ -708,6 +934,9 @@ export default function PortailParent({ parent, navigate, goBack, lang='fr', onL
                     {savingEmail ? '...' : 'OK'}
                   </button>
                 </div>
+                <input type="password" value={pwdEmail} onChange={e=>setPwdEmail(e.target.value)}
+                  placeholder={lang==='ar'?'كلمة المرور الحالية (للتأكيد)':'Mot de passe actuel (pour confirmer)'}
+                  style={{width:'100%',boxSizing:'border-box',padding:'9px 10px',borderRadius:6,border:'1px solid #e0e0d8',fontSize:13,marginBottom:8}}/>
                 {emailParent && (
                   <label style={{display:'flex',alignItems:'center',gap:8,fontSize:12,cursor:'pointer',color:'#173404'}}>
                     <input type="checkbox"
@@ -773,10 +1002,24 @@ export default function PortailParent({ parent, navigate, goBack, lang='fr', onL
               <div style={{fontSize:15,fontWeight:700,marginBottom:6,color:'#173404'}}>
                 📦 {lang==='ar'?'تصدير بياناتي':'Exporter mes données'}
               </div>
-              <div style={{fontSize:12,color:'#666',marginBottom:14,lineHeight:1.5}}>
+              {/* oct 2026 : meme information legale que le PC */}
+              <div style={{fontSize:12,color:'#555',marginBottom:10,lineHeight:1.55}}>
                 {lang==='ar'
-                  ? 'تنزيل نسخة كاملة من بياناتك وبيانات أبنائك (JSON).'
-                  : 'Télécharger une copie complète de vos données et celles de vos enfants (JSON).'}
+                  ? 'وفقاً للمادة 20 من النظام الأوروبي لحماية البيانات (RGPD) والقانون المغربي 09-08، يمكنك تحميل جميع البيانات الشخصية المتعلقة بك والمتعلقة بأبنائك، في صيغة JSON منظمة.'
+                  : 'Conformément à l\'article 20 du RGPD et à la loi marocaine 09-08, vous pouvez télécharger à tout moment l\'ensemble des données personnelles vous concernant ainsi que celles concernant vos enfants mineurs, dans un format JSON structuré.'}
+              </div>
+              <div style={{marginBottom:10,padding:'8px 10px',background:'#f9f9f6',borderRadius:8,fontSize:11.5,color:'#444',lineHeight:1.6}}>
+                <div style={{fontWeight:700,marginBottom:4}}>{lang==='ar'?'ما المُدرَج في هذا الملف :':'Contenu du fichier :'}</div>
+                • {lang==='ar'?'بيانات الاتصال الخاصة بك':'Vos données de contact'}<br/>
+                • {lang==='ar'?'معلومات كل طفل من أطفالك':'Informations de chacun de vos enfants'}<br/>
+                • {lang==='ar'?'جميع الاستظهارات والأحزاب المنجزة':'Toutes les validations et hizb réalisés'}<br/>
+                • {lang==='ar'?'الشهادات المحصل عليها':'Certificats obtenus'}<br/>
+                • {lang==='ar'?'سجل زياراتك للبوابة':'Historique de vos consultations'}
+              </div>
+              <div style={{fontSize:11,color:'#888',marginBottom:14,fontStyle:'italic'}}>
+                🔒 {lang==='ar'
+                  ? 'سيتم تسجيل هذا التصدير في سجل المراجعة (قانون إلزامي).'
+                  : 'Ce téléchargement sera journalisé dans le registre d\'audit (obligation légale).'}
               </div>
               <div style={{display:'flex',gap:6}}>
                 <button onClick={handleRgpdExport} disabled={rgpdLoading}
@@ -795,7 +1038,7 @@ export default function PortailParent({ parent, navigate, goBack, lang='fr', onL
                   <div style={{fontSize:12,fontWeight:700,marginBottom:6,color:'#173404'}}>
                     📋 {lang==='ar'?'تاريخ التصديرات':'Historique des exports'}
                   </div>
-                  {rgpdHistorique.slice(0,5).map(h => (
+                  {rgpdHistorique.slice(0,10).map(h => (
                     <div key={h.id} style={{fontSize:11,color:'#666',padding:'4px 0',borderBottom:'0.5px solid #e0e0d8'}}>
                       {new Date(h.exported_at).toLocaleString(lang==='ar'?'ar-MA':'fr-FR')}
                       {' · '}
@@ -814,38 +1057,7 @@ export default function PortailParent({ parent, navigate, goBack, lang='fr', onL
 
   return (
     <div>
-      {/* Banniere invitation changement MDP (Etape 11b) - dismissible */}
-      {showMdpBanner && (
-        <div style={{
-          background:'linear-gradient(90deg,#FFF8EC,#FAEEDA)',
-          border:'1px solid #EF9F2740',borderRadius:12,
-          padding:'12px 16px',marginBottom:14,
-          display:'flex',alignItems:'center',gap:10,flexWrap:'wrap',
-        }}>
-          <div style={{fontSize:24,flexShrink:0}}>🔐</div>
-          <div style={{flex:1,minWidth:200}}>
-            <div style={{fontSize:13,fontWeight:700,color:'#7B5800',marginBottom:2}}>
-              {lang==='ar'?'لأمان حسابك':'Pour la sécurité de votre compte'}
-            </div>
-            <div style={{fontSize:12,color:'#8a5a00',lineHeight:1.4}}>
-              {lang==='ar'
-                ? 'ننصحك بتغيير كلمة المرور الافتراضية إلى كلمة شخصية أكثر أمانًا.'
-                : 'Nous vous invitons à changer le mot de passe par défaut par un mot de passe personnel plus sécurisé.'}
-            </div>
-          </div>
-          <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>
-            <button onClick={()=>{dismissMdpBanner();setShowChangeMdp(true);}}
-              style={{padding:'7px 14px',background:'#085041',color:'#fff',border:'none',borderRadius:8,fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
-              🔑 {lang==='ar'?'تغيير الآن':'Changer maintenant'}
-            </button>
-            <button onClick={dismissMdpBanner}
-              title={lang==='ar'?'لاحقًا':'Plus tard'}
-              style={{padding:'7px 10px',background:'transparent',color:'#8a5a00',border:'1px solid #EF9F2730',borderRadius:8,fontSize:12,fontWeight:600,cursor:'pointer',fontFamily:'inherit'}}>
-              ✕
-            </button>
-          </div>
-        </div>
-      )}
+      {banniereMdp}
       {/* Header parent */}
       <div style={{background:'linear-gradient(135deg,#085041,#1D9E75)',borderRadius:16,padding:'1.25rem',marginBottom:'1.25rem',color:'#fff'}}>
         <div style={{fontSize:12,opacity:0.8,marginBottom:4}}>
@@ -1101,6 +1313,9 @@ export default function PortailParent({ parent, navigate, goBack, lang='fr', onL
                   {savingEmail ? '...' : (lang==='ar'?'حفظ':'OK')}
                 </button>
               </div>
+              <input type="password" value={pwdEmail} onChange={e=>setPwdEmail(e.target.value)}
+                placeholder={lang==='ar'?'كلمة المرور الحالية (للتأكيد)':'Mot de passe actuel (pour confirmer)'}
+                style={{width:'100%',boxSizing:'border-box',padding:'8px 10px',borderRadius:6,border:'none',fontSize:13,marginBottom:8}}/>
               {emailParent && (
                 <label style={{display:'flex',alignItems:'center',gap:8,fontSize:11.5,cursor:'pointer'}}>
                   <input type="checkbox"
@@ -1126,27 +1341,7 @@ export default function PortailParent({ parent, navigate, goBack, lang='fr', onL
         )}
       </div>
 
-      {/* Indicateur fraîcheur du cache (mode hors ligne) */}
-      {cacheAge !== null && cacheAge > 60000 && (() => {
-        // Formater l'âge en lisible
-        const mins = Math.floor(cacheAge / 60000);
-        const hrs = Math.floor(mins / 60);
-        const days = Math.floor(hrs / 24);
-        let ageLabel;
-        if (days >= 1) ageLabel = lang==='ar' ? `${days} يوم` : `${days} jour${days>1?'s':''}`;
-        else if (hrs >= 1) ageLabel = lang==='ar' ? `${hrs} ساعة` : `${hrs} heure${hrs>1?'s':''}`;
-        else ageLabel = lang==='ar' ? `${mins} دقيقة` : `${mins} min`;
-        return (
-          <div style={{background:'#FAEEDA',border:'0.5px solid #EF9F27',borderRadius:10,padding:'8px 12px',marginBottom:12,fontSize:12,color:'#633806',display:'flex',alignItems:'center',gap:8}}>
-            <span>📡</span>
-            <span>
-              {lang==='ar'
-                ? `وضع عدم الاتصال · آخر تحديث: منذ ${ageLabel}`
-                : `Mode hors ligne · Dernière mise à jour : il y a ${ageLabel}`}
-            </span>
-          </div>
-        );
-      })()}
+      {indicateurHorsLigne}
 
       {/* Sélecteur enfant (si plusieurs) */}
       {enfants.length > 1 && (
@@ -1197,17 +1392,7 @@ export default function PortailParent({ parent, navigate, goBack, lang='fr', onL
 
       {/* KPI rapides */}
       <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:8,marginBottom:'1rem'}}>
-        {(isSourate?[
-          {val:souratesCompletes,lbl:lang==='ar'?'سور مكتملة':'Sourates',color:'#1D9E75',bg:'#E1F5EE'},
-          {val:sequences,lbl:lang==='ar'?'مقاطع':'Séquences',color:'#378ADD',bg:'#E6F1FB'},
-          {val:actifSemaine,lbl:lang==='ar'?'نشاط 7 أيام':'7 derniers jours',color:'#EF9F27',bg:'#FAEEDA'},
-          {val:pts,lbl:lang==='ar'?'النقاط':'Points',color:'#534AB7',bg:'#EEEDFE'},
-        ]:[
-          {val:tomon,lbl:'Tomon',color:'#378ADD',bg:'#E6F1FB'},
-          {val:hizb,lbl:'Hizb',color:'#EF9F27',bg:'#FAEEDA'},
-          {val:actifSemaine,lbl:lang==='ar'?'نشاط 7 أيام':'7 derniers jours',color:'#1D9E75',bg:'#E1F5EE'},
-          {val:pts,lbl:lang==='ar'?'النقاط':'Points',color:'#534AB7',bg:'#EEEDFE'},
-        ]).map(k=>(
+        {kpisEleve.map(k=>(
           <div key={k.lbl} style={{background:k.bg,borderRadius:10,padding:'10px',textAlign:'center'}}>
             <div style={{fontSize:20,fontWeight:800,color:k.color}}>{k.val}</div>
             <div style={{fontSize:10,color:k.color,opacity:0.8}}>{k.lbl}</div>
@@ -1251,77 +1436,7 @@ export default function PortailParent({ parent, navigate, goBack, lang='fr', onL
       {/* PROGRESSION */}
       {onglet==='progression'&&(
         <>
-          {/* Barre de progression globale */}
-          <div style={{background:'#fff',border:'0.5px solid #e0e0d8',borderRadius:14,padding:'1.25rem',marginBottom:'1rem'}}>
-            <div style={{fontSize:13,fontWeight:600,marginBottom:10}}>{lang==='ar'?'التقدم العام':'Progression générale'}</div>
-            {isSourate?(()=>{
-              const souratesNiveau = getSouratesForNiveau(eleve.code_niveau);
-              const total = souratesNiveau.length;
-              const acq = parseInt(eleve.sourates_acquises)||0;
-              const pct = total ? Math.min(100, Math.round((acq+souratesCompletes)/total*100)) : 0;
-              return(
-                <div>
-                  <div style={{display:'flex',justifyContent:'space-between',fontSize:12,color:'#888',marginBottom:6}}>
-                    <span>{acq+souratesCompletes}/{total} {lang==='ar'?'سورة':'sourates'}</span>
-                    <span style={{fontWeight:700,color:nc}}>{pct}%</span>
-                  </div>
-                  <div style={{height:14,background:'#e8e8e0',borderRadius:7,overflow:'hidden'}}>
-                    <div style={{height:'100%',width:pct+'%',background:'linear-gradient(90deg,#1D9E75,#5DCAA5)',borderRadius:7,transition:'width 0.5s'}}/>
-                  </div>
-                  <div style={{fontSize:11,color:'#888',marginTop:6}}>
-                    {lang==='ar'?'المكتسبات السابقة:':'Acquis antérieurs:'} <strong>{acq}</strong> · {lang==='ar'?'منذ المتابعة:':'Depuis le suivi:'} <strong>{souratesCompletes}</strong>
-                  </div>
-                </div>
-              );
-            })():(()=>{
-              // Le total à mémoriser dépend du sens :
-              // desc : de hizb_depart jusqu'à Hizb 1 = (hizb_depart*8) - (tomon_depart-1)
-              // asc  : de hizb_depart jusqu'à Hizb 60 = ((60-hizb_depart+1)*8) - (tomon_depart-1)
-              const sensE = getSensForEleve(eleve, niveauxEcole, ecoleConfig);
-              const hD = eleve.hizb_depart || (sensE === 'asc' ? 1 : 60);
-              const tD = eleve.tomon_depart || 1;
-              const totalTomon = sensE === 'asc'
-                ? (60 - hD + 1) * 8 - (tD - 1)
-                : hD * 8 - (tD - 1);
-              const pct = Math.min(100, Math.round(tomon/Math.max(totalTomon,1)*100));
-              return(
-                <div>
-                  <div style={{display:'flex',justifyContent:'space-between',fontSize:12,color:'#888',marginBottom:6}}>
-                    <span>{tomon} Tomon · {hizb} Hizb complets</span>
-                    <span style={{fontWeight:700,color:nc}}>{pct}%</span>
-                  </div>
-                  <div style={{height:14,background:'#e8e8e0',borderRadius:7,overflow:'hidden'}}>
-                    <div style={{height:'100%',width:pct+'%',background:'linear-gradient(90deg,#EF9F27,#F5C56E)',borderRadius:7}}/>
-                  </div>
-                </div>
-              );
-            })()}
-          </div>
-
-          {/* Activité récente */}
-          <div style={{background:'#fff',border:'0.5px solid #e0e0d8',borderRadius:14,padding:'1.25rem'}}>
-            <div style={{fontSize:13,fontWeight:600,marginBottom:10}}>{lang==='ar'?'النشاط الأخير':'Activité récente'}</div>
-            {allActivity.slice(0,6).map((item,i)=>{
-              const isSR = !!item.type_recitation;
-              const sourate = isSR ? souratesDB.find(s=>s.id===item.sourate_id) : null;
-              const pts2 = isSR?(item.points || 0):ptsValidation(item, bareme);
-              return(
-                <div key={i} style={{display:'flex',alignItems:'center',gap:10,padding:'8px 0',borderBottom:'0.5px solid #f0f0ec'}}>
-                  <div style={{width:36,height:36,borderRadius:8,background:isSR?'#E1F5EE':'#E6F1FB',display:'flex',alignItems:'center',justifyContent:'center',fontSize:18,flexShrink:0}}>
-                    {isSR?'📖':'🎯'}
-                  </div>
-                  <div style={{flex:1}}>
-                    <div style={{fontSize:12,fontWeight:500}}>
-                      {isSR?(item.type_recitation==='complete'?(sourate?sourate.nom_ar:'Sourate complète'):('V.'+item.verset_debut+'→'+item.verset_fin)):(item.type_validation==='hizb_complet'?'Hizb '+item.hizb_valide:item.nombre_tomon+' Tomon')}
-                    </div>
-                    <div style={{fontSize:11,color:'#888'}}>{new Date(item.date_validation).toLocaleDateString(lang==='ar'?'ar-MA':'fr-FR',{day:'numeric',month:'short'})}</div>
-                  </div>
-                  <span style={{fontSize:12,fontWeight:700,color:'#1D9E75'}}>+{pts2}</span>
-                </div>
-              );
-            })}
-            {allActivity.length===0&&<div className="empty">{lang==='ar'?'لا نشاط بعد':'Aucune activité'}</div>}
-          </div>
+          {blocProgression}
         </>
       )}
 
@@ -1362,43 +1477,7 @@ export default function PortailParent({ parent, navigate, goBack, lang='fr', onL
       {/* OBJECTIFS */}
       {onglet==='objectifs'&&(
         <div>
-          {objActifs.length===0?<div className="empty">{lang==='ar'?'لا أهداف نشطة حالياً':'Aucun objectif actif'}</div>:(
-            objActifs.map(obj=>{
-              // Calculate achievement
-              let realise = 0;
-              if (obj.metrique==='tomon') realise=tomon;
-              else if (obj.metrique==='hizb') realise=hizb;
-              else if (obj.metrique==='sourate') realise=souratesCompletes;
-              else if (obj.metrique==='sequence') realise=sequences;
-              else if (obj.metrique==='points') realise=pts;
-              const pct = Math.min(100, Math.round(realise/Math.max(obj.valeur_cible||0,1)*100));
-              const color = pct>=100?'#1D9E75':pct>=60?'#EF9F27':'#E24B4A';
-              const daysLeft = Math.max(0,Math.ceil((new Date(obj.date_fin)-now)/(1000*60*60*24)));
-              return(
-                <div key={obj.id} style={{background:'#fff',border:'0.5px solid #e0e0d8',borderRadius:14,padding:'1.25rem',marginBottom:'1rem'}}>
-                  <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',marginBottom:10}}>
-                    <div>
-                      <div style={{fontSize:14,fontWeight:600}}>{obj.titre||(lang==='ar'?'هدف':'Objectif')}</div>
-                      <div style={{fontSize:11,color:'#888',marginTop:2}}>
-                        {new Date(obj.date_debut).toLocaleDateString('fr-FR',{day:'numeric',month:'short'})} → {new Date(obj.date_fin).toLocaleDateString('fr-FR',{day:'numeric',month:'short',year:'numeric'})}
-                      </div>
-                    </div>
-                    <div style={{textAlign:'center'}}>
-                      <div style={{fontSize:24,fontWeight:800,color}}>{pct}%</div>
-                      <div style={{fontSize:10,color:'#888'}}>{realise}/{obj.valeur_cible}</div>
-                    </div>
-                  </div>
-                  <div style={{height:12,background:'#e8e8e0',borderRadius:6,overflow:'hidden',marginBottom:6}}>
-                    <div style={{height:'100%',width:pct+'%',background:color,borderRadius:6,transition:'width 0.5s'}}/>
-                  </div>
-                  <div style={{display:'flex',justifyContent:'space-between',fontSize:11,color:'#888'}}>
-                    <span>{pct>=100?'🎉 '+(lang==='ar'?'تم تحقيق الهدف!':'Objectif atteint !'):daysLeft+' '+(lang==='ar'?'يوم متبقي':'jours restants')}</span>
-                    <span>{lang==='ar'?'المتبقي:':'Restant:'} {Math.max(0,obj.valeur_cible-realise)}</span>
-                  </div>
-                </div>
-              );
-            })
-          )}
+          {blocObjectifs}
         </div>
       )}
 
