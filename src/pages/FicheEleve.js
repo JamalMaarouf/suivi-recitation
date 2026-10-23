@@ -1975,7 +1975,7 @@ ${(passages||[]).length > 0 ? `
                         {label:lang==='ar'?'السور المستظهرة':'Sourates récitées', val:nbSourCompl, pts:ptsSourCompl, color:'#534AB7', bg:'#EEEDFE', icon:'📜'},
                         {label:lang==='ar'?'المجموعات':'Ensembles', val:pts.nbEnsemblesComplets||0, pts:pts.ptsEnsembles||0, color:'#D85A30', bg:'#FAECE7', icon:'📦'},
                         {label:lang==='ar'?'المقاطع':'Séquences', val:nbSourSeq, pts:recitationsSouratesEleve.filter(r=>r.type_recitation==='sequence').reduce((s,r)=>s+(r.points||0),0), color:'#1D9E75', bg:'#E1F5EE', icon:'📌'},
-                        {label:lang==='ar'?'الامتحانات':'Examens', val:'', pts:pts.ptsExamens||0, color:'#EF9F27', bg:'#FAEEDA', icon:'📝'},
+                        {label:lang==='ar'?'الامتحانات':'Examens', val:(examens||[]).filter(r=>r.statut==='reussi').length, pts:pts.ptsExamens||0, color:'#EF9F27', bg:'#FAEEDA', icon:'📝'}, /* oct 2026 : nb d'examens reussis (etait vide) */
                         {label:lang==='ar'?'الشهادات':'Certificats', val:certificats.length, pts:pts.ptsCertificats||0, color:'#085041', bg:'#E1F5EE', icon:'🏅'},
                       ].map((row,i)=>(
                         <div key={i} style={{background:row.bg,borderRadius:12,padding:'12px',border:`0.5px solid ${row.color}20`}}>
@@ -1992,8 +1992,8 @@ ${(passages||[]).length > 0 ? `
                       {[
                         {label:lang==='ar'?'الأثمان':'Tomon validés', val:pts.tomonPeriode, pts:pts.ptsTomon, color:'#378ADD', bg:'#E6F1FB', icon:'📖'},
                         {label:lang==='ar'?'أحزاب كاملة':'Hizb complets', val:pts.hizbsPeriode, pts:pts.ptsHizb, color:'#085041', bg:'#E1F5EE', icon:'🎯'},
-                        {label:lang==='ar'?'الامتحانات':'Examens', val:'', pts:pts.ptsExamens||0, color:'#EF9F27', bg:'#FAEEDA', icon:'📝'},
-                        {label:lang==='ar'?'الشهادات':'Certificats', val:'', pts:pts.ptsCertificats||0, color:'#D85A30', bg:'#FAECE7', icon:'🏅'},
+                        {label:lang==='ar'?'الامتحانات':'Examens', val:(examens||[]).filter(r=>r.statut==='reussi').length, pts:pts.ptsExamens||0, color:'#EF9F27', bg:'#FAEEDA', icon:'📝'}, /* oct 2026 : nb d'examens reussis (etait vide) */
+                        {label:lang==='ar'?'الشهادات':'Certificats', val:(certificats||[]).length, pts:pts.ptsCertificats||0, color:'#D85A30', bg:'#FAECE7', icon:'🏅'},
                       ].map((row,i)=>(
                         <div key={i} style={{background:row.bg,borderRadius:12,padding:'12px',border:`0.5px solid ${row.color}20`}}>
                           <div style={{fontSize:18,marginBottom:4}}>{row.icon}</div>
@@ -2807,13 +2807,13 @@ ${(passages||[]).length > 0 ? `
                     // helpers.js L1783-1784).
                     {label:lang==='ar'?'السور':'Sourates', val:pts.nbSouratesCompletes||0, pts:pts.ptsSourates||0, color:'#534AB7', bg:'#EEEDFE', icon:'📜'},
                     {label:lang==='ar'?'المجموعات':'Ensembles', val:pts.nbEnsemblesComplets||0, pts:pts.ptsEnsembles||0, color:'#D85A30', bg:'#FAECE7', icon:'📦'},
-                    {label:lang==='ar'?'الامتحانات':'Examens', val:'', pts:pts.ptsExamens||0, color:'#EF9F27', bg:'#FAEEDA', icon:'📝'},
+                    {label:lang==='ar'?'الامتحانات':'Examens', val:(examens||[]).filter(r=>r.statut==='reussi').length, pts:pts.ptsExamens||0, color:'#EF9F27', bg:'#FAEEDA', icon:'📝'}, /* oct 2026 : nb d'examens reussis (etait vide) */
                     {label:lang==='ar'?'الشهادات':'Certs', val:certificats.length||'', pts:pts.ptsCertificats||0, color:'#085041', bg:'#E1F5EE', icon:'🏅'},
                   ] : [
                     {label:lang==='ar'?'الأثمان':'Tomon', val:pts.tomonPeriode, pts:pts.ptsTomon, color:'#378ADD', bg:'#E6F1FB', icon:'📖'},
                     {label:lang==='ar'?'أحزاب كاملة':'Hizb ✓', val:pts.hizbsPeriode, pts:pts.ptsHizb, color:'#085041', bg:'#E1F5EE', icon:'🎯'},
-                    ...(pts.ptsExamens>0?[{label:lang==='ar'?'الامتحانات':'Examens', val:'', pts:pts.ptsExamens, color:'#EF9F27', bg:'#FAEEDA', icon:'📝'}]:[]),
-                    ...(pts.ptsCertificats>0?[{label:lang==='ar'?'الشهادات':'Certs', val:'', pts:pts.ptsCertificats, color:'#D85A30', bg:'#FAECE7', icon:'🏅'}]:[]),
+                    ...((pts.ptsExamens>0||(examens||[]).filter(r=>r.statut==='reussi').length>0)?[{label:lang==='ar'?'الامتحانات':'Examens', val:(examens||[]).filter(r=>r.statut==='reussi').length, pts:pts.ptsExamens||0, color:'#EF9F27', bg:'#FAEEDA', icon:'📝'}]:[]),
+                    ...((pts.ptsCertificats>0||(certificats||[]).length>0)?[{label:lang==='ar'?'الشهادات':'Certs', val:(certificats||[]).length, pts:pts.ptsCertificats||0, color:'#D85A30', bg:'#FAECE7', icon:'🏅'}]:[]),
                   ]).map((row,i)=>(
                     <div key={i} style={{background:row.bg,borderRadius:12,padding:'10px',border:`0.5px solid ${row.color}20`}}>
                       <div style={{fontSize:16,marginBottom:2}}>{row.icon}</div>
