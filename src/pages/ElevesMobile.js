@@ -8,6 +8,8 @@ import { usePullToRefresh, PullToRefreshIndicator } from '../lib/usePullToRefres
 import { hapticSuccess } from '../lib/haptic';
 import AcquisSelector from '../components/AcquisSelector';
 import JoursSouhaitesField from '../components/JoursSouhaitesField';
+import { MobileHeader, SearchField, FilterChips, ListRow, Avatar, LevelBadge, ActionSheet, C } from '../components/ui';
+import { Users, Pencil, PauseCircle, PlayCircle, Trash2, UserRound } from 'lucide-react';
 
 export default function ElevesMobile({ user, navigate, goBack, lang='ar' }) {
   const { toast } = useToast();
@@ -31,6 +33,7 @@ export default function ElevesMobile({ user, navigate, goBack, lang='ar' }) {
   const [showConfirmDelete, setShowConfirmDelete] = useState(null); // {id, nom} ou null
   // F1 (oct 2026) : suspension / reactivation, comme Gestion.js sur PC
   const [suspension, setSuspension] = useState(null); // {eleve, mode:'suspendre'|'reactiver'} ou null
+  const [menuEleve, setMenuEleve] = useState(null); // charte mobile : panneau d'actions d'un eleve
   const [motifSuspension, setMotifSuspension] = useState('');
   const [savingSuspension, setSavingSuspension] = useState(false);
 
@@ -303,33 +306,26 @@ export default function ElevesMobile({ user, navigate, goBack, lang='ar' }) {
       onTouchMove={onTouchMove}
       onTouchEnd={onTouchEnd}>
 
-      {/* ── HEADER ── */}
-      <div style={{background:'linear-gradient(135deg,#085041,#1D9E75)', padding:'48px 16px 16px', position:'sticky', top:0, zIndex:100}}>
-        <div style={{display:'flex', alignItems:'center', gap:12, marginBottom:12}}>
-          <button onClick={()=>goBack?goBack():navigate('dashboard')}
-            style={{background:'rgba(255,255,255,0.2)', border:'none', borderRadius:10, padding:'8px 12px', color:'#fff', fontSize:16, cursor:'pointer'}}>←</button>
-          <div style={{flex:1}}>
-            <div style={{fontSize:18, fontWeight:800, color:'#fff'}}>👥 {lang==='ar'?'الطلاب':'Élèves'}</div>
-            <div style={{fontSize:11, color:'rgba(255,255,255,0.75)'}}>{eleves.length} {lang==='ar'?'طالب مسجل':'inscrits'}</div>
-          </div>
-        </div>
-        {/* Barre de recherche */}
+      {/* ── HEADER ── charte mobile (oct 2026) : en-tete commun */}
+      <MobileHeader
+        title={lang==='ar'?'الطلاب':'Élèves'}
+        subtitle={`${eleves.length} ${lang==='ar'?'طالب مسجل':'inscrits'}`}
+        icon={Users}
+        onBack={()=>goBack?goBack():navigate('dashboard')}
+        lang={lang}>
         {!showForm && (
-          <input value={search} onChange={e=>setSearch(e.target.value)}
-            placeholder={lang==='ar'?'🔍 بحث عن طالب...':'🔍 Rechercher...'}
-            style={{width:'100%', padding:'10px 14px', borderRadius:12, border:'none', fontSize:14,
-              fontFamily:'inherit', boxSizing:'border-box', background:'#fff',
-              color:'#16241E', outline:'none'}}/>
+          <SearchField value={search} onChange={setSearch} lang={lang} id="recherche-eleves"
+            placeholder={lang==='ar'?'بحث بالاسم أو الرقم':'Nom ou numéro élève'} />
         )}
         {!showForm && eleves.some(e => e.suspendu_at) && (
-          <label style={{display:'flex', alignItems:'center', gap:8, marginTop:8, fontSize:12, color:'rgba(255,255,255,0.9)', cursor:'pointer'}}>
+          <label style={{display:'flex', alignItems:'center', gap:8, fontSize:13, color:'rgba(255,255,255,0.92)', cursor:'pointer'}}>
             <input type="checkbox" checked={afficherUniquementActifs}
               onChange={e=>setAfficherUniquementActifs(e.target.checked)}
-              style={{width:16, height:16, accentColor:'#fff'}}/>
+              style={{width:18, height:18, accentColor:'#fff'}}/>
             {lang==='ar'?'الطلاب النشطون فقط':'Actifs uniquement'}
           </label>
         )}
-      </div>
+      </MobileHeader>
 
       {/* ── MESSAGE ── */}
       {msgText && (
@@ -552,20 +548,11 @@ export default function ElevesMobile({ user, navigate, goBack, lang='ar' }) {
         </>
       )}
 
-      {/* ── FILTRES NIVEAUX ── */}
+      {/* ── FILTRES NIVEAUX ── charte : pastilles communes */}
       {!showForm && (
-        <div style={{display:'flex', gap:6, overflowX:'auto', padding:'10px 12px', scrollbarWidth:'none', background:'#fff', borderBottom:'0.5px solid #e0e0d8'}}>
-          {['tous', ...niveaux.map(n=>n.code)].map(code => {
-            const nc = code==='tous' ? '#085041' : getNiveauColor(code);
-            const sel = filtreNiveau===code;
-            return (
-              <div key={code} onClick={()=>setFiltreNiveau(code)}
-                style={{padding:'5px 14px', borderRadius:20, fontSize:11, fontWeight:600, flexShrink:0, cursor:'pointer',
-                  background:sel?nc:'#f0f0ec', color:sel?'#fff':'#666', border:`1.5px solid ${sel?nc:'transparent'}`}}>
-                {code==='tous'?(lang==='ar'?'الكل':'Tous'):code}
-              </div>
-            );
-          })}
+        <div style={{padding:'10px 12px', background:C.surface, borderBottom:`1px solid ${C.line}`}}>
+          <FilterChips value={filtreNiveau} onChange={setFiltreNiveau}
+            options={[{value:'tous', label: lang==='ar'?'الكل':'Tous'}, ...niveaux.map(n=>({value:n.code, label:n.code}))]} />
         </div>
       )}
 
@@ -644,58 +631,29 @@ export default function ElevesMobile({ user, navigate, goBack, lang='ar' }) {
                     </div>
                   );
                 }
-                // Rendu normal d'une carte eleve
+                // Rendu normal d'une carte eleve — charte : ligne de liste, actions dans « ⋯ »
                 const nc = getNiveauColor(e.code_niveau);
                 const inst = instituteurs.find(i=>i.id===e.instituteur_referent_id);
-                const nl = niveauLabel(e);
+                const details = [
+                  e.eleve_id_ecole ? `#${e.eleve_id_ecole}` : null,
+                  inst ? `${inst.prenom} ${(inst.nom||'').charAt(0)}.` : null,
+                  isSour(e.code_niveau)
+                    ? `${e.sourates_acquises||0} ${lang==='ar'?'سورة مكتسبة':'sourate(s) acquise(s)'}`
+                    : `${lang==='ar'?'الحزب':'Hizb'} ${e.hizb_depart} · ${lang==='ar'?'ث':'T'}.${e.tomon_depart}`,
+                ].filter(Boolean).join(' · ');
                 return (
-                  <div key={e.id} style={{background:'#fff', borderRadius:14, padding:'12px 14px', marginBottom:8,
-                    border:'0.5px solid #e0e0d8', display:'flex', alignItems:'center', gap:10,
-                    boxShadow:'0 1px 4px rgba(0,0,0,0.04)', opacity:e.suspendu_at?0.65:1}}>
-                    {/* Avatar */}
-                    <div onClick={()=>navigate('fiche',e)}
-                      style={{width:42,height:42,borderRadius:'50%',background:`${nc}20`,color:nc,
-                        display:'flex',alignItems:'center',justifyContent:'center',fontWeight:800,fontSize:13,flexShrink:0,cursor:'pointer'}}>
-                      {((e.prenom||'?')[0])+((e.nom||'?')[0])}
-                    </div>
-                    {/* Info */}
-                    <div onClick={()=>navigate('fiche',e)} style={{flex:1, minWidth:0, cursor:'pointer'}}>
-                      <div style={{fontWeight:700, fontSize:13}}>
-                        {e.prenom} {e.nom}
-                        {e.suspendu_at && (
-                          <span title={e.suspendu_motif||''} style={{marginInlineStart:6, padding:'1px 6px', borderRadius:10, fontSize:9, fontWeight:700, background:'#FCEBEB', color:'#E24B4A'}}>
-                            {lang==='ar'?'موقوف':'Suspendu'}
-                          </span>
-                        )}
-                      </div>
-                      <div style={{display:'flex', gap:5, marginTop:2, alignItems:'center', flexWrap:'wrap'}}>
-                        <span style={{padding:'1px 6px',borderRadius:10,fontSize:10,fontWeight:700,background:`${nc}20`,color:nc}}>{e.code_niveau||'?'}</span>
-                        <span style={{fontSize:10,fontWeight:500,color:nl.color}}>{nl.label}</span>
-                        {e.eleve_id_ecole&&<span style={{fontSize:10,color:'#bbb'}}>#{e.eleve_id_ecole}</span>}
-                      </div>
-                      <div style={{display:'flex', gap:8, marginTop:2, fontSize:10, color:'#888', flexWrap:'wrap'}}>
-                        {inst&&<span>👨‍🏫 {inst.prenom} {inst.nom}</span>}
-                        {isSour(e.code_niveau)
-                          ? <span style={{color:'#1D9E75',fontWeight:600}}>📖 {e.sourates_acquises||0}</span>
-                          : <span>{lang==='ar'?'ح':'H'}.{e.hizb_depart} {lang==='ar'?'ث':'T'}.{e.tomon_depart}</span>}
-                        {e.telephone&&<span>📞 {e.telephone}</span>}
-                      </div>
-                    </div>
-                    {/* Actions */}
-                    {user.role==='surveillant' && (
-                      <div style={{display:'flex', gap:6, flexShrink:0}}>
-                        <button onClick={()=>startEdit(e)}
-                          aria-label={lang==='ar'?'تعديل':'Modifier'}
-                          style={{background:'#E6F1FB',color:'#378ADD',border:'none',borderRadius:10,
-                            width:44,height:44,fontSize:16,cursor:'pointer',
-                            display:'flex',alignItems:'center',justifyContent:'center'}}>✏️</button>
-                        <button onClick={()=>handleDelete(e.id)}
-                          aria-label={lang==='ar'?'حذف':'Supprimer'}
-                          style={{background:'#FCEBEB',color:'#E24B4A',border:'none',borderRadius:10,
-                            width:44,height:44,fontSize:16,cursor:'pointer',
-                            display:'flex',alignItems:'center',justifyContent:'center'}}>🗑</button>
-                      </div>
-                    )}
+                  <div key={e.id} style={{marginBottom:8, opacity:e.suspendu_at?0.65:1}}>
+                    <ListRow lang={lang}
+                      leading={<Avatar prenom={e.prenom} nom={e.nom} color={nc} />}
+                      title={<>{e.prenom} {e.nom}{e.suspendu_at && (
+                        <span title={e.suspendu_motif||''} style={{marginInlineStart:6, padding:'1px 6px', borderRadius:10, fontSize:10, fontWeight:700, background:C.critSoft, color:C.crit}}>
+                          {lang==='ar'?'موقوف':'Suspendu'}
+                        </span>)}</>}
+                      subtitle={details}
+                      meta={<LevelBadge code={e.code_niveau} color={nc} />}
+                      onClick={()=>navigate('fiche',e)}
+                      onMore={user.role==='surveillant' ? ()=>setMenuEleve(e) : undefined}
+                    />
                   </div>
                 );
               })}
@@ -723,6 +681,18 @@ export default function ElevesMobile({ user, navigate, goBack, lang='ar' }) {
           +
         </button>
       )}
+
+      {/* Charte mobile (oct 2026) : actions d'un eleve dans un panneau (plus de poubelle sur chaque carte) */}
+      <ActionSheet open={!!menuEleve} onClose={()=>setMenuEleve(null)} lang={lang}
+        title={menuEleve ? `${menuEleve.prenom} ${menuEleve.nom}` : ''}
+        actions={menuEleve ? [
+          { label: lang==='ar'?'بطاقة الطالب':'Ouvrir la fiche', icon: UserRound, onClick: ()=>navigate('fiche', menuEleve) },
+          { label: lang==='ar'?'تعديل':'Modifier', icon: Pencil, onClick: ()=>startEdit(menuEleve) },
+          menuEleve.suspendu_at
+            ? { label: lang==='ar'?'إعادة التفعيل':'Réactiver', icon: PlayCircle, onClick: ()=>{ setMotifSuspension(''); setSuspension({ eleve: menuEleve, mode: 'reactiver' }); } }
+            : { label: lang==='ar'?'تعليق':'Suspendre', icon: PauseCircle, onClick: ()=>{ setMotifSuspension(''); setSuspension({ eleve: menuEleve, mode: 'suspendre' }); } },
+          { label: lang==='ar'?'حذف نهائي':'Supprimer définitivement', icon: Trash2, danger: true, onClick: ()=>handleDelete(menuEleve.id) },
+        ] : []} />
 
       {/* ─── Modale recap creation eleve (equivalent ModaleEleveCree desktop) ─── */}
       {/* UX (mai 2026) : sur mobile aussi, donner le temps au surveillant

@@ -81,6 +81,7 @@ import EnvBanner from './components/EnvBanner';
 import ImpersonationBanner from './components/ImpersonationBanner';
 import ImpersonationToastListener from './components/ImpersonationToastListener';
 import GlobalSearch from './components/GlobalSearch';
+import { Home as NavHome, Users as NavUsers, CheckCircle2 as NavCheck, LayoutGrid as NavGrid, Search as NavSearch } from 'lucide-react';
 import { invalidateAll } from './lib/cache';
 import { cacheClearAll } from './lib/offlineCache';
 import { installAutoSync } from './lib/offlineQueue';
@@ -1033,21 +1034,12 @@ function App() {
 
         {isMobile && user.role !== 'parent' && !kioskMode && (
           <nav className="bottom-nav" dir={getDir(lang)}>
-            {(user.role === 'surveillant' ? [
-              { key: 'dashboard',         icon: '🏠', label: lang==='ar'?'الرئيسية':'Accueil' },
-              { key: 'eleves_mobile',     icon: '👥', label: lang==='ar'?'الطلاب':'Élèves' },
-              { key: 'validation_rapide', icon: '⚡', label: lang==='ar'?'استظهار':'Valider' },
-              { key: 'dashboard_plus',    icon: '⚙️', label: lang==='ar'?'المزيد':'Plus' },
-            ] : user.role === 'instituteur' ? [
-              { key: 'dashboard',         icon: '🏠', label: lang==='ar'?'الرئيسية':'Accueil' },
-              { key: 'eleves_mobile',     icon: '👥', label: lang==='ar'?'الطلاب':'Élèves' },
-              { key: 'validation_rapide', icon: '⚡', label: lang==='ar'?'استظهار':'Valider' },
-              { key: 'dashboard_plus',    icon: '⚙️', label: lang==='ar'?'المزيد':'Plus' },
-            ] : [
-              { key: 'dashboard',         icon: '🏠', label: lang==='ar'?'الرئيسية':'Accueil' },
-              { key: 'eleves_mobile',     icon: '👥', label: lang==='ar'?'الطلاب':'Élèves' },
-              { key: 'validation_rapide', icon: '⚡', label: lang==='ar'?'استظهار':'Valider' },
-              { key: 'dashboard_plus',    icon: '⚙️', label: lang==='ar'?'المزيد':'Plus' },
+            {/* Charte mobile (oct 2026) : memes 4 entrees pour tous les roles, icones au trait */}
+            {([
+              { key: 'dashboard',         icon: NavHome,  label: lang==='ar'?'الرئيسية':'Accueil' },
+              { key: 'eleves_mobile',     icon: NavUsers, label: lang==='ar'?'الطلاب':'Élèves' },
+              { key: 'validation_rapide', icon: NavCheck, label: lang==='ar'?'استظهار':'Valider' },
+              { key: 'dashboard_plus',    icon: NavGrid,  label: lang==='ar'?'المزيد':'Plus' },
             ]).map(tab => {
               // 'dashboard_plus' = raccourci vers la page Modules (page de navigation dediee)
               // (Phase 2 : Dashboard pure synthese, navigation des modules dans une page separee)
@@ -1059,7 +1051,7 @@ function App() {
                 <div key={tab.key}
                   className={`bottom-nav-item ${isActive ? 'active' : ''}`}
                   onClick={() => navigateRoot(targetKey)}>
-                  <span className="bottom-nav-icon">{tab.icon}</span>
+                  <span className="bottom-nav-icon"><tab.icon size={22} strokeWidth={isActive ? 2.4 : 1.9} /></span>
                   <span className="bottom-nav-label">{tab.label}</span>
                 </div>
               );
@@ -1079,12 +1071,12 @@ function App() {
             style={{
               position:'fixed', bottom:80, right:14, zIndex:90,
               width:52, height:52, borderRadius:26,
-              background:'linear-gradient(135deg,#085041,#1D9E75)',
+              background:'#0B5A45',
               border:'none', color:'#fff', fontSize:22,
               cursor:'pointer', boxShadow:'0 6px 16px rgba(8,80,65,0.40)',
               display:'flex', alignItems:'center', justifyContent:'center',
             }}>
-            🔍
+            <NavSearch size={22} strokeWidth={2.2} />
           </button>
         )}
       </div>

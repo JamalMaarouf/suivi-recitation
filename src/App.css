@@ -387,11 +387,14 @@ tr.inactive td.name-cell { color: #A32D2D; font-weight: 500; }
   transition: all 0.15s;
 }
 
-.bottom-nav-item.active .bottom-nav-icon { transform: scale(1.2); }
-.bottom-nav-item.active .bottom-nav-label { color: #1D9E75; font-weight: 500; }
+/* Charte mobile (oct 2026) : icones au trait, actif = couleur de marque (plus d'agrandissement) */
+.bottom-nav-item { color: #5C6B64; position: relative; }
+.bottom-nav-item.active { color: #0B5A45; }
+.bottom-nav-item.active::before { content: ''; position: absolute; top: 0; left: 30%; right: 30%; height: 3px; border-radius: 0 0 3px 3px; background: #0B5A45; }
+.bottom-nav-item.active .bottom-nav-label { color: #0B5A45; font-weight: 700; }
 
-.bottom-nav-icon { font-size: 20px; }
-.bottom-nav-label { font-size: 10px; color: #888; }
+.bottom-nav-icon { display: flex; align-items: center; justify-content: center; height: 24px; }
+.bottom-nav-label { font-size: 11px; color: inherit; }
 
 /* Mobile cards */
 @media (max-width: 767px) {
@@ -686,7 +689,6 @@ button, .nav-btn, .back-link, .bottom-nav-item {
     padding-bottom: max(8px, env(safe-area-inset-bottom));
   }
   
-  .bottom-nav-icon { font-size: 22px; }
   .bottom-nav-label { font-size: 11px; }
   
   /* Alertes mobile */
