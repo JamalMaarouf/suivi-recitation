@@ -1435,7 +1435,7 @@ ${(passages||[]).length > 0 ? `
               if (estSourateEleve) {
                 return (
                   <div style={{fontSize:26, fontWeight:800, color:sl2.color}}>
-                    {totalPtsSourates.toLocaleString()} pts
+                    {(ptsRecapGlob.total||0).toLocaleString()} pts
                   </div>
                 );
               }

@@ -47,6 +47,7 @@ export default function OngletCoursEleve({ eleve, lang, isMobile }) {
       supabase.from('cours')
         .select('id, nom_ar, nom_fr, nom_en, categorie, annee_estimee, ordre')
         .in('id', coursIds)
+        .eq('ecole_id', eleve.ecole_id) // securite (oct 2026) : cours de l'ecole de l'eleve uniquement
         .eq('actif', true)
         .order('ordre', { ascending: true }),
       supabase.from('cours_axes')

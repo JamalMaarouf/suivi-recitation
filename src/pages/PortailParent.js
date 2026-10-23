@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useToast } from '../lib/toast';
 import { supabase } from '../lib/supabase';
-import { getInitiales, joursDepuis, scoreLabel, formatDateCourt , loadBareme, BAREME_DEFAUT, getSensForEleve, calcEtatEleve } from '../lib/helpers';
+import { getInitiales, joursDepuis, loadBareme, BAREME_DEFAUT, getSensForEleve, calcPointsPeriode, ptsValidation } from '../lib/helpers';
 import { swr } from '../lib/offlineCache';
 import { getSouratesForNiveau } from '../lib/sourates';
 import { t } from '../lib/i18n';
@@ -31,6 +31,9 @@ export default function PortailParent({ parent, navigate, goBack, lang='fr', onL
   const [recitations, setRecitations] = useState([]);
   const [objectifs, setObjectifs] = useState([]);
   const [cotisations, setCotisations] = useState([]);
+  // oct 2026 : sources de points manquantes (examens via points_eleves, certificats)
+  const [pointsEvenements, setPointsEvenements] = useState([]);
+  const [certificats, setCertificats] = useState([]);
   const [souratesDB, setSouratesDB] = useState([]);
   const [niveauxEcole, setNiveauxEcole] = useState([]);
   const [ecoleConfig, setEcoleConfig] = useState(null);
@@ -60,7 +63,7 @@ export default function PortailParent({ parent, navigate, goBack, lang='fr', onL
   const [showPrefsNotifs, setShowPrefsNotifs] = useState(false);
   const [prefsNotifs, setPrefsNotifs] = useState(null);
   const [savingPrefs, setSavingPrefs] = useState(false);
-  const [emailParent, setEmailParent] = useState(parent.email || '');
+  const [emailParent, setEmailParent] = useState(parent?.email || '');
   const [savingEmail, setSavingEmail] = useState(false);
   const [oldPwd, setOldPwd] = useState('');
   const [newPwd, setNewPwd] = useState('');
@@ -238,7 +241,8 @@ export default function PortailParent({ parent, navigate, goBack, lang='fr', onL
   }, [selectedEnfant?.id]);
 
   const loadData = async () => {
-    loadBareme(supabase, parent.ecole_id).then(b=>setBareme({...BAREME_DEFAUT,...b.unites}));
+    // oct 2026 : bareme complet (unites + ensembles + examens + jalons), plus seulement les unites
+    loadBareme(supabase, parent.ecole_id).then(b=>setBareme(b));
     setLoading(true);
     const ecoleId = parent.ecole_id;
     const parentId = parent.id;
@@ -251,7 +255,8 @@ export default function PortailParent({ parent, navigate, goBack, lang='fr', onL
         () => supabase.from('parent_eleve').select('eleve_id, eleve:eleve_id(*)').eq('parent_id', parentId),
         (data, meta) => {
           if (data) {
-            elevesData = (data||[]).map(l => l.eleve).filter(Boolean);
+            // securite (oct 2026) : uniquement les enfants de l'ecole du parent
+            elevesData = (data||[]).map(l => l.eleve).filter(e => e && (!parent.ecole_id || !e.ecole_id || e.ecole_id === parent.ecole_id));
             setEnfants(elevesData);
             if (meta?.fromCache && meta?.age_ms) setCacheAge(meta.age_ms);
             else if (!meta?.fromCache) setCacheAge(null);
@@ -276,9 +281,21 @@ export default function PortailParent({ parent, navigate, goBack, lang='fr', onL
             (data) => { if (data) setRecitations(data); }
           ).catch(()=>{}),
           swr(
-            `pp_objectifs`,
-            () => supabase.from('objectifs_globaux').select('*').limit(100),
+            `pp_objectifs_${ecoleId}`,
+            // securite (oct 2026) : objectifs limites a l'ecole (avant : toutes ecoles confondues)
+            () => supabase.from('objectifs_globaux').select('*').eq('ecole_id', ecoleId).limit(100),
             (data) => { if (data) setObjectifs(data); }
+          ).catch(()=>{}),
+          swr(
+            `pp_points_eleves_${idsKey}`,
+            () => supabase.from('points_eleves').select('*').in('eleve_id', ids),
+            (data) => { if (data) setPointsEvenements(data); }
+          ).catch(()=>{}),
+          swr(
+            `pp_certificats_${idsKey}`,
+            () => supabase.from('certificats_eleves').select('*').in('eleve_id', ids),
+            // meme mapping que la fiche eleve (date_obtention = date_emission)
+            (data) => { if (data) setCertificats(data.map(c => ({ ...c, date_obtention: c.date_emission }))); }
           ).catch(()=>{}),
           swr(
             `pp_cotisations_${idsKey}`,
@@ -325,7 +342,6 @@ export default function PortailParent({ parent, navigate, goBack, lang='fr', onL
 
   const isSourate = IS_SOURATE(eleve?.code_niveau||'');
   const nc = NIVEAU_COLORS[eleve?.code_niveau||'1']||'#888';
-  const sl = scoreLabel(0);
 
   // Stats pour l'élève sélectionné
   const vE = validations.filter(v=>v.eleve_id===eleve.id);
@@ -354,9 +370,13 @@ export default function PortailParent({ parent, navigate, goBack, lang='fr', onL
 
   const tomon = vE.filter(v=>v.type_validation==='tomon').reduce((s,v)=>s+v.nombre_tomon,0);
   const hizb = vE.filter(v=>v.type_validation==='hizb_complet').length;
-  const souratesCompletes = rE.filter(r=>r.type_recitation==='complete').length;
-  const sequences = rE.filter(r=>r.type_recitation==='sequence').length;
-  const pts = tomon*(bareme.tomon || 0)+hizb*(bareme.hizb_complet || 0)+rE.reduce((s,r)=>s+(r.points||0),0);
+  const souratesCompletes = rE.filter(r=>r.type_recitation==='complete' && !r.is_muraja).length;
+  const sequences = rE.filter(r=>r.type_recitation==='sequence' && !r.is_muraja).length;
+  // oct 2026 : meme calcul que la liste des notes et la fiche eleve ('total depuis le debut du suivi') :
+  // tomon, hizb, muraja, ensembles, sourates, examens, certificats (avant : tomon + hizb + sourates seulement)
+  const ptsEvtE = pointsEvenements.filter(p=>p.eleve_id===eleve.id);
+  const certE = certificats.filter(c=>c.eleve_id===eleve.id);
+  const pts = calcPointsPeriode(vE, new Date('2000-01-01'), new Date(), bareme, ptsEvtE, rE, certE).total;
 
   // Dernière activité
   const allActivity = [...vE,...rE].sort((a,b)=>new Date(b.date_validation)-new Date(a.date_validation));
@@ -497,7 +517,7 @@ export default function PortailParent({ parent, navigate, goBack, lang='fr', onL
                 <span style={{color:'#E24B4A'}}>←</span>
               </div>
             )}
-            {onglet==='progression' && pts && (
+            {onglet==='progression' && (
               <div>
                 <div style={{display:'grid',gridTemplateColumns:'repeat(2,1fr)',gap:10,marginBottom:12}}>
                   {[
@@ -520,7 +540,8 @@ export default function PortailParent({ parent, navigate, goBack, lang='fr', onL
                 <div style={{fontSize:13,fontWeight:700,color:'#888',marginBottom:8}}>
                   {lang==='ar'?'آخر الاستظهارات':'Dernières récitations'}
                 </div>
-                {validations.slice(0,20).map(v=>(
+                {/* oct 2026 : uniquement l'enfant selectionne (avant : tous les enfants melanges) */}
+                {vE.slice(0,20).map(v=>(
                   <div key={v.id} style={{background:'#fff',borderRadius:12,padding:'12px 14px',marginBottom:8,
                     border:'0.5px solid #e0e0d8',display:'flex',alignItems:'center',gap:12}}>
                     <div style={{width:8,height:8,borderRadius:'50%',background:'#1D9E75',flexShrink:0}}/>
@@ -532,10 +553,10 @@ export default function PortailParent({ parent, navigate, goBack, lang='fr', onL
                       </div>
                       <div style={{fontSize:11,color:'#888'}}>{new Date(v.date_validation).toLocaleDateString(lang==='ar'?'ar-MA':'fr-FR')}</div>
                     </div>
-                    <span style={{fontSize:13,fontWeight:700,color:'#1D9E75'}}>+{v.type_validation==='hizb_complet'?(bareme.hizb_complet || 0):v.nombre_tomon*(bareme.tomon || 0)} pts</span>
+                    <span style={{fontSize:13,fontWeight:700,color:'#1D9E75'}}>+{ptsValidation(v, bareme)} pts</span>
                   </div>
                 ))}
-                {validations.length===0&&<div style={{textAlign:'center',color:'#aaa',padding:'2rem'}}>Aucune récitation</div>}
+                {vE.length===0&&<div style={{textAlign:'center',color:'#aaa',padding:'2rem'}}>Aucune récitation</div>}
               </div>
             )}
             {/* Cotisations */}
@@ -544,7 +565,7 @@ export default function PortailParent({ parent, navigate, goBack, lang='fr', onL
 
                 {cotEAvecManquants.map(cot=>{
                   const STATUTS={paye:{ic:'✅',color:'#1D9E75',bg:'#E1F5EE',lbl:'Payé',lblAr:'مدفوع'},partiel:{ic:'⚠️',color:'#EF9F27',bg:'#FAEEDA',lbl:'Partiel',lblAr:'جزئي'},non_paye:{ic:'❌',color:'#E24B4A',bg:'#FCEBEB',lbl:'Non payé',lblAr:'غير مدفوع'},exonere:{ic:'🎁',color:'#888',bg:'#f5f5f0',lbl:'Exonéré',lblAr:'معفى'}};
-                  const st=STATUTS[cot.statut]||STATUTS.paye;
+                  const st=STATUTS[cot.statut]||STATUTS.non_paye;
                   return(
                   <div key={cot.id} style={{background:st.bg,borderRadius:12,padding:'12px 14px',marginBottom:8,border:`1.5px solid ${st.color}30`,display:'flex',alignItems:'center',gap:12}}>
                     <span style={{fontSize:20}}>{st.ic}</span>
@@ -553,7 +574,7 @@ export default function PortailParent({ parent, navigate, goBack, lang='fr', onL
                       <div style={{fontSize:11,color:'#888',marginTop:2}}>{cot.date_paiement?new Date(cot.date_paiement).toLocaleDateString(lang==='ar'?'ar-MA':'fr-FR'):'—'}{cot.note?' · '+cot.note:''}</div>
                     </div>
                     <div style={{textAlign:'left'}}>
-                      <div style={{fontSize:15,fontWeight:800,color:st.color}}>{parseFloat(cot.montant||0).toLocaleString()} MAD</div>
+                      {!cot._virtuel && <div style={{fontSize:15,fontWeight:800,color:st.color}}>{parseFloat(cot.montant||0).toLocaleString()} MAD</div>}
                       <div style={{fontSize:10,padding:'2px 6px',borderRadius:8,background:st.color+'20',color:st.color,fontWeight:600,textAlign:'center',marginTop:2}}>{lang==='ar'?st.lblAr:st.lbl}</div>
                     </div>
                   </div>
@@ -1237,7 +1258,7 @@ export default function PortailParent({ parent, navigate, goBack, lang='fr', onL
               const souratesNiveau = getSouratesForNiveau(eleve.code_niveau);
               const total = souratesNiveau.length;
               const acq = parseInt(eleve.sourates_acquises)||0;
-              const pct = Math.round((acq+souratesCompletes)/total*100);
+              const pct = total ? Math.min(100, Math.round((acq+souratesCompletes)/total*100)) : 0;
               return(
                 <div>
                   <div style={{display:'flex',justifyContent:'space-between',fontSize:12,color:'#888',marginBottom:6}}>
@@ -1283,7 +1304,7 @@ export default function PortailParent({ parent, navigate, goBack, lang='fr', onL
             {allActivity.slice(0,6).map((item,i)=>{
               const isSR = !!item.type_recitation;
               const sourate = isSR ? souratesDB.find(s=>s.id===item.sourate_id) : null;
-              const pts2 = isSR?(item.points || 0):(item.type_validation==='hizb_complet'?(bareme.hizb_complet || 0):item.nombre_tomon*(bareme.tomon || 0));
+              const pts2 = isSR?(item.points || 0):ptsValidation(item, bareme);
               return(
                 <div key={i} style={{display:'flex',alignItems:'center',gap:10,padding:'8px 0',borderBottom:'0.5px solid #f0f0ec'}}>
                   <div style={{width:36,height:36,borderRadius:8,background:isSR?'#E1F5EE':'#E6F1FB',display:'flex',alignItems:'center',justifyContent:'center',fontSize:18,flexShrink:0}}>
@@ -1321,7 +1342,7 @@ export default function PortailParent({ parent, navigate, goBack, lang='fr', onL
                 {allActivity.map((item,i)=>{
                   const isSR = !!item.type_recitation;
                   const sourate = isSR ? souratesDB.find(s=>s.id===item.sourate_id) : null;
-                  const pts2 = isSR?(item.points || 0):(item.type_validation==='hizb_complet'?(bareme.hizb_complet || 0):item.nombre_tomon*(bareme.tomon || 0));
+                  const pts2 = isSR?(item.points || 0):ptsValidation(item, bareme);
                   return(
                     <tr key={i}>
                       <td style={{fontSize:11,color:'#888'}}>{new Date(item.date_validation).toLocaleDateString(lang==='ar'?'ar-MA':'fr-FR',{day:'2-digit',month:'short',year:'numeric'})}</td>
@@ -1350,7 +1371,7 @@ export default function PortailParent({ parent, navigate, goBack, lang='fr', onL
               else if (obj.metrique==='sourate') realise=souratesCompletes;
               else if (obj.metrique==='sequence') realise=sequences;
               else if (obj.metrique==='points') realise=pts;
-              const pct = Math.min(100, Math.round(realise/obj.valeur_cible*100));
+              const pct = Math.min(100, Math.round(realise/Math.max(obj.valeur_cible||0,1)*100));
               const color = pct>=100?'#1D9E75':pct>=60?'#EF9F27':'#E24B4A';
               const daysLeft = Math.max(0,Math.ceil((new Date(obj.date_fin)-now)/(1000*60*60*24)));
               return(
