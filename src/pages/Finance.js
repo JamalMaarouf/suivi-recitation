@@ -9,6 +9,8 @@ import PageHeader from '../components/PageHeader';
 import StatsCard from '../components/StatsCard';
 import MobileSkeletonList from '../components/MobileSkeletonList';
 import { usePullToRefresh, PullToRefreshIndicator } from '../lib/usePullToRefresh';
+import { MobileHeader, HeaderMenu, FilterChips, actionsExport } from '../components/ui';
+import { Wallet } from 'lucide-react';
 
 const CATEGORIES = [
   { val: 'salaire',     label: 'Salaires / Honoraires', labelAr: 'الرواتب',       icon: '👨‍🏫', color: '#534AB7' },
@@ -667,42 +669,36 @@ export default function Finance({ user, navigate, goBack, lang='fr', isMobile })
         onTouchStart={onTouchStart} onTouchMove={onTouchMove} onTouchEnd={onTouchEnd}>
         <PullToRefreshIndicator pullDistance={pullDistance} isRefreshing={isRefreshing} isThreshold={isThreshold} lang={lang} />
         {/* Sticky header */}
-        {/* Charte mobile lot 1 (oct 2026) : vert de marque (avant bleu marine), titre unique */}
-        <div style={{background:'linear-gradient(135deg,#085041,#1D9E75)',padding:'48px 16px 14px',position:'sticky',top:0,zIndex:100}}>
-          <div style={{display:'flex',alignItems:'center',gap:12,marginBottom:8}}>
-            <button onClick={()=>goBack?goBack():navigate('dashboard')}
-              style={{background:'rgba(255,255,255,0.22)',border:'1px solid rgba(255,255,255,0.25)',borderRadius:10,padding:'0',color:'#fff',fontSize:20,cursor:'pointer',flexShrink:0,width:44,height:44,display:'flex',alignItems:'center',justifyContent:'center'}}>←</button>
-            <div style={{flex:1,fontSize:16,fontWeight:800,color:'#fff'}}>💰 {lang==='ar'?'المالية':'Finance'}</div>
-          </div>
-          {/* Onglets scrollables */}
-          <div style={{display:'flex',gap:6,overflowX:'auto',scrollbarWidth:'none',paddingBottom:2}}>
-            {onglets.map(o=>(
-              <div key={o.key} onClick={()=>setOnglet(o.key)}
-                style={{padding:'7px 14px',borderRadius:20,fontSize:12,fontWeight:600,flexShrink:0,cursor:'pointer',
-                  background:onglet===o.key?'#fff':'rgba(255,255,255,0.18)',color:onglet===o.key?'#085041':'#fff'}}>
-                {o.icon} {lang==='ar'?o.labelAr:o.label}
-              </div>
-            ))}
-          </div>
-          {/* F4 (oct 2026) : periode + exports, comme sur PC. Avant : les totaux mobiles etaient
-              bornes a une periode (3 derniers mois par defaut) invisible et non modifiable. */}
-          <div style={{display:'flex',gap:6,alignItems:'center',marginTop:10,flexWrap:'wrap'}}>
-            <input type="date" value={dateDebut} onChange={e=>setDateDebut(e.target.value)}
-              style={{flex:1,minWidth:120,padding:'7px 8px',borderRadius:8,border:'none',fontSize:12,fontFamily:'inherit'}}/>
-            <span style={{color:'#fff',fontSize:12}}>→</span>
-            <input type="date" value={dateFin} onChange={e=>setDateFin(e.target.value)}
-              style={{flex:1,minWidth:120,padding:'7px 8px',borderRadius:8,border:'none',fontSize:12,fontFamily:'inherit'}}/>
-            <ExportButtons
-              onPDF={exportPDF}
-              onExcel={
+        {/* Charte mobile lot 2 (oct 2026) : MobileHeader commun ; onglets + periode dans l'en-tete, exports dans le menu */}
+        <MobileHeader
+          title={lang==='ar'?'المالية':'Finance'}
+          icon={Wallet}
+          onBack={()=>goBack?goBack():navigate('dashboard')}
+          lang={lang}
+          actions={
+            <HeaderMenu lang={lang} actions={actionsExport({
+              onPDF: exportPDF,
+              onExcel:
                 onglet === 'cotisations' ? exportCotisationsExcel
                 : onglet === 'depenses'  ? exportDepensesExcel
                 : onglet === 'suivi'     ? exportSuiviExcel
-                : exportExcel
-              }
-              lang={lang} variant="inline" compact isMobile />
+                : exportExcel,
+              lang,
+            })} />
+          }>
+          {/* Onglets scrollables */}
+          <FilterChips onBrand value={onglet} onChange={setOnglet}
+            options={onglets.map(o=>({ value:o.key, label:`${o.icon} ${lang==='ar'?o.labelAr:o.label}` }))} />
+          {/* F4 (oct 2026) : periode, comme sur PC. Avant : les totaux mobiles etaient
+              bornes a une periode (3 derniers mois par defaut) invisible et non modifiable. */}
+          <div style={{display:'flex',gap:6,alignItems:'center'}}>
+            <input type="date" value={dateDebut} onChange={e=>setDateDebut(e.target.value)}
+              style={{flex:1,minWidth:0,height:40,padding:'0 8px',borderRadius:8,border:'none',background:'#fff',color:'#16241E',fontSize:13,fontFamily:'inherit'}}/>
+            <span style={{color:'#fff',fontSize:12}}>→</span>
+            <input type="date" value={dateFin} onChange={e=>setDateFin(e.target.value)}
+              style={{flex:1,minWidth:0,height:40,padding:'0 8px',borderRadius:8,border:'none',background:'#fff',color:'#16241E',fontSize:13,fontFamily:'inherit'}}/>
           </div>
-        </div>
+        </MobileHeader>
 
         {loading ? <MobileSkeletonList type="card-stat" count={4} padding="12px" /> : (
           <div style={{padding:'12px'}}>

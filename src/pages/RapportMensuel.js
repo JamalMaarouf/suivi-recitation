@@ -8,6 +8,8 @@ import ExportButtons from '../components/ExportButtons';
 import PageHeader from '../components/PageHeader';
 import StatsCard from '../components/StatsCard';
 import MobileSkeletonList from '../components/MobileSkeletonList';
+import { MobileHeader, HeaderMenu, actionsExport } from '../components/ui';
+import { FileBarChart } from 'lucide-react';
 
 const MOIS_FR = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
 const MOIS_AR = ['يناير','فبراير','مارس','أبريل','مايو','يونيو','يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر'];
@@ -249,18 +251,13 @@ export default function RapportMensuel({ user, navigate, goBack, lang='fr', isMo
     <div style={{paddingBottom:isMobile?80:0, background:isMobile?'#f5f5f0':'transparent', minHeight:isMobile?'100vh':'auto'}}>
       {/* Header mobile */}
       {isMobile ? (
-        <div style={{background:'linear-gradient(135deg,#085041,#1D9E75)',padding:'48px 16px 14px',position:'sticky',top:0,zIndex:100,marginBottom:12}}>
-          <div style={{display:'flex',alignItems:'center',gap:12,marginBottom:10}}>
-            <button onClick={()=>goBack?goBack():navigate('dashboard')}
-              style={{background:'rgba(255,255,255,0.22)',border:'1px solid rgba(255,255,255,0.25)',borderRadius:10,padding:'8px 12px',color:'#fff',fontSize:16,cursor:'pointer'}}>←</button>
-            <div style={{flex:1}}>
-              <div style={{fontSize:17,fontWeight:800,color:'#fff'}}>📊 {lang==='ar'?'التقرير الشهري':'Rapport mensuel'}</div>
-            </div>
-            <button onClick={genererRapportPDF} disabled={generating||loading}
-              style={{background:'rgba(255,255,255,0.2)',border:'1px solid rgba(255,255,255,0.3)',borderRadius:10,padding:'7px 12px',color:'#fff',fontSize:11,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
-              {generating?'⏳':'📄 PDF'}
-            </button>
-          </div>
+        <>
+        <MobileHeader
+          title={lang==='ar'?'التقرير الشهري':'Rapport mensuel'}
+          icon={FileBarChart}
+          onBack={()=>goBack?goBack():navigate('dashboard')}
+          lang={lang}
+          actions={<HeaderMenu lang={lang} actions={actionsExport({ onPDF: genererRapportPDF, lang, disabled: generating||loading })} />}>
           {/* Navigation mois */}
           <div style={{display:'flex',alignItems:'center',justifyContent:'center',gap:12}}>
             <button onClick={prevMois}
@@ -275,7 +272,9 @@ export default function RapportMensuel({ user, navigate, goBack, lang='fr', isMo
               style={{width:44,height:44,background:'rgba(255,255,255,0.22)',border:'1px solid rgba(255,255,255,0.25)',borderRadius:8,color:'#fff',cursor:'pointer',fontSize:20,
                 display:'flex',alignItems:'center',justifyContent:'center'}}>›</button>
           </div>
-        </div>
+        </MobileHeader>
+        <div style={{height:12}}/>
+        </>
       ) : (
       <PageHeader
         title="Rapport mensuel"

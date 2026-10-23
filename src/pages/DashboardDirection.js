@@ -11,6 +11,8 @@ import PeriodeSelectorHybride from '../components/PeriodeSelectorHybride';
 import PageHeader from '../components/PageHeader';
 import StatsCard from '../components/StatsCard';
 import { usePullToRefresh, PullToRefreshIndicator } from '../lib/usePullToRefresh';
+import { MobileHeader, HeaderMenu, actionsExport } from '../components/ui';
+import { LayoutDashboard } from 'lucide-react';
 
 // ─── Couleurs par niveau ───────────────────────────────────────────────────
 const NC = { '5B':'#534AB7','5A':'#378ADD','2M':'#1D9E75','2':'#EF9F27','1':'#E24B4A' };
@@ -685,17 +687,18 @@ export default function DashboardDirection({ user, navigate, goBack, lang='fr', 
           lang={lang}
         />
         {/* Header */}
-        <div style={{background:'linear-gradient(135deg,#085041,#1D9E75)',padding:'48px 16px 16px',position:'sticky',top:0,zIndex:100}}>
-          <div style={{display:'flex',alignItems:'center',gap:12}}>
-            <button onClick={()=>goBack?goBack():navigate('dashboard')}
-              style={{background:'rgba(255,255,255,0.22)',border:'1px solid rgba(255,255,255,0.25)',borderRadius:10,padding:'0',color:'#fff',fontSize:20,cursor:'pointer',flexShrink:0,width:44,height:44,display:'flex',alignItems:'center',justifyContent:'center'}}>←</button>
-            <div style={{flex:1}}>
-              <div style={{fontSize:17,fontWeight:800,color:'#fff'}}>📊 {isAr?'لوحة القيادة':'Tableau de bord direction'}</div>
-              <div style={{fontSize:11,color:'rgba(255,255,255,0.75)'}}>{ecole?.nom||''}</div>
-            </div>
-          </div>
+        <MobileHeader
+          title={isAr?'لوحة القيادة':'Tableau de bord direction'}
+          subtitle={ecole?.nom||''}
+          icon={LayoutDashboard}
+          onBack={()=>goBack?goBack():navigate('dashboard')}
+          lang={lang}
+          actions={
+            /* Export mobile */
+            <HeaderMenu lang={lang} actions={actionsExport({ onPDF: handleExportPDF, onExcel: handleExportExcel, lang })} />
+          }>
           {/* Sélecteur période - Etape 14 v2 - Composant hybride */}
-          <div style={{marginTop:12}}>
+          <div>
             <PeriodeSelectorHybride
               boutonsRapides={boutonsRapides}
               dropdownItems={dropdownItems}
@@ -711,22 +714,11 @@ export default function DashboardDirection({ user, navigate, goBack, lang='fr', 
             />
           </div>
           {periodesBDD.length === 0 && !anneeActive && (
-            <div style={{marginTop:8,padding:'6px 10px',background:'rgba(255,180,80,0.15)',border:'1px solid rgba(255,180,80,0.3)',borderRadius:8,fontSize:10,color:'rgba(255,255,255,0.9)'}}>
+            <div style={{padding:'6px 10px',background:'rgba(255,180,80,0.15)',border:'1px solid rgba(255,180,80,0.3)',borderRadius:8,fontSize:10,color:'rgba(255,255,255,0.9)'}}>
               💡 {isAr?'لم تقم بإعداد سنة دراسية. الفترات (T1، S1...) في الإدارة > الفترات':'Pas d\'année scolaire active. Configurez vos périodes dans Gestion → Périodes'}
             </div>
           )}
-          {/* Export mobile */}
-          <div style={{display:'flex',gap:6,marginTop:10}}>
-            <button onClick={handleExportPDF}
-              style={{flex:1,background:'rgba(255,255,255,0.25)',border:'1px solid rgba(255,255,255,0.3)',borderRadius:10,padding:'7px 11px',color:'#fff',fontSize:12,fontWeight:600,cursor:'pointer',whiteSpace:'nowrap',fontFamily:'inherit'}}>
-              📄 PDF
-            </button>
-            <button onClick={handleExportExcel}
-              style={{flex:1,background:'rgba(255,255,255,0.25)',border:'1px solid rgba(255,255,255,0.3)',borderRadius:10,padding:'7px 11px',color:'#fff',fontSize:12,fontWeight:600,cursor:'pointer',whiteSpace:'nowrap',fontFamily:'inherit'}}>
-              📊 Excel
-            </button>
-          </div>
-        </div>
+        </MobileHeader>
 
         <div style={{padding:'12px'}}>
           {/* Alertes */}

@@ -10,6 +10,8 @@ import { loadAnneeActiveAvecPeriodes, formatPeriodeCourte } from '../lib/helpers
 import ExportButtons from '../components/ExportButtons';
 import MobileSkeletonList from '../components/MobileSkeletonList';
 import { usePullToRefresh, PullToRefreshIndicator } from '../lib/usePullToRefresh';
+import { MobileHeader, HeaderIconButton, HeaderMenu, actionsExport } from '../components/ui';
+import { BookOpen, Plus, RefreshCw } from 'lucide-react';
 
 const getNiveauColor = (code, niveaux=[]) => niveaux.find(n=>n.code===code)?.couleur || {'5B':'#534AB7','5A':'#378ADD','2M':'#1D9E75','2':'#EF9F27','1':'#E24B4A'}[code] || '#888';
 
@@ -310,19 +312,19 @@ export default function MurajaDashboard({ user, navigate, goBack, lang='fr', isM
         />
       )}
       {isMobile ? (
-        <div style={{background:'linear-gradient(135deg,#085041,#1D9E75)',padding:'48px 16px 16px',position:'sticky',top:0,zIndex:100}}>
-          <div style={{display:'flex',alignItems:'center',gap:12,marginBottom:12}}>
-            <button onClick={()=>goBack?goBack():navigate('dashboard')}
-              style={{background:'rgba(255,255,255,0.22)',border:'1px solid rgba(255,255,255,0.25)',borderRadius:10,padding:'0',color:'#fff',fontSize:20,cursor:'pointer',flexShrink:0,width:44,height:44,display:'flex',alignItems:'center',justifyContent:'center'}}></button>
-            <div style={{flex:1}}>
-              <div style={{fontSize:17,fontWeight:800,color:'#fff'}}>📖 {lang==='ar'?'المراجعة الجماعية':"Muraja'a"}</div>
-              <div style={{fontSize:11,color:'rgba(255,255,255,0.75)'}}>{lang==='ar'?'تتبع المراجعات الجماعية':'Suivi des révisions collectives'}</div>
-            </div>
-            <button onClick={()=>navigate('muraja')}
-              style={{background:'rgba(255,255,255,0.25)',border:'1px solid rgba(255,255,255,0.3)',borderRadius:10,padding:'8px 14px',color:'#fff',fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'inherit',flexShrink:0,whiteSpace:'nowrap'}}>
-              + {lang==='ar'?'جديد':'Nouveau'}
-            </button>
-          </div>
+        <MobileHeader
+          title={lang==='ar'?'المراجعة الجماعية':"Muraja'a"}
+          subtitle={lang==='ar'?'تتبع المراجعات الجماعية':'Suivi des révisions collectives'}
+          icon={BookOpen}
+          onBack={()=>goBack?goBack():navigate('dashboard')}
+          lang={lang}
+          actions={<>
+            <HeaderIconButton icon={Plus} onClick={()=>navigate('muraja')} label={lang==='ar'?'جديد':'Nouveau'} />
+            {/* Export mobile */}
+            {sessionList.length > 0 && (
+              <HeaderMenu lang={lang} actions={actionsExport({ onPDF: handleExportPDF, onExcel: handleExportExcel, lang })} />
+            )}
+          </>}>
           {/* Filtres mobiles */}
           <div style={{display:'flex',gap:6}}>
             <select value={filterNiveau} onChange={e=>setFilterNiveau(e.target.value)}
@@ -346,22 +348,9 @@ export default function MurajaDashboard({ user, navigate, goBack, lang='fr', isM
                 </optgroup>
               )}
             </select>
-            <button onClick={loadData} style={{padding:'8px 12px',background:'rgba(255,255,255,0.2)',color:'#fff',border:'none',borderRadius:10,cursor:'pointer',flexShrink:0,fontSize:14}}>🔄</button>
+            <HeaderIconButton icon={RefreshCw} onClick={loadData} label={lang==='ar'?'تحديث':'Actualiser'} />
           </div>
-          {/* Export mobile */}
-          {sessionList.length > 0 && (
-            <div style={{display:'flex',gap:6,marginTop:8}}>
-              <button onClick={handleExportPDF}
-                style={{flex:1,background:'rgba(255,255,255,0.25)',border:'1px solid rgba(255,255,255,0.3)',borderRadius:10,padding:'7px 11px',color:'#fff',fontSize:12,fontWeight:600,cursor:'pointer',whiteSpace:'nowrap',fontFamily:'inherit'}}>
-                📄 PDF
-              </button>
-              <button onClick={handleExportExcel}
-                style={{flex:1,background:'rgba(255,255,255,0.25)',border:'1px solid rgba(255,255,255,0.3)',borderRadius:10,padding:'7px 11px',color:'#fff',fontSize:12,fontWeight:600,cursor:'pointer',whiteSpace:'nowrap',fontFamily:'inherit'}}>
-                📊 Excel
-              </button>
-            </div>
-          )}
-        </div>
+        </MobileHeader>
       ) : (
       <>
       {/* Header PC */}

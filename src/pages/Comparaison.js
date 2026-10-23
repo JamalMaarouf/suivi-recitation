@@ -4,6 +4,8 @@ import { calcEtatEleve, getInitiales, scoreLabel, formatDateCourt, niveauTraduit
 import { t } from '../lib/i18n';
 import { fetchAll } from '../lib/fetchAll';
 import MobileSkeletonList from '../components/MobileSkeletonList';
+import { MobileHeader } from '../components/ui';
+import { GitCompare } from 'lucide-react';
 
 const PALETTE = ['#1D9E75','#378ADD','#EF9F27','#E24B4A','#534AB7','#D85A30'];
 
@@ -94,16 +96,16 @@ export default function Comparaison({ navigate, goBack, lang='fr', isMobile, use
   return (
     <div style={{paddingBottom:isMobile?80:0, background:isMobile?'#f5f5f0':'transparent', minHeight:isMobile?'100vh':'auto'}}>
       {isMobile ? (
-        <div style={{background:'linear-gradient(135deg,#085041,#1D9E75)',padding:'48px 16px 16px',marginBottom:12,position:'sticky',top:0,zIndex:100}}>
-          <div style={{display:'flex',alignItems:'center',gap:12}}>
-            <button onClick={()=>goBack?goBack():navigate('dashboard')}
-              style={{background:'rgba(255,255,255,0.22)',border:'1px solid rgba(255,255,255,0.25)',borderRadius:10,padding:'0',color:'#fff',fontSize:20,cursor:'pointer',flexShrink:0,width:44,height:44,display:'flex',alignItems:'center',justifyContent:'center'}}>←</button>
-            <div style={{flex:1}}>
-              <div style={{fontSize:17,fontWeight:800,color:'#fff'}}>📊 {lang==='ar'?'مقارنة الطلاب':'Comparer'}</div>
-              <div style={{fontSize:11,color:'rgba(255,255,255,0.75)'}}>{lang==='ar'?'اختر حتى 6 طلاب':"Sélectionnez jusqu'à 6 élèves"}</div>
-            </div>
-          </div>
-        </div>
+        <>
+        <MobileHeader
+          title={lang==='ar'?'مقارنة الطلاب':'Comparer'}
+          subtitle={lang==='ar'?'اختر حتى 6 طلاب':"Sélectionnez jusqu'à 6 élèves"}
+          icon={GitCompare}
+          onBack={()=>goBack?goBack():navigate('dashboard')}
+          lang={lang}
+        />
+        <div style={{height:12}}/>
+        </>
       ) : (
         <div>
           <button onClick={()=>goBack?goBack():navigate('dashboard')}

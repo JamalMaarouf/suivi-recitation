@@ -10,6 +10,8 @@ import { fetchAll } from '../lib/fetchAll';
 import ExportButtons from '../components/ExportButtons';
 import PageHeader from '../components/PageHeader';
 import { usePullToRefresh, PullToRefreshIndicator } from '../lib/usePullToRefresh';
+import { MobileHeader, HeaderMenu, actionsExport } from '../components/ui';
+import { Star } from 'lucide-react';
 
 export default function ListeNotes({ user, navigate, goBack, lang='fr', isMobile }) {
   const { toast } = useToast();
@@ -262,26 +264,22 @@ export default function ListeNotes({ user, navigate, goBack, lang='fr', isMobile
         />
       )}
       {isMobile ? (
-        <div style={{background:'linear-gradient(135deg,#085041,#1D9E75)',padding:'48px 16px 16px',marginBottom:12,position:'sticky',top:0,zIndex:100}}>
-          <div style={{display:'flex',alignItems:'center',gap:12,marginBottom:4}}>
-            <button onClick={()=>goBack?goBack():navigate('dashboard')}
-              style={{background:'rgba(255,255,255,0.22)',border:'1px solid rgba(255,255,255,0.25)',borderRadius:10,padding:'0',color:'#fff',fontSize:20,cursor:'pointer',flexShrink:0,width:44,height:44,display:'flex',alignItems:'center',justifyContent:'center'}}>←</button>
-            <div style={{flex:1}}>
-              <div style={{fontSize:17,fontWeight:800,color:'#fff'}}>⭐ {lang==='ar'?'قائمة النقاط':'Notes & Points'}</div>
-              <div style={{fontSize:11,color:'rgba(255,255,255,0.75)'}}>{filtered.length} {lang==='ar'?'طالب':'élève(s)'}</div>
-            </div>
-            <div style={{display:'flex',gap:6,flexShrink:0}}>
-              <button onClick={handlePdfExport} disabled={genPdf||filtered.length===0}
-                style={{background:'rgba(255,255,255,0.25)',border:'1px solid rgba(255,255,255,0.3)',borderRadius:10,padding:'7px 11px',color:'#fff',fontSize:12,fontWeight:600,cursor:(genPdf||filtered.length===0)?'default':'pointer',opacity:(genPdf||filtered.length===0)?0.5:1,whiteSpace:'nowrap',fontFamily:'inherit'}}>
-                {genPdf ? '⏳' : '📄 PDF'}
-              </button>
-              <button onClick={handleExcelExport} disabled={filtered.length===0}
-                style={{background:'rgba(255,255,255,0.25)',border:'1px solid rgba(255,255,255,0.3)',borderRadius:10,padding:'7px 11px',color:'#fff',fontSize:12,fontWeight:600,cursor:filtered.length===0?'default':'pointer',opacity:filtered.length===0?0.5:1,whiteSpace:'nowrap',fontFamily:'inherit'}}>
-                📊 Excel
-              </button>
-            </div>
-          </div>
-        </div>
+        <>
+        <MobileHeader
+          title={lang==='ar'?'قائمة النقاط':'Notes & Points'}
+          subtitle={`${filtered.length} ${lang==='ar'?'طالب':'élève(s)'}`}
+          icon={Star}
+          onBack={()=>goBack?goBack():navigate('dashboard')}
+          lang={lang}
+          actions={
+            <HeaderMenu lang={lang} actions={[
+              ...actionsExport({ onPDF: handlePdfExport, lang, disabled: genPdf||filtered.length===0 }),
+              ...actionsExport({ onExcel: handleExcelExport, lang, disabled: filtered.length===0 }),
+            ]} />
+          }
+        />
+        <div style={{height:12}}/>
+        </>
       ) : (
       <PageHeader
         title="Liste des notes"

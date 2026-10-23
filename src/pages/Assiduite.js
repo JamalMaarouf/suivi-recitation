@@ -12,6 +12,8 @@ import { exportExcelSimple } from '../lib/excel';
 import { loadAnneeActiveAvecPeriodes, formatPeriodeCourte, detecterPeriodeEnCours } from '../lib/helpers';
 import PeriodeSelectorHybride from '../components/PeriodeSelectorHybride';
 import MobileSkeletonList from '../components/MobileSkeletonList';
+import { MobileHeader, HeaderIconButton } from '../components/ui';
+import { CalendarCheck, Lock, LockOpen } from 'lucide-react';
 
 // ══════════════════════════════════════════════════════════════════════
 // PAGE ASSIDUITÉ — الحضور
@@ -105,63 +107,33 @@ export default function Assiduite({ user, navigate, goBack, lang, isMobile, kios
   if (isMobile) {
     return (
       <div style={{ background: '#f5f5f0', minHeight: '100vh', paddingBottom: 80 }}>
-        <div style={{
-          background: 'linear-gradient(135deg, #085041, #1D9E75)',
-          color: '#fff',
-          padding: '48px 16px 14px',
-          position: 'sticky', top: 0, zIndex: 100,
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 10 }}>
-            {!kioskMode && (
-              <button onClick={() => goBack ? goBack() : navigate('dashboard')}
-                style={{
-                  width: 44, height: 44,
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  background: 'rgba(255,255,255,0.2)',
-                  border: 'none', borderRadius: 10, padding: 0, flexShrink: 0,
-                  color: '#fff', fontSize: 18, cursor: 'pointer',
-                }}>←</button>
+        <MobileHeader
+          title={<>
+            {lang === 'ar' ? 'الحضور' : 'Assiduité'}
+            {kioskMode && (
+              <span style={{
+                marginInlineStart: 8, fontSize: 10, fontWeight: 700,
+                background: 'rgba(255,255,255,0.25)', padding: '2px 8px',
+                borderRadius: 10, verticalAlign: 'middle',
+              }}>🔒 {lang === 'ar' ? 'كشك' : 'KIOSQUE'}</span>
             )}
-            <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 18, fontWeight: 700, lineHeight: 1.2 }}>
-                {lang === 'ar' ? '📅 الحضور' : '📅 Assiduité'}
-                {kioskMode && (
-                  <span style={{
-                    marginLeft: 8, fontSize: 10, fontWeight: 700,
-                    background: 'rgba(255,255,255,0.25)', padding: '2px 8px',
-                    borderRadius: 10, verticalAlign: 'middle',
-                  }}>🔒 {lang === 'ar' ? 'كشك' : 'KIOSQUE'}</span>
-                )}
-              </div>
-              <div style={{ fontSize: 12, opacity: 0.85, marginTop: 2 }}>
-                {lang === 'ar' ? 'تسجيل و متابعة حضور الطلاب' : 'Saisie et suivi des présences'}
-              </div>
-            </div>
-            {/* Bouton kiosque */}
-            {kioskMode ? (
-              <button onClick={() => setShowExitModal(true)}
-                style={{
-                  padding: '8px 12px',
-                  background: '#EF9F27', color: '#fff',
-                  border: 'none', borderRadius: 10,
-                  fontSize: 12, fontWeight: 700, cursor: 'pointer',
-                  flexShrink: 0, fontFamily: 'inherit',
-                }}>🔓</button>
+          </>}
+          subtitle={lang === 'ar' ? 'تسجيل و متابعة حضور الطلاب' : 'Saisie et suivi des présences'}
+          icon={CalendarCheck}
+          onBack={!kioskMode ? (() => goBack ? goBack() : navigate('dashboard')) : undefined}
+          lang={lang}
+          actions={
+            /* Bouton kiosque */
+            kioskMode ? (
+              <HeaderIconButton icon={LockOpen} active onClick={() => setShowExitModal(true)}
+                label={lang === 'ar' ? 'الخروج من وضع الكشك' : 'Quitter le mode kiosque'} />
             ) : (
-              <button onClick={() => askActivateKiosk()}
-                title={lang === 'ar' ? 'تفعيل وضع الكشك' : 'Activer mode kiosque'}
-                style={{
-                  padding: '8px 12px',
-                  background: 'rgba(255,255,255,0.2)', color: '#fff',
-                  border: '1px solid rgba(255,255,255,0.3)', borderRadius: 10,
-                  fontSize: 12, fontWeight: 700, cursor: 'pointer',
-                  flexShrink: 0, fontFamily: 'inherit',
-                }}>🔒</button>
-            )}
-          </div>
-
+              <HeaderIconButton icon={Lock} onClick={() => askActivateKiosk()}
+                label={lang === 'ar' ? 'تفعيل وضع الكشك' : 'Activer mode kiosque'} />
+            )
+          }>
           {/* Onglets */}
-          <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
+          <div style={{ display: 'flex', gap: 6 }}>
             {[
               { k: 'saisie', label: lang === 'ar' ? '✍️ تسجيل' : '✍️ Saisie' },
               { k: 'suivi',  label: lang === 'ar' ? '📊 متابعة' : '📊 Suivi' },
@@ -186,7 +158,7 @@ export default function Assiduite({ user, navigate, goBack, lang, isMobile, kios
               );
             })}
           </div>
-        </div>
+        </MobileHeader>
 
         {onglet === 'saisie' && (
           <>

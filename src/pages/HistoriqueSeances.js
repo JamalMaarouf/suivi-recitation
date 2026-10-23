@@ -10,6 +10,8 @@ import PageHeader from '../components/PageHeader';
 import StatsCard from '../components/StatsCard';
 import MobileSkeletonList from '../components/MobileSkeletonList';
 import { usePullToRefresh, PullToRefreshIndicator } from '../lib/usePullToRefresh';
+import { MobileHeader, HeaderMenu, actionsExport } from '../components/ui';
+import { History } from 'lucide-react';
 
 // FIX (oct 2026) : IS_SOURATE code en dur remplace par isSourateNiveauDyn(code, niveaux) (niveaux de l'ecole)
 const NIVEAU_COLORS = { '5B':'#534AB7','5A':'#378ADD','2M':'#1D9E75','2':'#EF9F27','1':'#E24B4A' };
@@ -490,15 +492,15 @@ export default function HistoriqueSeances({ user, navigate, goBack, lang='fr', i
         onTouchStart={onTouchStart} onTouchMove={onTouchMove} onTouchEnd={onTouchEnd}>
         <PullToRefreshIndicator pullDistance={pullDistance} isRefreshing={isRefreshing} isThreshold={isThreshold} lang={lang} />
         {/* Header sticky */}
-        <div style={{background:'linear-gradient(135deg,#085041,#1D9E75)',padding:'48px 16px 14px',position:'sticky',top:0,zIndex:100}}>
-          <div style={{display:'flex', alignItems:'center', gap:10, paddingBottom:10}}>
-            <button onClick={()=>goBack?goBack():navigate('dashboard')} style={{background:'rgba(255,255,255,0.22)',border:'1px solid rgba(255,255,255,0.25)',borderRadius:10,padding:'0',color:'#fff',fontSize:20,cursor:'pointer',flexShrink:0,width:44,height:44,display:'flex',alignItems:'center',justifyContent:'center'}}>←</button>
-            <div style={{flex:1,minWidth:0,fontSize:17,fontWeight:800,color:'#fff',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>
-              📊 {lang==='ar'?'السجل':'Historique'}
-            </div>
-            {/* F6 (oct 2026) : exports aussi sur mobile (avant : PC seulement) */}
-            <ExportButtons onPDF={exportPDF} onExcel={exportExcel} lang={lang} variant="inline" compact isMobile />
-          </div>
+        <MobileHeader
+          title={lang==='ar'?'السجل':'Historique'}
+          icon={History}
+          onBack={()=>goBack?goBack():navigate('dashboard')}
+          lang={lang}
+          actions={
+            /* F6 (oct 2026) : exports aussi sur mobile (avant : PC seulement) */
+            <HeaderMenu lang={lang} actions={actionsExport({ onPDF: exportPDF, onExcel: exportExcel, lang })} />
+          }>
 
           {/* Sélecteur période - Etape 14 v2 - Composant hybride */}
           {(() => {
@@ -531,7 +533,7 @@ export default function HistoriqueSeances({ user, navigate, goBack, lang='fr', i
               ].filter(item => !idsRapides.includes(item.key)) },
             ].filter(g => g.items.length > 0);
             return (
-              <div style={{padding:'0 12px 10px'}}>
+              <div>
                 <PeriodeSelectorHybride
                   boutonsRapides={boutonsRapides}
                   dropdownItems={dropdownItems}
@@ -550,7 +552,7 @@ export default function HistoriqueSeances({ user, navigate, goBack, lang='fr', i
           })()}
 
           {/* Filtres rapides dans le header */}
-          <div style={{padding:'0 12px 12px',display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
             <select value={filterNiveau} onChange={e=>setFilterNiveau(e.target.value)}
               style={{padding:'8px 10px',borderRadius:10,border:'none',fontSize:13,fontFamily:'inherit',background:'#fff',color:'#16241E'}}>
               <option value="tous" style={{color:'#333'}}>{lang==='ar'?'كل المستويات':'Tous niveaux'}</option>
@@ -572,7 +574,7 @@ export default function HistoriqueSeances({ user, navigate, goBack, lang='fr', i
               </select>
             )}
           </div>
-        </div>
+        </MobileHeader>
         {/* Recherche élève — EN DEHORS du header sticky pour éviter le clipping */}
         <div style={{background:'#fff',padding:'10px 12px',borderBottom:'0.5px solid #e0e0d8'}}>
           <input value={filterEleve==='tous'?searchFiltreEleve:

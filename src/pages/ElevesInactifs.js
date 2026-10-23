@@ -11,6 +11,8 @@ import PageHeader from '../components/PageHeader';
 import StatsBreakdown from '../components/StatsBreakdown';
 import MobileSkeletonList from '../components/MobileSkeletonList';
 import { usePullToRefresh, PullToRefreshIndicator } from '../lib/usePullToRefresh';
+import { MobileHeader, HeaderMenu, actionsExport } from '../components/ui';
+import { UserX } from 'lucide-react';
 
 // Couleurs niveaux — fallback sur des valeurs par défaut si niveaux pas encore chargés
 const NIVEAU_COLORS_FALLBACK = { '5B':'#534AB7','5A':'#378ADD','2M':'#1D9E75','2':'#EF9F27','1':'#E24B4A' };
@@ -210,28 +212,17 @@ export default function ElevesInactifs({ navigate, goBack, lang='fr', user, isMo
         />
       )}
       {isMobile ? (
-        <div style={{background:'linear-gradient(135deg,#085041,#1D9E75)',padding:'48px 16px 14px',position:'sticky',top:0,zIndex:100,marginBottom:12}}>
-          <div style={{display:'flex',alignItems:'center',gap:8}}>
-            <button onClick={()=>goBack?goBack():navigate('dashboard')}
-              style={{background:'rgba(255,255,255,0.22)',border:'1px solid rgba(255,255,255,0.25)',borderRadius:10,padding:'0',color:'#fff',fontSize:20,cursor:'pointer',flexShrink:0,width:44,height:44,display:'flex',alignItems:'center',justifyContent:'center'}} aria-label={lang==='ar'?'رجوع':'Retour'}>{lang==='ar'?'→':'←'}</button>
-            <div style={{flex:1,minWidth:0}}>
-              <div style={{fontSize:16,fontWeight:800,color:'#fff'}}>🚨 {lang==='ar'?'الطلاب غير النشطين':'Élèves inactifs'}</div>
-              <div style={{fontSize:11,color:'rgba(255,255,255,0.8)'}}>{inactifs.length} {lang==='ar'?'طالب':'élève(s)'}</div>
-            </div>
-            <div style={{display:'flex',gap:6,flexShrink:0}}>
-              <button onClick={handleExportPDF} disabled={inactifs.length===0}
-                title={lang==='ar'?'تصدير PDF':'Exporter PDF'}
-                style={{background:'rgba(255,255,255,0.25)',border:'1px solid rgba(255,255,255,0.3)',borderRadius:10,padding:'7px 9px',color:'#fff',fontSize:12,fontWeight:700,cursor:inactifs.length===0?'default':'pointer',opacity:inactifs.length===0?0.4:1,whiteSpace:'nowrap',fontFamily:'inherit'}}>
-                📄
-              </button>
-              <button onClick={handleExportExcel} disabled={inactifs.length===0}
-                title={lang==='ar'?'تصدير Excel':'Exporter Excel'}
-                style={{background:'rgba(255,255,255,0.25)',border:'1px solid rgba(255,255,255,0.3)',borderRadius:10,padding:'7px 9px',color:'#fff',fontSize:12,fontWeight:700,cursor:inactifs.length===0?'default':'pointer',opacity:inactifs.length===0?0.4:1,whiteSpace:'nowrap',fontFamily:'inherit'}}>
-                📊
-              </button>
-            </div>
-          </div>
-        </div>
+        <>
+        <MobileHeader
+          title={lang==='ar'?'الطلاب غير النشطين':'Élèves inactifs'}
+          subtitle={`${inactifs.length} ${lang==='ar'?'طالب':'élève(s)'}`}
+          icon={UserX}
+          onBack={()=>goBack?goBack():navigate('dashboard')}
+          lang={lang}
+          actions={<HeaderMenu lang={lang} actions={actionsExport({ onPDF: handleExportPDF, onExcel: handleExportExcel, lang, disabled: inactifs.length===0 })} />}
+        />
+        <div style={{height:12}}/>
+        </>
       ) : (
         <PageHeader
           title="Élèves inactifs"
