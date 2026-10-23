@@ -1,9 +1,10 @@
-@import url('https://fonts.googleapis.com/css2?family=Tajawal:wght@300;400;500;700&display=swap');
+/* Charte (oct 2026) : IBM Plex Sans (latin) + IBM Plex Sans Arabic ; Tajawal garde en secours */
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&family=Tajawal:wght@400;500;700&display=swap');
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
 
 body {
-  font-family: 'Tajawal', sans-serif;
+  font-family: 'IBM Plex Sans', 'IBM Plex Sans Arabic', 'Tajawal', sans-serif;
   background: #f5f5f0;
   color: #1a1a1a;
   font-size: 14px;
@@ -48,7 +49,7 @@ body {
   font-size: 12px;
   cursor: pointer;
   color: #444;
-  font-family: 'Tajawal', sans-serif;
+  font-family: 'IBM Plex Sans', 'IBM Plex Sans Arabic', 'Tajawal', sans-serif;
   transition: all 0.15s;
 }
 .nav-btn:hover { border-color: #1D9E75; color: #1D9E75; }
@@ -92,7 +93,7 @@ body {
   border: 0.5px solid #d0d0c8;
   font-size: 12px; color: #666;
   background: #fff; cursor: pointer;
-  font-family: 'Tajawal', sans-serif;
+  font-family: 'IBM Plex Sans', 'IBM Plex Sans Arabic', 'Tajawal', sans-serif;
   transition: all 0.15s;
 }
 .filter-chip.active { background: #E1F5EE; border-color: #1D9E75; color: #085041; }
@@ -133,7 +134,7 @@ tr.inactive td.name-cell { color: #A32D2D; font-weight: 500; }
   border: 0.5px solid #d0d0c8;
   border-radius: 8px; background: none;
   font-size: 13px; color: #444; cursor: pointer;
-  font-family: 'Tajawal', sans-serif;
+  font-family: 'IBM Plex Sans', 'IBM Plex Sans Arabic', 'Tajawal', sans-serif;
   transition: all 0.15s;
 }
 .btn-secondary:hover { border-color: #1D9E75; color: #1D9E75; }
@@ -144,7 +145,7 @@ tr.inactive td.name-cell { color: #A32D2D; font-weight: 500; }
   background: #f5f5f0;
   border: 1px solid #d0d0c8; border-radius: 20px;
   padding: 7px 16px 7px 12px;
-  font-family: 'Tajawal', sans-serif; font-weight: 600;
+  font-family: 'IBM Plex Sans', 'IBM Plex Sans Arabic', 'Tajawal', sans-serif; font-weight: 600;
   transition: all 0.15s;
   min-height: 34px;
   line-height: 1.2;
@@ -174,7 +175,7 @@ tr.inactive td.name-cell { color: #A32D2D; font-weight: 500; }
   width: 100%; padding: 10px 14px;
   border: 0.5px solid #e0e0d8; border-radius: 10px;
   background: #fff; color: #1a1a1a;
-  font-size: 13px; font-family: 'Tajawal', sans-serif;
+  font-size: 13px; font-family: 'IBM Plex Sans', 'IBM Plex Sans Arabic', 'Tajawal', sans-serif;
   transition: border-color 0.15s, box-shadow 0.15s;
   box-sizing: border-box;
 }
@@ -232,7 +233,7 @@ tr.inactive td.name-cell { color: #A32D2D; font-weight: 500; }
   background: linear-gradient(135deg, #1D9E75, #085041);
   color: #fff; border: none; border-radius: 10px;
   font-size: 14px; font-weight: 700;
-  font-family: 'Tajawal', sans-serif;
+  font-family: 'IBM Plex Sans', 'IBM Plex Sans Arabic', 'Tajawal', sans-serif;
   cursor: pointer; transition: opacity 0.15s, transform 0.1s;
   box-shadow: 0 2px 8px rgba(8,80,65,0.2);
 }
@@ -283,7 +284,7 @@ tr.inactive td.name-cell { color: #A32D2D; font-weight: 500; }
   border-radius: 8px; background: #f9f9f6;
   font-size: 16px; font-weight: 500;
   cursor: pointer; text-align: center;
-  transition: all 0.15s; font-family: 'Tajawal', sans-serif;
+  transition: all 0.15s; font-family: 'IBM Plex Sans', 'IBM Plex Sans Arabic', 'Tajawal', sans-serif;
 }
 .tomon-btn:hover:not([style*="not-allowed"]) { border-color: #1D9E75; }
 .tomon-btn.selected { background: #1D9E75; color: #fff; border-color: #1D9E75; }
@@ -332,7 +333,7 @@ tr.inactive td.name-cell { color: #A32D2D; font-weight: 500; }
 .tab {
   padding: 10px 18px; font-size: 13px; color: #888;
   cursor: pointer; border-bottom: 2px solid transparent;
-  transition: all 0.15s; font-family: 'Tajawal', sans-serif;
+  transition: all 0.15s; font-family: 'IBM Plex Sans', 'IBM Plex Sans Arabic', 'Tajawal', sans-serif;
 }
 .tab.active { color: #1D9E75; border-bottom-color: #1D9E75; font-weight: 500; }
 
@@ -340,7 +341,7 @@ tr.inactive td.name-cell { color: #A32D2D; font-weight: 500; }
   padding: 4px 10px; border-radius: 6px;
   border: 0.5px solid #d0d0c8; background: none;
   font-size: 11px; color: #666; cursor: pointer;
-  font-family: 'Tajawal', sans-serif; transition: all 0.15s;
+  font-family: 'IBM Plex Sans', 'IBM Plex Sans Arabic', 'Tajawal', sans-serif; transition: all 0.15s;
 }
 .action-btn:hover { border-color: #1D9E75; color: #1D9E75; }
 .action-btn.danger:hover { border-color: #E24B4A; color: #A32D2D; }
