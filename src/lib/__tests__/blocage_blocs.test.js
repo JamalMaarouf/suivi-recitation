@@ -24,8 +24,8 @@ test('multi-blocs : blocage quand le bloc 2 est fini', async () => {
   expect(r && r.examen.id).toBe('x2');
 });
 test('sans programme : regle en ligne droite inchangee', async () => {
-  const db2 = { ...db, programmes: [], examens:[{id:'x3',ecole_id:'e',niveau_id:'n1',bloquant:true,nom:'E',contenu_ids:[60,59]}], resultats_examens:[] };
-  const r = await verifierBlocageExamen(fake(db2), { eleve:{id:'s',code_niveau:'X',hizb_depart:58}, ecole_id:'e', validations:[{type_validation:'hizb_complet',hizb_valide:59,date_validation:'2026-10-20'}], recitations:[] });
+  const db2 = { ...db, programmes: [], examens:[{id:'x3',ecole_id:'e',niveau_id:'n1',bloquant:true,nom:'E',contenu_ids:[59,58]}], resultats_examens:[] };
+  const r = await verifierBlocageExamen(fake(db2), { eleve:{id:'s',code_niveau:'X',hizb_depart:58}, ecole_id:'e', validations:[{type_validation:'hizb_complet',hizb_valide:58,date_validation:'2026-10-20'}], recitations:[] });
   expect(r && r.examen.id).toBe('x3');
 });
 test('fuseau : recitation 30 min apres le passage gardee', () => {
