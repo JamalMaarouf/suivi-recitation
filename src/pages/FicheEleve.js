@@ -929,7 +929,7 @@ ${(passages||[]).length > 0 ? `
         {isMobile ? (
           <>
             {/* Header sticky avec infos élève (pas de skeleton ici, on a déjà les infos) */}
-            <div style={{background:HEADER_BG, position:'sticky', top:0, zIndex:100, padding:'calc(44px + env(safe-area-inset-top, 0px)) 16px 14px', margin:'-16px -16px 0'}}>
+            <div style={{background:HEADER_BG, position:'sticky', top:-16, zIndex:100, padding:'calc(44px + env(safe-area-inset-top, 0px)) 16px 14px', margin:'-16px -16px 0'}}>
               <div style={{display:'flex', alignItems:'center', gap:12}}>
                 <HeaderIconButton icon={lang==='ar'?ChevronRight:ChevronLeft} label={lang==='ar'?'رجوع':'Retour'} onClick={()=>goBack?goBack():navigate('dashboard')} />
                 <div style={{flex:1}}>
@@ -1419,7 +1419,7 @@ ${(passages||[]).length > 0 ? `
     return (
       <div style={{paddingBottom:80, background:'#f5f5f0', minHeight:'100vh'}}>
         {/* Sticky header */}
-        <div style={{background:HEADER_BG, position:'sticky', top:0, zIndex:100, margin:'-16px -16px 0'}}>
+        <div style={{background:HEADER_BG, position:'sticky', top:-16, zIndex:100, margin:'-16px -16px 0'}}>
           <div style={{display:'flex', alignItems:'center', gap:12, padding:'calc(44px + env(safe-area-inset-top, 0px)) 16px 12px'}}>
             {/* Charte mobile lot 1 (oct 2026) : bouton retour visible (il etait vide) */}
             <HeaderIconButton icon={lang==='ar'?ChevronRight:ChevronLeft} label={lang==='ar'?'رجوع':'Retour'} onClick={()=>goBack?goBack():navigate('dashboard')} />

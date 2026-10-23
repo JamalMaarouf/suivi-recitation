@@ -414,7 +414,7 @@ export default function Dashboard({ user, navigate, goBack, lang, isMobile=false
 
         {/* ── HEADER GRADIENT ── */}
         <div style={{background:'linear-gradient(135deg,#064e3b 0%,#085041 40%,#1D9E75 100%)',
-          padding:'calc(44px + env(safe-area-inset-top, 0px)) 18px 20px', position:'sticky', top:0, zIndex:100, overflow:'hidden',
+          padding:'calc(44px + env(safe-area-inset-top, 0px)) 18px 20px', position:'sticky', top:-16, zIndex:100, overflow:'hidden',
           margin:'-16px -16px 0' /* pleine largeur (annule le padding de main) */}}>
           {/* cercles décoratifs */}
           <div style={{position:'absolute',top:-30,right:-30,width:120,height:120,

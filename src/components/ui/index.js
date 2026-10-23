@@ -36,8 +36,11 @@ export function MobileHeader({ title, subtitle, icon: Icon, onBack, actions, chi
     <header style={{
       background: HEADER_BG, color: C.onBrand,
       padding: `calc(44px + env(safe-area-inset-top, 0px)) ${S.lg}px ${S.md}px`,
-      position: sticky ? 'sticky' : 'relative', top: 0, zIndex: 100,
-      // Pleine largeur : annule le padding 1rem de <main className="main-content-mobile">
+      // Pleine largeur : annule le padding 1rem de <main className="main-content-mobile">.
+      // top:-16 (et non 0) : <main> est un conteneur de defilement (overflow-x hidden) dont le
+      // padding decale les elements sticky ; avec top:0 l'en-tete descendait de 16 px et
+      // recouvrait le haut du contenu suivant.
+      position: sticky ? 'sticky' : 'relative', top: sticky ? -16 : 0, zIndex: 100,
       margin: '-16px -16px 0',
     }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: S.sm + 2, minHeight: TOUCH }}>
