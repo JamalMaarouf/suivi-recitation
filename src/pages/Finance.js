@@ -134,7 +134,7 @@ export default function Finance({ user, navigate, goBack, lang='fr', isMobile })
       const [r1, r2, r3, r4] = await Promise.all([
         supabase.from('eleves').select('*, instituteur:instituteur_referent_id(prenom,nom)')
         .eq('ecole_id', user.ecole_id).order('nom'),
-        supabase.from('utilisateurs').select('*').eq('role','instituteur').eq('ecole_id', user.ecole_id),
+        supabase.from('utilisateurs').select('id,prenom,nom,identifiant,role,ecole_id,instituteur_id_ecole,tarif_seance,telephone,email,statut_compte,suspendu_at').eq('role','instituteur').eq('ecole_id', user.ecole_id),
         supabase.from('cotisations').select('*, eleve:eleve_id(id,prenom,nom,code_niveau,eleve_id_ecole), createur:created_by(prenom,nom)')
         .eq('ecole_id', user.ecole_id).order('date_paiement',{ascending:false}),
         supabase.from('depenses').select('*, beneficiaire:beneficiaire_id(prenom,nom), createur:created_by(prenom,nom)')

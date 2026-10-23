@@ -314,7 +314,7 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile,
       identifiant: loginParent, mot_de_passe: mdpParent,
       role: 'parent', ecole_id: user.ecole_id, statut_compte: 'actif',
       email: (newEleve.email_parent || '').trim() || null,
-    }).select().single();
+    }).select('id,prenom,nom,identifiant,role,ecole_id,telephone,email,statut_compte').single();
     if (parentErr) showMsg('error', 'Erreur création parent: '+parentErr.message);
     if (parentData?.id && eleveData?.id) {
       const { error: lienErr } = await supabase.from('parent_eleve').insert({
@@ -723,7 +723,7 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile,
           role: 'parent',
           ecole_id: user.ecole_id,
           statut_compte: 'actif',
-        }).select().single();
+        }).select('id,prenom,nom,identifiant,role,ecole_id,telephone,email,statut_compte').single();
         if (errNew) throw errNew;
         comptePrincipalId = nouveau.id;
       }
@@ -858,7 +858,7 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile,
         role: 'parent',
         ecole_id: user.ecole_id,
         statut_compte: 'actif',
-      }).select().single();
+      }).select('id,prenom,nom,identifiant,role,ecole_id,telephone,email,statut_compte').single();
       if (errNew) throw errNew;
 
       // Etape 2 : Supprimer le lien parent_id->enfant_id du compte famille
@@ -1272,7 +1272,7 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
       if(ue){ toast.error(ue.message||'Erreur utilisateur'); return; }
       await supabase.from('parent_eleve').delete().eq('parent_id',editingParentId);
     } else {
-      const {data:pd,error:pe}=await supabase.from('utilisateurs').insert({prenom:formParent.prenom,nom:formParent.nom,identifiant:formParent.identifiant,mot_de_passe:formParent.mot_de_passe,telephone:formParent.telephone||null,email:(formParent.email||'').trim()||null,role:'parent',ecole_id:user.ecole_id,statut_compte:'actif'}).select().single();
+      const {data:pd,error:pe}=await supabase.from('utilisateurs').insert({prenom:formParent.prenom,nom:formParent.nom,identifiant:formParent.identifiant,mot_de_passe:formParent.mot_de_passe,telephone:formParent.telephone||null,email:(formParent.email||'').trim()||null,role:'parent',ecole_id:user.ecole_id,statut_compte:'actif'}).select('id,prenom,nom,identifiant,role,ecole_id,telephone,email,statut_compte').single();
       if(pe){ toast.error(pe.message||'Erreur parent'); return; }
       toast.success(lang==='ar'?'✅ تم حفظ ولي الأمر':'✅ Parent enregistré avec succès');
       pid=pd.id;

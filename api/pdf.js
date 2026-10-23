@@ -9,7 +9,11 @@ module.exports = async function handler(req, res) {
   if (req.method === 'OPTIONS') return res.status(200).end();
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
-  const { type, data, lang = 'fr' } = req.body || {};
+  const { type, lang = 'fr' } = req.body || {};
+  // securite (oct 2026) : neutralise les balises dans toutes les donnees recues
+  // (nom d'eleve '<img onerror=...>' executait du script lors de l'impression).
+  // Seuls < et > sont remplaces : pas de double echappement avec escapeHtml().
+  const data = neutraliserBalises((req.body || {}).data);
 
   try {
     let html = '';
@@ -2124,4 +2128,16 @@ function generateRapportDirection(data, lang) {
     </div>
   </div>
   </body></html>`;
+}
+
+
+function neutraliserBalises(v) {
+  if (typeof v === 'string') return v.replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  if (Array.isArray(v)) return v.map(neutraliserBalises);
+  if (v && typeof v === 'object') {
+    const o = {};
+    for (const k of Object.keys(v)) o[k] = neutraliserBalises(v[k]);
+    return o;
+  }
+  return v;
 }

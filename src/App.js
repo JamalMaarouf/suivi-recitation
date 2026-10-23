@@ -958,7 +958,7 @@ function App() {
                 <button onClick={()=>goBack?goBack():setPageWithRef('dashboard')} className="back-link" style={{marginTop:'1rem'}}>← Retour</button>
               </div>
           )}
-          {page === 'objectifs'          && <ErrorBoundary><GestionObjectifs user={user} navigate={navigate} goBack={goBack} lang={lang} isMobile={isMobile} /></ErrorBoundary>}
+          {page === 'objectifs'          && user.role==='surveillant' && <ErrorBoundary><GestionObjectifs user={user} navigate={navigate} goBack={goBack} lang={lang} isMobile={isMobile} /></ErrorBoundary>}
           {page === 'historique_seances'   && <ErrorBoundary><HistoriqueSeances user={user} navigate={navigate} goBack={goBack} lang={lang} isMobile={isMobile} /></ErrorBoundary>}
           {page === 'finance'             && user.role==='surveillant' && <ErrorBoundary><Finance user={user} navigate={navigate} goBack={goBack} lang={lang} isMobile={isMobile} /></ErrorBoundary>}
           {page === 'assiduite'           && user.role==='surveillant' && <ErrorBoundary><Assiduite user={user} navigate={navigate} goBack={goBack} lang={lang} isMobile={isMobile} kioskMode={kioskMode} enterKiosk={enterKiosk} exitKiosk={exitKiosk} /></ErrorBoundary>}

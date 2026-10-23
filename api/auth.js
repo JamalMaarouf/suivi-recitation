@@ -205,6 +205,13 @@ module.exports = async function handler(req, res) {
     if (!user_id || !old_password || !new_password) {
       return res.status(400).json({ error: 'Champs manquants' });
     }
+    // securite (oct 2026) : meme limite de tentatives que le login
+    const rlKeyPwd = rateLimitKey(getClientIp(req), 'pwd:' + user_id);
+    const rlPwd = checkRateLimit(rlKeyPwd);
+    if (rlPwd.blocked) {
+      res.setHeader('Retry-After', String(rlPwd.retryAfter));
+      return res.status(429).json({ error: 'too_many_attempts', retryAfter: rlPwd.retryAfter });
+    }
     if (new_password.length < 4) {
       return res.status(400).json({ error: 'Mot de passe trop court (min 4 caractères)' });
     }
@@ -234,8 +241,10 @@ module.exports = async function handler(req, res) {
     }
 
     if (!oldOk) {
+      recordFailedAttempt(rlKeyPwd);
       return res.status(401).json({ error: 'Ancien mot de passe incorrect' });
     }
+    clearRateLimit(rlKeyPwd);
 
     const hashed = await bcrypt.hash(new_password, 10);
     await update('utilisateurs', user.id, { mot_de_passe: hashed });

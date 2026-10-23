@@ -59,7 +59,7 @@ export default function RapportMensuel({ user, navigate, goBack, lang='fr', isMo
     ] = await Promise.all([
       supabase.from('eleves').select('*').eq('ecole_id',user.ecole_id).is('suspendu_at', null).order('nom'),
       supabase.from('niveaux').select('*').eq('ecole_id',user.ecole_id).order('ordre'),
-      supabase.from('utilisateurs').select('*').eq('role','instituteur').eq('ecole_id',user.ecole_id),
+      supabase.from('utilisateurs').select('id,prenom,nom,identifiant,role,ecole_id,instituteur_id_ecole,tarif_seance,telephone,email,statut_compte,suspendu_at').eq('role','instituteur').eq('ecole_id',user.ecole_id),
       fetchAll(supabase.from('validations').select('*').eq('ecole_id',user.ecole_id)).then(data=>({data})),
       fetchAll(supabase.from('recitations_sourates').select('*').eq('ecole_id',user.ecole_id)).then(data=>({data})),
       supabase.from('objectifs').select('*').eq('ecole_id',user.ecole_id).eq('actif',true),

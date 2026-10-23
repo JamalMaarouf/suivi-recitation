@@ -85,7 +85,7 @@ export default function HistoriqueSeances({ user, navigate, goBack, lang='fr', i
       const [r1, r2, r3Data, r4Data, r5, r6, r7] = await Promise.all([
         supabase.from('eleves').select('*')
         .eq('ecole_id', user.ecole_id).order('nom'),
-        supabase.from('utilisateurs').select('*').eq('role','instituteur').eq('ecole_id', user.ecole_id),
+        supabase.from('utilisateurs').select('id,prenom,nom,identifiant,role,ecole_id,instituteur_id_ecole,tarif_seance,telephone,email,statut_compte,suspendu_at').eq('role','instituteur').eq('ecole_id', user.ecole_id),
         fetchAll(supabase.from('validations').select('*, valideur:valide_par(prenom,nom)')
           .eq('ecole_id', user.ecole_id).order('date_validation',{ascending:false})),
         fetchAll(supabase.from('recitations_sourates').select('*, valideur:valide_par(prenom,nom)')

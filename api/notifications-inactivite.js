@@ -48,7 +48,8 @@ module.exports = async function handler(req, res) {
 
   // Sécurité cron
   const authHeader = req.headers['authorization'];
-  if (cronSecret && authHeader !== `Bearer ${cronSecret}` && req.query.manual !== 'true') {
+  // securite (oct 2026) : plus de contournement public via ?manual=true
+  if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
 

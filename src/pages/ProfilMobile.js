@@ -70,16 +70,9 @@ export default function ProfilMobile({ user, lang, onLogout, navigate, goBack })
       setOldPwd(''); setNewPwd(''); setConfirmPwd('');
       setSaving(false);
       return;
-    } catch(e) {}
-    // Fallback
-    const { error } = await supabase.from('utilisateurs')
-      .update({ mot_de_passe: newPwd }).eq('id', user.id);
-    if (error) {
-      setPwdMsg({ ok: false, text: error.message });
-    } else {
-      setPwdMsg({ ok: true, text: lang==='ar'?'✅ تم تغيير كلمة المرور':'✅ Mot de passe modifié !' });
-      setOldPwd(''); setNewPwd(''); setConfirmPwd('');
-      setTimeout(() => { setChangingPwd(false); setPwdMsg(null); }, 2000);
+    } catch(e) {
+      // securite (oct 2026) : plus d'ecriture du mot de passe en clair en cas d'erreur reseau
+      setPwdMsg({ ok: false, text: lang==='ar'?'خطأ في الشبكة، حاول مرة أخرى':'Erreur réseau, réessayez' });
     }
     setSaving(false);
   };

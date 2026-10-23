@@ -176,7 +176,7 @@ export default function ElevesMobile({ user, navigate, goBack, lang='ar' }) {
         identifiant: loginParent, mot_de_passe: mdpParent,
         role: 'parent', ecole_id: user.ecole_id, statut_compte: 'actif',
         email: (form.email_parent || '').trim() || null,
-      }).select().single();
+      }).select('id,prenom,nom,identifiant,role,ecole_id,telephone,email,statut_compte').single();
       if (parentErr) {
         console.error('[ElevesMobile] Erreur creation parent:', parentErr);
         // Non-bloquant : l'eleve a ete cree, on signale juste

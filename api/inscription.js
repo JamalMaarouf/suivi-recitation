@@ -68,6 +68,11 @@ async function verifyTurnstileToken(token, ip) {
   }
 
   // Mode bypass explicite (QA envoie 'bypass' car CAPTCHA inactif sur vercel.app)
+  // securite (oct 2026) : le bypass n'est plus accepte en production Vercel
+  // (sauf si ALLOW_CAPTCHA_BYPASS=true est defini explicitement sur le projet).
+  if (token === 'bypass' && process.env.VERCEL_ENV === 'production' && process.env.ALLOW_CAPTCHA_BYPASS !== 'true') {
+    return { success: false, error: 'captcha_bypass_refuse' };
+  }
   if (token === 'bypass') {
     console.log('[inscription] Turnstile : token bypass explicite (QA)');
     return { success: true, bypass: true };
