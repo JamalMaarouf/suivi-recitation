@@ -321,9 +321,15 @@ export default function Dashboard({ user, navigate, goBack, lang, isMobile=false
           if (atteint) notifs.push({ eleve, jalon });
         }
       }
-      setCertifNotifs(notifs);
+      if (!annule) setCertifNotifs(notifs);
     };
-    checkCertifs();
+    // PERF (oct 2026) : lance 1,2 s apres l'affichage et annule si on quitte l'accueil avant
+    // (ex. clic sur un eleve) : ces requetes (dont toutes les recitations de l'ecole) ne
+    // concurrencent plus le chargement de la fiche eleve. La carte « Certificats a delivrer »
+    // apparait simplement un instant apres le reste de l'accueil.
+    let annule = false;
+    const minuteur = setTimeout(() => { if (!annule) checkCertifs().catch(() => {}); }, 1200);
+    return () => { annule = true; clearTimeout(minuteur); };
   }, [eleves, user]);
   const totalPoints = eleves.reduce((s,e)=>s+e.etat.points.total,0);
   const totalTomon = eleves.reduce((s,e)=>s+e.etat.tomonCumul,0);
