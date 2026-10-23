@@ -4,6 +4,8 @@ import { useToast } from '../lib/toast';
 import ConfirmModal from '../components/ConfirmModal';
 import PageHeader from '../components/PageHeader';
 import MobileSkeletonList from '../components/MobileSkeletonList';
+import { MobileHeader } from '../components/ui';
+import { ListTree } from 'lucide-react';
 
 // ══════════════════════════════════════════════════════════════════════
 // PAGE ÉDITEUR D'AXES D'UN COURS
@@ -326,29 +328,13 @@ export default function GestionCoursAxes({ user, navigate, goBack, lang, isMobil
 
       {/* Header */}
       {isMobile ? (
-        <div style={{
-          background: 'linear-gradient(135deg, #085041, #1D9E75)',
-          color: '#fff', padding: '48px 16px 14px',
-          position: 'sticky', top: 0, zIndex: 100,
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <button onClick={() => goBack ? goBack() : navigate('gestion_cours')}
-              style={{
-                width: 44, height: 44,
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                background: 'rgba(255,255,255,0.2)', border: 'none', borderRadius: 10,
-                padding: 0, flexShrink: 0, color: '#fff', fontSize: 18, cursor: 'pointer',
-              }}>←</button>
-            <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 16, fontWeight: 800 }}>
-                📝 {lang === 'ar' ? 'محاور:' : 'Axes :'} {nomCours}
-              </div>
-              <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.75)' }}>
-                {axes.length} {lang === 'ar' ? 'محور إجمالا' : 'axe(s) au total'}
-              </div>
-            </div>
-          </div>
-        </div>
+        <MobileHeader
+          title={`${lang === 'ar' ? 'محاور:' : 'Axes :'} ${nomCours}`}
+          subtitle={`${axes.length} ${lang === 'ar' ? 'محور إجمالا' : 'axe(s) au total'}`}
+          icon={ListTree}
+          onBack={() => goBack ? goBack() : navigate('gestion_cours')}
+          lang={lang}
+        />
       ) : (
         <div style={{ padding: '1.5rem 1.5rem 0' }}>
           <PageHeader

@@ -4,6 +4,8 @@ import { useToast } from '../lib/toast';
 import { t } from '../lib/i18n';
 import PageHeader from '../components/PageHeader';
 import MobileSkeletonList from '../components/MobileSkeletonList';
+import { MobileHeader, HeaderIconButton, SearchField } from '../components/ui';
+import { Package, Plus } from 'lucide-react';
 
 export default function GestionEnsembles({ user, navigate, goBack, lang='fr', isMobile }) {
   const { toast } = useToast();
@@ -412,29 +414,18 @@ export default function GestionEnsembles({ user, navigate, goBack, lang='fr', is
   if (isMobile) {
     return (
       <div style={{ paddingBottom: 80, background: '#f5f5f0', minHeight: '100vh' }}>
-        <div style={{ background:'linear-gradient(135deg,#085041,#1D9E75)',padding:'48px 16px 14px',position:'sticky',top:0,zIndex:100 }}>
-          <div style={{display:'flex',alignItems:'center',gap:12}}>
-            <button onClick={() => goBack ? goBack() : navigate('gestion')} style={{background:'rgba(255,255,255,0.22)',border:'1px solid rgba(255,255,255,0.25)',borderRadius:10,padding:'0',color:'#fff',fontSize:20,cursor:'pointer',flexShrink:0,width:44,height:44,display:'flex',alignItems:'center',justifyContent:'center'}}>←</button>
-            <div style={{flex:1, fontSize:17, fontWeight:800, color:'#fff'}}>📦 {lang === 'ar' ? 'مجموعات السور' : 'Ensembles'}</div>
-            <button onClick={openCreate} style={{background:'rgba(255,255,255,0.25)',border:'1px solid rgba(255,255,255,0.3)',borderRadius:10,padding:'8px 14px',color:'#fff',fontSize:13,fontWeight:700,cursor:'pointer',fontFamily:'inherit',flexShrink:0,whiteSpace:'nowrap'}}>+ {lang==='ar'?'إضافة':'Ajouter'}</button>
-          </div>
+        <MobileHeader
+          title={lang === 'ar' ? 'مجموعات السور' : 'Ensembles'}
+          icon={Package}
+          onBack={() => goBack ? goBack() : navigate('gestion')}
+          lang={lang}
+          actions={<HeaderIconButton icon={Plus} label={lang==='ar'?'إضافة':'Ajouter'} onClick={openCreate} />}>
           {/* M3b — Recherche par nom (alignement avec PC E2d) */}
           {ensembles.length > 0 && (
-            <div style={{marginTop:10}}>
-              <input type="text"
-                value={searchEns}
-                onChange={e => setSearchEns(e.target.value)}
-                placeholder={'🔍 ' + (lang === 'ar' ? 'بحث عن مجموعة...' : 'Rechercher un ensemble')}
-                style={{
-                  width:'100%', padding:'8px 12px', fontSize:13,
-                  borderRadius:10, border:'1px solid transparent',
-                  fontFamily:'inherit', outline:'none',
-                  background:'#fff', color:'#16241E',
-                  boxSizing:'border-box',
-                }}/>
-            </div>
+            <SearchField value={searchEns} onChange={setSearchEns} lang={lang} id="recherche-ensembles"
+              placeholder={lang === 'ar' ? 'بحث عن مجموعة...' : 'Rechercher un ensemble'} />
           )}
-        </div>
+        </MobileHeader>
         <div style={{ padding: '12px' }}>
           {!loading && ensembles.length > 0 && (
             <div style={{fontSize:12,color:'#888',marginBottom:10,paddingLeft:4}}>

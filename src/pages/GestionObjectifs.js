@@ -6,6 +6,8 @@ import { t } from '../lib/i18n';
 import PageHeader from '../components/PageHeader';
 import StatsCard from '../components/StatsCard';
 import MobileSkeletonList from '../components/MobileSkeletonList';
+import { MobileHeader, HeaderIconButton } from '../components/ui';
+import { Target, Plus, X } from 'lucide-react';
 
 const PERIODES = [
   { val:'semaine',   label_fr:'Semaine',              label_ar:'أسبوع',           jours:7   },
@@ -712,16 +714,17 @@ export default function GestionObjectifs({ user, navigate, goBack, lang='fr', is
   // ── MOBILE ────────────────────────────────────────────────────
   if (isMobile) return (
     <div style={{paddingBottom:80,background:'#f5f5f0',minHeight:'100vh'}}>
-      <div style={{background:'linear-gradient(135deg,#085041,#1D9E75)',padding:'48px 16px 14px',position:'sticky',top:0,zIndex:100}}>
-        <div style={{display:'flex',alignItems:'center',gap:10}}>
-          <button onClick={()=>goBack?goBack():navigate('dashboard')} style={{background:'rgba(255,255,255,0.22)',border:'1px solid rgba(255,255,255,0.25)',borderRadius:10,padding:'0',color:'#fff',fontSize:20,cursor:'pointer',flexShrink:0,width:44,height:44,display:'flex',alignItems:'center',justifyContent:'center'}}>←</button>
-          <div style={{flex:1,fontSize:17,fontWeight:800,color:'#fff'}}>🎯 {lang==='ar'?'الأهداف':'Objectifs'}</div>
-          <button onClick={showForm?()=>{setShowForm(false);setEditing(null);}:startCreate}
-            style={{background:'rgba(255,255,255,0.25)',border:'1px solid rgba(255,255,255,0.3)',color:'#fff',borderRadius:10,padding:'8px 14px',fontSize:13,fontWeight:700,cursor:'pointer',flexShrink:0,whiteSpace:'nowrap'}}>
-            {showForm?'✕':(lang==='ar'?'+ إضافة':'+ Ajouter')}
-          </button>
-        </div>
-      </div>
+      <MobileHeader
+        title={lang==='ar'?'الأهداف':'Objectifs'}
+        icon={Target}
+        onBack={()=>goBack?goBack():navigate('dashboard')}
+        lang={lang}
+        actions={
+          <HeaderIconButton icon={showForm?X:Plus}
+            label={showForm?(lang==='ar'?'إغلاق':'Fermer'):(lang==='ar'?'إضافة':'Ajouter')}
+            onClick={showForm?()=>{setShowForm(false);setEditing(null);}:startCreate} />
+        }
+      />
       <div style={{padding:'12px'}}>
         {showForm&&(
           <div style={{background:'#fff',borderRadius:16,padding:'18px',marginBottom:14,

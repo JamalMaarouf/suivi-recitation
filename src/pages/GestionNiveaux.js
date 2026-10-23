@@ -6,6 +6,8 @@ import { t } from '../lib/i18n';
 import PageHeader from '../components/PageHeader';
 import ExportButtons from '../components/ExportButtons';
 import MobileSkeletonList from '../components/MobileSkeletonList';
+import { MobileHeader, HeaderIconButton } from '../components/ui';
+import { Layers, Plus, X } from 'lucide-react';
 
 // Liste des Hizb selon un sens donne (desc = 60->1, asc = 1->60)
 const makeHizbList = (sens) => sens === 'asc'
@@ -1052,18 +1054,17 @@ export default function GestionNiveaux({ user, navigate, goBack, lang='fr', isMo
     return (
       <div style={{paddingBottom:80, background:'#f5f5f0', minHeight:'100vh'}}>
         {/* Header */}
-        <div style={{background:'linear-gradient(135deg,#085041,#1D9E75)',padding:'48px 16px 14px',position:'sticky',top:0,zIndex:100}}>
-          <div style={{display:'flex', alignItems:'center', gap:10, marginBottom:12}}>
-            <button onClick={()=>goBack?goBack():navigate('gestion')} style={{background:'rgba(255,255,255,0.22)',border:'1px solid rgba(255,255,255,0.25)',borderRadius:10,padding:'0',color:'#fff',fontSize:20,cursor:'pointer',flexShrink:0,width:44,height:44,display:'flex',alignItems:'center',justifyContent:'center'}}>←</button>
-            <div style={{flex:1, fontSize:17, fontWeight:800, color:'#fff'}}>
-              📚 {lang==='ar'?'المستويات':'Niveaux'}
-            </div>
-            <button onClick={()=>{setEditing(null);setForm({...emptyForm,ordre:niveaux.length+1});setShowForm(v=>!v);}}
-              style={{background:'rgba(255,255,255,0.25)',border:'1px solid rgba(255,255,255,0.3)',borderRadius:10,padding:'8px 14px',color:'#fff',fontSize:13,fontWeight:700,cursor:'pointer',fontFamily:'inherit',flexShrink:0,whiteSpace:'nowrap'}}>
-              {showForm&&!editing?'✕':(lang==='ar'?'+ إضافة':'+ Ajouter')}
-            </button>
-          </div>
-        </div>
+        <MobileHeader
+          title={lang==='ar'?'المستويات':'Niveaux'}
+          icon={Layers}
+          onBack={()=>goBack?goBack():navigate('gestion')}
+          lang={lang}
+          actions={
+            <HeaderIconButton icon={showForm&&!editing?X:Plus}
+              label={showForm&&!editing?(lang==='ar'?'إغلاق':'Fermer'):(lang==='ar'?'إضافة':'Ajouter')}
+              onClick={()=>{setEditing(null);setForm({...emptyForm,ordre:niveaux.length+1});setShowForm(v=>!v);}} />
+          }
+        />
 
         <div style={{padding:'12px'}}>
           {/* M3a — Bandeau compteur + exports (alignement avec PC E1f) */}

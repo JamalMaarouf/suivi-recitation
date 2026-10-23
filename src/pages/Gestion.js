@@ -16,6 +16,8 @@ import { SensRecitationTab } from './gestion/SensRecitationTab';
 import { IdentiteEcoleTab } from './gestion/IdentiteEcoleTab';
 import { PassageNiveauTab, MobilePassageNiveauTab } from './gestion/PassageNiveauTab';
 import { JalonsTab } from './gestion/JalonsTab';
+import { MobileHeader, HeaderIconButton } from '../components/ui';
+import { Settings, Plus, X, Link2 } from 'lucide-react';
 
 
 export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile, initialTab, setGestionTab }) {
@@ -1997,59 +1999,53 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
       <div style={{paddingBottom:80,background:'#f5f5f0',minHeight:'100vh'}}>
 
         {/* ─── HEADER ─── */}
-        <div style={{background:'linear-gradient(135deg,#085041,#1D9E75)',padding:'48px 16px 14px',position:'sticky',top:0,zIndex:100}}>
-          <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:12}}>
-            <button onClick={()=>goBack?goBack():navigate('dashboard')}
-              style={{background:'rgba(255,255,255,0.22)',border:'1px solid rgba(255,255,255,0.25)',borderRadius:10,padding:'0',color:'#fff',fontSize:20,cursor:'pointer',flexShrink:0,width:44,height:44,display:'flex',alignItems:'center',justifyContent:'center'}}>←</button>
-            <div style={{flex:1,fontSize:17,fontWeight:800,color:'#fff'}}>
-              {(() => {
-                // Breadcrumb : 'Administration › Tab actuel' avec icone par tab
-                const TAB_INFO = {
-                  eleves:        { icon:'👥', ar:'الطلاب',         fr:'Élèves' },
-                  instituteurs:  { icon:'👨‍🏫', ar:'الأساتذة',        fr:'Profs' },
-                  parents:       { icon:'👨‍👩‍👦', ar:'الآباء',          fr:'Parents' },
-                  jalons:        { icon:'🏅', ar:'الشهادات',        fr:'Jalons' },
-                  passage_niveau:{ icon:'📈', ar:'قواعد الانتقال',   fr:'Règles de passage' },
-                  bareme:        { icon:'⭐', ar:'النقاط',           fr:'Notes' },
-                  parametres:    { icon:'⚙️', ar:'الإعدادات',        fr:'Paramètres' },
-                  sens_recitation:{ icon:'🧭', ar:'اتجاه التلاوة',    fr:'Sens récitation' },
-                  periodes:      { icon:'📅', ar:'الفترات',          fr:'Périodes' },
-                  identite_ecole:{ icon:'👔', ar:'هوية المدرسة',     fr:'Identité école' },
-                };
-                const info = TAB_INFO[tab];
-                const adminLabel = lang==='ar' ? 'الإدارة' : 'Administration';
-                if (!info) return <>⚙️ {adminLabel}</>;
-                return <>⚙️ {adminLabel} <span style={{opacity:0.6,margin:'0 6px'}}>›</span> {info.icon} {lang==='ar' ? info.ar : info.fr}</>;
-              })()}
-            </div>
+        <MobileHeader
+          title={(() => {
+            // Breadcrumb : 'Administration › Tab actuel'
+            const TAB_INFO = {
+              eleves:        { ar:'الطلاب',         fr:'Élèves' },
+              instituteurs:  { ar:'الأساتذة',        fr:'Profs' },
+              parents:       { ar:'الآباء',          fr:'Parents' },
+              jalons:        { ar:'الشهادات',        fr:'Jalons' },
+              passage_niveau:{ ar:'قواعد الانتقال',   fr:'Règles de passage' },
+              bareme:        { ar:'النقاط',           fr:'Notes' },
+              parametres:    { ar:'الإعدادات',        fr:'Paramètres' },
+              sens_recitation:{ ar:'اتجاه التلاوة',    fr:'Sens récitation' },
+              periodes:      { ar:'الفترات',          fr:'Périodes' },
+              identite_ecole:{ ar:'هوية المدرسة',     fr:'Identité école' },
+            };
+            const info = TAB_INFO[tab];
+            const adminLabel = lang==='ar' ? 'الإدارة' : 'Administration';
+            if (!info) return adminLabel;
+            return `${adminLabel} › ${lang==='ar' ? info.ar : info.fr}`;
+          })()}
+          icon={Settings}
+          onBack={()=>goBack?goBack():navigate('dashboard')}
+          lang={lang}
+          actions={(tab==='eleves'||tab==='instituteurs'||tab==='parents')&&user.role==='surveillant' ? <>
             {tab==='eleves'&&user.role==='surveillant'&&(
-              <button onClick={()=>{resetFormEleve();setShowFormEleve(v=>!v);}}
-                style={{background:showFormEleve?'rgba(255,255,255,0.15)':'rgba(255,255,255,0.25)',color:'#fff',
-                  border:'1px solid rgba(255,255,255,0.3)',borderRadius:10,padding:'7px 14px',fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
-                {showFormEleve?'✕':(lang==='ar'?'+ إضافة':'+ Ajouter')}
-              </button>
+              <HeaderIconButton icon={showFormEleve?X:Plus}
+                label={showFormEleve?(lang==='ar'?'إغلاق':'Fermer'):(lang==='ar'?'إضافة':'Ajouter')}
+                onClick={()=>{resetFormEleve();setShowFormEleve(v=>!v);}} />
             )}
             {tab==='instituteurs'&&user.role==='surveillant'&&(
-              <button onClick={()=>setShowFormInst(v=>!v)}
-                style={{background:'rgba(255,255,255,0.25)',color:'#fff',border:'1px solid rgba(255,255,255,0.3)',borderRadius:10,padding:'7px 14px',fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
-                {showFormInst?'✕':(lang==='ar'?'+ إضافة':'+ Ajouter')}
-              </button>
+              <HeaderIconButton icon={showFormInst?X:Plus}
+                label={showFormInst?(lang==='ar'?'إغلاق':'Fermer'):(lang==='ar'?'إضافة':'Ajouter')}
+                onClick={()=>setShowFormInst(v=>!v)} />
             )}
             {tab==='parents'&&user.role==='surveillant'&&(
-              <button onClick={ouvrirModaleLier}
-                title={lang==='ar'?'ربط حسابات الأولياء':'Lier des comptes parents'}
-                style={{background:'rgba(255,255,255,0.25)',color:'#fff',border:'1px solid rgba(255,255,255,0.3)',borderRadius:10,padding:'7px 14px',fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'inherit',display:'flex',alignItems:'center',gap:5}}>
-                🔗 {lang==='ar'?'ربط':'Lier'}
-              </button>
+              <HeaderIconButton icon={Link2}
+                label={lang==='ar'?'ربط حسابات الأولياء':'Lier des comptes parents'}
+                onClick={ouvrirModaleLier} />
             )}
-          </div>
+          </> : null}>
           {msg.text&&(
-            <div style={{margin:'0 0 10px',padding:'10px 14px',borderRadius:10,fontSize:13,
+            <div style={{padding:'10px 14px',borderRadius:10,fontSize:13,
               background:msg.type==='error'?'rgba(226,75,74,0.9)':'rgba(29,158,117,0.9)',color:'#fff'}}>
               {msg.text}
             </div>
           )}
-        </div>
+        </MobileHeader>
         {/* Tabs Phase 2 — 5 visibles + Plus (pattern FicheEleve) */}
         {(() => {
           const tabDansPlus = TABS_PLUS.find(t => t.k === tab);

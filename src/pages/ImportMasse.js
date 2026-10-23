@@ -4,6 +4,8 @@ import { supabase, supabaseRaw } from '../lib/supabase'; // FIX (oct 2026) : sup
 import { useToast } from '../lib/toast';
 import { ALL_TEMPLATES, TEMPLATES_BY_SHEET_NAME, normalizeRow, detectDuplicates } from '../lib/importTemplates';
 import BackButton from '../components/BackButton';
+import { MobileHeader } from '../components/ui';
+import { FileUp } from 'lucide-react';
 
 export default function ImportMasse({ user, navigate, goBack, lang='fr', isMobile }) {
   const { toast } = useToast();
@@ -439,25 +441,13 @@ export default function ImportMasse({ user, navigate, goBack, lang='fr', isMobil
 
       {/* Header */}
       {isMobile ? (
-        <div style={{background:'linear-gradient(135deg,#085041,#1D9E75)',padding:'48px 16px 16px',position:'sticky',top:0,zIndex:100}}>
-          <div style={{display:'flex',alignItems:'center',gap:12,marginBottom:6}}>
-            <button onClick={()=>goBack?goBack():navigate('gestion')}
-              aria-label={lang==='ar'?'رجوع':'Retour'}
-              style={{background:'rgba(255,255,255,0.22)',border:'1px solid rgba(255,255,255,0.25)',
-                borderRadius:10,padding:'0',color:'#fff',fontSize:20,cursor:'pointer',flexShrink:0,
-                width:44,height:44,display:'flex',alignItems:'center',justifyContent:'center'}}>
-              ←
-            </button>
-            <div style={{flex:1}}>
-              <div style={{fontSize:17,fontWeight:800,color:'#fff'}}>
-                📥 {lang === 'ar' ? 'استيراد جماعي' : 'Import en masse'}
-              </div>
-              <div style={{fontSize:11,color:'rgba(255,255,255,0.85)',marginTop:2}}>
-                {lang === 'ar' ? 'استيراد البيانات من ملف Excel' : 'Importer les données depuis Excel'}
-              </div>
-            </div>
-          </div>
-        </div>
+        <MobileHeader
+          title={lang === 'ar' ? 'استيراد جماعي' : 'Import en masse'}
+          subtitle={lang === 'ar' ? 'استيراد البيانات من ملف Excel' : 'Importer les données depuis Excel'}
+          icon={FileUp}
+          onBack={()=>goBack?goBack():navigate('gestion')}
+          lang={lang}
+        />
       ) : (
         <>
           <BackButton onClick={() => goBack ? goBack() : navigate('gestion')} lang={lang} isMobile={isMobile} />

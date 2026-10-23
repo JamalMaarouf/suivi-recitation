@@ -8,6 +8,8 @@ import { exportExcelSimple } from '../lib/excel';
 import ExportButtons from '../components/ExportButtons';
 import PageHeader from '../components/PageHeader';
 import MobileSkeletonList from '../components/MobileSkeletonList';
+import { MobileHeader, HeaderIconButton, HeaderMenu, actionsExport, SearchField, FilterChips } from '../components/ui';
+import { ClipboardCheck, Plus, X } from 'lucide-react';
 
 export default function GestionExamens({ user, navigate, goBack, lang='fr', isMobile }) {
   const { toast } = useToast();
@@ -571,67 +573,30 @@ export default function GestionExamens({ user, navigate, goBack, lang='fr', isMo
   if (isMobile) {
     return (
       <div style={{paddingBottom:80,background:'#f5f5f0',minHeight:'100vh'}}>
-        <div style={{background:'linear-gradient(135deg,#085041,#1D9E75)',padding:'48px 16px 14px',position:'sticky',top:0,zIndex:100}}>
-          <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:12}}>
-            <button onClick={()=>goBack?goBack():navigate('gestion')} style={{background:'rgba(255,255,255,0.22)',border:'1px solid rgba(255,255,255,0.25)',borderRadius:10,padding:'0',color:'#fff',fontSize:20,cursor:'pointer',flexShrink:0,width:44,height:44,display:'flex',alignItems:'center',justifyContent:'center'}}>←</button>
-            <div style={{flex:1,fontSize:17,fontWeight:800,color:'#fff'}}>
-              📝 {lang==='ar'?'الامتحانات':'Examens'}
-            </div>
-            <button onClick={()=>{if(showForm&&!editing)resetForm();else startCreate();}}
-              style={{background:showForm&&!editing?'rgba(255,255,255,0.15)':'rgba(255,255,255,0.25)',border:'1px solid rgba(255,255,255,0.3)',borderRadius:10,padding:'8px 14px',color:'#fff',fontSize:13,fontWeight:700,cursor:'pointer',fontFamily:'inherit',flexShrink:0}}>
-              {showForm&&!editing?'✕':(lang==='ar'?'+ إضافة':'+ Ajouter')}
-            </button>
-          </div>
+        <MobileHeader
+          title={lang==='ar'?'الامتحانات':'Examens'}
+          icon={ClipboardCheck}
+          onBack={()=>goBack?goBack():navigate('gestion')}
+          lang={lang}
+          actions={<>
+            {/* Export mobile */}
+            {examsFiltres.length > 0 && (
+              <HeaderMenu actions={actionsExport({onPDF:handleExportPDF, onExcel:handleExportExcel, lang})} lang={lang} />
+            )}
+            <HeaderIconButton icon={showForm&&!editing?X:Plus}
+              label={showForm&&!editing?(lang==='ar'?'إغلاق':'Fermer'):(lang==='ar'?'إضافة':'Ajouter')}
+              onClick={()=>{if(showForm&&!editing)resetForm();else startCreate();}} />
+          </>}>
           {/* Filtre niveau */}
-          <div style={{display:'flex',gap:6,overflowX:'auto',
-            scrollbarWidth:'none',paddingBottom:10}}>
-            <div onClick={()=>setFiltreNiveau('tous')}
-              style={{padding:'6px 14px',borderRadius:20,fontSize:12,fontWeight:600,
-                flexShrink:0,cursor:'pointer',
-                background:filtreNiveau==='tous'?'#1D9E75':'#f0f0ec',
-                color:filtreNiveau==='tous'?'#fff':'#666'}}>
-              {lang==='ar'?'الكل':'Tous'}
-            </div>
-            {niveaux.map(n=>(
-              <div key={n.id} onClick={()=>setFiltreNiveau(n.id)}
-                style={{padding:'6px 14px',borderRadius:20,fontSize:12,fontWeight:600,
-                  flexShrink:0,cursor:'pointer',
-                  background:filtreNiveau===n.id?n.couleur:'#f0f0ec',
-                  color:filtreNiveau===n.id?'#fff':'#666'}}>
-                {n.code}
-              </div>
-            ))}
-          </div>
+          <FilterChips onBrand
+            options={[{value:'tous', label:lang==='ar'?'الكل':'Tous'}, ...niveaux.map(n=>({value:n.id, label:n.code}))]}
+            value={filtreNiveau} onChange={setFiltreNiveau} />
           {/* M3b — Recherche par nom (alignement avec PC E2b) */}
           {examens.length > 0 && (
-            <div style={{marginTop:8}}>
-              <input type="text"
-                value={searchExam}
-                onChange={e => setSearchExam(e.target.value)}
-                placeholder={'🔍 ' + (lang === 'ar' ? 'بحث عن امتحان...' : 'Rechercher un examen')}
-                style={{
-                  width:'100%', padding:'8px 12px', fontSize:13,
-                  borderRadius:10, border:'1px solid transparent',
-                  fontFamily:'inherit', outline:'none',
-                  background:'#fff', color:'#16241E',
-                  boxSizing:'border-box',
-                }}/>
-            </div>
+            <SearchField value={searchExam} onChange={setSearchExam} lang={lang} id="recherche-examens"
+              placeholder={lang === 'ar' ? 'بحث عن امتحان...' : 'Rechercher un examen'} />
           )}
-          {/* Export mobile */}
-          {examsFiltres.length > 0 && (
-            <div style={{display:'flex',gap:6,marginTop:8}}>
-              <button onClick={handleExportPDF}
-                style={{flex:1,background:'rgba(255,255,255,0.25)',border:'1px solid rgba(255,255,255,0.3)',borderRadius:10,padding:'7px 11px',color:'#fff',fontSize:12,fontWeight:600,cursor:'pointer',whiteSpace:'nowrap',fontFamily:'inherit'}}>
-                📄 PDF
-              </button>
-              <button onClick={handleExportExcel}
-                style={{flex:1,background:'rgba(255,255,255,0.25)',border:'1px solid rgba(255,255,255,0.3)',borderRadius:10,padding:'7px 11px',color:'#fff',fontSize:12,fontWeight:600,cursor:'pointer',whiteSpace:'nowrap',fontFamily:'inherit'}}>
-                📊 Excel
-              </button>
-            </div>
-          )}
-        </div>
+        </MobileHeader>
 
         <div style={{padding:'12px'}}>
           {showForm&&(
