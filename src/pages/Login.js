@@ -7,7 +7,16 @@ import { fetchAll } from '../lib/fetchAll';
 export default function Login({ onLogin, lang, LangSelector, onShowInscription }) {
   const [identifiant, setIdentifiant] = useState('');
   const [motDePasse, setMotDePasse] = useState('');
-  const [error, setError] = useState('');
+  // Securite (oct 2026) : message apres une deconnexion pour session expiree / mise a jour
+  const [error, setError] = useState(() => {
+    try {
+      if (sessionStorage.getItem('suivi_session_expiree')) {
+        sessionStorage.removeItem('suivi_session_expiree');
+        return lang === 'ar' ? 'انتهت الجلسة، يرجى تسجيل الدخول من جديد' : 'Session expirée, merci de vous reconnecter.';
+      }
+    } catch (e) { /* */ }
+    return '';
+  });
   const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e) => {
@@ -66,6 +75,11 @@ export default function Login({ onLogin, lang, LangSelector, onShowInscription }
       }
 
       setLoading(false);
+      // Securite (oct 2026) : session signee par le serveur, envoyee a chaque requete
+      try {
+        if (data.token) localStorage.setItem('suivi_token', data.token);
+        else localStorage.removeItem('suivi_token');
+      } catch (e) { /* stockage indisponible */ }
 
       // Précharger en arrière-plan les données du Dashboard
       // Quand Dashboard s'affichera, les données seront déjà dans le cache SWR

@@ -72,6 +72,25 @@ function isCurrentUserSuperAdmin() {
 // Note : @supabase/supabase-js v2 evalue 'headers' au moment de la requete
 // quand on passe une fonction, pas au moment de la creation du client.
 // Cela permet aux headers d'etre dynamiques (mis a jour au login/logout).
+// Session signee (oct 2026) : stockee a part de suivi_user (qui change en impersonification)
+export const CLE_JETON = 'suivi_token';
+export function lireJetonSession() {
+  try {
+    const t = localStorage.getItem(CLE_JETON);
+    if (!t) return null;
+    const payload = JSON.parse(atob(t.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')));
+    if (!payload.exp || payload.exp * 1000 < Date.now()) return null;
+    return t;
+  } catch { return null; }
+}
+export function expirationJetonSession() {
+  try {
+    const t = localStorage.getItem(CLE_JETON);
+    if (!t) return 0;
+    return (JSON.parse(atob(t.split('.')[1].replace(/-/g, '+').replace(/_/g, '/'))).exp || 0) * 1000;
+  } catch { return 0; }
+}
+
 function buildTartilyHeaders() {
   const headers = {};
   const ecoleId = getCurrentEcoleIdForHeader();
@@ -103,7 +122,24 @@ const supabaseRaw = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
       for (const [key, value] of Object.entries(tartilyHeaders)) {
         newHeaders.set(key, value);
       }
-      return fetch(url, { ...options, headers: newHeaders });
+      // Securite (oct 2026) : session signee par le serveur (voir api/auth.js). La base en
+      // lit l'ecole / le parent ; les en-tetes x-tartily-* ne suffisent plus une fois le
+      // script SQL de bascule applique.
+      const jeton = lireJetonSession();
+      if (!jeton) return fetch(url, { ...options, headers: newHeaders });
+      const headersAnon = new Headers(newHeaders);
+      newHeaders.set('Authorization', 'Bearer ' + jeton);
+      // Filet de securite : si la base refuse la session (secret mal configure cote serveur),
+      // on la retire et on rejoue la requete comme avant -> pas de panne de l'application.
+      return fetch(url, { ...options, headers: newHeaders }).then(async (r) => {
+        if (r.status !== 401) return r;
+        let txt = '';
+        try { txt = await r.clone().text(); } catch (e) { /* */ }
+        if (!/JW[ST]|jwt|signature/i.test(txt)) return r;
+        try { localStorage.removeItem(CLE_JETON); } catch (e) { /* */ }
+        console.warn('[session] jeton refuse par la base, retour au mode precedent');
+        return fetch(url, { ...options, headers: headersAnon });
+      });
     },
   },
 });

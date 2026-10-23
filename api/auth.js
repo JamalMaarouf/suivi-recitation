@@ -2,6 +2,7 @@
 // Remplace la comparaison mot_de_passe en clair dans Login.js
 
 const bcrypt = require('bcryptjs');
+const crypto = require('crypto');
 
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY;
@@ -96,6 +97,50 @@ async function update(table, id, data) {
     body: JSON.stringify(data),
   });
   return res.ok;
+}
+
+// ── SESSION SIGNEE (oct 2026) ──────────────────────────────────────
+// Le serveur signe (HS256, secret JWT du projet Supabase) l'ecole, le parent et le statut
+// super-admin de l'utilisateur. La base lit ces informations dans la signature (impossible
+// a falsifier depuis le navigateur) au lieu des en-tetes x-tartily-*.
+// Sans SUPABASE_JWT_SECRET configure : aucun jeton, comportement identique a avant.
+const JWT_SECRET = process.env.SUPABASE_JWT_SECRET;
+const JWT_DUREE_S = 30 * 24 * 3600; // 30 jours, renouvele automatiquement par l'app
+
+function b64url(buf) {
+  return Buffer.from(buf).toString('base64').replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_');
+}
+function signerJeton(user) {
+  if (!JWT_SECRET) return null;
+  const now = Math.floor(Date.now() / 1000);
+  const payload = {
+    role: 'anon',               // memes droits Postgres qu'aujourd'hui (cle anon)
+    tartily: 1,
+    sub: user.id,
+    user_role: user.role,
+    ecole_id: user.role === 'super_admin' ? null : (user.ecole_id || null),
+    parent_id: user.role === 'parent' ? user.id : null,
+    super_admin: user.role === 'super_admin',
+    iat: now,
+    exp: now + JWT_DUREE_S,
+  };
+  const header = b64url(JSON.stringify({ alg: 'HS256', typ: 'JWT' }));
+  const body = b64url(JSON.stringify(payload));
+  const sig = b64url(crypto.createHmac('sha256', JWT_SECRET).update(header + '.' + body).digest());
+  return header + '.' + body + '.' + sig;
+}
+function verifierJeton(token) {
+  if (!JWT_SECRET || !token || typeof token !== 'string') return null;
+  const parts = token.split('.');
+  if (parts.length !== 3) return null;
+  const attendu = b64url(crypto.createHmac('sha256', JWT_SECRET).update(parts[0] + '.' + parts[1]).digest());
+  const a = Buffer.from(attendu), b = Buffer.from(parts[2]);
+  if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) return null;
+  try {
+    const payload = JSON.parse(Buffer.from(parts[1].replace(/-/g, '+').replace(/_/g, '/'), 'base64').toString());
+    if (!payload.exp || payload.exp < Math.floor(Date.now() / 1000)) return null;
+    return payload;
+  } catch { return null; }
 }
 
 module.exports = async function handler(req, res) {
@@ -196,7 +241,22 @@ module.exports = async function handler(req, res) {
 
     // Retourner l'utilisateur sans le mot de passe
     const { mot_de_passe: _, ...safeUser } = user;
-    return res.status(200).json({ user: safeUser });
+    return res.status(200).json({ user: safeUser, token: signerJeton(user) });
+  }
+
+  // ── CAPACITES / RENOUVELLEMENT DE SESSION (oct 2026) ─────────────
+  if (action === 'capabilities') {
+    return res.status(200).json({ jwt: !!JWT_SECRET });
+  }
+  if (action === 'refresh') {
+    const payload = verifierJeton((req.body || {}).token);
+    if (!payload) return res.status(401).json({ error: 'session_invalide' });
+    const users = await query('utilisateurs', { id: payload.sub });
+    const u = users && users[0];
+    if (!u || u.deleted_at || u.suspendu_at || u.statut_compte === 'suspendu' || u.statut_compte === 'en_attente') {
+      return res.status(401).json({ error: 'session_invalide' });
+    }
+    return res.status(200).json({ token: signerJeton(u) });
   }
 
   // ── CHANGE PASSWORD ──────────────────────────────────────────────
@@ -308,3 +368,6 @@ module.exports = async function handler(req, res) {
 
   return res.status(400).json({ error: 'Action non reconnue' });
 };
+
+// Exposition pour les tests unitaires (sans effet sur l'API)
+module.exports._jeton = { signerJeton, verifierJeton };

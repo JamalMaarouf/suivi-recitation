@@ -84,7 +84,7 @@ import GlobalSearch from './components/GlobalSearch';
 import { invalidateAll } from './lib/cache';
 import { cacheClearAll } from './lib/offlineCache';
 import { installAutoSync } from './lib/offlineQueue';
-import { supabase } from './lib/supabase';
+import { supabase, lireJetonSession, expirationJetonSession, CLE_JETON } from './lib/supabase';
 import './App.css';
 
 // PWA Install prompt
@@ -302,6 +302,8 @@ function App() {
   useEffect(() => {
     const saved = localStorage.getItem('suivi_user');
     if (saved) setUser(JSON.parse(saved));
+    // Securite (oct 2026) : verifier / renouveler la session signee (voir api/auth.js)
+    if (saved) verifierSessionSignee();
 
     // Resize handler debounce a 250ms.
     // CONTEXTE : sans debounce, Chrome 'Capture full size screenshot' fait
@@ -390,8 +392,33 @@ function App() {
     cacheClearAll().catch(() => {}); // vider aussi le cache persistant IndexedDB
     setUser(null);
     localStorage.removeItem('suivi_user');
+    try { localStorage.removeItem(CLE_JETON); } catch (e) { /* */ }
     setPageWithRef('dashboard');
   };
+
+  // Securite (oct 2026) : session signee par le serveur.
+  // - renouvelee automatiquement a moins de 7 jours de son expiration ;
+  // - si l'utilisateur n'en a pas (connecte avant la mise a jour) ou si elle a expire,
+  //   et que le serveur en delivre : retour a l'ecran de connexion (une seule fois).
+  async function verifierSessionSignee() {
+    try {
+      const jeton = lireJetonSession();
+      if (jeton) {
+        if (expirationJetonSession() - Date.now() < 7 * 24 * 3600 * 1000) {
+          const r = await fetch('/api/auth', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'refresh', token: jeton }) });
+          if (r.ok) { const d = await r.json(); if (d.token) localStorage.setItem(CLE_JETON, d.token); }
+          else if (r.status === 401) { sessionStorage.setItem('suivi_session_expiree', '1'); handleLogout(); }
+        }
+        return;
+      }
+      const r = await fetch('/api/auth', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'capabilities' }) });
+      if (!r.ok) return; // hors ligne ou API indisponible : on ne deconnecte pas
+      const d = await r.json();
+      if (d && d.jwt) { sessionStorage.setItem('suivi_session_expiree', '1'); handleLogout(); }
+    } catch (e) { /* hors ligne : on garde la session locale */ }
+  }
 
   // ─── Impersonification super admin → surveillant d'une école ─────
   // Permet au super admin de "voir comme" un surveillant pour l'aider
