@@ -321,6 +321,7 @@ export const BAREME_DEFAUT = {
   // oct 2026 : muraja collective des sourates (avant : 20 / 5 codes en dur)
   muraja_sourate: 0,
   muraja_sequence: 0,
+  sequence_sourate: 0, // oct 2026 : sequence de sourate (memorisation), parametrable dans le bareme
 };
 
 /**
@@ -506,6 +507,30 @@ export async function saveBaremeItemsBulk(supabase, ecole_id, items) {
  * @param typeRecitation : 'complete' ou 'sequence'
  * @returns { points, source }
  */
+/**
+ * FIX (oct 2026) : convention unique des sourates acquises avant le suivi.
+ * eleves.sourates_acquises = N = les N premieres sourates du Coran dans le sens du niveau
+ * (desc : 114, 113, ... ; asc : 1, 2, ...) — meme convention que AcquisSelector et les
+ * verifications de blocage. Retourne l'ensemble des NUMEROS acquis.
+ */
+export function numerosSouratesAcquises(nbAcquises, sens = 'desc') {
+  const n = Math.max(0, Math.min(114, parseInt(nbAcquises) || 0));
+  const set = new Set();
+  for (let i = 0; i < n; i++) set.add(sens === 'asc' ? i + 1 : 114 - i);
+  return set;
+}
+
+/**
+ * FIX (oct 2026) : liste ordonnee des sourates d'un eleve = programme du niveau s'il existe
+ * (sinon les 114), triee selon le sens. `toutes` = objets {numero, ...}.
+ */
+export function ordonnerSouratesProgramme(toutes, programmeNumeros, sens = 'desc') {
+  const prog = programmeNumeros && programmeNumeros.size > 0 ? programmeNumeros : null;
+  return [...(toutes || [])]
+    .filter(s => !prog || prog.has(s.numero))
+    .sort((a, b) => sens === 'asc' ? a.numero - b.numero : b.numero - a.numero);
+}
+
 export function calculerPointsSourate(sourate_id, bareme, ensembles, typeRecitation = 'complete') {
   // Pour les sequences, on garde la logique simple
   if (typeRecitation !== 'complete') {

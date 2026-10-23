@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase';
 import { getInitiales, scoreLabel, loadBareme, verifierEtCreerCertificats, verifierBlocageEnsemble, calculerPointsSourate, verifierBlocageExamen } from '../lib/helpers';
 import { t } from '../lib/i18n';
 import { getSouratesForNiveau, isSourateNiveau } from '../lib/sourates';
+import { numerosSouratesAcquises, ordonnerSouratesProgramme } from '../lib/helpers';
 import { useToast } from '../lib/toast';
 import MobileSkeletonList from '../components/MobileSkeletonList';
 
@@ -87,12 +88,15 @@ export default function RecitationSourate({ user, eleve, navigate, goBack, lang=
   const [showExceptionModal, setShowExceptionModal] = useState(false);
   const [sensRecitation, setSensRecitation] = useState('desc');
   const [niveauData, setNiveauData] = useState(null); // pour blocage ensemble
+  const [programmeNumeros, setProgrammeNumeros] = useState(null); // FIX (oct 2026) : numeros du programme du niveau
 
   const codeNiveau = eleve.code_niveau || '5B';
   const souratesNiveau = getSouratesForNiveau(codeNiveau);
-  // Ordre selon le sens : desc = 114→1 (plus courtes d'abord), asc = 1→114
-  const souratesOrdonnees = [...souratesNiveau].sort((a,b) =>
-    sensRecitation === 'asc' ? a.numero - b.numero : b.numero - a.numero);
+  // FIX (oct 2026) : la liste suit le PROGRAMME du niveau (comme Validation rapide), dans le
+  // sens du niveau. Avant : les 114 sourates -> un eleve de 5A (programme 77->49) voyait
+  // An-Nas comme sourate en cours et tout son programme verrouille.
+  const souratesOrdonnees = ordonnerSouratesProgramme(souratesNiveau, programmeNumeros, sensRecitation);
+  const acquisNumeros = numerosSouratesAcquises(eleve.sourates_acquises, sensRecitation);
   const isPrivilegied = user.role === 'surveillant';
 
   useEffect(() => {
@@ -130,6 +134,16 @@ export default function RecitationSourate({ user, eleve, navigate, goBack, lang=
     const resolvedSens = nv?.sens_recitation || ec?.sens_recitation_defaut || 'desc';
     setSensRecitation(resolvedSens);
     setNiveauData(nv); // {id, code, type, sens_recitation}
+    // FIX (oct 2026) : programme du niveau (references = ids de la table sourates)
+    if (nv && nv.id) {
+      try {
+        const { data: prog } = await supabase.from('programmes').select('reference_id, type_contenu')
+          .eq('niveau_id', nv.id).eq('ecole_id', user.ecole_id);
+        const numById = new Map((sdb || []).map(x => [String(x.id), x.numero]));
+        const nums = new Set((prog || []).map(p => numById.get(String(p.reference_id))).filter(Boolean));
+        setProgrammeNumeros(nums.size > 0 ? nums : null);
+      } catch (e) { setProgrammeNumeros(null); }
+    }
     // Safe load for exceptions (table may not exist)
     let ex = [];
     try {
@@ -174,13 +188,13 @@ export default function RecitationSourate({ user, eleve, navigate, goBack, lang=
     // Acquis antérieurs = FIRST N sourates (114→111 if N=4)
     // List is sorted descending: [114,113,112,111,110,109,...]
     // So acquis = indices 0 to N-1
-    if (idx < souratesAcquises) return 'acquis';
+    if (acquisNumeros.has(s.numero)) return 'acquis'; // FIX (oct 2026) : par numero, plus par position
     // If exception unlocked by surveillant
     if (isUnlocked(s.numero)) return 'unlocked';
     // Current sourate = first non-complete after acquis block
     // Find the first sourate at index >= souratesAcquises that is not complete
-    const firstNonComplete = souratesOrdonnees.findIndex((sr, i) => {
-      if (i < souratesAcquises) return false; // skip acquis
+    const firstNonComplete = souratesOrdonnees.findIndex((sr) => {
+      if (acquisNumeros.has(sr.numero)) return false; // skip acquis
       return !isComplete(sr.numero);
     });
     if (firstNonComplete === -1) return 'complete'; // all done!
@@ -204,10 +218,11 @@ export default function RecitationSourate({ user, eleve, navigate, goBack, lang=
   const versetDebutEtat = versetDebut;
   const versetFinEtat = versetFin;
   const ptsParSourate = bareme?.unites?.sourate||0;
-  const totalPoints = recitations.reduce((s,r) => s + (r.points||0), 0) + (souratesAcquises * ptsParSourate);
-  const souratesCompletes = souratesOrdonnees.filter(s => isComplete(s.numero)).length + souratesAcquises;
+  // FIX (oct 2026) : les sourates acquises avant le suivi ne rapportent pas de points (regle commune)
+  const totalPoints = recitations.reduce((s,r) => s + (r.points||0), 0);
+  const souratesCompletes = souratesOrdonnees.filter(s => isComplete(s.numero) || acquisNumeros.has(s.numero)).length;
   // The current sourate index
-  const currentIdx = souratesOrdonnees.findIndex((sr, i) => i >= souratesAcquises && !isComplete(sr.numero));
+  const currentIdx = souratesOrdonnees.findIndex((sr) => !acquisNumeros.has(sr.numero) && !isComplete(sr.numero));
   const currentSourate = currentIdx >= 0 ? souratesOrdonnees[currentIdx] : null;
   const sl = scoreLabel(totalPoints);
 

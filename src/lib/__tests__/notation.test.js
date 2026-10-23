@@ -5,6 +5,8 @@ import {
   ptsValidation,
   calcEtatEleve,
   verifierBlocageExamen,
+  numerosSouratesAcquises,
+  ordonnerSouratesProgramme,
 } from '../helpers';
 
 const BAREME = {
@@ -205,5 +207,33 @@ describe('verifierBlocageExamen (hizb)', () => {
       eleve: { id: 'el1', code_niveau: '2M' }, ecole_id: 'e1', validations: [hizbComplet(60), hizbComplet(59)], recitations: [],
     });
     expect(r).toBeNull();
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────
+describe('sourates : programme et acquis (oct 2026)', () => {
+  const toutes = Array.from({ length: 114 }, (_, i) => ({ id: 1000 + i + 1, numero: i + 1 }));
+
+  test('acquis = N premieres sourates dans le sens du niveau', () => {
+    expect([...numerosSouratesAcquises(3, 'desc')]).toEqual([114, 113, 112]);
+    expect([...numerosSouratesAcquises(2, 'asc')]).toEqual([1, 2]);
+    expect(numerosSouratesAcquises(0, 'desc').size).toBe(0);
+  });
+
+  test('liste = programme du niveau, triee selon le sens', () => {
+    const prog = new Set([77, 76, 75, 49]);
+    expect(ordonnerSouratesProgramme(toutes, prog, 'desc').map(s => s.numero)).toEqual([77, 76, 75, 49]);
+    expect(ordonnerSouratesProgramme(toutes, prog, 'asc').map(s => s.numero)).toEqual([49, 75, 76, 77]);
+  });
+
+  test('sans programme : les 114 sourates', () => {
+    expect(ordonnerSouratesProgramme(toutes, null, 'desc')).toHaveLength(114);
+    expect(ordonnerSouratesProgramme(toutes, new Set(), 'desc')[0].numero).toBe(114);
+  });
+
+  test('eleve de 5A sans acquis : la sourate en cours est la 1re du programme (77), pas An-Nas', () => {
+    const ordre = ordonnerSouratesProgramme(toutes, new Set([77, 76, 75]), 'desc');
+    const acquis = numerosSouratesAcquises(0, 'desc');
+    expect(ordre.find(s => !acquis.has(s.numero)).numero).toBe(77);
   });
 });

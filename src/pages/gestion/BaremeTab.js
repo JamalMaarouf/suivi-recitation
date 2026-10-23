@@ -44,6 +44,7 @@ export function BaremeTab({ user, lang, bareme, setBareme, saving, setSaving, sh
     { key:'tomon',        icon:'📖', label_ar:'ثمن واحد مُستظهر',       color:'#378ADD' },
     { key:'hizb_complet', icon:'🎯', label_ar:'حزب كامل مُصحَّح',        color:'#085041' },
     { key:'sourate',      icon:'📜', label_ar:'سورة كاملة',              color:'#534AB7' },
+    { key:'sequence_sourate', icon:'📌', label_ar:'مقطع من سورة',       color:'#534AB7' },
     { key:'muraja_tomon', icon:'🔄', label_ar:'ثمن مراجعة',              color:'#1D9E75' },
     { key:'muraja_hizb',  icon:'🔁', label_ar:'حزب مراجعة كامل',         color:'#1D9E75' },
     { key:'muraja_sourate',  icon:'🔁', label_ar:'سورة مراجعة كاملة',   color:'#534AB7' },

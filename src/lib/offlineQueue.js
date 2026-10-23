@@ -93,6 +93,47 @@ async function updateAttempts(id, attempts, lastError) {
   });
 }
 
+// FIX (oct 2026) : une operation refusee n'est plus supprimee en silence. Elle est gardee,
+// marquee 'failed' (plus retentee automatiquement) et signalee a l'utilisateur, qui peut la
+// relancer ou l'abandonner depuis le bandeau reseau.
+async function markFailed(id, lastError) {
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE_NAME, 'readwrite');
+    const store = tx.objectStore(STORE_NAME);
+    const getReq = store.get(id);
+    getReq.onsuccess = () => {
+      const item = getReq.result;
+      if (!item) return resolve();
+      item.failed = true;
+      item.last_error = lastError || item.last_error || '';
+      item.last_attempt_at = Date.now();
+      const putReq = store.put(item);
+      putReq.onsuccess = () => resolve();
+      putReq.onerror = () => reject(putReq.error);
+    };
+    getReq.onerror = () => reject(getReq.error);
+  });
+}
+
+// FIX (oct 2026) : evite les doublons. Si une insertion a ete ecrite cote serveur mais que la
+// reponse s'est perdue (coupure reseau), elle a ete remise en file : avant de la rejouer, on
+// verifie si la meme ligne existe deja (meme eleve + meme horodatage, fixe a la saisie).
+const CHAMPS_DATE_DEDUP = ['date_validation', 'date_debut', 'date_event', 'date_presence', 'date_paiement'];
+async function existeDeja(supabase, op) {
+  try {
+    const p = op.payload;
+    if (!p || Array.isArray(p) || !p.eleve_id) return false;
+    const champ = CHAMPS_DATE_DEDUP.find(c => p[c]);
+    if (!champ) return false;
+    let q = supabase.from(op.table).select('id').eq('eleve_id', p.eleve_id).eq(champ, p[champ]);
+    if (p.ecole_id) q = q.eq('ecole_id', p.ecole_id);
+    const { data, error } = await q.limit(1);
+    if (error) return false;
+    return !!(data && data.length);
+  } catch { return false; }
+}
+
 // ── API publique ────────────────────────────────────────────────
 
 /**
@@ -101,8 +142,42 @@ async function updateAttempts(id, attempts, lastError) {
 export async function pendingCount() {
   try {
     const all = await getAllFromQueue();
-    return all.length;
+    return all.filter(op => !op.failed).length;
   } catch { return 0; }
+}
+
+/** FIX (oct 2026) : operations refusees, gardees pour que l'utilisateur decide. */
+export async function failedOps() {
+  try {
+    const all = await getAllFromQueue();
+    return all.filter(op => op.failed);
+  } catch { return []; }
+}
+
+/** Relance une operation refusee (elle repasse en attente). */
+export async function retryFailed(id) {
+  const db = await openDB();
+  await new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE_NAME, 'readwrite');
+    const store = tx.objectStore(STORE_NAME);
+    const getReq = store.get(id);
+    getReq.onsuccess = () => {
+      const item = getReq.result;
+      if (!item) return resolve();
+      item.failed = false; item.attempts = 0;
+      const putReq = store.put(item);
+      putReq.onsuccess = () => resolve();
+      putReq.onerror = () => reject(putReq.error);
+    };
+    getReq.onerror = () => reject(getReq.error);
+  });
+  notifyListeners();
+}
+
+/** Abandonne definitivement une operation refusee (choix explicite de l'utilisateur). */
+export async function abandonFailed(id) {
+  await removeFromQueue(id);
+  notifyListeners();
 }
 
 /**
@@ -212,7 +287,7 @@ export async function syncPending(supabase) {
   let synced = 0, failed = 0;
 
   try {
-    const all = await getAllFromQueue();
+    const all = (await getAllFromQueue()).filter(op => !op.failed);
     if (all.length === 0) {
       syncInProgress = false;
       return { synced: 0, failed: 0 };
@@ -225,6 +300,12 @@ export async function syncPending(supabase) {
       try {
         let result;
         if (op.action === 'insert') {
+          if (await existeDeja(supabase, op)) {
+            // deja enregistree cote serveur (reponse perdue) : on ne la rejoue pas
+            await removeFromQueue(op.id);
+            synced++;
+            continue;
+          }
           result = await supabase.from(op.table).insert(op.payload);
         } else if (op.action === 'update' && op.filter) {
           let q = supabase.from(op.table).update(op.payload);
@@ -239,16 +320,16 @@ export async function syncPending(supabase) {
         if (result?.error) {
           // Si erreur métier (RLS, validation) : on abandonne cette op
           if (!isNetworkError(result.error)) {
-            await removeFromQueue(op.id);
+            await markFailed(op.id, result.error.message);
             failed++;
             continue;
           }
           // Erreur réseau : on retry plus tard
           await updateAttempts(op.id, (op.attempts || 0) + 1, result.error.message);
           failed++;
-          // Si 10+ tentatives, on abandonne
+          // Si 10+ tentatives : gardee comme refusee (plus supprimee en silence)
           if ((op.attempts || 0) >= 10) {
-            await removeFromQueue(op.id);
+            await markFailed(op.id, result.error.message);
           }
         } else {
           await removeFromQueue(op.id);
@@ -256,14 +337,14 @@ export async function syncPending(supabase) {
         }
       } catch (err) {
         if (!isNetworkError(err)) {
-          // Erreur fatale → drop pour ne pas bloquer la queue
-          await removeFromQueue(op.id);
+          // Erreur fatale : gardee comme refusee (ne bloque plus la file, n'est plus perdue)
+          await markFailed(op.id, err.message);
           failed++;
         } else {
           await updateAttempts(op.id, (op.attempts || 0) + 1, err.message);
           failed++;
           if ((op.attempts || 0) >= 10) {
-            await removeFromQueue(op.id);
+            await markFailed(op.id, err.message);
           }
         }
       }

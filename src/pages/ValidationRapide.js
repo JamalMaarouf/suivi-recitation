@@ -5,7 +5,7 @@ import { withRetryToast } from '../lib/retry';
 import { invalidateMany } from '../lib/cache';
 import { enqueueOrRun } from '../lib/offlineQueue';
 import { swr } from '../lib/offlineCache';
-import { calcEtatEleve, calcEtatEleveAvecBlocs, getInitiales, scoreLabel, motivationMsg, verifierEtCreerCertificats, isSourateNiveauDyn, loadBareme, BAREME_DEFAUT, getSensForEleve, verifierBlocageExamen, verifierBlocageEnsemble, validerEnsemble, calculerPointsSourate, ptsValidation} from '../lib/helpers';
+import { calcEtatEleve, calcEtatEleveAvecBlocs, getInitiales, scoreLabel, motivationMsg, verifierEtCreerCertificats, isSourateNiveauDyn, loadBareme, BAREME_DEFAUT, getSensForEleve, verifierBlocageExamen, verifierBlocageEnsemble, validerEnsemble, calculerPointsSourate, ptsValidation, numerosSouratesAcquises, ordonnerSouratesProgramme} from '../lib/helpers';
 import { notifierParents } from '../lib/notificationsParents';
 import { getSouratesForNiveau } from '../lib/sourates';
 import { t } from '../lib/i18n';
@@ -151,6 +151,25 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
     }
   };
 
+  // FIX (oct 2026) : sourate en cours = 1re sourate du programme (dans le sens du niveau) ni
+  // acquise avant le suivi ni deja recitee completement. Meme regle que l'ecran Recitation de
+  // sourates (avant : tri toujours descendant et acquis comptes par position dans le programme).
+  const listeSouratesEleve = (eleveObj, progData, souratesList) => {
+    const sensS = getSensForEleve(eleveObj, niveaux, ecoleConfig);
+    const progNums = new Set((progData || [])
+      .map(p => (souratesList || []).find(x => String(x.id) === String(p.reference_id))?.numero)
+      .filter(Boolean));
+    return {
+      ordre: ordonnerSouratesProgramme(souratesList || [], progNums, sensS),
+      acquis: numerosSouratesAcquises(eleveObj?.sourates_acquises, sensS),
+    };
+  };
+  const calcSourateCourante = (eleveObj, progData, souratesList, recs) => {
+    const { ordre, acquis } = listeSouratesEleve(eleveObj, progData, souratesList);
+    const faites = new Set((recs || []).filter(r => r.type_recitation === 'complete' && !r.is_muraja).map(r => r.sourate_id));
+    return ordre.find(sr => !acquis.has(sr.numero) && !faites.has(sr.id)) || null;
+  };
+
   const selectEleve = async (e) => {
     // === FIX B6 - Selection instantanee (sans SELECT bloquant) ===
     // Avant : SELECT eleves bloquant a chaque clic (1-3s sur mobile)
@@ -222,23 +241,7 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
     // Calculer la sourate en cours avec donnees LOCALES fraiches
     const isSourateEleve = niveaux.some(n => n.code === freshEleve.code_niveau && n.type === 'sourate');
     if (isSourateEleve && souratesLocal.length > 0) {
-      const souratesAcquises = freshEleve.sourates_acquises || 0;
-      let souratesOrd;
-      if (progData.length > 0) {
-        souratesOrd = progData
-          .map(p => souratesLocal.find(s => String(s.id) === String(p.reference_id)))
-          .filter(Boolean)
-          .sort((a, b) => b.numero - a.numero);
-      } else {
-        souratesOrd = [...souratesLocal].sort((a, b) => b.numero - a.numero);
-      }
-      const isCompleteLoc = (id) =>
-        recitationsLocal.some(r => r.sourate_id === id && r.type_recitation === 'complete');
-      const idx = souratesOrd.findIndex((sr, i) => {
-        if (i < souratesAcquises) return false;
-        return !isCompleteLoc(sr.id);
-      });
-      setCurrentSourateState(idx >= 0 ? souratesOrd[idx] : null);
+      setCurrentSourateState(calcSourateCourante(freshEleve, progData, souratesLocal, recitationsLocal));
     }
 
     // Verification du blocage examen au moment de la selection de l'eleve.
@@ -288,29 +291,10 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
   // Vérifier si c'est la dernière sourate du programme
   const estDerniereSourate = (() => {
     if (!estSourate || !selectedEleve || !currentSourate) return false;
-    const souratesAcquises = selectedEleve.sourates_acquises || 0;
-    const souratesNiveau = getSouratesForNiveau(selectedEleve.code_niveau);
-    const souratesOrdonnees = [...souratesNiveau].sort((a, b) => b.numero - a.numero);
-    // Si programme défini : la dernière = sourate avec le plus petit numéro dans le programme
-    if (programmeNiveau.length > 0) {
-      const souratesProg = programmeNiveau.map(p => {
-        // p.reference_id est en TEXT (string), s.id est integer.
-        // On compare via parseInt pour eviter le mismatch de types.
-        const refIdInt = parseInt(p.reference_id);
-        const s = souratesDB.find(sd => sd.id === refIdInt);
-        return s?.numero;
-      }).filter(Boolean);
-      if (souratesProg.length > 0) {
-        const dernierNumero = Math.min(...souratesProg);
-        return currentSourate.numero === dernierNumero;
-      }
-    }
-    // Fallback : pas de sourate restante après la courante
-    const restantes = souratesOrdonnees.filter((sr, i) => {
-      if (i < souratesAcquises) return false;
-      if (sr.numero === currentSourate.numero) return false;
-      return !isCompleteNum(sr.numero);
-    });
+    // FIX (oct 2026) : meme liste que la sourate en cours (programme + sens + acquis)
+    const { ordre, acquis } = listeSouratesEleve(selectedEleve, programmeNiveau, souratesDB);
+    const restantes = ordre.filter(sr =>
+      !acquis.has(sr.numero) && sr.numero !== currentSourate.numero && !isCompleteNum(sr.numero));
     return restantes.length === 0;
   })();
 
@@ -645,17 +629,7 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
     setRecitationsSourates(optimisticRecs);
 
     // Calcul sourate suivante avec donnees OPTIMISTES (instantane)
-    const isCompleteOpt = (id) =>
-      optimisticRecs.some(r => r.sourate_id === id && r.type_recitation === 'complete');
-    const souratesAcquisesOpt = selectedEleve.sourates_acquises || 0;
-    const souratesOrdOpt = programmeNiveau.length > 0
-      ? programmeNiveau.map(p => souratesDB.find(s => String(s.id) === String(p.reference_id))).filter(Boolean).sort((a,b) => b.numero - a.numero)
-      : [...souratesDB].sort((a,b) => b.numero - a.numero);
-    const idxOpt = souratesOrdOpt.findIndex((sr, i) => {
-      if (i < souratesAcquisesOpt) return false;
-      return !isCompleteOpt(sr.id);
-    });
-    setCurrentSourateState(idxOpt >= 0 ? souratesOrdOpt[idxOpt] : null);
+    setCurrentSourateState(calcSourateCourante(selectedEleve, programmeNiveau, souratesDB, optimisticRecs));
 
     // Affichage flash + reset selection IMMEDIATS
     const detail = typeRec === 'complete'
@@ -713,13 +687,7 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
       if (refreshRecs) {
         setRecitationsSourates((refreshRecs || []).filter(r => !r.is_muraja));
         // Recalculer sourate suivante avec donnees REELLES
-        const isCompleteReal = (id) =>
-          refreshRecs.some(r => r.sourate_id === id && r.type_recitation === 'complete');
-        const idxReal = souratesOrdOpt.findIndex((sr, i) => {
-          if (i < souratesAcquisesOpt) return false;
-          return !isCompleteReal(sr.id);
-        });
-        setCurrentSourateState(idxReal >= 0 ? souratesOrdOpt[idxReal] : null);
+        setCurrentSourateState(calcSourateCourante(selectedEleve, programmeNiveau, souratesDB, refreshRecs));
       }
       return;
     }
