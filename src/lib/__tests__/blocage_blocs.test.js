@@ -32,3 +32,18 @@ test('fuseau : recitation 30 min apres le passage gardee', () => {
   const rows = depuisDebutNiveau([{ date_validation:'2026-10-23T10:30:00' }, { date_validation:'2026-10-23T09:30:00' }], { debut_niveau_at:'2026-10-23T10:00:00+00:00' });
   expect(rows.length).toBe(1);
 });
+
+// Regle 23/10 : examen entierement couvert par les acquis -> pas de blocage, prochain examen normal
+test('acquis couvrant un examen entier : pas de blocage', async () => {
+  const db3 = { ...db, programmes: [], examens:[{id:'x4',ecole_id:'e',niveau_id:'n1',bloquant:true,nom:'E60-59',contenu_ids:[60,59]},{id:'x5',ecole_id:'e',niveau_id:'n1',bloquant:true,nom:'E58-57',contenu_ids:[58,57]}], resultats_examens:[] };
+  const eleve = { id:'s', code_niveau:'X', hizb_depart:58 };
+  expect(await verifierBlocageExamen(fake(db3), { eleve, ecole_id:'e', validations:[], recitations:[] })).toBeNull();
+  const vals = [{type_validation:'hizb_complet',hizb_valide:58,date_validation:'2026-10-20'},{type_validation:'hizb_complet',hizb_valide:57,date_validation:'2026-10-21'}];
+  const r = await verifierBlocageExamen(fake(db3), { eleve, ecole_id:'e', validations:vals, recitations:[] });
+  expect(r && r.examen.id).toBe('x5');
+});
+test('examen a cheval acquis + suivi : bloque quand fini', async () => {
+  const db4 = { ...db, programmes: [], examens:[{id:'x6',ecole_id:'e',niveau_id:'n1',bloquant:true,nom:'E',contenu_ids:[60,59,58]}], resultats_examens:[] };
+  const r = await verifierBlocageExamen(fake(db4), { eleve:{id:'s',code_niveau:'X',hizb_depart:58}, ecole_id:'e', validations:[{type_validation:'hizb_complet',hizb_valide:58,date_validation:'2026-10-20'}], recitations:[] });
+  expect(r && r.examen.id).toBe('x6');
+});

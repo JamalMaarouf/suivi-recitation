@@ -1090,6 +1090,7 @@ export async function verifierBlocageExamen(supabase, {
         //   - hizbs_acquis = tableau explicite de hizbs acquis supplementaires
         const sensNiveau = niveauData.sens_recitation || 'desc';
         const hd = parseInt(eleve?.hizb_depart) || 0;
+        const acquisAvantSuivi = new Set(); // Hizb acquis avant le suivi (pour la regle « examen couvert »)
         if (hd > 0) {
           // Audit final (oct 2026) : tenir compte des BLOCS du programme (meme calcul que la fiche,
           // calcHizbsAcquisAvantArrivee). Avant : tous les Hizb au-dela du depart en ligne droite ->
@@ -1102,16 +1103,19 @@ export async function verifierBlocageExamen(supabase, {
               .eq('niveau_id', niveauId).eq('ecole_id', ecole_id).order('ordre');
             progExam = pg || [];
           } catch (e) { progExam = []; }
-          for (const h of calcHizbsAcquisAvantArrivee({ ...eleve, hizb_depart: hd }, progExam, sensNiveau)) hizbComplets.add(Number(h));
+          for (const h of calcHizbsAcquisAvantArrivee({ ...eleve, hizb_depart: hd }, progExam, sensNiveau)) { hizbComplets.add(Number(h)); acquisAvantSuivi.add(Number(h)); }
         }
         if (Array.isArray(eleve?.hizbs_acquis)) {
           for (const h of eleve.hizbs_acquis) {
             const n = Number(h);
-            if (!isNaN(n)) hizbComplets.add(n);
+            if (!isNaN(n)) { hizbComplets.add(n); acquisAvantSuivi.add(n); }
           }
         }
 
         examTermine = ids.every(h => hizbComplets.has(Number(h)));
+        // Regle validee par Jamal (23/10) : un examen ENTIEREMENT couvert par les acquis d'avant le
+        // suivi ne bloque pas ; l'eleve ne sera bloque qu'au prochain examen (Hizb recites pendant le suivi).
+        if (examTermine && ids.every(h => acquisAvantSuivi.has(Number(h)))) continue;
 
       } else {
         // ── Niveau Sourate ──
@@ -1142,6 +1146,7 @@ export async function verifierBlocageExamen(supabase, {
         // Sans cela, un eleve avec acquis prealables ne pourra jamais declencher
         // le blocage (le compteur de recitations en BDD n'atteindra jamais le total).
         const nbAcquises = eleve?.sourates_acquises || 0;
+        const souratesAcquisesAvant = new Set(); // pour la regle « examen couvert par les acquis »
         if (nbAcquises > 0) {
           try {
             // Charger les 114 sourates de la BDD triees selon le sens du niveau
@@ -1153,7 +1158,7 @@ export async function verifierBlocageExamen(supabase, {
             if (souratesData && souratesData.length > 0) {
               // Les N premieres dans cet ordre = acquises avant le suivi
               const idsAcquis = souratesData.slice(0, nbAcquises).map(s => s.id);
-              for (const sId of idsAcquis) souratesCompletes.add(sId);
+              for (const sId of idsAcquis) { souratesCompletes.add(sId); souratesAcquisesAvant.add(sId); }
             }
           } catch (e) {
             console.warn('[verifierBlocageExamen] echec ajout sourates_acquises:', e);
@@ -1162,6 +1167,8 @@ export async function verifierBlocageExamen(supabase, {
 
         examTermine = toutesLesSourates.length > 0 &&
           toutesLesSourates.every(sid => souratesCompletes.has(sid));
+        // Meme regle (23/10) : examen entierement couvert par les sourates acquises avant le suivi -> pas de blocage
+        if (examTermine && toutesLesSourates.every(sid => souratesAcquisesAvant.has(sid))) continue;
       }
 
       if (!examTermine) continue;
