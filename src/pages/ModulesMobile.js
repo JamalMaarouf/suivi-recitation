@@ -17,8 +17,8 @@
 
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
-import { MobileHeader } from '../components/ui';
-import { LayoutGrid } from 'lucide-react';
+import { MobileHeader, C } from '../components/ui';
+import { LayoutGrid, Users, Star, ClipboardCheck, Award, ClipboardList, History, Target, Trophy, CalendarDays, FileBarChart, GitCompare, Settings, Wallet, UsersRound, BookOpen, BookOpenCheck, LayoutDashboard, CalendarCheck, ChevronDown, ChevronUp } from 'lucide-react';
 
 export default function ModulesMobile({ user, navigate, lang='ar' }) {
   const [showPlusModules, setShowPlusModules] = useState(false);
@@ -42,42 +42,42 @@ export default function ModulesMobile({ user, navigate, lang='ar' }) {
   // ─── Sections catégorisées (identiques à celles du Dashboard avant refonte) ──
   const navSections = [
     {
-      title: lang==='ar'?'📚 التعليم':'📚 Pédagogie',
+      title: lang==='ar'?'التعليم':'Pédagogie',
       modules: [
-        {icon:'👥', label:lang==='ar'?'الطلاب':'Élèves',          sub:`${nbEleves} ${lang==='ar'?'طالب':'inscrits'}`, page:'eleves_mobile', bg:'#E6F1FB'},
-        {icon:'⭐', label:lang==='ar'?'النقاط':'Notes',            sub:lang==='ar'?'الترتيب':'Classement',         page:'liste_notes',        bg:'#FAEEDA'},
-        {icon:'📝', label:lang==='ar'?'الامتحانات':'Examens',     sub:lang==='ar'?'النتائج':'Résultats',          page:'resultats_examens',  bg:'#E6F1FB'},
-        {icon:'🏅', label:lang==='ar'?'الشهادات':'Certificats',    sub:lang==='ar'?'متابعة':'Suivi',               page:'liste_certificats',  bg:'#FAEEDA'},
-        {icon:'📋', label:lang==='ar'?'الحصة':'Séance',            sub:lang==='ar'?'حصة اليوم':"Aujourd'hui",      page:'seance',             bg:'#E1F5EE'},
-        {icon:'📊', label:lang==='ar'?'السجل':'Historique',        sub:lang==='ar'?'تحليل':'Analyse',              page:'historique_seances', bg:'#E6F1FB'},
-        {icon:'🎯', label:lang==='ar'?'الأهداف':'Objectifs',       sub:lang==='ar'?'متابعة':'Suivi',               page:'objectifs',          bg:'#EEEDFE', role:'surveillant'},
+        {icon:Users, label:lang==='ar'?'الطلاب':'Élèves',          sub:`${nbEleves} ${lang==='ar'?'طالب':'inscrits'}`, page:'eleves_mobile', bg:'#E6F1FB'},
+        {icon:Star, label:lang==='ar'?'النقاط':'Notes',            sub:lang==='ar'?'الترتيب':'Classement',         page:'liste_notes',        bg:'#FAEEDA'},
+        {icon:ClipboardCheck, label:lang==='ar'?'الامتحانات':'Examens',     sub:lang==='ar'?'النتائج':'Résultats',          page:'resultats_examens',  bg:'#E6F1FB'},
+        {icon:Award, label:lang==='ar'?'الشهادات':'Certificats',    sub:lang==='ar'?'متابعة':'Suivi',               page:'liste_certificats',  bg:'#FAEEDA'},
+        {icon:ClipboardList, label:lang==='ar'?'الحصة':'Séance',            sub:lang==='ar'?'حصة اليوم':"Aujourd'hui",      page:'seance',             bg:'#E1F5EE'},
+        {icon:History, label:lang==='ar'?'السجل':'Historique',        sub:lang==='ar'?'تحليل':'Analyse',              page:'historique_seances', bg:'#E6F1FB'},
+        {icon:Target, label:lang==='ar'?'الأهداف':'Objectifs',       sub:lang==='ar'?'متابعة':'Suivi',               page:'objectifs',          bg:'#EEEDFE', role:'surveillant'},
       ],
     },
     {
-      title: lang==='ar'?'📊 التحليل والمتابعة':'📊 Suivi & Analyse',
+      title: lang==='ar'?'التحليل والمتابعة':'Suivi & Analyse',
       modules: [
-        {icon:'🏆', label:lang==='ar'?'لوحة الشرف':'Honneur',      sub:lang==='ar'?'المتصدرون':'Top élèves',       page:'honneur',            bg:'#FAEEDA'},
-        {icon:'📅', label:lang==='ar'?'التقويم':'Calendrier',      sub:lang==='ar'?'البرنامج':'Planning',          page:'calendrier',         bg:'#E6F1FB'},
-        {icon:'📋', label:lang==='ar'?'التقرير':'Rapport',         sub:lang==='ar'?'شهري':'Mensuel',               page:'rapport_mensuel',    bg:'#F3F4F6', role:'surveillant'},
-        {icon:'📈', label:lang==='ar'?'مقارنة':'Comparer',         sub:lang==='ar'?'بين الطلاب':'Élèves',         page:'comparaison',        bg:'#EEEDFE'},
+        {icon:Trophy, label:lang==='ar'?'لوحة الشرف':'Honneur',      sub:lang==='ar'?'المتصدرون':'Top élèves',       page:'honneur',            bg:'#FAEEDA'},
+        {icon:CalendarDays, label:lang==='ar'?'التقويم':'Calendrier',      sub:lang==='ar'?'البرنامج':'Planning',          page:'calendrier',         bg:'#E6F1FB'},
+        {icon:FileBarChart, label:lang==='ar'?'التقرير':'Rapport',         sub:lang==='ar'?'شهري':'Mensuel',               page:'rapport_mensuel',    bg:'#F3F4F6', role:'surveillant'},
+        {icon:GitCompare, label:lang==='ar'?'مقارنة':'Comparer',         sub:lang==='ar'?'بين الطلاب':'Élèves',         page:'comparaison',        bg:'#EEEDFE'},
       ],
     },
     {
-      title: lang==='ar'?'⚙️ الإدارة':'⚙️ Administration',
+      title: lang==='ar'?'الإدارة':'Administration',
       modules: [
-        {icon:'⚙️', label:lang==='ar'?'الإدارة':'Gestion',          sub:lang==='ar'?'إعدادات':'Paramètres',         page:'gestion',            bg:'#E1F5EE', role:'surveillant'},
-        {icon:'💰', label:lang==='ar'?'المالية':'Finance',           sub:lang==='ar'?'الاشتراكات':'Cotisations',     page:'finance',            bg:'#FCEBEB', role:'surveillant'},
-        {icon:'👨‍👩‍👧', label:lang==='ar'?'الأولياء':'Parents',         sub:lang==='ar'?'متابعة':'Suivi',               page:'parents',            bg:'#EEEDFE', role:'surveillant'},
-        {icon:'📚', label:lang==='ar'?'الدروس':'Cours',              sub:lang==='ar'?'متابعة':'Suivi',               page:'cours',              bg:'#E6F1FB'},
+        {icon:Settings, label:lang==='ar'?'الإدارة':'Gestion',          sub:lang==='ar'?'إعدادات':'Paramètres',         page:'gestion',            bg:'#E1F5EE', role:'surveillant'},
+        {icon:Wallet, label:lang==='ar'?'المالية':'Finance',           sub:lang==='ar'?'الاشتراكات':'Cotisations',     page:'finance',            bg:'#FCEBEB', role:'surveillant'},
+        {icon:UsersRound, label:lang==='ar'?'الأولياء':'Parents',         sub:lang==='ar'?'متابعة':'Suivi',               page:'parents',            bg:'#EEEDFE', role:'surveillant'},
+        {icon:BookOpen, label:lang==='ar'?'الدروس':'Cours',              sub:lang==='ar'?'متابعة':'Suivi',               page:'cours',              bg:'#E6F1FB'},
       ],
     },
   ];
 
   // Section "Plus" dépliable : modules secondaires
   const navPlus = [
-    {icon:'📖', label:lang==='ar'?'مراجعة':"Muraja'a",            sub:lang==='ar'?'جماعية':'Collective',          page:'muraja',             bg:'#F0EEFF'},
-    {icon:'📊', label:lang==='ar'?'لوحة القيادة':'Direction',     sub:lang==='ar'?'تحليلات':'Analytics',          page:'dashboard_direction', bg:'#E1F5EE', role:'surveillant'},
-    {icon:'📅', label:lang==='ar'?'الحضور':'Assiduité',           sub:lang==='ar'?'الغياب':'Présences',           page:'assiduite',          bg:'#E1F5EE', role:'surveillant'},
+    {icon:BookOpenCheck, label:lang==='ar'?'مراجعة':"Muraja'a",            sub:lang==='ar'?'جماعية':'Collective',          page:'muraja',             bg:'#F0EEFF'},
+    {icon:LayoutDashboard, label:lang==='ar'?'لوحة القيادة':'Direction',     sub:lang==='ar'?'تحليلات':'Analytics',          page:'dashboard_direction', bg:'#E1F5EE', role:'surveillant'},
+    {icon:CalendarCheck, label:lang==='ar'?'الحضور':'Assiduité',           sub:lang==='ar'?'الغياب':'Présences',           page:'assiduite',          bg:'#E1F5EE', role:'surveillant'},
   ];
 
   const filterByRole = m => !m.role || user.role===m.role;
@@ -86,22 +86,22 @@ export default function ModulesMobile({ user, navigate, lang='ar' }) {
 
   const renderModule = (m) => (
     <div key={m.page+m.label} onClick={()=>navigate(m.page)}
-      style={{background:'#fff',borderRadius:14,padding:'14px 10px',
+      style={{background:C.surface,borderRadius:12,padding:'14px 10px',
         display:'flex',flexDirection:'column',alignItems:'center',gap:7,
-        border:'0.5px solid #e0e0d8',cursor:'pointer',
-        boxShadow:'0 1px 4px rgba(0,0,0,0.04)'}}>
-      <div style={{width:40,height:40,borderRadius:12,background:m.bg,
-        display:'flex',alignItems:'center',justifyContent:'center',fontSize:18}}>
-        {m.icon}
+        border:`1px solid ${C.line}`,cursor:'pointer'}}>
+      {/* Charte : une seule famille d'icones (lucide), couleur marque sur fond doux */}
+      <div style={{width:40,height:40,borderRadius:12,background:C.brandSoft,
+        display:'flex',alignItems:'center',justifyContent:'center',color:C.brand}}>
+        <m.icon size={20} strokeWidth={2} />
       </div>
-      <div style={{fontSize:12,fontWeight:700,color:'#1a1a1a',textAlign:'center',
+      <div style={{fontSize:12,fontWeight:700,color:C.text,textAlign:'center',
         lineHeight:1.2}}>{m.label}</div>
-      <div style={{fontSize:10,color:'#888',textAlign:'center'}}>{m.sub}</div>
+      <div style={{fontSize:11,color:C.muted,textAlign:'center'}}>{m.sub}</div>
     </div>
   );
 
   return (
-    <div style={{paddingBottom:80, background:'#f5f5f0', minHeight:'100vh'}}>
+    <div style={{paddingBottom:80, background:C.bg, minHeight:'100vh'}}>
       {/* Header */}
       <MobileHeader
         title={lang==='ar'?'كل الوحدات':'Tous les modules'}
@@ -112,7 +112,7 @@ export default function ModulesMobile({ user, navigate, lang='ar' }) {
       {/* Sections */}
       {sectionsFiltered.map((section, idx) => (
         <div key={section.title} style={{padding: idx===0?'14px 12px 4px':'18px 12px 4px'}}>
-          <div style={{fontSize:13, fontWeight:700, color:'#666',
+          <div style={{fontSize:12, fontWeight:700, color:C.muted, letterSpacing:'.06em', textTransform:'uppercase',
             marginBottom:10}}>
             {section.title}
           </div>
@@ -130,8 +130,8 @@ export default function ModulesMobile({ user, navigate, lang='ar' }) {
               border:'0.5px solid #e0e0d8', borderRadius:12, cursor:'pointer',
               display:'flex', alignItems:'center', justifyContent:'space-between',
               fontFamily:'inherit', fontSize:13, fontWeight:600, color:'#666'}}>
-            <span>{lang==='ar'?'➕ المزيد':'➕ Plus de modules'} ({plusFiltered.length})</span>
-            <span style={{fontSize:11, opacity:0.7}}>{showPlusModules ? '▲' : '▼'}</span>
+            <span>{lang==='ar'?'المزيد':'Plus de modules'} ({plusFiltered.length})</span>
+            {showPlusModules ? <ChevronUp size={18}/> : <ChevronDown size={18}/>}
           </button>
           {showPlusModules && (
             <div style={{display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:8, marginTop:10}}>

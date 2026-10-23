@@ -5,6 +5,10 @@ import { fetchAll } from '../lib/fetchAll';
 import { calcEtatEleve, isSourateNiveauDyn, niveauTraduit, calcStats, formatDate, formatDateCourt, isInactif, joursDepuis, getInitiales, scoreLabel, loadBareme, BAREME_DEFAUT, getSensForEleve, calcPointsPeriode} from '../lib/helpers';
 import { t } from '../lib/i18n';
 import ExportButtons from '../components/ExportButtons';
+import { HeaderMenu, actionsExport, KpiTile, KpiGrid } from '../components/ui';
+import { AlertOctagon, AlertTriangle, Hourglass, TrendingDown, Rocket, Award, Bell, Sparkles, BookCheck, Activity, CalendarDays } from 'lucide-react';
+// Charte mobile (oct 2026) : icones des alertes intelligentes
+const ICONE_ALERTE = { stagnation: TrendingDown, rapide: Rocket, hizb_bloque: Hourglass };
 import { usePullToRefresh, PullToRefreshIndicator } from '../lib/usePullToRefresh';
 
 const C = { green:'#1D9E75',greenBg:'#E1F5EE',blue:'#378ADD',blueBg:'#E6F1FB',amber:'#EF9F27',amberBg:'#FAEEDA',red:'#E24B4A',redBg:'#FCEBEB',border:'#e0e0d8',muted:'#888',dark:'#1a1a1a' };
@@ -410,7 +414,7 @@ export default function Dashboard({ user, navigate, goBack, lang, isMobile=false
 
         {/* ── HEADER GRADIENT ── */}
         <div style={{background:'linear-gradient(135deg,#064e3b 0%,#085041 40%,#1D9E75 100%)',
-          padding:'48px 18px 20px', position:'sticky', top:0, zIndex:100, overflow:'hidden'}}>
+          padding:'calc(44px + env(safe-area-inset-top, 0px)) 18px 20px', position:'sticky', top:0, zIndex:100, overflow:'hidden'}}>
           {/* cercles décoratifs */}
           <div style={{position:'absolute',top:-30,right:-30,width:120,height:120,
             borderRadius:'50%',background:'rgba(255,255,255,0.06)'}}/>
@@ -418,14 +422,14 @@ export default function Dashboard({ user, navigate, goBack, lang, isMobile=false
             borderRadius:'50%',background:'rgba(255,255,255,0.04)'}}/>
 
           <div style={{fontSize:13,color:'rgba(255,255,255,0.75)',marginBottom:2,position:'relative'}}>
-            {lang==='ar'?'مرحباً':'Bonjour'} {user.prenom} 👋
+            {lang==='ar'?'مرحباً':'Bonjour'} {user.prenom}
           </div>
           <div style={{fontSize:21,fontWeight:800,color:'#fff',marginBottom:16,position:'relative',
             display:'flex',alignItems:'center',justifyContent:'space-between',gap:8}}>
             <span>{lang==='ar'?'لوحة التحكم':'Tableau de bord'}</span>
             {/* F6 (oct 2026) : export Excel aussi sur mobile (surveillant, comme le PC) */}
             {user.role==='surveillant' && (
-              <ExportButtons onExcel={exportExcel} lang={lang} variant="inline" compact isMobile />
+              <HeaderMenu lang={lang} actions={actionsExport({ onExcel: exportExcel, lang })} />
             )}
           </div>
 
@@ -479,7 +483,7 @@ export default function Dashboard({ user, navigate, goBack, lang, isMobile=false
                 style={{display:'flex',alignItems:'center',gap:10,padding:'12px 14px',
                   background:'#FCEBEB',borderRadius:12,marginBottom:8,cursor:'pointer',
                   border:'0.5px solid #E24B4A30'}}>
-                <span style={{fontSize:18}}>🚨</span>
+                <AlertOctagon size={20} color="#A32D2D" style={{flexShrink:0}} />
                 <div style={{flex:1,fontSize:13,fontWeight:700,color:'#A32D2D'}}>
                   {inactifs30.length} {lang==='ar'?'طالب غائب +30 يوم':'inactif(s) depuis +30 jours'}
                 </div>
@@ -493,7 +497,7 @@ export default function Dashboard({ user, navigate, goBack, lang, isMobile=false
                 style={{display:'flex',alignItems:'center',gap:10,padding:'12px 14px',
                   background:'#FAEEDA',borderRadius:12,marginBottom:8,cursor:'pointer',
                   border:'0.5px solid #EF9F2730'}}>
-                <span style={{fontSize:18}}>⏳</span>
+                <Hourglass size={20} color="#B26A00" style={{flexShrink:0}} />
                 <div style={{flex:1,fontSize:13,fontWeight:700,color:'#633806'}}>
                   {nbAttente} {lang==='ar'?'في انتظار تصحيح الحزب':'en attente validation Hizb'}
                 </div>
@@ -516,7 +520,7 @@ export default function Dashboard({ user, navigate, goBack, lang, isMobile=false
                 style={{display:'flex',alignItems:'center',gap:10,padding:'12px 14px',
                   background:'#FFF3CD',borderRadius:12,marginBottom:8,cursor:'pointer',
                   border:'0.5px solid #EF9F2730'}}>
-                <span style={{fontSize:18}}>⚠️</span>
+                <AlertTriangle size={20} color="#856404" style={{flexShrink:0}} />
                 <div style={{flex:1,fontSize:13,fontWeight:700,color:'#856404'}}>
                   {inactifs14.length} {lang==='ar'?'طالب غائب 14-30 يوم':'inactif(s) depuis 14-30 jours'}
                 </div>
@@ -529,7 +533,7 @@ export default function Dashboard({ user, navigate, goBack, lang, isMobile=false
           {certifNotifs.length>0&&(
             <div style={{padding:'12px 12px 4px'}}>
               <div style={{fontSize:11,fontWeight:700,color:'#888',textTransform:'uppercase',letterSpacing:'1px',marginBottom:10}}>
-                🏅 {lang==='ar'?'شهادات في انتظار التسليم':'Certificats à délivrer'} ({certifNotifs.length})
+                <Award size={14} style={{verticalAlign:'-2px',marginInlineEnd:6}} />{lang==='ar'?'شهادات في انتظار التسليم':'Certificats à délivrer'} ({certifNotifs.length})
               </div>
               {certifNotifs.map((n,i)=>(
                 <div key={i} onClick={()=>navigate('fiche',n.eleve)}
@@ -547,13 +551,13 @@ export default function Dashboard({ user, navigate, goBack, lang, isMobile=false
           {alertes.length>0&&(
             <div style={{padding:'12px 12px 4px'}}>
               <div style={{fontSize:11,fontWeight:700,color:'#888',textTransform:'uppercase',letterSpacing:'1px',marginBottom:10}}>
-                🔔 {t(lang,'alertes')} ({alertes.length})
+                <Bell size={14} style={{verticalAlign:'-2px',marginInlineEnd:6}} />{t(lang,'alertes')} ({alertes.length})
               </div>
               {alertes.slice(0,5).map((a,i)=>(
                 <div key={i} onClick={()=>navigate('fiche',a.eleve)}
                   style={{display:'flex',alignItems:'center',gap:10,padding:'10px 12px',marginBottom:6,
                     background:a.bg,borderLeft:`4px solid ${a.color}`,borderRadius:'0 10px 10px 0',cursor:'pointer'}}>
-                  <span style={{fontSize:16}}>{a.icon}</span>
+                  {(() => { const Ic = ICONE_ALERTE[a.type]; return Ic ? <Ic size={18} color={a.color} style={{flexShrink:0}} /> : <span style={{fontSize:16}}>{a.icon}</span>; })()}
                   <span style={{fontSize:12.5,color:a.color,flex:1}}>{a.msg}</span>
                   <span style={{fontSize:11,color:a.color,opacity:0.6}}>›</span>
                 </div>
@@ -571,19 +575,13 @@ export default function Dashboard({ user, navigate, goBack, lang, isMobile=false
               letterSpacing:'1px',marginBottom:10}}>
               {lang==='ar'?'إحصائيات الأسبوع':'Cette semaine'}
             </div>
-            <div style={{display:'grid',gridTemplateColumns:'repeat(2,1fr)',gap:8}}>
-              {[
-                {val:stats.tomonSemaine||0,  lbl:t(lang,'tomon_semaine'),       color:'#1D9E75',bg:'#E1F5EE'},
-                {val:stats.hizbsCompletsMois||0,lbl:t(lang,'hizb_ce_mois'),     color:'#378ADD',bg:'#E6F1FB'},
-                {val:tauxSemaine+'%',         lbl:lang==='ar'?'نسبة النشاط':'Taux activité',color:'#534AB7',bg:'#EEEDFE'},
-                {val:recapMois.nbRecit,       lbl:lang==='ar'?'استظهارات الشهر':'Récit. ce mois',color:'#EF9F27',bg:'#FAEEDA'},
-              ].map((k,i)=>(
-                <div key={i} style={{background:k.bg,borderRadius:12,padding:'14px',textAlign:'center'}}>
-                  <div style={{fontSize:28,fontWeight:800,color:k.color}}>{k.val}</div>
-                  <div style={{fontSize:11,color:k.color,opacity:0.85,marginTop:4}}>{k.lbl}</div>
-                </div>
-              ))}
-            </div>
+            {/* Charte : tuiles neutres, la couleur ne porte que sur le chiffre */}
+            <KpiGrid>
+              <KpiTile value={stats.tomonSemaine||0} label={t(lang,'tomon_semaine')} tone="brand" icon={Sparkles} />
+              <KpiTile value={stats.hizbsCompletsMois||0} label={t(lang,'hizb_ce_mois')} tone="info" icon={BookCheck} />
+              <KpiTile value={tauxSemaine+'%'} label={lang==='ar'?'نسبة النشاط':'Taux activité'} tone="neutral" icon={Activity} />
+              <KpiTile value={recapMois.nbRecit} label={lang==='ar'?'استظهارات الشهر':'Récit. ce mois'} tone="gold" icon={CalendarDays} />
+            </KpiGrid>
           </div>
 
           {/* ── PODIUM TOP 3 ── */}

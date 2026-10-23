@@ -62,7 +62,7 @@ export function NetworkBanner({ lang = 'fr' }) {
   if (refusees.length > 0) {
     return (
       <div style={{position:'fixed', top:0, left:0, right:0, zIndex:10000, background:'#E24B4A', color:'#fff',
-        fontFamily:"'Tajawal',Arial,sans-serif", fontSize:13, boxShadow:'0 2px 8px rgba(0,0,0,0.15)'}}>
+        fontFamily:'inherit', fontSize:13, boxShadow:'0 2px 8px rgba(0,0,0,0.15)'}}>
         <div onClick={()=>setOuvert(o=>!o)} style={{padding:'8px 12px', textAlign:'center', fontWeight:700, cursor:'pointer'}}>
           ⚠️ {lang==='ar'
             ? `${refusees.length} تسجيل لم يُحفظ — اضغط للتفاصيل`
@@ -145,7 +145,7 @@ export function NetworkBanner({ lang = 'fr' }) {
       fontSize: 13,
       fontWeight: 600,
       zIndex: 10000,
-      fontFamily: "'Tajawal',Arial,sans-serif",
+      fontFamily: 'inherit',
       boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
       animation: 'networkSlide 0.3s ease',
     }}>

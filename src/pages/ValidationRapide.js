@@ -1066,7 +1066,7 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
                         <button key={opt.val} onClick={() => { setTypeRec(opt.val); setSourateSelectionnee(currentSourate); }}
                           style={{ flex:1, padding:'12px 8px', borderRadius:12, cursor:'pointer',
                             border:`2px solid ${nc}30`, background:`${nc}08`,
-                            fontFamily:"'Tajawal',Arial,sans-serif", transition:'all 0.15s' }}
+                            fontFamily:'inherit', transition:'all 0.15s' }}
                           onMouseEnter={ev=>{ev.currentTarget.style.background=`${nc}15`;ev.currentTarget.style.border=`2px solid ${nc}60`;}}
                           onMouseLeave={ev=>{ev.currentTarget.style.background=`${nc}08`;ev.currentTarget.style.border=`2px solid ${nc}30`;}}>
                           <div style={{ fontSize:20, marginBottom:4 }}>{opt.icon}</div>
@@ -1119,7 +1119,7 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
                       style={{ flex: 1, padding: '10px 8px', borderRadius: 10, cursor: 'pointer',
                         border: `2px solid ${typeRec === opt.val ? nc : '#e0e0d8'}`,
                         background: typeRec === opt.val ? `${nc}12` : '#f9f9f6',
-                        fontFamily: "'Tajawal',Arial,sans-serif", transition: 'all 0.15s' }}>
+                        fontFamily: 'inherit', transition: 'all 0.15s' }}>
                       <div style={{ fontSize: 16 }}>{opt.icon}</div>
                       <div style={{ fontSize: 13, fontWeight: 700, color: typeRec === opt.val ? nc : '#555' }}>{opt.label}</div>
                       <div style={{ fontSize: 11, color: '#aaa' }}>+{opt.pts} {t(lang, 'pts_abrev')}</div>

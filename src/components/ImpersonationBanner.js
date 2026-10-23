@@ -30,7 +30,7 @@ export default function ImpersonationBanner({ user, onStop }) {
       justifyContent: 'space-between',
       gap: 12,
       boxShadow: '0 2px 8px rgba(0,0,0,0.3)',
-      fontFamily: "'Tajawal', Arial, sans-serif",
+      fontFamily: 'inherit',
       flexWrap: 'wrap',
     }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 1, minWidth: 0 }}>

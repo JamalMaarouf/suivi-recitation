@@ -104,7 +104,7 @@ class ErrorBoundary extends React.Component {
       const isChunkError = this.state.error.toString().includes('ChunkLoadError') ||
                            this.state.error.toString().includes('Loading chunk');
       return (
-        <div style={{padding:24,background:'#fff',fontFamily:'Tajawal,Arial,sans-serif',
+        <div style={{padding:24,background:'#fff',fontFamily:'inherit',
           maxWidth:500,margin:'40px auto',borderRadius:16,boxShadow:'0 4px 20px rgba(0,0,0,0.08)',
           border:'0.5px solid #e0e0d8',textAlign:'center'}}>
           <div style={{fontSize:48,marginBottom:12}}>{isChunkError?'🔄':'🚨'}</div>
@@ -176,7 +176,7 @@ function PageVerificationRoute() {
   const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
   return (
     <ToastProvider isMobile={isMobile}>
-      <Suspense fallback={<div style={{padding:60,textAlign:'center',color:'#888',fontFamily:"'Tajawal',Arial,sans-serif"}}>⏳ Chargement…</div>}>
+      <Suspense fallback={<div style={{padding:60,textAlign:'center',color:'#888',fontFamily:'inherit'}}>⏳ Chargement…</div>}>
         <PageVerification
           numero={VERIFY_NUMERO}
           lang={verifyLang}
@@ -196,7 +196,7 @@ function PageTermsRoute() {
     else window.location.href = '/';
   };
   return (
-    <Suspense fallback={<div style={{padding:60,textAlign:'center',color:'#888',fontFamily:"'Tajawal',Arial,sans-serif"}}>⏳ Chargement…</div>}>
+    <Suspense fallback={<div style={{padding:60,textAlign:'center',color:'#888',fontFamily:'inherit'}}>⏳ Chargement…</div>}>
       <PageTerms onBack={onBack} />
     </Suspense>
   );
@@ -207,7 +207,7 @@ function PagePrivacyRoute() {
     else window.location.href = '/';
   };
   return (
-    <Suspense fallback={<div style={{padding:60,textAlign:'center',color:'#888',fontFamily:"'Tajawal',Arial,sans-serif"}}>⏳ Chargement…</div>}>
+    <Suspense fallback={<div style={{padding:60,textAlign:'center',color:'#888',fontFamily:'inherit'}}>⏳ Chargement…</div>}>
       <PagePrivacy onBack={onBack} />
     </Suspense>
   );
@@ -623,7 +623,7 @@ function App() {
   // J9 Landing : si pas connecte ET showLanding=true -> page landing publique
   if (!user && showLanding) {
     return (
-      <Suspense fallback={<div style={{padding:60,textAlign:'center',color:'#888',fontFamily:"'Tajawal',Arial,sans-serif"}}>⏳ Chargement…</div>}>
+      <Suspense fallback={<div style={{padding:60,textAlign:'center',color:'#888',fontFamily:'inherit'}}>⏳ Chargement…</div>}>
         <PageLanding onGoToLogin={goToLoginFromLanding} />
       </Suspense>
     );
