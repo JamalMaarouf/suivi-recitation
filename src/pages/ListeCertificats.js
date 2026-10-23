@@ -10,8 +10,8 @@ import ModaleEditionCertificat from '../components/ModaleEditionCertificat';
 import PageHeader from '../components/PageHeader';
 import MobileSkeletonList from '../components/MobileSkeletonList';
 import { usePullToRefresh, PullToRefreshIndicator } from '../lib/usePullToRefresh';
-import { MobileHeader, HeaderIconButton, HeaderMenu, SearchField, actionsExport } from '../components/ui';
-import { Award, Plus } from 'lucide-react';
+import { MobileHeader, HeaderIconButton, HeaderMenu, SearchField, actionsExport, ListRow, LevelBadge, ActionSheet, EmptyState, C } from '../components/ui';
+import { Award, Plus, Pencil, FileText, UserRound, Loader2, X } from 'lucide-react';
 
 export default function ListeCertificats({ user, navigate, goBack, lang='fr', isMobile, data }) {
   const { toast } = useToast();
@@ -39,6 +39,7 @@ export default function ListeCertificats({ user, navigate, goBack, lang='fr', is
   const [modaleExamen, setModaleExamen] = useState(null);
   const [examens, setExamens] = useState([]);
   const [resultatsExamens, setResultatsExamens] = useState([]);
+  const [menuCert, setMenuCert] = useState(null); // charte mobile : panneau d'actions d'un certificat
 
   // Filtres
   const [searchNum, setSearchNum] = useState('');
@@ -361,26 +362,27 @@ export default function ListeCertificats({ user, navigate, goBack, lang='fr', is
         </MobileHeader>
 
         {/* Filtres chips */}
-        <div style={{display:'flex',gap:6,overflowX:'auto',padding:'10px 12px',scrollbarWidth:'none',background:'#fff',borderBottom:'0.5px solid #e0e0d8'}}>
+        <div style={{display:'flex',gap:6,overflowX:'auto',padding:'10px 12px',scrollbarWidth:'none',background:C.surface,borderBottom:`1px solid ${C.line}`}}>
           <select value={filtreNiveau} onChange={e=>setFiltreNiveau(e.target.value)}
-            style={{padding:'5px 10px',borderRadius:20,border:'0.5px solid #e0e0d8',fontSize:11,fontFamily:'inherit',background:filtreNiveau?'#EF9F27':'#f0f0ec',color:filtreNiveau?'#fff':'#666',flexShrink:0}}>
+            style={{padding:'5px 10px',borderRadius:20,border:'0.5px solid #e0e0d8',fontSize:11,fontFamily:'inherit',background:filtreNiveau?C.brand:C.surface,color:filtreNiveau?C.onBrand:C.text,border:`1px solid ${filtreNiveau?C.brand:C.line}`,flexShrink:0}}>
             <option value="">{lang==='ar'?'كل المستويات':'Niveaux'}</option>
             {niveaux.map(n=><option key={n.code} value={n.code}>{n.code}</option>)}
           </select>
           <select value={filtreJalon} onChange={e=>setFiltreJalon(e.target.value)}
-            style={{padding:'5px 10px',borderRadius:20,border:'0.5px solid #e0e0d8',fontSize:11,fontFamily:'inherit',background:filtreJalon?'#EF9F27':'#f0f0ec',color:filtreJalon?'#fff':'#666',flexShrink:0}}>
+            style={{padding:'5px 10px',borderRadius:20,border:'0.5px solid #e0e0d8',fontSize:11,fontFamily:'inherit',background:filtreJalon?C.brand:C.surface,color:filtreJalon?C.onBrand:C.text,border:`1px solid ${filtreJalon?C.brand:C.line}`,flexShrink:0}}>
             <option value="">{lang==='ar'?'كل الشهادات':'Jalons'}</option>
             {jalons.map(j=><option key={j.id} value={j.id}>{j.nom_ar||j.nom}</option>)}
           </select>
           <select value={filtreInst} onChange={e=>setFiltreInst(e.target.value)}
-            style={{padding:'5px 10px',borderRadius:20,border:'0.5px solid #e0e0d8',fontSize:11,fontFamily:'inherit',background:filtreInst?'#EF9F27':'#f0f0ec',color:filtreInst?'#fff':'#666',flexShrink:0}}>
+            style={{padding:'5px 10px',borderRadius:20,border:'0.5px solid #e0e0d8',fontSize:11,fontFamily:'inherit',background:filtreInst?C.brand:C.surface,color:filtreInst?C.onBrand:C.text,border:`1px solid ${filtreInst?C.brand:C.line}`,flexShrink:0}}>
             <option value="">{lang==='ar'?'كل الأساتذة':'Instituteurs'}</option>
             {instituteurs.map(i=><option key={i.id} value={i.id}>{i.prenom} {i.nom}</option>)}
           </select>
           {(searchNum||filtreNiveau||filtreJalon||filtreInst)&&(
             <div onClick={()=>{setSearchNum('');setFiltreNiveau('');setFiltreJalon('');setFiltreInst('');}}
-              style={{padding:'5px 10px',borderRadius:20,background:'#FCEBEB',color:'#E24B4A',fontSize:11,fontWeight:600,cursor:'pointer',flexShrink:0,border:'none'}}>
-              ✕
+              aria-label={lang==='ar'?'مسح':'Effacer'}
+              style={{padding:'5px 10px',borderRadius:20,background:C.critSoft,color:C.crit,fontSize:11,fontWeight:600,cursor:'pointer',flexShrink:0,border:'none',display:'flex',alignItems:'center'}}>
+              <X size={14} />
             </div>
           )}
         </div>
@@ -388,10 +390,7 @@ export default function ListeCertificats({ user, navigate, goBack, lang='fr', is
         {/* Liste */}
         {loading ? <MobileSkeletonList type="card-with-avatar" count={6} padding="10px 12px" />
           : filtered.length===0 ? (
-            <div style={{textAlign:'center',padding:'3rem',color:'#aaa'}}>
-              <div style={{fontSize:36,marginBottom:8}}>🏅</div>
-              <div style={{fontSize:13}}>{lang==='ar'?'لا توجد شهادات':'Aucun certificat'}</div>
-            </div>
+            <EmptyState icon={Award} title={lang==='ar'?'لا توجد شهادات':'Aucun certificat'} />
           ) : (
             <div style={{padding:'10px 12px'}}>
               {(filtered||[]).map(c=>{
@@ -399,41 +398,35 @@ export default function ListeCertificats({ user, navigate, goBack, lang='fr', is
                 const jal=getJalon(c.jalon_id);
                 const inst=el?getInst(el.instituteur_referent_id):null;
                 const nc=el?getNivColor(el.code_niveau):'#888';
+                const dateTxt = c.date_obtention?new Date(c.date_obtention).toLocaleDateString(lang==='ar'?'ar-MA':'fr-FR',{day:'2-digit',month:'short',year:'numeric'}):'—';
                 return(
-                  <div key={c.id} id={`cert-row-${c.id}`} onClick={()=>el&&navigate('fiche',el)}
-                    style={{background:'#fff',borderRadius:13,padding:'12px 14px',marginBottom:8,
-                      border:'0.5px solid #e0e0d8',display:'flex',alignItems:'center',gap:12,cursor:'pointer',
-                      boxShadow:'0 1px 4px rgba(0,0,0,0.04)'}}>
-                    <div style={{width:42,height:42,borderRadius:12,background:'#FAEEDA',display:'flex',alignItems:'center',justifyContent:'center',fontSize:20,flexShrink:0}}>🏅</div>
-                    <div style={{flex:1,minWidth:0}}>
-                      <div style={{fontWeight:700,fontSize:13,color:'#085041',direction:'rtl',fontFamily:"'Tajawal',Arial,sans-serif",lineHeight:1.3}}>
-                        {jal?.nom_ar||jal?.nom||c.nom_certificat_ar||c.nom_certificat}
-                      </div>
-                      <div style={{display:'flex',gap:6,marginTop:3,alignItems:'center',flexWrap:'wrap'}}>
-                        {el&&<span style={{fontSize:12,fontWeight:600,color:'#1a1a1a'}}>{el.prenom} {el.nom}</span>}
-                        {el&&<span style={{padding:'1px 6px',borderRadius:10,fontSize:10,fontWeight:700,background:`${nc}20`,color:nc}}>{el.code_niveau}</span>}
-                        {el?.eleve_id_ecole&&<span style={{fontSize:10,color:'#bbb'}}>#{el.eleve_id_ecole}</span>}
-                      </div>
-                      <div style={{fontSize:11,color:'#aaa',marginTop:2}}>
-                        {inst&&<span>👨‍🏫 {inst.prenom} {inst.nom} · </span>}
-                        📅 {c.date_obtention?new Date(c.date_obtention).toLocaleDateString(lang==='ar'?'ar-MA':'fr-FR',{day:'2-digit',month:'short',year:'numeric'}):'—'}
-                      </div>
-                    </div>
-                    <button onClick={(ev)=>{ev.stopPropagation(); ouvrirEdition(c, ev);}}
-                      style={{background:'#E1F5EE',border:'none',borderRadius:10,width:36,height:36,display:'flex',alignItems:'center',justifyContent:'center',fontSize:15,cursor:'pointer',flexShrink:0}}
-                      title={lang==='ar'?'تحرير':'Éditer'}>
-                      ✏️
-                    </button>
-                    <button onClick={(ev)=>handlePdfCertificat(c,ev)} disabled={genPdfId===c.id}
-                      style={{background:'#FAEEDA',border:'none',borderRadius:10,width:36,height:36,display:'flex',alignItems:'center',justifyContent:'center',fontSize:15,cursor:genPdfId===c.id?'default':'pointer',flexShrink:0,opacity:genPdfId===c.id?0.5:1}}
-                      title={lang==='ar'?'تحميل PDF':'Télécharger PDF'}>
-                      {genPdfId===c.id?'⏳':'📄'}
-                    </button>
+                  <div key={c.id} id={`cert-row-${c.id}`} style={{marginBottom:8,borderRadius:12}}>
+                    <ListRow lang={lang}
+                      leading={<div style={{width:40,height:40,borderRadius:12,background:C.goldSoft,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}><Award size={20} color={C.gold} /></div>}
+                      title={<span dir="rtl" style={{fontFamily:"'Tajawal',Arial,sans-serif"}}>{jal?.nom_ar||jal?.nom||c.nom_certificat_ar||c.nom_certificat}</span>}
+                      subtitle={[el?`${el.prenom} ${el.nom}`:null, el?.eleve_id_ecole?`#${el.eleve_id_ecole}`:null].filter(Boolean).join(' · ') || undefined}
+                      meta={<div style={{display:'flex',gap:6,alignItems:'center',flexWrap:'wrap',fontSize:11,color:C.muted}}>
+                        {el&&<LevelBadge code={el.code_niveau} color={nc} />}
+                        {inst&&<span>{inst.prenom} {inst.nom} ·</span>}
+                        <span>{dateTxt}</span>
+                      </div>}
+                      value={genPdfId===c.id ? <Loader2 size={18} color={C.muted} /> : undefined}
+                      onClick={()=>el&&navigate('fiche',el)}
+                      onMore={()=>setMenuCert(c)}
+                    />
                   </div>
                 );
               })}
             </div>
           )}
+      {/* Charte mobile (oct 2026) : actions d'un certificat dans un panneau */}
+      <ActionSheet open={!!menuCert} onClose={()=>setMenuCert(null)} lang={lang}
+        title={menuCert ? (()=>{ const j=getJalon(menuCert.jalon_id); return j?.nom_ar||j?.nom||menuCert.nom_certificat_ar||menuCert.nom_certificat||''; })() : ''}
+        actions={menuCert ? [
+          getEleve(menuCert.eleve_id) && { label: lang==='ar'?'بطاقة الطالب':'Ouvrir la fiche', icon: UserRound, onClick: ()=>{ const el=getEleve(menuCert.eleve_id); el&&navigate('fiche',el); } },
+          { label: lang==='ar'?'تحرير':'Éditer', icon: Pencil, onClick: ()=>ouvrirEdition(menuCert) },
+          { label: lang==='ar'?'تحميل PDF':'Télécharger PDF', icon: FileText, onClick: ()=>handlePdfCertificat(menuCert), disabled: genPdfId===menuCert.id },
+        ] : []} />
       {modaleJSX}
       </div>
     );

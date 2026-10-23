@@ -12,8 +12,8 @@ import { exportExcelSimple } from '../lib/excel';
 import { loadAnneeActiveAvecPeriodes, formatPeriodeCourte, detecterPeriodeEnCours } from '../lib/helpers';
 import PeriodeSelectorHybride from '../components/PeriodeSelectorHybride';
 import MobileSkeletonList from '../components/MobileSkeletonList';
-import { MobileHeader, HeaderIconButton } from '../components/ui';
-import { CalendarCheck, Lock, LockOpen } from 'lucide-react';
+import { MobileHeader, HeaderIconButton, KpiTile, KpiGrid, Avatar, C } from '../components/ui';
+import { CalendarCheck, Lock, LockOpen, GraduationCap, Users, CalendarDays, AlertTriangle, Hash, List, Lightbulb, Filter, Banknote, Settings } from 'lucide-react';
 
 // ══════════════════════════════════════════════════════════════════════
 // PAGE ASSIDUITÉ — الحضور
@@ -125,8 +125,20 @@ export default function Assiduite({ user, navigate, goBack, lang, isMobile, kios
           actions={
             /* Bouton kiosque */
             kioskMode ? (
-              <HeaderIconButton icon={LockOpen} active onClick={() => setShowExitModal(true)}
-                label={lang === 'ar' ? 'الخروج من وضع الكشك' : 'Quitter le mode kiosque'} />
+              /* Charte mobile (oct 2026) : bouton de sortie bien visible (orange, texte blanc) */
+              <button type="button" onClick={() => setShowExitModal(true)}
+                aria-label={lang === 'ar' ? 'الخروج من وضع الكشك' : 'Quitter le mode kiosque'}
+                title={lang === 'ar' ? 'الخروج من وضع الكشك' : 'Quitter le mode kiosque'}
+                style={{
+                  height: 44, padding: '0 14px', borderRadius: 12, flexShrink: 0,
+                  background: '#EF9F27', color: '#fff', border: 'none',
+                  display: 'flex', alignItems: 'center', gap: 6,
+                  fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit',
+                  whiteSpace: 'nowrap', boxShadow: '0 2px 8px rgba(0,0,0,0.18)',
+                }}>
+                <LockOpen size={18} strokeWidth={2.2} />
+                {lang === 'ar' ? 'خروج' : 'Quitter'}
+              </button>
             ) : (
               <HeaderIconButton icon={Lock} onClick={() => askActivateKiosk()}
                 label={lang === 'ar' ? 'تفعيل وضع الكشك' : 'Activer mode kiosque'} />
@@ -135,8 +147,8 @@ export default function Assiduite({ user, navigate, goBack, lang, isMobile, kios
           {/* Onglets */}
           <div style={{ display: 'flex', gap: 6 }}>
             {[
-              { k: 'saisie', label: lang === 'ar' ? '✍️ تسجيل' : '✍️ Saisie' },
-              { k: 'suivi',  label: lang === 'ar' ? '📊 متابعة' : '📊 Suivi' },
+              { k: 'saisie', label: lang === 'ar' ? 'تسجيل' : 'Saisie' },
+              { k: 'suivi',  label: lang === 'ar' ? 'متابعة' : 'Suivi' },
             ].map(tab => {
               const active = onglet === tab.k;
               return (
@@ -167,23 +179,25 @@ export default function Assiduite({ user, navigate, goBack, lang, isMobile, kios
               display: 'flex', gap: 6, padding: '10px 14px 0',
             }}>
               {[
-                { k: 'eleves',       label: lang === 'ar' ? '👨‍🎓 الطلاب'   : '👨‍🎓 Élèves',       color: '#085041' },
-                { k: 'instituteurs', label: lang === 'ar' ? '👨‍🏫 الأساتذة' : '👨‍🏫 Instituteurs', color: '#534AB7' },
+                { k: 'eleves',       label: lang === 'ar' ? 'الطلاب'   : 'Élèves',       icon: GraduationCap },
+                { k: 'instituteurs', label: lang === 'ar' ? 'الأساتذة' : 'Instituteurs', icon: Users },
               ].map(c => {
                 const active = cible === c.k;
+                const Icon = c.icon;
                 return (
                   <button key={c.k} onClick={() => setCible(c.k)}
                     style={{
                       flex: 1, padding: '10px 12px',
                       borderRadius: 10,
-                      background: active ? c.color : '#fff',
-                      color: active ? '#fff' : c.color,
+                      background: active ? C.brand : C.surface,
+                      color: active ? C.onBrand : C.text,
                       fontSize: 13, fontWeight: 700,
                       cursor: 'pointer', fontFamily: 'inherit',
-                      border: `1.5px solid ${c.color}${active ? '' : '30'}`,
-                      boxShadow: active ? `0 2px 8px ${c.color}40` : 'none',
+                      border: `1px solid ${active ? C.brand : C.line}`,
+                      display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
                       transition: 'all 0.15s',
                     }}>
+                    <Icon size={16} />
                     {c.label}
                   </button>
                 );
@@ -201,8 +215,8 @@ export default function Assiduite({ user, navigate, goBack, lang, isMobile, kios
                   border: `1px solid ${isRattrapage ? '#EF9F2740' : '#e0e0d8'}`,
                   borderRadius: 10, padding: '10px 12px',
                 }}>
-                  <div style={{ fontSize: 11, color: isRattrapage ? '#633806' : '#666', fontWeight: 600, marginBottom: 6 }}>
-                    📅 {lang === 'ar' ? 'تاريخ التسجيل' : 'Date de saisie'}
+                  <div style={{ fontSize: 12, color: isRattrapage ? C.warn : C.muted, fontWeight: 600, marginBottom: 6, display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <CalendarDays size={14} /> {lang === 'ar' ? 'تاريخ التسجيل' : 'Date de saisie'}
                   </div>
                   <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
                     <input type="date"
@@ -226,8 +240,8 @@ export default function Assiduite({ user, navigate, goBack, lang, isMobile, kios
                     )}
                   </div>
                   {isRattrapage && (
-                    <div style={{ fontSize: 10, color: '#633806', marginTop: 6, fontWeight: 700 }}>
-                      ⚠️ {lang === 'ar'
+                    <div style={{ fontSize: 11, color: C.warn, marginTop: 6, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 4 }}>
+                      <AlertTriangle size={13} /> {lang === 'ar'
                         ? 'وضع التعويض: التسجيل لتاريخ سابق'
                         : 'Mode rattrapage : saisie pour une date passée'}
                     </div>
@@ -240,11 +254,12 @@ export default function Assiduite({ user, navigate, goBack, lang, isMobile, kios
                 (recherche, filtre presents/absents) - meme composant que le PC. */}
             {!kioskMode && (
               <div style={{display:'flex',gap:0,background:'#f0f0ec',borderRadius:10,padding:3,margin:'10px 12px 0'}}>
-                {[['pave', lang==='ar'?'🔢 لوحة الأرقام':'🔢 Pavé'], ['liste', lang==='ar'?'📋 القائمة':'📋 Liste']].map(([k,l])=>(
+                {[['pave', lang==='ar'?'لوحة الأرقام':'Pavé', Hash], ['liste', lang==='ar'?'القائمة':'Liste', List]].map(([k,l,Icon])=>(
                   <div key={k} onClick={()=>setModeSaisieMobile(k)}
                     style={{flex:1,padding:'8px 4px',borderRadius:8,textAlign:'center',fontSize:12,fontWeight:600,cursor:'pointer',
-                      background:modeSaisieMobile===k?'#fff':'transparent',color:modeSaisieMobile===k?'#085041':'#888'}}>
-                    {l}
+                      display:'flex',alignItems:'center',justifyContent:'center',gap:5,
+                      background:modeSaisieMobile===k?C.surface:'transparent',color:modeSaisieMobile===k?C.brand:C.muted}}>
+                    <Icon size={14} />{l}
                   </div>
                 ))}
               </div>
@@ -1114,6 +1129,23 @@ function SuiviPlaceholder({ lang, user, isMobile, cible, setCible }) {
           { k: 'instituteurs', label: lang === 'ar' ? '👨‍🏫 الأساتذة' : '👨‍🏫 Instituteurs', color: '#534AB7', bg: '#EDE9FE' },
         ].map(c => {
           const active = cible === c.k;
+          // Charte mobile (oct 2026) : icone lucide, couleurs de marque
+          if (isMobile) {
+            const Icon = c.k === 'eleves' ? GraduationCap : Users;
+            return (
+              <button key={c.k} onClick={() => setCible(c.k)}
+                style={{
+                  flex: 1, padding: '10px 12px', borderRadius: 10,
+                  border: `1px solid ${active ? C.brand : C.line}`,
+                  background: active ? C.brand : C.surface,
+                  color: active ? C.onBrand : C.text,
+                  fontSize: 13, fontWeight: active ? 700 : 500,
+                  cursor: 'pointer', fontFamily: 'inherit',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                  transition: 'all 0.15s',
+                }}><Icon size={16} />{lang === 'ar' ? (c.k === 'eleves' ? 'الطلاب' : 'الأساتذة') : (c.k === 'eleves' ? 'Élèves' : 'Instituteurs')}</button>
+            );
+          }
           return (
             <button key={c.k} onClick={() => setCible(c.k)}
               style={{
@@ -1531,7 +1563,7 @@ function OngletSuivi({ lang, user, isMobile }) {
                 padding:'8px 12px',fontSize:11,color:'#7B5800',marginTop:8,
                 display:'flex',alignItems:'center',gap:8,
               }}>
-                <span style={{fontSize:14}}>💡</span>
+                {isMobile ? <Lightbulb size={14} style={{flexShrink:0}} /> : <span style={{fontSize:14}}>💡</span>}
                 <span>{isAr
                   ? 'لم تقم بإعداد سنة دراسية بعد. الإدارة > الفترات.'
                   : 'Aucune année scolaire active. Gestion → Périodes.'}</span>
@@ -1567,6 +1599,32 @@ function OngletSuivi({ lang, user, isMobile }) {
       {/* ─── KPIs globaux (cliquables) ─── */}
       {/* Mobile : grille fixe 2x2 (meilleure visibilité sur petit écran).
           Desktop : auto-fit avec minmax pour s'adapter à la largeur. */}
+      {isMobile ? (
+        <div style={{ marginBottom: 14 }}>
+          <KpiGrid cols={2}>
+            <KpiTile
+              label={lang === 'ar' ? 'نسبة الحضور' : 'Taux de présence'}
+              value={`${globalStats.taux}%`}
+              hint={lang === 'ar'
+                ? `${globalStats.presentes}/${globalStats.attendues} حصة`
+                : `${globalStats.presentes}/${globalStats.attendues} séances`}
+              tone="brand" />
+            {[
+              { k: 'risque', label: lang === 'ar' ? `طلاب في خطر (<${SEUIL_RISQUE}%)` : `À risque (<${SEUIL_RISQUE}%)`,
+                value: globalStats.nbRisque, hint: lang === 'ar' ? 'يحتاجون متابعة' : 'À suivre de près', tone: 'crit' },
+              { k: 'absences', label: lang === 'ar' ? 'الغيابات' : 'Absences', value: globalStats.absences,
+                hint: lang === 'ar' ? `من ${globalStats.attendues} حصة متوقعة` : `sur ${globalStats.attendues} séances attendues`, tone: 'warn' },
+              { k: 'parfait', label: lang === 'ar' ? 'المواظبة التامة' : 'Assiduité parfaite', value: globalStats.nbParfaits,
+                hint: lang === 'ar' ? '100% حضور' : '100% de présence', tone: 'good' },
+            ].map(kp => (
+              <div key={kp.k} style={{ borderRadius: 12, outline: filtreKpi === kp.k ? `2px solid ${C.brand}` : 'none', outlineOffset: -1 }}>
+                <KpiTile label={kp.label} value={kp.value} hint={kp.hint} tone={kp.tone}
+                  onClick={() => setFiltreKpi(filtreKpi === kp.k ? null : kp.k)} />
+              </div>
+            ))}
+          </KpiGrid>
+        </div>
+      ) : (
       <div style={{
         display: 'grid',
         gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(auto-fit, minmax(150px, 1fr))',
@@ -1617,12 +1675,13 @@ function OngletSuivi({ lang, user, isMobile }) {
           onClick={() => setFiltreKpi(filtreKpi === 'parfait' ? null : 'parfait')}
         />
       </div>
+      )}
 
       {/* Filtres (recherche + niveau) — placés AVANT la bannière filtre KPI
           pour que la bannière soit collée à la liste qui en découle */}
       <div style={{ display: 'flex', gap: 8, marginBottom: 14, flexWrap: 'wrap' }}>
         <input type="text" value={recherche} onChange={e => setRecherche(e.target.value)}
-          placeholder={lang === 'ar' ? '🔍 ابحث طالب' : '🔍 Chercher un élève'}
+          placeholder={isMobile ? (lang === 'ar' ? 'ابحث طالب' : 'Chercher un élève') : (lang === 'ar' ? '🔍 ابحث طالب' : '🔍 Chercher un élève')}
           style={{ flex: '1 1 240px', padding: '9px 13px', fontSize: 13, borderRadius: 8, border: '1px solid #e0e0d8', fontFamily: 'inherit', outline: 'none' }} />
         <select value={filtreNiveau} onChange={e => setFiltreNiveau(e.target.value)}
           style={{ padding: '9px 13px', fontSize: 13, borderRadius: 8, border: '1px solid #e0e0d8', fontFamily: 'inherit', background: '#fff' }}>
@@ -1641,7 +1700,7 @@ function OngletSuivi({ lang, user, isMobile }) {
           borderRadius: '10px 10px 0 0', borderBottom: 'none',
           fontSize: 13, color: '#0C447C',
         }}>
-          <span style={{ fontSize: 16 }}>🔎</span>
+          {isMobile ? <Filter size={16} style={{ flexShrink: 0 }} /> : <span style={{ fontSize: 16 }}>🔎</span>}
           <div style={{ flex: 1 }}>
             <strong>
               {filtreKpi === 'risque'   && (lang === 'ar' ? `عرض الطلاب في خطر (<${SEUIL_RISQUE}%)`  : `Filtré : élèves à risque (<${SEUIL_RISQUE}%)`)}
@@ -1673,7 +1732,7 @@ function OngletSuivi({ lang, user, isMobile }) {
         }}>
           {filtreKpi === 'parfait' ? (
             <>
-              <div style={{ fontSize: 32, marginBottom: 8 }}>💪</div>
+              {!isMobile && <div style={{ fontSize: 32, marginBottom: 8 }}>💪</div>}
               <div style={{ fontSize: 14, fontWeight: 600, color: '#666' }}>
                 {lang === 'ar'
                   ? 'لا يوجد طلاب بمواظبة تامة بعد'
@@ -1687,7 +1746,7 @@ function OngletSuivi({ lang, user, isMobile }) {
             </>
           ) : filtreKpi === 'risque' ? (
             <>
-              <div style={{ fontSize: 32, marginBottom: 8 }}>🎉</div>
+              {!isMobile && <div style={{ fontSize: 32, marginBottom: 8 }}>🎉</div>}
               <div style={{ fontSize: 14, fontWeight: 600, color: '#666' }}>
                 {lang === 'ar'
                   ? 'لا يوجد طلاب في خطر'
@@ -1699,7 +1758,7 @@ function OngletSuivi({ lang, user, isMobile }) {
             </>
           ) : filtreKpi === 'absences' ? (
             <>
-              <div style={{ fontSize: 32, marginBottom: 8 }}>👌</div>
+              {!isMobile && <div style={{ fontSize: 32, marginBottom: 8 }}>👌</div>}
               <div style={{ fontSize: 14, fontWeight: 600, color: '#666' }}>
                 {lang === 'ar'
                   ? 'لا يوجد طلاب غائبون'
@@ -2138,7 +2197,7 @@ function OngletSuiviInstituteurs({ lang, user, isMobile }) {
           background: '#FAEEDA', border: '1px solid #EF9F2740',
           borderRadius: 12, padding: 20, textAlign: 'center',
         }}>
-          <div style={{ fontSize: 32, marginBottom: 8 }}>⚙️</div>
+          {isMobile ? <div style={{ marginBottom: 8, display: 'flex', justifyContent: 'center' }}><Settings size={30} color={C.warn} /></div> : <div style={{ fontSize: 32, marginBottom: 8 }}>⚙️</div>}
           <div style={{ fontSize: 14, fontWeight: 700, color: '#633806', marginBottom: 6 }}>
             {lang === 'ar' ? 'التعرفات غير محددة' : 'Tarifs non configurés'}
           </div>
@@ -2301,7 +2360,7 @@ function OngletSuiviInstituteurs({ lang, user, isMobile }) {
                 padding:'8px 12px',fontSize:11,color:'#7B5800',marginTop:8,
                 display:'flex',alignItems:'center',gap:8,
               }}>
-                <span style={{fontSize:14}}>💡</span>
+                {isMobile ? <Lightbulb size={14} style={{flexShrink:0}} /> : <span style={{fontSize:14}}>💡</span>}
                 <span>{isAr
                   ? 'لم تقم بإعداد سنة دراسية بعد. الإدارة > الفترات.'
                   : 'Aucune année scolaire active. Gestion → Périodes.'}</span>
@@ -2333,6 +2392,16 @@ function OngletSuiviInstituteurs({ lang, user, isMobile }) {
       )}
 
       {/* KPIs globaux */}
+      {isMobile ? (
+        <div style={{ marginBottom: 14 }}>
+          <KpiGrid cols={2}>
+            <KpiTile label={lang === 'ar' ? 'الحصص المسجلة' : 'Séances enregistrées'} value={totalSeances} tone="brand" />
+            <KpiTile label={lang === 'ar' ? 'تم التحقق منها' : 'Validées'} value={totalValides} tone="good" />
+            <KpiTile label={lang === 'ar' ? 'في انتظار التحقق' : 'En attente'} value={totalEnAttente} tone="warn" />
+            <KpiTile label={lang === 'ar' ? 'المبلغ المستحق' : 'À payer'} value={`${totalMontantDu.toFixed(0)} ${lang === 'ar' ? 'د.' : 'DH'}`} tone="crit" />
+          </KpiGrid>
+        </div>
+      ) : (
       <div style={{
         display: 'grid',
         gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(auto-fit, minmax(150px, 1fr))',
@@ -2343,6 +2412,7 @@ function OngletSuiviInstituteurs({ lang, user, isMobile }) {
         <StatCard label={lang === 'ar' ? 'في انتظار التحقق' : 'En attente'} value={totalEnAttente} color="#EF9F27" bg="#FAEEDA" />
         <StatCard label={lang === 'ar' ? 'المبلغ المستحق' : 'À payer'} value={`${totalMontantDu.toFixed(0)} ${lang === 'ar' ? 'د.' : 'DH'}`} color="#E24B4A" bg="#FCEBEB" />
       </div>
+      )}
 
       {/* Bouton "Tout valider" */}
       {totalEnAttente > 0 && (
@@ -2364,7 +2434,7 @@ function OngletSuiviInstituteurs({ lang, user, isMobile }) {
             (mois+ = trop de colonnes pour un tableau lisible) */}
       {instituteurs.length === 0 ? (
         <div style={{ padding: 30, textAlign: 'center', color: '#888', background: '#fff', borderRadius: 12, border: '1px dashed #ccc' }}>
-          <div style={{ fontSize: 32, marginBottom: 8 }}>👨‍🏫</div>
+          {isMobile ? <div style={{ marginBottom: 8, display: 'flex', justifyContent: 'center' }}><Users size={30} color={C.brand2} /></div> : <div style={{ fontSize: 32, marginBottom: 8 }}>👨‍🏫</div>}
           <div style={{ fontSize: 13, fontWeight: 600 }}>
             {lang === 'ar' ? 'لا يوجد أساتذة' : 'Aucun instituteur'}
           </div>
@@ -2598,12 +2668,12 @@ function InstituteurCard({ inst, stats, lang, isMobile, onValidateRow, onShowDet
     }}>
       {/* Ligne 1 : identité + numéro */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12, flexWrap: 'wrap' }}>
-        <div style={{
+        {isMobile ? <Avatar prenom={inst.prenom} nom={inst.nom} color={C.brand} size={44} /> : <div style={{
           width: 44, height: 44, borderRadius: 12,
           background: '#EDE9FE', color: '#534AB7',
           display: 'flex', alignItems: 'center', justifyContent: 'center',
           fontSize: 20, flexShrink: 0,
-        }}>👨‍🏫</div>
+        }}>👨‍🏫</div>}
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontSize: 15, fontWeight: 700, color: '#1a1a1a' }}>
             {inst.prenom} {inst.nom}
@@ -2611,14 +2681,14 @@ function InstituteurCard({ inst, stats, lang, isMobile, onValidateRow, onShowDet
           {inst.instituteur_id_ecole && (
             <div style={{
               display: 'inline-block', marginTop: 2,
-              padding: '2px 8px', background: '#EDE9FE', color: '#534AB7',
+              padding: '2px 8px', background: isMobile ? C.bg : '#EDE9FE', color: isMobile ? C.muted : '#534AB7',
               borderRadius: 6, fontSize: 10, fontWeight: 700,
             }}>{inst.instituteur_id_ecole}</div>
           )}
         </div>
         {stats.tarif > 0 && (
           <div style={{ fontSize: 11, color: '#888', textAlign: 'right' }}>
-            <div style={{ fontWeight: 600, color: '#534AB7', fontSize: 13 }}>
+            <div style={{ fontWeight: 600, color: isMobile ? C.text : '#534AB7', fontSize: 13 }}>
               {stats.tarif.toFixed(0)} {lang === 'ar' ? 'د.' : 'DH'}
             </div>
             <div>{lang === 'ar' ? 'للحصة' : '/ séance'}</div>
@@ -2668,13 +2738,13 @@ function InstituteurCard({ inst, stats, lang, isMobile, onValidateRow, onShowDet
         gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(4, 1fr)',
         gap: 8, marginBottom: 12,
       }}>
-        <MiniStatCard icon="📋" label={lang === 'ar' ? 'الإجمالي' : 'Total'}
+        <MiniStatCard icon={isMobile ? null : "📋"} label={lang === 'ar' ? 'الإجمالي' : 'Total'}
           value={stats.total} color="#534AB7" />
-        <MiniStatCard icon="✅" label={lang === 'ar' ? 'مُتحقق' : 'Validées'}
+        <MiniStatCard icon={isMobile ? null : "✅"} label={lang === 'ar' ? 'مُتحقق' : 'Validées'}
           value={stats.valides} color="#1D9E75" />
-        <MiniStatCard icon="⏳" label={lang === 'ar' ? 'منتظر' : 'En attente'}
+        <MiniStatCard icon={isMobile ? null : "⏳"} label={lang === 'ar' ? 'منتظر' : 'En attente'}
           value={stats.enAttente} color="#EF9F27" highlight={stats.enAttente > 0} />
-        <MiniStatCard icon="💰" label={lang === 'ar' ? 'مستحق' : 'À payer'}
+        <MiniStatCard icon={isMobile ? null : "💰"} label={lang === 'ar' ? 'مستحق' : 'À payer'}
           value={stats.montantDu > 0 ? `${stats.montantDu.toFixed(0)}` : '—'}
           color="#E24B4A" highlight={stats.montantDu > 0}
           suffix={stats.montantDu > 0 ? (lang === 'ar' ? 'د.' : 'DH') : null} />
@@ -2707,7 +2777,7 @@ function InstituteurCard({ inst, stats, lang, isMobile, onValidateRow, onShowDet
               fontFamily: 'inherit',
               boxShadow: '0 2px 8px rgba(226,75,74,0.25)',
             }}>
-            💸 {lang === 'ar'
+            {isMobile ? <Banknote size={15} style={{ verticalAlign: 'middle', marginInlineEnd: 6 }} /> : '💸 '}{lang === 'ar'
               ? `دفع ${stats.montantDu.toFixed(0)} د.`
               : `Payer ${stats.montantDu.toFixed(0)} DH`}
           </button>
@@ -2715,12 +2785,12 @@ function InstituteurCard({ inst, stats, lang, isMobile, onValidateRow, onShowDet
         <button onClick={onShowDetails}
           style={{
             flex: '0 1 auto', padding: '10px 14px',
-            background: '#fff', color: '#534AB7',
-            border: '1px solid #534AB740', borderRadius: 10,
+            background: '#fff', color: isMobile ? C.brand : '#534AB7',
+            border: isMobile ? `1px solid ${C.line}` : '1px solid #534AB740', borderRadius: 10,
             fontSize: 12, fontWeight: 700, cursor: 'pointer',
             fontFamily: 'inherit',
           }}>
-          📋 {lang === 'ar' ? 'التفاصيل' : 'Détails'}
+          {isMobile ? null : '📋 '}{lang === 'ar' ? 'التفاصيل' : 'Détails'}
         </button>
       </div>
     </div>
@@ -2738,7 +2808,7 @@ function MiniStatCard({ icon, label, value, color, highlight, suffix }) {
       textAlign: 'center',
     }}>
       <div style={{ fontSize: 11, color: '#888', marginBottom: 2 }}>
-        {icon} {label}
+        {icon ? <>{icon} {label}</> : label}
       </div>
       <div style={{ fontSize: 16, fontWeight: 800, color: highlight ? color : '#1a1a1a' }}>
         {value}{suffix && <span style={{ fontSize: 10, fontWeight: 600, marginLeft: 3 }}>{suffix}</span>}

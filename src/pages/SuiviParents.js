@@ -8,8 +8,8 @@ import PageHeader from '../components/PageHeader';
 import StatsBreakdown from '../components/StatsBreakdown';
 import MobileSkeletonList from '../components/MobileSkeletonList';
 import { usePullToRefresh, PullToRefreshIndicator } from '../lib/usePullToRefresh';
-import { MobileHeader, HeaderMenu, actionsExport } from '../components/ui';
-import { UsersRound } from 'lucide-react';
+import { MobileHeader, HeaderMenu, actionsExport, KpiTile, KpiGrid, LevelBadge, EmptyState, C } from '../components/ui';
+import { UsersRound, Phone, UserRound, Inbox } from 'lucide-react';
 
 // ══════════════════════════════════════════════════════════════════════
 // PAGE SUIVI PARENTS — Menu principal surveillant
@@ -350,6 +350,28 @@ export default function SuiviParents({ user, navigate, goBack, lang, isMobile })
             {/* Exports mobile : deplaces dans le menu de l'en-tete (charte mobile lot 2) */}
 
             {/* KPIs (cliquables → filtrent la liste) — Pattern StatsBreakdown */}
+            {isMobile ? (
+              <div style={{ marginBottom: 12 }}>
+                <KpiGrid cols={2}>
+                  {[
+                    { key: 'tous',      value: stats.total,     label: lang === 'ar' ? 'الإجمالي' : 'Total',          tone: 'brand' },
+                    { key: 'actif',     value: stats.actif,     label: lang === 'ar' ? 'نشط' : 'Actifs',             tone: 'good' },
+                    { key: 'peu_actif', value: stats.peu_actif, label: lang === 'ar' ? 'قليل النشاط' : 'Peu actifs', tone: 'warn' },
+                    { key: 'inactif',   value: stats.inactif,   label: lang === 'ar' ? 'غير نشط' : 'Inactifs',       tone: 'crit' },
+                    { key: 'jamais',    value: stats.jamais,    label: lang === 'ar' ? 'لم يزر' : 'Jamais venus',    tone: 'neutral' },
+                  ].map(k => (
+                    <div key={k.key} style={{ borderRadius: 12, outline: filtreStatut === k.key ? `2px solid ${C.brand}` : 'none', outlineOffset: -1 }}>
+                      <KpiTile value={k.value} label={k.label} tone={k.tone} onClick={() => setFiltreStatut(k.key)} />
+                    </div>
+                  ))}
+                </KpiGrid>
+                {stats.total > 0 && (
+                  <div style={{ fontSize: 12, color: C.muted, marginTop: 8 }}>
+                    {lang === 'ar' ? 'توزيع الأولياء' : 'Répartition des parents'} : {`${stats.actif + stats.peu_actif} / ${stats.total} ${lang === 'ar' ? 'ولي على الأقل شوهدوا مرة' : 'parent(s) au moins vus une fois'}`}
+                  </div>
+                )}
+              </div>
+            ) : (
             <StatsBreakdown
               total={{
                 value: stats.total,
@@ -381,6 +403,7 @@ export default function SuiviParents({ user, navigate, goBack, lang, isMobile })
               lang={lang}
               isMobile={isMobile}
             />
+            )}
 
             {/* Filtres : niveau + recherche */}
             <div style={{
@@ -389,7 +412,7 @@ export default function SuiviParents({ user, navigate, goBack, lang, isMobile })
               display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center',
             }}>
               <div style={{ fontSize: 11, color: '#666', fontWeight: 700, flexShrink: 0 }}>
-                🔍 {lang === 'ar' ? 'تصفية:' : 'Filtrer :'}
+                {isMobile ? null : '🔍 '}{lang === 'ar' ? 'تصفية:' : 'Filtrer :'}
               </div>
               <select value={filtreNiveau}
                 onChange={e => setFiltreNiveau(e.target.value)}
@@ -425,7 +448,13 @@ export default function SuiviParents({ user, navigate, goBack, lang, isMobile })
             </div>
 
             {/* Liste des parents */}
-            {parentsFiltres.length === 0 ? (
+            {parentsFiltres.length === 0 ? (isMobile ? (
+              <div style={{ background: C.surface, borderRadius: 12, border: `1px solid ${C.line}` }}>
+                <EmptyState icon={Inbox} title={parents.length === 0
+                  ? (lang === 'ar' ? 'لا يوجد أولياء مرتبطون بالطلاب' : 'Aucun parent lié à des élèves')
+                  : (lang === 'ar' ? 'لا نتائج لهذه التصفية' : 'Aucun résultat pour ce filtre')} />
+              </div>
+            ) : (
               <div style={{
                 padding: 40, textAlign: 'center', color: '#888',
                 background: '#fff', borderRadius: 12, border: '1px dashed #ccc',
@@ -437,7 +466,7 @@ export default function SuiviParents({ user, navigate, goBack, lang, isMobile })
                     : (lang === 'ar' ? 'لا نتائج لهذه التصفية' : 'Aucun résultat pour ce filtre')}
                 </div>
               </div>
-            ) : (
+            )) : (
               <div style={{
                 fontSize: 11, color: '#888', marginBottom: 8, textAlign: 'right', fontStyle: 'italic',
               }}>
@@ -449,6 +478,75 @@ export default function SuiviParents({ user, navigate, goBack, lang, isMobile })
                 const si = statutInfo(p.statut);
                 const niveau = niveaux.find(n => n.code === p.eleve.code_niveau);
                 const niveauCouleur = niveau?.couleur || '#888';
+                // Charte mobile (oct 2026) : carte harmonisee, memes informations et memes actions
+                if (isMobile) {
+                  const sc = { actif: C.good, peu_actif: C.warn, inactif: C.crit, jamais: C.muted }[p.statut];
+                  return (
+                    <div key={`${p.parent.id}_${p.eleve.id}_${i}`} style={{
+                      background: C.surface, borderRadius: 12, padding: 14,
+                      border: `1px solid ${C.line}`, borderInlineStart: `4px solid ${sc}`,
+                    }}>
+                      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+                        <span aria-hidden="true" style={{ width: 10, height: 10, borderRadius: '50%', background: sc, flexShrink: 0, marginTop: 6 }} />
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontSize: 15, fontWeight: 600, color: C.text }}>
+                            {p.parent.prenom} {p.parent.nom}
+                          </div>
+                          <div style={{ fontSize: 12, color: C.muted, marginTop: 2, display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+                            <span>{p.eleve.prenom} {p.eleve.nom}</span>
+                            {niveau && <LevelBadge code={niveau.nom} color={niveauCouleur} />}
+                          </div>
+                          <div style={{ fontSize: 12, color: sc, fontWeight: 700, marginTop: 6 }}>
+                            {si.label} · {joursLabel(p.joursEcoules)}
+                          </div>
+                          {p.statut !== 'jamais' && (
+                            <div style={{ fontSize: 11, color: C.muted, marginTop: 3 }}>
+                              {p.nbVisitesJours} {lang === 'ar' ? 'يوم زيارة' : 'jour(s) de visite'} · {p.nbConsultTotal} {lang === 'ar' ? 'استشارة' : 'consultation(s)'}
+                            </div>
+                          )}
+                          {p.onglets.length > 0 && (
+                            <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginTop: 6 }}>
+                              {p.onglets.map(o => (
+                                <span key={o} style={{
+                                  padding: '1px 6px', background: C.bg, color: C.muted, border: `1px solid ${C.line}`,
+                                  borderRadius: 4, fontSize: 10, fontWeight: 600,
+                                }}>{ongletLabel(o)}</span>
+                              ))}
+                            </div>
+                          )}
+                          {p.parent.identifiant && (
+                            <div title={p.parent.identifiant}
+                              style={{ fontSize: 11, color: C.muted, marginTop: 6, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                              {lang === 'ar' ? 'المعرف' : 'Identifiant'} : {p.parent.identifiant}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                      <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+                        {p.parent.telephone && (
+                          <a href={`tel:${p.parent.telephone}`}
+                            style={{
+                              flex: 1, height: 40, background: C.brand, color: C.onBrand,
+                              borderRadius: 10, textDecoration: 'none',
+                              fontSize: 13, fontWeight: 600, fontFamily: 'inherit',
+                              display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                            }}>
+                            <Phone size={15} /> <span dir="ltr">{p.parent.telephone}</span>
+                          </a>
+                        )}
+                        <button onClick={() => navigate('fiche', p.eleve)}
+                          style={{
+                            flex: p.parent.telephone ? '0 0 auto' : 1, height: 40, padding: '0 14px', background: C.surface, color: C.brand,
+                            border: `1px solid ${C.line}`, borderRadius: 10,
+                            fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
+                            display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                          }}>
+                          <UserRound size={15} /> {lang === 'ar' ? 'بطاقة' : 'Fiche'}
+                        </button>
+                      </div>
+                    </div>
+                  );
+                }
                 return (
                   <div key={`${p.parent.id}_${p.eleve.id}_${i}`} style={{
                     background: '#fff', borderRadius: 12, padding: 14,

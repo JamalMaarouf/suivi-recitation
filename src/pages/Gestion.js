@@ -2056,8 +2056,9 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
           const tabDansPlus = TABS_PLUS.find(t => t.k === tab);
           const plusActif = !!tabDansPlus;
           return (
-            <div style={{position:'relative',background:'#064e3b',zIndex:99,
-              position:'sticky',top:72,borderBottom:'1px solid rgba(255,255,255,0.1)'}}>
+            <div style={{background:'#064e3b',zIndex:99,margin:'0 -16px',
+              // Charte : colle sous l'en-tete commun (44 px + ligne 44 px + 12 px)
+              position:'sticky',top:'calc(100px + env(safe-area-inset-top, 0px))',borderBottom:'1px solid rgba(255,255,255,0.1)'}}>
               <div style={{display:'flex',gap:0,overflowX:'auto',scrollbarWidth:'none'}}>
                 {TABS_PRINCIPAUX.map(({k,l})=>(
                   <div key={k} onClick={()=>{setTab(k); setShowGestionPlusMenu(false);}}

@@ -10,8 +10,8 @@ import { loadAnneeActiveAvecPeriodes, formatPeriodeCourte } from '../lib/helpers
 import ExportButtons from '../components/ExportButtons';
 import MobileSkeletonList from '../components/MobileSkeletonList';
 import { usePullToRefresh, PullToRefreshIndicator } from '../lib/usePullToRefresh';
-import { MobileHeader, HeaderIconButton, HeaderMenu, actionsExport } from '../components/ui';
-import { BookOpen, Plus, RefreshCw } from 'lucide-react';
+import { MobileHeader, HeaderIconButton, HeaderMenu, actionsExport, ActionSheet, LevelBadge, SectionTitle, C } from '../components/ui';
+import { BookOpen, Plus, RefreshCw, Pencil, Trash2, MoreVertical, AlertTriangle, CalendarDays, User, Users } from 'lucide-react';
 
 const getNiveauColor = (code, niveaux=[]) => niveaux.find(n=>n.code===code)?.couleur || {'5B':'#534AB7','5A':'#378ADD','2M':'#1D9E75','2':'#EF9F27','1':'#E24B4A'}[code] || '#888';
 
@@ -30,6 +30,7 @@ export default function MurajaDashboard({ user, navigate, goBack, lang='fr', isM
   const [editingSession, setEditingSession]   = useState(null); // session object
   const [editExclus, setEditExclus]           = useState({});   // id→true if removed
   const [editSaving, setEditSaving]           = useState(false);
+  const [menuSession, setMenuSession]         = useState(null); // charte mobile : panneau d'actions d'une seance
 
   // Confirm modal
   const [confirmModal, setConfirmModal] = useState({ isOpen:false, title:'', message:'', onConfirm:null });
@@ -408,7 +409,17 @@ export default function MurajaDashboard({ user, navigate, goBack, lang='fr', isM
 
       {/* Stats */}
       <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(130px,1fr))',gap:10,marginBottom:20}}>
-        {statsByNiveau.map(s=>(
+        {statsByNiveau.map(s=>isMobile ? (
+          <div key={s.niveau} style={{background:C.surface,border:`1px solid ${C.line}`,borderRadius:12,padding:'12px',textAlign:'center'}}>
+            <div style={{marginBottom:4}}><LevelBadge code={s.niveau} color={s.color} /></div>
+            <div style={{fontSize:22,fontWeight:700,color:C.text}}>{s.nb}</div>
+            <div style={{fontSize:11,color:C.muted,marginBottom:6}}>{lang==='ar'?'استظهار':'entrées'}</div>
+            <div style={{height:6,borderRadius:3,background:C.line,overflow:'hidden',marginBottom:4}}>
+              <div style={{height:'100%',width:`${s.taux}%`,background:C.brand2,borderRadius:3}}/>
+            </div>
+            <div style={{fontSize:11,color:C.muted,fontWeight:600}}>{s.uniqueEleves}/{s.totalEleves} ({s.taux}%)</div>
+          </div>
+        ) : (
           <div key={s.niveau} style={{background:`${s.color}10`,border:`1.5px solid ${s.color}30`,borderRadius:12,padding:'12px',textAlign:'center'}}>
             <div style={{fontSize:16,fontWeight:800,color:s.color,marginBottom:4}}>{s.niveau}</div>
             <div style={{fontSize:22,fontWeight:800,color:'#1a1a1a'}}>{s.nb}</div>
@@ -423,25 +434,35 @@ export default function MurajaDashboard({ user, navigate, goBack, lang='fr', isM
 
       {/* Absentees */}
       {absenteesParNiveau.length>0&&(
-        <div style={{background:'#FFF3CD',border:'1.5px solid #FFECB5',borderRadius:12,padding:'12px',marginBottom:16}}>
+        <div style={isMobile?{background:C.surface,border:`1px solid ${C.line}`,borderRadius:12,padding:'12px',marginBottom:16}:{background:'#FFF3CD',border:'1.5px solid #FFECB5',borderRadius:12,padding:'12px',marginBottom:16}}>
+          {isMobile ? (
+            <div style={{fontSize:13,fontWeight:700,color:C.warn,marginBottom:8,display:'flex',alignItems:'center',gap:6}}>
+              <AlertTriangle size={16} /> {lang==='ar'?'لم يشاركوا في أي مراجعة:':'Sans muraja\u02bca sur cette période :'}
+            </div>
+          ) : (
           <div style={{fontSize:13,fontWeight:700,color:'#856404',marginBottom:8}}>
             ⚠️ {lang==='ar'?'لم يشاركوا في أي مراجعة:':'Sans muraja\u02bca sur cette période :'}
           </div>
+          )}
           <div style={{display:'flex',flexWrap:'wrap',gap:6}}>
             {absenteesParNiveau.map(e=>(
-              <span key={e.id} style={{padding:'3px 8px',background:'#fff',borderRadius:10,fontSize:12,color:'#856404',border:'1px solid #FFECB5'}}>{e.prenom} {e.nom}</span>
+              <span key={e.id} style={isMobile?{padding:'3px 8px',background:C.warnSoft,borderRadius:10,fontSize:12,color:C.text}:{padding:'3px 8px',background:'#fff',borderRadius:10,fontSize:12,color:'#856404',border:'1px solid #FFECB5'}}>{e.prenom} {e.nom}</span>
             ))}
           </div>
         </div>
       )}
 
       {/* Session list */}
+      {isMobile ? (
+        <SectionTitle>{lang==='ar'?'سجل المراجعات':'Historique des muraja\u02bca'} ({sessionList.length})</SectionTitle>
+      ) : (
       <div style={{fontSize:14,fontWeight:600,marginBottom:10,color:'#333'}}>
         📋 {lang==='ar'?'سجل المراجعات':'Historique des muraja\u02bca'} ({sessionList.length})
       </div>
+      )}
 
       {sessionList.length===0?(
-        <div style={{textAlign:'center',color:'#aaa',padding:'2rem',background:'#fafaf8',borderRadius:12}}>
+        <div style={isMobile?{textAlign:'center',color:C.muted,padding:'2rem',background:C.surface,border:`1px solid ${C.line}`,borderRadius:12}:{textAlign:'center',color:'#aaa',padding:'2rem',background:'#fafaf8',borderRadius:12}}>
           {lang==='ar'?'لا توجد مراجعات في هذه الفترة':'Aucune muraja\u02bca enregistrée sur cette période'}
         </div>
       ):(
@@ -450,8 +471,21 @@ export default function MurajaDashboard({ user, navigate, goBack, lang='fr', isM
             const nc = s.color;
             const isEditing = editingSession?.key === s.key;
             return (
-              <div key={i} style={{background:'#fff',border:`1.5px solid ${isEditing?nc:nc+'20'}`,borderRadius:12,padding:'12px 14px',transition:'border 0.2s'}}>
+              <div key={i} style={isMobile?{background:C.surface,border:`${isEditing?1.5:1}px solid ${isEditing?C.brand2:C.line}`,borderRadius:12,padding:'12px 14px',transition:'border 0.2s'}:{background:'#fff',border:`1.5px solid ${isEditing?nc:nc+'20'}`,borderRadius:12,padding:'12px 14px',transition:'border 0.2s'}}>
                 {/* Header row */}
+                {isMobile ? (
+                <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:8}}>
+                  <LevelBadge code={s.niveau} color={nc} />
+                  <span style={{fontWeight:600,fontSize:15,flex:1,minWidth:0,color:C.text}}>{s.contenu}</span>
+                  <span style={{padding:'2px 8px',borderRadius:8,background:C.bg,color:C.muted,fontSize:11,fontWeight:600,flexShrink:0}}>{s.type}</span>
+                  {user.role==='surveillant'&&!isEditing&&(
+                    <button type="button" onClick={()=>setMenuSession(s)}
+                      aria-label={lang==='ar'?'خيارات':'Options'}
+                      style={{width:44,height:44,marginInlineEnd:-8,border:'none',background:'transparent',borderRadius:12,cursor:'pointer',color:C.muted,
+                        display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}><MoreVertical size={20} /></button>
+                  )}
+                </div>
+                ) : (
                 <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:8}}>
                   <span style={{padding:'2px 8px',borderRadius:8,background:`${nc}20`,color:nc,fontWeight:700,fontSize:12}}>{s.niveau}</span>
                   <span style={{fontWeight:700,fontSize:14,flex:1}}>{s.contenu}</span>
@@ -470,19 +504,28 @@ export default function MurajaDashboard({ user, navigate, goBack, lang='fr', isM
                     </div>
                   )}
                 </div>
+                )}
 
                 {/* Meta */}
+                {isMobile ? (
+                <div style={{display:'flex',gap:12,flexWrap:'wrap',fontSize:12,color:C.muted,marginBottom:8}}>
+                  <span style={{display:'inline-flex',alignItems:'center',gap:4}}><CalendarDays size={13} /> {new Date(s.date).toLocaleDateString(lang==='ar'?'ar-MA':'fr-FR',{weekday:'long',day:'numeric',month:'long'})}</span>
+                  <span style={{display:'inline-flex',alignItems:'center',gap:4}}><User size={13} /> {s.valideur}</span>
+                  <span style={{display:'inline-flex',alignItems:'center',gap:4,color:C.text,fontWeight:600}}><Users size={13} /> {s.eleves.length} {lang==='ar'?'طالب':'élève(s)'}</span>
+                </div>
+                ) : (
                 <div style={{display:'flex',gap:16,fontSize:11,color:'#888',marginBottom:8}}>
                   <span>📅 {new Date(s.date).toLocaleDateString(lang==='ar'?'ar-MA':'fr-FR',{weekday:'long',day:'numeric',month:'long'})}</span>
                   <span>👤 {s.valideur}</span>
                   <span style={{color:nc,fontWeight:600}}>👥 {s.eleves.length} {lang==='ar'?'طالب':'élève(s)'}</span>
                 </div>
+                )}
 
                 {/* Normal view: eleve badges */}
                 {!isEditing&&(
                   <div style={{display:'flex',flexWrap:'wrap',gap:4}}>
                     {s.eleves.map((e,j)=>(
-                      <span key={j} style={{padding:'2px 8px',background:`${nc}10`,borderRadius:10,fontSize:11,color:'#444',border:`1px solid ${nc}20`}}>
+                      <span key={j} style={isMobile?{padding:'2px 8px',background:C.bg,borderRadius:10,fontSize:12,color:C.text,border:`1px solid ${C.line}`}:{padding:'2px 8px',background:`${nc}10`,borderRadius:10,fontSize:11,color:'#444',border:`1px solid ${nc}20`}}>
                         {e.prenom} {e.nom}
                       </span>
                     ))}
@@ -534,6 +577,16 @@ export default function MurajaDashboard({ user, navigate, goBack, lang='fr', isM
             );
           })}
         </div>
+      )}
+
+      {/* Charte mobile (oct 2026) : actions d'une seance dans un panneau */}
+      {isMobile && (
+        <ActionSheet open={!!menuSession} onClose={()=>setMenuSession(null)} lang={lang}
+          title={menuSession ? `${menuSession.niveau} · ${menuSession.contenu}` : ''}
+          actions={menuSession ? [
+            { label: lang==='ar'?'تعديل':'Modifier', icon: Pencil, onClick: ()=>startEdit(menuSession) },
+            { label: lang==='ar'?'حذف':'Supprimer', icon: Trash2, danger: true, onClick: ()=>handleDelete(menuSession) },
+          ] : []} />
       )}
 
       <ConfirmModal isOpen={confirmModal.isOpen} title={confirmModal.title} message={confirmModal.message}

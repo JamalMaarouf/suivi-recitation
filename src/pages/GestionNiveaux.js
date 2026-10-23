@@ -6,7 +6,7 @@ import { t } from '../lib/i18n';
 import PageHeader from '../components/PageHeader';
 import ExportButtons from '../components/ExportButtons';
 import MobileSkeletonList from '../components/MobileSkeletonList';
-import { MobileHeader, HeaderIconButton, ListRow, ActionSheet, LevelBadge, EmptyState, C } from '../components/ui';
+import { MobileHeader, HeaderIconButton, HeaderMenu, actionsExport, ListRow, ActionSheet, LevelBadge, EmptyState, C } from '../components/ui';
 import { Layers, Plus, X, ListChecks, Pencil, Trash2, ArrowUp, ArrowDown } from 'lucide-react';
 
 // Liste des Hizb selon un sens donne (desc = 60->1, asc = 1->60)
@@ -1061,11 +1061,14 @@ export default function GestionNiveaux({ user, navigate, goBack, lang='fr', isMo
           icon={Layers}
           onBack={()=>goBack?goBack():navigate('gestion')}
           lang={lang}
-          actions={
+          actions={<>
+            {!loading && niveaux.length > 0 && (
+              <HeaderMenu lang={lang} actions={actionsExport({ onPDF: exportNiveauxPDF, onExcel: exportNiveauxExcel, lang })} />
+            )}
             <HeaderIconButton icon={showForm&&!editing?X:Plus}
               label={showForm&&!editing?(lang==='ar'?'إغلاق':'Fermer'):(lang==='ar'?'إضافة':'Ajouter')}
               onClick={()=>{setEditing(null);setForm({...emptyForm,ordre:niveaux.length+1});setShowForm(v=>!v);}} />
-          }
+          </>}
         />
 
         <div style={{padding:'12px'}}>
@@ -1077,13 +1080,6 @@ export default function GestionNiveaux({ user, navigate, goBack, lang='fr', isMo
                 {' '}
                 <span style={{fontWeight:500,color:'#888'}}>({niveaux.length})</span>
               </div>
-              <ExportButtons
-                onPDF={exportNiveauxPDF}
-                onExcel={exportNiveauxExcel}
-                lang={lang}
-                variant="inline"
-                compact
-              />
             </div>
           )}
           {/* Formulaire */}

@@ -8,8 +8,8 @@ import { fetchAll } from '../lib/fetchAll';
 import ExportButtons from '../components/ExportButtons';
 import PageHeader from '../components/PageHeader';
 import MobileSkeletonList from '../components/MobileSkeletonList';
-import { MobileHeader, HeaderMenu, actionsExport } from '../components/ui';
-import { ClipboardList } from 'lucide-react';
+import { MobileHeader, HeaderMenu, actionsExport, ListRow, LevelBadge, KpiTile, KpiGrid, SectionTitle, C } from '../components/ui';
+import { ClipboardList, Zap } from 'lucide-react';
 
 // FIX (oct 2026) : IS_SOURATE code en dur remplace par isSourateNiveauDyn(code, niveaux de l'ecole)
 const NIVEAU_COLORS = { '5B':'#534AB7','5A':'#378ADD','2M':'#1D9E75','2':'#EF9F27','1':'#E24B4A' };
@@ -270,10 +270,8 @@ export default function Seance({ user, navigate, goBack, lang, isMobile=false })
           <>
             {/* Semaine view */}
             {vue==='semaine' && (
-              <div style={{padding:'12px'}}>
-                <div style={{fontSize:12,fontWeight:700,color:'#888',marginBottom:8}}>
-                  {lang==='ar'?'هذا الأسبوع':'Cette semaine'}
-                </div>
+              <div style={{padding:'0 12px 12px'}}>
+                <SectionTitle>{lang==='ar'?'هذا الأسبوع':'Cette semaine'}</SectionTitle>
                 {/* F7 (oct 2026) : la vue "Cette semaine" filtrait et calculait sur les donnees DU JOUR.
                     Alignement PC : volume de la semaine (sourates pour un eleve sourate, tomons sinon). */}
                 {elevesDataState.filter(e=>filterNiveau==='tous'||e.code_niveau===filterNiveau)
@@ -283,22 +281,18 @@ export default function Seance({ user, navigate, goBack, lang, isMobile=false })
                     const nc=NIVEAU_COLORS[e.code_niveau||'1']||'#888';
                     const volSemaine = e.isSourate ? (e.souratesSemaine||0) : (e.tomonSemaine||0);
                     return(
-                      <div key={e.id} onTouchEnd={()=>navigate('fiche',e)} onClick={()=>navigate('fiche',e)}
-                        style={{background:'#fff',borderRadius:12,padding:'13px 14px',marginBottom:8,
-                          border:`0.5px solid ${nc}20`,display:'flex',alignItems:'center',gap:12,cursor:'pointer'}}>
-                        <div style={{width:36,height:36,borderRadius:'50%',background:`${nc}20`,color:nc,
-                          display:'flex',alignItems:'center',justifyContent:'center',fontWeight:800,fontSize:13,flexShrink:0}}>
-                          {medals[idx]||`${idx+1}`}
-                        </div>
-                        <div style={{flex:1,minWidth:0}}>
-                          <div style={{fontWeight:700,fontSize:14}}>{e.prenom} {e.nom}</div>
-                          <span style={{padding:'1px 7px',borderRadius:8,background:`${nc}20`,color:nc,fontSize:11,fontWeight:700}}>{e.code_niveau||'?'}</span>
-                        </div>
-                        <div style={{textAlign:'right',flexShrink:0}}>
-                          <div style={{fontSize:18,fontWeight:800,color:'#1D9E75'}}>{volSemaine}</div>
-                          <div style={{fontSize:10,color:'#888'}}>{e.isSourate?(lang==='ar'?'سورة':'sourates'):(lang==='ar'?'ثُمن':'tomon')}</div>
-                        </div>
-                        <span style={{color:'#ccc',fontSize:16}}>{'›'}</span>
+                      <div key={e.id} onTouchEnd={()=>navigate('fiche',e)} style={{marginBottom:8}}>
+                        <ListRow lang={lang}
+                          leading={<div style={{width:36,height:36,borderRadius:'50%',background:C.brandSoft,color:C.brand,
+                            display:'flex',alignItems:'center',justifyContent:'center',fontWeight:700,fontSize:13,flexShrink:0}}>
+                            {medals[idx]||`${idx+1}`}
+                          </div>}
+                          title={`${e.prenom} ${e.nom}`}
+                          meta={<LevelBadge code={e.code_niveau||'?'} color={nc} />}
+                          value={volSemaine}
+                          valueLabel={e.isSourate?(lang==='ar'?'سورة':'sourates'):(lang==='ar'?'ثُمن':'tomon')}
+                          onClick={()=>navigate('fiche',e)}
+                        />
                       </div>
                     );
                   })}
@@ -308,46 +302,35 @@ export default function Seance({ user, navigate, goBack, lang, isMobile=false })
             {vue==='seance' && (
             <>
             <div>
-            <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:8,padding:'12px 16px'}}>
-              {[
-                {val:elevesVus.length,lbl:t(lang,'eleves_vus'),color:'#1D9E75',bg:'#E1F5EE'},
-                {val:ptsTotal.toLocaleString(),lbl:'Points',color:'#534AB7',bg:'#EEEDFE'},
-                {val:tomonTotal+hizbTotal+souratesTotal,lbl:'Validations',color:'#378ADD',bg:'#E6F1FB'},
-              ].map((k,i)=>(
-                <div key={i} style={{background:k.bg,borderRadius:12,padding:'12px 8px',textAlign:'center'}}>
-                  <div style={{fontSize:22,fontWeight:800,color:k.color}}>{k.val}</div>
-                  <div style={{fontSize:10,color:k.color,marginTop:2}}>{k.lbl}</div>
-                </div>
-              ))}
+            <div style={{padding:'12px 12px 0'}}>
+              <KpiGrid cols={3}>
+                <KpiTile value={elevesVus.length} label={t(lang,'eleves_vus')} tone="brand" />
+                <KpiTile value={ptsTotal.toLocaleString()} label="Points" />
+                <KpiTile value={tomonTotal+hizbTotal+souratesTotal} label="Validations" />
+              </KpiGrid>
             </div>
             <div style={{padding:'0 12px'}}>
-              <div style={{fontSize:12,fontWeight:700,color:'#888',marginBottom:8,paddingLeft:4}}>
-                {lang==='ar'?'الطلاب اليوم':"Élèves aujourd'hui"} ({elevesVus.length})
-              </div>
+              <SectionTitle>{lang==='ar'?'الطلاب اليوم':"Élèves aujourd'hui"} ({elevesVus.length})</SectionTitle>
               {elevesVus.length===0 ? (
-                <div style={{textAlign:'center',color:'#aaa',padding:'2rem',background:'#fff',borderRadius:12}}>
+                <div style={{textAlign:'center',color:C.muted,padding:'2rem',background:C.surface,border:`1px solid ${C.line}`,borderRadius:12}}>
                   {lang==='ar'?'لا يوجد طلاب اليوم':"Aucun élève aujourd'hui"}
                 </div>
               ) : elevesVus.map((e,idx)=>{
                 const nc=NIVEAU_COLORS[e.code_niveau||'1']||'#888';
                 const pts=e.ptsAujourdhui||0; // NETTOYAGE oct 2026 : avant replis ||30/||10 codes en dur + nombre de tomons ignore
                 return(
-                  <div key={e.id} onTouchEnd={()=>navigate('fiche',e)} onClick={()=>navigate('fiche',e)}
-                    style={{background:'#fff',borderRadius:12,padding:'13px 14px',marginBottom:8,
-                      border:`0.5px solid ${nc}20`,display:'flex',alignItems:'center',gap:12,cursor:'pointer'}}>
-                    <div style={{width:36,height:36,borderRadius:'50%',background:`${nc}20`,color:nc,
-                      display:'flex',alignItems:'center',justifyContent:'center',fontWeight:800,fontSize:13,flexShrink:0}}>
-                      {medals[idx]||`${idx+1}`}
-                    </div>
-                    <div style={{flex:1,minWidth:0}}>
-                      <div style={{fontWeight:700,fontSize:14,marginBottom:2}}>{e.prenom} {e.nom}</div>
-                      <span style={{padding:'1px 7px',borderRadius:8,background:`${nc}20`,color:nc,fontSize:11,fontWeight:700}}>{e.code_niveau||'?'}</span>
-                    </div>
-                    <div style={{textAlign:'right',flexShrink:0}}>
-                      <div style={{fontSize:18,fontWeight:800,color:'#1D9E75'}}>+{pts}</div>
-                      <div style={{fontSize:10,color:'#888'}}>pts</div>
-                    </div>
-                    <span style={{color:'#ccc',fontSize:16}}>{'›'}</span>
+                  <div key={e.id} onTouchEnd={()=>navigate('fiche',e)} style={{marginBottom:8}}>
+                    <ListRow lang={lang}
+                      leading={<div style={{width:36,height:36,borderRadius:'50%',background:C.brandSoft,color:C.brand,
+                        display:'flex',alignItems:'center',justifyContent:'center',fontWeight:700,fontSize:13,flexShrink:0}}>
+                        {medals[idx]||`${idx+1}`}
+                      </div>}
+                      title={`${e.prenom} ${e.nom}`}
+                      meta={<LevelBadge code={e.code_niveau||'?'} color={nc} />}
+                      value={`+${pts}`}
+                      valueLabel="pts"
+                      onClick={()=>navigate('fiche',e)}
+                    />
                   </div>
                 );
               })}
@@ -355,10 +338,10 @@ export default function Seance({ user, navigate, goBack, lang, isMobile=false })
             </div>
             <div onClick={()=>navigate('validation_rapide')}
               style={{position:'fixed',bottom:80,right:16,width:56,height:56,borderRadius:'50%',
-                background:'#1D9E75',color:'#fff',border:'none',fontSize:28,display:'flex',
+                background:C.brand,color:C.onBrand,border:'none',fontSize:28,display:'flex',
                 alignItems:'center',justifyContent:'center',cursor:'pointer',zIndex:150,
-                boxShadow:'0 4px 16px rgba(29,158,117,0.4)'}}>
-              ⚡
+                boxShadow:'0 4px 16px rgba(11,90,69,0.35)'}}>
+              <Zap size={26} />
             </div>
             </>
             )}

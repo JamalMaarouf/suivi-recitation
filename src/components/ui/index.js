@@ -4,6 +4,7 @@
 // panneau d'actions (+ menu Exporter). Tous bilingues FR/AR (sens RTL gere).
 // ═══════════════════════════════════════════════════════════════════════
 import React, { useState } from 'react';
+import { createPortal } from 'react-dom';
 import { ChevronLeft, ChevronRight, MoreVertical, Search, X, FileText, FileSpreadsheet, ChevronRight as Chevron } from 'lucide-react';
 import { C, T, R, S, TOUCH, HEADER_BG, TONES, FONT } from './theme';
 
@@ -177,7 +178,8 @@ export function LevelBadge({ code, color = C.muted }) {
 // actions: [{ label, icon, onClick, danger, disabled }]
 export function ActionSheet({ open, onClose, title, actions = [], lang = 'fr' }) {
   if (!open) return null;
-  return (
+  // Rendu dans <body> : sinon, ouvert depuis l'en-tete (z-index 100), le panneau passait sous la barre du bas.
+  const panneau = (
     <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(10,20,16,0.45)', zIndex: 3000,
       display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
       <div onClick={e => e.stopPropagation()} role="dialog" aria-label={title}
@@ -209,6 +211,7 @@ export function ActionSheet({ open, onClose, title, actions = [], lang = 'fr' })
       </div>
     </div>
   );
+  return typeof document !== 'undefined' && document.body ? createPortal(panneau, document.body) : panneau;
 }
 
 // ── Bouton « ⋯ » d'en-tete qui ouvre un panneau d'actions (exports, etc.) ─

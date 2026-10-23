@@ -8,8 +8,8 @@ import ExportButtons from '../components/ExportButtons';
 import PeriodeSelectorHybride from '../components/PeriodeSelectorHybride';
 import PageHeader from '../components/PageHeader';
 import StatsCard from '../components/StatsCard';
-import { MobileHeader, HeaderMenu, actionsExport } from '../components/ui';
-import { Award } from 'lucide-react';
+import { MobileHeader, HeaderMenu, actionsExport, KpiTile, KpiGrid, EmptyState, LevelBadge, C } from '../components/ui';
+import { Award, CheckCircle2, XCircle, Lock, FileText, Pencil, MessageSquare, TrendingUp, SlidersHorizontal, ClipboardList, AlertTriangle, BarChart3 } from 'lucide-react';
 import { usePullToRefresh, PullToRefreshIndicator } from '../lib/usePullToRefresh';
 
 export default function ResultatsExamens({ user, navigate, goBack, lang='fr', isMobile, data }) {
@@ -453,7 +453,7 @@ export default function ResultatsExamens({ user, navigate, goBack, lang='fr', is
             background:activeTab===tab.id?'#fff':'transparent',
             color:activeTab===tab.id?'#085041':'#888',
             boxShadow:activeTab===tab.id?'0 1px 4px rgba(0,0,0,0.08)':'none'}}>
-          {tab.icon} {lang==='ar'?tab.ar:tab.fr}
+          {isMobile ? (lang==='ar'?tab.ar:tab.fr) : <>{tab.icon} {lang==='ar'?tab.ar:tab.fr}</>}
         </button>
       ))}
     </div>
@@ -499,7 +499,7 @@ export default function ResultatsExamens({ user, navigate, goBack, lang='fr', is
             </div>
             {/* Recherche nom + numéro */}
             <input value={searchEleve} onChange={e=>setSearchEleve(e.target.value)}
-              placeholder={lang==='ar'?'🔍 بحث باسم الطالب أو رقمه...':'🔍 Nom ou numéro élève...'}
+              placeholder={isMobile ? (lang==='ar'?'بحث باسم الطالب أو رقمه...':'Nom ou numéro élève...') : (lang==='ar'?'🔍 بحث باسم الطالب أو رقمه...':'🔍 Nom ou numéro élève...')}
               style={{width:'100%',padding:'10px 14px',borderRadius:10,
                 border:'0.5px solid #e0e0d8',fontSize:14,fontFamily:'inherit',
                 boxSizing:'border-box',marginBottom:8}}/>
@@ -617,7 +617,9 @@ export default function ResultatsExamens({ user, navigate, goBack, lang='fr', is
                       borderRadius:12,cursor:'pointer',
                       background:sel?`${nc}10`:'#f5f5f0',
                       border:`1.5px solid ${sel?nc:'#e0e0d8'}`}}>
-                    <div style={{fontSize:22}}>{ex.bloquant?'🔒':'📝'}</div>
+                    {isMobile
+                      ? (ex.bloquant ? <Lock size={20} color={C.crit} style={{flexShrink:0}} /> : <FileText size={20} color={C.muted} style={{flexShrink:0}} />)
+                      : <div style={{fontSize:22}}>{ex.bloquant?'🔒':'📝'}</div>}
                     <div style={{flex:1}}>
                       <div style={{fontWeight:sel?700:500,fontSize:14,color:sel?nc:'#333'}}>{ex.nom}</div>
                       <div style={{fontSize:11,color:'#888',marginTop:2}}>
@@ -666,7 +668,9 @@ export default function ResultatsExamens({ user, navigate, goBack, lang='fr', is
           <div style={{padding:'14px 18px',borderRadius:12,marginBottom:16,textAlign:'center',
             background:reussi?'#E1F5EE':'#FCEBEB',
             border:`1.5px solid ${reussi?'#1D9E75':'#E24B4A'}`}}>
-            <div style={{fontSize:32,marginBottom:6}}>{reussi?'🎉':'❌'}</div>
+            {isMobile
+              ? <div style={{marginBottom:6,display:'flex',justifyContent:'center'}}>{reussi?<CheckCircle2 size={32} color={C.good} />:<XCircle size={32} color={C.crit} />}</div>
+              : <div style={{fontSize:32,marginBottom:6}}>{reussi?'🎉':'❌'}</div>}
             <div style={{fontWeight:700,fontSize:16,color:reussi?'#085041':'#C0392B'}}>
               {reussi
                 ?(lang==='ar'?'ناجح — الامتحان مُجتاز':'Réussi — Examen validé !')
@@ -697,7 +701,9 @@ export default function ResultatsExamens({ user, navigate, goBack, lang='fr', is
               background:saving?'#ccc':reussi?'#1D9E75':'#E24B4A',
               color:'#fff',fontSize:15,fontWeight:700,cursor:saving?'not-allowed':'pointer',
               fontFamily:'inherit'}}>
-            {saving?'...':(reussi
+            {saving?'...':isMobile?(reussi
+              ?(lang==='ar'?'تسجيل النجاح':'Valider la réussite')
+              :(lang==='ar'?'تسجيل الرسوب':'Enregistrer l\'échec')):(reussi
               ?(lang==='ar'?'✅ تسجيل النجاح':'✅ Valider la réussite')
               :(lang==='ar'?'❌ تسجيل الرسوب':'❌ Enregistrer l\'échec'))}
           </button>
@@ -730,6 +736,23 @@ export default function ResultatsExamens({ user, navigate, goBack, lang='fr', is
       </div>
 
       {/* ── B1 — Stats : 4 cartes cliquables (filtrent sur la période) ── */}
+      {isMobile ? (
+        <div style={{marginBottom:16}}>
+          <KpiGrid cols={2}>
+            {[
+              {key:'tous',     label:isAr?'المجموع':'Total',              val:stats.total,    tone:'brand', icon:BarChart3},
+              {key:'reussi',   label:isAr?'ناجحون':'Réussis',             val:stats.reussis,  tone:'good',  icon:CheckCircle2},
+              {key:'echoue',   label:isAr?'راسبون':'Échoués',             val:stats.echoues,  tone:'crit',  icon:XCircle},
+              {key:'a_traiter',label:isAr?'شهادة قيد الإصدار':'À traiter', val:stats.aTraiter, tone:'warn',  icon:AlertTriangle},
+            ].map((s)=>(
+              <div key={s.key} style={{borderRadius:12,outline:filtreStatut===s.key?`2px solid ${C.brand}`:'none',outlineOffset:-1}}>
+                <KpiTile value={s.val} label={s.label} tone={s.tone} icon={s.icon}
+                  onClick={()=>setFiltreStatut(s.key)} />
+              </div>
+            ))}
+          </KpiGrid>
+        </div>
+      ) : (
       <div style={{display:'grid',
         gridTemplateColumns: isMobile?'repeat(2,1fr)':'repeat(4,1fr)',
         gap:10, marginBottom:16}}>
@@ -750,13 +773,15 @@ export default function ResultatsExamens({ user, navigate, goBack, lang='fr', is
           />
         ))}
       </div>
+      )}
 
       {/* ── B1 — Taux de réussite (info supplémentaire) ── */}
       {stats.total > 0 && (
         <div style={{display:'flex', alignItems:'center', gap:10, marginBottom:14,
-          padding:'10px 14px', background:'#E6F1FB', borderRadius:10,
-          fontSize:12, color:'#185FA5'}}>
-          <span style={{fontSize:16}}>📈</span>
+          padding:'10px 14px', background:isMobile?C.surface:'#E6F1FB', borderRadius:10,
+          border:isMobile?`1px solid ${C.line}`:undefined,
+          fontSize:12, color:isMobile?C.text:'#185FA5'}}>
+          {isMobile ? <TrendingUp size={16} color={C.info} /> : <span style={{fontSize:16}}>📈</span>}
           <span style={{fontWeight:600}}>
             {isAr?'نسبة النجاح':'Taux de réussite'} : <strong>{stats.tauxReussite}%</strong>
           </span>
@@ -770,7 +795,7 @@ export default function ResultatsExamens({ user, navigate, goBack, lang='fr', is
       <div style={{display:'flex', gap:8, alignItems:'center', flexWrap:'wrap', marginBottom:12}}>
         <input type="text" value={searchEleveRegistre}
           onChange={e=>setSearchEleveRegistre(e.target.value)}
-          placeholder={isAr?'🔍 ابحث عن طالب…':'🔍 Rechercher un élève…'}
+          placeholder={isMobile ? (isAr?'ابحث عن طالب…':'Rechercher un élève…') : (isAr?'🔍 ابحث عن طالب…':'🔍 Rechercher un élève…')}
           style={{flex:1, minWidth:200, padding:'9px 12px', borderRadius:10,
             border:'0.5px solid #e0e0d8', fontSize:13, fontFamily:'inherit',
             outline:'none', background:'#fff'}}/>
@@ -780,7 +805,7 @@ export default function ResultatsExamens({ user, navigate, goBack, lang='fr', is
             background: showFiltresAvances?'#085041':'#fff',
             color: showFiltresAvances?'#fff':'#085041',
             fontSize:12, fontWeight:600, fontFamily:'inherit', cursor:'pointer'}}>
-          ⚙️ {isAr?'مرشحات':'Filtres'} {showFiltresAvances?'▴':'▾'}
+          {isMobile ? <span style={{display:'inline-flex',alignItems:'center',gap:6}}><SlidersHorizontal size={14} />{isAr?'مرشحات':'Filtres'} {showFiltresAvances?'▴':'▾'}</span> : <>⚙️ {isAr?'مرشحات':'Filtres'} {showFiltresAvances?'▴':'▾'}</>}
         </button>
         <span style={{fontSize:12, color:'#888'}}>
           {resultasFiltres.length} {isAr?'نتيجة':'résultat(s)'}
@@ -816,13 +841,17 @@ export default function ResultatsExamens({ user, navigate, goBack, lang='fr', is
       )}
 
       {/* ── B1 — Liste résultats ── */}
-      {resultasFiltres.length===0 ? (
+      {resultasFiltres.length===0 ? (isMobile ? (
+        <div style={{background:C.surface, borderRadius:12, border:`1px solid ${C.line}`}}>
+          <EmptyState icon={ClipboardList} text={isAr?'لا توجد نتائج لهذه الفترة':'Aucun résultat pour cette période'} />
+        </div>
+      ) : (
         <div style={{textAlign:'center', padding:'3rem', color:'#aaa',
           background:'#fff', borderRadius:12, border:'0.5px solid #e0e0d8'}}>
           <div style={{fontSize:40, marginBottom:10}}>📋</div>
           <div>{isAr?'لا توجد نتائج لهذه الفترة':'Aucun résultat pour cette période'}</div>
         </div>
-      ) : (
+      )) : (
         <div style={{display:'flex', flexDirection:'column', gap:8}}>
           {resultasFiltres.map(r=>{
             const ex  = examens.find(e=>e.id===r.examen_id);
@@ -832,6 +861,67 @@ export default function ResultatsExamens({ user, navigate, goBack, lang='fr', is
             const ok  = r.statut==='reussi';
             const aTraiter = ok && !resultatsAvecCertif.has(r.id);
             const certExiste = ok && resultatsAvecCertif.has(r.id);
+            // Charte mobile (oct 2026) : carte harmonisee (memes infos, meme action unique)
+            if (isMobile) return (
+              <div key={r.id} style={{background:C.surface, borderRadius:12, padding:'12px 14px',
+                border: aTraiter ? `1.5px solid ${C.warn}` : `1px solid ${C.line}`,
+                display:'flex', alignItems:'center', gap:12, flexWrap:'wrap'}}>
+                <div style={{width:40, height:40, borderRadius:10, flexShrink:0,
+                  background: ok?C.goodSoft:C.critSoft,
+                  display:'flex', alignItems:'center', justifyContent:'center'}}>
+                  {ok ? <CheckCircle2 size={20} color={C.good} /> : <XCircle size={20} color={C.crit} />}
+                </div>
+                <div style={{flex:1, minWidth:0}}>
+                  <div style={{fontWeight:600, fontSize:15, color:C.text}}>
+                    {el ? `${el.prenom} ${el.nom}` : '?'}
+                    {el?.eleve_id_ecole && (
+                      <span style={{marginInlineStart:6, fontSize:11, color:C.muted, fontWeight:600}}>
+                        #{el.eleve_id_ecole}
+                      </span>
+                    )}
+                  </div>
+                  <div style={{fontSize:12, color:C.muted, marginTop:2}}>{ex?.nom || '?'}</div>
+                  <div style={{marginTop:4}}>
+                    <LevelBadge code={niv ? `${niv.code} — ${niv.nom}` : '?'} color={nc} />
+                  </div>
+                  {r.notes_examinateur && (
+                    <div style={{fontSize:12, color:C.muted, marginTop:4, fontStyle:'italic', display:'flex', alignItems:'flex-start', gap:4}}>
+                      <MessageSquare size={12} style={{flexShrink:0, marginTop:2}} /> <span>{r.notes_examinateur}</span>
+                    </div>
+                  )}
+                  {aTraiter && (
+                    <div onClick={(e)=>{ e.stopPropagation(); voirCertificat(r); }}
+                      style={{display:'inline-flex', alignItems:'center', gap:4,
+                        marginTop:6, padding:'3px 10px', borderRadius:20,
+                        background:C.warnSoft, color:C.warn, fontSize:11,
+                        fontWeight:700, cursor:'pointer'}}>
+                      <AlertTriangle size={12} /> {isAr?'الشهادة بانتظار التحرير':'Certificat à éditer'}
+                    </div>
+                  )}
+                </div>
+                <div style={{textAlign:'center', flexShrink:0}}>
+                  <div style={{fontSize:20, fontWeight:700, color:ok?C.good:C.crit, fontVariantNumeric:'tabular-nums'}}>
+                    {r.score}%
+                  </div>
+                  <div style={{fontSize:11, color:C.muted, marginTop:2}}>
+                    {new Date(r.date_examen||r.created_at).toLocaleDateString(isAr?'ar-MA':'fr-FR')}
+                  </div>
+                </div>
+                {ok && (
+                  <button onClick={()=>voirCertificat(r)}
+                    title={isAr?'تحرير الشهادة':'Éditer le certificat'}
+                    style={{width:'100%', height:40, borderRadius:10,
+                      border: certExiste ? `1px solid ${C.line}` : 'none',
+                      background: certExiste ? C.surface : C.brand,
+                      color: certExiste ? C.brand : C.onBrand, fontSize:13, fontWeight:600,
+                      cursor:'pointer', fontFamily:'inherit',
+                      display:'flex', alignItems:'center', justifyContent:'center', gap:6}}>
+                    <Pencil size={15} /> {isAr ? (certExiste?'تحرير':'إصدار')
+                              : (certExiste?'Éditer cert.':'Émettre cert.')}
+                  </button>
+                )}
+              </div>
+            );
             return (
               <div key={r.id} style={{background:'#fff', borderRadius:12, padding:'14px 16px',
                 border: aTraiter ? '1.5px solid #EF9F27' : `0.5px solid ${ok?'#1D9E7520':'#E24B4A20'}`,
@@ -1117,7 +1207,7 @@ export default function ResultatsExamens({ user, navigate, goBack, lang='fr', is
         </MobileHeader>
         <div style={{padding:'12px'}}>
           {loading
-            ? <div style={{textAlign:'center',padding:'2rem',color:'rgba(255,255,255,0.75)'}}>...</div>
+            ? <div style={{textAlign:'center',padding:'2rem',color:C.muted}}>...</div>
             : activeTab==='saisir' ? tabSaisirJSX : tabRegistreJSX}
         </div>
       </div>
