@@ -61,6 +61,8 @@ function BaremeTab({ user, lang, bareme, setBareme, saving, setSaving, showMsg }
     { key:'sourate',      icon:'📜', label_ar:'سورة كاملة',              color:'#534AB7' },
     { key:'muraja_tomon', icon:'🔄', label_ar:'ثمن مراجعة',              color:'#1D9E75' },
     { key:'muraja_hizb',  icon:'🔁', label_ar:'حزب مراجعة كامل',         color:'#1D9E75' },
+    { key:'muraja_sourate',  icon:'🔁', label_ar:'سورة مراجعة كاملة',   color:'#534AB7' },
+    { key:'muraja_sequence', icon:'🔄', label_ar:'مقطع سورة مراجعة',     color:'#534AB7' },
   ];
 
   useEffect(() => {

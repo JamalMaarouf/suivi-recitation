@@ -116,7 +116,6 @@ export default function AcquisSelector({
     const souratesOrdonnees = [...SOURATES_CORAN].sort((a, b) =>
       sens === 'asc' ? a.numero - b.numero : b.numero - a.numero);
     const nbAcquis = souratesAcquises || 0;
-    const ptsAcquis = nbAcquis * 30; // 30 pts par sourate complete
 
     return (
       <div style={{ background: '#f9f9f6', borderRadius: 12, padding: '1rem', border: '0.5px solid #e0e0d8' }}>
@@ -173,10 +172,7 @@ export default function AcquisSelector({
             <div style={{ fontSize: 11, color: '#085041', fontWeight: 600, marginBottom: 2 }}>
               🎓 {nbAcquis} {lang === 'ar' ? 'سورة محفوظة' : lang === 'en' ? 'surahs memorized' : 'sourates mémorisées'}
             </div>
-            <div style={{ fontSize: 22, fontWeight: 800, color: '#085041' }}>{ptsAcquis.toLocaleString()} {lang === 'ar' ? 'ن' : 'pts'}</div>
-            <div style={{ fontSize: 10, color: '#0F6E56', marginTop: 2 }}>
-              {lang === 'ar' ? 'ستُحسب تلقائياً' : lang === 'en' ? 'Auto-calculated' : 'Calculés automatiquement'}
-            </div>
+            {/* oct 2026 : affichage '30 pts x N' retire - les sourates acquises ne rapportent pas de points dans le calcul reel */}
             {nbAcquis > 0 && (
               <div style={{ fontSize: 11, color: '#085041', marginTop: 4, direction: 'rtl' }}>
                 {lang === 'ar' ? 'آخر سورة:' : lang === 'en' ? 'Last surah:' : 'Dernière sourate :'} {souratesOrdonnees[nbAcquis - 1]?.nom_ar}

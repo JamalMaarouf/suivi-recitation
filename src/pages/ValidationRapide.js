@@ -5,7 +5,7 @@ import { withRetryToast } from '../lib/retry';
 import { invalidateMany } from '../lib/cache';
 import { enqueueOrRun } from '../lib/offlineQueue';
 import { swr } from '../lib/offlineCache';
-import { calcEtatEleve, calcEtatEleveAvecBlocs, getInitiales, scoreLabel, motivationMsg, verifierEtCreerCertificats, isSourateNiveauDyn, loadBareme, BAREME_DEFAUT, getSensForEleve, verifierBlocageExamen, verifierBlocageEnsemble, validerEnsemble, calculerPointsSourate} from '../lib/helpers';
+import { calcEtatEleve, calcEtatEleveAvecBlocs, getInitiales, scoreLabel, motivationMsg, verifierEtCreerCertificats, isSourateNiveauDyn, loadBareme, BAREME_DEFAUT, getSensForEleve, verifierBlocageExamen, verifierBlocageEnsemble, validerEnsemble, calculerPointsSourate, ptsValidation} from '../lib/helpers';
 import { notifierParents } from '../lib/notificationsParents';
 import { getSouratesForNiveau } from '../lib/sourates';
 import { t } from '../lib/i18n';
@@ -1014,7 +1014,7 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
                           style={{ width: 34, height: 34, borderRadius: 8, border: `1px solid ${nc}40`,
                             background: '#fff', fontSize: 18, fontWeight: 700, cursor: 'pointer', color: nc }}>+</button>
                       </div>
-                      <span style={{ fontSize: 12, color: '#aaa' }}>+{nbTomon * 10} {t(lang, 'pts_abrev')}</span>
+                      <span style={{ fontSize: 12, color: '#aaa' }}>+{ptsValidation({ type_validation: 'tomon', nombre_tomon: nbTomon }, bareme)} {t(lang, 'pts_abrev')}</span>
                     </div>
 
                     {/* Bouton valider */}

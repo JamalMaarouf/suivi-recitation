@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { t } from '../lib/i18n';
+import { loadBareme } from '../lib/helpers';
 import { getSouratesForNiveau } from '../lib/sourates';
 
 const NIVEAU_COLORS = { '5B':'#534AB7','5A':'#378ADD','2M':'#1D9E75','2':'#EF9F27','1':'#E24B4A' };
@@ -88,6 +89,11 @@ export default function ValidationCollective({ user, navigate, goBack, lang='fr'
     const now    = new Date().toISOString();
     const cibles = toutLeNiveau ? eleves : elevesRetenus;
     try {
+      // oct 2026 : points de muraja sourate lus dans le bareme de l'ecole (plus de 20/5 en dur)
+      const bar = isSourate ? await loadBareme(supabase, user.ecole_id) : null;
+      const ptsMurajaSourate = bar
+        ? (typeRecitation === 'complete' ? (bar.unites.muraja_sourate || 0) : (bar.unites.muraja_sequence || 0))
+        : 0;
       const inserts_rec = [];
       const inserts_val = [];
       for (const e of cibles) {
@@ -101,7 +107,7 @@ export default function ValidationCollective({ user, navigate, goBack, lang='fr'
             verset_fin:   typeRecitation === 'sequence' ? parseInt(versetFin)   : null,
             valide_par: user.id,
             date_validation: now,
-            points: typeRecitation === 'complete' ? 20 : 5,
+            points: ptsMurajaSourate,
             is_muraja: true,
           });
         } else {

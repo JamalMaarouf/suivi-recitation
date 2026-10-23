@@ -318,6 +318,9 @@ export const BAREME_DEFAUT = {
   certificat: 0,
   muraja_tomon: 0,
   muraja_hizb: 0,
+  // oct 2026 : muraja collective des sourates (avant : 20 / 5 codes en dur)
+  muraja_sourate: 0,
+  muraja_sequence: 0,
 };
 
 /**

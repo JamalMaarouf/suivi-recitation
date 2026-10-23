@@ -516,8 +516,10 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang, isMobi
       // ── Calculs synthese ──
       const tomonTotal = etat.tomonTotal || etat.tomonCumul || 0;
       const hizbComplets = etat.hizbsComplets?.size || 0;
-      const ptsExamens = (examens||[]).reduce((s,e)=>s+(e.score||0),0);
-      const ptsCertificats = (certificats||[]).length * 50;
+      // oct 2026 : points examens/certificats issus du bareme (avant : somme des notes / 50 en dur)
+      const _ptsGlob = calcPointsPeriode(validations||[], new Date('2000-01-01'), new Date(), baremeEleve, pointsEvenements, recitationsSouratesEleve||[], certificats||[]);
+      const ptsExamens = _ptsGlob.ptsExamens || 0;
+      const ptsCertificats = _ptsGlob.ptsCertificats || 0;
 
       // Acces securise aux variables derivees (definies plus bas dans le composant)
       // Au moment du clic, elles sont initialisees, mais on protege au cas ou
@@ -1183,7 +1185,7 @@ ${(passages||[]).length > 0 ? `
   const totalPtsSourates = recitationsSouratesEleve.reduce((s,r)=>s+(r.points||0),0);
   const nbSouratesCompletes = recitationsSouratesEleve.filter(r=>r.type_recitation==='complete').length;
   const sl = estSourateEleve
-    ? scoreLabel(nbSouratesCompletes * 30) // simulate score for label color
+    ? scoreLabel(totalPtsSourates) // oct 2026 : vrais points (avant : nb sourates x 30 en dur)
     : (etat ? scoreLabel(etat.points.total) : {color:'#888',bg:'#f0f0ec',label:'—'});
   const badges = etat ? calcBadges(validations,etat,lang) : [];
 
@@ -1387,6 +1389,9 @@ ${(passages||[]).length > 0 ? `
   )}
     </>
   );
+
+  // oct 2026 : points examens/certificats du recap = bareme (meme calcul que les cartes de points)
+  const ptsRecapGlob = calcPointsPeriode(validations||[], new Date('2000-01-01'), new Date(), baremeEleve, pointsEvenements, recitationsSouratesEleve||[], certificats||[]);
 
   if (isMobile) {
     const sl2 = estSourateEleve ? scoreLabel(totalPtsSourates) : (etat ? scoreLabel(etat.points.total) : {color:'#888',bg:'#f0f0ec',label:'—'});
@@ -2156,8 +2161,8 @@ ${(passages||[]).length > 0 ? `
                 // Ajout Examens et Certificats (KPIs metier parlants)
                 [lang==='ar'?'الأثمان':'Tomon', etat?.points.ptsTomon, `${etat?.tomonTotal||etat?.tomonCumul}×${baremeEleve?.tomon||0}`, '#378ADD', '#E6F1FB'],
                 [lang==='ar'?'الأحزاب':'Hizb', etat?.points.ptsHizb, `${etat?.points.details?.nbHizb}×${baremeEleve?.hizb_complet||0}`, '#085041', '#E1F5EE'],
-                [lang==='ar'?'الامتحانات':'Examens', examens.length, examens.length>0 ? `+${examens.reduce((s,e)=>s+(e.score||0),0)} pts` : '—', '#EF9F27', '#FAEEDA'],
-                [lang==='ar'?'الشهادات':'Certificats', certificats.length, certificats.length>0 ? `+${certificats.length*50} pts` : '—', '#D85A30', '#FAECE7'],
+                [lang==='ar'?'الامتحانات':'Examens', examens.length, ptsRecapGlob.ptsExamens>0 ? `+${ptsRecapGlob.ptsExamens} pts` : '—', '#EF9F27', '#FAEEDA'],
+                [lang==='ar'?'الشهادات':'Certificats', certificats.length, ptsRecapGlob.ptsCertificats>0 ? `+${ptsRecapGlob.ptsCertificats} pts` : '—', '#D85A30', '#FAECE7'],
               ].map(([l,v,s,color,bg])=>(
                 <div key={l} style={{background:bg,borderRadius:8,padding:'10px',textAlign:'center',border:`0.5px solid ${color}20`}}>
                   <div style={{fontSize:18,fontWeight:700,color}}>{v}</div>

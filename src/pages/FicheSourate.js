@@ -97,7 +97,7 @@ export default function FicheSourate({ eleve, user, navigate, goBack, lang='fr',
 
   // Acquis antérieurs points
   const souratesAcquises = parseInt(eleve.sourates_acquises)||0;
-  const ptsAcquis = souratesAcquises * 30;
+  const ptsAcquis = 0; // oct 2026 : avant 30 pts/sourate en dur ; aligne sur le calcul reel (acquis sourates sans points);
   const ptsSuivi = totalPoints;
   const ptsTotal = ptsAcquis + ptsSuivi;
 
