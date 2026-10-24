@@ -218,7 +218,7 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile,
     // (avant : 5 allers-retours successifs). Memes requetes, memes resultats.
     const tablesCompteurs = ['niveaux','ensembles_sourates','examens','jalons','cours','regles_passage_niveau'];
     const pEcole = Promise.resolve(supabase.from('ecoles').select('mdp_defaut_instituteurs,mdp_defaut_parents,sens_recitation_defaut,nom,nom_ar,nom_directeur,nom_directeur_ar').eq('id', user.ecole_id).maybeSingle());
-    const pEleves = Promise.resolve(supabase.from('eleves').select('id,prenom,nom,code_niveau,eleve_id_ecole,hizb_depart,tomon_depart,sourates_acquises,hizbs_acquis,instituteur_referent_id,ecole_id,telephone,date_inscription,jours_souhaites,suspendu_at,suspendu_par,suspendu_motif')
+    const pEleves = Promise.resolve(supabase.from('eleves').select('id,prenom,nom,niveau,code_niveau,eleve_id_ecole,hizb_depart,tomon_depart,sourates_acquises,hizbs_acquis,instituteur_referent_id,ecole_id,telephone,date_inscription,jours_souhaites,suspendu_at,suspendu_par,suspendu_motif')
         .eq('ecole_id', user.ecole_id).order('nom'));
     const pInst = Promise.resolve(supabase.from('utilisateurs').select('id,prenom,nom,identifiant,role,instituteur_id_ecole,tarif_seance,telephone,email,suspendu_at,suspendu_par,suspendu_motif').eq('role', 'instituteur').eq('ecole_id', user.ecole_id));
     const pParents = Promise.resolve(supabase.from('utilisateurs')
