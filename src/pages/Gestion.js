@@ -42,6 +42,7 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile,
   // Si liste vide → 'ajouter' par défaut, sinon 'liste'
   const [subTabEleves, setSubTabEleves] = useState('liste');
   const [filtreNiveauEleve, setFiltreNiveauEleve] = useState('tous');
+  const [pageEleves, setPageEleves] = useState(1); // pagination de la liste des eleves (PC)
   // Pareil pour Instituteurs
   const [subTabInst, setSubTabInst] = useState('liste');
   const [searchInst, setSearchInst] = useState('');
@@ -2715,6 +2716,16 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
     );
   }
 
+  // Pagination de la liste des eleves (PC) : 50 par page, sur la liste deja filtree
+  const ELEVES_PAR_PAGE = 50;
+  const nbElevesFiltres = (eleves||[]).filter(e =>
+    (!afficherUniquementActifs || !e.suspendu_at)
+    && (filtreNiveauEleve === 'tous' || e.code_niveau === filtreNiveauEleve)
+    && (!searchEleve || `${e.prenom} ${e.nom} ${e.eleve_id_ecole||''} ${e.telephone||''}`.toLowerCase().includes(searchEleve.toLowerCase()))
+  ).length;
+  const nbPagesEleves = Math.max(1, Math.ceil(nbElevesFiltres / ELEVES_PAR_PAGE));
+  const pageElevesEff = Math.min(Math.max(1, pageEleves), nbPagesEleves);
+
   return (
     <div>
       <div className="page-title">
@@ -3255,7 +3266,7 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
             }}>
               <input type="text"
                 value={searchEleve}
-                onChange={e=>setSearchEleve(e.target.value)}
+                onChange={e=>{ setSearchEleve(e.target.value); setPageEleves(1); }}
                 placeholder={lang==='ar' ? '🔍 ابحث بالاسم أو الرقم' : '🔍 Rechercher par nom ou n°'}
                 style={{
                   flex:1, minWidth:200, padding:'7px 12px', fontSize:13,
@@ -3267,7 +3278,7 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
                   {lang==='ar'?'المستوى:':'Niveau :'}
                 </span>
                 <button
-                  onClick={()=>setFiltreNiveauEleve('tous')}
+                  onClick={()=>{ setFiltreNiveauEleve('tous'); setPageEleves(1); }}
                   style={{
                     padding:'5px 12px', borderRadius:20, border:'none', cursor:'pointer',
                     fontSize:11, fontWeight:600, fontFamily:'inherit',
@@ -3276,10 +3287,10 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
                   }}>
                   {lang==='ar'?'الكل':'Tous'}
                 </button>
-                {(niveauxDyn||[]).filter(n=>n.actif).map(n => (
+                {(niveauxDyn||[]).filter(n=>n.actif !== false).map(n => (
                   <button
                     key={n.code}
-                    onClick={()=>setFiltreNiveauEleve(n.code)}
+                    onClick={()=>{ setFiltreNiveauEleve(n.code); setPageEleves(1); }}
                     style={{
                       padding:'5px 12px', borderRadius:20, cursor:'pointer',
                       fontSize:11, fontWeight:600, fontFamily:'inherit',
@@ -3293,7 +3304,7 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
               </div>
               <label style={{display:'flex', alignItems:'center', gap:6, fontSize:11, color:'#666', cursor:'pointer', whiteSpace:'nowrap'}}>
                 <input type="checkbox" checked={afficherUniquementActifs}
-                  onChange={e=>setAfficherUniquementActifs(e.target.checked)}/>
+                  onChange={e=>{ setAfficherUniquementActifs(e.target.checked); setPageEleves(1); }}/>
                 {lang==='ar'?'النشطون فقط':'Actifs uniquement'}
               </label>
             </div>
@@ -3348,7 +3359,7 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
                     (!afficherUniquementActifs || !e.suspendu_at)
                     && (filtreNiveauEleve === 'tous' || e.code_niveau === filtreNiveauEleve)
                     && (!searchEleve || `${e.prenom} ${e.nom} ${e.eleve_id_ecole||''} ${e.telephone||''}`.toLowerCase().includes(searchEleve.toLowerCase()))
-                  ).map(e => {
+                  ).slice((pageElevesEff-1)*ELEVES_PAR_PAGE, pageElevesEff*ELEVES_PAR_PAGE).map(e => {
                     const nc = (niveauxDyn||[]).find(n=>n.code===e.code_niveau)?.couleur || {'5B':'#534AB7','5A':'#378ADD','2M':'#1D9E75','2':'#EF9F27','1':'#E24B4A'}[e.code_niveau]||'#888';
                     const isSour = (niveauxDyn||[]).find(n=>n.code===e.code_niveau)?.type==='sourate' || ['5B','5A','2M'].includes(e.code_niveau||'');
                     const niv = e.niveau==='Avancé'||e.niveau==='متقدم' ? {label:lang==='ar'?'متقدم':'Avancé',bg:'#E1F5EE',color:'#085041'} : e.niveau==='Intermédiaire'||e.niveau==='متوسط' ? {label:lang==='ar'?'متوسط':'Interm.',bg:'#E6F1FB',color:'#378ADD'} : {label:lang==='ar'?'مبتدئ':'Débutant',bg:'#FAEEDA',color:'#EF9F27'};
@@ -3463,6 +3474,32 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
                   })}
                 </tbody>
               </table>
+              {nbPagesEleves > 1 && (
+                <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:10,padding:'10px 12px',borderTop:'0.5px solid #e0e0d8',flexWrap:'wrap',fontSize:12,color:'#666'}}>
+                  <span>
+                    {lang==='ar'
+                      ? `${(pageElevesEff-1)*ELEVES_PAR_PAGE+1} – ${Math.min(pageElevesEff*ELEVES_PAR_PAGE, nbElevesFiltres)} من ${nbElevesFiltres}`
+                      : `${(pageElevesEff-1)*ELEVES_PAR_PAGE+1} – ${Math.min(pageElevesEff*ELEVES_PAR_PAGE, nbElevesFiltres)} sur ${nbElevesFiltres}`}
+                  </span>
+                  <div style={{display:'flex',alignItems:'center',gap:4,flexWrap:'wrap'}}>
+                    <button className="btn-secondary" style={{width:'auto',minHeight:32,padding:'4px 12px',fontSize:12}}
+                      disabled={pageElevesEff<=1} onClick={()=>setPageEleves(pageElevesEff-1)}>
+                      {lang==='ar'?'السابق':'Précédent'}
+                    </button>
+                    {Array.from({length:nbPagesEleves},(_,i)=>i+1).map(n=>(
+                      <button key={n} onClick={()=>setPageEleves(n)}
+                        style={{minWidth:32,height:32,borderRadius:8,cursor:'pointer',fontFamily:'inherit',fontSize:12,fontWeight:n===pageElevesEff?700:500,
+                          border:'0.5px solid '+(n===pageElevesEff?'#085041':'#e0e0d8'),background:n===pageElevesEff?'#085041':'#fff',color:n===pageElevesEff?'#fff':'#444'}}>
+                        {n}
+                      </button>
+                    ))}
+                    <button className="btn-secondary" style={{width:'auto',minHeight:32,padding:'4px 12px',fontSize:12}}
+                      disabled={pageElevesEff>=nbPagesEleves} onClick={()=>setPageEleves(pageElevesEff+1)}>
+                      {lang==='ar'?'التالي':'Suivant'}
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           )}
           </>
