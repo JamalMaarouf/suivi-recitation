@@ -6,6 +6,7 @@ import { fetchAll } from '../lib/fetchAll';
 import MobileSkeletonList from '../components/MobileSkeletonList';
 import { MobileHeader } from '../components/ui';
 import { GitCompare } from 'lucide-react';
+import { correspondRecherche } from '../lib/recherche';
 
 const PALETTE = ['#1D9E75','#378ADD','#EF9F27','#E24B4A','#534AB7','#D85A30'];
 
@@ -91,7 +92,7 @@ export default function Comparaison({ navigate, goBack, lang='fr', isMobile, use
 
   const evolutions = (selected||[]).map(e=>({eleve:e,points:calcEvolution(e)}));
   const maxScore = Math.max(...evolutions.flatMap(ev=>ev.points.map(p=>p.score)),1);
-  const filtered = allEleves.filter(e=>`${e.prenom} ${e.nom} ${e.eleve_id_ecole||''}`.toLowerCase().includes(search.toLowerCase()));
+  const filtered = allEleves.filter(e=>correspondRecherche(search, `${e.prenom} ${e.nom} ${e.eleve_id_ecole||''}`));
 
   return (
     <div style={{paddingBottom:isMobile?80:0, background:isMobile?'#f5f5f0':'transparent', minHeight:isMobile?'100vh':'auto'}}>

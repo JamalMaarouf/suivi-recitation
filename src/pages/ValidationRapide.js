@@ -13,6 +13,7 @@ import { fetchAll } from '../lib/fetchAll';
 import PageHeader from '../components/PageHeader';
 import { MobileHeader } from '../components/ui';
 import { Zap } from 'lucide-react';
+import { correspondRecherche } from '../lib/recherche';
 
 export default function ValidationRapide({ user, navigate, goBack, lang='fr', isMobile }) {
   const { toast } = useToast();
@@ -145,9 +146,8 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
   // donnait une sensation de saccade. Avec memo, filtre instantane.
   const filteredEleves = useMemo(() => {
     if (search.length === 0) return [];
-    const searchLower = search.toLowerCase();
     return eleves
-      .filter(e => `${e.prenom} ${e.nom} ${e.eleve_id_ecole || ''}`.toLowerCase().includes(searchLower))
+      .filter(e => correspondRecherche(search, `${e.prenom} ${e.nom} ${e.eleve_id_ecole || ''}`))
       .slice(0, 6);
   }, [search, eleves]);
 
@@ -888,7 +888,7 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
     await suivi.p;
   };
 
-  const sl = selectedEleve && etat ? scoreLabel(etat.points.total) : null;
+  const sl = selectedEleve && etat ? scoreLabel(etat.points.total, lang) : null;
   const nc = selectedEleve ? ({ '5B': '#534AB7', '5A': '#378ADD', '2M': '#1D9E75', '2': '#EF9F27', '1': '#E24B4A' }[selectedEleve.code_niveau] || '#888') : '#888';
 
   // ── PC ───────────────────────────────────────────────────────────

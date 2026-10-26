@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 import { useToast } from '../lib/toast';
 import { getInitiales, formatDate } from '../lib/helpers';
@@ -12,6 +12,8 @@ import MobileSkeletonList from '../components/MobileSkeletonList';
 import { usePullToRefresh, PullToRefreshIndicator } from '../lib/usePullToRefresh';
 import { MobileHeader, HeaderIconButton, HeaderMenu, SearchField, actionsExport, ListRow, LevelBadge, ActionSheet, EmptyState, C } from '../components/ui';
 import { Award, Plus, Pencil, FileText, UserRound, Loader2, X } from 'lucide-react';
+import { correspondRecherche } from '../lib/recherche';
+import useEtatMemorise from '../lib/useEtatMemorise';
 
 export default function ListeCertificats({ user, navigate, goBack, lang='fr', isMobile, data }) {
   const { toast } = useToast();
@@ -42,20 +44,23 @@ export default function ListeCertificats({ user, navigate, goBack, lang='fr', is
   const [menuCert, setMenuCert] = useState(null); // charte mobile : panneau d'actions d'un certificat
 
   // Filtres
-  const [searchNum, setSearchNum] = useState('');
-  const [filtreNiveau, setFiltreNiveau] = useState('');
-  const [filtreJalon, setFiltreJalon] = useState('');
-  const [filtreInst, setFiltreInst] = useState('');
-  const [dateDebut, setDateDebut] = useState('');
-  const [dateFin, setDateFin] = useState('');
+  const [searchNum, setSearchNum] = useEtatMemorise(`certifs:${user?.ecole_id}:searchNum`, '');
+  const [filtreNiveau, setFiltreNiveau] = useEtatMemorise(`certifs:${user?.ecole_id}:filtreNiveau`, '');
+  const [filtreJalon, setFiltreJalon] = useEtatMemorise(`certifs:${user?.ecole_id}:filtreJalon`, '');
+  const [filtreInst, setFiltreInst] = useEtatMemorise(`certifs:${user?.ecole_id}:filtreInst`, '');
+  const [dateDebut, setDateDebut] = useEtatMemorise(`certifs:${user?.ecole_id}:dateDebut`, '');
+  const [dateFin, setDateFin] = useEtatMemorise(`certifs:${user?.ecole_id}:dateFin`, '');
 
   useEffect(() => { loadData(); }, []);
 
   // Etape 8 - Si on arrive avec un focusCertId, scroll + highlight le certif
   // B3 — En plus, auto-ouverture de la modale en mode édition (cohérent avec le bouton "Éditer cert." de Suivi Résultats)
+  // Une cible d'arrivee ne s'ouvre qu'une fois (sinon, apres enregistrement, le
+  // rechargement de la liste rouvrait la fenetre).
+  const focusConsommeRef = useRef(false);
   useEffect(() => {
     if (!focusCertId || loading || certificats.length === 0) return;
-    if (modaleOpen) return; // ne pas ré-ouvrir
+    if (modaleOpen || focusConsommeRef.current) return; // ne pas ré-ouvrir
     // Donner un peu de temps au DOM pour rendre les elements
     const timer = setTimeout(() => {
       const elem = document.getElementById(`cert-row-${focusCertId}`);
@@ -74,6 +79,7 @@ export default function ListeCertificats({ user, navigate, goBack, lang='fr', is
       // B3 — Ouvrir la modale en mode édition après le scroll
       const cert = certificats.find(c => c.id === focusCertId);
       if (cert) {
+        focusConsommeRef.current = true;
         ouvrirEdition(cert);
       }
     }, 300);
@@ -156,13 +162,14 @@ export default function ListeCertificats({ user, navigate, goBack, lang='fr', is
   // (badge orange "Émettre cert." -> navigate avec focusEleveId + focusResultatId)
   useEffect(() => {
     if (loading) return;
-    if (modaleOpen) return; // ne pas ré-ouvrir si déjà ouverte
+    if (modaleOpen || focusConsommeRef.current) return; // ne pas ré-ouvrir si déjà ouverte
     if (!focusEleveId) return;
     // Vérifier qu'aucun cert n'existe déjà pour ce résultat (sécurité)
     if (focusResultatId) {
       const dejaCert = certificats.find(c => c.resultat_examen_id_source === focusResultatId);
       if (dejaCert) {
         // Cert déjà émis : passer en mode édition
+        focusConsommeRef.current = true;
         ouvrirEdition(dejaCert);
         return;
       }
@@ -173,6 +180,7 @@ export default function ListeCertificats({ user, navigate, goBack, lang='fr', is
       ? examens.find(e => e.id === (focusExamenId || resultat?.examen_id))
       : null;
     if (eleve) {
+      focusConsommeRef.current = true;
       ouvrirCreation({ eleve, resultat, examen });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -287,7 +295,7 @@ export default function ListeCertificats({ user, navigate, goBack, lang='fr', is
   const filtered = certificats.filter(c => {
     const el = getEleve(c.eleve_id);
     if (!el) return false;
-    if (searchNum && !el.eleve_id_ecole?.includes(searchNum) && !(el.prenom+' '+el.nom).toLowerCase().includes(searchNum.toLowerCase())) return false;
+    if (searchNum && !correspondRecherche(searchNum, el.prenom, el.nom, el.eleve_id_ecole)) return false;
     if (filtreNiveau && el.code_niveau !== filtreNiveau) return false;
     if (filtreJalon && c.jalon_id !== filtreJalon) return false;
     if (filtreInst && el.instituteur_referent_id !== filtreInst) return false;
@@ -362,17 +370,20 @@ export default function ListeCertificats({ user, navigate, goBack, lang='fr', is
         </MobileHeader>
 
         {/* Filtres chips */}
-        <div style={{display:'flex',gap:6,overflowX:'auto',padding:'10px 12px',scrollbarWidth:'none',background:C.surface,borderBottom:`1px solid ${C.line}`}}>
+        <div style={{display:'flex',gap:6,flexWrap:'wrap',padding:'10px 12px',background:C.surface,borderBottom:`1px solid ${C.line}`}}>
           <select value={filtreNiveau} onChange={e=>setFiltreNiveau(e.target.value)}
             style={{padding:'5px 10px',borderRadius:20,border:'0.5px solid #e0e0d8',fontSize:11,fontFamily:'inherit',background:filtreNiveau?C.brand:C.surface,color:filtreNiveau?C.onBrand:C.text,border:`1px solid ${filtreNiveau?C.brand:C.line}`,flexShrink:0}}>
             <option value="">{lang==='ar'?'كل المستويات':'Niveaux'}</option>
             {niveaux.map(n=><option key={n.code} value={n.code}>{n.code}</option>)}
           </select>
+          {/* oct 2026 : filtre par etape masque quand l'ecole n'utilise pas d'etapes (il faisait deborder la ligne) */}
+          {jalons.length > 0 && (
           <select value={filtreJalon} onChange={e=>setFiltreJalon(e.target.value)}
             style={{padding:'5px 10px',borderRadius:20,border:'0.5px solid #e0e0d8',fontSize:11,fontFamily:'inherit',background:filtreJalon?C.brand:C.surface,color:filtreJalon?C.onBrand:C.text,border:`1px solid ${filtreJalon?C.brand:C.line}`,flexShrink:0}}>
             <option value="">{lang==='ar'?'كل الشهادات':'Jalons'}</option>
             {jalons.map(j=><option key={j.id} value={j.id}>{j.nom_ar||j.nom}</option>)}
           </select>
+          )}
           <select value={filtreInst} onChange={e=>setFiltreInst(e.target.value)}
             style={{padding:'5px 10px',borderRadius:20,border:'0.5px solid #e0e0d8',fontSize:11,fontFamily:'inherit',background:filtreInst?C.brand:C.surface,color:filtreInst?C.onBrand:C.text,border:`1px solid ${filtreInst?C.brand:C.line}`,flexShrink:0}}>
             <option value="">{lang==='ar'?'كل الأساتذة':'Instituteurs'}</option>
@@ -411,7 +422,7 @@ export default function ListeCertificats({ user, navigate, goBack, lang='fr', is
                         <span>{dateTxt}</span>
                       </div>}
                       value={genPdfId===c.id ? <Loader2 size={18} color={C.muted} /> : undefined}
-                      onClick={()=>el&&navigate('fiche',el)}
+                      onClick={()=>ouvrirEdition(c)}
                       onMore={()=>setMenuCert(c)}
                     />
                   </div>

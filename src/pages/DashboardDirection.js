@@ -378,15 +378,15 @@ export default function DashboardDirection({ user, navigate, goBack, lang='fr', 
       return !last || last < cutoff;
     });
     if (inactifs.length > 0)
-      alerts.push({ type:'warning', icon:'⚠️', msg: `${inactifs.length} élève(s) sans validation depuis 3+ semaines` });
+      alerts.push({ type:'warning', icon:'⚠️', msg: isAr ? `${inactifs.length} طالب بدون استظهار منذ 3 أسابيع أو أكثر` : `${inactifs.length} élève(s) sans validation depuis 3+ semaines` });
     if (kpis.tauxActivite < 50)
-      alerts.push({ type:'danger', icon:'🔴', msg: `Taux d'activité faible : ${kpis.tauxActivite}%` });
+      alerts.push({ type:'danger', icon:'🔴', msg: isAr ? `نسبة النشاط ضعيفة: ${kpis.tauxActivite}%` : `Taux d'activité faible : ${kpis.tauxActivite}%` });
     if (kpis.totalCerts > 0)
-      alerts.push({ type:'success', icon:'🏅', msg: `${kpis.totalCerts} certificat(s) obtenu(s) sur la période` });
+      alerts.push({ type:'success', icon:'🏅', msg: isAr ? `${kpis.totalCerts} شهادة ممنوحة خلال الفترة` : `${kpis.totalCerts} certificat(s) obtenu(s) sur la période` });
     if (kpis.totalPassages > 0)
-      alerts.push({ type:'info', icon:'🎓', msg: `${kpis.totalPassages} passage(s) de niveau réalisé(s)` });
+      alerts.push({ type:'info', icon:'🎓', msg: isAr ? `${kpis.totalPassages} انتقال إلى مستوى أعلى` : `${kpis.totalPassages} passage(s) de niveau réalisé(s)` });
     return alerts;
-  }, [eleves, validations, recitations, kpis]);
+  }, [eleves, validations, recitations, kpis, isAr]);
 
   // Etape 14 v2 - PERIODES dynamiques pour Dashboard Direction
   // Pattern hybride : [Ce mois] [T en cours] [Année active] + dropdown "Plus"

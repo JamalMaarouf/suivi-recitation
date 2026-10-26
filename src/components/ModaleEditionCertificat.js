@@ -26,6 +26,7 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { logAudit } from '../lib/auditLog';
 import { useToast } from '../lib/toast';
+import { correspondRecherche } from '../lib/recherche';
 
 export default function ModaleEditionCertificat({
   mode = 'edit',
@@ -289,11 +290,7 @@ export default function ModaleEditionCertificat({
                       boxSizing:'border-box'}} />
                   {searchEleve.trim().length >= 2 && (() => {
                     const q = searchEleve.trim().toLowerCase();
-                    const matches = eleves.filter(e => {
-                      const full = `${e.prenom || ''} ${e.nom || ''}`.toLowerCase();
-                      const id = String(e.eleve_id_ecole || '').toLowerCase();
-                      return full.includes(q) || id.includes(q);
-                    }).slice(0, 8);
+                    const matches = eleves.filter(e => correspondRecherche(q, e.prenom, e.nom, e.eleve_id_ecole)).slice(0, 8);
                     if (matches.length === 0) {
                       return (
                         <div style={{padding:'10px 12px', fontSize:12, color:'#aaa', textAlign:'center'}}>

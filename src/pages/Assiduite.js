@@ -14,6 +14,7 @@ import PeriodeSelectorHybride from '../components/PeriodeSelectorHybride';
 import MobileSkeletonList from '../components/MobileSkeletonList';
 import { MobileHeader, HeaderIconButton, KpiTile, KpiGrid, Avatar, C } from '../components/ui';
 import { CalendarCheck, Lock, LockOpen, GraduationCap, Users, CalendarDays, AlertTriangle, Hash, List, Lightbulb, Filter, Banknote, Settings } from 'lucide-react';
+import { correspondRecherche } from '../lib/recherche';
 
 // ══════════════════════════════════════════════════════════════════════
 // PAGE ASSIDUITÉ — الحضور
@@ -864,11 +865,7 @@ function SaisieDesktop({ user, lang, cible = 'eleves', dateSaisie = null, isRatt
   const r = recherche.trim().toLowerCase();
   const filtered = eleves.filter(e => {
     // Filtre texte
-    if (r) {
-      const num = (e.eleve_id_ecole || '').toLowerCase();
-      const nom = `${e.prenom || ''} ${e.nom || ''}`.toLowerCase();
-      if (!num.includes(r) && !nom.includes(r)) return false;
-    }
+    if (r && !correspondRecherche(r, e.prenom, e.nom, e.eleve_id_ecole)) return false;
     // Filtre statut
     const present = presencesToday.has(e.id);
     if (filtreStatut === 'presents' && !present) return false;
@@ -1380,11 +1377,7 @@ function OngletSuivi({ lang, user, isMobile }) {
   const r = recherche.trim().toLowerCase();
   const filtered = eleves.filter(e => {
     if (filtreNiveau && e.code_niveau !== filtreNiveau) return false;
-    if (r) {
-      const num = (e.eleve_id_ecole || '').toLowerCase();
-      const nom = `${e.prenom || ''} ${e.nom || ''}`.toLowerCase();
-      if (!num.includes(r) && !nom.includes(r)) return false;
-    }
+    if (r && !correspondRecherche(r, e.prenom, e.nom, e.eleve_id_ecole)) return false;
     // Filtre KPI : si un KPI est cliqué, on filtre la liste en conséquence
     if (filtreKpi) {
       const s = statsParEleve[e.id];

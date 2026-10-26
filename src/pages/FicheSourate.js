@@ -103,7 +103,7 @@ export default function FicheSourate({ eleve, user, navigate, goBack, lang='fr',
   const ptsSuivi = totalPoints;
   const ptsTotal = ptsAcquis + ptsSuivi;
 
-  const sl = scoreLabel(ptsTotal);
+  const sl = scoreLabel(ptsTotal, lang);
   const pctProgression = souratesOrdonnees.length > 0
     ? Math.round((souratesCompletes + souratesAcquises) / souratesOrdonnees.length * 100)
     : 0;

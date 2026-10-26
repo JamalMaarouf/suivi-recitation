@@ -129,7 +129,7 @@ export function KpiGrid({ children, cols = 2 }) {
 }
 
 // ── Ligne de liste ─────────────────────────────────────────────────────
-export function ListRow({ leading, title, subtitle, meta, value, valueLabel, valueTone = 'brand', onClick, onMore, lang = 'fr' }) {
+export function ListRow({ leading, title, subtitle, meta, value, valueLabel, valueTone = 'brand', onClick, onMore, chevron = false, lang = 'fr' }) {
   const t = TONES[valueTone] || TONES.brand;
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: S.md, background: C.surface, border: `1px solid ${C.line}`,
@@ -148,6 +148,10 @@ export function ListRow({ leading, title, subtitle, meta, value, valueLabel, val
             {valueLabel && <div style={{ fontSize: T.xs - 1, color: C.muted }}>{valueLabel}</div>}
           </div>
         )}
+        {/* oct 2026 : fleche = « la ligne s'ouvre » (sinon rien n'indiquait qu'on pouvait toucher) */}
+        {chevron && onClick && (isAr(lang)
+          ? <ChevronLeft size={18} color={C.muted} style={{ flexShrink: 0 }} />
+          : <ChevronRight size={18} color={C.muted} style={{ flexShrink: 0 }} />)}
       </div>
       {onMore && (
         <button type="button" onClick={onMore} aria-label={isAr(lang) ? 'خيارات' : 'Options'}

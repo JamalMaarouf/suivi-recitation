@@ -10,6 +10,8 @@ import AcquisSelector from '../components/AcquisSelector';
 import JoursSouhaitesField from '../components/JoursSouhaitesField';
 import { MobileHeader, SearchField, FilterChips, ListRow, Avatar, LevelBadge, ActionSheet, C } from '../components/ui';
 import { Users, Pencil, PauseCircle, PlayCircle, Trash2, UserRound } from 'lucide-react';
+import { correspondRecherche } from '../lib/recherche';
+import useEtatMemorise from '../lib/useEtatMemorise';
 
 export default function ElevesMobile({ user, navigate, goBack, lang='ar' }) {
   const { toast } = useToast();
@@ -19,10 +21,10 @@ export default function ElevesMobile({ user, navigate, goBack, lang='ar' }) {
   const [programmesParNiveau, setProgrammesParNiveau] = useState({});
   const [ecoleConfig, setEcoleConfig] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState('');
-  const [filtreNiveau, setFiltreNiveau] = useState('tous');
+  const [search, setSearch] = useEtatMemorise(`eleves_m:${user?.ecole_id}:search`, '');
+  const [filtreNiveau, setFiltreNiveau] = useEtatMemorise(`eleves_m:${user?.ecole_id}:filtreNiveau`, 'tous');
   // ALIGNEMENT PC (oct 2026) : comme Gestion.js, les eleves suspendus sont masques par defaut
-  const [afficherUniquementActifs, setAfficherUniquementActifs] = useState(true);
+  const [afficherUniquementActifs, setAfficherUniquementActifs] = useEtatMemorise(`eleves_m:${user?.ecole_id}:afficherUniquementActifs`, true);
   const [showForm, setShowForm] = useState(false);
   const [editEleve, setEditEleve] = useState(null);
   const [saving, setSaving] = useState(false);
@@ -280,7 +282,7 @@ export default function ElevesMobile({ user, navigate, goBack, lang='ar' }) {
   };
 
   const elevesFiltres = eleves.filter(e => {
-    const matchSearch = !search || `${e.prenom} ${e.nom} ${e.eleve_id_ecole||''}`.toLowerCase().includes(search.toLowerCase());
+    const matchSearch = !search || correspondRecherche(search, `${e.prenom} ${e.nom} ${e.eleve_id_ecole||''}`);
     const matchNiveau = filtreNiveau === 'tous' || e.code_niveau === filtreNiveau;
     const matchActif = !afficherUniquementActifs || !e.suspendu_at;
     return matchSearch && matchNiveau && matchActif;
@@ -652,6 +654,7 @@ export default function ElevesMobile({ user, navigate, goBack, lang='ar' }) {
                       subtitle={details}
                       meta={<LevelBadge code={e.code_niveau} color={nc} />}
                       onClick={()=>navigate('fiche',e)}
+                      chevron
                       onMore={user.role==='surveillant' ? ()=>setMenuEleve(e) : undefined}
                     />
                   </div>

@@ -130,7 +130,7 @@ export default function ProfilInstituteur({ instituteur, user, navigate, goBack,
           <div className="section-label">{t(lang,'eleves')} ({eleves.length})</div>
           <div style={{display:'flex',flexDirection:'column',gap:6,marginBottom:'1.5rem'}}>
             {[...eleves].sort((a,b)=>b.etat.points.total-a.etat.points.total).map((e,idx)=>{
-              const sl=scoreLabel(e.etat.points.total);
+              const sl=scoreLabel(e.etat.points.total, lang);
               return(
                 <div key={e.id} onClick={()=>navigate('fiche',e)} style={{display:'flex',alignItems:'center',gap:12,padding:'11px 14px',background:'#fff',border:`0.5px solid ${e.inactif?'#E24B4A30':e.etat.enAttenteHizbComplet?'#EF9F2730':'#e0e0d8'}`,borderRadius:10,cursor:'pointer'}}>
                   <div style={{fontSize:12,fontWeight:600,color:'#bbb',minWidth:20,textAlign:'center'}}>{idx+1}</div>

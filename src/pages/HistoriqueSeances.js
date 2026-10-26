@@ -12,6 +12,7 @@ import MobileSkeletonList from '../components/MobileSkeletonList';
 import { usePullToRefresh, PullToRefreshIndicator } from '../lib/usePullToRefresh';
 import { MobileHeader, HeaderMenu, actionsExport, KpiGrid, KpiTile, ListRow, LevelBadge, SectionTitle, C } from '../components/ui';
 import { History, TrendingUp, TrendingDown } from 'lucide-react';
+import { correspondRecherche } from '../lib/recherche';
 
 // FIX (oct 2026) : IS_SOURATE code en dur remplace par isSourateNiveauDyn(code, niveaux) (niveaux de l'ecole)
 const NIVEAU_COLORS = { '5B':'#534AB7','5A':'#378ADD','2M':'#1D9E75','2':'#EF9F27','1':'#E24B4A' };
@@ -594,7 +595,7 @@ export default function HistoriqueSeances({ user, navigate, goBack, lang='fr', i
                 {lang==='ar'?'كل الطلاب':'Tous les élèves'}
               </div>
               {(elevesVisibles||[]).filter(e=>
-                `${e.prenom} ${e.nom} ${e.eleve_id_ecole||''}`.toLowerCase().includes(searchFiltreEleve.toLowerCase()) ||
+                correspondRecherche(searchFiltreEleve, `${e.prenom} ${e.nom} ${e.eleve_id_ecole||''}`) ||
                 String(e.eleve_id_ecole||'').includes(searchFiltreEleve)
               ).map(e=>{
                 // Sur mobile : trouver l'objet élève complet pour naviguer vers la fiche
@@ -921,7 +922,7 @@ export default function HistoriqueSeances({ user, navigate, goBack, lang='fr', i
               <div style={{fontSize:13,fontWeight:600}}>{lang==='ar'?'أداء الطلاب':(lang==='ar'?'الأداء حسب الطالب':(lang==='ar'?'الأداء حسب الطالب':'Performance par élève'))} <span style={{fontSize:11,color:'#888'}}>({actifs.length})</span></div>
               <input style={{padding:'7px 12px',border:'1.5px solid #e0e0d8',borderRadius:8,fontSize:13,width:220,fontFamily:'inherit'}} placeholder={lang==='ar'?'🔍 اسم أو رقم التعريف...':'🔍 Nom ou N° élève...'} value={searchEleve} onChange={e=>setSearchEleve(e.target.value)}/>
             </div>
-            {(searchEleve ? [...actifs, ...inactifs] : actifs).filter(s=>!searchEleve||(`${s.eleve.prenom} ${s.eleve.nom} ${s.eleve.eleve_id_ecole||''}`.toLowerCase().includes(searchEleve.toLowerCase()))||String(s.eleve.eleve_id_ecole||'').includes(searchEleve.trim())).map((s,idx)=>{
+            {(searchEleve ? [...actifs, ...inactifs] : actifs).filter(s=>!searchEleve||(correspondRecherche(searchEleve, `${s.eleve.prenom} ${s.eleve.nom} ${s.eleve.eleve_id_ecole||''}`))||String(s.eleve.eleve_id_ecole||'').includes(searchEleve.trim())).map((s,idx)=>{
               const nc=NIVEAU_COLORS[s.eleve.code_niveau||'1']||'#888';
               return(
                 <div key={s.eleve.id} onClick={()=>{setSelectedEleve(s.eleve.id);setDrillDown(true);}} style={{display:'flex',alignItems:'center',gap:10,padding:'10px 12px',borderRadius:10,cursor:'pointer',marginBottom:6,border:'0.5px solid #e0e0d8',background:'#fff'}}>
