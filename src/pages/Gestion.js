@@ -1658,8 +1658,8 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
                 </div>
                 <div style={{fontSize:11,color:'#8a5a00',marginTop:10,lineHeight:1.5,fontStyle:'italic'}}>
                   ℹ️ {lang==='ar'
-                    ? 'يمكن لولي الأمر تغيير كلمة المرور بعد أول اتصال. سلّم هذه المعلومات إليه.'
-                    : 'Le parent peut changer son mot de passe à la première connexion. Communiquez-lui ces informations.'}
+                    ? 'عند أول دخول، سيُطلب من ولي الأمر اختيار كلمة مرور خاصة به. سلّم هذه المعلومات إليه.'
+                    : 'À sa première connexion, le parent devra choisir son propre mot de passe. Communiquez-lui ces informations.'}
                 </div>
               </div>
 
