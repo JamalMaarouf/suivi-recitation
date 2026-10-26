@@ -57,6 +57,9 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
   const validerTomonRef = useRef(null);
   const validerHizbRef = useRef(null);
   const validerSourateRef = useRef(null);
+  const blocagesEnsembleRef = useRef([]);
+  const sourateVerrouRef = useRef(false);
+  const ensembleVerrouRef = useRef(false);
   const [currentSourateState, setCurrentSourateState] = useState(null); // calculé après chargement
   const [sourateSelectionnee, setSourateSelectionnee] = useState(null); // sourate choisie
   const [typeRec, setTypeRec] = useState('complete'); // 'complete' ou 'sequence'
@@ -229,8 +232,10 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
             niveau_type: niveauEleve.type,
           });
           if (estCourant && !estCourant()) return !!blocage;
+          blocagesEnsembleRef.current = blocagesEns || [];
           setBlocagesEnsemble(blocagesEns || []);
         } else {
+          blocagesEnsembleRef.current = [];
           setBlocagesEnsemble([]);
         }
       } catch (e) { /* reseau instable */ }
@@ -274,7 +279,7 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
     pretRef.current = { promise: promesse, resolve: resoudre };
     marquerPret(false);
     setSelectedEleve(e);
-    blocageCourantRef.current = null; blocagePromiseRef.current = null;
+    blocageCourantRef.current = null; blocagePromiseRef.current = null; blocagesEnsembleRef.current = [];
     setBlocageExamen(null); setBlocagesEnsemble([]);
     const valsLocales = validationsByEleveId.get(e.id) || [];
     const progCache = programmesParCodeRef.current.get(e.code_niveau);
@@ -672,6 +677,21 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
     // FIX (oct 2026) : sans bareme charge, la recitation serait enregistree a 0 pt definitivement
     if (!bareme) { toast.info(lang==='ar'?'جاري تحميل سلم النقاط…':'Chargement du barème en cours, réessayez dans un instant'); return; }
     if (typeRec === 'sequence' && (!versetDebut || !versetFin)) return;
+    // Attendre la verification lancee par la validation precedente (examen + ensemble)
+    if (sourateVerrouRef.current) return;
+    sourateVerrouRef.current = true;
+    setTimeout(() => { sourateVerrouRef.current = false; }, 900);
+    const blocageAttenduS = await attendreVerifBlocage();
+    if (blocageAttenduS && !blocageExamen) {
+      toast.error(
+        lang === 'ar'
+          ? `⛔ امتحان مطلوب: "${blocageAttenduS.examen?.nom || ''}" قبل المتابعة`
+          : `⛔ Examen requis : "${blocageAttenduS.examen?.nom || ''}" avant de continuer`,
+        { duration: 5000 }
+      );
+      return;
+    }
+    const blocagesEnsembleCourants = blocagesEnsembleRef.current || [];
     // Verification blocage examen avant validation (s'applique aussi aux sourates)
     if (blocageExamen) {
       toast.error(
@@ -685,13 +705,13 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
 
     // Blocage dur ensemble : si un ensemble est en attente de validation,
     // bloquer toute nouvelle sourate hors de cet ensemble (re-recitation OK)
-    if (blocagesEnsemble && blocagesEnsemble.length > 0) {
+    if (blocagesEnsembleCourants.length > 0) {
       const sourateIdLocal = souratesDB.find(s => s.numero === sourateSelectionnee.numero)?.id;
-      const dansEnsembleBloque = blocagesEnsemble.some(b =>
+      const dansEnsembleBloque = blocagesEnsembleCourants.some(b =>
         (b.ensemble.sourates_ids || []).includes(sourateIdLocal)
       );
       if (!dansEnsembleBloque) {
-        const ensembleNoms = blocagesEnsemble.map(b => b.ensemble.nom).join(', ');
+        const ensembleNoms = blocagesEnsembleCourants.map(b => b.ensemble.nom).join(', ');
         toast.error(lang === 'ar'
           ? `🔒 يجب اعتماد المجموعة "${ensembleNoms}" أولاً قبل المتابعة`
           : `🔒 Validez d'abord l'ensemble "${ensembleNoms}" avant de continuer`,
@@ -775,87 +795,97 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
     setVersetDebut(''); setVersetFin('');
     setSaving(false); // Liberer le bouton IMMEDIATEMENT (UI optimiste a jour)
 
-    // === BLOCAGE EXAMEN AFFICHE IMMEDIATEMENT (oct 2026) ===
-    // Verif en parallele avec l'INSERT BDD en utilisant les recitations optimistes
-    // (les validations hizb/tomon ne changent pas ici, on passe l'etat courant).
-    // La verif post-INSERT (ci-dessous) reste SYNCHRONE pour empecher la course condition.
-    const valsEleveOpt = allValidations.filter(v => v.eleve_id === selectedEleve.id);
-    checkBlocageExamenEleve(selectedEleve, valsEleveOpt, optimisticRecs).catch(() => {});
+    // FIX (oct 2026, sourates) : toute la suite (insertion, relecture, verification examen ET
+    // ensemble) est « suivie » : un appui suivant attend son resultat avant d'enregistrer
+    // (comme pour les Hizb). Avant : la sourate suivante pouvait passer pendant la verification.
+    const suite = async () => {
 
-    // === INSERT BDD + ROLLBACK SI ERREUR (background) ===
-    const res = await enqueueOrRun(supabase, 'recitations_sourates', 'insert', {
-      eleve_id: selectedEleve.id, ecole_id: user.ecole_id, valide_par: user.id,
-      sourate_id: sourateId, type_recitation: typeRec,
-      verset_debut: typeRec === 'sequence' ? parseInt(versetDebut) : null,
-      verset_fin: typeRec === 'sequence' ? parseInt(versetFin) : null,
-      date_validation: new Date().toISOString(), points: pts,
-    }, user.ecole_id);
-    const error = res.error;
-    const wasQueued = res.status === 'queued';
+      // === BLOCAGE EXAMEN AFFICHE IMMEDIATEMENT (oct 2026) ===
+      // Verif en parallele avec l'INSERT BDD en utilisant les recitations optimistes
+      // (les validations hizb/tomon ne changent pas ici, on passe l'etat courant).
+      // La verif post-INSERT (ci-dessous) reste SYNCHRONE pour empecher la course condition.
+      const valsEleveOpt = allValidations.filter(v => v.eleve_id === selectedEleve.id);
+      checkBlocageExamenEleveInterne(selectedEleve, valsEleveOpt, optimisticRecs).catch(() => {});
 
-    if (wasQueued) {
-      toast.success(lang === 'ar' ? '✓ تم الحفظ (مزامنة تلقائية)' : '✓ Enregistré (sync auto)');
-    }
+      // === INSERT BDD + ROLLBACK SI ERREUR (background) ===
+      const res = await enqueueOrRun(supabase, 'recitations_sourates', 'insert', {
+        eleve_id: selectedEleve.id, ecole_id: user.ecole_id, valide_par: user.id,
+        sourate_id: sourateId, type_recitation: typeRec,
+        verset_debut: typeRec === 'sequence' ? parseInt(versetDebut) : null,
+        verset_fin: typeRec === 'sequence' ? parseInt(versetFin) : null,
+        date_validation: new Date().toISOString(), points: pts,
+      }, user.ecole_id);
+      const error = res.error;
+      const wasQueued = res.status === 'queued';
 
-    if (error) {
-      // ROLLBACK : retirer la ligne optimiste + refresh BDD
-      const isDuplicate = error.code === '23505' || /duplicate|unique/i.test(error.message || '');
-      if (isDuplicate) {
-        toast.error(lang === 'ar'
-          ? `⚠️ السورة مُسجَّلة من قبل (تم منع التكرار)`
-          : `⚠️ Sourate déjà validée (doublon évité)`,
-          { duration: 4000 });
-      } else {
-        toast.error(lang === 'ar'
-          ? `❌ خطأ في الحفظ : ${error.message}`
-          : `❌ Erreur d'enregistrement : ${error.message}`,
-          { duration: 4000 });
+      if (wasQueued) {
+        toast.success(lang === 'ar' ? '✓ تم الحفظ (مزامنة تلقائية)' : '✓ Enregistré (sync auto)');
       }
-      // Refresh BDD pour aligner l'UI
-      const { data: refreshRecs } = await supabase.from('recitations_sourates')
-        .select('*').eq('eleve_id', selectedEleve.id).eq('ecole_id', user.ecole_id);
-      if (refreshRecs) {
-        setRecitationsSourates((refreshRecs || []).filter(r => !r.is_muraja));
-        // Recalculer sourate suivante avec donnees REELLES
-        setCurrentSourateState(calcSourateCourante(selectedEleve, programmeNiveau, souratesDB, refreshRecs));
-      }
-      return;
-    }
 
-    // === SUCCES - Refresh BDD pour remplacer l'optimistic id par le vrai ===
-    // checkBlocageExamenEleve fait SYNCHRONEMENT pour empecher l'eleve de valider
-    // une sourate de plus avant que le blocage soit reflete dans l'UI.
-    // (Sinon course condition : l'eleve clique 2x rapidement et passe-outre le blocage)
-    try {
-      const [recsResult, valsResult] = await Promise.all([
-        supabase.from('recitations_sourates').select('*').eq('eleve_id', selectedEleve.id).eq('ecole_id', user.ecole_id),
-        supabase.from('validations').select('*').eq('eleve_id', selectedEleve.id).eq('ecole_id', user.ecole_id),
-      ]);
-      const newRecsData = (recsResult.data || []).filter(r => !r.is_muraja); // FIX (oct 2026) : muraja exclue
-      const valsData = valsResult.data || [];
-      setRecitationsSourates(newRecsData);
-
-      // SYNCHRONE : verifier blocage AVANT de rendre la main au surveillant
-      await checkBlocageExamenEleve(selectedEleve, valsData, newRecsData);
-
-      // Certificats en background (non bloquant pour l'UI)
-      (async () => {
-        try {
-          const nouveauxCertsSourate = await verifierEtCreerCertificats(supabase, {
-            eleve: selectedEleve, ecole_id: user.ecole_id, valide_par: user.id,
-            validations: valsData, recitations: newRecsData,
-          });
-          if (nouveauxCertsSourate.length > 0) {
-            setTimeout(() => setFlash({ msg: `🏅 ${(nouveauxCertsSourate||[]).map(c => c.nom_certificat_ar||c.nom_certificat).join(', ')} !`, color: '#EF9F27', pts: 0 }), 600);
-            setTimeout(() => setFlash(null), 4500);
-          }
-        } catch (e) {
-          console.warn('[validerSourate certs background]', e);
+      if (error) {
+        // ROLLBACK : retirer la ligne optimiste + refresh BDD
+        const isDuplicate = error.code === '23505' || /duplicate|unique/i.test(error.message || '');
+        if (isDuplicate) {
+          toast.error(lang === 'ar'
+            ? `⚠️ السورة مُسجَّلة من قبل (تم منع التكرار)`
+            : `⚠️ Sourate déjà validée (doublon évité)`,
+            { duration: 4000 });
+        } else {
+          toast.error(lang === 'ar'
+            ? `❌ خطأ في الحفظ : ${error.message}`
+            : `❌ Erreur d'enregistrement : ${error.message}`,
+            { duration: 4000 });
         }
-      })();
-    } catch (e) {
-      console.warn('[validerSourate post-insert]', e);
-    }
+        // Refresh BDD pour aligner l'UI
+        const { data: refreshRecs } = await supabase.from('recitations_sourates')
+          .select('*').eq('eleve_id', selectedEleve.id).eq('ecole_id', user.ecole_id);
+        if (refreshRecs) {
+          setRecitationsSourates((refreshRecs || []).filter(r => !r.is_muraja));
+          // Recalculer sourate suivante avec donnees REELLES
+          setCurrentSourateState(calcSourateCourante(selectedEleve, programmeNiveau, souratesDB, refreshRecs));
+        }
+        return;
+      }
+
+      // === SUCCES - Refresh BDD pour remplacer l'optimistic id par le vrai ===
+      // checkBlocageExamenEleve fait SYNCHRONEMENT pour empecher l'eleve de valider
+      // une sourate de plus avant que le blocage soit reflete dans l'UI.
+      // (Sinon course condition : l'eleve clique 2x rapidement et passe-outre le blocage)
+      try {
+        const [recsResult, valsResult] = await Promise.all([
+          supabase.from('recitations_sourates').select('*').eq('eleve_id', selectedEleve.id).eq('ecole_id', user.ecole_id),
+          supabase.from('validations').select('*').eq('eleve_id', selectedEleve.id).eq('ecole_id', user.ecole_id),
+        ]);
+        const newRecsData = (recsResult.data || []).filter(r => !r.is_muraja); // FIX (oct 2026) : muraja exclue
+        const valsData = valsResult.data || [];
+        setRecitationsSourates(newRecsData);
+
+        // SYNCHRONE : verifier blocage AVANT de rendre la main au surveillant
+        await checkBlocageExamenEleveInterne(selectedEleve, valsData, newRecsData);
+
+        // Certificats en background (non bloquant pour l'UI)
+        (async () => {
+          try {
+            const nouveauxCertsSourate = await verifierEtCreerCertificats(supabase, {
+              eleve: selectedEleve, ecole_id: user.ecole_id, valide_par: user.id,
+              validations: valsData, recitations: newRecsData,
+            });
+            if (nouveauxCertsSourate.length > 0) {
+              setTimeout(() => setFlash({ msg: `🏅 ${(nouveauxCertsSourate||[]).map(c => c.nom_certificat_ar||c.nom_certificat).join(', ')} !`, color: '#EF9F27', pts: 0 }), 600);
+              setTimeout(() => setFlash(null), 4500);
+            }
+          } catch (e) {
+            console.warn('[validerSourate certs background]', e);
+          }
+        })();
+      } catch (e) {
+        console.warn('[validerSourate post-insert]', e);
+      }
+    };
+    const suivi = { fini: false };
+    suivi.p = suite().finally(() => { suivi.fini = true; });
+    blocagePromiseRef.current = suivi;
+    await suivi.p;
   };
 
   const sl = selectedEleve && etat ? scoreLabel(etat.points.total) : null;
@@ -1035,13 +1065,18 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
                   </button>
                 ) : (
                   <button onClick={async ()=>{
+                      if (ensembleVerrouRef.current) return; // FIX (oct 2026) : anti double appui
                       if (!window.confirm(lang==='ar' ? 'تأكيد اعتماد المجموعة ؟' : "Confirmer la validation de l'ensemble ?")) return;
-                      const res = await validerEnsemble(supabase, {
-                        eleve_id: selectedEleve.id,
-                        ecole_id: user.ecole_id,
-                        ensemble_id: b.ensemble.id,
-                        valide_par: user.id,
-                      });
+                      ensembleVerrouRef.current = true;
+                      let res;
+                      try {
+                        res = await validerEnsemble(supabase, {
+                          eleve_id: selectedEleve.id,
+                          ecole_id: user.ecole_id,
+                          ensemble_id: b.ensemble.id,
+                          valide_par: user.id,
+                        });
+                      } finally { ensembleVerrouRef.current = false; }
                       if (res?.error) {
                         toast.error(lang==='ar' ? 'خطأ في الاعتماد' : 'Erreur lors de la validation');
                         return;
@@ -1049,6 +1084,7 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
                       toast.success(lang==='ar'
                         ? `✅ تم اعتماد "${b.ensemble.nom}"`
                         : `✅ "${b.ensemble.nom}" validé`);
+                      blocagesEnsembleRef.current = (blocagesEnsembleRef.current || []).filter(x => x.ensemble.id !== b.ensemble.id);
                       setBlocagesEnsemble(prev => prev.filter((_, i) => i !== idx));
                     }}
                     style={{ background:'#534AB7', color:'#fff', border:'none', borderRadius:10,
