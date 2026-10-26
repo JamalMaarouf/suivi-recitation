@@ -90,7 +90,7 @@ export default function PortailParent({ parent, navigate, goBack, lang='fr', onL
         body: JSON.stringify({ action: 'change_password', user_id: parent.id, old_password: oldPwd, new_password: newPwd }),
       });
       const data = await res.json();
-      if (!res.ok) return toast.error(data.error || 'Erreur');
+      if (!res.ok) return toast.error(data.error === 'mdp_identique' ? (lang==='ar'?'اختر كلمة مرور مختلفة عن الحالية والأولية':'Choisissez un mot de passe différent de l\'actuel et du mot de passe initial') : (data.error || 'Erreur'));
       toast.success(lang==='ar'?'✅ تم تغيير كلمة المرور':'✅ Mot de passe modifié');
       setShowChangeMdp(false); setOldPwd(''); setNewPwd(''); setConfirmPwd('');
     } catch(e) { toast.error(lang==='ar'?'خطأ في الشبكة':'Erreur réseau'); }

@@ -347,7 +347,7 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile,
     // Generer un login unique (Option E : suffixe en cas de conflit)
     let loginParent;
     try {
-      loginParent = await genererLoginParentUnique(supabase, newEleve.eleve_id_ecole.trim());
+      loginParent = await genererLoginParentUnique(supabase, newEleve.eleve_id_ecole.trim(), user.ecole_id);
     } catch (err) {
       console.error('[ajouterEleve] genererLoginParentUnique:', err);
       showMsg('error', (lang==='ar'?'فشل إنشاء معرف ولي الأمر: ':'Échec génération login parent: ') + err.message);
@@ -917,7 +917,7 @@ export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile,
       // Generer un login unique (Option E - filet de securite)
       const baseLogin = enfantADetacher.eleve_id_ecole;
       if (!baseLogin) throw new Error('eleve_id_ecole manquant pour cet eleve');
-      const nouveauLogin = await genererLoginParentUnique(supabase, baseLogin);
+      const nouveauLogin = await genererLoginParentUnique(supabase, baseLogin, user.ecole_id);
 
       // Etape 1 : Creer un nouveau compte parent pour l'enfant detache
       const { data: nouveau, error: errNew } = await supabase.from('utilisateurs').insert({
@@ -1658,8 +1658,8 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
                 </div>
                 <div style={{fontSize:11,color:'#8a5a00',marginTop:10,lineHeight:1.5,fontStyle:'italic'}}>
                   ℹ️ {lang==='ar'
-                    ? 'يمكن لولي الأمر تغيير كلمة المرور بعد أول اتصال. سلّم هذه المعلومات إليه.'
-                    : 'Le parent peut changer son mot de passe à la première connexion. Communiquez-lui ces informations.'}
+                    ? 'عند أول دخول، سيُطلب من ولي الأمر اختيار كلمة مرور خاصة به. سلّم هذه المعلومات إليه.'
+                    : 'À sa première connexion, le parent devra choisir son propre mot de passe. Communiquez-lui ces informations.'}
                 </div>
               </div>
 
