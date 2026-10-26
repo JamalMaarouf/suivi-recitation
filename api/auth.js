@@ -73,6 +73,64 @@ function clearRateLimit(key) {
   rateLimitStore.delete(key);
 }
 
+// ── LIMITE PAR ADRESSE IP (oct 2026) ────────────────────────────
+// Complement de la limite IP+identifiant ci-dessus : bloque quelqu'un qui essaie
+// beaucoup d'identifiants differents depuis la meme adresse. Stockee en base
+// (table connexions_echouees) pour tenir entre les instances serverless.
+// Seuil large : une mosquee partage souvent une seule adresse wifi.
+// Table absente ou erreur -> on laisse passer (jamais bloquer un login legitime).
+const IP_MAX_ECHECS = 30;
+async function echecsRecentsIp(ip) {
+  try {
+    const depuis = new Date(Date.now() - WINDOW_MS).toISOString();
+    const params = new URLSearchParams({ select: 'id', ip: `eq.${ip}`, created_at: `gte.${depuis}` });
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/connexions_echouees?${params}`, {
+      method: 'HEAD',
+      headers: {
+        'apikey': SUPABASE_SERVICE_KEY,
+        'Authorization': `Bearer ${SUPABASE_SERVICE_KEY}`,
+        'Prefer': 'count=exact',
+      },
+    });
+    if (!res.ok) return 0;
+    const cr = res.headers.get('content-range') || '';
+    const total = parseInt(cr.split('/')[1], 10);
+    return Number.isFinite(total) ? total : 0;
+  } catch (e) { return 0; }
+}
+async function noterEchecIp(ip) {
+  try {
+    await fetch(`${SUPABASE_URL}/rest/v1/connexions_echouees`, {
+      method: 'POST',
+      headers: {
+        'apikey': SUPABASE_SERVICE_KEY,
+        'Authorization': `Bearer ${SUPABASE_SERVICE_KEY}`,
+        'Content-Type': 'application/json',
+        'Prefer': 'return=minimal',
+      },
+      body: JSON.stringify({ ip }),
+    });
+    // Menage occasionnel (lignes de plus d'un jour)
+    if (Math.random() < 0.02) {
+      const hier = new Date(Date.now() - 24 * 3600 * 1000).toISOString();
+      await fetch(`${SUPABASE_URL}/rest/v1/connexions_echouees?created_at=lt.${encodeURIComponent(hier)}`, {
+        method: 'DELETE',
+        headers: { 'apikey': SUPABASE_SERVICE_KEY, 'Authorization': `Bearer ${SUPABASE_SERVICE_KEY}`, 'Prefer': 'return=minimal' },
+      });
+    }
+  } catch (e) { /* non bloquant */ }
+}
+
+// Mot de passe initial d'un parent ? (jamais connecte = stocke en clair, ou egal au
+// mot de passe par defaut de son ecole / au defaut historique 'parent2024')
+function estMdpInitialParent(user, motDePasseTape) {
+  if (!user || user.role !== 'parent') return false;
+  const stocke = user.mot_de_passe || '';
+  if (stocke && !stocke.startsWith('$2')) return true;
+  const defautEcole = (user.ecole && user.ecole.mdp_defaut_parents) || '';
+  return motDePasseTape === 'parent2024' || (!!defautEcole && motDePasseTape === defautEcole);
+}
+
 async function query(table, filters = {}, select = '*') {
   const params = new URLSearchParams({ select });
   Object.entries(filters).forEach(([k, v]) => params.set(k, `eq.${v}`));
@@ -173,12 +231,32 @@ module.exports = async function handler(req, res) {
       });
     }
 
-    // Chercher l'utilisateur par identifiant
-    const users = await query('utilisateurs', { identifiant: identifiant.trim() },
-      '*,ecole:ecole_id(id,nom,ville,statut)');
+    // Limite globale par adresse IP (essais sur de nombreux identifiants)
+    if (await echecsRecentsIp(ip) >= IP_MAX_ECHECS) {
+      res.setHeader('Retry-After', String(WINDOW_MS / 1000));
+      return res.status(429).json({ error: 'too_many_attempts', retryAfter: WINDOW_MS / 1000 });
+    }
 
-    if (!users || users.length === 0) {
+    // Chercher l'utilisateur par identifiant
+    const SELECT_LOGIN = '*,ecole:ecole_id(id,nom,ville,statut,mdp_defaut_parents)';
+    let users = await query('utilisateurs', { identifiant: identifiant.trim() }, SELECT_LOGIN);
+
+    // Saisie sans majuscules sur telephone ("tqw-74a" pour "TQW-74A") : repli insensible
+    // a la casse, accepte seulement s'il designe UN seul compte.
+    if ((!Array.isArray(users) || users.length === 0) && /^[\p{L}\p{N}._@-]+$/u.test(identifiant.trim())) {
+      try {
+        const params = new URLSearchParams({ select: SELECT_LOGIN, identifiant: `ilike.${identifiant.trim().replace(/[\\%_]/g, m => '\\' + m)}`, limit: '2' });
+        const r = await fetch(`${SUPABASE_URL}/rest/v1/utilisateurs?${params}`, {
+          headers: { 'apikey': SUPABASE_SERVICE_KEY, 'Authorization': `Bearer ${SUPABASE_SERVICE_KEY}` },
+        });
+        const cand = await r.json();
+        if (Array.isArray(cand) && cand.length === 1) users = cand;
+      } catch (e) { /* repli non bloquant */ }
+    }
+
+    if (!Array.isArray(users) || users.length === 0) {
       recordFailedAttempt(rlKey);
+      await noterEchecIp(ip);
       return res.status(401).json({ error: 'Identifiant ou mot de passe incorrect' });
     }
 
@@ -213,8 +291,9 @@ module.exports = async function handler(req, res) {
     } else {
       // Cas 2 : mot de passe en clair — on compare ET on migre vers le hash
       passwordOk = (user.mot_de_passe === mot_de_passe);
-      if (passwordOk) {
-        // Migration silencieuse : on hash le mot de passe pour la prochaine fois
+      // Migration silencieuse vers le hash — sauf pour un parent qui doit d'abord
+      // choisir son mot de passe (il sera hashe a ce moment-la).
+      if (passwordOk && !estMdpInitialParent(user, mot_de_passe)) {
         const hashed = await bcrypt.hash(mot_de_passe, 10);
         await update('utilisateurs', user.id, { mot_de_passe: hashed });
       }
@@ -222,6 +301,7 @@ module.exports = async function handler(req, res) {
 
     if (!passwordOk) {
       recordFailedAttempt(rlKey);
+      await noterEchecIp(ip);
       const after = checkRateLimit(rlKey);
       const remaining = after.blocked ? 0 : after.remaining;
       return res.status(401).json({
@@ -233,6 +313,13 @@ module.exports = async function handler(req, res) {
     // Succès → on clear le compteur pour cette combinaison
     clearRateLimit(rlKey);
 
+    // Securite (oct 2026) : un parent encore sur son mot de passe initial (commun a
+    // l'ecole) doit d'abord choisir le sien. Pas de session tant que ce n'est pas fait :
+    // le client affiche l'ecran de choix, appelle change_password puis se reconnecte.
+    if (estMdpInitialParent(user, mot_de_passe)) {
+      return res.status(200).json({ changement_mdp_requis: true, user_id: user.id, identifiant: user.identifiant });
+    }
+
     // Mise à jour derniere_connexion (pour le cockpit SuperAdmin)
     // Non bloquant : si ça échoue le login continue normalement
     try {
@@ -241,6 +328,7 @@ module.exports = async function handler(req, res) {
 
     // Retourner l'utilisateur sans le mot de passe
     const { mot_de_passe: _, ...safeUser } = user;
+    if (safeUser.ecole) { const { mdp_defaut_parents: _d, ...ecoleSure } = safeUser.ecole; safeUser.ecole = ecoleSure; }
     return res.status(200).json({ user: safeUser, token: signerJeton(user) });
   }
 
@@ -305,6 +393,22 @@ module.exports = async function handler(req, res) {
       return res.status(401).json({ error: 'Ancien mot de passe incorrect' });
     }
     clearRateLimit(rlKeyPwd);
+
+    // Le nouveau mot de passe doit etre different de l'ancien (et, pour un parent,
+    // du mot de passe initial commun de l'ecole).
+    if (new_password === old_password) {
+      return res.status(400).json({ error: 'mdp_identique' });
+    }
+    if (user.role === 'parent') {
+      let defautEcole = '';
+      try {
+        const ec = await query('ecoles', { id: user.ecole_id }, 'mdp_defaut_parents');
+        defautEcole = (Array.isArray(ec) && ec[0] && ec[0].mdp_defaut_parents) || '';
+      } catch (e) { /* */ }
+      if (new_password === 'parent2024' || (defautEcole && new_password === defautEcole)) {
+        return res.status(400).json({ error: 'mdp_identique' });
+      }
+    }
 
     const hashed = await bcrypt.hash(new_password, 10);
     await update('utilisateurs', user.id, { mot_de_passe: hashed });

@@ -2206,14 +2206,36 @@ export function prochainHizbDansBloc(progression) {
  *
  * @param supabase Client Supabase (NON UTILISE - on utilise supabaseRaw)
  * @param baseLogin Le login souhaite (ex: "54")
- * @returns {Promise<string>} Le login unique trouve (ex: "54" ou "54-2")
+ * @param ecoleId  Ecole du parent : si elle a un code_login, il prefixe le login ("TQW-54")
+ * @returns {Promise<string>} Le login unique trouve (ex: "TQW-54" ou "TQW-54-2")
  */
-export async function genererLoginParentUnique(supabase, baseLogin) {
+// Code court de l'ecole (ex : "TQW") servant de prefixe aux logins parents.
+// Memoise par ecole. Colonne absente / non renseignee -> '' (comportement d'avant).
+const _codesLoginEcole = new Map();
+export async function codeLoginEcole(ecoleId) {
+  if (!ecoleId) return '';
+  if (_codesLoginEcole.has(ecoleId)) return _codesLoginEcole.get(ecoleId);
+  let code = '';
+  try {
+    const { supabaseRaw } = await import('./supabase');
+    const { data, error } = await supabaseRaw.from('ecoles').select('code_login').eq('id', ecoleId).maybeSingle();
+    if (!error) code = ((data && data.code_login) || '').toString().trim().toUpperCase();
+  } catch (e) { code = ''; }
+  _codesLoginEcole.set(ecoleId, code);
+  return code;
+}
+
+export async function genererLoginParentUnique(supabase, baseLogin, ecoleId) {
   // Import dynamique pour eviter dependance circulaire
   const { supabaseRaw } = await import('./supabase');
 
-  const base = (baseLogin || '').trim();
+  let base = (baseLogin || '').trim();
   if (!base) throw new Error('baseLogin manquant');
+
+  // Securite (oct 2026) : prefixe de l'ecole (ex : "TQW-74A") -> deux ecoles ne
+  // peuvent jamais produire le meme login, meme avec les memes numeros d'eleves.
+  const code = await codeLoginEcole(ecoleId);
+  if (code && !base.toUpperCase().startsWith(code + '-')) base = `${code}-${base}`;
 
   // PERF (mai 2026) : 1 seule requete au lieu de N sequentielles.
   // Avant : on faisait jusqu'a 99 SELECT en serie (1 par candidat) ->

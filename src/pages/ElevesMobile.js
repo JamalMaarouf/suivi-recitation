@@ -172,7 +172,7 @@ export default function ElevesMobile({ user, navigate, goBack, lang='ar' }) {
       const mdpParent = ecoleConfig?.mdp_defaut_parents || 'parent2024';
       let loginParent;
       try {
-        loginParent = await genererLoginParentUnique(supabase, form.eleve_id_ecole.trim());
+        loginParent = await genererLoginParentUnique(supabase, form.eleve_id_ecole.trim(), user.ecole_id);
       } catch (err) {
         console.error('[ElevesMobile] genererLoginParentUnique:', err);
         showMsg('error', (lang==='ar'?'فشل إنشاء معرف ولي الأمر: ':'Échec génération login parent: ') + err.message);

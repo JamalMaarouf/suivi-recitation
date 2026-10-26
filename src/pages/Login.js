@@ -20,25 +20,74 @@ export default function Login({ onLogin, lang, LangSelector, onShowInscription }
     return '';
   });
   const [loading, setLoading] = useState(false);
+  // Securite (oct 2026) : premiere connexion d'un parent avec le mot de passe initial
+  // commun -> il choisit le sien avant d'entrer (le serveur ne donne pas de session avant).
+  const [etapeMdp, setEtapeMdp] = useState(null); // { userId, identifiant, ancien }
+  const [nouveauMdp, setNouveauMdp] = useState('');
+  const [confirmMdp, setConfirmMdp] = useState('');
+  const [voirMdp, setVoirMdp] = useState(false);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
     if (!identifiant.trim() || !motDePasse) { setError(t(lang, 'remplir_champs')); return; }
-    setLoading(true);
+    await connecter(identifiant.trim(), motDePasse);
+  };
 
+  const choisirMdp = async (e) => {
+    e.preventDefault();
+    if (!etapeMdp || loading) return;
+    setError('');
+    const ar = lang === 'ar';
+    if (nouveauMdp.length < 6) { setError(ar ? 'كلمة المرور يجب أن تحتوي على 6 أحرف على الأقل' : 'Le mot de passe doit contenir au moins 6 caractères.'); return; }
+    if (nouveauMdp !== confirmMdp) { setError(ar ? 'كلمتا المرور غير متطابقتين' : 'Les deux mots de passe ne correspondent pas.'); return; }
+    if (nouveauMdp === etapeMdp.ancien) { setError(ar ? 'اختر كلمة مرور مختلفة عن كلمة المرور الأولية' : 'Choisissez un mot de passe différent du mot de passe initial.'); return; }
+    setLoading(true);
+    try {
+      const res = await fetch('/api/auth', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'change_password', user_id: etapeMdp.userId, old_password: etapeMdp.ancien, new_password: nouveauMdp }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setLoading(false);
+        if (data.error === 'mdp_identique') setError(ar ? 'اختر كلمة مرور مختلفة عن كلمة المرور الأولية' : 'Choisissez un mot de passe différent du mot de passe initial.');
+        else if (res.status === 429) setError(ar ? 'محاولات كثيرة. أعد المحاولة لاحقاً.' : 'Trop de tentatives. Réessayez plus tard.');
+        else setError(ar ? 'تعذر تغيير كلمة المرور، يرجى المحاولة مجدداً' : 'Impossible de changer le mot de passe, veuillez réessayer.');
+        return;
+      }
+      const ident = etapeMdp.identifiant;
+      setEtapeMdp(null); setMotDePasse(nouveauMdp); setIdentifiant(ident);
+      setNouveauMdp(''); setConfirmMdp('');
+      await connecter(ident, nouveauMdp);
+    } catch (err) {
+      setLoading(false);
+      setError(ar ? 'خطأ في الاتصال، يرجى المحاولة مجدداً' : 'Erreur de connexion, veuillez réessayer.');
+    }
+  };
+
+  const connecter = async (ident, mdp) => {
+    setLoading(true);
     try {
       const res = await fetch('/api/auth', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           action: 'login',
-          identifiant: identifiant.trim(),
-          mot_de_passe: motDePasse,
+          identifiant: ident,
+          mot_de_passe: mdp,
         }),
       });
 
       const data = await res.json();
+
+      if (res.ok && data.changement_mdp_requis) {
+        setEtapeMdp({ userId: data.user_id, identifiant: data.identifiant || ident, ancien: mdp });
+        setNouveauMdp(''); setConfirmMdp(''); setError('');
+        setLoading(false);
+        return;
+      }
 
       if (res.status === 403 && data.error === 'compte_en_attente') {
         setError(lang==='ar'
@@ -129,12 +178,51 @@ export default function Login({ onLogin, lang, LangSelector, onShowInscription }
 
         {error && <div className="error-box">{error}</div>}
 
+        {etapeMdp ? (
+          <form onSubmit={choisirMdp}>
+            <div style={{background:'#E1F5EE',border:'1px solid #9FE1CB',borderRadius:10,padding:'10px 12px',marginBottom:14,fontSize:13,color:'#085041',lineHeight:1.6}}>
+              <div style={{fontWeight:700,marginBottom:2}}>
+                {lang==='ar' ? 'مرحباً! اختر كلمة مرور خاصة بك' : 'Bienvenue ! Choisissez votre mot de passe'}
+              </div>
+              {lang==='ar'
+                ? 'لحماية حساب طفلك، استبدل كلمة المرور الأولية بكلمة مرور لا يعرفها غيرك.'
+                : 'Pour protéger le compte de votre enfant, remplacez le mot de passe initial par un mot de passe connu de vous seul.'}
+            </div>
+            <div className="field-group">
+              <label className="field-lbl">{lang==='ar' ? 'المعرف' : 'Identifiant'}</label>
+              <input className="field-input" type="text" value={etapeMdp.identifiant} readOnly autoComplete="username"
+                style={{background:'#f5f5f0',color:'#555'}}/>
+            </div>
+            <div className="field-group">
+              <label className="field-lbl">{lang==='ar' ? 'كلمة المرور الجديدة' : 'Nouveau mot de passe'}</label>
+              <input className="field-input" type={voirMdp?'text':'password'} value={nouveauMdp} autoFocus
+                onChange={e=>setNouveauMdp(e.target.value)} placeholder={lang==='ar'?'6 أحرف على الأقل':'6 caractères minimum'} autoComplete="new-password"/>
+            </div>
+            <div className="field-group">
+              <label className="field-lbl">{lang==='ar' ? 'تأكيد كلمة المرور' : 'Confirmer le mot de passe'}</label>
+              <input className="field-input" type={voirMdp?'text':'password'} value={confirmMdp}
+                onChange={e=>setConfirmMdp(e.target.value)} placeholder="••••••••" autoComplete="new-password"/>
+            </div>
+            <label style={{display:'flex',alignItems:'center',gap:8,fontSize:12,color:C.muted,margin:'2px 0 10px',cursor:'pointer'}}>
+              <input type="checkbox" checked={voirMdp} onChange={e=>setVoirMdp(e.target.checked)}/>
+              {lang==='ar' ? 'إظهار كلمة المرور' : 'Afficher le mot de passe'}
+            </label>
+            <button className="btn-primary" type="submit" disabled={loading} style={{marginTop:'0.25rem'}}>
+              {loading ? t(lang,'connexion_en_cours') : (lang==='ar' ? 'حفظ والدخول' : 'Enregistrer et entrer')}
+            </button>
+            <button type="button" onClick={()=>{setEtapeMdp(null);setError('');setMotDePasse('');}}
+              style={{width:'100%',marginTop:8,padding:10,background:'none',border:'none',color:C.muted,fontSize:13,cursor:'pointer',fontFamily:'inherit'}}>
+              {lang==='ar' ? 'رجوع' : 'Retour'}
+            </button>
+          </form>
+        ) : (
         <form onSubmit={handleSubmit}>
           <div className="field-group">
             <label className="field-lbl">{t(lang,'identifiant')}</label>
             <input className="field-input" type="text" value={identifiant}
               onChange={e=>setIdentifiant(e.target.value)}
-              placeholder={t(lang,'identifiant')} autoComplete="username"/>
+              placeholder={t(lang,'identifiant')} autoComplete="username"
+              autoCapitalize="none" autoCorrect="off" spellCheck={false}/>
           </div>
           <div className="field-group">
             <label className="field-lbl">{t(lang,'mot_de_passe')}</label>
@@ -146,6 +234,7 @@ export default function Login({ onLogin, lang, LangSelector, onShowInscription }
             {loading ? t(lang,'connexion_en_cours') : t(lang,'se_connecter')}
           </button>
         </form>
+        )}
 
         <div style={{display:'flex',gap:8,marginTop:'1.25rem'}}>
           <div style={{flex:1,padding:10,borderRadius:8,border:'0.5px solid #e0e0d8',textAlign:'center',background:'#f9f9f6'}}>

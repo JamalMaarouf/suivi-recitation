@@ -64,7 +64,7 @@ export default function ProfilMobile({ user, lang, onLogout, navigate, goBack })
       });
       const resData = await res.json();
       if (!res.ok) {
-        setPwdMsg({ ok: false, text: resData.error || 'Erreur' });
+        setPwdMsg({ ok: false, text: resData.error === 'mdp_identique' ? (lang==='ar'?'اختر كلمة مرور مختلفة عن الحالية والأولية':'Choisissez un mot de passe différent de l\'actuel et du mot de passe initial') : (resData.error || 'Erreur') });
         setSaving(false);
         return;
       }
