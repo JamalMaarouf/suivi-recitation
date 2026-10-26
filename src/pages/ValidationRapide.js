@@ -46,6 +46,17 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
   // attend maintenant le resultat de cette verification.
   const blocagePromiseRef = useRef(null);
   const blocageCourantRef = useRef(null);
+  // PERF/UX (oct 2026) : programmes de tous les niveaux gardes en memoire (charges une fois),
+  // eleve « pret » expose en ref + promesse (un appui pendant le chargement est execute
+  // automatiquement des que l'eleve est pret, au lieu du message « chargement en cours »),
+  // et etat « preparation » pour un retour visuel immediat sur le bouton.
+  const programmesParCodeRef = useRef(new Map());
+  const selectionPreteRef = useRef(false);
+  const pretRef = useRef({ promise: Promise.resolve(), resolve: null });
+  const [preparation, setPreparation] = useState(false);
+  const validerTomonRef = useRef(null);
+  const validerHizbRef = useRef(null);
+  const validerSourateRef = useRef(null);
   const [currentSourateState, setCurrentSourateState] = useState(null); // calculé après chargement
   const [sourateSelectionnee, setSourateSelectionnee] = useState(null); // sourate choisie
   const [typeRec, setTypeRec] = useState('complete'); // 'complete' ou 'sequence'
@@ -56,6 +67,35 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
   const searchRef = useRef();
 
   useEffect(() => { loadData(); setTimeout(() => searchRef.current?.focus(), 200); }, []);
+
+  // PERF (oct 2026) : des que les niveaux sont connus, charger en UNE requete les programmes de
+  // tous les niveaux et prechauffer les parametres de blocage (examens) : la selection d'un eleve
+  // n'a plus a les attendre.
+  const prechargeFaitRef = useRef(false);
+  useEffect(() => {
+    if (prechargeFaitRef.current || !niveaux || niveaux.length === 0) return;
+    prechargeFaitRef.current = true;
+    (async () => {
+      try {
+        const progs = await fetchAll(supabase.from('programmes')
+          .select('niveau_id,reference_id,ordre,bloc_numero,bloc_nom,bloc_sens,type_contenu')
+          .eq('ecole_id', user.ecole_id).order('ordre'));
+        const parNiveau = new Map();
+        (progs || []).forEach(p => { if (!parNiveau.has(p.niveau_id)) parNiveau.set(p.niveau_id, []); parNiveau.get(p.niveau_id).push(p); });
+        niveaux.forEach(n => {
+          if (!programmesParCodeRef.current.has(n.code)) {
+            const lignes = (parNiveau.get(n.id) || []).slice().sort((a, b) => (a.ordre || 0) - (b.ordre || 0));
+            programmesParCodeRef.current.set(n.code, lignes.map(({ niveau_id, ...r }) => r));
+          }
+        });
+      } catch (e) { /* on chargera a la demande */ }
+      niveaux.forEach(n => {
+        verifierBlocageExamen(supabase, { eleve: { id: '__prechauffe__', code_niveau: n.code, hizb_depart: 0, sourates_acquises: 0 },
+          ecole_id: user.ecole_id, validations: [], recitations: [] }).catch(() => {});
+      });
+    })();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [niveaux]);
 
   const loadData = async () => {
     const ecoleId = user.ecole_id;
@@ -125,15 +165,48 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
   // Helper reutilisable : verifie le blocage examen ET ensemble pour l'eleve courant
   // et met a jour les states. Retourne true si bloque examen, false sinon.
   const checkBlocageExamenEleve = (eleve, vals, recs, estCourant) => {
-    const p = checkBlocageExamenEleveInterne(eleve, vals, recs, estCourant);
-    blocagePromiseRef.current = p;
-    return p;
+    const suivi = { fini: false };
+    suivi.p = checkBlocageExamenEleveInterne(eleve, vals, recs, estCourant).finally(() => { suivi.fini = true; });
+    blocagePromiseRef.current = suivi;
+    return suivi.p;
   };
   // Attend la derniere verification en cours ; renvoie l'examen bloquant ou null
   const attendreVerifBlocage = async () => {
-    const p = blocagePromiseRef.current;
-    if (p) { try { await p; } catch (e) { /* */ } }
+    const suivi = blocagePromiseRef.current;
+    if (suivi && !suivi.fini) {
+      setPreparation(true);
+      try { await suivi.p; } catch (e) { /* */ } finally { setPreparation(false); }
+    }
     return blocageCourantRef.current;
+  };
+  // Un appui pendant le chargement de l'eleve : on attend qu'il soit pret puis on relance
+  // l'action avec l'etat a jour (renvoie false si l'eleve a change entre-temps).
+  const attendreSelection = async () => {
+    if (selectionPreteRef.current) return true;
+    const id = selectIdRef.current;
+    setPreparation(true);
+    try { await pretRef.current.promise; } catch (e) { /* */ } finally { setPreparation(false); }
+    return selectIdRef.current === id && selectionPreteRef.current;
+  };
+  const marquerPret = (ok) => {
+    selectionPreteRef.current = ok;
+    setSelectionPrete(ok);
+    if (ok && pretRef.current.resolve) pretRef.current.resolve();
+  };
+  // Programme du niveau : memoire d'abord, sinon 1 requete (puis memorise)
+  const chargerProgramme = async (code) => {
+    if (programmesParCodeRef.current.has(code)) return programmesParCodeRef.current.get(code);
+    let nivId = (niveaux || []).find(n => n.code === code)?.id;
+    if (!nivId) {
+      const { data: niv } = await supabase.from('niveaux').select('id').eq('code', code).eq('ecole_id', user.ecole_id).maybeSingle();
+      nivId = niv?.id;
+    }
+    if (!nivId) return null;
+    const { data: prog, error } = await supabase.from('programmes').select('reference_id,ordre,bloc_numero,bloc_nom,bloc_sens,type_contenu')
+      .eq('niveau_id', nivId).eq('ecole_id', user.ecole_id).order('ordre');
+    if (error) return [];
+    programmesParCodeRef.current.set(code, prog || []);
+    return prog || [];
   };
   const checkBlocageExamenEleveInterne = async (eleve, vals, recs, estCourant) => {
     try {
@@ -192,83 +265,93 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
   };
 
   const selectEleve = async (e) => {
-    // === FIX B6 - Selection instantanee (sans SELECT bloquant) ===
-    // Avant : SELECT eleves bloquant a chaque clic (1-3s sur mobile)
-    // Apres : on utilise immediatement les donnees locales (deja en memoire),
-    //         et on lance le SELECT 'frais' en ARRIERE-PLAN pour mettre
-    //         a jour si hizb_depart/tomon_depart ont change suite a un
-    //         passage de niveau.
-
-    // 1. Affichage IMMEDIAT avec les donnees locales (e)
+    // PERF/UX (oct 2026) : affichage immediat avec le programme deja en memoire, puis UNE seule
+    // vague de requetes en parallele (eleve frais, ses validations, ses recitations si niveau
+    // sourates, programme si absent). Avant : 4 a 5 allers-retours l'un apres l'autre.
     selectIdRef.current = e.id;
     const estCourant = () => selectIdRef.current === e.id;
-    setSelectionPrete(false);
+    let resoudre; const promesse = new Promise(r => { resoudre = r; });
+    pretRef.current = { promise: promesse, resolve: resoudre };
+    marquerPret(false);
     setSelectedEleve(e);
     blocageCourantRef.current = null; blocagePromiseRef.current = null;
     setBlocageExamen(null); setBlocagesEnsemble([]);
-    const vals = validationsByEleveId.get(e.id) || [];
-    const sensEl = getSensForEleve(e, niveaux, ecoleConfig);
-    setEtat(calcEtatEleveAvecBlocs(vals, e, programmeNiveau, sensEl, bareme));
+    const valsLocales = validationsByEleveId.get(e.id) || [];
+    const progCache = programmesParCodeRef.current.get(e.code_niveau);
+    setProgrammeNiveau(progCache || []);
+    setProgrammeCharge(!!progCache);
+    setEtat(calcEtatEleveAvecBlocs(valsLocales, e, progCache || [], getSensForEleve(e, niveaux, ecoleConfig), bareme));
     setSearch('');
     setNbTomon(1);
     setSourateSelectionnee(null);
     setTypeRec('complete');
     setVersetDebut(''); setVersetFin('');
-    setProgrammeCharge(false);
 
-    // 2. Chargement en PARALLELE : eleve frais + recitations + sourates + niveau
-    const [{ data: fresh }, { data: recs }, { data: sourFresh }] = await Promise.all([
-      supabase.from('eleves').select('*').eq('id', e.id).maybeSingle(),
-      supabase.from('recitations_sourates').select('*').eq('eleve_id', e.id).eq('ecole_id', user.ecole_id),
-      supabase.from('sourates').select('*'),
-    ]);
-    if (!estCourant()) return;
-
-    // Si l'eleve a ete mis a jour depuis (passage de niveau), on rafraichit
-    const freshEleve = fresh || e;
-    if (fresh && (fresh.hizb_depart !== e.hizb_depart || fresh.tomon_depart !== e.tomon_depart || fresh.code_niveau !== e.code_niveau)) {
-      setSelectedEleve(freshEleve);
-      const sensFresh = getSensForEleve(freshEleve, niveaux, ecoleConfig);
-      setEtat(calcEtatEleveAvecBlocs(vals, freshEleve, programmeNiveau, sensFresh, bareme));
-    }
-
-    const souratesLocal = sourFresh || [];
-    // FIX (oct 2026) : la muraja (revision) ne compte pas dans la progression
-    const recitationsLocal = depuisDebutNiveau((recs || []).filter(r => !r.is_muraja), freshEleve); // + depuis le debut du niveau
-    setSouratesDB(souratesLocal);
-    setRecitationsSourates(recitationsLocal);
-
-    // 3. Charger le programme du niveau
-    let progData = [];
-    const { data: niv } = await supabase.from('niveaux').select('id').eq('code', freshEleve.code_niveau).eq('ecole_id', user.ecole_id).maybeSingle();
-    if (!estCourant()) return;
-    if (niv) {
-      const { data: prog } = await supabase.from('programmes').select('reference_id,ordre,bloc_numero,bloc_nom,bloc_sens,type_contenu')
-        .eq('niveau_id', niv.id).eq('ecole_id', user.ecole_id).order('ordre');
+    const estSourateNiv = (code) => niveaux.some(n => n.code === code && n.type === 'sourate') || isSourateNiveauDyn(code, niveaux);
+    let freshEleve = e, valsFinales = valsLocales, recitationsLocal = [];
+    try {
+      const [rFresh, rVals, rRecs, progData] = await Promise.all([
+        supabase.from('eleves').select('*').eq('id', e.id).maybeSingle(),
+        supabase.from('validations').select('*').eq('eleve_id', e.id).eq('ecole_id', user.ecole_id),
+        estSourateNiv(e.code_niveau)
+          ? supabase.from('recitations_sourates').select('*').eq('eleve_id', e.id).eq('ecole_id', user.ecole_id)
+          : Promise.resolve({ data: [] }),
+        progCache ? Promise.resolve(progCache) : chargerProgramme(e.code_niveau).catch(() => null),
+      ]);
       if (!estCourant()) return;
-      progData = prog || [];
-      setProgrammeNiveau(progData);
+      freshEleve = (rFresh && rFresh.data) || e;
 
-      // ─── Apres chargement du programme, RE-APPLIQUER l'etat avec cascade blocs ──
-      // Pourquoi : a l'etape 1 (affichage immediat), progData n'etait pas encore charge.
-      // Maintenant qu'on l'a, on recalcule l'etat avec calcEtatEleveAvecBlocs pour
-      // que les niveaux multi-blocs aient hizbEnCours correct selon le bloc actuel.
-      const sensFinal = getSensForEleve(freshEleve, niveaux, ecoleConfig);
-      setEtat(calcEtatEleveAvecBlocs(vals, freshEleve, progData, sensFinal, bareme));
-    } else {
-      setProgrammeNiveau([]);
+      // Validations fraiches de l'eleve (une autre tablette a pu valider entre-temps) ;
+      // on garde les validations optimistes encore en cours d'envoi.
+      if (rVals && !rVals.error && Array.isArray(rVals.data)) {
+        let optimistes = [];
+        setAllValidations(prev => {
+          optimistes = prev.filter(v => v.eleve_id === e.id && v._optimistic);
+          return [...prev.filter(v => v.eleve_id !== e.id), ...rVals.data, ...optimistes];
+        });
+        valsFinales = [...rVals.data, ...valsLocales.filter(v => v._optimistic)];
+      }
+
+      // Programme : celui du niveau frais (si le niveau a change, on recharge)
+      let progFinal = progData || [];
+      if (freshEleve.code_niveau !== e.code_niveau) progFinal = (await chargerProgramme(freshEleve.code_niveau).catch(() => null)) || [];
+      if (!estCourant()) return;
+      if (freshEleve !== e) setSelectedEleve(freshEleve);
+      setProgrammeNiveau(progFinal);
+      setEtat(calcEtatEleveAvecBlocs(valsFinales, freshEleve, progFinal, getSensForEleve(freshEleve, niveaux, ecoleConfig), bareme));
+      setProgrammeCharge(true);
+
+      // Niveau sourates : sourate en cours (liste des sourates deja chargee a l'ouverture)
+      if (estSourateNiv(freshEleve.code_niveau)) {
+        let recs = (rRecs && rRecs.data) || [];
+        if (freshEleve.code_niveau !== e.code_niveau && !estSourateNiv(e.code_niveau)) {
+          const r2 = await supabase.from('recitations_sourates').select('*').eq('eleve_id', e.id).eq('ecole_id', user.ecole_id);
+          recs = (r2 && r2.data) || [];
+        }
+        let souratesLocal = souratesDB;
+        if (!souratesLocal || souratesLocal.length === 0) {
+          const { data: sf } = await supabase.from('sourates').select('*');
+          souratesLocal = sf || [];
+          setSouratesDB(souratesLocal);
+        }
+        if (!estCourant()) return;
+        // FIX (oct 2026) : la muraja (revision) ne compte pas dans la progression
+        recitationsLocal = depuisDebutNiveau(recs.filter(r => !r.is_muraja), freshEleve); // + depuis le debut du niveau
+        setRecitationsSourates(recitationsLocal);
+        if (souratesLocal.length > 0) setCurrentSourateState(calcSourateCourante(freshEleve, progFinal, souratesLocal, recitationsLocal));
+      } else {
+        setRecitationsSourates([]);
+      }
+    } catch (err) {
+      // Reseau instable : on continue avec les donnees locales (comme avant)
+      console.warn('[selectEleve]', err);
+      if (!estCourant()) return;
+      setProgrammeCharge(true);
     }
-    setProgrammeCharge(true);
 
-    // Calculer la sourate en cours avec donnees LOCALES fraiches
-    const isSourateEleve = niveaux.some(n => n.code === freshEleve.code_niveau && n.type === 'sourate');
-    if (isSourateEleve && souratesLocal.length > 0) {
-      setCurrentSourateState(calcSourateCourante(freshEleve, progData, souratesLocal, recitationsLocal));
-    }
-
-    // Verification du blocage examen au moment de la selection de l'eleve.
-    await checkBlocageExamenEleve(freshEleve, vals, recitationsLocal, estCourant);
-    if (estCourant()) setSelectionPrete(true);
+    // Verification du blocage examen (parametres deja en memoire -> en general aucun appel reseau)
+    await checkBlocageExamenEleve(freshEleve, valsFinales, recitationsLocal, estCourant);
+    if (estCourant()) marquerPret(true);
   };
 
   const estSourate = selectedEleve ? isSourateNiveauDyn(selectedEleve.code_niveau, niveaux) : false;
@@ -323,7 +406,8 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
   // Valider N tomons
   const validerTomon = async () => {
     if (!selectedEleve || !etat || saving || etat.enAttenteHizbComplet) return;
-    if (!selectionPrete) { toast.info(lang==='ar'?'جاري التحميل…':'Chargement de l\'élève en cours…'); return; } // FIX (oct 2026)
+    // Appui pendant le chargement : on attend l'eleve puis on relance avec l'etat a jour
+    if (!selectionPreteRef.current) { if (await attendreSelection()) validerTomonRef.current?.(); return; }
     // FIX (oct 2026) : anti double-tap (le bouton est libere des l'affichage optimiste)
     if (tomonVerrouRef.current) return;
     tomonVerrouRef.current = true;
@@ -377,6 +461,7 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
     const ptsParTomon = bareme?.unites?.tomon || 0;
     const pts = nbTomon * ptsParTomon;
     setFlash({ msg: `✓ ${nbTomon} ثمن · الحزب ${etat.hizbEnCours}`, color: '#1D9E75', pts });
+    try { if (navigator.vibrate) navigator.vibrate(25); } catch (e) { /* */ }
     setTimeout(() => setFlash(null), 2500);
     setSessionLog(prev => [{
       eleve: `${selectedEleve.prenom} ${selectedEleve.nom}`,
@@ -436,8 +521,8 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
             ...prev.filter(v => v.eleve_id !== selectedEleve.id),
             ...valsData,
           ]);
-          // Verif blocage en background
-          await checkBlocageExamenEleve(selectedEleve, valsData, recitationsSourates);
+          // Verif blocage en background (non suivie : la verif optimiste fait deja foi)
+          await checkBlocageExamenEleveInterne(selectedEleve, valsData, recitationsSourates);
         } catch (e) {
           console.warn('[validerTomon background]', e);
         }
@@ -454,7 +539,7 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
   // Valider hizb complet
   const validerHizb = async () => {
     if (!selectedEleve || !etat || saving || !etat.enAttenteHizbComplet) return;
-    if (!selectionPrete) { toast.info(lang==='ar'?'جاري التحميل…':'Chargement de l\'élève en cours…'); return; } // FIX (oct 2026)
+    if (!selectionPreteRef.current) { if (await attendreSelection()) validerHizbRef.current?.(); return; }
     // Attendre la verification de blocage lancee par la validation precedente
     const blocageAttenduH = await attendreVerifBlocage();
     if (blocageAttenduH && !blocageExamen) {
@@ -498,6 +583,7 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
     // Affichage flash IMMEDIAT
     const ptsHizb = bareme?.unites?.hizb_complet || 0;
     setFlash({ msg: `🎉 الحزب ${etat.hizbEnCours} مكتمل !`, color: '#EF9F27', pts: ptsHizb });
+    try { if (navigator.vibrate) navigator.vibrate([25, 40, 25]); } catch (e) { /* */ }
     setTimeout(() => setFlash(null), 2500);
     setSessionLog(prev => [{
       eleve: `${selectedEleve.prenom} ${selectedEleve.nom}`,
@@ -551,7 +637,7 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
             ...prev.filter(v => v.eleve_id !== selectedEleve.id),
             ...valsData,
           ]);
-          await checkBlocageExamenEleve(selectedEleve, valsData, recitationsSourates);
+          await checkBlocageExamenEleveInterne(selectedEleve, valsData, recitationsSourates);
           const nouveauxCerts = await verifierEtCreerCertificats(supabase, {
             eleve: selectedEleve, ecole_id: user.ecole_id, valide_par: user.id,
             validations: valsData, recitations: [],
@@ -582,7 +668,7 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
   // Valider une sourate (complète ou séquence)
   const validerSourate = async () => {
     if (!selectedEleve || saving || !sourateSelectionnee) return;
-    if (!selectionPrete) { toast.info(lang==='ar'?'جاري التحميل…':'Chargement de l\'élève en cours…'); return; } // FIX (oct 2026)
+    if (!selectionPreteRef.current) { if (await attendreSelection()) validerSourateRef.current?.(); return; }
     // FIX (oct 2026) : sans bareme charge, la recitation serait enregistree a 0 pt definitivement
     if (!bareme) { toast.info(lang==='ar'?'جاري تحميل سلم النقاط…':'Chargement du barème en cours, réessayez dans un instant'); return; }
     if (typeRec === 'sequence' && (!versetDebut || !versetFin)) return;
@@ -776,6 +862,11 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
   const nc = selectedEleve ? ({ '5B': '#534AB7', '5A': '#378ADD', '2M': '#1D9E75', '2': '#EF9F27', '1': '#E24B4A' }[selectedEleve.code_niveau] || '#888') : '#888';
 
   // ── PC ───────────────────────────────────────────────────────────
+  // Toujours la derniere version des actions (pour relancer apres une attente de chargement)
+  validerTomonRef.current = validerTomon;
+  validerHizbRef.current = validerHizb;
+  validerSourateRef.current = validerSourate;
+
   return (
     <div style={{ maxWidth: 720, margin: '0 auto', paddingBottom: isMobile?80:0, background: isMobile?'#f5f5f0':'transparent', minHeight: isMobile?'100vh':'auto' }}>
       {/* Flash */}
@@ -993,11 +1084,11 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
                       fontSize: 14, color: '#633806', fontWeight: 600 }}>
                       🎉 {lang === 'ar' ? `الحزب ${etat.hizbEnCours} مكتمل — انتظار التصحيح` : `Hizb ${etat.hizbEnCours} complet — en attente de validation`}
                     </div>
-                    <button onClick={validerHizb} disabled={saving}
-                      style={{ width: '100%', padding: '16px', background: saving ? '#ccc' : 'linear-gradient(135deg,#085041,#1D9E75)',
-                        color: '#fff', border: 'none', borderRadius: 14, fontSize: 16, fontWeight: 800, cursor: 'pointer',
+                    <button onClick={validerHizb} disabled={saving || preparation || !!blocageExamen} aria-busy={preparation}
+                      style={{ width: '100%', padding: '16px', background: blocageExamen ? '#E9E5DF' : saving ? '#ccc' : preparation ? 'linear-gradient(135deg,#0B5A45cc,#1D9E75cc)' : 'linear-gradient(135deg,#085041,#1D9E75)',
+                        color: blocageExamen ? '#8A5A00' : '#fff', border: 'none', borderRadius: 14, fontSize: 16, fontWeight: 800, cursor: 'pointer',
                         boxShadow: '0 3px 12px rgba(239,159,39,0.4)', fontFamily: 'inherit' }}>
-                      {saving ? '...' : `✓ ${lang === 'ar' ? `تصحيح الحزب ${etat.hizbEnCours}` : `Valider Hizb ${etat.hizbEnCours}`}${(bareme?.unites?.hizb_complet||0)>0?` (+${bareme.unites.hizb_complet} ${t(lang,'pts_abrev')})`:''}`}
+                      {blocageExamen ? (lang === 'ar' ? '🔒 امتحان مطلوب قبل المتابعة' : '🔒 Examen requis avant de continuer') : (saving || preparation) ? (lang === 'ar' ? '⏳ جارٍ التسجيل…' : '⏳ Enregistrement…') : `✓ ${lang === 'ar' ? `تصحيح الحزب ${etat.hizbEnCours}` : `Valider Hizb ${etat.hizbEnCours}`}${(bareme?.unites?.hizb_complet||0)>0?` (+${bareme.unites.hizb_complet} ${t(lang,'pts_abrev')})`:''}`}
                     </button>
                   </div>
                 ) : (
@@ -1051,12 +1142,12 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
                     </div>
 
                     {/* Bouton valider */}
-                    <button onClick={validerTomon} disabled={saving}
-                      style={{ width: '100%', padding: '15px', background: saving ? '#ccc' : `linear-gradient(135deg,#085041,#1D9E75)`,
-                        color: '#fff', border: 'none', borderRadius: 14, fontSize: 16, fontWeight: 800,
+                    <button onClick={validerTomon} disabled={saving || preparation || !!blocageExamen} aria-busy={preparation}
+                      style={{ width: '100%', padding: '15px', background: blocageExamen ? '#E9E5DF' : saving ? '#ccc' : preparation ? `linear-gradient(135deg,#0B5A45cc,#1D9E75cc)` : `linear-gradient(135deg,#085041,#1D9E75)`,
+                        color: blocageExamen ? '#8A5A00' : '#fff', border: 'none', borderRadius: 14, fontSize: 16, fontWeight: 800,
                         cursor: saving ? 'not-allowed' : 'pointer', fontFamily: 'inherit',
-                        boxShadow: saving ? 'none' : `0 3px 12px ${nc}40`, transition: 'all 0.15s' }}>
-                      {saving ? '...' : `✓ ${lang === 'ar' ? `تسجيل ${nbTomon} ثمن` : `Valider ${nbTomon} tomon${nbTomon > 1 ? 's' : ''}`}`}
+                        boxShadow: (saving || blocageExamen) ? 'none' : `0 3px 12px ${nc}40`, transition: 'all 0.15s' }}>
+                      {blocageExamen ? (lang === 'ar' ? '🔒 امتحان مطلوب قبل المتابعة' : '🔒 Examen requis avant de continuer') : (saving || preparation) ? (lang === 'ar' ? '⏳ جارٍ التسجيل…' : '⏳ Enregistrement…') : `✓ ${lang === 'ar' ? `تسجيل ${nbTomon} ثمن` : `Valider ${nbTomon} tomon${nbTomon > 1 ? 's' : ''}`}`}
                     </button>
                   </div>
                 )}
@@ -1188,16 +1279,16 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
                 )}
 
                 {/* Bouton valider */}
-                <button onClick={validerSourate}
-                  disabled={saving || (typeRec === 'sequence' && (!versetDebut || !versetFin))}
+                <button onClick={validerSourate} aria-busy={preparation}
+                  disabled={saving || preparation || !!blocageExamen || (typeRec === 'sequence' && (!versetDebut || !versetFin))}
                   style={{ width: '100%', padding: '15px',
-                    background: (saving || (typeRec === 'sequence' && (!versetDebut || !versetFin)))
+                    background: blocageExamen ? '#E9E5DF' : (saving || (typeRec === 'sequence' && (!versetDebut || !versetFin)))
                       ? '#e0e0d8' : `linear-gradient(135deg,#085041,#1D9E75)`,
-                    color: (saving || (typeRec === 'sequence' && (!versetDebut || !versetFin))) ? '#aaa' : '#fff',
+                    color: blocageExamen ? '#8A5A00' : (saving || (typeRec === 'sequence' && (!versetDebut || !versetFin))) ? '#aaa' : '#fff',
                     border: 'none', borderRadius: 14, fontSize: 15, fontWeight: 800,
                     cursor: 'pointer', fontFamily: 'inherit',
                     boxShadow: saving ? 'none' : `0 3px 12px ${nc}40` }}>
-                  {saving ? '...' : `✓ ${lang==='ar'?'تسجيل':'Valider'} ${typeRec==='complete'?(lang==='ar'?'السورة كاملة':'sourate complète'):(lang==='ar'?'المقطع':'la séquence')}`}
+                  {blocageExamen ? (lang === 'ar' ? '🔒 امتحان مطلوب قبل المتابعة' : '🔒 Examen requis avant de continuer') : (saving || preparation) ? (lang === 'ar' ? '⏳ جارٍ التسجيل…' : '⏳ Enregistrement…') : `✓ ${lang==='ar'?'تسجيل':'Valider'} ${typeRec==='complete'?(lang==='ar'?'السورة كاملة':'sourate complète'):(lang==='ar'?'المقطع':'la séquence')}`}
                 </button>
               </div>
             )}
