@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { supabase } from '../lib/supabase';
-import { loadBareme, enregistrerPointsEvenement, verifierEtCreerCertificats, verifierEtCreerCertificatsExamens, loadAnneeActiveAvecPeriodes, formatPeriodeCourte, detecterPeriodeEnCours } from '../lib/helpers';
+import { verifierBlocageExamen, loadBareme, enregistrerPointsEvenement, verifierEtCreerCertificats, verifierEtCreerCertificatsExamens, loadAnneeActiveAvecPeriodes, formatPeriodeCourte, detecterPeriodeEnCours } from '../lib/helpers';
 import { useToast } from '../lib/toast';
 import { t } from '../lib/i18n';
 import { openPDF } from '../lib/pdf';
@@ -37,7 +37,15 @@ export default function ResultatsExamens({ user, navigate, goBack, lang='fr', is
   const [selectedEleve,  setSelectedEleve]  = useState(eleveInit);
   const [selectedExamen, setSelectedExamen] = useState(blocageInit?.examen||null);
   const [examensEleve,   setExamensEleve]   = useState([]);
-  const [score,          setScore]          = useState(70);
+  const [score,          setScore]          = useState(blocageInit?.examen?.score_minimum || 70);
+  // UX (oct 2026) : l'examen requis (blocage) est affiche EN HAUT et preselectionne ; les autres
+  // examens sont regroupes dessous, replies, pour que la saisie du resultat soit juste en dessous.
+  const [examenRequisId, setExamenRequisId] = useState(blocageInit?.examen?.id || null);
+  const [afficherAutresExamens, setAfficherAutresExamens] = useState(false);
+  const eleveCourantRef = React.useRef(eleveInit?.id || null);
+  const examenCourantRef = React.useRef(blocageInit?.examen || null);
+  eleveCourantRef.current = selectedEleve?.id || null;
+  examenCourantRef.current = selectedExamen || null;
   const [notes,          setNotes]          = useState('');
 
   // Filtres saisie
@@ -108,7 +116,7 @@ export default function ResultatsExamens({ user, navigate, goBack, lang='fr', is
       setExamensEleve(niveauId ? examenData.filter(e => e.niveau_id === niveauId && !dejaReussis.includes(e.id)) : []);
       if (blocageInit?.examen?.id) {
         const complet = examenData.find(e => e.id === blocageInit.examen.id);
-        if (complet) setSelectedExamen(complet);
+        if (complet) { setSelectedExamen(complet); setScore(complet.score_minimum || 70); setExamenRequisId(complet.id); }
       }
     }
     } catch (e) {
@@ -139,6 +147,23 @@ export default function ResultatsExamens({ user, navigate, goBack, lang='fr', is
     const disponibles = exNiveau.filter(e => !dejaReussis.includes(e.id));
     setExamensEleve(disponibles);
     setSearchEleve('');
+    setExamenRequisId(null);
+    setAfficherAutresExamens(false);
+    // Examen requis (meme regle que le blocage a la saisie) : affiche en haut et preselectionne
+    (async () => {
+      try {
+        const [rv, rr] = await Promise.all([
+          supabase.from('validations').select('*').eq('eleve_id', eleve.id).eq('ecole_id', user.ecole_id),
+          supabase.from('recitations_sourates').select('*').eq('eleve_id', eleve.id).eq('ecole_id', user.ecole_id),
+        ]);
+        const bloc = await verifierBlocageExamen(supabase, { eleve, ecole_id: user.ecole_id, validations: rv.data || [], recitations: rr.data || [] });
+        const ex = bloc && disponibles.find(x => x.id === bloc.examen?.id);
+        if (ex && eleveCourantRef.current === eleve.id) {
+          setExamenRequisId(ex.id);
+          if (!examenCourantRef.current) { setSelectedExamen(ex); setScore(ex.score_minimum || 70); }
+        }
+      } catch (e) { /* sans examen requis detecte : liste normale */ }
+    })();
   };
 
   // FIX (oct 2026) : verrou synchrone + bouton desactive jusqu'a la fin du post-traitement
@@ -609,20 +634,25 @@ export default function ResultatsExamens({ user, navigate, goBack, lang='fr', is
               }
             </div>
           ):(
-            <div style={{display:'flex',flexDirection:'column',gap:8}}>
-              {examensEleve.map(ex=>{
+            (()=>{
+              const carteExamen = (ex, requis) => {
                 const sel = selectedExamen?.id===ex.id;
-                const nc  = couleurNiv(ex.niveau_id);
+                const nc  = requis ? '#C2410C' : couleurNiv(ex.niveau_id);
                 return(
                   <div key={ex.id} onClick={()=>{setSelectedExamen(ex);setScore(ex.score_minimum||70);}}
                     style={{display:'flex',alignItems:'center',gap:12,padding:'12px 14px',
                       borderRadius:12,cursor:'pointer',
-                      background:sel?`${nc}10`:'#f5f5f0',
-                      border:`1.5px solid ${sel?nc:'#e0e0d8'}`}}>
+                      background: requis ? '#FFF4E5' : sel?`${nc}10`:'#f5f5f0',
+                      border:`${requis?2:1.5}px solid ${requis ? '#F59E0B' : sel?nc:'#e0e0d8'}`}}>
                     {isMobile
                       ? (ex.bloquant ? <Lock size={20} color={C.crit} style={{flexShrink:0}} /> : <FileText size={20} color={C.muted} style={{flexShrink:0}} />)
                       : <div style={{fontSize:22}}>{ex.bloquant?'🔒':'📝'}</div>}
                     <div style={{flex:1}}>
+                      {requis && (
+                        <div style={{fontSize:11,fontWeight:800,color:'#C2410C',marginBottom:2}}>
+                          {lang==='ar'?'⏳ الامتحان المطلوب الآن':'⏳ Examen requis maintenant'}
+                        </div>
+                      )}
                       <div style={{fontWeight:sel?700:500,fontSize:14,color:sel?nc:'#333'}}>{ex.nom}</div>
                       <div style={{fontSize:11,color:'#888',marginTop:2}}>
                         {lang==='ar'?'النجاح من':'Seuil :'} {ex.score_minimum||70}%
@@ -632,8 +662,34 @@ export default function ResultatsExamens({ user, navigate, goBack, lang='fr', is
                     {sel&&<span style={{color:nc,fontWeight:700,fontSize:18}}>✓</span>}
                   </div>
                 );
-              })}
-            </div>
+              };
+              const requis = examenRequisId ? examensEleve.find(e => e.id === examenRequisId) : null;
+              const autres = examensEleve.filter(e => !requis || e.id !== requis.id);
+              // Un autre examen deja choisi reste visible meme liste repliee
+              const autreChoisi = selectedExamen && (!requis || selectedExamen.id !== requis.id) ? autres.find(e => e.id === selectedExamen.id) : null;
+              const replie = !!(requis || selectedExamen) && !afficherAutresExamens;
+              return (
+                <div style={{display:'flex',flexDirection:'column',gap:8}}>
+                  {requis && carteExamen(requis, true)}
+                  {replie && autreChoisi && carteExamen(autreChoisi, false)}
+                  {autres.length > 0 && replie && (
+                    <button onClick={()=>setAfficherAutresExamens(true)}
+                      style={{alignSelf:'flex-start',background:'none',border:'none',padding:'6px 2px',cursor:'pointer',
+                        color:'#085041',fontWeight:600,fontSize:13,fontFamily:'inherit'}}>
+                      {lang==='ar'?`عرض الامتحانات الأخرى (${autres.length}) ▾`:`Voir les autres examens (${autres.length}) ▾`}
+                    </button>
+                  )}
+                  {!replie && autres.map(ex => carteExamen(ex, false))}
+                  {!replie && (requis || selectedExamen) && autres.length > 0 && (
+                    <button onClick={()=>setAfficherAutresExamens(false)}
+                      style={{alignSelf:'flex-start',background:'none',border:'none',padding:'6px 2px',cursor:'pointer',
+                        color:'#085041',fontWeight:600,fontSize:13,fontFamily:'inherit'}}>
+                      {lang==='ar'?'إخفاء الامتحانات الأخرى ▴':'Masquer les autres examens ▴'}
+                    </button>
+                  )}
+                </div>
+              );
+            })()
           )}
         </div>
       )}
