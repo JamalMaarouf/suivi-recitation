@@ -1023,6 +1023,23 @@ export function niveauTraduit(niveau, lang, tFn) {
  * - Pour Sourate : l'élève vient-il de finir la dernière sourate d'un bloc ?
  * Dans les deux cas, on vérifie aussi qu'il n'a pas déjà réussi l'examen.
  */
+// PERF (oct 2026) : parametres du blocage (niveau, examens bloquants, programme, ensembles, liste
+// des sourates) gardes 60 s en memoire par client Supabase. Ils changent rarement ; les resultats
+// d'examens, eux, sont toujours relus. Dans le cas courant (aucun examen atteint), la verification
+// ne fait alors plus aucun appel reseau.
+const CACHE_BLOCAGE_TTL = 60 * 1000;
+const cacheBlocageParClient = new WeakMap();
+async function memoBlocage(supabase, cle, charger) {
+  let m = cacheBlocageParClient.get(supabase);
+  if (!m) { m = new Map(); cacheBlocageParClient.set(supabase, m); }
+  const e = m.get(cle);
+  if (e && Date.now() - e.t < CACHE_BLOCAGE_TTL) return e.v;
+  const v = await charger();
+  if (v && v.ok) m.set(cle, { t: Date.now(), v });
+  return v;
+}
+export function viderCacheBlocage(supabase) { if (supabase) cacheBlocageParClient.delete(supabase); }
+
 export async function verifierBlocageExamen(supabase, {
   eleve,
   ecole_id,
@@ -1033,29 +1050,40 @@ export async function verifierBlocageExamen(supabase, {
   validations = depuisDebutNiveau(validations, eleve);
   recitations = depuisDebutNiveau(recitations, eleve);
   try {
-    // Trouver le niveau_id depuis la table niveaux via code_niveau
-    const { data: niveauData } = await supabase
-      .from('niveaux')
-      .select('id, type, code, sens_recitation')
-      .eq('ecole_id', ecole_id)
-      .eq('code', eleve.code_niveau || '')
-      .maybeSingle();
-
+    // Niveau (via code_niveau), puis examens bloquants + programme du niveau en parallele (memorises)
+    const params = await memoBlocage(supabase, `niv|${ecole_id}|${eleve.code_niveau || ''}`, async () => {
+      const { data: niv, error: errN } = await supabase
+        .from('niveaux')
+        .select('id, type, code, sens_recitation')
+        .eq('ecole_id', ecole_id)
+        .eq('code', eleve.code_niveau || '')
+        .maybeSingle();
+      if (errN) return { ok: false };
+      if (!niv) return { ok: true, niveauData: null };
+      const [rEx, rPg] = await Promise.all([
+        supabase.from('examens')
+          .select('id, nom, bloquant, score_minimum, type_contenu, contenu_ids')
+          .eq('ecole_id', ecole_id)
+          .eq('niveau_id', niv.id)
+          .eq('bloquant', true)
+          .order('ordre'),
+        niv.type === 'hizb'
+          ? Promise.resolve(supabase.from('programmes')
+              .select('reference_id, ordre, bloc_numero, bloc_nom, bloc_sens, type_contenu')
+              .eq('niveau_id', niv.id).eq('ecole_id', ecole_id).order('ordre')).catch(() => ({ data: [], error: true }))
+          : Promise.resolve({ data: [] }),
+      ]);
+      if (rEx.error) return { ok: false };
+      return { ok: !rPg.error, niveauData: niv, examens: rEx.data || [], prog: rPg.data || [] };
+    });
+    const niveauData = params && params.niveauData;
     if (!niveauData) return null;
-    const niveauId   = niveauData.id;
     const niveauType = niveauData.type; // 'hizb' ou 'sourate'
-
-    // Charger les examens bloquants pour ce niveau
-    const { data: examens } = await supabase
-      .from('examens')
-      .select('id, nom, bloquant, score_minimum, type_contenu, contenu_ids')
-      .eq('ecole_id', ecole_id)
-      .eq('niveau_id', niveauId)
-      .eq('bloquant', true)
-      .order('ordre');
-
+    const examens = params.examens;
     if (!examens || examens.length === 0) return null;
 
+    // Examens dont tout le contenu est fait (dans l'ordre) ; les resultats sont lus ensuite en 1 requete
+    const examensTermines = [];
     for (const examen of examens) {
       const ids = examen.contenu_ids || [];
       if (ids.length === 0) continue;
@@ -1096,13 +1124,7 @@ export async function verifierBlocageExamen(supabase, {
           // calcHizbsAcquisAvantArrivee). Avant : tous les Hizb au-dela du depart en ligne droite ->
           // dans un niveau a plusieurs blocs, un examen se declenchait apres un seul Hizb.
           // Sans programme, la fonction applique exactement l'ancienne regle en ligne droite.
-          let progExam = [];
-          try {
-            const { data: pg } = await supabase.from('programmes')
-              .select('reference_id, ordre, bloc_numero, bloc_nom, bloc_sens, type_contenu')
-              .eq('niveau_id', niveauId).eq('ecole_id', ecole_id).order('ordre');
-            progExam = pg || [];
-          } catch (e) { progExam = []; }
+          const progExam = params.prog || [];
           for (const h of calcHizbsAcquisAvantArrivee({ ...eleve, hizb_depart: hd }, progExam, sensNiveau)) { hizbComplets.add(Number(h)); acquisAvantSuivi.add(Number(h)); }
         }
         if (Array.isArray(eleve?.hizbs_acquis)) {
@@ -1123,10 +1145,14 @@ export async function verifierBlocageExamen(supabase, {
         // L'examen se déclenche quand toutes les sourates de ces ensembles sont complètes
 
         // Charger les sourates des ensembles concernés
-        const { data: ensembles } = await supabase
-          .from('ensembles_sourates')
-          .select('id, sourates_ids')
-          .in('id', ids);
+        const ensRes = await memoBlocage(supabase, `ens|${ecole_id}|${[...ids].map(String).sort().join(',')}`, async () => {
+          const { data, error } = await supabase
+            .from('ensembles_sourates')
+            .select('id, sourates_ids')
+            .in('id', ids);
+          return { ok: !error, data: data || null };
+        });
+        const ensembles = ensRes && ensRes.data;
 
         if (!ensembles || ensembles.length === 0) continue;
 
@@ -1151,10 +1177,14 @@ export async function verifierBlocageExamen(supabase, {
           try {
             // Charger les 114 sourates de la BDD triees selon le sens du niveau
             const sensNiveau = niveauData.sens_recitation || 'desc';
-            const { data: souratesData } = await supabase
-              .from('sourates')
-              .select('id, numero')
-              .order('numero', { ascending: sensNiveau === 'asc' });
+            const sourRes = await memoBlocage(supabase, `sour|${sensNiveau}`, async () => {
+              const { data, error } = await supabase
+                .from('sourates')
+                .select('id, numero')
+                .order('numero', { ascending: sensNiveau === 'asc' });
+              return { ok: !error, data: data || null };
+            });
+            const souratesData = sourRes && sourRes.data;
             if (souratesData && souratesData.length > 0) {
               // Les N premieres dans cet ordre = acquises avant le suivi
               const idsAcquis = souratesData.slice(0, nbAcquises).map(s => s.id);
@@ -1172,19 +1202,22 @@ export async function verifierBlocageExamen(supabase, {
       }
 
       if (!examTermine) continue;
+      examensTermines.push(examen);
+    }
 
-      // Vérifier si l'examen a déjà été réussi
-      const { data: resultat } = await supabase
-        .from('resultats_examens')
-        .select('statut')
-        .eq('examen_id', examen.id)
-        .eq('eleve_id', eleve.id)
-        .eq('statut', 'reussi')
-        .limit(1);
-      // FIX (oct 2026) : .limit(1) au lieu de .maybeSingle() -> avec 2 lignes 'reussi'
-      // (double clic) maybeSingle renvoyait une erreur et l'eleve restait bloque a vie.
-      if (resultat && resultat.length > 0) continue; // déjà réussi → pas de blocage
+    if (examensTermines.length === 0) return null; // cas courant : aucun appel reseau supplementaire
 
+    // Examens deja reussis par l'eleve (une seule requete pour tous les examens termines)
+    const { data: reussis } = await supabase
+      .from('resultats_examens')
+      .select('examen_id')
+      .eq('eleve_id', eleve.id)
+      .eq('statut', 'reussi')
+      .in('examen_id', examensTermines.map(x => x.id));
+    const dejaReussis = new Set((reussis || []).map(r => String(r.examen_id)));
+
+    for (const examen of examensTermines) {
+      if (dejaReussis.has(String(examen.id))) continue; // déjà réussi → pas de blocage
       // 🔒 Blocage actif !
       return {
         examen,

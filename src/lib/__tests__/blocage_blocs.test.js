@@ -60,3 +60,22 @@ test('blocs asc : examen 36-40 bloque apres le Hizb 40 complet, pas avant', asyn
   const r = await verifierBlocageExamen(fake(db5), { eleve, ecole_id:'e', validations:[v(36),v(37),v(38),v(39),v(40)], recitations:[] });
   expect(r && r.examen.id).toBe('x9');
 });
+
+// Performance (26/10) : parametres memorises -> 2e verification sans appel reseau si aucun examen atteint ;
+// les resultats d'examens restent toujours relus.
+test('cache : 0 requete au 2e appel sans examen atteint, resultats toujours relus', async () => {
+  const base = { niveaux:[{id:'n1',ecole_id:'e',code:'X',type:'hizb',sens_recitation:'desc'}], programmes: [],
+    examens:[{id:'x7',ecole_id:'e',niveau_id:'n1',bloquant:true,nom:'E',contenu_ids:[59,58]}], resultats_examens:[] };
+  const client = fake(base); let n = 0; const from = client.from; client.from = (t) => { n++; return from(t); };
+  const eleve = { id:'s', code_niveau:'X', hizb_depart:59 };
+  expect(await verifierBlocageExamen(client, { eleve, ecole_id:'e', validations:[], recitations:[] })).toBeNull();
+  const n1 = n;
+  expect(await verifierBlocageExamen(client, { eleve, ecole_id:'e', validations:[], recitations:[] })).toBeNull();
+  expect(n).toBe(n1); // aucun appel
+  const v = (h) => ({ type_validation:'hizb_complet', hizb_valide:h, date_validation:'2026-10-26T10:00:00' });
+  const r = await verifierBlocageExamen(client, { eleve, ecole_id:'e', validations:[v(59),v(58)], recitations:[] });
+  expect(r && r.examen.id).toBe('x7');
+  expect(n).toBe(n1 + 1); // seulement la lecture des resultats
+  base.resultats_examens.push({ examen_id:'x7', eleve_id:'s', statut:'reussi' });
+  expect(await verifierBlocageExamen(client, { eleve, ecole_id:'e', validations:[v(59),v(58)], recitations:[] })).toBeNull();
+});
