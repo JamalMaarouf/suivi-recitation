@@ -15,7 +15,7 @@ import PeriodeSelectorHybride from './PeriodeSelectorHybride';
 // Utilisé dans les 2 rendus de FicheEleve.js (mobile + desktop).
 // ══════════════════════════════════════════════════════════════════════
 
-export default function OngletAssiduiteEleve({ eleve, lang, isMobile }) {
+export default function OngletAssiduiteEleve({ eleve, lang, isMobile, modeParent = false }) {
   const [presences, setPresences] = useState([]);
   const [joursNonTravailles, setJoursNonTravailles] = useState([]);
   const [seuilRisque, setSeuilRisque] = useState(80);
@@ -112,8 +112,14 @@ export default function OngletAssiduiteEleve({ eleve, lang, isMobile }) {
     const absencesParMois = {}; // 'YYYY-MM' -> count
     const attenduesParMois = {};
 
-    const d1 = new Date(debut);
-    const d2 = new Date(fin);
+    // FIX (oct 2026) : ne compter ni les jours AVANT l'inscription de l'eleve, ni les jours
+    // FUTURS (vue trimestre / annee) -> avant, des absences fictives apparaissaient.
+    const aujourdHui = isoLocal(new Date());
+    const dateInscr = (eleve?.date_inscription || eleve?.created_at || '').toString().slice(0, 10);
+    const borneDebut = dateInscr && dateInscr > debut ? dateInscr : debut;
+    const borneFin = fin > aujourdHui ? aujourdHui : fin;
+    const d1 = new Date(borneDebut + 'T00:00:00');
+    const d2 = new Date(borneFin + 'T00:00:00');
     for (let d = new Date(d1); d <= d2; d.setDate(d.getDate() + 1)) {
       const iso = isoLocal(d);
       if (datesNonTravailles.has(iso)) continue;
@@ -226,9 +232,13 @@ export default function OngletAssiduiteEleve({ eleve, lang, isMobile }) {
         </div>
         {joursSouhaites.every(j => !j) ? (
           <div style={{ fontSize: 12, color: '#888', fontStyle: 'italic' }}>
-            {lang === 'ar'
-              ? '⚠️ لم يتم تحديد أي يوم. قم بتعديل الطالب لإضافة الأيام.'
-              : '⚠️ Aucun jour déclaré. Modifie l\'élève pour ajouter ses jours.'}
+            {modeParent
+              ? (lang === 'ar'
+                ? 'لم تحدد المدرسة بعد أيام الحضور لهذا الطالب.'
+                : 'L\'école n\'a pas encore renseigné les jours de présence de cet élève.')
+              : (lang === 'ar'
+                ? '⚠️ لم يتم تحديد أي يوم. قم بتعديل الطالب لإضافة الأيام.'
+                : '⚠️ Aucun jour déclaré. Modifie l\'élève pour ajouter ses jours.')}
           </div>
         ) : (
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
@@ -288,7 +298,7 @@ export default function OngletAssiduiteEleve({ eleve, lang, isMobile }) {
               lang={lang}
               variant="default"
             />
-            {periodesBDD.length === 0 && !anneeActive && (
+            {periodesBDD.length === 0 && !anneeActive && !modeParent && (
               <div style={{
                 background:'#FFF8EC',border:'1px solid #EF9F2740',borderRadius:8,
                 padding:'8px 12px',fontSize:11,color:'#7B5800',marginTop:8,
@@ -330,7 +340,9 @@ export default function OngletAssiduiteEleve({ eleve, lang, isMobile }) {
               : 'Impossible de calculer sans jours déclarés'}
           </div>
           <div style={{ fontSize: 11, color: '#888', marginTop: 6 }}>
-            {lang === 'ar' ? 'قم بتعديل الطالب لإضافة أيام الحضور' : 'Modifie l\'élève pour ajouter ses jours'}
+            {modeParent
+              ? (lang === 'ar' ? 'يمكنك التواصل مع المدرسة لتحديدها' : 'Vous pouvez contacter l\'école pour les renseigner')
+              : (lang === 'ar' ? 'قم بتعديل الطالب لإضافة أيام الحضور' : 'Modifie l\'élève pour ajouter ses jours')}
           </div>
         </div>
       ) : stats.attendues === 0 ? (

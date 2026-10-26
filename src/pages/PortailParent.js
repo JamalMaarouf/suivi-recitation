@@ -1,12 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { useToast } from '../lib/toast';
 import { supabase } from '../lib/supabase';
-import { getInitiales, joursDepuis, loadBareme, BAREME_DEFAUT, getSensForEleve, calcPointsPeriode, ptsValidation } from '../lib/helpers';
+import { getInitiales, joursDepuis, loadBareme, BAREME_DEFAUT, getSensForEleve, calcPointsPeriode, ptsValidation, calcEtatEleveAvecBlocs, numerosSouratesAcquises, ordonnerSouratesProgramme, depuisDebutNiveau } from '../lib/helpers';
 import { swr } from '../lib/offlineCache';
 import { getSouratesForNiveau } from '../lib/sourates';
 import { t } from '../lib/i18n';
 import OngletCoursEleve from '../components/OngletCoursEleve';
+import OngletAssiduiteEleve from '../components/OngletAssiduiteEleve';
 import { MobileHeader, HeaderIconButton, HeaderMenu, KpiTile, KpiGrid, ListRow, C } from '../components/ui';
+import { CalendarCheck } from 'lucide-react';
 import { UserRound, Bell, KeyRound, Database, LogOut, TrendingUp, BookOpen, Library, Target, Wallet, AlertCircle,
   CheckCircle2, AlertTriangle, XCircle, Gift, Settings, X, Check, Mail, Save, Lock, Download, History } from 'lucide-react';
 import { trackParentVisite, getDerniereVisiteParent } from '../lib/parentTracking';
@@ -17,7 +19,7 @@ const IS_SOURATE = (code) => ['5B','5A','2M'].includes(code||'');
 const NIVEAU_COLORS = {'5B':'#534AB7','5A':'#378ADD','2M':'#1D9E75','2':'#EF9F27','1':'#E24B4A'};
 const NIVEAUX_LABELS = {'5B':'Préscolaire','5A':'Primaire 1-2','2M':'Primaire 3-4','2':'Primaire 5-6','1':'Collège/Lycée'};
 // Charte mobile (oct 2026) : icones lucide des onglets et des statuts de cotisation (mobile uniquement)
-const ICONES_ONGLETS_MOBILE = { progression: TrendingUp, recitations: BookOpen, cours: Library, objectifs: Target, cotisations: Wallet };
+const ICONES_ONGLETS_MOBILE = { progression: TrendingUp, recitations: BookOpen, presence: CalendarCheck, cours: Library, objectifs: Target, cotisations: Wallet };
 const ICONES_STATUT_COT_MOBILE = { paye: CheckCircle2, partiel: AlertTriangle, non_paye: XCircle, exonere: Gift };
 
 function Avatar({ prenom, nom, size=40, bg='#E1F5EE', color='#085041' }) {
@@ -42,6 +44,7 @@ export default function PortailParent({ parent, navigate, goBack, lang='fr', onL
   const [certificats, setCertificats] = useState([]);
   const [souratesDB, setSouratesDB] = useState([]);
   const [niveauxEcole, setNiveauxEcole] = useState([]);
+  const [programmesEcole, setProgrammesEcole] = useState([]); // oct 2026 : position actuelle (blocs) et sourate en cours
   const [ecoleConfig, setEcoleConfig] = useState(null);
   const [loading, setLoading] = useState(true);
   const [cacheAge, setCacheAge] = useState(null); // null = données fraîches, sinon âge en ms
@@ -336,6 +339,11 @@ export default function PortailParent({ parent, navigate, goBack, lang='fr', onL
             (data) => { if (data) setNiveauxEcole(data); }
           ).catch(()=>{}),
           swr(
+            `pp_programmes_${ecoleId}`,
+            () => supabase.from('programmes').select('niveau_id,reference_id,ordre,bloc_numero,bloc_nom,bloc_sens,type_contenu').eq('ecole_id', ecoleId).order('ordre'),
+            (data) => { if (data) setProgrammesEcole(data); }
+          ).catch(()=>{}),
+          swr(
             `pp_ecole_${ecoleId}`,
             () => supabase.from('ecoles').select('sens_recitation_defaut').eq('id', ecoleId).maybeSingle(),
             (data) => { if (data) setEcoleConfig(data); }
@@ -444,24 +452,39 @@ export default function PortailParent({ parent, navigate, goBack, lang='fr', onL
     return false;
   });
 
-  // Sourate actuelle
+  // FIX (oct 2026) : position ACTUELLE (avant : Hizb de depart affiche, et sourate en cours
+  // calculee toujours de 114 vers 1, sans le programme du niveau). Meme calcul que la validation.
+  const niveauEleveP = (niveauxEcole || []).find(n => n.code === eleve.code_niveau);
+  const progEleve = niveauEleveP ? (programmesEcole || []).filter(p => p.niveau_id === niveauEleveP.id) : [];
+  const sensEleveP = getSensForEleve(eleve, niveauxEcole, ecoleConfig);
   let sourateActuelle = null;
   if (isSourate) {
     const souratesNiveau = getSouratesForNiveau(eleve.code_niveau);
-    const sorted = [...souratesNiveau].sort((a,b)=>b.numero-a.numero);
-    const souratesAcq = parseInt(eleve.sourates_acquises)||0;
-    const souratesCompletesSet = new Set(rE.filter(r=>r.type_recitation==='complete').map(r=>r.sourate_id));
-    const idx = sorted.findIndex((s,i) => {
-      if (i < souratesAcq) return false;
-      const dbS = souratesDB.find(x=>x.numero===s.numero);
-      return dbS ? !souratesCompletesSet.has(dbS.id) : false;
-    });
-    sourateActuelle = idx >= 0 ? sorted[idx] : null;
+    const progNums = new Set(progEleve.map(p => (souratesDB || []).find(x => String(x.id) === String(p.reference_id))?.numero).filter(Boolean));
+    const ordre = ordonnerSouratesProgramme(souratesNiveau, progNums.size > 0 ? progNums : null, sensEleveP);
+    const acquis = numerosSouratesAcquises(eleve.sourates_acquises, sensEleveP);
+    const faites = new Set(depuisDebutNiveau(rE.filter(r => r.type_recitation === 'complete' && !r.is_muraja), eleve).map(r => r.sourate_id));
+    sourateActuelle = ordre.find(sr => {
+      if (acquis.has(sr.numero)) return false;
+      const dbS = (souratesDB || []).find(x => x.numero === sr.numero);
+      return dbS ? !faites.has(dbS.id) : true;
+    }) || null;
   }
+  let positionHizb = null;
+  if (!isSourate) {
+    try {
+      const et = calcEtatEleveAvecBlocs(vE, eleve, progEleve, sensEleveP, bareme);
+      if (et && et.hizbEnCours) positionHizb = { hizb: et.hizbEnCours, tomon: et.prochainTomon || 1 };
+    } catch (e) { positionHizb = null; }
+  }
+  const libellePosition = positionHizb
+    ? (lang==='ar' ? `الحزب ${positionHizb.hizb} · ث.${positionHizb.tomon}` : `Hizb ${positionHizb.hizb} · T.${positionHizb.tomon}`)
+    : (lang==='ar' ? `الحزب ${eleve.hizb_depart||1} · ث.${eleve.tomon_depart||1}` : `Hizb ${eleve.hizb_depart||1} · T.${eleve.tomon_depart||1}`);
 
   const onglets = [
     { key:'progression', label:'Progression',     labelAr:'التقدم',        icon:'📈' },
     { key:'recitations', label:'Récitations',      labelAr:'الاستظهارات',     icon:'📖' },
+    { key:'presence',    label:'Présences',        labelAr:'الحضور',        icon:'📅' },
     { key:'cours',       label:'Cours',            labelAr:'الدروس',         icon:'📚' },
     { key:'objectifs',   label:'Objectifs',        labelAr:'الأهداف',       icon:'🎯' },
     { key:'cotisations', label:'Cotisations',      labelAr:'الاشتراكات',    icon:'💰' },
@@ -705,7 +728,7 @@ export default function PortailParent({ parent, navigate, goBack, lang='fr', onL
                 <div style={{fontSize:12, color:'rgba(255,255,255,0.85)', marginTop:4}}>
                   {isSourate
                     ? (sourateActuelle?<span>{lang==='ar'?'السورة الحالية:':'En cours : '} <strong style={{fontFamily:"'Tajawal',Arial"}}>{sourateActuelle.nom_ar}</strong></span>:<span>{lang==='ar'?'أتم البرنامج 🎉':'Programme terminé 🎉'}</span>)
-                    : (lang==='ar'?`الحزب ${eleve.hizb_depart||1} · ث.${eleve.tomon_depart||1}`:`Hizb ${eleve.hizb_depart||1} · T.${eleve.tomon_depart||1}`)}
+                    : libellePosition}
                 </div>
                 <div style={{fontSize:11, marginTop:2, color: joursInactif>14 ? '#FFD6D6' : 'rgba(255,255,255,0.7)', fontWeight: joursInactif>14 ? 700 : 400}}>
                   {derniere
@@ -834,6 +857,10 @@ export default function PortailParent({ parent, navigate, goBack, lang='fr', onL
             {/* Cours */}
             {onglet==='cours' && selectedEnfant && (
               <OngletCoursEleve eleve={selectedEnfant} lang={lang} isMobile={true} />
+            )}
+            {/* oct 2026 : presences / absences selon les jours choisis (lecture seule) */}
+            {onglet==='presence' && selectedEnfant && (
+              <OngletAssiduiteEleve eleve={selectedEnfant} lang={lang} isMobile={true} modeParent />
             )}
           </div>
         )}
@@ -1395,9 +1422,7 @@ export default function PortailParent({ parent, navigate, goBack, lang='fr', onL
           <div style={{fontSize:12,color:'#888',marginTop:4}}>
             {isSourate
               ? (sourateActuelle?<span>{lang==='ar'?'السورة الحالية:':'En cours: '}<strong style={{fontFamily:"'Tajawal',Arial"}}>{sourateActuelle.nom_ar}</strong></span>:<span>{lang==='ar'?'أتم البرنامج 🎉':'Programme terminé 🎉'}</span>)
-              : (lang==='ar'
-                ? `الحزب ${eleve.hizb_depart||1} · ث.${eleve.tomon_depart||1}`
-                : `Hizb ${eleve.hizb_depart||1} · T.${eleve.tomon_depart||1}`)
+              : libellePosition
             }
           </div>
           <div style={{fontSize:11,color:joursInactif>14?'#E24B4A':'#888',marginTop:2}}>
@@ -1537,6 +1562,9 @@ export default function PortailParent({ parent, navigate, goBack, lang='fr', onL
       {/* Cours */}
       {onglet==='cours' && selectedEnfant && (
         <OngletCoursEleve eleve={selectedEnfant} lang={lang} isMobile={false} />
+      )}
+      {onglet==='presence' && selectedEnfant && (
+        <OngletAssiduiteEleve eleve={selectedEnfant} lang={lang} isMobile={false} modeParent />
       )}
     </div>
   );
