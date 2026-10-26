@@ -40,6 +40,12 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
   const selectIdRef = useRef(null);
   const [selectionPrete, setSelectionPrete] = useState(false);
   const tomonVerrouRef = useRef(false);
+  // FIX (oct 2026, retour test Hizb 36-40) : derniere verification de blocage examen lancee.
+  // Apres un Hizb/tomon valide, la verification tourne en arriere-plan (plusieurs allers-retours) ;
+  // pendant ce temps on pouvait valider des tomons du Hizb suivant. Toute nouvelle validation
+  // attend maintenant le resultat de cette verification.
+  const blocagePromiseRef = useRef(null);
+  const blocageCourantRef = useRef(null);
   const [currentSourateState, setCurrentSourateState] = useState(null); // calculé après chargement
   const [sourateSelectionnee, setSourateSelectionnee] = useState(null); // sourate choisie
   const [typeRec, setTypeRec] = useState('complete'); // 'complete' ou 'sequence'
@@ -118,13 +124,25 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
 
   // Helper reutilisable : verifie le blocage examen ET ensemble pour l'eleve courant
   // et met a jour les states. Retourne true si bloque examen, false sinon.
-  const checkBlocageExamenEleve = async (eleve, vals, recs, estCourant) => {
+  const checkBlocageExamenEleve = (eleve, vals, recs, estCourant) => {
+    const p = checkBlocageExamenEleveInterne(eleve, vals, recs, estCourant);
+    blocagePromiseRef.current = p;
+    return p;
+  };
+  // Attend la derniere verification en cours ; renvoie l'examen bloquant ou null
+  const attendreVerifBlocage = async () => {
+    const p = blocagePromiseRef.current;
+    if (p) { try { await p; } catch (e) { /* */ } }
+    return blocageCourantRef.current;
+  };
+  const checkBlocageExamenEleveInterne = async (eleve, vals, recs, estCourant) => {
     try {
       const blocage = await verifierBlocageExamen(supabase, {
         eleve, ecole_id: user.ecole_id,
         validations: vals || [], recitations: recs || [],
       });
       if (estCourant && !estCourant()) return false; // FIX (oct 2026) : eleve change entre-temps
+      blocageCourantRef.current = blocage || null;
       setBlocageExamen(blocage); // null si pas de blocage, objet sinon
 
       // Detection blocage ensemble (niveaux sourates uniquement)
@@ -147,6 +165,7 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
       return !!blocage;
     } catch (e) {
       console.warn('[verif blocage examen]', e);
+      blocageCourantRef.current = null;
       setBlocageExamen(null); setBlocagesEnsemble([]);
       setBlocagesEnsemble([]);
       return false;
@@ -185,6 +204,7 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
     const estCourant = () => selectIdRef.current === e.id;
     setSelectionPrete(false);
     setSelectedEleve(e);
+    blocageCourantRef.current = null; blocagePromiseRef.current = null;
     setBlocageExamen(null); setBlocagesEnsemble([]);
     const vals = validationsByEleveId.get(e.id) || [];
     const sensEl = getSensForEleve(e, niveaux, ecoleConfig);
@@ -308,6 +328,17 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
     if (tomonVerrouRef.current) return;
     tomonVerrouRef.current = true;
     setTimeout(() => { tomonVerrouRef.current = false; }, 900);
+    // Attendre la verification de blocage lancee par la validation precedente (voir blocagePromiseRef)
+    const blocageAttendu = await attendreVerifBlocage();
+    if (blocageAttendu && !blocageExamen) {
+      toast.error(
+        lang === 'ar'
+          ? `⛔ امتحان مطلوب: "${blocageAttendu.examen?.nom || ''}" قبل المتابعة`
+          : `⛔ Examen requis : "${blocageAttendu.examen?.nom || ''}" avant de continuer`,
+        { duration: 5000 }
+      );
+      return;
+    }
     // Verification blocage examen avant validation (s'applique aussi aux tomons)
     if (blocageExamen) {
       toast.error(
@@ -424,6 +455,17 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
   const validerHizb = async () => {
     if (!selectedEleve || !etat || saving || !etat.enAttenteHizbComplet) return;
     if (!selectionPrete) { toast.info(lang==='ar'?'جاري التحميل…':'Chargement de l\'élève en cours…'); return; } // FIX (oct 2026)
+    // Attendre la verification de blocage lancee par la validation precedente
+    const blocageAttenduH = await attendreVerifBlocage();
+    if (blocageAttenduH && !blocageExamen) {
+      toast.error(
+        lang === 'ar'
+          ? `⛔ امتحان مطلوب: "${blocageAttenduH.examen?.nom || ''}" قبل المتابعة`
+          : `⛔ Examen requis : "${blocageAttenduH.examen?.nom || ''}" avant de continuer`,
+        { duration: 5000 }
+      );
+      return;
+    }
     // Verification blocage examen avant validation
     if (blocageExamen) {
       toast.error(

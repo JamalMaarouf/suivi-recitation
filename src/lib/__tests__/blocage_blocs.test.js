@@ -47,3 +47,16 @@ test('examen a cheval acquis + suivi : bloque quand fini', async () => {
   const r = await verifierBlocageExamen(fake(db4), { eleve:{id:'s',code_niveau:'X',hizb_depart:58}, ecole_id:'e', validations:[{type_validation:'hizb_complet',hizb_valide:58,date_validation:'2026-10-20'}], recitations:[] });
   expect(r && r.examen.id).toBe('x6');
 });
+
+// Retour test 26/10 : niveau en blocs (sens 1->60), examen Hizb 36-40 : bloque des que le Hizb 40 est complet
+test('blocs asc : examen 36-40 bloque apres le Hizb 40 complet, pas avant', async () => {
+  const prog2 = [];
+  [[1,31,35],[2,36,40],[3,41,45]].forEach(([b,d,f]) => { for (let h=d; h<=f; h++) prog2.push({ niveau_id:'n2', ecole_id:'e', reference_id:String(h), ordre:h, bloc_numero:b, bloc_sens:'asc', type_contenu:'hizb' }); });
+  const db5 = { niveaux:[{id:'n2',ecole_id:'e',code:'L',type:'hizb',sens_recitation:'asc'}], programmes: prog2,
+    examens:[{id:'x9',ecole_id:'e',niveau_id:'n2',bloquant:true,nom:'Examen 36-40',contenu_ids:[36,37,38,39,40]}], resultats_examens:[] };
+  const eleve = { id:'s', code_niveau:'L', hizb_depart:36 };
+  const v = (h) => ({ type_validation:'hizb_complet', hizb_valide:h, date_validation:'2026-10-26T10:00:00' });
+  expect(await verifierBlocageExamen(fake(db5), { eleve, ecole_id:'e', validations:[v(36),v(37),v(38),v(39)], recitations:[] })).toBeNull();
+  const r = await verifierBlocageExamen(fake(db5), { eleve, ecole_id:'e', validations:[v(36),v(37),v(38),v(39),v(40)], recitations:[] });
+  expect(r && r.examen.id).toBe('x9');
+});
