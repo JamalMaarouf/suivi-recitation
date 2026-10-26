@@ -11,6 +11,7 @@ import { invalidateMany } from '../lib/cache';
 import { enqueueOrRun } from '../lib/offlineQueue';
 import { notifierParents } from '../lib/notificationsParents';
 import { calcEtatEleve, calcEtatEleveAvecBlocs, calcPositionAtteinte, calcUnite, formatDate, getInitiales, motivationMsg, verifierBlocageExamen, verifierBlocageEnsemble, validerEnsemble, verifierEtCreerCertificats, verifierEtCreerCertificatsBlocs, loadBareme, getSensForEleve, calcBlocProgression, prochainHizbDansBloc } from '../lib/helpers';
+import { correspondRecherche } from '../lib/recherche';
 
 function Avatar({ prenom, nom, size = 36, bg = '#E1F5EE', color = '#085041' }) {
   return (
@@ -433,7 +434,7 @@ export default function EnregistrerRecitation({  user, eleve: eleveInitial, navi
     hapticSuccess();
   };
 
-  const elevesFiltre = eleves.filter(e => `${e.prenom} ${e.nom} ${e.eleve_id_ecole||''}`.toLowerCase().includes(search.toLowerCase()));
+  const elevesFiltre = eleves.filter(e => correspondRecherche(search, `${e.prenom} ${e.nom} ${e.eleve_id_ecole||''}`));
 
   if (isMobile) {
     return (

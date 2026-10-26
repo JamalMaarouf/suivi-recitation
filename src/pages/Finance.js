@@ -11,6 +11,7 @@ import MobileSkeletonList from '../components/MobileSkeletonList';
 import { usePullToRefresh, PullToRefreshIndicator } from '../lib/usePullToRefresh';
 import { MobileHeader, HeaderMenu, FilterChips, actionsExport, KpiGrid, KpiTile, ListRow, Avatar as UiAvatar, LevelBadge, ActionSheet, C } from '../components/ui';
 import { Wallet, HandCoins, Receipt, Scale, CircleAlert, Pencil, Trash2, Search } from 'lucide-react';
+import { correspondRecherche } from '../lib/recherche';
 
 const CATEGORIES = [
   { val: 'salaire',     label: 'Salaires / Honoraires', labelAr: 'الرواتب',       icon: '👨‍🏫', color: '#534AB7' },
@@ -365,13 +366,13 @@ export default function Finance({ user, navigate, goBack, lang='fr', isMobile })
     if (filterStatut!=='tous' && c.statut!==filterStatut) return false;
     // FIX (oct 2026) : comparaison sur periodes normalisees ("1-2027" == "01-2027")
     if (filterPeriode && c.periode && !normPeriodeFin(c.periode).toLowerCase().includes(normPeriodeFin(filterPeriode).toLowerCase())) return false;
-    if (filterIdEleve && c.eleve && !String(c.eleve.eleve_id_ecole||'').includes(filterIdEleve) && !(c.eleve.prenom+' '+c.eleve.nom).toLowerCase().includes(filterIdEleve.toLowerCase())) return false;
+    if (filterIdEleve && c.eleve && !correspondRecherche(filterIdEleve, c.eleve.prenom, c.eleve.nom, c.eleve.eleve_id_ecole)) return false;
     return true;
   });
 
   // Par élève (pour tableau de suivi)
   const parEleve = (eleves||[]).filter(e => {
-    if(filterSuiviApplied.search && !`${e.prenom} ${e.nom} ${e.eleve_id_ecole||''}`.toLowerCase().includes(filterSuiviApplied.search.toLowerCase()) && !String(e.eleve_id_ecole||'').includes(filterSuiviApplied.search)) return false;
+    if(filterSuiviApplied.search && !correspondRecherche(filterSuiviApplied.search, `${e.prenom} ${e.nom} ${e.eleve_id_ecole||''}`) && !String(e.eleve_id_ecole||'').includes(filterSuiviApplied.search)) return false;
     return true;
   }).map(e => {
     const cotE = cotisations.filter(c=>c.eleve_id===e.id);
@@ -695,7 +696,7 @@ export default function Finance({ user, navigate, goBack, lang='fr', isMobile })
           <div style={{display:'flex',gap:6,alignItems:'center'}}>
             <input type="date" value={dateDebut} onChange={e=>setDateDebut(e.target.value)}
               style={{flex:1,minWidth:0,height:40,padding:'0 8px',borderRadius:8,border:'none',background:'#fff',color:'#16241E',fontSize:13,fontFamily:'inherit'}}/>
-            <span style={{color:'#fff',fontSize:12}}>→</span>
+            <span style={{color:'#fff',fontSize:12}}>{lang==='ar'?'←':'→'}</span>
             <input type="date" value={dateFin} onChange={e=>setDateFin(e.target.value)}
               style={{flex:1,minWidth:0,height:40,padding:'0 8px',borderRadius:8,border:'none',background:'#fff',color:'#16241E',fontSize:13,fontFamily:'inherit'}}/>
           </div>
@@ -712,7 +713,7 @@ export default function Finance({ user, navigate, goBack, lang='fr', isMobile })
                     <KpiTile icon={HandCoins} tone="brand" label={lang==='ar'?'إجمالي الاشتراكات':'Cotisations'} value={fmtMAD(totalCotisations)} />
                     <KpiTile icon={Receipt} tone="neutral" label={lang==='ar'?'إجمالي المصاريف':'Dépenses'} value={fmtMAD(totalDepenses)} />
                     <KpiTile icon={Scale} tone={(totalCotisations-totalDepenses)>=0?'good':'crit'} label={lang==='ar'?'الرصيد':'Solde'} value={fmtMAD(totalCotisations-totalDepenses)} />
-                    <KpiTile icon={CircleAlert} tone={elevesNonPayes.length>0?'crit':'neutral'} label={lang==='ar'?'اشتراكات معلقة':'Non payés'} value={elevesNonPayes.length+' élèves'} />
+                    <KpiTile icon={CircleAlert} tone={elevesNonPayes.length>0?'crit':'neutral'} label={lang==='ar'?'اشتراكات معلقة':'Non payés'} value={elevesNonPayes.length+(lang==='ar'?' طالب':' élèves')} />
                   </KpiGrid>
                 </div>
               </div>
@@ -879,7 +880,7 @@ export default function Finance({ user, navigate, goBack, lang='fr', isMobile })
                 style={{width:'100%',padding:'10px 12px',borderRadius:10,border:'1px solid #e0e0d8',fontSize:14,fontFamily:'inherit',boxSizing:'border-box'}}/>
               {searchEleveForm && !eleves.find(x=>String(x.eleve_id_ecole||'')===searchEleveForm.trim()) && (
                 <div style={{border:'1px solid #e0e0d8',borderRadius:8,background:'#fff',maxHeight:180,overflowY:'auto',marginTop:6}}>
-                  {eleves.filter(e=>`${e.prenom} ${e.nom} ${e.eleve_id_ecole||''}`.toLowerCase().includes(searchEleveForm.toLowerCase())||String(e.eleve_id_ecole||'').includes(searchEleveForm)).slice(0,8).map(e=>(
+                  {eleves.filter(e=>correspondRecherche(searchEleveForm, `${e.prenom} ${e.nom} ${e.eleve_id_ecole||''}`)||String(e.eleve_id_ecole||'').includes(searchEleveForm)).slice(0,8).map(e=>(
                     <div key={e.id} onClick={()=>{setFormCot(f=>({...f,eleve_id:e.id}));setSearchEleveForm(e.eleve_id_ecole?'#'+e.eleve_id_ecole+' — '+e.prenom+' '+e.nom:e.prenom+' '+e.nom);}}
                       style={{padding:'10px 12px',cursor:'pointer',fontSize:13,borderBottom:'0.5px solid #f0f0ec',display:'flex',alignItems:'center',gap:8}}>
                       {e.eleve_id_ecole&&<span style={{background:'#E1F5EE',color:'#085041',padding:'1px 6px',borderRadius:4,fontSize:10,fontWeight:700}}>#{e.eleve_id_ecole}</span>}
@@ -1307,7 +1308,7 @@ export default function Finance({ user, navigate, goBack, lang='fr', isMobile })
                     {/* Résultats de recherche */}
                     {searchEleveForm && !eleves.find(x=>String(x.eleve_id_ecole||'')===searchEleveForm.trim()) && (
                       <div style={{border:'0.5px solid #e0e0d8',borderRadius:8,background:'#fff',maxHeight:160,overflowY:'auto',marginBottom:6}}>
-                        {eleves.filter(e=>!searchEleveForm||`${e.prenom} ${e.nom} ${e.eleve_id_ecole||''}`.toLowerCase().includes(searchEleveForm.toLowerCase())||String(e.eleve_id_ecole||'').includes(searchEleveForm)).slice(0,8).map(e=>(
+                        {eleves.filter(e=>!searchEleveForm||correspondRecherche(searchEleveForm, `${e.prenom} ${e.nom} ${e.eleve_id_ecole||''}`)||String(e.eleve_id_ecole||'').includes(searchEleveForm)).slice(0,8).map(e=>(
                           <div key={e.id} onClick={()=>{setFormCot(f=>({...f,eleve_id:e.id}));setSearchEleveForm(e.eleve_id_ecole?'#'+e.eleve_id_ecole+' — '+e.prenom+' '+e.nom:e.prenom+' '+e.nom);}}
                             style={{padding:'8px 12px',cursor:'pointer',fontSize:13,borderBottom:'0.5px solid #f0f0ec',display:'flex',alignItems:'center',gap:8}}>
                             {e.eleve_id_ecole&&<span style={{background:'#E1F5EE',color:'#085041',padding:'1px 6px',borderRadius:4,fontSize:11,fontWeight:700}}>#{e.eleve_id_ecole}</span>}
@@ -1315,7 +1316,7 @@ export default function Finance({ user, navigate, goBack, lang='fr', isMobile })
                             <span style={{fontSize:11,color:'#888',marginRight:'auto'}}>{e.code_niveau}</span>
                           </div>
                         ))}
-                        {eleves.filter(e=>!searchEleveForm||`${e.prenom} ${e.nom} ${e.eleve_id_ecole||''}`.toLowerCase().includes(searchEleveForm.toLowerCase())).length===0&&
+                        {eleves.filter(e=>!searchEleveForm||correspondRecherche(searchEleveForm, `${e.prenom} ${e.nom} ${e.eleve_id_ecole||''}`)).length===0&&
                           <div style={{padding:'8px 12px',color:'#aaa',fontSize:12}}>{lang==='ar'?'لا نتائج':'Aucun résultat'}</div>}
                       </div>
                     )}
@@ -1656,8 +1657,7 @@ export default function Finance({ user, navigate, goBack, lang='fr', isMobile })
                 <div style={{maxHeight:160,overflowY:'auto',border:'0.5px solid #e0e0d8',borderRadius:8,background:'#fafaf7'}}>
                   {eleves
                     .filter(e=>{
-                      const s = expressSearchEleve.toLowerCase().trim();
-                      return (e.prenom||'').toLowerCase().includes(s) || (e.nom||'').toLowerCase().includes(s) || String(e.eleve_id_ecole||'').includes(s);
+                      return correspondRecherche(expressSearchEleve, e.prenom, e.nom, e.eleve_id_ecole);
                     })
                     .slice(0,8)
                     .map(e=>(

@@ -164,6 +164,19 @@ export default function PeriodeSelectorHybride({
           </div>
         </div>
       )}
+      {/* oct 2026 : avant, une periode incomplete affichait silencieusement « depuis le debut »
+          et une periode inversee donnait des zeros sans explication. */}
+      {customActif && (!dateDebut || !dateFin) && (
+        <div style={{marginTop:6,fontSize:11,fontWeight:600,color:'#B26A00'}}>
+          {isAr ? 'حدّد تاريخ البداية وتاريخ النهاية لتطبيق الفترة (المعروض حالياً: منذ البداية)'
+                : 'Choisissez les deux dates pour appliquer la période (affiché pour l\'instant : depuis le début)'}
+        </div>
+      )}
+      {customActif && dateDebut && dateFin && dateFin < dateDebut && (
+        <div style={{marginTop:6,fontSize:11,fontWeight:700,color:'#A32D2D'}}>
+          {isAr ? 'تاريخ النهاية قبل تاريخ البداية' : 'La date de fin est avant la date de début'}
+        </div>
+      )}
     </div>
   );
 }

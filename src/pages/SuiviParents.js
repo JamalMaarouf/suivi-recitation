@@ -10,6 +10,7 @@ import MobileSkeletonList from '../components/MobileSkeletonList';
 import { usePullToRefresh, PullToRefreshIndicator } from '../lib/usePullToRefresh';
 import { MobileHeader, HeaderMenu, actionsExport, KpiTile, KpiGrid, LevelBadge, EmptyState, C } from '../components/ui';
 import { UsersRound, Phone, UserRound, Inbox } from 'lucide-react';
+import { correspondRecherche } from '../lib/recherche';
 
 // ══════════════════════════════════════════════════════════════════════
 // PAGE SUIVI PARENTS — Menu principal surveillant
@@ -156,13 +157,9 @@ export default function SuiviParents({ user, navigate, goBack, lang, isMobile })
       list = list.filter(p => p.statut === filtreStatut);
     }
     if (recherche.trim()) {
-      const r = recherche.trim().toLowerCase();
       list = list.filter(p =>
-        (p.parent.prenom || '').toLowerCase().includes(r) ||
-        (p.parent.nom || '').toLowerCase().includes(r) ||
-        (p.eleve.prenom || '').toLowerCase().includes(r) ||
-        (p.eleve.nom || '').toLowerCase().includes(r) ||
-        (p.eleve.eleve_id_ecole || '').toLowerCase().includes(r)
+        correspondRecherche(recherche, p.parent.prenom, p.parent.nom, p.parent.identifiant) ||
+        correspondRecherche(recherche, p.eleve.prenom, p.eleve.nom, p.eleve.eleve_id_ecole)
       );
     }
     // Tri : jamais venu en premier, puis inactifs les plus anciens, ...

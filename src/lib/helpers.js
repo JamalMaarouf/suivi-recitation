@@ -883,12 +883,14 @@ export function calcStats(validations) {
   };
 }
 
-export function scoreLabel(points) {
-  if (points >= 3000) return { label: 'Excellence', color: '#EF9F27', bg: '#FAEEDA' };
-  if (points >= 1500) return { label: 'Avancé', color: '#1D9E75', bg: '#E1F5EE' };
-  if (points >= 600) return { label: 'Intermédiaire', color: '#378ADD', bg: '#E6F1FB' };
-  if (points >= 200) return { label: 'Débutant+', color: '#888', bg: '#f0f0ec' };
-  return { label: 'Débutant', color: '#bbb', bg: '#f9f9f6' };
+export function scoreLabel(points, lang) {
+  // oct 2026 : libelle traduit en arabe (il restait en francais dans l'interface arabe)
+  const ar = lang === 'ar';
+  if (points >= 3000) return { label: ar ? 'ممتاز' : 'Excellence', color: '#EF9F27', bg: '#FAEEDA' };
+  if (points >= 1500) return { label: ar ? 'متقدم' : 'Avancé', color: '#1D9E75', bg: '#E1F5EE' };
+  if (points >= 600) return { label: ar ? 'متوسط' : 'Intermédiaire', color: '#378ADD', bg: '#E6F1FB' };
+  if (points >= 200) return { label: ar ? 'مبتدئ+' : 'Débutant+', color: '#888', bg: '#f0f0ec' };
+  return { label: ar ? 'مبتدئ' : 'Débutant', color: '#bbb', bg: '#f9f9f6' };
 }
 
 // Calcul des badges automatiques
@@ -1799,6 +1801,13 @@ export async function verifierEtCreerCertificatsExamens(supabase, {
     const examensDejaCertifies = new Set(
       (certsExistants || []).map(c => c.examen_id_source).filter(Boolean)
     );
+    // Anti-doublon (oct 2026) : un examen deja couvert par une etape (jalon actif de type
+    // examen) recoit le certificat de l'etape -> pas de second certificat automatique.
+    try {
+      const { data: jalonsExamen } = await supabase.from('jalons')
+        .select('examen_id').eq('ecole_id', ecole_id).eq('actif', true).eq('type_jalon', 'examen');
+      (jalonsExamen || []).forEach(j => { if (j.examen_id) examensDejaCertifies.add(j.examen_id); });
+    } catch (e) { /* sans jalons : comportement inchange */ }
 
     const nouveauxCerts = [];
 

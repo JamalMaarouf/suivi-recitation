@@ -18,6 +18,7 @@ import { PassageNiveauTab, MobilePassageNiveauTab } from './gestion/PassageNivea
 import { JalonsTab } from './gestion/JalonsTab';
 import { MobileHeader, HeaderIconButton, ListRow, ActionSheet, Avatar as UiAvatar, LevelBadge, EmptyState, SearchField, C } from '../components/ui';
 import { Settings, Plus, X, Link2, Pencil, Trash2, Pause, Play, KeyRound, Unlink, Users, GraduationCap, Award, ClipboardCheck, Power } from 'lucide-react';
+import { correspondRecherche } from '../lib/recherche';
 
 
 export default function Gestion({ user, navigate, goBack, lang = 'fr', isMobile, initialTab, setGestionTab }) {
@@ -2261,11 +2262,11 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
               {lang==='ar'?'عرض الطلاب النشطين فقط':'Afficher uniquement les élèves actifs'}
             </label>
             <div style={{fontSize:12,color:'#888',marginBottom:8,paddingLeft:4}}>
-              {eleves.filter(e => (!afficherUniquementActifs || !e.suspendu_at) && (!searchEleve||`${e.prenom} ${e.nom} ${e.eleve_id_ecole||''} ${e.telephone||''}`.toLowerCase().includes((searchEleve||'').toLowerCase()))).length} {lang==='ar'?'طالب':'élève(s)'}
+              {eleves.filter(e => (!afficherUniquementActifs || !e.suspendu_at) && (!searchEleve||correspondRecherche(searchEleve, `${e.prenom} ${e.nom} ${e.eleve_id_ecole||''} ${e.telephone||''}`))).length} {lang==='ar'?'طالب':'élève(s)'}
             </div>
 
             {/* Liste élèves */}
-            {eleves.filter(e => (!afficherUniquementActifs || !e.suspendu_at) && (!searchEleve||`${e.prenom} ${e.nom} ${e.eleve_id_ecole||''} ${e.telephone||''}`.toLowerCase().includes((searchEleve||'').toLowerCase()))).map(e=>{
+            {eleves.filter(e => (!afficherUniquementActifs || !e.suspendu_at) && (!searchEleve||correspondRecherche(searchEleve, `${e.prenom} ${e.nom} ${e.eleve_id_ecole||''} ${e.telephone||''}`))).map(e=>{
               const nc=getNC(e.code_niveau);
               const isSour=isSourateNiveauDyn(e.code_niveau,niveauxActifs||[]);
               const inst=instituteurs.find(i=>i.id===e.instituteur_referent_id);
@@ -2721,7 +2722,7 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
   const nbElevesFiltres = (eleves||[]).filter(e =>
     (!afficherUniquementActifs || !e.suspendu_at)
     && (filtreNiveauEleve === 'tous' || e.code_niveau === filtreNiveauEleve)
-    && (!searchEleve || `${e.prenom} ${e.nom} ${e.eleve_id_ecole||''} ${e.telephone||''}`.toLowerCase().includes(searchEleve.toLowerCase()))
+    && (!searchEleve || correspondRecherche(searchEleve, `${e.prenom} ${e.nom} ${e.eleve_id_ecole||''} ${e.telephone||''}`))
   ).length;
   const nbPagesEleves = Math.max(1, Math.ceil(nbElevesFiltres / ELEVES_PAR_PAGE));
   const pageElevesEff = Math.min(Math.max(1, pageEleves), nbPagesEleves);
@@ -3241,7 +3242,7 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
               <span style={{fontWeight:500,color:'#888'}}>
                 ({eleves.filter(e => (!afficherUniquementActifs || !e.suspendu_at)
                   && (filtreNiveauEleve === 'tous' || e.code_niveau === filtreNiveauEleve)
-                  && (!searchEleve || `${e.prenom} ${e.nom} ${e.eleve_id_ecole||''} ${e.telephone||''}`.toLowerCase().includes(searchEleve.toLowerCase()))
+                  && (!searchEleve || correspondRecherche(searchEleve, `${e.prenom} ${e.nom} ${e.eleve_id_ecole||''} ${e.telephone||''}`))
                 ).length}
                 {eleves.length > 0 ? ` / ${eleves.length}` : ''}
                 )
@@ -3358,7 +3359,7 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
                   {eleves.filter(e =>
                     (!afficherUniquementActifs || !e.suspendu_at)
                     && (filtreNiveauEleve === 'tous' || e.code_niveau === filtreNiveauEleve)
-                    && (!searchEleve || `${e.prenom} ${e.nom} ${e.eleve_id_ecole||''} ${e.telephone||''}`.toLowerCase().includes(searchEleve.toLowerCase()))
+                    && (!searchEleve || correspondRecherche(searchEleve, `${e.prenom} ${e.nom} ${e.eleve_id_ecole||''} ${e.telephone||''}`))
                   ).slice((pageElevesEff-1)*ELEVES_PAR_PAGE, pageElevesEff*ELEVES_PAR_PAGE).map(e => {
                     const nc = (niveauxDyn||[]).find(n=>n.code===e.code_niveau)?.couleur || {'5B':'#534AB7','5A':'#378ADD','2M':'#1D9E75','2':'#EF9F27','1':'#E24B4A'}[e.code_niveau]||'#888';
                     const isSour = (niveauxDyn||[]).find(n=>n.code===e.code_niveau)?.type==='sourate' || ['5B','5A','2M'].includes(e.code_niveau||'');
@@ -3585,7 +3586,7 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
               <span style={{fontWeight:500,color:'#888'}}>
                 ({instituteurs.filter(i =>
                   (!afficherUniquementActifsInst || !i.suspendu_at)
-                  && (!searchInst || `${i.prenom} ${i.nom} ${i.identifiant||''} ${i.instituteur_id_ecole||''}`.toLowerCase().includes(searchInst.toLowerCase()))
+                  && (!searchInst || correspondRecherche(searchInst, `${i.prenom} ${i.nom} ${i.identifiant||''} ${i.instituteur_id_ecole||''}`))
                 ).length}
                 {instituteurs.length > 0 ? ` / ${instituteurs.length}` : ''}
                 )
@@ -3715,7 +3716,7 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
                   {instituteurs.length === 0 && <tr><td colSpan={6} className="empty">{t(lang, 'aucun_instituteur')}</td></tr>}
                   {instituteurs.filter(i =>
                     (!afficherUniquementActifsInst || !i.suspendu_at)
-                    && (!searchInst || `${i.prenom} ${i.nom} ${i.identifiant||''} ${i.instituteur_id_ecole||''}`.toLowerCase().includes(searchInst.toLowerCase()))
+                    && (!searchInst || correspondRecherche(searchInst, `${i.prenom} ${i.nom} ${i.identifiant||''} ${i.instituteur_id_ecole||''}`))
                   ).map(i => (
                     <tr key={i.id} style={{opacity:i.suspendu_at?0.65:1,borderBottom:'0.5px solid #f0f0ec'}}>
                       {/* Numéro */}
@@ -3869,7 +3870,7 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
                 <div style={{maxHeight:220,overflowY:'auto',border:'0.5px solid #e0e0d8',borderRadius:10,background:'#fff'}}>
                   {(()=>{
                     const search=(formParent.searchEleve||'').toLowerCase();
-                    const filtered=eleves.filter(e=>!search||(e.prenom+' '+e.nom).toLowerCase().includes(search)||String(e.eleve_id_ecole||'').includes(search));
+                    const filtered=eleves.filter(e=>!search||correspondRecherche(search, e.prenom, e.nom, e.eleve_id_ecole));
                     if(filtered.length===0) return <div style={{padding:12,textAlign:'center',fontSize:12,color:'#bbb'}}>{lang==='ar'?'لا نتائج':'Aucun résultat'}</div>;
                     return filtered.map(e=>{
                       const sel=formParent.eleve_ids.includes(e.id);
@@ -3928,8 +3929,7 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
               <span style={{fontWeight:500,color:'#888'}}>
                 ({parents.filter(p =>
                   !searchParent
-                  || (p.prenom+' '+p.nom).toLowerCase().includes(searchParent.toLowerCase())
-                  || (p.identifiant||'').toLowerCase().includes(searchParent.toLowerCase())
+                  || correspondRecherche(searchParent, p.prenom, p.nom, p.identifiant)
                   || (p.telephone||'').includes(searchParent)
                   || (p.email||'').toLowerCase().includes(searchParent.toLowerCase())
                 ).length}
@@ -3948,8 +3948,7 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0ec;vertical-align:middle;font-s
           <div style={{display:'flex',flexDirection:'column',gap:8}}>
             {parents.filter(p =>
               !searchParent
-              || (p.prenom+' '+p.nom).toLowerCase().includes(searchParent.toLowerCase())
-              || (p.identifiant||'').toLowerCase().includes(searchParent.toLowerCase())
+              || correspondRecherche(searchParent, p.prenom, p.nom, p.identifiant)
               || (p.telephone||'').includes(searchParent)
               || (p.email||'').toLowerCase().includes(searchParent.toLowerCase())
             ).map(p=>(

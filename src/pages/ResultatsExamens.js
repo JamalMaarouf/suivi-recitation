@@ -11,6 +11,7 @@ import StatsCard from '../components/StatsCard';
 import { MobileHeader, HeaderMenu, actionsExport, KpiTile, KpiGrid, EmptyState, LevelBadge, C } from '../components/ui';
 import { Award, CheckCircle2, XCircle, Lock, FileText, Pencil, MessageSquare, TrendingUp, SlidersHorizontal, ClipboardList, AlertTriangle, BarChart3 } from 'lucide-react';
 import { usePullToRefresh, PullToRefreshIndicator } from '../lib/usePullToRefresh';
+import { correspondRecherche } from '../lib/recherche';
 
 export default function ResultatsExamens({ user, navigate, goBack, lang='fr', isMobile, data }) {
   const { toast } = useToast();
@@ -300,14 +301,9 @@ export default function ResultatsExamens({ user, navigate, goBack, lang='fr', is
   // ── DONNÉES CALCULÉES ──────────────────────────────────────────
   // filtreNiveauEleve = 'tous' ou code du niveau (ex: '5B')
   const elevesFiltres = eleves.filter(e => {
-    const nom = `${e.prenom||''} ${e.nom||''}`.toLowerCase().trim();
-    const num = String(e.eleve_id_ecole ?? '').trim();
-    const q   = searchEleve.trim();
     const matchNiveau = filtreNiveauEleve==='tous' || e.code_niveau===filtreNiveauEleve;
-    if (!q) return matchNiveau;
-    const matchNom    = nom.includes(q.toLowerCase());
-    const matchNumero = num.includes(q);
-    return (matchNom || matchNumero) && matchNiveau;
+    if (!searchEleve.trim()) return matchNiveau;
+    return matchNiveau && correspondRecherche(searchEleve, e.prenom, e.nom, e.eleve_id_ecole);
   });
 
   // ─── B1 — Calcul de la période active (pattern Dashboard Direction) ──
@@ -398,9 +394,7 @@ export default function ResultatsExamens({ user, navigate, goBack, lang='fr', is
       if (filtreNiveau !== 'tous' && ex?.niveau_id !== filtreNiveau) return false;
       if (filtreExamen !== 'tous' && r.examen_id !== filtreExamen) return false;
       if (q) {
-        const nom = el ? `${el.prenom} ${el.nom}`.toLowerCase() : '';
-        const num = String(el?.eleve_id_ecole || '').toLowerCase();
-        if (!nom.includes(q) && !num.includes(q)) return false;
+        if (!el || !correspondRecherche(q, el.prenom, el.nom, el.eleve_id_ecole)) return false;
       }
       return true;
     });
@@ -717,7 +711,7 @@ export default function ResultatsExamens({ user, navigate, goBack, lang='fr', is
               style={{width:'100%',accentColor:reussi?'#1D9E75':'#E24B4A'}}/>
             <div style={{display:'flex',justifyContent:'space-between',fontSize:11,color:'#aaa',marginTop:4}}>
               <span>0%</span>
-              <span style={{color:'#888'}}>Seuil : {selectedExamen.score_minimum||70}%</span>
+              <span style={{color:'#888'}}>{lang==='ar'?'عتبة النجاح:':'Seuil :'} {selectedExamen.score_minimum||70}%</span>
               <span>100%</span>
             </div>
           </div>

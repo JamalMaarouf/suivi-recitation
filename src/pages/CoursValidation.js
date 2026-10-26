@@ -6,6 +6,7 @@ import PageHeader from '../components/PageHeader';
 import MobileSkeletonList from '../components/MobileSkeletonList';
 import { MobileHeader } from '../components/ui';
 import { GraduationCap } from 'lucide-react';
+import { correspondRecherche } from '../lib/recherche';
 
 // ══════════════════════════════════════════════════════════════════════
 // PAGE VALIDATION AXES D'UN COURS POUR UN NIVEAU
@@ -548,12 +549,7 @@ function ModaleValidation({ axe, axeLabel, niveau, eleves, existante, exceptions
 
   const elevesFiltres = useMemo(() => {
     if (!recherche.trim()) return eleves;
-    const r = recherche.trim().toLowerCase();
-    return eleves.filter(e =>
-      (e.prenom || '').toLowerCase().includes(r) ||
-      (e.nom || '').toLowerCase().includes(r) ||
-      (e.eleve_id_ecole || '').toLowerCase().includes(r)
-    );
+    return eleves.filter(e => correspondRecherche(recherche, e.prenom, e.nom, e.eleve_id_ecole));
   }, [eleves, recherche]);
 
   const nbExceptions = Object.keys(exceptionsMap).length;

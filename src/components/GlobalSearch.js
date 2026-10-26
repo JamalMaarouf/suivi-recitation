@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { supabase } from '../lib/supabase';
 import { getInitiales } from '../lib/helpers';
+import { correspondRecherche } from '../lib/recherche';
 
 // ══════════════════════════════════════════════════════════════════════
 // COMPOSANT <GlobalSearch>
@@ -108,44 +109,23 @@ export default function GlobalSearch({ isOpen, onClose, user, lang = 'fr', navig
       return { eleves: [], parents: [], instituteurs: [] };
     }
 
-    const matchText = (text) => (text || '').toString().toLowerCase().includes(q);
-
-    // Élèves : match sur prénom, nom, N° élève, ou combinaison
-    const eleves = scopedEleves.filter(e => {
-      const fullName = `${e.prenom || ''} ${e.nom || ''}`.toLowerCase();
-      return (
-        matchText(e.prenom) ||
-        matchText(e.nom) ||
-        matchText(e.eleve_id_ecole) ||
-        fullName.includes(q)
-      );
-    }).slice(0, MAX_RESULTS_PER_CAT);
+    // oct 2026 : recherche tolerante (majuscules, hamza, ordre des mots) — lib/recherche
+    const eleves = scopedEleves.filter(e =>
+      correspondRecherche(q, e.prenom, e.nom, e.eleve_id_ecole)
+    ).slice(0, MAX_RESULTS_PER_CAT);
 
     // Parents (uniquement si surveillant)
     const parents = user?.role === 'surveillant'
-      ? data.parents.filter(p => {
-          const fullName = `${p.prenom || ''} ${p.nom || ''}`.toLowerCase();
-          return (
-            matchText(p.prenom) ||
-            matchText(p.nom) ||
-            matchText(p.telephone) ||
-            matchText(p.identifiant) ||
-            fullName.includes(q)
-          );
-        }).slice(0, MAX_RESULTS_PER_CAT)
+      ? data.parents.filter(p =>
+          correspondRecherche(q, p.prenom, p.nom, p.telephone, p.identifiant)
+        ).slice(0, MAX_RESULTS_PER_CAT)
       : [];
 
     // Instituteurs (uniquement si surveillant)
     const instituteurs = user?.role === 'surveillant'
-      ? data.instituteurs.filter(i => {
-          const fullName = `${i.prenom || ''} ${i.nom || ''}`.toLowerCase();
-          return (
-            matchText(i.prenom) ||
-            matchText(i.nom) ||
-            matchText(i.telephone) ||
-            fullName.includes(q)
-          );
-        }).slice(0, MAX_RESULTS_PER_CAT)
+      ? data.instituteurs.filter(i =>
+          correspondRecherche(q, i.prenom, i.nom, i.telephone)
+        ).slice(0, MAX_RESULTS_PER_CAT)
       : [];
 
     return { eleves, parents, instituteurs };

@@ -520,7 +520,7 @@ export default function TableauHonneur({ user, navigate, goBack, lang='fr', isMo
               {/* Classement complet */}
               <div style={{maxWidth:600,margin:'0 auto'}}>
                 {elevesClasses.map((e,idx) => {
-                  const sl = scoreLabel(e.ptsPeriode.total);
+                  const sl = scoreLabel(e.ptsPeriode.total, lang);
                   return (
                     <div key={e.id} onClick={()=>navigate('fiche',e)}
                       style={{display:'flex',alignItems:'center',gap:12,padding:'12px 16px',

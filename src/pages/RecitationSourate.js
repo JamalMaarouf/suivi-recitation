@@ -240,7 +240,7 @@ export default function RecitationSourate({ user, eleve, navigate, goBack, lang=
   // The current sourate index
   const currentIdx = souratesOrdonnees.findIndex((sr) => !acquisNumeros.has(sr.numero) && !isComplete(sr.numero));
   const currentSourate = currentIdx >= 0 ? souratesOrdonnees[currentIdx] : null;
-  const sl = scoreLabel(totalPoints);
+  const sl = scoreLabel(totalPoints, lang);
 
   // F12 (oct 2026) : blocage examen, comme Validation Rapide. Avant, cette page ne
   // verifiait que les ensembles (et les 2 boutons rapides de la liste ne verifiaient

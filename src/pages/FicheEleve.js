@@ -217,8 +217,18 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang, isMobi
   const [loading, setLoading] = useState(true);
   const [instituteurNom, setInstituteurNom] = useState('—');
   const [etat, setEtat] = useState(null);
-  const [onglet, setOnglet] = useState('apercu');
+  // oct 2026 : sur mobile, la fiche s'ouvre sur « لمحة عامة » (identite + position + acquis)
+  const [onglet, setOnglet] = useState(isMobile ? 'profil' : 'apercu');
+  const [comptesParents, setComptesParents] = useState(null); // identifiants parents (surveillant)
   const [showPlusMenu, setShowPlusMenu] = useState(false);
+  useEffect(() => {
+    if (onglet !== 'profil' || user?.role !== 'surveillant' || !eleve?.id) return undefined;
+    let annule = false;
+    Promise.resolve(supabase.from('parent_eleve').select('parent:parent_id(id,identifiant,prenom,nom,derniere_connexion)').eq('eleve_id', eleve.id))
+      .then(({ data }) => { if (!annule) setComptesParents((data || []).map(l => l.parent).filter(Boolean)); })
+      .catch(() => { if (!annule) setComptesParents([]); });
+    return () => { annule = true; };
+  }, [onglet, eleve?.id, user?.role]);
   const [showAcquis, setShowAcquis] = useState(false);
   const [exceptionsHizb, setExceptionsHizb] = useState([]);
   const [murajaa, setMurajaa] = useState([]);
@@ -1215,8 +1225,8 @@ ${(passages||[]).length > 0 ? `
   const totalPtsSourates = (etat?.points?.ptsAcquisTotal || 0) + (ptsSuiviFiche.total || 0);
   const nbSouratesCompletes = recitationsSouratesEleve.filter(r=>r.type_recitation==='complete' && !r.is_muraja).length;
   const sl = estSourateEleve
-    ? scoreLabel(totalPtsSourates) // oct 2026 : vrais points (avant : nb sourates x 30 en dur)
-    : (etat ? scoreLabel(totalPtsSourates) : {color:'#888',bg:'#f0f0ec',label:'—'});
+    ? scoreLabel(totalPtsSourates, lang) // oct 2026 : vrais points (avant : nb sourates x 30 en dur)
+    : (etat ? scoreLabel(totalPtsSourates, lang) : {color:'#888',bg:'#f0f0ec',label:'—'});
   const badges = etat ? calcBadges(validations,etat,lang) : [];
 
   const validationsOuRecitations = estSourateEleve ? [] : validations;
@@ -1424,7 +1434,7 @@ ${(passages||[]).length > 0 ? `
   const ptsRecapGlob = calcPointsPeriode(validations||[], new Date('2000-01-01'), new Date(), baremeEleve, pointsEvenements, recitationsSouratesEleve||[], certificats||[]);
 
   if (isMobile) {
-    const sl2 = etat || estSourateEleve ? scoreLabel(totalPtsSourates) : {color:'#888',bg:'#f0f0ec',label:'—'};
+    const sl2 = etat || estSourateEleve ? scoreLabel(totalPtsSourates, lang) : {color:'#888',bg:'#f0f0ec',label:'—'};
     const _niveauxFe = typeof niveaux !== 'undefined' ? niveaux : [];
     const nc = getNiveauColor(eleve.code_niveau||'1', _niveauxFe);
     return (
@@ -1495,6 +1505,7 @@ ${(passages||[]).length > 0 ? `
           {/* Onglets mobile - Phase 2 refonte : 5 principaux + Plus */}
           {(() => {
             const tabsPrincipaux = [
+              {k:'profil',      label: lang==='ar'?'لمحة عامة':'Profil',     icon:'🪪'},
               {k:'apercu',      label: lang==='ar'?'السجل':'Aperçu',      icon:'📊'},
               {k:'progression', label: lang==='ar'?'التقدم':'Progression', icon:'📈'},
               {k:'examens',     label: lang==='ar'?'الامتحانات':'Examens', icon:'📝'},
@@ -1579,6 +1590,75 @@ ${(passages||[]).length > 0 ? `
         {/* Content */}
         {!loading && (
           <div style={{padding:'12px 12px'}}>
+            {onglet==='profil' && (() => {
+              const ar = lang === 'ar';
+              const carte = {background:'#fff', border:'0.5px solid #e0e0d8', borderRadius:14, padding:'14px', marginBottom:12};
+              const titre = (txt) => <div style={{fontSize:13, fontWeight:700, color:'#085041', marginBottom:10}}>{txt}</div>;
+              const ligne = (lbl, val, dirLtr) => (
+                <div style={{display:'flex', justifyContent:'space-between', gap:12, padding:'8px 0', borderTop:'0.5px solid #f0f0ec', fontSize:13}}>
+                  <span style={{color:'#888', flexShrink:0}}>{lbl}</span>
+                  <span style={{color:'#1a1a1a', fontWeight:600, textAlign:ar?'left':'right', minWidth:0, overflowWrap:'anywhere'}} dir={dirLtr?'ltr':undefined}>{val || '—'}</span>
+                </div>
+              );
+              const niv = (_niveauxCtx || []).find(n => n.code === eleve.code_niveau);
+              const fmtD = (d) => { try { return new Date(d).toLocaleDateString(ar ? 'ar-MA' : 'fr-FR', { day:'numeric', month:'long', year:'numeric' }); } catch (e) { return String(d); } };
+              const nomsJours = ar ? ['السبت','الأحد','الاثنين','الثلاثاء','الأربعاء','الخميس','الجمعة'] : ['Sam','Dim','Lun','Mar','Mer','Jeu','Ven'];
+              const jours = Array.isArray(eleve.jours_souhaites) ? nomsJours.filter((_, i) => eleve.jours_souhaites[i] === true) : [];
+              let nbAcquis = 0;
+              try {
+                nbAcquis = estSourateEleve
+                  ? (parseInt(eleve.sourates_acquises) || 0)
+                  : calcHizbsAcquisAvantArrivee(eleve, programmeNiveau, getSensForEleve(eleve, _niveauxCtx, ecoleConfig)).size;
+              } catch (e) { nbAcquis = 0; }
+              const bloc = (val, lbl, color, bg) => (
+                <div style={{flex:1, minWidth:0, background:bg, borderRadius:12, padding:'10px 8px', textAlign:'center'}}>
+                  <div style={{fontSize:17, fontWeight:800, color, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap'}}>{val}</div>
+                  <div style={{fontSize:11, color:'#666', marginTop:2}}>{lbl}</div>
+                </div>
+              );
+              return (
+                <div>
+                  <div style={carte}>
+                    {titre(ar ? 'الموقع الحالي' : 'Position actuelle')}
+                    <div style={{display:'flex', gap:8}}>
+                      {estSourateEleve ? (<>
+                        {bloc(currentSourateApercu ? currentSourateApercu.nom_ar : '✓', ar?'السورة الحالية':'Sourate actuelle', '#085041', '#E1F5EE')}
+                        {bloc(`${sequencesValideesSurCourante}/3`, ar?'المقاطع':'Séquences', '#534AB7', '#F0EEFF')}
+                        {bloc(nbAcquis, ar?'سور مكتسبة':'Sourates acquises', '#B26A00', '#FAEEDA')}
+                      </>) : (<>
+                        {bloc(etat?.hizbEnCours || '—', ar?'الحزب الحالي':'Hizb actuel', '#085041', '#E1F5EE')}
+                        {bloc(`${ar?'ث':'T'}.${etat?.prochainTomon || '—'}`, ar?'الثُّمن التالي':'Tomon suivant', '#534AB7', '#F0EEFF')}
+                        {bloc(nbAcquis, ar?'أحزاب مكتسبة':'Hizb acquis', '#B26A00', '#FAEEDA')}
+                      </>)}
+                    </div>
+                  </div>
+                  <div style={carte}>
+                    {titre(ar ? 'معلومات الطالب' : 'Informations')}
+                    {ligne(ar?'رقم التعريف':'N° élève', eleve.eleve_id_ecole ? `#${eleve.eleve_id_ecole}` : null, true)}
+                    {ligne(ar?'المستوى':'Niveau', niv ? `${niv.code} — ${niv.nom}` : eleve.code_niveau)}
+                    {ligne(ar?'الأستاذ المرجع':'Instituteur', instituteurNom)}
+                    {ligne(ar?'تاريخ التسجيل':'Inscription', eleve.date_inscription ? fmtD(eleve.date_inscription) : null)}
+                    {ligne(ar?'أيام الحضور':'Jours de présence', jours.length ? jours.join(' · ') : null)}
+                    {ligne(ar?'الهاتف':'Téléphone', eleve.telephone ? <a href={`tel:${eleve.telephone}`} style={{color:'#1D9E75', textDecoration:'none'}}>{eleve.telephone}</a> : null, true)}
+                  </div>
+                  {user.role === 'surveillant' && (
+                    <div style={carte}>
+                      {titre(ar ? 'حساب ولي الأمر' : 'Compte parent')}
+                      {comptesParents === null
+                        ? <div style={{fontSize:12, color:'#888'}}>…</div>
+                        : comptesParents.length === 0
+                          ? <div style={{fontSize:12, color:'#888'}}>{ar ? 'لا يوجد حساب ولي أمر مرتبط' : 'Aucun compte parent lié'}</div>
+                          : comptesParents.map(pa => (
+                            <div key={pa.id}>
+                              {ligne(ar?'المعرف':'Identifiant', pa.identifiant, true)}
+                              {ligne(ar?'آخر دخول':'Dernière connexion', pa.derniere_connexion ? fmtD(pa.derniere_connexion) : (ar?'لم يدخل بعد':'Jamais connecté'))}
+                            </div>
+                          ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
             {onglet==='progression' && (
               <div>
                 {/* F2 (oct 2026) : deblocage exceptionnel Hizb/Tomon (surveillant, eleve hizb) */}
@@ -1713,8 +1793,8 @@ ${(passages||[]).length > 0 ? `
                     display:'flex', alignItems:'center', gap:10}}>
                     <span style={{fontSize:24}}>🔥</span>
                     <div>
-                      <div style={{fontWeight:700, color:'#0C447C'}}>{streak} jours de suite</div>
-                      <div style={{fontSize:12, color:'#378ADD'}}>Continuez comme ça !</div>
+                      <div style={{fontWeight:700, color:'#0C447C'}}>{lang==='ar' ? `${streak} أيام متتالية` : `${streak} jours de suite`}</div>
+                      <div style={{fontSize:12, color:'#378ADD'}}>{lang==='ar' ? 'واصل على هذا النحو!' : 'Continuez comme ça !'}</div>
                     </div>
                   </div>
                 )}

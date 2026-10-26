@@ -244,6 +244,9 @@ function App() {
   // Deep-link vers resultats_examens : {eleve, blocage:{examen}} pour pre-selection
   // (depuis ValidationRapide ou EnregistrerRecitation apres clic "Vers les examens")
   const [resultatsExamensData, setResultatsExamensData] = useState(null);
+  // FIX (oct 2026) : cible a ouvrir dans la liste des certificats (edition / creation).
+  // Avant : envoyee par Resultats examens mais jamais transmise -> liste generale sans edition.
+  const [listeCertifsData, setListeCertifsData] = useState(null);
   const [compareEleves, setCompareEleves] = useState([]);
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
   const [lang, setLangRaw] = useState(() => localStorage.getItem('suivi_lang') || 'fr');
@@ -508,6 +511,10 @@ function App() {
     // pour que ResultatsExamens pre-selectionne l'eleve ET l'examen bloquant.
     // data=null (navbar) => reset, les champs restent vides.
     if (p === 'resultats_examens') setResultatsExamensData(data);
+    if (p === 'liste_certificats') {
+      const cible = extraData || data;
+      setListeCertifsData(cible && (cible.focusCertId || cible.focusEleveId) ? { ...cible, _t: Date.now() } : null);
+    }
     if (extraData?.tab) setGestionTab(extraData.tab);
     window.scrollTo(0, 0);
   };
@@ -1061,7 +1068,7 @@ function App() {
           {page === 'examens'           && user.role === 'surveillant' && <GestionExamens {...pageProps} />}
           {page === 'import_masse'      && user.role === 'surveillant' && <ImportMasse {...pageProps} />}
           {page === 'resultats_examens' && <ResultatsExamens {...pageProps} data={resultatsExamensData} />}
-          {page === 'liste_certificats' && <ErrorBoundary><Suspense fallback={<div className="loading">...</div>}><ListeCertificats {...pageProps} /></Suspense></ErrorBoundary>}
+          {page === 'liste_certificats' && <ErrorBoundary><Suspense fallback={<div className="loading">...</div>}><ListeCertificats {...pageProps} data={listeCertifsData} /></Suspense></ErrorBoundary>}
           {page === 'liste_notes'       && <ErrorBoundary><Suspense fallback={<div className="loading">...</div>}><ListeNotes       {...pageProps} /></Suspense></ErrorBoundary>}
           </Suspense>
           </>

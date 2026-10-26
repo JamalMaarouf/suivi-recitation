@@ -10,6 +10,7 @@ import { AlertOctagon, AlertTriangle, Hourglass, TrendingDown, Rocket, Award, Be
 // Charte mobile (oct 2026) : icones des alertes intelligentes
 const ICONE_ALERTE = { stagnation: TrendingDown, rapide: Rocket, hizb_bloque: Hourglass };
 import { usePullToRefresh, PullToRefreshIndicator } from '../lib/usePullToRefresh';
+import { correspondRecherche } from '../lib/recherche';
 
 const C = { green:'#1D9E75',greenBg:'#E1F5EE',blue:'#378ADD',blueBg:'#E6F1FB',amber:'#EF9F27',amberBg:'#FAEEDA',red:'#E24B4A',redBg:'#FCEBEB',border:'#e0e0d8',muted:'#888',dark:'#1a1a1a' };
 // Couleurs niveaux — fallback sur des valeurs par défaut si niveaux pas encore chargés
@@ -363,7 +364,7 @@ export default function Dashboard({ user, navigate, goBack, lang, isMobile=false
 
   const elevesFiltres = useMemo(() => {
     let list = [...eleves];
-    if(searchEleve) list=list.filter(e=>`${e.prenom} ${e.nom} ${e.eleve_id_ecole||''}`.toLowerCase().includes(searchEleve.toLowerCase()));
+    if(searchEleve) list=list.filter(e=>correspondRecherche(searchEleve, `${e.prenom} ${e.nom} ${e.eleve_id_ecole||''}`));
     if(filtreInst!=='tous') list=list.filter(e=>e.instituteur_referent_id===filtreInst);
     if(filtreStatut==='actifs') list=list.filter(e=>!e.inactif);
     if(filtreStatut==='inactifs') list=list.filter(e=>e.inactif);
@@ -553,7 +554,7 @@ export default function Dashboard({ user, navigate, goBack, lang, isMobile=false
                 <Award size={14} style={{verticalAlign:'-2px',marginInlineEnd:6}} />{lang==='ar'?'شهادات في انتظار التسليم':'Certificats à délivrer'} ({certifNotifs.length})
               </div>
               {certifNotifs.map((n,i)=>(
-                <div key={i} onClick={()=>navigate('fiche',n.eleve)}
+                <div key={i} onClick={()=>navigate('liste_certificats', null, { focusEleveId: n.eleve.id })}
                   style={{display:'flex',alignItems:'center',gap:10,padding:'11px 12px',marginBottom:6,
                     background:'#FAEEDA',borderLeft:'4px solid #EF9F27',borderRadius:'0 12px 12px 0',cursor:'pointer'}}>
                   <div style={{flex:1,minWidth:0}}>
@@ -827,7 +828,7 @@ export default function Dashboard({ user, navigate, goBack, lang, isMobile=false
               </div>
               <div style={{display:'flex',flexDirection:'column',gap:6}}>
                 {certifNotifs.map((n,i)=>(
-                  <div key={i} onClick={()=>navigate('fiche',n.eleve)} onMouseEnter={()=>prefetchEleve(n.eleve.id)} onTouchStart={()=>prefetchEleve(n.eleve.id)}
+                  <div key={i} onClick={()=>navigate('liste_certificats', null, { focusEleveId: n.eleve.id })} onMouseEnter={()=>prefetchEleve(n.eleve.id)} onTouchStart={()=>prefetchEleve(n.eleve.id)}
                     style={{display:'flex',alignItems:'center',gap:12,padding:'12px 14px',
                       background:'#FAEEDA',borderLeft:'4px solid #EF9F27',
                       borderRadius:'0 12px 12px 0',cursor:'pointer'}}>
@@ -926,7 +927,7 @@ export default function Dashboard({ user, navigate, goBack, lang, isMobile=false
             <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(260px,1fr))',gap:12}}>
               {elevesFiltres.map(eleve=>{
                 const rang=[...eleves].sort((a,b)=>b.etat.points.total-a.etat.points.total).findIndex(e=>e.id===eleve.id)+1;
-                const sl=scoreLabel(eleve.etat.points.total);
+                const sl=scoreLabel(eleve.etat.points.total, lang);
                 const isSelected=selectedEleves.find(s=>s.id===eleve.id);
                 return(
                   <div key={eleve.id} style={{background:'#fff',border:`${isSelected?'2px':'0.5px'} solid ${isSelected?C.blue:eleve.etat.enAttenteHizbComplet?C.amber:eleve.inactif?C.red:C.border}`,borderRadius:14,padding:'1.25rem',cursor:'pointer',transition:'transform 0.15s',position:'relative'}}>
@@ -1032,7 +1033,7 @@ export default function Dashboard({ user, navigate, goBack, lang, isMobile=false
         <>
           <div style={{display:'grid',gridTemplateColumns:'repeat(4,minmax(0,1fr))',gap:8,marginBottom:'1.5rem'}}>{[{val:totalPoints.toLocaleString(),lbl:t(lang,'score_total'),color:C.green},{val:stats.hizbsCompletsMois||0,lbl:t(lang,'hizb_ce_mois'),color:C.blue},{val:stats.tomonSemaine||0,lbl:t(lang,'tomon_semaine'),color:C.amber},{val:stats.recitationsMois||0,lbl:t(lang,'recitations_ce_mois'),color:C.muted}].map((k,i)=>(<div key={i} style={{background:'#fff',border:`0.5px solid ${C.border}`,borderRadius:12,padding:'14px',borderTop:`3px solid ${k.color}`}}><div style={{fontSize:22,fontWeight:700,color:k.color}}>{k.val}</div><div style={{fontSize:11,color:C.muted,marginTop:2}}>{k.lbl}</div></div>))}</div>
           <div className="section-label">{t(lang,'classement_complet')}</div>
-          <div className="table-wrap" style={{marginBottom:'1.5rem'}}><table><thead><tr><th style={{width:'5%'}}>#</th><th style={{width:'22%'}}>{t(lang,'eleve')}</th><th style={{width:'14%'}}>{t(lang,'niveau')}</th><th style={{width:'15%'}}>{t(lang,'referent')}</th><th style={{width:'10%'}}>{t(lang,'hizb_en_cours')}</th><th style={{width:'8%'}}>{t(lang,'tomon_abrev')}</th><th style={{width:'10%'}}>{t(lang,'hizb_complets')}</th><th style={{width:'16%'}}>{t(lang,'score_total')}</th></tr></thead><tbody>{[...eleves].sort((a,b)=>b.etat.points.total-a.etat.points.total).map((e,idx)=>{const sl=scoreLabel(e.etat.points.total);return(<tr key={e.id} className="clickable" onClick={()=>navigate('fiche',e)} onMouseEnter={()=>prefetchEleve(e.id)} onTouchStart={()=>prefetchEleve(e.id)}><td><Medaille idx={idx}/></td><td><div style={{display:'flex',alignItems:'center',gap:6}}><Avatar prenom={e.prenom} nom={e.nom} size={24}/><span style={{fontSize:13}}>{e.prenom} {e.nom}</span></div></td><td><span className={`badge ${['Avancé','Advanced','متقدم'].some(v=>v.toLowerCase()===e.niveau?.toLowerCase())?'badge-green':['Intermédiaire','Intermediate','متوسط'].some(v=>v.toLowerCase()===e.niveau?.toLowerCase())?'badge-blue':'badge-amber'}`} style={{fontSize:10}}>{niveauTraduit(e.niveau,lang,t)}</span></td><td style={{fontSize:11,color:C.muted}}>{e.instituteurNom}</td><td style={{fontSize:12}}>Hizb {e.etat.hizbEnCours}</td><td><span className="badge badge-blue" style={{fontSize:10}}>{e.etat.tomonCumul}</span></td><td><span className="badge badge-green" style={{fontSize:10}}>{e.etat.hizbsComplets.size}</span></td><td><span style={{fontSize:13,fontWeight:700,color:sl.color}}>{e.etat.points.total.toLocaleString()}</span></td></tr>);})}</tbody></table></div>
+          <div className="table-wrap" style={{marginBottom:'1.5rem'}}><table><thead><tr><th style={{width:'5%'}}>#</th><th style={{width:'22%'}}>{t(lang,'eleve')}</th><th style={{width:'14%'}}>{t(lang,'niveau')}</th><th style={{width:'15%'}}>{t(lang,'referent')}</th><th style={{width:'10%'}}>{t(lang,'hizb_en_cours')}</th><th style={{width:'8%'}}>{t(lang,'tomon_abrev')}</th><th style={{width:'10%'}}>{t(lang,'hizb_complets')}</th><th style={{width:'16%'}}>{t(lang,'score_total')}</th></tr></thead><tbody>{[...eleves].sort((a,b)=>b.etat.points.total-a.etat.points.total).map((e,idx)=>{const sl=scoreLabel(e.etat.points.total, lang);return(<tr key={e.id} className="clickable" onClick={()=>navigate('fiche',e)} onMouseEnter={()=>prefetchEleve(e.id)} onTouchStart={()=>prefetchEleve(e.id)}><td><Medaille idx={idx}/></td><td><div style={{display:'flex',alignItems:'center',gap:6}}><Avatar prenom={e.prenom} nom={e.nom} size={24}/><span style={{fontSize:13}}>{e.prenom} {e.nom}</span></div></td><td><span className={`badge ${['Avancé','Advanced','متقدم'].some(v=>v.toLowerCase()===e.niveau?.toLowerCase())?'badge-green':['Intermédiaire','Intermediate','متوسط'].some(v=>v.toLowerCase()===e.niveau?.toLowerCase())?'badge-blue':'badge-amber'}`} style={{fontSize:10}}>{niveauTraduit(e.niveau,lang,t)}</span></td><td style={{fontSize:11,color:C.muted}}>{e.instituteurNom}</td><td style={{fontSize:12}}>Hizb {e.etat.hizbEnCours}</td><td><span className="badge badge-blue" style={{fontSize:10}}>{e.etat.tomonCumul}</span></td><td><span className="badge badge-green" style={{fontSize:10}}>{e.etat.hizbsComplets.size}</span></td><td><span style={{fontSize:13,fontWeight:700,color:sl.color}}>{e.etat.points.total.toLocaleString()}</span></td></tr>);})}</tbody></table></div>
         </>
       )}
     </div>

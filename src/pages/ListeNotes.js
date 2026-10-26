@@ -12,6 +12,8 @@ import PageHeader from '../components/PageHeader';
 import { usePullToRefresh, PullToRefreshIndicator } from '../lib/usePullToRefresh';
 import { MobileHeader, HeaderMenu, actionsExport, ListRow, Avatar, LevelBadge, EmptyState, C } from '../components/ui';
 import { Star } from 'lucide-react';
+import { correspondRecherche } from '../lib/recherche';
+import useEtatMemorise from '../lib/useEtatMemorise';
 
 export default function ListeNotes({ user, navigate, goBack, lang='fr', isMobile }) {
   const { toast } = useToast();
@@ -27,12 +29,12 @@ export default function ListeNotes({ user, navigate, goBack, lang='fr', isMobile
   const [genPdf, setGenPdf] = useState(false);
 
   // Filtres
-  const [searchNum, setSearchNum] = useState('');
-  const [filtreNiveau, setFiltreNiveau] = useState('');
-  const [filtreInst, setFiltreInst] = useState('');
-  const [dateDebut, setDateDebut] = useState('');
-  const [dateFin, setDateFin] = useState('');
-  const [periode, setPeriode] = useState('total');
+  const [searchNum, setSearchNum] = useEtatMemorise(`notes:${user?.ecole_id}:searchNum`, '');
+  const [filtreNiveau, setFiltreNiveau] = useEtatMemorise(`notes:${user?.ecole_id}:filtreNiveau`, '');
+  const [filtreInst, setFiltreInst] = useEtatMemorise(`notes:${user?.ecole_id}:filtreInst`, '');
+  const [dateDebut, setDateDebut] = useEtatMemorise(`notes:${user?.ecole_id}:dateDebut`, '');
+  const [dateFin, setDateFin] = useEtatMemorise(`notes:${user?.ecole_id}:dateFin`, '');
+  const [periode, setPeriode] = useEtatMemorise(`notes:${user?.ecole_id}:periode`, 'total');
   const [periodesBDD, setPeriodesBDD] = useState([]); // Etape 14 v2 - trimestres + semestres
   const [anneeActive, setAnneeActive] = useState(null); // Etape 14 v2
 
@@ -137,7 +139,7 @@ export default function ListeNotes({ user, navigate, goBack, lang='fr', isMobile
   }, [eleves, allValidations, pointsEvts, allRecitations, allCertificats, bareme, periode, dateDebut, dateFin, periodesBDD, anneeActive]);
 
   const filtered = elevesAvecPts.filter(el => {
-    if (searchNum && !el.eleve_id_ecole?.includes(searchNum) && !(el.prenom+' '+el.nom).toLowerCase().includes(searchNum.toLowerCase())) return false;
+    if (searchNum && !correspondRecherche(searchNum, el.prenom, el.nom, el.eleve_id_ecole)) return false;
     if (filtreNiveau && el.code_niveau !== filtreNiveau) return false;
     if (filtreInst && el.instituteur_referent_id !== filtreInst) return false;
     return true;
@@ -362,7 +364,7 @@ export default function ListeNotes({ user, navigate, goBack, lang='fr', isMobile
       })()}
 
       {/* Filtres */}
-      <div className="card" style={{ marginBottom:'1.25rem', margin: isMobile?'0 12px 12px':'', borderRadius: isMobile?12:undefined }}>
+      <div className="card" style={{ marginBottom:'1.25rem', margin: isMobile?'0 0 12px':'', borderRadius: isMobile?12:undefined }}>
         <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(180px,1fr))', gap:8 }}>
           <input className="field-input" placeholder={(isMobile?'':'🔍 ')+(lang==='ar'?'رقم أو اسم الطالب':'N° ou nom élève')}
             value={searchNum} onChange={e=>setSearchNum(e.target.value)} />

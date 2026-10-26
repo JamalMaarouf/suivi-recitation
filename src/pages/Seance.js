@@ -305,8 +305,8 @@ export default function Seance({ user, navigate, goBack, lang, isMobile=false })
             <div style={{padding:'12px 12px 0'}}>
               <KpiGrid cols={3}>
                 <KpiTile value={elevesVus.length} label={t(lang,'eleves_vus')} tone="brand" />
-                <KpiTile value={ptsTotal.toLocaleString()} label="Points" />
-                <KpiTile value={tomonTotal+hizbTotal+souratesTotal} label="Validations" />
+                <KpiTile value={ptsTotal.toLocaleString()} label={lang==='ar'?'النقاط':'Points'} />
+                <KpiTile value={tomonTotal+hizbTotal+souratesTotal} label={lang==='ar'?'الاستظهارات':'Validations'} />
               </KpiGrid>
             </div>
             <div style={{padding:'0 12px'}}>
