@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from '../lib/supabase';
-import { getInitiales, scoreLabel, loadBareme, verifierEtCreerCertificats, verifierBlocageEnsemble, calculerPointsSourate, verifierBlocageExamen } from '../lib/helpers';
+import { getInitiales, scoreLabel, loadBareme, verifierEtCreerCertificats, verifierBlocageEnsemble, calculerPointsSourate, verifierBlocageExamen, validerEnsemble } from '../lib/helpers';
 import { t } from '../lib/i18n';
 import { getSouratesForNiveau, isSourateNiveau } from '../lib/sourates';
 import { numerosSouratesAcquises, ordonnerSouratesProgramme, depuisDebutNiveau } from '../lib/helpers';
@@ -104,6 +104,20 @@ export default function RecitationSourate({ user, eleve, navigate, goBack, lang=
   useEffect(() => {
     loadData();
   }, [eleve.id]);
+
+  // FIX (oct 2026) : ensembles termines a valider, affiches en bandeau (avant : seulement un
+  // message au moment d'enregistrer, sans bouton -> il fallait passer par la validation express).
+  const [blocagesEns, setBlocagesEns] = useState([]);
+  const [validationEnsEnCours, setValidationEnsEnCours] = useState(false);
+  const rafraichirBlocagesEns = async () => {
+    if (!niveauData || niveauData.type !== 'sourate') { setBlocagesEns([]); return; }
+    try {
+      const b = await verifierBlocageEnsemble(supabase, { eleve_id: eleve.id, ecole_id: user.ecole_id, niveau_id: niveauData.id, niveau_type: niveauData.type });
+      setBlocagesEns(b || []);
+    } catch (e) { /* bandeau simplement absent */ }
+  };
+  useEffect(() => { if (!loading) rafraichirBlocagesEns(); // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading, niveauData, recitations]);
 
   // Auto-select current sourate when arriving from outside (e.g. from FicheSourate)
   useEffect(() => {
@@ -323,7 +337,7 @@ export default function RecitationSourate({ user, eleve, navigate, goBack, lang=
       date_validation: new Date().toISOString(),
       points: pts
     });
-    setSaving(false);
+    if (error) setSaving(false); // en cas de succes : libere apres le rechargement (voir plus bas)
     if (error) {
       // FIX (oct 2026) : avant, une erreur (reseau instable) perdait la recitation sans message
       toast.error((lang==='ar'?'لم يتم الحفظ، أعد المحاولة: ':'Non enregistré, réessayez : ') + (error.message || ''));
@@ -336,7 +350,9 @@ export default function RecitationSourate({ user, eleve, navigate, goBack, lang=
         pts, color: typeRecitation==='complete'?'#EF9F27':'#1D9E75'
       });
       setTimeout(() => setFlash(null), 3000);
-      await loadData();
+      try { await loadData(); } finally { setSaving(false); }
+      // FIX (oct 2026) : le bouton n'est libere qu'une fois les recitations relues, pour que la
+      // verification d'examen de l'appui suivant tienne compte de cette recitation.
       // Vérifier si un jalon/certificat est débloqué
       if (typeRecitation === 'complete') {
         const { data: recsNouv } = await supabase.from('recitations_sourates').select('*').eq('eleve_id', eleve.id).eq('ecole_id', user.ecole_id);
@@ -378,6 +394,50 @@ export default function RecitationSourate({ user, eleve, navigate, goBack, lang=
     await loadData();
   };
 
+  const validerEnsembleBandeau = async (b) => {
+    if (validationEnsEnCours) return;
+    if (!window.confirm(lang==='ar' ? 'تأكيد اعتماد المجموعة ؟' : "Confirmer la validation de l'ensemble ?")) return;
+    setValidationEnsEnCours(true);
+    try {
+      const res = await validerEnsemble(supabase, { eleve_id: eleve.id, ecole_id: user.ecole_id, ensemble_id: b.ensemble.id, valide_par: user.id });
+      if (res?.error) { toast.error(lang==='ar' ? 'خطأ في الاعتماد' : 'Erreur lors de la validation'); return; }
+      toast.success(lang==='ar' ? `✅ تم اعتماد "${b.ensemble.nom}"` : `✅ "${b.ensemble.nom}" validé`);
+      await rafraichirBlocagesEns();
+    } finally { setValidationEnsEnCours(false); }
+  };
+  const bandeauEnsembles = blocagesEns.length > 0 ? (
+    <div style={{display:'flex',flexDirection:'column',gap:8,margin: isMobile ? '12px 12px 0' : '0 0 1rem'}}>
+      {blocagesEns.map(b => (
+        <div key={b.ensemble.id} style={{display:'flex',alignItems:'center',gap:10,padding:'12px 14px',borderRadius:12,
+          background: b.cas === 'A' ? '#FFF4E5' : '#EEEDFE', border:`1.5px solid ${b.cas === 'A' ? '#F59E0B' : '#534AB7'}`}}>
+          <div style={{flex:1,minWidth:0}}>
+            <div style={{fontSize:13,fontWeight:700,color: b.cas === 'A' ? '#9A3412' : '#3a3387'}}>
+              {b.cas === 'A'
+                ? (lang==='ar' ? `امتحان مطلوب : ${b.examen?.nom || ''}` : `Examen requis : ${b.examen?.nom || ''}`)
+                : (lang==='ar' ? `المجموعة "${b.ensemble.nom}" مكتملة` : `Ensemble « ${b.ensemble.nom} » terminé`)}
+            </div>
+            <div style={{fontSize:12,color:'#666',marginTop:2}}>
+              {b.cas === 'A'
+                ? (lang==='ar' ? 'يجب اجتياز الامتحان قبل الانتقال إلى السورة التالية' : 'L\'examen doit être réussi avant de passer à la sourate suivante')
+                : (lang==='ar' ? 'استمع للاستظهار الكامل ثم اعتمد المجموعة للمتابعة' : 'Écoutez la récitation complète puis validez l\'ensemble pour continuer')}
+            </div>
+          </div>
+          {b.cas === 'A' ? (
+            <button onClick={()=>navigate('resultats_examens', { eleve, blocage: { examen: b.examen } })}
+              style={{background:'#E24B4A',color:'#fff',border:'none',borderRadius:10,padding:'9px 14px',fontSize:12,fontWeight:700,cursor:'pointer',whiteSpace:'nowrap',fontFamily:'inherit'}}>
+              {lang==='ar' ? 'إلى الامتحانات ←' : '→ Vers les examens'}
+            </button>
+          ) : (user.role === 'surveillant' || user.role === 'instituteur') && (
+            <button onClick={()=>validerEnsembleBandeau(b)} disabled={validationEnsEnCours}
+              style={{background:'#534AB7',color:'#fff',border:'none',borderRadius:10,padding:'9px 14px',fontSize:12,fontWeight:700,cursor:validationEnsEnCours?'default':'pointer',opacity:validationEnsEnCours?0.6:1,whiteSpace:'nowrap',fontFamily:'inherit'}}>
+              {validationEnsEnCours ? '…' : (lang==='ar' ? '✓ اعتماد' : '✓ Valider')}
+            </button>
+          )}
+        </div>
+      ))}
+    </div>
+  ) : null;
+
   if (isMobile) {
     const NIVEAU_COLORS_RS = {'5B':'#534AB7','5A':'#378ADD','2M':'#1D9E75'};
     const nc = NIVEAU_COLORS_RS[codeNiveau] || '#1D9E75';
@@ -415,6 +475,7 @@ export default function RecitationSourate({ user, eleve, navigate, goBack, lang=
             ))}
           </div>
         </MobileHeader>
+        {bandeauEnsembles}
 
         {/* Exception banner */}
         {exceptions.length > 0 && (
@@ -601,6 +662,8 @@ export default function RecitationSourate({ user, eleve, navigate, goBack, lang=
           </div>
         </div>
       )}
+
+      {bandeauEnsembles}
 
       {/* Header élève */}
       <div style={{background:'#fff',border:'0.5px solid #e0e0d8',borderRadius:16,padding:'1.25rem',marginBottom:'1rem'}}>

@@ -2,7 +2,7 @@ import { verifierBlocageExamen, depuisDebutNiveau } from '../helpers';
 function fake(db) {
   return { from(t) { let rows = [...(db[t]||[])]; let single=false; const b = {
     select(){return b;}, eq(c,v){rows=rows.filter(r=>r[c]===v);return b;}, in(c,vs){rows=rows.filter(r=>vs.includes(r[c]));return b;},
-    order(){return b;}, limit(n){rows=rows.slice(0,n);return b;}, maybeSingle(){single=true;return b;},
+    order(c,o){ if (c) { const asc = !o || o.ascending !== false; rows.sort((x,y)=>(x[c]>y[c]?1:x[c]<y[c]?-1:0)*(asc?1:-1)); } return b; }, limit(n){rows=rows.slice(0,n);return b;}, maybeSingle(){single=true;return b;},
     then(res,rej){return Promise.resolve({data: single?(rows[0]||null):rows, error:null}).then(res,rej);} }; return b; } };
 }
 const prog = [];
@@ -78,4 +78,52 @@ test('cache : 0 requete au 2e appel sans examen atteint, resultats toujours relu
   expect(n).toBe(n1 + 1); // seulement la lecture des resultats
   base.resultats_examens.push({ examen_id:'x7', eleve_id:'s', statut:'reussi' });
   expect(await verifierBlocageExamen(client, { eleve, ecole_id:'e', validations:[v(59),v(58)], recitations:[] })).toBeNull();
+});
+
+// ── Sourates (26/10) ──────────────────────────────────────────────────────
+import { verifierBlocageEnsemble, validerEnsemble } from '../helpers';
+const sourates114 = Array.from({ length: 114 }, (_, i) => ({ id: 1000 + i + 1, numero: i + 1 }));
+const baseS = () => ({
+  niveaux: [{ id: 'n5', ecole_id: 'e', code: '5B', type: 'sourate', sens_recitation: 'desc' }],
+  sourates: sourates114,
+  ensembles_sourates: [
+    { id: 'en1', ecole_id: 'e', niveau_id: 'n5', nom: 'Juz 1', ordre: 1, sourates_ids: [1114, 1113, 1112] },
+    { id: 'en2', ecole_id: 'e', niveau_id: 'n5', nom: 'Juz 2', ordre: 2, sourates_ids: [1111, 1110] },
+  ],
+  examens: [{ id: 'xs1', ecole_id: 'e', niveau_id: 'n5', nom: 'Examen Juz 2', bloquant: true, actif: true, contenu_ids: ['en2'] }],
+  eleves: [], recitations_sourates: [], validations: [], resultats_examens: [], programmes: [],
+});
+const recComplete = (sid) => ({ eleve_id: 's', sourate_id: sid, type_recitation: 'complete', is_muraja: false, date_validation: '2026-10-26T10:00:00' });
+
+test('ensemble entierement acquis : considere valide (pas de blocage)', async () => {
+  const db = baseS(); db.eleves.push({ id: 's', code_niveau: '5B', sourates_acquises: 3 }); // 114,113,112 = Juz 1
+  const r = await verifierBlocageEnsemble(fake(db), { eleve_id: 's', ecole_id: 'e', niveau_id: 'n5', niveau_type: 'sourate' });
+  expect(r).toEqual([]);
+});
+test('ensemble a cheval acquis + suivi : bloque une fois termine (cas B)', async () => {
+  const db = baseS(); db.eleves.push({ id: 's', code_niveau: '5B', sourates_acquises: 2 }); // 114,113 acquises
+  db.recitations_sourates.push(recComplete(1112));
+  const r = await verifierBlocageEnsemble(fake(db), { eleve_id: 's', ecole_id: 'e', niveau_id: 'n5', niveau_type: 'sourate' });
+  expect(r.length).toBe(1); expect(r[0].ensemble.id).toBe('en1'); expect(r[0].cas).toBe('B');
+});
+test('ensemble lie a un examen : cas A, et examen requis par verifierBlocageExamen', async () => {
+  const db = baseS(); const el = { id: 's', code_niveau: '5B', sourates_acquises: 3 }; db.eleves.push(el);
+  db.recitations_sourates.push(recComplete(1111), recComplete(1110));
+  const r = await verifierBlocageEnsemble(fake(db), { eleve_id: 's', ecole_id: 'e', niveau_id: 'n5', niveau_type: 'sourate' });
+  expect(r.length).toBe(1); expect(r[0].cas).toBe('A');
+  const ex = await verifierBlocageExamen(fake(db), { eleve: el, ecole_id: 'e', validations: [], recitations: db.recitations_sourates });
+  expect(ex && ex.examen.id).toBe('xs1');
+});
+test('examen desactive : ne bloque plus', async () => {
+  const db = baseS(); db.examens[0].actif = false; const el = { id: 's', code_niveau: '5B', sourates_acquises: 3 }; db.eleves.push(el);
+  db.recitations_sourates.push(recComplete(1111), recComplete(1110));
+  expect(await verifierBlocageExamen(fake(db), { eleve: el, ecole_id: 'e', validations: [], recitations: db.recitations_sourates })).toBeNull();
+});
+test('validerEnsemble : un 2e appel ne cree pas de doublon', async () => {
+  const db = baseS(); let inserts = 0;
+  const c = fake(db); const from = c.from;
+  c.from = (t) => { const b = from(t); const ins = b.insert; b.insert = (p) => { inserts++; db.validations.push({ id: 'v' + inserts, ...p }); return b; }; return b; };
+  await validerEnsemble(c, { eleve_id: 's', ecole_id: 'e', ensemble_id: 'en1', valide_par: 'u' });
+  const r2 = await validerEnsemble(c, { eleve_id: 's', ecole_id: 'e', ensemble_id: 'en1', valide_par: 'u' });
+  expect(inserts).toBe(1); expect(r2.deja).toBe(true);
 });

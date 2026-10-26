@@ -29,6 +29,7 @@ export default function EnregistrerRecitation({  user, eleve: eleveInitial, navi
   const ptsHizbB  = ((bareme && bareme.unites) ? bareme.unites : (bareme || {})).hizb_complet || 0;
   const [blocage, setBlocage] = useState(null); // examen requis avant de continuer
   const [bloqueAvantSaisie, setBloqueAvantSaisie] = useState(false); // rien n'a ete enregistre (examen requis)
+  const ensembleVerrouRef = React.useRef(false);
   const [blocagesEnsemble, setBlocagesEnsemble] = useState([]); // ensembles termines mais non valides
   const [eleves, setEleves] = useState([]);
   const [search, setSearch] = useState('');
@@ -571,13 +572,18 @@ export default function EnregistrerRecitation({  user, eleve: eleveInitial, navi
                     : `L'élève a terminé toutes les sourates de l'ensemble "${b.ensemble.nom}". Écoutez la récitation complète puis validez.`}
                 </div>
                 <button onClick={async ()=>{
+                    if (ensembleVerrouRef.current) return; // FIX (oct 2026) : anti double appui
                     if (!window.confirm(lang==='ar' ? 'تأكيد اعتماد المجموعة ؟' : "Confirmer la validation de l'ensemble ?")) return;
-                    const res = await validerEnsemble(supabase, {
-                      eleve_id: selectedEleve.id,
-                      ecole_id: user.ecole_id,
-                      ensemble_id: b.ensemble.id,
-                      valide_par: user.id,
-                    });
+                    ensembleVerrouRef.current = true;
+                    let res;
+                    try {
+                      res = await validerEnsemble(supabase, {
+                        eleve_id: selectedEleve.id,
+                        ecole_id: user.ecole_id,
+                        ensemble_id: b.ensemble.id,
+                        valide_par: user.id,
+                      });
+                    } finally { ensembleVerrouRef.current = false; }
                     if (res?.error) {
                       toast.error(lang==='ar' ? 'خطأ في الاعتماد' : 'Erreur lors de la validation');
                       return;
