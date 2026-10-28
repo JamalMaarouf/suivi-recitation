@@ -451,16 +451,24 @@ export default function AcquisSelector({
           choisit explicitement s'il veut indiquer une progression
           partielle dans le Hizb de départ. */}
       {hizb > 0 && <div style={{ marginTop: 12 }}>
+        {/* oct 2026 (retour Jamal) : toucher un Tomon = ce Tomon est ACQUIS (inclus), comme pour les
+            Hizb. Stockage inchange : tomon_depart = Tomon par lequel l'eleve commence = dernier acquis + 1.
+            Toucher 8 = tout le Hizb est acquis -> il passe dans les Hizb acquis. */}
         <div style={{ fontSize: 12, color: '#888', marginBottom: 6, fontWeight: 500 }}>
-          {lang === 'ar' ? 'الثُّمن (اختياري - 1-8)' : lang === 'en' ? 'Tomon (optional - 1-8)' : 'Tomon (optionnel - 1-8)'}
+          {lang === 'ar' ? `آخر ثُمن محفوظ في الحزب ${hizb} (اختياري)` : lang === 'en' ? `Last Tomon memorized in Hizb ${hizb} (optional)` : `Dernier Tomon mémorisé du Hizb ${hizb} (optionnel)`}
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(8,1fr)', gap: 4 }}>
           {[1, 2, 3, 4, 5, 6, 7, 8].map(n => {
-            const selected = n === tomon;
-            const beforeSelected = tomon > 0 && n < tomon;
+            const dernierTomonAcquis = tomon > 1 ? tomon - 1 : 0;
+            const selected = n === dernierTomonAcquis;
+            const beforeSelected = n < dernierTomonAcquis;
             return (
               <div key={n}
-                onClick={() => onTomonChange(selected ? 0 : n)}
+                onClick={() => {
+                  if (selected) { onTomonChange(0); return; }   // re-toucher = aucun Tomon acquis
+                  if (n === 8) { handleHizbClick(hizb); return; } // Hizb entier acquis
+                  onTomonChange(n + 1);
+                }}
                 style={{
                   height: 36, borderRadius: 6, display: 'flex',
                   alignItems: 'center', justifyContent: 'center',
@@ -476,10 +484,10 @@ export default function AcquisSelector({
             );
           })}
         </div>
-        {tomon > 0 && (
+        {tomon > 1 && (
           <div style={{ textAlign: 'center', marginTop: 6, fontSize: 12, color: '#888' }}>
-            {/* FIX (oct 2026) : avant « (hizb-1)*8 » faux en sens descendant et avec des blocs, et texte en francais */}
-            {lang === 'ar' ? `الانطلاق من الثُّمن ${tomon} في الحزب ${hizb}` : `Départ au Tomon ${tomon} du Hizb ${hizb}`} · <span style={{ color: '#1D9E75', fontWeight: 600 }}>{tomon - 1} {lang === 'ar' ? 'ثُمن مكتسب في هذا الحزب' : 'Tomon acquis dans ce Hizb'}</span>
+            <span style={{ color: '#1D9E75', fontWeight: 600 }}>{tomon - 1} {lang === 'ar' ? 'ثُمن مكتسب في هذا الحزب' : 'Tomon acquis dans ce Hizb'}</span>
+            {' · '}{lang === 'ar' ? `الانطلاق من الثُّمن ${tomon} في الحزب ${hizb}` : `Départ au Tomon ${tomon} du Hizb ${hizb}`}
           </div>
         )}
       </div>}
