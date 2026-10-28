@@ -3,7 +3,7 @@ import { HeaderIconButton, HEADER_BG } from '../components/ui';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { useToast } from '../lib/toast';
 import { supabase } from '../lib/supabase';
-import { calcEtatEleve, calcEtatEleveAvecBlocs, isSourateNiveauDyn, calcPositionAtteinte, calcUnite, calcPoints, formatDate, formatDateCourt, getInitiales, scoreLabel, calcBadges, calcVitesse, niveauTraduit, calcPointsPeriode, loadBareme, BAREME_DEFAUT, getSensForEleve, calcBlocProgression, calcHizbsAcquisAvantArrivee, ptsValidation} from '../lib/helpers';
+import { calcEtatEleve, calcEtatEleveAvecBlocs, isSourateNiveauDyn, calcPositionAtteinte, calcUnite, calcPoints, formatDate, formatDateCourt, getInitiales, scoreLabel, calcBadges, calcVitesse, niveauTraduit, calcPointsPeriode, loadBareme, BAREME_DEFAUT, getSensForEleve, calcBlocProgression, calcHizbsAcquisAvantArrivee, ptsValidation, numerosSouratesAcquises, depuisDebutNiveau} from '../lib/helpers';
 import { t } from '../lib/i18n';
 import { openPDF } from '../lib/pdf';
 import { getCachedSWR } from '../lib/cache';
@@ -224,9 +224,20 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang, isMobi
   useEffect(() => {
     if (onglet !== 'profil' || user?.role !== 'surveillant' || !eleve?.id) return undefined;
     let annule = false;
-    Promise.resolve(supabase.from('parent_eleve').select('parent:parent_id(id,identifiant,prenom,nom,derniere_connexion)').eq('eleve_id', eleve.id))
-      .then(({ data }) => { if (!annule) setComptesParents((data || []).map(l => l.parent).filter(Boolean)); })
-      .catch(() => { if (!annule) setComptesParents([]); });
+    // FIX (oct 2026) : deux lectures simples (la jointure parent_id -> utilisateurs n'est pas
+    // declaree en base : elle renvoyait une erreur -> « aucun compte parent » a tort)
+    (async () => {
+      try {
+        const { data: liens } = await supabase.from('parent_eleve').select('parent_id').eq('eleve_id', eleve.id);
+        const ids = [...new Set((liens || []).map(l => l.parent_id).filter(Boolean))];
+        let comptes = [];
+        if (ids.length) {
+          const { data: us } = await supabase.from('utilisateurs').select('id,identifiant,prenom,nom,derniere_connexion').in('id', ids);
+          comptes = us || [];
+        }
+        if (!annule) setComptesParents(comptes);
+      } catch (e) { if (!annule) setComptesParents([]); }
+    })();
     return () => { annule = true; };
   }, [onglet, eleve?.id, user?.role]);
   const [showAcquis, setShowAcquis] = useState(false);
@@ -687,8 +698,8 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang, isMobi
           ? (isRTL?'حزب كامل':(lang==='ar'?'حزب كامل':'Hizb complet'))
           : (isRTL?'ثُمن':'Tomon');
         const points = v.type_validation === 'hizb_complet'
-          ? (baremeEleve?.hizb_complet || 0)
-          : (v.nombre_tomon || 0) * (baremeEleve?.tomon || 0);
+          ? (baremeEleve?.unites?.hizb_complet ?? baremeEleve?.hizb_complet ?? 0)
+          : (v.nombre_tomon || 0) * (baremeEleve?.unites?.tomon ?? baremeEleve?.tomon ?? 0);
         return `<tr>
           <td style="padding:5px 8px;border-bottom:1px solid #f0f0ec;font-size:10px;color:#666">${fmtDate(v.date_validation)}</td>
           <td style="padding:5px 8px;border-bottom:1px solid #f0f0ec;font-size:10px">${esc(type)}</td>
@@ -1078,10 +1089,12 @@ ${(passages||[]).length > 0 ? `
         // Règle configurée par l'école — s'applique en priorité
         if (regleData.type_depart === 'personnalise') {
           resetData.hizb_depart = regleData.hizb_depart_fixe || 0;
+          resetData.hizbs_acquis = []; // FIX ACQUIS : les Hizb coches suivent le point de depart
           resetData.tomon_depart = regleData.tomon_depart_fixe || 1;
           resetData.sourates_acquises = regleData.sourates_acquises_fixe || 0;
         } else if (regleData.type_depart === 'debut') {
           resetData.hizb_depart = 0;
+          resetData.hizbs_acquis = []; // FIX ACQUIS : les Hizb coches suivent le point de depart
           resetData.tomon_depart = 1;
           resetData.sourates_acquises = 0;
         } else { // 'continuer' — comportement intelligent
@@ -1095,6 +1108,7 @@ ${(passages||[]).length > 0 ? `
             continuer = true;
           } else {
             resetData.hizb_depart = 0;
+            resetData.hizbs_acquis = []; // FIX ACQUIS : les Hizb coches suivent le point de depart
             resetData.tomon_depart = 1;
             resetData.sourates_acquises = 0;
           }
@@ -1108,6 +1122,7 @@ ${(passages||[]).length > 0 ? `
           continuer = true;
         } else {
           resetData.hizb_depart = 0;
+          resetData.hizbs_acquis = []; // FIX ACQUIS : les Hizb coches suivent le point de depart
           resetData.tomon_depart = 1;
           resetData.sourates_acquises = 0;
         }
@@ -1197,22 +1212,24 @@ ${(passages||[]).length > 0 ? `
       const sensRecit = niveauEleve?.sens_recitation || ecoleConfig?.sens_recitation_defaut || 'desc';
       souratesOrd.sort((a, b) => sensRecit === 'asc' ? a.numero - b.numero : b.numero - a.numero);
 
-      const souratesAcq = eleve.sourates_acquises || 0;
-      const isComplete = (id) =>
-        recitationsSouratesEleve.some(r => r.sourate_id === id && r.type_recitation === 'complete');
+      // FIX ACQUIS (oct 2026) : meme regle que la validation express. Les sourates acquises sont
+      // comptees depuis le debut du Coran (le selecteur coche 114, 113, ... dans le sens du niveau),
+      // pas depuis le debut du programme du niveau. Avant, pour un niveau qui ne commence pas a la
+      // sourate 114, la fiche ne montrait pas la meme sourate actuelle que l'ecran de validation.
+      // Recitations de muraja exclues, et seulement celles du niveau actuel.
+      const acquisNums = numerosSouratesAcquises(eleve.sourates_acquises, sensRecit);
+      const faitesIds = new Set(depuisDebutNiveau(recitationsSouratesEleve || [], eleve)
+        .filter(r => r.type_recitation === 'complete' && !r.is_muraja).map(r => r.sourate_id));
 
-      const idxCurrent = souratesOrd.findIndex((sr, i) => {
-        if (i < souratesAcq) return false;
-        return !isComplete(sr.id);
-      });
+      const idxCurrent = souratesOrd.findIndex((sr) => !acquisNums.has(sr.numero) && !faitesIds.has(sr.id));
       if (idxCurrent >= 0) {
         currentSourateApercu = souratesOrd[idxCurrent];
         // Compter les sequences validees pour cette sourate
         sequencesValideesSurCourante = recitationsSouratesEleve.filter(
-          r => r.sourate_id === currentSourateApercu.id && r.type_recitation === 'sequence'
+          r => r.sourate_id === currentSourateApercu.id && r.type_recitation === 'sequence' && !r.is_muraja
         ).length;
-        // Prochaine sourate = la suivante dans l'ordre
-        prochaineSourateApercu = souratesOrd[idxCurrent + 1] || null;
+        // Prochaine sourate = la suivante dans l'ordre, ni acquise ni deja recitee
+        prochaineSourateApercu = souratesOrd.slice(idxCurrent + 1).find(sr => !acquisNums.has(sr.numero) && !faitesIds.has(sr.id)) || null;
       }
     } catch(e) { /* silent fallback */ }
   }
@@ -2234,7 +2251,7 @@ ${(passages||[]).length > 0 ? `
                   {passages.length>0&&<span style={{padding:'2px 10px',borderRadius:20,fontSize:11,fontWeight:500,background:'#EEEDFE',color:'#534AB7'}}>
                     🎓 {passages.length} {lang==='ar'?'مستوى سابق':'passage(s)'}
                   </span>}
-                  {streak>0&&<span style={{padding:'2px 10px',borderRadius:20,fontSize:11,background:'#E6F1FB',color:'#0C447C'}}>🔥 {streak} {lang==='ar'?'أسابيع':'semaines'}</span>}
+                  {streak>0&&<span style={{padding:'2px 10px',borderRadius:20,fontSize:11,background:'#E6F1FB',color:'#0C447C'}}>🔥 {streak} {lang==='ar'?(streak>1?'أسابيع':'أسبوع'):(streak>1?'semaines':'semaine')}</span>}
                   {vitesse.moyenne>0&&<span style={{padding:'2px 10px',borderRadius:20,fontSize:11,background:'#f5f5f0',color:'#666'}}>{vitesse.tendance==='hausse'?'📈':vitesse.tendance==='baisse'?'📉':'➡️'} {vitesse.moyenne} {estSourateEleve?(lang==='ar'?'سورة/أسبوع':'sur./sem.'):(lang==='ar'?'ثمن/أسبوع':'t./sem.')}</span>}
                   {user.role === 'surveillant' && (
                     <BadgeStatutParent eleve={eleve} lang={lang} />
@@ -2289,8 +2306,8 @@ ${(passages||[]).length > 0 ? `
                 // Refonte KPIs (mai 2026) : Tomon + Hizb gardes (pertinents)
                 // Roboe et Nisf supprimes (subdivisions hardcodees obsoletes)
                 // Ajout Examens et Certificats (KPIs metier parlants)
-                [lang==='ar'?'الأثمان':'Tomon', etat?.points.ptsTomon, `${etat?.tomonTotal||etat?.tomonCumul}×${baremeEleve?.tomon||0}`, '#378ADD', '#E6F1FB'],
-                [lang==='ar'?'الأحزاب':'Hizb', etat?.points.ptsHizb, `${etat?.points.details?.nbHizb}×${baremeEleve?.hizb_complet||0}`, '#085041', '#E1F5EE'],
+                [lang==='ar'?'الأثمان':'Tomon', etat?.points.ptsTomon, `${etat?.tomonTotal||etat?.tomonCumul}×${baremeEleve?.unites?.tomon ?? baremeEleve?.tomon ?? 0}`, '#378ADD', '#E6F1FB'],
+                [lang==='ar'?'الأحزاب':'Hizb', etat?.points.ptsHizb, `${etat?.points.details?.nbHizb}×${baremeEleve?.unites?.hizb_complet ?? baremeEleve?.hizb_complet ?? 0}`, '#085041', '#E1F5EE'],
                 [lang==='ar'?'الامتحانات':'Examens', examens.length, ptsRecapGlob.ptsExamens>0 ? `+${ptsRecapGlob.ptsExamens} pts` : '—', '#EF9F27', '#FAEEDA'],
                 [lang==='ar'?'الشهادات':'Certificats', certificats.length, ptsRecapGlob.ptsCertificats>0 ? `+${ptsRecapGlob.ptsCertificats} pts` : '—', '#D85A30', '#FAECE7'],
               ].map(([l,v,s,color,bg])=>(
@@ -2347,13 +2364,13 @@ ${(passages||[]).length > 0 ? `
                         {
                           lbl: lang==='ar' ? 'الأثمان المكتسبة' : 'Tomon',
                           count: etat.tomonAcquis,
-                          unitPts: baremeEleve?.tomon || 0,
+                          unitPts: baremeEleve?.unites?.tomon ?? baremeEleve?.tomon ?? 0, // FIX : bareme reel (avant 0)
                           color: '#1D9E75',
                         },
                         {
                           lbl: lang==='ar' ? 'الأحزاب المكتملة' : 'Hizb complets',
                           count: etat.hizbAcquisComplets,
-                          unitPts: baremeEleve?.hizb_complet || 0,
+                          unitPts: baremeEleve?.unites?.hizb_complet ?? baremeEleve?.hizb_complet ?? 0,
                           color: '#EF9F27',
                         },
                       ].map(k=>(
@@ -2524,24 +2541,26 @@ ${(passages||[]).length > 0 ? `
                 const totalProg = souratesOrd.length;
                 // Sourates completes : recitations type 'complete' uniques
                 const nbCompletes = new Set(
-                  recitationsSouratesEleve.filter(r => r.type_recitation === 'complete').map(r => r.sourate_id)
+                  recitationsSouratesEleve.filter(r => r.type_recitation === 'complete' && !r.is_muraja).map(r => r.sourate_id)
                 ).size;
-                const nbSequences = recitationsSouratesEleve.filter(r => r.type_recitation === 'sequence').length;
+                const nbSequences = recitationsSouratesEleve.filter(r => r.type_recitation === 'sequence' && !r.is_muraja).length;
                 const nbAcq = eleve.sourates_acquises || 0;
-                // Sourate courante = celle apres les acquises + les completes
-                const idxCourante = nbAcq + nbCompletes;
-                const sourateCour = souratesOrd[idxCourante] || null;
+                // FIX ACQUIS (oct 2026) : meme sourate actuelle que le reste de la fiche et la validation
+                // express (avant : position dans les 114 sourates, sans tenir compte du programme)
+                const sourateCour = currentSourateApercu || null;
                 return [
                   [lang==='ar'?'السورة الحالية':'Sourate actuelle', sourateCour ? `${sourateCour.nom_ar}` : '—'],
                   [lang==='ar'?'المقاطع المنجزة':'Séquences', nbSequences],
                   [lang==='ar'?'السور المكتملة':'Sourates ✓', `${nbAcq + nbCompletes}/${totalProg}`],
-                  ['Total', `${(totalPtsSourates || 0).toLocaleString()} ${lang==='ar'?'ن':'pts'}`],
+                  [lang==='ar'?'المجموع':'Total', `${(totalPtsSourates || 0).toLocaleString()} ${lang==='ar'?'ن':'pts'}`],
                 ];
               })() : [
-                ['Hizb',`Hizb ${etat?.hizbEnCours}`],
-                ['Tomon/Hizb',`${etat?.tomonDansHizbActuel}/8`],
-                [t(lang,'hizb_complets'),etat?.hizbsComplets?.size],
-                ['Total',etat?.tomonTotal||etat?.tomonCumul]
+                // FIX (oct 2026) : libelles traduits ; Hizb complets = acquis + recites (comme le total
+                // de Tomon a cote et la carte « الأحزاب » au-dessus ; avant : recites seulement)
+                [lang==='ar'?'الحزب':'Hizb',`${lang==='ar'?'الحزب':'Hizb'} ${etat?.hizbEnCours}`],
+                [lang==='ar'?'الثُّمن/الحزب':'Tomon/Hizb',`${etat?.tomonDansHizbActuel}/8`],
+                [t(lang,'hizb_complets'),(etat?.hizbAcquisComplets||0) + (etat?.hizbsComplets?.size||0)],
+                [lang==='ar'?'مجموع الأثمان':'Total Tomon',etat?.tomonTotal||etat?.tomonCumul]
               ]).map(([l,v])=>(
                 <div key={l}><div style={{fontSize:10,color:'#999',textTransform:'uppercase',letterSpacing:'0.8px',marginBottom:2}}>{l}</div><div style={{fontSize:14,fontWeight:500}}>{v}</div></div>
               ))}

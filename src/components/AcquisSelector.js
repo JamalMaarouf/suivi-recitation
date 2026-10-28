@@ -48,6 +48,25 @@ import { SOURATES_CORAN } from '../lib/sourates';
 // Exemple : Bloc1 (60→46 desc) complet + Bloc2 (31→45 asc) avec 31,32,33,34 acquis
 //   -> hizb_depart = 35 (premier non acquis dans le sens asc du bloc 2)
 // ═══════════════════════════════════════════════════════════════════════════
+// Ordre du parcours (oct 2026) : tous les Hizb du programme dans l'ordre ou l'eleve les recite —
+// bloc 1 puis bloc 2..., chaque bloc dans son sens (un niveau a un seul bloc suit le sens du niveau).
+export function ordreParcoursHizb(programmeNiveau, sensNiveau = 'asc') {
+  if (!programmeNiveau || programmeNiveau.length === 0) return [];
+  const estMono = new Set(programmeNiveau.map(p => p.bloc_numero || 1)).size <= 1;
+  const blocs = new Map();
+  for (const l of programmeNiveau) {
+    const n = l.bloc_numero || 1;
+    if (!blocs.has(n)) blocs.set(n, { numero: n, sens: estMono ? (sensNiveau || 'asc') : (l.bloc_sens || sensNiveau || 'asc'), hizbs: [] });
+    const h = parseInt(l.reference_id);
+    if (!isNaN(h) && !blocs.get(n).hizbs.includes(h)) blocs.get(n).hizbs.push(h);
+  }
+  const ordre = [];
+  [...blocs.values()].sort((a, b) => a.numero - b.numero).forEach(b => {
+    [...b.hizbs].sort((x, y) => b.sens === 'asc' ? x - y : y - x).forEach(h => ordre.push(h));
+  });
+  return ordre;
+}
+
 export function calculerHizbDepartDepuisBlocs(programmeNiveau, hizbsAcquis, sensNiveau = 'asc') {
   if (!programmeNiveau || programmeNiveau.length === 0) return 0;
 
@@ -234,12 +253,16 @@ export default function AcquisSelector({
   const hizbsAcquisSet = new Set(hizbsAcquis || []);
 
   // Handler clic Hizb (selon le mode)
+  // Regle validee par Jamal (28/10) : les acquis suivent l'ordre du parcours (blocs dans l'ordre,
+  // chaque bloc dans son sens). Toucher un Hizb = il est acquis AVEC tous ceux qui le precedent ;
+  // toucher un Hizb deja acquis = lui et tous les suivants ne le sont plus. Plus de trous possibles.
+  const parcours = hasBlocs ? ordreParcoursHizb(programmeNiveau, sens) : [];
+  const rangParcours = new Map(parcours.map((h, i) => [h, i]));
   const handleHizbClick = (n) => {
     if (hasBlocs) {
-      // Mode blocs : toggle de n dans hizbsAcquis
-      const newAcquis = hizbsAcquisSet.has(n)
-        ? (hizbsAcquis || []).filter(x => x !== n)
-        : [...(hizbsAcquis || []), n];
+      if (!rangParcours.has(n)) return; // Hizb hors du programme du niveau
+      const i = rangParcours.get(n);
+      const newAcquis = hizbsAcquisSet.has(n) ? parcours.slice(0, i) : parcours.slice(0, i + 1);
       onHizbsAcquisChange(newAcquis);
       // hizb_depart sera recalcule via useEffect dans le parent, ou affiche en live
       // ICI on calcule aussi le nouveau hizb_depart pour le synchroniser
@@ -298,7 +321,9 @@ export default function AcquisSelector({
       </div>
       <div style={{ marginBottom: 12 }}>
         <div style={{ fontSize: 12, color: '#888', marginBottom: 6, fontWeight: 500 }}>
-          {lang === 'ar' ? `انقر على آخر حزب محفوظ (${senshHintAR})` : `Cliquez sur le dernier Hizb mémorisé (${senshHintFR})`}
+          {hasBlocs
+            ? (lang === 'ar' ? 'انقر على آخر حزب محفوظ حسب ترتيب البلوكات (تُحسب الأحزاب السابقة تلقائياً)' : 'Cliquez sur le dernier Hizb mémorisé dans l\'ordre des blocs (les précédents sont inclus)')
+            : (lang === 'ar' ? `انقر على آخر حزب محفوظ (${senshHintAR})` : `Cliquez sur le dernier Hizb mémorisé (${senshHintFR})`)}
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           {/* Boutons +/- : ajustent dernierAcquis (mode lineaire uniquement) */}
@@ -315,9 +340,10 @@ export default function AcquisSelector({
             {hizbList.map(n => {
               let isAcquis, isLastAcquis;
               if (hasBlocs) {
-                // Mode blocs : isAcquis = n est dans hizbsAcquis (selection libre)
+                // Mode blocs : acquis dans l'ordre du parcours ; dernier acquis encadre
                 isAcquis = hizbsAcquisSet.has(n);
-                isLastAcquis = false; // pas de "dernier acquis" en mode blocs
+                const derniers = parcours.filter(h => hizbsAcquisSet.has(h));
+                isLastAcquis = derniers.length > 0 && n === derniers[derniers.length - 1];
               } else {
                 // Mode lineaire (INCHANGE)
                 // desc : tous les Hizb >= dernierAcquis (de dernierAcquis a 60)
@@ -330,7 +356,8 @@ export default function AcquisSelector({
                   style={{
                     height: 28, borderRadius: 4, display: 'flex',
                     alignItems: 'center', justifyContent: 'center',
-                    fontSize: 11, cursor: 'pointer',
+                    fontSize: 11, cursor: hasBlocs && !rangParcours.has(n) ? 'default' : 'pointer',
+                    opacity: hasBlocs && !rangParcours.has(n) ? 0.35 : 1,
                     background: isAcquis ? '#1D9E75' : '#f0f0ec',
                     color: isAcquis ? '#fff' : '#999',
                     fontWeight: isLastAcquis ? 800 : 400,
@@ -424,16 +451,24 @@ export default function AcquisSelector({
           choisit explicitement s'il veut indiquer une progression
           partielle dans le Hizb de départ. */}
       {hizb > 0 && <div style={{ marginTop: 12 }}>
+        {/* oct 2026 (retour Jamal) : toucher un Tomon = ce Tomon est ACQUIS (inclus), comme pour les
+            Hizb. Stockage inchange : tomon_depart = Tomon par lequel l'eleve commence = dernier acquis + 1.
+            Toucher 8 = tout le Hizb est acquis -> il passe dans les Hizb acquis. */}
         <div style={{ fontSize: 12, color: '#888', marginBottom: 6, fontWeight: 500 }}>
-          {lang === 'ar' ? 'الثُّمن (اختياري - 1-8)' : lang === 'en' ? 'Tomon (optional - 1-8)' : 'Tomon (optionnel - 1-8)'}
+          {lang === 'ar' ? `آخر ثُمن محفوظ في الحزب ${hizb} (اختياري)` : lang === 'en' ? `Last Tomon memorized in Hizb ${hizb} (optional)` : `Dernier Tomon mémorisé du Hizb ${hizb} (optionnel)`}
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(8,1fr)', gap: 4 }}>
           {[1, 2, 3, 4, 5, 6, 7, 8].map(n => {
-            const selected = n === tomon;
-            const beforeSelected = tomon > 0 && n < tomon;
+            const dernierTomonAcquis = tomon > 1 ? tomon - 1 : 0;
+            const selected = n === dernierTomonAcquis;
+            const beforeSelected = n < dernierTomonAcquis;
             return (
               <div key={n}
-                onClick={() => onTomonChange(selected ? 0 : n)}
+                onClick={() => {
+                  if (selected) { onTomonChange(0); return; }   // re-toucher = aucun Tomon acquis
+                  if (n === 8) { handleHizbClick(hizb); return; } // Hizb entier acquis
+                  onTomonChange(n + 1);
+                }}
                 style={{
                   height: 36, borderRadius: 6, display: 'flex',
                   alignItems: 'center', justifyContent: 'center',
@@ -449,9 +484,10 @@ export default function AcquisSelector({
             );
           })}
         </div>
-        {tomon > 0 && (
+        {tomon > 1 && (
           <div style={{ textAlign: 'center', marginTop: 6, fontSize: 12, color: '#888' }}>
-            T.{tomon} du Hizb {hizb} · <span style={{ color: '#1D9E75', fontWeight: 600 }}>{(hizb - 1) * 8 + (tomon - 1)} {lang === 'ar' ? 'ثُمن' : lang === 'en' ? 'Tomon' : 'Tomon'} acquis</span>
+            <span style={{ color: '#1D9E75', fontWeight: 600 }}>{tomon - 1} {lang === 'ar' ? 'ثُمن مكتسب في هذا الحزب' : 'Tomon acquis dans ce Hizb'}</span>
+            {' · '}{lang === 'ar' ? `الانطلاق من الثُّمن ${tomon} في الحزب ${hizb}` : `Départ au Tomon ${tomon} du Hizb ${hizb}`}
           </div>
         )}
       </div>}
@@ -462,9 +498,11 @@ export default function AcquisSelector({
         // Hizb acquis = ceux AVANT le Hizb de depart (selon le sens et les blocs),
         // Tomon acquis = 8 par Hizb acquis + (Tomon de depart - 1).
         const depart = hasBlocs ? calculerHizbDepartDepuisBlocs(programmeNiveau, hizbsAcquis, sens) : hizb;
-        if (!depart) return null; // aucun acquis : rien a afficher (calcEtatEleve compte 0)
-        const hc = calcHizbsAcquisAvantArrivee({ hizb_depart: depart }, programmeNiveau, sens).size;
-        const ta = hc * 8 + ((tomon || 1) - 1);
+        const coches = hasBlocs ? (hizbsAcquis || []) : [];
+        if (!depart && coches.length === 0) return null; // aucun acquis : rien a afficher (calcEtatEleve compte 0)
+        // FIX ACQUIS (oct 2026) : meme regle que la fiche -> Hizb avant le depart + Hizb coches
+        const hc = calcHizbsAcquisAvantArrivee({ hizb_depart: depart, hizbs_acquis: coches }, programmeNiveau, sens).size;
+        const ta = hc * 8 + ((depart ? (tomon || 1) : 1) - 1);
         if (ta === 0) return null;
         const pts = calcPoints(ta, hc, [], ta, hc, baremeEcole);
         return (

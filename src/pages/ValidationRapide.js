@@ -1206,7 +1206,7 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
                           {currentSourate.nom_ar}
                         </div>
                         <div style={{ fontSize:11, color:'#aaa', marginTop:2 }}>
-                          {lang==='ar'?'رقم':'N°'} {currentSourate.numero} · {currentSourate.nb_versets} {lang==='ar'?'آية':'versets'}
+                          {lang==='ar'?'رقم':'N°'} {currentSourate.numero}{currentSourate.nb_versets ? ` · ${currentSourate.nb_versets} ${lang==='ar'?'آية':'versets'}` : ''}
                         </div>
                       </div>
                       <div style={{ width:44, height:44, borderRadius:10, background:`${nc}15`,

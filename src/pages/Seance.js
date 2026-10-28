@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useToast } from '../lib/toast';
 import { supabase } from '../lib/supabase';
-import { calcEtatEleve, getInitiales, joursDepuis, isInactif, scoreLabel , loadBareme, BAREME_DEFAUT, getSensForEleve, calcPointsPeriode, ptsValidation, isSourateNiveauDyn} from '../lib/helpers';
+import { calcEtatEleve, getInitiales, joursDepuis, isInactif, scoreLabel , loadBareme, BAREME_DEFAUT, getSensForEleve, calcPointsPeriode, ptsValidation, isSourateNiveauDyn, numerosSouratesAcquises} from '../lib/helpers';
 import { t } from '../lib/i18n';
 import { getSouratesForNiveau } from '../lib/sourates';
 import { fetchAll } from '../lib/fetchAll';
@@ -93,10 +93,12 @@ export default function Seance({ user, navigate, goBack, lang, isMobile=false })
         // Find current sourate
         const souratesNiveau = getSouratesForNiveau(e.code_niveau);
         const souratesOrdonnees = [...souratesNiveau].sort((a,b)=>b.numero-a.numero);
-        const souratesAcq = parseInt(e.sourates_acquises)||0;
+        // FIX ACQUIS (oct 2026) : sourates acquises comptees depuis le debut du Coran (meme regle que
+        // la validation express et la fiche), et non depuis le debut du programme du niveau.
+        const acquisNums = numerosSouratesAcquises(e.sourates_acquises, 'desc');
         const souratesCompletes = new Set(recs.filter(r=>r.type_recitation==='complete'&&!r.is_muraja).map(r=>r.sourate_id)); // FIX (oct 2026) : hors muraja
-        const currentIdx = souratesOrdonnees.findIndex((s,i) => {
-          if (i < souratesAcq) return false;
+        const currentIdx = souratesOrdonnees.findIndex((s) => {
+          if (acquisNums.has(s.numero)) return false;
           const dbS = (sdb||[]).find(x=>x.numero===s.numero);
           return dbS ? !souratesCompletes.has(dbS.id) : false;
         });
