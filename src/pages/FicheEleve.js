@@ -3,7 +3,7 @@ import { HeaderIconButton, HEADER_BG } from '../components/ui';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { useToast } from '../lib/toast';
 import { supabase } from '../lib/supabase';
-import { calcEtatEleve, calcEtatEleveAvecBlocs, isSourateNiveauDyn, calcPositionAtteinte, calcUnite, calcPoints, formatDate, formatDateCourt, getInitiales, scoreLabel, calcBadges, calcVitesse, niveauTraduit, calcPointsPeriode, loadBareme, BAREME_DEFAUT, getSensForEleve, calcBlocProgression, calcHizbsAcquisAvantArrivee, ptsValidation} from '../lib/helpers';
+import { calcEtatEleve, calcEtatEleveAvecBlocs, isSourateNiveauDyn, calcPositionAtteinte, calcUnite, calcPoints, formatDate, formatDateCourt, getInitiales, scoreLabel, calcBadges, calcVitesse, niveauTraduit, calcPointsPeriode, loadBareme, BAREME_DEFAUT, getSensForEleve, calcBlocProgression, calcHizbsAcquisAvantArrivee, ptsValidation, numerosSouratesAcquises, depuisDebutNiveau} from '../lib/helpers';
 import { t } from '../lib/i18n';
 import { openPDF } from '../lib/pdf';
 import { getCachedSWR } from '../lib/cache';
@@ -224,9 +224,20 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang, isMobi
   useEffect(() => {
     if (onglet !== 'profil' || user?.role !== 'surveillant' || !eleve?.id) return undefined;
     let annule = false;
-    Promise.resolve(supabase.from('parent_eleve').select('parent:parent_id(id,identifiant,prenom,nom,derniere_connexion)').eq('eleve_id', eleve.id))
-      .then(({ data }) => { if (!annule) setComptesParents((data || []).map(l => l.parent).filter(Boolean)); })
-      .catch(() => { if (!annule) setComptesParents([]); });
+    // FIX (oct 2026) : deux lectures simples (la jointure parent_id -> utilisateurs n'est pas
+    // declaree en base : elle renvoyait une erreur -> « aucun compte parent » a tort)
+    (async () => {
+      try {
+        const { data: liens } = await supabase.from('parent_eleve').select('parent_id').eq('eleve_id', eleve.id);
+        const ids = [...new Set((liens || []).map(l => l.parent_id).filter(Boolean))];
+        let comptes = [];
+        if (ids.length) {
+          const { data: us } = await supabase.from('utilisateurs').select('id,identifiant,prenom,nom,derniere_connexion').in('id', ids);
+          comptes = us || [];
+        }
+        if (!annule) setComptesParents(comptes);
+      } catch (e) { if (!annule) setComptesParents([]); }
+    })();
     return () => { annule = true; };
   }, [onglet, eleve?.id, user?.role]);
   const [showAcquis, setShowAcquis] = useState(false);
@@ -1201,22 +1212,24 @@ ${(passages||[]).length > 0 ? `
       const sensRecit = niveauEleve?.sens_recitation || ecoleConfig?.sens_recitation_defaut || 'desc';
       souratesOrd.sort((a, b) => sensRecit === 'asc' ? a.numero - b.numero : b.numero - a.numero);
 
-      const souratesAcq = eleve.sourates_acquises || 0;
-      const isComplete = (id) =>
-        recitationsSouratesEleve.some(r => r.sourate_id === id && r.type_recitation === 'complete');
+      // FIX ACQUIS (oct 2026) : meme regle que la validation express. Les sourates acquises sont
+      // comptees depuis le debut du Coran (le selecteur coche 114, 113, ... dans le sens du niveau),
+      // pas depuis le debut du programme du niveau. Avant, pour un niveau qui ne commence pas a la
+      // sourate 114, la fiche ne montrait pas la meme sourate actuelle que l'ecran de validation.
+      // Recitations de muraja exclues, et seulement celles du niveau actuel.
+      const acquisNums = numerosSouratesAcquises(eleve.sourates_acquises, sensRecit);
+      const faitesIds = new Set(depuisDebutNiveau(recitationsSouratesEleve || [], eleve)
+        .filter(r => r.type_recitation === 'complete' && !r.is_muraja).map(r => r.sourate_id));
 
-      const idxCurrent = souratesOrd.findIndex((sr, i) => {
-        if (i < souratesAcq) return false;
-        return !isComplete(sr.id);
-      });
+      const idxCurrent = souratesOrd.findIndex((sr) => !acquisNums.has(sr.numero) && !faitesIds.has(sr.id));
       if (idxCurrent >= 0) {
         currentSourateApercu = souratesOrd[idxCurrent];
         // Compter les sequences validees pour cette sourate
         sequencesValideesSurCourante = recitationsSouratesEleve.filter(
-          r => r.sourate_id === currentSourateApercu.id && r.type_recitation === 'sequence'
+          r => r.sourate_id === currentSourateApercu.id && r.type_recitation === 'sequence' && !r.is_muraja
         ).length;
-        // Prochaine sourate = la suivante dans l'ordre
-        prochaineSourateApercu = souratesOrd[idxCurrent + 1] || null;
+        // Prochaine sourate = la suivante dans l'ordre, ni acquise ni deja recitee
+        prochaineSourateApercu = souratesOrd.slice(idxCurrent + 1).find(sr => !acquisNums.has(sr.numero) && !faitesIds.has(sr.id)) || null;
       }
     } catch(e) { /* silent fallback */ }
   }

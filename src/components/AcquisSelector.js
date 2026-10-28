@@ -451,7 +451,8 @@ export default function AcquisSelector({
         </div>
         {tomon > 0 && (
           <div style={{ textAlign: 'center', marginTop: 6, fontSize: 12, color: '#888' }}>
-            T.{tomon} du Hizb {hizb} · <span style={{ color: '#1D9E75', fontWeight: 600 }}>{(hizb - 1) * 8 + (tomon - 1)} {lang === 'ar' ? 'ثُمن' : lang === 'en' ? 'Tomon' : 'Tomon'} acquis</span>
+            {/* FIX (oct 2026) : avant « (hizb-1)*8 » faux en sens descendant et avec des blocs, et texte en francais */}
+            {lang === 'ar' ? `الانطلاق من الثُّمن ${tomon} في الحزب ${hizb}` : `Départ au Tomon ${tomon} du Hizb ${hizb}`} · <span style={{ color: '#1D9E75', fontWeight: 600 }}>{tomon - 1} {lang === 'ar' ? 'ثُمن مكتسب في هذا الحزب' : 'Tomon acquis dans ce Hizb'}</span>
           </div>
         )}
       </div>}

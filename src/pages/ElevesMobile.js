@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { supprimerEleveDefinitivement } from '../lib/suppressionEleve';
-import { isSourateNiveauDyn, genererLoginParentUnique } from '../lib/helpers';
+import { isSourateNiveauDyn, genererLoginParentUnique, calcHizbsAcquisAvantArrivee } from '../lib/helpers';
 import { useToast } from '../lib/toast';
 import MobileSkeletonList from '../components/MobileSkeletonList';
 import { usePullToRefresh, PullToRefreshIndicator } from '../lib/usePullToRefresh';
@@ -63,7 +63,7 @@ export default function ElevesMobile({ user, navigate, goBack, lang='ar' }) {
       supabase.from('eleves').select('*').eq('ecole_id', user.ecole_id).limit(500).order('nom').order('nom'),
       supabase.from('utilisateurs').select('id,prenom,nom').eq('role','instituteur').eq('ecole_id', user.ecole_id).is('suspendu_at', null),
       supabase.from('niveaux').select('id,code,nom,couleur,type,sens_recitation').eq('ecole_id', user.ecole_id).order('ordre'),
-      supabase.from('programmes').select('niveau_id,reference_id,ordre,bloc_numero,bloc_nom,bloc_sens,type_contenu').eq('ecole_id', user.ecole_id),
+      supabase.from('programmes').select('niveau_id,reference_id,ordre,bloc_numero,bloc_nom,bloc_sens,type_contenu').eq('ecole_id', user.ecole_id).order('ordre'),
       // FIX (oct 2026) : charger aussi mdp_defaut_parents (avant : repli systematique sur 'parent2024')
       supabase.from('ecoles').select('sens_recitation_defaut,mdp_defaut_parents').eq('id', user.ecole_id).maybeSingle(),
     ]);
@@ -641,7 +641,16 @@ export default function ElevesMobile({ user, navigate, goBack, lang='ar' }) {
                   inst ? `${inst.prenom} ${(inst.nom||'').charAt(0)}.` : null,
                   isSour(e.code_niveau)
                     ? `${e.sourates_acquises||0} ${lang==='ar'?'سورة مكتسبة':'sourate(s) acquise(s)'}`
-                    : `${lang==='ar'?'الحزب':'Hizb'} ${e.hizb_depart} · ${lang==='ar'?'ث':'T'}.${e.tomon_depart}`,
+                    : (() => {
+                        // FIX ACQUIS (oct 2026) : avant « الحزب 0 · ث.1 » (point de depart brut, 0 = aucun acquis).
+                        // Maintenant le nombre de Hizb acquis, comme « N سورة مكتسبة » pour les sourates.
+                        let nb = 0;
+                        try {
+                          const sensE = (niveaux.find(n=>n.code===e.code_niveau)?.sens_recitation) || ecoleConfig?.sens_recitation_defaut || 'desc';
+                          nb = calcHizbsAcquisAvantArrivee(e, programmesParNiveau[e.code_niveau] || [], sensE).size;
+                        } catch (err) { nb = 0; }
+                        return `${nb} ${lang==='ar'?'حزب مكتسب':'Hizb acquis'}`;
+                      })(),
                 ].filter(Boolean).join(' · ');
                 return (
                   <div key={e.id} style={{marginBottom:8, opacity:e.suspendu_at?0.65:1}}>

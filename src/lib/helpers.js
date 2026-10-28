@@ -877,6 +877,12 @@ export function calcEtatEleveAvecBlocs(validations, eleve, programmeNiveau, sens
       tomonsSurHizbCible += n;
     }
   }
+  // FIX ACQUIS (oct 2026) : Tomon de depart. Si le Hizb a reciter est le Hizb de depart, les
+  // Tomon 1..(tomon_depart-1) sont acquis (meme regle que calcEtatEleve et les points).
+  // Avant : ignore dans les niveaux a plusieurs blocs -> l'eleve repartait au Tomon 1.
+  if (Number(eleve?.hizb_depart) === hizbCibleSelonBloc) {
+    tomonsSurHizbCible += Math.max(0, (parseInt(eleve?.tomon_depart) || 1) - 1);
+  }
   // Bornes : 0 a 8 (au-dela = Hizb deja complet, ce qui aurait du etre detecte par hizbsFaits)
   tomonsSurHizbCible = Math.max(0, Math.min(8, tomonsSurHizbCible));
 

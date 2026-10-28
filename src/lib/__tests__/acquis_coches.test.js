@@ -37,3 +37,16 @@ describe('acquis coches un par un (hizbs_acquis)', () => {
     expect(avec.prochainTomon).toBe(sans.prochainTomon);
   });
 });
+
+describe('Tomon de depart (niveau a plusieurs blocs)', () => {
+  test('repart au Tomon choisi', () => {
+    const et = calcEtatEleveAvecBlocs([], { id: 'x', hizb_depart: 58, tomon_depart: 5, hizbs_acquis: [60, 59] }, multi, 'desc');
+    expect(et.hizbEnCours).toBe(58);
+    expect(et.prochainTomon).toBe(5);
+  });
+  test('Tomon de depart + Tomon recites', () => {
+    const vals = [5, 6].map(k => ({ type_validation: 'tomon', nombre_tomon: 1, hizb_validation: 58, date_validation: `2026-10-0${k}T10:00:00Z` }));
+    const et = calcEtatEleveAvecBlocs(vals, { id: 'x', hizb_depart: 58, tomon_depart: 5, hizbs_acquis: [60, 59] }, multi, 'desc');
+    expect(et.prochainTomon).toBe(7);
+  });
+});
