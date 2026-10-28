@@ -470,7 +470,7 @@ export default function EnregistrerRecitation({  user, eleve: eleveInitial, navi
               {/* Progress bar */}
               <div style={{background:'#fff',borderRadius:12,padding:'14px',marginBottom:16,border:'0.5px solid #e0e0d8'}}>
                 <div style={{fontSize:13,color:'#085041',fontWeight:600,marginBottom:8}}>
-                  Hizb {etat.hizbEnCours} · Tomon {etat.prochainTomon}
+                  {lang==='ar' ? `الحزب ${etat.hizbEnCours} · الثُّمن ${etat.prochainTomon}` : `Hizb ${etat.hizbEnCours} · Tomon ${etat.prochainTomon}`}
                 </div>
                 <div style={{display:'flex',gap:3}}>
                   {[1,2,3,4,5,6,7,8].map(n=>(
@@ -479,7 +479,7 @@ export default function EnregistrerRecitation({  user, eleve: eleveInitial, navi
                   ))}
                 </div>
                 <div style={{fontSize:11,color:'#888',marginTop:6}}>
-                  {etat.tomonDansHizbActuel}/8 tomon complétés dans ce Hizb
+                  {lang==='ar' ? `${etat.tomonDansHizbActuel}/8 أثمان مكتملة في هذا الحزب` : `${etat.tomonDansHizbActuel}/8 tomon complétés dans ce Hizb`}
                 </div>
               </div>
               {/* Hizb complet waiting */}
@@ -492,7 +492,7 @@ export default function EnregistrerRecitation({  user, eleve: eleveInitial, navi
                   <button disabled={loading} onClick={()=>confirmer('hizb_complet')}
                     style={{width:'100%',padding:'18px',background:'#EF9F27',color:'#fff',
                       border:'none',borderRadius:14,fontSize:17,fontWeight:800,cursor:'pointer',fontFamily:'inherit'}}>
-                    ✓ Valider Hizb (+{ptsHizbB} pts)
+                    ✓ {lang==='ar' ? `اعتماد الحزب (+${ptsHizbB} ن)` : `Valider Hizb (+${ptsHizbB} pts)`}
                   </button>
                 </div>
               ) : (
@@ -506,8 +506,8 @@ export default function EnregistrerRecitation({  user, eleve: eleveInitial, navi
                         style={{padding:'20px 8px',background:'#1D9E75',color:'#fff',
                           border:'none',borderRadius:14,fontSize:16,fontWeight:800,
                           cursor:'pointer',fontFamily:'inherit',textAlign:'center'}}>
-                        +{n} tomon
-                        <div style={{fontSize:12,opacity:0.8,marginTop:4}}>(+{n*ptsTomonB} pts)</div>
+                        {lang==='ar' ? `+${n} ${n===1?'ثُمن':(n===2?'ثُمنان':'أثمان')}` : `+${n} tomon`}
+                        <div style={{fontSize:12,opacity:0.8,marginTop:4}}>(+{n*ptsTomonB} {lang==='ar'?'ن':'pts'})</div>
                       </button>
                     ))}
                   </div>
@@ -668,8 +668,8 @@ export default function EnregistrerRecitation({  user, eleve: eleveInitial, navi
         <div style={{ fontSize: 13, color: '#888', marginBottom: '1.5rem' }}>
           {selectedEleve?.prenom} {selectedEleve?.nom} —
           {typeValidation === 'hizb_complet'
-            ? ` Hizb ${etat?.hizbEnCours} validé complet (+${ptsHizbB} pts)`
-            : ` ${nombreTomon} Tomon validé${nombreTomon > 1 ? 's' : ''} (+${nombreTomon * ptsTomonB} pts)`}
+            ? (lang==='ar' ? ` تم اعتماد الحزب ${etat?.hizbEnCours} كاملاً (+${ptsHizbB} ن)` : ` Hizb ${etat?.hizbEnCours} validé complet (+${ptsHizbB} pts)`)
+            : (lang==='ar' ? ` تم تسجيل ${nombreTomon} ${nombreTomon === 1 ? 'ثُمن' : 'أثمان'} (+${nombreTomon * ptsTomonB} ن)` : ` ${nombreTomon} Tomon validé${nombreTomon > 1 ? 's' : ''} (+${nombreTomon * ptsTomonB} pts)`)}
         </div>
         <div style={{ display: 'flex', gap: 10, justifyContent: 'center', flexWrap: 'wrap' }}>
           <button className="btn-primary" style={{ maxWidth: 220 }}

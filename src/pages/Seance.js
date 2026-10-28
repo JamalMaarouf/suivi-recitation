@@ -512,7 +512,7 @@ export default function Seance({ user, navigate, goBack, lang, isMobile=false })
                             <td style={{fontSize:12,color:'#888'}}>{new Date(v.date_validation).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'})}</td>
                             <td style={{fontSize:13}}>{eleve?`${eleve.prenom} ${eleve.nom}`:'—'}</td>
                             <td><NiveauBadge code={eleve?.code_niveau}/></td>
-                            <td>{v.type_validation==='hizb_complet'?<span className="badge badge-green">Hizb {v.hizb_valide}</span>:<span className="badge badge-blue">{v.nombre_tomon} {t(lang,'tomon_abrev')}{v.tomon_debut?` (T.${v.tomon_debut}→T.${v.tomon_debut+v.nombre_tomon-1})`:''}</span>}</td>
+                            <td>{v.type_validation==='hizb_complet'?<span className="badge badge-green">{lang==='ar'?'الحزب':'Hizb'} {v.hizb_valide}</span>:<span className="badge badge-blue">{v.nombre_tomon} {t(lang,'tomon_abrev')}{v.tomon_debut?` (T.${v.tomon_debut}→T.${v.tomon_debut+v.nombre_tomon-1})`:''}</span>}</td>
                             <td style={{fontSize:12,color:'#888'}}>{v.valideur?`${v.valideur.prenom} ${v.valideur.nom}`:'—'}</td>
                             <td><span style={{fontSize:12,fontWeight:600,color:'#1D9E75'}}>+{ptsValidation(v, bareme)/* FIX (oct 2026) */}</span></td>
                           </tr>
@@ -592,7 +592,7 @@ export default function Seance({ user, navigate, goBack, lang, isMobile=false })
           {vue==='semaine'&&(
             <>
               <div style={{fontSize:13,color:'#888',marginBottom:'1.25rem'}}>
-                {new Date(debutSemaine).toLocaleDateString('fr-FR',{day:'numeric',month:'long'})} → {new Date().toLocaleDateString('fr-FR',{day:'numeric',month:'long',year:'numeric'})}
+                {new Date(debutSemaine).toLocaleDateString(lang==='ar'?'ar-MA':'fr-FR',{day:'numeric',month:'long'})} → {new Date().toLocaleDateString(lang==='ar'?'ar-MA':'fr-FR',{day:'numeric',month:'long',year:'numeric'})}
               </div>
               <div className="section-label">{t(lang,'activite_par_jour')}</div>
               <div style={{display:'flex',gap:6,marginBottom:'1.5rem',flexWrap:'wrap'}}>

@@ -642,7 +642,7 @@ export default function GestionExamens({ user, navigate, goBack, lang='fr', isMo
                     <div style={{display:'flex',gap:5,flexWrap:'wrap',alignItems:'center'}}>
                       {e.niveau&&<LevelBadge code={e.niveau.code} color={nc} />}
                       <span style={{fontSize:11,color:C.muted,fontWeight:600}}>
-                        min {e.score_minimum}%
+                        {lang==='ar'?'الحد الأدنى':'min'} {e.score_minimum}%
                       </span>
                       <span style={{fontSize:11,fontWeight:600,color:e.bloquant?C.crit:C.warn}}>
                         · {e.bloquant

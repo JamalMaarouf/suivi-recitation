@@ -1,7 +1,18 @@
 <!DOCTYPE html>
-<html lang="fr">
+<html lang="fr" translate="no" class="notranslate">
   <head>
     <meta charset="utf-8" />
+    <!-- oct 2026 : empecher la traduction automatique du navigateur (Samsung Internet / Chrome sur un
+         telephone en arabe traduisait la page « du francais vers l'arabe » : noms et textes deformes).
+         L'application gere elle-meme ses langues. -->
+    <meta name="google" content="notranslate" />
+    <script>
+      try {
+        var l = localStorage.getItem('suivi_lang') || 'fr';
+        document.documentElement.lang = l;
+        document.documentElement.dir = l === 'ar' ? 'rtl' : 'ltr';
+      } catch (e) {}
+    </script>
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
     <meta name="theme-color" content="#1D9E75" />
     <meta name="description" content="Application de suivi de récitation et mémorisation du Coran" />
@@ -28,7 +39,7 @@
 
     <title>Suivi Récitation</title>
   </head>
-  <body>
+  <body translate="no" class="notranslate">
     <noscript>Cette application nécessite JavaScript.</noscript>
     <div id="root"></div>
   </body>

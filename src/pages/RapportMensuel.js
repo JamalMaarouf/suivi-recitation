@@ -363,7 +363,7 @@ export default function RapportMensuel({ user, navigate, goBack, lang='fr', isMo
                     <div key={e.id} style={{display:'flex',alignItems:'center',gap:8,fontSize:12}}>
                       <span style={{fontSize:14,width:20}}>{['🥇','🥈','🥉'][i]}</span>
                       <span style={{flex:1,fontWeight:i===0?700:400}}>{e.prenom} {e.nom}</span>
-                      <span style={{color:'#1D9E75',fontWeight:700}}>{e.ptsMois} pts</span>
+                      <span style={{color:'#1D9E75',fontWeight:700}}>{e.ptsMois} {lang==='ar'?'ن':'pts'}</span>
                     </div>
                   ))}
                   {top3.filter(e=>e.actif).length===0&&(
@@ -419,8 +419,8 @@ export default function RapportMensuel({ user, navigate, goBack, lang='fr', isMo
                     {!e.isSourate&&e.tomonMois>0&&<span style={{fontSize:11,padding:'2px 8px',borderRadius:20,background:'#E6F1FB',color:'#0C447C',fontWeight:600}}>{e.tomonMois} T</span>}
                     {!e.isSourate&&e.hizbMois>0&&<span style={{fontSize:11,padding:'2px 8px',borderRadius:20,background:'#E1F5EE',color:'#085041',fontWeight:600}}>{e.hizbMois} H</span>}
                     {e.isSourate&&e.souratesMois>0&&<span style={{fontSize:11,padding:'2px 8px',borderRadius:20,background:'#E1F5EE',color:'#085041',fontWeight:600}}>{e.souratesMois} سورة</span>}
-                    {e.seances>0&&<span style={{fontSize:11,color:'#aaa'}}>{e.seances} séances</span>}
-                    <span style={{fontSize:14,fontWeight:800,color:'#1D9E75',minWidth:50,textAlign:'left'}}>{e.ptsMois} pts</span>
+                    {e.seances>0&&<span style={{fontSize:11,color:'#aaa'}}>{e.seances} {lang==='ar'?'حصة':'séances'}</span>}
+                    <span style={{fontSize:14,fontWeight:800,color:'#1D9E75',minWidth:50,textAlign:'left'}}>{e.ptsMois} {lang==='ar'?'ن':'pts'}</span>
                   </div>
                 </div>
                 {/* Barres objectifs */}
@@ -474,13 +474,13 @@ export default function RapportMensuel({ user, navigate, goBack, lang='fr', isMo
                     </div>
                     {isMobile ? (
                     <KpiGrid cols={3}>
-                      <KpiTile value={tomon} label="Tomon" />
-                      <KpiTile value={hizb} label="Hizb" />
-                      <KpiTile value={pts} label="Pts" tone="brand" />
+                      <KpiTile value={tomon} label={lang==='ar'?'الأثمان':'Tomon'} />
+                      <KpiTile value={hizb} label={lang==='ar'?'الأحزاب':'Hizb'} />
+                      <KpiTile value={pts} label={lang==='ar'?'النقاط':'Pts'} tone="brand" />
                     </KpiGrid>
                     ) : (
                     <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:4}}>
-                      {[['Tomon',tomon,'#E6F1FB','#0C447C'],['Hizb',hizb,'#E1F5EE','#085041'],['Pts',pts,'#EEEDFE','#534AB7']].map(([l,v,bg,c])=>(
+                      {[[lang==='ar'?'الأثمان':'Tomon',tomon,'#E6F1FB','#0C447C'],[lang==='ar'?'الأحزاب':'Hizb',hizb,'#E1F5EE','#085041'],[lang==='ar'?'النقاط':'Pts',pts,'#EEEDFE','#534AB7']].map(([l,v,bg,c])=>(
                         <div key={l} style={{background:bg,borderRadius:6,padding:'6px',textAlign:'center'}}>
                           <div style={{fontSize:15,fontWeight:700,color:c}}>{v}</div>
                           <div style={{fontSize:9,color:c,opacity:0.8}}>{l}</div>

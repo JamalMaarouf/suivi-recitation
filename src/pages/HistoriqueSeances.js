@@ -563,8 +563,8 @@ export default function HistoriqueSeances({ user, navigate, goBack, lang='fr', i
               style={{padding:'8px 10px',borderRadius:10,border:'none',fontSize:13,fontFamily:'inherit',background:'#fff',color:'#16241E'}}>
               <option value="tous" style={{color:'#333'}}>{lang==='ar'?'كل الأنواع':'Tous types'}</option>
               <option value="sourate" style={{color:'#333'}}>{lang==='ar'?'سور':'Sourates'}</option>
-              <option value="tomon" style={{color:'#333'}}>Tomon</option>
-              <option value="hizb" style={{color:'#333'}}>Hizb</option>
+              <option value="tomon" style={{color:'#333'}}>{lang==='ar'?'الأثمان':'Tomon'}</option>
+              <option value="hizb" style={{color:'#333'}}>{lang==='ar'?'الأحزاب':'Hizb'}</option>
             </select>
             {/* F8 (oct 2026) : filtre instituteur, comme sur PC (surveillant) */}
             {user.role==='surveillant' && (
@@ -657,7 +657,7 @@ export default function HistoriqueSeances({ user, navigate, goBack, lang='fr', i
                 <div style={{fontSize:12,fontWeight:700,color:'#888',marginBottom:8}}>
                   {lang==='ar'?'النشاط اليومي':'Activité quotidienne'}
                   <span style={{fontWeight:400,marginInlineStart:6}}>
-                    · {lang==='ar'?'المعدل':'moy.'} {Math.round(timelineArr.reduce((s,d)=>s+d.pts,0)/timelineArr.length)} pts/{lang==='ar'?'يوم':'jour'}
+                    · {lang==='ar'?'المعدل':'moy.'} {Math.round(timelineArr.reduce((s,d)=>s+d.pts,0)/timelineArr.length)} {lang==='ar'?'ن/يوم':'pts/jour'}
                   </span>
                 </div>
                 <div style={{display:'flex',alignItems:'flex-end',gap:2,height:70}}>
@@ -718,7 +718,7 @@ export default function HistoriqueSeances({ user, navigate, goBack, lang='fr', i
                         const pts=ptsItem(item); // FIX (oct 2026)
                         return (
                           <div key={i} style={{display:'flex',alignItems:'center',gap:8,padding:'6px 0',borderBottom:'0.5px solid #f0f0ec',fontSize:12}}>
-                            <span style={{color:'#888',minWidth:52}}>{new Date(item.date_validation).toLocaleDateString('fr-FR',{day:'2-digit',month:'short'})}</span>
+                            <span style={{color:'#888',minWidth:52}}>{new Date(item.date_validation).toLocaleDateString(lang==='ar'?'ar-MA':'fr-FR',{day:'2-digit',month:'short'})}</span>
                             <span style={{flex:1,minWidth:0,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>
                               {isSR
                                 ? <span style={{fontFamily:"'Tajawal',Arial"}}>{sourate?sourate.nom_ar:'—'} {item.type_recitation==='sequence'?`(V.${item.verset_debut}→${item.verset_fin})`:''}</span>
@@ -840,8 +840,8 @@ export default function HistoriqueSeances({ user, navigate, goBack, lang='fr', i
               <option value="tous">{lang==='ar'?'الكل':'Tous'}</option>
               <option value="sourate">{lang==='ar'?'سور مكتملة':'Sourates'}</option>
               <option value="sequence">{lang==='ar'?'مقاطع':(lang==='ar'?'المقاطع':'Séquences')}</option>
-              <option value="tomon">Tomon</option>
-              <option value="hizb">Hizb</option>
+              <option value="tomon">{lang==='ar'?'الأثمان':'Tomon'}</option>
+              <option value="hizb">{lang==='ar'?'الأحزاب':'Hizb'}</option>
             </select>
           </div>
           <div className="field-group"><label className="field-lbl">{lang==='ar'?'الطالب':'Élève'}</label>
@@ -891,7 +891,7 @@ export default function HistoriqueSeances({ user, navigate, goBack, lang='fr', i
         {/* KPI détail (4 cartes) */}
         <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:8,marginBottom:'1rem'}}>
           <StatsCard value={tomonTotal}     label={lang==='ar' ? 'الثُّمن' : 'Tomon'}    color="blue"  />
-          <StatsCard value={hizbTotal}      label="Hizb"                                  color="amber" />
+          <StatsCard value={hizbTotal}      label={lang==='ar'?'الأحزاب':'Hizb'}                                  color="amber" />
           <StatsCard value={souratesTotal}  label={lang==='ar' ? 'سور' : 'Sourates'}      color="green" />
           <StatsCard value={sequencesTotal} label={lang==='ar' ? 'مقاطع' : 'Séq.'}        color="gray"  />
         </div>
@@ -904,7 +904,7 @@ export default function HistoriqueSeances({ user, navigate, goBack, lang='fr', i
               {timelineArr.map(d=>(
                 <div key={d.date} style={{flex:1,display:'flex',flexDirection:'column',alignItems:'center',gap:2}} title={d.date+': '+d.pts+' pts'}>
                   <div style={{width:'100%',background:'#1D9E75',borderRadius:'2px 2px 0 0',height:Math.max(3,(d.pts/maxPtsDay)*70)+'px',opacity:0.85}}/>
-                  {timelineArr.length<=14&&<div style={{fontSize:8,color:'#bbb',textAlign:'center'}}>{new Date(d.date).toLocaleDateString('fr-FR',{day:'numeric',month:'numeric'})}</div>}
+                  {timelineArr.length<=14&&<div style={{fontSize:8,color:'#bbb',textAlign:'center'}}>{new Date(d.date).toLocaleDateString(lang==='ar'?'ar-MA':'fr-FR',{day:'numeric',month:'numeric'})}</div>}
                 </div>
               ))}
             </div>
@@ -944,7 +944,7 @@ export default function HistoriqueSeances({ user, navigate, goBack, lang='fr', i
                   </div>
                   <div style={{textAlign:'right',flexShrink:0}}>
                     <div style={{fontSize:16,fontWeight:800,color:nc}}>{s.pts}</div>
-                    <div style={{fontSize:9,color:'#888'}}>pts</div>
+                    <div style={{fontSize:9,color:'#888'}}>{lang==='ar'?'ن':'pts'}</div>
                   </div>
                   <div style={{color:'#bbb',fontSize:14}}>›</div>
                 </div>
@@ -992,7 +992,7 @@ export default function HistoriqueSeances({ user, navigate, goBack, lang='fr', i
                     const pts=ptsItem(item); // FIX (oct 2026)
                     return(
                       <tr key={i}>
-                        <td style={{fontSize:12,color:'#888'}}>{new Date(item.date_validation).toLocaleDateString('fr-FR',{day:'2-digit',month:'short'})}</td>
+                        <td style={{fontSize:12,color:'#888'}}>{new Date(item.date_validation).toLocaleDateString(lang==='ar'?'ar-MA':'fr-FR',{day:'2-digit',month:'short'})}</td>
                         <td style={{fontSize:12,color:'#888'}}>{new Date(item.date_validation).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'})}</td>
                         <td>{isSR?<span className={item.type_recitation==='complete'?'badge badge-green':'badge badge-blue'}>{labelRecitation(item)}</span>:(item.type_validation==='hizb_complet'?<span className="badge badge-green">Hizb ✓</span>:<span className="badge badge-blue">{labelValidation(item)}</span>)}</td>
                         <td>{isSR?(item.type_recitation==='complete'?'✓':('V.'+item.verset_debut+'→'+item.verset_fin)):((item.type_validation==='tomon'||!item.type_validation)?(item.nombre_tomon+' T.'+( item.tomon_debut||'')):detailValidation(item))}</td>
