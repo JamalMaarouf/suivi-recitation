@@ -1078,10 +1078,12 @@ ${(passages||[]).length > 0 ? `
         // Règle configurée par l'école — s'applique en priorité
         if (regleData.type_depart === 'personnalise') {
           resetData.hizb_depart = regleData.hizb_depart_fixe || 0;
+          resetData.hizbs_acquis = []; // FIX ACQUIS : les Hizb coches suivent le point de depart
           resetData.tomon_depart = regleData.tomon_depart_fixe || 1;
           resetData.sourates_acquises = regleData.sourates_acquises_fixe || 0;
         } else if (regleData.type_depart === 'debut') {
           resetData.hizb_depart = 0;
+          resetData.hizbs_acquis = []; // FIX ACQUIS : les Hizb coches suivent le point de depart
           resetData.tomon_depart = 1;
           resetData.sourates_acquises = 0;
         } else { // 'continuer' — comportement intelligent
@@ -1095,6 +1097,7 @@ ${(passages||[]).length > 0 ? `
             continuer = true;
           } else {
             resetData.hizb_depart = 0;
+            resetData.hizbs_acquis = []; // FIX ACQUIS : les Hizb coches suivent le point de depart
             resetData.tomon_depart = 1;
             resetData.sourates_acquises = 0;
           }
@@ -1108,6 +1111,7 @@ ${(passages||[]).length > 0 ? `
           continuer = true;
         } else {
           resetData.hizb_depart = 0;
+          resetData.hizbs_acquis = []; // FIX ACQUIS : les Hizb coches suivent le point de depart
           resetData.tomon_depart = 1;
           resetData.sourates_acquises = 0;
         }

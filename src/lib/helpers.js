@@ -121,7 +121,23 @@ export function getSensForEleve(eleve, niveaux, ecole) {
  * @param sensGlobal : 'asc' ou 'desc' — sens global du niveau (fallback)
  * @returns Set des numeros de Hizb consideres comme acquis avant arrivee
  */
+// FIX ACQUIS (oct 2026) : les Hizb coches un par un dans le selecteur d'acquis (mode blocs,
+// colonne hizbs_acquis) n'etaient comptes nulle part sauf s'ils formaient le debut du
+// parcours : un Hizb coche « au milieu » restait vert dans le formulaire mais n'avait aucun
+// effet sur la fiche, les points ni la position. Desormais : acquis = Hizb situes avant le
+// Hizb de depart (regle d'avant, inchangee) + Hizb coches explicitement.
 export function calcHizbsAcquisAvantArrivee(eleve, programmeNiveau, sensGlobal = 'desc') {
+  const acquis = hizbsAvantDepart(eleve, programmeNiveau, sensGlobal);
+  if (eleve && Array.isArray(eleve.hizbs_acquis)) {
+    for (const h of eleve.hizbs_acquis) {
+      const n = Number(h);
+      if (Number.isInteger(n) && n >= 1 && n <= 60) acquis.add(n);
+    }
+  }
+  return acquis;
+}
+
+function hizbsAvantDepart(eleve, programmeNiveau, sensGlobal = 'desc') {
   const hizbsAcquis = new Set();
   if (!eleve) return hizbsAcquis;
 
@@ -230,8 +246,9 @@ export function calcHizbsAcquisAvantArrivee(eleve, programmeNiveau, sensGlobal =
 export function calcTomonAcquisAvantArrivee(eleve, programmeNiveau, sensGlobal = 'desc') {
   if (!eleve) return 0;
   const hizbDep = eleve.hizb_depart;
-  if (!hizbDep || hizbDep <= 0) return 0;
-  const tomonD = eleve.tomon_depart || 1;
+  const aCoches = Array.isArray(eleve.hizbs_acquis) && eleve.hizbs_acquis.length > 0;
+  if ((!hizbDep || hizbDep <= 0) && !aCoches) return 0;
+  const tomonD = (hizbDep > 0 && eleve.tomon_depart) || 1;
   const hizbsAcquis = calcHizbsAcquisAvantArrivee(eleve, programmeNiveau, sensGlobal);
   // tomonAcquis = (Hizbs complets acquis * 8 tomons par Hizb) + tomons faits dans le Hizb en cours
   return hizbsAcquis.size * 8 + (tomonD - 1);
@@ -701,6 +718,8 @@ export function calcEtatEleve(validationsToutes, hizbDepart, tomonDepart, sens =
   if (!sansAcquis && eleve && programmeNiveau && programmeNiveau.length > 0) {
     // Nouvelle logique multi-blocs
     const hizbsAcquisSet = calcHizbsAcquisAvantArrivee(eleve, programmeNiveau, sens);
+    // Un Hizb a la fois coche comme acquis et valide pendant le suivi n'est compte qu'une fois
+    for (const h of hizbsComplets) hizbsAcquisSet.delete(Number(h));
     hizbAcquisComplets = hizbsAcquisSet.size;
     tomonAcquis = hizbAcquisComplets * 8 + (tomonD - 1);
   } else if (!sansAcquis) {
@@ -814,7 +833,19 @@ export function calcEtatEleveAvecBlocs(validations, eleve, programmeNiveau, sens
   // Etape 2 : detecter si multi-blocs (sinon retour direct)
   if (!programmeNiveau || programmeNiveau.length === 0) return etatBrut;
   const blocsUniques = new Set(programmeNiveau.map(p => p.bloc_numero || 1));
-  if (blocsUniques.size <= 1) return etatBrut;
+  // FIX ACQUIS (oct 2026) : un niveau a un seul bloc suit aussi la logique ci-dessous quand des
+  // Hizb ont ete coches comme acquis en dehors du debut du parcours (sinon l'eleve aurait du
+  // reciter un Hizb deja acquis). Sens du niveau impose (bloc_sens d'un monobloc non fiable).
+  let monoAvecAcquisCoches = false;
+  if (blocsUniques.size <= 1) {
+    const coches = Array.isArray(eleve?.hizbs_acquis) ? eleve.hizbs_acquis.map(Number) : [];
+    if (coches.length === 0) return etatBrut;
+    const prefixe = hizbsAvantDepart(eleve, programmeNiveau, sens);
+    const depart = parseInt(eleve?.hizb_depart) || 0;
+    if (!coches.some(h => !prefixe.has(h) && h !== depart)) return etatBrut;
+    programmeNiveau = programmeNiveau.map(l => ({ ...l, bloc_sens: sens }));
+    monoAvecAcquisCoches = true;
+  }
 
   // Etape 3 : calculer hizbsFaits (acquis + valides pendant le suivi)
   const hizbsFaits = new Set(etatBrut.hizbsComplets || []);
@@ -822,10 +853,11 @@ export function calcEtatEleveAvecBlocs(validations, eleve, programmeNiveau, sens
     for (const h of eleve.hizbs_acquis) hizbsFaits.add(h);
   }
   // Note : pas de fallback hizb_depart en multi-blocs (cf. principe "ne pas inventer")
+  if (monoAvecAcquisCoches) for (const h of hizbsAvantDepart(eleve, programmeNiveau, sens)) hizbsFaits.add(h);
 
   // Etape 4 : calcBlocProgression pour determiner bloc actuel et sens
   const prog = calcBlocProgression(programmeNiveau, hizbsFaits, etatBrut.hizbEnCours);
-  if (!prog || prog.estMonoBloc || !prog.blocActuel) return etatBrut;
+  if (!prog || (prog.estMonoBloc && !monoAvecAcquisCoches) || !prog.blocActuel) return etatBrut;
 
   // Etape 5 : determiner le Hizb que l'eleve doit reciter MAINTENANT selon le bloc
   // C'est le premier Hizb non present dans hizbsFaits, en parcourant les blocs

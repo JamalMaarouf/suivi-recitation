@@ -462,9 +462,11 @@ export default function AcquisSelector({
         // Hizb acquis = ceux AVANT le Hizb de depart (selon le sens et les blocs),
         // Tomon acquis = 8 par Hizb acquis + (Tomon de depart - 1).
         const depart = hasBlocs ? calculerHizbDepartDepuisBlocs(programmeNiveau, hizbsAcquis, sens) : hizb;
-        if (!depart) return null; // aucun acquis : rien a afficher (calcEtatEleve compte 0)
-        const hc = calcHizbsAcquisAvantArrivee({ hizb_depart: depart }, programmeNiveau, sens).size;
-        const ta = hc * 8 + ((tomon || 1) - 1);
+        const coches = hasBlocs ? (hizbsAcquis || []) : [];
+        if (!depart && coches.length === 0) return null; // aucun acquis : rien a afficher (calcEtatEleve compte 0)
+        // FIX ACQUIS (oct 2026) : meme regle que la fiche -> Hizb avant le depart + Hizb coches
+        const hc = calcHizbsAcquisAvantArrivee({ hizb_depart: depart, hizbs_acquis: coches }, programmeNiveau, sens).size;
+        const ta = hc * 8 + ((depart ? (tomon || 1) : 1) - 1);
         if (ta === 0) return null;
         const pts = calcPoints(ta, hc, [], ta, hc, baremeEcole);
         return (
