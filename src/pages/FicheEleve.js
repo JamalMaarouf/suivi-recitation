@@ -698,8 +698,8 @@ export default function FicheEleve({ eleve, user, navigate, goBack, lang, isMobi
           ? (isRTL?'حزب كامل':(lang==='ar'?'حزب كامل':'Hizb complet'))
           : (isRTL?'ثُمن':'Tomon');
         const points = v.type_validation === 'hizb_complet'
-          ? (baremeEleve?.hizb_complet || 0)
-          : (v.nombre_tomon || 0) * (baremeEleve?.tomon || 0);
+          ? (baremeEleve?.unites?.hizb_complet ?? baremeEleve?.hizb_complet ?? 0)
+          : (v.nombre_tomon || 0) * (baremeEleve?.unites?.tomon ?? baremeEleve?.tomon ?? 0);
         return `<tr>
           <td style="padding:5px 8px;border-bottom:1px solid #f0f0ec;font-size:10px;color:#666">${fmtDate(v.date_validation)}</td>
           <td style="padding:5px 8px;border-bottom:1px solid #f0f0ec;font-size:10px">${esc(type)}</td>
@@ -2251,7 +2251,7 @@ ${(passages||[]).length > 0 ? `
                   {passages.length>0&&<span style={{padding:'2px 10px',borderRadius:20,fontSize:11,fontWeight:500,background:'#EEEDFE',color:'#534AB7'}}>
                     🎓 {passages.length} {lang==='ar'?'مستوى سابق':'passage(s)'}
                   </span>}
-                  {streak>0&&<span style={{padding:'2px 10px',borderRadius:20,fontSize:11,background:'#E6F1FB',color:'#0C447C'}}>🔥 {streak} {lang==='ar'?'أسابيع':'semaines'}</span>}
+                  {streak>0&&<span style={{padding:'2px 10px',borderRadius:20,fontSize:11,background:'#E6F1FB',color:'#0C447C'}}>🔥 {streak} {lang==='ar'?(streak>1?'أسابيع':'أسبوع'):(streak>1?'semaines':'semaine')}</span>}
                   {vitesse.moyenne>0&&<span style={{padding:'2px 10px',borderRadius:20,fontSize:11,background:'#f5f5f0',color:'#666'}}>{vitesse.tendance==='hausse'?'📈':vitesse.tendance==='baisse'?'📉':'➡️'} {vitesse.moyenne} {estSourateEleve?(lang==='ar'?'سورة/أسبوع':'sur./sem.'):(lang==='ar'?'ثمن/أسبوع':'t./sem.')}</span>}
                   {user.role === 'surveillant' && (
                     <BadgeStatutParent eleve={eleve} lang={lang} />
@@ -2306,8 +2306,8 @@ ${(passages||[]).length > 0 ? `
                 // Refonte KPIs (mai 2026) : Tomon + Hizb gardes (pertinents)
                 // Roboe et Nisf supprimes (subdivisions hardcodees obsoletes)
                 // Ajout Examens et Certificats (KPIs metier parlants)
-                [lang==='ar'?'الأثمان':'Tomon', etat?.points.ptsTomon, `${etat?.tomonTotal||etat?.tomonCumul}×${baremeEleve?.tomon||0}`, '#378ADD', '#E6F1FB'],
-                [lang==='ar'?'الأحزاب':'Hizb', etat?.points.ptsHizb, `${etat?.points.details?.nbHizb}×${baremeEleve?.hizb_complet||0}`, '#085041', '#E1F5EE'],
+                [lang==='ar'?'الأثمان':'Tomon', etat?.points.ptsTomon, `${etat?.tomonTotal||etat?.tomonCumul}×${baremeEleve?.unites?.tomon ?? baremeEleve?.tomon ?? 0}`, '#378ADD', '#E6F1FB'],
+                [lang==='ar'?'الأحزاب':'Hizb', etat?.points.ptsHizb, `${etat?.points.details?.nbHizb}×${baremeEleve?.unites?.hizb_complet ?? baremeEleve?.hizb_complet ?? 0}`, '#085041', '#E1F5EE'],
                 [lang==='ar'?'الامتحانات':'Examens', examens.length, ptsRecapGlob.ptsExamens>0 ? `+${ptsRecapGlob.ptsExamens} pts` : '—', '#EF9F27', '#FAEEDA'],
                 [lang==='ar'?'الشهادات':'Certificats', certificats.length, ptsRecapGlob.ptsCertificats>0 ? `+${ptsRecapGlob.ptsCertificats} pts` : '—', '#D85A30', '#FAECE7'],
               ].map(([l,v,s,color,bg])=>(
@@ -2364,13 +2364,13 @@ ${(passages||[]).length > 0 ? `
                         {
                           lbl: lang==='ar' ? 'الأثمان المكتسبة' : 'Tomon',
                           count: etat.tomonAcquis,
-                          unitPts: baremeEleve?.tomon || 0,
+                          unitPts: baremeEleve?.unites?.tomon ?? baremeEleve?.tomon ?? 0, // FIX : bareme reel (avant 0)
                           color: '#1D9E75',
                         },
                         {
                           lbl: lang==='ar' ? 'الأحزاب المكتملة' : 'Hizb complets',
                           count: etat.hizbAcquisComplets,
-                          unitPts: baremeEleve?.hizb_complet || 0,
+                          unitPts: baremeEleve?.unites?.hizb_complet ?? baremeEleve?.hizb_complet ?? 0,
                           color: '#EF9F27',
                         },
                       ].map(k=>(
@@ -2541,24 +2541,26 @@ ${(passages||[]).length > 0 ? `
                 const totalProg = souratesOrd.length;
                 // Sourates completes : recitations type 'complete' uniques
                 const nbCompletes = new Set(
-                  recitationsSouratesEleve.filter(r => r.type_recitation === 'complete').map(r => r.sourate_id)
+                  recitationsSouratesEleve.filter(r => r.type_recitation === 'complete' && !r.is_muraja).map(r => r.sourate_id)
                 ).size;
-                const nbSequences = recitationsSouratesEleve.filter(r => r.type_recitation === 'sequence').length;
+                const nbSequences = recitationsSouratesEleve.filter(r => r.type_recitation === 'sequence' && !r.is_muraja).length;
                 const nbAcq = eleve.sourates_acquises || 0;
-                // Sourate courante = celle apres les acquises + les completes
-                const idxCourante = nbAcq + nbCompletes;
-                const sourateCour = souratesOrd[idxCourante] || null;
+                // FIX ACQUIS (oct 2026) : meme sourate actuelle que le reste de la fiche et la validation
+                // express (avant : position dans les 114 sourates, sans tenir compte du programme)
+                const sourateCour = currentSourateApercu || null;
                 return [
                   [lang==='ar'?'السورة الحالية':'Sourate actuelle', sourateCour ? `${sourateCour.nom_ar}` : '—'],
                   [lang==='ar'?'المقاطع المنجزة':'Séquences', nbSequences],
                   [lang==='ar'?'السور المكتملة':'Sourates ✓', `${nbAcq + nbCompletes}/${totalProg}`],
-                  ['Total', `${(totalPtsSourates || 0).toLocaleString()} ${lang==='ar'?'ن':'pts'}`],
+                  [lang==='ar'?'المجموع':'Total', `${(totalPtsSourates || 0).toLocaleString()} ${lang==='ar'?'ن':'pts'}`],
                 ];
               })() : [
-                ['Hizb',`Hizb ${etat?.hizbEnCours}`],
-                ['Tomon/Hizb',`${etat?.tomonDansHizbActuel}/8`],
-                [t(lang,'hizb_complets'),etat?.hizbsComplets?.size],
-                ['Total',etat?.tomonTotal||etat?.tomonCumul]
+                // FIX (oct 2026) : libelles traduits ; Hizb complets = acquis + recites (comme le total
+                // de Tomon a cote et la carte « الأحزاب » au-dessus ; avant : recites seulement)
+                [lang==='ar'?'الحزب':'Hizb',`${lang==='ar'?'الحزب':'Hizb'} ${etat?.hizbEnCours}`],
+                [lang==='ar'?'الثُّمن/الحزب':'Tomon/Hizb',`${etat?.tomonDansHizbActuel}/8`],
+                [t(lang,'hizb_complets'),(etat?.hizbAcquisComplets||0) + (etat?.hizbsComplets?.size||0)],
+                [lang==='ar'?'مجموع الأثمان':'Total Tomon',etat?.tomonTotal||etat?.tomonCumul]
               ]).map(([l,v])=>(
                 <div key={l}><div style={{fontSize:10,color:'#999',textTransform:'uppercase',letterSpacing:'0.8px',marginBottom:2}}>{l}</div><div style={{fontSize:14,fontWeight:500}}>{v}</div></div>
               ))}
