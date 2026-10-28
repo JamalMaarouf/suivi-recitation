@@ -50,3 +50,21 @@ describe('Tomon de depart (niveau a plusieurs blocs)', () => {
     expect(et.prochainTomon).toBe(7);
   });
 });
+
+describe('ordre du parcours dans le selecteur', () => {
+  const { ordreParcoursHizb, calculerHizbDepartDepuisBlocs } = require('../../components/AcquisSelector');
+  test('blocs dans l\'ordre, chacun dans son sens', () => {
+    const o = ordreParcoursHizb(multi, 'desc');
+    expect(o.slice(0, 3)).toEqual([60, 59, 58]);
+    expect(o[20]).toBe(1);
+    expect(o.length).toBe(30);
+  });
+  test('monobloc : sens du niveau', () => {
+    expect(ordreParcoursHizb(mono, 'desc').slice(0, 2)).toEqual([60, 59]);
+  });
+  test('un prefixe du parcours donne le depart attendu', () => {
+    const o = ordreParcoursHizb(multi, 'desc');
+    expect(calculerHizbDepartDepuisBlocs(multi, o.slice(0, 4), 'desc')).toBe(56);
+    expect(calculerHizbDepartDepuisBlocs(multi, o.slice(0, 20), 'desc')).toBe(1);
+  });
+});
