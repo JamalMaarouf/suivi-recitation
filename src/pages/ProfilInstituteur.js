@@ -120,7 +120,7 @@ export default function ProfilInstituteur({ instituteur, user, navigate, goBack,
                 <Avatar prenom={meilleur.prenom} nom={meilleur.nom} size={44} bg="#FAC775" color="#412402"/>
                 <div style={{flex:1}}>
                   <div style={{fontSize:15,fontWeight:600,color:'#412402'}}>{meilleur.prenom} {meilleur.nom}</div>
-                  <div style={{fontSize:12,color:'#854F0B'}}>Hizb {meilleur.etat.hizbEnCours} · {meilleur.etat.tomonCumul||0} {t(lang,'tomon_abrev')} · {meilleur.etat.hizbsComplets.size} Hizb</div>
+                  <div style={{fontSize:12,color:'#854F0B'}}>{lang==='ar'?'الحزب':'Hizb'} {meilleur.etat.hizbEnCours} · {meilleur.etat.tomonCumul||0} {t(lang,'tomon_abrev')} · {meilleur.etat.hizbsComplets.size} {lang==='ar'?'حزب':'Hizb'}</div>
                 </div>
                 <div style={{fontSize:22,fontWeight:800,color:'#EF9F27'}}>{meilleur.etat.points.total.toLocaleString()} {t(lang,'pts_abrev')}</div>
               </div>
@@ -137,7 +137,7 @@ export default function ProfilInstituteur({ instituteur, user, navigate, goBack,
                   <Avatar prenom={e.prenom} nom={e.nom} size={34} bg={sl.bg} color={sl.color}/>
                   <div style={{flex:1}}>
                     <div style={{fontSize:13,fontWeight:500}}>{e.prenom} {e.nom}</div>
-                    <div style={{fontSize:11,color:'#888'}}>Hizb {e.etat.hizbEnCours} · {e.etat.tomonDansHizbActuel}/8 {t(lang,'tomon_abrev')}</div>
+                    <div style={{fontSize:11,color:'#888'}}>{lang==='ar'?'الحزب':'Hizb'} {e.etat.hizbEnCours} · {e.etat.tomonDansHizbActuel}/8 {t(lang,'tomon_abrev')}</div>
                   </div>
                   <div style={{display:'flex',gap:2,marginRight:8}}>{[1,2,3,4,5,6,7,8].map(n=><div key={n} style={{width:5,height:8,borderRadius:2,background:n<=e.etat.tomonDansHizbActuel?(e.etat.enAttenteHizbComplet?'#EF9F27':'#1D9E75'):'#e8e8e0'}}/>)}</div>
                   <div style={{textAlign:'right'}}>
@@ -165,7 +165,7 @@ export default function ProfilInstituteur({ instituteur, user, navigate, goBack,
                     <tr key={v.id} className={eleve?'clickable':''} onClick={()=>eleve&&navigate('fiche',eleve)}>
                       <td style={{fontSize:12,color:'#888'}}>{formatDateCourt(v.date_validation)}</td>
                       <td style={{fontSize:13}}>{eleve?`${eleve.prenom} ${eleve.nom}`:'—'}</td>
-                      <td>{v.type_validation==='hizb_complet'?<span className="badge badge-green">Hizb {v.hizb_valide}</span>:<span className="badge badge-blue">{v.nombre_tomon} {t(lang,'tomon_abrev')}{v.tomon_debut?` (T.${v.tomon_debut}→${v.tomon_debut+v.nombre_tomon-1})`:''}</span>}</td>
+                      <td>{v.type_validation==='hizb_complet'?<span className="badge badge-green">{lang==='ar'?'الحزب':'Hizb'} {v.hizb_valide}</span>:<span className="badge badge-blue">{v.nombre_tomon} {t(lang,'tomon_abrev')}{v.tomon_debut?(lang==='ar'?` (ث.${v.tomon_debut}←${v.tomon_debut+v.nombre_tomon-1})`:` (T.${v.tomon_debut}→${v.tomon_debut+v.nombre_tomon-1})`):''}</span>}</td>
                       <td><span style={{fontSize:12,fontWeight:600,color:'#1D9E75'}}>+{v.type_validation==='hizb_complet'?(bareme.hizb_complet || 0):v.nombre_tomon*(bareme.tomon || 0)} {t(lang,'pts_abrev')}</span></td>
                     </tr>
                   );

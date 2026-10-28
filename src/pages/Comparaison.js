@@ -189,7 +189,7 @@ export default function Comparaison({ navigate, goBack, lang='fr', isMobile, use
                     <tr key={e.id} className="clickable" onClick={()=>navigate('fiche',e)}>
                       <td><div style={{display:'flex',alignItems:'center',gap:8}}><div style={{width:10,height:10,borderRadius:'50%',background:PALETTE[idx],flexShrink:0}}/><span style={{fontSize:13}}>{e.prenom} {e.nom}</span></div></td>
                       <td><span style={{fontSize:14,fontWeight:700,color:PALETTE[idx]}}>{e.etat.points.total.toLocaleString()}</span></td>
-                      <td style={{fontSize:12}}>Hizb {e.etat.hizbEnCours}</td>
+                      <td style={{fontSize:12}}>{lang==='ar'?'الحزب':'Hizb'} {e.etat.hizbEnCours}</td>
                       <td><span className="badge badge-blue" style={{fontSize:10}}>{e.etat.tomonTotal||e.etat.tomonCumul}</span></td>
                       <td><span className="badge badge-green" style={{fontSize:10}}>{e.etat.hizbsComplets.size}</span></td>
                       <td><div style={{display:'flex',gap:2}}>{[1,2,3,4,5,6,7,8].map(n=><div key={n} style={{flex:1,height:8,borderRadius:2,background:n<=e.etat.tomonDansHizbActuel?PALETTE[idx]:'#e8e8e0'}}/>)}</div></td>

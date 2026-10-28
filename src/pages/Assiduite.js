@@ -1918,7 +1918,8 @@ function calcBornesPeriode(periode, customDebut, customFin, periodesBDD = [], an
 function formatDateFr(iso) {
   if (!iso) return '';
   const d = new Date(iso);
-  return d.toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' });
+  let ar = false; try { ar = document.documentElement.lang === 'ar'; } catch (e) { /* */ }
+  return d.toLocaleDateString(ar ? 'ar-MA' : 'fr-FR', { day: '2-digit', month: 'short', year: 'numeric' });
 }
 function formatDateAr(iso) {
   if (!iso) return '';

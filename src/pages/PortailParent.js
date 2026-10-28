@@ -652,7 +652,7 @@ export default function PortailParent({ parent, navigate, goBack, lang='fr', onL
                     <div>
                       <div style={{fontSize:14,fontWeight:600}}>{obj.titre||(lang==='ar'?'هدف':'Objectif')}</div>
                       <div style={{fontSize:11,color:'#888',marginTop:2}}>
-                        {new Date(obj.date_debut).toLocaleDateString('fr-FR',{day:'numeric',month:'short'})} → {new Date(obj.date_fin).toLocaleDateString('fr-FR',{day:'numeric',month:'short',year:'numeric'})}
+                        {new Date(obj.date_debut).toLocaleDateString(lang==='ar'?'ar-MA':'fr-FR',{day:'numeric',month:'short'})} → {new Date(obj.date_fin).toLocaleDateString(lang==='ar'?'ar-MA':'fr-FR',{day:'numeric',month:'short',year:'numeric'})}
                       </div>
                     </div>
                     <div style={{textAlign:'center'}}>

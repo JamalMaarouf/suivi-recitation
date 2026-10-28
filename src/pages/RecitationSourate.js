@@ -790,7 +790,7 @@ export default function RecitationSourate({ user, eleve, navigate, goBack, lang=
                             {r.type_recitation==='complete'
                               ?<span className="badge badge-green">{lang==='ar'?'سورة كاملة':lang==='en'?'Complete':'Complète'}</span>
                               :<span className="badge badge-blue">{lang==='ar'?'مقطع':lang==='en'?'Seq.':'Séq.'} {i+1} — V.{r.verset_debut}→V.{r.verset_fin} <span style={{opacity:0.6}}>({r.verset_fin-r.verset_debut+1} {lang==='ar'?'آية':lang==='en'?'v.':'v.'})</span></span>}
-                            <div style={{fontSize:11,color:'#bbb',marginTop:2}}>{new Date(r.date_validation).toLocaleDateString('fr-FR',{day:'2-digit',month:'short'})}{r.valideur?` · ${r.valideur.prenom} ${r.valideur.nom}`:''}</div>
+                            <div style={{fontSize:11,color:'#bbb',marginTop:2}}>{new Date(r.date_validation).toLocaleDateString(lang==='ar'?'ar-MA':'fr-FR',{day:'2-digit',month:'short'})}{r.valideur?` · ${r.valideur.prenom} ${r.valideur.nom}`:''}</div>
                           </div>
                           <span style={{fontSize:12,fontWeight:600,color:r.type_recitation==='complete'?'#EF9F27':'#1D9E75'}}>+{r.points} {t(lang,'pts_abrev')}</span>
                         </div>

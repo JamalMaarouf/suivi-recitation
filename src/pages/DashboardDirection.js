@@ -728,7 +728,7 @@ export default function DashboardDirection({ user, navigate, goBack, lang='fr', 
           <div style={{marginBottom:16}}>
             <KpiGrid cols={2}>
               <KpiTile icon={Users} tone="brand" value={kpis.elevesActifs} label={isAr?'طالب نشط':'Élèves actifs'}
-                hint={`/ ${kpis.totalEleves} total`} />
+                hint={isAr ? `/ ${kpis.totalEleves} المجموع` : `/ ${kpis.totalEleves} total`} />
               <KpiTile icon={Activity} value={`${kpis.tauxActivite}%`} label={isAr?'نسبة النشاط':'Taux activité'}
                 tone={kpis.tauxActivite>=70?'good':kpis.tauxActivite>=50?'warn':'crit'} />
               <KpiTile icon={BookOpen} tone="neutral" value={kpis.totalTomon} label={isAr?'ثُمن مُستظهَر':'Tomon validés'} />
@@ -755,14 +755,14 @@ export default function DashboardDirection({ user, navigate, goBack, lang='fr', 
               <div key={s.code} style={{marginBottom:12,paddingBottom:12,borderBottom:`1px solid ${C.line}`}}>
                 <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:6}}>
                   <LevelBadge code={s.code} color={s.color} />
-                  <span style={{fontSize:11,color:C.muted}}>{s.actifs}/{s.total} actifs</span>
+                  <span style={{fontSize:11,color:C.muted}}>{s.actifs}/{s.total} {isAr?'نشط':'actifs'}</span>
                 </div>
                 <div style={{background:C.bg,borderRadius:6,height:8,overflow:'hidden'}}>
                   <div style={{width:`${s.taux}%`,background:s.color,height:'100%',borderRadius:6}}/>
                 </div>
                 <div style={{display:'flex',gap:12,marginTop:6}}>
-                  <span style={{fontSize:11,color:C.muted}}>{s.tomon} tomon</span>
-                  <span style={{fontSize:11,color:C.muted}}>{s.hizb} hizb</span>
+                  <span style={{fontSize:11,color:C.muted}}>{s.tomon} {isAr?'ثُمن':'tomon'}</span>
+                  <span style={{fontSize:11,color:C.muted}}>{s.hizb} {isAr?'حزب':'hizb'}</span>
                   <span style={{fontSize:11,marginInlineStart:'auto',fontWeight:700,color:C.text}}>{s.taux}%</span>
                 </div>
               </div>
@@ -791,7 +791,7 @@ export default function DashboardDirection({ user, navigate, goBack, lang='fr', 
                     <div style={{fontSize:14,fontWeight:600,color:C.text}}>{e.prenom} {e.nom}</div>
                     <div style={{marginTop:2}}><LevelBadge code={e.code_niveau} color={nc} /></div>
                   </div>
-                  <div style={{fontSize:16,fontWeight:700,color:C.brand}}>{e.pts}<span style={{fontSize:10,color:C.muted}}> pts</span></div>
+                  <div style={{fontSize:16,fontWeight:700,color:C.brand}}>{e.pts}<span style={{fontSize:10,color:C.muted}}> {isAr?'ن':'pts'}</span></div>
                 </div>
               );
             })}
@@ -807,12 +807,12 @@ export default function DashboardDirection({ user, navigate, goBack, lang='fr', 
                 <div key={s.id} style={{marginBottom:10,paddingBottom:10,borderBottom:`1px solid ${C.line}`}}>
                   <div style={{display:'flex',justifyContent:'space-between',marginBottom:4}}>
                     <span style={{fontSize:13,fontWeight:600,color:C.text}}>{s.nom}</span>
-                    <span style={{fontSize:12,color:C.brand,fontWeight:700}}>{s.seances} séances</span>
+                    <span style={{fontSize:12,color:C.brand,fontWeight:700}}>{s.seances} {isAr?'حصة':'séances'}</span>
                   </div>
                   <div style={{display:'flex',gap:10,flexWrap:'wrap'}}>
-                    <span style={{fontSize:11,color:C.muted}}>{s.nbEleves} élèves</span>
-                    <span style={{fontSize:11,color:C.muted}}>{s.tomon} tomon</span>
-                    <span style={{fontSize:11,color:C.muted}}>moy {s.moy}/élève</span>
+                    <span style={{fontSize:11,color:C.muted}}>{s.nbEleves} {isAr?'طالب':'élèves'}</span>
+                    <span style={{fontSize:11,color:C.muted}}>{s.tomon} {isAr?'ثُمن':'tomon'}</span>
+                    <span style={{fontSize:11,color:C.muted}}>{isAr?`المعدل ${s.moy}/طالب`:`moy ${s.moy}/élève`}</span>
                   </div>
                 </div>
               ))}
@@ -990,7 +990,7 @@ export default function DashboardDirection({ user, navigate, goBack, lang='fr', 
                       <div style={{fontSize:11,color:'#888'}}>{e.code_niveau}</div>
                     </div>
                     <div style={{fontSize:18,fontWeight:800,color:'#1D9E75',flexShrink:0}}>
-                      {e.pts}<span style={{fontSize:11,color:'#888',fontWeight:400}}> pts</span>
+                      {e.pts}<span style={{fontSize:11,color:'#888',fontWeight:400}}> {isAr?'ن':'pts'}</span>
                     </div>
                   </div>
                 );

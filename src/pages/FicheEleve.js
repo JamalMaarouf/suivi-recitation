@@ -1340,7 +1340,7 @@ ${(passages||[]).length > 0 ? `
                   <td style={{fontSize:12,color:'#888'}}>{r.date_validation?new Date(r.date_validation).toLocaleDateString(lang==='ar'?'ar-MA':'fr-FR'):'—'}</td>
                   <td style={{fontWeight:600,direction:'rtl',fontFamily:"'Tajawal',Arial"}}>{r.sourate?.nom_ar||'—'}</td>
                   <td><span className={r.type_recitation==='complete'?'badge badge-green':'badge'}>{r.type_recitation==='complete'?(lang==='ar'?'كاملة':'Complète'):(lang==='ar'?'مقطع':'Séquence')}</span></td>
-                  <td style={{fontSize:12,color:'#888'}}>{r.type_recitation==='sequence'&&r.verset_debut?`V.${r.verset_debut}→${r.verset_fin}`:'—'}</td>
+                  <td style={{fontSize:12,color:'#888'}}>{r.type_recitation==='sequence'&&r.verset_debut?(lang==='ar'?`الآيات ${r.verset_debut}-${r.verset_fin}`:`V.${r.verset_debut}→${r.verset_fin}`):'—'}</td>
                   <td style={{fontSize:12,fontWeight:600,color:'#1D9E75'}}>{r.points>0?`+${r.points}`:'—'}</td>
                   <td style={{fontSize:11,color:'#888'}}>{r.valideur?`${r.valideur.prenom} ${r.valideur.nom}`:(r.valide_par?'✓':'—')}</td>
                 </tr>
@@ -1411,7 +1411,7 @@ ${(passages||[]).length > 0 ? `
     <div style={{marginBottom:8}}>
       <button onClick={()=>setShowExceptionModal(true)}
         style={{padding:'6px 12px',border:'1px solid #E24B4A',borderRadius:8,background:'#fff',color:'#E24B4A',fontSize:11,cursor:'pointer',fontWeight:500}}>
-        🔓 {lang==='ar'?'فتح استثنائي (Hizb/Tomon)':lang==='en'?'Unlock Hizb/Tomon (exception)':'Exception Hizb/Tomon'}
+        🔓 {lang==='ar'?'فتح استثنائي (حزب/ثُمن)':lang==='en'?'Unlock Hizb/Tomon (exception)':'Exception Hizb/Tomon'}
       </button>
       {exceptionsHizb.length>0&&(
         <div style={{marginTop:6,padding:'8px 12px',background:'#FCEBEB',border:'1px solid #E24B4A',borderRadius:8}}>
@@ -1499,7 +1499,7 @@ ${(passages||[]).length > 0 ? `
               if (estSourateEleve) {
                 return (
                   <div style={{fontSize:26, fontWeight:800, color:'#085041'}}>
-                    {(totalPtsSourates||0).toLocaleString()} pts
+                    {(totalPtsSourates||0).toLocaleString()} {lang==='ar'?'ن':'pts'}
                   </div>
                 );
               }
@@ -1514,7 +1514,7 @@ ${(passages||[]).length > 0 ? `
               }
               return (
                 <div style={{fontSize:26, fontWeight:800, color:'#085041'}}>{/* charte lot 1 : points lisibles */}
-                  {points.toLocaleString()} pts
+                  {points.toLocaleString()} {lang==='ar'?'ن':'pts'}
                 </div>
               );
             })()}
@@ -1845,7 +1845,7 @@ ${(passages||[]).length > 0 ? `
                           <div style={{fontWeight:600,color:'#534AB7',fontSize:13}}>{p.niveau_from} → {p.niveau_to}</div>
                           <div style={{fontSize:11,color:'#888'}}>{new Date(p.date_passage).toLocaleDateString(lang==='ar'?'ar-MA':'fr-FR')}</div>
                         </div>
-                        <div style={{fontSize:12,color:'#888'}}>+{p.acquis_points} pts</div>
+                        <div style={{fontSize:12,color:'#888'}}>+{p.acquis_points} {lang==='ar'?'ن':'pts'}</div>
                       </div>
                     ))}
                   </div>
@@ -1862,7 +1862,7 @@ ${(passages||[]).length > 0 ? `
                           <div style={{fontWeight:600,fontSize:13,direction:'rtl'}}>
                             {r.sourate?.nom_ar || '—'}
                             {r.type_recitation==='sequence'&&r.verset_debut&&
-                              <span style={{fontSize:11,color:'#888',marginRight:6}}> (V.{r.verset_debut}→{r.verset_fin})</span>}
+                              <span style={{fontSize:11,color:'#888',marginRight:6}}> ({lang==='ar'?`الآيات ${r.verset_debut}-${r.verset_fin}`:`V.${r.verset_debut}→${r.verset_fin}`})</span>}
                           </div>
                           <div style={{fontSize:11,color:'#888'}}>{new Date(r.date_validation||r.created_at).toLocaleDateString(lang==='ar'?'ar-MA':'fr-FR')}</div>
                         </div>
@@ -1886,12 +1886,12 @@ ${(passages||[]).length > 0 ? `
                           <div style={{fontWeight:600,fontSize:13}}>
                             {v.type_validation==='hizb_complet'
                               ? (lang==='ar'?'حزب كامل':'Hizb complet')
-                              : `${lang==='ar'?'ث':'T'}.${v.tomon_debut} ×${v.nombre_tomon}`}
+                              : (v.tomon_debut ? `${lang==='ar'?'ث':'T'}.${v.tomon_debut} ×${v.nombre_tomon}` : `${v.nombre_tomon||0} ${lang==='ar'?'ثُمن':'tomon'}`)}
                           </div>
                           <div style={{fontSize:11,color:'#888'}}>{new Date(v.date_validation).toLocaleDateString(lang==='ar'?'ar-MA':'fr-FR')}</div>
                         </div>
                         <span style={{fontSize:13,fontWeight:700,color:'#1D9E75'}}>
-                          +{ptsValidation(v, baremeEleve)} pts
+                          +{ptsValidation(v, baremeEleve)} {lang==='ar'?'ن':'pts'}
                         </span>
                       </div>
                     ))}
@@ -2139,13 +2139,13 @@ ${(passages||[]).length > 0 ? `
                     <div style={{flex:1}}>
                       <div style={{fontWeight:600,fontSize:13}}>
                         {v.type_validation==='hizb_muraja'
-                          ? `Hizb ${v.hizb_validation}`
+                          ? `${lang==='ar'?'الحزب':'Hizb'} ${v.hizb_validation}`
                           : (v.sourate?.[lang==='ar'?'nom_ar':'nom_fr'] || v.sourate?.nom_ar || "Murajaʼa")}
                       </div>
                       <div style={{fontSize:11,color:'#888'}}>{new Date(v.date_validation).toLocaleDateString(lang==='ar'?'ar-MA':'fr-FR')}</div>
                     </div>
                     <span style={{fontSize:13,fontWeight:700,color:'#EF9F27'}}>
-                      +{ptsValidation(v, baremeEleve)} pts
+                      +{ptsValidation(v, baremeEleve)} {lang==='ar'?'ن':'pts'}
                     </span>
                   </div>
                 ))}
@@ -2820,7 +2820,7 @@ ${(passages||[]).length > 0 ? `
                       <tr key={'v'+v.id}>
                         <td style={{fontSize:12,color:'#888'}}>{new Date(v.date_validation).toLocaleDateString(lang==='ar'?'ar-MA':'fr-FR')}</td>
                         <td><span className="badge" style={{background:'#FFF3CD',color:'#856404',fontSize:10}}>{v.type_validation==='hizb_muraja'?(lang==='ar'?'حزب كامل':(lang==='ar'?'حزب كامل':'Hizb complet')):(lang==='ar'?'ثُمن':'Tomon')}</span></td>
-                        <td style={{fontSize:12}}>{v.type_validation==='hizb_muraja'?`Hizb ${v.hizb_validation}`:`Hizb ${v.hizb_validation} — T${v.tomon_debut} ×${v.nombre_tomon}`}</td>
+                        <td style={{fontSize:12}}>{v.type_validation==='hizb_muraja'?(lang==='ar'?`الحزب ${v.hizb_validation}`:`Hizb ${v.hizb_validation}`):(lang==='ar' ? `الحزب ${v.hizb_validation} — ${v.tomon_debut ? `ث.${v.tomon_debut} ×${v.nombre_tomon}` : `${v.nombre_tomon||0} ثُمن`}` : `Hizb ${v.hizb_validation} — ${v.tomon_debut ? `T${v.tomon_debut} ×${v.nombre_tomon}` : `${v.nombre_tomon||0} tomon`}`)}</td>
                         <td><span style={{fontSize:12,fontWeight:600,color:'#EF9F27'}}>+{ptsValidation(v, baremeEleve)}</span></td>
                         <td style={{fontSize:11,color:'#888'}}>{v.valideur?`${v.valideur.prenom} ${v.valideur.nom}`:'—'}</td>
                       </tr>
@@ -2987,7 +2987,7 @@ ${(passages||[]).length > 0 ? `
                             <td style={{fontSize:12,color:'#888'}}>{formatDate(r.date_validation||r.created_at)}</td>
                             <td style={{fontWeight:600,direction:'rtl'}}>{r.sourate?.nom_ar||'—'}</td>
                             <td><span className={r.type_recitation==='complete'?'badge badge-green':'badge'}>{r.type_recitation==='complete'?(lang==='ar'?'كاملة':'Complète'):(lang==='ar'?'مقطع':'Séquence')}</span></td>
-                            <td style={{fontSize:12,color:'#888'}}>{r.type_recitation==='sequence'&&r.verset_debut?`V.${r.verset_debut}→${r.verset_fin}`:'—'}</td>
+                            <td style={{fontSize:12,color:'#888'}}>{r.type_recitation==='sequence'&&r.verset_debut?(lang==='ar'?`الآيات ${r.verset_debut}-${r.verset_fin}`:`V.${r.verset_debut}→${r.verset_fin}`):'—'}</td>
                             <td style={{fontSize:12,color:'#888'}}>{r.valideur?(r.valideur.prenom+' '+r.valideur.nom):(r.valide_par?'✓':'—')}</td>
                           </tr>
                         ))}

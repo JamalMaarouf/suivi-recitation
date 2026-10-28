@@ -293,14 +293,21 @@ export function calcUnite(tomon) {
   return '';
 }
 
+// oct 2026 : dates dans la langue de l'application (avant : toujours en francais, « 26 oct. »
+// dans l'interface arabe). La langue est lue sur <html lang> que l'application tient a jour.
+function langueInterface() {
+  try { return (typeof document !== 'undefined' && document.documentElement.lang) || 'fr'; } catch (e) { return 'fr'; }
+}
 export function formatDate(dateStr) {
-  if (!dateStr) return 'Jamais';
-  return new Date(dateStr).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' });
+  const ar = langueInterface() === 'ar';
+  if (!dateStr) return ar ? 'أبداً' : 'Jamais';
+  return new Date(dateStr).toLocaleDateString(ar ? 'ar-MA' : 'fr-FR', { day: '2-digit', month: 'short', year: 'numeric' });
 }
 
 export function formatDateCourt(dateStr) {
-  if (!dateStr) return 'Jamais';
-  return new Date(dateStr).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' });
+  const ar = langueInterface() === 'ar';
+  if (!dateStr) return ar ? 'أبداً' : 'Jamais';
+  return new Date(dateStr).toLocaleDateString(ar ? 'ar-MA' : 'fr-FR', { day: '2-digit', month: 'short' });
 }
 
 export function isInactif(dateStr, jours = 14) {
