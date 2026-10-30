@@ -41,6 +41,12 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
   const selectIdRef = useRef(null);
   const [selectionPrete, setSelectionPrete] = useState(false);
   const tomonVerrouRef = useRef(false);
+  // FIX (oct 2026) : appuis rapides. Le rafraichissement BDD lance apres un enregistrement pouvait
+  // revenir APRES l'appui suivant et ecraser sa ligne optimiste -> position en retard d'un Tomon,
+  // Tomon de debut repete (T6, T6, T6) et parfois un 9e Tomon sur le meme Hizb.
+  // On n'applique un rafraichissement que s'il est le plus recent ET qu'aucun envoi n'est en cours.
+  const insertsEnCoursRef = useRef(0);
+  const seqRafraichRef = useRef(0);
   // FIX (oct 2026, retour test Hizb 36-40) : derniere verification de blocage examen lancee.
   // Apres un Hizb/tomon valide, la verification tourne en arriere-plan (plusieurs allers-retours) ;
   // pendant ce temps on pouvait valider des tomons du Hizb suivant. Toute nouvelle validation
@@ -484,7 +490,10 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
     checkBlocageExamenEleve(selectedEleve, valsEleveOpt, recitationsSourates).catch(() => {});
 
     // === INSERT BDD + ROLLBACK SI ERREUR (background) ===
-    const res = await enqueueOrRun(supabase, 'validations', 'insert', payload, user.ecole_id);
+    insertsEnCoursRef.current += 1;
+    let res;
+    try { res = await enqueueOrRun(supabase, 'validations', 'insert', payload, user.ecole_id); }
+    finally { insertsEnCoursRef.current = Math.max(0, insertsEnCoursRef.current - 1); }
     const error = res.error;
     const wasQueued = res.status === 'queued';
 
@@ -518,14 +527,17 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
     if (!wasQueued) {
       (async () => {
         try {
+          const seq = ++seqRafraichRef.current;
           const { data: newVals } = await supabase.from('validations').select('*')
             .eq('ecole_id', user.ecole_id).eq('eleve_id', selectedEleve.id);
           const valsData = newVals || [];
-          // Mise a jour allValidations avec les VRAIES donnees BDD
-          setAllValidations(prev => [
-            ...prev.filter(v => v.eleve_id !== selectedEleve.id),
-            ...valsData,
-          ]);
+          // Mise a jour allValidations avec les VRAIES donnees BDD (seulement si rien de plus recent)
+          if (seq === seqRafraichRef.current && insertsEnCoursRef.current === 0) {
+            setAllValidations(prev => [
+              ...prev.filter(v => v.eleve_id !== selectedEleve.id),
+              ...valsData,
+            ]);
+          }
           // Verif blocage en background (non suivie : la verif optimiste fait deja foi)
           await checkBlocageExamenEleveInterne(selectedEleve, valsData, recitationsSourates);
         } catch (e) {
@@ -603,7 +615,10 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
     checkBlocageExamenEleve(selectedEleve, valsEleveOpt, recitationsSourates).catch(() => {});
 
     // === INSERT BDD + ROLLBACK SI ERREUR (background) ===
-    const res = await enqueueOrRun(supabase, 'validations', 'insert', payload, user.ecole_id);
+    insertsEnCoursRef.current += 1;
+    let res;
+    try { res = await enqueueOrRun(supabase, 'validations', 'insert', payload, user.ecole_id); }
+    finally { insertsEnCoursRef.current = Math.max(0, insertsEnCoursRef.current - 1); }
     const error = res.error;
     const wasQueued = res.status === 'queued';
 
@@ -634,14 +649,17 @@ export default function ValidationRapide({ user, navigate, goBack, lang='fr', is
     if (!wasQueued) {
       (async () => {
         try {
+          const seq = ++seqRafraichRef.current;
           const { data: newVals } = await supabase.from('validations').select('*')
             .eq('ecole_id', user.ecole_id).eq('eleve_id', selectedEleve.id);
           const valsData = newVals || [];
-          // Mise a jour avec VRAIES donnees BDD
-          setAllValidations(prev => [
-            ...prev.filter(v => v.eleve_id !== selectedEleve.id),
-            ...valsData,
-          ]);
+          // Mise a jour avec VRAIES donnees BDD (seulement si rien de plus recent)
+          if (seq === seqRafraichRef.current && insertsEnCoursRef.current === 0) {
+            setAllValidations(prev => [
+              ...prev.filter(v => v.eleve_id !== selectedEleve.id),
+              ...valsData,
+            ]);
+          }
           await checkBlocageExamenEleveInterne(selectedEleve, valsData, recitationsSourates);
           const nouveauxCerts = await verifierEtCreerCertificats(supabase, {
             eleve: selectedEleve, ecole_id: user.ecole_id, valide_par: user.id,
